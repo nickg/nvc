@@ -55,6 +55,7 @@ typedef struct {
    irgen_label_t **blocks;
    size_t          cpoolptr;
    jit_value_t     statereg;
+   vcode_reg_t     flags;
 } jit_irgen_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,6 +287,7 @@ static void j_send(jit_irgen_t *g, int pos, jit_value_t value)
 static void j_ret(jit_irgen_t *g)
 {
    irgen_emit_nullary(g, J_RET, JIT_CC_NONE, JIT_REG_INVALID);
+   g->flags = VCODE_INVALID_REG;
 }
 
 __attribute__((unused))
@@ -313,6 +315,7 @@ static void j_call(jit_irgen_t *g, jit_handle_t handle)
 {
    irgen_emit_unary(g, J_CALL, JIT_SZ_UNSPEC, JIT_CC_NONE,
                     JIT_REG_INVALID, jit_value_from_handle(handle));
+   g->flags = VCODE_INVALID_REG;
 }
 
 static jit_value_t j_neg(jit_irgen_t *g, jit_value_t arg)
@@ -376,6 +379,7 @@ static jit_value_t j_adds(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_binary(g, J_ADD, sz, cc, r, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
    return jit_value_from_reg(r);
 }
 
@@ -398,6 +402,7 @@ static jit_value_t j_muls(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_binary(g, J_MUL, sz, cc, r, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
    return jit_value_from_reg(r);
 }
 
@@ -434,6 +439,7 @@ static jit_value_t j_subs(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_binary(g, J_SUB, sz, cc, r, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
    return jit_value_from_reg(r);
 }
 
@@ -447,12 +453,14 @@ static jit_value_t j_fsub(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
 static void j_cmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs, jit_value_t rhs)
 {
    irgen_emit_binary(g, J_CMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
 }
 
 static void j_fcmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs,
                    jit_value_t rhs)
 {
    irgen_emit_binary(g, J_FCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
 }
 
 static jit_value_t j_cset(jit_irgen_t *g)
@@ -547,6 +555,7 @@ static void macro_exit(jit_irgen_t *g, jit_exit_t exit)
 {
    irgen_emit_unary(g, MACRO_EXIT, JIT_SZ_UNSPEC, JIT_CC_NONE, JIT_REG_INVALID,
                     jit_value_from_exit(exit));
+   g->flags = VCODE_INVALID_REG;
 }
 
 static jit_value_t macro_fexp(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
@@ -1303,7 +1312,9 @@ static void irgen_op_cmp(jit_irgen_t *g, int op)
    else
       j_cmp(g, cc, arg0, arg1);
 
-   g->map[vcode_get_result(op)] = j_cset(g);
+   vcode_reg_t result = vcode_get_result(op);
+   g->map[result] = j_cset(g);
+   g->flags = result;
 }
 
 static void irgen_op_index(jit_irgen_t *g, int op)
@@ -1521,7 +1532,10 @@ static void irgen_op_uarray_dir(jit_irgen_t *g, int op)
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
 
    STATIC_ASSERT(RANGE_DOWNTO == 1);
-   g->map[vcode_get_result(op)] = j_cset(g);
+
+   vcode_reg_t result = vcode_get_result(op);
+   g->map[result] = j_cset(g);
+   g->flags = result;
 }
 
 static void irgen_op_uarray_len(jit_irgen_t *g, int op)
@@ -1718,7 +1732,9 @@ static void irgen_op_range_null(jit_irgen_t *g, int op)
 
    irgen_bind_label(g, l_after);
 
-   g->map[vcode_get_result(op)] = j_cset(g);
+   vcode_reg_t result = vcode_get_result(op);
+   g->map[result] = j_cset(g);
+   g->flags = result;
 }
 
 static void irgen_op_range_length(jit_irgen_t *g, int op)
@@ -1753,11 +1769,14 @@ static void irgen_op_range_length(jit_irgen_t *g, int op)
 
 static void irgen_op_cond(jit_irgen_t *g, int op)
 {
-   jit_value_t test = irgen_get_arg(g, op, 0);
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   if (arg0 != g->flags) {
+      jit_value_t test = irgen_get_arg(g, op, 0);
+      j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
+   }
 
-   j_cmp(g, JIT_CC_EQ, test, jit_value_from_int64(0));
-   j_jump(g, JIT_CC_T, g->blocks[vcode_get_target(op, 1)]);
-   j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 0)]);
+   j_jump(g, JIT_CC_T, g->blocks[vcode_get_target(op, 0)]);
+   j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 1)]);
 }
 
 static void irgen_op_case(jit_irgen_t *g, int op)
@@ -1775,11 +1794,14 @@ static void irgen_op_case(jit_irgen_t *g, int op)
 
 static void irgen_op_select(jit_irgen_t *g, int op)
 {
-   jit_value_t test    = irgen_get_arg(g, op, 0);
    jit_value_t iftrue  = irgen_get_arg(g, op, 1);
    jit_value_t iffalse = irgen_get_arg(g, op, 2);
 
-   j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   if (arg0 != g->flags) {
+      jit_value_t test = irgen_get_arg(g, op, 0);
+      j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
+   }
 
    g->map[vcode_get_result(op)] = j_csel(g, iftrue, iffalse);
 }
@@ -2599,6 +2621,8 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
    vcode_select_block(block);
 
    irgen_bind_label(g, g->blocks[block]);
+
+   g->flags = VCODE_INVALID_REG;
 
    const int nops = vcode_count_ops();
    for (int i = 0; i < nops; i++) {
