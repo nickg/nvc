@@ -172,15 +172,13 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
          if (bb->in.count > 0) {
             printf(" in:");
             for (int i = 0; i < bb->in.count; i++)
-               printf("%s%"PRIiPTR, i > 0 ? "," : "",
-                      bb->in.edges[i] - cfg->blocks);
+               printf("%s%d", i > 0 ? "," : "", bb->in.edges[i]);
          }
 
          if (bb->out.count > 0) {
             printf(" out:");
             for (int i = 0; i < bb->out.count; i++)
-               printf("%s%"PRIiPTR, i > 0 ? "," : "",
-                      bb->out.edges[i] - cfg->blocks);
+               printf("%s%d", i > 0 ? "," : "", bb->out.edges[i]);
          }
 
          if (bb->aborts)

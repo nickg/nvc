@@ -43,8 +43,34 @@ typedef enum {
    LLVM_INT32,
    LLVM_INT64,
 
+   LLVM_PAIR_I8_I1,
+   LLVM_PAIR_I16_I1,
+   LLVM_PAIR_I32_I1,
+   LLVM_PAIR_I64_I1,
+
    LLVM_LAST_TYPE
 } llvm_type_t;
+
+typedef enum {
+   LLVM_ADD_OVERFLOW_S8,
+   LLVM_ADD_OVERFLOW_S16,
+   LLVM_ADD_OVERFLOW_S32,
+   LLVM_ADD_OVERFLOW_S64,
+
+   LLVM_ADD_OVERFLOW_U8,
+   LLVM_ADD_OVERFLOW_U16,
+   LLVM_ADD_OVERFLOW_U32,
+   LLVM_ADD_OVERFLOW_U64,
+
+   LLVM_LAST_FN,
+} llvm_fn_t;
+
+typedef struct {
+   LLVMBasicBlockRef  bbref;
+   LLVMValueRef       inflags;
+   LLVMValueRef       outflags;
+   jit_block_t       *source;
+} cgen_block_t;
 
 typedef struct {
    LLVMModuleRef        module;
@@ -56,7 +82,11 @@ typedef struct {
    LLVMValueRef         args;
    LLVMValueRef         frame;
    LLVMTypeRef          types[LLVM_LAST_TYPE];
+   LLVMValueRef         fns[LLVM_LAST_FN];
+   LLVMTypeRef          fntypes[LLVM_LAST_FN];
+   cgen_block_t        *blocks;
    jit_func_t          *func;
+   jit_cfg_t           *cfg;
    char                *name;
 } cgen_req_t;
 
@@ -85,6 +115,96 @@ static LLVMValueRef llvm_int64(cgen_req_t *req, int64_t i)
 static LLVMBasicBlockRef cgen_append_block(cgen_req_t *req, const char *name)
 {
    return LLVMAppendBasicBlockInContext(req->context, req->llvmfn, name);
+}
+
+static LLVMTypeRef cgen_get_type(cgen_req_t *req, llvm_type_t which)
+{
+   if (req->types[which] != NULL)
+      return req->types[which];
+
+   LLVMTypeRef type = NULL;
+   switch (which) {
+   case LLVM_PAIR_I32_I1:
+      {
+         LLVMTypeRef fields[] = {
+            req->types[LLVM_INT32],
+            req->types[LLVM_INT1]
+         };
+         type = LLVMStructTypeInContext(req->context, fields, 2, false);
+      }
+      break;
+
+   default:
+      fatal_trace("cannot generate type %d", which);
+   }
+
+   return (req->types[which] = type);
+}
+
+static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
+{
+   if (req->fns[which] != NULL)
+      return req->fns[which];
+
+   LLVMValueRef fn = NULL;
+   switch (which) {
+   case LLVM_ADD_OVERFLOW_S8:
+   case LLVM_ADD_OVERFLOW_S16:
+   case LLVM_ADD_OVERFLOW_S32:
+   case LLVM_ADD_OVERFLOW_S64:
+      {
+         jit_size_t sz = which - LLVM_ADD_OVERFLOW_S8;
+         LLVMTypeRef int_type = req->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = cgen_get_type(req, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef args[] = { int_type, int_type };
+         req->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "llvm.sadd.with.overflow.i8",
+            "llvm.sadd.with.overflow.i16",
+            "llvm.sadd.with.overflow.i32",
+            "llvm.sadd.with.overflow.i64"
+         };
+         fn = LLVMAddFunction(req->module, names[sz], req->fntypes[which]);
+      }
+      break;
+
+   case LLVM_ADD_OVERFLOW_U8:
+   case LLVM_ADD_OVERFLOW_U16:
+   case LLVM_ADD_OVERFLOW_U32:
+   case LLVM_ADD_OVERFLOW_U64:
+      {
+         jit_size_t sz = which - LLVM_ADD_OVERFLOW_U8;
+         LLVMTypeRef int_type = req->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = cgen_get_type(req, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef args[] = { int_type, int_type };
+         req->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "llvm.uadd.with.overflow.i8",
+            "llvm.uadd.with.overflow.i16",
+            "llvm.uadd.with.overflow.i32",
+            "llvm.uadd.with.overflow.i64"
+         };
+         fn = LLVMAddFunction(req->module, names[sz], req->fntypes[which]);
+      }
+      break;
+
+   default:
+      fatal_trace("cannot generate prototype for function %d", which);
+   }
+
+   return (req->fns[which] = fn);
+}
+
+static LLVMValueRef cgen_call_fn(cgen_req_t *req, llvm_fn_t which,
+                                 LLVMValueRef *args, unsigned count)
+{
+   LLVMValueRef fn = cgen_get_fn(req, which);
+   return LLVMBuildCall2(req->builder, req->fntypes[which], fn,
+                         args, count, "");
 }
 
 static const char *cgen_reg_name(jit_reg_t reg)
@@ -211,15 +331,30 @@ static void cgen_op_store(cgen_req_t *req, jit_ir_t *ir)
    LLVMBuildStore(req->builder, trunc, ptr);
 }
 
-static void cgen_op_add(cgen_req_t *req, jit_ir_t *ir)
+static void cgen_op_add(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(req, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(req, ir->arg2);
 
+   if (ir->size != JIT_SZ_UNSPEC) {
+      LLVMTypeRef int_type = req->types[LLVM_INT8 + ir->size];
+      arg1 = LLVMBuildTrunc(req->builder, arg1, int_type, "");
+      arg2 = LLVMBuildTrunc(req->builder, arg2, int_type, "");
+   }
+
+   llvm_fn_t fn = LLVM_LAST_FN;
+   if (ir->cc == JIT_CC_O)
+      fn = LLVM_ADD_OVERFLOW_S8 + ir->size;
+   else if (ir->cc == JIT_CC_C)
+      fn = LLVM_ADD_OVERFLOW_U8 + ir->size;
+
    LLVMValueRef result;
-   if (ir->cc == JIT_CC_O) {
-      // TODO
-      result = LLVMBuildAdd(req->builder, arg1, arg2, "");
+   if (fn != LLVM_LAST_FN) {
+      LLVMValueRef args[] = { arg1, arg2 };
+      LLVMValueRef pair = cgen_call_fn(req, fn, args, 2);
+
+      result = LLVMBuildExtractValue(req->builder, pair, 0, "");
+      cgb->outflags = LLVMBuildExtractValue(req->builder, pair, 1, "");
    }
    else
       result = LLVMBuildAdd(req->builder, arg1, arg2, "");
@@ -227,7 +362,37 @@ static void cgen_op_add(cgen_req_t *req, jit_ir_t *ir)
    cgen_store_reg(req, ir->result, result);
 }
 
-static void cgen_ir(cgen_req_t *req, jit_ir_t *ir)
+static void cgen_op_ret(cgen_req_t *req, jit_ir_t *ir)
+{
+   LLVMBuildRet(req->builder, llvm_int1(req, true));
+}
+
+static void cgen_op_jump(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   if (ir->cc == JIT_CC_NONE) {
+      assert(cgb->source->out.count == 1);
+      LLVMBasicBlockRef dest = req->blocks[cgb->source->out.edges[0]].bbref;
+      LLVMBuildBr(req->builder, dest);
+   }
+   else if (ir->cc == JIT_CC_T) {
+      assert(cgb->source->out.count == 2);
+      LLVMBasicBlockRef dest_t = req->blocks[cgb->source->out.edges[0]].bbref;
+      LLVMBasicBlockRef dest_f = req->blocks[cgb->source->out.edges[1]].bbref;
+      LLVMBuildCondBr(req->builder, cgb->outflags, dest_t, dest_f);
+   }
+   else if (ir->cc == JIT_CC_F) {
+      assert(cgb->source->out.count == 2);
+      LLVMBasicBlockRef dest_t = req->blocks[cgb->source->out.edges[0]].bbref;
+      LLVMBasicBlockRef dest_f = req->blocks[cgb->source->out.edges[1]].bbref;
+      LLVMBuildCondBr(req->builder, cgb->outflags, dest_f, dest_t);
+   }
+   else {
+      jit_dump(req->func);
+      fatal_trace("unhandled jump condition code");
+   }
+}
+
+static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
    case J_RECV:
@@ -240,10 +405,34 @@ static void cgen_ir(cgen_req_t *req, jit_ir_t *ir)
       cgen_op_store(req, ir);
       break;
    case J_ADD:
-      cgen_op_add(req, ir);
+      cgen_op_add(req, cgb, ir);
+      break;
+   case J_RET:
+      cgen_op_ret(req, ir);
+      break;
+   case J_JUMP:
+      cgen_op_jump(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
+   }
+}
+
+static void cgen_basic_blocks(cgen_req_t *req, jit_cfg_t *cfg)
+{
+   req->blocks = xcalloc_array(cfg->nblocks, sizeof(cgen_block_t));
+
+   for (int i = 0; i < cfg->nblocks; i++) {
+#ifdef DEBUG
+      char name[32];
+      checked_sprintf(name, sizeof(name), "BB%d", i);
+#else
+      const char *name = "";
+#endif
+
+      cgen_block_t *cgb = &(req->blocks[i]);
+      cgb->bbref  = cgen_append_block(req, name);
+      cgb->source = &(cfg->blocks[i]);
    }
 }
 
@@ -290,10 +479,71 @@ static void cgen_module(cgen_req_t *req)
       LLVMSetAlignment(req->frame, sizeof(double));
    }
 
-   for (int i = 0; i < req->func->nirs; i++)
-      cgen_ir(req, &(req->func->irbuf[i]));
+   jit_cfg_t *cfg = req->cfg = jit_get_cfg(req->func);
+   cgen_basic_blocks(req, cfg);
 
-   LLVMBuildRet(req->builder, llvm_int1(req, true));
+   jit_dump(req->func);
+
+   cgen_block_t *cgb = req->blocks;
+
+   for (int i = 0; i < req->func->nirs; i++) {
+      if (i == cgb->source->first) {
+         LLVMPositionBuilderAtEnd(req->builder, cgb->bbref);
+
+         LLVMTypeRef int1_type = req->types[LLVM_INT1];
+         cgb->inflags = LLVMBuildPhi(req->builder, int1_type, "flags");
+         cgb->outflags = cgb->inflags;
+      }
+
+      assert(i >= cgb->source->first && i <= cgb->source->last);
+
+      cgen_ir(req, cgb, &(req->func->irbuf[i]));
+
+      if (i == cgb->source->last) {
+         if (cgb->source->aborts)
+            LLVMBuildUnreachable(req->builder);
+
+         if (LLVMGetBasicBlockTerminator(cgb->bbref) == NULL) {
+            // Fall through to next block
+            assert(!cgb->source->returns);
+            assert(cgb + 1 < req->blocks + cfg->nblocks);
+            LLVMBuildBr(req->builder, (++cgb)->bbref);
+         }
+         else
+            ++cgb;
+      }
+   }
+
+   LLVMValueRef flags0_in[] = { llvm_int1(req, false) };
+   LLVMBasicBlockRef flags0_bb[] = { entry_bb };
+   LLVMAddIncoming(req->blocks[0].inflags, flags0_in, flags0_bb, 1);
+
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *bb = &(cfg->blocks[i]);
+      cgen_block_t *cgb = &(req->blocks[i]);
+
+      LLVMValueRef *phi_in LOCAL =
+         xmalloc_array(bb->in.count, sizeof(LLVMValueRef));
+      LLVMBasicBlockRef *phi_bb LOCAL =
+         xmalloc_array(bb->in.count, sizeof(LLVMBasicBlockRef));
+
+      for (int j = 0; j < bb->in.count; j++) {
+         const int edge = bb->in.edges[j];
+         phi_in[j] = req->blocks[edge].outflags;
+         phi_bb[j] = req->blocks[edge].bbref;
+      }
+
+      LLVMAddIncoming(cgb->inflags, phi_in, phi_bb, bb->in.count);
+   }
+
+   LLVMPositionBuilderAtEnd(req->builder, entry_bb);
+   LLVMBuildBr(req->builder, req->blocks[0].bbref);
+
+   jit_free_cfg(req->func);
+   req->cfg = cfg = NULL;
+
+   free(req->blocks);
+   req->blocks = NULL;
 
    LLVMDisposeBuilder(req->builder);
    req->builder = NULL;

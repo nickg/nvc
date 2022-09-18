@@ -69,12 +69,12 @@ typedef enum {
 } jit_op_t;
 
 typedef enum {
-   JIT_SZ_UNSPEC,
-   JIT_SZ_8,
-   JIT_SZ_16,
-   JIT_SZ_32,
-   JIT_SZ_64,
-   JIT_SZ_PTR = JIT_SZ_64
+   JIT_SZ_8 = 0,
+   JIT_SZ_16 = 1,
+   JIT_SZ_32 = 2,
+   JIT_SZ_64 = 3,
+   JIT_SZ_PTR = JIT_SZ_64,
+   JIT_SZ_UNSPEC = 7
 } jit_size_t;
 
 typedef enum {
@@ -185,8 +185,8 @@ typedef struct _jit_block jit_block_t;
 typedef bool (*jit_entry_fn_t)(jit_func_t *, jit_scalar_t *);
 
 typedef struct {
-   unsigned     count;
-   jit_block_t *edges[4];
+   unsigned count;
+   unsigned edges[4];
 } jit_edge_list_t;
 
 typedef struct _jit_block {

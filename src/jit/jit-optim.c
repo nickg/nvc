@@ -45,13 +45,13 @@ static bool cfg_will_abort(jit_ir_t *ir)
       return ir->op == J_TRAP;
 }
 
-static void cfg_add_edge(jit_block_t *from, jit_block_t *to)
+static void cfg_add_edge(jit_cfg_t *cfg, jit_block_t *from, jit_block_t *to)
 {
    assert(from->out.count < 4);
    assert(to->in.count < 4);
 
-   from->out.edges[from->out.count++] = to;
-   to->in.edges[to->in.count++] = from;
+   from->out.edges[from->out.count++] = to - cfg->blocks;
+   to->in.edges[to->in.count++] = from - cfg->blocks;
 }
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f)
@@ -76,7 +76,7 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
       jit_ir_t *ir = &(f->irbuf[i]);
       if (ir->target && i > 0 && bb->first != i) {
          if (!bb->returns && !bb->aborts)
-            cfg_add_edge(bb, bb + 1);
+            cfg_add_edge(cfg, bb, bb + 1);
          (++bb)->first = i;
       }
 
@@ -89,7 +89,7 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
 
       if (cfg_is_terminator(ir->op) && i + 1 < f->nirs) {
          if (ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
-            cfg_add_edge(bb, bb + 1);   // Fall-through case
+            cfg_add_edge(cfg, bb, bb + 1);   // Fall-through case
          (++bb)->first = i + 1;
       }
    }
@@ -101,7 +101,7 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
          assert(label < f->nirs);
          jit_block_t *from = jit_block_for(cfg, i);
          jit_block_t *to = jit_block_for(cfg, label);
-         cfg_add_edge(from, to);
+         cfg_add_edge(cfg, from, to);
       }
    }
 
@@ -110,8 +110,10 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
 
 void jit_free_cfg(jit_func_t *f)
 {
-   if (f->cfg != NULL)
+   if (f->cfg != NULL) {
       free(f->cfg);
+      f->cfg = NULL;
+   }
 }
 
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos)

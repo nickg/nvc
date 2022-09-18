@@ -50,8 +50,8 @@ static void run_benchmark(tree_t pack, tree_t proc)
    jit_t *j = jit_new();
 
 #ifdef LLVM_HAS_LLJIT
-   //extern const jit_plugin_t jit_llvm;
-   //jit_add_tier(j, 100, &jit_llvm);
+   extern const jit_plugin_t jit_llvm;
+   jit_add_tier(j, 100, &jit_llvm);
 #endif
 
    jit_handle_t hpack = jit_compile(j, tree_ident(pack));
