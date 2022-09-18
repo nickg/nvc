@@ -96,6 +96,9 @@ static void setup_per_test(void)
    lib_set_work(test_lib);
 
    opt_set_int(OPT_COVER, 0);
+   opt_set_int(OPT_COVER_BRANCH, 0);
+   opt_set_int(OPT_COVER_TOGGLE, 0);
+   opt_set_int(OPT_COVER_STMT, 0);
    opt_set_int(OPT_MISSING_BODY, 0);
 
    reset_error_count();

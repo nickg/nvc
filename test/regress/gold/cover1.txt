@@ -1,3 +1,0 @@
-  10/11 statements covered
-  2/3 branches covered
-  2/5 conditions covered
