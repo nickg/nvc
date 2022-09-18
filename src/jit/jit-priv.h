@@ -129,6 +129,7 @@ typedef enum {
    JIT_EXIT_DEBUG_OUT,
    JIT_EXIT_ALIAS_SIGNAL,
    JIT_EXIT_MAP_SIGNAL,
+   JIT_EXIT_MAP_CONST,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

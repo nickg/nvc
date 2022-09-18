@@ -1088,6 +1088,11 @@ static void interp_map_signal(jit_interp_t *state)
                 dst_count, closure);
 }
 
+static void interp_map_const(jit_interp_t *state)
+{
+   assert(false);
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1229,6 +1234,10 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_MAP_SIGNAL:
       interp_map_signal(state);
+      break;
+
+   case JIT_EXIT_MAP_CONST:
+      interp_map_const(state);
       break;
 
    default:

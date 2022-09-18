@@ -982,7 +982,9 @@ static void irgen_send_args(jit_irgen_t *g, int op, int first)
 
    for (int i = 0, pslot = first; i < nargs; i++) {
       vcode_reg_t vreg = vcode_get_arg(op, i);
-      const int slots = irgen_slots_for_type(vcode_reg_type(vreg));
+      int slots = irgen_slots_for_type(vcode_reg_type(vreg));
+      if (vcode_reg_kind(vreg) == VCODE_TYPE_SIGNAL)
+         slots++;
       if (slots > 1) {
          jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
          for (int j = 0; j < slots; j++)
@@ -2253,6 +2255,21 @@ static void irgen_op_map_signal(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_MAP_SIGNAL);
 }
 
+static void irgen_op_map_const(jit_irgen_t *g, int op)
+{
+   jit_value_t initval   = irgen_get_arg(g, op, 0);
+   jit_value_t dst_ss    = irgen_get_arg(g, op, 1);
+   jit_value_t dst_off   = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
+   jit_value_t dst_count = irgen_get_arg(g, op, 2);
+
+   j_send(g, 0, dst_ss);
+   j_send(g, 1, dst_off);
+   j_send(g, 2, initval);
+   j_send(g, 3, dst_count);
+
+   macro_exit(g, JIT_EXIT_MAP_CONST);
+}
+
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
 {
    // No-op
@@ -2461,6 +2478,21 @@ static void irgen_op_resolved(jit_irgen_t *g, int op)
    // XXX: scale by type size???
 
    g->map[vcode_get_result(op)] = j_add(g, data_ptr, offset);
+}
+
+static void irgen_op_last_value(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+   jit_value_t data_ptr = irgen_lea(g, jit_addr_from_value(shared, 8));
+   jit_value_t size = j_load(g, JIT_SZ_32, jit_addr_from_value(shared, 0));
+
+   jit_value_t last_value = j_add(g, data_ptr, size);
+
+   // XXX: scale by type size???
+
+   g->map[vcode_get_result(op)] = j_add(g, last_value, offset);
 }
 
 static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
@@ -2849,6 +2881,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_MAP_SIGNAL:
          irgen_op_map_signal(g, i);
          break;
+      case VCODE_OP_MAP_CONST:
+         irgen_op_map_const(g, i);
+         break;
       case VCODE_OP_RESOLVE_SIGNAL:
          irgen_op_resolve_signal(g, i);
          break;
@@ -2899,6 +2934,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_RESOLVED:
          irgen_op_resolved(g, i);
+         break;
+      case VCODE_OP_LAST_VALUE:
+         irgen_op_last_value(g, i);
          break;
       case VCODE_OP_SCHED_WAVEFORM:
          irgen_op_sched_waveform(g, i);
@@ -3002,8 +3040,11 @@ static void irgen_params(jit_irgen_t *g, int first)
 {
    const int nparams = vcode_count_params();
    for (int i = 0, pslot = first; i < nparams; i++) {
-      const int slots = irgen_slots_for_type(vcode_param_type(i));
-      g->map[vcode_param_reg(i)] = j_recv(g, pslot++);
+      vcode_reg_t preg = vcode_param_reg(i);
+      int slots = irgen_slots_for_type(vcode_param_type(i));
+      if (vcode_reg_kind(preg) == VCODE_TYPE_SIGNAL)
+         slots++;
+      g->map[preg] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers
    }
