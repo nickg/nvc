@@ -29,6 +29,7 @@
 
 #include <getopt.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ITERATIONS 5
 
@@ -91,7 +92,7 @@ static void run_benchmark(tree_t pack, tree_t proc)
    jit_free(j);
 }
 
-static void find_benchmarks(tree_t pack)
+static void find_benchmarks(tree_t pack, const char *filter)
 {
    ident_t test_i = ident_new("TEST_");
 
@@ -101,7 +102,9 @@ static void find_benchmarks(tree_t pack)
       if (tree_kind(d) != T_PROC_DECL)
          continue;
 
-      if (ident_starts_with(tree_ident(d), test_i))
+      ident_t id = tree_ident(d);
+      if (ident_starts_with(id, test_i)
+          && (filter == NULL || strcasestr(istr(id), filter) != NULL))
          run_benchmark(pack, d);
    }
 }
@@ -132,6 +135,21 @@ static void set_default_options(void)
    opt_set_int(OPT_RT_STATS, 0);
 }
 
+static void usage(void)
+{
+   printf("Usage: jitperf [OPTION]... [FILE]...\n"
+          "\n"
+          " -f PATTERN\t\t Only run tests matching PATTERN\n"
+          " -L PATH\t\tAdd PATH to library search paths\n"
+          "\n");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   lib_print_search_paths(tb);
+   printf("Library search paths:%s\n", tb_get(tb));
+
+   printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -145,8 +163,11 @@ int main(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
+   opterr = 0;
+
+   const char *filter = NULL;
    int c, index = 0;
-   const char *spec = "L:";
+   const char *spec = "L:hf:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -154,6 +175,12 @@ int main(int argc, char **argv)
          break;
       case 'L':
          lib_add_search_path(optarg);
+         break;
+      case 'h':
+         usage();
+         return 0;
+      case 'f':
+         filter = optarg;
          break;
       default:
          if (optopt == 0)
@@ -201,7 +228,7 @@ int main(int argc, char **argv)
       if (pack == NULL)
          fatal("no package found in %s", argv[i]);
 
-      find_benchmarks(pack);
+      find_benchmarks(pack, filter);
    }
 
    eval_free(eval);

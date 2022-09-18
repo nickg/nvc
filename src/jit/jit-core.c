@@ -117,6 +117,7 @@ jit_t *jit_new(void)
 
 static void jit_free_func(jit_func_t *f)
 {
+   jit_free_cfg(f);
    mptr_free(f->jit->mspace, &(f->privdata));
    free(f->irbuf);
    free(f->varoff);

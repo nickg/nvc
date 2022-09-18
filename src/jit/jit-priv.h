@@ -180,8 +180,28 @@ STATIC_ASSERT(sizeof(jit_ir_t) == 40);
 
 typedef struct _jit_tier jit_tier_t;
 typedef struct _jit_func jit_func_t;
+typedef struct _jit_block jit_block_t;
 
 typedef bool (*jit_entry_fn_t)(jit_func_t *, jit_scalar_t *);
+
+typedef struct {
+   unsigned     count;
+   jit_block_t *edges[4];
+} jit_edge_list_t;
+
+typedef struct _jit_block {
+   unsigned        first;
+   unsigned        last;
+   unsigned        aborts : 1;
+   unsigned        returns : 1;
+   jit_edge_list_t in;
+   jit_edge_list_t out;
+} jit_block_t;
+
+typedef struct {
+   unsigned    nblocks;
+   jit_block_t blocks[0];
+} jit_cfg_t;
 
 typedef struct _jit_func {
    jit_t          *jit;
@@ -202,6 +222,7 @@ typedef struct _jit_func {
    unsigned        hotness;
    jit_tier_t     *next_tier;
    jit_entry_fn_t  entry;
+   jit_cfg_t      *cfg;
 } jit_func_t;
 
 #define JIT_MAX_ARGS 64
@@ -226,5 +247,9 @@ void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
+
+jit_cfg_t *jit_get_cfg(jit_func_t *f);
+void jit_free_cfg(jit_func_t *f);
+jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 
 #endif  // _JIT_PRIV_H

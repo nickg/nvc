@@ -25,9 +25,10 @@
 #include <inttypes.h>
 
 typedef struct {
-   ihash_t *labels;
-   int      next_label;
-   jit_t   *jit;
+   ihash_t    *labels;
+   int         next_label;
+   jit_t      *jit;
+   jit_func_t *func;
 } jit_dump_t;
 
 const char *jit_op_name(jit_op_t op)
@@ -68,64 +69,58 @@ const char *jit_exit_name(jit_exit_t exit)
    return names[exit];
 }
 
-static void jit_dump_label(jit_dump_t *d, jit_label_t label)
+static int jit_dump_label(jit_dump_t *d, jit_label_t label)
 {
    void *map = ihash_get(d->labels, label);
    if (map == NULL)
       ihash_put(d->labels, label, (map = (void *)(uintptr_t)++(d->next_label)));
 
-   printf("L%d", (int)(uintptr_t)map);
+   return printf("L%d", (int)(uintptr_t)map);
 }
 
-static void jit_dump_value(jit_dump_t *d, jit_value_t value)
+static int jit_dump_value(jit_dump_t *d, jit_value_t value)
 {
    switch (value.kind) {
    case JIT_VALUE_REG:
-      printf("R%d", value.reg);
-      break;
+      return printf("R%d", value.reg);
    case JIT_VALUE_INT64:
       if (value.int64 < 4096)
-         printf("#%"PRIi64, value.int64);
+         return printf("#%"PRIi64, value.int64);
       else
-         printf("#0x%"PRIx64, value.int64);
-      break;
+         return printf("#0x%"PRIx64, value.int64);
    case JIT_VALUE_DOUBLE:
-      printf("%%%g", value.dval);
-      break;
+      return printf("%%%g", value.dval);
    case JIT_ADDR_FRAME:
-      printf("[FP+%"PRIi64"]", value.int64);
-      break;
+      return printf("[FP+%"PRIi64"]", value.int64);
    case JIT_ADDR_CPOOL:
-      printf("[CP+%"PRIi64"]", value.int64);
-      break;
+      return printf("[CP+%"PRIi64"]", value.int64);
    case JIT_ADDR_REG:
-      printf("[R%d", value.reg);
-      if (value.disp != 0)
-         printf("+%d", value.disp);
-      printf("]");
-      break;
+      {
+         int num = printf("[R%d", value.reg);
+         if (value.disp != 0)
+            num += printf("+%d", value.disp);
+         num += printf("]");
+         return num;
+      }
    case JIT_ADDR_ABS:
-      printf("[#%016"PRIx64"]", value.int64);
-      break;
+      return printf("[#%016"PRIx64"]", value.int64);
    case JIT_VALUE_LABEL:
       if (value.label == JIT_LABEL_INVALID)
-         printf("???");
+         return printf("???");
       else
-         jit_dump_label(d, value.label);
-      break;
+         return jit_dump_label(d, value.label);
    case JIT_VALUE_HANDLE:
       if (value.handle == JIT_HANDLE_INVALID)
-         printf("<\?\?\?>");
+         return printf("<\?\?\?>");
       else
-         printf("<%s>", istr(jit_get_func(d->jit, value.handle)->name));
-      break;
+         return printf("<%s>", istr(jit_get_func(d->jit, value.handle)->name));
    case JIT_VALUE_EXIT:
-      printf("%s", jit_exit_name(value.exit));
-      break;
+      return printf("%s", jit_exit_name(value.exit));
    case JIT_VALUE_INVALID:
-      printf("???");
-      break;
+      return printf("???");
    }
+
+   return 0;
 }
 
 static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
@@ -154,15 +149,44 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
       col += printf(" ");
 
    if (ir->result != JIT_REG_INVALID)
-      printf("R%d", ir->result);
+      col += printf("R%d", ir->result);
 
    if (ir->arg1.kind != JIT_VALUE_INVALID) {
-      if (ir->result != JIT_REG_INVALID) printf(", ");
-      jit_dump_value(d, ir->arg1);
+      if (ir->result != JIT_REG_INVALID) col += printf(", ");
+      col += jit_dump_value(d, ir->arg1);
 
       if (ir->arg2.kind != JIT_VALUE_INVALID) {
-         printf(", ");
-         jit_dump_value(d, ir->arg2);
+         col += printf(", ");
+         col += jit_dump_value(d, ir->arg2);
+      }
+   }
+
+   jit_cfg_t *cfg = d->func->cfg;
+   if (cfg != NULL) {
+      const int pos = ir - d->func->irbuf;
+      jit_block_t *bb = jit_block_for(cfg, pos);
+      if (pos == bb->first) {
+         printf(" %*c;; BB%"PRIiPTR, MAX(40 - col, 0), ' ',
+                bb - d->func->cfg->blocks);
+
+         if (bb->in.count > 0) {
+            printf(" in:");
+            for (int i = 0; i < bb->in.count; i++)
+               printf("%s%"PRIiPTR, i > 0 ? "," : "",
+                      bb->in.edges[i] - cfg->blocks);
+         }
+
+         if (bb->out.count > 0) {
+            printf(" out:");
+            for (int i = 0; i < bb->out.count; i++)
+               printf("%s%"PRIiPTR, i > 0 ? "," : "",
+                      bb->out.edges[i] - cfg->blocks);
+         }
+
+         if (bb->aborts)
+            printf(" aborts");
+         else if (bb->returns)
+            printf(" returns");
       }
    }
 
@@ -180,6 +204,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
    jit_dump_t d = {
       .labels = ihash_new(128),
       .jit    = f->jit,
+      .func   = f,
    };
 
    for (int i = 0; i < f->nirs; i++) {
