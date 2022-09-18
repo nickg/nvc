@@ -134,6 +134,8 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    col += printf("\t%s", jit_op_name(ir->op));
    switch (ir->cc) {
    case JIT_CC_NONE: break;
+   case JIT_CC_T:  col += printf(".T"); break;
+   case JIT_CC_F:  col += printf(".F"); break;
    case JIT_CC_EQ: col += printf(".EQ"); break;
    case JIT_CC_NE: col += printf(".NE"); break;
    case JIT_CC_LT: col += printf(".LT"); break;

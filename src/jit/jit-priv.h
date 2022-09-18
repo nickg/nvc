@@ -79,6 +79,8 @@ typedef enum {
 
 typedef enum {
    JIT_CC_NONE,
+   JIT_CC_T,
+   JIT_CC_F,
    JIT_CC_EQ,
    JIT_CC_NE,
    JIT_CC_LT,
