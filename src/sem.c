@@ -2198,7 +2198,9 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
             const port_mode_t mode = tree_subkind(decl);
             if (mode == PORT_IN) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-               diag_printf(d, "cannot assign to input port %s",
+               diag_printf(d, "cannot assign to input %s %s",
+                           tree_kind(decl) == T_PORT_DECL
+                           ? "port" : "parameter",
                            istr(tree_ident(decl)));
                diag_hint(d, tree_loc(target), "target of signal assignment");
                diag_hint(d, tree_loc(decl), "%s declared with mode IN",

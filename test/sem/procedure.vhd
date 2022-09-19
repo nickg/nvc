@@ -202,4 +202,9 @@ package body p is
         test17_a(z => 1, x => 2);       -- Error
     end procedure;
 
+    procedure test18 (signal x : in bit) is
+    begin
+        x <= '1';                       -- Error
+    end procedure;
+
 end package body;

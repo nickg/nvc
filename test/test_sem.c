@@ -671,6 +671,7 @@ START_TEST(test_procedure)
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { 201, "formal parameter X already has an associated actual" },
       { 202, "no possible overload of TEST17_A has formal Z" },
+      { 207, "cannot assign to input parameter X" },
       { -1, NULL }
    };
    expect_errors(expect);
