@@ -663,3 +663,4 @@ driver15        normal,gold
 issue520        normal,2008
 wave7           shell
 vests46         normal
+vests47         normal

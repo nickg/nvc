@@ -5406,6 +5406,7 @@ static void lower_pcall(tree_t pcall)
    else if (cc != VCODE_CC_FOREIGN)
       APUSH(args, lower_context_for_call(name));
 
+   const int arg0 = args.count;
    for (int i = 0; i < nparams; i++) {
       vcode_reg_t arg = lower_subprogram_arg(pcall, i);
       if (!use_fcall)
@@ -5422,6 +5423,31 @@ static void lower_pcall(tree_t pcall)
       emit_pcall(name, args.items, args.count, resume_bb);
       vcode_select_block(resume_bb);
       emit_resume(name);
+   }
+
+   // Copy any out parameters passed as aggregates
+   const int nports = tree_ports(decl);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(decl, i);
+      if (tree_class(p) != C_VARIABLE || tree_subkind(p) == PORT_IN)
+         continue;
+
+      tree_t value = tree_value(tree_param(pcall, i));
+      if (tree_kind(value) != T_AGGREGATE)
+         continue;
+
+      const int nparts = lower_count_target_parts(value, 0);
+      target_part_t *parts LOCAL = xmalloc_array(nparts, sizeof(target_part_t));
+
+      target_part_t *ptr = parts;
+      lower_fill_target_parts(value, PART_ALL, &ptr);
+      assert(ptr == parts + nparts);
+
+      vcode_reg_t arg_reg = args.items[arg0 + i];
+
+      ptr = parts;
+      lower_var_assign_target(&ptr, value, arg_reg, tree_type(value));
+      assert(ptr == parts + nparts);
    }
 }
 
