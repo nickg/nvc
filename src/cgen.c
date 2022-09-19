@@ -71,9 +71,7 @@ typedef enum {
    FUNC_ATTR_READONLY,
    FUNC_ATTR_NOCAPTURE,
    FUNC_ATTR_BYVAL,
-#ifndef LLVM_UWTABLE_HAS_ARGUMENT
    FUNC_ATTR_UWTABLE,
-#endif
    FUNC_ATTR_NOINLINE,
    FUNC_ATTR_WRITEONLY,
    FUNC_ATTR_NONNULL,
@@ -83,9 +81,6 @@ typedef enum {
    // Attributes requiring special handling
    FUNC_ATTR_PRESERVE_FP,
    FUNC_ATTR_DLLEXPORT,
-#ifdef LLVM_UWTABLE_HAS_ARGUMENT
-   FUNC_ATTR_UWTABLE,
-#endif
 } func_attr_t;
 
 typedef A(vcode_unit_t) unit_list_t;
@@ -452,15 +447,10 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       ref = LLVMCreateStringAttribute(llvm_context(),
                                       "frame-pointer", 13, "all", 3);
    }
-   else if (attr == FUNC_ATTR_UWTABLE)
-      ref = LLVMCreateStringAttribute(llvm_context(), "uwtable", 7, NULL, 0);
    else {
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval",
-#ifndef LLVM_UWTABLE_HAS_ARGUMENT
-         "uwtable",
-#endif
-         "noinline", "writeonly", "nonnull", "cold", "optnone",
+         "uwtable", "noinline", "writeonly", "nonnull", "cold", "optnone",
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -469,7 +459,12 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       if (kind == 0)
          fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
 
-      ref = LLVMCreateEnumAttribute(llvm_context(), kind, 0);
+#ifdef LLVM_UWTABLE_HAS_ARGUMENT
+      if (attr == FUNC_ATTR_UWTABLE)
+         ref = LLVMCreateEnumAttribute(llvm_context(), kind, 2);
+      else
+#endif
+         ref = LLVMCreateEnumAttribute(llvm_context(), kind, 0);
    }
 
    LLVMAddAttributeAtIndex(fn, param, ref);
