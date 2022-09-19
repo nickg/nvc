@@ -114,11 +114,11 @@ void fill_cpu_state(struct cpu_state *cpu, ucontext_t *uc)
 
    cpu->regs[30] = uc->uc_mcontext.mc_gpregs.gp_lr;
 #elif defined __FreeBSD__ && defined __arm__
-   cpu->pc = uc->uc_mcontext._gregs[_REG_PC];
-   cpu->sp = uc->uc_mcontext._gregs[_REG_SP];
+   cpu->pc = uc->uc_mcontext.__gregs[_REG_PC];
+   cpu->sp = uc->uc_mcontext.__gregs[_REG_SP];
 
    for (int i = 0; i < 16; i++)
-      cpu->regs[i] = uc->uc_mcontext._gregs[i];
+      cpu->regs[i] = uc->uc_mcontext.__gregs[i];
 #elif defined __FreeBSD__ && defined __powerpc__
    cpu->pc = uc->uc_mcontext.mc_srr0;
    cpu->sp = uc->uc_mcontext.mc_gpr[1];
