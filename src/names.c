@@ -2537,7 +2537,11 @@ static void overload_next_argument(overload_t *o, tree_t p)
              tree_kind_str(tree_kind(value)), type_pp(type));
    }
 
-   if (o->initial > 1) {
+   const bool is_partial =
+      tree_subkind(p) == P_NAMED
+      && tree_kind(tree_name(p)) != T_REF;
+
+   if (o->initial > 1 && !is_partial) {
       unsigned wptr = 0;
       int first_match = -1;
       bool found_port = false;
