@@ -4154,10 +4154,10 @@ START_TEST(test_array2)
       EXPECT_BB(1) = {
          { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INDEX, .name = "*tmp" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
@@ -4264,7 +4264,6 @@ START_TEST(test_concat)
       EXPECT_BB(1) = {
          { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INDEX, .name = "*tmp" },
@@ -4275,6 +4274,7 @@ START_TEST(test_concat)
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_COPY },
          { VCODE_OP_ARRAY_REF },

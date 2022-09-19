@@ -2468,7 +2468,12 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
             tree_t ref = name_to_ref(name);
             assert(ref != NULL);
 
-            partial = (ref != name);
+            if ((partial = (ref != name))) {
+               tree_t value = tree_value(name);
+               if (tree_kind(value) != T_REF)
+                  sem_error(name, "sorry, this form of named parameter is "
+                            "not supported");
+            }
 
             ident_t id = tree_ident(ref);
             for (int j = 0; j < nports; j++) {

@@ -4746,8 +4746,8 @@ static void lower_fill_target_parts(tree_t target, part_kind_t kind,
       (*ptr)->target = target;
       (*ptr)->kind   = kind;
 
-      if (kind == PART_SLICE)
-         (*ptr)->off = lower_array_len(target_type, 0, (*ptr)->reg);
+      if (type_is_array(target_type))
+         (*ptr)->off = lower_array_total_len(target_type, (*ptr)->reg);
       else
          (*ptr)->off = emit_const(vtype_offset(), 1);
 
@@ -4755,14 +4755,9 @@ static void lower_fill_target_parts(tree_t target, part_kind_t kind,
 
       if (kind == PART_ALL) {
          (*ptr)->reg    = VCODE_INVALID_REG;
+         (*ptr)->off    = (*ptr - 1)->off;
          (*ptr)->target = NULL;
          (*ptr)->kind   = PART_POP;
-
-         if (kind == PART_ALL && type_is_array(target_type))
-            (*ptr)->off = lower_array_len(target_type, 0, (*ptr - 1)->reg);
-         else
-            (*ptr)->off = (*ptr - 1)->off;
-
          ++(*ptr);
       }
    }

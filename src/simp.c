@@ -104,7 +104,8 @@ static tree_t simp_call_args(tree_t t)
          assert(tree_subkind(p) == P_NAMED);
 
          tree_t name = tree_name(p);
-         if (tree_kind(name) == T_REF) {
+         const tree_kind_t name_kind = tree_kind(name);
+         if (name_kind == T_REF) {
             if (tree_ref(name) == port) {
                tree_t value = tree_value(p);
 
@@ -119,12 +120,8 @@ static tree_t simp_call_args(tree_t t)
          else {
             // Must be a partial association
             tree_t ref = tree_value(name);
-            if (tree_kind(ref) != T_REF || tree_kind(name) != T_RECORD_REF) {
-               error_at(tree_loc(p), "sorry, this form of parameter is "
-                        "not supported");
-               return t;
-            }
-            else if (tree_ref(ref) == port) {
+            assert(tree_kind(ref) == T_REF);   // Checked by sem
+            if (tree_ref(ref) == port) {
                if (agg == NULL) {
                   agg = tree_new(T_AGGREGATE);
                   tree_set_loc(agg, tree_loc(p));
@@ -136,8 +133,12 @@ static tree_t simp_call_args(tree_t t)
                tree_t a = tree_new(T_ASSOC);
                tree_set_loc(a, tree_loc(p));
                tree_set_subkind(a, A_NAMED);
-               tree_set_name(a, make_ref(tree_ref(name)));
                tree_set_value(a, tree_value(p));
+
+               if (name_kind == T_RECORD_REF)
+                  tree_set_name(a, make_ref(tree_ref(name)));
+               else
+                  tree_set_name(a, tree_value(tree_param(name, 0)));
 
                tree_add_assoc(agg, a);
 
