@@ -1,3 +1,6 @@
+## Unreleased changes
+- Fixed build on FreeBSD/arm (#534).
+
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
