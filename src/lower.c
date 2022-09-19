@@ -1056,6 +1056,61 @@ static void lower_resolved_field_cb(type_t ftype, vcode_reg_t field_ptr,
    }
 }
 
+static vcode_reg_t lower_signal_record_aggregate(tree_t expr)
+{
+   type_t type = tree_type(expr);
+   const int nfields = type_fields(type);
+   const int nassocs = tree_assocs(expr);
+
+   vcode_reg_t *vals LOCAL = xcalloc_array(nfields, sizeof(vcode_reg_t));
+   for (int i = 0; i < nfields; i++)
+      vals[i] = VCODE_INVALID_REG;
+
+   type_t *value_types LOCAL = xcalloc_array(nfields, sizeof(type));
+
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+      tree_t value = tree_value(a);
+
+      int pos;
+      switch (tree_subkind(a)) {
+      case A_POS:
+         pos = tree_pos(a);
+         break;
+      case A_NAMED:
+         pos = tree_pos(tree_ref(tree_name(a)));
+         break;
+      case A_OTHERS:
+      case A_RANGE:
+         fatal_trace("unexpected association in record signal aggregate");
+      }
+
+      vals[pos] = lower_expr(value, EXPR_LVALUE);
+      value_types[pos] = tree_type(value);
+   }
+
+   for (int i = 0; i < nfields; i++)
+      assert(vals[i] != VCODE_INVALID_REG);
+
+   vcode_type_t vtype = lower_signal_type(type);
+   vcode_var_t tmp_var = lower_temp_var("signalagg", vtype, vtype);
+   vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+
+   for (int i = 0; i < nfields; i++) {
+      type_t ftype = tree_type(type_field(type, i));
+      vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
+      vcode_reg_t val_reg = vals[i];
+      assert(lower_have_signal(val_reg));
+
+      if (type_is_record(ftype))
+         emit_copy(ptr_reg, val_reg, VCODE_INVALID_REG);
+      else
+         emit_store_indirect(val_reg, ptr_reg);
+   }
+
+   return mem_reg;
+}
+
 static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
 {
    type_t value_type = tree_type(value);
@@ -1074,7 +1129,12 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
 
    const bool lvalue = class == C_SIGNAL || class == C_FILE || mode != PORT_IN;
 
-   vcode_reg_t reg = lower_expr(value, lvalue ? EXPR_LVALUE : EXPR_RVALUE);
+   vcode_reg_t reg;
+   if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE)
+      reg = lower_signal_record_aggregate(value);
+   else
+      reg = lower_expr(value, lvalue ? EXPR_LVALUE : EXPR_RVALUE);
+
    if (reg == VCODE_INVALID_REG)
       return reg;
 
@@ -2931,7 +2991,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          else if (type_is_record(value_type))
             *sub = lower_record_aggregate(value, true,
                                           lower_is_const(value),
-                                          VCODE_INVALID_VAR);
+                                          VCODE_INVALID_REG);
          else
             assert(false);
       }
@@ -3055,7 +3115,7 @@ static vcode_reg_t lower_record_sub_aggregate(tree_t value, tree_t field,
       }
    }
    else if (is_const && type_is_record(ftype))
-      return lower_record_aggregate(value, true, true, EXPR_RVALUE);
+      return lower_record_aggregate(value, true, true, VCODE_INVALID_REG);
    else if (type_is_scalar(ftype) || type_is_access(ftype))
       return lower_reify_expr(value);
    else if (type_is_array(ftype)) {

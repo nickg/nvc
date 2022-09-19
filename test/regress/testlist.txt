@@ -665,3 +665,4 @@ wave7           shell
 vests46         normal
 vests47         normal
 vests48         normal
+signal27        normal
