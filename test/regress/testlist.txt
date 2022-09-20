@@ -666,3 +666,4 @@ vests46         normal
 vests47         normal
 vests48         normal
 signal27        normal
+issue519        normal,2008

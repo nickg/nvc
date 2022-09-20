@@ -733,6 +733,8 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
             type_add_constraint(type, cons);
          }
          break;
+      case T_RECORD_REF:
+         return port;
       default:
          error_at(tree_loc(name), "invalid formal name for unconstrained "
                   "port %s", istr(tree_ident(port)));
