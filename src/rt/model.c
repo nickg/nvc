@@ -204,8 +204,10 @@ static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)
    const uint8_t *vptr = values;
 
    for (unsigned i = 0; i < len; i++) {
-      if (buf + max - p <= 5)
-         return p + checked_sprintf(p, buf + max - p, "...");
+      if (buf + max - p <= 5) {
+         checked_sprintf(p, buf + max - p, "...");
+         break;
+      }
       else
          p += checked_sprintf(p, buf + max - p, "%02x", *vptr++);
    }
@@ -1119,7 +1121,7 @@ static void build_index(rt_signal_t *signal)
       }
    }
 
-   const int how = shift == 0 && gcd > 1 ? -gcd : shift;
+   const int how = gcd > 1 && gcd > (1 << shift) && gcd > 1 ? -gcd : shift;
    const int count =
       how < 0 ? (signal_w - how - 1) / -how : (signal_w >> shift) + 1;
 
