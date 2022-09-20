@@ -1067,18 +1067,9 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 
 void cover_report(const char *path, cover_tagging_t *tagging)
 {
-   struct stat path_stat;
-   bool exists = stat(path, &path_stat) ? false : true;
-   
-   if (exists) {
-      if (!S_ISDIR(path_stat.st_mode))
-         fatal_errno("Path: '%s' set as destination for coverage reports is not a folder!", path);
-   } else {
-      mkdir (path, 'w');
-   }
-
    char *subdir = xasprintf("%s/hier", path);
-   mkdir(subdir, 'w');
+   make_dir(path);
+   make_dir(subdir);
 
    assert(tagging->tags.items[0].kind == TAG_HIER);
 
