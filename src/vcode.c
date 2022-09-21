@@ -2114,20 +2114,20 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_COVER_STMT:
             {
-               printf("%s %u", vcode_op_string(op->kind), op->tag);
+               printf("%s %u ", vcode_op_string(op->kind), op->tag);
             }
             break;
 
          case VCODE_OP_COVER_BRANCH:
             {
-               printf("%s %u", vcode_op_string(op->kind), op->tag);
+               printf("%s %u ", vcode_op_string(op->kind), op->tag);
                vcode_dump_reg(op->args.items[0]);
             }
             break;
 
          case VCODE_OP_COVER_TOGGLE:
             {
-               printf("%s %u", vcode_op_string(op->kind), op->tag);
+               printf("%s %u ", vcode_op_string(op->kind), op->tag);
                vcode_dump_reg(op->args.items[0]);
             }
             break;
