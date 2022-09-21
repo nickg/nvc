@@ -738,22 +738,25 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
    fprintf(f, "   </tr>\n");
 
    if (top) {
-      notef("Code coverage results on: %s", istr(hier));
+      notef("code coverage results for: %s", istr(hier));
 
       if (stats->total_stmts > 0)
-         notef("     Statement:  %.1f %%", 100 * ((float)stats->hit_stmts) / ((float)stats->total_stmts));
+         notef("     statement:  %.1f %%",
+               100.0 * ((double)stats->hit_stmts) / stats->total_stmts);
       else
-         notef("     Statement:  N.A.");
+         notef("     statement:  N.A.");
 
       if (stats->total_branches > 0)
-         notef("     Branch:     %.1f %%", 100 * ((float)stats->hit_branches) / ((float)stats->total_branches));
+         notef("     branch:     %.1f %%",
+               100.0 * ((double)stats->hit_branches) / stats->total_branches);
       else
-         notef("     Branch:     N.A.");
+         notef("     branch:     N.A.");
 
       if (stats->total_toggles > 0)
-         notef("     Toggle:     %.1f %%", 100 * ((float)stats->hit_toggles) / ((float)stats->total_toggles));
+         notef("     toggle:     %.1f %%",
+               100.0 * ((double)stats->hit_toggles) / stats->total_toggles);
       else
-         notef("     Toggle:     N.A.");
+         notef("     toggle:     N.A.");
    }
 }
 

@@ -314,13 +314,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_COVER_BRANCH:
-         if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump_with_mark(i, NULL, NULL);
-            fail("expected op %d in block %d to have sub cond %x but "
-                 "has %x", i, bb, e->subkind, vcode_get_subkind(i));
-         }
-         // Fall-through
-
+      case VCODE_OP_COVER_TOGGLE:
       case VCODE_OP_COVER_STMT:
          if (e->tag != vcode_get_tag(i)) {
             vcode_dump_with_mark(i, NULL, NULL);
@@ -2000,6 +1994,68 @@ START_TEST(test_mulphys)
    };
 
    CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_cover)
+{
+   input_from_file(TESTDIR "/lower/cover.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   opt_set_int(OPT_COVER, 1);
+   opt_set_int(OPT_COVER_STMT, 1);
+   opt_set_int(OPT_COVER_TOGGLE, 1);
+   opt_set_int(OPT_COVER_BRANCH, 1);
+
+   tree_t e = run_elab();
+
+   cover_tagging_t *tagging = cover_tags_init(e);
+   lower_unit(e, tagging);
+
+   vcode_unit_t v0 = find_unit("WORK.COVER.P1");
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_COVER_STMT, .tag = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_COVER_STMT, .tag = 1 },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 10 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_OR },
+      { VCODE_OP_COVER_BRANCH, .tag = 0 },
+      { VCODE_OP_COND, .target = 2, .target_else = 3 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_COVER_STMT, .tag = 2 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_JUMP, .target = 3 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_COVER_STMT, .tag = 3 },
+      { VCODE_OP_WAIT, .target = 4 }
+   };
+
+   CHECK_BB(3);
 }
 END_TEST
 
@@ -4821,6 +4877,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_proc7);
    tcase_add_test(tc, test_mulphys);
    tcase_add_test(tc, test_issue116);
+   tcase_add_test(tc, test_cover);
    tcase_add_test(tc, test_issue122);
    tcase_add_test(tc, test_issue124);
    tcase_add_test(tc, test_issue135);
