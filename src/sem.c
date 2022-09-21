@@ -1160,6 +1160,15 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
             sem_error(t, "type of aliased object %s does not match expected "
                       "type %s", type_pp2(tree_type(value), type),
                       type_pp2(type, tree_type(value)));
+
+         if (opt_get_int(OPT_RELAXED) && type_is_unconstrained(type)) {
+            // If the type of the aliased object is unconstrained then
+            // use its subtype instead of the subtype declared by the
+            // alias.  This is required for some UVVM sources.
+            type_t obj_type = tree_type(value);
+            if (!type_is_unconstrained(obj_type))
+               tree_set_type(t, obj_type);
+         }
       }
       else
          type = tree_type(value);
