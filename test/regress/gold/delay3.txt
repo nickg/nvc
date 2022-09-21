@@ -1,0 +1,1 @@
+0ms+0: signal X pulse reject limit 5ns is greater than delay 2ns

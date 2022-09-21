@@ -2075,9 +2075,9 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
                          uint64_t reject, rt_value_t value, bool null)
 {
    if (unlikely(reject > after))
-      fatal("signal %s pulse reject limit %s is greater than "
-            "delay %s", istr(tree_ident(nexus->signal->where)),
-            fmt_time(reject), fmt_time(after));
+      jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
+              "than delay %s", istr(tree_ident(nexus->signal->where)),
+              fmt_time(reject), fmt_time(after));
 
    // Try to find this process in the list of existing drivers
    rt_source_t *d;
