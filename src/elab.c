@@ -1755,8 +1755,7 @@ tree_t elab(tree_t top)
    make_new_arena();
 
    tree_t e = tree_new(T_ELAB);
-   tree_set_ident(e, ident_prefix(tree_ident(top),
-                                  ident_new("elab"), '.'));
+   tree_set_ident(e, ident_prefix(tree_ident(top), well_known(W_ELAB), '.'));
    tree_set_loc(e, tree_loc(top));
 
    elab_ctx_t ctx = {

@@ -803,7 +803,11 @@ void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
-      diag_trace(d, loc, "Process$$ %s", istr(get_active_proc()->name));
+      {
+         rt_proc_t *proc = get_active_proc();
+         const char *name = istr(proc ? proc->name : tree_ident(enclosing));
+         diag_trace(d, loc, "Process$$ %s", name);
+      }
       break;
    case T_FUNC_BODY:
    case T_FUNC_DECL:

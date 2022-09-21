@@ -487,7 +487,7 @@ static int run(int argc, char **argv)
 
    set_top_level(argv, next_cmd);
 
-   ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
+   ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
    tree_t top = lib_get(lib_work(), ename);
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
@@ -592,7 +592,7 @@ static int make_cmd(int argc, char **argv)
 
    for (int i = optind; i < next_cmd; i++) {
       ident_t name = to_unit_name(argv[i]);
-      ident_t elab = ident_prefix(name, ident_new("elab"), '.');
+      ident_t elab = ident_prefix(name, well_known(W_ELAB), '.');
       if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
          if ((targets[i - optind] = lib_get(work, name)) == NULL)
             fatal("cannot find unit %s in library %s",
@@ -842,9 +842,9 @@ static int dump_cmd(int argc, char **argv)
 
    ident_t name = top_level;
    if (add_elab)
-      name = ident_prefix(name, ident_new("elab"), '.');
+      name = ident_prefix(name, well_known(W_ELAB), '.');
    else if (add_body)
-      name = ident_prefix(name, ident_new("body"), '-');
+      name = ident_prefix(name, well_known(W_BODY), '-');
 
    tree_t top = lib_get(lib_work(), name);
    if (top == NULL)

@@ -432,7 +432,6 @@ rt_model_t *get_model_or_null(void)
 
 rt_proc_t *get_active_proc(void)
 {
-   assert(active_proc != NULL);
    return active_proc;
 }
 

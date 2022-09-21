@@ -25,6 +25,7 @@
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -176,17 +177,21 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
 void jit_interp_trace(diag_t *d)
 {
    for (jit_interp_t *p = call_stack; p != NULL; p = p->caller) {
-      ident_t name = p->func->name;
-      ident_t lib_name = ident_walk_selected(&name);
-      ident_t unit_name = ident_walk_selected(&name);
+      vcode_state_t state;
+      vcode_state_save(&state);
 
-      if (unit_name == NULL)
-         return;
+      vcode_select_unit(p->func->unit);
+      while (vcode_unit_context() != NULL)
+         vcode_select_unit(vcode_unit_context());
 
-      ident_t qual = ident_prefix(lib_name, unit_name, '.');
+      ident_t unit_name = vcode_unit_name();
+      if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
+         unit_name = ident_prefix(unit_name, well_known(W_ELAB), '.');
+
+      vcode_state_restore(&state);
 
       const char *symbol = istr(p->func->name);
-      tree_t enclosing = find_enclosing_decl(qual, symbol);
+      tree_t enclosing = find_enclosing_decl(unit_name, symbol);
       if (enclosing == NULL)
          return;
 

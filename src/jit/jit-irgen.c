@@ -2508,8 +2508,8 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
    j_send(g, 1, offset);
    j_send(g, 2, count);
    j_send(g, 3, value);
-   j_send(g, 4, reject);
-   j_send(g, 5, after);
+   j_send(g, 4, after);
+   j_send(g, 5, reject);
 
    if (vcode_reg_kind(vcode_get_arg(op, 2)) == VCODE_TYPE_POINTER)
       macro_exit(g, JIT_EXIT_SCHED_WAVEFORMS);
