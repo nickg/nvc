@@ -890,23 +890,16 @@ static void interp_sched_waveform(jit_interp_t *state)
 {
    sig_shared_t *shared = state->args[0].pointer;
    int32_t       offset = state->args[1].integer;
-   int64_t       value  = state->args[3].integer;
-   int64_t       after  = state->args[4].integer;
-   int64_t       reject = state->args[5].integer;
-
-   x_sched_waveform_s(shared, offset, value, after, reject);
-}
-
-static void interp_sched_waveforms(jit_interp_t *state)
-{
-   sig_shared_t *shared = state->args[0].pointer;
-   int32_t       offset = state->args[1].integer;
    int32_t       count  = state->args[2].integer;
-   void         *value  = state->args[3].pointer;
+   jit_scalar_t  value  = { .integer = state->args[3].integer };
    int64_t       after  = state->args[4].integer;
    int64_t       reject = state->args[5].integer;
+   bool          scalar = state->args[6].integer;
 
-   x_sched_waveform(shared, offset, value, count, after, reject);
+   if (scalar)
+      x_sched_waveform_s(shared, offset, value.integer, after, reject);
+   else
+      x_sched_waveform(shared, offset, value.pointer, count, after, reject);
 }
 
 static void interp_sched_event(jit_interp_t *state)
@@ -1095,7 +1088,15 @@ static void interp_map_signal(jit_interp_t *state)
 
 static void interp_map_const(jit_interp_t *state)
 {
-   assert(false);
+   sig_shared_t *dst_ss     = state->args[0].pointer;
+   uint32_t      dst_offset = state->args[1].integer;
+   jit_scalar_t  initval    = { .integer = state->args[2].integer };
+   uint32_t      dst_count  = state->args[3].integer;
+   bool          scalar     = state->args[4].integer;
+
+   const void *vptr = scalar ? &initval.integer : initval.pointer;
+
+   x_map_const(dst_ss, dst_offset, vptr, dst_count);
 }
 
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
@@ -1171,10 +1172,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_SCHED_WAVEFORM:
       interp_sched_waveform(state);
-      break;
-
-   case JIT_EXIT_SCHED_WAVEFORMS:
-      interp_sched_waveforms(state);
       break;
 
    case JIT_EXIT_TEST_EVENT:

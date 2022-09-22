@@ -2262,10 +2262,14 @@ static void irgen_op_map_const(jit_irgen_t *g, int op)
    jit_value_t dst_off   = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
    jit_value_t dst_count = irgen_get_arg(g, op, 2);
 
+   const vtype_kind_t init_kind = vcode_reg_kind(vcode_get_arg(op, 0));
+   jit_value_t scalar = jit_value_from_int64(init_kind != VCODE_TYPE_POINTER);
+
    j_send(g, 0, dst_ss);
    j_send(g, 1, dst_off);
    j_send(g, 2, initval);
    j_send(g, 3, dst_count);
+   j_send(g, 4, scalar);
 
    macro_exit(g, JIT_EXIT_MAP_CONST);
 }
@@ -2504,17 +2508,18 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
    jit_value_t reject = irgen_get_arg(g, op, 3);
    jit_value_t after  = irgen_get_arg(g, op, 4);
 
+   const vtype_kind_t value_kind = vcode_reg_kind(vcode_get_arg(op, 2));
+   jit_value_t scalar = jit_value_from_int64(value_kind != VCODE_TYPE_POINTER);
+
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
    j_send(g, 3, value);
    j_send(g, 4, after);
    j_send(g, 5, reject);
+   j_send(g, 6, scalar);
 
-   if (vcode_reg_kind(vcode_get_arg(op, 2)) == VCODE_TYPE_POINTER)
-      macro_exit(g, JIT_EXIT_SCHED_WAVEFORMS);
-   else
-      macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+   macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
 }
 
 static void irgen_op_sched_event(jit_irgen_t *g, int op)
