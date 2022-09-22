@@ -607,22 +607,27 @@ static void diag_emit_hints(diag_t *d, FILE *f)
    if (loc0.file_ref == FILE_INVALID)
       goto other_files;
 
-   int same_file = 0, line_max = 0, line_min = INT_MAX, swap = -1;
+   int same_file = 0, line_max = 0, line_min = INT_MAX;
    for (int i = 0; i < d->hints.count; i++) {
       if (d->hints.items[i].loc.file_ref == loc0.file_ref) {
          same_file++;
          line_max = MAX(d->hints.items[i].loc.first_line, line_max);
          line_min = MIN(d->hints.items[i].loc.first_line, line_min);
+      }
+   }
 
-         if (swap != -1) {
-            diag_hint_t tmp = d->hints.items[swap];
-            d->hints.items[swap] = d->hints.items[i];
-            d->hints.items[i] = tmp;
-            swap = i;
+   // Move all diagnostics from the first file to the front of the list
+   for (int i = 0; i < d->hints.count; i++) {
+      if (d->hints.items[i].loc.file_ref != loc0.file_ref) {
+         for (int j = i + 1; j < d->hints.count; j++) {
+            if (d->hints.items[j].loc.file_ref == loc0.file_ref) {
+               diag_hint_t tmp = d->hints.items[j];
+               d->hints.items[j] = d->hints.items[i];
+               d->hints.items[i] = tmp;
+               break;
+            }
          }
       }
-      else if (swap == -1)
-         swap = i;
    }
 
    qsort(d->hints.items, same_file, sizeof(diag_hint_t), diag_compar);
