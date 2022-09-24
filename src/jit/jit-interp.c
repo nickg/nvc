@@ -1408,6 +1408,8 @@ static void interp_loop(jit_interp_t *state)
 
 bool jit_interp(jit_func_t *f, jit_scalar_t *args)
 {
+   assert(f->entry == jit_interp);   // TODO: bounce to higher tier
+
    if (f->irbuf == NULL)
       jit_irgen(f);
 

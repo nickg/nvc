@@ -41,6 +41,14 @@ static double mean(double *arr, int len)
    return r / len;
 }
 
+static void print_result(double ops_sec, double usec_op)
+{
+   if (usec_op < 1.0)
+      printf("%.1f ops/s; %.1f ns/op\n", ops_sec, usec_op * 1000.0);
+   else
+      printf("%.1f ops/s; %.1f us/op\n", ops_sec, usec_op);
+}
+
 static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
 {
    color_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
@@ -84,12 +92,13 @@ static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
       ops_sec[trial] = iters / elapsed;
       usec_op[trial] = (double)(now - start) / iters;
 
-      printf("%.1f ops/s; %.1f us/op\n", ops_sec[trial], usec_op[trial]);
+      print_result(ops_sec[trial], usec_op[trial]);
       fflush(stdout);
    }
 
-   color_printf("\n$!green$--> %.1f ops/s; %.1f us/op$$\n\n",
-                mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));
+   color_printf("\n$!green$--> ");
+   print_result(mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));
+   color_printf("$$\n");
 
    jit_free(j);
 }

@@ -133,8 +133,6 @@ START_TEST(test_alias1)
 {
    input_from_file(TESTDIR "/model/alias1.vhd");
 
-   opt_set_str(OPT_JIT_VERBOSE, "1");
-
    tree_t top = run_elab();
    fail_if(top == NULL);
 

@@ -518,6 +518,7 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    f->unit   = unit;
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
+   f->entry  = jit_interp;
 
    jit_irgen(f);
 
