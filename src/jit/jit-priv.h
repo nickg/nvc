@@ -55,6 +55,7 @@ typedef enum {
    J_XOR,
    J_FSUB,
    J_REM,
+   J_DEBUG,
 
    __MACRO_BASE = 0x80,
    MACRO_COPY = __MACRO_BASE,
@@ -146,6 +147,7 @@ typedef enum {
    JIT_VALUE_LABEL,
    JIT_VALUE_HANDLE,
    JIT_VALUE_EXIT,
+   JIT_VALUE_LOC,
 } jit_value_kind_t;
 
 typedef uint32_t jit_label_t;
@@ -161,6 +163,7 @@ typedef struct {
       jit_label_t  label;
       jit_handle_t handle;
       jit_exit_t   exit;
+      loc_t        loc;
    };
 } jit_value_t;
 
@@ -232,6 +235,7 @@ typedef struct _jit_interp jit_interp_t;
 void jit_irgen(jit_func_t *f);
 void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
+void jit_dump_interleaved(jit_func_t *f);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
 bool jit_interp(jit_func_t *f, jit_scalar_t *args);

@@ -1370,6 +1370,8 @@ static void interp_loop(jit_interp_t *state)
       case J_REM:
          interp_rem(state, ir);
          break;
+      case J_DEBUG:
+         break;
       case MACRO_COPY:
          interp_copy(state, ir);
          break;

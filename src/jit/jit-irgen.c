@@ -90,6 +90,12 @@ static inline jit_value_t jit_value_from_cpool_addr(int offset)
    return value;
 }
 
+static inline jit_value_t jit_value_from_loc(const loc_t *loc)
+{
+   jit_value_t value = { .kind = JIT_VALUE_LOC, .loc = *loc };
+   return value;
+}
+
 static inline jit_value_t jit_null_ptr(void)
 {
    jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
@@ -792,6 +798,17 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
    DEBUG_ONLY(memset(g->func->cpool + result, 0xde, sz));
    g->cpoolptr = result + sz;
    return result;
+}
+
+static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
+{
+   const int64_t enc = ((int64_t)vcode_active_block() << 32) | op;
+
+   jit_value_t arg1 = jit_value_from_loc(vcode_get_loc(op));
+   jit_value_t arg2 = jit_value_from_int64(enc);
+
+   irgen_emit_binary(g, J_DEBUG, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     JIT_REG_INVALID, arg1, arg2);
 }
 
 static void irgen_op_null(jit_irgen_t *g, int op)
@@ -1817,6 +1834,8 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 {
    ident_t func = vcode_get_func(op);
 
+   irgen_emit_debuginfo(g, op);   // For stack traces
+
    if (vcode_get_subkind(op) == VCODE_CC_FOREIGN) {
       irgen_send_args(g, op, 0);
 
@@ -1861,6 +1880,8 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 
 static void irgen_op_pcall(jit_irgen_t *g, int op)
 {
+   irgen_emit_debuginfo(g, op);   // For stack traces
+
    // First argument to procedure is suspended state
    j_send(g, 0, jit_value_from_int64(0));
 
@@ -2664,6 +2685,11 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
    const int nops = vcode_count_ops();
    for (int i = 0; i < nops; i++) {
       const vcode_op_t op = vcode_get_op(i);
+      if (op == VCODE_OP_COMMENT)
+         continue;
+
+      DEBUG_ONLY(irgen_emit_debuginfo(g, i));
+
       switch (op) {
       case VCODE_OP_CONST:
          irgen_op_const(g, i);
@@ -2760,8 +2786,6 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_STORE_INDIRECT:
          irgen_op_store_indirect(g, i);
-         break;
-      case VCODE_OP_COMMENT:
          break;
       case VCODE_OP_WRAP:
          irgen_op_wrap(g, i);
@@ -3191,8 +3215,13 @@ void jit_irgen(jit_func_t *f)
    }
    g->labels = NULL;
 
-   if (opt_get_verbose(OPT_JIT_VERBOSE, istr(f->name)))
+   if (opt_get_verbose(OPT_JIT_VERBOSE, istr(f->name))) {
+#ifdef DEBUG
+      jit_dump_interleaved(f);
+#else
       jit_dump(f);
+#endif
+   }
 
    if (debug_log) {
       const int ticks = get_timestamp_us() - start_ticks;

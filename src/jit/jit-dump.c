@@ -19,6 +19,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-priv.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -27,6 +28,8 @@
 typedef struct {
    ihash_t    *labels;
    int         next_label;
+   int         next_ir;
+   int         lpend;
    jit_t      *jit;
    jit_func_t *func;
 } jit_dump_t;
@@ -46,7 +49,7 @@ const char *jit_op_name(jit_op_t op)
          "SEND", "RECV", "ADD", "RET", "TRAP", "ULOAD", "STORE", "JUMP", "CMP",
          "CSET", "SUB", "MOV", "FADD", "MUL", "FMUL", "CALL", "NEG", "LOAD",
          "CSEL", "LEA", "NOT", "DIV", "FDIV", "SCVTF", "FNEG", "FCVTNS",
-         "FCMP", "AND", "OR", "XOR", "FSUB", "REM",
+         "FCMP", "AND", "OR", "XOR", "FSUB", "REM", "DEBUG"
       };
       assert(op < ARRAY_LEN(names));
       return names[op];
@@ -116,6 +119,8 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
          return printf("<%s>", istr(jit_get_func(d->jit, value.handle)->name));
    case JIT_VALUE_EXIT:
       return printf("%s", jit_exit_name(value.exit));
+   case JIT_VALUE_LOC:
+      return printf("<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
    case JIT_VALUE_INVALID:
       return printf("???");
    }
@@ -230,6 +235,56 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
 void jit_dump(jit_func_t *f)
 {
    jit_dump_with_mark(f, JIT_LABEL_INVALID, true);
+}
+
+static int jit_interleaved_cb(vcode_dump_reason_t reason, int op, void *ctx)
+{
+   if (reason != VCODE_DUMP_OP)
+      return 0;
+
+   jit_dump_t *d = ctx;
+
+   const int64_t enc = ((int64_t)vcode_active_block() << 32) | op;
+
+   for (; d->next_ir < d->func->nirs; d->next_ir++) {
+      jit_ir_t *ir = &(d->func->irbuf[d->next_ir]);
+      if (ir->op == J_DEBUG) {
+         if (ir->target)
+            d->lpend = d->next_ir;
+         if (ir->arg2.int64 != enc)
+            break;
+      }
+      else {
+         color_printf("$#42$");
+         if (ir->target || d->lpend >= 0) {
+            jit_dump_label(d, d->lpend < 0 ? d->next_ir : d->lpend);
+            printf(":");
+            d->lpend = -1;
+         }
+         jit_dump_ir(d, ir);
+         color_printf("$$");
+      }
+   }
+
+   return 0;
+}
+
+void jit_dump_interleaved(jit_func_t *f)
+{
+   jit_dump_t d = {
+      .labels = ihash_new(128),
+      .jit    = f->jit,
+      .func   = f,
+      .lpend  = -1,
+   };
+
+   vcode_select_unit(f->unit);
+   vcode_dump_with_mark(-1, jit_interleaved_cb, &d);
+
+   vcode_select_block(0);
+   jit_interleaved_cb(VCODE_DUMP_OP, -1, &d);
+
+   ihash_free(d.labels);
 }
 
 __attribute__((no_sanitize_address))
