@@ -148,7 +148,7 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    case JIT_CC_NC: col += printf(".NC"); break;
    }
    if (ir->size != JIT_SZ_UNSPEC)
-      col += printf(".%d", 1 << (2 + ir->size));
+      col += printf(".%d", 1 << (3 + ir->size));
 
    while (col < 15)
       col += printf(" ");

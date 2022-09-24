@@ -607,7 +607,10 @@ static int irgen_slots_for_type(vcode_type_t vtype)
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_UARRAY:
       // Always passed around scalarised
-      return 1 + vtype_dims(vtype) * 2;
+      return irgen_slots_for_type(vtype_elem(vtype)) + vtype_dims(vtype) * 2;
+   case VCODE_TYPE_SIGNAL:
+      // Signal pointer plus offset
+      return 2;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -1372,8 +1375,13 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
 
    case VCODE_TYPE_UARRAY:
       {
+         const int slots = irgen_slots_for_type(vtype_elem(vtype));
          jit_value_t base = j_load(g, JIT_SZ_PTR, addr);
          addr = jit_addr_from_value(addr, sizeof(void *));
+         for (int i = 1; i < slots; i++) {
+            j_load(g, JIT_SZ_PTR, addr);
+            addr = jit_addr_from_value(addr, sizeof(void *));
+         }
 
          const int ndims = vtype_dims(vtype);
          for (int i = 0; i < 2*ndims; i++) {
@@ -1423,13 +1431,16 @@ static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
 
    case VCODE_TYPE_UARRAY:
       {
+         const int slots = irgen_slots_for_type(vtype_elem(vtype));
          jit_reg_t base = jit_value_as_reg(value);
-         j_store(g, JIT_SZ_PTR, jit_value_from_reg(base), addr);
-         addr = jit_addr_from_value(addr, sizeof(void *));
+         for (int i = 0; i < slots; i++) {
+            j_store(g, JIT_SZ_PTR, jit_value_from_reg(base + i), addr);
+            addr = jit_addr_from_value(addr, sizeof(void *));
+         }
 
          const int ndims = vtype_dims(vtype);
          for (int i = 0; i < 2*ndims; i++) {
-            j_store(g, JIT_SZ_32, jit_value_from_reg(base + 1 + i), addr);
+            j_store(g, JIT_SZ_32, jit_value_from_reg(base + slots + i), addr);
             addr = jit_addr_from_value(addr, 4);
          }
       }
@@ -1481,17 +1492,24 @@ static void irgen_op_debug_locus(jit_irgen_t *g, int op)
 
 static void irgen_op_wrap(jit_irgen_t *g, int op)
 {
-   jit_value_t ptr = irgen_lea(g, irgen_get_arg(g, op, 0));
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   jit_value_t ptr = irgen_lea(g, irgen_get_value(g, arg0));
+
+   vcode_type_t vtype = vcode_reg_type(arg0);
 
    const int ndims = vcode_count_args(op) / 3;
+   const int slots = irgen_slots_for_type(vtype);
 
    // Registers must be contiguous
    jit_reg_t base = irgen_alloc_reg(g);
+   j_mov(g, base, ptr);
+   for (int i = 1; i < slots; i++) {
+      jit_reg_t slot = irgen_alloc_reg(g);
+      j_mov(g, slot, jit_value_from_reg(jit_value_as_reg(ptr) + i));
+   }
    jit_reg_t dims[ndims * 2];
    for (int i = 0; i < ndims * 2; i++)
       dims[i] = irgen_alloc_reg(g);
-
-   j_mov(g, base, ptr);
 
    for (int i = 0; i < ndims; i++) {
       jit_value_t left  = irgen_get_arg(g, op, (i * 3) + 1);
@@ -1520,11 +1538,14 @@ static void irgen_op_wrap(jit_irgen_t *g, int op)
 
 static void irgen_op_uarray_right(jit_irgen_t *g, int op)
 {
-   jit_reg_t base = jit_value_as_reg(irgen_get_arg(g, op, 0));
-   const int dim = vcode_get_dim(op);
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   jit_reg_t base = jit_value_as_reg(irgen_get_value(g, arg0));
 
-   jit_value_t left   = jit_value_from_reg(base + 1 + dim*2);
-   jit_value_t length = jit_value_from_reg(base + 2 + dim*2);
+   const int dim = vcode_get_dim(op);
+   const int slots = irgen_slots_for_type(vtype_elem(vcode_reg_type(arg0)));
+
+   jit_value_t left   = jit_value_from_reg(base + slots + dim*2);
+   jit_value_t length = jit_value_from_reg(base + slots + 1 + dim*2);
    jit_value_t diff   = j_add(g, left, length);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
 
@@ -1536,18 +1557,24 @@ static void irgen_op_uarray_right(jit_irgen_t *g, int op)
 
 static void irgen_op_uarray_left(jit_irgen_t *g, int op)
 {
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
    jit_reg_t base = jit_value_as_reg(irgen_get_arg(g, op, 0));
-   const int dim = vcode_get_dim(op);
 
-   g->map[vcode_get_result(op)] = jit_value_from_reg(base + 1 + dim*2);
+   const int dim = vcode_get_dim(op);
+   const int slots = irgen_slots_for_type(vtype_elem(vcode_reg_type(arg0)));
+
+   g->map[vcode_get_result(op)] = jit_value_from_reg(base + slots + dim*2);
 }
 
 static void irgen_op_uarray_dir(jit_irgen_t *g, int op)
 {
-   jit_reg_t base = jit_value_as_reg(irgen_get_arg(g, op, 0));
-   const int dim = vcode_get_dim(op);
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   jit_reg_t base = jit_value_as_reg(irgen_get_value(g, arg0));
 
-   jit_value_t length = jit_value_from_reg(base + 2 + dim*2);
+   const int dim = vcode_get_dim(op);
+   const int slots = irgen_slots_for_type(vtype_elem(vcode_reg_type(arg0)));
+
+   jit_value_t length = jit_value_from_reg(base + slots + 1 + dim*2);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
 
    STATIC_ASSERT(RANGE_DOWNTO == 1);
@@ -1559,10 +1586,13 @@ static void irgen_op_uarray_dir(jit_irgen_t *g, int op)
 
 static void irgen_op_uarray_len(jit_irgen_t *g, int op)
 {
-   jit_reg_t base = jit_value_as_reg(irgen_get_arg(g, op, 0));
-   const int dim = vcode_get_dim(op);
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   jit_reg_t base = jit_value_as_reg(irgen_get_value(g, arg0));
 
-   jit_value_t length = jit_value_from_reg(base + 2 + dim*2);
+   const int dim = vcode_get_dim(op);
+   const int slots = irgen_slots_for_type(vtype_elem(vcode_reg_type(arg0)));
+
+   jit_value_t length = jit_value_from_reg(base + slots + 1 + dim*2);
    jit_value_t neg = j_neg(g, length);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
 
@@ -1571,8 +1601,8 @@ static void irgen_op_uarray_len(jit_irgen_t *g, int op)
 
 static void irgen_op_unwrap(jit_irgen_t *g, int op)
 {
-   jit_reg_t base = jit_value_as_reg(irgen_get_arg(g, op, 0));
-   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
+   jit_value_t base = irgen_get_arg(g, op, 0);
+   g->map[vcode_get_result(op)] = base;
 }
 
 static void irgen_op_array_ref(jit_irgen_t *g, int op)
