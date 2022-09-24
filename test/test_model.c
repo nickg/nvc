@@ -129,6 +129,37 @@ START_TEST(test_index1)
 }
 END_TEST
 
+START_TEST(test_alias1)
+{
+   input_from_file(TESTDIR "/model/alias1.vhd");
+
+   opt_set_str(OPT_JIT_VERBOSE, "1");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   lower_unit(top, NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   model_run(m, UINT64_MAX);
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -136,6 +167,7 @@ Suite *get_model_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_basic1);
    tcase_add_test(tc, test_index1);
+   tcase_add_test(tc, test_alias1);
    suite_add_tcase(s, tc);
 
    return s;

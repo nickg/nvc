@@ -607,7 +607,10 @@ static int irgen_slots_for_type(vcode_type_t vtype)
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_UARRAY:
       // Always passed around scalarised
-      return irgen_slots_for_type(vtype_elem(vtype)) + vtype_dims(vtype) * 2;
+      if (vtype_kind(vtype_elem(vtype)) == VCODE_TYPE_SIGNAL)
+         return 2 + vtype_dims(vtype) * 2;
+      else
+         return 1 + vtype_dims(vtype) * 2;
    case VCODE_TYPE_SIGNAL:
       // Signal pointer plus offset
       return 2;
@@ -695,7 +698,10 @@ static int irgen_size_bytes(vcode_type_t vtype)
       }
 
    case VCODE_TYPE_UARRAY:
-      return sizeof(void *) + 2 * 4 * vtype_dims(vtype);
+      if (vtype_kind(vtype_elem(vtype)) == VCODE_TYPE_SIGNAL)
+         return 2*sizeof(void *) + 2 * 4 * vtype_dims(vtype);
+      else
+         return sizeof(void *) + 2 * 4 * vtype_dims(vtype);
 
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_POINTER:
