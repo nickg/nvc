@@ -202,3 +202,55 @@ int mask_count_clear(bit_mask_t *m, int bit)
 
    return count + m->size - bit;
 }
+
+void mask_subtract(bit_mask_t *m, const bit_mask_t *m2)
+{
+   assert(m->size == m2->size);
+
+   if (m->size > 64) {
+      for (int i = 0; i < (m->size + 63) / 64; i++)
+         m->ptr[i] &= ~m2->ptr[i];
+   }
+   else
+      m->bits &= ~m2->bits;
+}
+
+void mask_union(bit_mask_t *m, const bit_mask_t *m2)
+{
+   assert(m->size == m2->size);
+
+   if (m->size > 64) {
+      for (int i = 0; i < (m->size + 63) / 64; i++)
+         m->ptr[i] |= m2->ptr[i];
+   }
+   else
+      m->bits |= m2->bits;
+}
+
+void mask_copy(bit_mask_t *m, const bit_mask_t *m2)
+{
+   assert(m->size == m2->size);
+
+   if (m->size > 64) {
+      for (int i = 0; i < (m->size + 63) / 64; i++)
+         m->ptr[i] = m2->ptr[i];
+   }
+   else
+      m->bits = m2->bits;
+}
+
+bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2)
+{
+   assert(m1->size == m2->size);
+
+   if (m1->size > 64) {
+      for (int i = 0; i < (m1->size + 63) / 64; i++) {
+         if (m1->ptr[i] != m2->ptr[i])
+            return false;
+      }
+
+      return true;
+   }
+   else
+      return m1->bits == m2->bits;
+}

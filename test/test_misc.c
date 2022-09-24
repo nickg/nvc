@@ -414,6 +414,33 @@ START_TEST(test_scan_backwards)
 }
 END_TEST
 
+START_TEST(test_subtract)
+{
+   bit_mask_t m1, m2;
+   mask_init(&m1, mask_size[_i]);
+   mask_init(&m2, mask_size[_i]);
+
+   mask_setall(&m1);
+   mask_setall(&m2);
+   mask_subtract(&m1, &m2);
+   ck_assert_int_eq(mask_popcount(&m1), 0);
+   ck_assert_int_eq(mask_popcount(&m2), mask_size[_i]);
+
+   mask_setall(&m1);
+   mask_clearall(&m2);
+   mask_set(&m2, 5);
+   mask_set(&m2, 1);
+   mask_subtract(&m1, &m2);
+   ck_assert_int_eq(mask_popcount(&m1), mask_size[_i] - 2);
+   fail_if(mask_test(&m1, 5));
+   fail_if(mask_test(&m1, 1));
+   fail_unless(mask_test(&m1, 4));
+
+   mask_free(&m1);
+   mask_free(&m2);
+}
+END_TEST
+
 static volatile int counter = 0;
 static nvc_lock_t   lock = 0;
 
@@ -476,6 +503,7 @@ Suite *get_misc_tests(void)
    tcase_add_loop_test(tc_mask, test_set_clear_range, 0, ARRAY_LEN(mask_size));
    tcase_add_loop_test(tc_mask, test_count_clear, 0, ARRAY_LEN(mask_size));
    tcase_add_loop_test(tc_mask, test_scan_backwards, 0, ARRAY_LEN(mask_size));
+   tcase_add_loop_test(tc_mask, test_subtract, 0, ARRAY_LEN(mask_size));
    suite_add_tcase(s, tc_mask);
 
    TCase *tc_thread = tcase_create("thread");

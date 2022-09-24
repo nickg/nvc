@@ -65,5 +65,9 @@ void mask_setall(bit_mask_t *m);
 void mask_clearall(bit_mask_t *m);
 int mask_scan_backwards(bit_mask_t *m, int bit);
 int mask_count_clear(bit_mask_t *m, int bit);
+void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);
+void mask_union(bit_mask_t *m, const bit_mask_t *m2);
+void mask_copy(bit_mask_t *m, const bit_mask_t *m2);
+bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2);
 
 #endif  // _MASK_H

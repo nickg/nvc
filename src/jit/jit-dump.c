@@ -128,8 +128,61 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
    return 0;
 }
 
+static void jit_dump_regset(jit_dump_t *d, bit_mask_t *m)
+{
+   printf("{");
+   for (int i = 0, nth = 0; i < d->func->nregs; i++) {
+      if (mask_test(m, i))
+         printf("%sR%d", nth++ > 0 ? "," : "", i);
+   }
+   printf("}");
+}
+
 static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
 {
+   jit_cfg_t *cfg = d->func->cfg;
+   if (cfg != NULL) {
+      const int pos = ir - d->func->irbuf;
+      jit_block_t *bb = jit_block_for(cfg, pos);
+      if (pos == bb->first) {
+         printf("\t;; BB%"PRIiPTR, bb - d->func->cfg->blocks);
+
+         if (bb->in.count > 0) {
+            printf(" in:");
+            for (int i = 0; i < bb->in.count; i++)
+               printf("%s%d", i > 0 ? "," : "", jit_get_edge(&bb->in, i));
+
+            if (mask_popcount(&bb->livein) > 0) {
+               printf(" ");
+               jit_dump_regset(d, &bb->livein);
+            }
+         }
+
+         if (bb->out.count > 0) {
+            printf(" out:");
+            for (int i = 0; i < bb->out.count; i++)
+               printf("%s%d", i > 0 ? "," : "", jit_get_edge(&bb->out, i));
+
+            if (mask_popcount(&bb->liveout) > 0) {
+               printf(" ");
+               jit_dump_regset(d, &bb->liveout);
+            }
+         }
+
+         if (mask_popcount(&bb->varkill) > 0) {
+            printf(" kill:");
+            jit_dump_regset(d, &bb->varkill);
+         }
+
+         if (bb->aborts)
+            printf(" aborts");
+         else if (bb->returns)
+            printf(" returns");
+
+         printf("\n");
+      }
+   }
+
    int col = 0;
    col += printf("\t%s", jit_op_name(ir->op));
    switch (ir->cc) {
@@ -163,33 +216,6 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
       if (ir->arg2.kind != JIT_VALUE_INVALID) {
          col += printf(", ");
          col += jit_dump_value(d, ir->arg2);
-      }
-   }
-
-   jit_cfg_t *cfg = d->func->cfg;
-   if (cfg != NULL) {
-      const int pos = ir - d->func->irbuf;
-      jit_block_t *bb = jit_block_for(cfg, pos);
-      if (pos == bb->first) {
-         printf(" %*c;; BB%"PRIiPTR, MAX(40 - col, 0), ' ',
-                bb - d->func->cfg->blocks);
-
-         if (bb->in.count > 0) {
-            printf(" in:");
-            for (int i = 0; i < bb->in.count; i++)
-               printf("%s%d", i > 0 ? "," : "", bb->in.edges[i]);
-         }
-
-         if (bb->out.count > 0) {
-            printf(" out:");
-            for (int i = 0; i < bb->out.count; i++)
-               printf("%s%d", i > 0 ? "," : "", bb->out.edges[i]);
-         }
-
-         if (bb->aborts)
-            printf(" aborts");
-         else if (bb->returns)
-            printf(" returns");
       }
    }
 

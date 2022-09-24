@@ -54,6 +54,84 @@ static void cfg_add_edge(jit_cfg_t *cfg, jit_block_t *from, jit_block_t *to)
    to->in.edges[to->in.count++] = from - cfg->blocks;
 }
 
+static jit_reg_t cfg_get_reg(jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+   case JIT_ADDR_REG:
+      return value.reg;
+   default:
+      return JIT_REG_INVALID;
+   }
+}
+
+static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
+{
+   // Algorithm from "Engineering a Compiler" chapter 8.6
+
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *b = &(cfg->blocks[i]);
+      mask_init(&b->livein, f->nregs);
+      mask_init(&b->varkill, f->nregs);
+      mask_init(&b->liveout, f->nregs);
+
+      for (int j = b->first; j <= b->last; j++) {
+         jit_ir_t *ir = &(f->irbuf[j]);
+
+         jit_reg_t reg1 = cfg_get_reg(ir->arg1);
+         if (reg1 != JIT_REG_INVALID && !mask_test(&b->varkill, reg1))
+            mask_set(&b->livein, reg1);
+
+         jit_reg_t reg2 = cfg_get_reg(ir->arg2);
+         if (reg2 != JIT_REG_INVALID && !mask_test(&b->varkill, reg2))
+            mask_set(&b->livein, reg2);
+
+         if (ir->result != JIT_REG_INVALID)
+            mask_set(&b->varkill, ir->result);
+      }
+   }
+
+   bit_mask_t new, tmp;
+   mask_init(&new, f->nregs);
+   mask_init(&tmp, f->nregs);
+
+   bool changed;
+   do {
+      changed = false;
+
+      for (int i = 0; i < cfg->nblocks; i++) {
+         jit_block_t *b = &(cfg->blocks[i]);
+         mask_clearall(&new);
+
+         for (int j = 0; j < b->out.count; j++) {
+            jit_block_t *succ = &(cfg->blocks[jit_get_edge(&b->out, j)]);
+            mask_copy(&tmp, &succ->liveout);
+            mask_subtract(&tmp, &succ->varkill);
+            mask_union(&tmp, &succ->livein);
+            mask_union(&new, &tmp);
+         }
+
+         if (!mask_eq(&new, &b->liveout)) {
+            mask_copy(&b->liveout, &new);
+            changed = true;
+         }
+      }
+   } while (changed);
+
+   // Replaced "upward exposed variables" set with true live-in
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *b = &(cfg->blocks[i]);
+
+      for (int j = 0; j < b->in.count; j++) {
+         jit_block_t *pred = &(cfg->blocks[jit_get_edge(&b->in, j)]);
+         mask_union(&b->livein, &pred->liveout);
+      }
+   }
+
+   mask_free(&new);
+   mask_free(&tmp);
+}
+
 jit_cfg_t *jit_get_cfg(jit_func_t *f)
 {
    if (f->cfg != NULL)
@@ -105,12 +183,21 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
       }
    }
 
+   cfg_liveness(cfg, f);
+
    return (f->cfg = cfg);
 }
 
 void jit_free_cfg(jit_func_t *f)
 {
    if (f->cfg != NULL) {
+      for (int i = 0; i < f->cfg->nblocks; i++) {
+         jit_block_t *b = &(f->cfg->blocks[i]);
+         mask_free(&b->livein);
+         mask_free(&b->liveout);
+         mask_free(&b->varkill);
+      }
+
       free(f->cfg);
       f->cfg = NULL;
    }
@@ -126,4 +213,10 @@ jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos)
    }
 
    fatal_trace("operation %d is not in any block", pos);
+}
+
+int jit_get_edge(jit_edge_list_t *list, int nth)
+{
+   assert(nth < 4);
+   return list->edges[nth];
 }

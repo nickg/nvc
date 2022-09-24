@@ -559,6 +559,8 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case J_CSET:
       cgen_op_cset(req, cgb, ir);
       break;
+   case J_DEBUG:
+      break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
    }

@@ -20,6 +20,7 @@
 
 #include "util.h"
 #include "jit/jit.h"
+#include "mask.h"
 #include "rt/mspace.h"
 
 typedef enum {
@@ -199,6 +200,9 @@ typedef struct _jit_block {
    unsigned        returns : 1;
    jit_edge_list_t in;
    jit_edge_list_t out;
+   bit_mask_t      livein;
+   bit_mask_t      varkill;
+   bit_mask_t      liveout;
 } jit_block_t;
 
 typedef struct {
@@ -255,5 +259,6 @@ void jit_tier_up(jit_func_t *f);
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
+int jit_get_edge(jit_edge_list_t *list, int nth);
 
 #endif  // _JIT_PRIV_H
