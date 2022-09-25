@@ -787,6 +787,12 @@ static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
    }
 }
 
+static jit_value_t irgen_is_scalar(jit_irgen_t *g, int op, int arg)
+{
+   const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
+   return jit_value_from_int64(kind != VCODE_TYPE_POINTER);
+}
+
 static jit_value_t irgen_get_context(jit_irgen_t *g)
 {
    if (g->statereg.kind != JIT_VALUE_INVALID)
@@ -2260,17 +2266,17 @@ static void irgen_op_init_signal(jit_irgen_t *g, int op)
    else
       offset = jit_value_from_int64(0);
 
+   jit_value_t scalar = irgen_is_scalar(g, op, 2);
+
    j_send(g, 0, count);
    j_send(g, 1, size);
    j_send(g, 2, value);
    j_send(g, 3, flags);
    j_send(g, 4, locus);
    j_send(g, 5, offset);
+   j_send(g, 6, scalar);
 
-   if (vcode_reg_kind(vcode_get_arg(op, 2)) == VCODE_TYPE_POINTER)
-      macro_exit(g, JIT_EXIT_INIT_SIGNALS);
-   else
-      macro_exit(g, JIT_EXIT_INIT_SIGNAL);
+   macro_exit(g, JIT_EXIT_INIT_SIGNAL);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 
@@ -2323,8 +2329,7 @@ static void irgen_op_map_const(jit_irgen_t *g, int op)
    jit_value_t dst_off   = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
    jit_value_t dst_count = irgen_get_arg(g, op, 2);
 
-   const vtype_kind_t init_kind = vcode_reg_kind(vcode_get_arg(op, 0));
-   jit_value_t scalar = jit_value_from_int64(init_kind != VCODE_TYPE_POINTER);
+   jit_value_t scalar = irgen_is_scalar(g, op, 0);
 
    j_send(g, 0, dst_ss);
    j_send(g, 1, dst_off);
@@ -2569,8 +2574,7 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
    jit_value_t reject = irgen_get_arg(g, op, 3);
    jit_value_t after  = irgen_get_arg(g, op, 4);
 
-   const vtype_kind_t value_kind = vcode_reg_kind(vcode_get_arg(op, 2));
-   jit_value_t scalar = jit_value_from_int64(value_kind != VCODE_TYPE_POINTER);
+   jit_value_t scalar = irgen_is_scalar(g, op, 2);
 
    j_send(g, 0, shared);
    j_send(g, 1, offset);

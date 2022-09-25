@@ -827,38 +827,21 @@ static void interp_assert_fail(jit_interp_t *state)
 
 static void interp_scalar_init_signal(jit_interp_t *state)
 {
-   int32_t count  = state->args[0].integer;
-   int32_t size   = state->args[1].integer;
-   int64_t value  = state->args[2].integer;
-   int32_t flags  = state->args[3].integer;
-   tree_t  where  = state->args[4].pointer;
-   int32_t offset = state->args[5].integer;
+   int32_t      count  = state->args[0].integer;
+   int32_t      size   = state->args[1].integer;
+   jit_scalar_t value  = { .integer = state->args[2].integer };
+   int32_t      flags  = state->args[3].integer;
+   tree_t       where  = state->args[4].pointer;
+   int32_t      offset = state->args[5].integer;
+   bool         scalar = state->args[6].integer;
 
    sig_shared_t *ss;
    if (!jit_has_runtime(state->func->jit))
       ss = NULL;   // Called during constant folding
-   else
-      ss = x_init_signal(count, size, (const uint8_t *)&value,
-                         flags, where, offset);
-
-   state->args[0].pointer = ss;
-   state->nargs = 1;
-}
-
-static void interp_scalar_init_signals(jit_interp_t *state)
-{
-   int32_t  count  = state->args[0].integer;
-   int32_t  size   = state->args[1].integer;
-   uint8_t *value  = state->args[2].pointer;
-   int32_t  flags  = state->args[3].integer;
-   tree_t   where  = state->args[4].pointer;
-   int32_t  offset = state->args[5].integer;
-
-   sig_shared_t *ss;
-   if (!jit_has_runtime(state->func->jit))
-      ss = NULL;   // Called during constant folding
-   else
-      ss = x_init_signal(count, size, value, flags, where, offset);
+   else {
+      const uint8_t *ptr = scalar ? &value.integer : value.pointer;
+      ss = x_init_signal(count, size, ptr, flags, where, offset);
+   }
 
    state->args[0].pointer = ss;
    state->nargs = 1;
@@ -1156,10 +1139,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_INIT_SIGNAL:
       interp_scalar_init_signal(state);
-      break;
-
-   case JIT_EXIT_INIT_SIGNALS:
-      interp_scalar_init_signals(state);
       break;
 
    case JIT_EXIT_DRIVE_SIGNAL:
