@@ -2759,6 +2759,44 @@ static void irgen_op_debug_out(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_DEBUG_OUT);
 }
 
+static void irgen_op_last_event(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+   jit_value_t count;
+   if (vcode_count_args(op) > 1)
+      count = irgen_get_arg(g, op, 1);
+   else
+      count = jit_value_from_int64(1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_LAST_EVENT);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_last_active(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+   jit_value_t count;
+   if (vcode_count_args(op) > 1)
+      count = irgen_get_arg(g, op, 1);
+   else
+      count = jit_value_from_int64(1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_LAST_ACTIVE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3078,6 +3116,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_DEBUG_OUT:
          irgen_op_debug_out(g, i);
+         break;
+      case VCODE_OP_LAST_EVENT:
+         irgen_op_last_event(g, i);
+         break;
+      case VCODE_OP_LAST_ACTIVE:
+         irgen_op_last_active(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));

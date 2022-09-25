@@ -1095,6 +1095,26 @@ static void interp_resolve_signal(jit_interp_t *state)
 #endif
 }
 
+static void interp_last_event(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   uint32_t      offset = state->args[1].integer;
+   uint32_t      count  = state->args[2].integer;
+
+   state->args[0].integer = x_last_event(shared, offset, count);
+   state->nargs = 1;
+}
+
+static void interp_last_active(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   uint32_t      offset = state->args[1].integer;
+   uint32_t      count  = state->args[2].integer;
+
+   state->args[0].integer = x_last_active(shared, offset, count);
+   state->nargs = 1;
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1236,6 +1256,14 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_RESOLVE_SIGNAL:
       interp_resolve_signal(state);
+      break;
+
+   case JIT_EXIT_LAST_EVENT:
+      interp_last_event(state);
+      break;
+
+   case JIT_EXIT_LAST_ACTIVE:
+      interp_last_active(state);
       break;
 
    default:
