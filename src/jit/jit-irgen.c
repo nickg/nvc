@@ -614,6 +614,12 @@ static int irgen_slots_for_type(vcode_type_t vtype)
    case VCODE_TYPE_SIGNAL:
       // Signal pointer plus offset
       return 2;
+   case VCODE_TYPE_CLOSURE:
+      // Function pointer plus context
+      return 2;
+   case VCODE_TYPE_RESOLUTION:
+      // Closure slots plus left and nlits (this is silly)
+      return 4;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -2244,12 +2250,34 @@ static void irgen_op_all(jit_irgen_t *g, int op)
 
 static void irgen_op_closure(jit_irgen_t *g, int op)
 {
-   g->map[vcode_get_result(op)] = jit_value_from_int64(0);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_get_func(op));
+
+   jit_reg_t base = irgen_alloc_reg(g);
+   j_mov(g, base, jit_value_from_handle(handle));
+
+   jit_reg_t context = irgen_alloc_reg(g);
+   j_mov(g, context, irgen_get_arg(g, op, 0));
+
+   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
 }
 
 static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
 {
-   g->map[vcode_get_result(op)] = jit_value_from_int64(0);
+   jit_value_t closure = irgen_get_arg(g, op, 0);
+
+   jit_reg_t base = irgen_alloc_reg(g);
+   j_mov(g, base, closure);
+
+   jit_reg_t context = irgen_alloc_reg(g);
+   j_mov(g, context, jit_value_from_reg(jit_value_as_reg(closure) + 1));
+
+   jit_reg_t ileft = irgen_alloc_reg(g);
+   j_mov(g, ileft, irgen_get_arg(g, op, 1));
+
+   jit_reg_t nlits = irgen_alloc_reg(g);
+   j_mov(g, nlits, irgen_get_arg(g, op, 2));
+
+   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
 }
 
 static void irgen_op_init_signal(jit_irgen_t *g, int op)
@@ -2342,7 +2370,20 @@ static void irgen_op_map_const(jit_irgen_t *g, int op)
 
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
 {
-   // No-op
+   jit_value_t shared  = irgen_get_arg(g, op, 0);
+   jit_value_t resfn   = irgen_get_arg(g, op, 1);
+   jit_reg_t   base    = jit_value_as_reg(resfn);
+   jit_value_t context = jit_value_from_reg(base + 1);
+   jit_value_t ileft   = jit_value_from_reg(base + 2);
+   jit_value_t nlits   = jit_value_from_reg(base + 3);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, resfn);
+   j_send(g, 2, context);
+   j_send(g, 3, ileft);
+   j_send(g, 4, nlits);
+
+   macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }
 
 static void irgen_op_unreachable(jit_irgen_t *g, int op)

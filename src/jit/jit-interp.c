@@ -168,6 +168,8 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       return (jit_scalar_t){ .pointer = (void *)(intptr_t)value.int64 };
    case JIT_VALUE_LABEL:
       return (jit_scalar_t){ .integer = value.label };
+   case JIT_VALUE_HANDLE:
+      return (jit_scalar_t){ .integer = value.handle };
    default:
       interp_dump(state);
       fatal_trace("cannot handle value kind %d", value.kind);
@@ -1082,6 +1084,17 @@ static void interp_map_const(jit_interp_t *state)
    x_map_const(dst_ss, dst_offset, vptr, dst_count);
 }
 
+static void interp_resolve_signal(jit_interp_t *state)
+{
+#if 0
+   sig_shared_t *shared  = state->args[0].pointer;
+   jit_handle_t  resfn   = state->args[1].integer;
+   void         *context = state->args[2].pointer;
+   int32_t       ileft   = state->args[3].integer;
+   int32_t       nlits   = state->args[4].integer;
+#endif
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1219,6 +1232,10 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_MAP_CONST:
       interp_map_const(state);
+      break;
+
+   case JIT_EXIT_RESOLVE_SIGNAL:
+      interp_resolve_signal(state);
       break;
 
    default:
