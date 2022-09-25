@@ -1770,12 +1770,16 @@ static void irgen_op_range_null(jit_irgen_t *g, int op)
 {
    jit_value_t left  = irgen_get_arg(g, op, 0);
    jit_value_t right = irgen_get_arg(g, op, 1);
-   jit_value_t dir   = irgen_get_arg(g, op, 2);
 
    irgen_label_t *l_downto = irgen_alloc_label(g);
    irgen_label_t *l_after  = irgen_alloc_label(g);
 
-   j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+   vcode_reg_t arg2 = vcode_get_arg(op, 2);
+   if (arg2 != g->flags) {
+      jit_value_t dir = irgen_get_value(g, arg2);
+      j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+   }
+
    j_jump(g, JIT_CC_T, l_downto);
 
    j_cmp(g, JIT_CC_GT, left, right);
@@ -1826,7 +1830,7 @@ static void irgen_op_cond(jit_irgen_t *g, int op)
 {
    vcode_reg_t arg0 = vcode_get_arg(op, 0);
    if (arg0 != g->flags) {
-      jit_value_t test = irgen_get_arg(g, op, 0);
+      jit_value_t test = irgen_get_value(g, arg0);
       j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
    }
 

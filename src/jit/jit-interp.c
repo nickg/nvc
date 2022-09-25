@@ -1408,7 +1408,11 @@ static void interp_loop(jit_interp_t *state)
 
 bool jit_interp(jit_func_t *f, jit_scalar_t *args)
 {
-   assert(f->entry == jit_interp);   // TODO: bounce to higher tier
+   if (f->entry != jit_interp) {
+      // Came from stale compiled code
+      // TODO: should we patch the call site?
+      return (*f->entry)(f, args);
+   }
 
    if (f->irbuf == NULL)
       jit_irgen(f);

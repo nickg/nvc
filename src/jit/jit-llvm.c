@@ -43,11 +43,14 @@ typedef enum {
    LLVM_INT16,
    LLVM_INT32,
    LLVM_INT64,
+   LLVM_INTPTR,
 
    LLVM_PAIR_I8_I1,
    LLVM_PAIR_I16_I1,
    LLVM_PAIR_I32_I1,
    LLVM_PAIR_I64_I1,
+
+   LLVM_ENTRY_FN,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -101,6 +104,7 @@ typedef struct {
    jit_func_t          *func;
    jit_cfg_t           *cfg;
    char                *name;
+   text_buf_t          *textbuf;
 } cgen_req_t;
 
 typedef struct {
@@ -123,6 +127,17 @@ static LLVMValueRef llvm_int32(cgen_req_t *req, int32_t i)
 static LLVMValueRef llvm_int64(cgen_req_t *req, int64_t i)
 {
    return LLVMConstInt(req->types[LLVM_INT64], i, false);
+}
+
+static LLVMValueRef llvm_intptr(cgen_req_t *req, intptr_t i)
+{
+   return LLVMConstInt(req->types[LLVM_INTPTR], i, false);
+}
+
+static LLVMValueRef llvm_ptr(cgen_req_t *req, void *ptr)
+{
+   return LLVMConstIntToPtr(llvm_intptr(req, (intptr_t)ptr),
+                            req->types[LLVM_PTR]);
 }
 
 static LLVMBasicBlockRef cgen_append_block(cgen_req_t *req, const char *name)
@@ -274,6 +289,13 @@ static const char *cgen_reg_name(jit_reg_t reg)
 #else
    return "";
 #endif
+}
+
+static const char *cgen_istr(cgen_req_t *req, ident_t id)
+{
+   tb_rewind(req->textbuf);
+   tb_istr(req->textbuf, id);
+   return tb_get(req->textbuf);
 }
 
 static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
@@ -538,6 +560,30 @@ static void cgen_op_cset(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    cgb->outregs[ir->result] = result;
 }
 
+static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   jit_func_t *callee = jit_get_func(req->func->jit, ir->arg1.handle);
+   const char *name = cgen_istr(req, callee->name);
+   LLVMValueRef global = LLVMGetNamedGlobal(req->module, name);
+   if (global == NULL) {
+      global = LLVMAddGlobal(req->module, req->types[LLVM_PTR], name);
+      LLVMSetGlobalConstant(global, true);
+      LLVMSetLinkage(global, LLVMPrivateLinkage);
+      LLVMSetUnnamedAddr(global, true);
+      LLVMSetInitializer(global, llvm_ptr(req, jit_interp));
+   }
+
+   LLVMValueRef fnptr =
+      LLVMBuildLoad2(req->builder, req->types[LLVM_PTR], global, "");
+
+   LLVMValueRef args[] = {
+      llvm_ptr(req, callee),
+      req->args
+   };
+   LLVMBuildCall2(req->builder, req->types[LLVM_ENTRY_FN], fnptr,
+                  args, ARRAY_LEN(args), "");
+}
+
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -572,6 +618,9 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       cgen_op_cset(req, cgb, ir);
       break;
    case J_DEBUG:
+      break;
+   case J_CALL:
+      cgen_op_call(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -665,19 +714,21 @@ static void cgen_module(cgen_req_t *req)
    LLVMTargetDataRef data_ref = LLVMCreateTargetDataLayout(req->target);
    LLVMSetModuleDataLayout(req->module, data_ref);
 
-   req->types[LLVM_VOID]  = LLVMVoidTypeInContext(req->context);
-   req->types[LLVM_PTR]   = LLVMPointerTypeInContext(req->context, 0);
-   req->types[LLVM_INT1]  = LLVMInt1TypeInContext(req->context);
-   req->types[LLVM_INT8]  = LLVMInt8TypeInContext(req->context);
-   req->types[LLVM_INT16] = LLVMInt16TypeInContext(req->context);
-   req->types[LLVM_INT32] = LLVMInt32TypeInContext(req->context);
-   req->types[LLVM_INT64] = LLVMInt64TypeInContext(req->context);
+   req->types[LLVM_VOID]   = LLVMVoidTypeInContext(req->context);
+   req->types[LLVM_PTR]    = LLVMPointerTypeInContext(req->context, 0);
+   req->types[LLVM_INT1]   = LLVMInt1TypeInContext(req->context);
+   req->types[LLVM_INT8]   = LLVMInt8TypeInContext(req->context);
+   req->types[LLVM_INT16]  = LLVMInt16TypeInContext(req->context);
+   req->types[LLVM_INT32]  = LLVMInt32TypeInContext(req->context);
+   req->types[LLVM_INT64]  = LLVMInt64TypeInContext(req->context);
+   req->types[LLVM_INTPTR] = LLVMIntPtrTypeInContext(req->context, data_ref);
 
    LLVMTypeRef atypes[] = { req->types[LLVM_PTR], req->types[LLVM_PTR] };
-   LLVMTypeRef fntype = LLVMFunctionType(req->types[LLVM_INT1], atypes,
-                                         ARRAY_LEN(atypes), false);
+   req->types[LLVM_ENTRY_FN] = LLVMFunctionType(req->types[LLVM_INT1], atypes,
+                                                ARRAY_LEN(atypes), false);
 
-   req->llvmfn = LLVMAddFunction(req->module, req->name, fntype);
+   req->llvmfn = LLVMAddFunction(req->module, req->name,
+                                 req->types[LLVM_ENTRY_FN]);
 
    LLVMBasicBlockRef entry_bb = cgen_append_block(req, "entry");
    LLVMPositionBuilderAtEnd(req->builder, entry_bb);
@@ -882,6 +933,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
       .target  = tm_ref,
       .name    = tb_claim(tb),
       .func    = f,
+      .textbuf = tb_new(),
    };
    cgen_module(&req);
    cgen_optimise(&req);
@@ -899,8 +951,9 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    printf("%s at %p\n", req.name, (void *)addr);
 
-   f->entry = (jit_entry_fn_t)addr;
+   atomic_store(&f->entry, (jit_entry_fn_t)addr);
 
+   tb_free(req.textbuf);
    free(req.name);
 }
 
