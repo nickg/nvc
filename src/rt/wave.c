@@ -148,15 +148,17 @@ static void fst_close(rt_model_t *m, void *arg)
 
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
-   uint64_t val;
-   signal_expand(data->signal, 0, &val, 1);
+   uint64_t val[data->count];
+   signal_expand(data->signal, 0, val, data->count);
 
-   char buf[data->type->size + 1];
-   for (size_t i = 0; i < data->type->size; i++)
-      buf[data->type->size - 1 - i] = (val & (1 << i)) ? '1' : '0';
-   buf[data->type->size] = '\0';
+   for (int i = 0; i < data->count; i++) {
+      char buf[data->type->size + 1];
+      for (size_t j = 0; j < data->type->size; j++)
+         buf[data->type->size - 1 - j] = (val[i] & (1 << j)) ? '1' : '0';
+      buf[data->type->size] = '\0';
 
-   fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[0], buf);
+      fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
+   }
 }
 
 static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
@@ -446,7 +448,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    fst_data_t *data;
 
    type_t elem = type_elem(type);
-   if (type_is_array(elem)) {
+   if (!type_is_enum(elem)) {
       // Dumping memories and nested arrays can be slow
       if (!opt_get_int(OPT_DUMP_ARRAYS))
          return;
@@ -455,9 +457,17 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       if (ft == NULL)
          return;
 
-      tree_t elem_r = range_of(elem, 0);
-      int64_t e_low, e_high;
-      range_bounds(elem_r, &e_low, &e_high);
+      const bool is_memory = type_is_array(elem);
+
+      int64_t e_low = 1, e_high = 1;
+      int msb = 0, lsb = 0;
+      if (is_memory) {
+         tree_t elem_r = range_of(elem, 0);
+         range_bounds(elem_r, &e_low, &e_high);
+
+         msb = assume_int(tree_left(elem_r));
+         lsb = assume_int(tree_right(elem_r));
+      }
 
       const int length = MAX(high - low + 1, 0);
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
@@ -465,13 +475,12 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       data->size  = (e_high - e_low + 1) * ft->size;
       data->type  = ft;
 
-      const int msb = assume_int(tree_left(elem_r));
-      const int lsb = assume_int(tree_right(elem_r));
-
       for (int i = 0; i < length; i++) {
          tb_rewind(tb);
          tb_istr(tb, tree_ident(d));
-         tb_printf(tb, "[%"PRIi64"][%d:%d]", low + i, msb, lsb);
+         tb_printf(tb, "[%"PRIi64"]", low + i);
+         if (is_memory)
+            tb_printf(tb, "[%d:%d]", msb, lsb);
          tb_downcase(tb);
 
          data->handle[i] = fstWriterCreateVar2(

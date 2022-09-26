@@ -668,3 +668,4 @@ vests48         normal
 signal27        normal
 issue519        normal,2008
 delay3          fail,gold
+issue536        shell
