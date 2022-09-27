@@ -777,7 +777,7 @@ static void interp_div_zero(jit_interp_t *state)
 {
    tree_t where = state->args[0].pointer;
 
-   interp_error(state, tree_loc(where), "division by zero");
+   x_div_zero(where);
 }
 
 static void interp_exponent_fail(jit_interp_t *state)
@@ -792,11 +792,7 @@ static void interp_unreachable(jit_interp_t *state)
 {
    tree_t where = state->args[0].pointer;
 
-   if (where != NULL && tree_kind(where) == T_FUNC_BODY)
-      interp_error(state, tree_loc(where), "function %s did not return a value",
-                   istr(tree_ident(where)));
-   else
-      fatal_trace("executed unreachable instruction");
+   x_unreachable(where);
 }
 
 static void interp_func_wait(jit_interp_t *state)
