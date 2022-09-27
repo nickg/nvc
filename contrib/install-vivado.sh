@@ -23,6 +23,10 @@ EOF
   exit 1
 fi
 
+if [ -n "$MSYSTEM" ]; then
+  XILINX_VIVADO=$(cygpath -u $XILINX_VIVADO)
+fi
+
 echo "Using Vivado installation in $XILINX_VIVADO"
 echo
 
