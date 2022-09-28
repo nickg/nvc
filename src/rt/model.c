@@ -77,7 +77,7 @@ typedef struct _rt_model {
    event_t           *delta_proc;
    event_t           *delta_driver;
    heap_t            *eventq_heap;
-   hash_t            *res_memo;
+   ihash_t           *res_memo;
    rt_alloc_stack_t   event_stack;
    rt_alloc_stack_t   sens_list_stack;
    rt_alloc_stack_t   watch_stack;
@@ -393,7 +393,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->iteration   = -1;
    m->stop_delta  = opt_get_int(OPT_STOP_DELTA);
    m->eventq_heap = heap_new(512);
-   m->res_memo    = hash_new(128);
+   m->res_memo    = ihash_new(128);
 
    m->can_create_delta = true;
 
@@ -606,7 +606,7 @@ void model_free(rt_model_t *m)
 
    heap_free(m->eventq_heap);
    hash_free(m->scopes);
-   hash_free(m->res_memo);
+   ihash_free(m->res_memo);
    free(m);
 }
 
@@ -889,7 +889,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
 {
    // Optimise some common resolution functions by memoising them
 
-   res_memo_t *memo = hash_get(m->res_memo, resolution->closure.fn);
+   res_memo_t *memo = ihash_get(m->res_memo, resolution->closure.handle);
    if (memo != NULL)
       return memo;
 
@@ -898,7 +898,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    memo->flags   = resolution->flags;
    memo->ileft   = resolution->ileft;
 
-   hash_put(m->res_memo, memo->closure.fn, memo);
+   ihash_put(m->res_memo, memo->closure.handle, memo);
 
    if (resolution->nlits == 0 || resolution->nlits > 16)
       return memo;
@@ -938,8 +938,9 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          memo->flags |= R_IDENT;
    }
 
-   TRACE("memoised resolution function %p for type %s",
-         resolution->closure.fn, type_pp(tree_type(signal->where)));
+   TRACE("memoised resolution function %s for type %s",
+         istr(jit_get_name(m->jit, resolution->closure.handle)),
+         type_pp(tree_type(signal->where)));
 
    jit_set_silent(m->jit, false);
    jit_reset_exit_status(m->jit);
@@ -1526,10 +1527,12 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
       }
    }
 
-   TRACE("call conversion function %p insz=%zu outsz=%zu",
-         cf->closure.fn, insz, cf->bufsz);
+   rt_model_t *m = get_model();
 
-   jit_ffi_call(get_model()->jit, &(cf->closure), indata, insz,
+   TRACE("call conversion function %s insz=%zu outsz=%zu",
+         istr(jit_get_name(m->jit, cf->closure.handle)), insz, cf->bufsz);
+
+   jit_ffi_call(m->jit, &(cf->closure), indata, insz,
                 cf->buffer, cf->bufsz, false);
 
    if (incopy) free(indata);
@@ -2253,7 +2256,7 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 {
    int8_t r;
-   ffi_call(imp->closure, NULL, 0, &r, sizeof(r));
+   jit_ffi_call(m->jit, imp->closure, NULL, 0, &r, sizeof(r), false);
 
    TRACE("implicit signal %s guard expression %d",
          istr(tree_ident(imp->signal.where)), r);
@@ -3249,17 +3252,4 @@ void x_unreachable(tree_t where)
               istr(tree_ident(where)));
    else
       jit_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
-}
-
-void *x_mspace_alloc(uint32_t size, uint32_t nelems)
-{
-   uint32_t total;
-   if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {
-      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
-              "which is larger than the maximum supported %u bytes",
-              (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
-      __builtin_unreachable();
-   }
-   else
-      return mspace_alloc(get_model()->mspace, total);
 }

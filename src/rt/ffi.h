@@ -20,6 +20,7 @@
 
 #include "prim.h"
 #include "util.h"
+#include "jit/jit.h"
 
 #include <stdint.h>
 
@@ -46,10 +47,10 @@ STATIC_ASSERT(sizeof(ffi_spec_t) == 4);
 
 // The code generator knows the layout of this struct
 typedef struct _ffi_closure {
-   void       *fn;
-   void       *context;
-   ffi_spec_t  spec;
-   uint32_t    refcnt;
+   jit_handle_t  handle;
+   void         *context;
+   ffi_spec_t    spec;
+   uint32_t      refcnt;
 } ffi_closure_t;
 
 // The code generator knows the layout of this struct
@@ -66,7 +67,7 @@ typedef struct _ffi_uarray {
 #define EXPLODED_UARRAY(name) \
    void *name##_ptr, int32_t name##_left, int32_t name##_length
 
-void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
+void ffi_call(ffi_closure_t *c, void *ptr, const void *input, size_t insz,
               void *output, size_t outsz);
 void ffi_unref_closure(ffi_closure_t *c);
 ffi_closure_t *ffi_ref_closure(ffi_closure_t *c);

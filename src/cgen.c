@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
@@ -332,7 +333,7 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
 static LLVMTypeRef llvm_closure_type(void)
 {
    LLVMTypeRef struct_elems[] = {
-      llvm_void_ptr(),     // Function pointer
+      llvm_int32_type(),   // Function handle
       llvm_void_ptr(),     // Context pointer
       llvm_int32_type(),   // FFI spec
    };
@@ -2255,18 +2256,14 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
    vcode_type_t rtype = vtype_base(vcode_reg_type(result));
    vcode_type_t atype = vcode_get_type(op);
 
-   LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, VCODE_CC_VHDL,
-                                    NULL, 0);
-   if (fn == NULL) {
-      // The function is not visible yet e.g. because it is declared in
-      // another package
-      vcode_type_t args[] = {
-         vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
-         atype
-      };
-      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args,
-                          atype == VCODE_INVALID_REG ? 1 : 2);
-   }
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, func);
+
+   LLVMValueRef args[] = {
+      cgen_const_string(tb_get(tb))
+   };
+   LLVMValueRef handle = LLVMBuildCall(builder, llvm_fn("__nvc_get_handle"),
+                                       args, ARRAY_LEN(args), "");
 
    ffi_spec_t spec = {
       .atype = cgen_ffi_type(atype),
@@ -2276,7 +2273,7 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
    LLVMValueRef display = cgen_get_arg(op, 0, ctx);
 
    LLVMValueRef cdata = LLVMGetUndef(llvm_closure_type());
-   cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(fn), 0, "");
+   cdata = LLVMBuildInsertValue(builder, cdata, handle, 0, "");
    cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(display), 1, "");
    cdata = LLVMBuildInsertValue(builder, cdata, llvm_int32(spec.bits), 2, "");
 
@@ -5187,6 +5184,14 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_canon_value",
                            LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_get_handle") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_int8_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "__nvc_get_handle",
+                           LLVMFunctionType(llvm_int32_type(),
                                             args, ARRAY_LEN(args), false));
    }
 

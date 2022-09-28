@@ -257,6 +257,7 @@ void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
+jit_t *jit_for_thread(void);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

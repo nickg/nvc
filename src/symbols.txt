@@ -40,6 +40,7 @@
   __nvc_exponent_fail;
   __nvc_flush;
   __nvc_force;
+  __nvc_get_handle;
   __nvc_index_fail;
   __nvc_length_fail;
   __nvc_map_const;

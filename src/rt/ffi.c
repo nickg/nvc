@@ -54,24 +54,24 @@ static void ffi_store_int(ffi_type_t type, uint64_t value,
    }
 }
 
-void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
+void ffi_call(ffi_closure_t *c, void *ptr, const void *input, size_t insz,
               void *output, size_t outsz)
 {
    if (ffi_is_integral(c->spec.atype)) {
       const int64_t arg = ffi_widen_int(c->spec.atype, input, insz);
 
       if (ffi_is_integral(c->spec.rtype)) {
-         uint64_t (*fn)(void *, int64_t) = c->fn;
+         uint64_t (*fn)(void *, int64_t) = ptr;
          const uint64_t r = (*fn)(c->context, arg);
          ffi_store_int(c->spec.rtype, r, output, outsz);
       }
       else if (c->spec.rtype == FFI_FLOAT) {
-         double (*fn)(void *, int64_t) = c->fn;
+         double (*fn)(void *, int64_t) = ptr;
          assert(outsz == sizeof(double));
          *(double *)output = (*fn)(c->context, arg);
       }
       else if (c->spec.rtype == FFI_POINTER) {
-         void *(*fn)(void *, int64_t) = c->fn;
+         void *(*fn)(void *, int64_t) = ptr;
          void *r = (*fn)(c->context, arg);
          memcpy(output, r, outsz);
       }
@@ -79,28 +79,28 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
          fatal_trace("unhandled FFI function argument combination");
    }
    else if (c->spec.atype == FFI_FLOAT && ffi_is_integral(c->spec.rtype)) {
-      uint64_t (*fn)(void *, double) = c->fn;
+      uint64_t (*fn)(void *, double) = ptr;
       const uint64_t r = (*fn)(c->context, *(double *)input);
       ffi_store_int(c->spec.rtype, r, output, outsz);
    }
    else if (c->spec.atype == FFI_FLOAT && c->spec.rtype == FFI_FLOAT) {
-      double (*fn)(void *, double) = c->fn;
+      double (*fn)(void *, double) = ptr;
       assert(insz == sizeof(double));
       assert(outsz == sizeof(double));
       *(double *)output = (*fn)(c->context, *(double *)input);
    }
    else if (c->spec.atype == FFI_POINTER && ffi_is_integral(c->spec.rtype)) {
-      int64_t (*fn)(void *, const void *) = c->fn;
+      int64_t (*fn)(void *, const void *) = ptr;
       const int64_t r = (*fn)(c->context, input);
       ffi_store_int(c->spec.rtype, r, output, outsz);
    }
    else if (c->spec.atype == FFI_VOID && ffi_is_integral(c->spec.rtype)) {
-      int64_t (*fn)(void *) = c->fn;
+      int64_t (*fn)(void *) = ptr;
       const int64_t r = (*fn)(c->context);
       ffi_store_int(c->spec.rtype, r, output, outsz);
    }
    else if (c->spec.atype == FFI_UARRAY && ffi_is_integral(c->spec.rtype)) {
-      int64_t (*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      int64_t (*fn)(void *, EXPLODED_UARRAY(arg)) = ptr;
       assert(insz == sizeof(ffi_uarray_t));
       const ffi_uarray_t *u = input;
       const int64_t r = (*fn)(c->context, u->ptr, u->dims[0].left,
@@ -108,7 +108,7 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
       ffi_store_int(c->spec.rtype, r, output, outsz);
    }
    else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_FLOAT) {
-      double (*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      double (*fn)(void *, EXPLODED_UARRAY(arg)) = ptr;
       assert(insz == sizeof(ffi_uarray_t));
       assert(outsz == sizeof(double));
       const ffi_uarray_t *u = input;
@@ -116,7 +116,7 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
                                 u->dims[0].length);
    }
    else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_POINTER) {
-      void *(*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      void *(*fn)(void *, EXPLODED_UARRAY(arg)) = ptr;
       assert(insz == sizeof(ffi_uarray_t));
       assert(outsz == sizeof(void *));
       const ffi_uarray_t *u = input;

@@ -18,6 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "jit/jit-exits.h"
+#include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "rt/ffi.h"
@@ -482,6 +483,18 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       jit_abort(EXIT_FAILURE);
 }
 
+void *x_mspace_alloc(uint32_t size, uint32_t nelems)
+{
+   uint32_t total;
+   if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {
+      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
+              "which is larger than the maximum supported %u bytes",
+              (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
+      __builtin_unreachable();
+   }
+   else
+      return mspace_alloc(jit_get_mspace(jit_for_thread()), total);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
@@ -846,4 +859,14 @@ DLLEXPORT
 void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
 {
    return x_mspace_alloc(size, nelems);
+}
+
+DLLEXPORT
+jit_handle_t __nvc_get_handle(const char *func)
+{
+   jit_handle_t handle = jit_lazy_compile(jit_for_thread(), ident_new(func));
+   if (handle == JIT_HANDLE_INVALID)
+      fatal_trace("missing function %s", func);
+
+   return handle;
 }

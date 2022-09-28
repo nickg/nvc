@@ -86,9 +86,12 @@ typedef enum {
    JIT_INTERP
 } jit_state_t;
 
-static __thread jmp_buf abort_env;
-static __thread jit_state_t thread_state = JIT_IDLE;
-static volatile __thread sig_atomic_t jmp_buf_valid = 0;
+typedef struct {
+   jit_t                 *jit;
+   jit_state_t            state;
+   jmp_buf                abort_env;
+   volatile sig_atomic_t  jmp_buf_valid;
+} jit_thread_local_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
@@ -102,6 +105,18 @@ static void jit_oom_cb(mspace_t *m, size_t size)
 
    diag_emit(d);
    jit_abort(EXIT_FAILURE);
+}
+
+static jit_thread_local_t *jit_thread_local(void)
+{
+   static __thread jit_thread_local_t *local = NULL;
+
+   if (local == NULL) {
+      local = xcalloc(sizeof(jit_thread_local_t));
+      local->state = JIT_IDLE;
+   }
+
+   return local;
 }
 
 jit_t *jit_new(void)
@@ -322,7 +337,7 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
 
 static void jit_native_trace(diag_t *d)
 {
-   assert(thread_state == JIT_NATIVE);
+   assert(jit_thread_local()->state == JIT_NATIVE);
 
    debug_info_t *di = debug_capture();
 
@@ -376,7 +391,7 @@ static void jit_diag_cb(diag_t *d, void *arg)
       return;
    }
 
-   switch (thread_state) {
+   switch (jit_thread_local()->state) {
    case JIT_NATIVE:
       jit_native_trace(d);
       break;
@@ -390,20 +405,24 @@ static void jit_diag_cb(diag_t *d, void *arg)
 
 static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
 {
+   jit_thread_local_t *thread = jit_thread_local();
+
 #ifdef DEBUG
-   if (thread_state != from)
-      fatal_trace("expected thread state %d but have %d", from, thread_state);
+   if (thread->state != from)
+      fatal_trace("expected thread state %d but have %d", from, thread->state);
 #endif
 
-   thread_state = to;
+   thread->state = to;
 
    switch (to) {
    case JIT_NATIVE:
    case JIT_INTERP:
       diag_add_hint_fn(jit_diag_cb, j);
+      thread->jit = j;
       break;
    case JIT_IDLE:
       diag_remove_hint_fn(jit_diag_cb);
+      thread->jit = NULL;
       break;
    }
 }
@@ -541,22 +560,23 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    // TODO: this interface and jit_call should be rethought
 
    jit_func_t *f = jit_get_func(j, handle);
+   jit_thread_local_t *thread = jit_thread_local();
 
    if (f->symbol) {
-      assert(!jmp_buf_valid);
-      const int rc = setjmp(abort_env);
+      assert(!thread->jmp_buf_valid);
+      const int rc = setjmp(thread->abort_env);
       if (rc == 0) {
-         jmp_buf_valid = 1;
+         thread->jmp_buf_valid = 1;
          jit_transition(j, JIT_IDLE, JIT_NATIVE);
          void *(*fn)(void *, void *) = f->symbol;
          result->pointer = (*fn)(p1.pointer, p2.pointer);
          jit_transition(j, JIT_NATIVE, JIT_IDLE);
-         jmp_buf_valid = 0;
+         thread->jmp_buf_valid = 0;
          return true;
       }
       else {
          jit_transition(j, JIT_NATIVE, JIT_IDLE);
-         jmp_buf_valid = 0;
+         thread->jmp_buf_valid = 0;
          jit_set_exit_status(j, rc - 1);
          return false;
       }
@@ -576,36 +596,39 @@ void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
 {
    // TODO: temporary wrapper around legacy ffi_call
 
-   if (thread_state == JIT_IDLE) {
-      assert(!jmp_buf_valid);
-      const int rc = setjmp(abort_env);
+   jit_thread_local_t *thread = jit_thread_local();
+   jit_func_t *f = jit_get_func(j, c->handle);
+
+   if (thread->state == JIT_IDLE) {
+      assert(!thread->jmp_buf_valid);
+      const int rc = setjmp(thread->abort_env);
       if (rc == 0) {
-         jmp_buf_valid = 1;
+         thread->jmp_buf_valid = 1;
          jit_transition(j, JIT_IDLE, JIT_NATIVE);
-         ffi_call(c, input, insz, output, outsz);
+         ffi_call(c, f->symbol, input, insz, output, outsz);
       }
       else
          jit_set_exit_status(j, rc - 1);
 
       jit_transition(j, JIT_NATIVE, JIT_IDLE);
-      jmp_buf_valid = 0;
+      thread->jmp_buf_valid = 0;
    }
    else if (catch) {
-      const jit_state_t oldstate = thread_state;
-      const int rc = setjmp(abort_env);
+      const jit_state_t oldstate = thread->state;
+      const int rc = setjmp(thread->abort_env);
       if (rc == 0) {
-         jmp_buf_valid = 1;
-         thread_state = JIT_NATIVE;
-         ffi_call(c, input, insz, output, outsz);
+         thread->jmp_buf_valid = 1;
+         thread->state = JIT_NATIVE;
+         ffi_call(c, f->symbol, input, insz, output, outsz);
       }
       else
          jit_set_exit_status(j, rc - 1);
 
-      thread_state = oldstate;
-      jmp_buf_valid = 0;
+      thread->state = oldstate;
+      thread->jmp_buf_valid = 0;
    }
    else
-      ffi_call(c, input, insz, output, outsz);
+      ffi_call(c, f->symbol, input, insz, output, outsz);
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
@@ -770,6 +793,9 @@ void jit_load_dll(jit_t *j, ident_t name)
 
    uint32_t abi_version = 0;
 
+   // Loading the DLL can execute constructors
+   jit_transition(j, JIT_IDLE, JIT_NATIVE);
+
 #ifdef __MINGW32__
    HMODULE handle = LoadLibrary(so_path);
    if (handle == NULL)
@@ -791,6 +817,8 @@ void jit_load_dll(jit_t *j, ident_t name)
    else
       abi_version = *p;
 #endif
+
+   jit_transition(j, JIT_NATIVE, JIT_IDLE);
 
    if (abi_version != RT_ABI_VERSION)
       fatal("%s: ABI version %d does not match current version %d",
@@ -852,14 +880,16 @@ void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
 
 void jit_abort(int code)
 {
-   switch (thread_state) {
+   jit_thread_local_t *thread = jit_thread_local();
+
+   switch (thread->state) {
    case JIT_IDLE:
       fatal_exit(code);
       break;
    case JIT_NATIVE:
       assert(code >= 0);
-      if (jmp_buf_valid)
-         longjmp(abort_env, code + 1);
+      if (thread->jmp_buf_valid)
+         longjmp(thread->abort_env, code + 1);
       else
          fatal_exit(code);
       break;
@@ -905,4 +935,16 @@ void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin)
    t->context   = (*plugin->init)();
 
    j->tiers = t;
+}
+
+jit_t *jit_for_thread(void)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   assert(thread->jit != NULL);
+   return thread->jit;
+}
+
+ident_t jit_get_name(jit_t *j, jit_handle_t handle)
+{
+   return jit_get_func(j, handle)->name;
 }
