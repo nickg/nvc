@@ -52,7 +52,7 @@ struct _cover_tagging {
    tag_array_t  tags;
 };
 
-typedef struct {   
+typedef struct {
    unsigned    total_stmts;
    unsigned    hit_stmts;
    unsigned    total_branches;
@@ -208,11 +208,11 @@ void cover_print_tags(cover_tagging_t *ctx, bool dump_rt_cnts,
             data = 0;
          else
             fatal("Unknown cover tag type: %d", tag->kind);
-         
+
       } else {
          data = tag->data;
       }
-      
+
       printf("Index: %4d  Tag: %4d  Kind: %d  Data: %4d\n", i,
              tag->tag, tag->kind, data);
    }
@@ -255,7 +255,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
          else if (tag->kind == TAG_TOGGLE)
             cnts = toggles;
 
-         int32_t data = (cnts) ? cnts[tag->tag] : 0;         
+         int32_t data = (cnts) ? cnts[tag->tag] : 0;
          write_u32(data, f);
 
 #ifdef COVER_DEBUG
@@ -327,7 +327,7 @@ cover_tagging_t *cover_read_tags(fbuf_t *f)
    for (;;) {
       cover_tag_t new;
       cover_read_one_tag(f, loc_rd, ident_ctx, &new);
-      
+
       if (new.kind == TAG_LAST)
          break;
 
@@ -350,7 +350,7 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
    for (;;) {
       cover_tag_t new;
       cover_read_one_tag(f, loc_rd, ident_ctx, &new);
-      
+
       if (new.kind == TAG_LAST)
          break;
 
@@ -441,7 +441,7 @@ void cover_toggle_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
       // 1->0
       if (old == 0x3 && new == 0x2)
          *toggle_mask |= 0x2;
-      
+
       toggle_mask--;
    }
 
@@ -739,7 +739,7 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
 
    if (top) {
       notef("Code coverage results on: %s", istr(hier));
-      
+
       if (stats->total_stmts > 0)
          notef("     Statement:  %.1f %%", 100 * ((float)stats->hit_stmts) / ((float)stats->total_stmts));
       else
@@ -796,10 +796,10 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
       else if (kind == TAG_TOGGLE)
          fprintf(f, "toggles:");
       fprintf(f, "   </h3>");
-      
+
       for (int j = 0; j < n; j++) {
          loc_t loc = pair->tag->loc;
-         
+
          if (kind == TAG_BRANCH || kind == TAG_STMT)
             fprintf(f, "<p> Line %d: &emsp;", loc.first_line);
 
@@ -839,7 +839,12 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
             } else if (pair->flags & COV_FLAG_TOGGLE_TO_0) {
                fprintf(f, "Toggle to 0 &emsp;");
             }
-            fprintf(f, "on signal: &emsp; %s", istr(pair->tag->hier));
+            fprintf(f, "on ");
+            if (pair->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
+               fprintf(f, "signal:");
+            else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
+               fprintf(f, "port:&nbsp&nbsp&nbsp");
+            fprintf(f, "&emsp; %s", istr(pair->tag->hier));
          }
 
          fprintf(f, "</p>\n");
@@ -857,7 +862,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Branch')\">Branch</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
               "</div>\n");
-            
+
    cover_print_chain(f, &(ctx->ch_stmt), TAG_STMT);
    cover_print_chain(f, &(ctx->ch_branch), TAG_BRANCH);
    cover_print_chain(f, &(ctx->ch_toggle), TAG_TOGGLE);
@@ -904,7 +909,7 @@ static void cover_append_to_chain(cover_chain_t *chain, bool hits,
    (*n)++;
 
    if (*n == *alloc) {
-      *alloc = (*alloc) * 2; 
+      *alloc = (*alloc) * 2;
       pair = xrealloc_array(pair, *alloc, sizeof(cover_pair_t));
    }
 }
@@ -969,7 +974,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
       } else {
          cover_file_t *f_src = cover_file(&(tag->loc));
          // TODO: Can it happend that we don't get valid file?
-         
+
          cover_line_t *line = &(f_src->lines[tag->loc.first_line-1]);
 
          switch (tag->kind){
@@ -1017,11 +1022,11 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
                }
             }
             break;
-            
+
          case TAG_TOGGLE:
             (ctx->flat_stats.total_toggles) += 2;
             (ctx->nested_stats.total_toggles) += 2;
-            
+
             if (tag->data & 0x1) {
                (ctx->flat_stats.hit_toggles)++;
                (ctx->nested_stats.hit_toggles)++;

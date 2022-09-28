@@ -1511,8 +1511,7 @@ static void lower_branch_coverage(tree_t b, ident_t hier, unsigned int flags,
    emit_cover_branch(hit_reg, tag);
 }
 
-static int32_t lower_toggle_tag_for(type_t type, tree_t where,
-                                    ident_t hier, int dims)
+static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t hier, int dims)
 {
    type_t root = type;
 
@@ -1526,6 +1525,13 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where,
    if (known != W_IEEE_ULOGIC &&
        known != W_IEEE_ULOGIC_VECTOR)
       return -1;
+
+   unsigned int flags = 0;
+   if (tree_kind(where) == T_SIGNAL_DECL) {
+      flags = COV_FLAG_TOGGLE_SIGNAL;
+   } else {
+      flags = COV_FLAG_TOGGLE_PORT;
+   }
 
    if (type_is_array(type)) {
       tree_t r = range_of(type, dims - 1);
@@ -1541,7 +1547,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where,
             ident_t arr_hier = ident_prefix(hier, ident_new(arr_index), '(');
             arr_hier = ident_prefix(arr_hier, ident_new(")"), '\0');
             if (dims == 1) {
-               tmp = cover_add_tag(where, arr_hier, cover_tags, TAG_TOGGLE, 0)->tag;
+               tmp = cover_add_tag(where, arr_hier, cover_tags, TAG_TOGGLE, flags)->tag;
                if (i == low)
                   first_tag = tmp;
             } else {
@@ -1555,7 +1561,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where,
       return first_tag;
    }
    else
-      return cover_add_tag(where, hier, cover_tags, TAG_TOGGLE, 0)->tag;
+      return cover_add_tag(where, hier, cover_tags, TAG_TOGGLE, flags)->tag;
 }
 
 static void lower_toggle_coverage_cb(tree_t field, vcode_reg_t field_ptr,
@@ -1588,7 +1594,6 @@ static void lower_toggle_coverage(tree_t decl)
    assert(hops == 0);
 
    ident_t hier = tree_ident(decl);
-
    type_t type = tree_type(decl);
    if (!type_is_homogeneous(type)) {
       vcode_reg_t rec_ptr = emit_index(var, VCODE_INVALID_REG);

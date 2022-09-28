@@ -28,7 +28,7 @@ typedef struct _cover_tagging cover_tagging_t;
 
 typedef enum {
    // Statement/Line coverage
-   // 
+   //
    // Each execution of a statement increments counter. If counter is bigger
    // than 0, statement is covered.
    TAG_STMT,
@@ -83,18 +83,20 @@ typedef struct _cover_tag {
 
    // Location in the source file
    loc_t          loc;
-   
+
    // Hierarchy path of the covered object
    ident_t        hier;
 } cover_tag_t;
 
 typedef enum {
-   COV_FLAG_HAS_TRUE    = (1 << 0),
-   COV_FLAG_HAS_FALSE   = (1 << 1),
-   COV_FLAG_HIER_UP     = (1 << 8),
-   COV_FLAG_HIER_DOWN   = (1 << 9),
-   COV_FLAG_TOGGLE_TO_1 = (1 << 16),
-   COV_FLAG_TOGGLE_TO_0 = (1 << 15),
+   COV_FLAG_HAS_TRUE       = (1 << 0),
+   COV_FLAG_HAS_FALSE      = (1 << 1),
+   COV_FLAG_HIER_UP        = (1 << 8),
+   COV_FLAG_HIER_DOWN      = (1 << 9),
+   COV_FLAG_TOGGLE_TO_0    = (1 << 15),
+   COV_FLAG_TOGGLE_TO_1    = (1 << 16),
+   COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
+   COV_FLAG_TOGGLE_PORT    = (1 << 18)
 } cover_flags_t;
 
 typedef enum {
