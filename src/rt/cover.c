@@ -164,14 +164,14 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t hier, cover_tagging_t *ctx,
 
    assert (cnt != NULL);
 
-   /*
+#ifdef COVER_DEBUG
    printf("Tag: %s\n", istr(hier));
    printf("    First line: %d\n", tree_loc(t)->first_line);
    printf("    First column: %d\n", tree_loc(t)->first_column);
    printf("    Line delta: %d\n", tree_loc(t)->line_delta);
    printf("    Column delta: %d\n", tree_loc(t)->column_delta);
    printf("\n\n");
-   */
+#endif
 
    cover_tag_t new = {
       .kind       = kind,
@@ -186,36 +186,6 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t hier, cover_tagging_t *ctx,
    (*cnt)++;
 
    return AREF(ctx->tags, ctx->tags.count - 1);
-}
-
-void cover_print_tags(cover_tagging_t *ctx, bool dump_rt_cnts,
-                      int32_t *stmts, int32_t *branches, int32_t *toggles)
-{
-   printf("Printing cover tags...\n");
-   printf("Tag count: %d\n", ctx->tags.count);
-
-   for (int i = 0; i < ctx->tags.count; i++) {
-      cover_tag_t *tag = &(ctx->tags.items[i]);
-      int32_t data;
-      if (dump_rt_cnts) {
-         if (tag->kind == TAG_STMT)
-            data = stmts[tag->tag];
-         else if (tag->kind == TAG_BRANCH)
-            data = branches[tag->tag];
-         else if (tag->kind == TAG_TOGGLE)
-            data = toggles[tag->tag];
-         else if (tag->kind == TAG_HIER)
-            data = 0;
-         else
-            fatal("Unknown cover tag type: %d", tag->kind);
-
-      } else {
-         data = tag->data;
-      }
-
-      printf("Index: %4d  Tag: %4d  Kind: %d  Data: %4d\n", i,
-             tag->tag, tag->kind, data);
-   }
 }
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
@@ -604,10 +574,8 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "         float: left;\n"
               "         margin-left: 20px\n"
               "         border: 2px solid black;\n"
-              //"         outline: none;\n"
               "         cursor: pointer;\n"
               "         padding: 14px 16px;\n"
-              //"         transition: 0.3s;\n"
               "         font-size: 17px;\n"
               "      }\n"
               "\n"

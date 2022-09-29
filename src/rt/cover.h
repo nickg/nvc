@@ -127,7 +127,6 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *stmts, const int32_t *branches,
                      const int32_t *toggles);
 
-
 cover_tagging_t *cover_read_tags(fbuf_t *f);
 
 void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging);
