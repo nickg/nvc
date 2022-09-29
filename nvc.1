@@ -16,6 +16,8 @@
 .Nm
 .Fl r
 .Fa unit
+.Nm
+.Fl c Ar
 .\" ------------------------------------------------------------
 .\" Description
 .\" ------------------------------------------------------------
@@ -48,6 +50,11 @@ Elaborate a previously analysed top level design unit.
 .\" -r
 .It Fl r Ar unit
 Execute a previously elaborated top level design unit.
+.\" -c
+.It Fl c Ar
+Process code coverage data from
+.Ar file
+and generate coverage report.
 .\" --dump
 .It Fl -dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
@@ -350,6 +357,21 @@ option.  By default all signals in the design will be dumped: see the
 .Sx SELECTING SIGNALS
 section below for how to control this.
 .El
+.\" ------------------------------------------------------------
+.\" Coverage processing options
+.\" ------------------------------------------------------------
+.Ss Coverage processing options
+.Bl -tag -width Ds
+.It Fl --merge= Ar OUTPUT
+Merge multiple
+.Ar file
+code coverage databases into
+.Ar OUTPUT
+code coverage database.
+.It Fl --report= Ar DIR
+Generate HTML code coverage report to
+.Ar DIR
+directory.
 .\" ------------------------------------------------------------
 .\" Make options
 .\" ------------------------------------------------------------
