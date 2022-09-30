@@ -105,6 +105,13 @@ static cover_file_t  *files;
 
 bool cover_is_stmt(tree_t t)
 {
+   // All statements are implicitly labelled during parse. But, static waits
+   // or waits introduced as sensitivity to concurrent procedure calls
+   // during simp passe are not labelled.
+   // Don't cover these since they are invisible to user.
+   if (!tree_has_ident(t))
+      return false;
+
    switch (tree_kind(t)) {
    case T_IF:
    case T_WHILE:
