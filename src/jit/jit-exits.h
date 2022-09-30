@@ -19,6 +19,8 @@
 #define _JIT_EXITS_H
 
 #include "prim.h"
+#include "jit/jit.h"
+#include "rt/ffi.h"
 
 #define WEAK __attribute__((weak))
 
@@ -86,6 +88,8 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);
 void x_release(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution);
+void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
+                       ffi_spec_t spec, int32_t ileft, int32_t nlits);
 void x_elab_order_fail(tree_t where);
 void x_unreachable(tree_t where);
 void *x_mspace_alloc(uint32_t size, uint32_t nelems);

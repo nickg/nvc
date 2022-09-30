@@ -21,6 +21,7 @@
 #include "lib.h"
 #include "mask.h"
 #include "opt.h"
+#include "rt/ffi.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -615,11 +616,11 @@ static int irgen_slots_for_type(vcode_type_t vtype)
       // Signal pointer plus offset
       return 2;
    case VCODE_TYPE_CLOSURE:
-      // Function pointer plus context
-      return 2;
+      // Function pointer, context, spec
+      return 3;
    case VCODE_TYPE_RESOLUTION:
       // Closure slots plus left and nlits (this is silly)
-      return 4;
+      return 5;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -830,6 +831,41 @@ static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
 
    irgen_emit_binary(g, J_DEBUG, JIT_SZ_UNSPEC, JIT_CC_NONE,
                      JIT_REG_INVALID, arg1, arg2);
+}
+
+static ffi_type_t irgen_ffi_type(vcode_type_t type)
+{
+   if (type == VCODE_INVALID_TYPE)
+      return FFI_VOID;
+
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_INT:
+   case VCODE_TYPE_OFFSET:
+      switch (vtype_repr(type)) {
+      case VCODE_REPR_U1:
+      case VCODE_REPR_U8:
+      case VCODE_REPR_I8:
+         return FFI_INT8;
+      case VCODE_REPR_I16:
+      case VCODE_REPR_U16:
+         return FFI_INT16;
+      case VCODE_REPR_I32:
+      case VCODE_REPR_U32:
+         return FFI_INT32;
+      default:
+         return FFI_INT64;
+      }
+   case VCODE_TYPE_REAL:
+      return FFI_FLOAT;
+   case VCODE_TYPE_CARRAY:
+   case VCODE_TYPE_RECORD:
+   case VCODE_TYPE_POINTER:
+      return FFI_POINTER;
+   case VCODE_TYPE_UARRAY:
+      return FFI_UARRAY;
+   default:
+      fatal_trace("cannot handle type %d in irgen_ffi_type", vtype_kind(type));
+   }
 }
 
 static void irgen_op_null(jit_irgen_t *g, int op)
@@ -2258,7 +2294,20 @@ static void irgen_op_closure(jit_irgen_t *g, int op)
    jit_reg_t context = irgen_alloc_reg(g);
    j_mov(g, context, irgen_get_arg(g, op, 0));
 
-   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
+   vcode_reg_t result = vcode_get_result(op);
+
+   vcode_type_t rtype = vtype_base(vcode_reg_type(result));
+   vcode_type_t atype = vcode_get_type(op);
+
+   ffi_spec_t spec = {
+      .atype = irgen_ffi_type(atype),
+      .rtype = irgen_ffi_type(rtype)
+   };
+
+   jit_reg_t spec_reg = irgen_alloc_reg(g);
+   j_mov(g, spec_reg, jit_value_from_int64(spec.bits));
+
+   g->map[result] = jit_value_from_reg(base);
 }
 
 static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
@@ -2270,6 +2319,9 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
 
    jit_reg_t context = irgen_alloc_reg(g);
    j_mov(g, context, jit_value_from_reg(jit_value_as_reg(closure) + 1));
+
+   jit_reg_t spec = irgen_alloc_reg(g);
+   j_mov(g, spec, jit_value_from_reg(jit_value_as_reg(closure) + 2));
 
    jit_reg_t ileft = irgen_alloc_reg(g);
    j_mov(g, ileft, irgen_get_arg(g, op, 1));
@@ -2374,14 +2426,16 @@ static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
    jit_value_t resfn   = irgen_get_arg(g, op, 1);
    jit_reg_t   base    = jit_value_as_reg(resfn);
    jit_value_t context = jit_value_from_reg(base + 1);
-   jit_value_t ileft   = jit_value_from_reg(base + 2);
-   jit_value_t nlits   = jit_value_from_reg(base + 3);
+   jit_value_t spec    = jit_value_from_reg(base + 2);
+   jit_value_t ileft   = jit_value_from_reg(base + 3);
+   jit_value_t nlits   = jit_value_from_reg(base + 4);
 
    j_send(g, 0, shared);
    j_send(g, 1, resfn);
    j_send(g, 2, context);
-   j_send(g, 3, ileft);
-   j_send(g, 4, nlits);
+   j_send(g, 3, spec);
+   j_send(g, 4, ileft);
+   j_send(g, 5, nlits);
 
    macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }

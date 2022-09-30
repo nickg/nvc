@@ -591,6 +591,118 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    }
 }
 
+static bool ffi_is_integral(ffi_type_t type)
+{
+   return type == FFI_INT8 || type == FFI_INT16 || type == FFI_INT32
+      || type == FFI_INT64;
+}
+
+static int64_t ffi_widen_int(ffi_type_t type, const void *input, size_t insz)
+{
+   switch (type) {
+   case FFI_INT8: return *((int8_t *)input);
+   case FFI_INT16: return *((int16_t *)input);
+   case FFI_INT32: return *((int32_t *)input);
+   case FFI_INT64: return *((int32_t *)input);
+   default:
+      fatal_trace("invalid integer type in ffi_widen_int");
+   }
+}
+
+static void ffi_store_int(ffi_type_t type, uint64_t value,
+                          void *output, size_t outsz)
+{
+   assert(outsz <= sizeof(int64_t));
+   switch (type) {
+   case FFI_INT8: *(uint8_t *)output = (uint8_t)value; break;
+   case FFI_INT16: *(uint16_t *)output = (uint16_t)value; break;
+   case FFI_INT32: *(uint32_t *)output = (uint32_t)value; break;
+   case FFI_INT64: *(uint64_t *)output = value; break;
+   default:
+      fatal_trace("invalid integer type in ffi_store_int");
+   }
+}
+
+static void jit_ffi_wrapper(jit_func_t *f, ffi_closure_t *c, const void *input,
+                            size_t insz, void *output, size_t outsz)
+{
+   if (f->symbol)
+      ffi_call(c, f->symbol, input, insz, output, outsz);
+   else {
+      jit_scalar_t args[JIT_MAX_ARGS];
+      args[0].pointer = c->context;
+
+      if (ffi_is_integral(c->spec.atype)) {
+         args[1].integer = ffi_widen_int(c->spec.atype, input, insz);
+         (*f->entry)(f, args);
+
+         if (ffi_is_integral(c->spec.rtype))
+            ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
+         else if (c->spec.rtype == FFI_FLOAT) {
+            assert(outsz == sizeof(double));
+            *(double *)output = args[0].real;
+         }
+         else if (c->spec.rtype == FFI_POINTER) {
+            memcpy(output, args[0].pointer, outsz);
+         }
+         else
+            fatal_trace("unhandled FFI function argument combination");
+      }
+      else if (c->spec.atype == FFI_FLOAT && ffi_is_integral(c->spec.rtype)) {
+         assert(insz == sizeof(double));
+         args[1].real = *(double *)input;
+         (*f->entry)(f, args);
+         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
+      }
+      else if (c->spec.atype == FFI_FLOAT && c->spec.rtype == FFI_FLOAT) {
+         assert(insz == sizeof(double));
+         assert(outsz == sizeof(double));
+         args[1].real = *(double *)input;
+         (*f->entry)(f, args);
+         *(double *)output = args[0].real;
+      }
+      else if (c->spec.atype == FFI_POINTER && ffi_is_integral(c->spec.rtype)) {
+         args[1].pointer = (void *)input;
+         (*f->entry)(f, args);
+         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
+      }
+      else if (c->spec.atype == FFI_VOID && ffi_is_integral(c->spec.rtype)) {
+         (*f->entry)(f, args);
+         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
+      }
+      else if (c->spec.atype == FFI_UARRAY && ffi_is_integral(c->spec.rtype)) {
+         assert(insz == sizeof(ffi_uarray_t));
+         const ffi_uarray_t *u = input;
+         args[1].pointer = u->ptr;
+         args[2].integer = u->dims[0].left;
+         args[3].integer = u->dims[0].length;
+         (*f->entry)(f, args);
+         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
+      }
+      else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_FLOAT) {
+         assert(insz == sizeof(ffi_uarray_t));
+         const ffi_uarray_t *u = input;
+         args[1].pointer = u->ptr;
+         args[2].integer = u->dims[0].left;
+         args[3].integer = u->dims[0].length;
+         (*f->entry)(f, args);
+         *(double *)output = args[0].real;
+      }
+      else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_POINTER) {
+         assert(insz == sizeof(ffi_uarray_t));
+         assert(outsz == sizeof(void *));
+         const ffi_uarray_t *u = input;
+         args[1].pointer = u->ptr;
+         args[2].integer = u->dims[0].left;
+         args[3].integer = u->dims[0].length;
+         (*f->entry)(f, args);
+         *(void **)output = args[0].pointer;
+      }
+      else
+         fatal_trace("unhandled FFI function argument combination");
+   }
+}
+
 void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
                   void *output, size_t outsz, bool catch)
 {
@@ -605,7 +717,7 @@ void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
       if (rc == 0) {
          thread->jmp_buf_valid = 1;
          jit_transition(j, JIT_IDLE, JIT_NATIVE);
-         ffi_call(c, f->symbol, input, insz, output, outsz);
+         jit_ffi_wrapper(f, c, input, insz, output, outsz);
       }
       else
          jit_set_exit_status(j, rc - 1);
@@ -619,7 +731,7 @@ void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
       if (rc == 0) {
          thread->jmp_buf_valid = 1;
          thread->state = JIT_NATIVE;
-         ffi_call(c, f->symbol, input, insz, output, outsz);
+         jit_ffi_wrapper(f, c, input, insz, output, outsz);
       }
       else
          jit_set_exit_status(j, rc - 1);
@@ -628,7 +740,7 @@ void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
       thread->jmp_buf_valid = 0;
    }
    else
-      ffi_call(c, f->symbol, input, insz, output, outsz);
+      jit_ffi_wrapper(f, c, input, insz, output, outsz);
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)

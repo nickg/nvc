@@ -3237,6 +3237,22 @@ void x_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
    }
 }
 
+void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
+                       ffi_spec_t spec, int32_t ileft, int32_t nlits)
+{
+   rt_resolution_t resolution = {
+      .closure = {
+         .handle  = handle,
+         .context = context,
+         .spec    = spec,
+      },
+      .ileft = ileft,
+      .nlits = nlits,
+   };
+
+   x_resolve_signal(ss, &resolution);
+}
+
 void x_elab_order_fail(tree_t where)
 {
    assert(tree_kind(where) == T_EXTERNAL_NAME);

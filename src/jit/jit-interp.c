@@ -1082,13 +1082,17 @@ static void interp_map_const(jit_interp_t *state)
 
 static void interp_resolve_signal(jit_interp_t *state)
 {
-#if 0
+   if (!jit_has_runtime(state->func->jit))
+      return;   // Called during constant folding
+
    sig_shared_t *shared  = state->args[0].pointer;
-   jit_handle_t  resfn   = state->args[1].integer;
+   jit_handle_t  handle  = state->args[1].integer;
    void         *context = state->args[2].pointer;
-   int32_t       ileft   = state->args[3].integer;
-   int32_t       nlits   = state->args[4].integer;
-#endif
+   ffi_spec_t    spec    = { .bits = state->args[3].integer };
+   int32_t       ileft   = state->args[4].integer;
+   int32_t       nlits   = state->args[5].integer;
+
+   x_resolve_signal2(shared, handle, context, spec, ileft, nlits);
 }
 
 static void interp_last_event(jit_interp_t *state)
