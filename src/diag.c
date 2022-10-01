@@ -82,7 +82,6 @@ struct _diag {
 };
 
 typedef struct _hint_rec {
-   hint_rec_t     *next;
    diag_hint_fn_t  fn;
    void           *context;
 } hint_rec_t;
@@ -93,7 +92,8 @@ static file_list_t      loc_files;
 static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
 static diag_level_t     stderr_level = DIAG_DEBUG;
 
-static __thread hint_rec_t *hint_recs = NULL;
+#define MAX_HINT_RECS 4
+static __thread hint_rec_t hint_recs[MAX_HINT_RECS];
 
 #define DIAG_THEME_CLASSIC 1
 #define DIAG_THEME_RUST    2
@@ -364,8 +364,16 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
       APUSH(d->hints, hint);
    }
 
-   for (hint_rec_t *rec = hint_recs; rec != NULL; rec = rec->next)
-      (*rec->fn)(d, rec->context);
+   // Callback could create new diagnostics
+   static __thread bool entered = false;
+   if (!entered) {
+      entered = true;
+      for (int i = 0; i < MAX_HINT_RECS; i++) {
+         if (hint_recs[i].fn != NULL)
+            (*hint_recs[i].fn)(d, hint_recs[i].context);
+      }
+      entered = false;
+   }
 
    return d;
 }
@@ -940,21 +948,25 @@ int diag_traces(diag_t *d)
 
 void diag_add_hint_fn(diag_hint_fn_t fn, void *context)
 {
-   hint_rec_t *rec = xcalloc(sizeof(hint_rec_t));
-   rec->fn      = fn;
-   rec->context = context;
-   rec->next    = hint_recs;
+   int idx = 0;
+   for (; idx < MAX_HINT_RECS; idx++) {
+      if (hint_recs[idx].fn == NULL)
+         break;
+   }
 
-   hint_recs = rec;
+   if (idx == MAX_HINT_RECS)
+      fatal_trace("too many active hint callbacks");
+
+   hint_recs[idx].fn = fn;
+   hint_recs[idx].context = context;
 }
 
 void diag_remove_hint_fn(diag_hint_fn_t fn)
 {
-   for (hint_rec_t *it = hint_recs, **prev = &hint_recs; it;
-        prev = &(it->next), it = it->next) {
-      if (it->fn == fn) {
-         *prev = it->next;
-         free(it);
+   for (int i = 0; i < MAX_HINT_RECS; i++) {
+      if (hint_recs[i].fn == fn) {
+         hint_recs[i].fn = NULL;
+         hint_recs[i].context = NULL;
          return;
       }
    }
