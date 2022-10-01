@@ -27,6 +27,7 @@
 #include "rt/heap.h"
 #include "rt/model.h"
 #include "rt/structs.h"
+#include "thread.h"
 #include "tree.h"
 #include "type.h"
 
@@ -123,8 +124,8 @@ typedef struct _rt_model {
    } while (0)
 
 #define MODEL_ENTRY(m)                                                  \
-   __model_entry(m);                                                    \
-   rt_model_t *__m __attribute__((unused, cleanup(__model_exit))) = m;
+   rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
+   __model_entry(m, &__save);                                           \
 
 static __thread rt_proc_t    *active_proc = NULL;
 static __thread rt_scope_t   *active_scope = NULL;
@@ -166,10 +167,15 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
    char buf[64];
    fmt_now(m, buf, sizeof(buf));
 
-   fprintf(stderr, "TRACE %s: ", buf);
-   vfprintf(stderr, fmt, ap);
-   fprintf(stderr, "\n");
-   fflush(stderr);
+   static nvc_lock_t lock = 0;
+   {
+      SCOPED_LOCK(lock);
+
+      fprintf(stderr, "TRACE %s: ", buf);
+      vfprintf(stderr, fmt, ap);
+      fprintf(stderr, "\n");
+      fflush(stderr);
+   }
 
    va_end(ap);
 }
@@ -184,18 +190,22 @@ static void model_diag_cb(diag_t *d, void *arg)
    diag_printf(d, "%s: ", tmbuf);
 }
 
-static void __model_entry(rt_model_t *m)
+static void __model_entry(rt_model_t *m, rt_model_t **save)
 {
-   assert(__model == NULL);
-   __model = (m);
-   diag_add_hint_fn(model_diag_cb, m);
+   if (__model == NULL)
+      diag_add_hint_fn(model_diag_cb, m);
+
+   *save = __model;
+   __model = m;
 }
 
-static void __model_exit(rt_model_t **m)
+static void __model_exit(rt_model_t **save)
 {
-   assert(__model == *m);
-   __model = *m = NULL;
-   diag_remove_hint_fn(model_diag_cb);
+   __model = *save;
+   *save = NULL;
+
+   if (__model == NULL)
+      diag_remove_hint_fn(model_diag_cb);
 }
 
 static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)
