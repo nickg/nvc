@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "rt/mspace.h"
 #include "thread.h"
 
 #include <assert.h>
@@ -104,6 +105,7 @@ typedef void (*unpark_fn_t)(parking_bay_t *, void *);
 
 typedef struct {
    task_fn_t  fn;
+   void      *context;
    void      *arg;
    workq_t   *workq;
 } task_t;
@@ -135,7 +137,7 @@ typedef struct {
 } __attribute__((aligned(64))) threadq_t;
 
 typedef enum {
-   IDLE, START, DRAIN, DEAD,
+   IDLE, START, DEAD,
 } workq_state_t;
 
 struct _workq {
@@ -148,6 +150,7 @@ struct _workq {
    unsigned       rptr;
    unsigned       comp;
    int            activeidx;
+   void          *context;
 };
 
 typedef struct {
@@ -555,7 +558,7 @@ static bool pop_top(threadq_t *tq, task_t *task)
    return atomic_cas(&tq->age.bits, old_age.bits, new_age.bits);
 }
 
-workq_t *workq_new(void)
+workq_t *workq_new(void *context)
 {
    if (my_thread->kind != MAIN_THREAD)
       fatal_trace("work queues can only be created by the main thread");
@@ -563,15 +566,9 @@ workq_t *workq_new(void)
    workq_t *wq = xcalloc(sizeof(workq_t));
    wq->state     = IDLE;
    wq->activeidx = -1;
+   wq->context   = context;
 
    return wq;
-}
-
-static void workq_transition(workq_t *wq, workq_state_t from, workq_state_t to)
-{
-   SCOPED_LOCK(wq->lock);
-   assert(wq->state == from);
-   wq->state = to;
 }
 
 void workq_free(workq_t *wq)
@@ -579,7 +576,12 @@ void workq_free(workq_t *wq)
    if (my_thread->kind != MAIN_THREAD)
       fatal_trace("work queues can only be freed by the main thread");
 
-   workq_transition(wq, IDLE, DEAD);
+   {
+      SCOPED_LOCK(wq->lock);
+      assert(wq->state == IDLE);
+      wq->state = DEAD;
+   }
+
    // TODO: free at safe point
 }
 
@@ -594,7 +596,7 @@ void workq_do(workq_t *wq, task_fn_t fn, void *arg)
       wq->entryq = xrealloc_array(wq->entryq, wq->queuesz, sizeof(task_t));
    }
 
-   wq->entryq[wq->wptr++] = (task_t){ fn, arg, wq };
+   wq->entryq[wq->wptr++] = (task_t){ fn, wq->context, arg, wq };
 }
 
 static size_t workq_take(workq_t *wq, threadq_t *tq)
@@ -603,7 +605,10 @@ static size_t workq_take(workq_t *wq, threadq_t *tq)
    {
       SCOPED_LOCK(wq->lock);
 
-      if (wq->state == IDLE || wq->wptr == wq->rptr) {
+      if (wq->state != START)
+         return 0;
+      else if (wq->wptr == wq->rptr) {
+         assert(wq->activeidx != -1);
          atomic_cas(&(activeqs[wq->activeidx]), wq, NULL);
          return 0;
       }
@@ -648,7 +653,7 @@ static bool workq_poll(workq_t *wq, threadq_t *tq)
       task_t task;
       int comp = 0;
       for (; pop_bot(tq, &task); comp++)
-         (*task.fn)(task.arg);
+         (*task.fn)(task.context, task.arg);
 
       WORKQ_EVENT(comp, comp);
       atomic_add(&(wq->comp), comp);
@@ -690,7 +695,7 @@ static bool steal_task(void)
    task_t task;
    if (tq != NULL && pop_top(tq, &task)) {
       WORKQ_EVENT(steals, 1);
-      (*task.fn)(task.arg);
+      (*task.fn)(task.context, task.arg);
       WORKQ_EVENT(comp, 1);
       atomic_add(&(task.workq->comp), 1);
       return true;
@@ -719,6 +724,8 @@ static void maybe_backoff(void)
 
 static void *worker_thread(void *arg)
 {
+   mspace_stack_limit(MSPACE_CURRENT_FRAME);
+
    do {
       const int bias = rand();
       bool did_work = false;
@@ -764,10 +771,6 @@ void workq_start(workq_t *wq)
 {
    create_workers(wq->wptr);
 
-   workq_transition(wq, IDLE, START);
-
-   assert(wq->activeidx == -1);
-
    int idx = 0;
    for (; idx < MAX_ACTIVEQS; idx++) {
       if (relaxed_load(&activeqs[idx]) != NULL)
@@ -779,20 +782,27 @@ void workq_start(workq_t *wq)
    if (unlikely(idx >= MAX_ACTIVEQS))
       fatal_trace("too many active work queues");
 
-   wq->activeidx = idx;
+   {
+      SCOPED_LOCK(wq->lock);
+
+      assert(wq->state == IDLE);
+      wq->state = START;
+
+      assert(wq->activeidx == -1);
+      wq->activeidx = idx;
+   }
 }
 
 void workq_drain(workq_t *wq)
 {
-   workq_transition(wq, START, DRAIN);
-
    while (workq_poll(wq, &(my_thread->queue)))
       ;
 
    for (;;) {
       {
          SCOPED_LOCK(wq->lock);
-         assert(wq->state == DRAIN);
+         assert(wq->state == START);
+
          if (atomic_load(&wq->comp) == wq->wptr) {
             wq->state = IDLE;
             wq->wptr = wq->rptr = wq->comp = 0;

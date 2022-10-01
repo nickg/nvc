@@ -66,9 +66,9 @@ void __scoped_unlock(nvc_lock_t **plock);
 
 typedef struct _workq workq_t;
 
-typedef void (*task_fn_t)(void *);
+typedef void (*task_fn_t)(void *, void *);
 
-workq_t *workq_new(void);
+workq_t *workq_new(void *context);
 void workq_free(workq_t *wq);
 void workq_start(workq_t *wq);
 void workq_do(workq_t *wq, task_fn_t fn, void *arg);

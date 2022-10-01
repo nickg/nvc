@@ -110,7 +110,7 @@ static A(char *) cleanup_files = AINIT;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
-static void cgen_async_work(void *arg);
+static void cgen_async_work(void *context, void *arg);
 
 static inline LLVMContextRef llvm_context(void)
 {
@@ -5464,7 +5464,7 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    LLVMDisposeTargetData(data_ref);
 }
 
-static void cgen_async_work(void *arg)
+static void cgen_async_work(void *context, void *arg)
 {
    cgen_job_t *job = arg;
 
@@ -5512,7 +5512,7 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    unit_list_t units = AINIT;
    cgen_find_units(vcode, &units);
 
-   workq_t *wq = workq_new();
+   workq_t *wq = workq_new(NULL);
 
    obj_list_t objs = AINIT;
    cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB,

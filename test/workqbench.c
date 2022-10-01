@@ -31,7 +31,7 @@ static int *results;
 
 #define PAUSE_MS 0
 
-static void is_prime_cb(void *arg)
+static void is_prime_cb(void *context, void *arg)
 {
    int n = (intptr_t)arg;
 
@@ -43,7 +43,7 @@ static void is_prime_cb(void *arg)
    }
 }
 
-static void empty_cb(void *arg)
+static void empty_cb(void *context, void *arg)
 {
    spin_wait();
 }
@@ -60,8 +60,8 @@ int main(int argc, char **argv)
 
    results = calloc(sizeof(int), NUM_JOBS);
 
-   workq_t *wq1 = workq_new();
-   workq_t *wq2 = workq_new();
+   workq_t *wq1 = workq_new(NULL);
+   workq_t *wq2 = workq_new(NULL);
 
    for (int i = 0; i < 10; i++) {
       if (i > 0 && PAUSE_MS > 0)
