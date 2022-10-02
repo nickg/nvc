@@ -1,4 +1,5 @@
 limit of 10000 delta cycles reached
+driver for signal I is active
 driver for signal J is active
 process :issue521:p1 is active
 you can increase this limit with --stop-delta

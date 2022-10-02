@@ -30,4 +30,10 @@ begin
     sub2_i: entity work.sub
         port map ( y );
 
+    process is
+    begin
+        y <= not y after 1 ns;
+        wait;
+    end process;
+
 end architecture;

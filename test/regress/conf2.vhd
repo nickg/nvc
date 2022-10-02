@@ -13,6 +13,7 @@ end architecture;
 -------------------------------------------------------------------------------
 
 entity comparison_tb is
+    generic ( delay : delay_length );
 end entity;
 
 architecture sim of comparison_tb is
@@ -40,6 +41,8 @@ begin
 
     SEQUENCER_PROC: process
     begin
+        wait for delay;
+
         a <= 4;
         b <= 2;
         wait for 1 ns;
@@ -104,8 +107,10 @@ end entity;
 architecture test of conf2 is
 begin
 
-    uut1: configuration work.lt;
+    uut1: configuration work.lt
+        generic map ( delay => 0 ns );
 
-    uut2: configuration work.gt;
+    uut2: configuration work.gt
+        generic map ( delay => 10 ns );
 
 end architecture;

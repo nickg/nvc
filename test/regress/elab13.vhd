@@ -1,6 +1,6 @@
 entity recur is
     generic (
-        DEPTH : natural );
+        DEPTH : natural; delay : delay_length );
 end entity;
 
 architecture test of recur is
@@ -10,6 +10,7 @@ begin
 
         process is
         begin
+            wait for delay;
             report recur'path_name;
             wait;
         end process;
@@ -20,11 +21,11 @@ begin
 
         recur1_i: entity work.recur
             generic map (
-                DEPTH => DEPTH - 1 );
+                DEPTH => DEPTH - 1, delay => delay  );
 
         recur2_i: entity work.recur
             generic map (
-                DEPTH => DEPTH - 1 );
+                DEPTH => DEPTH - 1, delay => delay + (2**(depth-1)) * ns );
 
     end generate;
 
@@ -40,6 +41,6 @@ begin
 
     top_i: entity work.recur
         generic map (
-            DEPTH => 3 );
+            DEPTH => 3, delay => 0 ns );
 
 end architecture;
