@@ -151,6 +151,7 @@ struct _workq {
    unsigned       comp;
    int            activeidx;
    void          *context;
+   bool           parallel;
 };
 
 typedef struct {
@@ -593,7 +594,8 @@ void workq_free(workq_t *wq)
 
 void workq_do(workq_t *wq, task_fn_t fn, void *arg)
 {
-   SCOPED_LOCK(wq->lock);
+   if (my_thread->kind != MAIN_THREAD)
+      fatal_trace("workq_do can only be called from the main thread");
 
    assert(wq->state == IDLE);
 
@@ -767,11 +769,10 @@ static void *worker_thread(void *arg)
 
 static void create_workers(int needed)
 {
+   assert(my_thread->kind == MAIN_THREAD);
+
    if (relaxed_load(&should_stop))
       return;
-
-   static nvc_lock_t lock = 0;
-   SCOPED_LOCK(lock);
 
    while (relaxed_load(&running_threads) < MIN(max_workers, needed)) {
       static int counter = 0;
@@ -786,21 +787,26 @@ static void create_workers(int needed)
 
 void workq_start(workq_t *wq)
 {
-   create_workers(wq->wptr);
+   if (my_thread->kind != MAIN_THREAD)
+      fatal_trace("workq_start can only be called from the main thread");
 
-   int idx = 0;
-   for (; idx < MAX_ACTIVEQS; idx++) {
-      if (relaxed_load(&activeqs[idx]) != NULL)
-         continue;
-      else if (atomic_cas(&activeqs[idx], NULL, wq))
-         break;
-   }
+   wq->parallel = max_workers > 0 && !relaxed_load(&should_stop);
 
-   if (unlikely(idx >= MAX_ACTIVEQS))
-      fatal_trace("too many active work queues");
+   if (wq->parallel) {
+      create_workers(wq->wptr);
 
-   {
       SCOPED_LOCK(wq->lock);
+
+      int idx = 0;
+      for (; idx < MAX_ACTIVEQS; idx++) {
+         if (relaxed_load(&activeqs[idx]) != NULL)
+            continue;
+         else if (atomic_cas(&activeqs[idx], NULL, wq))
+            break;
+      }
+
+      if (unlikely(idx >= MAX_ACTIVEQS))
+         fatal_trace("too many active work queues");
 
       assert(wq->state == IDLE);
       wq->state = START;
@@ -808,9 +814,19 @@ void workq_start(workq_t *wq)
       assert(wq->activeidx == -1);
       wq->activeidx = idx;
    }
+   else {
+      assert(wq->state == IDLE);
+      wq->state = START;
+
+      assert(wq->rptr == 0);
+      for (int i = 0; i < wq->wptr; i++)
+         (*wq->entryq[i].fn)(wq->context, wq->entryq[i].arg);
+
+      wq->rptr = wq->comp = wq->wptr;
+   }
 }
 
-void workq_drain(workq_t *wq)
+static void workq_parallel_drain(workq_t *wq)
 {
    while (workq_poll(wq, &(my_thread->queue)))
       ;
@@ -834,5 +850,19 @@ void workq_drain(workq_t *wq)
 
       if (!steal_task())
          spin_wait();
+   }
+}
+
+void workq_drain(workq_t *wq)
+{
+   if (my_thread->kind != MAIN_THREAD)
+      fatal_trace("workq_drain can only be called from the main thread");
+
+   if (wq->parallel)
+      workq_parallel_drain(wq);
+   else {
+      assert(wq->state == START);
+      wq->state = IDLE;
+      wq->wptr = wq->rptr = wq->comp = 0;
    }
 }
