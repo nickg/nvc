@@ -54,7 +54,7 @@ typedef enum {
    EVENT_TIMEOUT,
    EVENT_DRIVER,
    EVENT_PROCESS,
-   EVENT_EFFECTIVE,
+   EVENT_DISCONNECT,
 } event_kind_t;
 
 typedef struct {
@@ -89,12 +89,15 @@ typedef union {
    void     *ext;
 } rt_value_t;
 
+STATIC_ASSERT(sizeof(rt_value_t) == 8);
+
 struct waveform {
-   uint64_t    when : 63;
-   unsigned    null : 1;
+   uint64_t    when;
    waveform_t *next;
    rt_value_t  value;
 };
+
+STATIC_ASSERT(sizeof(rt_value_t) <= 24);
 
 struct sens_list {
    rt_wakeable_t *wake;
@@ -142,6 +145,7 @@ typedef struct _rt_source {
    rt_source_t    *chain_input;
    rt_source_t    *chain_output;
    source_kind_t   tag;
+   unsigned        disconnected : 1;
    union {
       rt_port_t    port;
       rt_driver_t  driver;

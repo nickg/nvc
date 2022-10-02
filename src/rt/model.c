@@ -137,6 +137,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
 static void async_update_driver(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
+static void async_disconnect(void *context, void *arg);
 
 static int fmt_now(rt_model_t *m, char *buf, size_t len)
 {
@@ -738,6 +739,24 @@ static void deltaq_insert_force_release(rt_model_t *m, uint64_t delta,
    }
 }
 
+static void deltaq_insert_disconnect(rt_model_t *m, uint64_t delta,
+                                     rt_source_t *source)
+{
+   if (delta == 0) {
+      workq_do(m->delta_driverq, async_disconnect, source);
+      m->next_is_delta = true;
+   }
+   else {
+      event_t *e = rt_alloc(m->event_stack);
+      e->when          = m->now + delta;
+      e->kind          = EVENT_DISCONNECT;
+      e->driver.nexus  = source->u.driver.nexus;
+      e->driver.source = source;
+
+      heap_insert(m->eventq_heap, e->when, e);
+   }
+}
+
 static void reset_process(rt_model_t *m, rt_proc_t *proc)
 {
    TRACE("reset process %s", istr(proc->name));
@@ -1001,6 +1020,7 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    src->chain_input  = NULL;
    src->chain_output = NULL;
    src->tag          = kind;
+   src->disconnected = 0;
 
    switch (kind) {
    case SOURCE_DRIVER:
@@ -1010,7 +1030,6 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
 
          waveform_t *w0 = &(src->u.driver.waveforms);
          w0->when  = 0;
-         w0->null  = 0;
          w0->next  = NULL;
       }
       break;
@@ -1174,7 +1193,6 @@ static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
                            waveform_t *w_old, int offset)
 {
    w_new->when = w_old->when;
-   w_new->null = w_old->null;
    w_new->next = NULL;
 
    const int split = offset * nexus->size;
@@ -1243,7 +1261,6 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
          waveform_t *w_new = &(new->u.driver.waveforms);
          waveform_t *w_old = &(old->u.driver.waveforms);
          w_new->when = w_old->when;
-         w_new->null = w_old->null;
 
          clone_waveform(nexus, w_new, w_old, offset);
 
@@ -1510,7 +1527,7 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
 {
    switch (src->tag) {
    case SOURCE_DRIVER:
-      if (unlikely(src->u.driver.waveforms.null))
+      if (unlikely(src->disconnected))
          return NULL;
       else
          return value_ptr(nexus, &(src->u.driver.waveforms.value));
@@ -1639,7 +1656,7 @@ static void *driving_value(rt_nexus_t *nexus)
          // If S has one source that is a driver and S is not a resolved
          // signal, then the driving value of S is the current value of
          // that driver.
-         assert(!(s->u.driver.waveforms.null));
+         assert(!s->disconnected);
          return value_ptr(nexus, &(s->u.driver.waveforms.value));
       }
       else {
@@ -1659,7 +1676,7 @@ static void *driving_value(rt_nexus_t *nexus)
 
       int nonnull = 0;
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag != SOURCE_DRIVER || !s->u.driver.waveforms.null)
+         if (!s->disconnected)
             nonnull++;
       }
 
@@ -1944,6 +1961,17 @@ static void sched_event(rt_model_t *m, sens_list_t **list,
    }
 }
 
+static rt_source_t *find_driver(rt_nexus_t *nexus)
+{
+   // Try to find this process in the list of existing drivers
+   for (rt_source_t *d = &(nexus->sources); d; d = d->chain_input) {
+      if (d->tag == SOURCE_DRIVER && d->u.driver.proc == active_proc)
+         return d;
+   }
+
+   return NULL;
+}
+
 static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
                          uint64_t reject, rt_value_t value, bool null)
 {
@@ -1952,19 +1980,13 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
               "than delay %s", istr(tree_ident(nexus->signal->where)),
               fmt_time(reject), fmt_time(after));
 
-   // Try to find this process in the list of existing drivers
-   rt_source_t *d;
-   for (d = &(nexus->sources); d; d = d->chain_input) {
-      if (d->tag == SOURCE_DRIVER && d->u.driver.proc == active_proc)
-         break;
-   }
+   rt_source_t *d = find_driver(nexus);
    assert(d != NULL);
 
    waveform_t *w = alloc_waveform();
    w->when  = m->now + after;
    w->next  = NULL;
    w->value = value;
-   w->null  = null;
 
    waveform_t *last = &(d->u.driver.waveforms);
    waveform_t *it   = last->next;
@@ -1994,19 +2016,55 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
    // overhead of doing so is probably higher than the cost of waking
    // up for the empty event
    bool already_scheduled = false;
-   while (it != NULL) {
-      free_value(nexus, it->value);
+   for (waveform_t *next; it != NULL; it = next) {
+      next = it->next;
 
       if (it->when == w->when)
          already_scheduled = true;
 
-      waveform_t *next = it->next;
+      free_value(nexus, it->value);
       free_waveform(it);
-      it = next;
    }
 
    if (!already_scheduled)
       deltaq_insert_driver(m, after, nexus, d);
+}
+
+static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
+                             uint64_t reject)
+{
+   rt_source_t *d = find_driver(nexus);
+   assert(d != NULL);
+
+   const uint64_t when = m->now + after;
+
+   waveform_t *last = &(d->u.driver.waveforms);
+   waveform_t *it   = last->next;
+   while (it != NULL && it->when < when) {
+      // If the current transaction is within the pulse rejection
+      // interval then delete the current transaction
+      assert(it->when >= m->now);
+      if (it->when >= when - reject) {
+         waveform_t *next = it->next;
+         last->next = next;
+         free_value(nexus, it->value);
+         free_waveform(it);
+         it = next;
+      }
+      else {
+         last = it;
+         it = it->next;
+      }
+   }
+
+   // Delete all transactions later than this
+   for (waveform_t *next; it != NULL; it = next) {
+      next = it->next;
+      free_value(nexus, it->value);
+      free_waveform(it);
+   }
+
+   deltaq_insert_disconnect(m, after, d);
 }
 
 static void async_watch_callback(void *context, void *arg)
@@ -2238,6 +2296,16 @@ static void async_update_driver(void *context, void *arg)
    update_driver(m, src->u.driver.nexus, src);
 }
 
+static void async_disconnect(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_source_t *src = arg;
+
+   MODEL_ENTRY(m);
+   src->disconnected = 1;
+   update_driver(m, src->u.driver.nexus, NULL);
+}
+
 static void async_update_driving(void *context, void *arg)
 {
    rt_model_t *m = context;
@@ -2368,7 +2436,9 @@ static void model_cycle(rt_model_t *m)
             workq_do(m->driverq, async_timeout_callback, e);
             // Event freed in callback
             break;
-         case EVENT_EFFECTIVE:
+         case EVENT_DISCONNECT:
+            workq_do(m->driverq, async_disconnect, e->driver.source);
+            rt_free(m->event_stack, e);
             break;
          }
 
@@ -3021,14 +3091,10 @@ bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       if (n->n_sources > 0) {
-         for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-            if (src->tag != SOURCE_DRIVER)
-               continue;
-            else if (src->u.driver.proc == active_proc) {
-               if (!src->u.driver.waveforms.null) ndriving++;
-               found = true;
-               break;
-            }
+         rt_source_t *src = find_driver(n);
+         if (src != NULL) {
+            if (!src->disconnected) ndriving++;
+            found = true;
          }
       }
 
@@ -3057,17 +3123,10 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_source_t *src = NULL;
-      if (n->n_sources > 0) {
-         for (src = &(n->sources); src; src = src->chain_input) {
-            if (src->tag == SOURCE_DRIVER && src->u.driver.proc == active_proc)
-               break;
-         }
-      }
-
+      rt_source_t *src = find_driver(n);
       if (src == NULL)
-         jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
-                 istr(active_proc->name), istr(tree_ident(s->where)));
+         jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver "
+                 "for %s", istr(active_proc->name), istr(tree_ident(s->where)));
 
       memcpy(p, value_ptr(n, &(src->u.driver.waveforms.value)),
              n->width * n->size);
@@ -3128,8 +3187,7 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
       count -= n->width;
       assert(count >= 0);
 
-      rt_value_t null = {};
-      sched_driver(m, n, after, reject, null, true);
+      sched_disconnect(m, n, after, reject);
    }
 }
 
