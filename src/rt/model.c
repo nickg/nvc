@@ -91,8 +91,8 @@ typedef struct _rt_model {
    rt_watch_t        *watches;
    run_queue_t        timeoutq;
    run_queue_t        driverq;
-   run_queue_t        procq;
    run_queue_t        effq;
+   workq_t           *procq;
    callback_t        *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
@@ -417,6 +417,8 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = mptr_new(m->mspace, "root privdata");
 
+   m->procq = workq_new(m);
+
    scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
 
@@ -580,16 +582,15 @@ void model_free(rt_model_t *m)
    free_sens_list(m, &m->implicit);
 
    event_t *e;
-   while ((e = pop_run_queue(&m->procq)))
-      rt_free(m->event_stack, e);
    while ((e = pop_run_queue(&m->effq)))
       rt_free(m->event_stack, e);
    while ((e = pop_run_queue(&m->driverq)))
       rt_free(m->event_stack, e);
 
-   free_run_queue(&m->procq);
    free_run_queue(&m->effq);
    free_run_queue(&m->driverq);
+
+   workq_free(m->procq);
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
@@ -856,6 +857,15 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       if (tlab_valid(spare_tlab))
          tlab_move(spare_tlab, __nvc_tlab);
    }
+}
+
+static void async_run_process(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_proc_t *proc = arg;
+
+   MODEL_ENTRY(m);
+   run_process(m, proc);
 }
 
 static void reset_scope(rt_model_t *m, rt_scope_t *s)
@@ -2330,7 +2340,7 @@ static void wakeup_list(rt_model_t *m, sens_list_t **list)
       case W_PROC:
          {
             rt_proc_t *proc = container_of(wake, rt_proc_t, wakeable);
-            run_process(m, proc);
+            workq_do(m->procq, async_run_process, proc);
          }
          break;
       case W_WATCH:
@@ -2387,8 +2397,13 @@ static void model_cycle(rt_model_t *m)
       for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain)
          push_run_queue(m, &m->driverq, e);
 
-      for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain)
-         push_run_queue(m, &m->procq, e);
+      for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain) {
+         if (!is_stale_event(e)) {
+            workq_do(m->procq, async_run_process, e->proc.proc);
+            ++(e->proc.proc->wakeable.wakeup_gen);
+         }
+         rt_free(m->event_stack, e);
+      }
 
       m->delta_driver = NULL;
       m->delta_proc = NULL;
@@ -2399,7 +2414,13 @@ static void model_cycle(rt_model_t *m)
       for (;;) {
          event_t *e = heap_extract_min(m->eventq_heap);
          switch (e->kind) {
-         case EVENT_PROCESS: push_run_queue(m, &m->procq, e); break;
+         case EVENT_PROCESS:
+            if (!is_stale_event(e)) {
+               workq_do(m->procq, async_run_process, e->proc.proc);
+               ++(e->proc.proc->wakeable.wakeup_gen);
+            }
+            rt_free(m->event_stack, e);
+            break;
          case EVENT_DRIVER:  push_run_queue(m, &m->driverq, e); break;
          case EVENT_TIMEOUT: push_run_queue(m, &m->timeoutq, e); break;
          case EVENT_EFFECTIVE: break;
@@ -2441,13 +2462,11 @@ static void model_cycle(rt_model_t *m)
    // Run all non-postponed event callbacks
    wakeup_list(m, &m->resume_watch);
 
-   while ((event = pop_run_queue(&m->procq))) {
-      run_process(m, event->proc.proc);
-      rt_free(m->event_stack, event);
-   }
-
-   // Run all processes that resumed because of signal events
    wakeup_list(m, &m->resume);
+
+   workq_start(m->procq);
+   workq_drain(m->procq);
+
    global_event(m, RT_END_OF_PROCESSES);
 
    if (!next_cycle_is_delta(m)) {
@@ -2456,6 +2475,9 @@ static void model_cycle(rt_model_t *m)
 
       // Run any postponed processes
       wakeup_list(m, &m->postponed);
+
+      workq_start(m->procq);
+      workq_drain(m->procq);
 
       // Execute all postponed event callbacks
       wakeup_list(m, &m->postponed_watch);
@@ -2486,6 +2508,8 @@ void model_run(rt_model_t *m, uint64_t stop_time)
 
    if (m->force_stop)
       return;   // Was error during intialisation
+
+   stop_workers();   // Runtime is not thread-safe
 
    global_event(m, RT_START_OF_SIMULATION);
 

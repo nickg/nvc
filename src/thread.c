@@ -256,6 +256,12 @@ static void join_worker_threads(void)
    assert(atomic_load(&running_threads) == 1);
 }
 
+void stop_workers(void)
+{
+   // Temporary until runtime is thread-safe
+   join_worker_threads();
+}
+
 static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
                                 thread_kind_t kind, char *name)
 {
@@ -753,6 +759,9 @@ static void *worker_thread(void *arg)
 
 static void create_workers(int needed)
 {
+   if (relaxed_load(&should_stop))
+      return;
+
    static nvc_lock_t lock = 0;
    SCOPED_LOCK(lock);
 
