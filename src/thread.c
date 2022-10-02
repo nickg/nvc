@@ -605,6 +605,14 @@ void workq_do(workq_t *wq, task_fn_t fn, void *arg)
    wq->entryq[wq->wptr++] = (task_t){ fn, wq->context, arg, wq };
 }
 
+void workq_scan(workq_t *wq, scan_fn_t fn, void *arg)
+{
+   SCOPED_LOCK(wq->lock);
+
+   for (int i = wq->rptr; i < wq->wptr; i++)
+      (*fn)(wq->context, wq->entryq[i].arg, arg);
+}
+
 static size_t workq_take(workq_t *wq, threadq_t *tq)
 {
    int from, take;

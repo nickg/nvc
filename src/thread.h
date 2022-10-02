@@ -69,11 +69,13 @@ void __scoped_unlock(nvc_lock_t **plock);
 typedef struct _workq workq_t;
 
 typedef void (*task_fn_t)(void *, void *);
+typedef void (*scan_fn_t)(void *, void *, void *);
 
 workq_t *workq_new(void *context);
 void workq_free(workq_t *wq);
 void workq_start(workq_t *wq);
 void workq_do(workq_t *wq, task_fn_t fn, void *arg);
 void workq_drain(workq_t *wq);
+void workq_scan(workq_t *wq, scan_fn_t fn, void *arg);
 
 #endif  // _THREAD_H

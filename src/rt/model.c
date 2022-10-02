@@ -73,9 +73,9 @@ typedef struct _rt_model {
    int                iteration;
    uint64_t           now;
    bool               can_create_delta;
+   bool               next_is_delta;
    bool               force_stop;
    unsigned           n_signals;
-   event_t           *delta_proc;
    event_t           *delta_driver;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
@@ -88,6 +88,7 @@ typedef struct _rt_model {
    run_queue_t        driverq;
    run_queue_t        effq;
    workq_t           *procq;
+   workq_t           *delta_procq;
    workq_t           *postponedq;
    workq_t           *implicitq;
    callback_t        *global_cbs[RT_LAST_EVENT];
@@ -143,6 +144,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
                                rt_net_t *net);
 static event_t *pop_run_queue(run_queue_t *q);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
+static void async_run_process(void *context, void *arg);
 
 static int fmt_now(rt_model_t *m, char *buf, size_t len)
 {
@@ -415,8 +417,9 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = mptr_new(m->mspace, "root privdata");
 
-   m->procq      = workq_new(m);
-   m->postponedq = workq_new(m);
+   m->procq       = workq_new(m);
+   m->delta_procq = workq_new(m);
+   m->postponedq  = workq_new(m);
 
    scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
@@ -567,7 +570,6 @@ void model_free(rt_model_t *m)
    while (heap_size(m->eventq_heap) > 0)
       rt_free(m->event_stack, heap_extract_min(m->eventq_heap));
 
-   free_delta_events(m, m->delta_proc);
    free_delta_events(m, m->delta_driver);
 
    tlab_release(&__nvc_tlab);
@@ -584,6 +586,7 @@ void model_free(rt_model_t *m)
    free_run_queue(&m->driverq);
 
    workq_free(m->procq);
+   workq_free(m->delta_procq);
    workq_free(m->postponedq);
 
    if (m->implicitq != NULL)
@@ -707,10 +710,12 @@ size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
 static void deltaq_insert(rt_model_t *m, event_t *e)
 {
    if (e->when == m->now) {
-      event_t **chain = (e->kind == EVENT_DRIVER)
-         ? &(m->delta_driver) : &(m->delta_proc);
+      assert(e->kind == EVENT_DRIVER);
+      event_t **chain = &(m->delta_driver);
       e->delta_chain = *chain;
       *chain = e;
+
+      m->next_is_delta = true;
    }
    else {
       e->delta_chain = NULL;
@@ -720,13 +725,24 @@ static void deltaq_insert(rt_model_t *m, event_t *e)
 
 static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *wake)
 {
-   event_t *e = rt_alloc(m->event_stack);
-   e->when            = m->now + delta;
-   e->kind            = EVENT_PROCESS;
-   e->proc.wakeup_gen = wake->wakeable.wakeup_gen;
-   e->proc.proc       = wake;
+   if (delta == 0) {
+      assert(!wake->wakeable.pending);
+      wake->wakeable.pending = true;
+      ++(wake->wakeable.wakeup_gen);
 
-   deltaq_insert(m, e);
+      workq_do(m->delta_procq, async_run_process, wake);
+
+      m->next_is_delta = true;
+   }
+   else {
+      event_t *e = rt_alloc(m->event_stack);
+      e->when            = m->now + delta;
+      e->kind            = EVENT_PROCESS;
+      e->proc.wakeup_gen = wake->wakeable.wakeup_gen;
+      e->proc.proc       = wake;
+
+      deltaq_insert(m, e);
+   }
 }
 
 static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
@@ -2311,16 +2327,22 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
       notify_active(m, net);
 }
 
+static void iteration_limit_cb(void *context, void *arg, void *extra)
+{
+   rt_proc_t *proc = arg;
+   diag_t *d = extra;
+
+   const loc_t *l = tree_loc(proc->where);
+   diag_hint(d, l, "process %s is active", istr(proc->name));
+}
+
 static void reached_iteration_limit(rt_model_t *m)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
 
    diag_printf(d, "limit of %d delta cycles reached", m->stop_delta);
 
-   for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain) {
-      const loc_t *l = tree_loc(e->proc.proc->where);
-      diag_hint(d, l, "process %s is active", istr(e->proc.proc->name));
-   }
+   workq_scan(m->delta_procq, iteration_limit_cb, d);
 
    for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain) {
       tree_t decl = e->driver.nexus->signal->where;
@@ -2334,17 +2356,19 @@ static void reached_iteration_limit(rt_model_t *m)
    jit_abort(EXIT_FAILURE);
 }
 
-static inline bool next_cycle_is_delta(rt_model_t *m)
+static void swap_workq(workq_t **a, workq_t **b)
 {
-   return m->delta_driver != NULL || m->delta_proc != NULL;
+   workq_t *tmp = *a;
+   *a = *b;
+   *b = tmp;
 }
 
 static void model_cycle(rt_model_t *m)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   const bool is_delta_cycle =
-      (m->delta_driver != NULL) || (m->delta_proc != NULL);
+   const bool is_delta_cycle = m->next_is_delta;
+   m->next_is_delta = false;
 
    if (is_delta_cycle)
       m->iteration = m->iteration + 1;
@@ -2369,22 +2393,13 @@ static void model_cycle(rt_model_t *m)
       deltaq_dump(m);
 #endif
 
+   swap_workq(&m->procq, &m->delta_procq);
+
    if (is_delta_cycle) {
       for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain)
          push_run_queue(m, &m->driverq, e);
 
-      for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain) {
-         if (!is_stale_event(e)) {
-            assert(!e->proc.proc->wakeable.pending);
-            workq_do(m->procq, async_run_process, e->proc.proc);
-            e->proc.proc->wakeable.pending = true;
-            ++(e->proc.proc->wakeable.wakeup_gen);
-         }
-         rt_free(m->event_stack, e);
-      }
-
       m->delta_driver = NULL;
-      m->delta_proc = NULL;
    }
    else {
       global_event(m, RT_NEXT_TIME_STEP);
@@ -2449,7 +2464,7 @@ static void model_cycle(rt_model_t *m)
 
    global_event(m, RT_END_OF_PROCESSES);
 
-   if (!next_cycle_is_delta(m)) {
+   if (!m->next_is_delta) {
       m->can_create_delta = false;
       global_event(m, RT_LAST_KNOWN_DELTA_CYCLE);
 
@@ -2459,17 +2474,17 @@ static void model_cycle(rt_model_t *m)
 
       m->can_create_delta = true;
    }
-   else if (unlikely((m->stop_delta > 0) && (m->iteration == m->stop_delta)))
+   else if (m->stop_delta > 0 && m->iteration == m->stop_delta)
       reached_iteration_limit(m);
 }
 
 static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 {
-   if ((m->delta_driver != NULL) || (m->delta_proc != NULL))
+   if (m->force_stop)
+      return true;
+   else if ((m->delta_driver != NULL) || m->next_is_delta)
       return false;
    else if (heap_size(m->eventq_heap) == 0)
-      return true;
-   else if (m->force_stop)
       return true;
    else {
       event_t *peek = heap_min(m->eventq_heap);
