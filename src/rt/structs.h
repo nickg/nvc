@@ -75,7 +75,6 @@ typedef struct {
 struct event {
    uint64_t            when;
    event_kind_t        kind;
-   event_t            *delta_chain;
    union {
       event_timeout_t  timeout;
       event_driver_t   driver;
@@ -122,6 +121,7 @@ typedef enum {
 
 typedef struct {
    rt_proc_t  *proc;
+   rt_nexus_t *nexus;
    waveform_t  waveforms;
 } rt_driver_t;
 

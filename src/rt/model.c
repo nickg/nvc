@@ -39,12 +39,6 @@
 typedef struct _callback callback_t;
 typedef struct _memblock memblock_t;
 
-typedef struct {
-   event_t **queue;
-   size_t    wr, rd;
-   size_t    alloc;
-} run_queue_t;
-
 typedef struct _callback {
    rt_event_fn_t  fn;
    void          *user;
@@ -76,7 +70,6 @@ typedef struct _rt_model {
    bool               next_is_delta;
    bool               force_stop;
    unsigned           n_signals;
-   event_t           *delta_driver;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
    rt_alloc_stack_t   event_stack;
@@ -84,11 +77,11 @@ typedef struct _rt_model {
    rt_alloc_stack_t   watch_stack;
    rt_alloc_stack_t   callback_stack;
    rt_watch_t        *watches;
-   run_queue_t        timeoutq;
-   run_queue_t        driverq;
-   run_queue_t        effq;
    workq_t           *procq;
    workq_t           *delta_procq;
+   workq_t           *driverq;
+   workq_t           *delta_driverq;
+   workq_t           *effq;
    workq_t           *postponedq;
    workq_t           *implicitq;
    callback_t        *global_cbs[RT_LAST_EVENT];
@@ -99,9 +92,7 @@ typedef struct _rt_model {
 
 #define FMT_VALUES_SZ   128
 #define NEXUS_INDEX_MIN 8
-
-#define TRACE_DELTAQ  0
-#define TRACE_SIGNALS 1
+#define TRACE_SIGNALS   1
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -142,9 +133,10 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src);
 static void free_value(rt_nexus_t *n, rt_value_t v);
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
                                rt_net_t *net);
-static event_t *pop_run_queue(run_queue_t *q);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
+static void async_update_driver(void *context, void *arg);
+static void async_update_driving(void *context, void *arg);
 
 static int fmt_now(rt_model_t *m, char *buf, size_t len)
 {
@@ -417,9 +409,12 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = mptr_new(m->mspace, "root privdata");
 
-   m->procq       = workq_new(m);
-   m->delta_procq = workq_new(m);
-   m->postponedq  = workq_new(m);
+   m->procq         = workq_new(m);
+   m->delta_procq   = workq_new(m);
+   m->postponedq    = workq_new(m);
+   m->driverq       = workq_new(m);
+   m->delta_driverq = workq_new(m);
+   m->effq          = workq_new(m);
 
    scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
@@ -539,20 +534,6 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    free(scope);
 }
 
-static void free_delta_events(rt_model_t *m, event_t *e)
-{
-   for (event_t *tmp; e != NULL; e = tmp) {
-      tmp = e->delta_chain;
-      rt_free(m->event_stack, e);
-   }
-}
-
-static void free_run_queue(run_queue_t *q)
-{
-   free(q->queue);
-   q->wr = q->rd = q->alloc = 0;
-}
-
 void model_free(rt_model_t *m)
 {
    if (opt_get_int(OPT_RT_STATS)) {
@@ -570,24 +551,16 @@ void model_free(rt_model_t *m)
    while (heap_size(m->eventq_heap) > 0)
       rt_free(m->event_stack, heap_extract_min(m->eventq_heap));
 
-   free_delta_events(m, m->delta_driver);
-
    tlab_release(&__nvc_tlab);
 
    cleanup_scope(m, m->root);
 
-   event_t *e;
-   while ((e = pop_run_queue(&m->effq)))
-      rt_free(m->event_stack, e);
-   while ((e = pop_run_queue(&m->driverq)))
-      rt_free(m->event_stack, e);
-
-   free_run_queue(&m->effq);
-   free_run_queue(&m->driverq);
-
    workq_free(m->procq);
    workq_free(m->delta_procq);
    workq_free(m->postponedq);
+   workq_free(m->driverq);
+   workq_free(m->delta_driverq);
+   workq_free(m->effq);
 
    if (m->implicitq != NULL)
       workq_free(m->implicitq);
@@ -707,22 +680,6 @@ size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
    return offset + 1;
 }
 
-static void deltaq_insert(rt_model_t *m, event_t *e)
-{
-   if (e->when == m->now) {
-      assert(e->kind == EVENT_DRIVER);
-      event_t **chain = &(m->delta_driver);
-      e->delta_chain = *chain;
-      *chain = e;
-
-      m->next_is_delta = true;
-   }
-   else {
-      e->delta_chain = NULL;
-      heap_insert(m->eventq_heap, e->when, e);
-   }
-}
-
 static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *wake)
 {
    if (delta == 0) {
@@ -741,61 +698,45 @@ static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *wake)
       e->proc.wakeup_gen = wake->wakeable.wakeup_gen;
       e->proc.proc       = wake;
 
-      deltaq_insert(m, e);
+      heap_insert(m->eventq_heap, e->when, e);
    }
 }
 
 static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
                                  rt_nexus_t *nexus, rt_source_t *source)
 {
-   event_t *e = rt_alloc(m->event_stack);
-   e->when          = m->now + delta;
-   e->kind          = EVENT_DRIVER;
-   e->driver.nexus  = nexus;
-   e->driver.source = source;
+   if (delta == 0) {
+      workq_do(m->delta_driverq, async_update_driver, source);
+      m->next_is_delta = true;
+   }
+   else {
+      event_t *e = rt_alloc(m->event_stack);
+      e->when          = m->now + delta;
+      e->kind          = EVENT_DRIVER;
+      e->driver.nexus  = nexus;
+      e->driver.source = source;
 
-   deltaq_insert(m, e);
-}
-
-#if TRACE_DELTAQ > 0
-static void deltaq_walk(uint64_t key, void *user, void *context)
-{
-   event_t *e = user;
-
-   fprintf(stderr, "%s\t", fmt_time(e->when));
-   switch (e->kind) {
-   case EVENT_DRIVER:
-      fprintf(stderr, "driver\t %s\n",
-              istr(tree_ident(e->driver.nexus->signal->where)));
-      break;
-   case EVENT_PROCESS:
-      fprintf(stderr, "process\t %s%s\n", istr(e->proc.proc->name),
-              (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
-              ? "" : " (stale)");
-      break;
-   case EVENT_TIMEOUT:
-      fprintf(stderr, "timeout\t %p %p\n", e->timeout.fn, e->timeout.user);
-      break;
-   case EVENT_EFFECTIVE:
-      break;
+      heap_insert(m->eventq_heap, e->when, e);
    }
 }
 
-static void deltaq_dump(rt_model_t *m)
+static void deltaq_insert_force_release(rt_model_t *m, uint64_t delta,
+                                        rt_nexus_t *nexus)
 {
-   for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain)
-      fprintf(stderr, "delta\tdriver\t %s\n",
-              istr(tree_ident(e->driver.nexus->signal->where)));
+   if (delta == 0) {
+      workq_do(m->delta_driverq, async_update_driving, nexus);
+      m->next_is_delta = true;
+   }
+   else {
+      event_t *e = rt_alloc(m->event_stack);
+      e->when          = m->now + delta;
+      e->kind          = EVENT_DRIVER;
+      e->driver.nexus  = nexus;
+      e->driver.source = NULL;
 
-   for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain)
-      fprintf(stderr, "delta\tprocess\t %s%s\n",
-              istr(tree_ident(e->proc.proc->where)),
-              (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
-              ? "" : " (stale)");
-
-   heap_walk(m->eventq_heap, deltaq_walk, NULL);
+      heap_insert(m->eventq_heap, e->when, e);
+   }
 }
-#endif
 
 static void reset_process(rt_model_t *m, rt_proc_t *proc)
 {
@@ -1064,7 +1005,8 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    switch (kind) {
    case SOURCE_DRIVER:
       {
-         src->u.driver.proc = NULL;
+         src->u.driver.proc  = NULL;
+         src->u.driver.nexus = n;
 
          waveform_t *w0 = &(src->u.driver.waveforms);
          w0->when  = 0;
@@ -1975,39 +1917,6 @@ static bool is_stale_event(event_t *e)
       && (e->proc.wakeup_gen != e->proc.proc->wakeable.wakeup_gen);
 }
 
-static void push_run_queue(rt_model_t *m, run_queue_t *q, event_t *e)
-{
-   if (unlikely(q->wr == q->alloc)) {
-      if (q->alloc == 0) {
-         q->alloc = 128;
-         q->queue = xmalloc_array(q->alloc, sizeof(event_t *));
-      }
-      else {
-         q->alloc *= 2;
-         q->queue = xrealloc_array(q->queue, q->alloc, sizeof(event_t *));
-      }
-   }
-
-   if (unlikely(is_stale_event(e)))
-      rt_free(m->event_stack, e);
-   else {
-      q->queue[(q->wr)++] = e;
-      if (e->kind == EVENT_PROCESS)
-         ++(e->proc.proc->wakeable.wakeup_gen);
-   }
-}
-
-static event_t *pop_run_queue(run_queue_t *q)
-{
-   if (q->wr == q->rd) {
-      q->wr = 0;
-      q->rd = 0;
-      return NULL;
-   }
-   else
-      return q->queue[(q->rd)++];
-}
-
 static void sched_event(rt_model_t *m, sens_list_t **list,
                         rt_wakeable_t *obj, bool recur)
 {
@@ -2110,6 +2019,16 @@ static void async_watch_callback(void *context, void *arg)
 
    MODEL_ENTRY(m);
    (*w->fn)(m->now, w->signal, w, w->user_data);
+}
+
+static void async_timeout_callback(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   event_t *e = arg;
+
+   MODEL_ENTRY(m);
+   (*e->timeout.fn)(m->now, e->timeout.user);
+   rt_free(m->event_stack, e);
 }
 
 static void async_update_implicit_signal(void *context, void *arg)
@@ -2227,14 +2146,18 @@ static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
       notify_active(m, net);
 }
 
+static void async_update_effective(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_nexus_t *nexus = arg;
+
+   MODEL_ENTRY(m);
+   update_effective(m, nexus);
+}
+
 static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
 {
-   event_t *e = rt_alloc(m->event_stack);
-   e->when      = m->now;
-   e->kind      = EVENT_EFFECTIVE;
-   e->effective = nexus;
-
-   push_run_queue(m, &m->effq, e);
+   workq_do(m->effq, async_update_effective, nexus);
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
@@ -2306,6 +2229,24 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
    tlab_reset(__nvc_tlab);   // No allocations can be live past here
 }
 
+static void async_update_driver(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_source_t *src = arg;
+
+   MODEL_ENTRY(m);
+   update_driver(m, src->u.driver.nexus, src);
+}
+
+static void async_update_driving(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_nexus_t *nexus = arg;
+
+   MODEL_ENTRY(m);
+   update_driver(m, nexus, NULL);
+}
+
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 {
    int8_t r;
@@ -2327,7 +2268,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
       notify_active(m, net);
 }
 
-static void iteration_limit_cb(void *context, void *arg, void *extra)
+static void iteration_limit_proc_cb(void *context, void *arg, void *extra)
 {
    rt_proc_t *proc = arg;
    diag_t *d = extra;
@@ -2336,19 +2277,27 @@ static void iteration_limit_cb(void *context, void *arg, void *extra)
    diag_hint(d, l, "process %s is active", istr(proc->name));
 }
 
+static void iteration_limit_driver_cb(void *context, void *arg, void *extra)
+{
+   rt_source_t *src = arg;
+   diag_t *d = extra;
+
+   if (src->tag == SOURCE_DRIVER) {
+      tree_t decl = src->u.driver.nexus->signal->where;
+      diag_hint(d, tree_loc(decl), "driver for %s %s is active",
+                tree_kind(decl) == T_PORT_DECL ? "port" : "signal",
+                istr(tree_ident(decl)));
+   }
+}
+
 static void reached_iteration_limit(rt_model_t *m)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
 
    diag_printf(d, "limit of %d delta cycles reached", m->stop_delta);
 
-   workq_scan(m->delta_procq, iteration_limit_cb, d);
-
-   for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain) {
-      tree_t decl = e->driver.nexus->signal->where;
-      diag_hint(d, tree_loc(decl), "driver for signal %s is active",
-                istr(tree_ident(decl)));
-   }
+   workq_scan(m->delta_procq, iteration_limit_proc_cb, d);
+   workq_scan(m->delta_driverq, iteration_limit_driver_cb, d);
 
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
    diag_emit(d);
@@ -2394,14 +2343,9 @@ static void model_cycle(rt_model_t *m)
 #endif
 
    swap_workq(&m->procq, &m->delta_procq);
+   swap_workq(&m->driverq, &m->delta_driverq);
 
-   if (is_delta_cycle) {
-      for (event_t *e = m->delta_driver; e != NULL; e = e->delta_chain)
-         push_run_queue(m, &m->driverq, e);
-
-      m->delta_driver = NULL;
-   }
-   else {
+   if (!is_delta_cycle) {
       global_event(m, RT_NEXT_TIME_STEP);
 
       for (;;) {
@@ -2416,9 +2360,16 @@ static void model_cycle(rt_model_t *m)
             }
             rt_free(m->event_stack, e);
             break;
-         case EVENT_DRIVER:  push_run_queue(m, &m->driverq, e); break;
-         case EVENT_TIMEOUT: push_run_queue(m, &m->timeoutq, e); break;
-         case EVENT_EFFECTIVE: break;
+         case EVENT_DRIVER:
+            workq_do(m->driverq, async_update_driver, e->driver.source);
+            rt_free(m->event_stack, e);
+            break;
+         case EVENT_TIMEOUT:
+            workq_do(m->driverq, async_timeout_callback, e);
+            // Event freed in callback
+            break;
+         case EVENT_EFFECTIVE:
+            break;
          }
 
          if (heap_size(m->eventq_heap) == 0)
@@ -2430,22 +2381,11 @@ static void model_cycle(rt_model_t *m)
       }
    }
 
-   event_t *event;
+   workq_start(m->driverq);
+   workq_drain(m->driverq);
 
-   while ((event = pop_run_queue(&m->timeoutq))) {
-      (*event->timeout.fn)(m->now, event->timeout.user);
-      rt_free(m->event_stack, event);
-   }
-
-   while ((event = pop_run_queue(&m->driverq))) {
-      update_driver(m, event->driver.nexus, event->driver.source);
-      rt_free(m->event_stack, event);
-   }
-
-   while ((event = pop_run_queue(&m->effq))) {
-      update_effective(m, event->effective);
-      rt_free(m->event_stack, event);
-   }
+   workq_start(m->effq);
+   workq_drain(m->effq);
 
    // Update implicit signals
    if (m->implicitq != NULL) {
@@ -2482,7 +2422,7 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 {
    if (m->force_stop)
       return true;
-   else if ((m->delta_driver != NULL) || m->next_is_delta)
+   else if (m->next_is_delta)
       return false;
    else if (heap_size(m->eventq_heap) == 0)
       return true;
@@ -2543,7 +2483,7 @@ bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
 
       FOR_ALL_SIZES(n->size, SIGNAL_FORCE_EXPAND_U64);
 
-      deltaq_insert_driver(m, 0, n, NULL);
+      deltaq_insert_force_release(m, 0, n);
 
       offset += n->width;
       count -= n->width;
@@ -2592,7 +2532,8 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, timeout_fn_t fn,
    e->timeout.fn   = fn;
    e->timeout.user = user;
 
-   deltaq_insert(m, e);
+   assert(when > m->now);   // TODO: delta timeouts?
+   heap_insert(m->eventq_heap, e->when, e);
 }
 
 rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
@@ -3216,7 +3157,7 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
       copy_value_ptr(n, &(n->forcing), vptr);
       vptr += n->width * n->size;
 
-      deltaq_insert_driver(m, 0, n, NULL);
+      deltaq_insert_force_release(m, 0, n);
    }
 }
 
@@ -3241,7 +3182,7 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
          n->forcing.qword = 0;
       }
 
-      deltaq_insert_driver(m, 0, n, NULL);
+      deltaq_insert_force_release(m, 0, n);
    }
 }
 
