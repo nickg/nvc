@@ -83,16 +83,13 @@ typedef struct _rt_model {
    rt_alloc_stack_t   sens_list_stack;
    rt_alloc_stack_t   watch_stack;
    rt_alloc_stack_t   callback_stack;
-   sens_list_t       *resume;
-   sens_list_t       *postponed;
-   sens_list_t       *resume_watch;
-   sens_list_t       *postponed_watch;
-   sens_list_t       *implicit;
    rt_watch_t        *watches;
    run_queue_t        timeoutq;
    run_queue_t        driverq;
    run_queue_t        effq;
    workq_t           *procq;
+   workq_t           *postponedq;
+   workq_t           *implicitq;
    callback_t        *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
@@ -145,6 +142,7 @@ static void free_value(rt_nexus_t *n, rt_value_t v);
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
                                rt_net_t *net);
 static event_t *pop_run_queue(run_queue_t *q);
+static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 
 static int fmt_now(rt_model_t *m, char *buf, size_t len)
 {
@@ -417,7 +415,8 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = mptr_new(m->mspace, "root privdata");
 
-   m->procq = workq_new(m);
+   m->procq      = workq_new(m);
+   m->postponedq = workq_new(m);
 
    scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
@@ -575,12 +574,6 @@ void model_free(rt_model_t *m)
 
    cleanup_scope(m, m->root);
 
-   free_sens_list(m, &m->resume);
-   free_sens_list(m, &m->postponed);
-   free_sens_list(m, &m->resume_watch);
-   free_sens_list(m, &m->postponed_watch);
-   free_sens_list(m, &m->implicit);
-
    event_t *e;
    while ((e = pop_run_queue(&m->effq)))
       rt_free(m->event_stack, e);
@@ -591,6 +584,10 @@ void model_free(rt_model_t *m)
    free_run_queue(&m->driverq);
 
    workq_free(m->procq);
+   workq_free(m->postponedq);
+
+   if (m->implicitq != NULL)
+      workq_free(m->implicitq);
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
@@ -857,15 +854,6 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       if (tlab_valid(spare_tlab))
          tlab_move(spare_tlab, __nvc_tlab);
    }
-}
-
-static void async_run_process(void *context, void *arg)
-{
-   rt_model_t *m = context;
-   rt_proc_t *proc = arg;
-
-   MODEL_ENTRY(m);
-   run_process(m, proc);
 }
 
 static void reset_scope(rt_model_t *m, rt_scope_t *s)
@@ -1347,8 +1335,8 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
             sens_list_t *lnew = rt_alloc(m->sens_list_stack);
             lnew->wake       = l->wake;
             lnew->wakeup_gen = l->wakeup_gen;
+            lnew->recur      = l->recur;
             lnew->next       = new_net->pending;
-            lnew->reenq      = l->reenq ? &(new_net->pending) : NULL;
 
             new_net->pending = lnew;
          }
@@ -2004,68 +1992,6 @@ static event_t *pop_run_queue(run_queue_t *q)
       return q->queue[(q->rd)++];
 }
 
-static void trace_wakeup(rt_wakeable_t *obj)
-{
-   if (unlikely(__trace_on)) {
-      switch (obj->kind) {
-      case W_PROC:
-         TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
-               istr(container_of(obj, rt_proc_t, wakeable)->name));
-         break;
-
-      case W_WATCH:
-         TRACE("wakeup %svalue change callback %p",
-               obj->postponed ? "postponed " : "",
-               container_of(obj, rt_watch_t, wakeable)->fn);
-         break;
-
-      case W_IMPLICIT:
-         TRACE("wakeup implicit signal %s",
-               istr(tree_ident(container_of(obj, rt_implicit_t, wakeable)
-                               ->signal.where)));
-      }
-   }
-}
-
-static void wakeup(rt_model_t *m, sens_list_t *sl)
-{
-   // To avoid having each process keep a list of the signals it is
-   // sensitive to, each process has a "wakeup generation" number which
-   // is incremented after each wait statement and stored in the signal
-   // sensitivity list. We then ignore any sensitivity list elements
-   // where the generation doesn't match the current process wakeup
-   // generation: these correspond to stale "wait on" statements that
-   // have already resumed.
-
-   if (sl->wakeup_gen == sl->wake->wakeup_gen || sl->reenq != NULL) {
-      trace_wakeup(sl->wake);
-
-      sens_list_t **enq = NULL;
-      if (sl->wake->postponed) {
-         switch (sl->wake->kind) {
-         case W_PROC: enq = &m->postponed; break;
-         case W_WATCH: enq = &m->postponed_watch; break;
-         case W_IMPLICIT: assert(false); break;
-         }
-      }
-      else {
-         switch (sl->wake->kind) {
-         case W_PROC: enq = &m->resume; break;
-         case W_WATCH: enq = &m->resume_watch; break;
-         case W_IMPLICIT: enq = &m->implicit; break;
-         }
-      }
-
-      sl->next = *enq;
-      *enq = sl;
-
-      ++(sl->wake->wakeup_gen);
-      sl->wake->pending = true;
-   }
-   else
-      rt_free(m->sens_list_stack, sl);
-}
-
 static void sched_event(rt_model_t *m, sens_list_t **list,
                         rt_wakeable_t *obj, bool recur)
 {
@@ -2083,7 +2009,7 @@ static void sched_event(rt_model_t *m, sens_list_t **list,
       node->wake       = obj;
       node->wakeup_gen = obj->wakeup_gen;
       node->next       = *list;
-      node->reenq      = (recur ? list : NULL);
+      node->recur      = recur;
 
       *list = node;
    }
@@ -2158,17 +2084,108 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(m, after, nexus, d);
 }
 
+static void async_watch_callback(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_watch_t *w = arg;
+
+   assert(w->wakeable.pending);
+   w->wakeable.pending = false;
+
+   MODEL_ENTRY(m);
+   (*w->fn)(m->now, w->signal, w, w->user_data);
+}
+
+static void async_update_implicit_signal(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_implicit_t *imp = arg;
+
+   assert(imp->wakeable.pending);
+   imp->wakeable.pending = false;
+
+   MODEL_ENTRY(m);
+   update_implicit_signal(m, imp);
+}
+
+static void async_run_process(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_proc_t *proc = arg;
+
+   assert(proc->wakeable.pending);
+   proc->wakeable.pending = false;
+
+   MODEL_ENTRY(m);
+   run_process(m, proc);
+}
+
 static void notify_event(rt_model_t *m, rt_net_t *net)
 {
    net->last_event = net->last_active = m->now;
    net->event_delta = net->active_delta = m->iteration;
 
    // Wake up everything on the pending list
-   for (sens_list_t *it = net->pending, *next; it; it = next) {
+   for (sens_list_t *it = net->pending, *next, **reenq = &(net->pending);
+        it; it = next) {
       next = it->next;
-      wakeup(m, it);
+
+      // To avoid having each process keep a list of the signals it is
+      // sensitive to, each process has a "wakeup generation" number
+      // which is incremented after each wait statement and stored in
+      // the signal sensitivity list. We then ignore any sensitivity
+      // list elements where the generation doesn't match the current
+      // process wakeup generation: these correspond to stale "wait on"
+      // statements that have already resumed.
+      const bool stale = !it->recur && it->wakeup_gen != it->wake->wakeup_gen;
+
+      if (!stale && !it->wake->pending) {
+         workq_t *wq = it->wake->postponed ? m->postponedq : m->procq;
+
+         switch (it->wake->kind) {
+         case W_PROC:
+            {
+               rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
+               TRACE("wakeup %sprocess %s",
+                     it->wake->postponed ? "postponed " : "", istr(proc->name));
+               workq_do(wq, async_run_process, proc);
+            }
+            break;
+
+         case W_IMPLICIT:
+            {
+               rt_implicit_t *imp =
+                  container_of(it->wake, rt_implicit_t, wakeable);
+               TRACE("wakeup %svalue change callback %s",
+                     it->wake->postponed ? "postponed " : "",
+                     istr(jit_get_name(m->jit, imp->closure->handle)));
+               workq_do(m->implicitq, async_update_implicit_signal, imp);
+            }
+            break;
+
+         case W_WATCH:
+            {
+               rt_watch_t *w = container_of(it->wake, rt_watch_t, wakeable);
+               TRACE("wakeup implicit signal %s",
+                     istr(tree_ident(w->signal->where)));
+               workq_do(wq, async_watch_callback, w);
+            }
+            break;
+         }
+
+         ++(it->wake->wakeup_gen);
+         it->wake->pending = true;
+      }
+
+      if (it->recur) {
+         *reenq = it;
+         reenq = &(it->next);
+      }
+      else {
+         rt_free(m->sens_list_stack, it);
+         *reenq = NULL;
+      }
    }
-   net->pending = NULL;
 }
 
 static void notify_active(rt_model_t *m, rt_net_t *net)
@@ -2317,47 +2334,6 @@ static void reached_iteration_limit(rt_model_t *m)
    jit_abort(EXIT_FAILURE);
 }
 
-static void wakeup_list(rt_model_t *m, sens_list_t **list)
-{
-   for (sens_list_t *it = *list, *tmp; it; it = tmp) {
-      rt_wakeable_t *wake = it->wake;
-      tmp = *list = it->next;
-
-      if (it->reenq == NULL)
-         rt_free(m->sens_list_stack, it);
-      else {
-         it->next = *(it->reenq);
-         *(it->reenq) = it;
-      }
-      it = NULL;
-
-      if (!wake->pending)
-         continue;   // Stale wakeup
-
-      wake->pending = false;
-
-      switch (wake->kind) {
-      case W_PROC:
-         {
-            rt_proc_t *proc = container_of(wake, rt_proc_t, wakeable);
-            workq_do(m->procq, async_run_process, proc);
-         }
-         break;
-      case W_WATCH:
-         {
-            rt_watch_t *w = container_of(wake, rt_watch_t, wakeable);
-            (*w->fn)(m->now, w->signal, w, w->user_data);
-         }
-         break;
-      case W_IMPLICIT:
-         {
-            rt_implicit_t *imp = container_of(wake, rt_implicit_t, wakeable);
-            update_implicit_signal(m, imp);
-         }
-      }
-   }
-}
-
 static inline bool next_cycle_is_delta(rt_model_t *m)
 {
    return m->delta_driver != NULL || m->delta_proc != NULL;
@@ -2399,7 +2375,9 @@ static void model_cycle(rt_model_t *m)
 
       for (event_t *e = m->delta_proc; e != NULL; e = e->delta_chain) {
          if (!is_stale_event(e)) {
+            assert(!e->proc.proc->wakeable.pending);
             workq_do(m->procq, async_run_process, e->proc.proc);
+            e->proc.proc->wakeable.pending = true;
             ++(e->proc.proc->wakeable.wakeup_gen);
          }
          rt_free(m->event_stack, e);
@@ -2416,7 +2394,9 @@ static void model_cycle(rt_model_t *m)
          switch (e->kind) {
          case EVENT_PROCESS:
             if (!is_stale_event(e)) {
+               assert(!e->proc.proc->wakeable.pending);
                workq_do(m->procq, async_run_process, e->proc.proc);
+               e->proc.proc->wakeable.pending = true;
                ++(e->proc.proc->wakeable.wakeup_gen);
             }
             rt_free(m->event_stack, e);
@@ -2452,18 +2432,18 @@ static void model_cycle(rt_model_t *m)
       rt_free(m->event_stack, event);
    }
 
-   wakeup_list(m, &m->implicit);
+   // Update implicit signals
+   if (m->implicitq != NULL) {
+      workq_start(m->implicitq);
+      workq_drain(m->implicitq);
+   }
 
 #if TRACE_SIGNALS > 0
    if (__trace_on)
       dump_signals(m, m->root);
 #endif
 
-   // Run all non-postponed event callbacks
-   wakeup_list(m, &m->resume_watch);
-
-   wakeup_list(m, &m->resume);
-
+   // Run all non-postponed processes and event callbacks
    workq_start(m->procq);
    workq_drain(m->procq);
 
@@ -2473,14 +2453,9 @@ static void model_cycle(rt_model_t *m)
       m->can_create_delta = false;
       global_event(m, RT_LAST_KNOWN_DELTA_CYCLE);
 
-      // Run any postponed processes
-      wakeup_list(m, &m->postponed);
-
-      workq_start(m->procq);
-      workq_drain(m->procq);
-
-      // Execute all postponed event callbacks
-      wakeup_list(m, &m->postponed_watch);
+      // Run all postponed processes and event callbacks
+      workq_start(m->postponedq);
+      workq_drain(m->postponedq);
 
       m->can_create_delta = true;
    }
@@ -3156,6 +3131,9 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
          istr(tree_ident(where)), count, size, kind);
 
    rt_model_t *m = get_model();
+
+   if (m->implicitq == NULL)
+      m->implicitq = workq_new(m);
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 1, datasz);

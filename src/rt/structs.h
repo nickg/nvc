@@ -30,8 +30,10 @@ typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT
 } wakeable_kind_t;
 
+typedef uint32_t generation_t;
+
 typedef struct {
-   uint32_t        wakeup_gen;
+   generation_t    wakeup_gen;
    wakeable_kind_t kind : 8;
    bool            pending;
    bool            postponed;
@@ -66,8 +68,8 @@ typedef struct {
 } event_driver_t;
 
 typedef struct {
-   rt_proc_t *proc;
-   uint32_t   wakeup_gen;
+   rt_proc_t    *proc;
+   generation_t  wakeup_gen;
 } event_proc_t;
 
 struct event {
@@ -98,8 +100,8 @@ struct waveform {
 struct sens_list {
    rt_wakeable_t *wake;
    sens_list_t   *next;
-   sens_list_t  **reenq;
    uint32_t       wakeup_gen;
+   bool           recur;
 };
 
 typedef struct {
