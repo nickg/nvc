@@ -181,16 +181,20 @@ void __object_write_barrier(object_t *lhs, object_t *rhs)
    APUSH(larena->deps, rarena);
 }
 
-void object_lookup_failed(const char *name, const char **kind_text_map,
-                          int kind, imask_t mask)
+void object_lookup_failed(object_class_t *class, object_t *object, imask_t mask)
 {
    unsigned int item;
    for (item = 0; (mask & (UINT64_C(1) << item)) == 0; item++)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));
-   fatal_trace("%s kind %s does not have item %s", name,
-               kind_text_map[kind], item_text_map[item]);
+
+   diag_t *d = diag_new(DIAG_FATAL, &(object->loc));
+   diag_printf(d, "%s kind %s does not have item %s", class->name,
+               class->kind_text_map[object->kind], item_text_map[item]);
+   diag_emit(d);
+   show_stacktrace();
+   fatal_exit(EXIT_FAILURE);
 }
 
 void item_without_type(imask_t mask)

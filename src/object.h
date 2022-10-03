@@ -136,8 +136,7 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
          const imask_t __has = has_map[(t)->object.kind];               \
                                                                         \
          if (unlikely((__has & (mask)) == 0))                           \
-            object_lookup_failed((class)->name, kind_text_map,          \
-                                 (t)->object.kind, mask);               \
+            object_lookup_failed((class), &(t)->object, mask);          \
                                                                         \
          const int __tzc = __builtin_ctzll(mask);                       \
          const int __off = ((t)->object.kind * 64) + __tzc;             \
@@ -244,9 +243,8 @@ typedef struct {
 
 typedef object_t *(*object_load_fn_t)(ident_t);
 
-__attribute__((noreturn))
-void object_lookup_failed(const char *name, const char **kind_text_map,
-                          int kind, imask_t mask);
+__attribute__((noreturn, cold))
+void object_lookup_failed(object_class_t *class, object_t *obj, imask_t mask);
 
 void item_without_type(imask_t mask);
 
