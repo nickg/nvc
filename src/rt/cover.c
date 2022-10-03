@@ -42,14 +42,24 @@
 typedef A(cover_tag_t) tag_array_t;
 
 typedef struct _cover_report_ctx cover_report_ctx_t;
-typedef struct _cover_file cover_file_t;
+typedef struct _cover_file       cover_file_t;
+typedef struct _cover_scope      cover_scope_t;
+
+typedef struct _cover_scope {
+   ident_t        name;
+   int            branch_label;
+   int            stmt_label;
+   cover_scope_t *parent;
+} cover_scope_t;
 
 struct _cover_tagging {
-   int          next_stmt_tag;
-   int          next_branch_tag;
-   int          next_toggle_tag;
-   int          next_hier_tag;
-   tag_array_t  tags;
+   int            next_stmt_tag;
+   int            next_branch_tag;
+   int            next_toggle_tag;
+   int            next_hier_tag;
+   ident_t        hier;
+   tag_array_t    tags;
+   cover_scope_t *top_scope;
 };
 
 typedef struct {
@@ -150,7 +160,7 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
    return f;
 }
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t hier, cover_tagging_t *ctx,
+cover_tag_t *cover_add_tag(tree_t t, ident_t name, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags)
 {
    int *cnt;
@@ -170,6 +180,27 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t hier, cover_tagging_t *ctx,
    }
 
    assert (cnt != NULL);
+
+   if (name == NULL) {
+      cover_scope_t *s = ctx->top_scope;
+      assert(s != NULL);
+
+      char buf[32];
+      switch (kind) {
+      case TAG_STMT:
+         checked_sprintf(buf, sizeof(buf), "_S%d", s->stmt_label++);
+         break;
+      case TAG_BRANCH:
+         checked_sprintf(buf, sizeof(buf), "_B%d", s->branch_label++);
+         break;
+      default:
+         fatal_trace("missing name for coverage item");
+      }
+
+      name = ident_new(buf);
+   }
+
+   ident_t hier = ident_prefix(ctx->hier, name, '.');
 
 #ifdef COVER_DEBUG
    printf("Tag: %s\n", istr(hier));
@@ -258,10 +289,38 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init()
+cover_tagging_t *cover_tags_init(void)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
    return ctx;
+}
+
+void cover_push_scope(cover_tagging_t *tagging, ident_t name)
+{
+   if (tagging == NULL)
+      return;
+
+   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   s->name   = name;
+   s->parent = tagging->top_scope;
+
+   tagging->top_scope = s;
+   tagging->hier = ident_prefix(tagging->hier, name, '.');
+}
+
+void cover_pop_scope(cover_tagging_t *tagging)
+{
+   if (tagging == NULL)
+      return;
+
+   assert(tagging->top_scope != NULL);
+
+   cover_scope_t *tmp = tagging->top_scope->parent;
+   free(tagging->top_scope);
+   tagging->top_scope = tmp;
+
+   tagging->hier = ident_runtil(tagging->hier, '.');
+   assert(tagging->hier != NULL);
 }
 
 void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)

@@ -106,7 +106,10 @@ typedef enum {
 } cover_dump_t;
 
 
-cover_tagging_t *cover_tags_init();
+cover_tagging_t *cover_tags_init(void);
+
+void cover_push_scope(cover_tagging_t *tagging, ident_t name);
+void cover_pop_scope(cover_tagging_t *tagging);
 
 bool cover_is_stmt(tree_t t);
 
@@ -115,7 +118,7 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 void cover_toggle_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
                            void *user);
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t hier, cover_tagging_t *ctx,
+cover_tag_t *cover_add_tag(tree_t t, ident_t name, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags);
 
 void cover_report(const char *path, cover_tagging_t *tagging);
