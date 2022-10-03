@@ -4,6 +4,8 @@
 - Now compatible with LLVM 15.0.
 - Fixed calculation of longest static prefix with `'RANGE` expression
   (#542).
+- `MOD` and `REM` are now defined for physical types in VHDL-2008
+  (#540).
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
