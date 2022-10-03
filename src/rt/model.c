@@ -1972,31 +1972,19 @@ static rt_source_t *find_driver(rt_nexus_t *nexus)
    return NULL;
 }
 
-static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
-                         uint64_t reject, rt_value_t value, bool null)
+static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
+                                      rt_source_t *source, waveform_t *w,
+                                      uint64_t when, uint64_t reject)
 {
-   if (unlikely(reject > after))
-      jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
-              "than delay %s", istr(tree_ident(nexus->signal->where)),
-              fmt_time(reject), fmt_time(after));
-
-   rt_source_t *d = find_driver(nexus);
-   assert(d != NULL);
-
-   waveform_t *w = alloc_waveform();
-   w->when  = m->now + after;
-   w->next  = NULL;
-   w->value = value;
-
-   waveform_t *last = &(d->u.driver.waveforms);
+   waveform_t *last = &(source->u.driver.waveforms);
    waveform_t *it   = last->next;
-   while (it != NULL && it->when < w->when) {
+   while (it != NULL && it->when < when) {
       // If the current transaction is within the pulse rejection interval
       // and the value is different to that of the new transaction then
       // delete the current transaction
       assert(it->when >= m->now);
-      if ((it->when >= w->when - reject)
-          && !cmp_values(nexus, it->value, w->value)) {
+      if (it->when >= when - reject
+          && (w == NULL || !cmp_values(nexus, it->value, w->value))) {
          waveform_t *next = it->next;
          last->next = next;
          free_value(nexus, it->value);
@@ -2008,7 +1996,6 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
          it = it->next;
       }
    }
-   w->next = NULL;
    last->next = w;
 
    // Delete all transactions later than this
@@ -2018,15 +2005,31 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
    bool already_scheduled = false;
    for (waveform_t *next; it != NULL; it = next) {
       next = it->next;
-
-      if (it->when == w->when)
-         already_scheduled = true;
-
+      already_scheduled |= (it->when == when);
       free_value(nexus, it->value);
       free_waveform(it);
    }
 
-   if (!already_scheduled)
+   return already_scheduled;
+}
+
+static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
+                         uint64_t reject, rt_value_t value)
+{
+   rt_source_t *d = find_driver(nexus);
+   assert(d != NULL);
+
+   if (unlikely(reject > after))
+      jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
+              "than delay %s", istr(tree_ident(nexus->signal->where)),
+              fmt_time(reject), fmt_time(after));
+
+   waveform_t *w = alloc_waveform();
+   w->when  = m->now + after;
+   w->next  = NULL;
+   w->value = value;
+
+   if (!insert_transaction(m, nexus, d, w, w->when, reject))
       deltaq_insert_driver(m, after, nexus, d);
 }
 
@@ -2038,32 +2041,7 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
 
    const uint64_t when = m->now + after;
 
-   waveform_t *last = &(d->u.driver.waveforms);
-   waveform_t *it   = last->next;
-   while (it != NULL && it->when < when) {
-      // If the current transaction is within the pulse rejection
-      // interval then delete the current transaction
-      assert(it->when >= m->now);
-      if (it->when >= when - reject) {
-         waveform_t *next = it->next;
-         last->next = next;
-         free_value(nexus, it->value);
-         free_waveform(it);
-         it = next;
-      }
-      else {
-         last = it;
-         it = it->next;
-      }
-   }
-
-   // Delete all transactions later than this
-   for (waveform_t *next; it != NULL; it = next) {
-      next = it->next;
-      free_value(nexus, it->value);
-      free_waveform(it);
-   }
-
+   insert_transaction(m, nexus, d, NULL, when, reject);
    deltaq_insert_disconnect(m, after, d);
 }
 
@@ -2276,6 +2254,7 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
          free_value(nexus, w_now->value);
          *w_now = *w_next;
          free_waveform(w_next);
+         source->disconnected = 0;
          update_driving(m, nexus);
       }
       else
@@ -2751,7 +2730,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_value_t value = alloc_value(m, n);
    value.qword = scalar;
 
-   sched_driver(m, n, after, reject, value, false);
+   sched_driver(m, n, after, reject, value);
 }
 
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
@@ -2777,7 +2756,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       copy_value_ptr(n, &value, vptr);
       vptr += valuesz;
 
-      sched_driver(m, n, after, reject, value, false);
+      sched_driver(m, n, after, reject, value);
    }
 }
 

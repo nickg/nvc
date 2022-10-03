@@ -672,3 +672,4 @@ issue536        shell
 wait25          normal
 issue542        normal
 issue540        normal,2008
+guard3          normal
