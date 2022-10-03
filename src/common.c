@@ -1644,8 +1644,9 @@ tree_t longest_static_prefix(tree_t expr)
          const int nranges = tree_ranges(expr);
          for (int i = 0; i < nranges; i++) {
             tree_t r = tree_range(expr, i);
-            assert(tree_subkind(r) != RANGE_EXPR);
-            if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
+            if (tree_subkind(r) == RANGE_EXPR)
+               return prefix;
+            else if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
                return prefix;
          }
 
