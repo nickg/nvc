@@ -1161,6 +1161,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
       if (standard() >= STD_08) {
          declare_binary(container, min_i, t, t, t, S_MINIMUM);
          declare_binary(container, max_i, t, t, t, S_MAXIMUM);
+
+         // Modulus and remainder in 2008 only
+         declare_binary(container, ident_new("\"mod\""), t, t, t, S_MOD);
+         declare_binary(container, ident_new("\"rem\""), t, t, t, S_REM);
       }
 
       break;

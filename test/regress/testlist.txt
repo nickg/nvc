@@ -671,3 +671,4 @@ delay3          fail,gold
 issue536        shell
 wait25          normal
 issue542        normal
+issue540        normal,2008
