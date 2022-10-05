@@ -1085,13 +1085,18 @@ static void irgen_op_return(jit_irgen_t *g, int op)
       j_send(g, 0, jit_null_ptr());
       break;
 
-   default:
-      {
-         if (vcode_count_args(op) > 0)
-            irgen_send_args(g, op, 0);
-         else if (g->statereg.kind != JIT_VALUE_INVALID)
-            j_send(g, 0, g->statereg);
-      }
+   case VCODE_UNIT_INSTANCE:
+   case VCODE_UNIT_PROTECTED:
+   case VCODE_UNIT_PACKAGE:
+      j_send(g, 0, g->statereg);
+      break;
+
+   case VCODE_UNIT_FUNCTION:
+   case VCODE_UNIT_THUNK:
+      if (vcode_count_args(op) > 0)
+         irgen_send_args(g, op, 0);
+      else
+         j_send(g, 0, jit_null_ptr());  // Procedure compiled as function
       break;
    }
 
