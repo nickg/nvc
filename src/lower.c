@@ -9292,27 +9292,24 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
          emit_copy(ptr, src_reg, count_reg);
       }
    }
-   else {
-      if (field == -1) {
-         emit_alias_signal(src_reg, lower_debug_locus(port));
-         if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY) {
-            vcode_reg_t wrap_reg = lower_wrap(type, src_reg);
-            emit_store(wrap_reg, var);
-         }
-         else {
-            vcode_reg_t data_reg = lower_array_data(src_reg);
-            emit_store(data_reg, var);
-         }
+   else if (field == -1) {
+      vcode_reg_t data_reg = lower_array_data(src_reg);
+      emit_alias_signal(data_reg, lower_debug_locus(port));
+      if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY) {
+         vcode_reg_t wrap_reg = lower_wrap(type, data_reg);
+         emit_store(wrap_reg, var);
       }
+      else
+         emit_store(data_reg, var);
+   }
+   else {
+      vcode_reg_t port_reg = emit_index(var, VCODE_INVALID_REG);
+      vcode_reg_t field_reg = emit_record_ref(port_reg, field);
+      if (lower_have_uarray_ptr(field_reg))
+         emit_store_indirect(src_reg, field_reg);
       else {
-         vcode_reg_t port_reg = emit_index(var, VCODE_INVALID_REG);
-         vcode_reg_t field_reg = emit_record_ref(port_reg, field);
-         if (lower_have_uarray_ptr(field_reg))
-            emit_store_indirect(src_reg, field_reg);
-         else {
-            vcode_reg_t data_reg = lower_array_data(src_reg);
-            emit_store_indirect(data_reg, field_reg);
-         }
+         vcode_reg_t data_reg = lower_array_data(src_reg);
+         emit_store_indirect(data_reg, field_reg);
       }
    }
 
