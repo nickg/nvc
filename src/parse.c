@@ -6933,9 +6933,14 @@ static void p_entity_declarative_item(tree_t entity)
       p_variable_declaration(entity);
       break;
 
+   case tSIGNAL:
+      p_signal_declaration(entity);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED);
+             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED,
+             tSIGNAL);
    }
 }
 

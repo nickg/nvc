@@ -6,6 +6,7 @@
   (#542).
 - `MOD` and `REM` are now defined for physical types in VHDL-2008
   (#540).
+- Signal declarations are now allowed in entity declarative part.
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
