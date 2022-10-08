@@ -675,3 +675,4 @@ issue540        normal,2008
 guard3          normal
 issue543        normal,2008
 issue547        normal
+protected8      normal,2002

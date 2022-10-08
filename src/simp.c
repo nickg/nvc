@@ -1009,6 +1009,8 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
 
    case T_FCALL:
    case T_PCALL:
+   case T_PROT_FCALL:
+   case T_PROT_PCALL:
       {
          tree_t decl = tree_ref(expr);
          const int nparams = tree_params(expr);

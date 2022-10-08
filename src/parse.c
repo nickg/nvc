@@ -9486,11 +9486,20 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    const bool postponed = name == NULL && optional(tPOSTPONED);
 
-   tree_t call = tree_new(T_PCALL);
-   if (name == NULL)
+   tree_t call = NULL;
+   if (name == NULL) {
+      call = tree_new(T_PCALL);
       tree_set_ident2(call, p_identifier());
-   else
+   }
+   else if (tree_kind(name) == T_PROT_REF) {
+      call = tree_new(T_PROT_PCALL);
       tree_set_ident2(call, tree_ident(name));
+      tree_set_name(call, tree_value(name));
+   }
+   else {
+      call = tree_new(T_PCALL);
+      tree_set_ident2(call, tree_ident(name));
+   }
 
    if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
@@ -9839,18 +9848,26 @@ static tree_t p_concurrent_statement(void)
          tree_t name = p_name(N_SUBPROGRAM), conc;
          if (peek() == tLE)
             conc = p_concurrent_signal_assignment_statement(label, name);
-         else if (tree_kind(name) == T_REF) {
-            if (tree_has_ref(name) && tree_kind(tree_ref(name)) == T_COMPONENT)
-               return p_component_instantiation_statement(label, name);
-            else
-               conc = p_concurrent_procedure_call_statement(label, name);
-         }
          else if (scan(tGENERIC, tPORT))
             return p_component_instantiation_statement(label, name);
          else {
-            parse_error(CURRENT_LOC, "expected concurrent statement");
-            drop_tokens_until(tSEMI);
-            conc = tree_new(T_CONCURRENT);
+            switch (tree_kind(name)) {
+            case T_REF:
+               if (tree_has_ref(name)) {
+                  tree_t decl = tree_ref(name);
+                  if (tree_kind(decl) == T_COMPONENT)
+                     return p_component_instantiation_statement(label, name);
+               }
+               // Fall-through
+            case T_PROT_REF:
+               conc = p_concurrent_procedure_call_statement(label, name);
+               break;
+            default:
+               parse_error(CURRENT_LOC, "expected concurrent statement %s",
+                           tree_kind_str(tree_kind(name)));
+               drop_tokens_until(tSEMI);
+               conc = tree_new(T_CONCURRENT);
+            }
          }
 
          if (postponed)
