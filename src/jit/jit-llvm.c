@@ -415,6 +415,11 @@ static void cgen_coerece(cgen_req_t *req, jit_size_t size, LLVMValueRef *arg1,
    }
 }
 
+static LLVMValueRef cgen_zext_to_intptr(cgen_req_t *req, LLVMValueRef value)
+{
+   return LLVMBuildZExt(req->builder, value, req->types[LLVM_INTPTR], "");
+}
+
 static void cgen_op_recv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
@@ -446,8 +451,7 @@ static void cgen_op_send(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr = LLVMBuildInBoundsGEP2(req->builder, int64_type,
                                             req->args, indexes,
                                             ARRAY_LEN(indexes), "");
-   LLVMValueRef zext = LLVMBuildZExt(req->builder, value, int64_type, "");
-   LLVMBuildStore(req->builder, zext, ptr);
+   LLVMBuildStore(req->builder, value, ptr);
 }
 
 static void cgen_op_store(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -503,26 +507,35 @@ static void cgen_op_add(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
 
-   cgen_coerece(req, ir->size, &arg1, &arg2);
-
-   llvm_fn_t fn = LLVM_LAST_FN;
-   if (ir->cc == JIT_CC_O)
-      fn = LLVM_ADD_OVERFLOW_S8 + ir->size;
-   else if (ir->cc == JIT_CC_C)
-      fn = LLVM_ADD_OVERFLOW_U8 + ir->size;
-
-   LLVMValueRef result;
-   if (fn != LLVM_LAST_FN) {
-      LLVMValueRef args[] = { arg1, arg2 };
-      LLVMValueRef pair = cgen_call_fn(req, fn, args, 2);
-
-      result = LLVMBuildExtractValue(req->builder, pair, 0, "");
-      cgb->outflags = LLVMBuildExtractValue(req->builder, pair, 1, "");
+   if (LLVMGetTypeKind(LLVMTypeOf(arg1)) == LLVMPointerTypeKind) {
+      LLVMValueRef indexes[] = { cgen_zext_to_intptr(req, arg2) };
+      LLVMValueRef result = LLVMBuildGEP2(req->builder, req->types[LLVM_INT8],
+                                          arg1, indexes, ARRAY_LEN(indexes),
+                                          cgen_reg_name(ir->result));
+      cgb->outregs[ir->result] = result;
    }
-   else
-      result = LLVMBuildAdd(req->builder, arg1, arg2, "");
+   else {
+      cgen_coerece(req, ir->size, &arg1, &arg2);
 
-   cgb->outregs[ir->result] = result;
+      llvm_fn_t fn = LLVM_LAST_FN;
+      if (ir->cc == JIT_CC_O)
+         fn = LLVM_ADD_OVERFLOW_S8 + ir->size;
+      else if (ir->cc == JIT_CC_C)
+         fn = LLVM_ADD_OVERFLOW_U8 + ir->size;
+
+      LLVMValueRef result;
+      if (fn != LLVM_LAST_FN) {
+         LLVMValueRef args[] = { arg1, arg2 };
+         LLVMValueRef pair = cgen_call_fn(req, fn, args, 2);
+
+         result = LLVMBuildExtractValue(req->builder, pair, 0, "");
+         cgb->outflags = LLVMBuildExtractValue(req->builder, pair, 1, "");
+      }
+      else
+         result = LLVMBuildAdd(req->builder, arg1, arg2, "");
+
+      cgb->outregs[ir->result] = result;
+   }
 }
 
 static void cgen_op_sub(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -680,6 +693,28 @@ static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
                   args, ARRAY_LEN(args), "");
 }
 
+static void cgen_op_lea(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef ptr = cgen_get_value(req, cgb, ir->arg1);
+   assert(LLVMGetTypeKind(LLVMTypeOf(ptr)) == LLVMPointerTypeKind);
+   cgb->outregs[ir->result] = ptr;
+}
+
+static void cgen_op_mov(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef value = cgen_get_value(req, cgb, ir->arg1);
+   cgb->outregs[ir->result] = value;
+}
+
+static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef neg =
+      LLVMBuildNeg(req->builder, arg1, cgen_reg_name(ir->result));
+
+   cgb->outregs[ir->result] = neg;
+}
+
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -723,6 +758,15 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_CALL:
       cgen_op_call(req, cgb, ir);
+      break;
+   case J_LEA:
+      cgen_op_lea(req, cgb, ir);
+      break;
+   case J_MOV:
+      cgen_op_mov(req, cgb, ir);
+      break;
+   case J_NEG:
+      cgen_op_neg(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -793,23 +837,6 @@ static void cgen_force_reg_size(cgen_req_t *req, jit_reg_t reg, jit_size_t sz,
    cgen_force_reg_type(req, reg, type);
 }
 
-static void cgen_hint_value_type(cgen_req_t *req, jit_value_t value,
-                                 llvm_type_t type)
-{
-   switch (value.kind) {
-   case JIT_VALUE_REG:
-      {
-         const llvm_type_t exist = req->regtypes[value.reg];
-         if (exist == LLVM_VOID || exist == LLVM_INTPTR)
-            req->regtypes[value.reg] = type;
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
 static void cgen_hint_value_size(cgen_req_t *req, jit_value_t value,
                                  jit_size_t sz, llvm_type_t deftype)
 {
@@ -820,6 +847,23 @@ static void cgen_hint_value_size(cgen_req_t *req, jit_value_t value,
 
    default:
       break;
+   }
+}
+
+static void cgen_constrain_type(cgen_req_t *req, jit_reg_t reg,
+                                jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      req->regtypes[reg] = req->regtypes[value.reg];
+      break;
+
+   case JIT_VALUE_INT64:
+      req->regtypes[reg] = LLVM_INTPTR;
+      break;
+
+   default:
+      fatal_trace("cannot handle kind %d in cgen_constrain_type", value.kind);
    }
 }
 
@@ -862,6 +906,11 @@ static void cgen_reg_types(cgen_req_t *req)
 
       case J_LEA:
          cgen_force_reg_type(req, ir->result, LLVM_PTR);
+         break;
+
+      case J_MOV:
+      case J_NEG:
+         cgen_constrain_type(req, ir->result, ir->arg1);
          break;
 
       case J_JUMP:
