@@ -118,14 +118,11 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
       }
    } while (changed);
 
-   // Replaced "upward exposed variables" set with true live-in
+   // Replaced "upward exposed variables" set with live-in
    for (int i = 0; i < cfg->nblocks; i++) {
       jit_block_t *b = &(cfg->blocks[i]);
-
-      for (int j = 0; j < b->in.count; j++) {
-         jit_block_t *pred = &(cfg->blocks[jit_get_edge(&b->in, j)]);
-         mask_union(&b->livein, &pred->liveout);
-      }
+      mask_union(&b->livein, &b->liveout);
+      mask_subtract(&b->livein, &b->varkill);
    }
 
    mask_free(&new);
