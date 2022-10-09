@@ -2603,17 +2603,30 @@ START_TEST(test_iffold)
    vcode_unit_t v0 = find_unit("WORK.IFFOLD.SUB_I.P1");
    vcode_select_unit(v0);
 
-   EXPECT_BB(1) = {
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DRIVE_SIGNAL },
+      { VCODE_OP_VAR_UPREF, .name = "Y", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DRIVE_SIGNAL },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(2) = {
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_JUMP, .target = 1 }
+      { VCODE_OP_JUMP, .target = 4 }
    };
 
-   CHECK_BB(1);
+   CHECK_BB(2);
 }
 END_TEST
 

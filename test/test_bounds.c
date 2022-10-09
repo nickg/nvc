@@ -548,6 +548,26 @@ START_TEST(test_case3)
 }
 END_TEST
 
+START_TEST(test_driver1)
+{
+   input_from_file(TESTDIR "/bounds/driver1.vhd");
+
+   const error_t expect[] = {
+      { 11, "array S index 5 outside of NATURAL range 1 to 3" },
+      { 13, "array S index 7 outside of NATURAL range 1 to 3" },
+      { 16, "array S index -1 outside of NATURAL range 1 to 3" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -575,6 +595,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue477a);
    tcase_add_test(tc_core, test_issue477b);
    tcase_add_test(tc_core, test_case3);
+   tcase_add_test(tc_core, test_driver1);
    suite_add_tcase(s, tc_core);
 
    return s;

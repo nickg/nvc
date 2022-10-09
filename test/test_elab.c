@@ -279,16 +279,10 @@ START_TEST(test_issue153)
 {
    input_from_file(TESTDIR "/elab/issue153.vhd");
 
-   const error_t expect[] = {
-      {  9, "array S index -1 outside of NATURAL range 7 downto 0" },
-      { 13, "array T index -1 outside of NATURAL range 7 downto 0" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   // This used to produce an error at elaboration time
+   fail_if(run_elab() == NULL);
 
-   fail_unless(run_elab() == NULL);
-
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 

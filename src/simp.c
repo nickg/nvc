@@ -879,12 +879,22 @@ static tree_t simp_case(tree_t t)
    return NULL;  // No choices can be executed
 }
 
+static bool simp_has_drivers(tree_t t)
+{
+   return tree_visit_only(t, NULL, NULL, T_SIGNAL_ASSIGN) > 0;
+}
+
 static tree_t simp_cond(tree_t t)
 {
    if (tree_has_value(t)) {
       bool value_b;
       if (folded_bool(tree_value(t), &value_b)) {
-         if (value_b) {
+         if (!tree_has_ident(t) && simp_has_drivers(t)) {
+            // The statement part contains drivers that we cannot remove
+            // without changing the behaviour
+            return t;
+         }
+         else if (value_b) {
             // Always true, remove the test
             tree_set_value(t, NULL);
             return t;
@@ -929,7 +939,8 @@ static tree_t simp_while(tree_t t)
    bool value_b;
    if (!tree_has_value(t))
       return t;
-   else if (folded_bool(tree_value(t), &value_b) && !value_b) {
+   else if (folded_bool(tree_value(t), &value_b) && !value_b
+            && !simp_has_drivers(t)) {
       // Condition is false so loop never executes
       return NULL;
    }

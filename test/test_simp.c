@@ -128,15 +128,17 @@ START_TEST(test_cfold)
    fail_if(tree_kind(tree_value(tree_stmt(p, 24))) == T_LITERAL);
 
    p = tree_stmt(a, 1);
-   fail_unless(tree_stmts(p) == 3);
+   fail_unless(tree_stmts(p) == 4);
 
    s = tree_stmt(p, 0);
-   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_kind(s) == T_IF);
    s = tree_stmt(p, 1);
-   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_kind(s) == T_IF);
    s = tree_stmt(p, 2);
-   fail_unless(tree_kind(s) == T_SEQUENCE);
-   fail_unless(tree_stmts(s) == 2);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(s) == T_IF);
+   fail_unless(tree_conds(s) == 1);
 
    p = tree_stmt(a, 2);
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 1.0));

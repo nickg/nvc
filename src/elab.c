@@ -1414,7 +1414,6 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       hash_put(new_ctx.generics, g, tree_value(map));
 
       simplify_global(copy, new_ctx.generics, new_ctx.eval);
-      bounds_check(copy);
 
       if (error_count() == 0) {
          elab_decls(copy, &new_ctx);
