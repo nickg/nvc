@@ -124,6 +124,14 @@ typedef struct {
    LLVMOrcJITDylibRef          dylib;
 } lljit_state_t;
 
+#define LLVM_CHECK(op, ...) do {                        \
+      LLVMErrorRef error = op(__VA_ARGS__);             \
+      if (unlikely(error != LLVMErrorSuccess)) {        \
+         char *msg = LLVMGetErrorMessage(error);        \
+         fatal(#op " failed: %s", msg);                 \
+      }                                                 \
+   } while (0)
+
 static LLVMValueRef llvm_int1(cgen_req_t *req, bool b)
 {
    return LLVMConstInt(req->types[LLVM_INT1], b, false);
@@ -373,11 +381,9 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
                                       req->frame, indexes,
                                       ARRAY_LEN(indexes), "");
       }
-      /*
    case JIT_ADDR_CPOOL:
-      JIT_ASSERT(value.int64 >= 0 && value.int64 <= state->func->cpoolsz);
-      return (jit_scalar_t){ .pointer = state->func->cpool + value.int64 };
-      */
+      assert(value.int64 >= 0 && value.int64 <= req->func->cpoolsz);
+      return llvm_ptr(req, req->func->cpool + value.int64);
    case JIT_ADDR_REG:
       assert(value.reg < req->func->nregs);
       return LLVMBuildIntToPtr(req->builder, cgb->outregs[value.reg],
@@ -715,6 +721,15 @@ static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    cgb->outregs[ir->result] = neg;
 }
 
+static void cgen_op_copy(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef count = cgb->outregs[ir->result];
+   LLVMValueRef dest  = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef src   = cgen_get_value(req, cgb, ir->arg2);
+
+   LLVMBuildMemMove(req->builder, dest, 0, src, 0, count);
+}
+
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -767,6 +782,9 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_NEG:
       cgen_op_neg(req, cgb, ir);
+      break;
+   case MACRO_COPY:
+      cgen_op_copy(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -1121,15 +1139,19 @@ static void *jit_llvm_init(void)
 
    LLVMOrcLLJITBuilderRef builder = LLVMOrcCreateLLJITBuilder();
 
-   LLVMErrorRef error = LLVMOrcCreateLLJIT(&state->jit, builder);
-   if (error != LLVMErrorSuccess) {
-      char *msg = LLVMGetErrorMessage(error);
-      fatal("LLVMOrcCreateLLJIT failed: %s", msg);
-   }
+   LLVM_CHECK(LLVMOrcCreateLLJIT, &state->jit, builder);
 
    state->session = LLVMOrcLLJITGetExecutionSession(state->jit);
    state->dylib   = LLVMOrcLLJITGetMainJITDylib(state->jit);
    state->context = LLVMOrcCreateNewThreadSafeContext();
+
+   const char prefix = LLVMOrcLLJITGetGlobalPrefix(state->jit);
+
+   LLVMOrcDefinitionGeneratorRef gen_ref;
+   LLVM_CHECK(LLVMOrcCreateDynamicLibrarySearchGeneratorForProcess,
+              &gen_ref, prefix, NULL, NULL);
+
+   LLVMOrcJITDylibAddGenerator(state->dylib, gen_ref);
 
    return state;
 }
@@ -1175,11 +1197,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    LLVMOrcLLJITAddLLVMIRModule(state->jit, state->dylib, tsm);
 
    LLVMOrcJITTargetAddress addr;
-   LLVMErrorRef error = LLVMOrcLLJITLookup(state->jit, &addr, req.name);
-   if (error != LLVMErrorSuccess) {
-      char *msg = LLVMGetErrorMessage(error);
-      fatal("LLVMOrcLLJITLookup failed: %s", msg);
-   }
+   LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, req.name);
 
    printf("%s at %p\n", req.name, (void *)addr);
 
