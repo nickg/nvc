@@ -44,7 +44,7 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    fname[name_len] = '\0';
 
    const char *mode_str[] = {
-      "rb", "wb", "w+b"
+      "rb", "wb", "ab"
    };
    assert(mode < ARRAY_LEN(mode_str));
 
