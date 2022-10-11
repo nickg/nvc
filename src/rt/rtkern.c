@@ -2321,7 +2321,7 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    TRACE("_file_open %s fp=%p mode=%d", fname, fp, mode);
 
    const char *mode_str[] = {
-      "rb", "wb", "w+b"
+      "rb", "wb", "ab"
    };
    RT_ASSERT(mode < ARRAY_LEN(mode_str));
 

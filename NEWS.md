@@ -6,7 +6,11 @@
   (#542).
 - `MOD` and `REM` are now defined for physical types in VHDL-2008
   (#540).
-- Signal declarations are now allowed in entity declarative part.
+- Signal declarations are now allowed in entity declarative part (#547).
+- Protected objects are now allowed in concurrent procedure calls
+  (#547).
+- Opening a file with `APPEND_MODE` now actually appends to the file
+  instead of truncating (#551).
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
