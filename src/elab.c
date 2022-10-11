@@ -703,62 +703,16 @@ static void elab_hint_fn(diag_t *d, void *arg)
    }
 }
 
-static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
+static tree_t elab_unconstrained_port(tree_t port, elab_ctx_t *ctx)
 {
-   type_t type = tree_type(tree_value(map));
-
-   tree_t name = NULL;
-   if (tree_subkind(map) == P_NAMED) {
-      switch (tree_kind((name = tree_name(map)))) {
-      case T_REF:
-         break;
-      case T_ARRAY_REF:
-         {
-            // The name is of the form X(I) so use this to derive
-            // the bounds of a single-element array
-            type = type_new(T_SUBTYPE);
-            type_set_base(type, tree_type(port));
-
-            tree_t left = tree_value(tree_param(name, 0));
-
-            tree_t r = tree_new(T_RANGE);
-            tree_set_subkind(r, RANGE_TO);
-            tree_set_left(r, left);
-            tree_set_right(r, left);
-
-            tree_t cons = tree_new(T_CONSTRAINT);
-            tree_set_subkind(cons, C_INDEX);
-            tree_add_range(cons, r);
-
-            type_add_constraint(type, cons);
-         }
-         break;
-      case T_RECORD_REF:
-         return port;
-      default:
-         error_at(tree_loc(name), "invalid formal name for unconstrained "
-                  "port %s", istr(tree_ident(port)));
-      }
-   }
-
    tree_t p2 = tree_new(T_PORT_DECL);
    tree_set_ident(p2, tree_ident(port));
    tree_set_loc(p2, tree_loc(port));
    tree_set_subkind(p2, tree_subkind(port));
-   tree_set_type(p2, type);
    tree_set_class(p2, tree_class(port));
 
    if (tree_has_value(port))
       tree_set_value(p2, tree_value(port));
-
-   if (name != NULL) {
-      tree_t ref = name_to_ref(name);
-      assert(ref != NULL);
-      assert(tree_ref(ref) == port);
-
-      tree_set_ref(ref, p2);
-      tree_set_type(ref, type);
-   }
 
    // Abusing the generic rewriting mechanism to replace all
    // references to the unconstrained port
@@ -767,6 +721,85 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
    hash_put(ctx->generics, port, p2);
 
    return p2;
+}
+
+static void elab_constrain_port(tree_t orig, tree_t port, tree_t map)
+{
+   if (orig == port)
+      return;   // Already fully constrained
+   else if (tree_subkind(map) == P_NAMED) {
+      tree_t name = tree_name(map);
+
+      const tree_kind_t kind = tree_kind(name);
+      type_t type;
+      if (kind == T_REF) {
+         assert(!tree_has_type(port));
+         tree_set_type(port, (type = tree_type(tree_value(map))));
+      }
+      else if (tree_has_type(port)) {
+         type = tree_type(port);
+         assert(type_kind(type) == T_SUBTYPE);
+      }
+      else {
+         type_t base = tree_type(orig);
+         assert(type_is_unconstrained(base));
+
+         tree_t cons = tree_new(T_CONSTRAINT);
+         tree_set_subkind(cons, type_is_record(base) ? C_RECORD : C_INDEX);
+
+         type = type_new(T_SUBTYPE);
+         type_set_base(type, base);
+         type_add_constraint(type, cons);
+
+         tree_set_type(port, type);
+      }
+
+      switch (tree_kind(name)) {
+      case T_REF:
+         break;
+      case T_ARRAY_REF:
+         {
+            // The name is of the form X(I) so use this to derive
+            // the bounds of a single-element array
+            tree_t left = tree_value(tree_param(name, 0));
+
+            tree_t r = tree_new(T_RANGE);
+            tree_set_subkind(r, RANGE_TO);
+            tree_set_left(r, left);
+            tree_set_right(r, left);
+
+            tree_t cons = type_constraint(type, 0);
+            assert(tree_ranges(cons) == 0);
+            tree_add_range(cons, r);
+         }
+         break;
+      case T_RECORD_REF:
+         {
+            tree_t f = find_record_field(name);
+            assert(f != NULL);
+
+            type_t ftype = tree_type(f);
+            if (!type_is_unconstrained(ftype))
+               return;
+
+            tree_t elem = tree_new(T_ELEM_CONSTRAINT);
+            tree_set_ident(elem, tree_ident(f));
+            tree_set_ref(elem, f);
+            tree_set_type(elem, tree_type(tree_value(map)));
+
+            tree_t cons = type_constraint(type, 0);
+            tree_add_range(cons, elem);
+         }
+         break;
+      default:
+         error_at(tree_loc(name), "invalid formal name for unconstrained "
+                  "port %s", istr(tree_ident(port)));
+      }
+   }
+   else {
+      assert(!tree_has_type(port));
+      tree_set_type(port, tree_type(tree_value(map)));
+   }
 }
 
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
@@ -783,8 +816,11 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
    }
 
    for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(entity, i), bp = p, map = NULL;
+      tree_t p = tree_port(entity, i), bp = p, op = p, map = NULL;
       ident_t pname = tree_ident(p);
+
+      if (tree_flags(p) & TREE_F_UNCONSTRAINED)
+         p = elab_unconstrained_port(p, ctx);
 
       if (i < nparams && !have_named && entity == comp) {
          tree_t m = tree_param(inst, i);
@@ -797,6 +833,8 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 
             tree_add_param(ctx->out, m2);
             map = m2;
+
+            elab_constrain_port(op, p, m);
          }
       }
       else if (binding != NULL && binding_nparams) {
@@ -862,6 +900,8 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 
                tree_add_param(ctx->out, map);
 
+               elab_constrain_port(op, p, m);
+
                if (!have_named && !is_conv && ref == name) {
                   tree_set_subkind(map, P_POS);
                   tree_set_pos(map, i);
@@ -877,6 +917,8 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
                map = tree_new(T_PARAM);
                tree_set_loc(map, tree_loc(m));
                tree_set_value(map, tree_value(m));
+
+               elab_constrain_port(op, p, m);
 
                if (!have_named) {
                   tree_set_subkind(map, P_POS);
@@ -920,10 +962,7 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
          tree_add_param(ctx->out, map);
       }
 
-      if (tree_flags(p) & TREE_F_UNCONSTRAINED)
-         tree_add_port(ctx->out, elab_unconstrained_port(p, map, ctx));
-      else
-         tree_add_port(ctx->out, p);
+      tree_add_port(ctx->out, p);
    }
 }
 

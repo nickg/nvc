@@ -9055,10 +9055,14 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
       vcode_reg_t src_count = lower_type_width(src_type, src_reg);
       vcode_reg_t dst_count = lower_type_width(dst_type, dst_reg);
 
+      vcode_reg_t dst_nets = lower_array_data(dst_reg);
+
       if (!lower_have_signal(src_reg))
-         emit_map_const(src_reg, dst_reg, src_count);
-      else
-         emit_map_signal(src_reg, dst_reg, src_count, dst_count, conv_func);
+         emit_map_const(src_reg, dst_nets, src_count);
+      else {
+         vcode_reg_t src_nets = lower_array_data(src_reg);
+         emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
+      }
    }
 }
 
@@ -9142,9 +9146,6 @@ static void lower_port_map(tree_t block, tree_t map)
 
    assert(tree_kind(port) == T_PORT_DECL);
 
-   if (vcode_reg_kind(port_reg) == VCODE_TYPE_UARRAY)
-      port_reg = lower_array_data(port_reg);
-
    if (value_kind == T_OPEN && tree_has_value(port))
       value = tree_value(port);
    else if (value_conv != NULL) {
@@ -9186,12 +9187,6 @@ static void lower_port_map(tree_t block, tree_t map)
 
       type_t src_type = mode == PORT_IN ? value_type : name_type;
       type_t dst_type = mode == PORT_IN ? name_type : value_type;
-
-      if (vcode_reg_kind(src_reg) == VCODE_TYPE_UARRAY)
-         src_reg = lower_array_data(src_reg);
-
-      if (vcode_reg_kind(dst_reg) == VCODE_TYPE_UARRAY)
-         dst_reg = lower_array_data(dst_reg);
 
       lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func);
    }
