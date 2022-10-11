@@ -7,7 +7,7 @@ jobs:
     name: Ubuntu 20.04
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
       - name: Get version
@@ -58,7 +58,7 @@ jobs:
             /opt/nvc-${{ steps.version.outputs.version }}
       - name: 'Upload artifact'
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: nvc-${{ steps.version.outputs.version }}
           path: nvc-${{ steps.version.outputs.version }}.tar.gz
@@ -67,7 +67,7 @@ jobs:
     name: Mac OS
     runs-on: macos-11
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
       - name: Install dependencies
@@ -100,7 +100,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
       - uses: msys2/setup-msys2@v2
@@ -150,10 +150,10 @@ jobs:
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: nickg/vests
           path: vests
@@ -163,7 +163,7 @@ jobs:
         run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Install dependencies
         run: sudo apt-get install ruby ruby-colorize llvm libdw1
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: nvc-${{ steps.version.outputs.version }}
       - name: Extract pre-built binary
@@ -185,10 +185,10 @@ jobs:
     runs-on: ubuntu-20.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: nickg/vhdl-projects
           path: vhdl-projects
@@ -198,7 +198,7 @@ jobs:
         run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Install dependencies
         run: sudo apt-get install llvm libdw1
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: nvc-${{ steps.version.outputs.version }}
       - name: Extract pre-built binary
@@ -246,10 +246,10 @@ jobs:
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: nickg/vunit
           ref: nvc
@@ -261,7 +261,7 @@ jobs:
         run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Install dependencies
         run: sudo apt-get install python3 python3-colorama
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: nvc-${{ steps.version.outputs.version }}
       - name: Extract pre-built binary
