@@ -1,5 +1,13 @@
 #!/bin/bash
 
+if [ -z "$NVC_INSTALL_DEST" ]; then
+  if command -v cygpath &>/dev/null; then
+    export NVC_INSTALL_DEST="$(cygpath -m $HOME)/.nvc/lib"
+  else
+    export NVC_INSTALL_DEST=$HOME/.nvc/lib
+  fi
+fi
+
 _safe () {
   echo $*
   $*
@@ -8,7 +16,7 @@ _safe () {
 
 _nvc () {
   local _work=${WORK:-work}
-  local _dest=${NVC_INSTALL_DEST:-$HOME/.nvc/lib}
+  local _dest=$NVC_INSTALL_DEST
   local _opts="--std=${STD:-1993} --work=$_dest/$_work -L$_dest $GLOBAL_OPTS"
   [ -d $_dest ] || _safe mkdir -p  $_dest
   _safe ${NVC:-nvc} $_opts  $*
