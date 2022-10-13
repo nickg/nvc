@@ -14,7 +14,9 @@ jobs:
         id: version
         run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Install dependencies
-        run: sudo apt-get install automake flex llvm-dev check lcov libdw-dev
+        run: |
+          sudo apt-get install automake flex llvm-dev check lcov \
+             libdw-dev libffi-dev
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
@@ -71,7 +73,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Install dependencies
-        run: brew install llvm check automake
+        run: brew install llvm check automake libffi
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure

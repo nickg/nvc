@@ -121,4 +121,6 @@
 
   # Unit test
   global_func;
+  test_ffi_add;
+  test_ffi_fma;
 };

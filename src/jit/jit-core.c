@@ -49,14 +49,7 @@
 #include <dlfcn.h>
 #endif
 
-#ifdef __MINGW32__
-typedef HMODULE module_t;
-#else
-typedef void *module_t;
-#endif
-
 typedef A(jit_func_t *) func_array_t;
-typedef A(module_t) module_array_t;
 
 typedef struct _jit_tier {
    jit_tier_t    *next;
@@ -75,9 +68,9 @@ typedef struct _jit {
    bool            silent;
    bool            runtime;
    unsigned        backedge;
-   module_array_t  modules;
    int             exit_status;
    jit_tier_t     *tiers;
+   jit_dll_t      *aotlib;
 } jit_t;
 
 typedef enum {
@@ -127,6 +120,9 @@ jit_t *jit_new(void)
 
    mspace_set_oom_handler(j->mspace, jit_oom_cb);
 
+   // Ensure we can resolve symbols from the executable
+   ffi_load_dll(NULL);
+
    return j;
 }
 
@@ -142,11 +138,8 @@ static void jit_free_func(jit_func_t *f)
 
 void jit_free(jit_t *j)
 {
-#ifdef __MINGW32__
-   for (int i = 0; i < j->modules.count; i++)
-      FreeLibrary(j->modules.items[i]);
-#endif
-   ACLEAR(j->modules);
+   if (j->aotlib != NULL)
+      ffi_unload_dll(j->aotlib);
 
    for (int i = 0; i < j->funcs.count; i++)
       jit_free_func(j->funcs.items[i]);
@@ -177,32 +170,17 @@ mspace_t *jit_get_mspace(jit_t *j)
    return j->mspace;
 }
 
-void *jit_find_symbol(jit_t *j, ident_t name)
-{
-   LOCAL_TEXT_BUF tb = safe_symbol(name);
-   const char *symbol_name = tb_get(tb);
-
-   for (size_t i = 0; i < j->modules.count; i++) {
-      module_t handle = j->modules.items[i];
-#ifdef __MINGW32__
-      void *ptr = (void *)(uintptr_t)GetProcAddress(handle, symbol_name);
-#else
-      void *ptr = dlsym(handle, symbol_name);
-#endif
-      if (ptr != NULL)
-         return ptr;
-   }
-
-   return NULL;
-}
-
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
 {
    jit_func_t *f = hash_get(j->index, name);
    if (f != NULL)
       return f->handle;
 
-   void *symbol = jit_find_symbol(j, name);
+   void *symbol = NULL;
+   if (j->aotlib != NULL) {
+      LOCAL_TEXT_BUF tb = safe_symbol(name);
+      symbol = ffi_find_symbol(j->aotlib, tb_get(tb));
+   }
 
    vcode_unit_t vu = vcode_find_unit(name);
 
@@ -417,115 +395,18 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
    switch (to) {
    case JIT_NATIVE:
    case JIT_INTERP:
-      diag_add_hint_fn(jit_diag_cb, j);
-      thread->jit = j;
+      if (from == JIT_IDLE) {
+         diag_add_hint_fn(jit_diag_cb, j);
+         thread->jit = j;
+      }
+      else
+         assert(thread->jit == j);
       break;
    case JIT_IDLE:
       diag_remove_hint_fn(jit_diag_cb);
       thread->jit = NULL;
       break;
    }
-}
-
-static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
-                          void *context, jit_scalar_t *result,
-                          const char *fmt, va_list ap)
-{
-   jit_scalar_t args[JIT_MAX_ARGS];
-
-   int nargs = 0;
-   if (pcall) args[nargs++].pointer = state;
-   args[nargs++].pointer = context;
-
-   for (; *fmt; fmt++) {
-      if (nargs == JIT_MAX_ARGS)
-         fatal_trace("too many arguments to function %s", istr(func));
-
-      switch (*fmt) {
-      case 'I':
-         args[nargs++].integer = va_arg(ap, int64_t);
-         break;
-      case 'i':
-         args[nargs++].integer = va_arg(ap, int32_t);
-         break;
-      case 'R':
-         args[nargs++].real = va_arg(ap, double);
-         break;
-      case 'u':
-         args[nargs++].pointer = va_arg(ap, void *);
-         args[nargs++].integer = va_arg(ap, int32_t);  // Left
-         args[nargs++].integer = va_arg(ap, int32_t);  // Length
-         break;
-      case 'p':
-         args[nargs++].integer = (intptr_t)va_arg(ap, void *);
-         break;
-      default:
-         fatal_trace("invalid character '%c' in jit_call format", *fmt);
-      }
-   }
-
-   jit_handle_t handle = jit_compile(j, func);
-   if (handle == JIT_HANDLE_INVALID)
-      fatal_trace("invalid handle for %s", istr(func));
-
-   jit_transition(j, JIT_IDLE, JIT_INTERP);
-
-   jit_func_t *f = jit_get_func(j, handle);
-   bool ok = (*f->entry)(f, args);
-
-   jit_transition(j, JIT_INTERP, JIT_IDLE);
-
-   *result = args[0];
-   return ok;
-}
-
-bool jit_try_call(jit_t *j, ident_t func, void *context, jit_scalar_t *result,
-                  const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   bool ok = jit_try_vcall(j, func, false, NULL, context, result, fmt, ap);
-   va_end(ap);
-   return ok;
-}
-
-bool jit_try_pcall(jit_t *j, ident_t func, void *state, void *context,
-                   const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   jit_scalar_t result;
-   bool ok = jit_try_vcall(j, func, true, state, context, &result, fmt, ap);
-   va_end(ap);
-   return ok;
-}
-
-jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
-                      const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-
-   jit_scalar_t result;
-   if (!jit_try_vcall(j, func, false, NULL, context, &result, fmt, ap))
-      fatal_trace("call to %s failed", istr(func));
-
-   va_end(ap);
-   return result;
-}
-
-jit_scalar_t jit_pcall(jit_t *j, ident_t func, void *state, void *context,
-                       const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-
-   jit_scalar_t result;
-   if (!jit_try_vcall(j, func, true, state, context, &result, fmt, ap))
-      fatal_trace("call to %s failed", istr(func));
-
-   va_end(ap);
-   return result;
 }
 
 bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
@@ -557,8 +438,6 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2)
 {
-   // TODO: this interface and jit_call should be rethought
-
    jit_func_t *f = jit_get_func(j, handle);
    jit_thread_local_t *thread = jit_thread_local();
 
@@ -591,156 +470,146 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    }
 }
 
-static bool ffi_is_integral(ffi_type_t type)
+static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
+                          jit_scalar_t *args)
 {
-   return type == FFI_INT8 || type == FFI_INT16 || type == FFI_INT32
-      || type == FFI_INT64;
-}
-
-static int64_t ffi_widen_int(ffi_type_t type, const void *input, size_t insz)
-{
-   switch (type) {
-   case FFI_INT8: return *((int8_t *)input);
-   case FFI_INT16: return *((int16_t *)input);
-   case FFI_INT32: return *((int32_t *)input);
-   case FFI_INT64: return *((int32_t *)input);
-   default:
-      fatal_trace("invalid integer type in ffi_widen_int");
-   }
-}
-
-static void ffi_store_int(ffi_type_t type, uint64_t value,
-                          void *output, size_t outsz)
-{
-   assert(outsz <= sizeof(int64_t));
-   switch (type) {
-   case FFI_INT8: *(uint8_t *)output = (uint8_t)value; break;
-   case FFI_INT16: *(uint16_t *)output = (uint16_t)value; break;
-   case FFI_INT32: *(uint32_t *)output = (uint32_t)value; break;
-   case FFI_INT64: *(uint64_t *)output = value; break;
-   default:
-      fatal_trace("invalid integer type in ffi_store_int");
-   }
-}
-
-static void jit_ffi_wrapper(jit_func_t *f, ffi_closure_t *c, const void *input,
-                            size_t insz, void *output, size_t outsz)
-{
-   if (f->symbol)
-      ffi_call(c, f->symbol, input, insz, output, outsz);
-   else {
-      jit_scalar_t args[JIT_MAX_ARGS];
-      args[0].pointer = c->context;
-
-      if (ffi_is_integral(c->spec.atype)) {
-         args[1].integer = ffi_widen_int(c->spec.atype, input, insz);
-         (*f->entry)(f, args);
-
-         if (ffi_is_integral(c->spec.rtype))
-            ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
-         else if (c->spec.rtype == FFI_FLOAT) {
-            assert(outsz == sizeof(double));
-            *(double *)output = args[0].real;
-         }
-         else if (c->spec.rtype == FFI_POINTER) {
-            memcpy(output, args[0].pointer, outsz);
-         }
-         else
-            fatal_trace("unhandled FFI function argument combination");
-      }
-      else if (c->spec.atype == FFI_FLOAT && ffi_is_integral(c->spec.rtype)) {
-         assert(insz == sizeof(double));
-         args[1].real = *(double *)input;
-         (*f->entry)(f, args);
-         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
-      }
-      else if (c->spec.atype == FFI_FLOAT && c->spec.rtype == FFI_FLOAT) {
-         assert(insz == sizeof(double));
-         assert(outsz == sizeof(double));
-         args[1].real = *(double *)input;
-         (*f->entry)(f, args);
-         *(double *)output = args[0].real;
-      }
-      else if (c->spec.atype == FFI_POINTER && ffi_is_integral(c->spec.rtype)) {
-         args[1].pointer = (void *)input;
-         (*f->entry)(f, args);
-         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
-      }
-      else if (c->spec.atype == FFI_VOID && ffi_is_integral(c->spec.rtype)) {
-         (*f->entry)(f, args);
-         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
-      }
-      else if (c->spec.atype == FFI_UARRAY && ffi_is_integral(c->spec.rtype)) {
-         assert(insz == sizeof(ffi_uarray_t));
-         const ffi_uarray_t *u = input;
-         args[1].pointer = u->ptr;
-         args[2].integer = u->dims[0].left;
-         args[3].integer = u->dims[0].length;
-         (*f->entry)(f, args);
-         ffi_store_int(c->spec.rtype, args[0].integer, output, outsz);
-      }
-      else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_FLOAT) {
-         assert(insz == sizeof(ffi_uarray_t));
-         const ffi_uarray_t *u = input;
-         args[1].pointer = u->ptr;
-         args[2].integer = u->dims[0].left;
-         args[3].integer = u->dims[0].length;
-         (*f->entry)(f, args);
-         *(double *)output = args[0].real;
-      }
-      else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_POINTER) {
-         assert(insz == sizeof(ffi_uarray_t));
-         assert(outsz == sizeof(void *));
-         const ffi_uarray_t *u = input;
-         args[1].pointer = u->ptr;
-         args[2].integer = u->dims[0].left;
-         args[3].integer = u->dims[0].length;
-         (*f->entry)(f, args);
-         *(void **)output = args[0].pointer;
-      }
-      else
-         fatal_trace("unhandled FFI function argument combination");
-   }
-}
-
-void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
-                  void *output, size_t outsz, bool catch)
-{
-   // TODO: temporary wrapper around legacy ffi_call
-
    jit_thread_local_t *thread = jit_thread_local();
-   jit_func_t *f = jit_get_func(j, c->handle);
 
-   if (thread->state == JIT_IDLE) {
-      assert(!thread->jmp_buf_valid);
-      const int rc = setjmp(thread->abort_env);
-      if (rc == 0) {
-         thread->jmp_buf_valid = 1;
-         jit_transition(j, JIT_IDLE, JIT_NATIVE);
-         jit_ffi_wrapper(f, c, input, insz, output, outsz);
+   bool failed = false;
+   const jit_state_t oldstate = thread->state;
+   const jit_state_t newstate = f->symbol ? JIT_NATIVE : JIT_INTERP;
+   const int rc = setjmp(thread->abort_env);
+   if (rc == 0) {
+      thread->jmp_buf_valid = 1;
+      jit_transition(j, oldstate, newstate);
+
+      if (f->symbol != NULL) {
+         jit_foreign_t *ff = jit_ffi_get(f->name);
+         if (ff == NULL)
+            ff = jit_ffi_bind(f->name, f->spec, f->symbol);
+
+         *result = jit_ffi_call(ff, args);
       }
-      else
-         jit_set_exit_status(j, rc - 1);
-
-      jit_transition(j, JIT_NATIVE, JIT_IDLE);
-      thread->jmp_buf_valid = 0;
-   }
-   else if (catch) {
-      const jit_state_t oldstate = thread->state;
-      const int rc = setjmp(thread->abort_env);
-      if (rc == 0) {
-         thread->jmp_buf_valid = 1;
-         thread->state = JIT_NATIVE;
-         jit_ffi_wrapper(f, c, input, insz, output, outsz);
+      else {
+         failed = !jit_interp(f, args);
+         *result = args[0];
       }
-      else
-         jit_set_exit_status(j, rc - 1);
-
-      thread->state = oldstate;
-      thread->jmp_buf_valid = 0;
    }
+   else {
+      jit_set_exit_status(j, rc - 1);
+      failed = true;
+   }
+
+   jit_transition(j, newstate, oldstate);
+   thread->jmp_buf_valid = 0;
+
+   return !failed;
+}
+
+static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
+{
+   if (f->symbol == NULL && f->irbuf == NULL)
+      jit_irgen(f);   // Ensure FFI spec is set
+
+   const int nargs = ffi_count_args(f->spec);
+   assert(nargs <= JIT_MAX_ARGS);
+   int wptr = 0;
+   for (ffi_spec_t spec = f->spec >> 4; wptr < nargs; spec >>= 4) {
+      switch (spec & 0xf) {
+      case FFI_POINTER:
+         args[wptr++].pointer = va_arg(ap, void *);
+         break;
+      case FFI_FLOAT:
+         args[wptr++].real = va_arg(ap, double);
+         break;
+      case FFI_UARRAY:
+         args[wptr++].pointer = va_arg(ap, void *);
+         args[wptr++].integer = va_arg(ap, int32_t);
+         args[wptr++].integer = va_arg(ap, int32_t);
+         break;
+      case FFI_INT8:
+      case FFI_INT16:
+      case FFI_INT32:
+         args[wptr++].integer = va_arg(ap, int32_t);
+         break;
+      default:
+         args[wptr++].integer = va_arg(ap, int64_t);
+         break;
+      }
+   }
+   assert(wptr == nargs);
+}
+
+bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...)
+{
+   va_list ap;
+   va_start(ap, result);
+
+   jit_func_t *f = jit_get_func(j, handle);
+
+   jit_scalar_t args[JIT_MAX_ARGS];
+   jit_unpack_args(f, args, ap);
+
+   va_end(ap);
+
+   return jit_try_vcall(j, f, result, args);
+}
+
+jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...)
+{
+   va_list ap;
+   va_start(ap, handle);
+
+   jit_func_t *f = jit_get_func(j, handle);
+
+   jit_scalar_t args[JIT_MAX_ARGS];
+   jit_unpack_args(f, args, ap);
+
+   jit_scalar_t result;
+   if (!jit_try_vcall(j, f, &result, args))
+      fatal_trace("call to %s failed", istr(jit_get_func(j, handle)->name));
+
+   va_end(ap);
+   return result;
+}
+
+bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
+                         void *input, size_t insz, void *output, size_t outsz)
+{
+   jit_func_t *f = jit_get_func(j, handle);
+   assert(f->spec != 0);
+
+   ffi_type_t atype = (f->spec >> 8) & 0xf;
+   ffi_type_t rtype = f->spec & 0xf;
+
+   jit_scalar_t args[2] = { context };
+   if (ffi_is_integral(atype))
+      args[1].integer = ffi_widen_int(atype, input, insz);
+   else if (atype == FFI_FLOAT) {
+      assert(insz == sizeof(double));
+      args[1].real = *(double *)input;
+   }
+   else if (atype == FFI_POINTER)
+      args[1].pointer = input;
    else
-      jit_ffi_wrapper(f, c, input, insz, output, outsz);
+      fatal_trace("unhandled FFI argument type %x", atype);
+
+   jit_scalar_t result;
+   if (!jit_try_vcall(j, f, &result, args))
+      return false;
+
+   if (ffi_is_integral(rtype))
+      ffi_store_int(rtype, result.integer, output, outsz);
+   else if (rtype == FFI_FLOAT) {
+      assert(outsz == sizeof(double));
+      *(double *)output = result.real;
+   }
+   else if (rtype == FFI_POINTER)
+      memcpy(output, result.pointer, outsz);
+   else
+      fatal_trace("unhandled FFI result type %x", atype);
+
+   return true;
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
@@ -900,43 +769,27 @@ void jit_load_dll(jit_t *j, ident_t name)
    if (access(so_path, F_OK) != 0)
       return;
 
-   if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
-      debugf("loading shared library %s", so_path);
-
    uint32_t abi_version = 0;
 
    // Loading the DLL can execute constructors
    jit_transition(j, JIT_IDLE, JIT_NATIVE);
 
-#ifdef __MINGW32__
-   HMODULE handle = LoadLibrary(so_path);
-   if (handle == NULL)
-      fatal("failed to load %s", so_path);
+   if (j->aotlib != NULL)
+      fatal_trace("AOT library alreadt loaded");
 
-   FARPROC p = GetProcAddress(handle, "__nvc_abi_version");
+   j->aotlib = ffi_load_dll(so_path);
+
+   uint32_t *p = ffi_find_symbol(j->aotlib, "__nvc_abi_version");
    if (p == NULL)
       warnf("%s: cannot find symbol __nvc_abi_version", so_path);
    else
-      abi_version = *(uint32_t *)(uintptr_t)p;
-#else
-   void *handle = dlopen(so_path, RTLD_LAZY);
-   if (handle == NULL)
-      fatal("%s", dlerror());
-
-   uint32_t *p = dlsym(handle, "__nvc_abi_version");
-   if (p == NULL)
-      warnf("%s", dlerror());
-   else
       abi_version = *p;
-#endif
 
    jit_transition(j, JIT_NATIVE, JIT_IDLE);
 
    if (abi_version != RT_ABI_VERSION)
       fatal("%s: ABI version %d does not match current version %d",
             so_path, abi_version, RT_ABI_VERSION);
-
-   APUSH(j->modules, handle);
 }
 
 void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,

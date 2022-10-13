@@ -5,6 +5,7 @@ packages:
   - llvm
   - libdwarf
   - check
+  - libffi
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:

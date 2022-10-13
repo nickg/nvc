@@ -500,7 +500,6 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
 
    if (s->flags & NET_F_IMPLICIT) {
       rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
-      ffi_unref_closure(imp->closure);
       free(imp);
    }
    else
@@ -897,10 +896,12 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    for (int i = 0; i < resolution->nlits; i++) {
       for (int j = 0; j < resolution->nlits; j++) {
          int8_t args[2] = { i, j };
-         ffi_uarray_t u = { args, { { memo->ileft, 2 } } };
-         jit_ffi_call(m->jit, &(memo->closure), &u,
-                      sizeof(u), &(memo->tab2[i][j]), 1, true);
-         assert(memo->tab2[i][j] < resolution->nlits);
+         jit_scalar_t result;
+         if (jit_try_call(m->jit, memo->closure.handle, &result,
+                          memo->closure.context, args, memo->ileft, 2)) {
+            assert(result.integer < resolution->nlits && result.integer >= 0);
+            memo->tab2[i][j] = result.integer;
+         }
       }
    }
 
@@ -910,10 +911,12 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    bool identity = true;
    for (int i = 0; i < resolution->nlits; i++) {
       int8_t args[1] = { i };
-      ffi_uarray_t u = { args, { { memo->ileft, 1 } } };
-      jit_ffi_call(m->jit, &(memo->closure), &u, sizeof(u),
-                   &(memo->tab1[i]), 1, true);
-      identity = identity && (memo->tab1[i] == i);
+      jit_scalar_t result;
+      if (jit_try_call(m->jit, memo->closure.handle, &result,
+                       memo->closure.context, args, memo->ileft, 1)) {
+         memo->tab1[i] = result.integer;
+         identity = identity && (memo->tab1[i] == i);
+      }
    }
 
    if (jit_exit_status(m->jit) == 0) {
@@ -1496,7 +1499,7 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
    }
    else if (i0->n_nexus == 1) {
       insz   = i0->shared.size;
-      indata = (void *)(*fn)(&(i0->nexus));
+      indata = (*fn)(&(i0->nexus));
    }
    else {
       insz   = i0->shared.size;
@@ -1515,8 +1518,10 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
    TRACE("call conversion function %s insz=%zu outsz=%zu",
          istr(jit_get_name(m->jit, cf->closure.handle)), insz, cf->bufsz);
 
-   jit_ffi_call(m->jit, &(cf->closure), indata, insz,
-                cf->buffer, cf->bufsz, false);
+   jit_scalar_t context = { .pointer = cf->closure.context };
+   if (!jit_try_call_packed(m->jit, cf->closure.handle, context,
+                            indata, insz, cf->buffer, cf->bufsz))
+      m->force_stop = true;
 
    if (incopy) free(indata);
 
@@ -1597,11 +1602,13 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
       uint8_t *inputs = rt_tlab_alloc(nonnull * scope->size);
       copy_sub_signal_sources(scope, inputs, scope->size);
 
-      void *resolved;
-      ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
-      jit_ffi_call(get_model()->jit, &(r->closure), &u, sizeof(u),
-                   &resolved, sizeof(resolved), true);
+      rt_model_t *m = get_model();
+      jit_scalar_t result;
+      if (!jit_try_call(m->jit, r->closure.handle, &result,
+                        r->closure.context, inputs, r->ileft, nonnull))
+         m->force_stop = true;
 
+      void *resolved = result.pointer;
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;
       return resolved + nexus->signal->shared.offset + noff - rscope->offset;
@@ -1621,9 +1628,12 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
             }                                                           \
             assert(o == nonnull);                                       \
             type *p = (type *)resolved;                                 \
-            ffi_uarray_t u = { vals, { { r->ileft, nonnull } } };       \
-            jit_ffi_call(m->jit, &(r->closure), &u, sizeof(u),          \
-                         &(p[j]), sizeof(p[j]), true);                  \
+            jit_scalar_t result;                                        \
+            if (!jit_try_call(m->jit, r->closure.handle, &result,       \
+                              r->closure.context, vals, r->ileft,       \
+                              nonnull))                                 \
+               m->force_stop = true;                                    \
+            p[j] = result.integer;                                      \
          } while (0)
 
          FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
@@ -1760,11 +1770,11 @@ static void reset_coverage(rt_model_t *m)
    int32_t n_stmts, n_conds;
    cover_count_tags(m->cover, &n_stmts, &n_conds);
 
-   int32_t *cover_stmts = jit_find_symbol(m->jit, ident_new("cover_stmts"));
+   int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
    if (cover_stmts != NULL)
       memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
 
-   int32_t *cover_conds = jit_find_symbol(m->jit, ident_new("cover_conds"));
+   int32_t *cover_conds = ffi_find_symbol(NULL, "cover_conds");
    if (cover_conds != NULL)
       memset(cover_conds, '\0', sizeof(int32_t) * n_conds);
 }
@@ -1772,8 +1782,8 @@ static void reset_coverage(rt_model_t *m)
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      int32_t *cover_stmts = jit_find_symbol(m->jit, ident_new("cover_stmts"));
-      int32_t *cover_conds = jit_find_symbol(m->jit, ident_new("cover_conds"));
+      int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
+      int32_t *cover_conds = ffi_find_symbol(NULL, "cover_conds");
       if (cover_stmts != NULL)
          cover_report(m->top, m->cover, cover_stmts, cover_conds);
    }
@@ -2129,7 +2139,7 @@ static void notify_event(rt_model_t *m, rt_net_t *net)
                   container_of(it->wake, rt_implicit_t, wakeable);
                TRACE("wakeup %svalue change callback %s",
                      it->wake->postponed ? "postponed " : "",
-                     istr(jit_get_name(m->jit, imp->closure->handle)));
+                     istr(jit_get_name(m->jit, imp->closure.handle)));
                workq_do(m->implicitq, async_update_implicit_signal, imp);
             }
             break;
@@ -2296,19 +2306,21 @@ static void async_update_driving(void *context, void *arg)
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 {
-   int8_t r;
-   jit_ffi_call(m->jit, imp->closure, NULL, 0, &r, sizeof(r), false);
+   jit_scalar_t result;
+   if (!jit_try_call(m->jit, imp->closure.handle, &result,
+                     imp->closure.context))
+      m->force_stop = true;
 
-   TRACE("implicit signal %s guard expression %d",
-         istr(tree_ident(imp->signal.where)), r);
+   TRACE("implicit signal %s guard expression %"PRIi64,
+         istr(tree_ident(imp->signal.where)), result.integer);
 
    assert(imp->signal.n_nexus == 1);
    rt_nexus_t *n0 = &(imp->signal.nexus);
 
    rt_net_t *net = get_net(m, n0);
 
-   if (*(int8_t *)n0->resolved != r) {
-      propagate_nexus(n0, &r);
+   if (*(int8_t *)n0->resolved != result.integer) {
+      propagate_nexus(n0, &result.integer);
       notify_event(m, net);
    }
    else
@@ -3133,18 +3145,16 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 1, datasz);
    setup_signal(m, &(imp->signal), where, count, size, NET_F_IMPLICIT, 0);
 
-   ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
-   *copy = *closure;
-   copy->refcnt = 1;
-
-   imp->closure = copy;
+   imp->closure = *closure;
    imp->wakeable.kind = W_IMPLICIT;
 
-   int8_t r;
-   jit_ffi_call(m->jit, imp->closure, NULL, 0, &r, sizeof(r), false);
+   jit_scalar_t result;
+   if (!jit_try_call(m->jit, imp->closure.handle, &result,
+                     imp->closure.context))
+      m->force_stop = true;
 
    assert(size * count == 1);
-   memcpy(imp->signal.shared.data, &r, imp->signal.shared.size);
+   memcpy(imp->signal.shared.data, &result.integer, imp->signal.shared.size);
 
    return &(imp->signal.shared);
 }
@@ -3243,13 +3253,12 @@ void x_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
 }
 
 void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
-                       ffi_spec_t spec, int32_t ileft, int32_t nlits)
+                       int32_t ileft, int32_t nlits)
 {
    rt_resolution_t resolution = {
       .closure = {
          .handle  = handle,
          .context = context,
-         .spec    = spec,
       },
       .ileft = ileft,
       .nlits = nlits,

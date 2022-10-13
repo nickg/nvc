@@ -20,12 +20,19 @@
 #include "diag.h"
 #include "ident.h"
 #include "jit/jit.h"
+#include "jit/jit-ffi.h"
 #include "opt.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"
 
 #include <math.h>
+#include <stdlib.h>
+
+static jit_handle_t compile_for_test(jit_t *j, const char *name)
+{
+   return jit_lazy_compile(j, ident_new(name));
+}
 
 START_TEST(test_add1)
 {
@@ -35,12 +42,12 @@ START_TEST(test_add1)
 
    jit_t *j = jit_new();
 
-   ident_t fn1 = ident_new("WORK.PACK.ADD1(I)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", 5).integer, 6);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", INT32_C(-5)).integer, -4);
+   jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.ADD1(I)I");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, 5).integer, 6);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, INT32_C(-5)).integer, -4);
 
-   ident_t fn2 = ident_new("WORK.PACK.ADD1(R)R");
-   ck_assert_double_eq_tol(jit_call(j, fn2, NULL, "R", 5.0).real, 6.0, 0.001);
+   jit_handle_t fn2 = compile_for_test(j, "WORK.PACK.ADD1(R)R");
+   ck_assert_double_eq_tol(jit_call(j, fn2, NULL, 5.0).real, 6.0, 0.001);
 
    jit_free(j);
 
@@ -56,13 +63,13 @@ START_TEST(test_fact)
 
    jit_t *j = jit_new();
 
-   ident_t fn1 = ident_new("WORK.PACK.FACT(I)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", 5).integer, 120);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", 8).integer, 40320);
+   jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.FACT(I)I");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, 5).integer, 120);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, 8).integer, 40320);
 
-   ident_t fn2 = ident_new("WORK.PACK.FACT_RECUR(I)I");
-   ck_assert_int_eq(jit_call(j, fn2, NULL, "i", 5).integer, 120);
-   ck_assert_int_eq(jit_call(j, fn2, NULL, "i", 8).integer, 40320);
+   jit_handle_t fn2 = compile_for_test(j, "WORK.PACK.FACT_RECUR(I)I");
+   ck_assert_int_eq(jit_call(j, fn2, NULL, 5).integer, 120);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, 8).integer, 40320);
 
    jit_free(j);
 }
@@ -78,29 +85,31 @@ START_TEST(test_sum)
 
    int32_t data[] = { 1, 2, 3, 4, 5 };
 
-   ident_t fn1 = ident_new("WORK.SUMPKG.GET_LEFT(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", data, 1, 5).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", data, -5, 5).integer, -5);
+   jit_handle_t fn1 =
+      compile_for_test(j, "WORK.SUMPKG.GET_LEFT(22WORK.SUMPKG.INT_VECTOR)I");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, data, 1, 5).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, data, -5, 5).integer, -5);
 
-   ident_t fn2 = ident_new("WORK.SUMPKG.GET_RIGHT(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn2, NULL, "u", data, 1, 5).integer, 5);
-   ck_assert_int_eq(jit_call(j, fn2, NULL, "u", data, -5, 0).integer, -6);
-   ck_assert_int_eq(jit_call(j, fn2, NULL, "u", data, -5, 2).integer, -4);
+   jit_handle_t fn2 =
+      compile_for_test(j, "WORK.SUMPKG.GET_RIGHT(22WORK.SUMPKG.INT_VECTOR)I");
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, 1, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 0).integer, -6);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 2).integer, -4);
 
-   ident_t fn3 = ident_new("WORK.SUMPKG.GET_LENGTH(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", data, 1, 5).integer, 5);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", data, -5, 0).integer, 0);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", data, -5, 2).integer, 2);
+   jit_handle_t fn3 =
+      compile_for_test(j, "WORK.SUMPKG.GET_LENGTH(22WORK.SUMPKG.INT_VECTOR)I");
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, 1, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 2).integer, 2);
 
-   ident_t fn4 = ident_new("WORK.SUMPKG.SUM(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data, 1, 5).integer, 15);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data,
-                             5, INT32_C(-5)).integer, 15);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data, 1, 2).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data, 100, 2).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data,
-                             INT32_C(-10), 2).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", data, 1, 0).integer, 0);
+   jit_handle_t fn4 =
+      compile_for_test(j, "WORK.SUMPKG.SUM(22WORK.SUMPKG.INT_VECTOR)I");
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 5).integer, 15);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 5, -5).integer, 15);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 100, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, -10, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 0).integer, 0);
 
    jit_free(j);
 
@@ -132,24 +141,25 @@ START_TEST(test_context1)
    int32_t *c1 = jit_get_frame_var(j, handle, 1);
    ck_assert_int_eq(*c1, 42);
 
-   ident_t fn1 = ident_new("WORK.PACK.GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(jit_call(j, fn1, ctx, "i", 1).integer, 10);
-   ck_assert_int_eq(jit_call(j, fn1, ctx, "i", 2).integer, 20);
+   jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.GET_ELT(7NATURAL)I");
+   ck_assert_int_eq(jit_call(j, fn1, ctx, 1).integer, 10);
+   ck_assert_int_eq(jit_call(j, fn1, ctx, 2).integer, 20);
 
    jit_scalar_t result;
-   fail_if(jit_try_call(j, fn1, NULL, &result, "i", 55));
-   fail_if(jit_try_call(j, fn1, NULL, &result, "i", -1));
+   fail_if(jit_try_call(j, fn1, &result, NULL, 55));
+   fail_if(jit_try_call(j, fn1, &result, NULL, -1));
 
-   ident_t fn2 = ident_new("WORK.PACK.NESTED_GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(jit_call(j, fn2, ctx, "i", 1).integer, 10);
-   ck_assert_int_eq(jit_call(j, fn2, ctx, "i", 5).integer, 50);
-   fail_if(jit_try_call(j, fn2, NULL, &result, "i", -1));
+   jit_handle_t fn2 =
+      compile_for_test(j, "WORK.PACK.NESTED_GET_ELT(7NATURAL)I");
+   ck_assert_int_eq(jit_call(j, fn2, ctx, 1).integer, 10);
+   ck_assert_int_eq(jit_call(j, fn2, ctx, 5).integer, 50);
+   fail_if(jit_try_call(j, fn2, &result, NULL, -1));
 
    int x;
-   ident_t fn3 = ident_new("WORK.PACK.READ_ELT(7NATURALI)");
-   fail_unless(jit_try_pcall(j, fn3, NULL, ctx, "ip", 1, &x));
+   jit_handle_t fn3 = compile_for_test(j, "WORK.PACK.READ_ELT(7NATURALI)");
+   fail_unless(jit_try_call(j, fn3, &result, NULL, ctx, 1, &x));
    ck_assert_int_eq(x, 10);
-   fail_unless(jit_try_pcall(j, fn3, NULL, ctx, "ip", 5, &x));
+   fail_unless(jit_try_call(j, fn3, &result, NULL, ctx, 5, &x));
    ck_assert_int_eq(x, 50);
 
    jit_free(j);
@@ -176,8 +186,8 @@ START_TEST(test_record1)
    eval_frame_t *pack2 = jit_link(j, pack2_handle);
    fail_if(pack2 == NULL);
 
-   ident_t fn = ident_new("WORK.PACK2.SUM_FIELDS()I");
-   ck_assert_int_eq(jit_call(j, fn, pack2, "").integer, 6);
+   jit_handle_t fn = compile_for_test(j, "WORK.PACK2.SUM_FIELDS()I");
+   ck_assert_int_eq(jit_call(j, fn, pack2).integer, 6);
 
    jit_free(j);
 }
@@ -201,8 +211,8 @@ START_TEST(test_record2)
    eval_frame_t *pack4 = jit_link(j, pack4_handle);
    fail_if(pack4 == NULL);
 
-   ident_t fn = ident_new("WORK.PACK4.SUM_FIELDS()I");
-   ck_assert_int_eq(jit_call(j, fn, pack4, "").integer, 21);
+   jit_handle_t fn = compile_for_test(j, "WORK.PACK4.SUM_FIELDS()I");
+   ck_assert_int_eq(jit_call(j, fn, pack4).integer, 21);
 
    jit_free(j);
 }
@@ -226,12 +236,18 @@ START_TEST(test_record3)
    eval_frame_t *pack6 = jit_link(j, pack6_handle);
    fail_if(pack6 == NULL);
 
-   ident_t fn = ident_new("WORK.PACK6.SUM_FIELDS()I");
-   ck_assert_int_eq(jit_call(j, fn, pack6, "").integer, 55);
+   jit_handle_t fn = compile_for_test(j, "WORK.PACK6.SUM_FIELDS()I");
+   ck_assert_int_eq(jit_call(j, fn, pack6).integer, 55);
 
    jit_free(j);
 }
 END_TEST
+
+DLLEXPORT
+int _nvc_ieee_warnings(void)
+{
+   return 1;
+}
 
 START_TEST(test_ieee_warnings)
 {
@@ -281,32 +297,35 @@ START_TEST(test_overflow)
 
    jit_t *j = jit_new();
 
-   ident_t add = ident_new("WORK.OVERFLOW.ADD(II)I");
-   ident_t sub = ident_new("WORK.OVERFLOW.SUB(II)I");
-   ident_t mul = ident_new("WORK.OVERFLOW.MUL(II)I");
+   jit_handle_t add = compile_for_test(j, "WORK.OVERFLOW.ADD(II)I");
+   jit_handle_t sub = compile_for_test(j, "WORK.OVERFLOW.SUB(II)I");
+   jit_handle_t mul = compile_for_test(j, "WORK.OVERFLOW.MUL(II)I");
 
    jit_scalar_t result;
-   fail_if(jit_try_call(j, add, NULL, &result, "ii", INT32_MAX, 1));
-   fail_if(jit_try_call(j, add, NULL, &result, "ii", INT32_MAX, INT32_MAX));
-   fail_if(jit_try_call(j, sub, NULL, &result, "ii", INT32_MIN, 53));
-   fail_if(jit_try_call(j, mul, NULL, &result, "ii", 2352523154, 128910));
+   fail_if(jit_try_call(j, add, &result, NULL, INT32_MAX, 1));
+   fail_if(jit_try_call(j, add, &result, NULL, INT32_MAX, INT32_MAX));
+   fail_if(jit_try_call(j, sub, &result, NULL, INT32_MIN, 53));
+   fail_if(jit_try_call(j, mul, &result, NULL, 2352523154, 128910));
 
 #define UINT8 "19WORK.OVERFLOW.UINT8"
-   ident_t addu = ident_new("WORK.OVERFLOW.ADD(" UINT8 UINT8 ")" UINT8);
-   ident_t subu = ident_new("WORK.OVERFLOW.SUB(" UINT8 UINT8 ")" UINT8);
-   ident_t mulu = ident_new("WORK.OVERFLOW.MUL(" UINT8 UINT8 ")" UINT8);
+   jit_handle_t addu =
+      compile_for_test(j, "WORK.OVERFLOW.ADD(" UINT8 UINT8 ")" UINT8);
+   jit_handle_t subu =
+      compile_for_test(j, "WORK.OVERFLOW.SUB(" UINT8 UINT8 ")" UINT8);
+   jit_handle_t mulu =
+      compile_for_test(j, "WORK.OVERFLOW.MUL(" UINT8 UINT8 ")" UINT8);
 #undef UINT8
 
-   ck_assert_int_eq(jit_call(j, addu, NULL, "ii", 5, 6).integer, 11);
-   ck_assert_int_eq(jit_call(j, addu, NULL, "ii", 127, 1).integer, 128);
-   fail_if(jit_try_call(j, addu, NULL, &result, "ii", 255, 128));
+   ck_assert_int_eq(jit_call(j, addu, NULL, 5, 6).integer, 11);
+   ck_assert_int_eq(jit_call(j, addu, NULL, 127, 1).integer, 128);
+   fail_if(jit_try_call(j, addu, &result, NULL, 255, 128));
 
-   ck_assert_int_eq(jit_call(j, subu, NULL, "ii", 255, 4).integer, 251);
-   ck_assert_int_eq(jit_call(j, subu, NULL, "ii", 1, 1).integer, 0);
-   fail_if(jit_try_call(j, subu, NULL, &result, "ii", 2, 3));
+   ck_assert_int_eq(jit_call(j, subu, NULL, 255, 4).integer, 251);
+   ck_assert_int_eq(jit_call(j, subu, NULL, 1, 1).integer, 0);
+   fail_if(jit_try_call(j, subu, &result, NULL, 2, 3));
 
-   ck_assert_int_eq(jit_call(j, mulu, NULL, "ii", 127, 2).integer, 254);
-   fail_if(jit_try_call(j, mulu, NULL, &result, "ii", 255, 2));
+   ck_assert_int_eq(jit_call(j, mulu, NULL, 127, 2).integer, 254);
+   fail_if(jit_try_call(j, mulu, &result, NULL, 255, 2));
 
    jit_free(j);
    check_expected_errors();
@@ -321,19 +340,19 @@ START_TEST(test_record4)
 
    jit_t *j = jit_new();
 
-   ident_t func1 = ident_new("WORK.PACK5.FUNC1(I)I");
-   ident_t func2 = ident_new("WORK.PACK5.FUNC2(I)I");
-   ident_t func3 = ident_new("WORK.PACK5.FUNC3(I)I");
-   ident_t func4 = ident_new("WORK.PACK5.FUNC4(I)I");
+   jit_handle_t func1 = compile_for_test(j, "WORK.PACK5.FUNC1(I)I");
+   jit_handle_t func2 = compile_for_test(j, "WORK.PACK5.FUNC2(I)I");
+   jit_handle_t func3 = compile_for_test(j, "WORK.PACK5.FUNC3(I)I");
+   jit_handle_t func4 = compile_for_test(j, "WORK.PACK5.FUNC4(I)I");
 
-   ck_assert_int_eq(jit_call(j, func1, NULL, "i", 5).integer, 40);
-   ck_assert_int_eq(jit_call(j, func1, NULL, "i", 2).integer, 7);
-   ck_assert_int_eq(jit_call(j, func1, NULL, "i", 0).integer, 0);
-   ck_assert_int_eq(jit_call(j, func2, NULL, "i", 5).integer, 40);
-   ck_assert_int_eq(jit_call(j, func2, NULL, "i", 2).integer, 7);
-   ck_assert_int_eq(jit_call(j, func2, NULL, "i", 0).integer, 0);
-   ck_assert_int_eq(jit_call(j, func3, NULL, "i", 2).integer, 6);
-   ck_assert_int_eq(jit_call(j, func4, NULL, "i", 3).integer, 27);
+   ck_assert_int_eq(jit_call(j, func1, NULL, 5).integer, 40);
+   ck_assert_int_eq(jit_call(j, func1, NULL, 2).integer, 7);
+   ck_assert_int_eq(jit_call(j, func1, NULL, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, func2, NULL, 5).integer, 40);
+   ck_assert_int_eq(jit_call(j, func2, NULL, 2).integer, 7);
+   ck_assert_int_eq(jit_call(j, func2, NULL, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, func3, NULL, 2).integer, 6);
+   ck_assert_int_eq(jit_call(j, func4, NULL, 3).integer, 27);
 
    jit_free(j);
    fail_if_errors();
@@ -359,22 +378,25 @@ START_TEST(test_access1)
    p[0] = 42;
    p[1] = 0xdeadbeef;
 
-   ident_t deref = ident_new("WORK.ACCESS1.DEREF(20WORK.ACCESS1.INT_PTRI)");
-   jit_pcall(j, deref, NULL, NULL, "pp", p, p + 1);
+   jit_handle_t deref =
+      compile_for_test(j, "WORK.ACCESS1.DEREF(20WORK.ACCESS1.INT_PTRI)");
+   jit_call(j, deref, NULL, NULL, p, p + 1);
    ck_assert_int_eq(p[1], 42);
 
-   fail_if(jit_try_pcall(j, deref, NULL, NULL, "pp", NULL, p + 1));
+   jit_scalar_t result;
+   fail_if(jit_try_call(j, deref, &result, NULL, NULL, NULL, p + 1));
    ck_assert_int_eq(p[1], 42);
 
-   ident_t test1 = ident_new("WORK.ACCESS1.TEST1(20WORK.ACCESS1.INT_PTR)");
-   jit_pcall(j, test1, NULL, NULL, "p", p);
+   jit_handle_t test1 =
+      compile_for_test(j, "WORK.ACCESS1.TEST1(20WORK.ACCESS1.INT_PTR)");
+   jit_call(j, test1, NULL, NULL, p);
    ck_assert_int_eq(p[1], 0);
 
-   ident_t oom = ident_new("WORK.ACCESS1.OOM");
-   fail_if(jit_try_pcall(j, oom, NULL, NULL, ""));
+   jit_handle_t oom = compile_for_test(j, "WORK.ACCESS1.OOM");
+   fail_if(jit_try_call(j, oom, &result, NULL, NULL));
 
-   ident_t gc_a_lot = ident_new("WORK.ACCESS1.GC_A_LOT");
-   fail_unless(jit_try_pcall(j, gc_a_lot, NULL, NULL, ""));
+   jit_handle_t gc_a_lot = compile_for_test(j, "WORK.ACCESS1.GC_A_LOT");
+   fail_unless(jit_try_call(j, gc_a_lot, &result, NULL, NULL));
 
    jit_free(j);
    check_expected_errors();
@@ -399,21 +421,22 @@ START_TEST(test_array1)
    int32_t a0[3] = {};
    int32_t a1[3] = { 1, 2, 3 };
 
-   ident_t assign = ident_new(
+   jit_handle_t assign = compile_for_test(j,
       "WORK.ARRAY1.ASSIGN(14WORK.ARRAY1.IV14WORK.ARRAY1.IV)");
-   jit_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, 1, 3);
+   jit_call(j, assign, NULL, NULL, a0, 1, 3, a1, 1, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
    a1[0] = 44;
-   jit_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, -4, 3);
+   jit_call(j, assign, NULL, NULL, a0, 1, 3, a1, -4, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
 
    a1[0] = 99;
-   fail_if(jit_try_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, 1, 2));
+   jit_scalar_t result;
+   fail_if(jit_try_call(j, assign, &result, NULL, NULL, a0, 1, 3, a1, 1, 2));
    ck_assert_mem_ne(a0, a1, sizeof(a0));
 
-   jit_scalar_t result;
-   ident_t get_ints = ident_new("WORK.ARRAY1.GET_INTS(II)14WORK.ARRAY1.IV");
-   fail_unless(jit_try_call(j, get_ints, NULL, &result, "ii", 5, -1));
+   jit_handle_t get_ints =
+      compile_for_test(j, "WORK.ARRAY1.GET_INTS(II)14WORK.ARRAY1.IV");
+   fail_unless(jit_try_call(j, get_ints, &result, NULL, 5, -1));
    ck_assert_ptr_nonnull(result.pointer);
 
    int32_t *vals = result.pointer;
@@ -424,8 +447,8 @@ START_TEST(test_array1)
    ck_assert_int_eq(vals[3], 2);
    ck_assert_int_eq(vals[4], 3);
 
-   ident_t issue94 = ident_new("WORK.ARRAY1.ISSUE94(II)Q");
-   fail_unless(jit_try_call(j, issue94, NULL, &result, "ii", 4, 4));
+   jit_handle_t issue94 = compile_for_test(j, "WORK.ARRAY1.ISSUE94(II)Q");
+   fail_unless(jit_try_call(j, issue94, &result, NULL, 4, 4));
    ck_assert_ptr_nonnull(result.pointer);
 
    unsigned char *bits = result.pointer;
@@ -435,8 +458,8 @@ START_TEST(test_array1)
    ck_assert_int_eq(bits[2], 1);
    ck_assert_int_eq(bits[3], 1);
 
-   ident_t test2 = ident_new("WORK.ARRAY1.TEST2(S)");
-   fail_unless(jit_try_pcall(j, test2, NULL, NULL, "u", NULL, 1, 0));
+   jit_handle_t test2 = compile_for_test(j, "WORK.ARRAY1.TEST2(S)");
+   fail_unless(jit_try_call(j, test2, &result, NULL, NULL, NULL, 1, 0));
 
    jit_free(j);
    check_expected_errors();
@@ -452,17 +475,18 @@ START_TEST(test_relop1)
    jit_t *j = jit_new();
 
 #define UINT8 "17WORK.RELOP1.UINT8"
-   ident_t cmpless = ident_new("WORK.RELOP1.CMPLESS(" UINT8 UINT8 ")B");
+   jit_handle_t cmpless =
+      compile_for_test(j, "WORK.RELOP1.CMPLESS(" UINT8 UINT8 ")B");
 #undef UINT8
 
-   ck_assert_int_eq(jit_call(j, cmpless, NULL, "ii", 5, 6).integer, 1);
-   ck_assert_int_eq(jit_call(j, cmpless, NULL, "ii", 127, 128).integer, 1);
-   ck_assert_int_eq(jit_call(j, cmpless, NULL, "ii", 200, 255).integer, 1);
+   ck_assert_int_eq(jit_call(j, cmpless, NULL, 5, 6).integer, 1);
+   ck_assert_int_eq(jit_call(j, cmpless, NULL, 127, 128).integer, 1);
+   ck_assert_int_eq(jit_call(j, cmpless, NULL, 200, 255).integer, 1);
 
-   ident_t fcmpless = ident_new("WORK.RELOP1.CMPLESS(RR)B");
-   ck_assert_int_eq(jit_call(j, fcmpless, NULL, "RR", 5.0, 6.0).integer, 1);
-   ck_assert_int_eq(jit_call(j, fcmpless, NULL, "RR", -5.0, -6.0).integer, 0);
-   ck_assert_int_eq(jit_call(j, fcmpless, NULL, "RR", 0.001, 0.2).integer, 1);
+   jit_handle_t fcmpless = compile_for_test(j, "WORK.RELOP1.CMPLESS(RR)B");
+   ck_assert_int_eq(jit_call(j, fcmpless, NULL, 5.0, 6.0).integer, 1);
+   ck_assert_int_eq(jit_call(j, fcmpless, NULL, -5.0, -6.0).integer, 0);
+   ck_assert_int_eq(jit_call(j, fcmpless, NULL, 0.001, 0.2).integer, 1);
 
    jit_free(j);
    fail_if_errors();
@@ -485,12 +509,12 @@ START_TEST(test_proc1)
 
    jit_t *j = jit_new();
 
-   ident_t add2 = ident_new("WORK.PROC1_PACK2.ADD2(I)I");
+   jit_handle_t add2 = compile_for_test(j, "WORK.PROC1_PACK2.ADD2(I)I");
 
-   ck_assert_int_eq(jit_call(j, add2, NULL, "i", 5).integer, 7);
+   ck_assert_int_eq(jit_call(j, add2, NULL, 5).integer, 7);
 
    jit_scalar_t result;
-   fail_if(jit_try_call(j, add2, NULL, &result, "i", 10));
+   fail_if(jit_try_call(j, add2, &result, NULL, 10));
 
    jit_free(j);
    check_expected_errors();
@@ -527,12 +551,12 @@ START_TEST(test_unreachable)
 
    jit_t *j = jit_new();
 
-   ident_t func = ident_new("WORK.UNREACHABLE.FUNC(I)I");
+   jit_handle_t func = compile_for_test(j, "WORK.UNREACHABLE.FUNC(I)I");
 
-   ck_assert_int_eq(jit_call(j, func, NULL, "i", 5).integer, 10);
+   ck_assert_int_eq(jit_call(j, func, NULL, 5).integer, 10);
 
    jit_scalar_t result;
-   fail_if(jit_try_call(j, func, NULL, &result, "i", -1));
+   fail_if(jit_try_call(j, func, &result, NULL, -1));
 
    jit_free(j);
    check_expected_errors();
@@ -556,66 +580,66 @@ START_TEST(test_arith1)
 
    jit_scalar_t result;
 
-   ident_t divii = ident_new("WORK.ARITH1.DIV(II)I");
-   ck_assert_int_eq(jit_call(j, divii, NULL, "ii", 4, 2).integer, 2);
-   ck_assert_int_eq(jit_call(j, divii, NULL, "ii", 5, 2).integer, 2);
-   ck_assert_int_eq(jit_call(j, divii, NULL, "ii", -5, -2).integer, 2);
-   ck_assert_int_eq(jit_call(j, divii, NULL, "ii", -5, -1).integer, 5);
-   fail_if(jit_try_call(j, divii, NULL, &result, "ii", 1, 0));
+   jit_handle_t divii = compile_for_test(j, "WORK.ARITH1.DIV(II)I");
+   ck_assert_int_eq(jit_call(j, divii, NULL, 4, 2).integer, 2);
+   ck_assert_int_eq(jit_call(j, divii, NULL, 5, 2).integer, 2);
+   ck_assert_int_eq(jit_call(j, divii, NULL, -5, -2).integer, 2);
+   ck_assert_int_eq(jit_call(j, divii, NULL, -5, -1).integer, 5);
+   fail_if(jit_try_call(j, divii, &result, NULL, 1, 0));
 
-   ident_t divrr = ident_new("WORK.ARITH1.DIV(RR)R");
-   ck_assert_double_eq(jit_call(j, divrr, NULL, "RR", 4.0, 2.0).real, 2.0);
-   ck_assert_double_eq(jit_call(j, divrr, NULL, "RR", 4.0, 0.0).real, INFINITY);
+   jit_handle_t divrr = compile_for_test(j, "WORK.ARITH1.DIV(RR)R");
+   ck_assert_double_eq(jit_call(j, divrr, NULL, 4.0, 2.0).real, 2.0);
+   ck_assert_double_eq(jit_call(j, divrr, NULL, 4.0, 0.0).real, INFINITY);
 
-   ident_t divir = ident_new("WORK.ARITH1.DIV(IR)R");
-   ck_assert_double_eq(jit_call(j, divir, NULL, "iR", 4, 2.0).real, 2.0);
-   ck_assert_double_eq(jit_call(j, divir, NULL, "iR", 4, 0.0).real, INFINITY);
+   jit_handle_t divir = compile_for_test(j, "WORK.ARITH1.DIV(IR)R");
+   ck_assert_double_eq(jit_call(j, divir, NULL, 4, 2.0).real, 2.0);
+   ck_assert_double_eq(jit_call(j, divir, NULL, 4, 0.0).real, INFINITY);
 
-   ident_t expr = ident_new("WORK.ARITH1.EXP(RI)R");
-   ck_assert_double_eq(jit_call(j, expr, NULL, "Ri", 2.0, 4).real, 16.0);
-   ck_assert_double_eq(jit_call(j, expr, NULL, "Ri", 2.0, -1).real, 0.5);
+   jit_handle_t expr = compile_for_test(j, "WORK.ARITH1.EXP(RI)R");
+   ck_assert_double_eq(jit_call(j, expr, NULL, 2.0, 4).real, 16.0);
+   ck_assert_double_eq(jit_call(j, expr, NULL, 2.0, -1).real, 0.5);
 
-   ident_t expi = ident_new("WORK.ARITH1.EXP(II)I");
-   ck_assert_int_eq(jit_call(j, expi, NULL, "ii", 2, 4).integer, 16);
-   fail_if(jit_try_call(j, expi, NULL, &result, "ii", 2, -1));
+   jit_handle_t expi = compile_for_test(j, "WORK.ARITH1.EXP(II)I");
+   ck_assert_int_eq(jit_call(j, expi, NULL, 2, 4).integer, 16);
+   fail_if(jit_try_call(j, expi, &result, NULL, 2, -1));
 
-   ident_t negi = ident_new("WORK.ARITH1.NEG(I)I");
-   ck_assert_int_eq(jit_call(j, negi, NULL, "i", 2).integer, -2);
-   ck_assert_int_eq(jit_call(j, negi, NULL, "i", -124).integer, 124);
+   jit_handle_t negi = compile_for_test(j, "WORK.ARITH1.NEG(I)I");
+   ck_assert_int_eq(jit_call(j, negi, NULL, 2).integer, -2);
+   ck_assert_int_eq(jit_call(j, negi, NULL, -124).integer, 124);
 
-   ident_t negr = ident_new("WORK.ARITH1.NEG(R)R");
-   ck_assert_double_eq(jit_call(j, negr, NULL, "R", 2.0).real, -2.0);
-   ck_assert_double_eq(jit_call(j, negr, NULL, "R", -256.0).real, 256.0);
+   jit_handle_t negr = compile_for_test(j, "WORK.ARITH1.NEG(R)R");
+   ck_assert_double_eq(jit_call(j, negr, NULL, 2.0).real, -2.0);
+   ck_assert_double_eq(jit_call(j, negr, NULL, -256.0).real, 256.0);
 
-   ident_t castri = ident_new("WORK.ARITH1.CAST(R)I");
-   ck_assert_int_eq(jit_call(j, castri, NULL, "R", 2.0).integer, 2);
-   ck_assert_int_eq(jit_call(j, castri, NULL, "R", 1.5).integer, 2);
-   ck_assert_int_eq(jit_call(j, castri, NULL, "R", 1.4999).integer, 1);
-   ck_assert_int_eq(jit_call(j, castri, NULL, "R", -1.4999).integer, -1);
+   jit_handle_t castri = compile_for_test(j, "WORK.ARITH1.CAST(R)I");
+   ck_assert_int_eq(jit_call(j, castri, NULL, 2.0).integer, 2);
+   ck_assert_int_eq(jit_call(j, castri, NULL, 1.5).integer, 2);
+   ck_assert_int_eq(jit_call(j, castri, NULL, 1.4999).integer, 1);
+   ck_assert_int_eq(jit_call(j, castri, NULL, -1.4999).integer, -1);
 
-   ident_t absi = ident_new("WORK.ARITH1.ABZ(I)I");
-   ck_assert_int_eq(jit_call(j, absi, NULL, "i", 2).integer, 2);
-   ck_assert_int_eq(jit_call(j, absi, NULL, "i", 0).integer, 0);
-   ck_assert_int_eq(jit_call(j, absi, NULL, "i", -5).integer, 5);
+   jit_handle_t absi = compile_for_test(j, "WORK.ARITH1.ABZ(I)I");
+   ck_assert_int_eq(jit_call(j, absi, NULL, 2).integer, 2);
+   ck_assert_int_eq(jit_call(j, absi, NULL, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, absi, NULL, -5).integer, 5);
    // Bug! needs a trap abs
    //ck_assert_int_eq(jit_call(j, absi, NULL, "i", INT32_MIN).integer, INT32_MAX);
 
-   ident_t absr = ident_new("WORK.ARITH1.ABZ(R)R");
-   ck_assert_double_eq(jit_call(j, absr, NULL, "R", 2.0).real, 2.0);
-   ck_assert_double_eq(jit_call(j, absr, NULL, "R", -0.0).real, 0.0);
-   ck_assert_double_eq(jit_call(j, absr, NULL, "R", -4.0).real, 4.0);
+   jit_handle_t absr = compile_for_test(j, "WORK.ARITH1.ABZ(R)R");
+   ck_assert_double_eq(jit_call(j, absr, NULL, 2.0).real, 2.0);
+   ck_assert_double_eq(jit_call(j, absr, NULL, -0.0).real, 0.0);
+   ck_assert_double_eq(jit_call(j, absr, NULL, -4.0).real, 4.0);
 
-   ident_t modi = ident_new("WORK.ARITH1.MODD(II)I");
-   ck_assert_int_eq(jit_call(j, modi, NULL, "ii", 4, 2).integer, 0);
-   ck_assert_int_eq(jit_call(j, modi, NULL, "ii", 5, 3).integer, 2);
-   ck_assert_int_eq(jit_call(j, modi, NULL, "ii", -5, 3).integer, 1);
-   ck_assert_int_eq(jit_call(j, modi, NULL, "ii", -512, -8).integer, 0);
-   ck_assert_int_eq(jit_call(j, modi, NULL, "ii", -510, -8).integer, -6);
+   jit_handle_t modi = compile_for_test(j, "WORK.ARITH1.MODD(II)I");
+   ck_assert_int_eq(jit_call(j, modi, NULL, 4, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, modi, NULL, 5, 3).integer, 2);
+   ck_assert_int_eq(jit_call(j, modi, NULL, -5, 3).integer, 1);
+   ck_assert_int_eq(jit_call(j, modi, NULL, -512, -8).integer, 0);
+   ck_assert_int_eq(jit_call(j, modi, NULL, -510, -8).integer, -6);
 
-   ident_t remi = ident_new("WORK.ARITH1.REMM(II)I");
-   ck_assert_int_eq(jit_call(j, remi, NULL, "ii", 4, 2).integer, 0);
-   ck_assert_int_eq(jit_call(j, remi, NULL, "ii", 5, 3).integer, 2);
-   ck_assert_int_eq(jit_call(j, remi, NULL, "ii", -5, 3).integer, -2);
+   jit_handle_t remi = compile_for_test(j, "WORK.ARITH1.REMM(II)I");
+   ck_assert_int_eq(jit_call(j, remi, NULL, 4, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, remi, NULL, 5, 3).integer, 2);
+   ck_assert_int_eq(jit_call(j, remi, NULL, -5, 3).integer, -2);
 
    jit_free(j);
    check_expected_errors();
@@ -638,13 +662,14 @@ START_TEST(test_assert1)
 
    jit_t *j = jit_new();
 
-   ident_t fn1 = ident_new("WORK.ASSERT1.DO_REPORT");
-   fail_unless(jit_try_pcall(j, fn1, NULL, NULL, ""));
+   jit_scalar_t result;
+   jit_handle_t fn1 = compile_for_test(j, "WORK.ASSERT1.DO_REPORT");
+   fail_unless(jit_try_call(j, fn1, &result, NULL, NULL));
 
-   ident_t fn2 = ident_new("WORK.ASSERT1.DO_ASSERT(I)");
-   fail_unless(jit_try_pcall(j, fn2, NULL, NULL, "i", 10));
-   fail_unless(jit_try_pcall(j, fn2, NULL, NULL, "i", -10));
-   fail_if(jit_try_pcall(j, fn2, NULL, NULL, "i", 555));
+   jit_handle_t fn2 = compile_for_test(j, "WORK.ASSERT1.DO_ASSERT(I)");
+   fail_unless(jit_try_call(j, fn2, &result, NULL, NULL, 10));
+   fail_unless(jit_try_call(j, fn2, &result, NULL, NULL, -10));
+   fail_if(jit_try_call(j, fn2, &result, NULL, NULL, 555));
 
    jit_free(j);
    check_expected_errors();
@@ -659,19 +684,20 @@ START_TEST(test_case1)
 
    jit_t *j = jit_new();
 
-   ident_t test1 = ident_new("WORK.CASE1.TEST1(12WORK.CASE1.T)I");
-   ck_assert_int_eq(jit_call(j, test1, NULL, "i", 0).integer, 10);
-   ck_assert_int_eq(jit_call(j, test1, NULL, "i", 1).integer, 20);
-   ck_assert_int_eq(jit_call(j, test1, NULL, "i", 2).integer, 30);
+   jit_handle_t test1 =
+      compile_for_test(j, "WORK.CASE1.TEST1(12WORK.CASE1.T)I");
+   ck_assert_int_eq(jit_call(j, test1, NULL, 0).integer, 10);
+   ck_assert_int_eq(jit_call(j, test1, NULL, 1).integer, 20);
+   ck_assert_int_eq(jit_call(j, test1, NULL, 2).integer, 30);
 
    const uint8_t one[] = { 0, 0, 0, 1 };
    const uint8_t eff[] = { 1, 1, 1, 1 };
    const uint8_t ten[] = { 1, 0, 1, 0 };
 
-   ident_t test2 = ident_new("WORK.CASE1.TEST2(Q)I");
-   ck_assert_int_eq(jit_call(j, test2, NULL, "p", one).integer, 1);
-   ck_assert_int_eq(jit_call(j, test2, NULL, "p", eff).integer, 15);
-   ck_assert_int_eq(jit_call(j, test2, NULL, "p", ten).integer, 10);
+   jit_handle_t test2 = compile_for_test(j, "WORK.CASE1.TEST2(Q)I");
+   ck_assert_int_eq(jit_call(j, test2, NULL, one).integer, 1);
+   ck_assert_int_eq(jit_call(j, test2, NULL, eff).integer, 15);
+   ck_assert_int_eq(jit_call(j, test2, NULL, ten).integer, 10);
 
    jit_free(j);
    fail_if_errors();
@@ -686,9 +712,8 @@ START_TEST(test_real1)
 
    jit_t *j = jit_new();
 
-   ident_t approx = ident_new("WORK.REAL1.APPROX(RRR)B");
-   ck_assert_int_eq(jit_call(j, approx, NULL, "RRR",
-                             1.0, 1.0001, 0.001).integer, 1);
+   jit_handle_t approx = compile_for_test(j, "WORK.REAL1.APPROX(RRR)B");
+   ck_assert_int_eq(jit_call(j, approx, NULL, 1.0, 1.0001, 0.001).integer, 1);
 
    jit_free(j);
    fail_if_errors();
@@ -705,15 +730,15 @@ START_TEST(test_prot1)
 
    jit_t *j = jit_new();
 
-   jit_handle_t handle = jit_lazy_compile(j, ident_new("WORK.PROT1"));
+   jit_handle_t handle = compile_for_test(j, "WORK.PROT1");
    void *pkg = jit_link(j, handle);
    fail_if(pkg == NULL);
 
-   ident_t fn = ident_new("WORK.PROT1.FETCH_AND_ADD(I)I");
-   ck_assert_int_eq(jit_call(j, fn, pkg, "i", 0).integer, 0);
-   ck_assert_int_eq(jit_call(j, fn, pkg, "i", 1).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn, pkg, "i", 1).integer, 2);
-   ck_assert_int_eq(jit_call(j, fn, pkg, "i", 6).integer, 8);
+   jit_handle_t fn = compile_for_test(j, "WORK.PROT1.FETCH_AND_ADD(I)I");
+   ck_assert_int_eq(jit_call(j, fn, pkg, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, fn, pkg, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn, pkg, 1).integer, 2);
+   ck_assert_int_eq(jit_call(j, fn, pkg, 6).integer, 8);
 
    jit_free(j);
    fail_if_errors();
@@ -863,17 +888,18 @@ START_TEST(test_range1)
 
    jit_scalar_t result;
 
-   ident_t fn1 = ident_new("WORK.RANGE1.AS_POSITIVE(I)8POSITIVE");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", 1).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "i", 2).integer, 2);
-   fail_if(jit_try_call(j, fn1, NULL, &result, "i", 0));
-   fail_if(jit_try_call(j, fn1, NULL, &result, "i", -5));
+   jit_handle_t fn1 =
+      compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(I)8POSITIVE");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, 2).integer, 2);
+   fail_if(jit_try_call(j, fn1, &result, NULL, 0));
+   fail_if(jit_try_call(j, fn1, &result, NULL, -5));
 
-   ident_t fn2 = ident_new("WORK.RANGE1.AS_POSITIVE(R)5PREAL");
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "R", 1.0).real, 1.0);
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "R", 1.001).real, 1.001);
-   fail_if(jit_try_call(j, fn2, NULL, &result, "R", 0.0));
-   fail_if(jit_try_call(j, fn2, NULL, &result, "R", -5.0));
+   jit_handle_t fn2 = compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(R)5PREAL");
+   ck_assert_double_eq(jit_call(j, fn2, NULL, 1.0).real, 1.0);
+   ck_assert_double_eq(jit_call(j, fn2, NULL, 1.001).real, 1.001);
+   fail_if(jit_try_call(j, fn2, &result, NULL, 0.0));
+   fail_if(jit_try_call(j, fn2, &result, NULL, -5.0));
 
    jit_free(j);
    check_expected_errors();
@@ -901,8 +927,8 @@ START_TEST(test_trace1)
 
    jit_scalar_t result;
 
-   ident_t test1 = ident_new("WORK.TRACE1.TEST1");
-   fail_if(jit_try_call(j, test1, NULL, &result, ""));
+   jit_handle_t test1 = compile_for_test(j, "WORK.TRACE1.TEST1");
+   fail_if(jit_try_call(j, test1, &result, NULL, ""));
 
    jit_free(j);
    fail_unless(error_count() == 1);
@@ -919,7 +945,7 @@ START_TEST(test_issue496)
 
    jit_t *j = jit_new();
 
-   jit_handle_t handle = jit_lazy_compile(j, ident_new("WORK.ISSUE496"));
+   jit_handle_t handle = compile_for_test(j, "WORK.ISSUE496");
    void *pkg = jit_link(j, handle);
    fail_if(pkg == NULL);
 
@@ -947,12 +973,12 @@ START_TEST(test_process1)
 
    jit_t *j = jit_new();
 
-   jit_handle_t root = jit_lazy_compile(j, ident_new("WORK.PROCESS1"));
+   jit_handle_t root = compile_for_test(j, "WORK.PROCESS1");
    void *inst = jit_link(j, root);
    fail_if(inst == NULL);
 
-   ident_t p1 = ident_new("WORK.PROCESS1.P1");
-   void *p1_state = jit_pcall(j, p1, NULL, inst, "").pointer;
+   jit_handle_t p1 = compile_for_test(j, "WORK.PROCESS1.P1");
+   void *p1_state = jit_call(j, p1, NULL, inst).pointer;
    fail_if(p1_state == NULL);   // TODO: stateless process
 
    int32_t *fsm_ptr = p1_state + 2*sizeof(void *);
@@ -961,11 +987,11 @@ START_TEST(test_process1)
    int32_t *x_ptr = p1_state + 2*sizeof(void *) + sizeof(int32_t);
    ck_assert_int_eq(*x_ptr, INT32_MIN);
 
-   fail_unless(jit_pcall(j, p1, p1_state, inst, "").pointer == NULL);
+   fail_unless(jit_call(j, p1, p1_state, inst).pointer == NULL);
    ck_assert_int_eq(*fsm_ptr, 2);
    ck_assert_int_eq(*x_ptr, 42);
 
-   jit_pcall(j, p1, p1_state, inst, "");
+   jit_call(j, p1, p1_state, inst);
    ck_assert_int_eq(*fsm_ptr, 3);
    ck_assert_int_eq(*x_ptr, 43);
 
@@ -993,30 +1019,139 @@ START_TEST(test_value1)
 
    jit_scalar_t result;
 
-   ident_t fn1 = ident_new("WORK.VALUE1.STR_TO_INT(S)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", "123", 1, 3).integer, 123);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", "-5", 1, 2).integer, -5);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", " 42 ", 1, 4).integer, 42);
-   fail_if(jit_try_call(j, fn1, NULL, &result, "u", "42x", 1, 3));
+   jit_handle_t fn1 = compile_for_test(j, "WORK.VALUE1.STR_TO_INT(S)I");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "123", 1, 3).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "-5", 1, 2).integer, -5);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, " 42 ", 1, 4).integer, 42);
+   fail_if(jit_try_call(j, fn1, &result, NULL, "42x", 1, 3));
 
-   ident_t fn2 = ident_new("WORK.VALUE1.STR_TO_REAL(S)R");
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "u", "123", 1, 3).real, 123.0);
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "u", "-4.5", 1, 4).real, -4.5);
-   fail_if(jit_try_call(j, fn2, NULL, &result, "u", "4..4", 1, 4));
+   jit_handle_t fn2 = compile_for_test(j, "WORK.VALUE1.STR_TO_REAL(S)R");
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "123", 1, 3).real, 123.0);
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "-4.5", 1, 4).real, -4.5);
+   fail_if(jit_try_call(j, fn2, &result, NULL, "4..4", 1, 4));
 
-   ident_t fn3 = ident_new("WORK.VALUE1.STR_TO_TIME(S)T");
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", "123 FS", 1, 6).integer, 123);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", " 52  PS ", 1, 8).integer,
-                    52000);
-   fail_if(jit_try_call(j, fn3, NULL, &result, "u", "4 FOO", 1, 5));
+   jit_handle_t fn3 = compile_for_test(j, "WORK.VALUE1.STR_TO_TIME(S)T");
+   ck_assert_int_eq(jit_call(j, fn3, NULL, "123 FS", 1, 6).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, " 52  PS ", 1, 8).integer, 52000);
+   fail_if(jit_try_call(j, fn3, &result, NULL, "4 FOO", 1, 5));
 
-   ident_t fn4 = ident_new("WORK.VALUE1.STR_TO_BOOL(S)B");
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", "true", 1, 4).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", " FALSE ", 1, 7).integer, 0);
-   fail_if(jit_try_call(j, fn4, NULL, &result, "u", "FOO", 1, 3));
+   jit_handle_t fn4 = compile_for_test(j, "WORK.VALUE1.STR_TO_BOOL(S)B");
+   ck_assert_int_eq(jit_call(j, fn4, NULL, "true", 1, 4).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, " FALSE ", 1, 7).integer, 0);
+   fail_if(jit_try_call(j, fn4, &result, NULL, "FOO", 1, 3));
 
    jit_free(j);
    check_expected_errors();
+}
+END_TEST
+
+DLLEXPORT
+int test_ffi_add(int x, int y)
+{
+   return x + y;
+}
+
+DLLEXPORT
+double test_ffi_fma(double x, double y, double z)
+{
+   return x * y + z;
+}
+
+static int test_ffi_arraylen(EXPLODED_UARRAY(arr))
+{
+   return abs(arr_length);
+}
+
+static int test_ffi_arraysum(EXPLODED_UARRAY(arr))
+{
+   const int len = abs(arr_length);
+   int sum = 0;
+   for (int i = 0; i < len; i++)
+      sum += *((int *)arr_ptr + i);
+   return sum;
+}
+
+START_TEST(test_ffi1)
+{
+   ffi_load_dll(NULL);
+
+   ident_t add_i = ident_new("test_ffi_add");
+
+   fail_unless(jit_ffi_get(add_i) == NULL);
+
+   const ffi_spec_t add_spec = FFI_INT32
+      | (FFI_INT32 << 4)
+      | (FFI_INT32 << 8);
+
+   jit_foreign_t *add_ff = jit_ffi_bind(add_i, add_spec, NULL);
+   fail_if(add_ff == NULL);
+
+   fail_unless(jit_ffi_get(add_i) == add_ff);
+
+   {
+      jit_scalar_t args[] = { { .integer = 5 }, { .integer = 3 } };
+      ck_assert_int_eq(jit_ffi_call(add_ff, args).integer, 8);
+   }
+
+   {
+      jit_scalar_t args[] = { { .integer = 5 }, { .integer = -7 } };
+      ck_assert_int_eq(jit_ffi_call(add_ff, args).integer, -2);
+   }
+
+   ident_t fma_i = ident_new("test_ffi_fma");
+
+   const ffi_spec_t fma_spec = FFI_FLOAT
+      | (FFI_FLOAT << 4)
+      | (FFI_FLOAT << 8)
+      | (FFI_FLOAT << 12);
+
+   jit_foreign_t *fma_ff = jit_ffi_bind(fma_i, fma_spec, NULL);
+   fail_if(fma_ff == NULL);
+
+   {
+      jit_scalar_t args[] = { { .real = 2.0 },
+                              { .real = 3.0 },
+                              { .real = 1.0 } };
+      ck_assert_double_eq(jit_ffi_call(fma_ff, args).real, 7.0);
+   }
+
+   {
+      jit_scalar_t args[] = { { .real = -2.0 },
+                              { .real = 3.0 },
+                              { .real = 1.0 } };
+      ck_assert_double_eq(jit_ffi_call(fma_ff, args).real, -5.0);
+   }
+
+   ident_t len_i = ident_new("len");
+
+   const ffi_spec_t len_spec = FFI_INT32
+      | (FFI_UARRAY << 4);
+
+   jit_foreign_t *len_ff = jit_ffi_bind(len_i, len_spec, test_ffi_arraylen);
+   fail_if(len_ff == NULL);
+
+   {
+      jit_scalar_t args[] = {
+         { .pointer = NULL }, { .integer = 1 }, { .integer = 4 }
+      };
+      ck_assert_int_eq(jit_ffi_call(len_ff, args).integer, 4);
+   }
+
+   ident_t sum_i = ident_new("sum");
+
+   const ffi_spec_t sum_spec = FFI_INT32
+      | (FFI_UARRAY << 4);
+
+   jit_foreign_t *sum_ff = jit_ffi_bind(sum_i, sum_spec, test_ffi_arraysum);
+   fail_if(sum_ff == NULL);
+
+   {
+      int data[4] = { 1, 2, 3, 4 };
+      jit_scalar_t args[] = {
+         { .pointer = data }, { .integer = 1 }, { .integer = 4 }
+      };
+      ck_assert_int_eq(jit_ffi_call(sum_ff, args).integer, 10);
+   }
 }
 END_TEST
 
@@ -1052,6 +1187,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_issue496);
    tcase_add_test(tc, test_process1);
    tcase_add_test(tc, test_value1);
+   tcase_add_test(tc, test_ffi1);
    suite_add_tcase(s, tc);
 
    return s;

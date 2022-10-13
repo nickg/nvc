@@ -5,6 +5,7 @@ packages:
   - llvm
   - elfutils
   - check
+  - libffi
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:

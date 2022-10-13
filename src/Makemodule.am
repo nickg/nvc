@@ -66,7 +66,8 @@ bin_nvc_LDADD = \
 	lib/libfastlz.a \
 	lib/libvhpi.a \
 	lib/libcpustate.a \
-	$(libdw_LIBS)
+	$(libdw_LIBS) \
+	$(libffi_LIBS)
 
 if ENABLE_LLVM
 bin_nvc_LDADD += \

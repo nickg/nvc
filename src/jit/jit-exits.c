@@ -18,10 +18,10 @@
 #include "util.h"
 #include "diag.h"
 #include "jit/jit-exits.h"
+#include "jit/jit-ffi.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "lib.h"
-#include "rt/ffi.h"
 #include "rt/rt.h"
 #include "type.h"
 
@@ -862,11 +862,15 @@ void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
 }
 
 DLLEXPORT
-jit_handle_t __nvc_get_handle(const char *func)
+jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
 {
-   jit_handle_t handle = jit_lazy_compile(jit_for_thread(), ident_new(func));
+   jit_t *j = jit_for_thread();
+
+   jit_handle_t handle = jit_lazy_compile(j, ident_new(func));
    if (handle == JIT_HANDLE_INVALID)
       fatal_trace("missing function %s", func);
+
+   jit_get_func(j, handle)->spec = spec;
 
    return handle;
 }

@@ -18,7 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "jit/jit.h"
-#include "rt/ffi.h"
+#include "jit/jit-ffi.h"
 #include "rt/rt.h"
 
 #include <errno.h>

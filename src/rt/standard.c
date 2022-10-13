@@ -18,7 +18,7 @@
 #include "util.h"
 #include "jit/jit.h"
 #include "jit/jit-exits.h"
-#include "rt/ffi.h"
+#include "jit/jit-ffi.h"
 #include "rt/rt.h"
 
 #include <inttypes.h>

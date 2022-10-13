@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "diag.h"
+#include "jit/jit-ffi.h"
 #include "opt.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
@@ -26,13 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __MINGW32__
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 
 static vhpiErrorInfoT last_error;
 
@@ -272,20 +266,9 @@ void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins)
    do {
       notef("loading VHPI plugin %s", tok);
 
-#ifdef __MINGW32__
-      HMODULE hModule = LoadLibrary(tok);
-      if (hModule == NULL)
-         fatal_errno("failed to load %s", tok);
+      jit_dll_t *dll = ffi_load_dll(tok);
 
-      void (**startup_funcs)() =
-         (void (**)())GetProcAddress(hModule, "vhpi_startup_routines");
-#else
-      void *handle = dlopen(tok, RTLD_LAZY | RTLD_GLOBAL);
-      if (handle == NULL)
-         fatal("%s", dlerror());
-
-      void (**startup_funcs)() = dlsym(handle, "vhpi_startup_routines");
-#endif
+      void (**startup_funcs)() = ffi_find_symbol(dll, "vhpi_startup_routines");
 
       if (startup_funcs != NULL) {
          while (*startup_funcs)

@@ -17,11 +17,12 @@
 
 #include "util.h"
 #include "diag.h"
+#include "jit/jit-ffi.h"
+#include "jit/jit-ffi.h"
 #include "jit/jit-priv.h"
 #include "lib.h"
 #include "mask.h"
 #include "opt.h"
-#include "rt/ffi.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -583,7 +584,7 @@ static void macro_fficall(jit_irgen_t *g, jit_value_t addr)
 {
    assert(jit_value_is_addr(addr));
    irgen_emit_unary(g, MACRO_FFICALL, JIT_SZ_UNSPEC, JIT_CC_NONE,
-                    JIT_VALUE_INVALID, addr);
+                    JIT_REG_INVALID, addr);
 }
 
 static jit_value_t macro_getpriv(jit_irgen_t *g, jit_handle_t handle)
@@ -616,11 +617,11 @@ static int irgen_slots_for_type(vcode_type_t vtype)
       // Signal pointer plus offset
       return 2;
    case VCODE_TYPE_CLOSURE:
-      // Function pointer, context, spec
-      return 3;
+      // Function pointer, context
+      return 2;
    case VCODE_TYPE_RESOLUTION:
       // Closure slots plus left and nlits (this is silly)
-      return 5;
+      return 4;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -860,12 +861,39 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
    case VCODE_TYPE_CARRAY:
    case VCODE_TYPE_RECORD:
    case VCODE_TYPE_POINTER:
+   case VCODE_TYPE_CONTEXT:
+   case VCODE_TYPE_ACCESS:
+   case VCODE_TYPE_FILE:
       return FFI_POINTER;
    case VCODE_TYPE_UARRAY:
       return FFI_UARRAY;
    default:
       fatal_trace("cannot handle type %d in irgen_ffi_type", vtype_kind(type));
    }
+}
+
+static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
+{
+   ident_t func = vcode_get_func(op);
+   jit_foreign_t *ff = jit_ffi_get(func);
+   if (ff != NULL)
+      return ff;
+
+   ffi_spec_t spec = 0;
+
+   const int nargs = vcode_count_args(op);
+   for (int i = 0; i < nargs; i++) {
+      vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, i));
+      spec |= irgen_ffi_type(vtype) << (i + 1) * 4;
+   }
+
+   vcode_reg_t result = vcode_get_result(op);
+   if (result != VCODE_INVALID_REG)
+      spec |= irgen_ffi_type(vcode_reg_type(result));
+   else
+      spec |= FFI_VOID;
+
+   return jit_ffi_bind(func, spec, NULL);
 }
 
 static void irgen_op_null(jit_irgen_t *g, int op)
@@ -1925,29 +1953,19 @@ static void irgen_op_jump(jit_irgen_t *g, int op)
 
 static void irgen_op_fcall(jit_irgen_t *g, int op)
 {
-   ident_t func = vcode_get_func(op);
-
    irgen_emit_debuginfo(g, op);   // For stack traces
 
    if (vcode_get_subkind(op) == VCODE_CC_FOREIGN) {
       irgen_send_args(g, op, 0);
 
-      if (icmp(func, "_nvc_ieee_warnings"))
-         g->map[vcode_get_result(op)] = jit_value_from_int64(1);
-      else if (icmp(func, "_std_standard_now")) {
-         macro_exit(g, JIT_EXIT_NOW);
-         g->map[vcode_get_result(op)] = j_recv(g, 0);
-      }
-      else if (icmp(func, "__nvc_flush"))
-         macro_exit(g, JIT_EXIT_FILE_FLUSH);
-      else {
-         jit_value_t addr = jit_addr_from_ptr(NULL);
-         macro_fficall(g, addr);
+      jit_foreign_t *ff = irgen_ffi_for_call(g, op);
 
-         vcode_reg_t result = vcode_get_result(op);
-         if (result != VCODE_INVALID_REG)
-            g->map[result] = j_recv(g, 0);
-      }
+      jit_value_t addr = jit_addr_from_ptr(ff);
+      macro_fficall(g, addr);
+
+      vcode_reg_t result = vcode_get_result(op);
+      if (result != VCODE_INVALID_REG)
+         g->map[result] = j_recv(g, 0);
    }
    else {
       vcode_reg_t result = vcode_get_result(op);
@@ -1959,6 +1977,7 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       else
          irgen_send_args(g, op, 0);
 
+      ident_t func = vcode_get_func(op);
       jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
       j_call(g, handle);
 
@@ -2299,20 +2318,7 @@ static void irgen_op_closure(jit_irgen_t *g, int op)
    jit_reg_t context = irgen_alloc_reg(g);
    j_mov(g, context, irgen_get_arg(g, op, 0));
 
-   vcode_reg_t result = vcode_get_result(op);
-
-   vcode_type_t rtype = vtype_base(vcode_reg_type(result));
-   vcode_type_t atype = vcode_get_type(op);
-
-   ffi_spec_t spec = {
-      .atype = irgen_ffi_type(atype),
-      .rtype = irgen_ffi_type(rtype)
-   };
-
-   jit_reg_t spec_reg = irgen_alloc_reg(g);
-   j_mov(g, spec_reg, jit_value_from_int64(spec.bits));
-
-   g->map[result] = jit_value_from_reg(base);
+   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
 }
 
 static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
@@ -2324,9 +2330,6 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
 
    jit_reg_t context = irgen_alloc_reg(g);
    j_mov(g, context, jit_value_from_reg(jit_value_as_reg(closure) + 1));
-
-   jit_reg_t spec = irgen_alloc_reg(g);
-   j_mov(g, spec, jit_value_from_reg(jit_value_as_reg(closure) + 2));
 
    jit_reg_t ileft = irgen_alloc_reg(g);
    j_mov(g, ileft, irgen_get_arg(g, op, 1));
@@ -2431,16 +2434,14 @@ static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
    jit_value_t resfn   = irgen_get_arg(g, op, 1);
    jit_reg_t   base    = jit_value_as_reg(resfn);
    jit_value_t context = jit_value_from_reg(base + 1);
-   jit_value_t spec    = jit_value_from_reg(base + 2);
    jit_value_t ileft   = jit_value_from_reg(base + 3);
    jit_value_t nlits   = jit_value_from_reg(base + 4);
 
    j_send(g, 0, shared);
    j_send(g, 1, resfn);
    j_send(g, 2, context);
-   j_send(g, 3, spec);
-   j_send(g, 4, ileft);
-   j_send(g, 5, nlits);
+   j_send(g, 3, ileft);
+   j_send(g, 4, nlits);
 
    macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }
@@ -3255,16 +3256,35 @@ static void irgen_locals(jit_irgen_t *g)
 
 static void irgen_params(jit_irgen_t *g, int first)
 {
+   ffi_spec_t spec = 0;
+
    const int nparams = vcode_count_params();
    for (int i = 0, pslot = first; i < nparams; i++) {
       vcode_reg_t preg = vcode_param_reg(i);
-      int slots = irgen_slots_for_type(vcode_param_type(i));
+      vcode_type_t vtype = vcode_param_type(i);
+      int slots = irgen_slots_for_type(vtype);
       if (vcode_reg_kind(preg) == VCODE_TYPE_SIGNAL)
          slots++;
       g->map[preg] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers
+      spec |= irgen_ffi_type(vtype) << (i + 1) * 4;
    }
+
+   vunit_kind_t kind = vcode_unit_kind();
+   bool has_state_arg = (kind == VCODE_UNIT_PROCEDURE);
+   if (kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_THUNK) {
+      vcode_type_t rtype = vcode_unit_result();
+      if (rtype == VCODE_INVALID_TYPE)
+         has_state_arg = true;
+      else
+         spec |= irgen_ffi_type(rtype);
+   }
+
+   if (has_state_arg)
+      spec = (spec << 4) | (FFI_POINTER << 4);
+
+   g->func->spec = spec;
 }
 
 static void irgen_jump_table(jit_irgen_t *g)
@@ -3362,6 +3382,8 @@ void jit_irgen(jit_func_t *f)
    const int first_param = irgen_is_procedure() || has_jump_table ? 1 : 0;
    if (has_params)
       irgen_params(g, first_param);
+   else if (kind == VCODE_UNIT_PROCESS)
+      g->func->spec = (FFI_POINTER << 8) | (FFI_POINTER << 4);
 
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));

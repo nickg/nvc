@@ -20,7 +20,7 @@
 
 #include "prim.h"
 #include "jit/jit.h"
-#include "rt/ffi.h"
+#include "jit/jit-ffi.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
 
@@ -218,9 +218,9 @@ typedef enum {
 } rt_scope_kind_t;
 
 typedef struct _rt_implicit {
-   rt_wakeable_t  wakeable;
-   ffi_closure_t *closure;
-   rt_signal_t    signal;   // Has a flexible member
+   rt_wakeable_t wakeable;
+   ffi_closure_t closure;
+   rt_signal_t   signal;   // Has a flexible member
 } rt_implicit_t;
 
 typedef struct _rt_alias {

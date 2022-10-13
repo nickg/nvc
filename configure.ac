@@ -149,6 +149,8 @@ fi
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
+PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
+
 AC_CHECK_HEADER([unwind.h], [],
   [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])
 

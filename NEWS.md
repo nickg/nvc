@@ -18,6 +18,7 @@
   a Git checkout.
 - The new `--gtkw` run option writes a `.gtkw` save file for GtkWave
   containing all the signals in the design (suggested by @amb5l).
+- `libffi` is now a build-time dependency.
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.

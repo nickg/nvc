@@ -118,7 +118,8 @@ On a Debian derivative the following should be sufficient to install all
 required dependencies:
 
     sudo apt-get install build-essential automake autoconf \
-      flex check llvm-dev pkg-config zlib1g-dev libdw-dev
+      flex check llvm-dev pkg-config zlib1g-dev libdw-dev \
+      libffi-dev
 
 Only the MSYS2 environment on Windows is supported.  The required
 dependencies can be installed with:

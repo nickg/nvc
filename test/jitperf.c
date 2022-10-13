@@ -65,7 +65,7 @@ static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
 #endif
 
    jit_handle_t hpack = jit_compile(j, tree_ident(pack));
-   void *context = jit_link(j, hpack);
+   jit_scalar_t context = { .pointer = jit_link(j, hpack) };
 
    jit_handle_t hproc = jit_compile(j, name);
    if (hproc == JIT_HANDLE_INVALID)
@@ -84,7 +84,8 @@ static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
       uint64_t now, iters = 0;
       for (; (now = get_timestamp_us()) < start + 1000000; iters++) {
          jit_scalar_t result;
-         if (!jit_try_call(j, name, context, &result, ""))
+         jit_scalar_t dummy = { .integer = 0 };
+         if (!jit_fastcall(j, hproc, &result, context, dummy))
             fatal("error in benchmark subprogram");
       }
 

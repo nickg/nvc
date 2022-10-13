@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,16 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_FFI_H
-#define _RT_FFI_H
+#ifndef _JIT_FFI_H
+#define _JIT_FFI_H
 
 #include "prim.h"
-#include "util.h"
 #include "jit/jit.h"
 
-#include <stdint.h>
-
 typedef enum {
+   FFI_VOID,
    FFI_INT8,
    FFI_INT16,
    FFI_INT32,
@@ -32,26 +30,16 @@ typedef enum {
    FFI_FLOAT,
    FFI_POINTER,
    FFI_UARRAY,
-   FFI_VOID,
 } ffi_type_t;
 
-typedef union {
-   struct {
-      ffi_type_t atype : 4;
-      ffi_type_t rtype : 4;
-   };
-   uint32_t bits;
-} ffi_spec_t;
+typedef uint64_t ffi_spec_t;
 
-STATIC_ASSERT(sizeof(ffi_spec_t) == 4);
+typedef struct _jit_foreign jit_foreign_t;
 
-// The code generator knows the layout of this struct
-typedef struct _ffi_closure {
-   jit_handle_t  handle;
-   void         *context;
-   ffi_spec_t    spec;
-   uint32_t      refcnt;
-} ffi_closure_t;
+// Macro to generate the correct calling convention for by-value uarray
+// aggregates
+#define EXPLODED_UARRAY(name) \
+   void *name##_ptr, int32_t name##_left, int32_t name##_length
 
 // The code generator knows the layout of this struct
 typedef struct _ffi_uarray {
@@ -62,16 +50,27 @@ typedef struct _ffi_uarray {
    } dims[1];
 } ffi_uarray_t;
 
-// Macro to generate the correct calling convention for LLVM by-value
-// uarray aggregates
-#define EXPLODED_UARRAY(name) \
-   void *name##_ptr, int32_t name##_left, int32_t name##_length
+// The code generator knows the layout of this struct
+typedef struct _ffi_closure {
+   jit_handle_t  handle;
+   void         *context;
+} ffi_closure_t;
 
-void ffi_call(ffi_closure_t *c, void *ptr, const void *input, size_t insz,
-              void *output, size_t outsz);
-void ffi_unref_closure(ffi_closure_t *c);
-ffi_closure_t *ffi_ref_closure(ffi_closure_t *c);
+jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr);
+jit_foreign_t *jit_ffi_get(ident_t sym);
+jit_scalar_t jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
+
+int ffi_count_args(ffi_spec_t spec);
 ffi_uarray_t ffi_wrap_str(char *buf, size_t len);
 size_t ffi_uarray_len(const ffi_uarray_t *u);
+bool ffi_is_integral(ffi_type_t type);
+int64_t ffi_widen_int(ffi_type_t type, const void *input, size_t insz);
+void ffi_store_int(ffi_type_t type, uint64_t value, void *output, size_t outsz);
 
-#endif  // _RT_FFI_H
+typedef struct _jit_dll jit_dll_t;
+
+jit_dll_t *ffi_load_dll(const char *path);
+void ffi_unload_dll(jit_dll_t *dll);
+void *ffi_find_symbol(jit_dll_t *dll, const char *name);
+
+#endif   // _JIT_FFI_H

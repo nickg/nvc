@@ -31,7 +31,8 @@ bin_unit_test_LDADD = \
 	lib/libcpustate.a \
 	$(check_LIBS) \
 	$(POW_LIB) \
-	$(libdw_LIBS)
+	$(libdw_LIBS) \
+	$(libffi_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -48,6 +49,7 @@ bin_lockbench_SOURCES = test/lockbench.c
 bin_lockbench_LDADD = \
 	lib/libnvc.a \
 	$(libdw_LIBS) \
+	$(libffi_LIBS) \
 	lib/libfastlz.a \
 	lib/libcpustate.a
 
@@ -56,6 +58,7 @@ bin_jitperf_SOURCES = test/jitperf.c
 bin_jitperf_LDADD = \
 	lib/libnvc.a \
 	$(libdw_LIBS) \
+	$(libffi_LIBS) \
 	lib/libfastlz.a \
 	lib/libcpustate.a
 
@@ -70,6 +73,7 @@ bin_workqbench_SOURCES = test/workqbench.c
 bin_workqbench_LDADD = \
 	lib/libnvc.a \
 	$(libdw_LIBS) \
+	$(libffi_LIBS) \
 	lib/libfastlz.a \
 	lib/libcpustate.a
 

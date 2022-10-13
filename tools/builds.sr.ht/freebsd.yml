@@ -6,6 +6,7 @@ packages:
   - check
   - libunwind
   - pkgconf
+  - libffi
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:

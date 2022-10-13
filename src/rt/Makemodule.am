@@ -8,8 +8,6 @@ lib_libnvc_a_SOURCES += \
 	src/rt/cover.h \
 	src/rt/alloc.h \
 	src/rt/heap.h \
-	src/rt/ffi.h \
-	src/rt/ffi.c \
 	src/rt/mspace.h \
 	src/rt/mspace.c \
 	src/rt/stdenv.c \

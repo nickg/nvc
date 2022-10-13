@@ -20,6 +20,7 @@
 
 #include "util.h"
 #include "jit/jit.h"
+#include "jit/jit-ffi.h"
 #include "mask.h"
 #include "rt/mspace.h"
 
@@ -116,13 +117,11 @@ typedef enum {
    JIT_EXIT_TEST_EVENT,
    JIT_EXIT_TEST_ACTIVE,
    JIT_EXIT_SCHED_EVENT,
-   JIT_EXIT_NOW,
    JIT_EXIT_FILE_OPEN,
    JIT_EXIT_FILE_CLOSE,
    JIT_EXIT_FILE_READ,
    JIT_EXIT_FILE_WRITE,
    JIT_EXIT_ENDFILE,
-   JIT_EXIT_FILE_FLUSH,
    JIT_EXIT_STRING_TO_INT,
    JIT_EXIT_STRING_TO_REAL,
    JIT_EXIT_CANON_VALUE,
@@ -232,6 +231,7 @@ typedef struct _jit_func {
    jit_tier_t     *next_tier;
    jit_entry_fn_t  entry;
    jit_cfg_t      *cfg;
+   ffi_spec_t      spec;
 } jit_func_t;
 
 #define JIT_MAX_ARGS 64

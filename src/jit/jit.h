@@ -45,15 +45,6 @@ typedef struct {
    layout_part_t parts[0];
 } jit_layout_t;
 
-// The code generator knows the layout of this struct
-typedef struct {
-   void *ptr;
-   struct {
-      int32_t left;
-      int32_t length;
-   } dims[1];
-} jit_uarray_t;
-
 typedef vcode_unit_t (*jit_lower_fn_t)(ident_t, void *);
 
 typedef struct {
@@ -75,26 +66,19 @@ void jit_limit_backedges(jit_t *j, int limit);
 void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
-void *jit_find_symbol(jit_t *j, ident_t name);
 int jit_exit_status(jit_t *j);
 void jit_set_exit_status(jit_t *j, int code);
 void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 ident_t jit_get_name(jit_t *j, jit_handle_t handle);
 
-jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
-                      const char *fmt, ...);
-jit_scalar_t jit_pcall(jit_t *j, ident_t func, void *state, void *context,
-                       const char *fmt, ...);
-bool jit_try_call(jit_t *j, ident_t func, void *context, jit_scalar_t *result,
-                  const char *fmt, ...);
-bool jit_try_pcall(jit_t *j, ident_t func, void *state, void *context,
-                   const char *fmt, ...);
+bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...);
+bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
+                         void *input, size_t insz, void *output, size_t outsz);
+jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...);
 bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result);
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2);
-void jit_ffi_call(jit_t *j, ffi_closure_t *c, const void *input, size_t insz,
-                  void *output, size_t outsz, bool catch);
 
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);
 void jit_abort(int code);

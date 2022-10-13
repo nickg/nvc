@@ -20,12 +20,12 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "jit/jit-ffi.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
-#include "rt/ffi.h"
 #include "rt/rt.h"
 #include "thread.h"
 #include "vcode.h"
@@ -331,7 +331,6 @@ static LLVMTypeRef llvm_closure_type(void)
    LLVMTypeRef struct_elems[] = {
       llvm_int32_type(),   // Function handle
       llvm_void_ptr(),     // Context pointer
-      llvm_int32_type(),   // FFI spec
    };
    return LLVMStructTypeInContext(llvm_context(), struct_elems,
                                   ARRAY_LEN(struct_elems), false);
@@ -2255,23 +2254,22 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, func);
 
+   ffi_spec_t spec = cgen_ffi_type(rtype)
+      | (FFI_POINTER << 4)  // Context parameter
+      | (cgen_ffi_type(atype) << 8);
+
    LLVMValueRef args[] = {
-      cgen_const_string(tb_get(tb))
+      cgen_const_string(tb_get(tb)),
+      llvm_int64(spec)
    };
    LLVMValueRef handle = LLVMBuildCall(builder, llvm_fn("__nvc_get_handle"),
                                        args, ARRAY_LEN(args), "");
-
-   ffi_spec_t spec = {
-      .atype = cgen_ffi_type(atype),
-      .rtype = cgen_ffi_type(rtype)
-   };
 
    LLVMValueRef display = cgen_get_arg(op, 0, ctx);
 
    LLVMValueRef cdata = LLVMGetUndef(llvm_closure_type());
    cdata = LLVMBuildInsertValue(builder, cdata, handle, 0, "");
    cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(display), 1, "");
-   cdata = LLVMBuildInsertValue(builder, cdata, llvm_int32(spec.bits), 2, "");
 
    ctx->regs[result] = cdata;
 }
@@ -5188,6 +5186,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "__nvc_get_handle") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int64_type()
       };
       fn = LLVMAddFunction(module, "__nvc_get_handle",
                            LLVMFunctionType(llvm_int32_type(),

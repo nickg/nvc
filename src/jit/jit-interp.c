@@ -21,7 +21,7 @@
 #include "diag.h"
 #include "jit/jit-exits.h"
 #include "jit/jit-priv.h"
-#include "rt/ffi.h"
+#include "jit/jit-ffi.h"
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
@@ -914,12 +914,6 @@ static void interp_test_active(jit_interp_t *state)
    state->nargs = 1;
 }
 
-static void interp_now(jit_interp_t *state)
-{
-   state->args[0].integer = x_now();
-   state->nargs = 1;
-}
-
 static void interp_file_open(jit_interp_t *state)
 {
    int8_t   *status     = state->args[0].pointer;
@@ -965,13 +959,6 @@ static void interp_endfile(jit_interp_t *state)
 
    state->args[0].integer = x_endfile(_fp);
    state->nargs = 1;
-}
-
-static void interp_file_flush(jit_interp_t *state)
-{
-   void *_fp = state->args[0].pointer;
-
-   x_file_flush(_fp);
 }
 
 static void interp_string_to_int(jit_interp_t *state)
@@ -1088,11 +1075,10 @@ static void interp_resolve_signal(jit_interp_t *state)
    sig_shared_t *shared  = state->args[0].pointer;
    jit_handle_t  handle  = state->args[1].integer;
    void         *context = state->args[2].pointer;
-   ffi_spec_t    spec    = { .bits = state->args[3].integer };
-   int32_t       ileft   = state->args[4].integer;
-   int32_t       nlits   = state->args[5].integer;
+   int32_t       ileft   = state->args[3].integer;
+   int32_t       nlits   = state->args[4].integer;
 
-   x_resolve_signal2(shared, handle, context, spec, ileft, nlits);
+   x_resolve_signal2(shared, handle, context, ileft, nlits);
 }
 
 static void interp_last_event(jit_interp_t *state)
@@ -1198,10 +1184,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_sched_event(state);
       break;
 
-   case JIT_EXIT_NOW:
-      interp_now(state);
-      break;
-
    case JIT_EXIT_FILE_OPEN:
       interp_file_open(state);
       break;
@@ -1220,10 +1202,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_ENDFILE:
       interp_endfile(state);
-      break;
-
-   case JIT_EXIT_FILE_FLUSH:
-      interp_file_flush(state);
       break;
 
    case JIT_EXIT_STRING_TO_INT:
@@ -1273,8 +1251,8 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
 {
-   // Not currently implemented
-   state->abort = true;
+   jit_foreign_t *ff = interp_get_value(state, ir->arg1).pointer;
+   state->args[0] = jit_ffi_call(ff, state->args);
 }
 
 static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)
