@@ -2438,7 +2438,7 @@ static vcode_reg_t lower_port_ref(tree_t decl, expr_ctx_t ctx)
          sig_reg = emit_load_indirect(emit_var_upref(hops, var));
 
       if (ctx == EXPR_RVALUE)
-         return emit_resolved(lower_array_data(sig_reg));
+         return lower_resolved(tree_type(decl), sig_reg);
       else
          return sig_reg;
    }
