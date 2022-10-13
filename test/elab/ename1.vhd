@@ -33,6 +33,7 @@ begin
         assert <<signal .ename1.uut.x : bit>> = '0';  -- Error
         assert <<signal ^.x : bit>> = '0';  -- Error
         assert <<signal uut(1).x : integer>> = 0;  -- Error
+        assert <<signal ^.^.^.^.x : bit>> = '0';  -- Error
         wait;
     end process;
 

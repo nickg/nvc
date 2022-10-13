@@ -35,18 +35,21 @@
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
-typedef struct {
-   tree_t       out;
-   tree_t       root;
-   ident_t      path;           // Current 'PATH_NAME
-   ident_t      inst;           // Current 'INSTANCE_NAME
-   ident_t      dotted;
-   ident_t      prefix[2];
-   lib_t        library;
-   hash_t      *generics;
-   hash_t      *subprograms;
-   eval_t      *eval;
-   tree_list_t  enames;
+typedef struct _elab_ctx elab_ctx_t;
+
+typedef struct _elab_ctx {
+   const elab_ctx_t *parent;
+   tree_t            out;
+   tree_t            root;
+   ident_t           path;      // Current 'PATH_NAME
+   ident_t           inst;      // Current 'INSTANCE_NAME
+   ident_t           dotted;
+   ident_t           prefix[2];
+   lib_t             library;
+   hash_t           *generics;
+   hash_t           *subprograms;
+   eval_t           *eval;
+   tree_list_t       enames;
 } elab_ctx_t;
 
 typedef struct {
@@ -1102,6 +1105,19 @@ static void elab_context(tree_t t)
    }
 }
 
+static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
+{
+   ctx->parent      = parent;
+   ctx->eval        = parent->eval;
+   ctx->subprograms = parent->subprograms;
+   ctx->root        = parent->root;
+   ctx->dotted      = ctx->dotted ?: parent->dotted;
+   ctx->path        = ctx->path ?: parent->path;
+   ctx->inst        = ctx->inst ?: parent->inst;
+   ctx->library     = ctx->library ?: parent->library;
+   ctx->out         = ctx->out ?: parent->out;
+}
+
 static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
    tree_t arch = NULL, config = NULL;
@@ -1152,15 +1168,11 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    lib_t new_lib = lib_require(ident_until(tree_ident(arch), '.'));
 
    elab_ctx_t new_ctx = {
-      .out         = b,
-      .root        = ctx->root,
-      .path        = ctx->path,
-      .inst        = ninst,
-      .dotted      = ctx->dotted,
-      .library     = new_lib,
-      .subprograms = ctx->subprograms,
-      .eval        = ctx->eval,
+      .out     = b,
+      .inst    = ninst,
+      .library = new_lib,
    };
+   elab_inherit_context(&new_ctx, ctx);
    elab_subprogram_prefix(arch, &new_ctx);
 
    tree_t arch_copy;
@@ -1261,6 +1273,28 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
             tree_set_ident(pe, ident_new(tb_get(tb)));
          }
          break;
+      case PE_CARET:
+         // TODO: this is an ugly hack because generate blocks and
+         //       instances have one too many elab contexts
+         for (tree_t out = ctx->out; ctx && ctx->out == out; ctx = ctx->parent);
+
+         if (ctx == NULL) {
+            error_at(tree_loc(pe), "relative pathname has no containing "
+                     "declarative region");
+            return;
+         }
+
+         for (tree_t out = ctx->out;
+              ctx && ctx->parent && ctx->parent->out == out;
+              ctx = ctx->parent);
+         next = ctx->out;
+
+         for (int j = 0; j < i; j++)
+            tree_set_ident(tree_part(t, j), NULL);
+
+         tree_set_subkind(pe, PE_SIMPLE);
+         tree_set_ident(pe, ctx->dotted);
+         continue;
       default:
          error_at(tree_loc(pe), "sorry, this form of external name is not "
                   "yet supported");
@@ -1285,10 +1319,10 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
       }
 
       if (next == NULL) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "external name %s not found",
                      istr(tree_ident(tree_part(t, nparts - 1))));
-         diag_hint(d, tree_loc(t), "name %s not found inside %s", istr(id),
+         diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
          diag_emit(d);
          return;
@@ -1439,16 +1473,13 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       ident_t ndotted = hpathf(ctx->dotted, '\0', "(%"PRIi64")", i);
 
       elab_ctx_t new_ctx = {
-         .out         = b,
-         .root        = ctx->root,
-         .path        = npath,
-         .inst        = ninst,
-         .dotted      = ndotted,
-         .library     = ctx->library,
-         .generics    = hash_new(16),
-         .subprograms = ctx->subprograms,
-         .eval        = ctx->eval,
+         .out      = b,
+         .path     = npath,
+         .inst     = ninst,
+         .dotted   = ndotted,
+         .generics = hash_new(16),
       };
+      elab_inherit_context(&new_ctx, ctx);
 
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
@@ -1492,15 +1523,9 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
          tree_add_stmt(ctx->out, b);
 
          elab_ctx_t new_ctx = {
-            .out         = b,
-            .root        = ctx->root,
-            .path        = ctx->path,
-            .inst        = ctx->inst,
-            .dotted      = ctx->dotted,
-            .library     = ctx->library,
-            .subprograms = ctx->subprograms,
-            .eval        = ctx->eval,
+            .out = b,
          };
+         elab_inherit_context(&new_ctx, ctx);
 
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
@@ -1523,15 +1548,11 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(s), '.');
 
       elab_ctx_t new_ctx = {
-         .out         = ctx->out,
-         .root        = ctx->root,
-         .path        = npath,
-         .inst        = ninst,
-         .library     = ctx->library,
-         .dotted      = ndotted,
-         .subprograms = ctx->subprograms,
-         .eval        = ctx->eval,
+         .path   = npath,
+         .inst   = ninst,
+         .dotted = ndotted,
       };
+      elab_inherit_context(&new_ctx, ctx);
 
       switch (tree_kind(s)) {
       case T_INSTANCE:
@@ -1562,15 +1583,9 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out         = b,
-      .root        = ctx->root,
-      .path        = ctx->path,
-      .inst        = ctx->inst,
-      .library     = ctx->library,
-      .dotted      = ctx->dotted,
-      .subprograms = ctx->subprograms,
-      .eval        = ctx->eval,
+      .out = b,
    };
+   elab_inherit_context(&new_ctx, ctx);
 
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, t, &new_ctx);
@@ -1730,15 +1745,12 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out         = b,
-      .root        = ctx->root,
-      .path        = npath,
-      .inst        = ninst,
-      .dotted      = ndotted,
-      .library     = ctx->library,
-      .subprograms = ctx->subprograms,
-      .eval        = ctx->eval,
+      .out    = b,
+      .path   = npath,
+      .inst   = ninst,
+      .dotted = ndotted,
    };
+   elab_inherit_context(&new_ctx, ctx);
    elab_subprogram_prefix(arch, &new_ctx);
 
    tree_t arch_copy = elab_copy(arch, &new_ctx);

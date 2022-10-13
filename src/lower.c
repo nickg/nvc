@@ -2610,7 +2610,8 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
    for (int i = 0; i < nparts - 1; i++) {
       tree_t pe = tree_part(ref, i);
       assert(tree_subkind(pe) == PE_SIMPLE);
-      path = ident_prefix(path, tree_ident(pe), '.');
+      if (tree_has_ident(pe))
+         path = ident_prefix(path, tree_ident(pe), '.');
    }
 
    vcode_reg_t locus = lower_debug_locus(ref);

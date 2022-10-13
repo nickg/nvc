@@ -1023,8 +1023,9 @@ START_TEST(test_ename1)
       { 30, "class of object X is not variable" },
       { 31, "external name X not found" },
       { 33, "type of signal X is not BIT" },
-      { 34, "sorry, this form of external name is not yet supported" },
+      { 34, "external name X not found" },
       { 35, "external name X not found" },
+      { 36, "relative pathname has no containing declarative region" },
       { -1, NULL }
    };
    expect_errors(expect);
