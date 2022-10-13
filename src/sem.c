@@ -53,32 +53,27 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab);
       return false;                                   \
    } while (0)
 
-#define pedantic_error(t, ...) do {                             \
-      static int warned = 0;                                    \
-      if (!_pedantic_error(tree_loc(t), &warned, __VA_ARGS__))  \
-         return false;                                          \
-   } while (0)
+#define pedantic_diag(t) ({                            \
+         static int _warned = 0;                       \
+         _pedantic_diag(tree_loc(t), &_warned, NULL);  \
+      })
 
-static bool _pedantic_error(const loc_t *loc, int *warned, const char *fmt, ...)
+static diag_t *_pedantic_diag(const loc_t *loc, int *warned, bool *error)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
    const bool relaxed = opt_get_int(OPT_RELAXED);
    if (!relaxed || !*warned) {
       const diag_level_t level = relaxed ? DIAG_WARN : DIAG_ERROR;
       diag_t *d = diag_new(level, loc);
-      diag_vprintf(d, fmt, ap);
       if (level == DIAG_ERROR)
          diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
                    "to a warning");
-      diag_emit(d);
 
       *warned = 1;
+      if (error) *error = !relaxed;
+      return d;
    }
-
-   va_end(ap);
-   return relaxed;
+   else
+      return NULL;
 }
 
 static tree_t sem_int_lit(type_t type, int64_t i)
@@ -1028,9 +1023,14 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
 
    // From VHDL-2000 onwards shared variables must be protected types
    if (standard() >= STD_00) {
-      if ((tree_flags(t) & TREE_F_SHARED) && type_kind(type) != T_PROTECTED)
-         pedantic_error(t, "shared variable %s must have protected type",
+      if ((tree_flags(t) & TREE_F_SHARED) && type_kind(type) != T_PROTECTED) {
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "shared variable %s must have protected type",
                         istr(tree_ident(t)));
+            diag_emit(d);
+         }
+      }
    }
 
    return true;
@@ -1210,8 +1210,13 @@ static bool sem_check_interface_class(tree_t port)
       if (type_is_none(tree_type(value)))
          return false;
 
-      if (!sem_globally_static(value))
-         pedantic_error(value, "default value must be a static expression");
+      if (!sem_globally_static(value)) {
+         diag_t *d = pedantic_diag(value);
+         if (d != NULL) {
+            diag_printf(d, "default value must be a static expression");
+            diag_emit(d);
+         }
+      }
 
       if (kind == T_PROTECTED)
          sem_error(port, "parameter with protected type cannot have "
@@ -1622,16 +1627,15 @@ static void sem_check_static_elab(tree_t t)
          else
             id = tree_ident(t);
 
-         const bool relaxed = opt_get_int(OPT_RELAXED);
-         diag_t *d = diag_new(relaxed ? DIAG_WARN : DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "cannot reference signal %s during static "
-                     "elaboration", istr(id));
-         diag_hint(d, NULL, "the value of a signal is not defined "
-                   "until after the design hierarchy is elaborated");
-         diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
-                   "to a warning");
-         diag_lrm(d, STD_93, "12.3");
-         diag_emit(d);
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "cannot reference signal %s during static "
+                        "elaboration", istr(id));
+            diag_hint(d, NULL, "the value of a signal is not defined "
+                      "until after the design hierarchy is elaborated");
+            diag_lrm(d, STD_93, "12.3");
+            diag_emit(d);
+         }
       }
       break;
 
@@ -2623,11 +2627,19 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
 
    // Pure function may not call an impure function
    tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
-   if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
-      if (!(tree_flags(sub) & TREE_F_IMPURE)
-          && (tree_flags(decl) & TREE_F_IMPURE))
-         pedantic_error(t, "pure function %s cannot call impure function %s",
-                        istr(tree_ident(sub)), istr(tree_ident(decl)));
+
+   const bool pure_call_to_impure =
+      sub != NULL && tree_kind(sub) == T_FUNC_BODY
+      && !(tree_flags(sub) & TREE_F_IMPURE)
+      && (tree_flags(decl) & TREE_F_IMPURE);
+
+   if (pure_call_to_impure) {
+      diag_t *d = pedantic_diag(t);
+      if (d != NULL) {
+         diag_printf(d, "pure function %s cannot call impure function %s",
+                     istr(tree_ident(sub)), istr(tree_ident(decl)));
+         diag_emit(d);
+      }
    }
 
    if (!sem_check_call_args(t, decl, tab))
@@ -4972,9 +4984,16 @@ static bool sem_check_file_decl(tree_t t, nametab_t *tab)
    }
 
    tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
-   if (sub != NULL) {
-      if (tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE))
-         pedantic_error(t, "cannot declare a file object in a pure function");
+   const bool in_pure_func =
+      sub != NULL && tree_kind(sub) == T_FUNC_BODY
+      && !(tree_flags(sub) & TREE_F_IMPURE);
+
+   if (in_pure_func) {
+      diag_t *d = pedantic_diag(t);
+      if (d != NULL) {
+         diag_printf(d, "cannot declare a file object in a pure function");
+         diag_emit(d);
+      }
    }
 
    return true;
