@@ -678,3 +678,4 @@ issue547        normal
 protected8      normal,2002
 issue551        normal
 issue544        normal,2008
+issue550        normal,2008,relaxed

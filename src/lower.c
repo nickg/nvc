@@ -6504,11 +6504,20 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          len_reg = lower_array_total_len(type, bounds_reg);
          init_reg = lower_array_data(init_reg);
          need_wrap = !lower_const_bounds(type);
+
+         // In relaxed mode initial value may reference another signal
+         // TODO: a future lower_rvalue() ought to handle this
+         init_reg = lower_resolved(init_type, init_reg);
       }
       else {
          vtype = lower_type(type);
          len_reg = emit_const(voffset, 1);
          init_reg = lower_reify(init_reg);
+
+         // In relaxed mode initial value may reference another signal
+         // TODO: a future lower_rvalue() ought to handle this
+         init_reg = lower_resolved(init_type, init_reg);
+
          lower_check_scalar_bounds(init_reg, type, where, where);
       }
 
