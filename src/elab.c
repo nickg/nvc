@@ -391,6 +391,7 @@ static void elab_config_instance(tree_t block, tree_t spec,
                                  const elab_ctx_t *ctx)
 {
    ident_t match = tree_has_ident(spec) ? tree_ident(spec) : NULL;
+   ident_t comp = tree_ident2(spec);
 
    if (tree_kind(block) == T_IF_GENERATE)
       block = tree_cond(block, 0);
@@ -398,7 +399,7 @@ static void elab_config_instance(tree_t block, tree_t spec,
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
-      if (tree_kind(s) != T_INSTANCE)
+      if (tree_kind(s) != T_INSTANCE || tree_ident2(s) != comp)
          continue;
 
       const bool apply = match == well_known(W_ALL)

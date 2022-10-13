@@ -1201,6 +1201,28 @@ START_TEST(test_issue518)
 }
 END_TEST
 
+START_TEST(test_config1)
+{
+   input_from_file(TESTDIR "/elab/config1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t top = tree_stmt(e, 0);
+   fail_unless(tree_stmts(top) == 2);
+
+   tree_t u1 = tree_stmt(top, 0);
+   fail_unless(tree_ports(u1) == 0);
+   fail_unless(tree_params(u1) == 0);
+
+   tree_t u2 = tree_stmt(top, 1);
+   fail_unless(tree_ports(u2) == 1);
+   fail_unless(tree_params(u2) == 1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1270,6 +1292,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_comp4);
    tcase_add_test(tc, test_issue514);
    tcase_add_test(tc, test_issue518);
+   tcase_add_test(tc, test_config1);
    suite_add_tcase(s, tc);
 
    return s;
