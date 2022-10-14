@@ -1118,14 +1118,26 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->out         = ctx->out ?: parent->out;
 }
 
-static void elab_instance(tree_t t, elab_ctx_t *ctx)
+static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    tree_t arch = NULL, config = NULL;
+
+   const char *label = istr(tree_ident(t));
+   ident_t npath = hpathf(ctx->path, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(t), '.');
+
+   elab_ctx_t new_ctx = {
+      .path   = npath,
+      .inst   = ninst,
+      .dotted = ndotted,
+   };
+   elab_inherit_context(&new_ctx, ctx);
 
    tree_t ref = tree_ref(t);
    switch (tree_kind(ref)) {
    case T_ENTITY:
-      arch = elab_pick_arch(tree_loc(t), ref, ctx);
+      arch = elab_pick_arch(tree_loc(t), ref, &new_ctx);
       break;
 
    case T_ARCH:
@@ -1134,9 +1146,9 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    case T_COMPONENT:
       if (tree_has_spec(t))
-         arch = elab_binding(t, tree_spec(t), ctx);
+         arch = elab_binding(t, tree_spec(t), &new_ctx);
       else
-         arch = elab_default_binding(t, ctx);
+         arch = elab_default_binding(t, &new_ctx);
       break;
 
    case T_CONFIGURATION:
@@ -1161,18 +1173,12 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    tree_add_stmt(ctx->out, b);
 
-   ident_t ninst = hpathf(ctx->inst, '@', "%s(%s)",
-                          simple_name(istr(tree_ident2(arch))),
-                          simple_name(istr(tree_ident(arch))));
+   new_ctx.inst = hpathf(new_ctx.inst, '@', "%s(%s)",
+                         simple_name(istr(tree_ident2(arch))),
+                         simple_name(istr(tree_ident(arch))));
+   new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
+   new_ctx.out = b;
 
-   lib_t new_lib = lib_require(ident_until(tree_ident(arch), '.'));
-
-   elab_ctx_t new_ctx = {
-      .out     = b,
-      .inst    = ninst,
-      .library = new_lib,
-   };
-   elab_inherit_context(&new_ctx, ctx);
    elab_subprogram_prefix(arch, &new_ctx);
 
    tree_t arch_copy;
@@ -1274,26 +1280,20 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
          }
          break;
       case PE_CARET:
-         // TODO: this is an ugly hack because generate blocks and
-         //       instances have one too many elab contexts
-         for (tree_t out = ctx->out; ctx && ctx->out == out; ctx = ctx->parent);
+         {
+            if ((ctx = ctx->parent) == NULL) {
+               error_at(tree_loc(pe), "relative pathname has no containing "
+                        "declarative region");
+               return;
+            }
+            next = ctx->out;
 
-         if (ctx == NULL) {
-            error_at(tree_loc(pe), "relative pathname has no containing "
-                     "declarative region");
-            return;
+            for (int j = 0; j < i; j++)
+               tree_set_ident(tree_part(t, j), NULL);
+
+            tree_set_subkind(pe, PE_SIMPLE);
+            tree_set_ident(pe, ctx->dotted);
          }
-
-         for (tree_t out = ctx->out;
-              ctx && ctx->parent && ctx->parent->out == out;
-              ctx = ctx->parent);
-         next = ctx->out;
-
-         for (int j = 0; j < i; j++)
-            tree_set_ident(tree_part(t, j), NULL);
-
-         tree_set_subkind(pe, PE_SIMPLE);
-         tree_set_ident(pe, ctx->dotted);
          continue;
       default:
          error_at(tree_loc(pe), "sorry, this form of external name is not "
@@ -1395,7 +1395,7 @@ static bool elab_copy_genvar_cb(tree_t t, void *ctx)
 }
 
 static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
-                                elab_ctx_t *ctx)
+                                const elab_ctx_t *ctx)
 {
    if (tree_subkind(r) == RANGE_EXPR) {
       tree_t value = tree_value(r);
@@ -1435,7 +1435,7 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
    }
 }
 
-static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
+static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 {
    int64_t low, high;
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
@@ -1443,14 +1443,18 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    tree_t g = tree_decl(t, 0);
    assert(tree_kind(g) == T_GENERIC_DECL);
 
+   ident_t base = tree_ident(t);
+
    for (int64_t i = low; i <= high; i++) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, istr(tree_ident(t)));
+      tb_cat(tb, istr(base));
       tb_printf(tb, "(%"PRIi64")", i);
+
+      ident_t id = ident_new(tb_get(tb));
 
       tree_t b = tree_new(T_BLOCK);
       tree_set_loc(b, tree_loc(t));
-      tree_set_ident(b, ident_new(tb_get(tb)));
+      tree_set_ident(b, id);
       tree_set_loc(b, tree_loc(t));
 
       tree_add_stmt(ctx->out, b);
@@ -1468,9 +1472,10 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 
       tree_t copy = roots[0];
 
-      ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);
-      ident_t ninst = hpathf(ctx->inst, '\0', "(%"PRIi64")", i);
-      ident_t ndotted = hpathf(ctx->dotted, '\0', "(%"PRIi64")", i);
+      const char *label = istr(base);
+      ident_t npath = hpathf(ctx->path, ':', "%s(%"PRIi64")", label, i);
+      ident_t ninst = hpathf(ctx->inst, ':', "%s(%"PRIi64")", label, i);
+      ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
       elab_ctx_t new_ctx = {
          .out      = b,
@@ -1495,7 +1500,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static bool elab_generate_test(tree_t value, elab_ctx_t *ctx)
+static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
 {
    bool test;
    if (folded_bool(value, &test))
@@ -1510,7 +1515,7 @@ static bool elab_generate_test(tree_t value, elab_ctx_t *ctx)
    return false;
 }
 
-static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
+static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 {
    const int nconds = tree_conds(t);
    for (int i = 0; i < nconds; i++) {
@@ -1522,8 +1527,16 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
 
          tree_add_stmt(ctx->out, b);
 
+         const char *label = istr(tree_ident(cond));
+         ident_t npath = hpathf(ctx->path, ':', "%s", label);
+         ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+         ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(cond), '.');
+
          elab_ctx_t new_ctx = {
-            .out = b,
+            .out    = b,
+            .path   = npath,
+            .inst   = ninst,
+            .dotted = ndotted,
          };
          elab_inherit_context(&new_ctx, ctx);
 
@@ -1542,30 +1555,19 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(t, i);
-      const char *label = istr(tree_ident(s));
-      ident_t npath = hpathf(ctx->path, ':', "%s", label);
-      ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
-      ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(s), '.');
-
-      elab_ctx_t new_ctx = {
-         .path   = npath,
-         .inst   = ninst,
-         .dotted = ndotted,
-      };
-      elab_inherit_context(&new_ctx, ctx);
 
       switch (tree_kind(s)) {
       case T_INSTANCE:
-         elab_instance(s, &new_ctx);
+         elab_instance(s, ctx);
          break;
       case T_BLOCK:
-         elab_block(s, &new_ctx);
+         elab_block(s, ctx);
          break;
       case T_FOR_GENERATE:
-         elab_for_generate(s, &new_ctx);
+         elab_for_generate(s, ctx);
          break;
       case T_IF_GENERATE:
-         elab_if_generate(s, &new_ctx);
+         elab_if_generate(s, ctx);
          break;
       default:
          tree_add_stmt(ctx->out, s);
@@ -1576,15 +1578,26 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
+   ident_t id = tree_ident(t);
+
    tree_t b = tree_new(T_BLOCK);
-   tree_set_ident(b, tree_ident(t));
+   tree_set_ident(b, id);
    tree_set_loc(b, tree_loc(t));
 
    tree_add_stmt(ctx->out, b);
 
+   const char *label = istr(id);
+   ident_t npath = hpathf(ctx->path, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
+
    elab_ctx_t new_ctx = {
-      .out = b,
+      .out    = b,
+      .path   = npath,
+      .inst   = ninst,
+      .dotted = ndotted,
    };
+   elab_inherit_context(&new_ctx, ctx);
    elab_inherit_context(&new_ctx, ctx);
 
    elab_push_scope(t, &new_ctx);
