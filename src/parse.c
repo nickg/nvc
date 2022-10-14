@@ -1908,6 +1908,7 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
    case T_PACK_BODY:
       return true;
    case T_GENERIC_DECL:
+   case T_SIGNAL_DECL:
       return true;
    case T_CONST_DECL:
       // Make a unique copy of all public constants in the package

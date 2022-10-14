@@ -2354,9 +2354,24 @@ static vcode_reg_t lower_signal_ref(tree_t decl)
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
 
-   if (var == VCODE_INVALID_VAR) {
+   if (var == VCODE_INVALID_VAR || (var & INSTANCE_BIT)) {
       // Link to external package signal
-      vcode_reg_t ptr = lower_link_var(decl);
+      vcode_reg_t ptr;
+      if (var == VCODE_INVALID_VAR)
+         ptr = lower_link_var(decl);
+      else {
+         // This signal is declared in an instantiated package
+         vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+         vcode_reg_t pkg_reg;
+         if (hops == 0)
+            pkg_reg = emit_load(pkg_var);
+         else
+            pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+
+         vcode_type_t vtype = lower_signal_type(type);
+         ptr = emit_link_var(pkg_reg, tree_ident(decl), vtype);
+      }
+
       if (!type_is_homogeneous(type))
          return ptr;
       else if (vcode_reg_kind(ptr) == VCODE_TYPE_UARRAY)

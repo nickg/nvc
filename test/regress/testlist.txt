@@ -680,3 +680,4 @@ issue551        normal
 issue544        normal,2008
 issue550        normal,2008,relaxed
 ename4          normal,2008
+genpack12       normal,2008
