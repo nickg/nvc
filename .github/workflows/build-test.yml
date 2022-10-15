@@ -12,7 +12,7 @@ jobs:
           fetch-depth: 1
       - name: Get version
         id: version
-        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
           sudo apt-get install automake flex llvm-dev check lcov \
@@ -46,7 +46,7 @@ jobs:
         run: |
           cd build
           ../configure --with-llvm=/usr/bin/llvm-config \
-             --prefix=/opt/nvc-${{ steps.version.outputs.version }} \
+             --prefix=/opt/nvc-${{ env.VERSION }} \
              --disable-debug
       - name: Build release
         run: make -C build
@@ -56,14 +56,14 @@ jobs:
       - name: Archive
         if: github.event_name != 'pull_request'
         run: >-
-          tar -czf nvc-${{ steps.version.outputs.version }}.tar.gz \
-            /opt/nvc-${{ steps.version.outputs.version }}
+          tar -czf nvc-${{ env.VERSION }}.tar.gz \
+            /opt/nvc-${{ env.VERSION }}
       - name: 'Upload artifact'
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
-          name: nvc-${{ steps.version.outputs.version }}
-          path: nvc-${{ steps.version.outputs.version }}.tar.gz
+          name: nvc-${{ env.VERSION }}.tar.gz
+          path: nvc-${{ env.VERSION }}.tar.gz
 
   build-mac:
     name: Mac OS
@@ -131,20 +131,24 @@ jobs:
         run: make -C build
       - name: Test
         run: make -C build check
-      - name: Dist clean
-        run: make -C build distclean
-      - name: Configure for release
+      - name: Build MSYS2 package
         run: |
-          cd build
-          ../configure --disable-debug
-      - name: Build release
-        run: make -C build
+          cd contrib/msys2
+          makepkg-mingw -sCLf
+          pacman -Qlp *.zst
+          echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
       - name: Install release
-        run: make -C build install
+        run: pacman -U --noconfirm contrib/msys2/*.zst
       - name: Install OSVVM
         run: nvc --install osvvm
       - name: Install UVVM
         run: nvc --install uvvm
+      - name: 'Upload artifact'
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.MSYS2_PKG }}
+          path: contrib/msys2/${{ env.MSYS2_PKG }}
 
   vests:
     name: VESTs
@@ -162,18 +166,18 @@ jobs:
           fetch-depth: 1
       - name: Get version
         id: version
-        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install ruby ruby-colorize llvm libdw1
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ steps.version.outputs.version }}
+          name: nvc-${{ env.VERSION }}.tar.gz
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ steps.version.outputs.version }}.tar.gz
+          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Run VESTs
@@ -197,18 +201,18 @@ jobs:
           fetch-depth: 1
       - name: Get version
         id: version
-        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install llvm libdw1
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ steps.version.outputs.version }}
+          name: nvc-${{ env.VERSION }}.tar.gz
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ steps.version.outputs.version }}.tar.gz
+          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Install OSVVM
@@ -260,18 +264,18 @@ jobs:
           fetch-depth: 1
       - name: Get version
         id: version
-        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install python3 python3-colorama
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ steps.version.outputs.version }}
+          name: nvc-${{ env.VERSION }}.tar.gz
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ steps.version.outputs.version }}.tar.gz
+          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Run uart example

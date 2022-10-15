@@ -1,0 +1,42 @@
+pkgname=${MINGW_PACKAGE_PREFIX}-nvc
+repo_root_dir=$(git rev-parse --show-toplevel)
+commit7=$(git describe --match=X --always)
+read -r l<$repo_root_dir/configure.ac
+[[ $l =~ ([[:digit:]][^\]]*) ]]
+nvcver="${BASH_REMATCH[1]}_${commit7}"
+pkgver=${nvcver//[-]/_}
+pkgrel=1
+pkgdesc="VHDL compiler and simulator"
+arch=('x86_64')
+mingw_arch=('mingw64')
+url='https://github.com/nickg/nvc'
+license=('GPL3')
+depends=(
+  "base-devel"
+  "git"
+  "autoconf"
+  "automake-wrapper"
+  "${MINGW_PACKAGE_PREFIX}-gcc"
+  "${MINGW_PACKAGE_PREFIX}-llvm"
+  "${MINGW_PACKAGE_PREFIX}-ncurses"
+  "${MINGW_PACKAGE_PREFIX}-libffi"
+  "${MINGW_PACKAGE_PREFIX}-check"
+  "${MINGW_PACKAGE_PREFIX}-pkg-config"
+)
+makedepends=( "${depends[@]}" )
+provides=("${MINGW_PACKAGE_PREFIX}-nvc")
+build() {
+  makepkg_dir=$(pwd)
+  cd $repo_root_dir
+  ./autogen.sh
+  cd $makepkg_dir
+  mkdir $srcdir/build
+  cd $srcdir/build
+  $repo_root_dir/configure
+  make
+}
+package() {
+  cd ${srcdir}/build
+  #mkdir -p "${pkgdir}/${MINGW_PREFIX}/lib"
+  make DESTDIR=$pkgdir install
+}
