@@ -830,8 +830,14 @@ static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
    jit_value_t arg1 = jit_value_from_loc(vcode_get_loc(op));
    jit_value_t arg2 = jit_value_from_int64(enc);
 
-   irgen_emit_binary(g, J_DEBUG, JIT_SZ_UNSPEC, JIT_CC_NONE,
-                     JIT_REG_INVALID, arg1, arg2);
+   if (g->func->nirs > 0 && g->func->irbuf[g->func->nirs - 1].op == J_DEBUG) {
+      jit_ir_t *prev = &(g->func->irbuf[g->func->nirs - 1]);
+      prev->arg1 = arg1;
+      prev->arg2 = arg2;
+   }
+   else
+      irgen_emit_binary(g, J_DEBUG, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                        JIT_REG_INVALID, arg1, arg2);
 }
 
 static ffi_type_t irgen_ffi_type(vcode_type_t type)
@@ -867,6 +873,8 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
       return FFI_POINTER;
    case VCODE_TYPE_UARRAY:
       return FFI_UARRAY;
+   case VCODE_TYPE_SIGNAL:
+      return FFI_SIGNAL;
    default:
       fatal_trace("cannot handle type %d in irgen_ffi_type", vtype_kind(type));
    }
@@ -894,6 +902,18 @@ static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
       spec |= FFI_VOID;
 
    return jit_ffi_bind(func, spec, NULL);
+}
+
+static jit_value_t irgen_state_ptr(jit_irgen_t *g)
+{
+   assert(g->statereg.kind != JIT_VALUE_INVALID);
+   return jit_addr_from_value(g->statereg, 2 * sizeof(void *));
+}
+
+static jit_value_t irgen_pcall_ptr(jit_irgen_t *g)
+{
+   assert(g->statereg.kind != JIT_VALUE_INVALID);
+   return jit_addr_from_value(g->statereg, 1 * sizeof(void *));
 }
 
 static void irgen_op_null(jit_irgen_t *g, int op)
@@ -1103,7 +1123,7 @@ static void irgen_op_return(jit_irgen_t *g, int op)
    case VCODE_UNIT_PROCESS:
       {
          // Set up for first call to process after reset
-         jit_value_t ptr = jit_addr_from_value(g->statereg, 2 * sizeof(void *));
+         jit_value_t ptr = irgen_state_ptr(g);
          j_store(g, JIT_SZ_32, jit_value_from_int64(1), ptr);
          j_send(g, 0, g->statereg);
       }
@@ -1987,7 +2007,32 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
          for (int i = 1; i < slots; i++)
             j_recv(g, i);   // Must be contiguous registers
       }
+      else if (vcode_unit_kind() == VCODE_UNIT_FUNCTION) {
+         irgen_label_t *cont = irgen_alloc_label(g);
+         jit_value_t state = j_recv(g, 0);
+         j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+         j_jump(g, JIT_CC_T, cont);
+         macro_exit(g, JIT_EXIT_FUNC_WAIT);
+         irgen_bind_label(g, cont);
+      }
    }
+}
+
+static void irgen_pcall_suspend(jit_irgen_t *g, jit_value_t state,
+                                irgen_label_t *cont)
+{
+   jit_value_t pcall_ptr = irgen_pcall_ptr(g);
+   j_store(g, JIT_SZ_PTR, state, pcall_ptr);
+
+   j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+   j_jump(g, JIT_CC_T, cont);
+
+   if (vcode_unit_kind() == VCODE_UNIT_PROCESS)
+      j_send(g, 0, jit_null_ptr());
+   else
+      j_send(g, 0, g->statereg);
+
+   j_ret(g);
 }
 
 static void irgen_op_pcall(jit_irgen_t *g, int op)
@@ -2006,17 +2051,35 @@ static void irgen_op_pcall(jit_irgen_t *g, int op)
 
    irgen_label_t *cont = irgen_alloc_label(g);
    jit_value_t state = j_recv(g, 0);
-   j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
-   j_jump(g, JIT_CC_T, cont);
-   macro_exit(g, JIT_EXIT_FUNC_WAIT);
-   irgen_bind_label(g, cont);
 
-   j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 0)]);
+   vcode_block_t resume = vcode_get_target(op, 0);
+
+   jit_value_t state_ptr = irgen_state_ptr(g);
+   j_store(g, JIT_SZ_32, jit_value_from_int64(resume), state_ptr);
+
+   irgen_pcall_suspend(g, state, cont);
+
+   irgen_bind_label(g, cont);
+   j_jump(g, JIT_CC_NONE, g->blocks[resume]);
 }
 
 static void irgen_op_resume(jit_irgen_t *g, int op)
 {
-   // No-op without suspend
+   jit_value_t old_state = j_load(g, JIT_SZ_PTR, irgen_pcall_ptr(g));
+   irgen_label_t *cont = irgen_alloc_label(g);
+   j_cmp(g, JIT_CC_EQ, old_state, jit_null_ptr());
+   j_jump(g, JIT_CC_T, cont);
+
+   ident_t func = vcode_get_func(op);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
+
+   j_send(g, 0, old_state);
+   j_call(g, handle);
+
+   jit_value_t new_state = j_recv(g, 0);
+   irgen_pcall_suspend(g, new_state, cont);
+
+   irgen_bind_label(g, cont);
 }
 
 static void irgen_op_wait(jit_irgen_t *g, int op)
@@ -2030,7 +2093,7 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
 
    if (g->statereg.kind != JIT_VALUE_INVALID) {
       vcode_block_t target = vcode_get_target(op, 0);
-      jit_value_t ptr = jit_addr_from_value(g->statereg, 2 * sizeof(void *));
+      jit_value_t ptr = irgen_state_ptr(g);
       j_store(g, JIT_SZ_32, jit_value_from_int64(target), ptr);
    }
 
@@ -3294,7 +3357,7 @@ static void irgen_jump_table(jit_irgen_t *g)
    j_cmp(g, JIT_CC_EQ, locals, jit_value_from_int64(0));
    j_jump(g, JIT_CC_T, cont);
 
-   jit_value_t state_ptr = jit_addr_from_value(locals, 2 * sizeof(void *));
+   jit_value_t state_ptr = irgen_state_ptr(g);
    jit_value_t state = j_load(g, JIT_SZ_32, state_ptr);
 
    const bool is_process = (vcode_unit_kind() == VCODE_UNIT_PROCESS);

@@ -24,6 +24,7 @@
 #include "opt.h"
 #include "phase.h"
 #include "rt/mspace.h"
+#include "rt/rt.h"
 #include "scan.h"
 #include "thread.h"
 
@@ -145,6 +146,7 @@ static void set_default_options(void)
    opt_set_int(OPT_RT_TRACE, 0);
    opt_set_int(OPT_STOP_DELTA, 1000);
    opt_set_int(OPT_RT_STATS, 0);
+   opt_set_int(OPT_IEEE_WARNINGS, 1);
 }
 
 static void usage(void)
@@ -170,6 +172,10 @@ int main(int argc, char **argv)
    register_signal_handlers();
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
    intern_strings();
+
+   _std_standard_init();
+   _std_env_init();
+   _nvc_sim_pkg_init();
 
    static struct option long_options[] = {
       { 0, 0, 0, 0 }

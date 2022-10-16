@@ -498,7 +498,7 @@ START_TEST(test_proc1)
    input_from_file(TESTDIR "/jit/proc1.vhd");
 
    const error_t expect[] = {
-      { 28, "cannot wait inside function call" },
+      { 45, "cannot wait inside function call" },
       { -1, NULL },
    };
    expect_errors(expect);

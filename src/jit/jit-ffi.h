@@ -30,6 +30,7 @@ typedef enum {
    FFI_FLOAT,
    FFI_POINTER,
    FFI_UARRAY,
+   FFI_SIGNAL,
 } ffi_type_t;
 
 typedef uint64_t ffi_spec_t;

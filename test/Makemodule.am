@@ -62,6 +62,8 @@ bin_jitperf_LDADD = \
 	lib/libfastlz.a \
 	lib/libcpustate.a
 
+bin_jitperf_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
+
 if ENABLE_LLVM
 bin_jitperf_LDADD += \
 	lib/libcgen.a \
