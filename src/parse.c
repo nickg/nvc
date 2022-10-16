@@ -2223,6 +2223,22 @@ static type_t get_subtype_for(tree_t expr)
 
          tree_add_range(c, r);
       }
+
+      type_t elem = type_elem(type);
+      if (type_is_unconstrained(elem)) {
+         tree_t aref = tree_new(T_ATTR_REF);
+         tree_set_name(aref, expr);
+         tree_set_ident(aref, ident_new("ELEMENT"));
+         tree_set_loc(aref, tree_loc(expr));
+         tree_set_subkind(aref, ATTR_ELEMENT);
+         tree_set_type(aref, elem);
+
+         type_t esub = get_subtype_for(aref);
+
+         const int ncon = type_constraints(esub);
+         for (int i = 0; i < ncon; i++)
+            type_add_constraint(sub, type_constraint(esub, i));
+      }
    }
 
    return sub;

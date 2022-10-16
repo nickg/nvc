@@ -694,8 +694,6 @@ int type_freedom(type_t t)
          }
          return base;
       }
-   case T_ACCESS:
-      return type_freedom(type_access(t));
    default:
       return 0;
    }
@@ -723,14 +721,8 @@ bool type_is_unconstrained(type_t t)
          }
          return false;
       }
-      else {
-         for (int i = 0; i < ncon; i++) {
-            if (tree_subkind(type_constraint(t, i)) == C_OPEN)
-               return true;
-         }
-
-         return false;
-      }
+      else
+         return type_freedom(t) > 0;
    }
    else if (t->object.kind == T_ARRAY)
       return true;

@@ -407,7 +407,7 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
          elem = type_elem(elem);
    }
 
-   if (type_freedom(type) < 0)
+   if (type_freedom(type_is_access(type) ? type_access(type) : type) < 0)
       sem_error(decl, "too many constraints for type %s", type_pp(base));
 
    if (type_has_resolution(type)) {
