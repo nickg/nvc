@@ -1,4 +1,4 @@
-## Unreleased changes
+## Version 1.7.2 - 2022-10-16
 - Fixed build on FreeBSD/arm (#534).
 - Fixed crash with generic package instantiation (#520).
 - Now compatible with LLVM 15.0.

@@ -17,4 +17,5 @@ following people:
 - Sebastien Van Cauwenbergh (@svancau) contributed the JSON output
   module.
 
-Special thank you to @bpadalino and @tmeissner for sponsoring me!
+Special thank you to @bpadalino, @tmeissner, @Blebowski, and @amb5l for
+sponsoring me!

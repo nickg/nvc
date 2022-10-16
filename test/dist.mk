@@ -882,10 +882,15 @@ EXTRA_DIST += \
 	test/regress/issue502.vhd \
 	test/regress/issue508.vhd \
 	test/regress/issue516.vhd \
+	test/regress/issue520.vhd \
 	test/regress/issue524.sh \
 	test/regress/issue524.vhd \
 	test/regress/issue527.vhd \
 	test/regress/issue53.vhd \
+	test/regress/issue540.vhd \
+	test/regress/issue542.vhd \
+	test/regress/issue547.vhd \
+	test/regress/issue551.vhd \
 	test/regress/issue552.vhd \
 	test/regress/issue56.vhd \
 	test/regress/issue57.vhd \
@@ -956,6 +961,7 @@ EXTRA_DIST += \
 	test/regress/protected5.vhd \
 	test/regress/protected6.vhd \
 	test/regress/protected7.vhd \
+	test/regress/protected8.vhd \
 	test/regress/ram1.vhd \
 	test/regress/range1.vhd \
 	test/regress/real1.vhd \
