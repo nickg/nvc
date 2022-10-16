@@ -255,6 +255,7 @@ void unmap_file(void *ptr, size_t size);
 void make_dir(const char *path);
 char *search_path(const char *name);
 void get_libexec_dir(text_buf_t *tb);
+void get_lib_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
 
 struct cpu_state;

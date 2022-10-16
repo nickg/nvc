@@ -1431,7 +1431,7 @@ void nvc_rusage(nvc_rusage_t *ru)
 void run_program(const char *const *args)
 {
 #if defined __CYGWIN__ || defined __MINGW32__
-   int status = spawnv(_P_WAIT, args[0], (char *const *)args);
+   int status = spawnvp(_P_WAIT, args[0], (char *const *)args);
 #else  // __CYGWIN__
    pid_t pid = fork();
    int status = 0;
@@ -1725,18 +1725,41 @@ bool get_exe_path(text_buf_t *tb)
    return false;
 }
 
-void get_libexec_dir(text_buf_t *tb)
+#if defined __MINGW32__
+static void get_relative_prefix(text_buf_t *tb)
 {
-#if defined DEBUG && defined __linux__ && 0
-   char buf[PATH_MAX];
-   if (readlink("/proc/self/exe", buf, sizeof(buf)) > 0) {
-      tb_cat(tb, dirname(dirname(buf)));
-      tb_cat(tb, "/bin");
+   if (get_exe_path(tb)) {
+      int len = tb_len(tb);
+      const char *str = tb_get(tb);
+      for (int i = 0; i < 2; i++) {
+         do {
+            len--;
+         } while (str[len] != DIR_SEP[0]);
+      }
+      tb_trim(tb, len);
    }
    else
-      tb_cat(tb, LIBEXECDIR);
+      fatal("failed to read executable path");
+}
+#endif
+
+void get_libexec_dir(text_buf_t *tb)
+{
+#if defined __MINGW32__
+   get_relative_prefix(tb);
+   tb_cat(tb, DIR_SEP "libexec" DIR_SEP "nvc");
 #else
    tb_cat(tb, LIBEXECDIR);
+#endif
+}
+
+void get_lib_dir(text_buf_t *tb)
+{
+#if defined __MINGW32__
+   get_relative_prefix(tb);
+   tb_cat(tb, DIR_SEP "lib" DIR_SEP "nvc");
+#else
+   tb_cat(tb, LIBDIR);
 #endif
 }
 

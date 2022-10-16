@@ -186,7 +186,7 @@ case $host_os in
     ;;
 esac
 
-AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
+AX_DEFINE_DIR([PREFIX], [prefix], [Installation prefix])
 AX_DEFINE_DIR([LIBDIR], [libdir/nvc], [Installation library directory])
 AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
@@ -205,11 +205,7 @@ fi
 
 # CC may constain unwanted -std=... option.
 cc_bare="$(which ${CC%% *})"
-case $host_os in
-  *cygwin*|msys*|mingw32*)
-    cc_bare="$(cygpath -wm $cc_bare)"
-    ;;
-esac
+
 AC_ARG_WITH([system-cc],
             [AS_HELP_STRING([--with-system-cc=PATH],
                             [Path to system compiler to be used for linking])],
@@ -222,6 +218,13 @@ AS_IF([test -x $system_cc],
       [AC_MSG_RESULT([no])
        AC_PATH_PROG([system_cc], ["$system_cc"],
                     [AC_MSG_ERROR([system C compiler $system_cc not found])])])
+
+case $host_os in
+  *cygwin*|msys*|mingw32*)
+    # Do not hard-code full path on Windows
+    system_cc="$(basename $system_cc)"
+    ;;
+esac
 
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 

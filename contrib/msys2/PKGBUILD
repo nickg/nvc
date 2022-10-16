@@ -32,7 +32,7 @@ build() {
   cd $makepkg_dir
   mkdir $srcdir/build
   cd $srcdir/build
-  $repo_root_dir/configure
+  $repo_root_dir/configure --prefix=${MINGW_PREFIX}
   make
 }
 package() {

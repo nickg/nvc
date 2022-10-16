@@ -477,7 +477,9 @@ static void push_path(const char *path)
 static void lib_default_search_paths(void)
 {
    if (search_paths == NULL) {
-      push_path(LIBDIR);
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_lib_dir(tb);
+      push_path(tb_get(tb));
 
       const char *home_env = getenv("HOME");
       if (home_env) {

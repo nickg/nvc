@@ -62,7 +62,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
-          name: nvc-${{ env.VERSION }}.tar.gz
+          name: 'Ubuntu binaries'
           path: nvc-${{ env.VERSION }}.tar.gz
 
   build-mac:
@@ -147,7 +147,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.MSYS2_PKG }}
+          name: 'MSYS2 package'
           path: contrib/msys2/${{ env.MSYS2_PKG }}
 
   vests:
