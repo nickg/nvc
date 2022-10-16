@@ -2580,14 +2580,17 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       }
 
       if (class == C_SIGNAL && !sem_static_name(value, sem_globally_static)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-         diag_printf(d, "actual associated with signal parameter %s must be "
-                     "denoted by a static signal name", istr(tree_ident(port)));
-         diag_hint(d, tree_loc(value), "not a static signal name");
-         diag_lrm(d, STD_08, "4.2.2.3");
-         diag_lrm(d, STD_08, "8.1");
-         diag_emit(d);
-         return false;
+         diag_t *d = pedantic_diag(value);
+         if (d != NULL) {
+            diag_printf(d, "actual associated with signal parameter %s must be "
+                        "denoted by a static signal name",
+                        istr(tree_ident(port)));
+            diag_hint(d, tree_loc(value), "not a static signal name");
+            diag_lrm(d, STD_08, "4.2.2.3");
+            diag_lrm(d, STD_08, "8.1");
+            diag_emit(d);
+            return false;
+         }
       }
 
       // Check IN and INOUT parameters can be read

@@ -1052,7 +1052,7 @@ static vcode_reg_t lower_signal_record_aggregate(tree_t expr)
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
 
-      int pos;
+      int pos = 0;
       switch (tree_subkind(a)) {
       case A_POS:
          pos = tree_pos(a);
