@@ -20,6 +20,20 @@
   containing all the signals in the design (suggested by @amb5l).
 - `libffi` is now a build-time dependency.
 
+## Version 1.7.2 - 2022-10-16
+- Fixed build on FreeBSD/arm (#534).
+- Fixed crash with generic package instantiation (#520).
+- Now compatible with LLVM 15.0.
+- Fixed calculation of longest static prefix with `'RANGE` expression
+  (#542).
+- `MOD` and `REM` are now defined for physical types in VHDL-2008
+  (#540).
+- Signal declarations are now allowed in entity declarative part (#547).
+- Protected objects are now allowed in concurrent procedure calls
+  (#547).
+- Opening a file with `APPEND_MODE` now actually appends to the file
+  instead of truncating (#551).
+
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
