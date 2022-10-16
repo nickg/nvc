@@ -164,20 +164,17 @@ jobs:
           repository: nickg/vests
           path: vests
           fetch-depth: 1
-      - name: Get version
-        id: version
-        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install ruby ruby-colorize llvm libdw1
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ env.VERSION }}.tar.gz
+          name: 'Ubuntu binaries'
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
+          sudo tar -C / -zxvf nvc-*.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-*/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Run VESTs
@@ -199,20 +196,17 @@ jobs:
           repository: nickg/vhdl-projects
           path: vhdl-projects
           fetch-depth: 1
-      - name: Get version
-        id: version
-        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install llvm libdw1
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ env.VERSION }}.tar.gz
+          name: 'Ubuntu binaries'
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
+          sudo tar -C / -zxvf nvc-*.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-*/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Install OSVVM
@@ -262,20 +256,17 @@ jobs:
           path: vunit
           submodules: recursive
           fetch-depth: 1
-      - name: Get version
-        id: version
-        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
       - name: Install dependencies
         run: sudo apt-get install python3 python3-colorama
       - uses: actions/download-artifact@v3
         with:
-          name: nvc-${{ env.VERSION }}.tar.gz
+          name: 'Ubuntu binaries'
       - name: Extract pre-built binary
         run: >-
-          sudo tar -C / -zxvf nvc-${{ env.VERSION }}.tar.gz
+          sudo tar -C / -zxvf nvc-*.tar.gz
       - name: Add to PATH
         run: >-
-          echo /opt/nvc-${{ env.VERSION }}/bin >> $GITHUB_PATH
+          echo /opt/nvc-*/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
       - name: Run uart example
