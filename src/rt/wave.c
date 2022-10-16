@@ -24,6 +24,7 @@
 #include "opt.h"
 #include "rt/model.h"
 #include "rt/rt.h"
+#include "rt/structs.h"
 #include "rt/wave.h"
 #include "tree.h"
 #include "type.h"
@@ -423,8 +424,25 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    else
       r = range_of(type, 0);
 
+   const range_kind_t rkind = tree_subkind(r);
+   assert(rkind != RANGE_EXPR);
+
    int64_t low, high;
-   range_bounds(r, &low, &high);
+   if (!folded_bounds(r, &low, &high)) {
+      const int signal_w = s->shared.size / s->nexus.size;
+
+      tree_t tlow = rkind == RANGE_TO ? tree_left(r) : tree_right(r);
+      tree_t thigh = rkind == RANGE_TO ? tree_right(r) : tree_left(r);
+
+      if (folded_int(tlow, &low))
+         high = low + signal_w - 1;
+      else if (folded_int(thigh, &high))
+         low = high - signal_w + 1;
+      else {
+         low = 0;
+         high = signal_w - 1;
+      }
+   }
 
    enum fstVarDir dir = FST_VD_IMPLICIT;
 
@@ -437,8 +455,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       }
    }
 
-   const int msb = assume_int(tree_left(r));
-   const int lsb = assume_int(tree_right(r));
+   const int msb = rkind == RANGE_TO ? low : high;
+   const int lsb = rkind == RANGE_TO ? high : low;
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
