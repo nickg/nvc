@@ -838,10 +838,12 @@ static BOOL win32_ctrl_c_handler(DWORD fdwCtrlType)
 {
    switch (fdwCtrlType) {
    case CTRL_C_EVENT:
-      void (*fn)(void *) = atomic_load(&ctrl_c_fn);
-      if (fn != NULL)
-         (*fn)(ctrl_c_arg);
-      return TRUE;
+      {
+         void (*fn)(void *) = atomic_load(&ctrl_c_fn);
+         if (fn != NULL)
+            (*fn)(ctrl_c_arg);
+         return TRUE;
+      }
 
    default:
       return FALSE;
