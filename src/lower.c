@@ -4393,8 +4393,11 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       const int nfields = type_fields(type);
       vcode_type_t vtype = lower_type(type);
 
-      vcode_var_t tmp_var = lower_temp_var("def", vtype, vtype);
-      vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+      vcode_reg_t mem_reg = hint_reg;
+      if (hint_reg == VCODE_INVALID_REG) {
+         vcode_var_t tmp_var = lower_temp_var("def", vtype, vtype);
+         mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+      }
 
       tree_t rcon = shift_constraints(&cons, &ncons, 1);
       assert(ncons == 0);   // Cannot have more constraints following record
@@ -4843,15 +4846,33 @@ static void lower_copy_record_cb(type_t ftype, vcode_reg_t dst_ptr,
       if (lower_have_uarray_ptr(src_reg))
          src_reg = emit_load_indirect(src_ptr);
 
-      vcode_reg_t dst_reg = dst_ptr;
-      if (lower_have_uarray_ptr(dst_reg))
-         dst_reg = emit_load_indirect(dst_ptr);
+      vcode_reg_t count_reg = lower_array_total_len(ftype, src_reg);
 
-      lower_check_array_sizes(where, ftype, ftype, dst_reg, src_reg);
+      vcode_reg_t dst_reg = dst_ptr;
+      if (where == NULL) {
+         // Initialising a variable, need to allocate an array of the
+         // correct length
+         if (lower_have_uarray_ptr(dst_reg)) {
+            type_t scalar_elem = lower_elem_recur(ftype);
+            vcode_type_t vtype = lower_type(scalar_elem);
+            vcode_type_t vbounds = lower_bounds(scalar_elem);
+            vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, count_reg);
+            vcode_reg_t wrap_reg = lower_rewrap(mem_reg, src_reg);
+
+            emit_store_indirect(wrap_reg, dst_ptr);
+            dst_reg = wrap_reg;
+         }
+      }
+      else {
+         // Overwriting an existing array, check the length
+         if (lower_have_uarray_ptr(dst_reg))
+            dst_reg = emit_load_indirect(dst_ptr);
+
+         lower_check_array_sizes(where, ftype, ftype, dst_reg, src_reg);
+      }
 
       vcode_reg_t src_data = lower_array_data(src_reg);
       vcode_reg_t dst_data = lower_array_data(dst_reg);
-      vcode_reg_t count_reg = lower_array_total_len(ftype, dst_reg);
       emit_copy(dst_data, src_data, count_reg);
    }
    else if (type_is_record(ftype)) {
@@ -6414,7 +6435,12 @@ static void lower_var_decl(tree_t decl)
       }
    }
    else if (type_is_record(type)) {
-      emit_copy(dest_reg, value_reg, VCODE_INVALID_REG);
+      if (value_reg != dest_reg && !lower_const_bounds(type)) {
+         // We need to allocate memory for some of the fields
+         lower_copy_record(type, dest_reg, value_reg, NULL);
+      }
+      else
+         emit_copy(dest_reg, value_reg, VCODE_INVALID_REG);
    }
    else if (type_is_scalar(type)) {
       lower_check_scalar_bounds(value_reg, type, decl, decl);

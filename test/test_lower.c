@@ -4607,7 +4607,6 @@ START_TEST(test_vunit5)
 
    EXPECT_BB(0) = {
       { VCODE_OP_INDEX, .name = "R" },
-      { VCODE_OP_INDEX, .name = "*def" },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
@@ -4624,8 +4623,6 @@ START_TEST(test_vunit5)
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_COPY },
-      { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UNWRAP },
