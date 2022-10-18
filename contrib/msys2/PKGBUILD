@@ -2,12 +2,11 @@ _realname=nvc
 pkgbase=mingw-w64-${_realname}
 pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
 repo_root_dir=$(git rev-parse --show-toplevel)
-read -r l<$repo_root_dir/configure.ac
-[[ $l =~ ([[:digit:]][^\]]*) ]]
-nvcver="${BASH_REMATCH[1]}"
-_version="${nvcver//[-]/_}"
-_commit="$(git describe --match=X --always)"
-pkgver="${_version}.g${_commit}"
+_pkgver() {
+  (cd "${repo_root_dir}";\
+  git describe --long | sed 's/\([^-]*-g\)/r\1/;s/-/./g')
+}
+pkgver="$(_pkgver)"
 pkgrel=1
 pkgdesc="VHDL compiler and simulator (mingw-w64)"
 arch=('any')
@@ -20,13 +19,19 @@ depends=(
   "${MINGW_PACKAGE_PREFIX}-cc"   # required by NVC for linking
 )
 makedepends=(
-  "${MINGW_PACKAGE_PREFIX}-autotools"
+  "base-devel"
   "git"
+  "autoconf"
+  "automake-wrapper"
   "${MINGW_PACKAGE_PREFIX}-ncurses"
   "${MINGW_PACKAGE_PREFIX}-libffi"
   "${MINGW_PACKAGE_PREFIX}-check"
   "${MINGW_PACKAGE_PREFIX}-pkg-config"
 )
+
+pkgver() {
+  _pkgver
+}
 
 prepare() {
   mkdir -p "${srcdir}/${_realname}-${pkgver}"
