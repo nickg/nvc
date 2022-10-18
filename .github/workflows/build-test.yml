@@ -116,6 +116,7 @@ jobs:
             mingw-w64-x86_64-libffi
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-tcl
             unzip
             git
             autoconf
@@ -197,7 +198,7 @@ jobs:
           path: vhdl-projects
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install llvm libdw1
+        run: sudo apt-get install llvm libdw1 tcl
       - uses: actions/download-artifact@v3
         with:
           name: 'Ubuntu binaries'

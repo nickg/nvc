@@ -8,6 +8,8 @@ if [ -z "$NVC_INSTALL_DEST" ]; then
   fi
 fi
 
+export SCRIPT_DIR=$(dirname $BASH_SOURCE)
+
 _safe () {
   echo $*
   $*
@@ -18,7 +20,7 @@ _nvc () {
   local _work=${WORK:-work}
   local _dest=$NVC_INSTALL_DEST
   local _opts="--std=${STD:-1993} --work=$_dest/$_work -L$_dest $GLOBAL_OPTS"
-  [ -d $_dest ] || _safe mkdir -p  $_dest
+  [ -d $_dest ] || _safe mkdir -p $_dest
   _safe ${NVC:-nvc} $_opts  $*
 }
 

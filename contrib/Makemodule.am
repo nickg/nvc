@@ -1,6 +1,7 @@
 pkglibexec_SCRIPTS += \
 	contrib/functions.sh \
 	contrib/install-osvvm.sh \
+	contrib/install-osvvm.tcl \
 	contrib/install-uvvm.sh \
 	contrib/install-vivado.sh \
 	contrib/install-quartus.sh
