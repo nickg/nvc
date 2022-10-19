@@ -95,9 +95,15 @@ jobs:
       - name: Build release
         run: make -C build
 
-  build-windows:
-    name: Windows MSYS2
+  build-windows-msys2:
+    name: Windows MSYS2 MINGW64
     runs-on: windows-2019
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: ucrt64,  env: ucrt-x86_64 }
+          - { sys: clang64, env: clang-x86_64 }
     defaults:
       run:
         shell: msys2 {0}
@@ -107,15 +113,16 @@ jobs:
           fetch-depth: 1
       - uses: msys2/setup-msys2@v2
         with:
+          msystem: ${{matrix.sys}}
           update: true
           install: >-
             base-devel
-            mingw-w64-x86_64-llvm
-            mingw-w64-x86_64-check
-            mingw-w64-x86_64-ncurses
-            mingw-w64-x86_64-libffi
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-gcc
+            mingw-w64-${{matrix.env}}-llvm
+            mingw-w64-${{matrix.env}}-check
+            mingw-w64-${{matrix.env}}-ncurses
+            mingw-w64-${{matrix.env}}-libffi
+            mingw-w64-${{matrix.env}}-pkg-config
+            mingw-w64-${{matrix.env}}-cc
             unzip
             git
             autoconf
@@ -131,13 +138,51 @@ jobs:
         run: make -C build
       - name: Test
         run: make -C build check
-      - name: Build MSYS2 package
+      - name: Dist clean
+        run: make -C build distclean
+      - name: Configure for release
+        run: |
+          cd build
+          ../configure --disable-debug
+      - name: Build release
+        run: make -C build
+      - name: Install release
+        run: make -C build install
+      - name: Install OSVVM
+        run: nvc --install osvvm
+      - name: Install UVVM
+        run: nvc --install uvvm
+
+  pkg-windows-msys2:
+    name: Package for Windows MSYS2
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: ucrt64,  env: ucrt-x86_64 }
+          - { sys: clang64, env: clang-x86_64 }
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            base-devel
+            git
+      - name: Build MSYS2 ${{matrix.sys}} package
         run: |
           cd contrib/msys2
           makepkg-mingw -sCLf
           pacman -Qlp *.zst
           echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
-      - name: Install release
+      - name: Install package
         run: pacman -U --noconfirm contrib/msys2/*.zst
       - name: Install OSVVM
         run: nvc --install osvvm
@@ -147,7 +192,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
-          name: 'MSYS2 package'
+          name: 'MSYS2 ${{matrix.sys}} package'
           path: contrib/msys2/${{ env.MSYS2_PKG }}
 
   vests:

@@ -1,0 +1,44 @@
+name: Package for Windows MSYS2
+
+on: workflow_dispatch
+
+jobs:
+  pkg-windows-msys2:
+    name: Package for Windows MSYS2
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: ucrt64,  env: ucrt-x86_64 }
+          - { sys: clang64, env: clang-x86_64 }
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            base-devel
+            git
+      - name: Build MSYS2 ${{matrix.sys}} package
+        run: |
+          cd contrib/msys2
+          makepkg-mingw -sCLf
+          pacman -Qlp *.zst
+          echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
+      - name: Install package
+        run: pacman -U --noconfirm contrib/msys2/*.zst
+      - name: Install OSVVM
+        run: nvc --install osvvm
+      - name: Install UVVM
+        run: nvc --install uvvm
+      - uses: actions/upload-artifact@v3
+        with:
+          name: 'MSYS2 ${{matrix.sys}} package'
+          path: contrib/msys2/${{ env.MSYS2_PKG }}
