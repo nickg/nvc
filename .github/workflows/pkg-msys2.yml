@@ -26,6 +26,7 @@ jobs:
           install: >-
             base-devel
             git
+            unzip
       - name: Build MSYS2 ${{matrix.sys}} package
         run: |
           cd contrib/msys2
