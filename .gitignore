@@ -44,6 +44,10 @@ bin/
 .gtags.files
 compile_commands.json
 www/*.html
+contrib/msys2/*.log
+contrib/msys2/*.zst
+contrib/msys2/src
+contrib/msys2/pkg
 
 # VI test suite also cannot be distributed
 test/vi_suite*
