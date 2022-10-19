@@ -96,7 +96,7 @@ jobs:
         run: make -C build
 
   build-windows-msys2:
-    name: Windows MSYS2 MINGW64
+    name: Windows MSYS2
     runs-on: windows-2019
     strategy:
       matrix:
