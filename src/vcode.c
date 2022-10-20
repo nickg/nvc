@@ -3160,6 +3160,10 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
          return emit_const(vtype_bool(), 1);
       else if (cmp == VCODE_CMP_NEQ)
          return emit_const(vtype_bool(), 0);
+      else if (cmp == VCODE_CMP_LEQ || cmp == VCODE_CMP_GEQ)
+         return emit_const(vtype_bool(), 1);
+      else if (cmp == VCODE_CMP_LT || cmp == VCODE_CMP_GT)
+         return emit_const(vtype_bool(), 0);
    }
 
    int64_t lconst, rconst;

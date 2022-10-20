@@ -5851,11 +5851,6 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
 static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 {
-   vcode_block_t def_bb   = VCODE_INVALID_BLOCK;
-   vcode_block_t exit_bb  = emit_block();
-   vcode_block_t hit_bb   = VCODE_INVALID_BLOCK;
-   vcode_block_t start_bb = vcode_active_block();
-
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t voffset = vtype_offset();
 
@@ -5863,6 +5858,11 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    type_t type = tree_type(value);
    vcode_reg_t val_reg = lower_rvalue(tree_value(stmt));
    vcode_reg_t data_ptr = lower_array_data(val_reg);
+
+   vcode_block_t def_bb   = VCODE_INVALID_BLOCK;
+   vcode_block_t exit_bb  = emit_block();
+   vcode_block_t hit_bb   = VCODE_INVALID_BLOCK;
+   vcode_block_t start_bb = vcode_active_block();
 
    int64_t length = INT64_MAX;
    if (type_is_unconstrained(type)
