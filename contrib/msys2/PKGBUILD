@@ -1,42 +1,69 @@
-pkgname=${MINGW_PACKAGE_PREFIX}-nvc
+_realname=nvc
+pkgbase=mingw-w64-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
 repo_root_dir=$(git rev-parse --show-toplevel)
-commit7=$(git describe --match=X --always)
-read -r l<$repo_root_dir/configure.ac
-[[ $l =~ ([[:digit:]][^\]]*) ]]
-nvcver="${BASH_REMATCH[1]}_${commit7}"
-pkgver=${nvcver//[-]/_}
+_pkgver() {
+  (cd "${repo_root_dir}";\
+  git describe --long | sed 's/^r\(.*\)/\1/; s/\([^-]*-g\)/r\1/;s/-/./g')
+}
+pkgver="$(_pkgver)"
 pkgrel=1
-pkgdesc="VHDL compiler and simulator"
-arch=('x86_64')
-mingw_arch=('mingw64')
-url='https://github.com/nickg/nvc'
+pkgdesc="VHDL compiler and simulator (mingw-w64)"
+arch=('any')
+mingw_arch=('mingw64' 'ucrt64' 'clang64')
+url='https://www.nickg.me.uk/nvc/'
 license=('GPL3')
+groups=("${MINGW_PACKAGE_PREFIX}-eda")
 depends=(
+  "${MINGW_PACKAGE_PREFIX}-llvm" # required by NVC for compiling
+  "${MINGW_PACKAGE_PREFIX}-cc"   # required by NVC for linking
+)
+makedepends=(
   "base-devel"
   "git"
   "autoconf"
   "automake-wrapper"
-  "${MINGW_PACKAGE_PREFIX}-gcc"
-  "${MINGW_PACKAGE_PREFIX}-llvm"
   "${MINGW_PACKAGE_PREFIX}-ncurses"
   "${MINGW_PACKAGE_PREFIX}-libffi"
   "${MINGW_PACKAGE_PREFIX}-check"
   "${MINGW_PACKAGE_PREFIX}-pkg-config"
 )
-makedepends=( "${depends[@]}" )
-provides=("${MINGW_PACKAGE_PREFIX}-nvc")
-build() {
-  makepkg_dir=$(pwd)
-  cd $repo_root_dir
+
+pkgver() {
+  _pkgver
+}
+
+prepare() {
+  mkdir -p "${srcdir}/${_realname}-${pkgver}"
+  cd "${repo_root_dir}"
+
   ./autogen.sh
-  cd $makepkg_dir
-  mkdir $srcdir/build
-  cd $srcdir/build
-  $repo_root_dir/configure --prefix=${MINGW_PREFIX}
+}
+
+build() {
+  cd "${srcdir}/${_realname}-${pkgver}"
+  mkdir -p "${srcdir}/build-${MSYSTEM}" && cd "${srcdir}/build-${MSYSTEM}"
+
+  "${repo_root_dir}"/configure \
+    --prefix="${MINGW_PREFIX}" \
+    --build="${MINGW_CHOST}" \
+    --host="${MINGW_CHOST}" \
+    --target="${MINGW_CHOST}" \
+    --enable-static \
+    --enable-shared \
+    --program-prefix=
+
   make
 }
+
+check() {
+  cd "${srcdir}/build-${MSYSTEM}"
+
+  make check
+}
+
 package() {
-  cd ${srcdir}/build
-  #mkdir -p "${pkgdir}/${MINGW_PREFIX}/lib"
-  make DESTDIR=$pkgdir install
+  cd "${srcdir}/build-${MSYSTEM}"
+
+  make install DESTDIR="${pkgdir}"
 }

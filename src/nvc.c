@@ -56,7 +56,7 @@ const char *copy_string =
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING GIT_SHA_ONLY(" " GIT_SHA)
+   PACKAGE_STRING GIT_SHA_ONLY(" (" GIT_SHA ")")
    LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")") DEBUG_ONLY(" [debug]");
 
 static ident_t top_level = NULL;
