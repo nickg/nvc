@@ -758,8 +758,8 @@ static int install_cmd(int argc, char **argv)
       }
 
       const char *args[] = {
-#ifdef BASH_PATH
-         BASH_PATH,
+#ifdef __MINGW32__
+         "bash",
 #endif
          tb_get(tb),
          NULL

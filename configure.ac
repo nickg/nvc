@@ -96,11 +96,6 @@ case $host_os in
 
     AC_SEARCH_LIBS([ffi_call], [ffi], [],
       [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
-
-    AC_PATH_PROG([MINGW_BASH], ["bash"],
-                 [AC_MSG_WARN([bash not found])])
-    AC_DEFINE_UNQUOTED([BASH_PATH], ["$(cygpath -wm $MINGW_BASH)"],
-                       [Path to Bash on Windows])
     ;;
 
   *)
