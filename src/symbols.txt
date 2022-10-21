@@ -35,6 +35,7 @@
   __nvc_assert_fail;
   __nvc_claim_tlab;
   __nvc_div_zero;
+  __nvc_do_exit;
   __nvc_drive_signal;
   __nvc_elab_order_fail;
   __nvc_exponent_fail;

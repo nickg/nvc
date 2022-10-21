@@ -2,6 +2,7 @@ package simple is
     procedure test_add2;
     procedure test_fact;
     procedure test_sum;
+    procedure test_int_image;
 end package;
 
 package body simple is
@@ -62,6 +63,17 @@ package body simple is
         end loop;
         for i in 1 to 100 loop
             dummy := dummy + sum(arr);
+        end loop;
+    end procedure;
+
+    ---------------------------------------------------------------------------
+
+    procedure test_int_image is
+        variable s : string(1 to 3);
+    begin
+        assert integer'image(4) = "4";
+        for i in 1 to 100 loop
+            assert integer'image(i)'length <= 3;
         end loop;
     end procedure;
 

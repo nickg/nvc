@@ -86,6 +86,8 @@ typedef enum {
    LLVM_MUL_OVERFLOW_U32,
    LLVM_MUL_OVERFLOW_U64,
 
+   LLVM_DO_EXIT,
+
    LLVM_LAST_FN,
 } llvm_fn_t;
 
@@ -326,6 +328,17 @@ static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
       }
       break;
 
+   case LLVM_DO_EXIT:
+      {
+         LLVMTypeRef args[] = { req->types[LLVM_INT32], req->types[LLVM_PTR] };
+         req->fntypes[which] = LLVMFunctionType(req->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = LLVMAddFunction(req->module, "__nvc_do_exit",
+                              req->fntypes[which]);
+      }
+      break;
+
    default:
       fatal_trace("cannot generate prototype for function %d", which);
    }
@@ -394,6 +407,8 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
    case JIT_VALUE_LABEL:
       return (jit_scalar_t){ .integer = value.label };
       */
+   case JIT_VALUE_EXIT:
+      return llvm_int32(req, value.exit);
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
    }
@@ -488,7 +503,7 @@ static void cgen_op_load(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef ptr = cgen_get_value(req, cgb, ir->arg1);
 
-   LLVMValueRef result;
+   LLVMValueRef result = NULL;
    switch (ir->size) {
    case JIT_SZ_8:
       result = LLVMBuildLoad2(req->builder, req->types[LLVM_INT8], ptr, "");
@@ -721,13 +736,26 @@ static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    cgb->outregs[ir->result] = neg;
 }
 
-static void cgen_op_copy(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+static void cgen_macro_copy(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef count = cgb->outregs[ir->result];
    LLVMValueRef dest  = cgen_get_value(req, cgb, ir->arg1);
    LLVMValueRef src   = cgen_get_value(req, cgb, ir->arg2);
 
    LLVMBuildMemMove(req->builder, dest, 0, src, 0, count);
+}
+
+static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef which = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef fn    = cgen_get_fn(req, LLVM_DO_EXIT);
+
+   LLVMValueRef args[] = {
+      which,
+      req->args
+   };
+   LLVMBuildCall2(req->builder, req->fntypes[LLVM_DO_EXIT], fn,
+                  args, ARRAY_LEN(args), "");
 }
 
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -743,6 +771,7 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       cgen_op_store(req, cgb, ir);
       break;
    case J_LOAD:
+   case J_ULOAD:
       cgen_op_load(req, cgb, ir);
       break;
    case J_ADD:
@@ -784,7 +813,10 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       cgen_op_neg(req, cgb, ir);
       break;
    case MACRO_COPY:
-      cgen_op_copy(req, cgb, ir);
+      cgen_macro_copy(req, cgb, ir);
+      break;
+   case MACRO_EXIT:
+      cgen_macro_exit(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -897,6 +929,7 @@ static void cgen_reg_types(cgen_req_t *req)
          break;
 
       case J_LOAD:
+      case J_ULOAD:
       case J_MUL:
       case J_ADD:
       case J_SUB:
@@ -923,6 +956,7 @@ static void cgen_reg_types(cgen_req_t *req)
          break;
 
       case J_LEA:
+      case MACRO_GETPRIV:
          cgen_force_reg_type(req, ir->result, LLVM_PTR);
          break;
 

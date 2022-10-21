@@ -497,7 +497,34 @@ void *x_mspace_alloc(uint32_t size, uint32_t nelems)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Entry points from compiled code
+// Entry point from interpreter or JIT compiled code
+
+DLLEXPORT
+void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
+{
+   switch (which) {
+   case JIT_EXIT_INT_TO_STRING:
+      {
+         int64_t value = args[0].integer;
+
+         mspace_t *m = jit_get_mspace(jit_for_thread());
+         char *buf = mspace_alloc(m, 20);
+         if (buf == NULL)
+            return;
+
+         ffi_uarray_t u = x_int_to_string(value, buf, 20);
+         args[0].pointer = u.ptr;
+         args[1].integer = u.dims[0].left;
+         args[2].integer = u.dims[0].length;
+      }
+      break;
+   default:
+      fatal_trace("unhandled exit %s", jit_exit_name(which));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Entry points from AOT compiled code
 
 // Helper macro for passing debug loci from LLVM
 #define DEBUG_LOCUS(name) \
