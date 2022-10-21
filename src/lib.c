@@ -556,8 +556,13 @@ lib_t lib_find(ident_t name_i)
 lib_t lib_require(ident_t name)
 {
    lib_t lib = lib_find(name);
-   if (lib == NULL)
-      fatal("required library %s not found", istr(name));
+   if (lib == NULL) {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "required library %s not found", istr(name));
+      lib_search_paths_to_diag(d);
+      diag_emit(d);
+      fatal_exit(EXIT_FAILURE);
+   }
 
    return lib;
 }
