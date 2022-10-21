@@ -497,13 +497,6 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
    }
 
    free(s->index);
-
-   if (s->flags & NET_F_IMPLICIT) {
-      rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
-      free(imp);
-   }
-   else
-      free(s);
 }
 
 static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
@@ -2669,9 +2662,11 @@ sig_shared_t *x_init_signal(int count, int size, const uint8_t *values,
          istr(tree_ident(where)), count, size,
          fmt_values(values, size * count), flags, offset);
 
+   rt_model_t *m = get_model();
+
    const size_t datasz = MAX(3 * count * size, 8);
-   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 1, datasz);
-   setup_signal(get_model(), s, where, count, size, flags, offset);
+   rt_signal_t *s = static_alloc(m, sizeof(rt_signal_t) + datasz);
+   setup_signal(m, s, where, count, size, flags, offset);
 
    memcpy(s->shared.data, values, s->shared.size);
 
@@ -3142,7 +3137,7 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
       m->implicitq = workq_new(m);
 
    const size_t datasz = MAX(2 * count * size, 8);
-   rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 1, datasz);
+   rt_implicit_t *imp = static_alloc(m, sizeof(rt_implicit_t) + datasz);
    setup_signal(m, &(imp->signal), where, count, size, NET_F_IMPLICIT, 0);
 
    imp->closure = *closure;

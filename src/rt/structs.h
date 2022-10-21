@@ -177,14 +177,15 @@ typedef struct _rt_nexus {
    rt_value_t    forcing;
    uint32_t      width;
    net_flags_t   flags : 8;
-   uint8_t       size;
-   uint8_t       n_sources;
-   uint8_t       __pad;
+   unsigned      size : 8;
+   unsigned      n_sources : 8;
    rt_source_t   sources;
    rt_signal_t  *signal;
    rt_source_t  *outputs;
    void         *resolved;
 } rt_nexus_t;
+
+STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);
 
 // The code generator knows the layout of this struct
 typedef struct _sig_shared {
@@ -209,6 +210,8 @@ typedef struct _rt_signal {
    rt_nexus_t      nexus;
    sig_shared_t    shared;
 } rt_signal_t;
+
+STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 192);
 
 typedef enum {
    SCOPE_ROOT,
