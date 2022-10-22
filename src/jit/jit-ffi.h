@@ -59,7 +59,7 @@ typedef struct _ffi_closure {
 
 jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr);
 jit_foreign_t *jit_ffi_get(ident_t sym);
-jit_scalar_t jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
+void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
 
 int ffi_count_args(ffi_spec_t spec);
 ffi_uarray_t ffi_wrap_str(char *buf, size_t len);

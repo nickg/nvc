@@ -39,6 +39,7 @@ typedef struct _jit_foreign {
    ffi_cif     cif;
    void       *ptr;
    ident_t     sym;
+   ffi_spec_t  spec;
    int         nargs;
    ffi_type   *args[0];
 } jit_foreign_t;
@@ -75,8 +76,8 @@ static ffi_type *libffi_type_for(ffi_type_t type)
    case FFI_INT32:   return &ffi_type_sint32;
    case FFI_INT64:   return &ffi_type_sint64;
    case FFI_FLOAT:   return &ffi_type_double;
-   case FFI_UARRAY:
    case FFI_POINTER: return &ffi_type_pointer;
+   case FFI_UARRAY:
    case FFI_VOID:
    default:          return &ffi_type_void;
    }
@@ -96,11 +97,16 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
       fatal("sorry, cannot call foreign function %s with more than "
             "15 arguments", istr(sym));
 
-   jit_foreign_t *ff =
-      xcalloc_flex(sizeof(jit_foreign_t), nargs, sizeof(ffi_type *));
+   int adj_nargs = nargs;
+   if ((spec & 0xf) == FFI_UARRAY)
+      adj_nargs++;
+
+   jit_foreign_t *ff = xcalloc_flex(sizeof(jit_foreign_t),
+                                    adj_nargs, sizeof(ffi_type *));
    ff->ptr   = ptr;
    ff->sym   = sym;
    ff->nargs = nargs;
+   ff->spec  = spec;
 
    int wptr = 0;
    for (ffi_spec_t s = spec >> 4; (s & 0xf) != FFI_VOID; s >>= 4) {
@@ -112,37 +118,48 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
       else
          ff->args[wptr++] = libffi_type_for(s & 0xf);
    }
-   assert(wptr == nargs);
+   if ((spec & 0xf) == FFI_UARRAY)
+      ff->args[wptr++] = &ffi_type_pointer;
+   assert(wptr == adj_nargs);
 
    ffi_type *ret = libffi_type_for(spec & 0xf);
 
-   if (ffi_prep_cif(&ff->cif, FFI_DEFAULT_ABI, nargs, ret, ff->args) != FFI_OK)
+   if (ffi_prep_cif(&ff->cif, FFI_DEFAULT_ABI, adj_nargs,
+                    ret, ff->args) != FFI_OK)
       fatal("ffi_prep_cif failed for %s", istr(sym));
 
    hash_put(cache, sym, ff);
    return ff;
 }
 
-jit_scalar_t jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
+void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
 {
-   void *aptrs[ff->nargs];
+   void *aptrs[ff->nargs + 1];
    for (int i = 0; i < ff->nargs; i++)
       aptrs[i] = &(args[i].integer);
+
+   ffi_uarray_t u, *up = &u;
+   if ((ff->spec & 0xf) == FFI_UARRAY)
+      aptrs[ff->nargs] = &up;
 
    if (ff->ptr == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
       tb_istr(tb, ff->sym);
 
-      if ((ff->ptr = ffi_find_symbol(NULL, tb_get(tb))) == NULL) {
+      if ((ff->ptr = ffi_find_symbol(NULL, tb_get(tb))) == NULL)
          jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", tb_get(tb));
-         return (jit_scalar_t){ .integer = 0 };  // TODO: should not reach here
-      }
    }
 
    jit_scalar_t result;
    ffi_call(&ff->cif, ff->ptr, &result, aptrs);
 
-   return result;
+   if ((ff->spec & 0xf) == FFI_UARRAY) {
+      args[0].pointer = u.ptr;
+      args[1].integer = u.dims[0].left;
+      args[2].integer = u.dims[0].length;
+   }
+   else
+      args[0] = result;
 }
 
 int ffi_count_args(ffi_spec_t spec)

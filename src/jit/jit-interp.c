@@ -1216,7 +1216,7 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_foreign_t *ff = interp_get_value(state, ir->arg1).pointer;
-   state->args[0] = jit_ffi_call(ff, state->args);
+   jit_ffi_call(ff, state->args);
 }
 
 static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)

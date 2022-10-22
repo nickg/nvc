@@ -488,12 +488,12 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
          if (ff == NULL)
             ff = jit_ffi_bind(f->name, f->spec, f->symbol);
 
-         *result = jit_ffi_call(ff, args);
+         jit_ffi_call(ff, args);
       }
-      else {
+      else
          failed = !jit_interp(f, args);
-         *result = args[0];
-      }
+
+      *result = args[0];
    }
    else {
       jit_set_exit_status(j, rc - 1);

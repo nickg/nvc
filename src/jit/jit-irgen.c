@@ -1984,8 +1984,12 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       macro_fficall(g, addr);
 
       vcode_reg_t result = vcode_get_result(op);
-      if (result != VCODE_INVALID_REG)
+      if (result != VCODE_INVALID_REG) {
+         const int slots = irgen_slots_for_type(vcode_reg_type(result));
          g->map[result] = j_recv(g, 0);
+         for (int i = 1; i < slots; i++)
+            j_recv(g, i);
+      }
    }
    else {
       vcode_reg_t result = vcode_get_result(op);
