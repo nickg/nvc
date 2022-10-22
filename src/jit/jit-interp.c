@@ -980,21 +980,6 @@ static void interp_string_to_real(jit_interp_t *state)
    state->nargs = 1;
 }
 
-static void interp_int_to_string(jit_interp_t *state)
-{
-   int64_t value = state->args[0].integer;
-
-   char *buf = mspace_alloc(state->mspace, 20);
-   if (buf == NULL)
-      return;
-
-   ffi_uarray_t u = x_int_to_string(value, buf, 20);
-   state->args[0].pointer = u.ptr;
-   state->args[1].integer = u.dims[0].left;
-   state->args[2].integer = u.dims[0].length;
-   state->nargs = 3;
-}
-
 static void interp_real_to_string(jit_interp_t *state)
 {
    double value = state->args[0].real;
@@ -1140,10 +1125,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_assert_fail(state);
       break;
 
-   case JIT_EXIT_INT_TO_STRING:
-      interp_int_to_string(state);
-      break;
-
    case JIT_EXIT_REAL_TO_STRING:
       interp_real_to_string(state);
       break;
@@ -1245,7 +1226,7 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       break;
 
    default:
-      fatal_trace("cannot interpret exit %s", jit_exit_name(ir->arg1.exit));
+      __nvc_do_exit(ir->arg1.exit, state->args);
    }
 }
 

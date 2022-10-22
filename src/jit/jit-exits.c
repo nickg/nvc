@@ -518,6 +518,19 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
          args[2].integer = u.dims[0].length;
       }
       break;
+
+   case JIT_EXIT_DISCONNECT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         int64_t       reject = args[3].integer;
+         int64_t       after  = args[4].integer;
+
+         x_disconnect(shared, offset, count, after, reject);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }

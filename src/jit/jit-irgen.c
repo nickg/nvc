@@ -2709,9 +2709,13 @@ static void irgen_op_resolved(jit_irgen_t *g, int op)
 
    jit_value_t data_ptr = irgen_lea(g, jit_addr_from_value(shared, 8));
 
-   // XXX: scale by type size???
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
 
-   g->map[vcode_get_result(op)] = j_add(g, data_ptr, offset);
+   const int scale = irgen_size_bytes(vtype);
+   jit_value_t scaled = j_mul(g, offset, jit_value_from_int64(scale));
+
+   g->map[result] = j_add(g, data_ptr, scaled);
 }
 
 static void irgen_op_last_value(jit_irgen_t *g, int op)
@@ -2724,9 +2728,13 @@ static void irgen_op_last_value(jit_irgen_t *g, int op)
 
    jit_value_t last_value = j_add(g, data_ptr, size);
 
-   // XXX: scale by type size???
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
 
-   g->map[vcode_get_result(op)] = j_add(g, last_value, offset);
+   const int scale = irgen_size_bytes(vtype);
+   jit_value_t scaled = j_mul(g, offset, jit_value_from_int64(scale));
+
+   g->map[result] = j_add(g, last_value, scaled);
 }
 
 static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
@@ -2749,6 +2757,23 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
    j_send(g, 6, scalar);
 
    macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+}
+
+static void irgen_op_disconnect(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+   jit_value_t reject = irgen_get_arg(g, op, 2);
+   jit_value_t after  = irgen_get_arg(g, op, 3);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, reject);
+   j_send(g, 4, after);
+
+   macro_exit(g, JIT_EXIT_DISCONNECT);
 }
 
 static void irgen_op_sched_event(jit_irgen_t *g, int op)
@@ -3215,6 +3240,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_SCHED_WAVEFORM:
          irgen_op_sched_waveform(g, i);
+         break;
+      case VCODE_OP_DISCONNECT:
+         irgen_op_disconnect(g, i);
          break;
       case VCODE_OP_EVENT:
          irgen_op_event(g, i);
