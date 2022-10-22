@@ -577,6 +577,10 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
                          void *input, size_t insz, void *output, size_t outsz)
 {
    jit_func_t *f = jit_get_func(j, handle);
+
+   if (f->symbol == NULL && f->irbuf == NULL)
+      jit_irgen(f);   // Ensure FFI spec is set
+
    assert(f->spec != 0);
 
    ffi_type_t atype = (f->spec >> 8) & 0xf;

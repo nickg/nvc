@@ -67,7 +67,8 @@ const char *jit_exit_name(jit_exit_t exit)
       "FILE_READ", "FILE_WRITE", "ENDFILE", "STRCONVI", "STRCONVR",
       "CANON_VALUE", "DEBUG_OUT", "ALIAS_SIGNAL", "MAP_SIGNAL",
       "MAP_CONST", "RESOLVE_SIGNAL", "LAST_EVENT", "LAST_ACTIVE",
-      "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE"
+      "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
+      "POP_SCOPE",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

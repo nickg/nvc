@@ -89,7 +89,7 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);
 void x_release(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution);
 void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
-                       int32_t ileft, int32_t nlits);
+                       int32_t ileft, int32_t nlits, int32_t flags);
 void x_elab_order_fail(tree_t where);
 void x_unreachable(tree_t where);
 void *x_mspace_alloc(uint32_t size, uint32_t nelems);

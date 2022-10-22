@@ -620,8 +620,8 @@ static int irgen_slots_for_type(vcode_type_t vtype)
       // Function pointer, context
       return 2;
    case VCODE_TYPE_RESOLUTION:
-      // Closure slots plus left and nlits (this is silly)
-      return 4;
+      // Closure slots plus left, nlits, and flags (this is silly)
+      return 5;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -2420,7 +2420,17 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
    jit_reg_t nlits = irgen_alloc_reg(g);
    j_mov(g, nlits, irgen_get_arg(g, op, 2));
 
-   g->map[vcode_get_result(op)] = jit_value_from_reg(base);
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t type = vtype_base(vcode_reg_type(result));
+
+   uint32_t flagbits = 0;
+   if (vtype_kind(type) == VCODE_TYPE_POINTER)
+      flagbits |= R_COMPOSITE;
+
+   jit_reg_t flags = irgen_alloc_reg(g);
+   j_mov(g, flags, jit_value_from_int64(flagbits));
+
+   g->map[result] = jit_value_from_reg(base);
 }
 
 static void irgen_op_init_signal(jit_irgen_t *g, int op)
@@ -2476,11 +2486,15 @@ static void irgen_op_map_signal(jit_irgen_t *g, int op)
    jit_value_t src_count = irgen_get_arg(g, op, 2);
    jit_value_t dst_count = irgen_get_arg(g, op, 3);
 
-   jit_value_t closure;
-   if (vcode_count_args(op) == 5)
+   jit_value_t closure, context;
+   if (vcode_count_args(op) == 5) {
       closure = irgen_get_arg(g, op, 4);
-   else
-      closure = jit_null_ptr();
+      context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+   }
+   else {
+      closure = jit_value_from_handle(JIT_HANDLE_INVALID);
+      context = jit_null_ptr();
+   }
 
    j_send(g, 0, src_ss);
    j_send(g, 1, src_off);
@@ -2489,6 +2503,7 @@ static void irgen_op_map_signal(jit_irgen_t *g, int op)
    j_send(g, 4, src_count);
    j_send(g, 5, dst_count);
    j_send(g, 6, closure);
+   j_send(g, 7, context);
 
    macro_exit(g, JIT_EXIT_MAP_SIGNAL);
 }
@@ -2517,14 +2532,16 @@ static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
    jit_value_t resfn   = irgen_get_arg(g, op, 1);
    jit_reg_t   base    = jit_value_as_reg(resfn);
    jit_value_t context = jit_value_from_reg(base + 1);
-   jit_value_t ileft   = jit_value_from_reg(base + 3);
-   jit_value_t nlits   = jit_value_from_reg(base + 4);
+   jit_value_t ileft   = jit_value_from_reg(base + 2);
+   jit_value_t nlits   = jit_value_from_reg(base + 3);
+   jit_value_t flags   = jit_value_from_reg(base + 4);
 
    j_send(g, 0, shared);
    j_send(g, 1, resfn);
    j_send(g, 2, context);
    j_send(g, 3, ileft);
    j_send(g, 4, nlits);
+   j_send(g, 5, flags);
 
    macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }
@@ -2702,12 +2719,18 @@ static void irgen_op_endfile(jit_irgen_t *g, int op)
 
 static void irgen_op_push_scope(jit_irgen_t *g, int op)
 {
-   // No-op
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+   j_send(g, 0, locus);
+
+   const int size = irgen_size_bytes(vcode_get_type(op));
+   j_send(g, 1, jit_value_from_int64(size));
+
+   macro_exit(g, JIT_EXIT_PUSH_SCOPE);
 }
 
 static void irgen_op_pop_scope(jit_irgen_t *g, int op)
 {
-   // No-op
+   macro_exit(g, JIT_EXIT_POP_SCOPE);
 }
 
 static void irgen_op_drive_signal(jit_irgen_t *g, int op)

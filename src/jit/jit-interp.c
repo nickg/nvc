@@ -1025,20 +1025,6 @@ static void interp_alias_signal(jit_interp_t *state)
    x_alias_signal(ss, where);
 }
 
-static void interp_map_signal(jit_interp_t *state)
-{
-   sig_shared_t  *src_ss     = state->args[0].pointer;
-   uint32_t       src_offset = state->args[1].integer;
-   sig_shared_t  *dst_ss     = state->args[2].pointer;
-   uint32_t       dst_offset = state->args[3].integer;
-   uint32_t       src_count  = state->args[4].integer;
-   uint32_t       dst_count  = state->args[5].integer;
-   ffi_closure_t *closure    = state->args[6].pointer;
-
-   x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
-                dst_count, closure);
-}
-
 static void interp_map_const(jit_interp_t *state)
 {
    sig_shared_t *dst_ss     = state->args[0].pointer;
@@ -1062,8 +1048,9 @@ static void interp_resolve_signal(jit_interp_t *state)
    void         *context = state->args[2].pointer;
    int32_t       ileft   = state->args[3].integer;
    int32_t       nlits   = state->args[4].integer;
+   int32_t       flags   = state->args[5].integer;
 
-   x_resolve_signal2(shared, handle, context, ileft, nlits);
+   x_resolve_signal2(shared, handle, context, ileft, nlits, flags);
 }
 
 static void interp_last_event(jit_interp_t *state)
@@ -1203,10 +1190,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_ALIAS_SIGNAL:
       interp_alias_signal(state);
-      break;
-
-   case JIT_EXIT_MAP_SIGNAL:
-      interp_map_signal(state);
       break;
 
    case JIT_EXIT_MAP_CONST:

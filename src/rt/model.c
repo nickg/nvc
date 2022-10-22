@@ -3248,7 +3248,7 @@ void x_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
 }
 
 void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
-                       int32_t ileft, int32_t nlits)
+                       int32_t ileft, int32_t nlits, int32_t flags)
 {
    rt_resolution_t resolution = {
       .closure = {
@@ -3257,6 +3257,7 @@ void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
       },
       .ileft = ileft,
       .nlits = nlits,
+      .flags = flags,
    };
 
    x_resolve_signal(ss, &resolution);

@@ -520,6 +520,28 @@ DLLEXPORT
 void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
 {
    switch (which) {
+   case JIT_EXIT_MAP_SIGNAL:
+      {
+         sig_shared_t  *src_ss     = args[0].pointer;
+         uint32_t       src_offset = args[1].integer;
+         sig_shared_t  *dst_ss     = args[2].pointer;
+         uint32_t       dst_offset = args[3].integer;
+         uint32_t       src_count  = args[4].integer;
+         uint32_t       dst_count  = args[5].integer;
+         jit_handle_t   handle     = args[6].integer;
+         void          *context    = args[7].pointer;
+
+         if (handle != JIT_HANDLE_INVALID) {
+            ffi_closure_t closure = { handle, context };
+            x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
+                         dst_count, &closure);
+         }
+         else
+            x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
+                         dst_count, NULL);
+      }
+      break;
+
    case JIT_EXIT_INT_TO_STRING:
       {
          int64_t value = args[0].integer;
@@ -580,6 +602,26 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
       }
       break;
 
+   case JIT_EXIT_PUSH_SCOPE:
+      {
+         if (!jit_has_runtime(jit_for_thread()))
+            return;   // Called during constant folding
+
+         tree_t  where = args[0].pointer;
+         int32_t size  = args[1].integer;
+
+         x_push_scope(where, size);
+      }
+      break;
+
+   case JIT_EXIT_POP_SCOPE:
+      {
+         if (!jit_has_runtime(jit_for_thread()))
+            return;   // Called during constant folding
+
+         x_pop_scope();
+      }
+      break;
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }

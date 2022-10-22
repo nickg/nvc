@@ -136,6 +136,8 @@ typedef enum {
    JIT_EXIT_ELAB_ORDER_FAIL,
    JIT_EXIT_FORCE,
    JIT_EXIT_RELEASE,
+   JIT_EXIT_PUSH_SCOPE,
+   JIT_EXIT_POP_SCOPE,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
