@@ -3261,20 +3261,3 @@ void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
 
    x_resolve_signal(ss, &resolution);
 }
-
-void x_elab_order_fail(tree_t where)
-{
-   assert(tree_kind(where) == T_EXTERNAL_NAME);
-
-   jit_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
-           class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
-}
-
-void x_unreachable(tree_t where)
-{
-   if (where != NULL && tree_kind(where) == T_FUNC_BODY)
-      jit_msg(tree_loc(where), DIAG_FATAL, "function %s did not return a value",
-              istr(tree_ident(where)));
-   else
-      jit_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
-}

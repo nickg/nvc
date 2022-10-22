@@ -2299,6 +2299,26 @@ static void irgen_op_link_package(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = macro_getpriv(g, handle);
 }
 
+static void irgen_op_link_instance(jit_irgen_t *g, int op)
+{
+   ident_t unit_name = vcode_get_ident(op);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
+
+   jit_value_t context = macro_getpriv(g, handle);
+
+   irgen_label_t *cont = irgen_alloc_label(g);
+   j_cmp(g, JIT_CC_NE, context, jit_null_ptr());
+   j_jump(g, JIT_CC_T, cont);
+
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+   j_send(g, 0, locus);
+   macro_exit(g, JIT_EXIT_ELAB_ORDER_FAIL);
+
+   irgen_bind_label(g, cont);
+
+   g->map[vcode_get_result(op)] = context;
+}
+
 static void irgen_op_link_var(jit_irgen_t *g, int op)
 {
    ident_t var_name = vcode_get_ident(op);
@@ -2776,6 +2796,37 @@ static void irgen_op_disconnect(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_DISCONNECT);
 }
 
+static void irgen_op_force(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+   jit_value_t value  = irgen_get_arg(g, op, 2);
+
+   jit_value_t scalar = irgen_is_scalar(g, op, 2);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, value);
+   j_send(g, 4, scalar);
+
+   macro_exit(g, JIT_EXIT_FORCE);
+}
+
+static void irgen_op_release(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+
+   macro_exit(g, JIT_EXIT_RELEASE);
+}
+
 static void irgen_op_sched_event(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -3136,6 +3187,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_LINK_PACKAGE:
          irgen_op_link_package(g, i);
          break;
+      case VCODE_OP_LINK_INSTANCE:
+         irgen_op_link_instance(g, i);
+         break;
       case VCODE_OP_LINK_VAR:
          irgen_op_link_var(g, i);
          break;
@@ -3243,6 +3297,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_DISCONNECT:
          irgen_op_disconnect(g, i);
+         break;
+      case VCODE_OP_FORCE:
+         irgen_op_force(g, i);
+         break;
+      case VCODE_OP_RELEASE:
+         irgen_op_release(g, i);
          break;
       case VCODE_OP_EVENT:
          irgen_op_event(g, i);

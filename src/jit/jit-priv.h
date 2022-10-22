@@ -133,6 +133,9 @@ typedef enum {
    JIT_EXIT_LAST_EVENT,
    JIT_EXIT_LAST_ACTIVE,
    JIT_EXIT_DISCONNECT,
+   JIT_EXIT_ELAB_ORDER_FAIL,
+   JIT_EXIT_FORCE,
+   JIT_EXIT_RELEASE,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

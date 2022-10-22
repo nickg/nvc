@@ -496,6 +496,23 @@ void *x_mspace_alloc(uint32_t size, uint32_t nelems)
       return mspace_alloc(jit_get_mspace(jit_for_thread()), total);
 }
 
+void x_elab_order_fail(tree_t where)
+{
+   assert(tree_kind(where) == T_EXTERNAL_NAME);
+
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
+           class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
+}
+
+void x_unreachable(tree_t where)
+{
+   if (where != NULL && tree_kind(where) == T_FUNC_BODY)
+      jit_msg(tree_loc(where), DIAG_FATAL, "function %s did not return a value",
+              istr(tree_ident(where)));
+   else
+      jit_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 
@@ -528,6 +545,38 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
          int64_t       after  = args[4].integer;
 
          x_disconnect(shared, offset, count, after, reject);
+      }
+      break;
+
+   case JIT_EXIT_ELAB_ORDER_FAIL:
+      {
+         tree_t where = args[0].pointer;
+         x_elab_order_fail(where);
+      }
+      break;
+
+   case JIT_EXIT_FORCE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         bool          scalar = args[4].integer;
+
+         if (scalar)
+            x_force(shared, offset, count, &value.integer);
+         else
+            x_force(shared, offset, count, value.pointer);
+      }
+      break;
+
+   case JIT_EXIT_RELEASE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         x_release(shared, offset, count);
       }
       break;
 
