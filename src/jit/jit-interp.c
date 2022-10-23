@@ -690,7 +690,13 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = state->anchor;
 
-   const size_t bytes = interp_get_value(state, ir->arg1).integer;
+   const uint64_t bytes = interp_get_value(state, ir->arg1).integer;
+
+   if (bytes > UINT32_MAX)
+      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
+              "which is larger than the maximum supported %u bytes",
+              bytes, UINT32_MAX);
+
    state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
 
    if (state->regs[ir->result].pointer == NULL && bytes > 0)

@@ -7185,7 +7185,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
          char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
-   vcode_type_t char_array_type = vtype_carray(nunits, vchar, vchar);
+   vcode_type_t char_array_type = vtype_carray(nchars, vchar, vchar);
    vcode_reg_t char_array_reg =
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);

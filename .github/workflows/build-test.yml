@@ -33,13 +33,26 @@ jobs:
           make -C build bin/jitperf
           ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
       - name: Coverage report
-        run: make -C build cov-generate
+        run: |
+          make -C build cov-generate
+          mv build/coverage/nvc.info orig.info
+      - name: Configure for interpreter only
+        run: |
+          cd build
+          ../configure --enable-gcov --disable-llvm --enable-debug
+      - name: Interpreter only tests
+        run: make -C build clean check
+      - name: Merge coverage report
+        run: |
+          make -C build cov-generate
+          mv build/coverage/nvc.info interp.info
+          lcov -o merged.info -a interp.info -a orig.info
       - name: Coveralls
         continue-on-error: true
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./build/coverage/nvc.info
+          path-to-lcov: ./merged.info
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -51,15 +64,12 @@ jobs:
       - name: Build release
         run: make -C build
       - name: Install release
-        if: github.event_name != 'pull_request'
         run: sudo make -C build install
       - name: Archive
-        if: github.event_name != 'pull_request'
         run: >-
           tar -czf nvc-${{ env.VERSION }}.tar.gz \
             /opt/nvc-${{ env.VERSION }}
       - name: 'Upload artifact'
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
           name: 'Ubuntu binaries'
@@ -145,7 +155,6 @@ jobs:
       - name: Install UVVM
         run: nvc --install uvvm
       - name: 'Upload artifact'
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v3
         with:
           name: 'MSYS2 package'
@@ -153,7 +162,6 @@ jobs:
 
   vests:
     name: VESTs
-    if: github.event_name != 'pull_request'
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
     steps:
@@ -184,7 +192,6 @@ jobs:
 
   projects:
     name: External Projects
-    if: github.event_name != 'pull_request'
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
     timeout-minutes: 15
@@ -243,7 +250,6 @@ jobs:
 
   vunit:
     name: VUnit
-    if: github.event_name != 'pull_request'
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
     steps:

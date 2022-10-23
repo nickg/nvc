@@ -315,6 +315,11 @@ void jit_dump_interleaved(jit_func_t *f)
    jit_interleaved_cb(VCODE_DUMP_OP, -1, &d);
 
    ihash_free(d.labels);
+
+   if (f->cpoolsz > 0) {
+      jit_hexdump(f->cpool, f->cpoolsz, 16, NULL, "\t");
+      printf("\n");
+   }
 }
 
 __attribute__((no_sanitize_address))

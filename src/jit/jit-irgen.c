@@ -98,6 +98,12 @@ static inline jit_value_t jit_value_from_loc(const loc_t *loc)
    return value;
 }
 
+static inline jit_value_t jit_value_from_tree(tree_t t)
+{
+   jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = (intptr_t)t };
+   return value;
+}
+
 static inline jit_value_t jit_null_ptr(void)
 {
    jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
@@ -1591,8 +1597,7 @@ static void irgen_op_debug_locus(jit_irgen_t *g, int op)
    const ptrdiff_t offset = vcode_get_value(op);
 
    tree_t tree = tree_from_locus(unit, offset, lib_get_qualified);
-
-   g->map[vcode_get_result(op)] = jit_value_from_int64((intptr_t)tree);
+   g->map[vcode_get_result(op)] = jit_value_from_tree(tree);
 }
 
 static void irgen_op_wrap(jit_irgen_t *g, int op)
@@ -1961,7 +1966,15 @@ static void irgen_op_select(jit_irgen_t *g, int op)
       j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
    }
 
-   g->map[vcode_get_result(op)] = j_csel(g, iftrue, iffalse);
+   vcode_reg_t result = vcode_get_result(op);
+   g->map[result] = j_csel(g, iftrue, iffalse);
+
+   const int slots = irgen_slots_for_type(vcode_reg_type(result));
+   for (int i = 1; i < slots; i++) {
+      jit_value_t iftrue_i = jit_value_from_reg(jit_value_as_reg(iftrue) + i);
+      jit_value_t iffalse_i = jit_value_from_reg(jit_value_as_reg(iffalse) + i);
+      j_csel(g, iftrue_i, iffalse_i);
+   }
 }
 
 static void irgen_op_jump(jit_irgen_t *g, int op)

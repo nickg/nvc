@@ -65,6 +65,7 @@
 #define F_WORKLIB (1 << 11)
 #define F_SHELL   (1 << 12)
 #define F_2002    (1 << 13)
+#define F_SLOW    (1 << 14)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -329,6 +330,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_VHPI;
          else if (strcmp(opt, "shell") == 0)
             test->flags |= F_SHELL | F_NOTWIN;
+         else if (strcmp(opt, "slow") == 0)
+            test->flags |= F_SLOW;
          else if (strcmp(opt, "!windows") == 0)
             test->flags |= F_NOTWIN;
          else if (strncmp(opt, "O", 1) == 0) {
@@ -606,6 +609,10 @@ static bool run_test(test_t *test)
    int skip = 0;
 #if defined __MINGW32__ || defined __CYGWIN__
    skip |= (test->flags & F_NOTWIN);
+#endif
+#ifndef HAVE_LLVM
+   skip |= (test->flags & F_SLOW);
+   skip |= (test->flags & F_COVER);  // Only supported with LLVM for now
 #endif
 
    if (skip) {

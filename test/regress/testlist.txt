@@ -355,7 +355,7 @@ wait14          normal
 block2          normal
 issue407        normal
 issue412        normal
-issue414        normal
+issue414        normal,slow
 issue415        normal
 predef1         normal,2008
 signal15        normal,2008
@@ -425,7 +425,7 @@ file4           normal
 vests17         normal
 vests18         normal
 vests19         normal
-protected6      normal,2000
+protected6      normal,2000,slow
 vests20         normal
 vests21         normal
 guard1          normal
@@ -658,7 +658,7 @@ libdir3         shell
 elab35          normal
 issue524        shell
 issue527        normal,stop=1us
-ieee10          normal
+ieee10          normal,slow
 driver15        normal,gold
 issue520        normal,2008
 wave7           shell

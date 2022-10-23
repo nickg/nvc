@@ -3344,6 +3344,8 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 
    VCODE_ASSERT(kind == VCODE_TYPE_CARRAY,
                 "constant array must have constrained array type");
+   VCODE_ASSERT(vtype_size(type) == num, "expected %d elements but have %d",
+                vtype_size(type), num);
 
 #ifndef NDEBUG
    vcode_type_t elem = vtype_elem(type);
