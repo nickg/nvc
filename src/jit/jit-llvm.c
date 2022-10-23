@@ -51,6 +51,7 @@ typedef enum {
    LLVM_PAIR_I64_I1,
 
    LLVM_ENTRY_FN,
+   LLVM_ANCHOR,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -108,6 +109,7 @@ typedef struct {
    LLVMValueRef         llvmfn;
    LLVMValueRef         args;
    LLVMValueRef         frame;
+   LLVMValueRef         anchor;
    LLVMTypeRef          types[LLVM_LAST_TYPE];
    LLVMValueRef         fns[LLVM_LAST_FN];
    LLVMTypeRef          fntypes[LLVM_LAST_FN];
@@ -700,7 +702,7 @@ static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       LLVMSetGlobalConstant(global, true);
       LLVMSetLinkage(global, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(global, true);
-      LLVMSetInitializer(global, llvm_ptr(req, jit_interp));
+      LLVMSetInitializer(global, llvm_ptr(req, callee->entry));
    }
 
    LLVMValueRef fnptr =
@@ -708,6 +710,7 @@ static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef args[] = {
       llvm_ptr(req, callee),
+      req->anchor,
       req->args
    };
    LLVMBuildCall2(req->builder, req->types[LLVM_ENTRY_FN], fnptr,
@@ -747,6 +750,12 @@ static void cgen_macro_copy(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
+   const unsigned irpos = ir - req->func->irbuf;
+   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(req->builder,
+                                                req->types[LLVM_ANCHOR],
+                                                req->anchor, 2, "");
+   LLVMBuildStore(req->builder, llvm_int32(req, irpos), irpos_ptr);
+
    LLVMValueRef which = cgen_get_value(req, cgb, ir->arg1);
    LLVMValueRef fn    = cgen_get_fn(req, LLVM_DO_EXIT);
 
@@ -986,6 +995,30 @@ static void cgen_reg_types(cgen_req_t *req)
    cgen_dump_reg_types(req);
 }
 
+static void cgen_frame_anchor(cgen_req_t *req)
+{
+   LLVMTypeRef type = req->types[LLVM_ANCHOR];
+   req->anchor = LLVMBuildAlloca(req->builder, type, "anchor");
+
+   LLVMValueRef func = LLVMGetParam(req->llvmfn, 0);
+   LLVMSetValueName(func, "func");
+
+   LLVMValueRef caller = LLVMGetParam(req->llvmfn, 1);
+   LLVMSetValueName(caller, "caller");
+
+   LLVMValueRef caller_ptr = LLVMBuildStructGEP2(req->builder, type,
+                                                 req->anchor, 0, "");
+   LLVMBuildStore(req->builder, caller, caller_ptr);
+
+   LLVMValueRef func_ptr = LLVMBuildStructGEP2(req->builder, type,
+                                               req->anchor, 1, "");
+   LLVMBuildStore(req->builder, func, func_ptr);
+
+   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(req->builder, type,
+                                                req->anchor, 2, "");
+   LLVMBuildStore(req->builder, llvm_int32(req, 0), irpos_ptr);
+}
+
 static void cgen_module(cgen_req_t *req)
 {
    req->module  = LLVMModuleCreateWithNameInContext(req->name, req->context);
@@ -1007,9 +1040,21 @@ static void cgen_module(cgen_req_t *req)
    req->types[LLVM_INT64]  = LLVMInt64TypeInContext(req->context);
    req->types[LLVM_INTPTR] = LLVMIntPtrTypeInContext(req->context, data_ref);
 
-   LLVMTypeRef atypes[] = { req->types[LLVM_PTR], req->types[LLVM_PTR] };
+   LLVMTypeRef atypes[] = {
+      req->types[LLVM_PTR],    // Function
+      req->types[LLVM_PTR],    // Anchor
+      req->types[LLVM_PTR]     // Arguments
+   };
    req->types[LLVM_ENTRY_FN] = LLVMFunctionType(req->types[LLVM_VOID], atypes,
                                                 ARRAY_LEN(atypes), false);
+
+   LLVMTypeRef fields[] = {
+      req->types[LLVM_PTR],    // Caller
+      req->types[LLVM_PTR],    // Function
+      req->types[LLVM_INT32]   // IR position
+   };
+   req->types[LLVM_ANCHOR] = LLVMStructTypeInContext(req->context, fields,
+                                                     ARRAY_LEN(fields), false);
 
    req->llvmfn = LLVMAddFunction(req->module, req->name,
                                  req->types[LLVM_ENTRY_FN]);
@@ -1017,7 +1062,9 @@ static void cgen_module(cgen_req_t *req)
    LLVMBasicBlockRef entry_bb = cgen_append_block(req, "entry");
    LLVMPositionBuilderAtEnd(req->builder, entry_bb);
 
-   req->args = LLVMGetParam(req->llvmfn, 1);
+   cgen_frame_anchor(req);
+
+   req->args = LLVMGetParam(req->llvmfn, 2);
    LLVMSetValueName(req->args, "args");
 
    if (req->func->framesz > 0) {
