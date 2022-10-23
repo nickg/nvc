@@ -6573,8 +6573,10 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       // Array of non-homogeneous type (e.g. records). Need a loop to
       // initialise each sub-signal.
 
+      type_t elem = lower_elem_recur(type);
+
       if (null_reg == VCODE_INVALID_REG)
-         null_reg = emit_null(vcode_reg_type(init_reg));
+         null_reg = emit_null(vtype_pointer(lower_type(elem)));
 
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
@@ -6587,6 +6589,8 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          shift_constraints(&cons, &ncons, count);
       }
 
+      lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
+
       const int ndims = dimension_of(type);
       vcode_reg_t len_reg = lower_array_len(type, 0, bounds_reg);
       for (int i = 1; i < ndims; i++)
@@ -6594,7 +6598,6 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
       if (lower_have_uarray_ptr(sig_ptr)) {
          // Need to allocate separate memory for the array
-         type_t elem = lower_elem_recur(type);
          vcode_type_t vtype = lower_signal_type(elem);
          vcode_type_t vbounds = lower_bounds(elem);
          vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
@@ -6629,8 +6632,6 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       emit_cond(eq_reg, exit_bb, body_bb);
 
       vcode_select_block(body_bb);
-
-      type_t elem = lower_elem_recur(type);
 
       vcode_reg_t ptr_reg = emit_array_ref(sig_ptr, i_reg);
       vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
