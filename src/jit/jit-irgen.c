@@ -1105,8 +1105,6 @@ static void irgen_send_args(jit_irgen_t *g, int op, int first)
    for (int i = 0, pslot = first; i < nargs; i++) {
       vcode_reg_t vreg = vcode_get_arg(op, i);
       int slots = irgen_slots_for_type(vcode_reg_type(vreg));
-      if (vcode_reg_kind(vreg) == VCODE_TYPE_SIGNAL)
-         slots++;
       if (slots > 1) {
          jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
          for (int j = 0; j < slots; j++)
@@ -3441,8 +3439,6 @@ static void irgen_params(jit_irgen_t *g, int first)
       vcode_reg_t preg = vcode_param_reg(i);
       vcode_type_t vtype = vcode_param_type(i);
       int slots = irgen_slots_for_type(vtype);
-      if (vcode_reg_kind(preg) == VCODE_TYPE_SIGNAL)
-         slots++;
       g->map[preg] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers

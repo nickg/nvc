@@ -622,7 +622,9 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    ffi_type_t atype = (f->spec >> 8) & 0xf;
    ffi_type_t rtype = f->spec & 0xf;
 
-   jit_scalar_t args[2] = { context };
+   jit_scalar_t args[JIT_MAX_ARGS];
+   args[0] = context;
+
    if (ffi_is_integral(atype))
       args[1].integer = ffi_widen_int(atype, input, insz);
    else if (atype == FFI_FLOAT) {
@@ -647,7 +649,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    else if (rtype == FFI_POINTER)
       memcpy(output, result.pointer, outsz);
    else
-      fatal_trace("unhandled FFI result type %x", atype);
+      fatal_trace("unhandled FFI result type %x", rtype);
 
    return true;
 }

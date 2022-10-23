@@ -543,6 +543,68 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
       }
       break;
 
+   case JIT_EXIT_REPORT:
+      {
+         uint8_t *msg      = args[0].pointer;
+         int32_t  len      = args[1].integer;
+         int32_t  severity = args[2].integer;
+         tree_t   where    = args[3].pointer;
+
+         x_report(msg, len, severity, where);
+      }
+      break;
+
+   case JIT_EXIT_INIT_SIGNAL:
+      {
+         int32_t      count  = args[0].integer;
+         int32_t      size   = args[1].integer;
+         jit_scalar_t value  = { .integer = args[2].integer };
+         int32_t      flags  = args[3].integer;
+         tree_t       where  = args[4].pointer;
+         int32_t      offset = args[5].integer;
+         bool         scalar = args[6].integer;
+
+         sig_shared_t *ss;
+         if (!jit_has_runtime(thread->jit))
+            ss = NULL;   // Called during constant folding
+         else {
+            const uint8_t *ptr = scalar ? &value.integer : value.pointer;
+            ss = x_init_signal(count, size, ptr, flags, where, offset);
+         }
+
+         args[0].pointer = ss;
+      }
+      break;
+
+   case JIT_EXIT_RESOLVE_SIGNAL:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t *shared  = args[0].pointer;
+         jit_handle_t  handle  = args[1].integer;
+         void         *context = args[2].pointer;
+         int32_t       ileft   = args[3].integer;
+         int32_t       nlits   = args[4].integer;
+         int32_t       flags   = args[5].integer;
+
+         x_resolve_signal2(shared, handle, context, ileft, nlits, flags);
+      }
+      break;
+
+   case JIT_EXIT_DRIVE_SIGNAL:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t *ss     = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         x_drive_signal(ss, offset, count);
+      }
+      break;
+
    case JIT_EXIT_MAP_SIGNAL:
       {
          sig_shared_t  *src_ss     = args[0].pointer;
@@ -565,6 +627,60 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
       }
       break;
 
+   case JIT_EXIT_MAP_CONST:
+      {
+         sig_shared_t *dst_ss     = args[0].pointer;
+         uint32_t      dst_offset = args[1].integer;
+         jit_scalar_t  initval    = { .integer = args[2].integer };
+         uint32_t      dst_count  = args[3].integer;
+         bool          scalar     = args[4].integer;
+
+         const void *vptr = scalar ? &initval.integer : initval.pointer;
+
+         x_map_const(dst_ss, dst_offset, vptr, dst_count);
+      }
+      break;
+
+   case JIT_EXIT_SCHED_PROCESS:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // TODO: this should not be necessary
+
+         int64_t after = args[0].integer;
+         x_sched_process(after);
+      }
+      break;
+
+   case JIT_EXIT_SCHED_WAVEFORM:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         int64_t       after  = args[4].integer;
+         int64_t       reject = args[5].integer;
+         bool          scalar = args[6].integer;
+
+         if (scalar)
+            x_sched_waveform_s(shared, offset, value.integer, after, reject);
+         else
+            x_sched_waveform(shared, offset, value.pointer, count,
+                             after, reject);
+      }
+      break;
+
+   case JIT_EXIT_SCHED_EVENT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         int8_t        recur  = args[3].integer;
+         sig_shared_t *wake   = args[4].pointer;
+
+         x_sched_event(shared, offset, count, recur, wake);
+      }
+      break;
+
    case JIT_EXIT_INT_TO_STRING:
       {
          int64_t value = args[0].integer;
@@ -575,6 +691,31 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
             return;
 
          ffi_uarray_t u = x_int_to_string(value, buf, 20);
+         args[0].pointer = u.ptr;
+         args[1].integer = u.dims[0].left;
+         args[2].integer = u.dims[0].length;
+      }
+      break;
+
+   case JIT_EXIT_ALIAS_SIGNAL:
+      {
+         sig_shared_t *ss    = args[0].pointer;
+         tree_t        where = args[1].pointer;
+
+         x_alias_signal(ss, where);
+      }
+      break;
+
+   case JIT_EXIT_REAL_TO_STRING:
+      {
+         double value = args[0].real;
+
+         mspace_t *m = jit_get_mspace(jit_thread_local()->jit);
+         char *buf = mspace_alloc(m, 32);
+         if (buf == NULL)
+            return;
+
+         ffi_uarray_t u = x_real_to_string(value, buf, 32);
          args[0].pointer = u.ptr;
          args[1].integer = u.dims[0].left;
          args[2].integer = u.dims[0].length;
@@ -597,6 +738,49 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
       {
          tree_t where = args[0].pointer;
          x_elab_order_fail(where);
+      }
+      break;
+
+   case JIT_EXIT_UNREACHABLE:
+      {
+         tree_t where = args[0].pointer;
+         x_unreachable(where);
+      }
+      break;
+
+   case JIT_EXIT_OVERFLOW:
+      {
+         int32_t lhs   = args[0].integer;
+         int32_t rhs   = args[1].integer;
+         tree_t  where = args[2].pointer;
+
+         x_overflow(lhs, rhs, where);
+      }
+      break;
+
+   case JIT_EXIT_INDEX_FAIL:
+      {
+         int32_t      value = args[0].integer;
+         int32_t      left  = args[1].integer;
+         int32_t      right = args[2].integer;
+         range_kind_t dir   = args[3].integer;
+         tree_t       where = args[4].pointer;
+         tree_t       hint  = args[5].pointer;
+
+         x_index_fail(value, left, right, dir, where, hint);
+      }
+      break;
+
+   case JIT_EXIT_RANGE_FAIL:
+      {
+         int64_t      value = args[0].integer;
+         int64_t      left  = args[1].integer;
+         int64_t      right = args[2].integer;
+         range_kind_t dir   = args[3].integer;
+         tree_t       where = args[4].pointer;
+         tree_t       hint  = args[5].pointer;
+
+         x_range_fail(value, left, right, dir, where, hint);
       }
       break;
 
@@ -690,8 +874,130 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
    case JIT_EXIT_DIV_ZERO:
       {
          tree_t where = args[0].pointer;
-
          x_div_zero(where);
+      }
+      break;
+
+   case JIT_EXIT_LENGTH_FAIL:
+      {
+         int32_t left  = args[0].integer;
+         int32_t right = args[1].integer;
+         int32_t dim   = args[2].integer;
+         tree_t  where = args[3].pointer;
+
+         x_length_fail(left, right, dim, where);
+      }
+      break;
+
+   case JIT_EXIT_NULL_DEREF:
+      {
+         tree_t where = args[0].pointer;
+         x_null_deref(where);
+      }
+      break;
+
+   case JIT_EXIT_EXPONENT_FAIL:
+      {
+         int32_t value = args[0].integer;
+         tree_t  where = args[1].pointer;
+
+         x_exponent_fail(value, where);
+      }
+      break;
+
+   case JIT_EXIT_FILE_OPEN:
+      {
+         int8_t   *status     = args[0].pointer;
+         void    **_fp        = args[1].pointer;
+         uint8_t  *name_bytes = args[2].pointer;
+         int32_t   name_len   = args[3].integer;
+         int32_t   mode       = args[4].integer;
+         tree_t    where      = args[5].pointer;
+
+         x_file_open(status, _fp, name_bytes, name_len, mode, where);
+      }
+      break;
+
+   case JIT_EXIT_FILE_CLOSE:
+      {
+         void **_fp = args[0].pointer;
+         x_file_close(_fp);
+      }
+      break;
+
+   case JIT_EXIT_FILE_READ:
+      {
+         void    **_fp   = args[0].pointer;
+         uint8_t  *data  = args[1].pointer;
+         int32_t   size  = args[2].integer;
+         int32_t   count = args[3].integer;
+         int32_t  *out   = args[4].pointer;
+
+         x_file_read(_fp, data, size, count, out);
+      }
+      break;
+
+   case JIT_EXIT_FILE_WRITE:
+      {
+         void    **_fp  = args[0].pointer;
+         uint8_t  *data = args[1].pointer;
+         int32_t   len  = args[2].integer;
+
+         x_file_write(_fp, data, len);
+      }
+      break;
+
+   case JIT_EXIT_ENDFILE:
+      {
+         void *_fp = args[0].pointer;
+         args[0].integer = x_endfile(_fp);
+      }
+      break;
+
+   case JIT_EXIT_DEBUG_OUT:
+      {
+         int64_t value = args[0].integer;
+         debugf("DEBUG %"PRIi64, value);
+      }
+      break;
+
+   case JIT_EXIT_LAST_EVENT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         uint32_t      offset = args[1].integer;
+         uint32_t      count  = args[2].integer;
+
+         args[0].integer = x_last_event(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_LAST_ACTIVE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         uint32_t      offset = args[1].integer;
+         uint32_t      count  = args[2].integer;
+
+         args[0].integer = x_last_active(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_TEST_EVENT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         args[0].integer = x_test_net_event(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_TEST_ACTIVE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         args[0].integer = x_test_net_active(shared, offset, count);
       }
       break;
 
