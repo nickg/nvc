@@ -39,6 +39,7 @@
 
 #define WHITESPACE " \t\r\n"
 #define TIMEOUT    10
+#define OUTFILE    ".test.out"
 
 #define ANSI_RESET      0
 #define ANSI_BOLD       1
@@ -538,13 +539,14 @@ static bool remove_dir(const char *path)
    char buf[PATH_MAX];
    struct dirent *e;
    while ((e = readdir(d))) {
-      if (e->d_name[0] != '.') {
-         snprintf(buf, sizeof(buf), "%s" DIR_SEP "%s", path, e->d_name);
-         if (e->d_type == DT_DIR && !remove_dir(buf))
-            goto out_close;
-         else if (e->d_type == DT_REG && unlink(buf) < 0)
-            goto out_close;
-      }
+      if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
+         continue;
+
+      snprintf(buf, sizeof(buf), "%s" DIR_SEP "%s", path, e->d_name);
+      if (e->d_type == DT_DIR && !remove_dir(buf))
+         goto out_close;
+      else if (e->d_type == DT_REG && unlink(buf) < 0)
+         goto out_close;
    }
 
    if (rmdir(path) < 0)
@@ -639,7 +641,7 @@ static bool run_test(test_t *test)
       return false;
    }
 
-   FILE *outf = fopen("out", "w");
+   FILE *outf = fopen(OUTFILE, "w");
    if (outf == NULL) {
       set_attr(ANSI_FG_RED);
       printf("failed (error creating %s/out log file: %s)\n",
@@ -737,7 +739,7 @@ static bool run_test(test_t *test)
          goto out_close;
       }
 
-      outf = freopen("out", "r", outf);
+      outf = freopen(OUTFILE, "r", outf);
       assert(outf != NULL);
 
       int lineno = 0;
@@ -790,7 +792,7 @@ static bool run_test(test_t *test)
       set_attr(ANSI_RESET);
 
       char line[256];
-      outf = freopen("out", "r", outf);
+      outf = freopen(OUTFILE, "r", outf);
       assert(outf != NULL);
       while (fgets(line, sizeof(line), outf))
          fputs(line, stdout);
