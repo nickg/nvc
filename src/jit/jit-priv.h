@@ -141,6 +141,9 @@ typedef enum {
    JIT_EXIT_RELEASE,
    JIT_EXIT_PUSH_SCOPE,
    JIT_EXIT_POP_SCOPE,
+   JIT_EXIT_IMPLICIT_SIGNAL,
+   JIT_EXIT_DRIVING,
+   JIT_EXIT_DRIVING_VALUE,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

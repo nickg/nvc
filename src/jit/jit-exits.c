@@ -576,6 +576,27 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
       }
       break;
 
+   case JIT_EXIT_IMPLICIT_SIGNAL:
+      {
+         int32_t       count   = args[0].integer;
+         int32_t       size    = args[1].integer;
+         tree_t        where   = args[2].pointer;
+         int32_t       kind    = args[3].integer;
+         jit_handle_t  handle  = args[4].integer;
+         void         *context = args[5].pointer;
+
+         sig_shared_t *ss;
+         if (!jit_has_runtime(thread->jit))
+            ss = NULL;   // Called during constant folding
+         else {
+            ffi_closure_t closure = { handle, context };
+            ss = x_implicit_signal(count, size, where, kind, &closure);
+         }
+
+         args[0].pointer = ss;
+      }
+      break;
+
    case JIT_EXIT_RESOLVE_SIGNAL:
       {
          if (!jit_has_runtime(thread->jit))
@@ -998,6 +1019,26 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
          int32_t       count  = args[2].integer;
 
          args[0].integer = x_test_net_active(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_DRIVING:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         args[0].integer = x_driving(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_DRIVING_VALUE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         args[0].pointer = x_driving_value(shared, offset, count);
       }
       break;
 

@@ -25,6 +25,8 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+LCOV_EXCL_START
+
 typedef struct {
    ihash_t    *labels;
    int         next_label;
@@ -68,7 +70,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "CANON_VALUE", "DEBUG_OUT", "ALIAS_SIGNAL", "MAP_SIGNAL",
       "MAP_CONST", "RESOLVE_SIGNAL", "LAST_EVENT", "LAST_ACTIVE",
       "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
-      "POP_SCOPE",
+      "POP_SCOPE", "IMPLICIT_SIGNAL", "DRIVING", "DRIVING_VALUE",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
@@ -368,3 +370,5 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
       printf("|\n");
    }
 }
+
+LCOV_EXCL_STOP

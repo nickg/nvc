@@ -2468,6 +2468,31 @@ static void irgen_op_init_signal(jit_irgen_t *g, int op)
    j_mov(g, next, jit_value_from_int64(0));
 }
 
+static void irgen_op_implicit_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t count   = irgen_get_arg(g, op, 0);
+   jit_value_t size    = irgen_get_arg(g, op, 1);
+   jit_value_t locus   = irgen_get_arg(g, op, 2);
+   jit_value_t kind    = irgen_get_arg(g, op, 3);
+   jit_value_t closure = irgen_get_arg(g, op, 4);
+   jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+
+   j_send(g, 0, count);
+   j_send(g, 1, size);
+   j_send(g, 2, locus);
+   j_send(g, 3, kind);
+   j_send(g, 4, closure);
+   j_send(g, 5, context);
+
+   macro_exit(g, JIT_EXIT_IMPLICIT_SIGNAL);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+
+   // Offset into signal must be next sequential register
+   jit_reg_t next = irgen_alloc_reg(g);
+   j_mov(g, next, jit_value_from_int64(0));
+}
+
 static void irgen_op_alias_signal(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -2872,13 +2897,15 @@ static void irgen_op_sched_static(jit_irgen_t *g, int op)
    jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
    jit_value_t count  = irgen_get_arg(g, op, 1);
 
-   assert(vcode_count_args(op) == 2);  // TODO: guarded signals
+   jit_value_t wake = jit_null_ptr();
+   if (vcode_count_args(op) > 2)
+      wake = irgen_get_arg(g, op, 2);
 
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
    j_send(g, 3, jit_value_from_int64(true));
-   j_send(g, 4, jit_null_ptr());
+   j_send(g, 4, wake);
    macro_exit(g, JIT_EXIT_SCHED_EVENT);
 }
 
@@ -3017,6 +3044,41 @@ static void irgen_op_last_active(jit_irgen_t *g, int op)
    j_send(g, 1, offset);
    j_send(g, 2, count);
    macro_exit(g, JIT_EXIT_LAST_ACTIVE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_driving(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+
+   macro_exit(g, JIT_EXIT_DRIVING);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_driving_value(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+   jit_value_t count;
+   if (vcode_count_args(op) > 1)
+      count = irgen_get_arg(g, op, 1);
+   else
+      count = jit_value_from_int64(1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+
+   macro_exit(g, JIT_EXIT_DRIVING_VALUE);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
@@ -3254,6 +3316,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_INIT_SIGNAL:
          irgen_op_init_signal(g, i);
          break;
+      case VCODE_OP_IMPLICIT_SIGNAL:
+         irgen_op_implicit_signal(g, i);
+         break;
       case VCODE_OP_ALIAS_SIGNAL:
          irgen_op_alias_signal(g, i);
          break;
@@ -3358,6 +3423,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_LAST_ACTIVE:
          irgen_op_last_active(g, i);
+         break;
+      case VCODE_OP_DRIVING:
+         irgen_op_driving(g, i);
+         break;
+      case VCODE_OP_DRIVING_VALUE:
+         irgen_op_driving_value(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
