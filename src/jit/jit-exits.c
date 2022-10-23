@@ -493,7 +493,7 @@ void *x_mspace_alloc(uint32_t size, uint32_t nelems)
       __builtin_unreachable();
    }
    else
-      return mspace_alloc(jit_get_mspace(jit_for_thread()), total);
+      return mspace_alloc(jit_get_mspace(jit_thread_local()->jit), total);
 }
 
 void x_elab_order_fail(tree_t where)
@@ -513,13 +513,36 @@ void x_unreachable(tree_t where)
       jit_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
 }
 
+void x_func_wait(void)
+{
+   jit_msg(NULL, DIAG_FATAL, "cannot wait inside function call");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 
 DLLEXPORT
-void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
+void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
 {
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = anchor;
+
    switch (which) {
+   case JIT_EXIT_ASSERT_FAIL:
+      {
+         uint8_t *msg        = args[0].pointer;
+         int32_t  len        = args[1].integer;
+         int32_t  severity   = args[2].integer;
+         int64_t  hint_left  = args[3].integer;
+         int64_t  hint_right = args[4].integer;
+         int8_t   hint_valid = args[5].integer;
+         tree_t   where      = args[6].pointer;
+
+         x_assert_fail(msg, len, severity, hint_left, hint_right,
+                       hint_valid, where);
+      }
+      break;
+
    case JIT_EXIT_MAP_SIGNAL:
       {
          sig_shared_t  *src_ss     = args[0].pointer;
@@ -546,7 +569,7 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
       {
          int64_t value = args[0].integer;
 
-         mspace_t *m = jit_get_mspace(jit_for_thread());
+         mspace_t *m = jit_get_mspace(jit_thread_local()->jit);
          char *buf = mspace_alloc(m, 20);
          if (buf == NULL)
             return;
@@ -604,7 +627,7 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
 
    case JIT_EXIT_PUSH_SCOPE:
       {
-         if (!jit_has_runtime(jit_for_thread()))
+         if (!jit_has_runtime(jit_thread_local()->jit))
             return;   // Called during constant folding
 
          tree_t  where = args[0].pointer;
@@ -616,15 +639,67 @@ void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args)
 
    case JIT_EXIT_POP_SCOPE:
       {
-         if (!jit_has_runtime(jit_for_thread()))
+         if (!jit_has_runtime(jit_thread_local()->jit))
             return;   // Called during constant folding
 
          x_pop_scope();
       }
       break;
+
+   case JIT_EXIT_FUNC_WAIT:
+      {
+         x_func_wait();
+      }
+      break;
+
+   case JIT_EXIT_CANON_VALUE:
+      {
+         uint8_t *ptr = args[0].pointer;
+         int32_t  len = args[1].integer;
+
+         char *buf = mspace_alloc(jit_get_mspace(jit_thread_local()->jit), len);
+         if (buf == NULL)
+            return;
+
+         ffi_uarray_t u = x_canon_value(ptr, len, buf);
+         args[0].pointer = u.ptr;
+         args[1].integer = u.dims[0].left;
+         args[2].integer = u.dims[0].length;
+      }
+      break;
+
+   case JIT_EXIT_STRING_TO_INT:
+      {
+         uint8_t *ptr  = args[0].pointer;
+         int32_t  len  = args[1].integer;
+         int32_t *used = args[2].pointer;
+
+         args[0].integer = x_string_to_int(ptr, len, used);
+      }
+      break;
+
+   case JIT_EXIT_STRING_TO_REAL:
+      {
+         uint8_t *ptr = args[0].pointer;
+         int32_t  len = args[1].integer;
+
+         args[0].real = x_string_to_real(ptr, len);
+      }
+      break;
+
+   case JIT_EXIT_DIV_ZERO:
+      {
+         tree_t where = args[0].pointer;
+
+         x_div_zero(where);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }
+
+   thread->anchor = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -995,7 +1070,7 @@ void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
 DLLEXPORT
 jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
 {
-   jit_t *j = jit_for_thread();
+   jit_t *j = jit_thread_local()->jit;
 
    jit_handle_t handle = jit_lazy_compile(j, ident_new(func));
    if (handle == JIT_HANDLE_INVALID)

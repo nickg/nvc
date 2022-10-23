@@ -22,6 +22,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
+#include "jit/jit.h"
 #include "jit/jit-priv.h"
 #include "opt.h"
 #include "rt/model.h"
@@ -34,8 +35,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <setjmp.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -73,19 +72,6 @@ typedef struct _jit {
    jit_dll_t      *aotlib;
 } jit_t;
 
-typedef enum {
-   JIT_IDLE,
-   JIT_NATIVE,
-   JIT_INTERP
-} jit_state_t;
-
-typedef struct {
-   jit_t                 *jit;
-   jit_state_t            state;
-   jmp_buf                abort_env;
-   volatile sig_atomic_t  jmp_buf_valid;
-} jit_thread_local_t;
-
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
@@ -100,7 +86,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
    jit_abort(EXIT_FAILURE);
 }
 
-static jit_thread_local_t *jit_thread_local(void)
+jit_thread_local_t *jit_thread_local(void)
 {
    static __thread jit_thread_local_t *local = NULL;
 
@@ -236,6 +222,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
 
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
 {
+   assert(handle != JIT_HANDLE_INVALID);
    return AGET(j->funcs, handle);
 }
 
@@ -273,20 +260,20 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    const loc_t *loc = vcode_unit_loc();
 
-   jit_scalar_t args[JIT_MAX_ARGS] = { { .pointer = NULL } };
-   if (!jit_interp(f, args)) {
+   jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
+   if (!jit_fastcall(j, f->handle, &result, p1, p2)) {
       error_at(loc, "failed to initialise %s", istr(f->name));
-      args[0].pointer = NULL;
+      result.pointer = NULL;
    }
-   else if (args[0].pointer == NULL)
+   else if (result.pointer == NULL)
       fatal_trace("link %s returned NULL", istr(f->name));
 
    vcode_state_restore(&state);
 
    // Initialisation should save the context pointer
-   assert(args[0].pointer == mptr_get(j->mspace, f->privdata));
+   assert(result.pointer == mptr_get(j->mspace, f->privdata));
 
-   return args[0].pointer;
+   return result.pointer;
 }
 
 void *jit_get_privdata(jit_t *j, jit_func_t *f)
@@ -311,6 +298,41 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
 
    assert(var < f->nvars);
    return (char *)mptr_get(j->mspace, f->privdata) + f->varoff[var];
+}
+
+static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+                           const char *symbol)
+{
+   switch (tree_kind(enclosing)) {
+   case T_PROCESS:
+      {
+         rt_proc_t *proc = get_active_proc();
+         const char *name = istr(proc ? proc->name : tree_ident(enclosing));
+         diag_trace(d, loc, "Process$$ %s", name);
+      }
+      break;
+   case T_FUNC_BODY:
+   case T_FUNC_DECL:
+      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
+      break;
+   case T_PROC_BODY:
+   case T_PROC_DECL:
+      diag_trace(d, loc, "Procedure$$ %s", type_pp(tree_type(enclosing)));
+      break;
+   case T_TYPE_DECL:
+      if (strstr(symbol, "$value"))
+         diag_trace(d, loc, "Attribute$$ %s'VALUE",
+                    istr(tree_ident(enclosing)));
+      else
+         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
+      break;
+   case T_BLOCK:
+      diag_trace(d, loc, "Process$$ (init)");
+      break;
+   default:
+      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
+      break;
+   }
 }
 
 static void jit_native_trace(diag_t *d)
@@ -358,6 +380,42 @@ static void jit_native_trace(diag_t *d)
    }
 
    debug_free(di);
+}
+
+static void jit_interp_trace(diag_t *d)
+{
+   for (jit_anchor_t *a = jit_thread_local()->anchor; a; a = a->caller) {
+      vcode_state_t state;
+      vcode_state_save(&state);
+
+      vcode_select_unit(a->func->unit);
+      while (vcode_unit_context() != NULL)
+         vcode_select_unit(vcode_unit_context());
+
+      ident_t unit_name = vcode_unit_name();
+      if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
+         unit_name = ident_prefix(unit_name, well_known(W_ELAB), '.');
+
+      vcode_state_restore(&state);
+
+      const char *symbol = istr(a->func->name);
+      tree_t enclosing = find_enclosing_decl(unit_name, symbol);
+      if (enclosing == NULL)
+         return;
+
+      // Scan backwards to find the last debug info
+      assert(a->irpos < a->func->nirs);
+      const loc_t *loc = NULL;
+      for (jit_ir_t *ir = &(a->func->irbuf[a->irpos]);
+           ir >= a->func->irbuf && !ir->target; ir--) {
+         if (ir->op == J_DEBUG) {
+            loc = &ir->arg1.loc;
+            break;
+         }
+      }
+
+      jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
+   }
 }
 
 static void jit_diag_cb(diag_t *d, void *arg)
@@ -409,64 +467,41 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
    }
 }
 
-bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
-{
-   vcode_select_unit(unit);
-   assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
-
-   jit_func_t *f = xcalloc(sizeof(jit_func_t));
-   f->unit   = unit;
-   f->jit    = j;
-   f->handle = JIT_HANDLE_INVALID;
-   f->entry  = jit_interp;
-
-   jit_irgen(f);
-
-   jit_transition(j, JIT_IDLE, JIT_INTERP);
-
-   jit_scalar_t args[JIT_MAX_ARGS];
-   bool ok = jit_interp(f, args);
-
-   jit_transition(j, JIT_INTERP, JIT_IDLE);
-
-   jit_free_func(f);
-
-   *result = args[0];
-   return ok;
-}
-
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2)
 {
    jit_func_t *f = jit_get_func(j, handle);
    jit_thread_local_t *thread = jit_thread_local();
 
-   if (f->symbol) {
-      assert(!thread->jmp_buf_valid);
-      const int rc = setjmp(thread->abort_env);
-      if (rc == 0) {
-         thread->jmp_buf_valid = 1;
+   assert(!thread->jmp_buf_valid);
+   const int rc = setjmp(thread->abort_env);
+   if (rc == 0) {
+      thread->jmp_buf_valid = 1;
+
+      if (f->symbol) {
          jit_transition(j, JIT_IDLE, JIT_NATIVE);
          void *(*fn)(void *, void *) = f->symbol;
          result->pointer = (*fn)(p1.pointer, p2.pointer);
          jit_transition(j, JIT_NATIVE, JIT_IDLE);
-         thread->jmp_buf_valid = 0;
-         return true;
       }
       else {
-         jit_transition(j, JIT_NATIVE, JIT_IDLE);
-         thread->jmp_buf_valid = 0;
-         jit_set_exit_status(j, rc - 1);
-         return false;
+         jit_transition(j, JIT_IDLE, JIT_INTERP);
+         jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
+         jit_interp(f, NULL, args);
+         *result = args[0];
+         jit_transition(j, JIT_INTERP, JIT_IDLE);
       }
+
+      thread->jmp_buf_valid = 0;
+      thread->anchor = NULL;
+      return true;
    }
    else {
-      jit_transition(j, JIT_IDLE, JIT_INTERP);
-      jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
-      bool ok = jit_interp(f, args);
-      *result = args[0];
-      jit_transition(j, JIT_INTERP, JIT_IDLE);
-      return ok;
+      jit_transition(j, f->symbol ? JIT_NATIVE : JIT_INTERP, JIT_IDLE);
+      thread->jmp_buf_valid = 0;
+      thread->anchor = NULL;
+      jit_set_exit_status(j, rc - 1);
+      return false;
    }
 }
 
@@ -491,7 +526,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
          jit_ffi_call(ff, args);
       }
       else
-         failed = !jit_interp(f, args);
+         jit_interp(f, NULL, args);
 
       *result = args[0];
    }
@@ -502,6 +537,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
    jit_transition(j, newstate, oldstate);
    thread->jmp_buf_valid = 0;
+   thread->anchor = NULL;
 
    return !failed;
 }
@@ -614,6 +650,26 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
       fatal_trace("unhandled FFI result type %x", atype);
 
    return true;
+}
+
+bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
+{
+   vcode_select_unit(unit);
+   assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
+
+   jit_func_t *f = xcalloc(sizeof(jit_func_t));
+   f->unit   = unit;
+   f->jit    = j;
+   f->handle = JIT_HANDLE_INVALID;
+   f->entry  = jit_interp;
+
+   jit_irgen(f);
+
+   jit_scalar_t args[JIT_MAX_ARGS];
+   bool ok = jit_try_vcall(j, f, result, args);
+
+   jit_free_func(f);
+   return ok;
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
@@ -796,42 +852,6 @@ void jit_load_dll(jit_t *j, ident_t name)
             so_path, abi_version, RT_ABI_VERSION);
 }
 
-void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
-                    const char *symbol)
-{
-   switch (tree_kind(enclosing)) {
-   case T_PROCESS:
-      {
-         rt_proc_t *proc = get_active_proc();
-         const char *name = istr(proc ? proc->name : tree_ident(enclosing));
-         diag_trace(d, loc, "Process$$ %s", name);
-      }
-      break;
-   case T_FUNC_BODY:
-   case T_FUNC_DECL:
-      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_PROC_BODY:
-   case T_PROC_DECL:
-      diag_trace(d, loc, "Procedure$$ %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_TYPE_DECL:
-      if (strstr(symbol, "$value"))
-         diag_trace(d, loc, "Attribute$$ %s'VALUE",
-                    istr(tree_ident(enclosing)));
-      else
-         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
-      break;
-   case T_BLOCK:
-      diag_trace(d, loc, "Process$$ (init)");
-      break;
-   default:
-      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
-      break;
-   }
-}
-
-__attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
 {
    diag_t *d = diag_new(level, where);
@@ -856,16 +876,16 @@ void jit_abort(int code)
       fatal_exit(code);
       break;
    case JIT_NATIVE:
+   case JIT_INTERP:
       assert(code >= 0);
       if (thread->jmp_buf_valid)
          longjmp(thread->abort_env, code + 1);
       else
          fatal_exit(code);
       break;
-   case JIT_INTERP:
-      jit_interp_abort(code);
-      break;
    }
+
+   __builtin_unreachable();
 }
 
 void jit_set_exit_status(jit_t *j, int code)
@@ -904,13 +924,6 @@ void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin)
    t->context   = (*plugin->init)();
 
    j->tiers = t;
-}
-
-jit_t *jit_for_thread(void)
-{
-   jit_thread_local_t *thread = jit_thread_local();
-   assert(thread->jit != NULL);
-   return thread->jit;
 }
 
 ident_t jit_get_name(jit_t *j, jit_handle_t handle)

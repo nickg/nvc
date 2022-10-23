@@ -3,7 +3,10 @@ end entity;
 
 architecture test of array1 is
 
-    function func return bit_vector;
+    impure function func return bit_vector is
+    begin
+        return "101";
+    end function;
 
 begin
 

@@ -45,7 +45,7 @@ typedef struct _jit_interp {
    bool           abort;
    mspace_t      *mspace;
    unsigned       backedge;
-   jit_interp_t  *caller;
+   jit_anchor_t  *anchor;
 } jit_interp_t;
 
 #ifdef DEBUG
@@ -71,8 +71,6 @@ typedef struct _jit_interp {
    } while (0)
 
 #define BOUNDED_LIMIT 10000   // Max backedges in bounded mode
-
-static __thread jit_interp_t *call_stack = NULL;
 
 static void interp_dump_reg(jit_interp_t *state, int64_t ival)
 {
@@ -173,34 +171,6 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
    default:
       interp_dump(state);
       fatal_trace("cannot handle value kind %d", value.kind);
-   }
-}
-
-void jit_interp_trace(diag_t *d)
-{
-   for (jit_interp_t *p = call_stack; p != NULL; p = p->caller) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      vcode_select_unit(p->func->unit);
-      while (vcode_unit_context() != NULL)
-         vcode_select_unit(vcode_unit_context());
-
-      ident_t unit_name = vcode_unit_name();
-      if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
-         unit_name = ident_prefix(unit_name, well_known(W_ELAB), '.');
-
-      vcode_state_restore(&state);
-
-      const char *symbol = istr(p->func->name);
-      tree_t enclosing = find_enclosing_decl(unit_name, symbol);
-      if (enclosing == NULL)
-         return;
-
-      // TODO: this is much less accurate than the DWARF info
-      const loc_t *loc = tree_loc(enclosing);
-
-      jit_emit_trace(d, loc, enclosing, symbol);
    }
 }
 
@@ -625,12 +595,13 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
 {
    JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
 
+   state->anchor->irpos = ir - state->func->irbuf;
+
    if (ir->arg1.handle == JIT_HANDLE_INVALID)
-      state->abort = true;
+      jit_msg(NULL, DIAG_FATAL, "missing definition for subprogram");
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-      if (!(*f->entry)(f, state->args))
-         state->abort = true;
+      (*f->entry)(f, state->anchor, state->args);
    }
 }
 
@@ -716,11 +687,16 @@ static void interp_bzero(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
 {
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = state->anchor;
+
    const size_t bytes = interp_get_value(state, ir->arg1).integer;
    state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
 
    if (state->regs[ir->result].pointer == NULL && bytes > 0)
       state->abort = true;   // Out of memory
+
+   thread->anchor = NULL;
 }
 
 static void interp_range_fail(jit_interp_t *state)
@@ -773,13 +749,6 @@ static void interp_length_fail(jit_interp_t *state)
    x_length_fail(left, right, dim, where);
 }
 
-static void interp_div_zero(jit_interp_t *state)
-{
-   tree_t where = state->args[0].pointer;
-
-   x_div_zero(where);
-}
-
 static void interp_exponent_fail(jit_interp_t *state)
 {
    int32_t value = state->args[0].integer;
@@ -795,11 +764,6 @@ static void interp_unreachable(jit_interp_t *state)
    x_unreachable(where);
 }
 
-static void interp_func_wait(jit_interp_t *state)
-{
-   interp_error(state, NULL, "cannot wait inside function call");
-}
-
 static void interp_report(jit_interp_t *state)
 {
    uint8_t *msg      = state->args[0].pointer;
@@ -808,19 +772,6 @@ static void interp_report(jit_interp_t *state)
    tree_t   where    = state->args[3].pointer;
 
    x_report(msg, len, severity, where);
-}
-
-static void interp_assert_fail(jit_interp_t *state)
-{
-   uint8_t *msg        = state->args[0].pointer;
-   int32_t  len        = state->args[1].integer;
-   int32_t  severity   = state->args[2].integer;
-   int64_t  hint_left  = state->args[3].integer;
-   int64_t  hint_right = state->args[4].integer;
-   int8_t   hint_valid = state->args[5].integer;
-   tree_t   where      = state->args[6].pointer;
-
-   x_assert_fail(msg, len, severity, hint_left, hint_right, hint_valid, where);
 }
 
 static void interp_scalar_init_signal(jit_interp_t *state)
@@ -961,25 +912,6 @@ static void interp_endfile(jit_interp_t *state)
    state->nargs = 1;
 }
 
-static void interp_string_to_int(jit_interp_t *state)
-{
-   uint8_t *ptr  = state->args[0].pointer;
-   int32_t  len  = state->args[1].integer;
-   int32_t *used = state->args[2].pointer;
-
-   state->args[0].integer = x_string_to_int(ptr, len, used);
-   state->nargs = 1;
-}
-
-static void interp_string_to_real(jit_interp_t *state)
-{
-   uint8_t *ptr = state->args[0].pointer;
-   int32_t  len = state->args[1].integer;
-
-   state->args[0].real = x_string_to_real(ptr, len);
-   state->nargs = 1;
-}
-
 static void interp_real_to_string(jit_interp_t *state)
 {
    double value = state->args[0].real;
@@ -989,22 +921,6 @@ static void interp_real_to_string(jit_interp_t *state)
       return;
 
    ffi_uarray_t u = x_real_to_string(value, buf, 32);
-   state->args[0].pointer = u.ptr;
-   state->args[1].integer = u.dims[0].left;
-   state->args[2].integer = u.dims[0].length;
-   state->nargs = 3;
-}
-
-static void interp_canon_value(jit_interp_t *state)
-{
-   uint8_t *ptr = state->args[0].pointer;
-   int32_t  len = state->args[1].integer;
-
-   char *buf = mspace_alloc(state->mspace, len);
-   if (buf == NULL)
-      return;
-
-   ffi_uarray_t u = x_canon_value(ptr, len, buf);
    state->args[0].pointer = u.ptr;
    state->args[1].integer = u.dims[0].left;
    state->args[2].integer = u.dims[0].length;
@@ -1075,6 +991,8 @@ static void interp_last_active(jit_interp_t *state)
 
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
+   state->anchor->irpos = ir - state->func->irbuf;
+
    switch (ir->arg1.exit) {
    case JIT_EXIT_INDEX_FAIL:
       interp_index_fail(state);
@@ -1096,10 +1014,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_unreachable(state);
       break;
 
-   case JIT_EXIT_DIV_ZERO:
-      interp_div_zero(state);
-      break;
-
    case JIT_EXIT_EXPONENT_FAIL:
       interp_exponent_fail(state);
       break;
@@ -1108,20 +1022,12 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_report(state);
       break;
 
-   case JIT_EXIT_ASSERT_FAIL:
-      interp_assert_fail(state);
-      break;
-
    case JIT_EXIT_REAL_TO_STRING:
       interp_real_to_string(state);
       break;
 
    case JIT_EXIT_RANGE_FAIL:
       interp_range_fail(state);
-      break;
-
-   case JIT_EXIT_FUNC_WAIT:
-      interp_func_wait(state);
       break;
 
    case JIT_EXIT_INIT_SIGNAL:
@@ -1172,18 +1078,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_endfile(state);
       break;
 
-   case JIT_EXIT_STRING_TO_INT:
-      interp_string_to_int(state);
-      break;
-
-   case JIT_EXIT_STRING_TO_REAL:
-      interp_string_to_real(state);
-      break;
-
-   case JIT_EXIT_CANON_VALUE:
-      interp_canon_value(state);
-      break;
-
    case JIT_EXIT_DEBUG_OUT:
       interp_debug_out(state);
       break;
@@ -1209,7 +1103,7 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       break;
 
    default:
-      __nvc_do_exit(ir->arg1.exit, state->args);
+      __nvc_do_exit(ir->arg1.exit, state->anchor, state->args);
    }
 }
 
@@ -1372,12 +1266,12 @@ static void interp_loop(jit_interp_t *state)
    } while (!state->abort);
 }
 
-bool jit_interp(jit_func_t *f, jit_scalar_t *args)
+void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
 {
    if (f->entry != jit_interp) {
       // Came from stale compiled code
       // TODO: should we patch the call site?
-      return (*f->entry)(f, args);
+      (*f->entry)(f, caller, args);
    }
 
    if (f->irbuf == NULL)
@@ -1385,6 +1279,11 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args)
 
    if (f->next_tier && --(f->hotness) <= 0)
       jit_tier_up(f);
+
+   jit_anchor_t anchor = {
+      .caller = caller,
+      .func   = f,
+   };
 
    // Using VLAs here as we need these allocated on the stack so the
    // mspace GC can scan them
@@ -1405,22 +1304,8 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args)
       .frame    = frame,
       .mspace   = jit_get_mspace(f->jit),
       .backedge = jit_backedge_limit(f->jit),
-      .caller   = call_stack,
+      .anchor   = &anchor,
    };
 
-   call_stack = &state;
-
    interp_loop(&state);
-
-   assert(call_stack == &state);
-   call_stack = state.caller;
-
-   return !state.abort;
-}
-
-void jit_interp_abort(int code)
-{
-   assert(call_stack != NULL);
-   call_stack->abort = true;
-   jit_set_exit_status(call_stack->func->jit, code);
 }

@@ -498,7 +498,7 @@ START_TEST(test_proc1)
    input_from_file(TESTDIR "/jit/proc1.vhd");
 
    const error_t expect[] = {
-      { 45, "cannot wait inside function call" },
+      { 48, "cannot wait inside function call" },
       { -1, NULL },
    };
    expect_errors(expect);
@@ -1090,12 +1090,14 @@ START_TEST(test_ffi1)
 
    {
       jit_scalar_t args[] = { { .integer = 5 }, { .integer = 3 } };
-      ck_assert_int_eq(jit_ffi_call(add_ff, args).integer, 8);
+      jit_ffi_call(add_ff, args);
+      ck_assert_int_eq(args[0].integer, 8);
    }
 
    {
       jit_scalar_t args[] = { { .integer = 5 }, { .integer = -7 } };
-      ck_assert_int_eq(jit_ffi_call(add_ff, args).integer, -2);
+      jit_ffi_call(add_ff, args);
+      ck_assert_int_eq(args[0].integer, -2);
    }
 
    ident_t fma_i = ident_new("test_ffi_fma");
@@ -1112,14 +1114,16 @@ START_TEST(test_ffi1)
       jit_scalar_t args[] = { { .real = 2.0 },
                               { .real = 3.0 },
                               { .real = 1.0 } };
-      ck_assert_double_eq(jit_ffi_call(fma_ff, args).real, 7.0);
+      jit_ffi_call(fma_ff, args);
+      ck_assert_double_eq(args[0].real, 7.0);
    }
 
    {
       jit_scalar_t args[] = { { .real = -2.0 },
                               { .real = 3.0 },
                               { .real = 1.0 } };
-      ck_assert_double_eq(jit_ffi_call(fma_ff, args).real, -5.0);
+      jit_ffi_call(fma_ff, args);
+      ck_assert_double_eq(args[0].real, -5.0);
    }
 
    ident_t len_i = ident_new("len");
@@ -1134,7 +1138,8 @@ START_TEST(test_ffi1)
       jit_scalar_t args[] = {
          { .pointer = NULL }, { .integer = 1 }, { .integer = 4 }
       };
-      ck_assert_int_eq(jit_ffi_call(len_ff, args).integer, 4);
+      jit_ffi_call(len_ff, args);
+      ck_assert_int_eq(args[0].integer, 4);
    }
 
    ident_t sum_i = ident_new("sum");
@@ -1150,7 +1155,8 @@ START_TEST(test_ffi1)
       jit_scalar_t args[] = {
          { .pointer = data }, { .integer = 1 }, { .integer = 4 }
       };
-      ck_assert_int_eq(jit_ffi_call(sum_ff, args).integer, 10);
+      jit_ffi_call(sum_ff, args);
+      ck_assert_int_eq(args[0].integer, 10);
    }
 }
 END_TEST

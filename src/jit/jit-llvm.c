@@ -621,7 +621,7 @@ static void cgen_op_mul(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_ret(cgen_req_t *req, jit_ir_t *ir)
 {
-   LLVMBuildRet(req->builder, llvm_int1(req, true));
+   LLVMBuildRetVoid(req->builder);
 }
 
 static void cgen_op_jump(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1008,7 +1008,7 @@ static void cgen_module(cgen_req_t *req)
    req->types[LLVM_INTPTR] = LLVMIntPtrTypeInContext(req->context, data_ref);
 
    LLVMTypeRef atypes[] = { req->types[LLVM_PTR], req->types[LLVM_PTR] };
-   req->types[LLVM_ENTRY_FN] = LLVMFunctionType(req->types[LLVM_INT1], atypes,
+   req->types[LLVM_ENTRY_FN] = LLVMFunctionType(req->types[LLVM_VOID], atypes,
                                                 ARRAY_LEN(atypes), false);
 
    req->llvmfn = LLVMAddFunction(req->module, req->name,

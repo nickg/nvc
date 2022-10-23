@@ -24,6 +24,9 @@
 #include "mask.h"
 #include "rt/mspace.h"
 
+#include <setjmp.h>
+#include <signal.h>
+
 typedef enum {
    J_SEND,
    J_RECV,
@@ -192,8 +195,9 @@ STATIC_ASSERT(sizeof(jit_ir_t) == 40);
 typedef struct _jit_tier jit_tier_t;
 typedef struct _jit_func jit_func_t;
 typedef struct _jit_block jit_block_t;
+typedef struct _jit_anchor jit_anchor_t;
 
-typedef bool (*jit_entry_fn_t)(jit_func_t *, jit_scalar_t *);
+typedef void (*jit_entry_fn_t)(jit_func_t *, jit_anchor_t *, jit_scalar_t *);
 
 typedef struct {
    unsigned count;
@@ -240,6 +244,26 @@ typedef struct _jit_func {
    ffi_spec_t      spec;
 } jit_func_t;
 
+typedef struct _jit_anchor {
+   jit_anchor_t *caller;
+   jit_func_t   *func;
+   unsigned      irpos;
+} jit_anchor_t;
+
+typedef enum {
+   JIT_IDLE,
+   JIT_NATIVE,
+   JIT_INTERP
+} jit_state_t;
+
+typedef struct {
+   jit_t                 *jit;
+   jit_state_t            state;
+   jmp_buf                abort_env;
+   volatile sig_atomic_t  jmp_buf_valid;
+   jit_anchor_t          *anchor;
+} jit_thread_local_t;
+
 #define JIT_MAX_ARGS 64
 
 typedef struct _jit_interp jit_interp_t;
@@ -250,11 +274,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 void jit_dump_interleaved(jit_func_t *f);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
-bool jit_interp(jit_func_t *f, jit_scalar_t *args);
-void jit_interp_abort(int code);
-void jit_interp_trace(diag_t *d);
-void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
-                    const char *symbol);
+void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args);
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
 void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
@@ -263,13 +283,13 @@ void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
-jit_t *jit_for_thread(void);
+jit_thread_local_t *jit_thread_local(void);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 int jit_get_edge(jit_edge_list_t *list, int nth);
 
-void __nvc_do_exit(jit_exit_t which, jit_scalar_t *args);
+void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args);
 
 #endif  // _JIT_PRIV_H
