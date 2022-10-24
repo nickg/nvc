@@ -919,6 +919,8 @@ void jit_tier_up(jit_func_t *f)
 
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin)
 {
+   assert(threshold > 0);
+
    jit_tier_t *t = xcalloc(sizeof(jit_tier_t));
    t->next      = j->tiers;
    t->threshold = threshold;

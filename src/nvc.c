@@ -301,14 +301,14 @@ static int elaborate(int argc, char **argv)
       return EXIT_FAILURE;
 
    lib_t work = lib_work();
-   NOT_LLVM_ONLY(lib_put_vcode(work, top, vu));
+   NOT_AOT_ONLY(lib_put_vcode(work, top, vu));
 
    if (!opt_get_int(OPT_NO_SAVE)) {
       lib_save(work);
       progress("saving library");
    }
 
-   LLVM_ONLY(cgen(top, vu, cover));
+   AOT_ONLY(cgen(top, vu, cover));
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -520,7 +520,13 @@ static int run(int argc, char **argv)
 
    jit_t *jit = jit_new();
    jit_enable_runtime(jit, true);
-   jit_load_dll(jit, tree_ident(top));
+
+   AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
+
+#if defined ENABLE_JIT && defined LLVM_HAS_LLJIT
+   extern const jit_plugin_t jit_llvm;
+   jit_add_tier(jit, 1, &jit_llvm);
+#endif
 
    _std_standard_init();
    _std_env_init();

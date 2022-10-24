@@ -1427,3 +1427,21 @@ jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
 
    return handle;
 }
+
+DLLEXPORT
+void *__nvc_getpriv(jit_handle_t handle)
+{
+   jit_t *j = jit_thread_local()->jit;
+   jit_func_t *f = jit_get_func(j, handle);
+
+   return jit_get_privdata(j, f);
+}
+
+DLLEXPORT
+void __nvc_putpriv(jit_handle_t handle, void *data)
+{
+   jit_t *j = jit_thread_local()->jit;
+   jit_func_t *f = jit_get_func(j, handle);
+
+   jit_put_privdata(j, f, data);
+}

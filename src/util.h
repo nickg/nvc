@@ -89,6 +89,20 @@
 #define NOT_LLVM_ONLY(x) x
 #endif
 
+#ifdef ENABLE_JIT
+#define JIT_ONLY(x) x
+#else
+#define JIT_ONLY(x)
+#endif
+
+#if defined ENABLE_LLVM && !defined ENABLE_JIT
+#define AOT_ONLY(x) x
+#define NOT_AOT_ONLY(x)
+#else
+#define AOT_ONLY(x)
+#define NOT_AOT_ONLY(x) x
+#endif
+
 #define UNUSED __attribute__((unused))
 
 #define LCOV_EXCL_LINE

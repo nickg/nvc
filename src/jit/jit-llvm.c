@@ -88,6 +88,9 @@ typedef enum {
    LLVM_MUL_OVERFLOW_U64,
 
    LLVM_DO_EXIT,
+   LLVM_GETPRIV,
+   LLVM_PUTPRIV,
+   LLVM_MSPACE_ALLOC,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -341,6 +344,45 @@ static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
       }
       break;
 
+   case LLVM_GETPRIV:
+      {
+         LLVMTypeRef args[] = { req->types[LLVM_INT32] };
+         req->fntypes[which] = LLVMFunctionType(req->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = LLVMAddFunction(req->module, "__nvc_getpriv",
+                              req->fntypes[which]);
+      }
+      break;
+
+   case LLVM_PUTPRIV:
+      {
+         LLVMTypeRef args[] = {
+            req->types[LLVM_INT32],
+            req->types[LLVM_PTR]
+         };
+         req->fntypes[which] = LLVMFunctionType(req->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = LLVMAddFunction(req->module, "__nvc_putpriv",
+                              req->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MSPACE_ALLOC:
+      {
+         LLVMTypeRef args[] = {
+            req->types[LLVM_INT32],
+            req->types[LLVM_INT32]
+         };
+         req->fntypes[which] = LLVMFunctionType(req->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = LLVMAddFunction(req->module, "__nvc_mspace_alloc",
+                              req->fntypes[which]);
+      }
+      break;
+
    default:
       fatal_trace("cannot generate prototype for function %d", which);
    }
@@ -410,6 +452,7 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
       return (jit_scalar_t){ .integer = value.label };
       */
    case JIT_VALUE_EXIT:
+   case JIT_VALUE_HANDLE:
       return llvm_int32(req, value.exit);
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
@@ -428,13 +471,18 @@ static void cgen_coerece(cgen_req_t *req, jit_size_t size, LLVMValueRef *arg1,
       LLVMTypeRef type1 = LLVMTypeOf(*arg1);
       LLVMTypeRef type2 = LLVMTypeOf(*arg2);
 
-      const int bits1 = LLVMGetIntTypeWidth(type1);
-      const int bits2 = LLVMGetIntTypeWidth(type2);
+      if (LLVMGetTypeKind(type1) == LLVMPointerTypeKind)
+         *arg2 = LLVMBuildIntToPtr(req->builder, *arg2,
+                                   req->types[LLVM_PTR], "");
+      else {
+         const int bits1 = LLVMGetIntTypeWidth(type1);
+         const int bits2 = LLVMGetIntTypeWidth(type2);
 
-      if (bits1 < bits2)
-         *arg1 = LLVMBuildSExt(req->builder, *arg1, type2, "");
-      else
-         *arg2 = LLVMBuildSExt(req->builder, *arg2, type1, "");
+         if (bits1 < bits2)
+            *arg1 = LLVMBuildSExt(req->builder, *arg1, type2, "");
+         else
+            *arg2 = LLVMBuildSExt(req->builder, *arg2, type1, "");
+      }
    }
 }
 
@@ -621,6 +669,12 @@ static void cgen_op_mul(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    cgb->outregs[ir->result] = result;
 }
 
+static void cgen_op_not(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
+   cgb->outregs[ir->result] = LLVMBuildNot(req->builder, arg1, "");
+}
+
 static void cgen_op_ret(cgen_req_t *req, jit_ir_t *ir)
 {
    LLVMBuildRetVoid(req->builder);
@@ -767,6 +821,48 @@ static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
                   args, ARRAY_LEN(args), "");
 }
 
+static void cgen_macro_galloc(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   // TODO: use TLAB
+
+   LLVMValueRef fn = cgen_get_fn(req, LLVM_MSPACE_ALLOC);
+   LLVMValueRef size = cgen_get_value(req, cgb, ir->arg1);
+
+   LLVMValueRef args[] = {
+      LLVMBuildTrunc(req->builder, size, req->types[LLVM_INT32], ""),
+      llvm_int32(req, 1),
+   };
+   cgb->outregs[ir->result] = LLVMBuildCall2(req->builder,
+                                             req->fntypes[LLVM_MSPACE_ALLOC],
+                                             fn, args, ARRAY_LEN(args), "");
+}
+
+static void cgen_macro_getpriv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   // TODO: this needs some kind of fast-path
+
+   LLVMValueRef fn = cgen_get_fn(req, LLVM_GETPRIV);
+
+   LLVMValueRef args[] = {
+      cgen_get_value(req, cgb, ir->arg1)
+   };
+   cgb->outregs[ir->result] = LLVMBuildCall2(req->builder,
+                                             req->fntypes[LLVM_GETPRIV],
+                                             fn, args, ARRAY_LEN(args), "");
+}
+
+static void cgen_macro_putpriv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef fn = cgen_get_fn(req, LLVM_PUTPRIV);
+
+   LLVMValueRef args[] = {
+      cgen_get_value(req, cgb, ir->arg1),
+      cgen_get_value(req, cgb, ir->arg2),
+   };
+   LLVMBuildCall2(req->builder, req->fntypes[LLVM_PUTPRIV],
+                  fn, args, ARRAY_LEN(args), "");
+}
+
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -791,6 +887,9 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_MUL:
       cgen_op_mul(req, cgb, ir);
+      break;
+   case J_NOT:
+      cgen_op_not(req, cgb, ir);
       break;
    case J_RET:
       cgen_op_ret(req, ir);
@@ -827,8 +926,18 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_EXIT:
       cgen_macro_exit(req, cgb, ir);
       break;
+   case MACRO_GALLOC:
+      cgen_macro_galloc(req, cgb, ir);
+      break;
+   case MACRO_GETPRIV:
+      cgen_macro_getpriv(req, cgb, ir);
+      break;
+   case MACRO_PUTPRIV:
+      cgen_macro_putpriv(req, cgb, ir);
+      break;
    default:
-      warnf("cannot generate LLVM for %s", jit_op_name(ir->op));
+      jit_dump_with_mark(req->func, ir - req->func->irbuf, false);
+      fatal("cannot generate LLVM for %s", jit_op_name(ir->op));
    }
 }
 
@@ -947,6 +1056,10 @@ static void cgen_reg_types(cgen_req_t *req)
          cgen_hint_value_size(req, ir->arg2, ir->size, LLVM_INTPTR);
          break;
 
+      case J_NOT:
+         cgen_force_reg_type(req, ir->result, req->regtypes[ir->arg1.reg]);
+         break;
+
       case J_CSET:
          cgen_force_reg_type(req, ir->result, LLVM_INT1);
          break;
@@ -966,6 +1079,7 @@ static void cgen_reg_types(cgen_req_t *req)
 
       case J_LEA:
       case MACRO_GETPRIV:
+      case MACRO_GALLOC:
          cgen_force_reg_type(req, ir->result, LLVM_PTR);
          break;
 
@@ -984,6 +1098,7 @@ static void cgen_reg_types(cgen_req_t *req)
 
       case MACRO_EXIT:
       case MACRO_COPY:
+      case MACRO_PUTPRIV:
          break;
 
       default:

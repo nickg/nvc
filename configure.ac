@@ -141,6 +141,19 @@ else
   AM_CONDITIONAL([LLVM_STATIC], [false])
 fi
 
+AC_ARG_ENABLE([jit],
+  [AS_HELP_STRING([--enable-jit], [Enable JIT complilation with LLVM (EXPERIMENTAL)])],
+  [enable_llvm=$enableval],
+  [enable_llvm=no])
+
+if test "$enable_jit" = "yes"; then
+  if test "$enable_llvm" != "yes"; then
+    AC_MSG_ERROR([JIT compilation depends on LLVM])
+  fi
+
+  AC_DEFINE_UNQUOTED([ENABLE_JIT], [1], [JIT compilation enabled])
+fi
+
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
