@@ -570,6 +570,7 @@ START_TEST(test_arith1)
    const error_t expect[] = {
       { 25, "division by zero" },
       { 45, "negative exponent -1 only allowed for floating-point types" },
+      { 50, "result of -(-2147483648) cannot be represented as INTEGER" },
       { -1, NULL },
    };
    expect_errors(expect);
@@ -606,6 +607,7 @@ START_TEST(test_arith1)
    jit_handle_t negi = compile_for_test(j, "WORK.ARITH1.NEG(I)I");
    ck_assert_int_eq(jit_call(j, negi, NULL, 2).integer, -2);
    ck_assert_int_eq(jit_call(j, negi, NULL, -124).integer, 124);
+   fail_if(jit_try_call(j, negi, &result, NULL, INT32_MIN));
 
    jit_handle_t negr = compile_for_test(j, "WORK.ARITH1.NEG(R)R");
    ck_assert_double_eq(jit_call(j, negr, NULL, 2.0).real, -2.0);

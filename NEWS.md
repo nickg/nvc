@@ -19,6 +19,8 @@
 - The new `--gtkw` run option writes a `.gtkw` save file for GtkWave
   containing all the signals in the design (suggested by @amb5l).
 - `libffi` is now a build-time dependency.
+- Negation of the smallest negative value of a type such as
+  `-integer'left` now produces an error.
 
 ## Version 1.7.2 - 2022-10-16
 - Fixed build on FreeBSD/arm (#534).

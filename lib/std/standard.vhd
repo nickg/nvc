@@ -1,5 +1,5 @@
 -- -------------------------------------------------*- coding: latin-1; -*-----
---  Copyright (C) 2011-2021  Nick Gasson
+--  Copyright (C) 2011-2022  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ package STANDARD is
 
     type REAL is range -1.7976931348623157e308 to 1.7976931348623157e308;
 
-    type TIME is range -9223372036854775808 to 9223372036854775807
+    type TIME is range -9223372036854775807 - 1 to 9223372036854775807
         units
             fs;
             ps  = 1000 fs;

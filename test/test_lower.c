@@ -247,6 +247,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TRAP_ADD:
       case VCODE_OP_TRAP_SUB:
       case VCODE_OP_TRAP_MUL:
+      case VCODE_OP_TRAP_NEG:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -837,7 +838,8 @@ START_TEST(test_arith1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_NEG },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_NEG },
       { VCODE_OP_CONST, .value = -3 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },

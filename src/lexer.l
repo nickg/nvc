@@ -462,14 +462,23 @@ static int parse_decimal_literal(const char *str)
       char *val  = strtok(tmp, "eE");
       char *exp  = strtok(NULL, "eE");
 
-      yylval.n = atoll(val);
+      errno = 0;
+      yylval.n = strtoll(val, NULL, 10);
+      bool overflow = (errno == ERANGE);
 
       long long int e = (exp ? atoll(exp) : 0);
 
       if (e >= 0) {  // Minus sign forbidden for an integer literal
-         for (; e > 0; e--) yylval.n *= 10;
+         for (; e > 0; e--) {
+            if (__builtin_mul_overflow(yylval.n, INT64_C(10), &yylval.n))
+               overflow = true;
+         }
          tok = (sign == NULL) ? tINT : tERROR;
       }
+
+      if (overflow)
+         error_at(&yylloc, "value %s is outside implementation defined range "
+                  "of universal_integer", str);
    }
    else {
       yylval.d = strtod(tmp, NULL);
@@ -479,17 +488,6 @@ static int parse_decimal_literal(const char *str)
    TOKEN(tok);
 }
 
-/**
- * \fn static int parse_based_literal (const char *str)
- * \brief
- *
- * \param str Formatted string as specified in LRM 13.4.2
- * (based_literal ::= base [#:] based_integer [.based_integer] [#:] [exponent]).
- * \return TOKEN(tINT) if no '.' found and no '-' found,
- * TOKEN(tERROR) if no '.' found and '-' found,
- * TOKEN(tERROR) if the base is not at least 2 or at most 16,
- * else TOKEN(tREAL).
- */
 static int parse_based_literal (const char *str)
 {
    // Transform a string into a literal as specified in LRM 13.4.2

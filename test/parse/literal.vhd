@@ -32,6 +32,9 @@ ARCHITECTURE aa OF ee IS
   subtype lowercase is character range 'a' to 'z';
   type my_string is array (lowercase range <>) of character;
   constant w : my_string := "hello";
+
+  constant too_big : integer := 9223372036854775808;  -- Error
+  constant way_too_big : integer := 235423414124e124124;  -- Error
 BEGIN
 
 END ARCHITECTURE;

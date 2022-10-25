@@ -271,18 +271,27 @@ void x_exponent_fail(int32_t value, tree_t where)
 
 void x_overflow(int64_t lhs, int64_t rhs, tree_t where)
 {
-   const char *op = "??";
+   LOCAL_TEXT_BUF tb = tb_new();
    if (tree_kind(where) == T_FCALL) {
       switch (tree_subkind(tree_ref(where))) {
-      case S_ADD: op = "+"; break;
-      case S_MUL: op = "*"; break;
-      case S_SUB: op = "-"; break;
+      case S_ADD:
+         tb_printf(tb, "%"PRIi64" + %"PRIi64, lhs, rhs);
+         break;
+      case S_MUL:
+         tb_printf(tb, "%"PRIi64" * %"PRIi64, lhs, rhs);
+         break;
+      case S_SUB:
+         tb_printf(tb, "%"PRIi64" - %"PRIi64, lhs, rhs);
+         break;
+      case S_NEGATE:
+         tb_printf(tb, "-(%"PRIi64")", lhs);
+         break;
       }
    }
 
-   jit_msg(tree_loc(where), DIAG_FATAL, "result of %"PRIi64" %s %"PRIi64
-           " cannot be represented as %s", lhs, op, rhs,
-           type_pp(tree_type(where)));
+   jit_msg(tree_loc(where), DIAG_FATAL,
+           "result of %s cannot be represented as %s",
+           tb_get(tb), type_pp(tree_type(where)));
 }
 
 void x_null_deref(tree_t where)

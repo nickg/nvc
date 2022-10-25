@@ -1,5 +1,5 @@
 entity sub is
-    port ( c : out integer;
+    port ( c : out integer := 0;
            a, b : in integer );
 end entity;
 

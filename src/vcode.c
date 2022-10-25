@@ -215,28 +215,29 @@ static void           *dump_arg = NULL;
 
 static inline int64_t sadd64(int64_t a, int64_t b)
 {
-   if (a > 0) {
-      if (b > INT64_MAX - a)
-         return INT64_MAX;
-   }
-   else if (b < INT64_MIN - a)
-      return INT64_MIN;
+   int64_t result;
+   if (__builtin_add_overflow(a, b, &result))
+      return b < 0 ? INT64_MIN : INT64_MAX;
 
-   return a + b;
+   return result;
+}
+
+static inline int64_t ssub64(int64_t a, int64_t b)
+{
+   int64_t result;
+   if (__builtin_sub_overflow(a, b, &result))
+      return b > 0 ? INT64_MIN : INT64_MAX;
+
+   return result;
 }
 
 static inline int64_t smul64(int64_t a, int64_t b)
 {
-   if ((a > 0 && b > 0) || (a < 0 && b < 0)) {
-      if ((b > INT32_MAX && a > INT32_MAX)
-          || (b < INT32_MIN && a < INT32_MIN))
-         return INT64_MAX;
-   }
-   else if ((b < INT32_MIN && a > INT32_MAX)
-            || (b > INT32_MAX && a < INT32_MIN))
-      return INT64_MIN;
+   int64_t result;
+   if (__builtin_mul_overflow(a, b, &result))
+      return (a > 0 && b > 0) || (a < 0 && b < 0) ? INT64_MAX : INT64_MIN;
 
-   return a * b;
+   return result;
 }
 
 static vcode_reg_t vcode_add_reg(vcode_type_t type)
@@ -482,6 +483,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_TRAP_ADD:
    case VCODE_OP_TRAP_SUB:
    case VCODE_OP_TRAP_MUL:
+   case VCODE_OP_TRAP_NEG:
       // Result cannot reference pointer
       break;
 
@@ -931,6 +933,7 @@ const char *vcode_op_string(vcode_op_t op)
       "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
+      "trap neg"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -958,8 +961,6 @@ static int vcode_pretty_print_int(int64_t n)
       return printf("2^63-1");
    else if (n == INT64_MIN)
       return printf("-2^63");
-   else if (n == INT64_MIN + 1)
-      return printf("-2^63");   // XXX: bug in lexer/parser
    else if (n == INT32_MAX)
       return printf("2^31-1");
    else if (n == INT32_MIN)
@@ -1738,6 +1739,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_NEG:
+         case VCODE_OP_TRAP_NEG:
          case VCODE_OP_ABS:
          case VCODE_OP_RESOLVED:
          case VCODE_OP_LAST_VALUE:
@@ -1745,6 +1747,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+               if (op->args.count > 1) {
+                  col += printf(" locus ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2523,8 +2529,7 @@ vcode_type_t vtype_offset(void)
 
 vcode_type_t vtype_time(void)
 {
-   // XXX: should be INT64_MIN
-   return vtype_int(INT64_MIN + 1, INT64_MAX);
+   return vtype_int(INT64_MIN, INT64_MAX);
 }
 
 vcode_type_t vtype_char(void)
@@ -3856,9 +3861,8 @@ static vcode_reg_t emit_sub_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
       vtype_t *bl = vcode_type_data(lhs_r->bounds);
       vtype_t *br = vcode_type_data(rhs_r->bounds);
 
-      // XXX: this is wrong - see TO_UNSIGNED
-      int64_t rbl = sadd64(bl->low, -br->high);
-      int64_t rbh = sadd64(bl->high, -br->low);
+      int64_t rbl = ssub64(bl->low, br->high);
+      int64_t rbh = ssub64(bl->high, br->low);
 
       vtype_repr_t repr = vtype_repr(lhs_r->type);
       if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
@@ -4123,6 +4127,26 @@ vcode_reg_t emit_neg(vcode_reg_t lhs)
    op->result = vcode_add_reg(vcode_reg_type(lhs));
 
    return op->result;
+}
+
+vcode_reg_t emit_trap_neg(vcode_reg_t lhs, vcode_reg_t locus)
+{
+   int64_t lconst;
+   if (vcode_reg_const(lhs, &lconst) && lconst >= 0)
+      return emit_const(vcode_reg_type(lhs), -lconst);
+   else if (vcode_type_data(vcode_reg_data(lhs)->bounds)->low >= 0)
+      return emit_neg(lhs);   // Cannot overflow
+
+   op_t *op = vcode_add_op(VCODE_OP_TRAP_NEG);
+   vcode_add_arg(op, lhs);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to trap neg must be a debug locus");
+   VCODE_ASSERT(vcode_reg_kind(lhs) == VCODE_TYPE_INT,
+                "trapping neg may only be used with integer types");
+
+   return (op->result = vcode_add_reg(vcode_reg_type(lhs)));
 }
 
 vcode_reg_t emit_abs(vcode_reg_t lhs)

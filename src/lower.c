@@ -1837,7 +1837,14 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
          return lower_arith(fcall, S_EXP, r0, r1);
       }
    case S_NEGATE:
-      return emit_neg(r0);
+      {
+         if (type_is_integer(r0_type)) {
+            vcode_reg_t locus = lower_debug_locus(fcall);
+            return emit_trap_neg(r0, locus);
+         }
+         else
+            return emit_neg(r0);
+      }
    case S_ABS:
       return emit_abs(r0);
    case S_IDENTITY:
@@ -5206,7 +5213,7 @@ static void lower_signal_assign(tree_t stmt)
          delay_reg = lower_rvalue(delay);
       }
       else
-         delay_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+         delay_reg = emit_const(vtype_time(), 0);
 
       vcode_reg_t reject_reg;
       if (i == 0 && tree_has_reject(stmt)) {
@@ -5221,7 +5228,7 @@ static void lower_signal_assign(tree_t stmt)
       }
       else {
          // All but the first waveform have zero reject time
-         reject_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+         reject_reg = emit_const(vtype_time(), 0);
       }
 
       vcode_var_t tmp_var = VCODE_INVALID_VAR;

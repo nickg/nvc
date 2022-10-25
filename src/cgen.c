@@ -3588,6 +3588,7 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       cgen_op_div(i, ctx);
       break;
    case VCODE_OP_NEG:
+   case VCODE_OP_TRAP_NEG:
       cgen_op_neg(i, ctx);
       break;
    case VCODE_OP_EXP:

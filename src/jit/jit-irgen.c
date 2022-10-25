@@ -1364,6 +1364,36 @@ static void irgen_op_neg(jit_irgen_t *g, int op)
       g->map[result] = j_neg(g, arg0);
 }
 
+static void irgen_op_trap_neg(jit_irgen_t *g, int op)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t vtype = vcode_reg_type(result);
+
+   jit_value_t arg0 = irgen_get_arg(g, op, 0);
+   jit_value_t locus = irgen_get_arg(g, op, 1);
+
+   int64_t cmp;
+   switch (irgen_jit_size(vtype)) {
+   case JIT_SZ_8: cmp = INT8_MIN; break;
+   case JIT_SZ_16: cmp = INT16_MIN; break;
+   case JIT_SZ_32: cmp = INT32_MIN; break;
+   case JIT_SZ_64: cmp = INT64_MIN; break;
+   default: cmp = 0;
+   }
+
+   irgen_label_t *cont = irgen_alloc_label(g);
+   j_cmp(g, JIT_CC_GT, arg0, jit_value_from_int64(cmp));
+   j_jump(g, JIT_CC_T, cont);
+
+   j_send(g, 0, arg0);
+   j_send(g, 1, jit_value_from_int64(0));
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_OVERFLOW);
+
+   irgen_bind_label(g, cont);
+   g->map[result] = j_neg(g, arg0);
+}
+
 static void irgen_op_abs(jit_irgen_t *g, int op)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -3181,6 +3211,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_NEG:
          irgen_op_neg(g, i);
+         break;
+      case VCODE_OP_TRAP_NEG:
+         irgen_op_trap_neg(g, i);
          break;
       case VCODE_OP_ABS:
          irgen_op_abs(g, i);

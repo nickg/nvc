@@ -893,6 +893,15 @@ START_TEST(test_literal)
 
    input_from_file(TESTDIR "/parse/literal.vhd");
 
+   const error_t expect[] = {
+      { 36, "value 9223372036854775808 is outside implementation defined "
+        "range of universal_integer" },
+      { 37, "value 235423414124e124124 is outside implementation defined "
+        "range of universal_integer" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -1164,7 +1173,7 @@ START_TEST(test_literal)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

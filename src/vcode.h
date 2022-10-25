@@ -152,6 +152,7 @@ typedef enum {
    VCODE_OP_STRCONV,
    VCODE_OP_CANON_VALUE,
    VCODE_OP_CONVSTR,
+   VCODE_OP_TRAP_NEG,
 } vcode_op_t;
 
 typedef enum {
@@ -410,6 +411,7 @@ void emit_disconnect(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t reject,
                      vcode_reg_t after);
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
+vcode_reg_t emit_trap_neg(vcode_reg_t lhs, vcode_reg_t locus);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
 void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
