@@ -185,6 +185,9 @@ static bool bounds_check_index(tree_t index, tree_t ref, type_t type,
                                range_kind_t kind, const char *what,
                                int64_t low, int64_t high)
 {
+   if (low > high)
+      return true;   // Null range allows any index
+
    int64_t folded;
    unsigned folded_u;
    if (folded_int(index, &folded)) {
