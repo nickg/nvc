@@ -294,5 +294,7 @@ jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 int jit_get_edge(jit_edge_list_t *list, int nth);
 
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args);
+void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
+                      jit_scalar_t *args);
 
 #endif  // _JIT_PRIV_H

@@ -714,7 +714,8 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_foreign_t *ff = interp_get_value(state, ir->arg1).pointer;
-   jit_ffi_call(ff, state->args);
+   state->anchor->irpos = ir - state->func->irbuf;
+   __nvc_do_fficall(ff, state->anchor, state->args);
 }
 
 static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)

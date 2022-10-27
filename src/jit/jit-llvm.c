@@ -93,6 +93,7 @@ typedef enum {
    LLVM_GETPRIV,
    LLVM_PUTPRIV,
    LLVM_MSPACE_ALLOC,
+   LLVM_DO_FFICALL,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -350,6 +351,21 @@ static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
       }
       break;
 
+   case LLVM_DO_FFICALL:
+      {
+         LLVMTypeRef args[] = {
+            req->types[LLVM_PTR],
+            req->types[LLVM_PTR],
+            req->types[LLVM_PTR]
+         };
+         req->fntypes[which] = LLVMFunctionType(req->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = LLVMAddFunction(req->module, "__nvc_do_fficall",
+                              req->fntypes[which]);
+      }
+      break;
+
    case LLVM_GETPRIV:
       {
          LLVMTypeRef args[] = { req->types[LLVM_INT32] };
@@ -441,6 +457,7 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
    switch (value.kind) {
    case JIT_VALUE_REG:
       assert(value.reg < req->func->nregs);
+      assert(cgb->outregs[value.reg] != NULL);
       return cgb->outregs[value.reg];
    case JIT_VALUE_INT64:
       return llvm_int64(req, value.int64);
@@ -460,9 +477,22 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
       assert(value.int64 >= 0 && value.int64 <= req->func->cpoolsz);
       return llvm_ptr(req, req->func->cpool + value.int64);
    case JIT_ADDR_REG:
-      assert(value.reg < req->func->nregs);
-      return LLVMBuildIntToPtr(req->builder, cgb->outregs[value.reg],
-                               req->types[LLVM_PTR], "");
+      {
+         assert(value.reg < req->func->nregs);
+         LLVMValueRef ptr = cgb->outregs[value.reg];
+
+         if (req->regtypes[value.reg] != LLVM_PTR)
+            ptr = LLVMBuildIntToPtr(req->builder, ptr,
+                                    req->types[LLVM_PTR], "");
+
+         if (value.disp != 0) {
+            LLVMValueRef indexes[] = { llvm_intptr(req, value.disp) };
+            ptr = LLVMBuildGEP2(req->builder, req->types[LLVM_INT8], ptr,
+                                indexes, ARRAY_LEN(indexes), "");
+         }
+
+         return ptr;
+      }
       /*
    case JIT_ADDR_ABS:
       return (jit_scalar_t){ .pointer = (void *)(intptr_t)value.int64 };
@@ -472,8 +502,32 @@ static LLVMValueRef cgen_get_value(cgen_req_t *req, cgen_block_t *cgb,
    case JIT_VALUE_EXIT:
    case JIT_VALUE_HANDLE:
       return llvm_int32(req, value.exit);
+   case JIT_ADDR_ABS:
+      return llvm_ptr(req, (void *)(intptr_t)value.int64);
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
+   }
+}
+
+static LLVMValueRef cgen_coerce_value(cgen_req_t *req, cgen_block_t *cgb,
+                                      jit_value_t value, llvm_type_t type)
+{
+   LLVMValueRef raw = cgen_get_value(req, cgb, value);
+
+   if (value.kind == JIT_VALUE_REG && req->regtypes[value.reg] == type)
+      return raw;
+
+   LLVMTypeRef lltype = LLVMTypeOf(raw);
+
+   switch (type) {
+   case LLVM_PTR:
+      if (LLVMGetTypeKind(lltype) == LLVMIntegerTypeKind)
+         return LLVMBuildIntToPtr(req->builder, raw, req->types[LLVM_PTR], "");
+      else
+         return raw;
+
+   default:
+      return raw;
    }
 }
 
@@ -562,7 +616,7 @@ static void cgen_op_send(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 static void cgen_op_store(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef value = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef ptr   = cgen_get_value(req, cgb, ir->arg2);
+   LLVMValueRef ptr   = cgen_coerce_value(req, cgb, ir->arg2, LLVM_PTR);
 
    LLVMValueRef trunc = value;
    switch (ir->size) {
@@ -585,7 +639,7 @@ static void cgen_op_store(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_load(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef ptr = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef ptr = cgen_coerce_value(req, cgb, ir->arg1, LLVM_PTR);
 
    LLVMValueRef result = NULL;
    switch (ir->size) {
@@ -833,8 +887,8 @@ static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 static void cgen_macro_copy(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef count = cgb->outregs[ir->result];
-   LLVMValueRef dest  = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef src   = cgen_get_value(req, cgb, ir->arg2);
+   LLVMValueRef dest  = cgen_coerce_value(req, cgb, ir->arg1, LLVM_PTR);
+   LLVMValueRef src   = cgen_coerce_value(req, cgb, ir->arg2, LLVM_PTR);
 
    LLVMBuildMemMove(req->builder, dest, 0, src, 0, count);
 }
@@ -859,6 +913,26 @@ static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
                   args, ARRAY_LEN(args), "");
 }
 
+static void cgen_macro_fficall(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   const unsigned irpos = ir - req->func->irbuf;
+   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(req->builder,
+                                                req->types[LLVM_ANCHOR],
+                                                req->anchor, 2, "");
+   LLVMBuildStore(req->builder, llvm_int32(req, irpos), irpos_ptr);
+
+   LLVMValueRef ff = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef fn = cgen_get_fn(req, LLVM_DO_FFICALL);
+
+   LLVMValueRef args[] = {
+      ff,
+      req->anchor,
+      req->args
+   };
+   LLVMBuildCall2(req->builder, req->fntypes[LLVM_DO_FFICALL], fn,
+                  args, ARRAY_LEN(args), "");
+}
+
 static void cgen_macro_galloc(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    // TODO: use TLAB
@@ -872,7 +946,8 @@ static void cgen_macro_galloc(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    };
    cgb->outregs[ir->result] = LLVMBuildCall2(req->builder,
                                              req->fntypes[LLVM_MSPACE_ALLOC],
-                                             fn, args, ARRAY_LEN(args), "");
+                                             fn, args, ARRAY_LEN(args),
+                                             cgen_reg_name(ir->result));
 }
 
 static void cgen_macro_getpriv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -965,6 +1040,9 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_EXIT:
       cgen_macro_exit(req, cgb, ir);
       break;
+   case MACRO_FFICALL:
+      cgen_macro_fficall(req, cgb, ir);
+      break;
    case MACRO_GALLOC:
       cgen_macro_galloc(req, cgb, ir);
       break;
@@ -1055,20 +1133,6 @@ static void cgen_hint_reg_size(cgen_req_t *req, jit_reg_t reg, jit_size_t sz)
    cgen_set_reg_type(req, reg, type);
 }
 
-static void cgen_hint_value_size(cgen_req_t *req, jit_value_t value,
-                                 jit_size_t sz)
-{
-   switch (value.kind) {
-   case JIT_VALUE_REG:
-   case JIT_ADDR_REG:
-      cgen_hint_reg_size(req, value.reg, sz);
-      break;
-
-   default:
-      break;
-   }
-}
-
 static void cgen_hint_reg_type(cgen_req_t *req, jit_reg_t reg,
                                jit_value_t value)
 {
@@ -1106,7 +1170,6 @@ static void cgen_reg_types(cgen_req_t *req)
       case J_ADD:
       case J_SUB:
          cgen_hint_reg_size(req, ir->result, ir->size);
-         cgen_hint_reg_type(req, ir->result, ir->arg1);
          break;
 
       case J_CSET:
@@ -1115,7 +1178,6 @@ static void cgen_reg_types(cgen_req_t *req)
 
       case J_STORE:
          cgen_hint_value_type(req, ir->arg2, LLVM_PTR);
-         cgen_hint_value_size(req, ir->arg1, ir->size);
          break;
 
       case J_LEA:
@@ -1146,6 +1208,7 @@ static void cgen_reg_types(cgen_req_t *req)
       case MACRO_EXIT:
       case MACRO_COPY:
       case MACRO_PUTPRIV:
+      case MACRO_FFICALL:
          break;
 
       default:

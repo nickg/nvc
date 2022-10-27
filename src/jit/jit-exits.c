@@ -1058,6 +1058,18 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
    thread->anchor = NULL;
 }
 
+DLLEXPORT
+void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
+                      jit_scalar_t *args)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = anchor;
+
+   jit_ffi_call(ff, args);
+
+   thread->anchor = NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from AOT compiled code
 
