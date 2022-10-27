@@ -876,6 +876,7 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
       // Came from stale compiled code
       // TODO: should we patch the call site?
       (*f->entry)(f, caller, args);
+      return;
    }
 
    if (f->irbuf == NULL)

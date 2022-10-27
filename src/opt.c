@@ -98,3 +98,41 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
    else
       return strstr(filter, value) != NULL;
 }
+
+void set_default_options(void)
+{
+   opt_set_int(OPT_RT_STATS, 0);
+   opt_set_int(OPT_RT_TRACE, 0);
+   opt_set_str(OPT_VHPI_TRACE, getenv("NVC_VHPI_VERBOSE"));
+   opt_set_int(OPT_DUMP_LLVM, 0);
+   opt_set_int(OPT_OPTIMISE, 2);
+   opt_set_int(OPT_BOOTSTRAP, 0);
+   opt_set_int(OPT_COVER, 0);
+   opt_set_int(OPT_STOP_DELTA, 10000);
+   opt_set_int(OPT_UNIT_TEST, 0);
+   opt_set_int(OPT_MAKE_DEPS_ONLY, 0);
+   opt_set_int(OPT_MAKE_POSIX, 0);
+   opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
+   opt_set_int(OPT_IGNORE_TIME, 0);
+   opt_set_int(OPT_VERBOSE, 0);
+   opt_set_int(OPT_RT_PROFILE, 0);
+   opt_set_int(OPT_SYNTHESIS, 0);
+   opt_set_int(OPT_MISSING_BODY, 1);
+   opt_set_int(OPT_ERROR_LIMIT, -1);
+   opt_set_int(OPT_IEEE_WARNINGS, 1);
+   opt_set_int(OPT_ARENA_SIZE, 1 << 24);
+   opt_set_int(OPT_DUMP_ARRAYS, 0);
+   opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));
+   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE") DEBUG_ONLY(?: "1"));
+   opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
+   opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
+   opt_set_int(OPT_HEAP_SIZE, 16 * 1024 * 1024);
+   opt_set_int(OPT_ERROR_LIMIT, 20);
+   opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| getenv("NVC_GC_STRESS") != 0));
+   opt_set_int(OPT_RELAXED, 0);
+   opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
+   opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
+   opt_set_int(OPT_WARN_HIDDEN, 0);
+   opt_set_int(OPT_NO_SAVE, 0);
+   opt_set_str(OPT_LLVM_VERBOSE, getenv("NVC_LLVM_VERBOSE"));
+}

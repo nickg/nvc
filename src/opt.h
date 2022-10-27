@@ -55,6 +55,7 @@ typedef enum {
    OPT_JIT_LOG,
    OPT_WARN_HIDDEN,
    OPT_NO_SAVE,
+   OPT_LLVM_VERBOSE,
 
    OPT_LAST_NAME
 } opt_name_t;
@@ -64,5 +65,7 @@ void opt_set_str(opt_name_t name, const char *val);
 int opt_get_int(opt_name_t name);
 const char *opt_get_str(opt_name_t name);
 bool opt_get_verbose(opt_name_t name, const char *filter);
+
+void set_default_options(void);
 
 #endif  // _OPT_H

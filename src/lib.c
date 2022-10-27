@@ -1048,10 +1048,12 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
 {
    assert(lib != NULL);
 
-   if (name)
+   if (lib->path == NULL)
+      checked_sprintf(buf, buflen, "." DIR_SEP "%s", name);
+   else if (name)
       checked_sprintf(buf, buflen, "%s" DIR_SEP "%s", lib->path, name);
    else
-      strncpy(buf, lib->path, buflen);
+      checked_sprintf(buf, buflen, "%s", lib->path);
 }
 
 void lib_mkdir(lib_t lib, const char *name)

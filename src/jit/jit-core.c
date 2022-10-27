@@ -487,7 +487,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
       else {
          jit_transition(j, JIT_IDLE, JIT_INTERP);
          jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
-         jit_interp(f, NULL, args);
+         (*f->entry)(f, NULL, args);
          *result = args[0];
          jit_transition(j, JIT_INTERP, JIT_IDLE);
       }
@@ -526,7 +526,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
          jit_ffi_call(ff, args);
       }
       else
-         jit_interp(f, NULL, args);
+         (*f->entry)(f, NULL, args);
 
       *result = args[0];
    }

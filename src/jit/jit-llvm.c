@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "ident.h"
+#include "lib.h"
 #include "jit/jit-priv.h"
 #include "opt.h"
 #include "thread.h"
@@ -25,6 +26,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitReader.h>
@@ -335,7 +337,11 @@ static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
 
    case LLVM_DO_EXIT:
       {
-         LLVMTypeRef args[] = { req->types[LLVM_INT32], req->types[LLVM_PTR] };
+         LLVMTypeRef args[] = {
+            req->types[LLVM_INT32],
+            req->types[LLVM_PTR],
+            req->types[LLVM_PTR]
+         };
          req->fntypes[which] = LLVMFunctionType(req->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
 
@@ -404,6 +410,18 @@ static const char *cgen_reg_name(jit_reg_t reg)
    static volatile int uniq = 0;
    static __thread char buf[32];
    checked_sprintf(buf, sizeof(buf), "R%d.%d", reg, relaxed_add(&uniq, 1));
+   return buf;
+#else
+   return "";
+#endif
+}
+
+static const char *cgen_arg_name(int nth)
+{
+#ifdef DEBUG
+   static volatile int uniq = 0;
+   static __thread char buf[32];
+   checked_sprintf(buf, sizeof(buf), "A%d.%d", nth, relaxed_add(&uniq, 1));
    return buf;
 #else
    return "";
@@ -502,7 +520,8 @@ static void cgen_op_recv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMTypeRef result_type = req->types[req->regtypes[ir->result]];
    LLVMValueRef ptr = LLVMBuildInBoundsGEP2(req->builder, int64_type,
                                             req->args, indexes,
-                                            ARRAY_LEN(indexes), "");
+                                            ARRAY_LEN(indexes),
+                                            cgen_arg_name(nth));
    LLVMValueRef value = LLVMBuildLoad2(req->builder, result_type, ptr,
                                        cgen_reg_name(ir->result));
 
@@ -521,7 +540,22 @@ static void cgen_op_send(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMTypeRef int64_type = req->types[LLVM_INT64];
    LLVMValueRef ptr = LLVMBuildInBoundsGEP2(req->builder, int64_type,
                                             req->args, indexes,
-                                            ARRAY_LEN(indexes), "");
+                                            ARRAY_LEN(indexes),
+                                            cgen_arg_name(nth));
+
+   // Must always store a 64-bit quantity
+   switch (LLVMGetTypeKind(LLVMTypeOf(value))) {
+   case LLVMIntegerTypeKind:
+      value = LLVMBuildSExt(req->builder, value, req->types[LLVM_INT64], "");
+      break;
+   case LLVMPointerTypeKind:
+      assert(sizeof(void *) == sizeof(int64_t));
+      break;
+   default:
+      LLVMDumpValue(value);
+      fatal_trace("cannot extend LLVM type to 64 bits");
+   }
+
    LLVMBuildStore(req->builder, value, ptr);
 }
 
@@ -725,6 +759,9 @@ static void cgen_op_cmp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case JIT_CC_LT:
       cgb->outflags = LLVMBuildICmp(req->builder, LLVMIntSLT, arg1, arg2, "");
       break;
+   case JIT_CC_LE:
+      cgb->outflags = LLVMBuildICmp(req->builder, LLVMIntSLE, arg1, arg2, "");
+      break;
    default:
       jit_dump_with_mark(req->func, ir - req->func->irbuf, false);
       fatal_trace("unhandled cmp condition code");
@@ -815,6 +852,7 @@ static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef args[] = {
       which,
+      req->anchor,
       req->args
    };
    LLVMBuildCall2(req->builder, req->fntypes[LLVM_DO_EXIT], fn,
@@ -848,7 +886,8 @@ static void cgen_macro_getpriv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    };
    cgb->outregs[ir->result] = LLVMBuildCall2(req->builder,
                                              req->fntypes[LLVM_GETPRIV],
-                                             fn, args, ARRAY_LEN(args), "");
+                                             fn, args, ARRAY_LEN(args),
+                                             cgen_reg_name(ir->result));
 }
 
 static void cgen_macro_putpriv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -973,8 +1012,8 @@ static void cgen_dump_reg_types(cgen_req_t *req)
    }
 }
 
-static void cgen_force_reg_type(cgen_req_t *req, jit_reg_t reg,
-                                llvm_type_t type)
+static void cgen_set_reg_type(cgen_req_t *req, jit_reg_t reg,
+                              llvm_type_t type)
 {
    if (req->regtypes[reg] == LLVM_VOID || req->regtypes[reg] == LLVM_INTPTR)
       req->regtypes[reg] = type;
@@ -988,12 +1027,23 @@ static void cgen_force_reg_type(cgen_req_t *req, jit_reg_t reg,
    }
 }
 
-static void cgen_force_reg_size(cgen_req_t *req, jit_reg_t reg, jit_size_t sz,
-                                llvm_type_t deftype)
+static void cgen_hint_value_type(cgen_req_t *req, jit_value_t value,
+                                 llvm_type_t type)
 {
-   assert(deftype == LLVM_INTPTR);
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+   case JIT_ADDR_REG:
+      cgen_set_reg_type(req, value.reg, type);
+      break;
 
-   llvm_type_t type = deftype;
+   default:
+      break;
+   }
+}
+
+static void cgen_hint_reg_size(cgen_req_t *req, jit_reg_t reg, jit_size_t sz)
+{
+   llvm_type_t type = LLVM_INTPTR;
    switch (sz) {
    case JIT_SZ_8:  type = LLVM_INT8; break;
    case JIT_SZ_16: type = LLVM_INT16; break;
@@ -1002,15 +1052,16 @@ static void cgen_force_reg_size(cgen_req_t *req, jit_reg_t reg, jit_size_t sz,
    case JIT_SZ_UNSPEC: break;
    }
 
-   cgen_force_reg_type(req, reg, type);
+   cgen_set_reg_type(req, reg, type);
 }
 
 static void cgen_hint_value_size(cgen_req_t *req, jit_value_t value,
-                                 jit_size_t sz, llvm_type_t deftype)
+                                 jit_size_t sz)
 {
    switch (value.kind) {
    case JIT_VALUE_REG:
-      cgen_force_reg_size(req, value.reg, sz, deftype);
+   case JIT_ADDR_REG:
+      cgen_hint_reg_size(req, value.reg, sz);
       break;
 
    default:
@@ -1018,16 +1069,16 @@ static void cgen_hint_value_size(cgen_req_t *req, jit_value_t value,
    }
 }
 
-static void cgen_constrain_type(cgen_req_t *req, jit_reg_t reg,
-                                jit_value_t value)
+static void cgen_hint_reg_type(cgen_req_t *req, jit_reg_t reg,
+                               jit_value_t value)
 {
    switch (value.kind) {
    case JIT_VALUE_REG:
-      req->regtypes[reg] = req->regtypes[value.reg];
+      cgen_set_reg_type(req, reg, req->regtypes[value.reg]);
       break;
 
    case JIT_VALUE_INT64:
-      req->regtypes[reg] = LLVM_INTPTR;
+      cgen_set_reg_type(req, reg, LLVM_INTPTR);
       break;
 
    default:
@@ -1043,49 +1094,45 @@ static void cgen_reg_types(cgen_req_t *req)
       jit_ir_t *ir = &(req->func->irbuf[i]);
       switch (ir->op) {
       case J_RECV:
-         cgen_force_reg_type(req, ir->result, LLVM_INTPTR);
+         cgen_set_reg_type(req, ir->result, LLVM_INTPTR);
          break;
 
       case J_LOAD:
       case J_ULOAD:
+         cgen_hint_reg_size(req, ir->result, ir->size);
+         break;
+
       case J_MUL:
       case J_ADD:
       case J_SUB:
-         cgen_force_reg_size(req, ir->result, ir->size, LLVM_INTPTR);
-         cgen_hint_value_size(req, ir->arg1, ir->size, LLVM_INTPTR);
-         cgen_hint_value_size(req, ir->arg2, ir->size, LLVM_INTPTR);
-         break;
-
-      case J_NOT:
-         cgen_force_reg_type(req, ir->result, req->regtypes[ir->arg1.reg]);
+         cgen_hint_reg_size(req, ir->result, ir->size);
+         cgen_hint_reg_type(req, ir->result, ir->arg1);
          break;
 
       case J_CSET:
-         cgen_force_reg_type(req, ir->result, LLVM_INT1);
+         cgen_set_reg_type(req, ir->result, LLVM_INT1);
          break;
 
       case J_STORE:
-         cgen_hint_value_size(req, ir->arg1, ir->size, LLVM_INTPTR);
-         break;
-
-      case J_CSEL:
-         if (ir->arg1.kind == JIT_VALUE_REG)
-            cgen_force_reg_type(req, ir->result, req->regtypes[ir->arg1.reg]);
-         else if (ir->arg2.kind == JIT_VALUE_REG)
-            cgen_force_reg_type(req, ir->result, req->regtypes[ir->arg2.reg]);
-         else
-            cgen_force_reg_type(req, ir->result, LLVM_INTPTR);
+         cgen_hint_value_type(req, ir->arg2, LLVM_PTR);
+         cgen_hint_value_size(req, ir->arg1, ir->size);
          break;
 
       case J_LEA:
       case MACRO_GETPRIV:
       case MACRO_GALLOC:
-         cgen_force_reg_type(req, ir->result, LLVM_PTR);
+         cgen_set_reg_type(req, ir->result, LLVM_PTR);
+         break;
+
+      case J_CSEL:
+         cgen_hint_reg_type(req, ir->result, ir->arg1);
+         cgen_hint_reg_type(req, ir->result, ir->arg2);
          break;
 
       case J_MOV:
       case J_NEG:
-         cgen_constrain_type(req, ir->result, ir->arg1);
+      case J_NOT:
+         cgen_hint_reg_type(req, ir->result, ir->arg1);
          break;
 
       case J_JUMP:
@@ -1108,6 +1155,26 @@ static void cgen_reg_types(cgen_req_t *req)
    }
 
    cgen_dump_reg_types(req);
+}
+
+static void cgen_dump_module(cgen_req_t *req, const char *tag)
+{
+   size_t length;
+   const char *module_name = LLVMGetModuleIdentifier(req->module, &length);
+
+   if (!opt_get_verbose(OPT_LLVM_VERBOSE, module_name))
+      return;
+
+   char *file_name LOCAL = xasprintf("_%s.%s.ll", module_name, tag);
+
+   char file_path[PATH_MAX];
+   lib_realpath(lib_work(), file_name, file_path, sizeof(file_path));
+
+   char *error;
+   if (LLVMPrintModuleToFile(req->module, file_path, &error))
+      fatal("Failed to write LLVM IR file: %s", error);
+
+   debugf("wrote LLVM IR for %s to %s", module_name, file_path);
 }
 
 static void cgen_frame_anchor(cgen_req_t *req)
@@ -1296,7 +1363,7 @@ static void cgen_module(cgen_req_t *req)
 
    LLVMDisposeTargetData(data_ref);
 
-   LLVMDumpModule(req->module);
+   cgen_dump_module(req, "initial");
 
 #ifdef DEBUG
    if (LLVMVerifyModule(req->module, LLVMPrintMessageAction, NULL))
@@ -1323,7 +1390,7 @@ static void cgen_optimise(cgen_req_t *req)
    LLVMFinalizeFunctionPassManager(fpm);
    LLVMDisposePassManager(fpm);
 
-   LLVMDumpModule(req->module);
+   cgen_dump_module(req, "final");
 }
 
 static void *jit_llvm_init(void)
@@ -1357,6 +1424,10 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    lljit_state_t *state = context;
 
    jit_func_t *f = jit_get_func(j, handle);
+
+   const char *only = getenv("NVC_JIT_ONLY");
+   if (only != NULL && !icmp(f->name, only))
+      return;
 
    printf("LLVM compile %s\n", istr(f->name));
 
