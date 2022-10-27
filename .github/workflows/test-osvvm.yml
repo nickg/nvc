@@ -1,0 +1,50 @@
+name: Test OSVVM
+
+on: workflow_dispatch
+
+jobs:
+  test-osvvm:
+    name: Test OSVVM
+    runs-on: windows-2019
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          update: true
+          install: >-
+            base-devel
+            git
+            unzip
+            mingw-w64-x86_64-tcllib
+      - name: Download MSYS2 mingw64 package
+        id: download-artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build-test.yml
+          workflow_conclusion: success
+          branch: master
+          name: MSYS2 mingw64 package
+          skip_unpack: false
+          if_no_artifact_found: fail
+      - name: Install NVC
+        run: |
+          pacman -U --noconfirm *.zst
+      - name: Test OSVVM
+        run: |
+          : # remove VHDL lib source from NVC repo (issue #557}
+          rm -rf lib/*
+          : # install OSVVM, run test, diff results with verified results
+          mkdir tmp && cd tmp
+          tclsh ../test/test-osvvm.tcl
+          failures=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTests.xml)
+          failuresVti=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTestsVti.xml)
+          if [ "$failures" != "0" ] || [ "$failuresVti" != "0" ]; then
+              echo "*** one or more tests failed ***"
+              exit 1
+          fi

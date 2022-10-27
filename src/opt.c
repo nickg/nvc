@@ -47,6 +47,10 @@ static void opt_set_generic(opt_name_t name, option_kind_t kind,
    assert(name < OPT_LAST_NAME);
 
    option_t *o = &(options[name]);
+
+   if (o->kind == OPT_KIND_STRING)
+      free(o->value.s);
+
    o->value = value;
    o->kind  = kind;
 }
