@@ -934,3 +934,118 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
 {
    return jit_get_func(j, handle)->name;
 }
+
+jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
+{
+   jit_func_t *f = hash_get(j->index, name);
+   if (f != NULL)
+      return f->handle;
+
+   f = xcalloc(sizeof(jit_func_t));
+
+   f->name      = name;
+   f->jit       = j;
+   f->handle    = j->funcs.count;
+   f->next_tier = j->tiers;
+   f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
+   f->entry     = jit_interp;
+
+   hash_put(j->index, name, f);
+   APUSH(j->funcs, f);
+
+   enum { INS, RESULT, ARG1, ARG2, NEWLINE } state = INS;
+
+   static const struct {
+      const char *name;
+      jit_op_t    op;
+      int         nresult;
+      int         nargs;
+   } optab[] = {
+      { "MOV",  J_MOV,  1, 1 },
+      { "ADD",  J_ADD,  1, 2 },
+      { "RECV", J_RECV, 1, 1 },
+      { "SEND", J_SEND, 0, 2 },
+      { "RET",  J_RET,  0, 0 },
+   };
+
+   f->bufsz = 128;
+   f->irbuf = xcalloc_array(f->bufsz, sizeof(jit_ir_t));
+
+   jit_ir_t *ir = NULL;
+   int nresult = 0, nargs = 0;
+   char *copy LOCAL = xstrdup(text);
+   for (char *tok = strtok(copy, " \r\t"); tok; tok = strtok(NULL, " \r\t")) {
+   again:
+      switch (state) {
+      case INS:
+         {
+            int ipos = 0;
+            for (; ipos < ARRAY_LEN(optab)
+                    && strcmp(optab[ipos].name, tok); ipos++)
+               ;
+
+            if (ipos == ARRAY_LEN(optab))
+               fatal_trace("illegal instruction %s", tok);
+
+            nargs = optab[ipos].nargs;
+            nresult = optab[ipos].nresult;
+
+            assert(f->nirs < f->bufsz);
+            ir = &(f->irbuf[f->nirs++]);
+
+            ir->op = optab[ipos].op;
+            ir->size = JIT_SZ_UNSPEC;
+            ir->result = JIT_REG_INVALID;
+
+            state = nresult > 0 ? RESULT : (nargs > 0 ? ARG1 : NEWLINE);
+         }
+         break;
+
+      case RESULT:
+         if (tok[0] != 'R')
+            fatal_trace("expected register name but got '%s'", tok);
+
+         ir->result = atoi(tok + 1);
+         f->nregs = MAX(ir->result + 1, f->nregs);
+         state = ARG1;
+         break;
+
+      case ARG1:
+      case ARG2:
+         {
+            jit_value_t arg;
+            if (tok[0] == 'R') {
+               arg.kind = JIT_VALUE_REG;
+               arg.reg  = atoi(tok + 1);
+               f->nregs = MAX(arg.reg + 1, f->nregs);
+            }
+            else if (tok[0] == '#') {
+               arg.kind  = JIT_VALUE_INT64;
+               arg.int64 = strtoll(tok + 1, NULL, 0);
+            }
+            else if (tok[0] == '\n')
+               fatal_trace("got newline, expecting argument");
+            else
+               fatal_trace("cannot parse argument '%s'", tok);
+
+            if (state == ARG1)
+               ir->arg1 = arg;
+            else
+               ir->arg2 = arg;
+
+            state = state == ARG1 && nargs > 1 ? ARG2 : NEWLINE;
+         }
+         break;
+
+      case NEWLINE:
+         if (*tok != '\n')
+            fatal_trace("expected newline, got '%s'", tok);
+         state = INS;
+         if (*++tok != '\0')
+            goto again;
+         break;
+      }
+   }
+
+   return f->handle;
+}

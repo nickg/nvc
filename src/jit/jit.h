@@ -57,6 +57,7 @@ jit_t *jit_new(void);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name);
+jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text);
 void *jit_link(jit_t *j, jit_handle_t handle);
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var);
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx);
