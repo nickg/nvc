@@ -784,7 +784,35 @@ static void cgen_op_rem(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 static void cgen_op_not(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   cgb->outregs[ir->result] = LLVMBuildNot(req->builder, arg1, "");
+   cgb->outregs[ir->result] = LLVMBuildNot(req->builder, arg1,
+                                           cgen_reg_name(ir->result));
+}
+
+static void cgen_op_and(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+
+   cgb->outregs[ir->result] = LLVMBuildAnd(req->builder, arg1, arg2,
+                                           cgen_reg_name(ir->result));
+}
+
+static void cgen_op_or(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+
+   cgb->outregs[ir->result] = LLVMBuildOr(req->builder, arg1, arg2,
+                                          cgen_reg_name(ir->result));
+}
+
+static void cgen_op_xor(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+
+   cgb->outregs[ir->result] = LLVMBuildXor(req->builder, arg1, arg2,
+                                           cgen_reg_name(ir->result));
 }
 
 static void cgen_op_ret(cgen_req_t *req, jit_ir_t *ir)
@@ -1077,6 +1105,15 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case J_NOT:
       cgen_op_not(req, cgb, ir);
       break;
+   case J_AND:
+      cgen_op_and(req, cgb, ir);
+      break;
+   case J_OR:
+      cgen_op_or(req, cgb, ir);
+      break;
+   case J_XOR:
+      cgen_op_xor(req, cgb, ir);
+      break;
    case J_RET:
       cgen_op_ret(req, ir);
       break;
@@ -1232,6 +1269,9 @@ static void cgen_reg_types(cgen_req_t *req)
       case J_SUB:
       case J_DIV:
       case J_REM:
+      case J_AND:
+      case J_OR:
+      case J_XOR:
          cgen_set_reg_type(req, ir->result, cgen_int_type_for(ir));
          break;
 
