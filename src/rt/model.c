@@ -1091,8 +1091,10 @@ static void build_index(rt_signal_t *signal)
    rt_nexus_t *n = &(signal->nexus);
    for (int i = 0, offset = 0; i < signal->n_nexus;
         i++, offset += n->width, n = n->chain) {
-      const int tzc = __builtin_ctz(offset);
-      shift = MIN(shift, tzc);
+      if (offset > 0) {
+         const int tzc = __builtin_ctz(offset);
+         shift = MIN(shift, tzc);
+      }
 
       // Compute greatest common divisor
       for (int b = offset; b > 0;) {
