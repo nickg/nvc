@@ -145,6 +145,13 @@ typedef struct {
       }                                                 \
    } while (0)
 
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+#define PTR(x) x
+#else
+#define PTR(x) \
+   LLVMBuildPointerCast(req->builder, (x), req->types[LLVM_PTR], "")
+#endif
+
 static LLVMValueRef llvm_int1(cgen_req_t *req, bool b)
 {
    return LLVMConstInt(req->types[LLVM_INT1], b, false);
@@ -634,7 +641,13 @@ static void cgen_op_send(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       fatal_trace("cannot extend LLVM type to 64 bits");
    }
 
+#ifdef LLVM_HAS_OPAQUE_POINTERS
    LLVMBuildStore(req->builder, value, ptr);
+#else
+   LLVMTypeRef ptr_type = LLVMPointerType(LLVMTypeOf(value), 0);
+   LLVMValueRef cast = LLVMBuildPointerCast(req->builder, ptr, ptr_type, "");
+   LLVMBuildStore(req->builder, value, cast);
+#endif
 }
 
 static void cgen_op_store(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -643,7 +656,13 @@ static void cgen_op_store(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef value = cgen_coerce_value(req, cgb, ir->arg1, type);
    LLVMValueRef ptr   = cgen_coerce_value(req, cgb, ir->arg2, LLVM_PTR);
 
+#ifdef LLVM_HAS_OPAQUE_POINTERS
    LLVMBuildStore(req->builder, value, ptr);
+#else
+   LLVMTypeRef ptr_type = LLVMPointerType(LLVMTypeOf(value), 0);
+   LLVMValueRef cast = LLVMBuildPointerCast(req->builder, ptr, ptr_type, "");
+   LLVMBuildStore(req->builder, value, cast);
+#endif
 }
 
 static void cgen_op_load(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -918,12 +937,18 @@ static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       LLVMSetInitializer(global, llvm_ptr(req, callee->entry));
    }
 
+#ifdef LLVM_HAS_OPAQUE_POINTERS
    LLVMValueRef fnptr =
       LLVMBuildLoad2(req->builder, req->types[LLVM_PTR], global, "");
+#else
+   LLVMTypeRef ptr_type = LLVMPointerType(req->types[LLVM_ENTRY_FN], 0);
+   LLVMValueRef cast = LLVMBuildPointerCast(req->builder, global, ptr_type, "");
+   LLVMValueRef fnptr = LLVMBuildLoad2(req->builder, ptr_type, cast, "");
+#endif
 
    LLVMValueRef args[] = {
       llvm_ptr(req, callee),
-      req->anchor,
+      PTR(req->anchor),
       req->args
    };
    LLVMBuildCall2(req->builder, req->types[LLVM_ENTRY_FN], fnptr,
@@ -1000,7 +1025,7 @@ static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef args[] = {
       which,
-      req->anchor,
+      PTR(req->anchor),
       req->args
    };
    LLVMBuildCall2(req->builder, req->fntypes[LLVM_DO_EXIT], fn,
@@ -1382,7 +1407,6 @@ static void cgen_module(cgen_req_t *req)
    LLVMSetModuleDataLayout(req->module, data_ref);
 
    req->types[LLVM_VOID]   = LLVMVoidTypeInContext(req->context);
-   req->types[LLVM_PTR]    = LLVMPointerTypeInContext(req->context, 0);
    req->types[LLVM_INT1]   = LLVMInt1TypeInContext(req->context);
    req->types[LLVM_INT8]   = LLVMInt8TypeInContext(req->context);
    req->types[LLVM_INT16]  = LLVMInt16TypeInContext(req->context);
@@ -1390,6 +1414,13 @@ static void cgen_module(cgen_req_t *req)
    req->types[LLVM_INT64]  = LLVMInt64TypeInContext(req->context);
    req->types[LLVM_INTPTR] = LLVMIntPtrTypeInContext(req->context, data_ref);
    req->types[LLVM_DOUBLE] = LLVMDoubleTypeInContext(req->context);
+
+
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   req->types[LLVM_PTR] = LLVMPointerTypeInContext(req->context, 0);
+#else
+   req->types[LLVM_PTR] = LLVMPointerType(req->types[LLVM_INT8], 0);
+#endif
 
    LLVMTypeRef atypes[] = {
       req->types[LLVM_PTR],    // Function
