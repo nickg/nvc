@@ -545,7 +545,8 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
       }
 
       break;
-   } while (dwarf_siblingof(handle->debug, child, &child, NULL) == DW_DLV_OK);
+   } while (dwarf_siblingof_b(handle->debug, child, &child,
+                              true, NULL) == DW_DLV_OK);
 
    if (prev != NULL)
       dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
@@ -638,15 +639,16 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
                               debug_frame_t *frame)
 {
    Dwarf_Unsigned next_cu_offset;
+   Dwarf_Error error;
    bool found = false;
-   while (dwarf_next_cu_header(handle->debug, NULL, NULL, NULL, NULL,
-                               &next_cu_offset, NULL) == DW_DLV_OK) {
-
+   while (dwarf_next_cu_header_c(handle->debug, true, NULL, NULL, NULL,
+                                 NULL, NULL, NULL, NULL, NULL,
+                                 &next_cu_offset, &error) == DW_DLV_OK) {
       if (found)
          continue;   // Read all the way to the end to reset the iterator
 
       Dwarf_Die die = NULL;
-      if (dwarf_siblingof(handle->debug, 0, &die, NULL) != DW_DLV_OK)
+      if (dwarf_siblingof_b(handle->debug, 0, &die, true, NULL) != DW_DLV_OK)
          continue;
 
       Dwarf_Half tag = 0;
