@@ -33,6 +33,7 @@
 #include "vcode.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
@@ -953,7 +954,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    hash_put(j->index, name, f);
    APUSH(j->funcs, f);
 
-   enum { INS, RESULT, ARG1, ARG2, NEWLINE } state = INS;
+   enum { LABEL, INS, CCSIZE, RESULT, ARG1, ARG2, NEWLINE } state = LABEL;
 
    static const struct {
       const char *name;
@@ -963,22 +964,66 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    } optab[] = {
       { "MOV",  J_MOV,  1, 1 },
       { "ADD",  J_ADD,  1, 2 },
+      { "SUB",  J_SUB,  1, 2 },
+      { "MUL",  J_MUL,  1, 2 },
       { "RECV", J_RECV, 1, 1 },
       { "SEND", J_SEND, 0, 2 },
       { "RET",  J_RET,  0, 0 },
+      { "CMP",  J_CMP,  0, 2 },
+      { "JUMP", J_JUMP, 0, 1 },
+   };
+
+   static const struct {
+      const char *name;
+      jit_cc_t    cc;
+   } cctab[] = {
+      { "T",  JIT_CC_T },
+      { "F",  JIT_CC_F },
+      { "EQ", JIT_CC_EQ },
    };
 
    f->bufsz = 128;
    f->irbuf = xcalloc_array(f->bufsz, sizeof(jit_ir_t));
 
+   SCOPED_A(int) lpatch = AINIT;
+   int *labels LOCAL = NULL, maxlabel = 0;
    jit_ir_t *ir = NULL;
    int nresult = 0, nargs = 0;
    char *copy LOCAL = xstrdup(text);
    for (char *tok = strtok(copy, " \r\t"); tok; tok = strtok(NULL, " \r\t")) {
    again:
       switch (state) {
+      case LABEL:
+         assert(f->nirs < f->bufsz);
+         ir = &(f->irbuf[f->nirs++]);
+
+         if (tok[0] == 'L' && isdigit((int)tok[1])) {
+            char *eptr = NULL;
+            const int lab = strtol(tok + 1, &eptr, 10);
+            if (*eptr != ':')
+               fatal_trace("cannot parse label '%s'", tok);
+
+            if (lab > maxlabel) {
+               maxlabel = next_power_of_2(lab);
+               labels = xrealloc_array(labels, maxlabel + 1, sizeof(int));
+            }
+
+            ir->target = 1;
+            labels[lab] = ir - f->irbuf;
+            state = INS;
+         }
+         else {
+            state = INS;
+            goto again;
+         }
+         break;
+
       case INS:
          {
+            char *dot = strchr(tok, '.');
+            if (dot != NULL)
+               *dot++ = '\0';
+
             int ipos = 0;
             for (; ipos < ARRAY_LEN(optab)
                     && strcmp(optab[ipos].name, tok); ipos++)
@@ -990,12 +1035,31 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
             nargs = optab[ipos].nargs;
             nresult = optab[ipos].nresult;
 
-            assert(f->nirs < f->bufsz);
-            ir = &(f->irbuf[f->nirs++]);
-
             ir->op = optab[ipos].op;
             ir->size = JIT_SZ_UNSPEC;
             ir->result = JIT_REG_INVALID;
+
+            if (dot != NULL) {
+               tok = dot;
+               state = CCSIZE;
+               goto again;
+            }
+
+            state = nresult > 0 ? RESULT : (nargs > 0 ? ARG1 : NEWLINE);
+         }
+         break;
+
+      case CCSIZE:
+         {
+            int cpos = 0;
+            for (; cpos < ARRAY_LEN(optab)
+                    && strcmp(cctab[cpos].name, tok); cpos++)
+               ;
+
+            if (cpos == ARRAY_LEN(cctab))
+               fatal_trace("illegal condition code %s", tok);
+
+            ir->cc = cctab[cpos].cc;
 
             state = nresult > 0 ? RESULT : (nargs > 0 ? ARG1 : NEWLINE);
          }
@@ -1023,6 +1087,11 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                arg.kind  = JIT_VALUE_INT64;
                arg.int64 = strtoll(tok + 1, NULL, 0);
             }
+            else if (tok[0] == 'L') {
+               APUSH(lpatch, ir - f->irbuf);
+               arg.kind = JIT_VALUE_LABEL;
+               arg.label = atoi(tok + 1);
+            }
             else if (tok[0] == '\n')
                fatal_trace("got newline, expecting argument");
             else
@@ -1040,11 +1109,16 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       case NEWLINE:
          if (*tok != '\n')
             fatal_trace("expected newline, got '%s'", tok);
-         state = INS;
+         state = LABEL;
          if (*++tok != '\0')
             goto again;
          break;
       }
+   }
+
+   for (int i = 0; i < lpatch.count; i++) {
+      jit_ir_t *ir = &(f->irbuf[lpatch.items[i]]);
+      ir->arg1.label = labels[ir->arg1.label];
    }
 
    return f->handle;

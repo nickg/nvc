@@ -1185,6 +1185,30 @@ START_TEST(test_assemble1)
 }
 END_TEST
 
+START_TEST(test_assemble2)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    RECV    R0, #0       \n"
+      "L1: CMP.EQ  R0, #0       \n"
+      "    JUMP.T  L2           \n"
+      "    SUB     R0, R0, #1   \n"
+      "    JUMP    L1           \n"
+      "L2: SEND    #0, R0       \n"
+      "    RET                  \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_scalar_t result, p0 = { .integer = 5 };
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0));
+
+   ck_assert_int_eq(result.integer, 0);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1219,6 +1243,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_value1);
    tcase_add_test(tc, test_ffi1);
    tcase_add_test(tc, test_assemble1);
+   tcase_add_test(tc, test_assemble2);
    suite_add_tcase(s, tc);
 
    return s;
