@@ -1236,8 +1236,6 @@ START_TEST(test_cfg1)
    jit_func_t *f = jit_get_func(j, h1);
    jit_cfg_t *cfg = jit_get_cfg(f);
 
-   jit_dump(f);
-
    ck_assert_int_eq(cfg->nblocks, 4);
 
    ck_assert_int_eq(cfg->blocks[0].returns, 0);
