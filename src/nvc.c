@@ -253,21 +253,36 @@ static int elaborate(int argc, char **argv)
       case 'c':
          opt_set_int(OPT_COVER, 1);
          if (optarg) {
-            for (;*optarg != '\0'; optarg++)
-               if (*optarg =='s')
-                  opt_set_int(OPT_COVER_STMT, 1);
-               else if (*optarg == 't')
-                  opt_set_int(OPT_COVER_TOGGLE, 1);
-               else if (*optarg == 'b')
-                  opt_set_int(OPT_COVER_BRANCH, 1);
-               else if (*optarg != ',')
-                  fatal("Unknown coverage type '%s'. Valid coverage types are: \n"
+            char prev = 0;
+            int n_chars = 0;
+            const char *full_cov_opt = optarg;
+            do {
+               printf("Processing coverage type %c\n", *optarg);
+               if (*optarg == ',' || *optarg == '\0') {
+                  if (prev == 's')
+                     opt_set_int(OPT_COVER_STMT, 1);
+                  else if (prev == 't')
+                     opt_set_int(OPT_COVER_TOGGLE, 1);
+                  else if (prev == 'b')
+                     opt_set_int(OPT_COVER_BRANCH, 1);
+                  else
+                     fatal("Unknown coverage type '%c'. Valid coverage types are: \n"
                         "  s (statement)\n"
                         "  t (toggle)\n"
                         "  b (branch)\n"
                         "Selected coverage types shall be comma separated. E.g.:\n"
-                        "  nvc -e --cover=s,t,b <top_entity>\n", optarg);
-         } else {
+                        "  nvc -e --cover=s,t,b <top_entity>\n", *optarg);
+                  n_chars = 0;
+               }
+               n_chars++;
+               if (n_chars >= 3)
+                  fatal("Invalid coverage type: '%s'. Valid coverage shall be a "
+                        "single letter!", full_cov_opt);
+               prev = *optarg;
+               optarg++;
+            } while (*optarg != '\0');
+         }
+         else {
             opt_set_int(OPT_COVER_BRANCH, 1);
             opt_set_int(OPT_COVER_STMT, 1);
             opt_set_int(OPT_COVER_TOGGLE, 1);
@@ -306,6 +321,7 @@ static int elaborate(int argc, char **argv)
    tree_t top = elab(unit);
    if (top == NULL)
       return EXIT_FAILURE;
+
    progress("elaborating design");
 
    cover_tagging_t *cover = NULL;
@@ -933,11 +949,10 @@ static int coverage(int argc, char **argv)
       progress("Loading input coverage database: %s", argv[i]);
       fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
 
-      if (i == optind) {
+      if (i == optind)
          cover = cover_read_tags(f);
-      } else {
+      else
          cover_merge_tags(f, cover);
-      }
 
       fbuf_close(f, NULL);
    }
@@ -1012,8 +1027,8 @@ static void usage(void)
           "Run options:\n"
           "     --dump-arrays\tInclude nested arrays in waveform dump\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
-          "     --exit-severity=\tExit after assertion failure of \n"
-          "                     \tthis severity\n"
+          "     --exit-severity=\tExit after assertion failure of "
+          "this severity\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
           "     \t\t\tfrom IEEE packages\n"

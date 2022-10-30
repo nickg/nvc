@@ -622,19 +622,9 @@ const void *signal_value(rt_signal_t *s)
    return s->shared.data;
 }
 
-uint32_t signal_size(rt_signal_t *s)
-{
-   return s->shared.size;
-}
-
 const void *signal_last_value(rt_signal_t *s)
 {
    return s->shared.data + s->shared.size;
-}
-
-ident_t signal_name(rt_signal_t *s)
-{
-   return tree_ident(s->where);
 }
 
 size_t signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
@@ -1249,6 +1239,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
    case SOURCE_PORT:
       {
          new->u.port.input = old->u.port.input;
+
          if (old->u.port.conv_func != NULL) {
             new->u.port.conv_func = old->u.port.conv_func;
             new->u.port.conv_func->refcnt++;
@@ -1885,6 +1876,7 @@ void model_reset(rt_model_t *m)
    MODEL_ENTRY(m);
 
    // Initialisation is described in LRM 93 section 12.6.4
+
    reset_coverage(m);
    reset_scope(m, m->root);
 
@@ -3289,11 +3281,4 @@ void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
    };
 
    x_resolve_signal(ss, &resolution);
-}
-
-void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-   rt_model_t *m = get_model();
-   model_set_event_cb(m, s, cover_toggle_event_cb, toggle_mask, false);
 }

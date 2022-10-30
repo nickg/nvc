@@ -3087,6 +3087,7 @@ static void cgen_op_cover_branch(int op, cgen_ctx_t *ctx)
    LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_branches");
 
    // Bit zero means evaluated false, bit one means evaluated true
+
    LLVMValueRef or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
                                      llvm_int32(1 << 0),
                                      llvm_int32(1 << 1),

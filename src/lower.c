@@ -1515,16 +1515,14 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, i
    root = type_base_recur(root);
 
    well_known_t known = is_well_known(type_ident(root));
-   if (known != W_IEEE_ULOGIC &&
-       known != W_IEEE_ULOGIC_VECTOR)
+   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
       return -1;
 
    unsigned int flags = 0;
-   if (tree_kind(where) == T_SIGNAL_DECL) {
+   if (tree_kind(where) == T_SIGNAL_DECL)
       flags = COV_FLAG_TOGGLE_SIGNAL;
-   } else {
+   else
       flags = COV_FLAG_TOGGLE_PORT;
-   }
 
    if (type_is_array(type)) {
       tree_t r = range_of(type, dims - 1);
@@ -1543,7 +1541,8 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, i
                tmp = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags)->tag;
                if (i == low)
                   first_tag = tmp;
-            } else {
+            }
+            else {
                tmp = lower_toggle_tag_for(type, where, arr_suffix, dims - 1);
                if (i == low)
                   first_tag = tmp;
@@ -5262,6 +5261,7 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
          vcode_reg_t data_reg = lower_array_data(lower_resolved(type, src_reg));
          vcode_reg_t count_reg = lower_scalar_sub_elements(type, p->reg);
          vcode_reg_t nets_raw = lower_array_data(p->reg);
+
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
       else {
@@ -6189,7 +6189,8 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
       if (kind == A_OTHERS) {
          def_bb = hit_bb;
          has_others = true;
-      } else {
+      }
+      else {
          tree_t name = tree_name(a);
          int64_t enc = encode_case_choice(name, length, exact_map ? nbits : 0);
          if (!exact_map) enc %= max_cases;
