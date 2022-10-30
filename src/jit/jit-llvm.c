@@ -565,19 +565,28 @@ static LLVMValueRef cgen_coerce_value(cgen_req_t *req, cgen_block_t *cgb,
    case LLVM_INT32:
    case LLVM_INT16:
    case LLVM_INT8:
-      if (LLVMGetTypeKind(lltype) == LLVMPointerTypeKind)
+      switch (LLVMGetTypeKind(lltype)) {
+      case LLVMPointerTypeKind:
          return LLVMBuildIntToPtr(req->builder, raw, req->types[LLVM_PTR], "");
-      else {
-         const int bits1 = LLVMGetIntTypeWidth(lltype);
-         const int bits2 = LLVMGetIntTypeWidth(req->types[type]);
+      case LLVMIntegerTypeKind:
+         {
+            const int bits1 = LLVMGetIntTypeWidth(lltype);
+            const int bits2 = LLVMGetIntTypeWidth(req->types[type]);
 
-         if (bits1 < bits2)
-            return LLVMBuildSExt(req->builder, raw, req->types[type], "");
-         else if (bits1 == bits2)
-            return raw;
-         else
-            return LLVMBuildTrunc(req->builder, raw, req->types[type], "");
+            if (bits1 < bits2)
+               return LLVMBuildSExt(req->builder, raw, req->types[type], "");
+            else if (bits1 == bits2)
+               return raw;
+            else
+               return LLVMBuildTrunc(req->builder, raw, req->types[type], "");
+         }
+      case LLVMDoubleTypeKind:
+         return LLVMBuildBitCast(req->builder, raw, req->types[type], "");
+      default:
+         LLVMDumpType(lltype);
+         fatal_trace("cannot coerce type to integer");
       }
+      break;
 
    case LLVM_DOUBLE:
       return LLVMBuildBitCast(req->builder, raw, req->types[type], "");
@@ -645,8 +654,15 @@ static void cgen_op_recv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    assert(nth < JIT_MAX_ARGS);
    LLVMValueRef indexes[] = { llvm_int32(req, nth) };
    LLVMTypeRef int64_type = req->types[LLVM_INT64];
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   LLVMValueRef cast = req->args;
+#else
+   LLVMTypeRef ptr_type = LLVMPointerType(int64_type, 0);
+   LLVMValueRef cast =
+      LLVMBuildPointerCast(req->builder, req->args, ptr_type, "");
+#endif
    LLVMValueRef ptr = LLVMBuildInBoundsGEP2(req->builder, int64_type,
-                                            req->args, indexes,
+                                            cast, indexes,
                                             ARRAY_LEN(indexes),
                                             cgen_arg_name(nth));
 
@@ -664,8 +680,15 @@ static void cgen_op_send(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    assert(nth < JIT_MAX_ARGS);
    LLVMValueRef indexes[] = { llvm_int32(req, nth) };
    LLVMTypeRef int64_type = req->types[LLVM_INT64];
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   LLVMValueRef args_cast = req->args;
+#else
+   LLVMTypeRef args_ptr_type = LLVMPointerType(int64_type, 0);
+   LLVMValueRef args_cast =
+      LLVMBuildPointerCast(req->builder, req->args, args_ptr_type, "");
+#endif
    LLVMValueRef ptr = LLVMBuildInBoundsGEP2(req->builder, int64_type,
-                                            req->args, indexes,
+                                            args_cast, indexes,
                                             ARRAY_LEN(indexes),
                                             cgen_arg_name(nth));
 
@@ -697,6 +720,11 @@ static void cgen_op_load(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    llvm_type_t type = LLVM_INT8 + ir->size;
    LLVMValueRef ptr = cgen_coerce_value(req, cgb, ir->arg1, LLVM_PTR);
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(req->types[type], 0);
+   ptr = LLVMBuildPointerCast(req->builder, ptr, ptr_type, "");
+#endif
 
    if (type == LLVM_INT64)
       cgb->outregs[ir->result] = LLVMBuildLoad2(req->builder, req->types[type],
