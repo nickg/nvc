@@ -3,6 +3,7 @@ package simple is
     procedure test_fact;
     procedure test_sum;
     procedure test_int_image;
+    procedure test_sqrt;
 end package;
 
 package body simple is
@@ -75,6 +76,30 @@ package body simple is
         for i in 1 to 100 loop
             assert integer'image(i)'length <= 3;
         end loop;
+    end procedure;
+
+    ---------------------------------------------------------------------------
+
+    function sqrt (n, limit : real) return real is
+        variable x    : real := n;
+        variable root : real;
+    begin
+        loop
+            root := 0.5 * (x + (n / x));
+            exit when abs(root - x) < limit;
+            x := root;
+        end loop;
+        return root;
+    end function;
+
+    procedure test_sqrt is
+        variable sum : real := 0.0;
+    begin
+        assert abs(sqrt(4.0, 0.0001) - 2.0) < 0.0001;
+        for i in 1 to 100 loop
+            sum := sum + sqrt(real(i), 0.0001);
+        end loop;
+        assert integer(sum) = 671;
     end procedure;
 
 end package body;
