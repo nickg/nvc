@@ -565,6 +565,7 @@ static LLVMValueRef cgen_coerce_value(cgen_req_t *req, cgen_block_t *cgb,
    case LLVM_INT32:
    case LLVM_INT16:
    case LLVM_INT8:
+   case LLVM_INT1:
       switch (LLVMGetTypeKind(lltype)) {
       case LLVMPointerTypeKind:
          return LLVMBuildIntToPtr(req->builder, raw, req->types[LLVM_PTR], "");
@@ -573,7 +574,11 @@ static LLVMValueRef cgen_coerce_value(cgen_req_t *req, cgen_block_t *cgb,
             const int bits1 = LLVMGetIntTypeWidth(lltype);
             const int bits2 = LLVMGetIntTypeWidth(req->types[type]);
 
-            if (bits1 < bits2)
+            if (bits2 == 1) {
+               LLVMValueRef zero = LLVMConstInt(lltype, 0, false);
+               return LLVMBuildICmp(req->builder, LLVMIntNE, raw, zero, "");
+            }
+            else if (bits1 < bits2)
                return LLVMBuildSExt(req->builder, raw, req->types[type], "");
             else if (bits1 == bits2)
                return raw;
@@ -923,36 +928,36 @@ static void cgen_op_scvtf(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_not(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   cgb->outregs[ir->result] = LLVMBuildNot(req->builder, arg1,
-                                           cgen_reg_name(ir->result));
+   LLVMValueRef arg1 = cgen_coerce_value(req, cgb, ir->arg1, LLVM_INT1);
+   LLVMValueRef logical = LLVMBuildNot(req->builder, arg1, "");
+   cgen_zext_result(req, cgb, ir, logical);
 }
 
 static void cgen_op_and(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+   LLVMValueRef arg1 = cgen_coerce_value(req, cgb, ir->arg1, LLVM_INT1);
+   LLVMValueRef arg2 = cgen_coerce_value(req, cgb, ir->arg2, LLVM_INT1);
 
-   cgb->outregs[ir->result] = LLVMBuildAnd(req->builder, arg1, arg2,
-                                           cgen_reg_name(ir->result));
+   LLVMValueRef logical = LLVMBuildAnd(req->builder, arg1, arg2, "");
+   cgen_zext_result(req, cgb, ir, logical);
 }
 
 static void cgen_op_or(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+   LLVMValueRef arg1 = cgen_coerce_value(req, cgb, ir->arg1, LLVM_INT1);
+   LLVMValueRef arg2 = cgen_coerce_value(req, cgb, ir->arg2, LLVM_INT1);
 
-   cgb->outregs[ir->result] = LLVMBuildOr(req->builder, arg1, arg2,
-                                          cgen_reg_name(ir->result));
+   LLVMValueRef logical = LLVMBuildOr(req->builder, arg1, arg2, "");
+   cgen_zext_result(req, cgb, ir, logical);
 }
 
 static void cgen_op_xor(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
+   LLVMValueRef arg1 = cgen_coerce_value(req, cgb, ir->arg1, LLVM_INT1);
+   LLVMValueRef arg2 = cgen_coerce_value(req, cgb, ir->arg2, LLVM_INT1);
 
-   cgb->outregs[ir->result] = LLVMBuildXor(req->builder, arg1, arg2,
-                                           cgen_reg_name(ir->result));
+   LLVMValueRef logical = LLVMBuildXor(req->builder, arg1, arg2, "");
+   cgen_zext_result(req, cgb, ir, logical);
 }
 
 static void cgen_op_ret(cgen_req_t *req, jit_ir_t *ir)
@@ -1105,7 +1110,7 @@ static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 static void cgen_macro_exp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
 
    // TODO: implement this without the cast
    LLVMValueRef fn = cgen_get_fn(req, LLVM_POW_F64);
@@ -1113,10 +1118,11 @@ static void cgen_macro_exp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
       LLVMBuildUIToFP(req->builder, arg1, req->types[LLVM_DOUBLE], ""),
       LLVMBuildUIToFP(req->builder, arg2, req->types[LLVM_DOUBLE], "")
    };
+   LLVMValueRef real =
+      LLVMBuildCall2(req->builder, req->fntypes[LLVM_POW_F64], fn, cast, 2, "");
+
    cgb->outregs[ir->result] = LLVMBuildFPToUI(
-      req->builder,
-      LLVMBuildCall2(req->builder, req->fntypes[LLVM_POW_F64], fn, cast, 2, ""),
-      req->types[LLVM_INT64], cgen_reg_name(ir->result));
+      req->builder, real, req->types[LLVM_INT64], cgen_reg_name(ir->result));
 }
 
 static void cgen_macro_fexp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1663,6 +1669,8 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    printf("LLVM compile %s\n", istr(f->name));
 
+   const uint64_t start_us = get_timestamp_us();
+
    static __thread LLVMTargetMachineRef tm_ref = NULL;
    if (tm_ref == NULL) {
       char *def_triple = LLVMGetDefaultTargetTriple();
@@ -1698,7 +1706,8 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    LLVMOrcJITTargetAddress addr;
    LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, req.name);
 
-   printf("%s at %p\n", req.name, (void *)addr);
+   const uint64_t end_us = get_timestamp_us();
+   debugf("%s at %p [%"PRIi64" us]", req.name, (void *)addr, end_us - start_us);
 
    atomic_store(&f->entry, (jit_entry_fn_t)addr);
 
