@@ -408,11 +408,13 @@ static void jit_interp_trace(diag_t *d)
       assert(a->irpos < a->func->nirs);
       const loc_t *loc = NULL;
       for (jit_ir_t *ir = &(a->func->irbuf[a->irpos]);
-           ir >= a->func->irbuf && !ir->target; ir--) {
+           ir >= a->func->irbuf; ir--) {
          if (ir->op == J_DEBUG) {
             loc = &ir->arg1.loc;
             break;
          }
+         else if (ir->target)
+            break;
       }
 
       jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);

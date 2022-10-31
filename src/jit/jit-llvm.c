@@ -651,6 +651,15 @@ static void cgen_zext_result(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir,
    }
 }
 
+static void cgen_sync_irpos(cgen_req_t *req, jit_ir_t *ir)
+{
+   const unsigned irpos = ir - req->func->irbuf;
+   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(req->builder,
+                                                req->types[LLVM_ANCHOR],
+                                                req->anchor, 2, "");
+   LLVMBuildStore(req->builder, llvm_int32(req, irpos), irpos_ptr);
+}
+
 static void cgen_op_recv(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
@@ -969,18 +978,21 @@ static void cgen_op_jump(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    if (ir->cc == JIT_CC_NONE) {
       assert(cgb->source->out.count == 1);
-      LLVMBasicBlockRef dest = req->blocks[cgb->source->out.edges[0]].bbref;
+      LLVMBasicBlockRef dest =
+         req->blocks[jit_get_edge(&(cgb->source->out), 0)].bbref;
       LLVMBuildBr(req->builder, dest);
    }
    else if (ir->cc == JIT_CC_T) {
       assert(cgb->source->out.count == 2);
-      LLVMBasicBlockRef dest_t = req->blocks[cgb->source->out.edges[1]].bbref;
+      LLVMBasicBlockRef dest_t =
+         req->blocks[jit_get_edge(&(cgb->source->out), 1)].bbref;
       LLVMBasicBlockRef dest_f = (cgb + 1)->bbref;
       LLVMBuildCondBr(req->builder, cgb->outflags, dest_t, dest_f);
    }
    else if (ir->cc == JIT_CC_F) {
       assert(cgb->source->out.count == 2);
-      LLVMBasicBlockRef dest_t = req->blocks[cgb->source->out.edges[1]].bbref;
+      LLVMBasicBlockRef dest_t =
+         req->blocks[jit_get_edge(&(cgb->source->out), 1)].bbref;
       LLVMBasicBlockRef dest_f = (cgb + 1)->bbref;
       LLVMBuildCondBr(req->builder, cgb->outflags, dest_f, dest_t);
    }
@@ -1051,6 +1063,8 @@ static void cgen_op_csel(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
+   cgen_sync_irpos(req, ir);
+
    jit_func_t *callee = jit_get_func(req->func->jit, ir->arg1.handle);
    const char *name = cgen_istr(req, callee->name);
    LLVMValueRef global = LLVMGetNamedGlobal(req->module, name);
@@ -1157,11 +1171,7 @@ static void cgen_macro_bzero(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_exit(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   const unsigned irpos = ir - req->func->irbuf;
-   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(req->builder,
-                                                req->types[LLVM_ANCHOR],
-                                                req->anchor, 2, "");
-   LLVMBuildStore(req->builder, llvm_int32(req, irpos), irpos_ptr);
+   cgen_sync_irpos(req, ir);
 
    LLVMValueRef which = cgen_get_value(req, cgb, ir->arg1);
    LLVMValueRef fn    = cgen_get_fn(req, LLVM_DO_EXIT);

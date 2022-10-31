@@ -1242,7 +1242,7 @@ START_TEST(test_cfg1)
    ck_assert_int_eq(cfg->blocks[0].aborts, 0);
    ck_assert_int_eq(cfg->blocks[0].in.count, 0);
    ck_assert_int_eq(cfg->blocks[0].out.count, 1);
-   ck_assert_int_eq(cfg->blocks[0].out.edges[0], 1);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[0].out, 0), 1);
    ck_assert_int_eq(cfg->blocks[0].livein.size, 2);
    ck_assert_int_eq(cfg->blocks[0].livein.bits, 0);
    ck_assert_int_eq(cfg->blocks[0].liveout.size, 2);
@@ -1251,26 +1251,26 @@ START_TEST(test_cfg1)
    ck_assert_int_eq(cfg->blocks[0].varkill.bits, 0x3);
 
    ck_assert_int_eq(cfg->blocks[1].in.count, 2);
-   ck_assert_int_eq(cfg->blocks[1].in.edges[0], 0);
-   ck_assert_int_eq(cfg->blocks[1].in.edges[1], 2);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].in, 0), 0);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].in, 1), 2);
    ck_assert_int_eq(cfg->blocks[1].out.count, 2);
-   ck_assert_int_eq(cfg->blocks[1].out.edges[0], 2);
-   ck_assert_int_eq(cfg->blocks[1].out.edges[1], 3);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].out, 0), 2);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].out, 1), 3);
    ck_assert_int_eq(cfg->blocks[1].livein.bits, 0x3);
    ck_assert_int_eq(cfg->blocks[1].liveout.bits, 0x3);
    ck_assert_int_eq(cfg->blocks[1].varkill.bits, 0);
 
    ck_assert_int_eq(cfg->blocks[2].in.count, 1);
-   ck_assert_int_eq(cfg->blocks[2].in.edges[0], 1);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[2].in, 0), 1);
    ck_assert_int_eq(cfg->blocks[2].out.count, 1);
-   ck_assert_int_eq(cfg->blocks[2].out.edges[0], 1);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[2].out, 0), 1);
    ck_assert_int_eq(cfg->blocks[2].livein.bits, 0x3);
    ck_assert_int_eq(cfg->blocks[2].liveout.bits, 0x3);
    ck_assert_int_eq(cfg->blocks[2].varkill.bits, 0x3);
 
    ck_assert_int_eq(cfg->blocks[3].returns, 1);
    ck_assert_int_eq(cfg->blocks[3].in.count, 1);
-   ck_assert_int_eq(cfg->blocks[3].in.edges[0], 1);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[3].in, 0), 1);
    ck_assert_int_eq(cfg->blocks[3].out.count, 0);
    ck_assert_int_eq(cfg->blocks[3].livein.bits, 0x2);
    ck_assert_int_eq(cfg->blocks[3].liveout.bits, 0);

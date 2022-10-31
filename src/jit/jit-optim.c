@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Control flow graph construction
@@ -46,13 +47,32 @@ static bool cfg_will_abort(jit_ir_t *ir)
       return ir->op == J_TRAP;
 }
 
+static void cfg_add_one_edge(jit_edge_list_t *list, unsigned edge)
+{
+   if (list->count < 4)
+      list->u.edges[list->count++] = edge;
+   else if (list->count == 4) {
+      unsigned *ptr = xmalloc_array(16, sizeof(unsigned));
+      memcpy(ptr, list->u.edges, 4 * sizeof(unsigned));
+
+      list->max = 16;
+      list->u.external = ptr;
+      list->u.external[list->count++] = edge;
+   }
+   else if (list->count == list->max) {
+      list->max *= 2;
+      list->u.external =
+         xrealloc_array(list->u.external, list->max, sizeof(unsigned));
+      list->u.external[list->count++] = edge;
+   }
+   else
+      list->u.external[list->count++] = edge;
+}
+
 static void cfg_add_edge(jit_cfg_t *cfg, jit_block_t *from, jit_block_t *to)
 {
-   assert(from->out.count < 4);
-   assert(to->in.count < 4);
-
-   from->out.edges[from->out.count++] = to - cfg->blocks;
-   to->in.edges[to->in.count++] = from - cfg->blocks;
+   cfg_add_one_edge(&(from->out), to - cfg->blocks);
+   cfg_add_one_edge(&(to->in), from - cfg->blocks);
 }
 
 static jit_reg_t cfg_get_reg(jit_value_t value)
@@ -216,6 +236,9 @@ jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos)
 
 int jit_get_edge(jit_edge_list_t *list, int nth)
 {
-   assert(nth < 4);
-   return list->edges[nth];
+   assert(nth < list->count);
+   if (list->max <= 4)
+      return list->u.edges[nth];
+   else
+      return list->u.external[nth];
 }

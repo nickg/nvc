@@ -204,7 +204,11 @@ typedef void (*jit_entry_fn_t)(jit_func_t *, jit_anchor_t *, jit_scalar_t *);
 
 typedef struct {
    unsigned count;
-   unsigned edges[4];
+   unsigned max;
+   union {
+      unsigned  edges[4];
+      unsigned *external;
+   } u;
 } jit_edge_list_t;
 
 typedef struct _jit_block {
