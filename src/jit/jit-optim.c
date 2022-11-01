@@ -242,3 +242,102 @@ int jit_get_edge(jit_edge_list_t *list, int nth)
    else
       return list->u.external[nth];
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Local value numbering and simple peepholes
+
+#define FOR_ALL_SIZES(size, macro) do {                 \
+      switch (size) {                                   \
+      case JIT_SZ_8: macro(int8_t); break;              \
+      case JIT_SZ_16: macro(int16_t); break;            \
+      case JIT_SZ_32: macro(int32_t); break;            \
+      case JIT_SZ_UNSPEC:                               \
+      case JIT_SZ_64: macro(int64_t); break;            \
+      }                                                 \
+   } while (0)
+
+static inline bool lvn_can_fold(jit_ir_t *ir)
+{
+   return ir->arg1.kind == JIT_VALUE_INT64
+      && (ir->arg2.kind == JIT_VALUE_INVALID
+          || ir->arg2.kind == JIT_VALUE_INT64);
+}
+
+static void lvn_convert_mov(jit_ir_t *ir, int64_t cval)
+{
+   ir->op         = J_MOV;
+   ir->size       = JIT_SZ_UNSPEC;
+   ir->arg1.kind  = JIT_VALUE_INT64;
+   ir->arg1.int64 = cval;
+   ir->arg2.kind  = JIT_VALUE_INVALID;
+}
+
+static void jit_lvn_mul(jit_ir_t *ir)
+{
+   if (lvn_can_fold(ir)) {
+      const int64_t lhs = ir->arg1.int64;
+      const int64_t rhs = ir->arg2.int64;
+
+#define FOLD_MUL(type) do {                                             \
+         type result;                                                   \
+         if (!__builtin_mul_overflow(lhs, rhs, &result)) {              \
+            lvn_convert_mov(ir, result);                                \
+            return;                                                     \
+         }                                                              \
+      } while (0)
+
+      FOR_ALL_SIZES(ir->size, FOLD_MUL);
+#undef FOLD_MUL
+   }
+}
+
+static void jit_lvn_add(jit_ir_t *ir)
+{
+   if (lvn_can_fold(ir)) {
+      const int64_t lhs = ir->arg1.int64;
+      const int64_t rhs = ir->arg2.int64;
+
+#define FOLD_ADD(type) do {                                             \
+         type result;                                                   \
+         if (!__builtin_add_overflow(lhs, rhs, &result)) {              \
+            lvn_convert_mov(ir, result);                                \
+            return;                                                     \
+         }                                                              \
+      } while (0)
+
+      FOR_ALL_SIZES(ir->size, FOLD_ADD);
+#undef FOLD_ADD
+   }
+}
+
+static void jit_lvn_sub(jit_ir_t *ir)
+{
+   if (lvn_can_fold(ir)) {
+      const int64_t lhs = ir->arg1.int64;
+      const int64_t rhs = ir->arg2.int64;
+
+#define FOLD_SUB(type) do {                                             \
+         type result;                                                   \
+         if (!__builtin_sub_overflow(lhs, rhs, &result)) {              \
+            lvn_convert_mov(ir, result);                                \
+            return;                                                     \
+         }                                                              \
+      } while (0)
+
+      FOR_ALL_SIZES(ir->size, FOLD_SUB);
+#undef FOLD_SUB
+   }
+}
+
+void jit_do_lvn(jit_func_t *f)
+{
+   for (int i = 0; i < f->nirs; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      switch (ir->op) {
+      case J_MUL: jit_lvn_mul(ir); break;
+      case J_ADD: jit_lvn_add(ir); break;
+      case J_SUB: jit_lvn_sub(ir); break;
+      default: break;
+      }
+   }
+}

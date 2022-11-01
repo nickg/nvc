@@ -1280,6 +1280,38 @@ START_TEST(test_cfg1)
 }
 END_TEST
 
+START_TEST(test_lvn1)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MUL     R0, #2, #3    \n"
+      "    MUL.8   R0, #100, #5  \n"
+      "    ADD     R0, #5, #-7   \n"
+      "    SUB     R0, #12, #30  \n"
+      "    RET                   \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[0].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[0].arg1.int64, 6);
+
+   ck_assert_int_eq(f->irbuf[1].op, J_MUL);
+   ck_assert_int_eq(f->irbuf[1].size, JIT_SZ_8);
+
+   ck_assert_int_eq(f->irbuf[2].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[2].arg1.int64, -2);
+
+   ck_assert_int_eq(f->irbuf[3].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[3].arg1.int64, -18);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1316,6 +1348,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_assemble1);
    tcase_add_test(tc, test_assemble2);
    tcase_add_test(tc, test_cfg1);
+   tcase_add_test(tc, test_lvn1);
    suite_add_tcase(s, tc);
 
    return s;

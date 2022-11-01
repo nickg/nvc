@@ -1053,15 +1053,27 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
       case CCSIZE:
          {
-            int cpos = 0;
-            for (; cpos < ARRAY_LEN(optab)
-                    && strcmp(cctab[cpos].name, tok); cpos++)
-               ;
+            if (isdigit((int)tok[0])) {
+               switch (atoi(tok)) {
+               case 8: ir->size = JIT_SZ_8; break;
+               case 16: ir->size = JIT_SZ_16; break;
+               case 32: ir->size = JIT_SZ_32; break;
+               case 64: ir->size = JIT_SZ_64; break;
+               default:
+                  fatal_trace("illegal operation size %s", tok);
+               }
+            }
+            else {
+               int cpos = 0;
+               for (; cpos < ARRAY_LEN(cctab)
+                       && strcmp(cctab[cpos].name, tok); cpos++)
+                  ;
 
-            if (cpos == ARRAY_LEN(cctab))
-               fatal_trace("illegal condition code %s", tok);
+               if (cpos == ARRAY_LEN(cctab))
+                  fatal_trace("illegal condition code %s", tok);
 
-            ir->cc = cctab[cpos].cc;
+               ir->cc = cctab[cpos].cc;
+            }
 
             state = nresult > 0 ? RESULT : (nargs > 0 ? ARG1 : NEWLINE);
          }

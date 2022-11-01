@@ -3716,6 +3716,9 @@ void jit_irgen(jit_func_t *f)
    }
    g->labels = NULL;
 
+   jit_do_lvn(f);
+   jit_free_cfg(f);
+
    if (opt_get_verbose(OPT_JIT_VERBOSE, istr(f->name))) {
 #ifdef DEBUG
       jit_dump_interleaved(f);
