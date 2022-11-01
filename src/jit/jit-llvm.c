@@ -1055,10 +1055,9 @@ static void cgen_op_csel(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg2);
 
    LLVMValueRef result =
-      LLVMBuildSelect(req->builder, cgb->outflags, arg1, arg2,
-                      cgen_reg_name(ir->result));
+      LLVMBuildSelect(req->builder, cgb->outflags, arg1, arg2, "");
 
-   cgb->outregs[ir->result] = result;
+   cgen_sext_result(req, cgb, ir, result);
 }
 
 static void cgen_op_call(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1109,7 +1108,7 @@ static void cgen_op_lea(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 static void cgen_op_mov(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef value = cgen_get_value(req, cgb, ir->arg1);
-   cgb->outregs[ir->result] = value;
+   cgen_sext_result(req, cgb, ir, value);
 }
 
 static void cgen_op_neg(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1141,8 +1140,8 @@ static void cgen_macro_exp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_fexp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(req, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(req, cgb, ir->arg1);
+   LLVMValueRef arg1 = cgen_coerce_value(req, cgb, ir->arg1, LLVM_DOUBLE);
+   LLVMValueRef arg2 = cgen_coerce_value(req, cgb, ir->arg2, LLVM_DOUBLE);
 
    LLVMValueRef fn = cgen_get_fn(req, LLVM_POW_F64);
    LLVMValueRef args[] = { arg1, arg2 };
