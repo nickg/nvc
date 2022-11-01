@@ -56,6 +56,7 @@ typedef enum {
    OPT_WARN_HIDDEN,
    OPT_NO_SAVE,
    OPT_LLVM_VERBOSE,
+   OPT_JIT_THRESHOLD,
 
    OPT_LAST_NAME
 } opt_name_t;

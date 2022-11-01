@@ -18,6 +18,10 @@
 #ifndef _PRIM_H
 #define _PRIM_H
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>

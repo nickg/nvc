@@ -20,6 +20,7 @@
 #include "eval.h"
 #include "ident.h"
 #include "jit/jit.h"
+#include "jit/jit-llvm.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
@@ -50,7 +51,7 @@ static void print_result(double ops_sec, double usec_op)
       printf("%.1f ops/s; %.1f us/op\n", ops_sec, usec_op);
 }
 
-static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
+static void run_benchmark(tree_t pack, tree_t proc)
 {
    color_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
 
@@ -59,10 +60,7 @@ static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
    jit_t *j = jit_new();
 
 #ifdef LLVM_HAS_LLJIT
-   if (!interpret) {
-      extern const jit_plugin_t jit_llvm;
-      jit_add_tier(j, 100, &jit_llvm);
-   }
+   jit_register_llvm_plugin(j);
 #endif
 
    jit_handle_t hpack = jit_compile(j, tree_ident(pack));
@@ -105,7 +103,7 @@ static void run_benchmark(tree_t pack, tree_t proc, bool interpret)
    jit_free(j);
 }
 
-static void find_benchmarks(tree_t pack, const char *filter, bool interpret)
+static void find_benchmarks(tree_t pack, const char *filter)
 {
    ident_t test_i = ident_new("TEST_");
 
@@ -118,7 +116,7 @@ static void find_benchmarks(tree_t pack, const char *filter, bool interpret)
       ident_t id = tree_ident(d);
       if (ident_starts_with(id, test_i)
           && (filter == NULL || strcasestr(istr(id), filter) != NULL))
-         run_benchmark(pack, d, interpret);
+         run_benchmark(pack, d);
    }
 }
 
@@ -158,7 +156,6 @@ int main(int argc, char **argv)
 
    opterr = 0;
 
-   bool interpret = false;
    const char *filter = NULL;
    int c, index = 0;
    const char *spec = "L:hf:i";
@@ -177,7 +174,7 @@ int main(int argc, char **argv)
          filter = optarg;
          break;
       case 'i':
-         interpret = true;
+         opt_set_int(OPT_JIT_THRESHOLD, 0);
          break;
       default:
          if (optopt == 0)
@@ -225,7 +222,7 @@ int main(int argc, char **argv)
       if (pack == NULL)
          fatal("no package found in %s", argv[i]);
 
-      find_benchmarks(pack, filter, interpret);
+      find_benchmarks(pack, filter);
    }
 
    eval_free(eval);

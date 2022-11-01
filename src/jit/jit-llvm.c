@@ -1510,8 +1510,6 @@ static void cgen_module(cgen_req_t *req)
    jit_cfg_t *cfg = req->cfg = jit_get_cfg(req->func);
    cgen_basic_blocks(req, cfg);
 
-   jit_dump(req->func);
-
    cgen_block_t *cgb = req->blocks;
 
    int maxin = 0;
@@ -1640,6 +1638,26 @@ static void cgen_optimise(cgen_req_t *req)
    cgen_dump_module(req, "final");
 }
 
+static LLVMTargetMachineRef llvm_target_machine(void)
+{
+   static __thread LLVMTargetMachineRef tm_ref = NULL;
+   if (tm_ref == NULL) {
+      char *def_triple = LLVMGetDefaultTargetTriple();
+      char *error;
+      LLVMTargetRef target_ref;
+      if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+         fatal("failed to get LLVM target for %s: %s", def_triple, error);
+
+      tm_ref = LLVMCreateTargetMachine(target_ref, def_triple, "", "",
+                                       LLVMCodeGenLevelDefault,
+                                       LLVMRelocDefault,
+                                       LLVMCodeModelJITDefault);
+      LLVMDisposeMessage(def_triple);
+   }
+
+   return tm_ref;
+}
+
 static void *jit_llvm_init(void)
 {
    lljit_state_t *state = xcalloc(sizeof(lljit_state_t));
@@ -1676,31 +1694,14 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    if (only != NULL && !icmp(f->name, only))
       return;
 
-   printf("LLVM compile %s\n", istr(f->name));
-
    const uint64_t start_us = get_timestamp_us();
-
-   static __thread LLVMTargetMachineRef tm_ref = NULL;
-   if (tm_ref == NULL) {
-      char *def_triple = LLVMGetDefaultTargetTriple();
-      char *error;
-      LLVMTargetRef target_ref;
-      if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
-         fatal("failed to get LLVM target for %s: %s", def_triple, error);
-
-      tm_ref = LLVMCreateTargetMachine(target_ref, def_triple, "", "",
-                                       LLVMCodeGenLevelDefault,
-                                       LLVMRelocDefault,
-                                       LLVMCodeModelJITDefault);
-      LLVMDisposeMessage(def_triple);
-   }
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, f->name);
 
    cgen_req_t req = {
       .context = LLVMOrcThreadSafeContextGetContext(state->context),
-      .target  = tm_ref,
+      .target  = llvm_target_machine(),
       .name    = tb_claim(tb),
       .func    = f,
       .textbuf = tb_new(),
@@ -1716,7 +1717,10 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, req.name);
 
    const uint64_t end_us = get_timestamp_us();
-   debugf("%s at %p [%"PRIi64" us]", req.name, (void *)addr, end_us - start_us);
+   static __thread uint64_t slowest = 0;
+   if (end_us - start_us > slowest)
+      debugf("%s at %p [%"PRIi64" us]", req.name, (void *)addr,
+             (slowest = end_us - start_us));
 
    atomic_store(&f->entry, (jit_entry_fn_t)addr);
 
@@ -1734,10 +1738,61 @@ static void jit_llvm_cleanup(void *context)
    free(state);
 }
 
-const jit_plugin_t jit_llvm = {
+static const jit_plugin_t jit_llvm = {
    .init    = jit_llvm_init,
    .cgen    = jit_llvm_cgen,
    .cleanup = jit_llvm_cleanup
 };
+
+void jit_register_llvm_plugin(jit_t *j)
+{
+   const int threshold = opt_get_int(OPT_JIT_THRESHOLD);
+   if (threshold > 0) {
+      extern const jit_plugin_t jit_llvm;
+      jit_add_tier(j, threshold, &jit_llvm);
+   }
+   else if (threshold < 0)
+      warnf("invalid NVC_JIT_THRESOLD setting %d", threshold);
+}
+
+static inline LLVMContextRef llvm_context(void)
+{
+   static __thread LLVMContextRef context = NULL;
+   return context ?: (context = LLVMContextCreate());
+}
+
+LLVMModuleRef jit_llvm_for_aot(jit_t *j, jit_handle_t handle)
+{
+   jit_func_t *f = jit_get_func(j, handle);
+   if (f->irbuf == NULL)
+      jit_irgen(f);
+
+   const uint64_t start_us = get_timestamp_us();
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, f->name);
+
+   cgen_req_t req = {
+      .context = llvm_context(),
+      .target  = llvm_target_machine(),
+      .name    = tb_claim(tb),
+      .textbuf = tb_new(),
+      .func    = f,
+   };
+
+   cgen_module(&req);
+   cgen_optimise(&req);
+
+   const uint64_t end_us = get_timestamp_us();
+   static __thread uint64_t slowest = 0;
+   if (end_us - start_us > slowest)
+      debugf("compiled %s [%"PRIi64" us]", req.name,
+             (slowest = end_us - start_us));
+
+   tb_free(req.textbuf);
+   free(req.name);
+
+   return req.module;
+}
 
 #endif  // LLVM_HAS_LLJIT

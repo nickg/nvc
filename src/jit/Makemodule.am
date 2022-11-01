@@ -11,5 +11,5 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-ffi.c
 
 if ENABLE_LLVM
-lib_libcgen_a_SOURCES += src/jit/jit-llvm.c
+lib_libcgen_a_SOURCES += src/jit/jit-llvm.c src/jit/jit-llvm.h
 endif

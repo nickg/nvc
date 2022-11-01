@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "eval.h"
 #include "jit/jit.h"
+#include "jit/jit-llvm.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
@@ -524,8 +525,7 @@ static int run(int argc, char **argv)
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
 #if defined ENABLE_JIT && defined LLVM_HAS_LLJIT
-   extern const jit_plugin_t jit_llvm;
-   jit_add_tier(jit, 1, &jit_llvm);
+   jit_register_llvm_plugin(jit);
 #endif
 
    _std_standard_init();

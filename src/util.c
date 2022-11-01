@@ -806,9 +806,9 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
 
    if (sig != SIGUSR1)
       _exit(2);
-#endif
-}
 #endif  // !__SANITIZE_THREAD__
+}
+#endif  // ! __MINGW32__
 
 void register_signal_handlers(void)
 {
@@ -816,10 +816,11 @@ void register_signal_handlers(void)
    SetUnhandledExceptionFilter(win32_exception_handler);
 #else
 
-   struct sigaction sa;
-   sa.sa_sigaction = signal_handler;
+   struct sigaction sa = {
+      .sa_sigaction = signal_handler,
+      .sa_flags = SA_RESTART | SA_SIGINFO
+   };
    sigemptyset(&sa.sa_mask);
-   sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
 #ifndef __SANITIZE_THREAD__
    sigaction(SIGSEGV, &sa, NULL);

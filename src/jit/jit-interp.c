@@ -406,24 +406,6 @@ static void interp_store(jit_interp_t *state, jit_ir_t *ir)
    }
 }
 
-#ifdef DEBUG
-static void interp_check_poison(jit_interp_t *state, jit_reg_t reg)
-{
-   bool all_ff = true;
-   for (int i = 56; i >= 0; i -= 8) {
-      const uint8_t byte = (state->regs[reg].integer >> i) & 0xff;
-      if (all_ff && byte == 0xff && i > 0)
-         continue;
-      else if (byte != 0xde)
-         return;
-      all_ff = false;
-   }
-
-   interp_dump(state);
-   warnf("loaded poison value in R%d", reg);
-}
-#endif
-
 static void interp_uload(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
@@ -448,8 +430,6 @@ static void interp_uload(jit_interp_t *state, jit_ir_t *ir)
    case JIT_SZ_UNSPEC:
       break;
    }
-
-   DEBUG_ONLY(interp_check_poison(state, ir->result));
 }
 
 static void interp_load(jit_interp_t *state, jit_ir_t *ir)
@@ -476,8 +456,6 @@ static void interp_load(jit_interp_t *state, jit_ir_t *ir)
    case JIT_SZ_UNSPEC:
       break;
    }
-
-   DEBUG_ONLY(interp_check_poison(state, ir->result));
 }
 
 static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
