@@ -601,13 +601,11 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_ident2(s) == ident_new("FOO"));
    fail_unless(tree_params(s) == 3);
-   fail_unless(tree_has_ident(s));
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_ident2(s) == ident_new("BAR"));
    fail_unless(tree_params(s) == 0);
-   fail_unless(tree_has_ident(s));
 
    // Case
 
