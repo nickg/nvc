@@ -9804,8 +9804,8 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    vcode_unit_t vu = emit_instance(name, loc, context);
    emit_debug_info(loc);
 
-   //if (!context)
-   //   cover_reset_scope(cover_tags, prefix);
+   if (!context)
+      cover_reset_scope(cover_tags, prefix);
    cover_push_scope(cover_tags, block);
 
    if (COV_ENABLED(OPT_COVER))
