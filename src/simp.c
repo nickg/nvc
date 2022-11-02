@@ -923,7 +923,8 @@ static tree_t simp_if(tree_t t)
       else {
          tree_t b = tree_new(T_SEQUENCE);
          tree_set_loc(b, tree_loc(t));
-         tree_set_ident(b, tree_ident(t));
+         if (tree_has_ident(t))
+            tree_set_ident(b, tree_ident(t));
 
          const int nstmts = tree_stmts(c0);
          for (int i = 0; i < nstmts; i++)
