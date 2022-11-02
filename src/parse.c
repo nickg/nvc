@@ -9260,16 +9260,16 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    tree_set_loc(t, CURRENT_LOC);
 
-   if (label == NULL) {
+   if (label == NULL)
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
-      tree_set_ident(t, get_implicit_label(t, nametab));
-   }
 
    sem_check(t, nametab);
    pop_scope(nametab);
 
-   insert_name(nametab, t, NULL);
+   if (label)
+      insert_name(nametab, t, NULL);
+
    return t;
 }
 
