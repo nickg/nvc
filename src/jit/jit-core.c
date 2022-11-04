@@ -964,15 +964,16 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       int         nresult;
       int         nargs;
    } optab[] = {
-      { "MOV",  J_MOV,  1, 1 },
-      { "ADD",  J_ADD,  1, 2 },
-      { "SUB",  J_SUB,  1, 2 },
-      { "MUL",  J_MUL,  1, 2 },
-      { "RECV", J_RECV, 1, 1 },
-      { "SEND", J_SEND, 0, 2 },
-      { "RET",  J_RET,  0, 0 },
-      { "CMP",  J_CMP,  0, 2 },
-      { "JUMP", J_JUMP, 0, 1 },
+      { "MOV",   J_MOV,      1, 1 },
+      { "ADD",   J_ADD,      1, 2 },
+      { "SUB",   J_SUB,      1, 2 },
+      { "MUL",   J_MUL,      1, 2 },
+      { "RECV",  J_RECV,     1, 1 },
+      { "SEND",  J_SEND,     0, 2 },
+      { "RET",   J_RET,      0, 0 },
+      { "CMP",   J_CMP,      0, 2 },
+      { "JUMP",  J_JUMP,     0, 1 },
+      { "$COPY", MACRO_COPY, 1, 2 },
    };
 
    static const struct {
@@ -1105,6 +1106,12 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                APUSH(lpatch, ir - f->irbuf);
                arg.kind = JIT_VALUE_LABEL;
                arg.label = atoi(tok + 1);
+            }
+            else if (tok[0] == '[' && tok[1] == 'R') {
+               arg.kind = JIT_ADDR_REG;
+               arg.reg  = atoi(tok + 2);
+               arg.disp = 0;
+               f->nregs = MAX(arg.reg + 1, f->nregs);
             }
             else if (tok[0] == '\n')
                fatal_trace("got newline, expecting argument");

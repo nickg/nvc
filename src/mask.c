@@ -42,6 +42,9 @@ void mask_free(bit_mask_t *m)
 
 static inline uint64_t mask_for_range(int low, int high)
 {
+   if (high < low)
+      return 0;
+
    assert(low >= 0 && low < 64);
    assert(high >= 0 && high < 64);
    assert(low <= high);

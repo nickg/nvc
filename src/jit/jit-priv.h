@@ -61,6 +61,7 @@ typedef enum {
    J_FSUB,
    J_REM,
    J_DEBUG,
+   J_NOP,
 
    __MACRO_BASE = 0x80,
    MACRO_COPY = __MACRO_BASE,
