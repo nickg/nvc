@@ -3712,11 +3712,26 @@ START_TEST(test_vital2)
       { VCODE_OP_RANGE_LENGTH },
       { VCODE_OP_ALLOC },
       { VCODE_OP_WRAP },
-      { VCODE_OP_STORE, .name = "*i" },
       { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
    CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CAST },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INDEX_CHECK },    // TODO: redundant
+      { VCODE_OP_INDEX_CHECK },    // TODO: redundant
+      { VCODE_OP_STORE, .name = "*i" },
+      { VCODE_OP_RANGE_NULL },
+      { VCODE_OP_COND, .target = 4, .target_else = 3 },
+   };
+
+   CHECK_BB(1);
 }
 END_TEST
 

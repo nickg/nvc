@@ -3289,9 +3289,14 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
    vcode_type_t vbounds = lower_bounds(scalar_elem_type);
 
    int64_t null_const;
-   if (vcode_reg_const(null_reg, &null_const) && null_const) {
-      vcode_type_t vtype = vtype_carray(0, velem, vbounds);
-      return emit_address_of(emit_const_array(vtype, NULL, 0));
+   bool known_not_null = false;
+   if (vcode_reg_const(null_reg, &null_const)) {
+      if (null_const) {
+         vcode_type_t vtype = vtype_carray(0, velem, vbounds);
+         return emit_address_of(emit_const_array(vtype, NULL, 0));
+      }
+      else
+         known_not_null = true;
    }
 
    vcode_type_t voffset = vtype_offset();
@@ -3365,6 +3370,15 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          .dir   = dir_reg
       };
       wrap_reg = emit_wrap(mem_reg, &dim0, 1);
+   }
+
+   vcode_block_t skip_bb = VCODE_INVALID_BLOCK;
+   if (!known_not_null) {
+      vcode_block_t not_null_bb = emit_block();
+      skip_bb = emit_block();
+      emit_cond(null_reg, skip_bb, not_null_bb);
+
+      vcode_select_block(not_null_bb);
    }
 
    if (def_value != NULL) {
@@ -3606,6 +3620,11 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
       if (tmp_var != VCODE_INVALID_VAR)
          lower_release_temp(tmp_var);
+   }
+
+   if (skip_bb != VCODE_INVALID_BLOCK) {
+      emit_jump(skip_bb);
+      vcode_select_block(skip_bb);
    }
 
    return wrap_reg;
