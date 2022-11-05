@@ -105,8 +105,16 @@ typedef enum {
    COV_DUMP_PROCESSING
 } cover_dump_t;
 
+typedef enum {
+   COVER_MASK_STMT   = (1 << 0),
+   COVER_MASK_BRANCH = (1 << 1),
+   COVER_MASK_TOGGLE = (1 << 2),
+} cover_mask_t;
 
-cover_tagging_t *cover_tags_init(void);
+#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
+
+cover_tagging_t *cover_tags_init(cover_mask_t mask);
+bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
 
 void cover_reset_scope(cover_tagging_t *tagging, ident_t hier);
 void cover_push_scope(cover_tagging_t *tagging, tree_t t);

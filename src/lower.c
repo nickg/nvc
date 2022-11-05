@@ -166,8 +166,6 @@ typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
    const loc_t _old_loc = *vcode_last_loc();            \
    emit_debug_info(tree_loc((t)));                      \
 
-#define COV_ENABLED(opt) (mode == LOWER_NORMAL && opt_get_int(opt))
-
 static bool lower_is_const(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1500,6 +1498,8 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
 static void lower_branch_coverage(tree_t b, unsigned int flags,
                                   vcode_reg_t hit_reg)
 {
+   assert(cover_enabled(cover_tags, COVER_MASK_BRANCH));
+
    int32_t tag = cover_add_tag(b, NULL, cover_tags, TAG_BRANCH, flags)->tag;
    emit_cover_branch(hit_reg, tag);
 }
@@ -1583,6 +1583,8 @@ static void lower_toggle_coverage_cb(tree_t field, vcode_reg_t field_ptr,
 
 static void lower_toggle_coverage(tree_t decl)
 {
+   assert(cover_enabled(cover_tags, COVER_MASK_TOGGLE));
+
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
    assert(var != VCODE_INVALID_VAR);
@@ -5472,10 +5474,11 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       cover_push_scope(cover_tags, c);
 
       if (tree_has_value(c)) {
-
          vcode_reg_t test = lower_rvalue(tree_value(c));
-         if (COV_ENABLED(OPT_COVER_BRANCH))
-            lower_branch_coverage(c, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE, test);
+
+         if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
+            lower_branch_coverage(c, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
+                                  test);
 
          vcode_block_t btrue = emit_block();
 
@@ -5815,7 +5818,7 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(test_bb);
       vcode_reg_t test = lower_rvalue(tree_value(stmt));
 
-      if (COV_ENABLED(OPT_COVER_BRANCH))
+      if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
          lower_branch_coverage(stmt, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
                                test);
 
@@ -5865,7 +5868,7 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
       vcode_block_t true_bb = emit_block();
       vcode_reg_t result = lower_rvalue(tree_value(stmt));
 
-      if (COV_ENABLED(OPT_COVER_BRANCH))
+      if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
          lower_branch_coverage(stmt, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
                                result);
 
@@ -5953,7 +5956,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
          vcode_reg_t hcmp_reg = emit_cmp(VCODE_CMP_LEQ, value_reg, high_reg);
          hit_regs[i] = emit_and(lcmp_reg, hcmp_reg);
 
-         if (COV_ENABLED(OPT_COVER_BRANCH))
+         if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
             lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
 
          vcode_block_t skip_bb = emit_block();
@@ -6006,7 +6009,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
          vcode_select_block(start_bb);
          cases[cptr]  = lower_rvalue(tree_name(a));
 
-         if (COV_ENABLED(OPT_COVER_BRANCH)) {
+         if (cover_enabled(cover_tags, COVER_MASK_BRANCH)) {
             hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], value_reg);
             lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
          }
@@ -6032,7 +6035,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
    vcode_select_block(start_bb);
 
-   if (COV_ENABLED(OPT_COVER_BRANCH) && assoc_others)
+   if (cover_enabled(cover_tags, COVER_MASK_BRANCH) && assoc_others)
       lower_case_others_branch_coverage(stmt, hit_regs);
 
    emit_case(value_reg, def_bb, cases, blocks, cptr);
@@ -6229,7 +6232,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
             cases[cptr]    = emit_const(enc_type, enc);
 
             // TODO: How to handle have_dup == true ?
-            if (COV_ENABLED(OPT_COVER_BRANCH)) {
+            if (cover_enabled(cover_tags, COVER_MASK_BRANCH)) {
                hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], enc_reg);
                lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
             }
@@ -6262,7 +6265,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
    vcode_select_block(start_bb);
 
-   if (COV_ENABLED(OPT_COVER_BRANCH) && has_others)
+   if (cover_enabled(cover_tags, COVER_MASK_BRANCH) && has_others)
       lower_case_others_branch_coverage(stmt, hit_regs);
 
    emit_case(enc_reg, def_bb, cases, blocks, cptr);
@@ -6424,7 +6427,7 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       return;   // Unreachable
 
    cover_push_scope(cover_tags, stmt);
-   if (COV_ENABLED(OPT_COVER_STMT) && cover_is_stmt(stmt)) {
+   if (cover_enabled(cover_tags, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
       int32_t tag = cover_add_tag(stmt, NULL, cover_tags, TAG_STMT, 0)->tag;
       emit_cover_stmt(tag);
    }
@@ -6937,7 +6940,7 @@ static void lower_signal_decl(tree_t decl)
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                      VCODE_INVALID_REG, flags_reg);
 
-   if (COV_ENABLED(OPT_COVER_TOGGLE))
+   if (cover_enabled(cover_tags, COVER_MASK_TOGGLE))
       lower_toggle_coverage(decl);
 }
 
@@ -9645,7 +9648,7 @@ static void lower_ports(tree_t block)
       }
    }
 
-   if (COV_ENABLED(OPT_COVER_TOGGLE)) {
+   if (cover_enabled(cover_tags, COVER_MASK_TOGGLE)) {
       for (int i = 0; i < nports; i++)
          lower_toggle_coverage(tree_port(block, i));
    }
@@ -9804,12 +9807,13 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    vcode_unit_t vu = emit_instance(name, loc, context);
    emit_debug_info(loc);
 
-   if (!context)
-      cover_reset_scope(cover_tags, prefix);
-   cover_push_scope(cover_tags, block);
+   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
+      if (!context)
+         cover_reset_scope(cover_tags, prefix);
 
-   if (COV_ENABLED(OPT_COVER))
+      cover_push_scope(cover_tags, block);
       cover_add_tag(block, NULL, cover_tags, TAG_HIER, COV_FLAG_HIER_DOWN);
+   }
 
    lower_push_scope(block);
    lower_dependencies(block, NULL);
@@ -9838,9 +9842,10 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 
    lower_pop_scope();
 
-   if (COV_ENABLED(OPT_COVER))
+   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
       cover_add_tag(block, NULL, cover_tags, TAG_HIER, COV_FLAG_HIER_UP);
-   cover_pop_scope(cover_tags);
+      cover_pop_scope(cover_tags);
+   }
 
    return vu;
 }

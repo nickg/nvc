@@ -2006,14 +2006,9 @@ START_TEST(test_cover)
    };
    expect_errors(expect);
 
-   opt_set_int(OPT_COVER, 1);
-   opt_set_int(OPT_COVER_STMT, 1);
-   opt_set_int(OPT_COVER_TOGGLE, 1);
-   opt_set_int(OPT_COVER_BRANCH, 1);
-
    tree_t e = run_elab();
 
-   cover_tagging_t *tagging = cover_tags_init();
+   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL);
    lower_unit(e, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");

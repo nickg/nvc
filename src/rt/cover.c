@@ -60,6 +60,7 @@ struct _cover_tagging {
    int            next_hier_tag;
    ident_t        hier;
    tag_array_t    tags;
+   cover_mask_t   mask;
    cover_scope_t *top_scope;
 };
 
@@ -275,10 +276,17 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init(void)
+cover_tagging_t *cover_tags_init(cover_mask_t mask)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
+   ctx->mask = mask;
+
    return ctx;
+}
+
+bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask)
+{
+   return tagging != NULL && (tagging->mask & mask);
 }
 
 void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
