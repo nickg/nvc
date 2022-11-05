@@ -2644,7 +2644,6 @@ static void irgen_op_report(jit_irgen_t *g, int op)
 
 static void irgen_op_assert(jit_irgen_t *g, int op)
 {
-   jit_value_t value    = irgen_get_arg(g, op, 0);
    jit_value_t severity = irgen_get_arg(g, op, 1);
    jit_value_t locus    = irgen_get_arg(g, op, 4);
 
@@ -2669,7 +2668,12 @@ static void irgen_op_assert(jit_irgen_t *g, int op)
 
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_cmp(g, JIT_CC_NE, value, jit_value_from_int64(0));
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   if (arg0 != g->flags) {
+      jit_value_t test = irgen_get_arg(g, op, 0);
+      j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
+   }
+
    j_jump(g, JIT_CC_T, l_pass);
 
    j_send(g, 0, msg);

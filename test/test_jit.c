@@ -1289,6 +1289,15 @@ START_TEST(test_lvn1)
       "    MUL.8   R0, #100, #5  \n"
       "    ADD     R0, #5, #-7   \n"
       "    SUB     R0, #12, #30  \n"
+      "    ADD     R1, R2, R3    \n"
+      "    ADD     R4, R2, R3    \n"
+      "    MUL     R1, R2, #3    \n"
+      "    MUL     R4, #3, R2    \n"
+      "    MOV     R1, #666      \n"
+      "    MUL     R5, #3, R2    \n"
+      "    MUL     R1, #1, R2    \n"
+      "    MUL     R1, #0, R2    \n"
+      "    ADD     R1, R1, #0    \n"
       "    RET                   \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
@@ -1307,6 +1316,80 @@ START_TEST(test_lvn1)
 
    ck_assert_int_eq(f->irbuf[3].op, J_MOV);
    ck_assert_int_eq(f->irbuf[3].arg1.int64, -18);
+
+   ck_assert_int_eq(f->irbuf[5].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[5].arg1.reg, f->irbuf[4].result);
+
+   ck_assert_int_eq(f->irbuf[7].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[7].arg1.reg, f->irbuf[6].result);
+
+   ck_assert_int_eq(f->irbuf[9].op, J_MUL);
+   ck_assert_int_eq(f->irbuf[9].arg1.reg, 2);
+   ck_assert_int_eq(f->irbuf[9].arg2.int64, 3);
+
+   ck_assert_int_eq(f->irbuf[10].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[10].arg1.reg, 2);
+
+   ck_assert_int_eq(f->irbuf[11].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[11].arg1.int64, 0);
+
+   ck_assert_int_eq(f->irbuf[12].op, J_NOP);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_lvn2)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV     R0, #2        \n"
+      "    ADD     R1, R0, #1    \n"
+      "L1: ADD     R1, R0, #1    \n"
+      "    ADD     R0, R0, #1    \n"
+      "    JUMP    L1            \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[2].op, J_ADD);
+   ck_assert_int_eq(f->irbuf[2].arg1.reg, 0);
+   ck_assert_int_eq(f->irbuf[2].arg2.int64, 1);
+
+   ck_assert_int_eq(f->irbuf[3].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[3].arg1.reg, 1);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_lvn3)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV     R0, #2          \n"
+      "    $COPY   R0, [R1], [R2]  \n"
+      "    MOV     R0, #2          \n"
+      "    $COPY   R0, [R3], [R4]  \n"
+      "    SUB     R46, #1, R41    \n"
+      "    ADD     R58, R41, #1    \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[2].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[2].arg1.kind, JIT_VALUE_INT64);
+   ck_assert_int_eq(f->irbuf[2].arg1.int64, 2);
+
+   ck_assert_int_eq(f->irbuf[5].op, J_ADD);
+   ck_assert_int_eq(f->irbuf[5].arg2.kind, JIT_VALUE_INT64);
+   ck_assert_int_eq(f->irbuf[5].arg2.int64, 1);
 
    jit_free(j);
 }
@@ -1349,6 +1432,8 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_assemble2);
    tcase_add_test(tc, test_cfg1);
    tcase_add_test(tc, test_lvn1);
+   tcase_add_test(tc, test_lvn2);
+   tcase_add_test(tc, test_lvn3);
    suite_add_tcase(s, tc);
 
    return s;

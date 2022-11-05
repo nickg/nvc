@@ -16,11 +16,13 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "jit/jit-priv.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Control flow graph construction
@@ -256,6 +258,28 @@ int jit_get_edge(jit_edge_list_t *list, int nth)
       }                                                 \
    } while (0)
 
+typedef unsigned valnum_t;
+
+#define VN_INVALID  UINT_MAX
+#define SMALL_CONST 100
+
+typedef struct _lvn_tab lvn_tab_t;
+
+typedef struct {
+   jit_func_t *func;
+   valnum_t   *regvn;
+   valnum_t    nextvn;
+   lvn_tab_t  *hashtab;
+   size_t      tabsz;
+} lvn_state_t;
+
+typedef struct _lvn_tab {
+   jit_ir_t  *ir;
+   valnum_t   vn;
+} lvn_tab_t;
+
+static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state);
+
 static inline bool lvn_can_fold(jit_ir_t *ir)
 {
    return ir->arg1.kind == JIT_VALUE_INT64
@@ -263,16 +287,134 @@ static inline bool lvn_can_fold(jit_ir_t *ir)
           || ir->arg2.kind == JIT_VALUE_INT64);
 }
 
-static void lvn_convert_mov(jit_ir_t *ir, int64_t cval)
+static void lvn_mov_const(jit_ir_t *ir, lvn_state_t *state, int64_t cval)
 {
    ir->op         = J_MOV;
    ir->size       = JIT_SZ_UNSPEC;
+   ir->cc         = JIT_CC_NONE;
    ir->arg1.kind  = JIT_VALUE_INT64;
    ir->arg1.int64 = cval;
    ir->arg2.kind  = JIT_VALUE_INVALID;
+
+   jit_lvn_mov(ir, state);
 }
 
-static void jit_lvn_mul(jit_ir_t *ir)
+static void lvn_mov_reg(jit_ir_t *ir, lvn_state_t *state, jit_reg_t reg)
+{
+   ir->op        = J_MOV;
+   ir->size      = JIT_SZ_UNSPEC;
+   ir->cc        = JIT_CC_NONE;
+   ir->arg1.kind = JIT_VALUE_REG;
+   ir->arg1.reg  = reg;
+   ir->arg2.kind = JIT_VALUE_INVALID;
+
+   jit_lvn_mov(ir, state);
+}
+
+static valnum_t lvn_value_num(jit_value_t value, lvn_state_t *state)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      if (state->regvn[value.reg] != VN_INVALID)
+         return state->regvn[value.reg];
+      else
+         return (state->regvn[value.reg] = state->nextvn++);
+
+   case JIT_VALUE_INT64:
+      if (value.int64 >= 0 && value.int64 < SMALL_CONST)
+         return value.int64;
+      else
+         return state->nextvn++;   // TODO: add constant table
+
+   case JIT_VALUE_INVALID:
+      return VN_INVALID;
+
+   case JIT_VALUE_HANDLE:
+      return state->nextvn++;
+
+   default:
+      fatal_trace("cannot handle value kind %d in lvn_value_num", value.kind);
+   }
+}
+
+static inline bool lvn_is_commutative(jit_op_t op)
+{
+   return op == J_ADD || op == J_MUL;
+}
+
+static void lvn_commute_const(jit_ir_t *ir)
+{
+   assert(lvn_is_commutative(ir->op));
+
+   if (ir->arg1.kind == JIT_VALUE_INT64) {
+      jit_value_t tmp = ir->arg1;
+      ir->arg1 = ir->arg2;
+      ir->arg2 = tmp;
+   }
+}
+
+static void lvn_get_tuple(jit_ir_t *ir, lvn_state_t *state, int tuple[3])
+{
+   tuple[0] = ir->op | ir->size << 8 | ir->cc << 11;
+
+   const valnum_t vn1 = lvn_value_num(ir->arg1, state);
+   const valnum_t vn2 = lvn_value_num(ir->arg2, state);
+
+   if (lvn_is_commutative(ir->op) && vn1 > vn2) {
+      tuple[1] = vn2;
+      tuple[2] = vn1;
+   }
+   else {
+      tuple[1] = vn1;
+      tuple[2] = vn2;
+   }
+}
+
+static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state)
+{
+   assert(ir->result != JIT_REG_INVALID);
+
+   int tuple[3];
+   lvn_get_tuple(ir, state, tuple);
+
+   const unsigned hash = tuple[0]*29 + tuple[1]*1093 + tuple[2]*6037;
+
+   for (int idx = hash & (state->tabsz - 1), limit = 0; limit < 10;
+        idx = (idx + 1) & (state->tabsz - 1), limit++) {
+
+      lvn_tab_t *tab = &(state->hashtab[idx]);
+      if (tab->ir == NULL) {
+         tab->ir = ir;
+         tab->vn = state->regvn[ir->result] = state->nextvn++;
+         break;
+      }
+      else if (tab->vn != state->regvn[tab->ir->result]) {
+         // Stale entry
+         tab->ir = ir;
+         tab->vn = state->regvn[ir->result] = state->nextvn++;
+         break;
+      }
+      else {
+         int cmp[3];
+         lvn_get_tuple(tab->ir, state, cmp);
+
+         if (cmp[0] == tuple[0] && cmp[1] == tuple[1] && cmp[2] == tuple[2]) {
+            assert(tab->ir->result != JIT_REG_INVALID);
+
+            ir->op        = J_MOV;
+            ir->size      = JIT_SZ_UNSPEC;
+            ir->arg1.kind = JIT_VALUE_REG;
+            ir->arg1.reg  = tab->ir->result;
+            ir->arg2.kind = JIT_VALUE_INVALID;
+
+            state->regvn[ir->result] = tab->vn;
+            break;
+         }
+      }
+   }
+}
+
+static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
 {
    if (lvn_can_fold(ir)) {
       const int64_t lhs = ir->arg1.int64;
@@ -281,7 +423,7 @@ static void jit_lvn_mul(jit_ir_t *ir)
 #define FOLD_MUL(type) do {                                             \
          type result;                                                   \
          if (!__builtin_mul_overflow(lhs, rhs, &result)) {              \
-            lvn_convert_mov(ir, result);                                \
+            lvn_mov_const(ir, state, result);                           \
             return;                                                     \
          }                                                              \
       } while (0)
@@ -289,9 +431,24 @@ static void jit_lvn_mul(jit_ir_t *ir)
       FOR_ALL_SIZES(ir->size, FOLD_MUL);
 #undef FOLD_MUL
    }
+
+   lvn_commute_const(ir);
+
+   if (ir->arg2.kind == JIT_VALUE_INT64) {
+      if (ir->arg2.int64 == 0) {
+         lvn_mov_const(ir, state, 0);
+         return;
+      }
+      else if (ir->arg2.int64 == 1) {
+         lvn_mov_reg(ir, state, ir->arg1.reg);
+         return;
+      }
+   }
+
+   jit_lvn_generic(ir, state);
 }
 
-static void jit_lvn_add(jit_ir_t *ir)
+static void jit_lvn_add(jit_ir_t *ir, lvn_state_t *state)
 {
    if (lvn_can_fold(ir)) {
       const int64_t lhs = ir->arg1.int64;
@@ -300,7 +457,7 @@ static void jit_lvn_add(jit_ir_t *ir)
 #define FOLD_ADD(type) do {                                             \
          type result;                                                   \
          if (!__builtin_add_overflow(lhs, rhs, &result)) {              \
-            lvn_convert_mov(ir, result);                                \
+            lvn_mov_const(ir, state, result);                           \
             return;                                                     \
          }                                                              \
       } while (0)
@@ -308,9 +465,18 @@ static void jit_lvn_add(jit_ir_t *ir)
       FOR_ALL_SIZES(ir->size, FOLD_ADD);
 #undef FOLD_ADD
    }
+
+   lvn_commute_const(ir);
+
+   if (ir->arg2.kind == JIT_VALUE_INT64 && ir->arg2.int64 == 0) {
+      lvn_mov_reg(ir, state, ir->arg1.reg);
+      return;
+   }
+
+   jit_lvn_generic(ir, state);
 }
 
-static void jit_lvn_sub(jit_ir_t *ir)
+static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
 {
    if (lvn_can_fold(ir)) {
       const int64_t lhs = ir->arg1.int64;
@@ -319,7 +485,7 @@ static void jit_lvn_sub(jit_ir_t *ir)
 #define FOLD_SUB(type) do {                                             \
          type result;                                                   \
          if (!__builtin_sub_overflow(lhs, rhs, &result)) {              \
-            lvn_convert_mov(ir, result);                                \
+            lvn_mov_const(ir, state, result);                           \
             return;                                                     \
          }                                                              \
       } while (0)
@@ -327,17 +493,61 @@ static void jit_lvn_sub(jit_ir_t *ir)
       FOR_ALL_SIZES(ir->size, FOLD_SUB);
 #undef FOLD_SUB
    }
+
+   jit_lvn_generic(ir, state);
+}
+
+static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state)
+{
+   if (ir->arg1.kind == JIT_VALUE_REG && ir->arg1.reg == ir->result) {
+      ir->op = J_NOP;
+      ir->result = JIT_REG_INVALID;
+      ir->arg1.kind = JIT_VALUE_INVALID;
+      ir->arg2.kind = JIT_VALUE_INVALID;
+      return;
+   }
+
+   jit_lvn_generic(ir, state);
+}
+
+static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
+{
+   // Clobbers the count register
+   state->regvn[ir->result] = state->nextvn++;
 }
 
 void jit_do_lvn(jit_func_t *f)
 {
-   for (int i = 0; i < f->nirs; i++) {
-      jit_ir_t *ir = &(f->irbuf[i]);
-      switch (ir->op) {
-      case J_MUL: jit_lvn_mul(ir); break;
-      case J_ADD: jit_lvn_add(ir); break;
-      case J_SUB: jit_lvn_sub(ir); break;
-      default: break;
+   lvn_state_t state = {
+      .tabsz  = next_power_of_2(f->nirs),
+      .func   = f,
+      .nextvn = SMALL_CONST
+   };
+
+   state.regvn = xmalloc_array(f->nregs, sizeof(valnum_t));
+   state.hashtab = xcalloc_array(state.tabsz, sizeof(lvn_tab_t));
+
+   jit_cfg_t *cfg = jit_get_cfg(f);
+
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *bb = &(cfg->blocks[i]);
+
+      for (int j = 0; j < f->nregs; j++)
+         state.regvn[j] = VN_INVALID;
+
+      for (int j = bb->first; j <= bb->last; j++) {
+         jit_ir_t *ir = &(f->irbuf[j]);
+         switch (ir->op) {
+         case J_MUL: jit_lvn_mul(ir, &state); break;
+         case J_ADD: jit_lvn_add(ir, &state); break;
+         case J_SUB: jit_lvn_sub(ir, &state); break;
+         case J_MOV: jit_lvn_mov(ir, &state); break;
+         case MACRO_COPY: jit_lvn_copy(ir, &state); break;
+         default: break;
+         }
       }
    }
+
+   free(state.regvn);
+   free(state.hashtab);
 }
