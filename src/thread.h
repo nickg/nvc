@@ -39,6 +39,9 @@
 #define relaxed_load(p) __atomic_load_n((p), __ATOMIC_RELAXED)
 #define relaxed_store(p, v) __atomic_store_n((p), (v), __ATOMIC_RELAXED)
 
+#define store_release(p, v) __atomic_store_n((p), (v), __ATOMIC_RELEASE)
+#define load_acquire(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)
+
 typedef struct _nvc_thread nvc_thread_t;
 
 void thread_init(void);

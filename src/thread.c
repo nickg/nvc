@@ -513,16 +513,16 @@ void __scoped_unlock(nvc_lock_t **plock)
 
 static void push_bot(threadq_t *tq, const task_t *tasks, size_t count)
 {
-   const abp_idx_t bot = atomic_load(&tq->bot);
+   const abp_idx_t bot = relaxed_load(&tq->bot);
    assert(bot + count <= THREADQ_SIZE);
 
    memcpy(tq->deque + bot, tasks, count * sizeof(task_t));
-   atomic_store(&tq->bot, bot + count);
+   store_release(&tq->bot, bot + count);
 }
 
 static bool pop_bot(threadq_t *tq, task_t *task)
 {
-   const abp_idx_t old_bot = atomic_load(&tq->bot);
+   const abp_idx_t old_bot = relaxed_load(&tq->bot);
    if (old_bot == 0)
       return false;
 
@@ -547,6 +547,7 @@ static bool pop_bot(threadq_t *tq, task_t *task)
    return false;
 }
 
+__attribute__((no_sanitize("thread")))
 static bool pop_top(threadq_t *tq, task_t *task)
 {
    const abp_age_t old_age = { .bits = atomic_load(&tq->age.bits) };
@@ -555,6 +556,8 @@ static bool pop_top(threadq_t *tq, task_t *task)
    if (bot <= old_age.top)
       return false;
 
+   // This triggers a TSAN false-positive: we will never read from *task
+   // if the CAS fails below, so it's safe to ignore
    *task = tq->deque[old_age.top];
 
    const abp_age_t new_age = {
