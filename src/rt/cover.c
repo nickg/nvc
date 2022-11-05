@@ -115,13 +115,6 @@ static cover_file_t  *files;
 
 bool cover_is_stmt(tree_t t)
 {
-   // All statements are implicitly labelled during parse. But, static waits
-   // or waits introduced as sensitivity to concurrent procedure calls
-   // during simp passe are not labelled.
-   // Don't cover these since they are invisible to user.
-   if (!tree_has_ident(t))
-      return false;
-
    switch (tree_kind(t)) {
    case T_IF:
    case T_WHILE:
@@ -160,11 +153,10 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
    return f;
 }
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t name, cover_tagging_t *ctx,
+cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags)
 {
    int *cnt;
-
    assert (ctx != NULL);
 
    if (kind == TAG_STMT) {
@@ -181,26 +173,11 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t name, cover_tagging_t *ctx,
 
    assert (cnt != NULL);
 
-   if (name == NULL) {
-      cover_scope_t *s = ctx->top_scope;
-      assert(s != NULL);
-
-      char buf[32];
-      switch (kind) {
-      case TAG_STMT:
-         checked_sprintf(buf, sizeof(buf), "_S%d", s->stmt_label++);
-         break;
-      case TAG_BRANCH:
-         checked_sprintf(buf, sizeof(buf), "_B%d", s->branch_label++);
-         break;
-      default:
-         fatal_trace("missing name for coverage item");
-      }
-
-      name = ident_new(buf);
-   }
-
-   ident_t hier = ident_prefix(ctx->hier, name, '.');
+   // Everything creates scope, so name of current tag is already given
+   // by scope in hierarchy.
+   ident_t hier = ctx->hier;
+   if (suffix)
+      hier = ident_prefix(hier, suffix, '\0');
 
 #ifdef COVER_DEBUG
    printf("Tag: %s\n", istr(hier));
@@ -295,17 +272,69 @@ cover_tagging_t *cover_tags_init(void)
    return ctx;
 }
 
-void cover_push_scope(cover_tagging_t *tagging, ident_t name)
+void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
+{
+   if (tagging == NULL)
+    return;
+
+   assert(tagging->top_scope == NULL);
+
+   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   s->name = hier;
+
+   tagging->top_scope = s;
+   tagging->hier = hier;
+}
+
+void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 {
    if (tagging == NULL)
       return;
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   ident_t name = NULL;
+   tree_kind_t kind = tree_kind(t);
+
+   // Named tree elements give hierarchy
+   if (kind != T_ASSOC && kind != T_COND && tree_has_ident(t))
+      name = tree_ident(t);
+
+   // Branches / Statements are implicitly labelled like so:
+   //   - By counter relevant for each scope
+   //   - others choice separately
+   else {
+      assert(tagging->top_scope);
+
+      char prefix[16] = {0};
+      int *cnt;
+      char c;
+
+      // when others choice labelled explicitly
+      if (kind == T_ASSOC && tree_subkind(t) == A_OTHERS) {
+         checked_sprintf(prefix, sizeof(prefix), "_B_OTHERS");
+      } else {
+         if (kind == T_ASSOC || kind == T_COND) {
+            cnt = &tagging->top_scope->branch_label;
+            c = 'B';
+         } else {
+            cnt = &tagging->top_scope->stmt_label;
+            c = 'S';
+         }
+         checked_sprintf(prefix, sizeof(prefix), "_%c%u", c, *cnt);
+         (*cnt)++;
+      }
+      name = ident_new(prefix);
+   }
+
    s->name   = name;
    s->parent = tagging->top_scope;
 
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
+
+#ifdef COVER_DEBUG
+   printf("Pushing cover scope: %s\n", istr(tagging->hier));
+#endif
 }
 
 void cover_pop_scope(cover_tagging_t *tagging)
@@ -318,6 +347,10 @@ void cover_pop_scope(cover_tagging_t *tagging)
    cover_scope_t *tmp = tagging->top_scope->parent;
    free(tagging->top_scope);
    tagging->top_scope = tmp;
+
+#ifdef COVER_DEBUG
+   printf("Popping cover scope: %s\n", istr(tagging->hier));
+#endif
 
    tagging->hier = ident_runtil(tagging->hier, '.');
    assert(tagging->hier != NULL);
