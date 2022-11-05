@@ -113,7 +113,6 @@ typedef struct _lazy_sym {
 typedef struct {
    int proc;
    int loop;
-   int stmt;
 } label_cnts_t;
 
 struct scope {
@@ -1178,8 +1177,8 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
    char buf[22];
 
    switch (tree_kind(t)) {
-   case T_PROCESS:
    case T_CONCURRENT:
+   case T_PROCESS:
       cnt = &(tab->top_scope->lbl_cnts.proc);
       c = 'P';
       break;
@@ -1199,9 +1198,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
       break;
 
    default:
-      cnt = &(tab->top_scope->lbl_cnts.stmt);
-      c = 'S';
-      break;
+      return NULL;
    }
 
    checked_sprintf(buf, sizeof(buf), "_%c%d", c, (*cnt)++);
