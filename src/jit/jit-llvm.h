@@ -25,8 +25,10 @@
 void jit_register_llvm_plugin(jit_t *j);
 #endif
 
-typedef struct LLVMOpaqueModule *LLVMModuleRef;
+typedef struct _llvm_obj llvm_obj_t;
 
-LLVMModuleRef jit_llvm_for_aot(jit_t *j, jit_handle_t handle);
+llvm_obj_t *llvm_obj_new(const char *name);
+void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle);
+void llvm_obj_emit(llvm_obj_t *obj, const char *file);
 
 #endif  // _JIT_LLVM_H

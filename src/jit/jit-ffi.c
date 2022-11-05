@@ -319,3 +319,8 @@ void *ffi_find_symbol(jit_dll_t *dll, const char *name)
 #endif
    }
 }
+
+ident_t ffi_get_sym(jit_foreign_t *ff)
+{
+   return ff->sym;
+}

@@ -163,6 +163,7 @@ typedef enum {
    JIT_VALUE_HANDLE,
    JIT_VALUE_EXIT,
    JIT_VALUE_LOC,
+   JIT_VALUE_FOREIGN,
 } jit_value_kind_t;
 
 typedef uint32_t jit_label_t;
@@ -172,13 +173,14 @@ typedef struct {
    jit_value_kind_t kind : 8;
    int32_t          disp;
    union {
-      jit_reg_t    reg;
-      int64_t      int64;
-      double       dval;
-      jit_label_t  label;
-      jit_handle_t handle;
-      jit_exit_t   exit;
-      loc_t        loc;
+      jit_reg_t      reg;
+      int64_t        int64;
+      double         dval;
+      jit_label_t    label;
+      jit_handle_t   handle;
+      jit_exit_t     exit;
+      loc_t          loc;
+      jit_foreign_t *foreign;
    };
 } jit_value_t;
 

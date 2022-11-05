@@ -168,6 +168,8 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       return (jit_scalar_t){ .integer = value.label };
    case JIT_VALUE_HANDLE:
       return (jit_scalar_t){ .integer = value.handle };
+   case JIT_VALUE_FOREIGN:
+      return (jit_scalar_t){ .pointer = value.foreign };
    default:
       interp_dump(state);
       fatal_trace("cannot handle value kind %d", value.kind);

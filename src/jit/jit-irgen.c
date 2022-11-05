@@ -161,11 +161,6 @@ static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
    }
 }
 
-static jit_value_t jit_addr_from_ptr(void *ptr)
-{
-   return (jit_value_t){ .kind = JIT_ADDR_ABS, .int64 = (intptr_t)ptr };
-}
-
 static jit_value_t jit_value_from_label(irgen_label_t *l)
 {
    return (jit_value_t){ .kind = JIT_VALUE_LABEL, .label = l->label };
@@ -179,6 +174,11 @@ static jit_value_t jit_value_from_handle(jit_handle_t handle)
 static jit_value_t jit_value_from_exit(jit_exit_t exit)
 {
    return (jit_value_t){ .kind = JIT_VALUE_EXIT, .exit = exit };
+}
+
+static jit_value_t jit_value_from_foreign(jit_foreign_t *ff)
+{
+   return (jit_value_t){ .kind = JIT_VALUE_FOREIGN, .foreign = ff };
 }
 
 static jit_ir_t *irgen_append(jit_func_t *f)
@@ -586,11 +586,11 @@ static jit_value_t macro_exp(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
    return jit_value_from_reg(r);
 }
 
-static void macro_fficall(jit_irgen_t *g, jit_value_t addr)
+static void macro_fficall(jit_irgen_t *g, jit_value_t func)
 {
-   assert(jit_value_is_addr(addr));
+   assert(func.kind == JIT_VALUE_FOREIGN);
    irgen_emit_unary(g, MACRO_FFICALL, JIT_SZ_UNSPEC, JIT_CC_NONE,
-                    JIT_REG_INVALID, addr);
+                    JIT_REG_INVALID, func);
 }
 
 static jit_value_t macro_getpriv(jit_irgen_t *g, jit_handle_t handle)
@@ -2020,9 +2020,7 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       irgen_send_args(g, op, 0);
 
       jit_foreign_t *ff = irgen_ffi_for_call(g, op);
-
-      jit_value_t addr = jit_addr_from_ptr(ff);
-      macro_fficall(g, addr);
+      macro_fficall(g, jit_value_from_foreign(ff));
 
       vcode_reg_t result = vcode_get_result(op);
       if (result != VCODE_INVALID_REG) {
