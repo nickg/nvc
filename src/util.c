@@ -105,6 +105,8 @@
 #define MAX_FMT_BUFS    32
 #define MAX_PRINTF_BUFS 8
 
+#define HUGE_PAGE_SIZE  0x200000
+
 typedef void (*print_fn_t)(const char *fmt, ...);
 
 static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
@@ -1178,6 +1180,23 @@ void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx)
    guards = guard;
 
    return ptr;
+}
+
+void *map_huge_pages(size_t align, size_t sz)
+{
+#ifdef __linux__
+   if (sz >= HUGE_PAGE_SIZE) {
+      const size_t mapsz = ALIGN_UP(sz, HUGE_PAGE_SIZE);
+      void *mem = nvc_memalign(MAX(HUGE_PAGE_SIZE, align), mapsz);
+
+      if (madvise(mem, mapsz, MADV_HUGEPAGE) < 0)
+         warnf("madvise: MADV_HUGEPAGE: %s", last_os_error());
+
+      return mem;
+   }
+#endif
+
+   return nvc_memalign(align, sz);
 }
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)

@@ -46,7 +46,7 @@ typedef struct _callback {
 } callback_t;
 
 #define MEMBLOCK_LINE_SZ 64
-#define MEMBLOCK_PAGE_SZ 0x200000
+#define MEMBLOCK_PAGE_SZ 0x800000
 
 typedef struct _memblock {
    memblock_t *chain;
@@ -240,7 +240,7 @@ static void *static_alloc(rt_model_t *m, size_t size)
       mb->pagesz = MAX(MEMBLOCK_PAGE_SZ, nlines * MEMBLOCK_LINE_SZ);
       mb->chain  = m->memblocks;
       mb->free   = mb->pagesz / MEMBLOCK_LINE_SZ;
-      mb->ptr    = nvc_memalign(MEMBLOCK_LINE_SZ, mb->pagesz);
+      mb->ptr    = map_huge_pages(MEMBLOCK_LINE_SZ, mb->pagesz);
 
       m->memblocks = mb;
    }

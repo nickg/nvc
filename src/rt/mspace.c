@@ -90,7 +90,7 @@ mspace_t *mspace_new(size_t size)
 
    DEBUG_ONLY(m->stress = opt_get_int(OPT_GC_STRESS));
 
-   m->space = nvc_memalign(LINE_SIZE, m->maxsize);
+   m->space = map_huge_pages(LINE_SIZE, m->maxsize);
 
    MSPACE_POISON(m->space, m->maxsize);
 
@@ -190,6 +190,10 @@ void *mspace_alloc(mspace_t *m, size_t size)
                (*it)->size -= asize;
                (*it)->ptr += asize;
             }
+
+            // Make sure the first fault to the page is a write to
+            // allocate THP on Linux
+            *(volatile char *)base = 0;
 
             return base;
          }

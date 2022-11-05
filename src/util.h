@@ -201,6 +201,7 @@ void *nvc_memalign(size_t align, size_t sz);
 void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
 void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx);
+void *map_huge_pages(size_t align, size_t sz);
 
 void run_program(const char *const *args);
 
