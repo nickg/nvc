@@ -71,7 +71,8 @@ static tree_t simp_call_args(tree_t t)
 
    tree_t new = tree_new(tree_kind(t));
    tree_set_loc(new, tree_loc(t));
-   tree_set_ident(new, tree_ident(t));
+   if (tree_has_ident(t))
+      tree_set_ident(new, tree_ident(t));
    tree_set_ref(new, tree_ref(t));
 
    tree_kind_t kind = tree_kind(t);
@@ -922,7 +923,8 @@ static tree_t simp_if(tree_t t)
       else {
          tree_t b = tree_new(T_SEQUENCE);
          tree_set_loc(b, tree_loc(t));
-         tree_set_ident(b, tree_ident(t));
+         if (tree_has_ident(t))
+            tree_set_ident(b, tree_ident(t));
 
          const int nstmts = tree_stmts(c0);
          for (int i = 0; i < nstmts; i++)
@@ -1236,7 +1238,6 @@ static tree_t simp_cond_assign(tree_t t)
    else {
       tree_t s = tree_new(T_IF);
       tree_set_loc(s, tree_loc(t));
-      tree_set_ident(s, tree_ident(t));
 
       for (int i = 0; i < nconds; i++)
          tree_add_cond(s, tree_cond(t, i));
@@ -1252,7 +1253,6 @@ static tree_t simp_select(tree_t t)
    tree_t c = tree_new(T_CASE);
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
-   tree_set_ident(c, tree_ident(t));
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++)

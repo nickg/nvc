@@ -8710,8 +8710,6 @@ static tree_t p_if_statement(ident_t label)
    EXTEND("if statement");
 
    tree_t t = tree_new(T_IF);
-   ensure_labelled(t, label);
-
    consume(tIF);
 
    tree_t c0 = tree_new(T_COND);
@@ -9061,7 +9059,6 @@ static tree_t p_case_statement(ident_t label)
 
    tree_t value = p_expression();
    tree_set_value(t, value);
-   ensure_labelled(t, label);
 
    solve_types(nametab, value, NULL);
 
@@ -9266,13 +9263,15 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    if (label == NULL) {
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
-      tree_set_ident(t, get_implicit_label(t, nametab));
+      tree_set_ident(t, error_marker());
    }
 
    sem_check(t, nametab);
    pop_scope(nametab);
 
-   insert_name(nametab, t, NULL);
+   if (label)
+      insert_name(nametab, t, NULL);
+
    return t;
 }
 
@@ -9318,8 +9317,6 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       else
          s0 = NULL;
 
-      tree_set_ident(a, get_implicit_label(a, nametab));
-
       tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
 
@@ -9349,7 +9346,6 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    tree_t stmt = tree_new(T_COND_ASSIGN);
    tree_add_stmt(conc, stmt);
 
-   tree_set_ident(stmt, get_implicit_label(stmt, nametab));
    tree_t target = p_target(name);
    tree_set_target(stmt, target);
 
@@ -9414,7 +9410,6 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
          tree_set_value(tree_assoc(stmt, i), a);
 
       tree_set_loc(a, CURRENT_LOC);
-      tree_set_ident(a, get_implicit_label(a, nametab));
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
@@ -9430,7 +9425,6 @@ static tree_t p_selected_signal_assignment(void)
    tree_t conc = tree_new(T_CONCURRENT);
    tree_t stmt = tree_new(T_SELECT);
 
-   tree_set_ident(stmt, get_implicit_label(stmt, nametab));
    tree_add_stmt(conc, stmt);
 
    tree_t value = p_expression();
