@@ -257,7 +257,6 @@ static int elaborate(int argc, char **argv)
             int n_chars = 0;
             const char *full_cov_opt = optarg;
             do {
-               printf("Processing coverage type %c\n", *optarg);
                if (*optarg == ',' || *optarg == '\0') {
                   if (prev == 's')
                      opt_set_int(OPT_COVER_STMT, 1);
@@ -265,13 +264,18 @@ static int elaborate(int argc, char **argv)
                      opt_set_int(OPT_COVER_TOGGLE, 1);
                   else if (prev == 'b')
                      opt_set_int(OPT_COVER_BRANCH, 1);
-                  else
-                     fatal("Unknown coverage type '%c'. Valid coverage types are: \n"
-                        "  s (statement)\n"
-                        "  t (toggle)\n"
-                        "  b (branch)\n"
-                        "Selected coverage types shall be comma separated. E.g.:\n"
-                        "  nvc -e --cover=s,t,b <top_entity>\n", *optarg);
+                  else {
+                     diag_t *d = diag_new(DIAG_FATAL, NULL);
+                     diag_printf(d, "unknown coverage type '%c'", *optarg);
+                     diag_hint(d, NULL, "valid coverage types are: \n"
+                                        "  s (statement)\n"
+                                        "  t (toggle)\n"
+                                        "  b (branch)");
+                     diag_hint(d, NULL, "selected coverage types shall be "
+                                        "comma separated e.g $bold$--cover=s,t,b$$");
+                     diag_emit(d);
+                     fatal_exit(EXIT_FAILURE);
+                  }
                   n_chars = 0;
                }
                n_chars++;
