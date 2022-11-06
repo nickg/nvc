@@ -217,6 +217,9 @@ void jit_free_cfg(jit_func_t *f)
          mask_free(&b->livein);
          mask_free(&b->liveout);
          mask_free(&b->varkill);
+
+         if (b->in.max > 4) free(b->in.u.external);
+         if (b->out.max > 4) free(b->out.u.external);
       }
 
       free(f->cfg);

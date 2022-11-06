@@ -16,16 +16,19 @@
 //
 
 #include "util.h"
+#include "hash.h"
 #include "ident.h"
-#include "lib.h"
 #include "jit/jit-llvm.h"
 #include "jit/jit-priv.h"
+#include "lib.h"
 #include "opt.h"
+#include "rt/rt.h"
 #include "thread.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitReader.h>
@@ -57,6 +60,8 @@ typedef enum {
 
    LLVM_ENTRY_FN,
    LLVM_ANCHOR,
+   LLVM_CTOR_FN,
+   LLVM_CTOR,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -101,6 +106,7 @@ typedef enum {
    LLVM_MSPACE_ALLOC,
    LLVM_DO_FFICALL,
    LLVM_TRAMPOLINE,
+   LLVM_REGISTER,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -117,8 +123,9 @@ typedef struct _llvm_obj {
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
+   LLVMValueRef          ctor;
    text_buf_t           *textbuf;
-   bool                  aot;
+   shash_t              *string_pool;
 } llvm_obj_t;
 
 typedef struct _cgen_block {
@@ -215,13 +222,19 @@ static void llvm_register_types(llvm_obj_t *obj)
    obj->types[LLVM_PTR] = LLVMPointerType(obj->types[LLVM_INT8], 0);
 #endif
 
-   LLVMTypeRef atypes[] = {
-      obj->types[LLVM_PTR],    // Function
-      obj->types[LLVM_PTR],    // Anchor
-      obj->types[LLVM_PTR]     // Arguments
-   };
-   obj->types[LLVM_ENTRY_FN] = LLVMFunctionType(obj->types[LLVM_VOID], atypes,
-                                                ARRAY_LEN(atypes), false);
+   {
+      LLVMTypeRef atypes[] = {
+         obj->types[LLVM_PTR],    // Function
+         obj->types[LLVM_PTR],    // Anchor
+         obj->types[LLVM_PTR]     // Arguments
+      };
+      obj->types[LLVM_ENTRY_FN] = LLVMFunctionType(obj->types[LLVM_VOID],
+                                                   atypes, ARRAY_LEN(atypes),
+                                                   false);
+   }
+
+   obj->types[LLVM_CTOR_FN] = LLVMFunctionType(obj->types[LLVM_VOID],
+                                               NULL, 0, false);
 
    {
       LLVMTypeRef fields[] = {
@@ -243,6 +256,20 @@ static void llvm_register_types(llvm_obj_t *obj)
                                                              fields,
                                                              ARRAY_LEN(fields),
                                                              false);
+   }
+
+   {
+      LLVMTypeRef fields[] = {
+         obj->types[LLVM_INT32],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+         obj->types[LLVM_PTR],
+#else
+         LLVMPointerType(obj->types[LLVM_CTOR_FN], 0),
+#endif
+         obj->types[LLVM_PTR],
+      };
+      obj->types[LLVM_CTOR] = LLVMStructTypeInContext(obj->context, fields,
+                                                      ARRAY_LEN(fields), false);
    }
 }
 
@@ -303,24 +330,22 @@ static void llvm_finalise(llvm_obj_t *obj)
    llvm_dump_module(obj->module, "final");
 }
 
-static LLVMTargetMachineRef llvm_target_machine(void)
+static LLVMTargetMachineRef llvm_target_machine(LLVMRelocMode reloc,
+                                                LLVMCodeModel model)
 {
-   static __thread LLVMTargetMachineRef tm_ref = NULL;
-   if (tm_ref == NULL) {
-      char *def_triple = LLVMGetDefaultTargetTriple();
-      char *error;
-      LLVMTargetRef target_ref;
-      if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
-         fatal("failed to get LLVM target for %s: %s", def_triple, error);
+   char *def_triple = LLVMGetDefaultTargetTriple();
+   char *error;
+   LLVMTargetRef target_ref;
+   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+      fatal("failed to get LLVM target for %s: %s", def_triple, error);
 
-      tm_ref = LLVMCreateTargetMachine(target_ref, def_triple, "", "",
-                                       LLVMCodeGenLevelDefault,
-                                       LLVMRelocDefault,
-                                       LLVMCodeModelJITDefault);
-      LLVMDisposeMessage(def_triple);
-   }
+   LLVMTargetMachineRef tm = LLVMCreateTargetMachine(target_ref, def_triple,
+                                                     "", "",
+                                                     LLVMCodeGenLevelDefault,
+                                                     reloc, model);
+   LLVMDisposeMessage(def_triple);
 
-   return tm_ref;
+   return tm;
 }
 
 static LLVMBasicBlockRef llvm_append_block(llvm_obj_t *obj, LLVMValueRef fn,
@@ -329,21 +354,7 @@ static LLVMBasicBlockRef llvm_append_block(llvm_obj_t *obj, LLVMValueRef fn,
    return LLVMAppendBasicBlockInContext(obj->context, fn, name);
 }
 
-static LLVMTypeRef cgen_get_type(llvm_obj_t *obj, llvm_type_t which)
-{
-   if (obj->types[which] != NULL)
-      return obj->types[which];
-
-   LLVMTypeRef type = NULL;
-   switch (which) {
-   default:
-      fatal_trace("cannot generate type %d", which);
-   }
-
-   return (obj->types[which] = type);
-}
-
-static LLVMValueRef cgen_add_fn(llvm_obj_t *obj, const char *name,
+static LLVMValueRef llvm_add_fn(llvm_obj_t *obj, const char *name,
                                 LLVMTypeRef type)
 {
    LLVMValueRef fn = LLVMGetNamedFunction(obj->module, name);
@@ -367,7 +378,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_ADD_OVERFLOW_S8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -378,7 +389,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.sadd.with.overflow.i32",
             "llvm.sadd.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -389,7 +400,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_ADD_OVERFLOW_U8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -400,7 +411,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.uadd.with.overflow.i32",
             "llvm.uadd.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -411,7 +422,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_SUB_OVERFLOW_S8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -422,7 +433,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.ssub.with.overflow.i32",
             "llvm.ssub.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -433,7 +444,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_SUB_OVERFLOW_U8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -444,7 +455,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.usub.with.overflow.i32",
             "llvm.usub.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -455,7 +466,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_MUL_OVERFLOW_S8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -466,7 +477,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.smul.with.overflow.i32",
             "llvm.smul.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -477,7 +488,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          jit_size_t sz = which - LLVM_MUL_OVERFLOW_U8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
-         LLVMTypeRef pair_type = cgen_get_type(obj, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -488,7 +499,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.umul.with.overflow.i32",
             "llvm.umul.with.overflow.i64"
          };
-         fn = cgen_add_fn(obj, names[sz], obj->fntypes[which]);
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
       break;
 
@@ -501,7 +512,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_DOUBLE],
                                                 args, ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "llvm.pow.f64", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "llvm.pow.f64", obj->fntypes[which]);
       }
       break;
 
@@ -511,7 +522,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_DOUBLE],
                                                 args, ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "llvm.round.f64", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "llvm.round.f64", obj->fntypes[which]);
       }
       break;
 
@@ -525,7 +536,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "__nvc_do_exit", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_do_exit", obj->fntypes[which]);
       }
       break;
 
@@ -539,7 +550,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "__nvc_do_fficall", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_do_fficall", obj->fntypes[which]);
       }
       break;
 
@@ -549,7 +560,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "__nvc_getpriv", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_getpriv", obj->fntypes[which]);
       }
       break;
 
@@ -562,7 +573,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "__nvc_putpriv", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_putpriv", obj->fntypes[which]);
       }
       break;
 
@@ -575,14 +586,26 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = cgen_add_fn(obj, "__nvc_mspace_alloc", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_mspace_alloc", obj->fntypes[which]);
       }
       break;
 
    case LLVM_TRAMPOLINE:
       {
          obj->fntypes[which] = obj->types[LLVM_ENTRY_FN];
-         fn = cgen_add_fn(obj, "__nvc_trampoline", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_trampoline", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_REGISTER:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "__nvc_register", obj->fntypes[which]);
       }
       break;
 
@@ -599,6 +622,38 @@ static LLVMValueRef llvm_call_fn(llvm_obj_t *obj, llvm_fn_t which,
    LLVMValueRef fn = llvm_get_fn(obj, which);
    return LLVMBuildCall2(obj->builder, obj->fntypes[which], fn,
                          args, count, "");
+}
+
+static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
+{
+   if (obj->string_pool == NULL)
+      obj->string_pool = shash_new(256);
+
+   LLVMValueRef ref = shash_get(obj->string_pool, str);
+   if (ref == NULL) {
+      const size_t len = strlen(str);
+      LLVMValueRef init =
+         LLVMConstStringInContext(obj->context, str, len, false);
+      ref = LLVMAddGlobal(obj->module,
+                          LLVMArrayType(obj->types[LLVM_INT8], len + 1),
+                          "const_string");
+      LLVMSetGlobalConstant(ref, true);
+      LLVMSetInitializer(ref, init);
+      LLVMSetLinkage(ref, LLVMPrivateLinkage);
+      LLVMSetUnnamedAddr(ref, true);
+
+      shash_put(obj->string_pool, str, ref);
+   }
+
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   return ref;
+#else
+   LLVMValueRef indexes[] = {
+      llvm_int32(obj, 0),
+      llvm_int32(obj, 0)
+   };
+   return LLVMBuildGEP(obj->builder, ref, indexes, ARRAY_LEN(indexes), "");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -688,7 +743,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
    case JIT_VALUE_HANDLE:
       return llvm_int32(obj, value.exit);
    case JIT_ADDR_ABS:
-      assert(!obj->aot || value.int64 == 0);
+      assert(obj->ctor == NULL || value.int64 == 0);
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
    case JIT_VALUE_FOREIGN:
       return llvm_ptr(obj, (void *)(intptr_t)0xdeadbeef);
@@ -1210,7 +1265,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    jit_func_t *callee = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
    LLVMValueRef fnptr = NULL;
-   if (obj->aot)
+   if (obj->ctor != NULL)
       fnptr = llvm_get_fn(obj, LLVM_TRAMPOLINE);
    else {
       const char *name = cgen_istr(obj, callee->name);
@@ -1559,10 +1614,21 @@ static void cgen_frame_anchor(llvm_obj_t *obj, cgen_func_t *func)
    LLVMBuildStore(obj->builder, llvm_int32(obj, 0), irpos_ptr);
 }
 
-static void cgen_module(llvm_obj_t *obj, cgen_func_t *func)
+static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
                                   obj->types[LLVM_ENTRY_FN]);
+   LLVMSetLinkage(func->llvmfn, LLVMPrivateLinkage);
+
+   if (obj->ctor != NULL) {
+      LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
+
+      LLVMValueRef args[] = {
+         llvm_const_string(obj, func->name),
+         PTR(func->llvmfn)
+      };
+      llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
+   }
 
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
    LLVMPositionBuilderAtEnd(obj->builder, entry_bb);
@@ -1686,6 +1752,7 @@ typedef struct {
    LLVMOrcLLJITRef             jit;
    LLVMOrcExecutionSessionRef  session;
    LLVMOrcJITDylibRef          dylib;
+   LLVMTargetMachineRef        target;
 } lljit_state_t;
 
 static void *jit_llvm_init(void)
@@ -1702,6 +1769,8 @@ static void *jit_llvm_init(void)
    state->session = LLVMOrcLLJITGetExecutionSession(state->jit);
    state->dylib   = LLVMOrcLLJITGetMainJITDylib(state->jit);
    state->context = LLVMOrcCreateNewThreadSafeContext();
+   state->target  = llvm_target_machine(LLVMRelocDefault,
+                                        LLVMCodeModelJITDefault);
 
    const char prefix = LLVMOrcLLJITGetGlobalPrefix(state->jit);
 
@@ -1728,7 +1797,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    llvm_obj_t obj = {
       .context = LLVMOrcThreadSafeContextGetContext(state->context),
-      .target  = llvm_target_machine(),
+      .target  = state->target,
       .textbuf = tb_new(),
    };
 
@@ -1746,7 +1815,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
       .source = f,
    };
 
-   cgen_module(&obj, &func);
+   cgen_function(&obj, &func);
 
    llvm_finalise(&obj);
 
@@ -1805,17 +1874,13 @@ void jit_register_llvm_plugin(jit_t *j)
 
 llvm_obj_t *llvm_obj_new(const char *name)
 {
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
-
    llvm_obj_t *obj = xcalloc(sizeof(llvm_obj_t));
    obj->context  = LLVMContextCreate();
    obj->module   = LLVMModuleCreateWithNameInContext(name, obj->context);
    obj->builder  = LLVMCreateBuilderInContext(obj->context);
-   obj->target   = llvm_target_machine();
+   obj->target   = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
    obj->textbuf  = tb_new();
    obj->data_ref = LLVMCreateTargetDataLayout(obj->target);
-   obj->aot      = true;
 
    char *triple = LLVMGetTargetMachineTriple(obj->target);
    LLVMSetTarget(obj->module, triple);
@@ -1824,6 +1889,35 @@ llvm_obj_t *llvm_obj_new(const char *name)
    LLVMSetModuleDataLayout(obj->module, obj->data_ref);
 
    llvm_register_types(obj);
+
+   obj->ctor = LLVMAddFunction(obj->module, "ctor", obj->types[LLVM_CTOR_FN]);
+   LLVMSetLinkage(obj->ctor, LLVMPrivateLinkage);
+
+   llvm_append_block(obj, obj->ctor, "entry");
+
+   LLVMValueRef entry = LLVMGetUndef(obj->types[LLVM_CTOR]);
+   entry = LLVMBuildInsertValue(obj->builder, entry,
+                                llvm_int32(obj, 65535), 0, "");
+   entry = LLVMBuildInsertValue(obj->builder, entry, obj->ctor, 1, "");
+   entry = LLVMBuildInsertValue(obj->builder, entry,
+                                LLVMConstNull(obj->types[LLVM_PTR]), 2, "");
+
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_CTOR], 1);
+   LLVMValueRef global =
+      LLVMAddGlobal(obj->module, array_type, "llvm.global_ctors");
+   LLVMSetLinkage(global, LLVMAppendingLinkage);
+
+   LLVMValueRef ctors[] = { entry };
+   LLVMValueRef array = LLVMConstArray(obj->types[LLVM_CTOR], ctors, 1);
+   LLVMSetInitializer(global, array);
+
+   LLVMValueRef abi_version =
+      LLVMAddGlobal(obj->module, obj->types[LLVM_INT32], "__nvc_abi_version");
+   LLVMSetInitializer(abi_version, llvm_int32(obj, RT_ABI_VERSION));
+   LLVMSetGlobalConstant(abi_version, true);
+#ifdef IMPLIB_REQUIRED
+   LLVMSetDLLStorageClass(abi_version, LLVMDLLExportStorageClass);
+#endif
 
    return obj;
 }
@@ -1844,7 +1938,7 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
       .source = f,
    };
 
-   cgen_module(obj, &func);
+   cgen_function(obj, &func);
 
    const uint64_t end_us = get_timestamp_us();
    static __thread uint64_t slowest = 0;
@@ -1855,28 +1949,26 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    free(func.name);
 }
 
-void llvm_obj_emit(llvm_obj_t *obj, const char *file)
+void llvm_obj_emit(llvm_obj_t *obj, const char *path)
 {
+   LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
+   LLVMBuildRetVoid(obj->builder);
+
    llvm_finalise(obj);
 
-   // TODO: emit to file
-
-   LLVMDumpModule(obj->module);
+   char *error;
+   if (LLVMTargetMachineEmitToFile(obj->target, obj->module, path,
+                                   LLVMObjectFile, &error))
+      fatal("Failed to write object file: %s", error);
 
    LLVMDisposeTargetData(obj->data_ref);
-   obj->data_ref = NULL;
-
+   LLVMDisposeTargetMachine(obj->target);
    LLVMDisposeBuilder(obj->builder);
-   obj->builder = NULL;
-
    LLVMDisposeModule(obj->module);
-   obj->module = NULL;
-
    LLVMContextDispose(obj->context);
-   obj->context = NULL;
 
    tb_free(obj->textbuf);
-   obj->textbuf = NULL;
+   shash_free(obj->string_pool);
 
    free(obj);
 }

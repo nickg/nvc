@@ -1472,3 +1472,19 @@ void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
 {
    x_cover_setup_toggle_cb(ss, toggle_mask);
 }
+
+DLLEXPORT
+void __nvc_register(const char *name, jit_entry_fn_t fn)
+{
+   printf("register! name=%s fn=%p\n", name, fn);
+
+   jit_t *j = jit_thread_local()->jit;
+   jit_register(j, name, fn);
+}
+
+DLLEXPORT
+void __nvc_trampoline(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
+{
+   printf("trampoline! %s\n", istr(f->name));
+   (*f->entry)(f, caller, args);
+}

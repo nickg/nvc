@@ -207,6 +207,9 @@ shash_t *shash_new(int size)
 
 void shash_free(shash_t *h)
 {
+   if (h == NULL)
+      return;
+
    for (unsigned i = 0; i < h->size; i++) {
       if (h->keys[i] != NULL)
          free(h->keys[i]);

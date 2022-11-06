@@ -234,10 +234,32 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
       return handle;
 
    jit_func_t *f = jit_get_func(j, handle);
-   if (f->irbuf == NULL && f->symbol == NULL)
+   if (f->irbuf == NULL && f->symbol == NULL && f->entry == jit_interp)
       jit_irgen(f);
 
    return handle;
+}
+
+void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn)
+{
+   jit_func_t *f = hash_get(j->index, name);
+   if (f != NULL)
+      fatal_trace("attempt to register existing function %s", name);
+
+   f = xcalloc(sizeof(jit_func_t));
+
+   f->name      = ident_new(name);
+   f->unit      = vcode_find_unit(f->name);
+   f->jit       = j;
+   f->handle    = j->funcs.count;
+   f->next_tier = j->tiers;
+   f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
+   f->entry     = fn;
+
+   if (f->unit) hash_put(j->index, f->unit, f);
+   hash_put(j->index, f->name, f);
+
+   APUSH(j->funcs, f);
 }
 
 void *jit_link(jit_t *j, jit_handle_t handle)
@@ -547,7 +569,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
 static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
 {
-   if (f->symbol == NULL && f->irbuf == NULL)
+   if (f->symbol == NULL && f->irbuf == NULL && f->entry == jit_interp)
       jit_irgen(f);   // Ensure FFI spec is set
 
    const int nargs = ffi_count_args(f->spec);
@@ -617,7 +639,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 {
    jit_func_t *f = jit_get_func(j, handle);
 
-   if (f->symbol == NULL && f->irbuf == NULL)
+   if (f->symbol == NULL && f->irbuf == NULL && f->entry == jit_interp)
       jit_irgen(f);   // Ensure FFI spec is set
 
    assert(f->spec != 0);

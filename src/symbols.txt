@@ -55,11 +55,13 @@
   __nvc_push_scope;
   __nvc_putpriv;
   __nvc_range_fail;
+  __nvc_register;
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
   __nvc_setup_toggle_cb;
   __nvc_tlab;
+  __nvc_trampoline;
   __nvc_unreachable;
   _assert_fail;
   _canon_value;

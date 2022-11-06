@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "opt.h"
@@ -47,6 +48,25 @@
 #include <llvm-c/Transforms/IPO.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 #include <llvm-c/TargetMachine.h>
+
+#define CGEN_USE_JIT 0
+
+typedef A(vcode_unit_t) unit_list_t;
+typedef A(char *) obj_list_t;
+
+typedef struct {
+   unit_list_t      units;
+   char            *obj_path;
+   char            *module_name;
+   unsigned         index;
+   tree_t           top;
+   cover_tagging_t *cover;
+} cgen_job_t;
+
+static A(char *) link_args;
+static A(char *) cleanup_files = AINIT;
+
+#if !CGEN_USE_JIT
 
 #define DEBUG_METADATA_VERSION 3
 #define CONST_REP_ARRAY_LIMIT  32
@@ -84,18 +104,6 @@ typedef enum {
    FUNC_ATTR_DLLEXPORT,
 } func_attr_t;
 
-typedef A(vcode_unit_t) unit_list_t;
-typedef A(char *) obj_list_t;
-
-typedef struct {
-   unit_list_t      units;
-   char            *obj_path;
-   char            *module_name;
-   unsigned         index;
-   tree_t           top;
-   cover_tagging_t *cover;
-} cgen_job_t;
-
 typedef A(LLVMValueRef) llvm_value_list_t;
 
 static __thread LLVMModuleRef       module = NULL;
@@ -104,9 +112,6 @@ static __thread LLVMDIBuilderRef    debuginfo = NULL;
 static __thread shash_t            *string_pool = NULL;
 static __thread A(LLVMMetadataRef)  debug_scopes;
 static __thread llvm_value_list_t   ctors;
-
-static A(char *) link_args;
-static A(char *) cleanup_files = AINIT;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
@@ -4466,6 +4471,7 @@ static void cgen_module_debug_info(LLVMMetadataRef cu)
 
    cgen_push_debug_scope(mod);
 }
+#endif
 
 static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
 {
@@ -4564,6 +4570,7 @@ static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
       cgen_find_dependencies(units->items[i], units);
 }
 
+#if !CGEN_USE_JIT
 static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
                                 const char *base_name, int units_per_job,
                                 tree_t top, cover_tagging_t *cover,
@@ -5249,16 +5256,6 @@ static void cgen_abi_version(void)
 #endif
 }
 
-static void cgen_link_arg(const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   char *buf = xvasprintf(fmt, ap);
-   va_end(ap);
-
-   APUSH(link_args, buf);
-}
-
 static void cgen_native(LLVMTargetMachineRef tm_ref, char *obj_path)
 {
    char *error;
@@ -5287,6 +5284,7 @@ static void cgen_native(LLVMTargetMachineRef tm_ref, char *obj_path)
        fatal("Failed to write bitcode to file");
 #endif
 }
+#endif
 
 static void cleanup_temp_dll(void)
 {
@@ -5298,6 +5296,16 @@ static void cleanup_temp_dll(void)
    }
 
    ACLEAR(cleanup_files);
+}
+
+static void cgen_link_arg(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *buf = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   APUSH(link_args, buf);
 }
 
 static void cgen_link(const char *module_name, char **objs, int nobjs)
@@ -5376,6 +5384,7 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    ACLEAR(link_args);
 }
 
+#if !CGEN_USE_JIT
 static void cgen_global_ctors(void)
 {
    if (ctors.count == 0)
@@ -5577,3 +5586,79 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 
    workq_free(wq);
 }
+
+#else
+
+typedef struct {
+   jit_t           *jit;
+   llvm_obj_t      *obj;
+   cover_tagging_t *cover;
+} cgen_req_t;
+
+static void cgen_async_cb(void *context, void *arg)
+{
+   cgen_req_t *req = context;
+
+   vcode_unit_t vu = arg;
+   vcode_select_unit(vu);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, vcode_unit_name());
+
+   jit_handle_t handle = jit_lazy_compile(req->jit, vcode_unit_name());
+   assert(handle != JIT_HANDLE_INVALID);
+
+   llvm_aot_compile(req->obj, req->jit, handle);
+}
+
+void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
+{
+   ident_t name = tree_ident(top);
+   if (tree_kind(top) == T_PACK_BODY)
+      name = tree_ident(tree_primary(top));
+
+   unit_list_t units = AINIT;
+   cgen_find_units(vcode, &units);
+
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   if (!LLVMIsMultithreaded())
+      fatal("LLVM was built without multithreaded support");
+
+   cgen_req_t req = {
+      .jit   = jit_new(),
+      .cover = cover,
+      .obj   = llvm_obj_new(istr(name)),
+   };
+
+   stop_workers();  // XXX
+
+   workq_t *wq = workq_new(&req);
+
+   for (int i = 0; i < units.count; i++)
+      workq_do(wq, cgen_async_cb, units.items[i]);
+
+   workq_start(wq);
+   workq_drain(wq);
+
+   llvm_obj_emit(req.obj, "out.o");
+   req.obj = NULL;
+
+   progress("code generation for %d units", units.count);
+
+   obj_list_t objs = AINIT;
+   APUSH(objs, xstrdup("out.o"));
+
+   cgen_link(istr(name), objs.items, objs.count);
+
+   for (unsigned i = 0; i < objs.count; i++)
+      free(objs.items[i]);
+   ACLEAR(objs);
+
+   ACLEAR(units);
+   jit_free(req.jit);
+   workq_free(wq);
+}
+
+#endif

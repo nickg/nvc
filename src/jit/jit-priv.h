@@ -294,6 +294,7 @@ bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
+void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
