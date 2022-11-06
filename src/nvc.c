@@ -225,7 +225,7 @@ static cover_mask_t parse_cover_mask(const char *str)
    int n_chars = 0;
    const char *full_cov_opt = str;
    cover_mask_t rv = 0;
-   do {
+   while (1) {
       if (*str == ',' || *str == '\0') {
          if (prev == 's')
             rv |= COVER_MASK_STMT;
@@ -246,13 +246,15 @@ static cover_mask_t parse_cover_mask(const char *str)
             fatal_exit(EXIT_FAILURE);
          }
          n_chars = 0;
+         if (*str == '\0')
+            break;
       }
       n_chars++;
       if (n_chars >= 3)
          fatal("Invalid coverage type: '%s'.", full_cov_opt);
       prev = *str;
       str++;
-   } while (*str != '\0');
+   }
    return rv;
 }
 
