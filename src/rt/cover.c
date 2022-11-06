@@ -1053,9 +1053,10 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 
       }
       else {
-         cover_file_t *f_src = cover_file(&(tag->loc));
-         // TODO: Can it happend that we don't get valid file?
 
+         cover_file_t *f_src = cover_file(&(tag->loc));
+         if (f_src == NULL)
+            continue;
          cover_line_t *line = &(f_src->lines[tag->loc.first_line-1]);
 
          switch (tag->kind){
