@@ -219,6 +219,43 @@ static void set_top_level(char **argv, int next_cmd)
    }
 }
 
+static cover_mask_t parse_cover_mask(const char *str)
+{
+   char prev = 0;
+   int n_chars = 0;
+   const char *full_cov_opt = str;
+   cover_mask_t rv = 0;
+   do {
+      if (*str == ',' || *str == '\0') {
+         if (prev == 's')
+            rv |= COVER_MASK_STMT;
+         else if (prev == 't')
+            rv |= COVER_MASK_TOGGLE;
+         else if (prev == 'b')
+            rv |= COVER_MASK_BRANCH;
+         else {
+            diag_t *d = diag_new(DIAG_FATAL, NULL);
+            diag_printf(d, "unknown coverage type '%c'", *str);
+            diag_hint(d, NULL, "valid coverage types are: \n"
+                                 "  s (statement)\n"
+                                 "  t (toggle)\n"
+                                 "  b (branch)");
+            diag_hint(d, NULL, "selected coverage types shall be "
+                                 "comma separated e.g $bold$--cover=s,t,b$$");
+            diag_emit(d);
+            fatal_exit(EXIT_FAILURE);
+         }
+         n_chars = 0;
+      }
+      n_chars++;
+      if (n_chars >= 3)
+         fatal("Invalid coverage type: '%s'.", full_cov_opt);
+      prev = *str;
+      str++;
+   } while (*str != '\0');
+   return rv;
+}
+
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -252,40 +289,8 @@ static int elaborate(int argc, char **argv)
          opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
          break;
       case 'c':
-         if (optarg) {
-            char prev = 0;
-            int n_chars = 0;
-            const char *full_cov_opt = optarg;
-            do {
-               if (*optarg == ',' || *optarg == '\0') {
-                  if (prev == 's')
-                     cover_mask |= COVER_MASK_STMT;
-                  else if (prev == 't')
-                     cover_mask |= COVER_MASK_TOGGLE;
-                  else if (prev == 'b')
-                     cover_mask |= COVER_MASK_BRANCH;
-                  else {
-                     diag_t *d = diag_new(DIAG_FATAL, NULL);
-                     diag_printf(d, "unknown coverage type '%c'", *optarg);
-                     diag_hint(d, NULL, "valid coverage types are: \n"
-                                        "  s (statement)\n"
-                                        "  t (toggle)\n"
-                                        "  b (branch)");
-                     diag_hint(d, NULL, "selected coverage types shall be "
-                                        "comma separated e.g $bold$--cover=s,t,b$$");
-                     diag_emit(d);
-                     fatal_exit(EXIT_FAILURE);
-                  }
-                  n_chars = 0;
-               }
-               n_chars++;
-               if (n_chars >= 3)
-                  fatal("Invalid coverage type: '%s'. Valid coverage shall be a "
-                        "single letter!", full_cov_opt);
-               prev = *optarg;
-               optarg++;
-            } while (*optarg != '\0');
-         }
+         if (optarg)
+            cover_mask = parse_cover_mask(optarg);
          else
             cover_mask = COVER_MASK_ALL;
          break;
