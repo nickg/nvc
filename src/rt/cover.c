@@ -37,8 +37,8 @@
 
 //#define COVER_DEBUG
 
-#define MARGIN_LEFT "25%%"
-#define SIDEBAR_WIDTH "20%%"
+#define MARGIN_LEFT "20%%"
+#define SIDEBAR_WIDTH "15%%"
 
 typedef A(cover_tag_t) tag_array_t;
 
