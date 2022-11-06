@@ -463,6 +463,45 @@ completely safe and protected by a lock in the filesystem using
 .Xr flock 2
 that allows multiple concurrent readers but only a single writer.
 .\" ------------------------------------------------------------
+.\" CODE COVERAGE
+.\" ------------------------------------------------------------
+.Sh CODE COVERAGE
+NVC supports collecting of code coverage. Following coverage types
+are supported:
+.Bl -bullet
+.It
+Statement -
+.Cm s
+- For each statement, NVC creates coverage bin. When statement is
+executed, it is covered.
+.It
+Branch -
+.Cm b
+- For each point where code diverges (if/else, case,
+when/else, with/select statements), NVC creates coverage bin. If
+branch can be evaluated to both true and false, NVC creates two
+coverage bins for such branch (one for each of true/false)
+.It
+Toggle -
+.Cm t
+- Each signal of type derived from std_logic
+(including nested arrays) creates two coverage bins (to track 0->1 and
+1->0 transitions).
+.El
+Collecting each coverage type can be enabled separately at elaboration time:
+.Bd -literal -offset indent
+$ nvc -e --cover=s,b,t <top>
+.Ed
+If no coverage type is specified as argument of
+.Fl -cover
+,all coverage types are collected. After
+simulation is executed, NVC dumps coverage data into coverage database file
+(*.covdb). To merge coverage databases from multiple simulations, and generate
+hierarchy coverage report in HTML format, run:
+.Bd -literal -offset indent
+$nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> first.covdb second.covdb third.covdb ...
+.Ed
+.\" ------------------------------------------------------------
 .\" Relaxed rules
 .\" ------------------------------------------------------------
 .Sh RELAXED RULES
