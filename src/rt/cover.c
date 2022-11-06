@@ -903,7 +903,7 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          if (kind == TAG_BRANCH || kind == TAG_STMT) {
             int last = strlen(pair->line->text);
             if (loc.line_delta == 0)
-               last = loc.column_delta + loc.first_column - 1;
+               last = loc.first_column + loc.column_delta;
             int curr = loc.first_column;
             while (curr <= last) {
                fprintf(f, "%c", pair->line->text[curr]);
