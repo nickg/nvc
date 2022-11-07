@@ -881,38 +881,47 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          loc_t loc = pair->tag->loc;
 
          if (kind == TAG_BRANCH || kind == TAG_STMT)
-            fprintf(f, "<p> Line %d: &emsp;", loc.first_line);
+            fprintf(f, "<p><b>Line %d", loc.first_line);
 
          if (kind == TAG_BRANCH) {
             // True / False flags set for T_IF on tag
             if ((pair->tag->flags & COV_FLAG_HAS_TRUE) &&
                 (pair->tag->flags & COV_FLAG_HAS_FALSE))
             {
-               fprintf(f, "Evaluated to ");
+               fprintf(f, " (Evaluated to ");
                if (pair->flags & COV_FLAG_HAS_TRUE)
-                  fprintf(f, "True: &emsp;");
+                  fprintf(f, "True)");
                else
-                  fprintf(f, "False: &emsp;");
+                  fprintf(f, "False)");
             }
             else
-               fprintf(f, "Choice of: &emsp;");
+               fprintf(f, " (Choice)");
          }
+         if (kind == TAG_BRANCH || kind == TAG_STMT)
+            fprintf(f, ":</b><br>");
 
-         // If on single line, print only part of line on which it is
-         // If on multiple lines, print from start on first line, till end of line
+         // Print line on with the tag, and highlight its location
          if (kind == TAG_BRANCH || kind == TAG_STMT) {
+            fprintf(f, "<code>");
             int last = strlen(pair->line->text);
-            if (loc.line_delta == 0)
-               last = loc.first_column + loc.column_delta;
-            int curr = loc.first_column;
+            int curr = 0;
             while (curr <= last) {
+               if (curr == loc.first_column)
+                  fprintf(f, "<code style=\"background-color:#bbbbbb;\">");
                fprintf(f, "%c", pair->line->text[curr]);
+               if (curr == (loc.first_column + loc.column_delta) &&
+                   loc.line_delta == 0)
+                  fprintf(f, "</code>");
                curr++;
             }
+            if (loc.line_delta > 0)
+               fprintf(f, "</code>");
          }
+         fprintf(f, "</code>");
 
          // Hier contains also indices of sub-signals
          if (kind == TAG_TOGGLE) {
+            fprintf(f, "<b>");
             if (pair->flags & COV_FLAG_TOGGLE_TO_1)
                fprintf(f, "Toggle to 1 &emsp;");
             else if (pair->flags & COV_FLAG_TOGGLE_TO_0)
@@ -923,7 +932,8 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
                fprintf(f, "signal:");
             else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
                fprintf(f, "port:&nbsp&nbsp&nbsp");
-            fprintf(f, "&emsp; %s", istr(pair->tag->hier));
+            fprintf(f, "</b><br>");
+            fprintf(f, "<code>%s</code>", istr(ident_rfrom(pair->tag->hier, '.')));
          }
 
          fprintf(f, "</p>\n");

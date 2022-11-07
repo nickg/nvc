@@ -5474,10 +5474,11 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       cover_push_scope(cover_tags, c);
 
       if (tree_has_value(c)) {
-         vcode_reg_t test = lower_rvalue(tree_value(c));
+         tree_t v = tree_value(c);
+         vcode_reg_t test = lower_rvalue(v);
 
          if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-            lower_branch_coverage(c, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
+            lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
                                   test);
 
          vcode_block_t btrue = emit_block();
@@ -5816,10 +5817,11 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
       emit_jump(test_bb);
 
       vcode_select_block(test_bb);
-      vcode_reg_t test = lower_rvalue(tree_value(stmt));
+      tree_t v = tree_value(stmt);
+      vcode_reg_t test = lower_rvalue(v);
 
       if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-         lower_branch_coverage(stmt, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
+         lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
                                test);
 
       emit_cond(test, body_bb, exit_bb);
@@ -5866,10 +5868,11 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
 
    if (tree_has_value(stmt)) {
       vcode_block_t true_bb = emit_block();
-      vcode_reg_t result = lower_rvalue(tree_value(stmt));
+      tree_t v = tree_value(stmt);
+      vcode_reg_t result = lower_rvalue(v);
 
       if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-         lower_branch_coverage(stmt, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
+         lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
                                result);
 
       emit_cond(result, true_bb, false_bb);
