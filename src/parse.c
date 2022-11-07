@@ -8411,7 +8411,7 @@ static tree_t p_waveform_element(type_t constraint)
    return w;
 }
 
-static void p_waveform(tree_t stmt, type_t constraint)
+static void p_waveform(tree_t stmt, type_t constraint, bool set_loc)
 {
    // waveform_element { , waveform_element } | unaffected
 
@@ -8424,6 +8424,9 @@ static void p_waveform(tree_t stmt, type_t constraint)
 
    while (optional(tCOMMA))
       tree_add_waveform(stmt, p_waveform_element(constraint));
+
+   if (set_loc)
+      tree_set_loc(stmt, CURRENT_LOC);
 }
 
 static tree_t p_delay_mechanism(void)
@@ -8562,7 +8565,7 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 
    tree_t reject = p_delay_mechanism();
 
-   p_waveform(t, target_type);
+   p_waveform(t, target_type, false);
 
    if (aggregate)
       solve_types(nametab, target, tree_type(tree_value(tree_waveform(t, 0))));
@@ -9311,21 +9314,19 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       if (a == NULL) {
          a = tree_new(T_SIGNAL_ASSIGN);
          tree_set_target(a, target);
-
-         p_waveform(a, constraint);
+         p_waveform(a, constraint, true);
       }
-      else
+      else {
          s0 = NULL;
-
-      tree_set_loc(a, CURRENT_LOC);
-      tree_set_loc(c, CURRENT_LOC);
-
+         tree_set_loc(a, CURRENT_LOC);
+      }
       tree_add_stmt(c, a);
       tree_add_cond(stmt, c);
 
       if (optional(tWHEN)) {
          tree_t when = p_condition();
          tree_set_value(c, when);
+         tree_set_loc(c, tree_loc(when));
          solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 
          if (!optional(tELSE))
@@ -9398,7 +9399,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
       if (reject != NULL)
          tree_set_reject(a, reject);
 
-      p_waveform(a, constraint);
+      p_waveform(a, constraint, true);
 
       consume(tWHEN);
 
@@ -9409,7 +9410,6 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
       for (int i = nstart; i < nassocs; i++)
          tree_set_value(tree_assoc(stmt, i), a);
 
-      tree_set_loc(a, CURRENT_LOC);
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
