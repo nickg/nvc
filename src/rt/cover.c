@@ -704,7 +704,7 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
       ident_t full_hier = ctx->start_tag->hier;
       ident_t curr_id;
       ident_t curr_hier = NULL;
-      const char *link = "../coverage_report";
+      const char *link = "../index";
       do {
          curr_id = ident_walk_selected(&full_hier);
          curr_hier = ident_prefix(curr_hier, curr_id, '.');
@@ -1172,7 +1172,7 @@ void cover_report(const char *path, cover_tagging_t *tagging)
    top_ctx.start_tag = AREF(tagging->tags, 0);
    cover_report_hierarchy(&top_ctx, subdir);
 
-   char *top LOCAL = xasprintf("%s/coverage_report.html", path);
+   char *top LOCAL = xasprintf("%s/index.html", path);
    FILE *f = fopen(top, "w");
 
    cover_print_html_header(f, &top_ctx, true, "NVC code coverage report");
