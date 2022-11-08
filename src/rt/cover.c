@@ -978,29 +978,25 @@ static void cover_append_to_chain(cover_chain_t *chain, bool hits,
                                   cover_tag_t *tag, cover_line_t *line,
                                   unsigned flags)
 {
-   cover_pair_t *pair;
-   int *n;
-   int *alloc;
-
    if (hits) {
-      pair = chain->hits;
-      n = &(chain->n_hits);
-      alloc = &(chain->alloc_hits);
+      if (chain->n_hits == chain->alloc_hits) {
+         chain->alloc_hits *= 2;
+         chain->hits = xrealloc_array(chain->hits, chain->alloc_hits, sizeof(cover_pair_t));
+      }
+      chain->hits[chain->n_hits].tag = tag;
+      chain->hits[chain->n_hits].line = line;
+      chain->hits[chain->n_hits].flags = flags;
+      chain->n_hits++;
    }
    else {
-      pair = chain->miss;
-      n = &(chain->n_miss);
-      alloc = &(chain->alloc_miss);
-   }
-
-   pair[*n].tag = tag;
-   pair[*n].line = line;
-   pair[*n].flags = flags;
-   (*n)++;
-
-   if (*n == *alloc) {
-      *alloc = (*alloc) * 2;
-      pair = xrealloc_array(pair, *alloc, sizeof(cover_pair_t));
+      if (chain->n_miss == chain->alloc_miss) {
+         chain->alloc_miss *= 2;
+         chain->miss = xrealloc_array(chain->miss, chain->alloc_miss, sizeof(cover_pair_t));
+      }
+      chain->miss[chain->n_miss].tag = tag;
+      chain->miss[chain->n_miss].line = line;
+      chain->miss[chain->n_miss].flags = flags;
+      chain->n_miss++;
    }
 }
 
