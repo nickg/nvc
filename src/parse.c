@@ -8411,7 +8411,7 @@ static tree_t p_waveform_element(type_t constraint)
    return w;
 }
 
-static void p_waveform(tree_t stmt, type_t constraint, bool set_loc)
+static void p_waveform(tree_t stmt, type_t constraint)
 {
    // waveform_element { , waveform_element } | unaffected
 
@@ -8425,8 +8425,7 @@ static void p_waveform(tree_t stmt, type_t constraint, bool set_loc)
    while (optional(tCOMMA))
       tree_add_waveform(stmt, p_waveform_element(constraint));
 
-   if (set_loc)
-      tree_set_loc(stmt, CURRENT_LOC);
+   tree_set_loc(stmt, CURRENT_LOC);
 }
 
 static tree_t p_delay_mechanism(void)
@@ -8565,7 +8564,7 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 
    tree_t reject = p_delay_mechanism();
 
-   p_waveform(t, target_type, false);
+   p_waveform(t, target_type);
 
    if (aggregate)
       solve_types(nametab, target, tree_type(tree_value(tree_waveform(t, 0))));
@@ -9314,7 +9313,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       if (a == NULL) {
          a = tree_new(T_SIGNAL_ASSIGN);
          tree_set_target(a, target);
-         p_waveform(a, constraint, true);
+         p_waveform(a, constraint);
       }
       else {
          s0 = NULL;
@@ -9399,7 +9398,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
       if (reject != NULL)
          tree_set_reject(a, reject);
 
-      p_waveform(a, constraint, true);
+      p_waveform(a, constraint);
 
       consume(tWHEN);
 
