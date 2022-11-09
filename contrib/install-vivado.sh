@@ -32,7 +32,7 @@ echo
 
 src=$XILINX_VIVADO/data/vhdl/src
 
-GLOBAL_OPTS="-M 32m"
+GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed"
 
 for STD in 1993 2008; do
