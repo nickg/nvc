@@ -62,6 +62,7 @@ jit_foreign_t *jit_ffi_get(ident_t sym);
 void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
 
 ident_t ffi_get_sym(jit_foreign_t *ff);
+ffi_spec_t ffi_get_spec(jit_foreign_t *ff);
 
 int ffi_count_args(ffi_spec_t spec);
 ffi_uarray_t ffi_wrap_str(char *buf, size_t len);

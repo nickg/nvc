@@ -1488,3 +1488,23 @@ void __nvc_trampoline(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
    printf("trampoline! %s\n", istr(f->name));
    (*f->entry)(f, caller, args);
 }
+
+DLLEXPORT
+jit_func_t *__nvc_get_func(const char *name)
+{
+   printf("get_func %s\n", name);
+
+   jit_t *j = jit_thread_local()->jit;
+   jit_handle_t handle = jit_lazy_compile(j, ident_new(name));
+   printf("...handle = %d\n", handle);
+
+   return jit_get_func(j, handle);
+}
+
+DLLEXPORT
+jit_foreign_t *__nvc_get_foreign(const char *name, ffi_spec_t spec)
+{
+   printf("get_foreign %s %lx\n", name, spec);
+   ident_t id = ident_new(name);
+   return jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
+}

@@ -107,6 +107,8 @@ typedef enum {
    LLVM_DO_FFICALL,
    LLVM_TRAMPOLINE,
    LLVM_REGISTER,
+   LLVM_GET_FUNC,
+   LLVM_GET_FOREIGN,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -124,7 +126,6 @@ typedef struct _llvm_obj {
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
    LLVMValueRef          ctor;
-   text_buf_t           *textbuf;
    shash_t              *string_pool;
 } llvm_obj_t;
 
@@ -609,6 +610,27 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       }
       break;
 
+   case LLVM_GET_FUNC:
+      {
+         LLVMTypeRef args[] = { obj->types[LLVM_PTR] };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "__nvc_get_func", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_GET_FOREIGN:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT64]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "__nvc_get_foreign", obj->fntypes[which]);
+      }
+      break;
+
    default:
       fatal_trace("cannot generate prototype for function %d", which);
    }
@@ -681,13 +703,6 @@ static const char *cgen_arg_name(int nth)
 #else
    return "";
 #endif
-}
-
-static const char *cgen_istr(llvm_obj_t *obj, ident_t id)
-{
-   tb_rewind(obj->textbuf);
-   tb_istr(obj->textbuf, id);
-   return tb_get(obj->textbuf);
 }
 
 __attribute__((noreturn))
@@ -863,6 +878,14 @@ static void cgen_sync_irpos(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                                 obj->types[LLVM_ANCHOR],
                                                 cgb->func->anchor, 2, "irpos");
    LLVMBuildStore(obj->builder, llvm_int32(obj, irpos), irpos_ptr);
+}
+
+static LLVMBasicBlockRef cgen_add_ctor(llvm_obj_t *obj)
+{
+   assert(obj->ctor != NULL);
+   LLVMBasicBlockRef old_bb = LLVMGetInsertBlock(obj->builder);
+   LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
+   return old_bb;
 }
 
 static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1264,36 +1287,53 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    jit_func_t *callee = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
-   LLVMValueRef fnptr = NULL;
-   if (obj->ctor != NULL)
-      fnptr = llvm_get_fn(obj, LLVM_TRAMPOLINE);
-   else {
-      const char *name = cgen_istr(obj, callee->name);
-      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, name);
+   LLVMValueRef entry = NULL, fptr = NULL;
+   if (obj->ctor != NULL) {
+      entry = llvm_get_fn(obj, LLVM_TRAMPOLINE);
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, callee->name);
+      tb_cat(tb, ".func");
+
+      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
       if (global == NULL) {
-         global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], name);
-         LLVMSetGlobalConstant(global, true);
-         LLVMSetLinkage(global, LLVMPrivateLinkage);
+         global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
          LLVMSetUnnamedAddr(global, true);
-         LLVMSetInitializer(global, llvm_ptr(obj, callee->entry));
+         LLVMSetLinkage(global, LLVMPrivateLinkage);
+         LLVMSetInitializer(global, llvm_ptr(obj, NULL));
+
+         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj);
+
+         tb_trim(tb, ident_len(callee->name));  // Strip .func
+
+         LLVMValueRef args[] = {
+            llvm_const_string(obj, tb_get(tb)),
+         };
+         LLVMValueRef init =
+            llvm_call_fn(obj, LLVM_GET_FUNC, args, ARRAY_LEN(args));
+         LLVMBuildStore(obj->builder, init, global);
+
+         LLVMPositionBuilderAtEnd(obj->builder, old_bb);
       }
 
-#ifdef LLVM_HAS_OPAQUE_POINTERS
-      fnptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, name);
-#else
+      fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+   }
+   else {
+      entry = llvm_ptr(obj, callee->entry);
+      fptr = llvm_ptr(obj, callee);
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
       LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
-      LLVMValueRef cast =
-         LLVMBuildPointerCast(obj->builder, global, ptr_type, "");
-      fnptr = LLVMBuildLoad2(obj->builder, ptr_type, cast, name);
+      entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
 #endif
    }
 
    LLVMValueRef args[] = {
-      llvm_ptr(obj, callee),
+      fptr,
       PTR(cgb->func->anchor),
       cgb->func->args
    };
-   LLVMBuildCall2(obj->builder, obj->types[LLVM_ENTRY_FN], fnptr,
+   LLVMBuildCall2(obj->builder, obj->types[LLVM_ENTRY_FN], entry,
                   args, ARRAY_LEN(args), "");
 }
 
@@ -1386,10 +1426,44 @@ static void cgen_macro_fficall(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    cgen_sync_irpos(obj, cgb, ir);
 
-   LLVMValueRef ff = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef ffptr;
+   if (obj->ctor != NULL) {
+      assert(ir->arg1.kind == JIT_VALUE_FOREIGN);
+      ident_t sym = ffi_get_sym(ir->arg1.foreign);
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, sym);
+      tb_cat(tb, ".ffi");
+
+      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
+      if (global == NULL) {
+         global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
+         LLVMSetUnnamedAddr(global, true);
+         LLVMSetLinkage(global, LLVMPrivateLinkage);
+         LLVMSetInitializer(global, llvm_ptr(obj, NULL));
+
+         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj);
+
+         tb_trim(tb, ident_len(sym));   // Strip .ffi
+
+         LLVMValueRef args[] = {
+            llvm_const_string(obj, tb_get(tb)),
+            llvm_int64(obj, ffi_get_spec(ir->arg1.foreign)),
+         };
+         LLVMValueRef init =
+            llvm_call_fn(obj, LLVM_GET_FOREIGN, args, ARRAY_LEN(args));
+         LLVMBuildStore(obj->builder, init, global);
+
+         LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+      }
+
+      ffptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+   }
+   else
+      ffptr = cgen_get_value(obj, cgb, ir->arg1);
 
    LLVMValueRef args[] = {
-      ff,
+      ffptr,
       PTR(cgb->func->anchor),
       cgb->func->args
    };
@@ -1618,16 +1692,17 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
                                   obj->types[LLVM_ENTRY_FN]);
-   LLVMSetLinkage(func->llvmfn, LLVMPrivateLinkage);
 
    if (obj->ctor != NULL) {
-      LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
+      cgen_add_ctor(obj);
 
       LLVMValueRef args[] = {
          llvm_const_string(obj, func->name),
          PTR(func->llvmfn)
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
+
+      LLVMSetLinkage(func->llvmfn, LLVMPrivateLinkage);
    }
 
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
@@ -1798,7 +1873,6 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    llvm_obj_t obj = {
       .context = LLVMOrcThreadSafeContextGetContext(state->context),
       .target  = state->target,
-      .textbuf = tb_new(),
    };
 
    LOCAL_TEXT_BUF tb = tb_new();
@@ -1836,7 +1910,6 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    LLVMDisposeTargetData(obj.data_ref);
    LLVMDisposeBuilder(obj.builder);
-   tb_free(obj.textbuf);
    free(func.name);
 }
 
@@ -1879,7 +1952,6 @@ llvm_obj_t *llvm_obj_new(const char *name)
    obj->module   = LLVMModuleCreateWithNameInContext(name, obj->context);
    obj->builder  = LLVMCreateBuilderInContext(obj->context);
    obj->target   = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
-   obj->textbuf  = tb_new();
    obj->data_ref = LLVMCreateTargetDataLayout(obj->target);
 
    char *triple = LLVMGetTargetMachineTriple(obj->target);
@@ -1967,7 +2039,6 @@ void llvm_obj_emit(llvm_obj_t *obj, const char *path)
    LLVMDisposeModule(obj->module);
    LLVMContextDispose(obj->context);
 
-   tb_free(obj->textbuf);
    shash_free(obj->string_pool);
 
    free(obj);

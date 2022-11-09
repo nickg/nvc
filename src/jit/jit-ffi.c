@@ -324,3 +324,8 @@ ident_t ffi_get_sym(jit_foreign_t *ff)
 {
    return ff->sym;
 }
+
+ffi_spec_t ffi_get_spec(jit_foreign_t *ff)
+{
+   return ff->spec;
+}
