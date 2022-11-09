@@ -8424,6 +8424,8 @@ static void p_waveform(tree_t stmt, type_t constraint)
 
    while (optional(tCOMMA))
       tree_add_waveform(stmt, p_waveform_element(constraint));
+
+   tree_set_loc(stmt, CURRENT_LOC);
 }
 
 static tree_t p_delay_mechanism(void)
@@ -9260,7 +9262,7 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    tree_set_loc(t, CURRENT_LOC);
 
-   if (label == NULL) {
+   if (label == NULL){
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
       tree_set_ident(t, error_marker());
@@ -9311,21 +9313,19 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       if (a == NULL) {
          a = tree_new(T_SIGNAL_ASSIGN);
          tree_set_target(a, target);
-
          p_waveform(a, constraint);
       }
-      else
+      else {
          s0 = NULL;
-
-      tree_set_loc(a, CURRENT_LOC);
-      tree_set_loc(c, CURRENT_LOC);
-
+         tree_set_loc(a, CURRENT_LOC);
+      }
       tree_add_stmt(c, a);
       tree_add_cond(stmt, c);
 
       if (optional(tWHEN)) {
          tree_t when = p_condition();
          tree_set_value(c, when);
+         tree_set_loc(c, tree_loc(when));
          solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 
          if (!optional(tELSE))
@@ -9409,7 +9409,6 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
       for (int i = nstart; i < nassocs; i++)
          tree_set_value(tree_assoc(stmt, i), a);
 
-      tree_set_loc(a, CURRENT_LOC);
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }

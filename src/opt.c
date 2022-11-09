@@ -111,7 +111,6 @@ void set_default_options(void)
    opt_set_int(OPT_DUMP_LLVM, 0);
    opt_set_int(OPT_OPTIMISE, 2);
    opt_set_int(OPT_BOOTSTRAP, 0);
-   opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_STOP_DELTA, 10000);
    opt_set_int(OPT_UNIT_TEST, 0);
    opt_set_int(OPT_MAKE_DEPS_ONLY, 0);

@@ -65,7 +65,6 @@ static void setup(void)
       lib_add_search_path(lib_dir);
 
    opt_set_int(OPT_BOOTSTRAP, 0);
-   opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_UNIT_TEST, 1);
    opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_IGNORE_TIME, 0);
@@ -95,7 +94,6 @@ static void setup_per_test(void)
    test_lib = lib_tmp("work");
    lib_set_work(test_lib);
 
-   opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_MISSING_BODY, 0);
 
    reset_error_count();

@@ -58,6 +58,7 @@
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
+  __nvc_setup_toggle_cb;
   __nvc_tlab;
   __nvc_unreachable;
   _assert_fail;

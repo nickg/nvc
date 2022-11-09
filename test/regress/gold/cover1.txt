@@ -1,3 +1,4 @@
-  10/11 statements covered
-  2/3 branches covered
-  2/5 conditions covered
+** Note: code coverage results for: WORK.COVER1
+** Note:      statement:  90.9 %
+** Note:      branch:     83.3 %
+** Note:      toggle:     N.A.

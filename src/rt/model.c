@@ -622,6 +622,11 @@ const void *signal_value(rt_signal_t *s)
    return s->shared.data;
 }
 
+const void *signal_last_value(rt_signal_t *s)
+{
+   return s->shared.data + s->shared.size;
+}
+
 size_t signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
 {
    rt_nexus_t *n = &(s->nexus);
@@ -1759,28 +1764,41 @@ static void reset_coverage(rt_model_t *m)
 {
    assert(m->cover == NULL);
 
-   if ((m->cover = cover_read_tags(m->top)) == NULL)
+   fbuf_t *f = cover_open_lib_file(m->top, FBUF_IN, false);
+   if (f == NULL)
       return;
 
-   int32_t n_stmts, n_conds;
-   cover_count_tags(m->cover, &n_stmts, &n_conds);
+   m->cover = cover_read_tags(f);
+
+   int32_t n_stmts, n_branches, n_toggles;
+   cover_count_tags(m->cover, &n_stmts, &n_branches, &n_toggles);
 
    int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
    if (cover_stmts != NULL)
       memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
 
-   int32_t *cover_conds = ffi_find_symbol(NULL, "cover_conds");
-   if (cover_conds != NULL)
-      memset(cover_conds, '\0', sizeof(int32_t) * n_conds);
+   int32_t *cover_branches = ffi_find_symbol(NULL, "cover_branches");
+   if (cover_branches != NULL)
+      memset(cover_branches, '\0', sizeof(int32_t) * n_branches);
+
+   int32_t *cover_toggles = ffi_find_symbol(NULL, "cover_toggles");
+   if (cover_toggles != NULL)
+      memset(cover_toggles, '\0', sizeof(int32_t) * n_toggles);
+
+   fbuf_close(f, NULL);
 }
 
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
-      int32_t *cover_conds = ffi_find_symbol(NULL, "cover_conds");
-      if (cover_stmts != NULL)
-         cover_report(m->top, m->cover, cover_stmts, cover_conds);
+      const int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
+      const int32_t *cover_branches = ffi_find_symbol(NULL, "cover_branches");
+      const int32_t *cover_toggles = ffi_find_symbol(NULL, "cover_toggles");
+
+      fbuf_t *covdb =  cover_open_lib_file(m->top, FBUF_OUT, true);
+      cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, cover_stmts,
+                      cover_branches, cover_toggles);
+      fbuf_close(covdb, NULL);
    }
 }
 
