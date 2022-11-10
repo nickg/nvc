@@ -2768,6 +2768,21 @@ static bool is_unambiguous(tree_t t)
       || (kind == T_REF && tree_has_ref(t));
 }
 
+static bool is_unambiguous_fcall(tree_t t)
+{
+   if (tree_kind(t) == T_FCALL) {
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         if (!is_unambiguous(tree_value(tree_param(t, i))))
+            return false;
+      }
+
+      return true;
+   }
+
+   return false;
+}
+
 static type_list_t possible_types(nametab_t *tab, tree_t value)
 {
    tree_kind_t kind = tree_kind(value);
@@ -2849,30 +2864,51 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       }
    }
 
-   // Make two additional passes: one to do function calls and a final
-   // catch-all
+   // Solve all parameters which are function calls with unambiguous
+   // arguments
 
-   for (int pass = 0; pass < 2; pass++) {
-      for (int i = 0; i < nparams; i++) {
-         if (pmask & (1 << i))
-            continue;
+   for (int i = 0; i < nparams; i++) {
+      if (pmask & (1 << i))
+         continue;
 
-         tree_t p = tree_param(call, i);
-         tree_t value = tree_value(p);
-         tree_kind_t kind = tree_kind(value);
+      tree_t p = tree_param(call, i);
+      tree_t value = tree_value(p);
 
-         if (o->error && o->initial == 0) {
-            // Avoid cascading errors from an undefined subprogram
-            tree_set_type(value, type_new(T_NONE));
-            pmask |= 1 << i;
-            continue;
-         }
-
-         if (kind == T_FCALL || pass == 1) {
-            solve_one_param(tab, p, o);
-            pmask |= (1 << i);
-         }
+      if (o->error && o->initial == 0) {
+         // Avoid cascading errors from an undefined subprogram
+         tree_set_type(value, type_new(T_NONE));
+         pmask |= 1 << i;
       }
+      else if (is_unambiguous_fcall(value)) {
+         solve_one_param(tab, p, o);
+         pmask |= (1 << i);
+      }
+   }
+
+   // Solve all remaining function call parameters
+
+   for (int i = 0; i < nparams; i++) {
+      if (pmask & (1 << i))
+         continue;
+
+      tree_t p = tree_param(call, i);
+      tree_t value = tree_value(p);
+
+      if (tree_kind(value) == T_FCALL) {
+         solve_one_param(tab, p, o);
+         pmask |= (1 << i);
+      }
+   }
+
+   // Catch-all pass for remaining parameters
+
+   for (int i = 0; i < nparams; i++) {
+      if (pmask & (1 << i))
+         continue;
+
+      tree_t p = tree_param(call, i);
+      solve_one_param(tab, p, o);
+      pmask |= (1 << i);
    }
 }
 
