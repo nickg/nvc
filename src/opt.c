@@ -17,6 +17,7 @@
 
 #include "opt.h"
 #include "util.h"
+#include "diag.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -101,6 +102,54 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
       return strcmp(value + 1, filter) == 0;
    else
       return strstr(filter, value) != NULL;
+}
+
+int opt_parse_comma_separated(const char *opt, const char *optarg,
+                              opt_separed_t *allowed, int num_allowed)
+{
+   assert(num_allowed > 1);
+
+   char buf[64] = {0};
+   int len = 0;
+   int rv = 0;
+
+   while (1) {
+      if (*optarg == ',' || *optarg == '\0') {
+         bool found = false;
+
+         for (int i = 0; i < num_allowed; i++)
+            if (!strcmp(allowed[i].opt, buf)) {
+               rv |= allowed[i].mask;
+               found = true;
+            }
+
+         if (!found) {
+            diag_t *d = diag_new(DIAG_FATAL, NULL);
+            diag_printf(d, "Invalid option '%s' for command '%s'", buf, opt);
+            diag_hint(d, NULL, "valid options are:");
+            for (int i = 0; i < num_allowed; i++)
+               diag_hint(d, NULL, "    %s", allowed[i].opt);
+            diag_hint(d, NULL, "selected options shall be "
+                               "comma separated e.g. $bold$%s=%s,%s...$$",
+                                opt, allowed[0].opt, allowed[1].opt);
+            diag_emit(d);
+            fatal_exit(EXIT_FAILURE);
+         }
+
+         if (*optarg == '\0')
+            break;
+
+         for (int i = 0; i < sizeof(buf) / sizeof(char); i++)
+            buf[i] = '\0';
+         len = 0;
+      }
+      else {
+         buf[len] = *optarg;
+         len++;
+      }
+      optarg++;
+   }
+   return rv;
 }
 
 void set_default_options(void)

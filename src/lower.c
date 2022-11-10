@@ -9838,7 +9838,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 
    vcode_unit_t vu = emit_instance(name, tree_to_object(block), context);
 
-   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
+   if (cover_enabled(cover_tags, COVER_MASK_ALL_TYPES)) {
       if (!context)
          cover_reset_scope(cover_tags, prefix);
 
@@ -9873,7 +9873,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 
    lower_pop_scope();
 
-   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
+   if (cover_enabled(cover_tags, COVER_MASK_ALL_TYPES)) {
       cover_add_tag(block, NULL, cover_tags, TAG_HIER, COV_FLAG_HIER_UP);
       cover_pop_scope(cover_tags);
    }

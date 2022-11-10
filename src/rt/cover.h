@@ -111,7 +111,7 @@ typedef enum {
    COVER_MASK_TOGGLE = (1 << 2),
 } cover_mask_t;
 
-#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
+#define COVER_MASK_ALL_TYPES (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
 
 cover_tagging_t *cover_tags_init(cover_mask_t mask);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
