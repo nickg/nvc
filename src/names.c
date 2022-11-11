@@ -151,6 +151,7 @@ typedef A(tracked_type_t) tracked_type_list_t;
 struct type_set {
    tracked_type_list_t  members;
    type_set_t          *down;
+   bool                 cconv;
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
@@ -2218,6 +2219,33 @@ static tree_t finish_overload_resolution(overload_t *o)
 
    overload_trace_candidates(o, "before final pruning");
 
+   // If this call appears in a context that allows condition
+   // conversion, and there are multiple candidates at least one of
+   // which returns BOOLEAN, then prune the others that were only
+   // considered due to condition conversion.
+   if (o->candidates.count > 1 && o->nametab->top_type_set->cconv) {
+      type_t boolean = std_type(NULL, STD_BOOLEAN);
+
+      int nboolean = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         type_t rtype = type_result(tree_type(o->candidates.items[i]));
+         if (type_eq(rtype, boolean))
+            nboolean++;
+      }
+
+      if (nboolean > 0) {
+         unsigned wptr = 0;
+         for (unsigned i = 0; i < o->candidates.count; i++) {
+            type_t rtype = type_result(tree_type(o->candidates.items[i]));
+            if (!type_eq(rtype, boolean))
+               overload_prune_candidate(o, i);
+            else
+               o->candidates.items[wptr++] = o->candidates.items[i];
+         }
+         ATRIM(o->candidates, wptr);
+      }
+   }
+
    // Allow explicitly defined operators to hide implicitly defined ones
    // in different scopes. This is required behaviour in VHDL-2008 (see
    // section 12.4) and an optional rule relaxation in earlier revisions.
@@ -3901,6 +3929,8 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
                type_set_add(tab, p0_type, dd->tree);
             }
          }
+
+         tab->top_type_set->cconv = true;
       }
    }
 
