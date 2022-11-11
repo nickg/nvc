@@ -106,9 +106,11 @@ typedef enum {
 } cover_dump_t;
 
 typedef enum {
-   COVER_MASK_STMT   = (1 << 0),
-   COVER_MASK_BRANCH = (1 << 1),
-   COVER_MASK_TOGGLE = (1 << 2),
+   COVER_MASK_STMT                     = (1 << 0),
+   COVER_MASK_BRANCH                   = (1 << 1),
+   COVER_MASK_TOGGLE                   = (1 << 2),
+   COVER_MASK_TOGGLE_ALLOW_FROM_X      = (1 << 8),
+   COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z   = (1 << 9)
 } cover_mask_t;
 
 #define COVER_MASK_ALL_TYPES (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
@@ -125,9 +127,6 @@ void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit);
 bool cover_is_stmt(tree_t t);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
-
-void cover_toggle_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
-                           void *user);
 
 cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags);

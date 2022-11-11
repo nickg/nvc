@@ -254,13 +254,15 @@ static int elaborate(int argc, char **argv)
       case 'c':
          if (optarg) {
             opt_separed_t cov_opts[] = {
-               {.opt = "s",   .mask = COVER_MASK_STMT},
-               {.opt = "t",   .mask = COVER_MASK_TOGGLE},
-               {.opt = "b",   .mask = COVER_MASK_BRANCH},
-               {.opt = "all", .mask = COVER_MASK_ALL_TYPES}
+               {.opt = "statement",       .mask = COVER_MASK_STMT},
+               {.opt = "toggle",          .mask = COVER_MASK_TOGGLE},
+               {.opt = "branch",          .mask = COVER_MASK_BRANCH},
+               {.opt = "all",             .mask = COVER_MASK_ALL_TYPES},
+               {.opt = "count-from-x",    .mask = COVER_MASK_TOGGLE_ALLOW_FROM_X},
+               {.opt = "count-from-to-z", .mask = COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z},
             };
             cover_mask = opt_parse_comma_separated("--cover", optarg,
-                           cov_opts, 4);
+                           cov_opts, 6);
          }
          else
             cover_mask = COVER_MASK_ALL_TYPES;

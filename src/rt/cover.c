@@ -246,6 +246,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    printf("Total tag count: %d\n", ctx->tags.count);
 #endif
 
+   write_u32(ctx->mask, f);
    write_u32(ctx->next_stmt_tag, f);
    write_u32(ctx->next_branch_tag, f);
    write_u32(ctx->next_toggle_tag, f);
@@ -423,10 +424,11 @@ void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
    }
 }
 
-void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
+static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
 {
    assert(tagging != NULL);
 
+   tagging->mask = read_u32(f);
    tagging->next_stmt_tag = read_u32(f);
    tagging->next_branch_tag = read_u32(f);
    tagging->next_toggle_tag = read_u32(f);
@@ -543,53 +545,129 @@ void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
    }
 }
 
-void cover_toggle_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
-                           void *user)
+///////////////////////////////////////////////////////////////////////////////
+// Runtime handling
+///////////////////////////////////////////////////////////////////////////////
+
+static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
+                                          int32_t *toggle_mask)
 {
-
-#ifdef COVER_DEBUG
-   printf("Time: %lu Callback on signal: %s\n",
-           now, istr(tree_ident(s->where)));
-#endif
-
-   uint32_t sig_size = s->shared.size;
-   int32_t *toggle_mask = ((int32_t *)user) + sig_size - 1;
-
-   for (int i = 0; i < sig_size; i++) {
-      uint8_t new = ((uint8_t*)signal_value(s))[i];
-      uint8_t old = ((uint8_t*)signal_last_value(s))[i];
-
-      // 0->1
-      if (old == _0 && new == _1)
-         *toggle_mask |= 0x1;
-
-      // 1->0
-      if (old == _1 && new == _0)
-         *toggle_mask |= 0x2;
-
-      toggle_mask--;
-   }
-
-#ifdef COVER_DEBUG
-   printf("New signal value:\n");
-   for (int i = 0; i < sig_size; i++)
-      printf("0x%x ", ((uint8_t*)signal_value(s))[i]);
-   printf("\n");
-
-   printf("Old signal value:\n");
-   for (int i = 0; i < sig_size; i++) {
-      printf("0x%x ", ((const uint8_t *)signal_last_value(s))[i]);
-   }
-   printf("\n\n");
-#endif
-
+   if (old == _0 && new == _1)
+      *toggle_mask |= 0x1;
+   if (old == _1 && new == _0)
+      *toggle_mask |= 0x2;
 }
+
+static inline void cover_toggle_check_x(uint8_t old, uint8_t new,
+                                        int32_t *toggle_mask)
+{
+   if (old == _X && new == _1)
+      *toggle_mask |= 0x1;
+   if (old == _X && new == _0)
+      *toggle_mask |= 0x2;
+}
+
+static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
+                                        int32_t *toggle_mask)
+{
+   if (old == _0 && new == _Z)
+      *toggle_mask |= 0x1;
+   if (old == _Z && new == _1)
+      *toggle_mask |= 0x1;
+
+   if (old == _1 && new == _Z)
+      *toggle_mask |= 0x2;
+   if (old == _Z && new == _0)
+      *toggle_mask |= 0x2;
+}
+
+static inline void cover_toggle_check_0_1_x(uint8_t old, uint8_t new,
+                                            int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_x(old, new, toggle_mask);
+}
+
+static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
+                                            int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_z(old, new, toggle_mask);
+}
+
+static inline void cover_toggle_check_0_1_x_z(uint8_t old, uint8_t new,
+                                              int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_x(old, new, toggle_mask);
+   cover_toggle_check_z(old, new, toggle_mask);
+}
+
+#ifdef COVER_DEBUG
+#define COVER_TGL_CB_MSG(signal)                                              \
+   do {                                                                       \
+      printf("Time: %lu Callback on signal: %s\n",                            \
+              now, istr(tree_ident(signal->where)));                          \
+   } while (0);
+
+#define COVER_TGL_SIGNAL_DETAILS(signal, size)                                \
+   do {                                                                       \
+      printf("New signal value:\n");                                          \
+      for (int i = 0; i < size; i++)                                          \
+         printf("0x%x ", ((uint8_t*)signal_value(signal))[i]);                \
+      printf("\n");                                                           \
+      printf("Old signal value:\n");                                          \
+      for (int i = 0; i < size; i++)                                          \
+         printf("0x%x ", ((const uint8_t *)signal_last_value(signal))[i]);    \
+      printf("\n\n");                                                         \
+   } while (0)
+
+#else
+#define COVER_TGL_CB_MSG(signal)
+#define COVER_TGL_SIGNAL_DETAILS(signal, size)
+#endif
+
+
+#define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                               \
+   static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
+   {                                                                          \
+      uint32_t s_size = s->shared.size;                                       \
+      int32_t *toggle_mask = ((int32_t *)user) + s_size - 1;                  \
+      COVER_TGL_CB_MSG(s)                                                     \
+      for (int i = 0; i < s_size; i++) {                                      \
+         uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
+         uint8_t old = ((uint8_t*)signal_last_value(s))[i];                   \
+         check_fnc(old, new, toggle_mask);                                    \
+         toggle_mask--;                                                       \
+      }                                                                       \
+      COVER_TGL_SIGNAL_DETAILS(s, s_size)                                     \
+   }                                                                          \
+
+
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1,     cover_toggle_check_0_1)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_x,   cover_toggle_check_0_1_x)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_z,   cover_toggle_check_0_1_z)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_x_z, cover_toggle_check_0_1_x_z)
+
 
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
-   model_set_event_cb(m, s, cover_toggle_event_cb, toggle_mask, false);
+   cover_mask_t opts = get_rt_coverage(m)->mask;
+   sig_event_fn_t fn = &cover_toggle_cb_0_1;
+
+   if ((opts & COVER_MASK_TOGGLE_ALLOW_FROM_X) &&
+       (opts & COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z))
+      fn = &cover_toggle_cb_0_1_x_z;
+
+   else if (opts & COVER_MASK_TOGGLE_ALLOW_FROM_X)
+      fn = &cover_toggle_cb_0_1_x;
+
+   else if (opts & COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z)
+      fn = &cover_toggle_cb_0_1_z;
+
+   model_set_event_cb(m, s, fn, toggle_mask, false);
 }
 
 

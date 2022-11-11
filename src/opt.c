@@ -120,6 +120,7 @@ int opt_parse_comma_separated(const char *opt, const char *optarg,
          for (int i = 0; i < num_allowed; i++)
             if (!strcmp(allowed[i].opt, buf)) {
                rv |= allowed[i].mask;
+               printf("Setting option:%s\n", allowed[i].opt);
                found = true;
             }
 
