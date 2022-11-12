@@ -110,7 +110,8 @@ typedef enum {
    COVER_MASK_BRANCH                   = (1 << 1),
    COVER_MASK_TOGGLE                   = (1 << 2),
    COVER_MASK_TOGGLE_ALLOW_FROM_X      = (1 << 8),
-   COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z   = (1 << 9)
+   COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z   = (1 << 9),
+   COVER_MASK_TOGGLE_IGNORE_MEMS       = (1 << 10)
 } cover_mask_t;
 
 #define COVER_MASK_ALL_TYPES (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
@@ -123,6 +124,10 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t);
 void cover_pop_scope(cover_tagging_t *tagging);
 
 void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit);
+
+int cover_get_dims(cover_tagging_t *tagging);
+void cover_add_dim(cover_tagging_t *tagging);
+void cover_sub_dim(cover_tagging_t *tagging);
 
 bool cover_is_stmt(tree_t t);
 

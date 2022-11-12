@@ -260,9 +260,10 @@ static int elaborate(int argc, char **argv)
                {.opt = "all",             .mask = COVER_MASK_ALL_TYPES},
                {.opt = "count-from-x",    .mask = COVER_MASK_TOGGLE_ALLOW_FROM_X},
                {.opt = "count-from-to-z", .mask = COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z},
+               {.opt = "ignore-mems",     .mask = COVER_MASK_TOGGLE_IGNORE_MEMS},
             };
             cover_mask = opt_parse_comma_separated("--cover", optarg,
-                           cov_opts, 6);
+                           cov_opts, ARRAY_LEN(cov_opts));
          }
          else
             cover_mask = COVER_MASK_ALL_TYPES;

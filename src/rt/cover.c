@@ -68,6 +68,7 @@ struct _cover_tagging {
    ident_t        hier;
    tag_array_t    tags;
    cover_mask_t   mask;
+   int            dims;
    cover_scope_t *top_scope;
 };
 
@@ -422,6 +423,27 @@ void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
          state = true;
       }
    }
+}
+
+int cover_get_dims(cover_tagging_t *tagging)
+{
+   assert(tagging != NULL);
+   return tagging->dims;
+}
+
+void cover_add_dim(cover_tagging_t *tagging)
+{
+   assert(tagging != NULL);
+   tagging->dims++;
+   printf("Adding dimension: %d\n", tagging->dims);
+}
+
+void cover_sub_dim(cover_tagging_t *tagging)
+{
+   assert(tagging != NULL);
+   assert(tagging->dims > 0);
+   tagging->dims--;
+   printf("Subtracting dimension: %d\n", tagging->dims);
 }
 
 static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
