@@ -620,7 +620,7 @@ static inline void cover_toggle_check_0_1_x_z(uint8_t old, uint8_t new,
       for (int i = 0; i < size; i++)                                          \
          printf("0x%x ", ((const uint8_t *)signal_last_value(signal))[i]);    \
       printf("\n\n");                                                         \
-   } while (0)
+   } while (0);
 
 #else
 #define COVER_TGL_CB_MSG(signal)
