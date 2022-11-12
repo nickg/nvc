@@ -632,13 +632,13 @@ static inline void cover_toggle_check_0_1_x_z(uint8_t old, uint8_t new,
    static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
    {                                                                          \
       uint32_t s_size = s->shared.size;                                       \
-      int32_t *toggle_mask = ((int32_t *)user) + s_size - 1;                  \
+      int32_t *toggle_mask = ((int32_t *)user);                               \
       COVER_TGL_CB_MSG(s)                                                     \
       for (int i = 0; i < s_size; i++) {                                      \
          uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
          uint8_t old = ((uint8_t*)signal_last_value(s))[i];                   \
          check_fnc(old, new, toggle_mask);                                    \
-         toggle_mask--;                                                       \
+         toggle_mask++;                                                       \
       }                                                                       \
       COVER_TGL_SIGNAL_DETAILS(s, s_size)                                     \
    }                                                                          \

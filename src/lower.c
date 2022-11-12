@@ -1506,7 +1506,8 @@ static void lower_branch_coverage(tree_t b, unsigned int flags,
       emit_cover_branch(hit_reg, tag->tag);
 }
 
-static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, int dims)
+static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
+                                    int curr_dim)
 {
    type_t root = type;
 
@@ -1527,28 +1528,61 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, i
       flags = COV_FLAG_TOGGLE_PORT;
 
    if (type_is_array(type)) {
-      tree_t r = range_of(type, dims - 1);
+      int t_dims = dimension_of(type);
+      tree_t r = range_of(type, t_dims - curr_dim);
       int32_t first_tag = 0;
       int64_t low, high;
 
       if (folded_bounds(r, &low, &high)) {
          assert(low <= high);
-         for (int64_t i = low; i <= high; i++) {
+
+         int64_t i;
+         int64_t last;
+         int64_t first;
+         int inc;
+         switch (tree_subkind(r)) {
+         case RANGE_DOWNTO:
+            i = high;
+            first = high;
+            last = low;
+            inc = -1;
+            break;
+         case RANGE_TO:
+            i = low;
+            first = low;
+            last = high;
+            inc = +1;
+            break;
+         default:
+            fatal("Invalid subkind for range: %d", tree_subkind(r));
+         }
+
+         while (1) {
             char arr_index[16] = {0};
             int32_t tmp;
             checked_sprintf(arr_index, sizeof(arr_index), "(%lu)", i);
             ident_t arr_suffix = ident_prefix(prefix, ident_new(arr_index), '\0');
 
-            if (dims == 1) {
-               tmp = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags)->tag;
-               if (i == low)
-                  first_tag = tmp;
+            // On lowest dimension walk through elements, if elements are arrays,
+            //  then start new (nested) recursion.
+            if (curr_dim == 1) {
+               type_t e_type = type_elem(type);
+               if (type_is_array(e_type))
+                  tmp = lower_toggle_tag_for(e_type, where, arr_suffix, dimension_of(e_type));
+               else
+                  tmp = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags)->tag;
             }
-            else {
-               tmp = lower_toggle_tag_for(type, where, arr_suffix, dims - 1);
-               if (i == low)
-                  first_tag = tmp;
-            }
+
+            // Recurse to lower dimension
+            else
+               tmp = lower_toggle_tag_for(type, where, arr_suffix, curr_dim - 1);
+
+            if (i == first)
+               first_tag = tmp;
+            if (i == last)
+               break;
+
+            i += inc;
          }
       }
 
