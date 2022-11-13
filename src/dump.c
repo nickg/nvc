@@ -938,7 +938,7 @@ static void dump_stmt(tree_t t, int indent)
 
    if (tree_has_ident(t)) {
       const char *label = istr(tree_ident(t));
-#ifndef DUMP_GEN_NAMES
+#if !DUMP_GEN_NAMES
       if (label[0] != '_')   // Skip generated labels
 #endif
          printf("%s: ", label);
@@ -1074,17 +1074,7 @@ static void dump_stmt(tree_t t, int indent)
          if (tree_has_value(c)) {
             if (i > 0)
                tab(indent);
-
-#ifdef DUMP_GEN_NAMES
-            // T_CONDS can only have generate name
-            const char *label = istr(tree_ident(c));
-            printf("%s: ", label);
-#endif
-            if (i > 0) {
-               syntax("#elsif ");
-            } else {
-               syntax("#if ");
-            }
+            syntax(i > 0 ? "#elsif " : "#if ");
             dump_expr(tree_value(c));
             syntax(" #then\n");
          }
@@ -1113,12 +1103,7 @@ static void dump_stmt(tree_t t, int indent)
       syntax(" #is\n");
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          tab(indent + 2);
-         tree_t a = tree_assoc(t, i);   
-#ifdef DUMP_GEN_NAMES
-         // T_ASSOC can only have generate name
-         const char *label = istr(tree_ident(a));
-         printf("%s: ", label);
-#endif
+         tree_t a = tree_assoc(t, i);
          switch (tree_subkind(a)) {
          case A_NAMED:
             syntax("#when ");
