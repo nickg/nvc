@@ -145,6 +145,7 @@ typedef struct _cgen_func {
    LLVMValueRef  args;
    LLVMValueRef  frame;
    LLVMValueRef  anchor;
+   LLVMValueRef  cpool;
    cgen_block_t *blocks;
    jit_func_t   *source;
    jit_cfg_t    *cfg;
@@ -744,7 +745,15 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       }
    case JIT_ADDR_CPOOL:
       assert(value.int64 >= 0 && value.int64 <= cgb->func->source->cpoolsz);
-      return llvm_ptr(obj, cgb->func->source->cpool + value.int64);
+      if (cgb->func->cpool != NULL) {
+         LLVMValueRef indexes[] = { llvm_intptr(obj, value.int64) };
+         LLVMTypeRef byte_type = obj->types[LLVM_INT8];
+         return LLVMBuildInBoundsGEP2(obj->builder, byte_type,
+                                      cgb->func->cpool, indexes,
+                                      ARRAY_LEN(indexes), "");
+      }
+      else
+         return llvm_ptr(obj, cgb->func->source->cpool + value.int64);
    case JIT_ADDR_REG:
       {
          assert(value.reg < cgb->func->source->nregs);
@@ -1691,6 +1700,32 @@ static void cgen_frame_anchor(llvm_obj_t *obj, cgen_func_t *func)
    LLVMBuildStore(obj->builder, llvm_int32(obj, 0), irpos_ptr);
 }
 
+static void cgen_aot_cpool(llvm_obj_t *obj, cgen_func_t *func)
+{
+   jit_func_t *f = func->source;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, f->name);
+   tb_cat(tb, ".cpool");
+
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], f->cpoolsz);
+
+   LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, tb_get(tb));
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetUnnamedAddr(global, true);
+
+   LLVMValueRef *data LOCAL = xmalloc_array(f->cpoolsz, sizeof(LLVMValueRef));
+   for (int i = 0; i < f->cpoolsz; i++)
+      data[i] = llvm_int8(obj, f->cpool[i]);
+
+   LLVMValueRef init =
+      LLVMConstArray(obj->types[LLVM_INT8], data, f->cpoolsz);
+   LLVMSetInitializer(global, init);
+
+   func->cpool = global;
+}
+
 static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -1777,6 +1812,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    if (obj->ctor != NULL) {
       cgen_add_ctor(obj);
+      cgen_aot_cpool(obj, func);
 
       LLVMValueRef args[] = {
          llvm_const_string(obj, func->name),
