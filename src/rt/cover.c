@@ -67,7 +67,7 @@ struct _cover_tagging {
    int            next_hier_tag;
    ident_t        hier;
    tag_array_t    tags;
-   cover_mask_t   mask;
+   cover_opts_t   opts;
    int            dims;
    cover_scope_t *top_scope;
 };
@@ -163,6 +163,23 @@ bool cover_is_stmt(tree_t t)
    }
 }
 
+bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
+{
+   assert (tagging);
+
+   // Array is equal to or than configured limit
+   if (cover_enabled(tagging, COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM) &&
+       (a_size >= tagging->opts.array_limit))
+      return true;
+
+   // Array is multi-dimensional or nested
+   if (cover_enabled(tagging, COVER_MASK_TOGGLE_IGNORE_MEMS) &&
+       tagging->dims > 0)
+      return true;
+
+   return false;
+}
+
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 {
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
@@ -247,7 +264,8 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    printf("Total tag count: %d\n", ctx->tags.count);
 #endif
 
-   write_u32(ctx->mask, f);
+   write_u32(ctx->opts.mask, f);
+   write_u32(ctx->opts.array_limit, f);
    write_u32(ctx->next_stmt_tag, f);
    write_u32(ctx->next_branch_tag, f);
    write_u32(ctx->next_toggle_tag, f);
@@ -298,17 +316,18 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init(cover_mask_t mask)
+cover_tagging_t *cover_tags_init(cover_opts_t *opts)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->mask = mask;
+   ctx->opts.mask = opts->mask;
+   ctx->opts.array_limit = opts->array_limit;
 
    return ctx;
 }
 
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask)
 {
-   return tagging != NULL && (tagging->mask & mask);
+   return tagging != NULL && (tagging->opts.mask & mask);
 }
 
 void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
@@ -425,17 +444,13 @@ void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
    }
 }
 
-int cover_get_dims(cover_tagging_t *tagging)
-{
-   assert(tagging != NULL);
-   return tagging->dims;
-}
-
 void cover_add_dim(cover_tagging_t *tagging)
 {
    assert(tagging != NULL);
    tagging->dims++;
+#ifdef COVER_DEBUG
    printf("Adding dimension: %d\n", tagging->dims);
+#endif
 }
 
 void cover_sub_dim(cover_tagging_t *tagging)
@@ -443,14 +458,17 @@ void cover_sub_dim(cover_tagging_t *tagging)
    assert(tagging != NULL);
    assert(tagging->dims > 0);
    tagging->dims--;
+#ifdef COVER_DEBUG
    printf("Subtracting dimension: %d\n", tagging->dims);
+#endif
 }
 
 static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
 {
    assert(tagging != NULL);
 
-   tagging->mask = read_u32(f);
+   tagging->opts.mask = read_u32(f);
+   tagging->opts.array_limit = read_u32(f);
    tagging->next_stmt_tag = read_u32(f);
    tagging->next_branch_tag = read_u32(f);
    tagging->next_toggle_tag = read_u32(f);
@@ -676,17 +694,17 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
-   cover_mask_t opts = get_rt_coverage(m)->mask;
+   cover_mask_t op_mask = get_rt_coverage(m)->opts.mask;
    sig_event_fn_t fn = &cover_toggle_cb_0_1;
 
-   if ((opts & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
-       (opts & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
+   if ((op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
+       (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
       fn = &cover_toggle_cb_0_1_u_z;
 
-   else if (opts & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED)
+   else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED)
       fn = &cover_toggle_cb_0_1_u;
 
-   else if (opts & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
+   else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
    model_set_event_cb(m, s, fn, toggle_mask, false);

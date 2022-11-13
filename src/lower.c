@@ -1530,14 +1530,8 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
    if (type_is_array(type)) {
       int t_dims = dimension_of(type);
       tree_t r = range_of(type, t_dims - curr_dim);
-      int32_t first_tag = 0;
+      int32_t first_tag = -1;
       int64_t low, high;
-
-      if (cover_enabled(cover_tags, COVER_MASK_TOGGLE_IGNORE_MEMS) &&
-          cover_get_dims(cover_tags) > 0)
-          return -1;
-
-      cover_add_dim(cover_tags);
 
       if (folded_bounds(r, &low, &high)) {
          assert(low <= high);
@@ -1546,6 +1540,11 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
          int64_t last;
          int64_t first;
          int inc;
+
+         if (cover_skip_array_toggle(cover_tags, high - low + 1))
+            return -1;
+         cover_add_dim(cover_tags);
+
          switch (tree_subkind(r)) {
          case RANGE_DOWNTO:
             i = high;
@@ -1590,10 +1589,9 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
 
             i += inc;
          }
+
+         cover_sub_dim(cover_tags);
       }
-
-      cover_sub_dim(cover_tags);
-
       return first_tag;
    }
    else

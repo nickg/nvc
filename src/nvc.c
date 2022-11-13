@@ -230,7 +230,7 @@ static int elaborate(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   cover_mask_t cover_mask = 0;
+   cover_opts_t cover_opts = {0};
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "Vg:O:";
@@ -253,6 +253,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          if (optarg) {
+            char LOCAL *wc_buf[1] = {
+               xcalloc(32)
+            };
             opt_separed_t cov_opts[] = {
                {.opt = "statement",             .mask = COVER_MASK_STMT},
                {.opt = "toggle",                .mask = COVER_MASK_TOGGLE},
@@ -261,12 +264,15 @@ static int elaborate(int argc, char **argv)
                {.opt = "count-from-undefined",  .mask = COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED},
                {.opt = "count-from-to-z",       .mask = COVER_MASK_TOGGLE_COUNT_FROM_TO_Z},
                {.opt = "ignore-mems",           .mask = COVER_MASK_TOGGLE_IGNORE_MEMS},
+               {.opt = "ignore-arrays-from-*",  .mask = COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM}
             };
-            cover_mask = opt_parse_comma_separated("--cover", optarg,
-                           cov_opts, ARRAY_LEN(cov_opts));
+            cover_opts.mask = opt_parse_comma_separated("--cover", optarg,
+                                 cov_opts, ARRAY_LEN(cov_opts), &(wc_buf[0]));
+            if (cover_opts.mask & COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM)
+               cover_opts.array_limit = atoi(wc_buf[0]);
          }
          else
-            cover_mask = COVER_MASK_ALL_TYPES;
+            cover_opts.mask = COVER_MASK_ALL_TYPES;
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -305,8 +311,8 @@ static int elaborate(int argc, char **argv)
    progress("elaborating design");
 
    cover_tagging_t *cover = NULL;
-   if (cover_mask != 0)
-      cover = cover_tags_init(cover_mask);
+   if (cover_opts.mask != 0)
+      cover = cover_tags_init(&(cover_opts));
 
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
