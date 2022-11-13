@@ -106,12 +106,12 @@ typedef enum {
 } cover_dump_t;
 
 typedef enum {
-   COVER_MASK_STMT                     = (1 << 0),
-   COVER_MASK_BRANCH                   = (1 << 1),
-   COVER_MASK_TOGGLE                   = (1 << 2),
-   COVER_MASK_TOGGLE_ALLOW_FROM_X      = (1 << 8),
-   COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z   = (1 << 9),
-   COVER_MASK_TOGGLE_IGNORE_MEMS       = (1 << 10)
+   COVER_MASK_STMT                        = (1 << 0),
+   COVER_MASK_BRANCH                      = (1 << 1),
+   COVER_MASK_TOGGLE                      = (1 << 2),
+   COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
+   COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
+   COVER_MASK_TOGGLE_IGNORE_MEMS          = (1 << 10)
 } cover_mask_t;
 
 #define COVER_MASK_ALL_TYPES (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)

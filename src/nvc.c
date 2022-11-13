@@ -254,13 +254,13 @@ static int elaborate(int argc, char **argv)
       case 'c':
          if (optarg) {
             opt_separed_t cov_opts[] = {
-               {.opt = "statement",       .mask = COVER_MASK_STMT},
-               {.opt = "toggle",          .mask = COVER_MASK_TOGGLE},
-               {.opt = "branch",          .mask = COVER_MASK_BRANCH},
-               {.opt = "all",             .mask = COVER_MASK_ALL_TYPES},
-               {.opt = "count-from-x",    .mask = COVER_MASK_TOGGLE_ALLOW_FROM_X},
-               {.opt = "count-from-to-z", .mask = COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z},
-               {.opt = "ignore-mems",     .mask = COVER_MASK_TOGGLE_IGNORE_MEMS},
+               {.opt = "statement",             .mask = COVER_MASK_STMT},
+               {.opt = "toggle",                .mask = COVER_MASK_TOGGLE},
+               {.opt = "branch",                .mask = COVER_MASK_BRANCH},
+               {.opt = "all",                   .mask = COVER_MASK_ALL_TYPES},
+               {.opt = "count-from-undefined",  .mask = COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED},
+               {.opt = "count-from-to-z",       .mask = COVER_MASK_TOGGLE_COUNT_FROM_TO_Z},
+               {.opt = "ignore-mems",           .mask = COVER_MASK_TOGGLE_IGNORE_MEMS},
             };
             cover_mask = opt_parse_comma_separated("--cover", optarg,
                            cov_opts, ARRAY_LEN(cov_opts));

@@ -580,12 +580,12 @@ static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
       *toggle_mask |= 0x2;
 }
 
-static inline void cover_toggle_check_x(uint8_t old, uint8_t new,
+static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
                                         int32_t *toggle_mask)
 {
-   if (old == _X && new == _1)
+   if (old == _U && new == _1)
       *toggle_mask |= 0x1;
-   if (old == _X && new == _0)
+   if (old == _U && new == _0)
       *toggle_mask |= 0x2;
 }
 
@@ -603,11 +603,11 @@ static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
       *toggle_mask |= 0x2;
 }
 
-static inline void cover_toggle_check_0_1_x(uint8_t old, uint8_t new,
+static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
                                             int32_t *toggle_mask)
 {
    cover_toggle_check_0_1(old, new, toggle_mask);
-   cover_toggle_check_x(old, new, toggle_mask);
+   cover_toggle_check_u(old, new, toggle_mask);
 }
 
 static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
@@ -617,11 +617,11 @@ static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
    cover_toggle_check_z(old, new, toggle_mask);
 }
 
-static inline void cover_toggle_check_0_1_x_z(uint8_t old, uint8_t new,
+static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
                                               int32_t *toggle_mask)
 {
    cover_toggle_check_0_1(old, new, toggle_mask);
-   cover_toggle_check_x(old, new, toggle_mask);
+   cover_toggle_check_u(old, new, toggle_mask);
    cover_toggle_check_z(old, new, toggle_mask);
 }
 
@@ -667,9 +667,9 @@ static inline void cover_toggle_check_0_1_x_z(uint8_t old, uint8_t new,
 
 
 DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1,     cover_toggle_check_0_1)
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_x,   cover_toggle_check_0_1_x)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u,   cover_toggle_check_0_1_u)
 DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_z,   cover_toggle_check_0_1_z)
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_x_z, cover_toggle_check_0_1_x_z)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u_z, cover_toggle_check_0_1_u_z)
 
 
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
@@ -679,14 +679,14 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
    cover_mask_t opts = get_rt_coverage(m)->mask;
    sig_event_fn_t fn = &cover_toggle_cb_0_1;
 
-   if ((opts & COVER_MASK_TOGGLE_ALLOW_FROM_X) &&
-       (opts & COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z))
-      fn = &cover_toggle_cb_0_1_x_z;
+   if ((opts & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
+       (opts & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
+      fn = &cover_toggle_cb_0_1_u_z;
 
-   else if (opts & COVER_MASK_TOGGLE_ALLOW_FROM_X)
-      fn = &cover_toggle_cb_0_1_x;
+   else if (opts & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED)
+      fn = &cover_toggle_cb_0_1_u;
 
-   else if (opts & COVER_MASK_TOGGLE_ALLOW_FROM_TO_Z)
+   else if (opts & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
    model_set_event_cb(m, s, fn, toggle_mask, false);
