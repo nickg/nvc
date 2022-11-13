@@ -105,45 +105,61 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
 }
 
 int opt_parse_comma_separated(const char *opt, const char *optarg,
-                              opt_separed_t *allowed, int num_allowed)
+                              opt_separed_t *allowed, int allowed_cnt,
+                              char **wc_buf)
 {
-   assert(num_allowed > 1);
+   assert(allowed_cnt > 1);
 
    char buf[64] = {0};
    int len = 0;
    int rv = 0;
 
    while (1) {
+
+      // Process buffer gathered so far, search if any allowed options match
       if (*optarg == ',' || *optarg == '\0') {
-         bool found = false;
+         opt_separed_t *curr_opt;
+         for (int i = 0; i < allowed_cnt; i++) {
+            curr_opt = &(allowed[i]);
+            const char *wc = strchr(curr_opt->opt, '*');
+            int wc_pos =  wc - curr_opt->opt;
 
-         for (int i = 0; i < num_allowed; i++)
-            if (!strcmp(allowed[i].opt, buf)) {
-               rv |= allowed[i].mask;
-               printf("Setting option:%s\n", allowed[i].opt);
-               found = true;
+            // Check for wild-card options -> Copy matched end to wildcard buffer
+            if (wc && !strncmp(curr_opt->opt, buf, wc_pos)) {
+               strcpy(*wc_buf, buf + wc_pos);
+               wc_buf++;
+               break;
             }
+            // Check for regular options
+            else if (!strcmp(curr_opt->opt, buf)) {
+               break;
+            }
+            if (i == allowed_cnt - 1)
+               curr_opt = NULL;
+         }
 
-         if (!found) {
+         if ((curr_opt == NULL) || (len == ARRAY_LEN(buf))) {
             diag_t *d = diag_new(DIAG_FATAL, NULL);
             diag_printf(d, "Invalid option '%s' for command '%s'", buf, opt);
             diag_hint(d, NULL, "valid options are:");
-            for (int i = 0; i < num_allowed; i++)
+            for (int i = 0; i < allowed_cnt; i++)
                diag_hint(d, NULL, "    %s", allowed[i].opt);
             diag_hint(d, NULL, "selected options shall be "
                                "comma separated e.g. $bold$%s=%s,%s...$$",
                                 opt, allowed[0].opt, allowed[1].opt);
             diag_emit(d);
             fatal_exit(EXIT_FAILURE);
-         }
+         } else
+            rv |= curr_opt->mask;
 
          if (*optarg == '\0')
             break;
 
-         for (int i = 0; i < sizeof(buf) / sizeof(char); i++)
+         for (int i = 0; i < ARRAY_LEN(buf); i++)
             buf[i] = '\0';
          len = 0;
       }
+      // Append to the buffer
       else {
          buf[len] = *optarg;
          len++;
