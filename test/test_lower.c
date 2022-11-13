@@ -2008,7 +2008,9 @@ START_TEST(test_cover)
 
    tree_t e = run_elab();
 
-   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL_TYPES);
+   cover_opts_t cov_opts;
+   cov_opts.mask = COVER_MASK_ALL_TYPES;
+   cover_tagging_t *tagging = cover_tags_init(&cov_opts);
    lower_unit(e, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");
