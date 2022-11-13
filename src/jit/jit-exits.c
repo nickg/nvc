@@ -1474,12 +1474,13 @@ void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
 }
 
 DLLEXPORT
-void __nvc_register(const char *name, jit_entry_fn_t fn)
+void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
+                    int32_t bufsz)
 {
-   printf("register! name=%s fn=%p\n", name, fn);
+   printf("register! name=%s fn=%p bufsz=%d\n", name, fn, bufsz);
 
    jit_t *j = jit_thread_local()->jit;
-   jit_register(j, name, fn);
+   jit_register(j, name, fn, debug, bufsz);
 }
 
 DLLEXPORT

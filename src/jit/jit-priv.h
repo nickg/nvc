@@ -278,6 +278,16 @@ typedef struct {
 
 typedef struct _jit_interp jit_interp_t;
 
+typedef enum {
+   DC_TRAP,
+   DC_LONG_TRAP,
+   DC_STOP,
+   DC_LOCINFO,
+   DC_TARGET,
+   DC_FILE,
+   DC_LONG_LOCINFO,
+} debug_cmd_t;
+
 void jit_irgen(jit_func_t *f);
 void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
@@ -294,7 +304,8 @@ bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
-void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn);
+void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
+                  const uint8_t *debug, size_t bufsz);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

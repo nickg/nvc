@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-llvm.h"
@@ -602,7 +603,9 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          LLVMTypeRef args[] = {
             obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR]
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT32],
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -1688,6 +1691,85 @@ static void cgen_frame_anchor(llvm_obj_t *obj, cgen_func_t *func)
    LLVMBuildStore(obj->builder, llvm_int32(obj, 0), irpos_ptr);
 }
 
+static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, f->name);
+   tb_cat(tb, ".debug");
+
+   int run = 0, lineno = 0;
+   const char *file = NULL;
+
+   SCOPED_A(LLVMValueRef) enc = AINIT;
+   ARESERVE(enc, MIN(f->nirs + 100, 1024));
+
+   for (int i = 0; i < f->nirs; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      if ((ir->target || ir->op == J_DEBUG) && run > 0) {
+         if (run < 16)
+            APUSH(enc, llvm_int8(obj, (DC_TRAP << 4) | run));
+         else {
+            APUSH(enc, llvm_int8(obj, DC_LONG_TRAP << 4));
+            APUSH(enc, llvm_int8(obj, run & 0xff));
+            APUSH(enc, llvm_int8(obj, (run >> 8) & 0xff));
+         }
+         run = 0;
+      }
+
+      if (ir->target)
+         APUSH(enc, llvm_int8(obj, DC_TARGET << 4));
+
+      if (ir->op == J_DEBUG) {
+         if (file == NULL) {
+            file = loc_file_str(&ir->arg1.loc);
+            lineno = 0;
+            const int len2 = ilog2(strlen(file) + 1);
+            assert(len2 < 16);
+            APUSH(enc, llvm_int8(obj, (DC_FILE << 4) | len2));
+
+            const char *p = file;
+            do {
+               APUSH(enc, llvm_int8(obj, *p));
+            } while (*p++);
+         }
+
+         const int delta = ir->arg1.loc.first_line - lineno;
+         if (delta >= 0 && delta < 16)
+            APUSH(enc, llvm_int8(obj, (DC_LOCINFO << 4) | delta));
+         else {
+            APUSH(enc, llvm_int8(obj, DC_LONG_LOCINFO << 4));
+            APUSH(enc, llvm_int8(obj, ir->arg1.loc.first_line & 0xff));
+            APUSH(enc, llvm_int8(obj, (ir->arg1.loc.first_line >> 8) & 0xff));
+         }
+      }
+      else
+         run++;
+   }
+
+   if (run > 0 && run < 16)
+      APUSH(enc, llvm_int8(obj, (DC_TRAP << 4) | run));
+   else if (run > 0) {
+      APUSH(enc, llvm_int8(obj, DC_LONG_TRAP << 4));
+      APUSH(enc, llvm_int8(obj, run & 0xff));
+      APUSH(enc, llvm_int8(obj, (run >> 8) & 0xff));
+   }
+
+   APUSH(enc, llvm_int8(obj, DC_STOP << 4));
+
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], enc.count);
+
+   LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, tb_get(tb));
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetUnnamedAddr(global, true);
+
+   LLVMValueRef init =
+      LLVMConstArray(obj->types[LLVM_INT8], enc.items, enc.count);
+   LLVMSetInitializer(global, init);
+
+   return global;
+}
+
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
@@ -1698,7 +1780,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
       LLVMValueRef args[] = {
          llvm_const_string(obj, func->name),
-         PTR(func->llvmfn)
+         PTR(func->llvmfn),
+         PTR(cgen_debug_irbuf(obj, func->source)),
+         llvm_int32(obj, func->source->nirs),
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 

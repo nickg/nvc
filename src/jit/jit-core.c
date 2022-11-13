@@ -240,7 +240,8 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
    return handle;
 }
 
-void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn)
+void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
+                  const uint8_t *debug, size_t bufsz)
 {
    jit_func_t *f = hash_get(j->index, name);
    if (f != NULL)
@@ -255,6 +256,62 @@ void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn)
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = fn;
+   f->irbuf     = xcalloc_array(bufsz, sizeof(jit_ir_t));
+   f->nirs      = bufsz;
+
+   for (int i = 0; i < bufsz; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      ir->op        = J_TRAP;
+      ir->size      = JIT_SZ_UNSPEC;
+      ir->result    = JIT_REG_INVALID;
+      ir->arg1.kind = JIT_VALUE_INVALID;
+      ir->arg2.kind = JIT_VALUE_INVALID;
+   }
+
+   char *file LOCAL = NULL;
+   loc_file_ref_t file_ref = FILE_INVALID;
+   int pos = 0, lineno;
+   for (const uint8_t *cmd = debug; *cmd >> 4 != DC_STOP; cmd++) {
+      jit_ir_t *ir = &(f->irbuf[pos]);
+
+      switch (*cmd >> 4) {
+      case DC_TRAP:
+         pos += *cmd & 0xf;
+         break;
+      case DC_LONG_TRAP:
+         pos += *(cmd + 1) | *(cmd + 2) << 8;
+         cmd += 2;
+         break;
+      case DC_TARGET:
+         ir->target = 1;
+         break;
+      case DC_LOCINFO:
+         lineno = *cmd & 0xf;
+         ir->op = J_DEBUG;
+         ir->arg1.kind = JIT_VALUE_LOC;
+         ir->arg1.loc = get_loc(lineno, 0, lineno, 0, file_ref);
+         pos++;
+         break;
+      case DC_LONG_LOCINFO:
+         lineno = *(cmd + 1) | *(cmd + 2) << 8;
+         ir->op = J_DEBUG;
+         ir->arg1.kind = JIT_VALUE_LOC;
+         ir->arg1.loc = get_loc(lineno, 0, lineno, 0, file_ref);
+         pos++;
+         cmd += 2;
+         break;
+      case DC_FILE:
+         {
+            char *p = file = xmalloc(1 << (*cmd & 0xf));
+            do { *p++ = *++cmd; } while (*cmd);
+            file_ref = loc_file_ref(file, NULL);
+         }
+         break;
+      default:
+         fatal_trace("unhandled debug command %x", *cmd);
+      }
+   }
+   assert(pos == bufsz);
 
    if (f->unit) hash_put(j->index, f->unit, f);
    hash_put(j->index, f->name, f);

@@ -119,10 +119,14 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
       (a).items[(a).count++] = (item);                                  \
    } while (0)
 
-#define ARESIZE(a, newsize) do {                                        \
-      if ((unsigned)(newsize) > (a).limit)                              \
+#define ARESERVE(a, newmax) do {                                        \
+      if ((unsigned)(newmax) > (a).limit)                               \
          __array_resize_slow((void **)&((a).items), &((a).limit),       \
-                             (newsize), sizeof((a).items[0]));          \
+                             (newmax), sizeof((a).items[0]));           \
+   } while (0)
+
+#define ARESIZE(a, newsize) do {                                        \
+      ARESERVE((a), (newsize));                                         \
       (a).count = (newsize);                                            \
    } while (0)
 
