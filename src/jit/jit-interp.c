@@ -42,7 +42,6 @@ typedef struct _jit_interp {
    jit_func_t    *func;
    unsigned char *frame;
    unsigned       flags;
-   bool           abort;
    mspace_t      *mspace;
    unsigned       backedge;
    jit_anchor_t  *anchor;
@@ -174,21 +173,6 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       interp_dump(state);
       fatal_trace("cannot handle value kind %d", value.kind);
    }
-}
-
-__attribute__((format(printf, 3, 4)))
-static void interp_error(jit_interp_t *state, const loc_t *loc,
-                         const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-
-   diag_t *d = diag_new(DIAG_ERROR, loc);
-   diag_vprintf(d, fmt, ap);
-   diag_emit(d);
-
-   va_end(ap);
-   state->abort = true;
 }
 
 static void interp_recv(jit_interp_t *state, jit_ir_t *ir)
@@ -538,7 +522,7 @@ static void interp_branch_to(jit_interp_t *state, jit_value_t label)
    if (state->backedge > 0 && target < state->pc) {
       // Limit the number of loop iterations in bounded mode
       if (--(state->backedge) == 0)
-         interp_error(state, NULL, "maximum iteration limit reached");
+         jit_msg(NULL, DIAG_FATAL, "maximum iteration limit reached");
    }
 
    state->pc = target;
@@ -679,9 +663,6 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
 
    state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
 
-   if (state->regs[ir->result].pointer == NULL && bytes > 0)
-      state->abort = true;   // Out of memory
-
    thread->anchor = NULL;
 }
 
@@ -716,7 +697,7 @@ static void interp_putpriv(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_loop(jit_interp_t *state)
 {
-   do {
+   for (;;) {
       JIT_ASSERT(state->pc < state->func->nirs);
       jit_ir_t *ir = &(state->func->irbuf[state->pc++]);
       switch (ir->op) {
@@ -848,7 +829,7 @@ static void interp_loop(jit_interp_t *state)
          interp_dump(state);
          fatal_trace("cannot interpret opcode %s", jit_op_name(ir->op));
       }
-   } while (!state->abort);
+   }
 }
 
 void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)

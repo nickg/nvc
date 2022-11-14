@@ -689,3 +689,4 @@ cmdline4        shell
 record38        fail,gold,2008
 issue560        normal,2008
 issue570        normal,2008
+issue571        normal,2008,relaxed
