@@ -159,6 +159,7 @@ static bool can_call_no_args(nametab_t *tab, tree_t decl);
 static bool is_forward_decl(tree_t decl, tree_t existing);
 static bool denotes_same_object(tree_t a, tree_t b);
 static void make_visible_slow(scope_t *s, ident_t name, tree_t decl);
+static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name);
 
 static void begin_overload_resolution(overload_t *o);
 static tree_t finish_overload_resolution(overload_t *o);
@@ -892,8 +893,9 @@ static symbol_t *lazy_lib_cb(scope_t *s, ident_t name, void *context)
 {
    lib_t lib = context;
 
-   tree_t unit = lib_get(lib, name);
-   if (unit == NULL)
+   bool error;
+   tree_t unit = lib_get_allow_error(lib, name, &error);
+   if (unit == NULL || error)
       return NULL;
 
    return make_visible(s, name, unit, DIRECT, s);
@@ -1229,7 +1231,7 @@ type_t resolve_type(nametab_t *tab, type_t incomplete)
 
 name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
 {
-   const symbol_t *sym = symbol_for(tab->top_scope, name);
+   const symbol_t *sym = iterate_symbol_for(tab, name);
    if (sym == NULL)
       return 0;
 
@@ -1400,7 +1402,22 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          ;  // Was earlier error
       else if (tab->top_scope->overload == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
-         diag_printf(d, "no visible declaration for %s", istr(name));
+
+         ident_t prefix = ident_until(name, '.');
+         const symbol_t *psym = prefix ? iterate_symbol_for(tab, prefix) : NULL;
+         if (psym != NULL && psym->ndecls == 1) {
+            const char *container = "object", *what = "name";
+            switch (psym->decls[0].kind) {
+            case T_LIBRARY: container = "library"; what = "design unit"; break;
+            default: break;
+            }
+            diag_printf(d, "%s %s not found in %s %s", what,
+                        istr(ident_rfrom(name, '.')), container,
+                        istr(psym->name));
+         }
+         else
+            diag_printf(d, "no visible declaration for %s", istr(name));
+
          hint_for_typo(tab, d, name, N_OBJECT | N_TYPE);
          diag_emit(d);
       }

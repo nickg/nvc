@@ -605,6 +605,8 @@ static tree_t error_expr(void)
 
 static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
 {
+   // TODO: should be able to replace this with resolve_name
+
    ident_t lname = ident_until(name, '.');
    lib_t lib = lib_loaded(lname);
    if (lib != NULL) {
@@ -647,59 +649,45 @@ static tree_t find_binding(tree_t inst)
       name = tree_ident(inst);
       if (tree_has_ident2(inst))
          name = ident_prefix(name, tree_ident2(inst), '-');
-      query_name(nametab, name, &unit);
    }
    else {
       name = tree_ident2(inst);
       if (tree_has_ref(inst))
          unit = tree_ref(inst);
-      else
-         query_name(nametab, name, &unit);
    }
 
-   if (unit != NULL) {
-      const char *what = is_design_unit(unit) ? "design unit" : "object";
-      switch (tree_class(inst)) {
-      case C_COMPONENT:
-         if (tree_kind(unit) != T_COMPONENT) {
-            parse_error(tree_loc(inst), "%s %s is not a component declaration",
-                        what, istr(name));
-            return NULL;
-         }
-         break;
-      case C_ENTITY:
-         if (tree_kind(unit) != T_ENTITY) {
-            parse_error(tree_loc(inst), "%s %s is not an entity",
-                        what, istr(name));
-            return NULL;
-         }
-         break;
-      case C_CONFIGURATION:
-         if (tree_kind(unit) != T_CONFIGURATION) {
-            parse_error(tree_loc(inst), "%s %s is not a configuration",
-                        what, istr(name));
-            return NULL;
-         }
-         break;
-      default:
-         break;
+   if (unit == NULL)
+      unit = resolve_name(nametab, tree_loc(inst), name);
+
+   if (unit == NULL)
+      return NULL;
+
+   const char *what = is_design_unit(unit) ? "design unit" : "object";
+   const tree_kind_t kind = tree_kind(unit);
+   switch (tree_class(inst)) {
+   case C_COMPONENT:
+      if (kind != T_COMPONENT) {
+         parse_error(tree_loc(inst), "%s %s is not a component declaration",
+                     what, istr(name));
+         return NULL;
       }
-   }
-   else {
-      unit = find_unit(tree_loc(inst), name, NULL);
-      if (unit != NULL) {
-         tree_kind_t kind = tree_kind(unit);
-         if (kind != T_ENTITY && kind != T_CONFIGURATION && kind != T_ARCH) {
-            parse_error(tree_loc(inst), "unit %s cannot be instantiated",
-                        istr(name));
-            unit = NULL;
-         }
-         else if ((kind == T_CONFIGURATION || kind == T_ARCH)
-                  && !tree_has_primary(unit)) {
-            // Was an earlier parse error
-            unit = NULL;
-         }
+      break;
+   case C_ENTITY:
+      if (kind != T_ENTITY && kind != T_ARCH) {
+         parse_error(tree_loc(inst), "%s %s is not an entity",
+                     what, istr(name));
+         return NULL;
       }
+      break;
+   case C_CONFIGURATION:
+      if (kind != T_CONFIGURATION) {
+         parse_error(tree_loc(inst), "%s %s is not a configuration",
+                     what, istr(name));
+         return NULL;
+      }
+      break;
+   default:
+      break;
    }
 
    return unit;

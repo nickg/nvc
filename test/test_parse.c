@@ -2908,7 +2908,6 @@ START_TEST(test_error)
       { 50, "B1 already declared in this region" },
       { 53, "declaration of constant X hides signal X" },
       { 56, "C1 already declared in this region" },
-      { 59, "NOT_A_LIBRARY does not name a visible component or design unit" },
       { 64, "missing declaration for entity WORK.NOT_HERE" },
       { -1, NULL }
    };
@@ -3873,6 +3872,7 @@ START_TEST(test_badprimary)
 
    const error_t expect[] = {
       { 17, "missing declaration for entity WORK.NOT_HERE" },
+      { 26, "design unit NOT_HERE-BAD not found in library WORK" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3891,7 +3891,7 @@ START_TEST(test_badprimary)
    fail_if(bad == NULL);
    fail_unless(tree_kind(bad) == T_ARCH);
    fail_if(tree_has_primary(bad));
-   lib_put(lib_work(), bad);
+   lib_put_error(lib_work(), bad);
 
    tree_t cfg = parse();
    fail_if(cfg == NULL);
@@ -4994,6 +4994,37 @@ START_TEST(test_issue568)
 }
 END_TEST
 
+START_TEST(test_issue569)
+{
+   input_from_file(TESTDIR "/parse/issue569.vhd");
+
+   lib_t foo = lib_tmp("foo");
+   lib_t bar = lib_tmp("bar");
+
+   lib_set_work(foo);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(foo, p);
+
+   lib_set_work(bar);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(bar, e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5091,6 +5122,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue532);
    tcase_add_test(tc_core, test_issue539);
    tcase_add_test(tc_core, test_issue568);
+   tcase_add_test(tc_core, test_issue569);
    suite_add_tcase(s, tc_core);
 
    return s;

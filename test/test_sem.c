@@ -108,7 +108,7 @@ START_TEST(test_ports)
       { 85,  "formal port I already has an actual" },
       { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
       { 92,  "WORK.FOO has no port named CAKE" },
-      { 94,  "cannot find unit WORK.BAD" },
+      { 94,  "design unit BAD not found in library WORK" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
       { 122, "declaration of signal X hides signal X" },
@@ -908,8 +908,8 @@ START_TEST(test_entity)
    input_from_file(TESTDIR "/sem/entity.vhd");
 
    const error_t expect[] = {
-      { 23, "cannot find unit WORK.E-INVALID" },
-      { 26, "unit WORK.PACK cannot be instantiated" },
+      { 23, "design unit E-INVALID not found in library WORK" },
+      { 26, "design unit WORK.PACK is not an entity" },
       { 30, "unit WORK.PACK is not an entity" },
       { 61, "signal assignment statement not allowed inside passive process" },
       { -1, NULL }
@@ -1067,8 +1067,8 @@ START_TEST(test_spec)
       { 24, "E does not name a component" },
       { 24, "duplicate specification for instance I1" },
       { 32, "duplicate specification for instance I1" },
-      { 34, "cannot find unit WORK.NOT_HERE" },
-      { 36, "unit WORK.P cannot be instantiated" },
+      { 34, "design unit NOT_HERE not found in library WORK" },
+      { 36, "design unit WORK.P is not an entity" },
       { 36, "duplicate specification for instance I3" },
       { 22, "component mismatch for instance I1: expected C1" },
       { 30, "specification may only be used with component instances" },
