@@ -470,27 +470,31 @@ NVC supports collecting of code coverage. Following coverage types
 are supported:
 .Bl -bullet
 .It
-Statement -
-.Cm s
+.Cm Statement
 - For each statement, NVC creates coverage bin. When statement is
 executed, it is covered.
 .It
-Branch -
-.Cm b
+.Cm Branch
 - For each point where code diverges (if/else, case,
 when/else, with/select statements), NVC creates coverage bin. If
 branch can be evaluated to both true and false, NVC creates two
 coverage bins for such branch (one for each of true/false)
 .It
-Toggle -
-.Cm t
+.Cm Toggle
 - Each signal of type derived from std_logic
-(including nested arrays) creates two coverage bins (to track 0->1 and
-1->0 transitions).
+(including nested arrays) creates two coverage bins (to track
+.Cm 0
+->
+.Cm 1
+and
+.Cm 1
+->
+.Cm 0
+transitions).
 .El
 Collecting each coverage type can be enabled separately at elaboration time:
 .Bd -literal -offset indent
-$ nvc -e --cover=s,b,t <top>
+$ nvc -e --cover=statement,branch,toggle <top>
 .Ed
 If no coverage type is specified as argument of
 .Fl -cover
@@ -500,6 +504,58 @@ simulation is executed, NVC dumps coverage data into coverage database file
 hierarchy coverage report in HTML format, run:
 .Bd -literal -offset indent
 $nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> first.covdb second.covdb third.covdb ...
+.Ed
+NVC supports following additional options to control coverage collection:
+.Bl -bullet
+.It
+.Cm count-from-undefined
+- When set, NVC also counts toggles
+.Cm U
+->
+.Cm 1
+as
+.Cm 0
+->
+.Cm 1
+and toggles
+.Cm U
+->
+.Cm 0
+as
+.Cm 1
+->
+.Cm 0
+during toggle coverage collection.
+.It
+.Cm count-from-to-z
+- When set, NVC also counts toggles from/to
+.Cm Z
+to either of
+.Cm 0/1
+as valid
+.Cm 0
+->
+.Cm 1
+or
+.Cm 1
+->
+.Cm 0
+transitions.
+.It
+.Cm ignore-mems
+- When set, NVC does not collect toggle coverage on multidimensional arrays or
+nested arrays (array of array).
+.It
+.Cm ignore-arrays-from-<size>
+- When set, NVC does not collect toggle coverage for any array which is equal to
+or larger than
+.Cm <size>
+.El
+All of the options above are passed comma separated to
+.Fl -cover
+elaboration option, e.g.:
+.Bd -literal -offset indent
+$ nvc -e --cover=all,ignore_mems,count-from-undefined <top>
 .Ed
 .\" ------------------------------------------------------------
 .\" Relaxed rules

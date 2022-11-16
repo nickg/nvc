@@ -984,20 +984,23 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
       notef("code coverage results for: %s", istr(hier));
 
       if (stats->total_stmts > 0)
-         notef("     statement:  %.1f %%",
-               100.0 * ((double)stats->hit_stmts) / stats->total_stmts);
+         notef("     statement:  %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_stmts) / stats->total_stmts,
+               stats->hit_stmts, stats->total_stmts);
       else
          notef("     statement:  N.A.");
 
       if (stats->total_branches > 0)
-         notef("     branch:     %.1f %%",
-               100.0 * ((double)stats->hit_branches) / stats->total_branches);
+         notef("     branch:     %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_branches) / stats->total_branches,
+               stats->hit_branches, stats->total_branches);
       else
          notef("     branch:     N.A.");
 
       if (stats->total_toggles > 0)
-         notef("     toggle:     %.1f %%",
-               100.0 * ((double)stats->hit_toggles) / stats->total_toggles);
+         notef("     toggle:     %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_toggles) / stats->total_toggles,
+               stats->hit_toggles, stats->total_toggles);
       else
          notef("     toggle:     N.A.");
    }
@@ -1090,9 +1093,9 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          if (kind == TAG_TOGGLE) {
             fprintf(f, "<b>");
             if (pair->flags & COV_FLAG_TOGGLE_TO_1)
-               fprintf(f, "Toggle to 1 &emsp;");
+               fprintf(f, "Toggle 0 -> 1 &emsp;");
             else if (pair->flags & COV_FLAG_TOGGLE_TO_0)
-               fprintf(f, "Toggle to 0 &emsp;");
+               fprintf(f, "Toggle 1 -> 0 &emsp;");
 
             fprintf(f, "on ");
             if (pair->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
