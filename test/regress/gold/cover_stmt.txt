@@ -1,0 +1,4 @@
+** Note: code coverage results for: WORK.COVER_STMT
+** Note:      statement:  100.0 % (42/42)
+** Note:      branch:     N.A.
+** Note:      toggle:     N.A.
