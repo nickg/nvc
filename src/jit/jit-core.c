@@ -1062,6 +1062,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "T",  JIT_CC_T },
       { "F",  JIT_CC_F },
       { "EQ", JIT_CC_EQ },
+      { "O",  JIT_CC_O },
+      { "C",  JIT_CC_C },
    };
 
    f->bufsz = 128;

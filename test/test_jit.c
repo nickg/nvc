@@ -1298,6 +1298,9 @@ START_TEST(test_lvn1)
       "    MUL     R1, #1, R2    \n"
       "    MUL     R1, #0, R2    \n"
       "    ADD     R1, R1, #0    \n"
+      "    SUB     R1, R1, #0    \n"
+      "    SUB     R1, #0, R1    \n"
+      "    SUB.O   R1, #0, R1    \n"
       "    RET                   \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
@@ -1334,6 +1337,14 @@ START_TEST(test_lvn1)
    ck_assert_int_eq(f->irbuf[11].arg1.int64, 0);
 
    ck_assert_int_eq(f->irbuf[12].op, J_NOP);
+
+   ck_assert_int_eq(f->irbuf[13].op, J_NOP);
+
+   ck_assert_int_eq(f->irbuf[14].op, J_NEG);
+   ck_assert_int_eq(f->irbuf[14].arg1.kind, JIT_VALUE_REG);
+   ck_assert_int_eq(f->irbuf[14].arg1.reg, 1);
+
+   ck_assert_int_eq(f->irbuf[15].op, J_SUB);
 
    jit_free(j);
 }

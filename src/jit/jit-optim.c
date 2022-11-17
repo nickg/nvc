@@ -497,6 +497,19 @@ static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
 #undef FOLD_SUB
    }
 
+   if (ir->arg2.kind == JIT_VALUE_INT64 && ir->arg2.int64 == 0) {
+      lvn_mov_reg(ir, state, ir->arg1.reg);
+      return;
+   }
+   else if (ir->arg1.kind == JIT_VALUE_INT64 && ir->arg1.int64 == 0
+            && ir->cc == JIT_CC_NONE && ir->size == JIT_SZ_UNSPEC) {
+     ir->op        = J_NEG;
+     ir->arg1      = ir->arg2;
+     ir->arg2.kind = JIT_VALUE_INVALID;
+     jit_lvn_generic(ir, state);
+     return;
+   }
+
    jit_lvn_generic(ir, state);
 }
 
@@ -514,6 +527,12 @@ static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state)
 }
 
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
+{
+   // Clobbers the count register
+   state->regvn[ir->result] = state->nextvn++;
+}
+
+static void jit_lvn_bzero(jit_ir_t *ir, lvn_state_t *state)
 {
    // Clobbers the count register
    state->regvn[ir->result] = state->nextvn++;
@@ -546,6 +565,7 @@ void jit_do_lvn(jit_func_t *f)
          case J_SUB: jit_lvn_sub(ir, &state); break;
          case J_MOV: jit_lvn_mov(ir, &state); break;
          case MACRO_COPY: jit_lvn_copy(ir, &state); break;
+         case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
          default: break;
          }
       }
