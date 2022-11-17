@@ -2432,6 +2432,19 @@ static void overload_push_names(overload_t *o)
    o->state = O_NAMED;
 }
 
+static void overload_add_argument_type(overload_t *o, type_t type, tree_t d)
+{
+   type_set_t *ts = o->nametab->top_type_set;
+   if (ts->down && ts->down->cconv && !ts->cconv) {
+      // Boolean interpretation should be preferred in case of ambiguity
+      type_t boolean = std_type(NULL, STD_BOOLEAN);
+      if (type_eq(type, boolean))
+         ts->cconv = true;
+   }
+
+   type_set_add(o->nametab, type, d);
+}
+
 static void overload_positional_argument(overload_t *o, int pos)
 {
    if (o == NULL)
@@ -2450,7 +2463,7 @@ static void overload_positional_argument(overload_t *o, int pos)
       tree_t d = o->candidates.items[i];
       if (pos < tree_ports(d)) {
          tree_t p = tree_port(d, pos);
-         type_set_add(o->nametab, tree_type(p), d);
+         overload_add_argument_type(o, tree_type(p), d);
          o->candidates.items[wptr++] = d;
       }
       else if (o->initial > 1)
@@ -2511,12 +2524,13 @@ static void overload_named_argument(overload_t *o, tree_t name)
                   if (field == NULL)
                      continue;   // Argument does not have this field name
 
-                  type_set_add(o->nametab, tree_type(field),
-                               o->candidates.items[i]);
+                  overload_add_argument_type(o, tree_type(field),
+                                             o->candidates.items[i]);
                }
                break;
             default:
-               type_set_add(o->nametab, tree_type(p), o->candidates.items[i]);
+               overload_add_argument_type(o, tree_type(p),
+                                          o->candidates.items[i]);
                break;
             }
             port = p;
@@ -2930,7 +2944,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       }
    }
 
-   // Solve all remaining function call parameters
+   // Solve all remaining parameters which are themselves function calls
 
    for (int i = 0; i < nparams; i++) {
       if (pmask & (1 << i))
