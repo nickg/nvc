@@ -261,6 +261,7 @@ issue115        normal
 issue116        normal
 issue112        normal
 cover_stmt      cover,shell
+cover_toggle    cover,shell
 issue121        normal
 issue122        normal
 issue95         normal
