@@ -1513,8 +1513,8 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
 
    // Gets well known type for scalar and vectorized version of
    // standard types (std_[u]logic[_vector], signed, unsigned)
-   if (type_base_kind(type) == T_ARRAY)
-      root = type_elem(type);
+   while (type_base_kind(root) == T_ARRAY)
+      root = type_elem(root);
    root = type_base_recur(root);
 
    well_known_t known = is_well_known(type_ident(root));
