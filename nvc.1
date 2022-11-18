@@ -470,17 +470,17 @@ NVC supports collecting of code coverage. Following coverage types
 are supported:
 .Bl -bullet
 .It
-.Cm Statement
+.Cm statement
 - For each statement, NVC creates coverage bin. When statement is
 executed, it is covered.
 .It
-.Cm Branch
+.Cm branch
 - For each point where code diverges (if/else, case,
 when/else, with/select statements), NVC creates coverage bin. If
 branch can be evaluated to both true and false, NVC creates two
 coverage bins for such branch (one for each of true/false)
 .It
-.Cm Toggle
+.Cm toggle
 - Each signal of type derived from std_logic
 (including nested arrays) creates two coverage bins (to track
 .Cm 0
