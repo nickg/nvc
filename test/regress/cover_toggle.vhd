@@ -10,6 +10,13 @@ entity sub_module is
 end entity;
 
 architecture test of sub_module is
+
+    type t_record_in_submodule is record
+        elem       : std_logic;
+    end record;
+
+    signal record_in_submodule : t_record_in_submodule;
+
 begin
 
     tgl_proc : process (a,b)
