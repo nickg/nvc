@@ -93,9 +93,9 @@ static yylval_t       last_lval;
 static token_t        opt_hist[8];
 static int            nopt_hist = 0;
 static cond_state_t  *cond_state = NULL;
-static bool           translate_on = true;
 static nametab_t     *nametab = NULL;
 static bool           bootstrapping = false;
+static tree_list_t    pragmas = AINIT;
 
 loc_t yylloc;
 int yylex(void);
@@ -171,6 +171,7 @@ static tree_t p_record_element_constraint(type_t base);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
+static token_t conditional_yylex(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -223,6 +224,16 @@ static const char *token_str(token_t tok)
       return "???";
    else
       return token_strs[tok];
+}
+
+static token_t skip_pragma(pragma_kind_t kind)
+{
+   tree_t p = tree_new(T_PRAGMA);
+   tree_set_loc(p, &yylloc);
+   tree_set_subkind(p, kind);
+
+   APUSH(pragmas, p);
+   return conditional_yylex();
 }
 
 static token_t conditional_yylex(void)
@@ -311,23 +322,17 @@ static token_t conditional_yylex(void)
          return conditional_yylex();
       }
 
-   case tSYNTHOFF:
-      {
-         BEGIN("synthesis translate_off");
-
-         if (opt_get_int(OPT_SYNTHESIS))
-            translate_on = false;
-
-         return conditional_yylex();
-      }
-
    case tSYNTHON:
-      {
-         BEGIN("synthesis translate_off");
+      return skip_pragma(PRAGMA_SYNTHESIS_ON);
 
-         translate_on = true;
-         return conditional_yylex();
-      }
+   case tSYNTHOFF:
+      return skip_pragma(PRAGMA_SYNTHESIS_OFF);
+
+   case tCOVERAGEON:
+      return skip_pragma(PRAGMA_COVERAGE_ON);
+
+   case tCOVERAGEOFF:
+      return skip_pragma(PRAGMA_COVERAGE_OFF);
 
    case tEOF:
       if (cond_state != NULL) {
@@ -338,7 +343,7 @@ static token_t conditional_yylex(void)
       return tEOF;
 
    default:
-      if (translate_on && (cond_state == NULL || cond_state->result))
+      if (cond_state == NULL || cond_state->result)
          return token;
       else
          return conditional_yylex();
@@ -10282,6 +10287,10 @@ tree_t parse(void)
    nametab_finish(nametab);
    nametab = NULL;
 
+   for (int i = 0; i < pragmas.count; i++)
+      tree_add_pragma(unit, pragmas.items[i]);
+   ACLEAR(pragmas);
+
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;
 
@@ -10290,7 +10299,6 @@ tree_t parse(void)
 
 void reset_vhdl_parser(void)
 {
-   translate_on  = true;
    bootstrapping = opt_get_int(OPT_BOOTSTRAP);
 
    if (tokenq == NULL) {

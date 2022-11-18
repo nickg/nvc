@@ -224,6 +224,13 @@ typedef enum {
    IMPLICIT_GUARD,
 } implicit_kind_t;
 
+typedef enum {
+   PRAGMA_COVERAGE_ON,
+   PRAGMA_COVERAGE_OFF,
+   PRAGMA_SYNTHESIS_ON,
+   PRAGMA_SYNTHESIS_OFF,
+} pragma_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -323,6 +330,7 @@ typedef enum tree_kind {
    T_ELEM_CONSTRAINT,
    T_STRING,
    T_PATH_ELT,
+   T_PRAGMA,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -445,6 +453,10 @@ void tree_set_ref(tree_t t, tree_t decl);
 unsigned tree_contexts(tree_t t);
 tree_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, tree_t ctx);
+
+unsigned tree_pragmas(tree_t t);
+tree_t tree_pragma(tree_t t, unsigned n);
+void tree_add_pragma(tree_t t, tree_t p);
 
 unsigned tree_assocs(tree_t t);
 tree_t tree_assoc(tree_t t, unsigned n);

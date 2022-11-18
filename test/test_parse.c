@@ -3431,8 +3431,6 @@ END_TEST;
 
 START_TEST(test_synth)
 {
-   opt_set_int(OPT_SYNTHESIS, 1);
-
    input_from_file(TESTDIR "/parse/synth.vhd");
 
    tree_t e = parse();
@@ -3443,9 +3441,14 @@ START_TEST(test_synth)
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 1);
-   fail_unless(tree_ident(tree_decl(a, 0)) == ident_new("Y"));
-   fail_unless(tree_stmts(a) == 1);
+   fail_unless(tree_decls(a) == 2);
+   fail_unless(tree_ident(tree_decl(a, 1)) == ident_new("Y"));
+   fail_unless(tree_stmts(a) == 2);
+   fail_unless(tree_pragmas(a) == 4);
+
+   tree_t p0 = tree_pragma(a, 0);
+   fail_unless(tree_kind(p0) == T_PRAGMA);
+   fail_unless(tree_subkind(p0) == PRAGMA_SYNTHESIS_OFF);
 
    fail_if(parse() != NULL);
 

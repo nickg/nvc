@@ -1500,8 +1500,9 @@ static void lower_branch_coverage(tree_t b, unsigned int flags,
 {
    assert(cover_enabled(cover_tags, COVER_MASK_BRANCH));
 
-   int32_t tag = cover_add_tag(b, NULL, cover_tags, TAG_BRANCH, flags)->tag;
-   emit_cover_branch(hit_reg, tag);
+   cover_tag_t *tag = cover_add_tag(b, NULL, cover_tags, TAG_BRANCH, flags);
+   if (tag != NULL)
+      emit_cover_branch(hit_reg, tag->tag);
 }
 
 static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, int dims)
@@ -6450,8 +6451,9 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 
    cover_push_scope(cover_tags, stmt);
    if (cover_enabled(cover_tags, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
-      int32_t tag = cover_add_tag(stmt, NULL, cover_tags, TAG_STMT, 0)->tag;
-      emit_cover_stmt(tag);
+      cover_tag_t *tag = cover_add_tag(stmt, NULL, cover_tags, TAG_STMT, 0);
+      if (tag != NULL)
+         emit_cover_stmt(tag->tag);
    }
 
    emit_debug_info(tree_loc(stmt));
@@ -7615,6 +7617,14 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
       lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, top_scope);
 }
 
+static void lower_hier_decl(tree_t decl)
+{
+   top_scope->hier = decl;
+
+   if (cover_tags != NULL)
+      cover_exclude_from_pragmas(cover_tags, tree_ref(decl));
+}
+
 static void lower_decl(tree_t decl, vcode_unit_t context)
 {
    PUSH_DEBUG_INFO(decl);
@@ -7642,7 +7652,7 @@ static void lower_decl(tree_t decl, vcode_unit_t context)
       break;
 
    case T_HIER:
-      top_scope->hier = decl;
+      lower_hier_decl(decl);
       break;
 
    case T_TYPE_DECL:

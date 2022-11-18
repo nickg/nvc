@@ -119,7 +119,6 @@ void set_default_options(void)
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_RT_PROFILE, 0);
-   opt_set_int(OPT_SYNTHESIS, 0);
    opt_set_int(OPT_MISSING_BODY, 1);
    opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_IEEE_WARNINGS, 1);

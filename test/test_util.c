@@ -69,7 +69,6 @@ static void setup(void)
    opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);
-   opt_set_int(OPT_SYNTHESIS, 0);
    opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 20);
    opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));

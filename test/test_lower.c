@@ -2046,6 +2046,12 @@ START_TEST(test_cover)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
+      { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_COVER_STMT, .tag = 3 },
       { VCODE_OP_WAIT, .target = 4 }
    };

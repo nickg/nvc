@@ -21,10 +21,10 @@
 #include "cover.h"
 #include "lib.h"
 #include "opt.h"
-#include "type.h"
-#include "rt.h"
+#include "rt/model.h"
+#include "rt/rt.h"
 #include "rt/structs.h"
-#include "model.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -40,7 +40,13 @@
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "15%%"
 
+typedef struct {
+   int start;
+   int end;
+} line_range_t;
+
 typedef A(cover_tag_t) tag_array_t;
+typedef A(line_range_t) range_array_t;
 
 typedef struct _cover_report_ctx cover_report_ctx_t;
 typedef struct _cover_file       cover_file_t;
@@ -51,6 +57,7 @@ typedef struct _cover_scope {
    int            branch_label;
    int            stmt_label;
    cover_scope_t *parent;
+   range_array_t  exclude_lines;
 } cover_scope_t;
 
 struct _cover_tagging {
@@ -171,6 +178,19 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 {
    int *cnt;
    assert (ctx != NULL);
+
+   // TODO: need a better way to determine if a scope comes from an instance
+   cover_scope_t *excl_scope = ctx->top_scope;
+   for (; excl_scope->exclude_lines.count == 0 && excl_scope->parent;
+        excl_scope = excl_scope->parent)
+      ;
+
+   const loc_t *loc = tree_loc(t);
+   for (int i = 0; i < excl_scope->exclude_lines.count; i++) {
+      line_range_t *lr = &(excl_scope->exclude_lines.items[i]);
+      if (loc->first_line > lr->start && loc->first_line <= lr->end)
+         return NULL;
+   }
 
    switch (kind) {
       case TAG_STMT:   cnt = &(ctx->next_stmt_tag);   break;
@@ -362,6 +382,8 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    assert(tagging->top_scope != NULL);
 
+   ACLEAR(tagging->top_scope->exclude_lines);
+
    cover_scope_t *tmp = tagging->top_scope->parent;
    free(tagging->top_scope);
    tagging->top_scope = tmp;
@@ -372,6 +394,33 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    tagging->hier = ident_runtil(tagging->hier, '.');
    assert(tagging->hier != NULL);
+}
+
+void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
+{
+   assert(tagging->top_scope != NULL);
+
+   range_array_t *excl = &(tagging->top_scope->exclude_lines);
+   bool state = true;
+   const int npragmas = tree_pragmas(unit);
+   for (int i = 0; i < npragmas; i++) {
+      tree_t p = tree_pragma(unit, i);
+      const pragma_kind_t kind = tree_subkind(p);
+      if (kind != PRAGMA_COVERAGE_OFF && kind != PRAGMA_COVERAGE_ON)
+         continue;
+
+      if (kind == PRAGMA_COVERAGE_OFF && state) {
+         line_range_t lr = { tree_loc(p)->first_line, INT_MAX };
+         APUSH(*excl, lr);
+         state = false;
+      }
+      else if (kind == PRAGMA_COVERAGE_ON && !state) {
+         assert(excl->count > 0);
+         assert(excl->items[excl->count - 1].end == INT_MAX);
+         excl->items[excl->count - 1].end = tree_loc(p)->first_line;
+         state = true;
+      }
+   }
 }
 
 void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)

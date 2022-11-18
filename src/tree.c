@@ -27,10 +27,10 @@
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
-   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS),
+   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_PRAGMAS),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_PRIMARY),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_PRIMARY | I_PRAGMAS),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
@@ -63,7 +63,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS | I_PRAGMAS),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
@@ -108,7 +108,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS | I_CONTEXT | I_PRIMARY),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_PRIMARY | I_PRAGMAS),
 
    // T_FUNC_BODY
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
@@ -224,13 +224,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_CONTEXT),
 
    // T_CONFIGURATION
-   (I_IDENT | I_IDENT2 | I_DECLS | I_PRIMARY),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_PRIMARY | I_PRAGMAS),
 
    // T_PROT_BODY
    (I_IDENT | I_TYPE | I_DECLS),
 
    // T_CONTEXT
-   (I_CONTEXT | I_IDENT),
+   (I_CONTEXT | I_IDENT | I_PRAGMAS),
 
    // T_CONTEXT_REF
    (I_IDENT | I_REF),
@@ -278,7 +278,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_STMTS | I_DECLS),
 
    // T_PACK_INST
-   (I_IDENT | I_REF | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
+   (I_IDENT | I_REF | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS | I_PRAGMAS),
 
    // T_GENERIC_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_CLASS | I_SUBKIND | I_FLAGS | I_PORTS),
@@ -323,6 +323,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PATH_ELT
    (I_SUBKIND | I_IDENT | I_VALUE),
+
+   // T_PRAGMA
+   (I_SUBKIND),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -358,7 +361,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
-   "T_STRING",          "T_PATH_ELT",
+   "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -937,6 +940,25 @@ void tree_add_context(tree_t t, tree_t ctx)
           || ctx->object.kind == T_CONTEXT_REF);
    tree_array_add(lookup_item(&tree_object, t, I_CONTEXT), ctx);
    object_write_barrier(&(t->object), &(ctx->object));
+}
+
+unsigned tree_pragmas(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_PRAGMAS);
+   return obj_array_count(item->obj_array);
+}
+
+tree_t tree_pragma(tree_t t, unsigned n)
+{
+   item_t *item = lookup_item(&tree_object, t, I_PRAGMAS);
+   return tree_array_nth(item, n);
+}
+
+void tree_add_pragma(tree_t t, tree_t p)
+{
+   assert(p->object.kind == T_PRAGMA);
+   tree_array_add(lookup_item(&tree_object, t, I_PRAGMAS), p);
+   object_write_barrier(&(t->object), &(p->object));
 }
 
 unsigned tree_assocs(tree_t t)

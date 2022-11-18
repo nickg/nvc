@@ -99,6 +99,8 @@ TICK            \'
 PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
+COVERAGE_OFF    {PRAGMA}(?i:coverage)[ \t]+(?i:off).*
+COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
 
 %x COMMENT C_COMMENT
 
@@ -212,6 +214,8 @@ PARAMETER     ?i:parameter
 
 {SYNTH_OFF}          { TOKEN(tSYNTHOFF); }
 {SYNTH_ON}           { TOKEN(tSYNTHON); }
+{COVERAGE_OFF}       { TOKEN(tCOVERAGEOFF); }
+{COVERAGE_ON}        { TOKEN(tCOVERAGEON); }
 
 {COMMENT}            { BEGIN(COMMENT); }
 

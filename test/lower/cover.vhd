@@ -17,6 +17,9 @@ begin
         if s = 1 or s > 10 then
             v := 2;
         end if;
+        -- coverage off
+        s <= 1;
+        -- coverage on
         wait;
     end process;
 

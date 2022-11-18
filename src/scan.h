@@ -203,6 +203,8 @@ typedef enum {
    tAT,
    tQUESTION,
    tPARAMETER,
+   tCOVERAGEON,
+   tCOVERAGEOFF,
 } token_t;
 
 #endif  // _SCAN_H

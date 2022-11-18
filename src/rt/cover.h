@@ -120,6 +120,8 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier);
 void cover_push_scope(cover_tagging_t *tagging, tree_t t);
 void cover_pop_scope(cover_tagging_t *tagging);
 
+void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit);
+
 bool cover_is_stmt(tree_t t);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
