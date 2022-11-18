@@ -70,6 +70,7 @@ struct _cover_tagging {
    cover_opts_t   opts;
    int            dims;
    cover_scope_t *top_scope;
+   int            level;
 };
 
 typedef struct {
@@ -214,7 +215,13 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       case TAG_STMT:   cnt = &(ctx->next_stmt_tag);   break;
       case TAG_BRANCH: cnt = &(ctx->next_branch_tag); break;
       case TAG_TOGGLE: cnt = &(ctx->next_toggle_tag); break;
-      case TAG_HIER:   cnt = &(ctx->next_hier_tag);   break;
+      case TAG_HIER:
+         cnt = &(ctx->next_hier_tag);
+         if (flags & COV_FLAG_HIER_DOWN)
+            ctx->level++;
+         else
+            ctx->level--;
+         break;
       default:
          fatal("Unknown coverage type: %d", kind);
    }
@@ -241,7 +248,8 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .data       = 0,
       .flags      = flags,
       .loc        = *tree_loc(t),
-      .hier       = hier
+      .hier       = hier,
+      .level      = ctx->level
    };
 
    APUSH(ctx->tags, new);
@@ -306,6 +314,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
 #endif
       }
       write_u32(tag->flags, f);
+      write_u32(tag->level, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
    }
@@ -321,6 +330,7 @@ cover_tagging_t *cover_tags_init(cover_opts_t *opts)
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
    ctx->opts.mask = opts->mask;
    ctx->opts.array_limit = opts->array_limit;
+   ctx->level = 1;
 
    return ctx;
 }
@@ -485,6 +495,7 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->tag = read_u32(f);
    tag->data = read_u32(f);
    tag->flags = read_u32(f);
+   tag->level = read_u32(f);
 
    loc_read(&(tag->loc), loc_rd);
    tag->hier = ident_read(ident_ctx);
@@ -1103,7 +1114,11 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
             else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
                fprintf(f, "port:&nbsp&nbsp&nbsp");
             fprintf(f, "</b><br>");
-            fprintf(f, "<code>%s</code>", istr(ident_rfrom(pair->tag->hier, '.')));
+
+            ident_t sig_name = pair->tag->hier;
+            for (int i = 0; i < pair->tag->level; i++)
+               sig_name = ident_from(sig_name, '.');
+            fprintf(f, "<code>%s</code>", istr(sig_name));
          }
 
          fprintf(f, "</p>\n");

@@ -86,6 +86,9 @@ typedef struct _cover_tag {
 
    // Hierarchy path of the covered object
    ident_t        hier;
+
+   // Hierarchy level
+   int            level;
 } cover_tag_t;
 
 typedef enum {
