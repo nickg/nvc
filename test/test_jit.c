@@ -1406,6 +1406,31 @@ START_TEST(test_lvn3)
 }
 END_TEST
 
+START_TEST(test_issue575)
+{
+   input_from_file(TESTDIR "/jit/issue575.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   jit_t *j = jit_new();
+
+   struct {
+      int32_t x;
+      uint8_t y[3];
+   } rec = { 42, { 0, 0, 0 } };
+
+   jit_handle_t fn =
+      compile_for_test(j, "WORK.ISSUE575.TEST(17WORK.ISSUE575.RECJ)");
+   jit_call(j, fn, NULL, NULL, &rec, 1);
+
+   ck_assert_int_eq(rec.x, 42);
+   for (int i = 0; i < 3; i++)
+      ck_assert_int_eq(rec.y[i], 1);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1445,6 +1470,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn1);
    tcase_add_test(tc, test_lvn2);
    tcase_add_test(tc, test_lvn3);
+   tcase_add_test(tc, test_issue575);
    suite_add_tcase(s, tc);
 
    return s;

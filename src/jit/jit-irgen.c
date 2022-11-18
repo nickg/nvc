@@ -1082,6 +1082,8 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
       irgen_label_t *l_exit = irgen_alloc_label(g);
       irgen_label_t *l_head = irgen_alloc_label(g);
 
+      jit_value_t base_ptr = irgen_lea(g, base);
+
       j_cmp(g, JIT_CC_LE, length, jit_value_from_int64(0));
       j_jump(g, JIT_CC_T, l_exit);
 
@@ -1092,7 +1094,7 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
 
       jit_value_t ctr = jit_value_from_reg(ctr_r);
       jit_value_t off = j_mul(g, ctr, scale);
-      jit_value_t ptr = j_add(g, base, off);
+      jit_value_t ptr = j_add(g, base_ptr, off);
       j_store(g, irgen_jit_size(vtype), value, jit_addr_from_value(ptr, 0));
 
       jit_value_t next = j_add(g, ctr, jit_value_from_int64(1));
