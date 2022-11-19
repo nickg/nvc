@@ -141,7 +141,7 @@ TCase *nvc_unit_test(void)
 
 tree_t run_elab(void)
 {
-   eval_t *eval = eval_new(EVAL_FCALL);
+   eval_t *eval = eval_new();
 
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
@@ -168,7 +168,7 @@ tree_t run_elab(void)
 tree_t _parse_and_check(const tree_kind_t *array, int num,
                         bool simp, bool lower)
 {
-   eval_t *eval = simp ? eval_new(EVAL_FCALL) : NULL;
+   eval_t *eval = simp ? eval_new() : NULL;
 
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {

@@ -39,6 +39,11 @@
 #include <string.h>
 #include <math.h>
 
+typedef enum {
+   EVAL_WARN    = (1 << 2),
+   EVAL_VERBOSE = (1 << 3),
+} eval_flags_t;
+
 struct _eval {
    eval_flags_t  flags;
    jit_t        *jit;
@@ -96,13 +101,11 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
    return tree;
 }
 
-eval_t *eval_new(eval_flags_t flags)
+eval_t *eval_new(void)
 {
+   eval_flags_t flags = 0;
    if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))
-      flags |= EVAL_VERBOSE;
-
-   if (flags & EVAL_VERBOSE)
-      flags |= EVAL_WARN;
+      flags |= EVAL_VERBOSE | EVAL_WARN;
 
    eval_t *ex = xcalloc(sizeof(eval_t));
    ex->flags = flags;
@@ -194,9 +197,7 @@ bool eval_possible(eval_t *e, tree_t t)
 
          tree_t decl = tree_ref(t);
          const subprogram_kind_t kind = tree_subkind(decl);
-         if (kind == S_USER && !(e->flags & EVAL_FCALL))
-            return eval_not_possible(e, t, "call to user defined function");
-         else if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
+         if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
             return eval_not_possible(e, t, "call to foreign function");
          else if (tree_flags(decl) & TREE_F_IMPURE)
             return eval_not_possible(e, t, "call to impure function");
@@ -237,8 +238,6 @@ bool eval_possible(eval_t *e, tree_t t)
          case T_CONST_DECL:
             if (tree_has_value(decl))
                return eval_possible(e, tree_value(decl));
-            else if (!(e->flags & EVAL_FCALL))
-               return eval_not_possible(e, t, "deferred constant");
             else
                return true;
 

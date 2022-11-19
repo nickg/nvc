@@ -21,15 +21,9 @@
 #include "prim.h"
 #include "phase.h"
 
-typedef enum {
-   EVAL_FCALL   = (1 << 1),
-   EVAL_WARN    = (1 << 2),
-   EVAL_VERBOSE = (1 << 3),
-} eval_flags_t;
-
 typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
 
-eval_t *eval_new(eval_flags_t flags);
+eval_t *eval_new(void);
 void eval_free(eval_t *ex);
 tree_t eval_try_fold(eval_t *ex, tree_t expr);
 tree_t eval_must_fold(eval_t *ex, tree_t expr);

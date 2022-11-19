@@ -81,7 +81,7 @@ START_TEST(test_cfold)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    eval_free(eval);
 
@@ -201,7 +201,7 @@ START_TEST(test_proc)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    eval_free(eval);
 
@@ -282,7 +282,7 @@ START_TEST(test_args)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    eval_free(eval);
 
@@ -324,7 +324,7 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   eval_t *ex = eval_new(EVAL_FCALL);
+   eval_t *ex = eval_new();
    simplify_global(b, NULL, ex);
    eval_free(ex);
    fail_if_errors();
@@ -372,7 +372,7 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   eval_t *ex = eval_new(EVAL_FCALL);
+   eval_t *ex = eval_new();
    simplify_global(b, NULL, ex);
    eval_free(ex);
    fail_if_errors();
@@ -388,7 +388,7 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_if_errors();
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    eval_free(eval);
 }
@@ -401,7 +401,7 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   eval_t *ex = eval_new(EVAL_FCALL);
+   eval_t *ex = eval_new();
    simplify_global(p, NULL, ex);
    eval_free(ex);
 
@@ -441,7 +441,7 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 5);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(e, eval);
    eval_free(eval);
 

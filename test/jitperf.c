@@ -190,7 +190,7 @@ int main(int argc, char **argv)
    lib_t work = lib_tmp("PERF");
    lib_set_work(work);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
 
    for (int i = optind; i < argc; i++) {
       color_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);

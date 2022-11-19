@@ -1828,7 +1828,7 @@ tree_t elab(tree_t top)
       .path     = NULL,
       .inst     = NULL,
       .library  = lib_work(),
-      .eval     = eval_new(EVAL_FCALL),
+      .eval     = eval_new(),
    };
 
    ctx.subprograms = hash_new(256);

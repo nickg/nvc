@@ -152,7 +152,7 @@ static int analyse(int argc, char **argv)
    }
 
    lib_t work = lib_work();
-   eval_t *eval = eval_new(EVAL_FCALL);
+   eval_t *eval = eval_new();
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);

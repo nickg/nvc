@@ -87,7 +87,7 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *ex = eval_new(EVAL_FCALL);
+   eval_t *ex = eval_new();
    simplify_global(a, NULL, ex);   // Global to fold TIME expressions
    eval_free(ex);
    bounds_check(a);
@@ -130,7 +130,7 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *ex = eval_new(EVAL_FCALL);
+   eval_t *ex = eval_new();
    simplify_global(a, NULL, ex);   // Global to fold TIME expressions
    eval_free(ex);
    bounds_check(a);
@@ -170,7 +170,7 @@ START_TEST(test_case)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -185,7 +185,7 @@ START_TEST(test_issue36)
 
    tree_t e = parse_and_check(T_ENTITY);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(e, eval);
    bounds_check(e);
    eval_free(eval);
@@ -212,7 +212,7 @@ START_TEST(test_issue54)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -235,7 +235,7 @@ START_TEST(test_issue99)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
 
@@ -257,7 +257,7 @@ START_TEST(test_issue150)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -273,7 +273,7 @@ START_TEST(test_issue200)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -295,7 +295,7 @@ START_TEST(test_issue208)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -316,7 +316,7 @@ START_TEST(test_issue247)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
@@ -337,7 +337,7 @@ START_TEST(test_issue269)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new(0);
+   eval_t *eval = eval_new();
    simplify_local(a, eval);
    bounds_check(a);
    eval_free(eval);
