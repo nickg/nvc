@@ -572,6 +572,12 @@ static void bounds_check_aggregate(tree_t t)
                   bounds_error(a, "discrete range has %"PRIi64" elements but "
                                "length of expression is %"PRIi64,
                                ihigh - ilow + 1, count);
+               else if (unconstrained && count > 1) {
+                  // VHDL-2008 range association determines index
+                  // direction for unconstrained aggregate
+                  assert(standard() >= STD_08);
+                  dir = rkind;
+               }
             }
             else
                known_elem_count = false;

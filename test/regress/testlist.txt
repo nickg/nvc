@@ -18,7 +18,7 @@ image           gold,normal
 cond1           gold,normal
 counter         normal,stop=50ns,gold
 cond2           gold,normal
-vecorder        normal
+vecorder1       normal
 elab2           normal
 func1           normal
 signal5         normal
@@ -691,3 +691,4 @@ issue560        normal,2008
 issue570        normal,2008
 issue571        normal,2008,relaxed
 operator6       normal,2008
+vecorder2       normal,2008
