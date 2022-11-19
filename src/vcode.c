@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
+#include "object.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -166,7 +167,7 @@ typedef enum {
    UNIT_ESCAPING_TLAB = (1 << 2)
 } unit_flags_t;
 
-struct vcode_unit {
+struct _vcode_unit {
    vunit_kind_t   kind;
    vcode_unit_t   context;
    ident_t        name;
@@ -180,7 +181,7 @@ struct vcode_unit {
    unit_flags_t   flags;
    vcode_unit_t   children;
    vcode_unit_t   next;
-   loc_t          loc;
+   object_t      *object;
 };
 
 #define MASK_CONTEXT(x)   ((x) >> 24)
@@ -204,7 +205,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      26
+#define VCODE_VERSION      27
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -2907,10 +2908,10 @@ vcode_unit_t vcode_unit_context(void)
    return active_unit->context;
 }
 
-const loc_t *vcode_unit_loc(void)
+object_t *vcode_unit_object(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return &(active_unit->loc);
+   assert(vu != NULL);
+   return vu->object;
 }
 
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
@@ -2953,150 +2954,149 @@ static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
    }
 }
 
-vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context)
+vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_FUNCTION;
    vu->name     = name;
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
-                            vcode_unit_t context)
+vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROCEDURE;
    vu->name     = name;
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context)
+vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
 {
    assert(context->kind == VCODE_UNIT_INSTANCE);
 
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROCESS;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_instance(ident_t name, const loc_t *loc, vcode_unit_t context)
+vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context)
 {
    assert(context == NULL || context->kind == VCODE_UNIT_INSTANCE);
 
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_INSTANCE;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context)
+vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PACKAGE;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
-                            vcode_unit_t context)
+vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROTECTED;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->loc      = *loc;
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-   emit_debug_info(loc);
+   emit_debug_info(&(obj->loc));
 
    vcode_registry_add(vu);
 
    return vu;
 }
 
-vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context)
+vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_THUNK;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -5649,7 +5649,13 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
    fbuf_put_int(f, unit->result);
    fbuf_put_int(f, unit->flags);
    fbuf_put_int(f, unit->depth);
-   loc_write(&(unit->loc), loc_wr_ctx);
+
+   ident_t unit_name;
+   ptrdiff_t offset;
+   object_locus(unit->object, &unit_name, &offset);
+
+   ident_write(unit_name, ident_wr_ctx);
+   fbuf_put_uint(f, offset);
 
    if (unit->context != NULL) {
       vcode_select_unit(unit);
@@ -5813,14 +5819,18 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    if (marker == 0xff)
       return false;
 
-   vcode_unit_t unit = xcalloc(sizeof(struct vcode_unit));
+   vcode_unit_t unit = xcalloc(sizeof(struct _vcode_unit));
    unit->kind     = marker;
    unit->name     = ident_read(ident_rd_ctx);
    unit->result   = fbuf_get_int(f);
    unit->flags    = fbuf_get_int(f);
    unit->depth    = fbuf_get_int(f);
 
-   loc_read(&(unit->loc), loc_rd_ctx);
+   ident_t unit_name = ident_read(ident_rd_ctx);
+   ptrdiff_t offset = fbuf_get_uint(f);
+
+   unit->object = object_from_locus(unit_name, offset,
+                                    (object_load_fn_t)lib_get_qualified);
 
    ident_t context_name = ident_read(ident_rd_ctx);
    if (context_name != NULL) {

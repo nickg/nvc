@@ -2793,8 +2793,6 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
       vcode_state_t state;
       vcode_state_save(&state);
 
-      const loc_t *loc = vcode_last_loc();
-
       vcode_unit_t helper_ctx = vcode_active_unit();
       int hops = 0;
       for (; vcode_unit_context() != NULL; hops++)
@@ -2817,7 +2815,7 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
       ident_t helper_func = ident_new(tb_get(tb));
       vcode_unit_t vu = vcode_find_unit(helper_func);
       if (vu == NULL) {
-         vu = emit_function(helper_func, loc, helper_ctx);
+         vu = emit_function(helper_func, type_to_object(type), helper_ctx);
          vcode_set_result(vrtype);
 
          lower_push_scope(NULL);
@@ -6978,7 +6976,7 @@ static ident_t lower_guard_func(ident_t prefix, tree_t expr)
 
    ident_t context_id = vcode_unit_name();
 
-   emit_function(func, tree_loc(expr), vcode_active_unit());
+   emit_function(func, tree_to_object(expr), vcode_active_unit());
    vcode_set_result(lower_type(tree_type(expr)));
 
    vcode_type_t vcontext = vtype_context(context_id);
@@ -7209,7 +7207,7 @@ static void lower_image_helper(tree_t decl)
 
    ident_t context_id = vcode_unit_name();
 
-   emit_function(func, tree_loc(decl), vcode_active_unit());
+   emit_function(func, tree_to_object(decl), vcode_active_unit());
    emit_debug_info(tree_loc(decl));
 
    lower_push_scope(NULL);
@@ -7550,7 +7548,7 @@ static void lower_value_helper(tree_t decl)
 
    ident_t context_id = vcode_unit_name();
 
-   emit_function(func, tree_loc(decl), vcode_active_unit());
+   emit_function(func, tree_to_object(decl), vcode_active_unit());
    vcode_set_result(lower_type(type));
 
    lower_push_scope(NULL);
@@ -7594,7 +7592,7 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
    vcode_select_unit(context);
    ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
 
-   vcode_unit_t vu = emit_package(name, tree_loc(decl), context);
+   vcode_unit_t vu = emit_package(name, tree_to_object(decl), context);
    lower_push_scope(decl);
 
    lower_generics(decl, NULL);
@@ -7695,8 +7693,9 @@ static void lower_protected_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
 
+   object_t *obj = tree_to_object(body);
    type_t type = tree_type(body);
-   vcode_unit_t vu = emit_protected(type_ident(type), tree_loc(body), context);
+   vcode_unit_t vu = emit_protected(type_ident(type), obj, context);
 
    lower_push_scope(body);
    cover_push_scope(cover_tags, body);
@@ -8820,7 +8819,7 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
    vcode_select_unit(context);
    ident_t context_id = vcode_unit_name();
 
-   emit_function(name, tree_loc(decl), context);
+   emit_function(name, tree_to_object(decl), context);
    vcode_set_result(lower_func_result_type(type_result(type)));
 
    lower_push_scope(NULL);
@@ -8926,10 +8925,11 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 
    ident_t context_id = vcode_unit_name();
 
+   object_t *obj = tree_to_object(body);
    if (never_waits)
-      vu = emit_function(name, tree_loc(body), context);
+      vu = emit_function(name, obj, context);
    else
-      vu = emit_procedure(name, tree_loc(body), context);
+      vu = emit_procedure(name, obj, context);
 
    lower_push_scope(body);
    cover_push_scope(cover_tags, body);
@@ -8976,7 +8976,7 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
 
    ident_t context_id = vcode_unit_name();
 
-   vu = emit_function(name, tree_loc(body), context);
+   vu = emit_function(name, tree_to_object(body), context);
    vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
    emit_debug_info(tree_loc(body));
 
@@ -9091,7 +9091,7 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    vcode_select_unit(context);
    ident_t label = tree_ident(proc);
    ident_t name = ident_prefix(vcode_unit_name(), label, '.');
-   vcode_unit_t vu = emit_process(name, tree_loc(proc), context);
+   vcode_unit_t vu = emit_process(name, tree_to_object(proc), context);
    emit_debug_info(tree_loc(proc));
 
    // The code generator assumes the first state starts at block number
@@ -9231,7 +9231,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
 
    ident_t context_id = vcode_unit_name();
 
-   vu = emit_function(name, tree_loc(expr), vcode_active_unit());
+   vu = emit_function(name, tree_to_object(expr), vcode_active_unit());
    vcode_set_result(*vrtype);
    emit_debug_info(tree_loc(expr));
 
@@ -9835,9 +9835,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    ident_t label = tree_ident(block);
    ident_t name = ident_prefix(prefix, label, '.');
 
-   const loc_t *loc = tree_loc(block);
-   vcode_unit_t vu = emit_instance(name, loc, context);
-   emit_debug_info(loc);
+   vcode_unit_t vu = emit_instance(name, tree_to_object(block), context);
 
    if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
       if (!context)
@@ -9897,7 +9895,8 @@ static vcode_unit_t lower_pack_body(tree_t unit)
    tree_t pack = tree_primary(unit);
    assert(!is_uninstantiated_package(pack));
 
-   vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit), NULL);
+   object_t *obj = tree_to_object(unit);
+   vcode_unit_t context = emit_package(tree_ident(pack), obj, NULL);
    lower_push_scope(unit);
 
    lower_dependencies(pack, unit);
@@ -9915,7 +9914,8 @@ static vcode_unit_t lower_package(tree_t unit)
 {
    assert(!is_uninstantiated_package(unit));
 
-   vcode_unit_t context = emit_package(tree_ident(unit), tree_loc(unit), NULL);
+   object_t *obj = tree_to_object(unit);
+   vcode_unit_t context = emit_package(tree_ident(unit), obj, NULL);
    lower_push_scope(unit);
 
    lower_dependencies(unit, NULL);
@@ -9973,7 +9973,7 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
    if (vu != NULL)
       return;
 
-   vcode_unit_t thunk = emit_thunk(name, context);
+   vcode_unit_t thunk = emit_thunk(name, tree_to_object(body), context);
 
    const tree_kind_t kind = tree_kind(body);
    if (kind == T_FUNC_BODY || kind == T_FUNC_INST)
@@ -10022,7 +10022,7 @@ vcode_unit_t lower_thunk(tree_t t)
    else
       assert(top_scope == NULL);
 
-   vcode_unit_t thunk = emit_thunk(name, NULL);
+   vcode_unit_t thunk = emit_thunk(name, tree_to_object(t), NULL);
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
    switch (tree_kind(t)) {

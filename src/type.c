@@ -886,3 +886,14 @@ bool type_frozen(type_t t)
 {
    return arena_frozen(object_arena(&(t->object)));
 }
+
+object_t *type_to_object(type_t t)
+{
+   return &(t->object);
+}
+
+type_t type_from_object(object_t *obj)
+{
+   assert(obj->tag == OBJECT_TAG_TYPE);
+   return container_of(obj, struct _type, object);
+}

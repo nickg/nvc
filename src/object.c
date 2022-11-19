@@ -51,6 +51,27 @@ typedef struct _object_arena {
    uint32_t        checksum;
 } object_arena_t;
 
+#ifndef __SANITIZE_ADDRESS__
+#define OBJECT_UNMAP_UNUSED 1
+#endif
+
+#define ITEM_IDENT       (I_IDENT | I_IDENT2)
+#define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
+                          | I_NAME | I_SPEC | I_RESOLUTION              \
+                          | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
+                          | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
+                          | I_GUARD)
+#define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
+                          | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
+                          | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
+                          | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
+                          | I_DIMS | I_RANGES | I_INDEXCON | I_PARTS \
+                          | I_PRAGMAS)
+#define ITEM_INT64       (I_POS | I_IVAL)
+#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
+#define ITEM_DOUBLE      (I_DVAL)
+
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",      "I_PORTS",
@@ -136,15 +157,6 @@ void arena_set_checksum(object_arena_t *arena, uint32_t checksum)
 object_t *arena_root(object_arena_t *arena)
 {
    return arena->root ?: (object_t *)arena->base;
-}
-
-void arena_set_root(object_arena_t *arena, object_t *root)
-{
-   assert(__object_arena(root) == arena);
-   assert(arena->root == NULL);
-   assert(!arena->frozen);
-
-   arena->root = root;
 }
 
 bool arena_frozen(object_arena_t *arena)
@@ -1233,7 +1245,7 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 }
 
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
-                            object_load_fn_t loader, unsigned tag)
+                            object_load_fn_t loader)
 {
    // Search backwards to ensure we find the most recent arena with the
    // given name
@@ -1267,8 +1279,8 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
       fatal_trace("invalid object locus %s%+"PRIiPTR, istr(module), offset);
 
    object_t *obj = ptr;
-   if (obj->tag != tag)
-      fatal_trace("incorrect tag %d for object locus %s%+"PRIiPTR, obj->tag,
+   if (obj->tag >= OBJECT_TAG_COUNT)
+      fatal_trace("invalid tag %d for object locus %s%+"PRIiPTR, obj->tag,
                   istr(module), offset);
 
    return obj;

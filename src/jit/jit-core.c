@@ -21,14 +21,16 @@
 #include "debug.h"
 #include "diag.h"
 #include "hash.h"
-#include "lib.h"
-#include "jit/jit.h"
 #include "jit/jit-priv.h"
+#include "jit/jit.h"
+#include "lib.h"
+#include "object.h"
 #include "opt.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/structs.h"
 #include "thread.h"
+#include "tree.h"
 #include "type.h"
 #include "vcode.h"
 
@@ -210,6 +212,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = jit_interp;
+   f->object    = vu ? vcode_unit_object(vu) : NULL;
 
    if (vu) hash_put(j->index, vu, f);
    hash_put(j->index, name, f);
@@ -241,7 +244,7 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
 }
 
 void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
-                  const uint8_t *debug, size_t bufsz)
+                  const uint8_t *debug, size_t bufsz, object_t *obj)
 {
    jit_func_t *f = hash_get(j->index, name);
    if (f != NULL)
@@ -258,6 +261,7 @@ void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
    f->entry     = fn;
    f->irbuf     = xcalloc_array(bufsz, sizeof(jit_ir_t));
    f->nirs      = bufsz;
+   f->object    = obj;
 
    for (int i = 0; i < bufsz; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -338,11 +342,9 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    if (kind != VCODE_UNIT_PACKAGE && kind != VCODE_UNIT_INSTANCE)
       fatal_trace("cannot link unit %s", istr(f->name));
 
-   const loc_t *loc = vcode_unit_loc();
-
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
    if (!jit_fastcall(j, f->handle, &result, p1, p2)) {
-      error_at(loc, "failed to initialise %s", istr(f->name));
+      error_at(&(f->object->loc), "failed to initialise %s", istr(f->name));
       result.pointer = NULL;
    }
    else if (result.pointer == NULL)
@@ -465,24 +467,6 @@ static void jit_native_trace(diag_t *d)
 static void jit_interp_trace(diag_t *d)
 {
    for (jit_anchor_t *a = jit_thread_local()->anchor; a; a = a->caller) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      vcode_select_unit(a->func->unit);
-      while (vcode_unit_context() != NULL)
-         vcode_select_unit(vcode_unit_context());
-
-      ident_t unit_name = vcode_unit_name();
-      if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
-         unit_name = ident_prefix(unit_name, well_known(W_ELAB), '.');
-
-      vcode_state_restore(&state);
-
-      const char *symbol = istr(a->func->name);
-      tree_t enclosing = find_enclosing_decl(unit_name, symbol);
-      if (enclosing == NULL)
-         return;
-
       // Scan backwards to find the last debug info
       assert(a->irpos < a->func->nirs);
       const loc_t *loc = NULL;
@@ -496,6 +480,10 @@ static void jit_interp_trace(diag_t *d)
             break;
       }
 
+      tree_t enclosing = tree_from_object(a->func->object);
+      assert(enclosing != NULL);
+
+      const char *symbol = istr(a->func->name);
       jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
    }
 }
@@ -746,6 +734,7 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
    f->entry  = jit_interp;
+   f->object = vcode_unit_object(unit);
 
    jit_irgen(f);
 

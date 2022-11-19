@@ -22,6 +22,7 @@
 #include "jit/jit-llvm.h"
 #include "jit/jit-priv.h"
 #include "lib.h"
+#include "object.h"
 #include "opt.h"
 #include "rt/rt.h"
 #include "thread.h"
@@ -112,6 +113,7 @@ typedef enum {
    LLVM_GET_FUNC,
    LLVM_GET_FOREIGN,
    LLVM_GET_TREE,
+   LLVM_GET_OBJECT,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -609,6 +611,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             obj->types[LLVM_PTR],
             obj->types[LLVM_PTR],
             obj->types[LLVM_INT32],
+            obj->types[LLVM_PTR],
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -646,6 +649,18 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "__nvc_get_tree", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_GET_OBJECT:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INTPTR]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "__nvc_get_object", obj->fntypes[which]);
       }
       break;
 
@@ -744,39 +759,20 @@ static LLVMBasicBlockRef cgen_add_ctor(llvm_obj_t *obj)
    return old_bb;
 }
 
-static LLVMValueRef cgen_rematerialise_tree(llvm_obj_t *obj, tree_t tree)
+static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
 {
    ident_t unit;
    ptrdiff_t offset;
-   tree_locus(tree, &unit, &offset);
+   object_locus(ptr, &unit, &offset);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, unit);
-   tb_printf(tb, ".%"PRIiPTR".tree", offset);
 
-   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-   if (global == NULL) {
-      global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
-      LLVMSetUnnamedAddr(global, true);
-      LLVMSetLinkage(global, LLVMPrivateLinkage);
-      LLVMSetInitializer(global, llvm_ptr(obj, NULL));
-
-      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj);
-
-      tb_trim(tb, ident_len(unit));   // Strip suffix
-
-      LLVMValueRef args[] = {
-         llvm_const_string(obj, tb_get(tb)),
-         llvm_intptr(obj, offset),
-      };
-      LLVMValueRef init =
-         llvm_call_fn(obj, LLVM_GET_TREE, args, ARRAY_LEN(args));
-      LLVMBuildStore(obj->builder, init, global);
-
-      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
-   }
-
-   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+   LLVMValueRef args[] = {
+      llvm_const_string(obj, tb_get(tb)),
+      llvm_intptr(obj, offset),
+   };
+   return llvm_call_fn(obj, LLVM_GET_TREE, args, ARRAY_LEN(args));
 }
 
 static LLVMValueRef cgen_rematerialise_ffi(llvm_obj_t *obj, jit_foreign_t *ff)
@@ -869,7 +865,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
          return llvm_ptr(obj, value.foreign);
    case JIT_VALUE_TREE:
       if (cgb->func->cpool != NULL)
-         return cgen_rematerialise_tree(obj, value.tree);
+         return cgen_rematerialise_object(obj, tree_to_object(value.tree));
       else
          return llvm_ptr(obj, value.tree);
    default:
@@ -1875,6 +1871,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
          PTR(func->llvmfn),
          PTR(cgen_debug_irbuf(obj, func->source)),
          llvm_int32(obj, func->source->nirs),
+         cgen_rematerialise_object(obj, func->source->object)
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 

@@ -299,7 +299,7 @@ vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
-const loc_t *vcode_unit_loc(void);
+object_t *vcode_unit_object(vcode_unit_t vu);
 void vcode_set_result(vcode_type_t type);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
@@ -348,16 +348,13 @@ vcode_type_t vcode_var_type(vcode_var_t var);
 vcode_type_t vcode_var_bounds(vcode_var_t var);
 vcode_var_flags_t vcode_var_flags(vcode_var_t var);
 
-vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context);
-vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
-                            vcode_unit_t context);
-vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context);
-vcode_unit_t emit_instance(ident_t name, const loc_t *loc,
-                           vcode_unit_t context);
-vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context);
-vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
-                            vcode_unit_t context);
-vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);
+vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
                      vcode_var_flags_t flags);

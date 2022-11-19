@@ -22,6 +22,7 @@
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "object.h"
 #include "rt/rt.h"
 #include "type.h"
 
@@ -1475,12 +1476,12 @@ void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
 
 DLLEXPORT
 void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
-                    int32_t bufsz)
+                    int32_t bufsz, object_t *obj)
 {
-   printf("register! name=%s fn=%p bufsz=%d\n", name, fn, bufsz);
+   printf("register! name=%s fn=%p bufsz=%d obj=%p\n", name, fn, bufsz, obj);
 
    jit_t *j = jit_thread_local()->jit;
-   jit_register(j, name, fn, debug, bufsz);
+   jit_register(j, name, fn, debug, bufsz, obj);
 }
 
 DLLEXPORT
@@ -1514,4 +1515,11 @@ DLLEXPORT
 tree_t __nvc_get_tree(const char *unit, ptrdiff_t offset)
 {
    return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
+}
+
+DLLEXPORT
+object_t *__nvc_get_object(const char *unit, ptrdiff_t offset)
+{
+   return object_from_locus(ident_new(unit), offset,
+                            (object_load_fn_t)lib_get_qualified);
 }

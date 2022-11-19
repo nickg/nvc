@@ -254,6 +254,7 @@ typedef struct _jit_func {
    jit_entry_fn_t  entry;
    jit_cfg_t      *cfg;
    ffi_spec_t      spec;
+   object_t       *object;
 } jit_func_t;
 
 typedef struct _jit_anchor {
@@ -307,7 +308,7 @@ int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
-                  const uint8_t *debug, size_t bufsz);
+                  const uint8_t *debug, size_t bufsz, object_t *obj);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

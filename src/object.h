@@ -95,23 +95,6 @@ typedef uint64_t imask_t;
 // Unused            ONE_HOT(58)
 #define I_PRIMARY    ONE_HOT(59)
 
-#define ITEM_IDENT       (I_IDENT | I_IDENT2)
-#define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
-                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
-                          | I_NAME | I_SPEC | I_RESOLUTION              \
-                          | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
-                          | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
-                          | I_GUARD)
-#define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
-                          | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
-                          | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
-                          | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
-                          | I_DIMS | I_RANGES | I_INDEXCON | I_PARTS \
-                          | I_PRAGMAS)
-#define ITEM_INT64       (I_POS | I_IVAL)
-#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
-#define ITEM_DOUBLE      (I_DVAL)
-
 enum {
    OBJECT_TAG_TREE   = 0,
    OBJECT_TAG_TYPE   = 1,
@@ -123,10 +106,6 @@ enum {
 #define OBJECT_PAGE_MASK  (OBJECT_PAGE_SZ - 1)
 #define OBJECT_ALIGN_BITS 4
 #define OBJECT_ALIGN      (1 << OBJECT_ALIGN_BITS)
-
-#ifndef __SANITIZE_ADDRESS__
-#define OBJECT_UNMAP_UNUSED 1
-#endif
 
 STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
 
@@ -247,13 +226,10 @@ typedef object_t *(*object_load_fn_t)(ident_t);
 __attribute__((noreturn, cold))
 void object_lookup_failed(object_class_t *class, object_t *obj, imask_t mask);
 
-void item_without_type(imask_t mask);
-
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
 object_t *object_new(object_arena_t *arena,
                      const object_class_t *class, int kind);
-void object_one_time_init(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
@@ -261,7 +237,6 @@ void object_copy(object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
 size_t object_arena_default_size(void);
 object_t *arena_root(object_arena_t *arena);
-void arena_set_root(object_arena_t *arena, object_t *root);
 void arena_set_checksum(object_arena_t *arena, uint32_t checksum);
 bool arena_frozen(object_arena_t *arena);
 
@@ -288,6 +263,6 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
 
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset);
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
-                            object_load_fn_t loader, unsigned tag);
+                            object_load_fn_t loader);
 
 #endif   // _OBJECT_H

@@ -151,4 +151,7 @@ int type_freedom(type_t t);
 
 bool type_frozen(type_t t);
 
+object_t *type_to_object(type_t t);
+type_t type_from_object(object_t *obj);
+
 #endif  // _TYPE_H

@@ -567,4 +567,7 @@ void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx);
 
 int tree_stable_compar(const void *pa, const void *pb);
 
+object_t *tree_to_object(tree_t t);
+tree_t tree_from_object(object_t *obj);
+
 #endif  // _TREE_H

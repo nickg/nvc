@@ -1306,8 +1306,7 @@ tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
                        tree_load_fn_t find_deps_fn)
 {
    object_t *o = object_from_locus(unit, offset,
-                                   (object_load_fn_t)find_deps_fn,
-                                   OBJECT_TAG_TREE);
+                                   (object_load_fn_t)find_deps_fn);
    assert(o->tag == OBJECT_TAG_TREE);
    return container_of(o, struct _tree, object);
 }
@@ -1328,4 +1327,15 @@ int tree_stable_compar(const void *pa, const void *pb)
       return 1;
    else
       return tree_loc(a)->first_line - tree_loc(b)->first_line;
+}
+
+object_t *tree_to_object(tree_t t)
+{
+   return &(t->object);
+}
+
+tree_t tree_from_object(object_t *obj)
+{
+   assert(obj->tag == OBJECT_TAG_TREE);
+   return container_of(obj, struct _tree, object);
 }

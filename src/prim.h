@@ -66,7 +66,7 @@ typedef struct event     event_t;
 typedef struct waveform  waveform_t;
 typedef struct sens_list sens_list_t;
 
-typedef struct vcode_unit *vcode_unit_t;
+typedef struct _vcode_unit *vcode_unit_t;
 
 typedef struct _cover_tagging cover_tagging_t;
 

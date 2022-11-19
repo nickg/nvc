@@ -30,10 +30,10 @@ typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT
 } wakeable_kind_t;
 
-typedef uint32_t generation_t;
+typedef uint32_t wakeup_gen_t;
 
 typedef struct {
-   generation_t    wakeup_gen;
+   wakeup_gen_t    wakeup_gen;
    wakeable_kind_t kind : 8;
    bool            pending;
    bool            postponed;
@@ -69,7 +69,7 @@ typedef struct {
 
 typedef struct {
    rt_proc_t    *proc;
-   generation_t  wakeup_gen;
+   wakeup_gen_t  wakeup_gen;
 } event_proc_t;
 
 struct event {

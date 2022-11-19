@@ -24,6 +24,7 @@
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "object.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
@@ -662,21 +663,20 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
 
    LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
 
-   const loc_t *loc = vcode_unit_loc();
-   assert(!loc_invalid_p(loc));
+   object_t *obj = vcode_unit_object(vcode_active_unit());
 
-   LLVMMetadataRef file_ref = cgen_debug_file(loc, true);
+   LLVMMetadataRef file_ref = cgen_debug_file(&(obj->loc), true);
    LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
       debuginfo, file_ref, NULL, 0, 0);
    LLVMMetadataRef sp = LLVMDIBuilderCreateFunction(
       debuginfo, scope, tb_get(symbol), tb_len(symbol),
       tb_get(symbol), tb_len(symbol), file_ref,
-      loc->first_line, dtype, true, true,
+      obj->loc.first_line, dtype, true, true,
       1, 0, opt_get_int(OPT_OPTIMISE));
    LLVMSetSubprogram(ctx->fn, sp);
 
    cgen_push_debug_scope(sp);
-   cgen_debug_loc(ctx, vcode_unit_loc(), true);
+   cgen_debug_loc(ctx, &(obj->loc), true);
 }
 
 static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
