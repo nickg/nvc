@@ -100,7 +100,7 @@ static inline jit_value_t jit_value_from_loc(const loc_t *loc)
 
 static inline jit_value_t jit_value_from_tree(tree_t t)
 {
-   jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = (intptr_t)t };
+   jit_value_t value = { .kind = JIT_VALUE_TREE, .tree = t };
    return value;
 }
 

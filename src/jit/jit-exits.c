@@ -1509,3 +1509,9 @@ jit_foreign_t *__nvc_get_foreign(const char *name, ffi_spec_t spec)
    ident_t id = ident_new(name);
    return jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
 }
+
+DLLEXPORT
+tree_t __nvc_get_tree(const char *unit, ptrdiff_t offset)
+{
+   return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
+}

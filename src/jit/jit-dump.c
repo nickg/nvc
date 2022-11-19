@@ -127,6 +127,8 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
    case JIT_VALUE_FOREIGN:
       return printf("$%s", istr(ffi_get_sym(value.foreign)));
+   case JIT_VALUE_TREE:
+      return printf("%s@%p", tree_kind_str(tree_kind(value.tree)), value.tree);
    case JIT_VALUE_INVALID:
       return printf("???");
    }

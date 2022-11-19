@@ -164,6 +164,7 @@ typedef enum {
    JIT_VALUE_EXIT,
    JIT_VALUE_LOC,
    JIT_VALUE_FOREIGN,
+   JIT_VALUE_TREE,
 } jit_value_kind_t;
 
 typedef uint32_t jit_label_t;
@@ -181,6 +182,7 @@ typedef struct {
       jit_exit_t     exit;
       loc_t          loc;
       jit_foreign_t *foreign;
+      tree_t         tree;
    };
 } jit_value_t;
 

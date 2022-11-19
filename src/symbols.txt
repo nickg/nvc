@@ -45,6 +45,7 @@
   __nvc_get_func;
   __nvc_get_foreign;
   __nvc_get_handle;
+  __nvc_get_tree;
   __nvc_getpriv;
   __nvc_index_fail;
   __nvc_length_fail;
