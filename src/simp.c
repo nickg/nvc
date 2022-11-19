@@ -165,9 +165,7 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    else if (!eval_possible(ctx->eval, t))
       return t;
 
-   tree_t folded = eval_try_fold(ctx->eval, t);
-
-   return folded;
+   return eval_try_fold(ctx->eval, t);
 }
 
 static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)

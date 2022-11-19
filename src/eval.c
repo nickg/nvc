@@ -188,6 +188,10 @@ bool eval_possible(eval_t *e, tree_t t)
    switch (tree_kind(t)) {
    case T_FCALL:
       {
+         const tree_flags_t flags = tree_flags(t);
+         if (!(flags & (TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC)))
+            return eval_not_possible(e, t, "non-static expression");
+
          tree_t decl = tree_ref(t);
          const subprogram_kind_t kind = tree_subkind(decl);
          if (kind == S_USER && !(e->flags & EVAL_FCALL))
@@ -196,8 +200,6 @@ bool eval_possible(eval_t *e, tree_t t)
             return eval_not_possible(e, t, "call to foreign function");
          else if (tree_flags(decl) & TREE_F_IMPURE)
             return eval_not_possible(e, t, "call to impure function");
-         else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
-            return eval_not_possible(e, t, "non-static expression");
          else if (kind != S_USER && !is_open_coded_builtin(kind)
                   && vcode_find_unit(tree_ident2(decl)) == NULL)
             return eval_not_possible(e, t, "not yet lowered predef");

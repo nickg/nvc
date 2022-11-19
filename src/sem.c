@@ -4255,6 +4255,28 @@ static bool sem_static_subtype(type_t type, static_fn_t fn)
    }
 }
 
+static bool sem_ieee_locally_static(tree_t decl)
+{
+   // Subprograms definined in certain IEEE packages are treated the
+   // same as builtin operators in VHDL-2008
+
+   if (standard() < STD_08)
+      return false;
+
+   ident_t unit_name = tree_ident(tree_container(decl));
+
+   switch (is_well_known(unit_name)) {
+   case W_NUMERIC_STD:
+   case W_NUMERIC_BIT:
+   case W_IEEE_1164:
+   case W_NUMERIC_BIT_UNSIGNED:
+   case W_NUMERIC_STD_UNSIGNED:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static bool sem_locally_static(tree_t t)
 {
    // Rules for locally static expressions are in LRM 93 7.4.1
@@ -4319,7 +4341,10 @@ static bool sem_locally_static(tree_t t)
       }
    }
 
-   // A function call of an implicit operator with locally static actuals
+   // A function call of an implicit operator or [2008] an operation
+   // defined in one of the packages STD_LOGIC_1164, NUMERIC_BIT,
+   // NUMERIC_STD, NUMERIC_BIT_UNSIGNED, or NUMERIC_STD_UNSIGNED in
+   // library IEEE whose actuals are locally static expressions.
    if (kind == T_FCALL) {
       if (!tree_has_ref(t))
          return true;  // Suppress further errors
@@ -4329,7 +4354,8 @@ static bool sem_locally_static(tree_t t)
       tree_t decl = tree_ref(t);
       if (tree_kind(decl) == T_GENERIC_DECL)
          return false;   // Not known at this point
-      else if (!is_builtin(tree_subkind(decl)))
+      else if (!is_builtin(tree_subkind(decl))
+               && !sem_ieee_locally_static(decl))
          return false;
 
       const int nparams = tree_params(t);

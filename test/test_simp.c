@@ -1380,6 +1380,29 @@ START_TEST(test_casefold1)
 }
 END_TEST
 
+START_TEST(test_issue574)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue574.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+
+   tree_t d = search_decls(p, ident_new("C_MEMORY_MAP_DEFAULT"), 0);
+   fail_if(d == NULL);
+
+   tree_t agg = tree_value(d);
+   fail_unless(tree_kind(agg) == T_AGGREGATE);
+
+   tree_t n0 = tree_name(tree_assoc(agg, 0));
+   fail_unless(tree_kind(n0) == T_LITERAL);
+   fail_unless(tree_subkind(n0) == L_INT);
+   fail_unless(tree_ival(n0) == 1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1434,6 +1457,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue496);
    tcase_add_test(tc_core, test_genpack1);
    tcase_add_test(tc_core, test_casefold1);
+   tcase_add_test(tc_core, test_issue574);
    suite_add_tcase(s, tc_core);
 
    return s;

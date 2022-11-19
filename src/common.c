@@ -998,11 +998,16 @@ void intern_strings(void)
    id_cache[W_ERROR]          = ident_new("error");
    id_cache[W_CCONV]          = ident_new("\"??\"");
    id_cache[W_ELAB]           = ident_new("elab");
+   id_cache[W_NUMERIC_STD]    = ident_new("IEEE.NUMERIC_STD");
+   id_cache[W_NUMERIC_BIT]    = ident_new("IEEE.NUMERIC_BIT");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
    id_cache[W_IEEE_ULOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR");
+
+   id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
+   id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");
 }
 
 bool is_uninstantiated_package(tree_t pack)

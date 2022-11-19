@@ -189,6 +189,10 @@ typedef enum {
    W_ERROR,
    W_CCONV,
    W_ELAB,
+   W_NUMERIC_STD,
+   W_NUMERIC_BIT,
+   W_NUMERIC_STD_UNSIGNED,
+   W_NUMERIC_BIT_UNSIGNED,
 
    NUM_WELL_KNOWN
 } well_known_t;
