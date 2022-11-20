@@ -696,3 +696,4 @@ cover2          cover,shell
 cover3          cover,shell
 cover4          cover,shell
 cover5          cover,shell
+cover6          cover,shell
