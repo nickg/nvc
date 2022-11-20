@@ -260,9 +260,7 @@ issue111        normal
 issue115        normal
 issue116        normal
 issue112        normal
-cover_stmt      cover,shell
-cover_toggle    cover,shell
-cover_branch    cover,shell
+cover1          cover,shell
 issue121        normal
 issue122        normal
 issue95         normal
@@ -694,3 +692,5 @@ issue570        normal,2008
 issue571        normal,2008,relaxed
 operator6       normal,2008
 vecorder2       normal,2008
+cover2          cover,shell
+cover3          cover,shell

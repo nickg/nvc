@@ -29,10 +29,10 @@ end architecture;
 library ieee;
 use ieee.std_logic_1164.all;
 
-entity cover_toggle is
+entity cover2 is
 end entity;
 
-architecture test of cover_toggle is
+architecture test of cover2 is
 
     -- Full toggle
     signal t1_a  : std_logic := '0';

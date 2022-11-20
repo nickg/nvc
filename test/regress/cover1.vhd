@@ -1,7 +1,7 @@
-entity cover_stmt is
+entity cover1 is
 end entity;
 
-architecture test of cover_stmt is
+architecture test of cover1 is
 
     signal my_signal : integer;
 
@@ -54,8 +54,11 @@ begin
                 report "T_IF, i = 2";
             elsif (i = 3) then
                 report "T_IF, i = 3";
+            elsif (i = 4) then
+                report "T_IF, i = 4";
             else
-                report "T_IF, i = 5";
+                -- Some unreachable statement to get also some uncovered statements.
+                assert (False);
             end if;
 
             case_cond_1: case i is

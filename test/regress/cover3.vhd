@@ -3,10 +3,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity cover_branch is
+entity cover3 is
 end entity;
 
-architecture test of cover_branch is
+architecture test of cover3 is
 
     signal cnt : integer := 0;
     signal cnt2 : integer := 0;

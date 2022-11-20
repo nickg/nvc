@@ -1,4 +1,4 @@
-** Note: code coverage results for: WORK.COVER_BRANCH
+** Note: code coverage results for: WORK.COVER3
 ** Note:      statement:  N.A.
 ** Note:      branch:     84.6 % (44/52)
 ** Note:      toggle:     N.A.
