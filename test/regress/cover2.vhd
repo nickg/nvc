@@ -75,6 +75,10 @@ architecture test of cover2 is
 
     signal my_rec : t_record := ('0', "0000", (0, '0', "000"));
 
+    -- coverage off
+    signal my_ignored_signal : std_logic := '0';
+    -- coverage on
+
 begin
 
     -- Toggle on ports - Full
@@ -164,6 +168,18 @@ begin
         my_rec.z.c <= "101";
         wait for 1 ns;
 
+        wait;
+    end process;
+
+    -- Toggle on the process just to make sure that toggle callback
+    -- is truly not called and does not mess something up.
+    process
+    begin
+        wait for 1 ns;
+        my_ignored_signal <= '1';
+        wait for 1 ns;
+        my_ignored_signal <= '0';
+        wait for 1 ns;
         wait;
     end process;
 

@@ -56,9 +56,14 @@ begin
                 report "T_IF, i = 3";
             elsif (i = 4) then
                 report "T_IF, i = 4";
-            else
+            elsif (i = 10) then
                 -- Some unreachable statement to get also some uncovered statements.
                 assert (False);
+
+            else
+                -- coverage off
+                assert (False) report "PRAGMA COVER OFF statement";
+                -- coverage on
             end if;
 
             case_cond_1: case i is

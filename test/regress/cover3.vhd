@@ -41,6 +41,9 @@ begin
     begin
         l_if_1: if (cnt = 0) then report "IF1: CNT = 0";
         elsif (cnt = 1) then      report "IF1: CNT = 1";
+        -- coverage off
+        elsif (cnt = 10) then     report "IF1: CNT = 10";
+        -- coverage on
         else                      report "IF1: CNT other";
         end if;
 
@@ -63,7 +66,9 @@ begin
         -- Case with all options covered
         l_case_1: case (cnt) is
         when 0 => report "CASE1: CNT = 0";
+        -- coverage off
         when 1 => report "CASE1: CNT = 1";
+        -- coverage on
         when 2 => report "CASE1: CNT = 2";
         when 3 => report "CASE1: CNT = 3";
         when others => report "CASE1: CNT = OTHERS";
@@ -127,6 +132,5 @@ begin
         when others => assert(False);
         end case;
     end process;
-
 
 end architecture;
