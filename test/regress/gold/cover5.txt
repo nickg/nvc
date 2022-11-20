@@ -1,0 +1,4 @@
+** Note: code coverage results for: WORK.COVER5
+** Note:      statement:  100.0 % (9/9)
+** Note:      branch:     100.0 % (6/6)
+** Note:      toggle:     40.0 % (4/10)
