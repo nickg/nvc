@@ -1562,7 +1562,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
 
          while (1) {
             char arr_index[16] = {0};
-            int32_t tmp;
+            int32_t tmp = -1;
             checked_sprintf(arr_index, sizeof(arr_index), "(%lu)", i);
             ident_t arr_suffix = ident_prefix(prefix, ident_new(arr_index), '\0');
 
@@ -1572,8 +1572,11 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
                type_t e_type = type_elem(type);
                if (type_is_array(e_type))
                   tmp = lower_toggle_tag_for(e_type, where, arr_suffix, dimension_of(e_type));
-               else
-                  tmp = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags)->tag;
+               else {
+                  cover_tag_t *tag = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags);
+                  if (tag)
+                     tmp = tag->tag;
+               }
             }
 
             // Recurse to lower dimension
@@ -1592,8 +1595,12 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
       }
       return first_tag;
    }
-   else
-      return cover_add_tag(where, NULL, cover_tags, TAG_TOGGLE, flags)->tag;
+   else {
+      cover_tag_t *tag = cover_add_tag(where, NULL, cover_tags, TAG_TOGGLE, flags);
+      if (tag == NULL)
+         return -1;
+      return tag->tag;
+   }
 }
 
 static void lower_toggle_coverage_cb(tree_t field, vcode_reg_t field_ptr,
