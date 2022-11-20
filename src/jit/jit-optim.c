@@ -229,10 +229,15 @@ void jit_free_cfg(jit_func_t *f)
 
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos)
 {
-   // TODO: do binary search
-   for (int i = 0; i < cfg->nblocks; i++) {
-      jit_block_t *bb = &(cfg->blocks[i]);
-      if (pos >= bb->first && pos <= bb->last)
+   for (int low = 0, high = cfg->nblocks - 1; low <= high; ) {
+      const int mid = (low + high) / 2;
+      jit_block_t *bb = &(cfg->blocks[mid]);
+
+      if (bb->last < pos)
+         low = mid + 1;
+      else if (bb->first > pos)
+         high = mid - 1;
+      else
          return bb;
    }
 
