@@ -118,14 +118,14 @@ typedef enum {
    COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM   = (1 << 11)
 } cover_mask_t;
 
-#define COVER_MASK_ALL_TYPES (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
+#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
 
 typedef struct {
    cover_mask_t   mask;
    int            array_limit;
 } cover_opts_t;
 
-cover_tagging_t *cover_tags_init(cover_opts_t *opts);
+cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
 
 void cover_reset_scope(cover_tagging_t *tagging, ident_t hier);

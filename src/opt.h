@@ -59,9 +59,12 @@ typedef enum {
    OPT_LAST_NAME
 } opt_name_t;
 
+#define OPT_MAX_WC_LEN 32
+
 typedef struct {
    const char *opt;
    int         mask;
+   char        wc_buf[OPT_MAX_WC_LEN + 1];
 } opt_separed_t;
 
 void opt_set_int(opt_name_t name, int val);
@@ -71,8 +74,7 @@ const char *opt_get_str(opt_name_t name);
 bool opt_get_verbose(opt_name_t name, const char *filter);
 
 int opt_parse_comma_separated(const char *opt, const char *optarg,
-                              opt_separed_t *allowed, int allowed_cnt,
-                              char **wc_buf);
+                              opt_separed_t *allowed, int allowed_cnt);
 
 void set_default_options(void);
 

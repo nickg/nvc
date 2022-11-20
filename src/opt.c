@@ -105,13 +105,11 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
 }
 
 int opt_parse_comma_separated(const char *opt, const char *optarg,
-                              opt_separed_t *allowed, int allowed_cnt,
-                              char **wc_buf)
+                              opt_separed_t *allowed, int allowed_cnt)
 {
    assert(allowed_cnt > 1);
 
-   char buf[64] = {0};
-   int len = 0;
+   char *start = (char *)optarg;
    int rv = 0;
 
    while (1) {
@@ -125,22 +123,28 @@ int opt_parse_comma_separated(const char *opt, const char *optarg,
             int wc_pos =  wc - curr_opt->opt;
 
             // Check for wild-card options -> Copy matched end to wildcard buffer
-            if (wc && !strncmp(curr_opt->opt, buf, wc_pos)) {
-               strcpy(*wc_buf, buf + wc_pos);
-               wc_buf++;
+            if (wc && !strncmp(curr_opt->opt, start, wc_pos)) {
+               int length = optarg - (start + wc_pos);
+               if (length > OPT_MAX_WC_LEN) {
+                  warnf("Wildcard for option '%s' is too long, cropped to 32 characters.",
+                        curr_opt->opt);
+                  length = OPT_MAX_WC_LEN;
+               }
+               memcpy(curr_opt->wc_buf, start + wc_pos, length);
                break;
             }
             // Check for regular options
-            else if (!strcmp(curr_opt->opt, buf)) {
+            else if (!strncmp(curr_opt->opt, start, optarg - start))
                break;
-            }
+
             if (i == allowed_cnt - 1)
                curr_opt = NULL;
          }
 
-         if ((curr_opt == NULL) || (len == ARRAY_LEN(buf))) {
+         if (curr_opt == NULL) {
             diag_t *d = diag_new(DIAG_FATAL, NULL);
-            diag_printf(d, "Invalid option '%s' for command '%s'", buf, opt);
+            diag_printf(d, "Invalid option '%.*s' for command '%s'",
+                           (int)(optarg - start), start, opt);
             diag_hint(d, NULL, "valid options are:");
             for (int i = 0; i < allowed_cnt; i++)
                diag_hint(d, NULL, "    %s", allowed[i].opt);
@@ -155,14 +159,7 @@ int opt_parse_comma_separated(const char *opt, const char *optarg,
          if (*optarg == '\0')
             break;
 
-         for (int i = 0; i < ARRAY_LEN(buf); i++)
-            buf[i] = '\0';
-         len = 0;
-      }
-      // Append to the buffer
-      else {
-         buf[len] = *optarg;
-         len++;
+         start = (char*)optarg + 1;
       }
       optarg++;
    }

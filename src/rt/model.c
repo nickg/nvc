@@ -1802,7 +1802,7 @@ static void emit_coverage(rt_model_t *m)
    }
 }
 
-cover_tagging_t *get_rt_coverage(rt_model_t *m)
+cover_tagging_t *get_coverage(rt_model_t *m)
 {
    return m->cover;
 }

@@ -1536,9 +1536,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
       if (folded_bounds(r, &low, &high)) {
          assert(low <= high);
 
-         int64_t i;
-         int64_t last;
-         int64_t first;
+         int64_t first, last, i;
          int inc;
 
          if (cover_skip_array_toggle(cover_tags, high - low + 1))
@@ -9878,7 +9876,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 
    vcode_unit_t vu = emit_instance(name, tree_to_object(block), context);
 
-   if (cover_enabled(cover_tags, COVER_MASK_ALL_TYPES)) {
+   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
       if (!context)
          cover_reset_scope(cover_tags, prefix);
 
@@ -9913,7 +9911,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 
    lower_pop_scope();
 
-   if (cover_enabled(cover_tags, COVER_MASK_ALL_TYPES)) {
+   if (cover_enabled(cover_tags, COVER_MASK_ALL)) {
       cover_add_tag(block, NULL, cover_tags, TAG_HIER, COV_FLAG_HIER_UP);
       cover_pop_scope(cover_tags);
    }

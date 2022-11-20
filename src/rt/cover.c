@@ -325,11 +325,11 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init(cover_opts_t *opts)
+cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->opts.mask = opts->mask;
-   ctx->opts.array_limit = opts->array_limit;
+   ctx->opts.mask = mask;
+   ctx->opts.array_limit = array_limit;
    ctx->level = 1;
 
    return ctx;
@@ -705,7 +705,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
-   cover_mask_t op_mask = get_rt_coverage(m)->opts.mask;
+   cover_mask_t op_mask = get_coverage(m)->opts.mask;
    sig_event_fn_t fn = &cover_toggle_cb_0_1;
 
    if ((op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&

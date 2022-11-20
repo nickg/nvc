@@ -253,26 +253,23 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          if (optarg) {
-            char LOCAL *wc_buf[1] = {
-               xcalloc(32)
-            };
             opt_separed_t cov_opts[] = {
-               {.opt = "statement",             .mask = COVER_MASK_STMT},
-               {.opt = "toggle",                .mask = COVER_MASK_TOGGLE},
-               {.opt = "branch",                .mask = COVER_MASK_BRANCH},
-               {.opt = "all",                   .mask = COVER_MASK_ALL_TYPES},
-               {.opt = "count-from-undefined",  .mask = COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED},
-               {.opt = "count-from-to-z",       .mask = COVER_MASK_TOGGLE_COUNT_FROM_TO_Z},
-               {.opt = "ignore-mems",           .mask = COVER_MASK_TOGGLE_IGNORE_MEMS},
-               {.opt = "ignore-arrays-from-*",  .mask = COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM}
+               {"statement",             COVER_MASK_STMT,                        {0}},
+               {"toggle",                COVER_MASK_TOGGLE,                      {0}},
+               {"branch",                COVER_MASK_BRANCH,                      {0}},
+               {"all",                   COVER_MASK_ALL,                         {0}},
+               {"count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED, {0}},
+               {"count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z,      {0}},
+               {"ignore-mems",           COVER_MASK_TOGGLE_IGNORE_MEMS,          {0}},
+               {"ignore-arrays-from-*",  COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM,   {0}}
             };
             cover_opts.mask = opt_parse_comma_separated("--cover", optarg,
-                                 cov_opts, ARRAY_LEN(cov_opts), &(wc_buf[0]));
+                                 cov_opts, ARRAY_LEN(cov_opts));
             if (cover_opts.mask & COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM)
-               cover_opts.array_limit = atoi(wc_buf[0]);
+               cover_opts.array_limit = atoi(cov_opts[7].wc_buf);
          }
          else
-            cover_opts.mask = COVER_MASK_ALL_TYPES;
+            cover_opts.mask = COVER_MASK_ALL;
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -312,7 +309,7 @@ static int elaborate(int argc, char **argv)
 
    cover_tagging_t *cover = NULL;
    if (cover_opts.mask != 0)
-      cover = cover_tags_init(&(cover_opts));
+      cover = cover_tags_init(cover_opts.mask, cover_opts.array_limit);
 
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
@@ -931,13 +928,17 @@ static int coverage(int argc, char **argv)
 
    // Rest of inputs are coverage input files
    for (int i = optind; i < argc; i++) {
-      progress("Loading input coverage database: %s", argv[i]);
       fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
 
-      if (i == optind)
-         cover = cover_read_tags(f);
+      if (f != NULL) {
+         progress("Loading input coverage database: %s", argv[i]);
+         if (i == optind)
+            cover = cover_read_tags(f);
+         else
+            cover_merge_tags(f, cover);
+      }
       else
-         cover_merge_tags(f, cover);
+         fatal("Could not open coverage database: %s", argv[i]);
 
       fbuf_close(f, NULL);
    }
