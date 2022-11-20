@@ -372,6 +372,7 @@ code coverage database.
 Generate HTML code coverage report to
 .Ar DIR
 directory.
+.El
 .\" ------------------------------------------------------------
 .\" Make options
 .\" ------------------------------------------------------------
@@ -560,6 +561,33 @@ elaboration option, e.g.:
 .Bd -literal -offset indent
 $ nvc -e --cover=all,ignore_mems,count-from-undefined <top>
 .Ed
+Coverage collection on parts of the code can be ignored via dedicated pragma, e.g.:
+.Bd -literal -offset indent
+case (sel) is
+when "00" => ...
+when "01" => ...
+when "10" => ...
+when "11" => ...
+-- coverage off
+when others => report "ERROR" severity failure;
+-- coverage on
+end case;
+.Ed
+.Pp
+in the example above, statement coverage for
+.Cm report
+statement and branch coverage for
+.Cm others
+choice will not be collected.
+
+Toggle coverage collection on specific signals can be also disabled, e.g.:
+.Bd -literal -offset indent
+-- coverage off
+signal cnt : std_logic_vector(3 downto 0);
+-- coverage on
+.Ed
+.Pp
+
 .\" ------------------------------------------------------------
 .\" Relaxed rules
 .\" ------------------------------------------------------------
