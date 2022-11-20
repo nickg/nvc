@@ -7666,7 +7666,7 @@ static void lower_hier_decl(tree_t decl)
    top_scope->hier = decl;
 
    if (cover_tags != NULL)
-      cover_exclude_from_pragmas(cover_tags, tree_ref(decl));
+      cover_ignore_from_pragmas(cover_tags, tree_ref(decl));
 }
 
 static void lower_decl(tree_t decl, vcode_unit_t context)

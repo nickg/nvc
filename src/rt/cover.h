@@ -132,7 +132,7 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier);
 void cover_push_scope(cover_tagging_t *tagging, tree_t t);
 void cover_pop_scope(cover_tagging_t *tagging);
 
-void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit);
+void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit);
 
 void cover_add_dim(cover_tagging_t *tagging);
 void cover_sub_dim(cover_tagging_t *tagging);

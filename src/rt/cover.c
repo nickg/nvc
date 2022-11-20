@@ -57,7 +57,7 @@ typedef struct _cover_scope {
    int            branch_label;
    int            stmt_label;
    cover_scope_t *parent;
-   range_array_t  exclude_lines;
+   range_array_t  ignore_lines;
 } cover_scope_t;
 
 struct _cover_tagging {
@@ -199,14 +199,14 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    assert (ctx != NULL);
 
    // TODO: need a better way to determine if a scope comes from an instance
-   cover_scope_t *excl_scope = ctx->top_scope;
-   for (; excl_scope->exclude_lines.count == 0 && excl_scope->parent;
-        excl_scope = excl_scope->parent)
+   cover_scope_t *ignore_scope = ctx->top_scope;
+   for (; ignore_scope->ignore_lines.count == 0 && ignore_scope->parent;
+        ignore_scope = ignore_scope->parent)
       ;
 
    const loc_t *loc = tree_loc(t);
-   for (int i = 0; i < excl_scope->exclude_lines.count; i++) {
-      line_range_t *lr = &(excl_scope->exclude_lines.items[i]);
+   for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
+      line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
       if (loc->first_line > lr->start && loc->first_line <= lr->end)
          return NULL;
    }
@@ -413,7 +413,7 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    assert(tagging->top_scope != NULL);
 
-   ACLEAR(tagging->top_scope->exclude_lines);
+   ACLEAR(tagging->top_scope->ignore_lines);
 
    cover_scope_t *tmp = tagging->top_scope->parent;
    free(tagging->top_scope);
@@ -427,11 +427,11 @@ void cover_pop_scope(cover_tagging_t *tagging)
    assert(tagging->hier != NULL);
 }
 
-void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
+void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
 {
    assert(tagging->top_scope != NULL);
 
-   range_array_t *excl = &(tagging->top_scope->exclude_lines);
+   range_array_t *excl = &(tagging->top_scope->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
    for (int i = 0; i < npragmas; i++) {
