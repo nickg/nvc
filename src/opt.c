@@ -104,68 +104,6 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
       return strstr(filter, value) != NULL;
 }
 
-int opt_parse_comma_separated(const char *opt, const char *optarg,
-                              opt_separed_t *allowed, int allowed_cnt)
-{
-   assert(allowed_cnt > 1);
-
-   char *start = (char *)optarg;
-   int rv = 0;
-
-   while (1) {
-
-      // Process buffer gathered so far, search if any allowed options match
-      if (*optarg == ',' || *optarg == '\0') {
-         opt_separed_t *curr_opt;
-         for (int i = 0; i < allowed_cnt; i++) {
-            curr_opt = &(allowed[i]);
-            const char *wc = strchr(curr_opt->opt, '*');
-            int wc_pos =  wc - curr_opt->opt;
-
-            // Check for wild-card options -> Copy matched end to wildcard buffer
-            if (wc && !strncmp(curr_opt->opt, start, wc_pos)) {
-               int length = optarg - (start + wc_pos);
-               if (length > OPT_MAX_WC_LEN) {
-                  warnf("Wildcard for option '%s' is too long, cropped to 32 characters.",
-                        curr_opt->opt);
-                  length = OPT_MAX_WC_LEN;
-               }
-               memcpy(curr_opt->wc_buf, start + wc_pos, length);
-               break;
-            }
-            // Check for regular options
-            else if (!strncmp(curr_opt->opt, start, optarg - start))
-               break;
-
-            if (i == allowed_cnt - 1)
-               curr_opt = NULL;
-         }
-
-         if (curr_opt == NULL) {
-            diag_t *d = diag_new(DIAG_FATAL, NULL);
-            diag_printf(d, "Invalid option '%.*s' for command '%s'",
-                           (int)(optarg - start), start, opt);
-            diag_hint(d, NULL, "valid options are:");
-            for (int i = 0; i < allowed_cnt; i++)
-               diag_hint(d, NULL, "    %s", allowed[i].opt);
-            diag_hint(d, NULL, "selected options shall be "
-                               "comma separated e.g. $bold$%s=%s,%s...$$",
-                                opt, allowed[0].opt, allowed[1].opt);
-            diag_emit(d);
-            fatal_exit(EXIT_FAILURE);
-         } else
-            rv |= curr_opt->mask;
-
-         if (*optarg == '\0')
-            break;
-
-         start = (char*)optarg + 1;
-      }
-      optarg++;
-   }
-   return rv;
-}
-
 void set_default_options(void)
 {
    opt_set_int(OPT_RT_STATS, 0);

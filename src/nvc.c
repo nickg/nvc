@@ -219,6 +219,58 @@ static void set_top_level(char **argv, int next_cmd)
    }
 }
 
+static void parse_cover_options(const char *str, cover_mask_t *mask,
+                                int *array_limit)
+{
+   static const struct {
+      const char *name;
+      cover_mask_t mask;
+   } options[] = {
+      { "statement",             COVER_MASK_STMT                        },
+      { "toggle",                COVER_MASK_TOGGLE                      },
+      { "branch",                COVER_MASK_BRANCH                      },
+      { "all",                   COVER_MASK_ALL                         },
+      { "count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED },
+      { "count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      },
+      { "ignore-mems",           COVER_MASK_TOGGLE_IGNORE_MEMS          },
+   };
+
+   for (const char *start = str; ; str++){
+      if (*str == ',' || *str == '\0') {
+         if (strncmp(start, "ignore-arrays-from-", 19) == 0)
+            *array_limit = atoi(start + 19);
+         else {
+            int pos = 0;
+            for (; pos < ARRAY_LEN(options); pos++) {
+               if (!strncmp(options[pos].name, start, str - start))
+                  break;
+            }
+
+            if (pos == ARRAY_LEN(options)) {
+               diag_t *d = diag_new(DIAG_FATAL, NULL);
+               diag_printf(d, "unknown coverage type '%.*s'",
+                           (int)(str - start), start);
+               diag_hint(d, NULL, "valid coverage types are: \n"
+                         "  statement\n"
+                         "  toggle\n"
+                         "  branch");
+               diag_hint(d, NULL, "selected coverage types shall be "
+                         "comma separated e.g $bold$--cover=toggle,branch$$");
+               diag_emit(d);
+               fatal_exit(EXIT_FAILURE);
+            }
+            else
+               *mask |= options[pos].mask;
+         }
+
+         if (*str == '\0')
+            break;
+
+         start = str + 1;
+      }
+   }
+}
+
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -252,22 +304,9 @@ static int elaborate(int argc, char **argv)
          opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
          break;
       case 'c':
-         if (optarg) {
-            opt_separed_t cov_opts[] = {
-               {"statement",             COVER_MASK_STMT,                        {0}},
-               {"toggle",                COVER_MASK_TOGGLE,                      {0}},
-               {"branch",                COVER_MASK_BRANCH,                      {0}},
-               {"all",                   COVER_MASK_ALL,                         {0}},
-               {"count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED, {0}},
-               {"count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z,      {0}},
-               {"ignore-mems",           COVER_MASK_TOGGLE_IGNORE_MEMS,          {0}},
-               {"ignore-arrays-from-*",  COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM,   {0}}
-            };
-            cover_opts.mask = opt_parse_comma_separated("--cover", optarg,
-                                 cov_opts, ARRAY_LEN(cov_opts));
-            if (cover_opts.mask & COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM)
-               cover_opts.array_limit = atoi(cov_opts[7].wc_buf);
-         }
+         if (optarg)
+            parse_cover_options(optarg, &(cover_opts.mask),
+                                &(cover_opts.array_limit));
          else
             cover_opts.mask = COVER_MASK_ALL;
          break;
