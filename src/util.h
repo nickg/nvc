@@ -272,6 +272,7 @@ char *search_path(const char *name);
 void get_libexec_dir(text_buf_t *tb);
 void get_lib_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
+void open_pipe(int *rfd, int *wfd);
 
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);

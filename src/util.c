@@ -22,6 +22,7 @@
 #include <DbgHelp.h>
 #include <fileapi.h>
 #include <psapi.h>
+#include <io.h>
 #endif
 
 #include "util.h"
@@ -47,6 +48,7 @@
 #include <limits.h>
 #include <time.h>
 #include <libgen.h>
+#include <fcntl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -64,7 +66,6 @@
 #include <sys/resource.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
-#include <fcntl.h>
 #include <termios.h>
 #endif
 
@@ -1585,6 +1586,21 @@ uint64_t get_timestamp_us()
       fatal_errno("clock_gettime");
    return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
 #endif
+}
+
+void open_pipe(int *rfd, int *wfd)
+{
+   int fds[2];
+#ifdef __MINGW32__
+   const int rc = _pipe(fds, 4096, _O_BINARY);
+#else
+   const int rc = pipe(fds) < 0;
+#endif
+   if (rc < 0)
+      fatal_errno("failed to create pipe");
+
+   *rfd = fds[0];
+   *wfd = fds[1];
 }
 
 #if defined _WIN32 || defined __CYGWIN__

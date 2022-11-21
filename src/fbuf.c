@@ -74,6 +74,7 @@ struct _fbuf {
    fbuf_t      *next;
    fbuf_t      *prev;
    cs_state_t   checksum;
+   fbuf_zip_t   zip;
 };
 
 static fbuf_t *open_list = NULL;
@@ -176,11 +177,17 @@ static void fbuf_write_raw(fbuf_t *f, const uint8_t *bytes, size_t count)
       fatal_errno("%s: fwrite", f->fname);
 }
 
+static void fbuf_read_raw(fbuf_t *f, uint8_t *bytes, size_t count)
+{
+   if (fread(bytes, count, 1, f->file) != 1)
+      fatal_errno("%s: fread", f->fname);
+}
+
 static void fbuf_write_header(fbuf_t *f)
 {
    const uint8_t header[16] = {
       'F', 'B', 'U', 'F',     // Magic number "FBUF"
-      'F',                    // Compression format (FastLZ)
+      f->zip,                 // Compression format
       f->checksum.algo,       // Checksum algorithm
       0, 0,                   // Unused
       0, 0, 0, 0,             // Decompressed length
@@ -191,7 +198,14 @@ static void fbuf_write_header(fbuf_t *f)
 
 static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
 {
-   if (fseek(f->file, 8, SEEK_SET) != 0)
+   struct stat buf;
+   if (fstat(fileno(f->file), &buf) != 0)
+      fatal_errno("fstat");
+
+   if (S_ISFIFO(buf.st_mode)) {
+      // Streaming mode: length and checksum is appended instead
+   }
+   else if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
    const uint8_t bytes[8] = { PACK_BE32(f->wtotal), PACK_BE32(checksum) };
@@ -200,13 +214,8 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
 
 static void fbuf_decompress(fbuf_t *f)
 {
-   struct stat buf;
-   if (fstat(fileno(f->file), &buf) != 0)
-      fatal_errno("fstat");
-
-   void *rmap = map_file(fileno(f->file), buf.st_size);
-
-   const uint8_t *header = rmap;
+   uint8_t header[16];
+   fbuf_read_raw(f, header, sizeof(header));
 
    if (memcmp(header, "FBUF", 4))
       fatal("%s: file created with an older version of NVC", f->fname);
@@ -218,6 +227,34 @@ static void fbuf_decompress(fbuf_t *f)
    if (header[5] != f->checksum.algo)
       fatal("%s has was created with unexpected checksum algorithm %c",
             f->fname, header[5]);
+
+   struct stat buf;
+   if (fstat(fileno(f->file), &buf) != 0)
+      fatal_errno("fstat");
+
+   size_t bufsz;
+   uint8_t *rmap = NULL;
+   if (S_ISFIFO(buf.st_mode)) {
+      rmap = xmalloc((bufsz = 16384));
+      memcpy(rmap, header, sizeof(header));
+
+      size_t wptr = sizeof(header);
+      for (;;) {
+         const int nr = fread(rmap + wptr, 1, bufsz - wptr, f->file);
+         if (nr < 0)
+            fatal_errno("%s", f->fname);
+         else if (nr == 0)
+            break;
+         else if (wptr + nr == bufsz)
+            rmap = xrealloc(rmap, (bufsz *= 2));
+
+         wptr += nr;
+      }
+
+      memcpy(header + 8, rmap + wptr - 8, 8);   // Update header
+   }
+   else
+      rmap = map_file(fileno(f->file), (bufsz = buf.st_size));
 
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
@@ -233,7 +270,7 @@ static void fbuf_decompress(fbuf_t *f)
 
       src += sizeof(uint32_t);
 
-      if (src + blksz > (uint8_t *)rmap + buf.st_size)
+      if (src + blksz > (uint8_t *)rmap + bufsz)
          fatal_trace("read past end of compressed file %s", f->fname);
 
       const int ret = fastlz_decompress(src, blksz, dst, SPILL_SIZE);
@@ -246,20 +283,21 @@ static void fbuf_decompress(fbuf_t *f)
       src += blksz;
    }
 
-   unmap_file(rmap, buf.st_size);
+   if (S_ISFIFO(buf.st_mode))
+      free(rmap);
+   else
+      unmap_file(rmap, buf.st_size);
 }
 
-fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
+static fbuf_t *fbuf_new(FILE *file, char *fname, fbuf_mode_t mode,
+                        fbuf_cs_t csum, fbuf_zip_t zip)
 {
-   FILE *h = fopen(file, mode == FBUF_OUT ? "wb" : "rb");
-   if (h == NULL)
-      return NULL;
-
    fbuf_t *f = xcalloc(sizeof(struct _fbuf));
-   f->file  = h;
-   f->fname = xstrdup(file);
+   f->file  = file;
+   f->fname = fname;
    f->mode  = mode;
    f->next  = open_list;
+   f->zip   = zip;
 
    checksum_init(&(f->checksum), csum);
 
@@ -274,6 +312,24 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
       open_list->prev = f;
 
    return (open_list = f);
+}
+
+fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
+{
+   FILE *h = fopen(file, mode == FBUF_OUT ? "wb" : "rb");
+   if (h == NULL)
+      return NULL;
+
+   return fbuf_new(h, xstrdup(file), mode, csum, FBUF_ZIP_FASTLZ);
+}
+
+fbuf_t *fbuf_fdopen(int fd, fbuf_mode_t mode, fbuf_cs_t csum)
+{
+   FILE *h = fdopen(fd, mode == FBUF_OUT ? "wb" : "rb");
+   if (h == NULL)
+      return NULL;
+
+   return fbuf_new(h, xasprintf("<fd:%d>", fd), mode, csum, FBUF_ZIP_FASTLZ);
 }
 
 const char *fbuf_file_name(fbuf_t *f)
