@@ -235,7 +235,7 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
       { "ignore-mems",           COVER_MASK_TOGGLE_IGNORE_MEMS          },
    };
 
-   for (const char *start = str; ; str++){
+   for (const char *start = str; ; str++) {
       if (*str == ',' || *str == '\0') {
          if (strncmp(start, "ignore-arrays-from-", 19) == 0)
             *array_limit = atoi(start + 19);
@@ -282,7 +282,8 @@ static int elaborate(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   cover_opts_t cover_opts = {0};
+   cover_mask_t cover_mask = 0;
+   int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "Vg:O:";
@@ -305,10 +306,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          if (optarg)
-            parse_cover_options(optarg, &(cover_opts.mask),
-                                &(cover_opts.array_limit));
+            parse_cover_options(optarg, &(cover_mask), &(cover_array_limit));
          else
-            cover_opts.mask = COVER_MASK_ALL;
+            cover_mask = COVER_MASK_ALL;
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -347,8 +347,8 @@ static int elaborate(int argc, char **argv)
    progress("elaborating design");
 
    cover_tagging_t *cover = NULL;
-   if (cover_opts.mask != 0)
-      cover = cover_tags_init(cover_opts.mask, cover_opts.array_limit);
+   if (cover_mask != 0)
+      cover = cover_tags_init(cover_mask, cover_array_limit);
 
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");

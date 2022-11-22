@@ -17,7 +17,6 @@
 
 #include "opt.h"
 #include "util.h"
-#include "diag.h"
 
 #include <stdlib.h>
 #include <string.h>

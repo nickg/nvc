@@ -114,16 +114,10 @@ typedef enum {
    COVER_MASK_TOGGLE                      = (1 << 2),
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
-   COVER_MASK_TOGGLE_IGNORE_MEMS          = (1 << 10),
-   COVER_MASK_TOGGLE_IGNORE_ARRAYS_FROM   = (1 << 11)
+   COVER_MASK_TOGGLE_IGNORE_MEMS          = (1 << 10)
 } cover_mask_t;
 
 #define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
-
-typedef struct {
-   cover_mask_t   mask;
-   int            array_limit;
-} cover_opts_t;
 
 cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
@@ -134,8 +128,8 @@ void cover_pop_scope(cover_tagging_t *tagging);
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit);
 
-void cover_add_dim(cover_tagging_t *tagging);
-void cover_sub_dim(cover_tagging_t *tagging);
+void cover_inc_array_depth(cover_tagging_t *tagging);
+void cover_dec_array_depth(cover_tagging_t *tagging);
 
 bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);

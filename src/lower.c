@@ -1541,7 +1541,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
 
          if (cover_skip_array_toggle(cover_tags, high - low + 1))
             return -1;
-         cover_add_dim(cover_tags);
+         cover_inc_array_depth(cover_tags);
 
          switch (tree_subkind(r)) {
          case RANGE_DOWNTO:
@@ -1591,7 +1591,7 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
             i += inc;
          }
 
-         cover_sub_dim(cover_tags);
+         cover_dec_array_depth(cover_tags);
       }
       return first_tag;
    }
