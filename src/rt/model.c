@@ -1802,6 +1802,11 @@ static void emit_coverage(rt_model_t *m)
    }
 }
 
+cover_tagging_t *get_coverage(rt_model_t *m)
+{
+   return m->cover;
+}
+
 static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
                             tree_t alias)
 {

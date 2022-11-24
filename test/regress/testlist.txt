@@ -692,3 +692,8 @@ issue570        normal,2008
 issue571        normal,2008,relaxed
 operator6       normal,2008
 vecorder2       normal,2008
+cover2          cover,shell
+cover3          cover,shell
+cover4          cover,shell
+cover5          cover,shell
+cover6          cover,shell

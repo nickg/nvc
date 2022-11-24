@@ -219,43 +219,56 @@ static void set_top_level(char **argv, int next_cmd)
    }
 }
 
-static cover_mask_t parse_cover_mask(const char *str)
+static void parse_cover_options(const char *str, cover_mask_t *mask,
+                                int *array_limit)
 {
-   char prev = 0;
-   int n_chars = 0;
-   const char *full_cov_opt = str;
-   cover_mask_t rv = 0;
-   while (1) {
+   static const struct {
+      const char *name;
+      cover_mask_t mask;
+   } options[] = {
+      { "statement",             COVER_MASK_STMT                        },
+      { "toggle",                COVER_MASK_TOGGLE                      },
+      { "branch",                COVER_MASK_BRANCH                      },
+      { "all",                   COVER_MASK_ALL                         },
+      { "count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED },
+      { "count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      },
+      { "ignore-mems",           COVER_MASK_TOGGLE_IGNORE_MEMS          },
+   };
+
+   for (const char *start = str; ; str++) {
       if (*str == ',' || *str == '\0') {
-         if (prev == 's')
-            rv |= COVER_MASK_STMT;
-         else if (prev == 't')
-            rv |= COVER_MASK_TOGGLE;
-         else if (prev == 'b')
-            rv |= COVER_MASK_BRANCH;
+         if (strncmp(start, "ignore-arrays-from-", 19) == 0)
+            *array_limit = atoi(start + 19);
          else {
-            diag_t *d = diag_new(DIAG_FATAL, NULL);
-            diag_printf(d, "unknown coverage type '%c'", *str);
-            diag_hint(d, NULL, "valid coverage types are: \n"
-                                 "  s (statement)\n"
-                                 "  t (toggle)\n"
-                                 "  b (branch)");
-            diag_hint(d, NULL, "selected coverage types shall be "
-                                 "comma separated e.g $bold$--cover=s,t,b$$");
-            diag_emit(d);
-            fatal_exit(EXIT_FAILURE);
+            int pos = 0;
+            for (; pos < ARRAY_LEN(options); pos++) {
+               if (!strncmp(options[pos].name, start, str - start))
+                  break;
+            }
+
+            if (pos == ARRAY_LEN(options)) {
+               diag_t *d = diag_new(DIAG_FATAL, NULL);
+               diag_printf(d, "unknown coverage type '%.*s'",
+                           (int)(str - start), start);
+               diag_hint(d, NULL, "valid coverage types are: \n"
+                         "  statement\n"
+                         "  toggle\n"
+                         "  branch");
+               diag_hint(d, NULL, "selected coverage types shall be "
+                         "comma separated e.g $bold$--cover=toggle,branch$$");
+               diag_emit(d);
+               fatal_exit(EXIT_FAILURE);
+            }
+            else
+               *mask |= options[pos].mask;
          }
-         n_chars = 0;
+
          if (*str == '\0')
             break;
+
+         start = str + 1;
       }
-      n_chars++;
-      if (n_chars >= 3)
-         fatal("Invalid coverage type: '%s'.", full_cov_opt);
-      prev = *str;
-      str++;
    }
-   return rv;
 }
 
 static int elaborate(int argc, char **argv)
@@ -270,6 +283,7 @@ static int elaborate(int argc, char **argv)
    };
 
    cover_mask_t cover_mask = 0;
+   int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "Vg:O:";
@@ -292,7 +306,7 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          if (optarg)
-            cover_mask = parse_cover_mask(optarg);
+            parse_cover_options(optarg, &(cover_mask), &(cover_array_limit));
          else
             cover_mask = COVER_MASK_ALL;
          break;
@@ -334,7 +348,7 @@ static int elaborate(int argc, char **argv)
 
    cover_tagging_t *cover = NULL;
    if (cover_mask != 0)
-      cover = cover_tags_init(cover_mask);
+      cover = cover_tags_init(cover_mask, cover_array_limit);
 
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
@@ -953,13 +967,17 @@ static int coverage(int argc, char **argv)
 
    // Rest of inputs are coverage input files
    for (int i = optind; i < argc; i++) {
-      progress("Loading input coverage database: %s", argv[i]);
       fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
 
-      if (i == optind)
-         cover = cover_read_tags(f);
+      if (f != NULL) {
+         progress("Loading input coverage database: %s", argv[i]);
+         if (i == optind)
+            cover = cover_read_tags(f);
+         else
+            cover_merge_tags(f, cover);
+      }
       else
-         cover_merge_tags(f, cover);
+         fatal("Could not open coverage database: %s", argv[i]);
 
       fbuf_close(f, NULL);
    }
@@ -1019,9 +1037,9 @@ static void usage(void)
           "     --cover=<types>\tEnable code coverage collection.\n"
           "                    \t<types> is comma separated list\n"
           "                    \tof coverage types to collect:\n"
-          "                    \t s - Statement coverage\n"
-          "                    \t t - Toggle coverage\n"
-          "                    \t b - Branch coverage\n"
+          "                    \t statement\n"
+          "                    \t toggle\n"
+          "                    \t branch\n"
           "                    \t Ommiting '=<types>' collects all\n"
           "                    \t coverage types.\n"
           "     --dump-llvm\tDump generated LLVM IR\n"

@@ -1506,14 +1506,15 @@ static void lower_branch_coverage(tree_t b, unsigned int flags,
       emit_cover_branch(hit_reg, tag->tag);
 }
 
-static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, int dims)
+static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
+                                    int curr_dim)
 {
    type_t root = type;
 
    // Gets well known type for scalar and vectorized version of
    // standard types (std_[u]logic[_vector], signed, unsigned)
-   if (type_base_kind(type) == T_ARRAY)
-      root = type_elem(type);
+   while (type_base_kind(root) == T_ARRAY)
+      root = type_elem(root);
    root = type_base_recur(root);
 
    well_known_t known = is_well_known(type_ident(root));
@@ -1527,35 +1528,79 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix, i
       flags = COV_FLAG_TOGGLE_PORT;
 
    if (type_is_array(type)) {
-      tree_t r = range_of(type, dims - 1);
-      int32_t first_tag = 0;
+      int t_dims = dimension_of(type);
+      tree_t r = range_of(type, t_dims - curr_dim);
+      int32_t first_tag = -1;
       int64_t low, high;
 
       if (folded_bounds(r, &low, &high)) {
          assert(low <= high);
-         for (int64_t i = low; i <= high; i++) {
+
+         int64_t first, last, i;
+         int inc;
+
+         if (cover_skip_array_toggle(cover_tags, high - low + 1))
+            return -1;
+         cover_inc_array_depth(cover_tags);
+
+         switch (tree_subkind(r)) {
+         case RANGE_DOWNTO:
+            i = high;
+            first = high;
+            last = low;
+            inc = -1;
+            break;
+         case RANGE_TO:
+            i = low;
+            first = low;
+            last = high;
+            inc = +1;
+            break;
+         default:
+            fatal("Invalid subkind for range: %d", tree_subkind(r));
+         }
+
+         while (1) {
             char arr_index[16] = {0};
-            int32_t tmp;
+            int32_t tmp = -1;
             checked_sprintf(arr_index, sizeof(arr_index), "(%lu)", i);
             ident_t arr_suffix = ident_prefix(prefix, ident_new(arr_index), '\0');
 
-            if (dims == 1) {
-               tmp = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags)->tag;
-               if (i == low)
-                  first_tag = tmp;
+            // On lowest dimension walk through elements, if elements are arrays,
+            //  then start new (nested) recursion.
+            if (curr_dim == 1) {
+               type_t e_type = type_elem(type);
+               if (type_is_array(e_type))
+                  tmp = lower_toggle_tag_for(e_type, where, arr_suffix, dimension_of(e_type));
+               else {
+                  cover_tag_t *tag = cover_add_tag(where, arr_suffix, cover_tags, TAG_TOGGLE, flags);
+                  if (tag)
+                     tmp = tag->tag;
+               }
             }
-            else {
-               tmp = lower_toggle_tag_for(type, where, arr_suffix, dims - 1);
-               if (i == low)
-                  first_tag = tmp;
-            }
-         }
-      }
 
+            // Recurse to lower dimension
+            else
+               tmp = lower_toggle_tag_for(type, where, arr_suffix, curr_dim - 1);
+
+            if (i == first)
+               first_tag = tmp;
+            if (i == last)
+               break;
+
+            i += inc;
+         }
+
+         cover_dec_array_depth(cover_tags);
+      }
       return first_tag;
    }
-   else
-      return cover_add_tag(where, NULL, cover_tags, TAG_TOGGLE, flags)->tag;
+   else {
+      cover_tag_t *tag = cover_add_tag(where, NULL, cover_tags, TAG_TOGGLE, flags);
+      if (tag == NULL)
+         return -1;
+      return tag->tag;
+   }
 }
 
 static void lower_toggle_coverage_cb(tree_t field, vcode_reg_t field_ptr,
@@ -7621,7 +7666,7 @@ static void lower_hier_decl(tree_t decl)
    top_scope->hier = decl;
 
    if (cover_tags != NULL)
-      cover_exclude_from_pragmas(cover_tags, tree_ref(decl));
+      cover_ignore_from_pragmas(cover_tags, tree_ref(decl));
 }
 
 static void lower_decl(tree_t decl, vcode_unit_t context)

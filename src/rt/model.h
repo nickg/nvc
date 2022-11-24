@@ -40,6 +40,7 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, timeout_fn_t fn,
 rt_model_t *get_model(void);
 rt_model_t *get_model_or_null(void);
 rt_proc_t *get_active_proc(void);
+cover_tagging_t *get_coverage(rt_model_t *m);
 
 rt_scope_t *find_scope(rt_model_t *m, tree_t container);
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl);

@@ -57,7 +57,7 @@ typedef struct _cover_scope {
    int            branch_label;
    int            stmt_label;
    cover_scope_t *parent;
-   range_array_t  exclude_lines;
+   range_array_t  ignore_lines;
 } cover_scope_t;
 
 struct _cover_tagging {
@@ -68,7 +68,10 @@ struct _cover_tagging {
    ident_t        hier;
    tag_array_t    tags;
    cover_mask_t   mask;
+   int            array_limit;
+   int            array_depth;
    cover_scope_t *top_scope;
+   int            level;
 };
 
 typedef struct {
@@ -162,6 +165,22 @@ bool cover_is_stmt(tree_t t)
    }
 }
 
+bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
+{
+   assert (tagging);
+
+   // Array is equal to or than configured limit
+   if (tagging->array_limit != 0 && a_size >= tagging->array_limit)
+      return true;
+
+   // Array is multi-dimensional or nested
+   if (cover_enabled(tagging, COVER_MASK_TOGGLE_IGNORE_MEMS) &&
+       tagging->array_depth > 0)
+      return true;
+
+   return false;
+}
+
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 {
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
@@ -180,14 +199,14 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    assert (ctx != NULL);
 
    // TODO: need a better way to determine if a scope comes from an instance
-   cover_scope_t *excl_scope = ctx->top_scope;
-   for (; excl_scope->exclude_lines.count == 0 && excl_scope->parent;
-        excl_scope = excl_scope->parent)
+   cover_scope_t *ignore_scope = ctx->top_scope;
+   for (; ignore_scope->ignore_lines.count == 0 && ignore_scope->parent;
+        ignore_scope = ignore_scope->parent)
       ;
 
    const loc_t *loc = tree_loc(t);
-   for (int i = 0; i < excl_scope->exclude_lines.count; i++) {
-      line_range_t *lr = &(excl_scope->exclude_lines.items[i]);
+   for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
+      line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
       if (loc->first_line > lr->start && loc->first_line <= lr->end)
          return NULL;
    }
@@ -196,7 +215,13 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       case TAG_STMT:   cnt = &(ctx->next_stmt_tag);   break;
       case TAG_BRANCH: cnt = &(ctx->next_branch_tag); break;
       case TAG_TOGGLE: cnt = &(ctx->next_toggle_tag); break;
-      case TAG_HIER:   cnt = &(ctx->next_hier_tag);   break;
+      case TAG_HIER:
+         cnt = &(ctx->next_hier_tag);
+         if (flags & COV_FLAG_HIER_DOWN)
+            ctx->level++;
+         else
+            ctx->level--;
+         break;
       default:
          fatal("Unknown coverage type: %d", kind);
    }
@@ -223,7 +248,8 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .data       = 0,
       .flags      = flags,
       .loc        = *tree_loc(t),
-      .hier       = hier
+      .hier       = hier,
+      .level      = ctx->level
    };
 
    APUSH(ctx->tags, new);
@@ -246,6 +272,8 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    printf("Total tag count: %d\n", ctx->tags.count);
 #endif
 
+   write_u32(ctx->mask, f);
+   write_u32(ctx->array_limit, f);
    write_u32(ctx->next_stmt_tag, f);
    write_u32(ctx->next_branch_tag, f);
    write_u32(ctx->next_toggle_tag, f);
@@ -286,6 +314,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
 #endif
       }
       write_u32(tag->flags, f);
+      write_u32(tag->level, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
    }
@@ -296,10 +325,12 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init(cover_mask_t mask)
+cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
    ctx->mask = mask;
+   ctx->array_limit = array_limit;
+   ctx->level = 1;
 
    return ctx;
 }
@@ -382,7 +413,7 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    assert(tagging->top_scope != NULL);
 
-   ACLEAR(tagging->top_scope->exclude_lines);
+   ACLEAR(tagging->top_scope->ignore_lines);
 
    cover_scope_t *tmp = tagging->top_scope->parent;
    free(tagging->top_scope);
@@ -396,11 +427,11 @@ void cover_pop_scope(cover_tagging_t *tagging)
    assert(tagging->hier != NULL);
 }
 
-void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
+void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
 {
    assert(tagging->top_scope != NULL);
 
-   range_array_t *excl = &(tagging->top_scope->exclude_lines);
+   range_array_t *excl = &(tagging->top_scope->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
    for (int i = 0; i < npragmas; i++) {
@@ -423,10 +454,31 @@ void cover_exclude_from_pragmas(cover_tagging_t *tagging, tree_t unit)
    }
 }
 
-void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
+void cover_inc_array_depth(cover_tagging_t *tagging)
+{
+   assert(tagging != NULL);
+   tagging->array_depth++;
+#ifdef COVER_DEBUG
+   printf("Adding dimension: %d\n", tagging->array_depth);
+#endif
+}
+
+void cover_dec_array_depth(cover_tagging_t *tagging)
+{
+   assert(tagging != NULL);
+   assert(tagging->array_depth > 0);
+   tagging->array_depth--;
+#ifdef COVER_DEBUG
+   printf("Subtracting dimension: %d\n", tagging->array_depth);
+#endif
+}
+
+static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
 {
    assert(tagging != NULL);
 
+   tagging->mask = read_u32(f);
+   tagging->array_limit = read_u32(f);
    tagging->next_stmt_tag = read_u32(f);
    tagging->next_branch_tag = read_u32(f);
    tagging->next_toggle_tag = read_u32(f);
@@ -443,6 +495,7 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->tag = read_u32(f);
    tag->data = read_u32(f);
    tag->flags = read_u32(f);
+   tag->level = read_u32(f);
 
    loc_read(&(tag->loc), loc_rd);
    tag->hier = ident_read(ident_ctx);
@@ -543,53 +596,129 @@ void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
    }
 }
 
-void cover_toggle_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
-                           void *user)
+///////////////////////////////////////////////////////////////////////////////
+// Runtime handling
+///////////////////////////////////////////////////////////////////////////////
+
+static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
+                                          int32_t *toggle_mask)
 {
-
-#ifdef COVER_DEBUG
-   printf("Time: %lu Callback on signal: %s\n",
-           now, istr(tree_ident(s->where)));
-#endif
-
-   uint32_t sig_size = s->shared.size;
-   int32_t *toggle_mask = ((int32_t *)user) + sig_size - 1;
-
-   for (int i = 0; i < sig_size; i++) {
-      uint8_t new = ((uint8_t*)signal_value(s))[i];
-      uint8_t old = ((uint8_t*)signal_last_value(s))[i];
-
-      // 0->1
-      if (old == _0 && new == _1)
-         *toggle_mask |= 0x1;
-
-      // 1->0
-      if (old == _1 && new == _0)
-         *toggle_mask |= 0x2;
-
-      toggle_mask--;
-   }
-
-#ifdef COVER_DEBUG
-   printf("New signal value:\n");
-   for (int i = 0; i < sig_size; i++)
-      printf("0x%x ", ((uint8_t*)signal_value(s))[i]);
-   printf("\n");
-
-   printf("Old signal value:\n");
-   for (int i = 0; i < sig_size; i++) {
-      printf("0x%x ", ((const uint8_t *)signal_last_value(s))[i]);
-   }
-   printf("\n\n");
-#endif
-
+   if (old == _0 && new == _1)
+      *toggle_mask |= 0x1;
+   if (old == _1 && new == _0)
+      *toggle_mask |= 0x2;
 }
+
+static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
+                                        int32_t *toggle_mask)
+{
+   if (old == _U && new == _1)
+      *toggle_mask |= 0x1;
+   if (old == _U && new == _0)
+      *toggle_mask |= 0x2;
+}
+
+static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
+                                        int32_t *toggle_mask)
+{
+   if (old == _0 && new == _Z)
+      *toggle_mask |= 0x1;
+   if (old == _Z && new == _1)
+      *toggle_mask |= 0x1;
+
+   if (old == _1 && new == _Z)
+      *toggle_mask |= 0x2;
+   if (old == _Z && new == _0)
+      *toggle_mask |= 0x2;
+}
+
+static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
+                                            int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_u(old, new, toggle_mask);
+}
+
+static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
+                                            int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_z(old, new, toggle_mask);
+}
+
+static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
+                                              int32_t *toggle_mask)
+{
+   cover_toggle_check_0_1(old, new, toggle_mask);
+   cover_toggle_check_u(old, new, toggle_mask);
+   cover_toggle_check_z(old, new, toggle_mask);
+}
+
+#ifdef COVER_DEBUG
+#define COVER_TGL_CB_MSG(signal)                                              \
+   do {                                                                       \
+      printf("Time: %lu Callback on signal: %s\n",                            \
+              now, istr(tree_ident(signal->where)));                          \
+   } while (0);
+
+#define COVER_TGL_SIGNAL_DETAILS(signal, size)                                \
+   do {                                                                       \
+      printf("New signal value:\n");                                          \
+      for (int i = 0; i < size; i++)                                          \
+         printf("0x%x ", ((uint8_t*)signal_value(signal))[i]);                \
+      printf("\n");                                                           \
+      printf("Old signal value:\n");                                          \
+      for (int i = 0; i < size; i++)                                          \
+         printf("0x%x ", ((const uint8_t *)signal_last_value(signal))[i]);    \
+      printf("\n\n");                                                         \
+   } while (0);
+
+#else
+#define COVER_TGL_CB_MSG(signal)
+#define COVER_TGL_SIGNAL_DETAILS(signal, size)
+#endif
+
+
+#define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                               \
+   static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
+   {                                                                          \
+      uint32_t s_size = s->shared.size;                                       \
+      int32_t *toggle_mask = ((int32_t *)user);                               \
+      COVER_TGL_CB_MSG(s)                                                     \
+      for (int i = 0; i < s_size; i++) {                                      \
+         uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
+         uint8_t old = ((uint8_t*)signal_last_value(s))[i];                   \
+         check_fnc(old, new, toggle_mask);                                    \
+         toggle_mask++;                                                       \
+      }                                                                       \
+      COVER_TGL_SIGNAL_DETAILS(s, s_size)                                     \
+   }                                                                          \
+
+
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1,     cover_toggle_check_0_1)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u,   cover_toggle_check_0_1_u)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_z,   cover_toggle_check_0_1_z)
+DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u_z, cover_toggle_check_0_1_u_z)
+
 
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
-   model_set_event_cb(m, s, cover_toggle_event_cb, toggle_mask, false);
+   cover_mask_t op_mask = get_coverage(m)->mask;
+   sig_event_fn_t fn = &cover_toggle_cb_0_1;
+
+   if ((op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
+       (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
+      fn = &cover_toggle_cb_0_1_u_z;
+
+   else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED)
+      fn = &cover_toggle_cb_0_1_u;
+
+   else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
+      fn = &cover_toggle_cb_0_1_z;
+
+   model_set_event_cb(m, s, fn, toggle_mask, false);
 }
 
 
@@ -866,20 +995,23 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
       notef("code coverage results for: %s", istr(hier));
 
       if (stats->total_stmts > 0)
-         notef("     statement:  %.1f %%",
-               100.0 * ((double)stats->hit_stmts) / stats->total_stmts);
+         notef("     statement:  %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_stmts) / stats->total_stmts,
+               stats->hit_stmts, stats->total_stmts);
       else
          notef("     statement:  N.A.");
 
       if (stats->total_branches > 0)
-         notef("     branch:     %.1f %%",
-               100.0 * ((double)stats->hit_branches) / stats->total_branches);
+         notef("     branch:     %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_branches) / stats->total_branches,
+               stats->hit_branches, stats->total_branches);
       else
          notef("     branch:     N.A.");
 
       if (stats->total_toggles > 0)
-         notef("     toggle:     %.1f %%",
-               100.0 * ((double)stats->hit_toggles) / stats->total_toggles);
+         notef("     toggle:     %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_toggles) / stats->total_toggles,
+               stats->hit_toggles, stats->total_toggles);
       else
          notef("     toggle:     N.A.");
    }
@@ -972,9 +1104,9 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          if (kind == TAG_TOGGLE) {
             fprintf(f, "<b>");
             if (pair->flags & COV_FLAG_TOGGLE_TO_1)
-               fprintf(f, "Toggle to 1 &emsp;");
+               fprintf(f, "Toggle 0 -> 1 &emsp;");
             else if (pair->flags & COV_FLAG_TOGGLE_TO_0)
-               fprintf(f, "Toggle to 0 &emsp;");
+               fprintf(f, "Toggle 1 -> 0 &emsp;");
 
             fprintf(f, "on ");
             if (pair->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
@@ -982,7 +1114,11 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
             else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
                fprintf(f, "port:&nbsp&nbsp&nbsp");
             fprintf(f, "</b><br>");
-            fprintf(f, "<code>%s</code>", istr(ident_rfrom(pair->tag->hier, '.')));
+
+            ident_t sig_name = pair->tag->hier;
+            for (int i = 0; i < pair->tag->level; i++)
+               sig_name = ident_from(sig_name, '.');
+            fprintf(f, "<code>%s</code>", istr(sig_name));
          }
 
          fprintf(f, "</p>\n");
