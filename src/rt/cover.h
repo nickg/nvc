@@ -92,8 +92,9 @@ typedef struct _cover_tag {
 } cover_tag_t;
 
 typedef enum {
-   COV_FLAG_HAS_TRUE       = (1 << 0),
-   COV_FLAG_HAS_FALSE      = (1 << 1),
+   COV_FLAG_TRUE           = (1 << 0),
+   COV_FLAG_FALSE          = (1 << 1),
+   COV_FLAG_CHOICE         = (1 << 2),
    COV_FLAG_HIER_UP        = (1 << 8),
    COV_FLAG_HIER_DOWN      = (1 << 9),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),

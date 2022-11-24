@@ -607,32 +607,32 @@ static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
                                           int32_t *toggle_mask)
 {
    if (old == _0 && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _1 && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
                                         int32_t *toggle_mask)
 {
    if (old == _U && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _U && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
                                         int32_t *toggle_mask)
 {
    if (old == _0 && new == _Z)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _Z && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
 
    if (old == _1 && new == _Z)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
    if (old == _Z && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
