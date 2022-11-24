@@ -471,7 +471,7 @@ void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus);
 void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
-void emit_cover_branch(vcode_reg_t test, uint32_t tag);
+void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 vcode_reg_t emit_undefined(vcode_type_t type);
 void emit_debug_info(const loc_t *loc);

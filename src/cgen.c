@@ -3101,15 +3101,20 @@ static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 static void cgen_op_cover_branch(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_branches");
-
    LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_branches");
+   uint32_t flags = vcode_get_subkind(op);
 
-   // Bit zero means evaluated false, bit one means evaluated true
-
-   LLVMValueRef or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
-                                     llvm_int32(1 << 0),
-                                     llvm_int32(1 << 1),
-                                     "cond_mask_or");
+   LLVMValueRef or;
+   if (flags & COV_FLAG_CHOICE)
+      or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
+                           llvm_int32(COV_FLAG_CHOICE),
+                           llvm_int32(0),
+                           "cond_mask_or");
+   else
+      or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
+                           llvm_int32(COV_FLAG_TRUE),
+                           llvm_int32(COV_FLAG_FALSE),
+                           "cond_mask_or");
 
    LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
 

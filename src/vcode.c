@@ -47,7 +47,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_PCALL                                                 \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_COVER_BRANCH)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
@@ -5498,11 +5498,12 @@ void emit_cover_stmt(uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_branch(vcode_reg_t test, uint32_t tag)
+void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
    vcode_add_arg(op, test);
    op->tag = tag;
+   op->subkind = flags;
 }
 
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
