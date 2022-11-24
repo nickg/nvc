@@ -702,13 +702,13 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
 
    case JIT_EXIT_SCHED_EVENT:
       {
-         sig_shared_t *shared = args[0].pointer;
-         int32_t       offset = args[1].integer;
-         int32_t       count  = args[2].integer;
-         int8_t        recur  = args[3].integer;
-         sig_shared_t *wake   = args[4].pointer;
+         sig_shared_t *shared  = args[0].pointer;
+         int32_t       offset  = args[1].integer;
+         int32_t       count   = args[2].integer;
+         int8_t        oneshot = args[3].integer;
+         sig_shared_t *wake    = args[4].pointer;
 
-         x_sched_event(shared, offset, count, recur, wake);
+         x_sched_event(shared, offset, count, oneshot, wake);
       }
       break;
 
@@ -1255,10 +1255,10 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 }
 
 DLLEXPORT
-void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
-                  sig_shared_t *wake_ss)
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
+                  bool oneshot, sig_shared_t *wake_ss)
 {
-   x_sched_event(ss, offset, count, recur, wake_ss);
+   x_sched_event(ss, offset, count, oneshot, wake_ss);
 }
 
 DLLEXPORT

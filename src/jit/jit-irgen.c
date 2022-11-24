@@ -2933,7 +2933,7 @@ static void irgen_op_sched_event(jit_irgen_t *g, int op)
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
-   j_send(g, 3, jit_value_from_int64(false));
+   j_send(g, 3, jit_value_from_int64(true));
    j_send(g, 4, jit_null_ptr());
    macro_exit(g, JIT_EXIT_SCHED_EVENT);
 }
@@ -2951,7 +2951,7 @@ static void irgen_op_sched_static(jit_irgen_t *g, int op)
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
-   j_send(g, 3, jit_value_from_int64(true));
+   j_send(g, 3, jit_value_from_int64(false));
    j_send(g, 4, wake);
    macro_exit(g, JIT_EXIT_SCHED_EVENT);
 }

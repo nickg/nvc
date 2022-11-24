@@ -2451,7 +2451,7 @@ static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
       LLVMBuildExtractValue(builder, sigptr, 0, "sid"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 1, ctx),
-      llvm_int1(false),
+      llvm_int1(true),
       LLVMConstNull(LLVMPointerType(llvm_signal_shared_struct(), 0)),
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
@@ -2471,7 +2471,7 @@ static void cgen_op_sched_static(int op, cgen_ctx_t *ctx)
       LLVMBuildExtractValue(builder, sigptr, 0, "sid"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 1, ctx),
-      llvm_int1(true),
+      llvm_int1(false),
       wakeptr
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
