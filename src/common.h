@@ -85,9 +85,6 @@ type_t get_type_or_null(tree_t t);
 type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);
 
-int fmt_time_r(char *buf, size_t len, uint64_t t);
-const char *fmt_time(uint64_t t);
-
 #define MAX_CONSTRAINTS 8
 int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS]);
 

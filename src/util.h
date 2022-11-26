@@ -180,8 +180,6 @@ void term_init(void);
 bool color_terminal(void);
 int terminal_width(void);
 
-char *get_fmt_buf(size_t len);
-
 const char *ordinal_str(int n);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)

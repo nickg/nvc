@@ -743,36 +743,6 @@ type_t array_aggregate_type(type_t array, int from_dim)
    }
 }
 
-int fmt_time_r(char *buf, size_t len, uint64_t t)
-{
-   static const struct {
-      uint64_t time;
-      const char *unit;
-   } units[] = {
-      { UINT64_C(1), "fs" },
-      { UINT64_C(1000), "ps" },
-      { UINT64_C(1000000), "ns" },
-      { UINT64_C(1000000000), "us" },
-      { UINT64_C(1000000000000), "ms" },
-      { 0, NULL }
-   };
-
-   int u = 0;
-   while (units[u + 1].unit && (t % units[u + 1].time == 0))
-      ++u;
-
-   return checked_sprintf(buf, len, "%"PRIu64"%s",
-                          t / units[u].time, units[u].unit);
-}
-
-const char *fmt_time(uint64_t t)
-{
-   static const int BUF_SZ = 64;
-   char *buf = get_fmt_buf(BUF_SZ);
-   fmt_time_r(buf, BUF_SZ, t);
-   return buf;
-}
-
 unsigned bits_for_range(int64_t low, int64_t high)
 {
    assert(low <= high);

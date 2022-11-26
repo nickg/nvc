@@ -138,16 +138,26 @@ static void async_update_driver(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
 static void async_disconnect(void *context, void *arg);
 
-static int fmt_now(rt_model_t *m, char *buf, size_t len)
+static int fmt_time_r(char *buf, size_t len, uint64_t t)
 {
-   if (m->iteration < 0)
-      return checked_sprintf(buf, len, "(init)");
-   else {
-      char *p = buf;
-      p += fmt_time_r(p, buf + len - p, m->now);
-      p += checked_sprintf(p, buf + len - p, "+%d", m->iteration);
-      return p - buf;
-   }
+   static const struct {
+      uint64_t time;
+      const char *unit;
+   } units[] = {
+      { UINT64_C(1), "fs" },
+      { UINT64_C(1000), "ps" },
+      { UINT64_C(1000000), "ns" },
+      { UINT64_C(1000000000), "us" },
+      { UINT64_C(1000000000000), "ms" },
+      { 0, NULL }
+   };
+
+   int u = 0;
+   while (units[u + 1].unit && (t % units[u + 1].time == 0))
+      ++u;
+
+   return checked_sprintf(buf, len, "%"PRIu64"%s",
+                          t / units[u].time, units[u].unit);
 }
 
 __attribute__((format(printf, 2, 3)))
@@ -156,14 +166,17 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char buf[64];
-   fmt_now(m, buf, sizeof(buf));
-
    static nvc_lock_t lock = 0;
    {
       SCOPED_LOCK(lock);
 
-      fprintf(stderr, "TRACE %s: ", buf);
+      if (m->iteration < 0)
+         fprintf(stderr, "TRACE (init): ");
+      else {
+         char buf[64];
+         fmt_time_r(buf, sizeof(buf), m->now);
+         fprintf(stderr, "TRACE %s+%d: ", buf, m->iteration);
+      }
       vfprintf(stderr, fmt, ap);
       fprintf(stderr, "\n");
       fflush(stderr);
@@ -172,14 +185,28 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
    va_end(ap);
 }
 
+static const char *trace_time(uint64_t value)
+{
+   static __thread char buf[2][32];
+   static __thread int which = 0;
+
+   which ^= 1;
+   fmt_time_r(buf[which], 32, value);
+   return buf[which];
+}
+
 static void model_diag_cb(diag_t *d, void *arg)
 {
    rt_model_t *m = arg;
 
-   char tmbuf[64];
-   fmt_now(m, tmbuf, sizeof(tmbuf));
+   if (m->iteration < 0)
+      diag_printf(d, "(init): ");
+   else  {
+      char tmbuf[64];
+      fmt_time_r(tmbuf, sizeof(tmbuf), m->now);
 
-   diag_printf(d, "%s: ", tmbuf);
+      diag_printf(d, "%s+%d: ", tmbuf, m->iteration);
+   }
 }
 
 static void __model_entry(rt_model_t *m, rt_model_t **save)
@@ -2058,7 +2085,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
    if (unlikely(reject > after))
       jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
               "than delay %s", istr(tree_ident(nexus->signal->where)),
-              fmt_time(reject), fmt_time(after));
+              trace_time(reject), trace_time(after));
 
    waveform_t *w = alloc_waveform();
    w->when  = m->now + after;
@@ -2662,13 +2689,16 @@ void model_interrupt(rt_model_t *m)
 {
    model_stop(m);
 
+   char tmbuf[32];
+   fmt_time_r(tmbuf, sizeof(tmbuf), m->now);
+
    if (active_proc != NULL)
       jit_msg(NULL, DIAG_FATAL,
               "interrupted in process %s at %s+%d",
-              istr(active_proc->name), fmt_time(m->now), m->iteration);
+              istr(active_proc->name), tmbuf, m->iteration);
    else {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
-      diag_printf(d, "interrupted at %s+%d", fmt_time(m->now), m->iteration);
+      diag_printf(d, "interrupted at %s+%d", tmbuf, m->iteration);
       diag_emit(d);
 
       jit_set_exit_status(m->jit, EXIT_FAILURE);
@@ -2748,7 +2778,7 @@ int x_current_delta(void)
 
 void x_sched_process(int64_t delay)
 {
-   TRACE("_sched_process delay=%s", fmt_time(delay));
+   TRACE("_sched_process delay=%s", trace_time(delay));
    deltaq_insert_proc(get_model(), delay, active_proc);
 }
 
@@ -2758,8 +2788,8 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_sched_waveform_s %s+%d value=%"PRIi64" after=%s reject=%s",
-         istr(tree_ident(s->where)), offset, scalar, fmt_time(after),
-         fmt_time(reject));
+         istr(tree_ident(s->where)), offset, scalar, trace_time(after),
+         trace_time(reject));
 
    check_postponed(after);
 
@@ -2779,7 +2809,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 
    TRACE("_sched_waveform %s+%d value=%s count=%d after=%s reject=%s",
          istr(tree_ident(s->where)), offset, fmt_values(values, count),
-         count, fmt_time(after), fmt_time(reject));
+         count, trace_time(after), trace_time(reject));
 
    check_postponed(after);
 
@@ -3192,8 +3222,8 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_disconnect %s+%d len=%d after=%s reject=%s",
-         istr(tree_ident(s->where)), offset, count, fmt_time(after),
-         fmt_time(reject));
+         istr(tree_ident(s->where)), offset, count, trace_time(after),
+         trace_time(reject));
 
    check_postponed(after);
 

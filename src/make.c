@@ -99,7 +99,7 @@ static lib_t make_get_lib(ident_t name)
 
 static const char *make_product(tree_t t, make_product_t product)
 {
-   char *buf = get_fmt_buf(PATH_MAX);
+   static char buf[PATH_MAX];
 
    ident_t name = tree_ident(t);
    lib_t lib = make_get_lib(name);
