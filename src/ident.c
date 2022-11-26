@@ -82,8 +82,12 @@ static bool ident_install(ident_t *where, ident_t new, int len)
    new->write_gen   = 0;
    new->write_index = 0;
 
-   *where = new;
-   return true;
+   if (atomic_cas(where, NULL, new))
+      return true;
+   else {
+      free(new);
+      return false;
+   }
 }
 
 static ident_t ident_from_bytes(const char *str, hash_state_t hash, int len)
@@ -91,9 +95,9 @@ static ident_t ident_from_bytes(const char *str, hash_state_t hash, int len)
    const int slot = hash & (TABLE_SZ - 1);
    for (;;) {
       ident_t *ptr = &(table[slot]);
-      for (; *ptr; ptr = &((*ptr)->chain)) {
-         if ((*ptr)->length == len && memcmp((*ptr)->bytes, str, len) == 0)
-            return *ptr;
+      for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
+         if (it->length == len && memcmp(it->bytes, str, len) == 0)
+            return it;
       }
 
       ident_t new = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));
@@ -218,10 +222,10 @@ ident_t ident_uniq(const char *prefix)
       const int slot = hash & (TABLE_SZ - 1);
       for (;;) {
          ident_t *ptr = &(table[slot]);
-         for (; *ptr; ptr = &((*ptr)->chain)) {
-            if ((*ptr)->length == len + sufflen
-                && memcmp((*ptr)->bytes, prefix, len) == 0
-                && memcmp((*ptr)->bytes + len, suffix, sufflen) == 0)
+         for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
+            if (it->length == len + sufflen
+                && memcmp(it->bytes, prefix, len) == 0
+                && memcmp(it->bytes + len, suffix, sufflen) == 0)
                goto exist;
          }
 
@@ -257,13 +261,13 @@ ident_t ident_prefix(ident_t a, ident_t b, char sep)
 
    for (;;) {
       ident_t *ptr = &(table[slot]);
-      for (; *ptr; ptr = &((*ptr)->chain)) {
-         if ((*ptr)->length == len
-             && memcmp((*ptr)->bytes, a->bytes, a->length) == 0
-             && (sep == '\0' || (*ptr)->bytes[a->length] == sep)
-             && memcmp((*ptr)->bytes + a->length + (sep != '\0'),
+      for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
+         if (it->length == len
+             && memcmp(it->bytes, a->bytes, a->length) == 0
+             && (sep == '\0' || it->bytes[a->length] == sep)
+             && memcmp(it->bytes + a->length + (sep != '\0'),
                        b->bytes, b->length) == 0)
-            return *ptr;
+            return it;
       }
 
       ident_t new = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));

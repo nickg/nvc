@@ -4,7 +4,7 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
-EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench
+EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench bin/mtstress
 
 bin_unit_test_SOURCES = \
 	test/test_util.c \
@@ -30,7 +30,6 @@ bin_unit_test_LDADD = \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
 	$(check_LIBS) \
-	$(POW_LIB) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS)
 
@@ -74,10 +73,23 @@ bin_workqbench_SOURCES = test/workqbench.c
 
 bin_workqbench_LDADD = \
 	lib/libnvc.a \
+	lib/libfastlz.a \
+	lib/libcpustate.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
+	$(check_LIBS)
+
+bin_mtstress_SOURCES = test/mtstress.c
+
+bin_mtstress_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
+
+bin_mtstress_LDADD = \
+	lib/libnvc.a \
 	lib/libfastlz.a \
-	lib/libcpustate.a
+	lib/libcpustate.a \
+	$(libdw_LIBS) \
+	$(libffi_LIBS) \
+	$(check_LIBS)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
