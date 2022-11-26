@@ -341,7 +341,7 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
          ft->u.literals.strings = xmalloc(maxsize * nlits);
          for (int i = 0; i < nlits; i++) {
             char *p = ft->u.literals.strings + i*maxsize;
-            istr_r(tree_ident(type_enum_literal(type, i)), p, maxsize);
+            strncpy(p, istr(tree_ident(type_enum_literal(type, i))), maxsize);
             for (; *p; p++)
                *p = tolower((int)*p);
          }

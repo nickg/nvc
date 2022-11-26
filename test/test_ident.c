@@ -150,41 +150,24 @@ START_TEST(test_prefix)
 }
 END_TEST
 
-START_TEST(test_strip)
-{
-   ident_t a, b, c;
-
-   a = ident_new("something");
-   b = ident_new("thing");
-   c = ident_strip(a, b);
-
-   fail_if(c == NULL);
-   fail_unless(c == ident_new("some"));
-
-   a = ident_new("g");
-   b = ident_new("cake");
-   c = ident_strip(a, b);
-
-   fail_unless(c == NULL);
-}
-END_TEST
-
 START_TEST(test_char)
 {
    ident_t i;
 
    i = ident_new("foobar");
-   fail_unless(ident_char(i, 0) == 'r');
-   fail_unless(ident_char(i, 5) == 'f');
-   fail_unless(ident_char(i, 3) == 'o');
+   fail_unless(ident_char(i, 0) == 'f');
+   fail_unless(ident_char(i, 5) == 'r');
+   fail_unless(ident_char(i, 3) == 'b');
 }
 END_TEST
 
 START_TEST(test_until)
 {
-   ident_t i;
+   ident_t i, tmp;
    i = ident_new("aye.bee.c");
-   fail_unless(ident_until(i, '.') == ident_new("aye"));
+   tmp = ident_until(i, '.');
+   fail_unless(tmp == ident_new("aye"));
+   fail_unless(tmp == ident_until(i, '.'));
    i = ident_new("nodot");
    fail_unless(ident_until(i, '.') == i);
 }
@@ -259,25 +242,6 @@ START_TEST(test_glob)
 }
 END_TEST;
 
-START_TEST(test_interned)
-{
-   ident_new("foo14141");
-   fail_unless(ident_interned("foo14141"));
-   fail_if(ident_interned("foobar11111"));
-}
-END_TEST
-
-START_TEST(test_contains)
-{
-   ident_t i = ident_new("cake");
-   fail_unless(ident_contains(i, "k"));
-   fail_unless(ident_contains(i, "moa"));
-   fail_unless(ident_contains(i, "amo"));
-   fail_if(ident_contains(i, "zod"));
-   fail_if(ident_contains(i, ""));
-}
-END_TEST
-
 START_TEST(test_len)
 {
    fail_unless(ident_len(ident_new("a")) == 1);
@@ -289,27 +253,26 @@ START_TEST(test_downcase)
 {
    fail_unless(ident_downcase(ident_new("ABC")) == ident_new("abc"));
    fail_unless(ident_downcase(ident_new("123xY")) == ident_new("123xy"));
+
+   const char longtext1[] = "XXXXXXXXXXXXXsdfsdfdXXXXXXXXXXXASAAFASFAAFAFAF"
+      "AFAFAFAFAadfsdfsdfdAAAAAAAAAA";
+   const char longtext2[] = "xxxxxxxxxxxxxsdfsdfdxxxxxxxxxxxasaafasfaafafaf"
+      "afafafafaadfsdfsdfdaaaaaaaaaa";
+   fail_unless(ident_downcase(ident_new(longtext1)) == ident_new(longtext2));
 }
 END_TEST
 
 START_TEST(test_compare)
 {
-   ck_assert_int_eq(0, ident_compare(ident_new("a"), ident_new("a")));
-   ck_assert_int_eq(0, ident_compare(ident_new("aaa"), ident_new("aaa")));
-   ck_assert_int_eq('a' - 'b',
-                    ident_compare(ident_new("a"), ident_new("b")));
-   ck_assert_int_eq('a' - 'b',
-                    ident_compare(ident_new("aaa"), ident_new("aab")));
-   ck_assert_int_eq('b' - 'a',
-                    ident_compare(ident_new("aab"), ident_new("aaa")));
-   ck_assert_int_eq(0 - 'a',
-                    ident_compare(ident_new("aa"), ident_new("aaa")));
-   ck_assert_int_eq('a' - 0,
-                    ident_compare(ident_new("aaa"), ident_new("aa")));
-   ck_assert_int_eq('b' - 'a',
-                    ident_compare(ident_new("bab"), ident_new("aba")));
-   ck_assert_int_eq('b' - 'l',
-                    ident_compare(ident_new("abcd"), ident_new("alemnic")));
+   ck_assert_int_eq(ident_compare(ident_new("a"), ident_new("a")), 0);
+   ck_assert_int_eq(ident_compare(ident_new("aaa"), ident_new("aaa")), 0);
+   ck_assert_int_lt(ident_compare(ident_new("a"), ident_new("b")), 0);
+   ck_assert_int_lt(ident_compare(ident_new("aaa"), ident_new("aab")), 0);
+   ck_assert_int_gt(ident_compare(ident_new("aab"), ident_new("aaa")), 0);
+   ck_assert_int_lt(ident_compare(ident_new("aa"), ident_new("aaa")), 0);
+   ck_assert_int_gt(ident_compare(ident_new("aaa"), ident_new("aa")), 0);
+   ck_assert_int_gt(ident_compare(ident_new("bab"), ident_new("aba")), 0);
+   ck_assert_int_lt(ident_compare(ident_new("abcd"), ident_new("alemnic")), 0);
 }
 END_TEST
 
@@ -344,24 +307,7 @@ START_TEST(test_starts_with)
    fail_unless(ident_starts_with(ident_new("ABCdef"), ident_new("ABC")));
    fail_if(ident_starts_with(ident_new("abcdef"), ident_new("ABC")));
    fail_unless(ident_starts_with(ident_new("foo(x).bar"), ident_new("foo(x)")));
-}
-END_TEST
-
-START_TEST(test_istr_r)
-{
-   char buf[16];
-
-   istr_r(ident_new("foo"), buf, 16);
-   ck_assert_str_eq(buf, "foo");
-
-   istr_r(ident_new("X"), buf, 16);
-   ck_assert_str_eq(buf, "X");
-
-   istr_r(ident_new("?"), buf, 2);
-   ck_assert_str_eq(buf, "?");
-
-   istr_r(ident_new("string"), buf, 7);
-   ck_assert_str_eq(buf, "string");
+   fail_if(ident_starts_with(ident_new("foo(x).bar"), NULL));
 }
 END_TEST
 
@@ -406,6 +352,16 @@ START_TEST(test_distance)
 }
 END_TEST
 
+START_TEST(test_uniq)
+{
+   ident_t i1 = ident_new("prefix");
+   ident_t i2 = ident_uniq("prefix");
+   fail_if(i1 == i2);
+   fail_unless(i2 == ident_new("prefix1"));
+   fail_unless(icmp(ident_uniq("prefix"), "prefix2"));
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -417,7 +373,6 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_rand);
    tcase_add_test(tc_core, test_read_write);
    tcase_add_test(tc_core, test_prefix);
-   tcase_add_test(tc_core, test_strip);
    tcase_add_test(tc_core, test_char);
    tcase_add_test(tc_core, test_until);
    tcase_add_test(tc_core, test_runtil);
@@ -425,15 +380,13 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_glob);
    tcase_add_test(tc_core, test_rfrom);
    tcase_add_test(tc_core, test_from);
-   tcase_add_test(tc_core, test_interned);
-   tcase_add_test(tc_core, test_contains);
    tcase_add_test(tc_core, test_len);
    tcase_add_test(tc_core, test_downcase);
    tcase_add_test(tc_core, test_compare);
    tcase_add_test(tc_core, test_walk_selected);
    tcase_add_test(tc_core, test_starts_with);
-   tcase_add_test(tc_core, test_istr_r);
    tcase_add_test(tc_core, test_distance);
+   tcase_add_test(tc_core, test_uniq);
    suite_add_tcase(s, tc_core);
 
    return s;

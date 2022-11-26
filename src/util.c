@@ -505,6 +505,7 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 void fatal_at(const loc_t *loc, const char *fmt, ...)
 {
    diag_t *d = diag_new(DIAG_FATAL, loc);
+   diag_suppress(d, false);
 
    va_list ap;
    va_start(ap, fmt);
@@ -518,6 +519,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
 void fatal(const char *fmt, ...)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_suppress(d, false);
 
    va_list ap;
    va_start(ap, fmt);
@@ -1274,9 +1276,8 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 
 void tb_istr(text_buf_t *tb, ident_t ident)
 {
-   const size_t len = ident_len(ident);
-   char *p = tb_reserve(tb, len);   // Adds one byte for terminating null
-   istr_r(ident, p, len + 1);
+   // TODO: this function seems useless now
+   tb_cat(tb, istr(ident));
 }
 
 void tb_append(text_buf_t *tb, char ch)
