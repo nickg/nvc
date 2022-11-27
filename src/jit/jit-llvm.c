@@ -114,6 +114,7 @@ typedef enum {
    LLVM_GET_FOREIGN,
    LLVM_GET_TREE,
    LLVM_GET_OBJECT,
+   LLVM_GET_HANDLE,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -614,6 +615,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             obj->types[LLVM_PTR],
             obj->types[LLVM_INT32],
             obj->types[LLVM_PTR],
+            obj->types[LLVM_INT64],
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -627,6 +629,18 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "__nvc_get_func", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_GET_HANDLE:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT64]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_INT32], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "__nvc_get_handle", obj->fntypes[which]);
       }
       break;
 
@@ -812,6 +826,39 @@ static LLVMValueRef cgen_rematerialise_ffi(llvm_obj_t *obj, jit_foreign_t *ff)
    return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
 }
 
+static LLVMValueRef cgen_rematerialise_handle(llvm_obj_t *obj,
+                                              cgen_block_t *cgb,
+                                              jit_handle_t handle)
+{
+   ident_t name = jit_get_name(cgb->func->source->jit, handle);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, name);
+   tb_cat(tb, ".handle");
+
+   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
+   if (global == NULL) {
+      global = LLVMAddGlobal(obj->module, obj->types[LLVM_INT32], tb_get(tb));
+      LLVMSetUnnamedAddr(global, true);
+      LLVMSetLinkage(global, LLVMPrivateLinkage);
+      LLVMSetInitializer(global, llvm_int32(obj, JIT_HANDLE_INVALID));
+
+      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
+
+      LLVMValueRef args[] = {
+         llvm_const_string(obj, istr(name)),
+         llvm_int64(obj, jit_get_func(cgb->func->source->jit, handle)->spec),
+      };
+      LLVMValueRef init =
+         llvm_call_fn(obj, LLVM_GET_HANDLE, args, ARRAY_LEN(args));
+      LLVMBuildStore(obj->builder, init, global);
+
+      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+   }
+
+   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32], global, "");
+}
+
 static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
                                    jit_value_t value)
 {
@@ -857,8 +904,12 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
          return ptr;
       }
    case JIT_VALUE_EXIT:
-   case JIT_VALUE_HANDLE:
       return llvm_int32(obj, value.exit);
+   case JIT_VALUE_HANDLE:
+      if (cgb->func->cpool != NULL)
+         return cgen_rematerialise_handle(obj, cgb, value.handle);
+      else
+         return llvm_int32(obj, value.handle);
    case JIT_ADDR_ABS:
       assert(obj->ctor == NULL || value.int64 == 0);
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
@@ -1875,7 +1926,8 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
          PTR(func->llvmfn),
          PTR(cgen_debug_irbuf(obj, func->source)),
          llvm_int32(obj, func->source->nirs),
-         cgen_rematerialise_object(obj, func->source->object)
+         cgen_rematerialise_object(obj, func->source->object),
+         llvm_int64(obj, func->source->spec),
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 

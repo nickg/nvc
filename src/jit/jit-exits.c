@@ -1445,7 +1445,7 @@ jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
    if (handle == JIT_HANDLE_INVALID)
       fatal_trace("missing function %s", func);
 
-   jit_get_func(j, handle)->spec = spec;
+   jit_get_func(j, handle)->spec = spec;   // XXXX: delete me
 
    return handle;
 }
@@ -1476,12 +1476,13 @@ void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
 
 DLLEXPORT
 void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
-                    int32_t bufsz, object_t *obj)
+                    int32_t bufsz, object_t *obj, ffi_spec_t spec)
 {
-   printf("register! name=%s fn=%p bufsz=%d obj=%p\n", name, fn, bufsz, obj);
+   printf("register! name=%s fn=%p bufsz=%d obj=%p spec=%lx\n",
+          name, fn, bufsz, obj, spec);
 
    jit_t *j = jit_thread_local()->jit;
-   jit_register(j, name, fn, debug, bufsz, obj);
+   jit_register(j, ident_new(name), fn, debug, bufsz, obj, spec);
 }
 
 DLLEXPORT

@@ -243,16 +243,17 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
    return handle;
 }
 
-void jit_register(jit_t *j, const char *name, jit_entry_fn_t fn,
-                  const uint8_t *debug, size_t bufsz, object_t *obj)
+void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
+                  const uint8_t *debug, size_t bufsz, object_t *obj,
+                  ffi_spec_t spec)
 {
    jit_func_t *f = hash_get(j->index, name);
    if (f != NULL)
-      fatal_trace("attempt to register existing function %s", name);
+      fatal_trace("attempt to register existing function %s", istr(name));
 
    f = xcalloc(sizeof(jit_func_t));
 
-   f->name      = ident_new(name);
+   f->name      = name;
    f->unit      = vcode_find_unit(f->name);
    f->jit       = j;
    f->handle    = j->funcs.count;
