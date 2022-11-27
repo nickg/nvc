@@ -121,6 +121,8 @@ typedef enum {
 typedef struct _cgen_func  cgen_func_t;
 typedef struct _cgen_block cgen_block_t;
 
+#define CTOR_MAX_ORDER 2
+
 typedef struct _llvm_obj {
    LLVMModuleRef         module;
    LLVMContextRef        context;
@@ -130,7 +132,7 @@ typedef struct _llvm_obj {
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
-   LLVMValueRef          ctor;
+   LLVMValueRef          ctor[CTOR_MAX_ORDER];
    shash_t              *string_pool;
 } llvm_obj_t;
 
@@ -751,11 +753,13 @@ static void cgen_abort(cgen_block_t *cgb, jit_ir_t *ir, const char *fmt, ...)
    va_end(ap);
 }
 
-static LLVMBasicBlockRef cgen_add_ctor(llvm_obj_t *obj)
+static LLVMBasicBlockRef cgen_add_ctor(llvm_obj_t *obj, int order)
 {
+   assert(order < CTOR_MAX_ORDER);
    assert(obj->ctor != NULL);
    LLVMBasicBlockRef old_bb = LLVMGetInsertBlock(obj->builder);
-   LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
+   LLVMBasicBlockRef ctor_bb = LLVMGetLastBasicBlock(obj->ctor[order]);
+   LLVMPositionBuilderAtEnd(obj->builder, ctor_bb);
    return old_bb;
 }
 
@@ -790,7 +794,7 @@ static LLVMValueRef cgen_rematerialise_ffi(llvm_obj_t *obj, jit_foreign_t *ff)
       LLVMSetLinkage(global, LLVMPrivateLinkage);
       LLVMSetInitializer(global, llvm_ptr(obj, NULL));
 
-      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj);
+      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
 
       tb_trim(tb, ident_len(sym));   // Strip .ffi
 
@@ -1386,7 +1390,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    jit_func_t *callee = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
    LLVMValueRef entry = NULL, fptr = NULL;
-   if (obj->ctor != NULL) {
+   if (obj->ctor[1] != NULL) {
       entry = llvm_get_fn(obj, LLVM_TRAMPOLINE);
 
       LOCAL_TEXT_BUF tb = tb_new();
@@ -1400,7 +1404,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
          LLVMSetLinkage(global, LLVMPrivateLinkage);
          LLVMSetInitializer(global, llvm_ptr(obj, NULL));
 
-         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj);
+         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
 
          tb_trim(tb, ident_len(callee->name));  // Strip .func
 
@@ -1862,8 +1866,8 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
                                   obj->types[LLVM_ENTRY_FN]);
 
-   if (obj->ctor != NULL) {
-      cgen_add_ctor(obj);
+   if (obj->ctor[0] != NULL) {
+      cgen_add_ctor(obj, 0);
       cgen_aot_cpool(obj, func);
 
       LLVMValueRef args[] = {
@@ -2135,25 +2139,36 @@ llvm_obj_t *llvm_obj_new(const char *name)
 
    llvm_register_types(obj);
 
-   obj->ctor = LLVMAddFunction(obj->module, "ctor", obj->types[LLVM_CTOR_FN]);
-   LLVMSetLinkage(obj->ctor, LLVMPrivateLinkage);
+   LLVMValueRef ctors[CTOR_MAX_ORDER];
 
-   llvm_append_block(obj, obj->ctor, "entry");
+   for (int i = 0; i < CTOR_MAX_ORDER; i++) {
+      char buf[16];
+      checked_sprintf(buf, sizeof(buf), "ctor%d", i);
+      obj->ctor[i] = LLVMAddFunction(obj->module, buf,
+                                     obj->types[LLVM_CTOR_FN]);
+      LLVMSetLinkage(obj->ctor[i], LLVMPrivateLinkage);
 
-   LLVMValueRef entry = LLVMGetUndef(obj->types[LLVM_CTOR]);
-   entry = LLVMBuildInsertValue(obj->builder, entry,
-                                llvm_int32(obj, 65535), 0, "");
-   entry = LLVMBuildInsertValue(obj->builder, entry, obj->ctor, 1, "");
-   entry = LLVMBuildInsertValue(obj->builder, entry,
-                                LLVMConstNull(obj->types[LLVM_PTR]), 2, "");
+      llvm_append_block(obj, obj->ctor[i], "entry");
 
-   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_CTOR], 1);
+      LLVMValueRef entry = LLVMGetUndef(obj->types[LLVM_CTOR]);
+      entry = LLVMBuildInsertValue(obj->builder, entry,
+                                   llvm_int32(obj, 65535 - CTOR_MAX_ORDER + i),
+                                   0, "");
+      entry = LLVMBuildInsertValue(obj->builder, entry, obj->ctor[i], 1, "");
+      entry = LLVMBuildInsertValue(obj->builder, entry,
+                                   LLVMConstNull(obj->types[LLVM_PTR]), 2, "");
+
+      ctors[i] = entry;
+   }
+
+   LLVMTypeRef array_type =
+      LLVMArrayType(obj->types[LLVM_CTOR], CTOR_MAX_ORDER);
    LLVMValueRef global =
       LLVMAddGlobal(obj->module, array_type, "llvm.global_ctors");
    LLVMSetLinkage(global, LLVMAppendingLinkage);
 
-   LLVMValueRef ctors[] = { entry };
-   LLVMValueRef array = LLVMConstArray(obj->types[LLVM_CTOR], ctors, 1);
+   LLVMValueRef array =
+      LLVMConstArray(obj->types[LLVM_CTOR], ctors, CTOR_MAX_ORDER);
    LLVMSetInitializer(global, array);
 
    LLVMValueRef abi_version =
@@ -2196,8 +2211,11 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
 
 void llvm_obj_emit(llvm_obj_t *obj, const char *path)
 {
-   LLVMPositionBuilderAtEnd(obj->builder, LLVMGetLastBasicBlock(obj->ctor));
-   LLVMBuildRetVoid(obj->builder);
+   for (int i = 0; i < CTOR_MAX_ORDER; i++) {
+      LLVMBasicBlockRef bb = LLVMGetLastBasicBlock(obj->ctor[i]);
+      LLVMPositionBuilderAtEnd(obj->builder, bb);
+      LLVMBuildRetVoid(obj->builder);
+   }
 
    llvm_finalise(obj);
 

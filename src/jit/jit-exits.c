@@ -1498,6 +1498,10 @@ jit_func_t *__nvc_get_func(const char *name)
 
    jit_t *j = jit_thread_local()->jit;
    jit_handle_t handle = jit_lazy_compile(j, ident_new(name));
+
+   if (handle == JIT_HANDLE_INVALID)
+      fatal_trace("invalid function %s", name);
+
    printf("...handle = %d\n", handle);
 
    return jit_get_func(j, handle);
