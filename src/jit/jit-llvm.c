@@ -28,6 +28,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
@@ -122,18 +123,21 @@ typedef enum {
 typedef struct _cgen_func  cgen_func_t;
 typedef struct _cgen_block cgen_block_t;
 
-#define CTOR_MAX_ORDER 2
+#define DEBUG_METADATA_VERSION 3
+#define CTOR_MAX_ORDER         2
 
 typedef struct _llvm_obj {
    LLVMModuleRef         module;
    LLVMContextRef        context;
    LLVMTargetMachineRef  target;
    LLVMBuilderRef        builder;
+   LLVMDIBuilderRef      debuginfo;
    LLVMTargetDataRef     data_ref;
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
    LLVMValueRef          ctor[CTOR_MAX_ORDER];
+   LLVMMetadataRef       debugcu;
    shash_t              *string_pool;
 } llvm_obj_t;
 
@@ -148,15 +152,17 @@ typedef struct _cgen_block {
 } cgen_block_t;
 
 typedef struct _cgen_func {
-   LLVMValueRef  llvmfn;
-   LLVMValueRef  args;
-   LLVMValueRef  frame;
-   LLVMValueRef  anchor;
-   LLVMValueRef  cpool;
-   cgen_block_t *blocks;
-   jit_func_t   *source;
-   jit_cfg_t    *cfg;
-   char         *name;
+   LLVMValueRef     llvmfn;
+   LLVMValueRef     args;
+   LLVMValueRef     frame;
+   LLVMValueRef     anchor;
+   LLVMValueRef     cpool;
+   LLVMMetadataRef  debugmd;
+   cgen_block_t    *blocks;
+   jit_func_t      *source;
+   jit_cfg_t       *cfg;
+   char            *name;
+   loc_t            last_loc;
 } cgen_func_t;
 
 #define LLVM_CHECK(op, ...) do {                        \
@@ -334,6 +340,8 @@ static void llvm_optimise(LLVMModuleRef module)
 
 static void llvm_finalise(llvm_obj_t *obj)
 {
+   LLVMDIBuilderFinalize(obj->debuginfo);
+
    llvm_dump_module(obj->module, "initial");
    llvm_verify_module(obj->module);
    llvm_optimise(obj->module);
@@ -727,6 +735,13 @@ static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
 #endif
 }
 
+static void llvm_add_module_flag(llvm_obj_t *obj, const char *key, int value)
+{
+   LLVMAddModuleFlag(obj->module, LLVMModuleFlagBehaviorWarning,
+                     key, strlen(key),
+                     LLVMValueAsMetadata(llvm_int32(obj, value)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT IR to LLVM lowering
 
@@ -847,7 +862,7 @@ static LLVMValueRef cgen_rematerialise_handle(llvm_obj_t *obj,
 
       LLVMValueRef args[] = {
          llvm_const_string(obj, istr(name)),
-         llvm_int64(obj, jit_get_func(cgb->func->source->jit, handle)->spec),
+         llvm_int64(obj, ~UINT64_C(0)),
       };
       LLVMValueRef init =
          llvm_call_fn(obj, LLVM_GET_HANDLE, args, ARRAY_LEN(args));
@@ -1039,6 +1054,23 @@ static void cgen_sync_irpos(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                                 obj->types[LLVM_ANCHOR],
                                                 cgb->func->anchor, 2, "irpos");
    LLVMBuildStore(obj->builder, llvm_int32(obj, irpos), irpos_ptr);
+}
+
+static void cgen_debug_loc(llvm_obj_t *obj, cgen_func_t *func, const loc_t *loc)
+{
+   if (loc_eq(loc, &(func->last_loc)))
+      return;
+
+   LLVMMetadataRef dloc = LLVMDIBuilderCreateDebugLocation(
+      obj->context, loc->first_line, loc->first_column,
+      func->debugmd, NULL);
+
+#ifdef LLVM_HAVE_SET_CURRENT_DEBUG_LOCATION_2
+   LLVMSetCurrentDebugLocation2(obj->builder, dloc);
+#else
+   LLVMValueRef md = LLVMMetadataAsValue(obj->context, dloc);
+   LLVMSetCurrentDebugLocation(obj->builder, md);
+#endif
 }
 
 static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1714,8 +1746,6 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case J_CSEL:
       cgen_op_csel(obj, cgb, ir);
       break;
-   case J_DEBUG:
-      break;
    case J_CALL:
       cgen_op_call(obj, cgb, ir);
       break;
@@ -1727,6 +1757,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_NEG:
       cgen_op_neg(obj, cgb, ir);
+      break;
+   case J_DEBUG:
+      cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc));
       break;
    case MACRO_EXP:
       cgen_macro_exp(obj, cgb, ir);
@@ -1912,10 +1945,56 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    return global;
 }
 
+static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
+{
+   const char *file_path = loc_file_str(loc);
+
+   char *basec LOCAL = xstrdup(file_path);
+   char *dirc LOCAL = xstrdup(file_path);
+
+   const char *file = basename(basec);
+   const size_t file_len = strlen(file);
+
+   const char *dir = dirname(dirc);
+   const size_t dir_len = strlen(dir);
+
+   return LLVMDIBuilderCreateFile(obj->debuginfo, file, file_len, dir, dir_len);
+}
+
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
                                   obj->types[LLVM_ENTRY_FN]);
+
+   LLVMMetadataRef file_ref =
+      cgen_debug_file(obj, &(func->source->object->loc));
+
+   if (obj->debugcu == NULL) {
+      obj->debugcu = LLVMDIBuilderCreateCompileUnit(
+         obj->debuginfo, LLVMDWARFSourceLanguageAda83,
+         file_ref, PACKAGE, sizeof(PACKAGE) - 1,
+         opt_get_int(OPT_OPTIMISE), "", 0,
+         0, "", 0,
+         LLVMDWARFEmissionFull, 0, false, false
+#if LLVM_CREATE_CU_HAS_SYSROOT
+         , "/", 1, "", 0
+#endif
+      );
+   }
+
+   LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
+      obj->debuginfo, file_ref, NULL, 0, 0);
+   const size_t namelen = strlen(func->name);
+
+   func->debugmd = LLVMDIBuilderCreateFunction(
+      obj->debuginfo, obj->debugcu, func->name, namelen,
+      func->name, namelen, file_ref,
+      func->source->object->loc.first_line, dtype, true, true,
+      1, 0, opt_get_int(OPT_OPTIMISE));
+
+   LLVMSetSubprogram(func->llvmfn, func->debugmd);
+
+   cgen_debug_loc(obj, func, &(func->source->object->loc));
 
    if (obj->ctor[0] != NULL) {
       cgen_add_ctor(obj, 0);
@@ -2107,9 +2186,10 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, f->name);
 
-   obj.module   = LLVMModuleCreateWithNameInContext(tb_get(tb), obj.context);
-   obj.builder  = LLVMCreateBuilderInContext(obj.context);
-   obj.data_ref = LLVMCreateTargetDataLayout(obj.target);
+   obj.module    = LLVMModuleCreateWithNameInContext(tb_get(tb), obj.context);
+   obj.builder   = LLVMCreateBuilderInContext(obj.context);
+   obj.debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj.module);
+   obj.data_ref  = LLVMCreateTargetDataLayout(obj.target);
 
    llvm_register_types(&obj);
 
@@ -2177,11 +2257,12 @@ void jit_register_llvm_plugin(jit_t *j)
 llvm_obj_t *llvm_obj_new(const char *name)
 {
    llvm_obj_t *obj = xcalloc(sizeof(llvm_obj_t));
-   obj->context  = LLVMContextCreate();
-   obj->module   = LLVMModuleCreateWithNameInContext(name, obj->context);
-   obj->builder  = LLVMCreateBuilderInContext(obj->context);
-   obj->target   = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
-   obj->data_ref = LLVMCreateTargetDataLayout(obj->target);
+   obj->context   = LLVMContextCreate();
+   obj->module    = LLVMModuleCreateWithNameInContext(name, obj->context);
+   obj->builder   = LLVMCreateBuilderInContext(obj->context);
+   obj->target    = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
+   obj->data_ref  = LLVMCreateTargetDataLayout(obj->target);
+   obj->debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj->module);
 
    char *triple = LLVMGetTargetMachineTriple(obj->target);
    LLVMSetTarget(obj->module, triple);
@@ -2190,6 +2271,13 @@ llvm_obj_t *llvm_obj_new(const char *name)
    LLVMSetModuleDataLayout(obj->module, obj->data_ref);
 
    llvm_register_types(obj);
+
+   llvm_add_module_flag(obj, "Debug Info Version", DEBUG_METADATA_VERSION);
+#ifdef __APPLE__
+   llvm_add_module_flag(obj, "Dwarf Version", 2);
+#else
+   llvm_add_module_flag(obj, "Dwarf Version", 4);
+#endif
 
    LLVMValueRef ctors[CTOR_MAX_ORDER];
 

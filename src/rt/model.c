@@ -2696,13 +2696,8 @@ void model_interrupt(rt_model_t *m)
       jit_msg(NULL, DIAG_FATAL,
               "interrupted in process %s at %s+%d",
               istr(active_proc->name), tmbuf, m->iteration);
-   else {
-      diag_t *d = diag_new(DIAG_FATAL, NULL);
-      diag_printf(d, "interrupted at %s+%d", tmbuf, m->iteration);
-      diag_emit(d);
-
-      jit_set_exit_status(m->jit, EXIT_FAILURE);
-   }
+   else
+      jit_msg(NULL, DIAG_FATAL, "interrupted at %s+%d", tmbuf, m->iteration);
 }
 
 // TODO: this interface should be removed eventually

@@ -1445,7 +1445,8 @@ jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
    if (handle == JIT_HANDLE_INVALID)
       fatal_trace("missing function %s", func);
 
-   jit_get_func(j, handle)->spec = spec;   // XXXX: delete me
+   if (spec != ~UINT64_C(0))
+      jit_get_func(j, handle)->spec = spec;   // XXXX: delete me
 
    return handle;
 }

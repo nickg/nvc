@@ -263,6 +263,7 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
    f->irbuf     = xcalloc_array(bufsz, sizeof(jit_ir_t));
    f->nirs      = bufsz;
    f->object    = obj;
+   f->spec      = spec;
 
    for (int i = 0; i < bufsz; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -571,7 +572,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
       jit_transition(j, f->symbol ? JIT_NATIVE : JIT_INTERP, JIT_IDLE);
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
-      jit_set_exit_status(j, rc - 1);
+      atomic_cas(&(j->exit_status), 0, rc - 1);
       return false;
    }
 }
@@ -602,7 +603,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       *result = args[0];
    }
    else {
-      jit_set_exit_status(j, rc - 1);
+      atomic_cas(&(j->exit_status), 0, rc - 1);
       failed = true;
    }
 
@@ -960,12 +961,6 @@ void jit_abort(int code)
    }
 
    __builtin_unreachable();
-}
-
-void jit_set_exit_status(jit_t *j, int code)
-{
-   // Only allow one thread to set exit status
-   atomic_cas(&(j->exit_status), 0, code);
 }
 
 void jit_reset_exit_status(jit_t *j)
