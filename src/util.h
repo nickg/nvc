@@ -57,6 +57,8 @@
 #ifdef __MINGW32__
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #define setenv(x, y, z) _putenv_s((x), (y))
+#define sigsetjmp(x, y) setjmp((x))
+#define siglongjmp(x, y) longjmp((x), (y))
 #endif
 
 #define is_power_of_2(x) (((x) & ~(x)) == 0)
