@@ -503,6 +503,16 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
    return handle;
 }
 
+static bool libdwarf_get_sibling(libdwarf_handle_t *handle, Dwarf_Die *die)
+{
+#ifdef __FreeBSD__
+   // FreeBSD has the arguments in the wrong order for some reason
+   return dwarf_siblingof_b(handle->debug, *die, die, true, NULL) == DW_DLV_OK;
+#else
+   return dwarf_siblingof_b(handle->debug, *die, true, die, NULL) == DW_DLV_OK;
+#endif
+}
+
 static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
                                 Dwarf_Unsigned rel_addr, debug_frame_t *frame)
 {
@@ -545,8 +555,7 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
       }
 
       break;
-   } while (dwarf_siblingof_b(handle->debug, child, &child,
-                              true, NULL) == DW_DLV_OK);
+   } while (libdwarf_get_sibling(handle, &child));
 
    if (prev != NULL)
       dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
@@ -648,7 +657,7 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
          continue;   // Read all the way to the end to reset the iterator
 
       Dwarf_Die die = NULL;
-      if (dwarf_siblingof_b(handle->debug, 0, &die, true, NULL) != DW_DLV_OK)
+      if (!libdwarf_get_sibling(handle, &die))
          continue;
 
       Dwarf_Half tag = 0;
