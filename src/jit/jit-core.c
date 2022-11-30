@@ -546,7 +546,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    jit_thread_local_t *thread = jit_thread_local();
 
    assert(!thread->jmp_buf_valid);
-   const int rc = setjmp(thread->abort_env);
+   const int rc = sigsetjmp(thread->abort_env, 0);
    if (rc == 0) {
       thread->jmp_buf_valid = 1;
 
@@ -585,7 +585,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
    bool failed = false;
    const jit_state_t oldstate = thread->state;
    const jit_state_t newstate = f->symbol ? JIT_NATIVE : JIT_INTERP;
-   const int rc = setjmp(thread->abort_env);
+   const int rc = sigsetjmp(thread->abort_env, 0);
    if (rc == 0) {
       thread->jmp_buf_valid = 1;
       jit_transition(j, oldstate, newstate);
@@ -954,7 +954,7 @@ void jit_abort(int code)
    case JIT_INTERP:
       assert(code >= 0);
       if (thread->jmp_buf_valid)
-         longjmp(thread->abort_env, code + 1);
+         siglongjmp(thread->abort_env, code + 1);
       else
          fatal_exit(code);
       break;
