@@ -158,6 +158,7 @@ static vcode_reg_t lower_constraints(tree_t *cons, int count, int max);
 static vcode_reg_t lower_lvalue(tree_t expr);
 static vcode_reg_t lower_rvalue(tree_t expr);
 static bool lower_is_signal_ref(tree_t expr);
+static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -768,11 +769,14 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
 {
    assert(type_is_array(type));
 
+   if (type_is_unconstrained(type))
+      return lower_rewrap(lower_array_data(data), array);
+
    const int ndims = lower_dims_for_type(type);
    vcode_dim_t dims[ndims];
    int dptr = 0;
 
-   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE) {
+   if (standard() >= STD_08) {
       tree_t cons[MAX_CONSTRAINTS];
       int ncons = pack_constraints(type, cons);
 
@@ -1561,9 +1565,9 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
          }
 
          while (1) {
-            char arr_index[16] = {0};
+            char arr_index[16];
             int32_t tmp = -1;
-            checked_sprintf(arr_index, sizeof(arr_index), "(%lu)", i);
+            checked_sprintf(arr_index, sizeof(arr_index), "(%"PRIi64")", i);
             ident_t arr_suffix = ident_prefix(prefix, ident_new(arr_index), '\0');
 
             // On lowest dimension walk through elements, if elements are arrays,

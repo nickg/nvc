@@ -697,3 +697,4 @@ cover3          cover,shell
 cover4          cover,shell
 cover5          cover,shell
 cover6          cover,shell
+issue577        normal,2008
