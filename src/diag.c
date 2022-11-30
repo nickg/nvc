@@ -346,6 +346,7 @@ static const struct {
         [STD_08] = "14.4" } },
    { "Process statement", { [STD_93] = "9.2", [STD_08] = "11.3" } },
    { "Entity statement part", { [STD_93] = "1.1.3", [STD_08] = "3.2.4" } },
+   { "Qualified expressions", { [STD_08] = "9.3.5" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

@@ -3699,9 +3699,16 @@ static bool sem_check_qualified(tree_t t, nametab_t *tab)
       // LRM 08 section 9.3.5 qualified expressions: the operand shall have
       // the same type as the base type of the type mark
       type_t base = type_base_recur(tree_type(t));
-      if (!sem_check_type(value, base))
-         sem_error(value, "operand of qualified expression must have type %s",
-                   type_pp(base));
+      if (!sem_check_type(value, base)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "operand of qualified expression must have type %s",
+                     type_pp(base));
+         diag_hint(d, tree_loc(value), "operand has type %s",
+                   type_pp(tree_type(value)));
+         diag_lrm(d, STD_08, "9.3.5");
+         diag_emit(d);
+         return false;
+      }
    }
 
    return true;
