@@ -5028,6 +5028,58 @@ START_TEST(test_issue569)
 }
 END_TEST
 
+START_TEST(test_osvvm7)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/osvvm7.vhd");
+
+   lib_t work = lib_work();
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(work, p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(work, b);
+
+   tree_t i1 = parse();
+   fail_if(i1 == NULL);
+   fail_unless(tree_kind(i1) == T_PACK_INST);
+   lib_put(work, i1);
+
+   tree_t i2 = parse();
+   fail_if(i2 == NULL);
+   fail_unless(tree_kind(i2) == T_PACK_INST);
+   lib_put(work, i2);
+
+   ident_t name = ident_new("SCOREBOARDIDTYPE");
+   tree_t d1 = search_decls(i1, name, 0);
+   fail_if(d1 == NULL);
+   fail_unless(tree_kind(d1) == T_TYPE_DECL);
+   tree_t d2 = search_decls(i2, name, 0);
+   fail_if(d2 == NULL);
+   fail_unless(tree_kind(d2) == T_TYPE_DECL);
+
+   fail_if(type_eq(tree_type(d1), tree_type(d2)));
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(work, e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5126,6 +5178,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue539);
    tcase_add_test(tc_core, test_issue568);
    tcase_add_test(tc_core, test_issue569);
+   tcase_add_test(tc_core, test_osvvm7);
    suite_add_tcase(s, tc_core);
 
    return s;

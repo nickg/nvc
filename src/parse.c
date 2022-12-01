@@ -1856,16 +1856,8 @@ static tree_t fcall_to_conv_func(tree_t value)
 
 static bool instantiate_should_copy_type(type_t type, void *__ctx)
 {
-   switch (type_kind(type)) {
-   case T_GENERIC:
-      return true;
-   case T_ENUM:
-   case T_PHYSICAL:
-      // Need to generate type-specific helpers like 'IMAGE
-      return true;
-   default:
-      return false;
-   }
+   // Types declared in instantiated packages must be distict
+   return type_kind(type) != T_SUBTYPE;
 }
 
 static bool instantiate_should_copy_tree(tree_t t, void *__ctx)

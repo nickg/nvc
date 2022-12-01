@@ -921,12 +921,11 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
    case JIT_VALUE_EXIT:
       return llvm_int32(obj, value.exit);
    case JIT_VALUE_HANDLE:
-      if (cgb->func->cpool != NULL)
+      if (cgb->func->cpool != NULL && value.handle != JIT_HANDLE_INVALID)
          return cgen_rematerialise_handle(obj, cgb, value.handle);
       else
          return llvm_int32(obj, value.handle);
    case JIT_ADDR_ABS:
-      assert(obj->ctor == NULL || value.int64 == 0);
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
    case JIT_VALUE_FOREIGN:
       if (cgb->func->cpool != NULL)
