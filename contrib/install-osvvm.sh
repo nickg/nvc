@@ -13,8 +13,7 @@ if ! command -v tclsh &>/dev/null; then
   exit 1
 fi
 
-git_wrapper https://github.com/osvvm/OsvvmLibraries 2022.05d
-
+git_wrapper https://github.com/osvvm/OsvvmLibraries 2022.10
 
 [ -d $NVC_INSTALL_DEST ] || mkdir -p $NVC_INSTALL_DEST
 
