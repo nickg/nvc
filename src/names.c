@@ -444,23 +444,29 @@ void map_generic_subprogram(nametab_t *tab, tree_t decl, tree_t actual)
    hash_put(tab->top_scope->gmap, decl, actual);
 }
 
-void map_generic_package(nametab_t *tab, tree_t inst)
+void map_generic_package(nametab_t *tab, tree_t generic, tree_t actual)
 {
-   assert(tree_kind(inst) == T_PACK_INST);
+   assert(tree_kind(actual) == T_PACK_INST);
 
    if (tab->top_scope->gmap == NULL)
       tab->top_scope->gmap = hash_new(128);
 
-   tree_t pack = tree_ref(inst);
+   const int ndecls = tree_decls(generic);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t gd = tree_decl(generic, i);
+      tree_t ad = tree_decl(actual, i);
+      assert(tree_kind(gd) == tree_kind(ad));
 
-   const int ndecls = tree_decls(pack);
-   for (int i = 0; i < ndecls; i++)
-      hash_put(tab->top_scope->gmap, tree_decl(pack, i), tree_decl(inst, i));
+      hash_put(tab->top_scope->gmap, gd, ad);
 
-   const int ngenerics = tree_generics(pack);
+      if (is_type_decl(gd))
+         hash_put(tab->top_scope->gmap, tree_type(gd), tree_type(ad));
+   }
+
+   const int ngenerics = tree_generics(generic);
    for (int i = 0; i < ngenerics; i++)
-      hash_put(tab->top_scope->gmap, tree_generic(pack, i),
-               tree_generic(inst, i));
+      hash_put(tab->top_scope->gmap, tree_generic(generic, i),
+               tree_generic(actual, i));
 }
 
 hash_t *get_generic_map(nametab_t *tab)
@@ -1687,9 +1693,10 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    if (tree_kind(unit) == T_GENERIC_DECL) {
       assert(tree_class(unit) == C_PACKAGE);
 
-      if ((unit = lib_get_qualified(type_ident(tree_type(unit)))) == NULL)
-         return;
+      tree_t ref = tree_value(unit);
+      assert(tree_kind(ref) == T_REF);
 
+      unit = tree_ref(ref);
       assert(is_uninstantiated_package(unit));
    }
 

@@ -1068,22 +1068,27 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
 
 static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
 {
+   const class_t class = tree_class(t);
+   switch (class) {
+   case C_CONSTANT:
+   case C_TYPE:
+   case C_FUNCTION:
+   case C_PROCEDURE:
+      break;
+
+   case C_PACKAGE:
+      return true;   // No further checking required
+   default:
+      sem_error(t, "invalid object class %s for generic %s",
+                class_str(tree_class(t)), istr(tree_ident(t)));
+   }
+
    type_t type = tree_type(t);
 
    if (!sem_check_subtype(t, type, tab))
       return false;
    else if (type_is_none(type))
       return false;
-
-   const class_t class = tree_class(t);
-   switch (class) {
-   case C_CONSTANT:  case C_TYPE: case C_FUNCTION:
-   case C_PROCEDURE: case C_PACKAGE:
-      break;
-   default:
-      sem_error(t, "invalid object class %s for generic %s",
-                class_str(tree_class(t)), istr(tree_ident(t)));
-   }
 
    if (!sem_no_access_file_or_protected(t, type, "generics"))
       return false;
@@ -1097,14 +1102,6 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
-   }
-
-   if (class == C_PACKAGE) {
-      ident_t name = type_ident(tree_type(t));
-      tree_t pack = lib_get_qualified(name);
-      if (pack == NULL || !is_uninstantiated_package(pack))
-         sem_error(t, "name %s does not denote an uninstantiated package",
-                   istr(name));
    }
 
    return true;
@@ -4038,15 +4035,19 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          else if (!tree_has_ref(pack))
             return false;   // Was parse error
 
-         tree_t base = tree_ref(pack);
-         ident_t expect = type_ident(tree_type(decl));
+         tree_t ref = tree_value(decl);
+         if (!tree_has_ref(ref))
+            return false;   // Was earlier error
 
-         if (tree_ident(base) != expect)
+         tree_t base = tree_ref(pack);
+         tree_t expect = tree_ref(ref);
+
+         if (tree_ident(base) != tree_ident(expect))
             sem_error(value, "expected an instance of package %s but have "
-                      "instance of %s for generic %s", istr(expect),
+                      "instance of %s for generic %s", istr(tree_ident(expect)),
                       istr(tree_ident(base)), istr(tree_ident(decl)));
 
-         map_generic_package(tab, pack);
+         map_generic_package(tab, expect, pack);
       }
       break;
 

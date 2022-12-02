@@ -94,7 +94,7 @@ architecture test2 of ent is
                       generic map ( fixed_pkg => std.standard );  -- Error
 
     package p4 is new work.bad
-          generic map ( bad_std => work.myfixed_4_8 );  -- Error
+          generic map ( bad_std => work.myfixed_4_8 );  -- Error (suppressed)
 begin
 end architecture;
 

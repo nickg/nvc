@@ -1932,6 +1932,21 @@ static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
    if (copy_ctx.body != NULL)
       APUSH(roots, copy_ctx.body);
 
+   // If the uninstantiated unit has any package generics then we need
+   // to copy those too in order to fix up the types
+   const int ngenerics = tree_generics(*pdecl);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(*pdecl, i);
+      if (tree_class(g) == C_PACKAGE) {
+         tree_t ref = tree_value(g);
+         if (tree_has_ref(ref)) {
+            tree_t pack = tree_ref(ref);
+            assert(is_uninstantiated_package(pack));
+            APUSH(roots, pack);
+         }
+      }
+   }
+
    tree_copy(roots.items, roots.count,
              instantiate_should_copy_tree,
              instantiate_should_copy_type,
@@ -2065,11 +2080,7 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 static type_t rewrite_generic_types_cb(type_t type, void *__ctx)
 {
    hash_t *map = __ctx;
-
-   if (type_kind(type) == T_GENERIC)
-      return hash_get(map, type) ?: type;
-   else
-      return type;
+   return hash_get(map, type) ?: type;
 }
 
 static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
@@ -2998,10 +3009,8 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
          break;
       }
 
-      if (formal != NULL) {
+      if (formal != NULL && (class = tree_class(formal)) != C_PACKAGE)
          type = tree_type(formal);
-         class = tree_class(formal);
-      }
    }
 
    tree_t value = p_actual_part(class);
@@ -4977,7 +4986,7 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
    insert_name(nametab, d, NULL);
 }
 
-static void p_interface_package_generic_map_aspect(type_t type)
+static void p_interface_package_generic_map_aspect(void)
 {
    // generic_map_aspect | generic map ( <> ) | generic map ( default )
 
@@ -5011,12 +5020,24 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
    consume(tIS);
    consume(tNEW);
 
-   type_t type = type_new(T_GENERIC);
-   type_set_ident(type, p_selected_identifier());
+   ident_t unit_name = p_selected_identifier();
 
-   p_interface_package_generic_map_aspect(type);
+   tree_t pack = find_unit(CURRENT_LOC, unit_name, "package");
+   if (pack != NULL && !is_uninstantiated_package(pack)) {
+      parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
+                  istr(unit_name));
+      pack = NULL;
+   }
 
-   tree_set_type(d, type);
+   tree_t ref = tree_new(T_REF);
+   tree_set_ident(ref, unit_name);
+   tree_set_loc(ref, CURRENT_LOC);
+   tree_set_ref(ref, pack);
+
+   tree_set_value(d, ref);
+
+   p_interface_package_generic_map_aspect();
+
    tree_set_loc(d, CURRENT_LOC);
 
    add_interface(parent, d, kind);

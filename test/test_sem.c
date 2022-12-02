@@ -2567,12 +2567,11 @@ START_TEST(test_genpack)
       { 46, "unit STD.STANDARD is not an uninstantiated package" },
       { 47, "missing declaration for package WORK.NOT_HERE" },
       { 48, "missing actual for generic FRAC without a default expression" },
-      { 77, "name STD.STANDARD does not denote an uninstantiated package" },
+      { 77, "unit STD.STANDARD is not an uninstantiated package" },
       { 82, "actual for generic FIXED_PKG is not an instantiated package " },
       { 91, "expected an instance of package WORK.MYFIXED but have instance "
         "of WORK.MYFLOAT for generic FIXED_PKG" },
       { 94, "actual for generic FIXED_PKG is not an instantiated package" },
-      { 97, "expected an instance of package STD.STANDARD but" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2912,6 +2911,19 @@ START_TEST(test_issue509)
 }
 END_TEST
 
+START_TEST(test_genpack2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/genpack2.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACK_INST, T_PACKAGE, T_PACK_BODY,
+                   T_PACK_INST, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3051,6 +3063,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_vhdl2019);
    tcase_add_test(tc_core, test_altera1);
    tcase_add_test(tc_core, test_issue509);
+   tcase_add_test(tc_core, test_genpack2);
    suite_add_tcase(s, tc_core);
 
    return s;

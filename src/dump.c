@@ -780,7 +780,9 @@ static void dump_decl(tree_t t, int indent)
          syntax("#function %s", istr(tree_ident(t)));
          dump_generics(t, indent + 2, "");
          dump_arguments(t, indent, "");
-         syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+         syntax(" #return ");
+         dump_type(type_result(tree_type(t)));
+         printf(";\n");
          if (tree_has_ident2(t)) {
             tab(indent + 2);
             syntax("-- %s\n", istr(tree_ident2(t)));
@@ -796,7 +798,9 @@ static void dump_decl(tree_t t, int indent)
       if (tree_kind(t) == T_FUNC_INST)
          dump_generic_map(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
       dump_arguments(t, indent, "");
-      syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
+      syntax(" #return ");
+      dump_type(type_result(tree_type(t)));
+      syntax(" #is\n");
       if (tree_has_ident2(t)) {
          tab(indent + 2);
          syntax("-- %s\n", istr(tree_ident2(t)));
