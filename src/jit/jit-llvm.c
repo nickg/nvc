@@ -109,7 +109,6 @@ typedef enum {
    LLVM_PUTPRIV,
    LLVM_MSPACE_ALLOC,
    LLVM_DO_FFICALL,
-   LLVM_TRAMPOLINE,
    LLVM_REGISTER,
    LLVM_GET_FUNC,
    LLVM_GET_FOREIGN,
@@ -608,13 +607,6 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       }
       break;
 
-   case LLVM_TRAMPOLINE:
-      {
-         obj->fntypes[which] = obj->types[LLVM_ENTRY_FN];
-         fn = llvm_add_fn(obj, "__nvc_trampoline", obj->fntypes[which]);
-      }
-      break;
-
    case LLVM_REGISTER:
       {
          LLVMTypeRef args[] = {
@@ -805,7 +797,7 @@ static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
       llvm_const_string(obj, tb_get(tb)),
       llvm_intptr(obj, offset),
    };
-   return llvm_call_fn(obj, LLVM_GET_TREE, args, ARRAY_LEN(args));
+   return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
 }
 
 static LLVMValueRef cgen_rematerialise_ffi(llvm_obj_t *obj, jit_foreign_t *ff)
@@ -1473,8 +1465,6 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef entry = NULL, fptr = NULL;
    if (obj->ctor[1] != NULL) {
-      entry = llvm_get_fn(obj, LLVM_TRAMPOLINE);
-
       LOCAL_TEXT_BUF tb = tb_new();
       tb_istr(tb, callee->name);
       tb_cat(tb, ".func");
@@ -1501,16 +1491,20 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       }
 
       fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+
+      // Must have acquire semantics to synchronise with installing new code
+      entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+      LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
    }
    else {
       entry = llvm_ptr(obj, callee->entry);
       fptr = llvm_ptr(obj, callee);
+   }
 
 #ifndef LLVM_HAS_OPAQUE_POINTERS
-      LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
-      entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
+   entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
 #endif
-   }
 
    LLVMValueRef args[] = {
       fptr,
@@ -1895,7 +1889,7 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
 
       if (ir->op == J_DEBUG) {
          if (file == NULL) {
-            file = loc_file_str(&ir->arg1.loc);
+            file = loc_file_str(&ir->arg1.loc) ?: "";
             lineno = 0;
             const int len2 = ilog2(strlen(file) + 1);
             assert(len2 < 16);
@@ -1946,7 +1940,7 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
 
 static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 {
-   const char *file_path = loc_file_str(loc);
+   const char *file_path = loc_file_str(loc) ?: "";
 
    char *basec LOCAL = xstrdup(file_path);
    char *dirc LOCAL = xstrdup(file_path);

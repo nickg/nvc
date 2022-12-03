@@ -1487,13 +1487,6 @@ void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
 }
 
 DLLEXPORT
-void __nvc_trampoline(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
-{
-   printf("trampoline! %s\n", istr(f->name));
-   (*f->entry)(f, caller, args);
-}
-
-DLLEXPORT
 jit_func_t *__nvc_get_func(const char *name)
 {
    printf("get_func %s\n", name);

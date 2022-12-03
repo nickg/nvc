@@ -234,6 +234,7 @@ typedef struct {
 } jit_cfg_t;
 
 typedef struct _jit_func {
+   jit_entry_fn_t  entry;    // Must be first
    jit_t          *jit;
    vcode_unit_t    unit;
    ident_t         name;
@@ -251,7 +252,6 @@ typedef struct _jit_func {
    void           *symbol;
    unsigned        hotness;
    jit_tier_t     *next_tier;
-   jit_entry_fn_t  entry;
    jit_cfg_t      *cfg;
    ffi_spec_t      spec;
    object_t       *object;
