@@ -55,6 +55,16 @@
 typedef A(vcode_unit_t) unit_list_t;
 typedef A(char *) obj_list_t;
 
+#if CGEN_USE_JIT
+typedef struct {
+   unit_list_t      units;
+   char            *obj_path;
+   char            *module_name;
+   unsigned         index;
+   cover_tagging_t *cover;
+   llvm_obj_t      *obj;
+} cgen_job_t;
+#else
 typedef struct {
    unit_list_t      units;
    char            *obj_path;
@@ -63,9 +73,12 @@ typedef struct {
    tree_t           top;
    cover_tagging_t *cover;
 } cgen_job_t;
+#endif
 
 static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
+
+#define UNITS_PER_JOB 1000
 
 #if !CGEN_USE_JIT
 
@@ -5589,26 +5602,63 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 
 #else
 
-typedef struct {
-   jit_t           *jit;
-   llvm_obj_t      *obj;
-   cover_tagging_t *cover;
-} cgen_req_t;
-
-static void cgen_async_cb(void *context, void *arg)
+static void cgen_async_work(void *context, void *arg)
 {
-   cgen_req_t *req = context;
+   jit_t *jit = context;
+   cgen_job_t *job = arg;
 
-   vcode_unit_t vu = arg;
-   vcode_select_unit(vu);
+   llvm_obj_t *obj = llvm_obj_new(job->module_name);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, vcode_unit_name());
+   for (int i = 0; i < job->units.count; i++) {
+      vcode_unit_t vu = job->units.items[i];
+      vcode_select_unit(vu);
 
-   jit_handle_t handle = jit_lazy_compile(req->jit, vcode_unit_name());
-   assert(handle != JIT_HANDLE_INVALID);
+      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
+      assert(handle != JIT_HANDLE_INVALID);
 
-   llvm_aot_compile(req->obj, req->jit, handle);
+      llvm_aot_compile(obj, jit, handle);
+   }
+
+   llvm_obj_emit(obj, job->obj_path);
+
+   ACLEAR(job->units);
+   free(job->module_name);
+   free(job);
+}
+
+static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
+                                const char *base_name, int units_per_job,
+                                tree_t top, cover_tagging_t *cover,
+                                obj_list_t *objs)
+{
+   int counter = 0;
+
+   // Adjust units_per_job to ensure that each job has a roughly equal
+   // number of units
+   const int njobs = (units->count + units_per_job - 1) / units_per_job;
+   units_per_job = (units->count + njobs - 1) / njobs;
+
+   for (unsigned i = 0; i < units->count; i += units_per_job, counter++) {
+      char *module_name = xasprintf("%s.%d", base_name, counter);
+      char *obj_name LOCAL =
+         xasprintf("_%s.%d." LLVM_OBJ_EXT, module_name, getpid());
+
+      char obj_path[PATH_MAX];
+      lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
+
+      cgen_job_t *job = xcalloc(sizeof(cgen_job_t));
+      job->module_name = module_name;
+      job->obj_path    = xstrdup(obj_path);
+      job->index       = counter;
+      job->cover       = cover;
+
+      for (unsigned j = i; j < units->count && j < i + units_per_job; j++)
+         APUSH(job->units, units->items[j]);
+
+      APUSH(*objs, job->obj_path);
+
+      workq_do(wq, cgen_async_work, job);
+   }
 }
 
 void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
@@ -5626,29 +5676,17 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    if (!LLVMIsMultithreaded())
       fatal("LLVM was built without multithreaded support");
 
-   cgen_req_t req = {
-      .jit   = jit_new(),
-      .cover = cover,
-      .obj   = llvm_obj_new(istr(name)),
-   };
+   jit_t *jit = jit_new();
+   workq_t *wq = workq_new(jit);
 
-   stop_workers();  // XXX
-
-   workq_t *wq = workq_new(&req);
-
-   for (int i = 0; i < units.count; i++)
-      workq_do(wq, cgen_async_cb, units.items[i]);
+   obj_list_t objs = AINIT;
+   cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB,
+                       top, cover, &objs);
 
    workq_start(wq);
    workq_drain(wq);
 
-   llvm_obj_emit(req.obj, "out.o");
-   req.obj = NULL;
-
    progress("code generation for %d units", units.count);
-
-   obj_list_t objs = AINIT;
-   APUSH(objs, xstrdup("out.o"));
 
    cgen_link(istr(name), objs.items, objs.count);
 
@@ -5656,8 +5694,10 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
       free(objs.items[i]);
    ACLEAR(objs);
 
+   LLVMShutdown();
+
    ACLEAR(units);
-   jit_free(req.jit);
+   jit_free(jit);
    workq_free(wq);
 }
 

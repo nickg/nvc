@@ -14,4 +14,4 @@ if [ -z "$vlog" ] || [ -f $regress/$1.vhd ]; then
   vhd=$regress/$1.vhd
 fi
 PATH="./bin:../bin:$PATH"
-nvc --std=$std -a $vhd $vlog -e $* -r --trace --stats $vhpi
+nvc --std=$std -a $vhd $vlog -e -V $* -r --trace --stats $vhpi
