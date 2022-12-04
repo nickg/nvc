@@ -1180,7 +1180,7 @@ START_TEST(test_assemble1)
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
 
    ck_assert_int_eq(result.integer, 7);
 
@@ -1204,7 +1204,7 @@ START_TEST(test_assemble2)
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
 
    ck_assert_int_eq(result.integer, 0);
 
@@ -1230,7 +1230,7 @@ START_TEST(test_cfg1)
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
 
    ck_assert_int_eq(result.integer, 120);
 

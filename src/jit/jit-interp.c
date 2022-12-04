@@ -45,6 +45,7 @@ typedef struct _jit_interp {
    mspace_t      *mspace;
    unsigned       backedge;
    jit_anchor_t  *anchor;
+   tlab_t        *tlab;
 } jit_interp_t;
 
 #ifdef DEBUG
@@ -567,7 +568,7 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
       jit_msg(NULL, DIAG_FATAL, "missing definition for subprogram");
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-      (*f->entry)(f, state->anchor, state->args);
+      (*f->entry)(f, state->anchor, state->args, state->tlab);
    }
 }
 
@@ -668,10 +669,25 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
    thread->anchor = NULL;
 }
 
+static void interp_lalloc(jit_interp_t *state, jit_ir_t *ir)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = state->anchor;
+
+   const size_t bytes = interp_get_value(state, ir->arg1).integer;
+
+   if (state->tlab != NULL)
+      state->regs[ir->result].pointer = tlab_alloc(state->tlab, bytes);
+   else
+      state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
+
+   thread->anchor = NULL;
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    state->anchor->irpos = ir - state->func->irbuf;
-   __nvc_do_exit(ir->arg1.exit, state->anchor, state->args);
+   __nvc_do_exit(ir->arg1.exit, state->anchor, state->args, state->tlab);
 }
 
 static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
@@ -809,6 +825,9 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_GALLOC:
          interp_galloc(state, ir);
          break;
+      case MACRO_LALLOC:
+         interp_lalloc(state, ir);
+         break;
       case MACRO_EXIT:
          interp_exit(state, ir);
          break;
@@ -834,12 +853,13 @@ static void interp_loop(jit_interp_t *state)
    }
 }
 
-void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
+void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
+                tlab_t *tlab)
 {
    if (f->entry != jit_interp) {
       // Came from stale compiled code
       // TODO: should we patch the call site?
-      (*f->entry)(f, caller, args);
+      (*f->entry)(f, caller, args, tlab);
       return;
    }
 
@@ -874,6 +894,7 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
       .mspace   = jit_get_mspace(f->jit),
       .backedge = jit_backedge_limit(f->jit),
       .anchor   = &anchor,
+      .tlab     = tlab,
    };
 
    interp_loop(&state);

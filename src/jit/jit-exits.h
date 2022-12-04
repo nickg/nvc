@@ -68,7 +68,7 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                    tree_t where);
 void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
               tree_t where);
-void x_claim_tlab(void);
+void x_claim_tlab(tlab_t *tlab);
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 int64_t x_last_active(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,

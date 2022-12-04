@@ -532,7 +532,8 @@ void x_func_wait(void)
 // Entry point from interpreter or JIT compiled code
 
 DLLEXPORT
-void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
+void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
+                   tlab_t *tlab)
 {
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
@@ -1052,6 +1053,13 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args)
       }
       break;
 
+   case JIT_EXIT_CLAIM_TLAB:
+      {
+         if (tlab != NULL)
+            x_claim_tlab(tlab);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }
@@ -1291,7 +1299,8 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 DLLEXPORT
 void __nvc_claim_tlab(void)
 {
-   x_claim_tlab();
+   extern tlab_t __nvc_tlab;
+   x_claim_tlab(&__nvc_tlab);
 }
 
 DLLEXPORT
@@ -1434,6 +1443,18 @@ DLLEXPORT
 void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
 {
    return x_mspace_alloc(size, nelems);
+}
+
+DLLEXPORT
+void *__nvc_mspace_alloc2(uintptr_t size, jit_anchor_t *anchor)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = anchor;
+
+   void *ptr = x_mspace_alloc(size, 1);
+
+   thread->anchor = NULL;
+   return ptr;
 }
 
 DLLEXPORT

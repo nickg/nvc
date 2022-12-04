@@ -53,6 +53,7 @@
   __nvc_map_const;
   __nvc_map_signal;
   __nvc_mspace_alloc;
+  __nvc_mspace_alloc2;
   __nvc_null_deref;
   __nvc_overflow;
   __nvc_pop_scope;

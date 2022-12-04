@@ -41,7 +41,7 @@ const char *jit_op_name(jit_op_t op)
    if (op >= __MACRO_BASE) {
       static const char *names[] = {
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
-         "$FFICALL", "$GETPRIV", "$PUTPRIV",
+         "$FFICALL", "$GETPRIV", "$PUTPRIV", "$LALLOC",
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];
@@ -71,6 +71,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "MAP_CONST", "RESOLVE_SIGNAL", "LAST_EVENT", "LAST_ACTIVE",
       "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
       "POP_SCOPE", "IMPLICIT_SIGNAL", "DRIVING", "DRIVING_VALUE",
+      "CLAIM_TLAB",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

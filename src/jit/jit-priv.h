@@ -74,6 +74,7 @@ typedef enum {
    MACRO_FFICALL,
    MACRO_GETPRIV,
    MACRO_PUTPRIV,
+   MACRO_LALLOC,
 } jit_op_t;
 
 typedef enum {
@@ -146,6 +147,7 @@ typedef enum {
    JIT_EXIT_IMPLICIT_SIGNAL,
    JIT_EXIT_DRIVING,
    JIT_EXIT_DRIVING_VALUE,
+   JIT_EXIT_CLAIM_TLAB,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -206,7 +208,8 @@ typedef struct _jit_func jit_func_t;
 typedef struct _jit_block jit_block_t;
 typedef struct _jit_anchor jit_anchor_t;
 
-typedef void (*jit_entry_fn_t)(jit_func_t *, jit_anchor_t *, jit_scalar_t *);
+typedef void (*jit_entry_fn_t)(jit_func_t *, jit_anchor_t *,
+                               jit_scalar_t *, tlab_t *);
 
 typedef struct {
    unsigned count;
@@ -304,7 +307,8 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 void jit_dump_interleaved(jit_func_t *f);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
-void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args);
+void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
+                tlab_t *tlab);
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
 void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
@@ -325,7 +329,8 @@ int jit_get_edge(jit_edge_list_t *list, int nth);
 
 void jit_do_lvn(jit_func_t *f);
 
-void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args);
+void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
+                   tlab_t *tlab);
 void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
                       jit_scalar_t *args);
 

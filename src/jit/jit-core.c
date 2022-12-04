@@ -397,7 +397,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
       fatal_trace("cannot link unit %s", istr(f->name));
 
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
-   if (!jit_fastcall(j, f->handle, &result, p1, p2)) {
+   if (!jit_fastcall(j, f->handle, &result, p1, p2, NULL)) {
       error_at(&(f->object->loc), "failed to initialise %s", istr(f->name));
       result.pointer = NULL;
    }
@@ -592,7 +592,7 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
 }
 
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
-                  jit_scalar_t p1, jit_scalar_t p2)
+                  jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab)
 {
    jit_func_t *f = jit_get_func(j, handle);
    jit_thread_local_t *thread = jit_thread_local();
@@ -613,7 +613,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
          jit_scalar_t args[JIT_MAX_ARGS];
          args[0] = p1;
          args[1] = p2;
-         (*f->entry)(f, NULL, args);
+         (*f->entry)(f, NULL, args, tlab);
          *result = args[0];
          jit_transition(j, JIT_INTERP, JIT_IDLE);
       }
@@ -652,7 +652,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
          jit_ffi_call(ff, args);
       }
       else
-         (*f->entry)(f, NULL, args);
+         (*f->entry)(f, NULL, args, NULL);
 
       *result = args[0];
    }

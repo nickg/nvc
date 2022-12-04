@@ -567,6 +567,13 @@ static jit_value_t macro_galloc(jit_irgen_t *g, jit_value_t bytes)
    return jit_value_from_reg(r);
 }
 
+static jit_value_t macro_lalloc(jit_irgen_t *g, jit_value_t bytes)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   irgen_emit_unary(g, MACRO_LALLOC, JIT_SZ_UNSPEC, JIT_CC_NONE, r, bytes);
+   return jit_value_from_reg(r);
+}
+
 static void macro_exit(jit_irgen_t *g, jit_exit_t exit)
 {
    irgen_emit_unary(g, MACRO_EXIT, JIT_SZ_UNSPEC, JIT_CC_NONE, JIT_REG_INVALID,
@@ -2153,8 +2160,10 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
       j_store(g, JIT_SZ_32, jit_value_from_int64(target), ptr);
    }
 
-   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+      macro_exit(g, JIT_EXIT_CLAIM_TLAB);
       j_send(g, 0, g->statereg);
+   }
    else
       j_send(g, 0, jit_value_from_int64(0));
 
@@ -2438,7 +2447,7 @@ static void irgen_op_alloc(jit_irgen_t *g, int op)
    jit_value_t count = irgen_get_arg(g, op, 0);
    jit_value_t total = j_mul(g, count, jit_value_from_int64(bytes));
 
-   g->map[vcode_get_result(op)] = macro_galloc(g, total);
+   g->map[vcode_get_result(op)] = macro_lalloc(g, total);
 }
 
 static void irgen_op_all(jit_irgen_t *g, int op)
@@ -3549,7 +3558,7 @@ static void irgen_locals(jit_irgen_t *g)
          sz += irgen_size_bytes(vtype);
       }
 
-      jit_value_t mem = macro_galloc(g, jit_value_from_int64(sz));
+      jit_value_t mem = macro_lalloc(g, jit_value_from_int64(sz));
       if (g->statereg.kind != JIT_VALUE_INVALID) {
          // A null state was passed in by the caller
          j_mov(g, jit_value_as_reg(g->statereg), mem);

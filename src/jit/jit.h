@@ -78,7 +78,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...);
 bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result);
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
-                  jit_scalar_t p1, jit_scalar_t p2);
+                  jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
 
 __attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);

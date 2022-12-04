@@ -793,7 +793,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    jit_scalar_t state = { .pointer = NULL };
    jit_scalar_t result;
 
-   if (jit_fastcall(m->jit, proc->handle, &result, state, context))
+   if (jit_fastcall(m->jit, proc->handle, &result, state, context, NULL))
       mptr_put(m->mspace, proc->privdata, result.pointer);
    else
       m->force_stop = true;
@@ -815,6 +815,8 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    else if (!tlab_valid(__nvc_tlab))
       tlab_acquire(m->mspace, &__nvc_tlab);
 
+   tlab_t *tlab = &__nvc_tlab;
+
    active_proc = proc;
    active_scope = proc->scope;
 
@@ -829,7 +831,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       .pointer = mptr_get(m->mspace, proc->scope->privdata)
    };
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, state, context))
+   if (!jit_fastcall(m->jit, proc->handle, &result, state, context, tlab))
       m->force_stop = true;
 
    active_proc = NULL;
@@ -870,7 +872,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       if (s->parent != NULL)
          context.pointer = mptr_get(m->mspace, s->parent->privdata);
 
-      if (jit_fastcall(m->jit, handle, &result, context, p2))
+      if (jit_fastcall(m->jit, handle, &result, context, p2, NULL))
          mptr_put(m->mspace, s->privdata, result.pointer);
       else {
          m->force_stop = true;
@@ -2906,15 +2908,15 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
    active_scope->aliases = a;
 }
 
-void x_claim_tlab(void)
+void x_claim_tlab(tlab_t *tlab)
 {
    TRACE("claiming TLAB for private use (used %zu/%d)",
-         __nvc_tlab.alloc - __nvc_tlab.base, TLAB_SIZE);
+         tlab->alloc - tlab->base, TLAB_SIZE);
 
-   assert(tlab_valid(__nvc_tlab));
-   assert(__nvc_tlab.alloc > __nvc_tlab.base);
+   assert(tlab_valid(*tlab));
+   assert(tlab->alloc > tlab->base);
 
-   tlab_move(__nvc_tlab, active_proc->tlab);
+   tlab_move(*tlab, active_proc->tlab);
 }
 
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)

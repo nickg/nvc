@@ -66,6 +66,7 @@ typedef enum {
    LLVM_ANCHOR,
    LLVM_CTOR_FN,
    LLVM_CTOR,
+   LLVM_TLAB,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -115,6 +116,7 @@ typedef enum {
    LLVM_GET_TREE,
    LLVM_GET_OBJECT,
    LLVM_GET_HANDLE,
+   LLVM_TLAB_ALLOC,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -153,6 +155,7 @@ typedef struct _cgen_block {
 typedef struct _cgen_func {
    LLVMValueRef     llvmfn;
    LLVMValueRef     args;
+   LLVMValueRef     tlab;
    LLVMValueRef     frame;
    LLVMValueRef     anchor;
    LLVMValueRef     cpool;
@@ -241,7 +244,8 @@ static void llvm_register_types(llvm_obj_t *obj)
       LLVMTypeRef atypes[] = {
          obj->types[LLVM_PTR],    // Function
          obj->types[LLVM_PTR],    // Anchor
-         obj->types[LLVM_PTR]     // Arguments
+         obj->types[LLVM_PTR],    // Arguments
+         obj->types[LLVM_PTR]     // TLAB pointer
       };
       obj->types[LLVM_ENTRY_FN] = LLVMFunctionType(obj->types[LLVM_VOID],
                                                    atypes, ARRAY_LEN(atypes),
@@ -260,6 +264,18 @@ static void llvm_register_types(llvm_obj_t *obj)
       obj->types[LLVM_ANCHOR] = LLVMStructTypeInContext(obj->context, fields,
                                                         ARRAY_LEN(fields),
                                                         false);
+   }
+
+   {
+      LLVMTypeRef fields[] = {
+         obj->types[LLVM_PTR],     // Mspace object
+         obj->types[LLVM_PTR],     // Base pointer
+         obj->types[LLVM_PTR],     // Allocation pointer
+         obj->types[LLVM_PTR],     // Limit pointer
+         obj->types[LLVM_INT32],   // Mptr object
+      };
+      obj->types[LLVM_TLAB] = LLVMStructTypeInContext(obj->context, fields,
+                                                      ARRAY_LEN(fields), false);
    }
 
    {
@@ -548,7 +564,8 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          LLVMTypeRef args[] = {
             obj->types[LLVM_INT32],
             obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR]
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR],
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -597,13 +614,13 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
    case LLVM_MSPACE_ALLOC:
       {
          LLVMTypeRef args[] = {
-            obj->types[LLVM_INT32],
-            obj->types[LLVM_INT32]
+            obj->types[LLVM_INTPTR],
+            obj->types[LLVM_PTR]
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = llvm_add_fn(obj, "__nvc_mspace_alloc", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_mspace_alloc2", obj->fntypes[which]);
       }
       break;
 
@@ -677,6 +694,19 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "__nvc_get_object", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_TLAB_ALLOC:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INTPTR],
+            obj->types[LLVM_PTR]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
+                                                ARRAY_LEN(args), false);
+         fn = llvm_add_fn(obj, "tlab_alloc", obj->fntypes[which]);
       }
       break;
 
@@ -1509,7 +1539,8 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef args[] = {
       fptr,
       PTR(cgb->func->anchor),
-      cgb->func->args
+      cgb->func->args,
+      cgb->func->tlab,
    };
    LLVMBuildCall2(obj->builder, obj->types[LLVM_ENTRY_FN], entry,
                   args, ARRAY_LEN(args), "");
@@ -1595,7 +1626,8 @@ static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef args[] = {
       which,
       PTR(cgb->func->anchor),
-      cgb->func->args
+      cgb->func->args,
+      cgb->func->tlab,
    };
    llvm_call_fn(obj, LLVM_DO_EXIT, args, ARRAY_LEN(args));
 }
@@ -1616,17 +1648,34 @@ static void cgen_macro_fficall(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_galloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   // TODO: use TLAB
-
    cgen_sync_irpos(obj, cgb, ir);
 
    LLVMValueRef size = cgen_get_value(obj, cgb, ir->arg1);
 
    LLVMValueRef args[] = {
-      LLVMBuildTrunc(obj->builder, size, obj->types[LLVM_INT32], ""),
-      llvm_int32(obj, 1),
+      LLVMBuildTrunc(obj->builder, size, obj->types[LLVM_INTPTR], ""),
+      cgb->func->anchor
    };
    LLVMValueRef ptr = llvm_call_fn(obj, LLVM_MSPACE_ALLOC, args,
+                                   ARRAY_LEN(args));
+
+   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
+                                                obj->types[LLVM_INT64],
+                                                cgen_reg_name(ir->result));
+}
+
+static void cgen_macro_lalloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   cgen_sync_irpos(obj, cgb, ir);
+
+   LLVMValueRef size = cgen_get_value(obj, cgb, ir->arg1);
+
+   LLVMValueRef args[] = {
+      cgb->func->tlab,
+      LLVMBuildTrunc(obj->builder, size, obj->types[LLVM_INTPTR], ""),
+      cgb->func->anchor
+   };
+   LLVMValueRef ptr = llvm_call_fn(obj, LLVM_TLAB_ALLOC, args,
                                    ARRAY_LEN(args));
 
    cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
@@ -1774,6 +1823,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_GALLOC:
       cgen_macro_galloc(obj, cgb, ir);
+      break;
+   case MACRO_LALLOC:
+      cgen_macro_lalloc(obj, cgb, ir);
       break;
    case MACRO_GETPRIV:
       cgen_macro_getpriv(obj, cgb, ir);
@@ -2014,6 +2066,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    func->args = LLVMGetParam(func->llvmfn, 2);
    LLVMSetValueName(func->args, "args");
 
+   func->tlab = LLVMGetParam(func->llvmfn, 3);
+   LLVMSetValueName(func->tlab, "tlab");
+
    if (func->source->framesz > 0) {
       LLVMTypeRef frame_type =
          LLVMArrayType(obj->types[LLVM_INT8], func->source->framesz);
@@ -2118,6 +2173,75 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    func->blocks = NULL;
 }
 
+static void cgen_tlab_alloc_body(llvm_obj_t *obj)
+{
+   LLVMValueRef fn = obj->fns[LLVM_TLAB_ALLOC];
+   LLVMSetLinkage(fn, LLVMPrivateLinkage);
+
+   LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "");
+
+   LLVMPositionBuilderAtEnd(obj->builder, entry);
+
+   LLVMValueRef tlab = LLVMGetParam(fn, 0);
+   LLVMSetValueName(tlab, "tlab");
+
+   LLVMValueRef bytes = LLVMGetParam(fn, 1);
+   LLVMSetValueName(bytes, "bytes");
+
+   LLVMValueRef anchor = LLVMGetParam(fn, 2);
+   LLVMSetValueName(anchor, "anchor");
+
+   LLVMValueRef tlab_valid = LLVMBuildIsNotNull(obj->builder, tlab, "");
+
+   LLVMBasicBlockRef fast_bb = llvm_append_block(obj, fn, "");
+   LLVMBasicBlockRef update_bb = llvm_append_block(obj, fn, "");
+   LLVMBasicBlockRef slow_bb = llvm_append_block(obj, fn, "");
+
+   LLVMBuildCondBr(obj->builder, tlab_valid, fast_bb, slow_bb);
+
+   LLVMPositionBuilderAtEnd(obj->builder, fast_bb);
+
+   LLVMValueRef alloc_ptr =
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 2, "");
+   LLVMValueRef limit_ptr =
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 3, "");
+
+   LLVMValueRef alloc =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], alloc_ptr, "");
+   LLVMValueRef limit =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], limit_ptr, "");
+
+   LLVMValueRef align_mask = llvm_intptr(obj, RT_ALIGN_MASK);
+   LLVMValueRef align_up =
+      LLVMBuildAnd(obj->builder,
+                   LLVMBuildAdd(obj->builder, bytes, align_mask, ""),
+                   LLVMBuildNot(obj->builder, align_mask, ""), "");
+
+   LLVMValueRef indexes[] = {
+      LLVMBuildZExt(obj->builder, align_up, obj->types[LLVM_INTPTR], "")
+   };
+   LLVMValueRef next = LLVMBuildInBoundsGEP2(obj->builder,
+                                             obj->types[LLVM_INT8],
+                                             alloc, indexes,
+                                             ARRAY_LEN(indexes), "");
+
+   LLVMValueRef over = LLVMBuildICmp(obj->builder, LLVMIntUGT, next, limit, "");
+   LLVMBuildCondBr(obj->builder, over, slow_bb, update_bb);
+
+   LLVMPositionBuilderAtEnd(obj->builder, update_bb);
+
+   LLVMBuildStore(obj->builder, next, alloc_ptr);
+   LLVMBuildRet(obj->builder, alloc);
+
+   LLVMPositionBuilderAtEnd(obj->builder, slow_bb);
+
+   LLVMValueRef args[] = { bytes, anchor };
+   LLVMValueRef ptr = llvm_call_fn(obj, LLVM_MSPACE_ALLOC, args,
+                                   ARRAY_LEN(args));
+
+   LLVMBuildRet(obj->builder, ptr);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT plugin interface
 
@@ -2192,6 +2316,9 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    };
 
    cgen_function(&obj, &func);
+
+   if (obj.fns[LLVM_TLAB_ALLOC] != NULL)
+      cgen_tlab_alloc_body(&obj);
 
    llvm_finalise(&obj);
 
@@ -2352,6 +2479,9 @@ void llvm_obj_emit(llvm_obj_t *obj, const char *path)
       LLVMPositionBuilderAtEnd(obj->builder, bb);
       LLVMBuildRetVoid(obj->builder);
    }
+
+   if (obj->fns[LLVM_TLAB_ALLOC] != NULL)
+      cgen_tlab_alloc_body(obj);
 
    llvm_finalise(obj);
 
