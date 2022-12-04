@@ -843,7 +843,7 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args)
       return;
    }
 
-   if (f->irbuf == NULL)
+   if (load_acquire(&(f->state)) != JIT_FUNC_READY || f->symbol /* XXX */)
       jit_irgen(f);
 
    if (f->next_tier && --(f->hotness) <= 0)

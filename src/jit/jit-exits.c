@@ -1479,9 +1479,6 @@ DLLEXPORT
 void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
                     int32_t bufsz, object_t *obj, ffi_spec_t spec)
 {
-   printf("register! name=%s fn=%p bufsz=%d obj=%p spec=%lx\n",
-          name, fn, bufsz, obj, spec);
-
    jit_t *j = jit_thread_local()->jit;
    jit_register(j, ident_new(name), fn, debug, bufsz, obj, spec);
 }
@@ -1489,15 +1486,11 @@ void __nvc_register(const char *name, jit_entry_fn_t fn, const uint8_t *debug,
 DLLEXPORT
 jit_func_t *__nvc_get_func(const char *name)
 {
-   printf("get_func %s\n", name);
-
    jit_t *j = jit_thread_local()->jit;
    jit_handle_t handle = jit_lazy_compile(j, ident_new(name));
 
    if (handle == JIT_HANDLE_INVALID)
       fatal_trace("invalid function %s", name);
-
-   printf("...handle = %d\n", handle);
 
    return jit_get_func(j, handle);
 }
@@ -1505,7 +1498,6 @@ jit_func_t *__nvc_get_func(const char *name)
 DLLEXPORT
 jit_foreign_t *__nvc_get_foreign(const char *name, ffi_spec_t spec)
 {
-   printf("get_foreign %s %lx\n", name, spec);
    ident_t id = ident_new(name);
    return jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
 }

@@ -321,6 +321,12 @@ int thread_id(void)
    return my_thread->id;
 }
 
+void thread_sleep(int usec)
+{
+   usleep(usec);
+   // TODO: thread_poll here
+}
+
 static void *thread_wrapper(void *arg)
 {
    assert(my_thread == NULL);

@@ -2320,11 +2320,11 @@ void llvm_add_abi_version(llvm_obj_t *obj)
 
 void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
 {
-   jit_func_t *f = jit_get_func(j, handle);
-   if (f->irbuf == NULL)
-      jit_irgen(f);
+   DEBUG_ONLY(const uint64_t start_us = get_timestamp_us());
 
-   const uint64_t start_us = get_timestamp_us();
+   jit_func_t *f = jit_get_func(j, handle);
+   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
+      jit_irgen(f);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, f->name);
@@ -2336,9 +2336,11 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
 
    cgen_function(obj, &func);
 
+#ifdef DEBUG
    const uint64_t end_us = get_timestamp_us();
-   debugf("thread %d compiled %s [%"PRIi64" us]", thread_id(),
-          func.name, end_us - start_us);
+   if (end_us - start_us > 100000)
+      debugf("compiled %s [%"PRIi64" us]", func.name, end_us - start_us);
+#endif
 
    free(func.name);
 }

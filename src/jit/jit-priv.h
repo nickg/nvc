@@ -234,9 +234,15 @@ typedef struct {
    jit_block_t blocks[0];
 } jit_cfg_t;
 
+typedef enum {
+   JIT_FUNC_PLACEHOLDER,
+   JIT_FUNC_COMPILING,
+   JIT_FUNC_READY
+} func_state_t;
+
 typedef struct _jit_func {
    jit_entry_fn_t  entry;    // Must be first
-   nvc_lock_t      lock;
+   func_state_t    state;
    jit_t          *jit;
    vcode_unit_t    unit;
    ident_t         name;
@@ -246,7 +252,6 @@ typedef struct _jit_func {
    unsigned char  *cpool;
    unsigned        framesz;
    unsigned        nirs;
-   unsigned        bufsz;
    unsigned        nregs;
    unsigned        nvars;
    unsigned        cpoolsz;

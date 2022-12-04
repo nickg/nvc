@@ -249,6 +249,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = alias ?: name;
+   f->state     = symbol ? JIT_FUNC_READY : JIT_FUNC_PLACEHOLDER;
    f->unit      = vu;
    f->symbol    = symbol;
    f->jit       = j;
@@ -261,7 +262,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    jit_install(j, f);
 
    if (alias != NULL && alias != name)
-      chash_put(j->index, alias, f);
+      chash_put(j->index, name, f);
 
    return f->handle;
 }
@@ -288,7 +289,7 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
       return handle;
 
    jit_func_t *f = jit_get_func(j, handle);
-   if (f->irbuf == NULL && f->symbol == NULL && f->entry == jit_interp)
+   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
       jit_irgen(f);
 
    return handle;
@@ -307,6 +308,7 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
+   f->state     = JIT_FUNC_READY;
    f->unit      = vcode_find_unit(f->name);
    f->jit       = j;
    f->handle    = j->next_handle++;
@@ -666,7 +668,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
 static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
 {
-   if (f->symbol == NULL && f->irbuf == NULL && f->entry == jit_interp)
+   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
       jit_irgen(f);   // Ensure FFI spec is set
 
    const int nargs = ffi_count_args(f->spec);
@@ -736,7 +738,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 {
    jit_func_t *f = jit_get_func(j, handle);
 
-   if (f->symbol == NULL && f->irbuf == NULL && f->entry == jit_interp)
+   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
       jit_irgen(f);   // Ensure FFI spec is set
 
    assert(f->spec != 0);
@@ -1063,6 +1065,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
+   f->state     = JIT_FUNC_READY;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
@@ -1102,8 +1105,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "C",  JIT_CC_C },
    };
 
-   f->bufsz = 128;
-   f->irbuf = xcalloc_array(f->bufsz, sizeof(jit_ir_t));
+   const unsigned bufsz = 128;
+   f->irbuf = xcalloc_array(bufsz, sizeof(jit_ir_t));
 
    SCOPED_A(int) lpatch = AINIT;
    int *labels LOCAL = NULL, maxlabel = 0;
@@ -1114,7 +1117,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    again:
       switch (state) {
       case LABEL:
-         assert(f->nirs < f->bufsz);
+         assert(f->nirs < bufsz);
          ir = &(f->irbuf[f->nirs++]);
 
          if (tok[0] == 'L' && isdigit((int)tok[1])) {

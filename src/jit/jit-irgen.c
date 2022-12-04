@@ -58,6 +58,7 @@ typedef struct {
    size_t          cpoolptr;
    jit_value_t     statereg;
    vcode_reg_t     flags;
+   unsigned        bufsz;
 } jit_irgen_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,14 +182,15 @@ static jit_value_t jit_value_from_foreign(jit_foreign_t *ff)
    return (jit_value_t){ .kind = JIT_VALUE_FOREIGN, .foreign = ff };
 }
 
-static jit_ir_t *irgen_append(jit_func_t *f)
+static jit_ir_t *irgen_append(jit_irgen_t *g)
 {
-   if (f->nirs == f->bufsz) {
-      f->bufsz = MAX(f->bufsz * 2, 1024);
-      f->irbuf = xrealloc_array(f->irbuf, f->bufsz, sizeof(jit_ir_t));
+   if (g->func->nirs == g->bufsz) {
+      g->bufsz = MAX(g->bufsz * 2, 1024);
+      g->func->irbuf = xrealloc_array(g->func->irbuf, g->bufsz,
+                                      sizeof(jit_ir_t));
    }
 
-   return &(f->irbuf[f->nirs++]);
+   return &(g->func->irbuf[g->func->nirs++]);
 }
 
 static jit_reg_t irgen_alloc_reg(jit_irgen_t *g)
@@ -243,7 +245,7 @@ static jit_cc_t irgen_get_jit_cc(vcode_cmp_t cmp)
 static void irgen_emit_nullary(jit_irgen_t *g, jit_op_t op, jit_cc_t cc,
                                jit_reg_t result)
 {
-   jit_ir_t *ir = irgen_append(g->func);
+   jit_ir_t *ir = irgen_append(g);
    ir->op        = op;
    ir->size      = JIT_SZ_UNSPEC;
    ir->cc        = cc;
@@ -257,7 +259,7 @@ static jit_ir_t *irgen_emit_unary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
                                   jit_cc_t cc, jit_reg_t result,
                                   jit_value_t arg)
 {
-   jit_ir_t *ir = irgen_append(g->func);
+   jit_ir_t *ir = irgen_append(g);
    ir->op        = op;
    ir->size      = sz;
    ir->cc        = cc;
@@ -273,7 +275,7 @@ static void irgen_emit_binary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
                               jit_cc_t cc, jit_reg_t result, jit_value_t arg1,
                               jit_value_t arg2)
 {
-   jit_ir_t *ir = irgen_append(g->func);
+   jit_ir_t *ir = irgen_append(g);
    ir->op     = op;
    ir->size   = sz;
    ir->cc     = cc;
@@ -1851,13 +1853,22 @@ static void irgen_op_var_upref(jit_irgen_t *g, int op)
    }
 
    // TODO: maybe we should cache these somewhere?
-   jit_handle_t handle = jit_compile(g->func->jit, vcode_unit_name());
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_unit_name());
    jit_func_t *cf = jit_get_func(g->func->jit, handle);
+
+   // Handle potential circular dependency
+   // TODO: it would be better to avoid this entirely
+   const unsigned *varoff = load_acquire(&(cf->varoff));
+   if (varoff == NULL) {
+      jit_irgen(cf);
+      varoff = load_acquire(&(cf->varoff));
+      assert(varoff);
+   }
 
    vcode_state_restore(&state);
 
    assert(address < cf->nvars);
-   const int offset = cf->varoff[address];
+   const int offset = varoff[address];
 
    g->map[vcode_get_result(op)] = jit_addr_from_value(context, offset);
 }
@@ -3490,8 +3501,8 @@ static void irgen_locals(jit_irgen_t *g)
 {
    const int nvars = g->func->nvars = vcode_count_vars();
 
+   unsigned *varoff = xmalloc_array(nvars, sizeof(unsigned));
    g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
-   g->func->varoff = xmalloc_array(nvars, sizeof(unsigned));
 
    bool on_stack = true;
    const vunit_kind_t kind = vcode_unit_kind();
@@ -3517,7 +3528,7 @@ static void irgen_locals(jit_irgen_t *g)
          const int align = irgen_align_of(vtype);
          sz = ALIGN_UP(sz, align);
          g->vars[i] = jit_value_from_frame_addr(sz);
-         g->func->varoff[i] = sz;
+         varoff[i] = sz;
          sz += irgen_size_bytes(vtype);
       }
 
@@ -3534,7 +3545,7 @@ static void irgen_locals(jit_irgen_t *g)
          vcode_type_t vtype = vcode_var_type(i);
          const int align = irgen_align_of(vtype);
          sz = ALIGN_UP(sz, align);
-         g->func->varoff[i] = sz;
+         varoff[i] = sz;
          sz += irgen_size_bytes(vtype);
       }
 
@@ -3547,8 +3558,12 @@ static void irgen_locals(jit_irgen_t *g)
          g->statereg = mem;
 
       for (int i = 0; i < nvars; i++)
-         g->vars[i] = jit_addr_from_value(g->statereg, g->func->varoff[i]);
+         g->vars[i] = jit_addr_from_value(g->statereg, varoff[i]);
    }
+
+   // Publish the variable offset table early to handle circular references
+   // This may be read by another thread while in the COMPILING state
+   store_release(&(g->func->varoff), varoff);
 }
 
 static void irgen_params(jit_irgen_t *g, int first)
@@ -3640,8 +3655,33 @@ static bool irgen_is_procedure(void)
    }
 }
 
+static bool irgen_enter(jit_func_t *f)
+{
+   switch (load_acquire(&(f->state))) {
+   case JIT_FUNC_READY:
+      return f->symbol != NULL;   // XXX: should be false
+   case JIT_FUNC_PLACEHOLDER:
+      if (atomic_cas(&(f->state), JIT_FUNC_PLACEHOLDER, JIT_FUNC_COMPILING))
+         return true;
+      // Fall-through
+   case JIT_FUNC_COMPILING:
+      // Another thread is compiling this function
+      for (int timeout = 10000; load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
+         if (timeout-- == 0)
+            fatal_trace("timeout waiting for %s", istr(f->name));
+         thread_sleep(100);
+      }
+      return false;
+   default:
+      fatal_trace("illegal function state for %s", istr(f->name));
+   }
+}
+
 void jit_irgen(jit_func_t *f)
 {
+   if (!irgen_enter(f))
+      return;
+
    assert(f->irbuf == NULL);
 
    vcode_select_unit(f->unit);
@@ -3722,6 +3762,9 @@ void jit_irgen(jit_func_t *f)
 
    jit_do_lvn(f);
    jit_free_cfg(f);
+
+   // Function can be executed immediately after this store
+   store_release(&(f->state), JIT_FUNC_READY);
 
    if (opt_get_verbose(OPT_JIT_VERBOSE, istr(f->name))) {
 #ifdef DEBUG

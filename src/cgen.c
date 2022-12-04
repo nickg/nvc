@@ -78,7 +78,7 @@ typedef struct {
 static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
 
-#define UNITS_PER_JOB 1000
+#define UNITS_PER_JOB 25
 
 #if !CGEN_USE_JIT
 
