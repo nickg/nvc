@@ -51,7 +51,8 @@
 #include <dlfcn.h>
 #endif
 
-typedef A(jit_func_t *) func_array_t;
+#define FUNC_HASH_SZ  1024
+#define FUNC_LIST_SZ  512
 
 typedef struct _jit_tier {
    jit_tier_t    *next;
@@ -60,9 +61,13 @@ typedef struct _jit_tier {
    void          *context;
 } jit_tier_t;
 
+typedef struct {
+   size_t      length;
+   jit_func_t *items[0];
+} func_array_t;
+
 typedef struct _jit {
-   func_array_t    funcs;
-   hash_t         *index;
+   chash_t        *index;
    mspace_t       *mspace;
    jit_lower_fn_t  lower_fn;
    void           *lower_ctx;
@@ -73,6 +78,9 @@ typedef struct _jit {
    int             exit_status;
    jit_tier_t     *tiers;
    jit_dll_t      *aotlib;
+   func_array_t   *funcs;
+   unsigned        next_handle;
+   nvc_lock_t      lock;
 } jit_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
@@ -104,8 +112,12 @@ jit_thread_local_t *jit_thread_local(void)
 jit_t *jit_new(void)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
-   j->index = hash_new(256);
+   j->index = chash_new(FUNC_HASH_SZ);
    j->mspace = mspace_new(opt_get_int(OPT_HEAP_SIZE));
+
+   j->funcs = xcalloc_flex(sizeof(func_array_t),
+                           FUNC_LIST_SZ, sizeof(jit_func_t *));
+   j->funcs->length = FUNC_LIST_SZ;
 
    mspace_set_oom_handler(j->mspace, jit_oom_cb);
 
@@ -130,9 +142,9 @@ void jit_free(jit_t *j)
    if (j->aotlib != NULL)
       ffi_unload_dll(j->aotlib);
 
-   for (int i = 0; i < j->funcs.count; i++)
-      jit_free_func(j->funcs.items[i]);
-   ACLEAR(j->funcs);
+   for (int i = 0; i < j->next_handle; i++)
+      jit_free_func(j->funcs->items[i]);
+   free(j->funcs);
 
    if (j->layouts != NULL) {
       hash_iter_t it = HASH_BEGIN;
@@ -150,7 +162,7 @@ void jit_free(jit_t *j)
    }
 
    mspace_destroy(j->mspace);
-   hash_free(j->index);
+   chash_free(j->index);
    free(j);
 }
 
@@ -159,10 +171,42 @@ mspace_t *jit_get_mspace(jit_t *j)
    return j->mspace;
 }
 
+static void jit_install(jit_t *j, jit_func_t *f)
+{
+   assert_lock_held(&(j->lock));
+
+   if (f->handle >= j->funcs->length) {
+      const size_t newlen = MAX(f->handle + 1, j->funcs->length * 2);
+      func_array_t *new = xcalloc_flex(sizeof(func_array_t),
+                                       newlen, sizeof(jit_func_t *));
+      new->length = newlen;
+      for (size_t i = 0; i < j->funcs->length; i++)
+         new->items[i] = j->funcs->items[i];
+
+      // Synchronises with load_acquire in jit_get_func
+      store_release(&(j->funcs), new);
+
+      // XXX: the old list leaks here: it should be cleaned up when
+      // no more threads can reference it
+   }
+
+   // Synchronises with load_acquire in jit_get_func
+   store_release(&(j->funcs->items[f->handle]), f);
+
+   chash_put(j->index, f->name, f);
+   if (f->unit) chash_put(j->index, f->unit, f);
+}
+
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
 {
-   jit_func_t *f = hash_get(j->index, name);
+   jit_func_t *f = chash_get(j->index, name);
    if (f != NULL)
+      return f->handle;
+
+   SCOPED_LOCK(j->lock);
+
+   // Second check with lock held
+   if ((f = chash_get(j->index, name)))
       return f->handle;
 
    void *symbol = NULL;
@@ -200,7 +244,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    if (vu == NULL && symbol == NULL)
       return JIT_HANDLE_INVALID;
 
-   assert(vu == NULL || hash_get(j->index, vu) == NULL);
+   assert(vu == NULL || chash_get(j->index, vu) == NULL);
 
    f = xcalloc(sizeof(jit_func_t));
 
@@ -208,26 +252,33 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    f->unit      = vu;
    f->symbol    = symbol;
    f->jit       = j;
-   f->handle    = j->funcs.count;
+   f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = jit_interp;
    f->object    = vu ? vcode_unit_object(vu) : NULL;
 
-   if (vu) hash_put(j->index, vu, f);
-   hash_put(j->index, name, f);
+   jit_install(j, f);
 
    if (alias != NULL && alias != name)
-      hash_put(j->index, alias, f);
+      chash_put(j->index, alias, f);
 
-   APUSH(j->funcs, f);
    return f->handle;
 }
 
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
 {
    assert(handle != JIT_HANDLE_INVALID);
-   return AGET(j->funcs, handle);
+
+   // Synchronises with store_release in jit_install
+   func_array_t *list = load_acquire(&(j->funcs));
+   assert(handle < list->length);
+
+   // Synchronises with store_release in jit_install
+   jit_func_t *f = load_acquire(&(list->items[handle]));
+   if (f == NULL) printf("get func %d is null\n", handle);
+   assert(f != NULL);
+   return f;
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)
@@ -247,16 +298,18 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
                   const uint8_t *debug, size_t bufsz, object_t *obj,
                   ffi_spec_t spec)
 {
-   jit_func_t *f = hash_get(j->index, name);
+   jit_func_t *f = chash_get(j->index, name);
    if (f != NULL)
       fatal_trace("attempt to register existing function %s", istr(name));
+
+   SCOPED_LOCK(j->lock);
 
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
    f->unit      = vcode_find_unit(f->name);
    f->jit       = j;
-   f->handle    = j->funcs.count;
+   f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = fn;
@@ -319,10 +372,7 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
    }
    assert(pos == bufsz);
 
-   if (f->unit) hash_put(j->index, f->unit, f);
-   hash_put(j->index, f->name, f);
-
-   APUSH(j->funcs, f);
+   jit_install(j, f);
 }
 
 void *jit_link(jit_t *j, jit_handle_t handle)
@@ -1004,21 +1054,22 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
 
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 {
-   jit_func_t *f = hash_get(j->index, name);
+   jit_func_t *f = chash_get(j->index, name);
    if (f != NULL)
       return f->handle;
+
+   SCOPED_LOCK(j->lock);
 
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
    f->jit       = j;
-   f->handle    = j->funcs.count;
+   f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = jit_interp;
 
-   hash_put(j->index, name, f);
-   APUSH(j->funcs, f);
+   jit_install(j, f);
 
    enum { LABEL, INS, CCSIZE, RESULT, ARG1, ARG2, NEWLINE } state = LABEL;
 

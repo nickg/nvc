@@ -28,6 +28,7 @@ void jit_register_llvm_plugin(jit_t *j);
 typedef struct _llvm_obj llvm_obj_t;
 
 llvm_obj_t *llvm_obj_new(const char *name);
+void llvm_add_abi_version(llvm_obj_t *obj);
 void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle);
 void llvm_obj_emit(llvm_obj_t *obj, const char *path);
 

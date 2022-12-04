@@ -36,6 +36,7 @@
     })
 
 #define relaxed_add(p, n) __atomic_add_fetch((p), (n), __ATOMIC_RELAXED)
+#define relaxed_fetch_add(p, n) __atomic_fetch_add((p), (n), __ATOMIC_RELAXED)
 #define relaxed_load(p) __atomic_load_n((p), __ATOMIC_RELAXED)
 #define relaxed_store(p, v) __atomic_store_n((p), (v), __ATOMIC_RELAXED)
 
@@ -61,6 +62,12 @@ typedef int8_t nvc_lock_t;
 
 void nvc_lock(nvc_lock_t *lock);
 void nvc_unlock(nvc_lock_t *lock);
+
+#ifdef DEBUG
+void assert_lock_held(nvc_lock_t *lock);
+#else
+#define assert_lock_held(lock)
+#endif
 
 void __scoped_unlock(nvc_lock_t **plock);
 

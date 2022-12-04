@@ -23,6 +23,7 @@
 #include "jit/jit-ffi.h"
 #include "mask.h"
 #include "rt/mspace.h"
+#include "thread.h"
 
 #include <setjmp.h>
 #include <signal.h>
@@ -235,6 +236,7 @@ typedef struct {
 
 typedef struct _jit_func {
    jit_entry_fn_t  entry;    // Must be first
+   nvc_lock_t      lock;
    jit_t          *jit;
    vcode_unit_t    unit;
    ident_t         name;

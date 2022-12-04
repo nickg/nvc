@@ -509,6 +509,15 @@ void nvc_unlock(nvc_lock_t *lock)
    TSAN_POST_UNLOCK(lock);
 }
 
+#ifdef DEBUG
+void assert_lock_held(nvc_lock_t *lock)
+{
+   int8_t state = relaxed_load(lock);
+   if (unlikely(!(state & IS_LOCKED)))
+      fatal_trace("expected lock at %p to be held", lock);
+}
+#endif
+
 void __scoped_unlock(nvc_lock_t **plock)
 {
    nvc_unlock(*plock);

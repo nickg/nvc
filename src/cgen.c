@@ -5609,6 +5609,9 @@ static void cgen_async_work(void *context, void *arg)
 
    llvm_obj_t *obj = llvm_obj_new(job->module_name);
 
+   if (job->index == 0)
+      llvm_add_abi_version(obj);
+
    for (int i = 0; i < job->units.count; i++) {
       vcode_unit_t vu = job->units.items[i];
       vcode_select_unit(vu);

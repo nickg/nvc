@@ -2304,6 +2304,11 @@ llvm_obj_t *llvm_obj_new(const char *name)
       LLVMConstArray(obj->types[LLVM_CTOR], ctors, CTOR_MAX_ORDER);
    LLVMSetInitializer(global, array);
 
+   return obj;
+}
+
+void llvm_add_abi_version(llvm_obj_t *obj)
+{
    LLVMValueRef abi_version =
       LLVMAddGlobal(obj->module, obj->types[LLVM_INT32], "__nvc_abi_version");
    LLVMSetInitializer(abi_version, llvm_int32(obj, RT_ABI_VERSION));
@@ -2311,8 +2316,6 @@ llvm_obj_t *llvm_obj_new(const char *name)
 #ifdef IMPLIB_REQUIRED
    LLVMSetDLLStorageClass(abi_version, LLVMDLLExportStorageClass);
 #endif
-
-   return obj;
 }
 
 void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
@@ -2334,10 +2337,8 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    cgen_function(obj, &func);
 
    const uint64_t end_us = get_timestamp_us();
-   static __thread uint64_t slowest = 0;
-   if (end_us - start_us > slowest)
-      debugf("compiled %s [%"PRIi64" us]", func.name,
-             (slowest = end_us - start_us));
+   debugf("thread %d compiled %s [%"PRIi64" us]", thread_id(),
+          func.name, end_us - start_us);
 
    free(func.name);
 }
