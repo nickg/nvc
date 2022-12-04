@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "hash.h"
 #include "ident.h"
 #include "opt.h"
 #include "rt/mspace.h"
@@ -91,6 +92,64 @@ START_TEST(test_ident_new)
 END_TEST
 
 ////////////////////////////////////////////////////////////////////////////////
+// Concurrent hash table updates
+
+#define CHASH_NVALUES 1024
+#define CHASH_ITERS   10000
+
+static void *chash_keys[CHASH_NVALUES];
+static void *chash_values[CHASH_NVALUES];
+
+#define VOIDP(x) ((void *)(uintptr_t)x)
+
+static void *test_chash_thread(void *arg)
+{
+   chash_t *h = arg;
+
+   while (load_acquire(&start) == 0)
+      spin_wait();
+
+   for (int i = 0; i < CHASH_ITERS; i++) {
+      int nth = rand() % CHASH_NVALUES;
+
+      if (rand() % 3 == 0)
+         chash_put(h, chash_keys[nth], chash_values[nth]);
+      else {
+         void *value = chash_get(h, chash_keys[nth]);
+         if (value != NULL)
+            ck_assert_ptr_eq(value, chash_values[nth]);
+      }
+   }
+
+   return NULL;
+}
+
+START_TEST(test_chash_rand)
+{
+   for (int i = 0; i < CHASH_NVALUES; i++) {
+      do {
+         chash_keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+      } while (chash_keys[i] == NULL);
+      chash_values[i] = VOIDP(rand());
+   }
+
+   chash_t *h = chash_new(CHASH_NVALUES / 4);
+
+   const int nproc = nvc_nprocs();
+   nvc_thread_t *handles[nproc];
+   for (int i = 0; i < nproc; i++)
+      handles[i] = thread_create(test_chash_thread, h, "test thread %d", i);
+
+   store_release(&start, 1);
+
+   for (int i = 0; i < nproc; i++)
+      thread_join(handles[i]);
+
+   chash_free(h);
+}
+END_TEST
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -109,6 +168,10 @@ int main(int argc, char **argv)
    TCase *tc_ident = tcase_create("ident");
    tcase_add_test(tc_ident, test_ident_new);
    suite_add_tcase(s, tc_ident);
+
+   TCase *tc_chash = tcase_create("chash");
+   tcase_add_test(tc_chash, test_chash_rand);
+   suite_add_tcase(s, tc_chash);
 
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);

@@ -38,6 +38,7 @@ typedef struct _fbuf fbuf_t;
 typedef struct _hash hash_t;
 typedef struct _shash shash_t;
 typedef struct _ihash ihash_t;
+typedef struct _chash chash_t;
 typedef struct _hset hset_t;
 typedef struct _eval eval_t;
 typedef struct _eval_frame eval_frame_t;

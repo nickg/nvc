@@ -184,6 +184,32 @@ START_TEST(test_hset_rand)
 }
 END_TEST;
 
+START_TEST(test_chash_rand)
+{
+   chash_t *h = chash_new(32);
+
+   static const int N = 1024;
+
+   void *keys[N];
+   void *values[N];
+
+   for (int i = 0; i < N; i++) {
+      do {
+         keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+      } while (keys[i] == NULL);
+      values[i] = VOIDP(rand());
+   }
+
+   for (int i = 0; i < N; i++)
+      chash_put(h, keys[i], values[i]);
+
+   for (int i = 0; i < N; i++)
+      fail_unless(chash_get(h, keys[i]) == values[i]);
+
+   chash_free(h);
+}
+END_TEST;
+
 START_TEST(test_safe_symbol)
 {
   const char *orig = "foo[]()+*\"=bar";
@@ -523,6 +549,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_shash_rand);
    tcase_add_test(tc_hash, test_ihash_rand);
    tcase_add_test(tc_hash, test_hset_rand);
+   tcase_add_test(tc_hash, test_chash_rand);
    suite_add_tcase(s, tc_hash);
 
    TCase *tc_sym = tcase_create("safe_symbol");

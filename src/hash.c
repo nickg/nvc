@@ -16,6 +16,7 @@
 //
 
 #include "hash.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -463,4 +464,84 @@ bool hset_contains(hset_t *h, const void *key)
       else if (h->keys[slot] == NULL)
          return false;
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Hash table that supports concurrent updates
+
+typedef struct _chash_node chash_node_t;
+
+struct _chash_node {
+   chash_node_t *chain;
+   const void   *key;
+   void         *value;
+};
+
+struct _chash {
+   unsigned      size;
+   unsigned      members;
+   chash_node_t *slots[0];
+};
+
+chash_t *chash_new(int size)
+{
+   const int roundup = next_power_of_2(size);
+
+   chash_t *h = xcalloc_flex(sizeof(chash_t), roundup, sizeof(chash_node_t));
+   h->size    = roundup;
+   h->members = 0;
+
+   return h;
+}
+
+void chash_free(chash_t *h)
+{
+   if (h != NULL) {
+      for (int i = 0; i < h->size; i++) {
+         for (chash_node_t *it = h->slots[i], *tmp; it; it = tmp) {
+            tmp = it->chain;
+            free(it);
+         }
+      }
+
+      free(h);
+   }
+}
+
+bool chash_put(chash_t *h, const void *key, void *value)
+{
+   const int slot = hash_slot(h->size, key);
+
+   for (;;) {
+      chash_node_t **p = &(h->slots[slot]);
+      for (chash_node_t *it; (it = load_acquire(p)); p = &(it->chain)) {
+         if (it->key == key) {
+            store_release(&(it->value), value);
+            return true;
+         }
+      }
+
+      chash_node_t *new = xmalloc(sizeof(chash_node_t));
+      new->chain = NULL;
+      new->key   = key;
+      new->value = value;
+
+      if (atomic_cas(p, NULL, new))
+         return false;
+
+      free(new);
+   }
+}
+
+void *chash_get(chash_t *h, const void *key)
+{
+   const int slot = hash_slot(h->size, key);
+
+   for (chash_node_t *it = load_acquire(&(h->slots[slot]));
+        it != NULL; it = load_acquire(&(it->chain))) {
+      if (it->key == key)
+         return load_acquire(&(it->value));
+   }
+
+   return NULL;
 }

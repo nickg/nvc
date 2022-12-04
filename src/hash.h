@@ -51,4 +51,9 @@ void hset_free(hset_t *h);
 void hset_insert(hset_t *h, const void *key);
 bool hset_contains(hset_t *h, const void *key);
 
+chash_t *chash_new(int size);
+void chash_free(chash_t *h);
+bool chash_put(chash_t *h, const void *key, void *value);
+void *chash_get(chash_t *h, const void *key);
+
 #endif  // _HASH_H
