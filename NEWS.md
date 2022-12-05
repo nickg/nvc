@@ -21,7 +21,7 @@
 - `libffi` is now a build-time dependency.
 - Negation of the smallest negative value of a type such as
   `-integer'left` now produces an error.
-- Default OSVVM version updated to 2022.10.
+- Default OSVVM version updated to 2022.11.
 
 ## Version 1.7.2 - 2022-10-16
 - Fixed build on FreeBSD/arm (#534).

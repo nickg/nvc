@@ -3769,13 +3769,13 @@ static void p_array_constraint(type_t type, type_t base)
          type_add_constraint(type, p_record_constraint(base));
          break;
       }
-      else {
+      else
          type_add_constraint(type, p_index_constraint(base));
 
-         // Base type may not actually be an array due to earlier errors
-         if (base != NULL && type_is_array(base))
-            base = type_elem(base);
-      }
+      // Base type may not actually be an array due to earlier errors
+      if (base != NULL && type_is_array(base))
+         base = type_elem(base);
+
    } while (peek() == tLPAREN);
 }
 

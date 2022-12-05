@@ -403,7 +403,8 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
       if (!sem_check_constraint(cons, elem, tab))
          return false;
 
-      if (i + 1 < ncon && tree_subkind(cons) == C_INDEX)
+      const constraint_kind_t consk = tree_subkind(cons);
+      if (i + 1 < ncon && (consk == C_INDEX || consk == C_OPEN))
          elem = type_elem(elem);
    }
 
