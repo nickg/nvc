@@ -277,7 +277,6 @@ jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
 
    // Synchronises with store_release in jit_install
    jit_func_t *f = load_acquire(&(list->items[handle]));
-   if (f == NULL) printf("get func %d is null\n", handle);
    assert(f != NULL);
    return f;
 }

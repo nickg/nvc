@@ -167,6 +167,24 @@ typedef struct _cgen_func {
    loc_t            last_loc;
 } cgen_func_t;
 
+typedef enum {
+   FUNC_ATTR_NOUNWIND,
+   FUNC_ATTR_NORETURN,
+   FUNC_ATTR_READONLY,
+   FUNC_ATTR_NOCAPTURE,
+   FUNC_ATTR_BYVAL,
+   FUNC_ATTR_UWTABLE,
+   FUNC_ATTR_NOINLINE,
+   FUNC_ATTR_WRITEONLY,
+   FUNC_ATTR_NONNULL,
+   FUNC_ATTR_COLD,
+   FUNC_ATTR_OPTNONE,
+
+   // Attributes requiring special handling
+   FUNC_ATTR_PRESERVE_FP,
+   FUNC_ATTR_DLLEXPORT,
+} func_attr_t;
+
 #define LLVM_CHECK(op, ...) do {                        \
       LLVMErrorRef error = op(__VA_ARGS__);             \
       if (unlikely(error != LLVMErrorSuccess)) {        \
@@ -219,6 +237,43 @@ static LLVMValueRef llvm_ptr(llvm_obj_t *obj, void *ptr)
 static LLVMValueRef llvm_real(llvm_obj_t *obj, double r)
 {
    return LLVMConstReal(obj->types[LLVM_DOUBLE], r);
+}
+
+static void llvm_add_func_attr(llvm_obj_t *obj, LLVMValueRef fn,
+                               func_attr_t attr, int param)
+{
+   LLVMAttributeRef ref;
+   if (attr == FUNC_ATTR_DLLEXPORT) {
+#ifdef IMPLIB_REQUIRED
+      LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
+#endif
+      return;
+   }
+   else if (attr == FUNC_ATTR_PRESERVE_FP) {
+      ref = LLVMCreateStringAttribute(obj->context, "frame-pointer",
+                                      13, "all", 3);
+   }
+   else {
+      const char *names[] = {
+         "nounwind", "noreturn", "readonly", "nocapture", "byval",
+         "uwtable", "noinline", "writeonly", "nonnull", "cold", "optnone",
+      };
+      assert(attr < ARRAY_LEN(names));
+
+      const unsigned kind =
+         LLVMGetEnumAttributeKindForName(names[attr], strlen(names[attr]));
+      if (kind == 0)
+         fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
+
+#ifdef LLVM_UWTABLE_HAS_ARGUMENT
+      if (attr == FUNC_ATTR_UWTABLE)
+         ref = LLVMCreateEnumAttribute(obj->context, kind, 2);
+      else
+#endif
+         ref = LLVMCreateEnumAttribute(obj->context, kind, 0);
+   }
+
+   LLVMAddAttributeAtIndex(fn, param, ref);
 }
 
 static void llvm_register_types(llvm_obj_t *obj)
@@ -2010,6 +2065,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = LLVMAddFunction(obj->module, func->name,
                                   obj->types[LLVM_ENTRY_FN]);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_UWTABLE, -1);
 
    LLVMMetadataRef file_ref =
       cgen_debug_file(obj, &(func->source->object->loc));
@@ -2055,7 +2111,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 
-      LLVMSetLinkage(func->llvmfn, LLVMPrivateLinkage);
+      LLVMSetLinkage(func->llvmfn, LLVMInternalLinkage);
    }
 
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
