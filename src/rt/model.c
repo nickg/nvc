@@ -788,13 +788,13 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    active_scope = proc->scope;
 
    jit_scalar_t context = {
-      .pointer = mptr_get(m->mspace, proc->scope->privdata)
+      .pointer = *mptr_get(proc->scope->privdata)
    };
    jit_scalar_t state = { .pointer = NULL };
    jit_scalar_t result;
 
    if (jit_fastcall(m->jit, proc->handle, &result, state, context, NULL))
-      mptr_put(m->mspace, proc->privdata, result.pointer);
+      *mptr_get(proc->privdata) = result.pointer;
    else
       m->force_stop = true;
 }
@@ -823,12 +823,12 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    // Stateless processes have NULL privdata so pass a dummy pointer
    // value in so it can be distinguished from a reset
    jit_scalar_t state = {
-      .pointer = mptr_get(m->mspace, proc->privdata) ?: (void *)-1
+      .pointer = *mptr_get(proc->privdata) ?: (void *)-1
    };
 
    jit_scalar_t result;
    jit_scalar_t context = {
-      .pointer = mptr_get(m->mspace, proc->scope->privdata)
+      .pointer = *mptr_get(proc->scope->privdata)
    };
 
    if (!jit_fastcall(m->jit, proc->handle, &result, state, context, tlab))
@@ -870,10 +870,10 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       jit_scalar_t p2 = { .integer = 0 };
 
       if (s->parent != NULL)
-         context.pointer = mptr_get(m->mspace, s->parent->privdata);
+         context.pointer = *mptr_get(s->parent->privdata);
 
       if (jit_fastcall(m->jit, handle, &result, context, p2, NULL))
-         mptr_put(m->mspace, s->privdata, result.pointer);
+         *mptr_get(s->privdata) = result.pointer;
       else {
          m->force_stop = true;
          return;

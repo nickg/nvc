@@ -374,7 +374,7 @@ static LLVMTypeRef llvm_tlab_type(void)
       llvm_void_ptr(),     // Base pointer
       llvm_void_ptr(),     // Allocation pointer
       llvm_void_ptr(),     // Limit pointer
-      llvm_int32_type(),   // Mptr object
+      llvm_void_ptr(),     // Mptr object
    };
    return LLVMStructTypeInContext(llvm_context(), struct_elems,
                                   ARRAY_LEN(struct_elems), false);

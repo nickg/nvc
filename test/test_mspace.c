@@ -108,16 +108,16 @@ START_TEST(test_mptr)
    generate_garbage(m, 5, sizeof(int));
 
    mptr_t p = mptr_new(m, "test");
-   mptr_put(m, p, mspace_alloc(m, sizeof(int)));
-   *(int *)mptr_get(m, p) = 42;
+   *mptr_get(p) = mspace_alloc(m, sizeof(int));
+   *(int *)*mptr_get(p) = 42;
 
    // Do enough allocations to trigger a GC
    generate_garbage(m, 1000, sizeof(int));
 
-   ck_assert_int_eq(*(int *)mptr_get(m, p), 42);
+   ck_assert_int_eq(*(int *)*mptr_get(p), 42);
 
    mptr_free(m, &p);
-   ck_assert_int_eq(p, MPTR_INVALID);
+   ck_assert_ptr_eq(p, MPTR_INVALID);
 
    mspace_destroy(m);
 }

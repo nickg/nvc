@@ -41,10 +41,16 @@
 #define LINE_SIZE  32
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
 
-typedef A(mptr_t)       mptr_list_t;
-typedef A(void *)       root_list_t;
 typedef A(uint64_t)     work_list_t;
-typedef A(const char *) str_list_t;
+
+struct _mptr {
+   void       *ptr;
+   mptr_t      prev;
+   mptr_t      next;
+#ifdef DEBUG
+   const char *name;
+#endif
+};
 
 typedef struct {
    bit_mask_t  markmask;
@@ -64,15 +70,14 @@ struct _mspace {
    unsigned         maxlines;
    char            *space;
    bit_mask_t       headmask;
-   root_list_t      roots;
-   mptr_list_t      free_mptrs;
+   mptr_t           roots;
+   mptr_t           free_mptrs;
    mspace_oom_fn_t  oomfn;
    free_list_t     *free_list;
    uint64_t         create_us;
    unsigned         total_gc;
    unsigned         num_cycles;
 #ifdef DEBUG
-   str_list_t       mptr_names;
    bool             stress;
 #endif
 };
@@ -97,9 +102,6 @@ mspace_t *mspace_new(size_t size)
    mask_init(&(m->headmask), m->maxlines);
    mask_setall(&(m->headmask));
 
-   APUSH(m->roots, NULL);    // Dummy MPTR_INVALID root
-   DEBUG_ONLY(APUSH(m->mptr_names, NULL));
-
    free_list_t *f = xmalloc(sizeof(free_list_t));
    f->next = NULL;
    f->ptr  = m->space;
@@ -113,15 +115,13 @@ mspace_t *mspace_new(size_t size)
 
 void mspace_destroy(mspace_t *m)
 {
-#ifndef NDEBUG
-   if (m->free_mptrs.count != m->roots.count - 1) {
+#ifdef DEBUG
+   if (m->roots != NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
-      for (int i = 0, n = 0; i < m->mptr_names.count; i++) {
-         if (m->mptr_names.items[i] != NULL)
-            tb_printf(tb, "%s%s", n++ > 0 ? ", " : "", m->mptr_names.items[i]);
-      }
-      fatal_trace("destroying mspace with %d live mptrs: %s",
-                  m->roots.count - m->free_mptrs.count - 1, tb_get(tb));
+      int n = 0;
+      for (mptr_t p = m->roots; p; p = p->next)
+         tb_printf(tb, "%s%s", n++ > 0 ? ", " : "", p->name);
+      fatal_trace("destroying mspace with %d live mptrs: %s", n, tb_get(tb));
    }
 #endif
 
@@ -137,9 +137,11 @@ void mspace_destroy(mspace_t *m)
       free(it);
    }
 
-   ACLEAR(m->roots);
-   DEBUG_ONLY(ACLEAR(m->mptr_names));
-   ACLEAR(m->free_mptrs);
+   for (mptr_t p = m->free_mptrs, tmp; p; p = tmp) {
+      tmp = p->next;
+      free(p);
+   }
+
    mask_free(&(m->headmask));
    nvc_munmap(m->space, m->maxsize);
    free(m);
@@ -266,19 +268,25 @@ void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn)
 
 mptr_t mptr_new(mspace_t *m, const char *name)
 {
-   if (m->free_mptrs.count > 0) {
-      mptr_t ptr = APOP(m->free_mptrs);
-      assert(AGET(m->roots, ptr) == NULL);
-      assert(AGET(m->mptr_names, ptr) == NULL);
-      DEBUG_ONLY(m->mptr_names.items[ptr] = name);
-      return ptr;
+   mptr_t ptr;
+   if (m->free_mptrs != NULL) {
+      ptr = m->free_mptrs;
+      m->free_mptrs = ptr->next;
    }
-   else {
-      mptr_t ptr = m->roots.count;
-      APUSH(m->roots, NULL);
-      DEBUG_ONLY(APUSH(m->mptr_names, name));
-      return ptr;
+   else
+      ptr = xmalloc(sizeof(struct _mptr));
+
+   if (m->roots != NULL) {
+      assert(m->roots->prev == NULL);
+      m->roots->prev = ptr;
    }
+
+   ptr->ptr = NULL;
+   ptr->next = m->roots;
+   ptr->prev = NULL;
+   DEBUG_ONLY(ptr->name = name);
+
+   return (m->roots = ptr);
 }
 
 void mptr_free(mspace_t *m, mptr_t *ptr)
@@ -286,31 +294,30 @@ void mptr_free(mspace_t *m, mptr_t *ptr)
    if (*ptr == MPTR_INVALID)
       return;
 
-   assert(*ptr < m->roots.count);
-   assert(*ptr < m->mptr_names.count);
-   assert(m->free_mptrs.count < m->roots.count);
+   if ((*ptr)->next != NULL)
+      (*ptr)->next->prev = (*ptr)->prev;
 
-   m->roots.items[*ptr] = NULL;
-   DEBUG_ONLY(m->mptr_names.items[*ptr] = NULL);
-   APUSH(m->free_mptrs, *ptr);
-   *ptr = MPTR_INVALID;
+   if ((*ptr)->prev != NULL)
+      (*ptr)->prev->next = (*ptr)->next;
+   else {
+      assert(m->roots == *ptr);
+      m->roots = (*ptr)->next;
+   }
+
+   (*ptr)->prev = NULL;
+   (*ptr)->ptr  = NULL;
+   DEBUG_ONLY((*ptr)->name = NULL);
+
+   (*ptr)->next = m->free_mptrs;
+   m->free_mptrs = *ptr;
+
+   *ptr = NULL;
 }
 
-void *mptr_get(mspace_t *m, mptr_t ptr)
+void **mptr_get(mptr_t ptr)
 {
    assert(ptr != MPTR_INVALID);
-   assert(ptr < m->roots.count);
-
-   return m->roots.items[ptr];
-}
-
-void mptr_put(mspace_t *m, mptr_t ptr, void *value)
-{
-   assert(ptr != MPTR_INVALID);
-   assert(ptr < m->roots.count);
-   assert(value == NULL || is_mspace_ptr(m, value));
-
-   m->roots.items[ptr] = value;
+   return &(ptr->ptr);
 }
 
 void tlab_acquire(mspace_t *m, tlab_t *t)
@@ -324,7 +331,7 @@ void tlab_acquire(mspace_t *m, tlab_t *t)
    t->mptr   = mptr_new(m, "tlab");
 
    // This ensures the TLAB is kept alive over GCs
-   mptr_put(m, t->mptr, t->base);
+   *mptr_get(t->mptr) = t->base;
 }
 
 void tlab_release(tlab_t *t)
@@ -381,6 +388,16 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
    }
 }
 
+static void mspace_mark_mptr(mspace_t *m, mptr_t ptr, gc_state_t *state)
+{
+#ifdef DEBUG
+   if (unlikely(ptr->ptr != NULL && !is_mspace_ptr(m, ptr->ptr)))
+      fatal_trace("mptr %s points to unknown address %p", ptr->name, ptr->ptr);
+#endif
+
+   mspace_mark_root(m, (intptr_t)ptr->ptr, state);
+}
+
 __attribute__((no_sanitize_address, noinline))
 static void mspace_gc(mspace_t *m)
 {
@@ -392,8 +409,8 @@ static void mspace_gc(mspace_t *m)
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
 
-   for (int i = 0; i < m->roots.count; i++)
-      mspace_mark_root(m, (intptr_t)m->roots.items[i], &state);
+   for (mptr_t p = m->roots; p; p = p->next)
+      mspace_mark_mptr(m, p, &state);
 
    struct cpu_state cpu;
    capture_registers(&cpu);

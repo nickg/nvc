@@ -20,8 +20,8 @@
 
 #include "prim.h"
 
-typedef uint32_t mptr_t;
-#define MPTR_INVALID 0
+#define MPTR_INVALID NULL
+typedef struct _mptr *mptr_t;
 
 typedef void (*mspace_oom_fn_t)(mspace_t *, size_t);
 
@@ -63,8 +63,7 @@ void *tlab_alloc(tlab_t *t, size_t size);
 
 mptr_t mptr_new(mspace_t *m, const char *name);
 void mptr_free(mspace_t *m, mptr_t *ptr);
-void *mptr_get(mspace_t *m, mptr_t ptr);
-void mptr_put(mspace_t *m, mptr_t ptr, void *value);
+void **mptr_get(mptr_t ptr);
 
 #define MSPACE_CURRENT_FRAME __builtin_frame_address(0)
 

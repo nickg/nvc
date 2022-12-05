@@ -383,7 +383,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    jit_func_t *f = jit_get_func(j, handle);
    if (f->privdata != MPTR_INVALID)
-      return mptr_get(j->mspace, f->privdata);
+      return *mptr_get(f->privdata);
 
    f->privdata = mptr_new(j->mspace, "privdata");
 
@@ -406,7 +406,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    vcode_state_restore(&state);
 
    // Initialisation should save the context pointer
-   assert(result.pointer == mptr_get(j->mspace, f->privdata));
+   assert(result.pointer == *mptr_get(f->privdata));
 
    return result.pointer;
 }
@@ -416,13 +416,13 @@ void *jit_get_privdata(jit_t *j, jit_func_t *f)
    if (f->privdata == MPTR_INVALID)
       f->privdata = mptr_new(j->mspace, "privdata");
 
-   return mptr_get(j->mspace, f->privdata);
+   return *mptr_get(f->privdata);
 }
 
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr)
 {
    assert(f->privdata != MPTR_INVALID);
-   mptr_put(j->mspace, f->privdata, ptr);
+   *mptr_get(f->privdata) = ptr;
 }
 
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
@@ -432,7 +432,7 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
       fatal_trace("%s not linked", istr(f->name));
 
    assert(var < f->nvars);
-   return (char *)mptr_get(j->mspace, f->privdata) + f->varoff[var];
+   return *mptr_get(f->privdata) + f->varoff[var];
 }
 
 static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
