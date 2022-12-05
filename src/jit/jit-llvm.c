@@ -1740,12 +1740,35 @@ static void cgen_macro_lalloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   // TODO: this needs some kind of fast-path
+   jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
-   LLVMValueRef args[] = {
-      cgen_get_value(obj, cgb, ir->arg1)
-   };
-   LLVMValueRef ptr = llvm_call_fn(obj, LLVM_GETPRIV, args, ARRAY_LEN(args));
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, f->name);
+   tb_cat(tb, ".privdata");
+
+   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
+   if (global == NULL) {
+      global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
+      LLVMSetUnnamedAddr(global, true);
+      LLVMSetLinkage(global, LLVMPrivateLinkage);
+      LLVMSetInitializer(global, llvm_ptr(obj, NULL));
+
+      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
+
+      LLVMValueRef args[] = {
+         cgen_get_value(obj, cgb, ir->arg1)
+      };
+      LLVMValueRef init =
+         llvm_call_fn(obj, LLVM_GETPRIV, args, ARRAY_LEN(args));
+      LLVMBuildStore(obj->builder, init, global);
+
+      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+   }
+
+   LLVMValueRef ptrptr =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+   LLVMValueRef ptr =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "");
 
    cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
                                                 obj->types[LLVM_INT64],

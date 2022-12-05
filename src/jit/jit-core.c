@@ -411,18 +411,12 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    return result.pointer;
 }
 
-void *jit_get_privdata(jit_t *j, jit_func_t *f)
+void **jit_get_privdata_ptr(jit_t *j, jit_func_t *f)
 {
    if (f->privdata == MPTR_INVALID)
       f->privdata = mptr_new(j->mspace, "privdata");
 
-   return *mptr_get(f->privdata);
-}
-
-void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr)
-{
-   assert(f->privdata != MPTR_INVALID);
-   *mptr_get(f->privdata) = ptr;
+   return mptr_get(f->privdata);
 }
 
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)

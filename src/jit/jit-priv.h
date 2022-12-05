@@ -312,8 +312,7 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
 void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
-void *jit_get_privdata(jit_t *j, jit_func_t *f);
-void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
+void **jit_get_privdata_ptr(jit_t *j, jit_func_t *f);
 bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
