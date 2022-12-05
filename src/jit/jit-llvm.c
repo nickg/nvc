@@ -41,6 +41,7 @@
 #include <llvm-c/Error.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #ifdef LLVM_HAS_LLJIT
 #include <llvm-c/LLJIT.h>
@@ -391,12 +392,20 @@ static void llvm_verify_module(LLVMModuleRef module)
 static void llvm_optimise(LLVMModuleRef module)
 {
    LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
+   LLVMPassManagerRef mpm = LLVMCreatePassManager();
 
-   LLVMAddScalarReplAggregatesPass(fpm);
-   LLVMAddInstructionCombiningPass(fpm);
-   LLVMAddReassociatePass(fpm);
-   LLVMAddGVNPass(fpm);
-   LLVMAddCFGSimplificationPass(fpm);
+   const int olevel = opt_get_int(OPT_OPTIMISE);
+
+   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
+   LLVMPassManagerBuilderSetOptLevel(builder, olevel);
+   LLVMPassManagerBuilderSetSizeLevel(builder, 0);
+
+   if (olevel >= 2)
+      LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
+
+   LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
+   LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
+   LLVMPassManagerBuilderDispose(builder);
 
    LLVMInitializeFunctionPassManager(fpm);
 
@@ -406,6 +415,9 @@ static void llvm_optimise(LLVMModuleRef module)
 
    LLVMFinalizeFunctionPassManager(fpm);
    LLVMDisposePassManager(fpm);
+
+   LLVMRunPassManager(mpm, module);
+   LLVMDisposePassManager(mpm);
 }
 
 static void llvm_finalise(llvm_obj_t *obj)
