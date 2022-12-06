@@ -299,11 +299,27 @@ static void llvm_register_types(llvm_obj_t *obj)
 #endif
 
    {
+      LLVMTypeRef fields[] = {
+         obj->types[LLVM_PTR],     // Mspace object
+         obj->types[LLVM_PTR],     // Base pointer
+         obj->types[LLVM_PTR],     // Allocation pointer
+         obj->types[LLVM_PTR],     // Limit pointer
+         obj->types[LLVM_INT32],   // Mptr object
+      };
+      obj->types[LLVM_TLAB] = LLVMStructTypeInContext(obj->context, fields,
+                                                      ARRAY_LEN(fields), false);
+   }
+
+   {
       LLVMTypeRef atypes[] = {
          obj->types[LLVM_PTR],    // Function
          obj->types[LLVM_PTR],    // Anchor
          obj->types[LLVM_PTR],    // Arguments
+#ifdef LLVM_HAS_OPAQUE_POINTERS
          obj->types[LLVM_PTR]     // TLAB pointer
+#else
+         LLVMPointerType(obj->types[LLVM_TLAB], 0)
+#endif
       };
       obj->types[LLVM_ENTRY_FN] = LLVMFunctionType(obj->types[LLVM_VOID],
                                                    atypes, ARRAY_LEN(atypes),
@@ -322,18 +338,6 @@ static void llvm_register_types(llvm_obj_t *obj)
       obj->types[LLVM_ANCHOR] = LLVMStructTypeInContext(obj->context, fields,
                                                         ARRAY_LEN(fields),
                                                         false);
-   }
-
-   {
-      LLVMTypeRef fields[] = {
-         obj->types[LLVM_PTR],     // Mspace object
-         obj->types[LLVM_PTR],     // Base pointer
-         obj->types[LLVM_PTR],     // Allocation pointer
-         obj->types[LLVM_PTR],     // Limit pointer
-         obj->types[LLVM_INT32],   // Mptr object
-      };
-      obj->types[LLVM_TLAB] = LLVMStructTypeInContext(obj->context, fields,
-                                                      ARRAY_LEN(fields), false);
    }
 
    {
@@ -634,7 +638,11 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             obj->types[LLVM_INT32],
             obj->types[LLVM_PTR],
             obj->types[LLVM_PTR],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
             obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_TLAB], 0),
+#endif
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -685,7 +693,11 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       {
          LLVMTypeRef args[] = {
             obj->types[LLVM_INTPTR],
-            obj->types[LLVM_PTR]
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_ANCHOR], 0),
+#endif
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
@@ -770,9 +782,17 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
    case LLVM_TLAB_ALLOC:
       {
          LLVMTypeRef args[] = {
+#ifdef LLVM_HAS_OPAQUE_POINTERS
             obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_TLAB], 0),
+#endif
             obj->types[LLVM_INTPTR],
-            obj->types[LLVM_PTR]
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_ANCHOR], 0),
+#endif
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
