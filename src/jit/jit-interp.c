@@ -151,9 +151,6 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       return (jit_scalar_t){ .integer = value.int64 };
    case JIT_VALUE_DOUBLE:
       return (jit_scalar_t){ .real = value.dval };
-   case JIT_ADDR_FRAME:
-      JIT_ASSERT(value.int64 >= 0 && value.int64 < state->func->framesz);
-      return (jit_scalar_t){ .pointer = state->frame + value.int64 };
    case JIT_ADDR_CPOOL:
       JIT_ASSERT(value.int64 >= 0 && value.int64 <= state->func->cpoolsz);
       return (jit_scalar_t){ .pointer = state->func->cpool + value.int64 };
@@ -684,6 +681,12 @@ static void interp_lalloc(jit_interp_t *state, jit_ir_t *ir)
    thread->anchor = NULL;
 }
 
+static void interp_salloc(jit_interp_t *state, jit_ir_t *ir)
+{
+   assert(ir->arg1.int64 + ir->arg2.int64 <= state->func->framesz);
+   state->regs[ir->result].pointer = state->frame + ir->arg1.int64;
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    state->anchor->irpos = ir - state->func->irbuf;
@@ -827,6 +830,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_LALLOC:
          interp_lalloc(state, ir);
+         break;
+      case MACRO_SALLOC:
+         interp_salloc(state, ir);
          break;
       case MACRO_EXIT:
          interp_exit(state, ir);

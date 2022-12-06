@@ -41,7 +41,7 @@ const char *jit_op_name(jit_op_t op)
    if (op >= __MACRO_BASE) {
       static const char *names[] = {
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
-         "$FFICALL", "$GETPRIV", "$PUTPRIV", "$LALLOC",
+         "$FFICALL", "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC"
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];
@@ -98,8 +98,6 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
          return printf("#0x%"PRIx64, value.int64);
    case JIT_VALUE_DOUBLE:
       return printf("%%%g", value.dval);
-   case JIT_ADDR_FRAME:
-      return printf("[FP+%"PRIi64"]", value.int64);
    case JIT_ADDR_CPOOL:
       return printf("[CP+%"PRIi64"]", value.int64);
    case JIT_ADDR_REG:

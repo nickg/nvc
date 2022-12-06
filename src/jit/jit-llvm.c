@@ -157,7 +157,6 @@ typedef struct _cgen_func {
    LLVMValueRef     llvmfn;
    LLVMValueRef     args;
    LLVMValueRef     tlab;
-   LLVMValueRef     frame;
    LLVMValueRef     anchor;
    LLVMValueRef     cpool;
    LLVMMetadataRef  debugmd;
@@ -975,15 +974,6 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       return llvm_int64(obj, value.int64);
    case JIT_VALUE_DOUBLE:
       return llvm_real(obj, value.dval);
-   case JIT_ADDR_FRAME:
-      {
-         assert(value.int64 >= 0 && value.int64 < cgb->func->source->framesz);
-         LLVMValueRef indexes[] = { llvm_intptr(obj, value.int64) };
-         LLVMTypeRef byte_type = obj->types[LLVM_INT8];
-         return LLVMBuildInBoundsGEP2(obj->builder, byte_type,
-                                      cgb->func->frame, indexes,
-                                      ARRAY_LEN(indexes), "");
-      }
    case JIT_ADDR_CPOOL:
       assert(value.int64 >= 0 && value.int64 <= cgb->func->source->cpoolsz);
       if (cgb->func->cpool != NULL) {
@@ -1750,6 +1740,28 @@ static void cgen_macro_lalloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                                 cgen_reg_name(ir->result));
 }
 
+static void cgen_macro_salloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMBasicBlockRef old_bb = LLVMGetInsertBlock(obj->builder);
+   LLVMBasicBlockRef first_bb = LLVMGetFirstBasicBlock(cgb->func->llvmfn);
+   LLVMPositionBuilderAtEnd(obj->builder, first_bb);
+
+   assert(ir->arg2.kind == JIT_VALUE_INT64);
+
+   LLVMValueRef ptr;
+   if (ir->arg2.int64 <= 8)
+      ptr = LLVMBuildAlloca(obj->builder, obj->types[LLVM_INT64], "");
+   else
+      ptr = LLVMBuildArrayAlloca(obj->builder, obj->types[LLVM_INT8],
+                                 llvm_intptr(obj, ir->arg2.int64), "");
+
+   LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+
+   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
+                                                obj->types[LLVM_INT64],
+                                                cgen_reg_name(ir->result));
+}
+
 static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
@@ -1916,6 +1928,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_LALLOC:
       cgen_macro_lalloc(obj, cgb, ir);
+      break;
+   case MACRO_SALLOC:
+      cgen_macro_salloc(obj, cgb, ir);
       break;
    case MACRO_GETPRIV:
       cgen_macro_getpriv(obj, cgb, ir);
@@ -2159,13 +2174,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    func->tlab = LLVMGetParam(func->llvmfn, 3);
    LLVMSetValueName(func->tlab, "tlab");
-
-   if (func->source->framesz > 0) {
-      LLVMTypeRef frame_type =
-         LLVMArrayType(obj->types[LLVM_INT8], func->source->framesz);
-      func->frame = LLVMBuildAlloca(obj->builder, frame_type, "frame");
-      LLVMSetAlignment(func->frame, sizeof(double));
-   }
 
    jit_cfg_t *cfg = func->cfg = jit_get_cfg(func->source);
    cgen_basic_blocks(obj, func, cfg);

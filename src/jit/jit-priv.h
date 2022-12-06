@@ -75,6 +75,7 @@ typedef enum {
    MACRO_GETPRIV,
    MACRO_PUTPRIV,
    MACRO_LALLOC,
+   MACRO_SALLOC,
 } jit_op_t;
 
 typedef enum {
@@ -158,7 +159,6 @@ typedef enum {
    JIT_VALUE_REG,
    JIT_VALUE_INT64,
    JIT_VALUE_DOUBLE,
-   JIT_ADDR_FRAME,
    JIT_ADDR_REG,
    JIT_ADDR_ABS,
    JIT_ADDR_CPOOL,

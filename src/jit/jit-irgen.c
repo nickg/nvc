@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 typedef struct _irgen_label irgen_label_t;
 typedef struct _patch_list  patch_list_t;
@@ -81,12 +82,6 @@ static inline jit_value_t jit_value_from_double(double immed)
    return (jit_value_t){ .kind = JIT_VALUE_DOUBLE, .dval = immed };
 }
 
-static inline jit_value_t jit_value_from_frame_addr(int offset)
-{
-   jit_value_t value = { .kind = JIT_ADDR_FRAME, .int64 = offset };
-   return value;
-}
-
 static inline jit_value_t jit_value_from_cpool_addr(int offset)
 {
    jit_value_t value = { .kind = JIT_ADDR_CPOOL, .int64 = offset };
@@ -123,7 +118,6 @@ static inline bool jit_value_is_addr(jit_value_t value)
    case JIT_ADDR_ABS:
    case JIT_ADDR_CPOOL:
    case JIT_ADDR_REG:
-   case JIT_ADDR_FRAME:
       return true;
    default:
       return false;
@@ -145,7 +139,6 @@ static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
          .kind = JIT_ADDR_ABS,
          .int64 = value.int64 + disp
       };
-   case JIT_ADDR_FRAME:
    case JIT_ADDR_CPOOL:
       return (jit_value_t){
          .kind = value.kind,
@@ -496,7 +489,6 @@ static jit_value_t j_uload(jit_irgen_t *g, jit_size_t sz, jit_value_t addr)
 
 static jit_value_t j_load(jit_irgen_t *g, jit_size_t sz, jit_value_t addr)
 {
-   assert(jit_value_is_addr(addr));
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_unary(g, J_LOAD, sz, JIT_CC_NONE, r, addr);
    return jit_value_from_reg(r);
@@ -506,7 +498,6 @@ static void j_store(jit_irgen_t *g, jit_size_t sz, jit_value_t value,
                     jit_value_t addr)
 {
    assert(!jit_value_is_addr(value));
-   assert(jit_value_is_addr(addr));
    irgen_emit_binary(g, J_STORE, sz, JIT_CC_NONE, JIT_REG_INVALID, value, addr);
 }
 
@@ -571,6 +562,17 @@ static jit_value_t macro_lalloc(jit_irgen_t *g, jit_value_t bytes)
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_unary(g, MACRO_LALLOC, JIT_SZ_UNSPEC, JIT_CC_NONE, r, bytes);
+   return jit_value_from_reg(r);
+}
+
+static jit_value_t macro_salloc(jit_irgen_t *g, size_t size)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   jit_value_t arg1 = jit_value_from_int64(g->func->framesz);
+   jit_value_t arg2 = jit_value_from_int64(size);
+   irgen_emit_binary(g, MACRO_SALLOC, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     r, arg1, arg2);
+   g->func->framesz += ALIGN_UP(size, 8);
    return jit_value_from_reg(r);
 }
 
@@ -779,17 +781,6 @@ static jit_reg_t irgen_as_reg(jit_irgen_t *g, jit_value_t value)
    }
 }
 
-static jit_value_t irgen_stack_space(jit_irgen_t *g, vcode_type_t vtype)
-{
-   const int bytes = irgen_size_bytes(vtype);
-   const int align = irgen_align_of(vtype);
-
-   g->func->framesz = ALIGN_UP(g->func->framesz, align);
-   jit_value_t addr = jit_value_from_frame_addr(g->func->framesz);
-   g->func->framesz += bytes;
-   return addr;
-}
-
 static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
 {
    switch (addr.kind) {
@@ -798,7 +789,6 @@ static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
          return jit_value_from_reg(addr.reg);
       else
          return j_lea(g, addr);
-   case JIT_ADDR_FRAME:
    case JIT_ADDR_CPOOL:
    case JIT_ADDR_ABS:
       return j_lea(g, addr);
@@ -1498,8 +1488,10 @@ static void irgen_op_index(jit_irgen_t *g, int op)
 }
 
 static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
-                                   jit_value_t addr)
+                                   jit_value_t ptr)
 {
+   jit_value_t addr = jit_addr_from_value(ptr, 0);
+
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_INT:
@@ -1568,8 +1560,10 @@ static void irgen_op_load_indirect(jit_irgen_t *g, int op)
 }
 
 static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
-                             jit_value_t value, jit_value_t addr)
+                             jit_value_t value, jit_value_t ptr)
 {
+   jit_value_t addr = jit_addr_from_value(ptr, 0);
+
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_INT:
@@ -2781,7 +2775,7 @@ static void irgen_op_file_write(jit_irgen_t *g, int op)
    jit_value_t ptr = data;
    vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
    if (vtype_kind(data_type) != VCODE_TYPE_POINTER) {
-      ptr = irgen_stack_space(g, data_type);
+      ptr = macro_salloc(g, irgen_size_bytes(data_type));
       j_store(g, irgen_jit_size(data_type), data, ptr);
       elem_type = data_type;
    }
@@ -3519,29 +3513,17 @@ static void irgen_locals(jit_irgen_t *g)
       on_stack = false;
    else if (vcode_unit_child(vcode_active_unit()) != NULL)
       on_stack = false;
-   else {
-      for (int i = 0; i < nvars; i++) {
-         // TODO: this seems a bit extreme, we only need to allocate
-         // this one variable on the heap. Likewise temp vars can always
-         // go on the stack.
-         if (vcode_var_flags(i) & VAR_HEAP)
-            on_stack = false;
-      }
-   }
 
    if (on_stack) {
       // Local variables on stack
-      size_t sz = 0;
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
-         const int align = irgen_align_of(vtype);
-         sz = ALIGN_UP(sz, align);
-         g->vars[i] = jit_value_from_frame_addr(sz);
-         varoff[i] = sz;
-         sz += irgen_size_bytes(vtype);
+         const int sz = irgen_size_bytes(vtype);
+         if (vcode_var_flags(i) & VAR_HEAP)
+            g->vars[i] = macro_lalloc(g, jit_value_from_int64(sz));
+         else
+            g->vars[i] = macro_salloc(g, sz);
       }
-
-      g->func->framesz = sz;
    }
    else {
       // Local variables on heap

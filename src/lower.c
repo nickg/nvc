@@ -5679,9 +5679,16 @@ static void lower_pcall(tree_t pcall)
       return;
    }
 
-   const bool never_waits = !!(tree_flags(decl) & TREE_F_NEVER_WAITS);
-   const bool use_fcall =
-      never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION;
+   bool use_fcall;
+   switch (vcode_unit_kind()) {
+   case VCODE_UNIT_FUNCTION:
+   case VCODE_UNIT_THUNK:
+      use_fcall = true;
+      break;
+   default:
+      use_fcall = !!(tree_flags(decl) & TREE_F_NEVER_WAITS);
+      break;
+   }
 
    const int nparams = tree_params(pcall);
    SCOPED_A(vcode_reg_t) args = AINIT;
