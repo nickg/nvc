@@ -994,12 +994,18 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
          assert(value.reg < cgb->func->source->nregs);
          LLVMValueRef ptr = cgb->outregs[value.reg];
 
-         if (value.disp != 0) {
-            LLVMValueRef disp = llvm_int64(obj, value.disp);
-            ptr = LLVMBuildAdd(obj->builder, ptr, disp, "");
+         if (value.disp == 0)
+            return ptr;
+         else if (LLVMGetTypeKind(LLVMTypeOf(ptr)) == LLVMPointerTypeKind) {
+            LLVMValueRef indexes[] = { llvm_intptr(obj, value.disp) };
+            return LLVMBuildGEP2(obj->builder,
+                                 obj->types[LLVM_INT8],
+                                 ptr, indexes, 1, "");
          }
-
-         return ptr;
+         else {
+            LLVMValueRef disp = llvm_int64(obj, value.disp);
+            return LLVMBuildAdd(obj->builder, ptr, disp, "");
+         }
       }
    case JIT_VALUE_EXIT:
       return llvm_int32(obj, value.exit);
@@ -1079,6 +1085,19 @@ static LLVMValueRef cgen_coerce_value(llvm_obj_t *obj, cgen_block_t *cgb,
    }
 }
 
+static void cgen_pointer_result(llvm_obj_t *obj, cgen_block_t *cgb,
+                                jit_ir_t *ir, LLVMValueRef value)
+{
+   if (mask_test(&(cgb->source->liveout), ir->result))
+      cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, value,
+                                                   obj->types[LLVM_INT64],
+                                                   cgen_reg_name(ir->result));
+   else {
+      DEBUG_ONLY(LLVMSetValueName(value, cgen_reg_name(ir->result)));
+      cgb->outregs[ir->result] = value;
+   }
+}
+
 static void cgen_sext_result(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir,
                              LLVMValueRef value)
 {
@@ -1099,6 +1118,10 @@ static void cgen_sext_result(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir,
       cgb->outregs[ir->result] = LLVMBuildBitCast(obj->builder, value,
                                                   obj->types[LLVM_INT64],
                                                   cgen_reg_name(ir->result));
+      break;
+
+   case LLVMPointerTypeKind:
+      cgen_pointer_result(obj, cgb, ir, value);
       break;
 
    default:
@@ -1284,8 +1307,16 @@ static void cgen_op_add(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    else {
       LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
       LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
-      cgb->outregs[ir->result] = LLVMBuildAdd(obj->builder, arg1, arg2,
-                                              cgen_reg_name(ir->result));
+
+      if (LLVMGetTypeKind(LLVMTypeOf(arg1)) == LLVMPointerTypeKind) {
+         LLVMValueRef indexes[] = { arg2 };
+         LLVMValueRef ptr = LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT8],
+                                          arg1, indexes, 1, "");
+         cgen_pointer_result(obj, cgb, ir, ptr);
+      }
+      else
+         cgb->outregs[ir->result] = LLVMBuildAdd(obj->builder, arg1, arg2,
+                                                 cgen_reg_name(ir->result));
    }
 }
 
@@ -1625,9 +1656,7 @@ static void cgen_op_lea(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr = cgen_get_value(obj, cgb, ir->arg1);
 
    if (LLVMGetTypeKind(LLVMTypeOf(ptr)) == LLVMPointerTypeKind)
-      cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
-                                                   obj->types[LLVM_INT64],
-                                                   cgen_reg_name(ir->result));
+      cgen_pointer_result(obj, cgb, ir, ptr);
    else
       cgen_zext_result(obj, cgb, ir, ptr);
 }
@@ -1733,9 +1762,7 @@ static void cgen_macro_galloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr = llvm_call_fn(obj, LLVM_MSPACE_ALLOC, args,
                                    ARRAY_LEN(args));
 
-   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
-                                                obj->types[LLVM_INT64],
-                                                cgen_reg_name(ir->result));
+   cgen_pointer_result(obj, cgb, ir, ptr);
 }
 
 static void cgen_macro_lalloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1752,9 +1779,7 @@ static void cgen_macro_lalloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr = llvm_call_fn(obj, LLVM_TLAB_ALLOC, args,
                                    ARRAY_LEN(args));
 
-   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
-                                                obj->types[LLVM_INT64],
-                                                cgen_reg_name(ir->result));
+   cgen_pointer_result(obj, cgb, ir, ptr);
 }
 
 static void cgen_macro_salloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1774,9 +1799,7 @@ static void cgen_macro_salloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMPositionBuilderAtEnd(obj->builder, old_bb);
 
-   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
-                                                obj->types[LLVM_INT64],
-                                                cgen_reg_name(ir->result));
+   cgen_pointer_result(obj, cgb, ir, ptr);
 }
 
 static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1811,9 +1834,7 @@ static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr =
       LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "");
 
-   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, ptr,
-                                                obj->types[LLVM_INT64],
-                                                cgen_reg_name(ir->result));
+   cgen_pointer_result(obj, cgb, ir, ptr);
 }
 
 static void cgen_macro_putpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
