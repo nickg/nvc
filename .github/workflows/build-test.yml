@@ -288,3 +288,29 @@ jobs:
           export PYTHONPATH=$(pwd)/vunit
           cd vunit/examples/vhdl/axi_dma
           python3 run.py
+
+  osvvm:
+    if: ${{ false }}    # Takes too long for now
+    name: OSVVM
+    needs: [ build-ubuntu ]
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        run: sudo apt-get install tcl tcllib git
+      - uses: actions/download-artifact@v3
+        with:
+          name: 'Ubuntu binaries'
+      - name: Extract pre-built binary
+        run: >-
+          sudo tar -C / -zxvf nvc-*.tar.gz
+      - name: Add to PATH
+        run: >-
+          echo /opt/nvc-*/bin >> $GITHUB_PATH
+      - name: Check --version output
+        run: nvc --version
+      - name: Run OSVVM tests
+        run: |
+          tclsh ./test/test-osvvm.tcl

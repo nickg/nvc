@@ -5107,6 +5107,33 @@ START_TEST(test_issue580)
 }
 END_TEST
 
+START_TEST(test_visibility7)
+{
+   lib_t foo = lib_tmp("foo");
+   lib_set_work(foo);
+
+   input_from_file(TESTDIR "/parse/visibility7.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(foo, p);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(foo, e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5207,6 +5234,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue569);
    tcase_add_test(tc_core, test_osvvm7);
    tcase_add_test(tc_core, test_issue580);
+   tcase_add_test(tc_core, test_visibility7);
    suite_add_tcase(s, tc_core);
 
    return s;
