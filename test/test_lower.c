@@ -644,7 +644,6 @@ START_TEST(test_signal1)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 6 },
@@ -1144,7 +1143,6 @@ START_TEST(test_signal2)
       { VCODE_OP_EVENT },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ACTIVE },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
@@ -1338,7 +1336,6 @@ START_TEST(test_signal4)
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
       { VCODE_OP_COPY },
       { VCODE_OP_WAIT, .target = 2 }
@@ -1368,7 +1365,6 @@ START_TEST(test_staticwait)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DRIVE_SIGNAL },
-      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_SCHED_STATIC },
       { VCODE_OP_RETURN }
    };
@@ -1960,7 +1956,6 @@ START_TEST(test_issue116)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_DRIVE_SIGNAL },
-      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_SCHED_STATIC },
@@ -2024,9 +2019,6 @@ START_TEST(test_cover)
       { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_RESOLVED },
-      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_OR },
@@ -4856,6 +4848,31 @@ START_TEST(test_predef1)
 }
 END_TEST
 
+START_TEST(test_signal5)
+{
+   input_from_file(TESTDIR "/lower/signal5.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.SIGNAL5.P1");
+   vcode_select_unit(vu);
+
+   // The type declaration creates nested subprograms
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DRIVE_SIGNAL },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4968,6 +4985,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue478);
    tcase_add_test(tc, test_genpack1);
    tcase_add_test(tc, test_predef1);
+   tcase_add_test(tc, test_signal5);
    suite_add_tcase(s, tc);
 
    return s;

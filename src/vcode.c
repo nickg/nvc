@@ -3563,6 +3563,20 @@ vcode_reg_t emit_load(vcode_var_t var)
 
 vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 {
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_LOAD_INDIRECT
+          && other->args.items[0] == reg) {
+         return other->result;
+      }
+      else if (other->kind == VCODE_OP_FCALL
+               || other->kind == VCODE_OP_PCALL
+               || other->kind == VCODE_OP_STORE
+               || other->kind == VCODE_OP_STORE_INDIRECT
+               || other->kind == VCODE_OP_MEMSET
+               || other->kind == VCODE_OP_COPY)
+         break;   // May write to this pointer
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_LOAD_INDIRECT);
    vcode_add_arg(op, reg);
 
@@ -4672,6 +4686,11 @@ void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DRIVE_SIGNAL) {
+      if (other->args.items[0] == target && other->args.items[1] == count)
+         return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_DRIVE_SIGNAL);
    vcode_add_arg(op, target);
    vcode_add_arg(op, count);
