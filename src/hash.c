@@ -322,8 +322,10 @@ ihash_t *ihash_new(int size)
 
 void ihash_free(ihash_t *h)
 {
-   free(h->values);
-   free(h);
+   if (h != NULL) {
+      free(h->values);
+      free(h);
+   }
 }
 
 void ihash_put(ihash_t *h, uint64_t key, void *value)

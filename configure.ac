@@ -48,7 +48,7 @@ AC_C_INLINE
 AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
-AC_CHECK_FUNCS([tcgetwinsize memmem])
+AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -66,9 +66,11 @@ AS_IF([test "$ac_cv_header_ucontext_h" = yes ],
          [AC_MSG_RESULT([no])])])
 
 case $host_os in
+  # Darwin does not allow empty archives
   darwin*) ac_cv_func_memmem=no ;;
 esac
 AM_CONDITIONAL([GNULIB_MEMMEM], [test "x$ac_cv_func_memmem" != xyes])
+AM_CONDITIONAL([GNULIB_STRCASESTR], [test "x$ac_cv_func_strcasestr" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
@@ -164,6 +166,11 @@ fi
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
+PKG_CHECK_MODULES([capstone], [capstone > 4.0],
+                  [AC_DEFINE_UNQUOTED([HAVE_CAPSTONE], [1],
+                                      [Have capstone for diassembly])],
+                  [true])
+
 PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
 
 AC_CHECK_HEADER([unwind.h], [],
@@ -205,6 +212,18 @@ AX_DEFINE_DIR([PREFIX], [prefix], [Installation prefix])
 AX_DEFINE_DIR([LIBDIR], [libdir/nvc], [Installation library directory])
 AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
+
+case $host_cpu in
+  x86_64)
+    AC_DEFINE_UNQUOTED([ARCH_X86_64], [1], [Host is x86_64])
+    ;;
+  aarch64)
+    AC_DEFINE_UNQUOTED([ARCH_ARM64], [1], [Host is arm64])
+    ;;
+esac
+
+AM_CONDITIONAL([ARCH_X86_64], [test x$host_cpu = xx86_64])
+AM_CONDITIONAL([ARCH_ARM64], [test x$host_cpu = xaarch64])
 
 # Prefer calling the linker directy to using CC
 linker_path=

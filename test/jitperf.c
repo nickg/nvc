@@ -59,8 +59,10 @@ static void run_benchmark(tree_t pack, tree_t proc)
 
    jit_t *j = jit_new();
 
-#ifdef LLVM_HAS_LLJIT
+#if defined LLVM_HAS_LLJIT
    jit_register_llvm_plugin(j);
+#elif defined ARCH_X86_64 && 0
+   jit_register_native_plugin(j);
 #endif
 
    jit_handle_t hpack = jit_compile(j, tree_ident(pack));

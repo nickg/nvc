@@ -91,6 +91,9 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(jit);
    nfail += RUN_TESTS(mspace);
    nfail += RUN_TESTS(model);
+#if defined ARCH_X86_64
+   nfail += RUN_TESTS(native);
+#endif
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

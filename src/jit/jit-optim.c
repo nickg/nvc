@@ -35,23 +35,6 @@ static bool cfg_is_terminator(jit_func_t *func, jit_ir_t *ir)
       return ir->op == J_JUMP || ir->op == J_RET;
 }
 
-static bool cfg_will_abort(jit_ir_t *ir)
-{
-   if (ir->op == MACRO_EXIT) {
-      return ir->arg1.exit == JIT_EXIT_INDEX_FAIL
-         || ir->arg1.exit == JIT_EXIT_OVERFLOW
-         || ir->arg1.exit == JIT_EXIT_NULL_DEREF
-         || ir->arg1.exit == JIT_EXIT_UNREACHABLE
-         || ir->arg1.exit == JIT_EXIT_LENGTH_FAIL
-         || ir->arg1.exit == JIT_EXIT_DIV_ZERO
-         || ir->arg1.exit == JIT_EXIT_EXPONENT_FAIL
-         || ir->arg1.exit == JIT_EXIT_RANGE_FAIL
-         || ir->arg1.exit == JIT_EXIT_ELAB_ORDER_FAIL;
-   }
-   else
-      return ir->op == J_TRAP;
-}
-
 static void cfg_add_one_edge(jit_edge_list_t *list, unsigned edge)
 {
    if (list->count < 4)
@@ -199,7 +182,7 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
 
       if (ir->op == J_RET)
          bb->returns = 1;
-      else if (cfg_will_abort(ir))
+      else if (jit_will_abort(ir))
          bb->aborts = 1;
 
       if (cfg_is_terminator(f, ir) && i + 1 < f->nirs) {
@@ -341,8 +324,7 @@ static inline bool lvn_can_fold(jit_ir_t *ir, lvn_state_t *state,
                                 int64_t *arg1, int64_t *arg2)
 {
    return lvn_is_const(ir->arg1, state, arg1)
-      && (ir->arg2.kind == JIT_VALUE_INVALID
-          || lvn_is_const(ir->arg2, state, arg2));
+      && lvn_is_const(ir->arg2, state, arg2);
 }
 
 static void lvn_convert_mov(jit_ir_t *ir, lvn_state_t *state, jit_value_t value)
@@ -609,9 +591,7 @@ static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state)
 static void jit_lvn_cmp(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t lhs, rhs;
-   if (lvn_is_const(ir->arg1, state, &lhs)
-       && lvn_is_const(ir->arg2, state, &rhs)) {
-
+   if (lvn_can_fold(ir, state, &lhs, &rhs)) {
       bool result = false;
       switch (ir->cc) {
       case JIT_CC_EQ: result = (lhs == rhs); break;

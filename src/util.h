@@ -120,6 +120,10 @@ void *memmem(const void *haystack, size_t haystacklen,
              const void *needle, size_t needlelen);
 #endif
 
+#ifndef HAVE_STRCASESTR
+char *strcasestr(const char *haystack_start, const char *needle_start);
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })
@@ -198,15 +202,12 @@ int ilog2(int64_t n) __attribute__((pure));
 int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
 
 typedef enum {
-   MEM_NONE, MEM_RO, MEM_RW
+   MEM_NONE, MEM_RO, MEM_RW, MEM_RWX
 } mem_access_t;
-
-typedef void (*guard_fault_fn_t)(void *, void *);
 
 void *nvc_memalign(size_t align, size_t sz);
 void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
-void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx);
 void *map_huge_pages(size_t align, size_t sz);
 
 void run_program(const char *const *args);
@@ -279,6 +280,12 @@ void get_libexec_dir(text_buf_t *tb);
 void get_lib_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
 void open_pipe(int *rfd, int *wfd);
+
+struct cpu_state;
+typedef void (*fault_fn_t)(int, void *, struct cpu_state *, void *);
+
+void add_fault_handler(fault_fn_t fn, void *context);
+void remove_fault_handler(fault_fn_t fn, void *context);
 
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);

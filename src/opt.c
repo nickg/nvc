@@ -120,7 +120,6 @@ void set_default_options(void)
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_RT_PROFILE, 0);
    opt_set_int(OPT_MISSING_BODY, 1);
-   opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_IEEE_WARNINGS, 1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 24);
    opt_set_int(OPT_DUMP_ARRAYS, 0);
@@ -138,4 +137,5 @@ void set_default_options(void)
    opt_set_int(OPT_NO_SAVE, 0);
    opt_set_str(OPT_LLVM_VERBOSE, getenv("NVC_LLVM_VERBOSE"));
    opt_set_int(OPT_JIT_THRESHOLD, atoi(getenv("NVC_JIT_THRESHOLD") ?: "100"));
+   opt_set_str(OPT_ASM_VERBOSE, getenv("NVC_ASM_VERBOSE"));
 }

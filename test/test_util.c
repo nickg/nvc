@@ -64,26 +64,14 @@ static void setup(void)
    if (lib_dir)
       lib_add_search_path(lib_dir);
 
-   opt_set_int(OPT_BOOTSTRAP, 0);
+   set_default_options();
+
    opt_set_int(OPT_UNIT_TEST, 1);
-   opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
-   opt_set_int(OPT_IGNORE_TIME, 0);
-   opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 20);
    opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
-   opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));
-   opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
-   opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
-   opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
    opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
    opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
-   opt_set_int(OPT_RELAXED, 0);
-   opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
-   opt_set_int(OPT_WARN_HIDDEN, 0);
-   opt_set_int(OPT_RT_TRACE, 0);
-   opt_set_int(OPT_STOP_DELTA, 1000);
-   opt_set_int(OPT_RT_STATS, 0);
 
    intern_strings();
 }

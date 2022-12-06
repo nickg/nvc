@@ -112,19 +112,11 @@ typedef void (*print_fn_t)(const char *fmt, ...);
 
 static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
 
-typedef struct guard guard_t;
+typedef struct _fault_handler fault_handler_t;
 
 struct color_escape {
    const char *name;
    int         value;
-};
-
-struct guard {
-   guard_fault_fn_t  fn;
-   void             *context;
-   uintptr_t         base;
-   uintptr_t         limit;
-   guard_t          *next;
 };
 
 struct text_buf {
@@ -133,13 +125,19 @@ struct text_buf {
    size_t len;
 };
 
-static bool            want_color = false;
-static bool            want_links = false;
-static guard_t        *guards;
-static message_style_t message_style = MESSAGE_FULL;
-static sig_atomic_t    crashing = 0;
-static int             term_width = 0;
-static void           *ctrl_c_arg = NULL;
+struct _fault_handler {
+   fault_handler_t *next;
+   fault_fn_t       fn;
+   void            *context;
+};
+
+static bool             want_color = false;
+static bool             want_links = false;
+static message_style_t  message_style = MESSAGE_FULL;
+static sig_atomic_t     crashing = 0;
+static int              term_width = 0;
+static void            *ctrl_c_arg = NULL;
+static fault_handler_t *fault_handlers = NULL;
 
 static void (*ctrl_c_fn)(void *) = NULL;
 
@@ -654,20 +652,6 @@ void show_stacktrace(void)
 #endif
 }
 
-#ifndef __SANITIZE_THREAD__
-static bool check_guard_page(uintptr_t addr)
-{
-   for (guard_t *it = guards; it != NULL; it = it->next) {
-      if ((addr >= it->base) && (addr < it->limit)) {
-         (*it->fn)((void *)addr, it->context);
-         return true;
-      }
-   }
-
-   return false;
-}
-#endif
-
 #ifdef __MINGW32__
 
 static const char *exception_name(DWORD code)
@@ -712,7 +696,6 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 
    if (code == EXCEPTION_ACCESS_VIOLATION) {
       addr = (PVOID)ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
-      check_guard_page((uintptr_t)addr);
    }
 
    color_fprintf(stderr, "\n$red$$bold$*** Caught exception %x (%s)",
@@ -738,10 +721,19 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 
 #else
 
-static const char *signame(int sig)
+static const char *signame(int sig, siginfo_t *info)
 {
    switch (sig) {
-   case SIGSEGV: return "SIGSEGV";
+   case SIGSEGV:
+#ifdef __linux__
+      switch (info->si_code) {
+      case SEGV_MAPERR: return "SEGV_MAPERR";
+      case SEGV_ACCERR: return "SEGV_ACCERR";
+      default: return "SIGSEGV";
+      }
+#else
+      return "SIGSEGV";
+#endif
    case SIGABRT: return "SIGABRT";
    case SIGILL: return "SIGILL";
    case SIGFPE: return "SIGFPE";
@@ -749,7 +741,38 @@ static const char *signame(int sig)
    case SIGUSR2: return "SIGUSR2";
    case SIGBUS: return "SIGBUS";
    case SIGINT: return "SIGINT";
+   case SIGTRAP: return "SIGTRAP";
    default: return "???";
+   }
+}
+
+static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
+{
+   static volatile __thread sig_atomic_t recurse = 0;
+
+   color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)%s",
+                 sig, signame(sig, info),
+                 recurse > 0 ? " inside signal handler" : "");
+
+   switch (sig) {
+   case SIGSEGV:
+   case SIGILL:
+   case SIGFPE:
+   case SIGBUS:
+      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)cpu->pc);
+      break;
+   }
+
+   color_fprintf(stderr, " ***$$\n\n");
+   fflush(stderr);
+
+   if (sig != SIGUSR1 && !atomic_cas(&crashing, 0, thread_id())) {
+      sleep(60);
+      _exit(EXIT_FAILURE);
+   }
+   else if (recurse++ > 0) {
+      signal(SIGABRT, SIG_DFL);
+      abort();
    }
 }
 
@@ -779,33 +802,11 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
 #ifdef __SANITIZE_THREAD__
    abort();
 #else
-   if (sig != SIGUSR1) {
-      while (!atomic_cas(&crashing, 0, 1))
-         sleep(1);
-   }
 
-   extern void check_frozen_object_fault(void *addr);
+   for (fault_handler_t *f = fault_handlers; f; f = f->next)
+      (*f->fn)(sig, info->si_addr, &cpu, f->context);
 
-   if (sig == SIGSEGV) {
-      signal(SIGSEGV, SIG_DFL);
-      check_guard_page((uintptr_t)info->si_addr);
-      check_frozen_object_fault(info->si_addr);
-   }
-
-   color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)",
-                 sig, signame(sig));
-
-   switch (sig) {
-   case SIGSEGV:
-   case SIGILL:
-   case SIGFPE:
-   case SIGBUS:
-      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)cpu.pc);
-      break;
-   }
-
-   color_fprintf(stderr, " ***$$\n\n");
-   fflush(stderr);
+   print_fatal_signal(sig, info, &cpu);
 
    show_stacktrace();
 
@@ -834,6 +835,7 @@ void register_signal_handlers(void)
    sigaction(SIGBUS, &sa, NULL);
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
+   sigaction(SIGTRAP, &sa, NULL);
 #endif  // !__SANITIZE_THREAD__
    sigaction(SIGUSR2, &sa, NULL);
 #endif  // !__MINGW32__
@@ -1039,6 +1041,7 @@ int64_t ipow(int64_t x, int64_t y)
    return r;
 }
 
+#ifndef __SANITIZE_ADDRESS__
 static long nvc_page_size(void)
 {
 #ifdef __MINGW32__
@@ -1049,30 +1052,7 @@ static long nvc_page_size(void)
    return sysconf(_SC_PAGESIZE);
 #endif
 }
-
-static void *nvc_mmap(size_t sz)
-{
-   sz = ALIGN_UP(sz, nvc_page_size());
-
-#if __SANITIZE_ADDRESS__
-   void *ptr;
-   if (posix_memalign(&ptr, nvc_page_size(), sz) != 0)
-      fatal_errno("posix_memalign");
-
-   return ptr;
-#elif !defined __MINGW32__
-   void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANON, -1, 0);
-   if (ptr == MAP_FAILED)
-      fatal_errno("mmap");
-#else
-   void *ptr = VirtualAlloc(NULL, sz, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-   if (ptr == NULL)
-      fatal_errno("VirtualAlloc");
 #endif
-
-   return ptr;
-}
 
 void nvc_munmap(void *ptr, size_t length)
 {
@@ -1097,9 +1077,21 @@ void *nvc_memalign(size_t align, size_t sz)
    memset(ptr, '\0', sz);
    return ptr;
 #else
-   assert((align & (align - 1)) == 0);
-   const size_t mapsz = ALIGN_UP(sz + align - 1, align);
-   void *ptr = nvc_mmap(mapsz);
+   assert(is_power_of_2(align));
+   const size_t mapalign = MAX(align, nvc_page_size());
+   const size_t mapsz = ALIGN_UP(sz + mapalign - 1, mapalign);
+
+#if defined __MINGW32__
+   void *ptr = VirtualAlloc(NULL, mapsz, MEM_COMMIT | MEM_RESERVE,
+                            PAGE_READWRITE);
+   if (ptr == NULL)
+      fatal_errno("VirtualAlloc");
+#else
+   void *ptr = mmap(NULL, mapsz, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANON, -1, 0);
+   if (ptr == MAP_FAILED)
+      fatal_errno("mmap");
+#endif
 
    void *aligned = ALIGN_UP(ptr, align);
    void *limit = aligned + sz;
@@ -1119,44 +1111,27 @@ void *nvc_memalign(size_t align, size_t sz)
 
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 {
-#if __SANITIZE_ADDRESS__
-   // Ignore it
-#elif !defined __MINGW32__
+#if defined __MINGW32__
    static const int map[] = {
-      PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE
-   };
-   if (mprotect(ptr, length, map[prot]) < 0)
-      fatal_errno("mprotect");
-#else
-   static const int map[] = {
-      PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE
+      PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE,
+      PAGE_EXECUTE_READWRITE
    };
    DWORD old_prot;
    if (!VirtualProtect(ptr, length, map[prot], &old_prot))
       fatal_errno("VirtualProtect");
+#else
+#if __SANITIZE_ADDRESS__
+   // LeakSanitizer will not detect leaks in regions mapped read-only
+   if (prot == MEM_RO || prot == MEM_NONE)
+      return;
 #endif
-}
-
-void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx)
-{
-   const long pagesz = nvc_page_size();
-   sz = ALIGN_UP(sz, pagesz);
-
-   void *ptr = nvc_mmap(sz + pagesz);
-
-   uint8_t *guard_ptr = (uint8_t *)ptr + sz;
-   nvc_memprotect(guard_ptr, pagesz, MEM_NONE);
-
-   guard_t *guard = xmalloc(sizeof(guard_t));
-   guard->next    = guards;
-   guard->fn      = fn;
-   guard->context = ctx;
-   guard->base    = (uintptr_t)guard_ptr;
-   guard->limit   = guard->base + pagesz;
-
-   guards = guard;
-
-   return ptr;
+   static const int map[] = {
+      PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE,
+      PROT_READ | PROT_WRITE | PROT_EXEC
+   };
+   if (mprotect(ptr, length, map[prot]) < 0)
+      fatal_errno("mprotect");
+#endif
 }
 
 void *map_huge_pages(size_t align, size_t sz)
@@ -1554,7 +1529,18 @@ void make_dir(const char *path)
 uint64_t get_timestamp_us()
 {
 #if defined __MINGW32__
-   return 0;  // TODO
+   static volatile uint64_t freq;
+   if (load_acquire(&freq) == 0) {
+      LARGE_INTEGER tmp;
+      if (!QueryPerformanceFrequency(&tmp))
+         fatal_errno("QueryPerformanceFrequency");
+      store_release(&freq, tmp.QuadPart);
+   }
+
+   LARGE_INTEGER ticks;
+   if (!QueryPerformanceCounter(&ticks))
+      fatal_errno("QueryPerformanceCounter");
+   return (double)ticks.QuadPart * (1e6 / (double)freq);
 #else
    struct timespec ts;
    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
@@ -1838,4 +1824,28 @@ void capture_registers(struct cpu_state *cpu)
 #else
 #error cannot capture registers on this platform
 #endif
+}
+
+void add_fault_handler(fault_fn_t fn, void *context)
+{
+   fault_handler_t *h = xmalloc(sizeof(fault_handler_t));
+   h->next    = fault_handlers;
+   h->fn      = fn;
+   h->context = context;
+
+   fault_handlers = h;
+}
+
+void remove_fault_handler(fault_fn_t fn, void *context)
+{
+   for (fault_handler_t **p = &fault_handlers; *p; p = &((*p)->next)) {
+      if ((*p)->fn == fn && (*p)->context == context) {
+         fault_handler_t *tmp = (*p)->next;
+         free(*p);
+         *p = tmp;
+         return;
+      }
+   }
+
+   fatal_trace("no fault handler for %p with context %p", fn, context);
 }

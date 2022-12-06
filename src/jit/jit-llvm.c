@@ -2640,7 +2640,7 @@ typedef struct {
    LLVMTargetMachineRef        target;
 } lljit_state_t;
 
-static void *jit_llvm_init(void)
+static void *jit_llvm_init(jit_t *jit)
 {
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
@@ -2746,10 +2746,8 @@ static const jit_plugin_t jit_llvm = {
 void jit_register_llvm_plugin(jit_t *j)
 {
    const int threshold = opt_get_int(OPT_JIT_THRESHOLD);
-   if (threshold > 0) {
-      extern const jit_plugin_t jit_llvm;
+   if (threshold > 0)
       jit_add_tier(j, threshold, &jit_llvm);
-   }
    else if (threshold < 0)
       warnf("invalid NVC_JIT_THRESOLD setting %d", threshold);
 }

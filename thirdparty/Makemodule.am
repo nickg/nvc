@@ -17,3 +17,6 @@ if GNULIB_MEMMEM
 lib_libgnulib_a_SOURCES += thirdparty/memmem.c
 endif
 
+if GNULIB_STRCASESTR
+lib_libgnulib_a_SOURCES += thirdparty/strcasestr.c
+endif

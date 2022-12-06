@@ -1039,7 +1039,7 @@ void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin)
    t->next      = j->tiers;
    t->threshold = threshold;
    t->plugin    = *plugin;
-   t->context   = (*plugin->init)();
+   t->context   = (*plugin->init)(j);
 
    j->tiers = t;
 }
@@ -1182,6 +1182,10 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
       case CCSIZE:
          {
+            char *dot = strchr(tok, '.');
+            if (dot != NULL)
+               *dot++ = '\0';
+
             if (isdigit((int)tok[0])) {
                switch (atoi(tok)) {
                case 8: ir->size = JIT_SZ_8; break;
@@ -1202,6 +1206,12 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                   fatal_trace("illegal condition code %s", tok);
 
                ir->cc = cctab[cpos].cc;
+            }
+
+            if (dot != NULL) {
+               tok = dot;
+               state = CCSIZE;
+               goto again;
             }
 
             state = nresult > 0 ? RESULT : (nargs > 0 ? ARG1 : NEWLINE);
@@ -1274,4 +1284,21 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    }
 
    return f->handle;
+}
+
+bool jit_will_abort(jit_ir_t *ir)
+{
+   if (ir->op == MACRO_EXIT) {
+      return ir->arg1.exit == JIT_EXIT_INDEX_FAIL
+         || ir->arg1.exit == JIT_EXIT_OVERFLOW
+         || ir->arg1.exit == JIT_EXIT_NULL_DEREF
+         || ir->arg1.exit == JIT_EXIT_UNREACHABLE
+         || ir->arg1.exit == JIT_EXIT_LENGTH_FAIL
+         || ir->arg1.exit == JIT_EXIT_DIV_ZERO
+         || ir->arg1.exit == JIT_EXIT_EXPONENT_FAIL
+         || ir->arg1.exit == JIT_EXIT_RANGE_FAIL
+         || ir->arg1.exit == JIT_EXIT_ELAB_ORDER_FAIL;
+   }
+   else
+      return ir->op == J_TRAP;
 }

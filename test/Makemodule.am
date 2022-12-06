@@ -25,6 +25,10 @@ bin_unit_test_SOURCES = \
 	test/test_jit.c \
 	test/test_model.c
 
+if ARCH_X86_64
+bin_unit_test_SOURCES += test/test_native.c
+endif
+
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
@@ -32,7 +36,8 @@ bin_unit_test_LDADD = \
 	lib/libgnulib.a \
 	$(check_LIBS) \
 	$(libdw_LIBS) \
-	$(libffi_LIBS)
+	$(libffi_LIBS) \
+	$(capstone_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -57,10 +62,12 @@ bin_jitperf_SOURCES = test/jitperf.c
 
 bin_jitperf_LDADD = \
 	lib/libnvc.a \
+	lib/libfastlz.a \
+	lib/libcpustate.a \
+	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	lib/libfastlz.a \
-	lib/libcpustate.a
+	$(capstone_LIBS)
 
 bin_jitperf_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

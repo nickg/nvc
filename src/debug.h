@@ -55,9 +55,15 @@ typedef struct {
    debug_inline_t *inlined;
 } debug_frame_t;
 
+typedef void (*debug_unwind_fn_t)(uintptr_t, debug_frame_t *, void *);
+
 debug_info_t *debug_capture(void);
 void debug_free(debug_info_t *di);
 unsigned debug_count_frames(debug_info_t *di);
 const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n);
+
+void debug_add_unwinder(void *start, size_t len, debug_unwind_fn_t fn,
+                        void *context);
+void debug_remove_unwinder(void *start);
 
 #endif   // _DEBUG_H

@@ -81,7 +81,18 @@ struct _di_lru_cache {
 #define DI_LRU_SIZE 256
 STATIC_ASSERT(DI_LRU_SIZE > MAX_TRACE_DEPTH);
 
+typedef struct _debug_unwinder debug_unwinder_t;
+
+struct _debug_unwinder {
+   debug_unwinder_t  *next;
+   debug_unwind_fn_t  fn;
+   void              *context;
+   uintptr_t          start;
+   uintptr_t          end;
+};
+
 static di_lru_cache_t *lru_cache = NULL;
+static debug_unwinder_t *unwinders = NULL;
 
 static void di_lru_reuse_frame(debug_frame_t *frame, uintptr_t pc)
 {
@@ -189,6 +200,18 @@ static void guess_vhdl_symbol(debug_frame_t *frame)
    }
 }
 #endif  // !HAVE_LIBDW && !HAVE_LIBDWARF
+
+static bool custom_fill_frame(uintptr_t ip, debug_frame_t *frame)
+{
+   for (debug_unwinder_t *uw = unwinders; uw; uw = uw->next) {
+      if (ip >= uw->start && ip < uw->end) {
+         (*uw->fn)(ip, frame, uw->context);
+         return true;
+      }
+   }
+
+   return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Libdw backend
@@ -382,7 +405,7 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
       ip -= 1;
 
    debug_frame_t *frame;
-   if (!di_lru_get(ip, &frame))
+   if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
       libdw_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
@@ -743,7 +766,7 @@ static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
       ip -= 1;
 
    debug_frame_t *frame;
-   if (!di_lru_get(ip, &frame))
+   if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
       libdwarf_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
@@ -807,8 +830,9 @@ static void debug_walk_frames(debug_info_t *di)
       if (skip-- > 0)
          continue;
 
+      const uintptr_t ip = (uintptr_t)stk.AddrPC.Offset;
       debug_frame_t *frame;
-      if (!di_lru_get((uintptr_t)stk.AddrPC.Offset, &frame)) {
+      if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame)) {
          frame->kind = FRAME_PROG;
 
          char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
@@ -890,7 +914,7 @@ static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,
       ip -= 1;
 
    debug_frame_t *frame;
-   if (!di_lru_get(ip, &frame))
+   if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
       unwind_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
@@ -935,4 +959,31 @@ unsigned debug_count_frames(debug_info_t *di)
 const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n)
 {
    return AGET(di->frames, n);
+}
+
+void debug_add_unwinder(void *start, size_t len, debug_unwind_fn_t fn,
+                        void *context)
+{
+   debug_unwinder_t *uw = xmalloc(sizeof(debug_unwinder_t));
+   uw->next    = unwinders;
+   uw->fn      = fn;
+   uw->context = context;
+   uw->start   = (uintptr_t)start;
+   uw->end     = (uintptr_t)start + len;
+
+   unwinders = uw;
+}
+
+void debug_remove_unwinder(void *start)
+{
+   for (debug_unwinder_t **p = &unwinders; *p; p = &((*p)->next)) {
+      if ((*p)->start == (uintptr_t)start) {
+         debug_unwinder_t *tmp = *p;
+         *p = (*p)->next;
+         free(tmp);
+         return;
+      }
+   }
+
+   fatal_trace("no unwinder registered for %p", start);
 }

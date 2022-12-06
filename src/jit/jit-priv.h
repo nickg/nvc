@@ -290,6 +290,19 @@ typedef struct {
    jit_anchor_t          *anchor;
 } jit_thread_local_t;
 
+typedef struct _code_cache code_cache_t;
+typedef struct _code_span code_span_t;
+typedef struct _patch_list patch_list_t;
+
+typedef struct {
+   code_cache_t *owner;
+   code_span_t  *span;
+   jit_func_t   *func;
+   uint8_t      *wptr;
+   ihash_t      *labels;
+   patch_list_t *patches;
+} code_blob_t;
+
 #define JIT_MAX_ARGS 64
 
 typedef struct _jit_interp jit_interp_t;
@@ -330,8 +343,21 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 int jit_get_edge(jit_edge_list_t *list, int nth);
+bool jit_will_abort(jit_ir_t *ir);
 
 void jit_do_lvn(jit_func_t *f);
+
+code_cache_t *code_cache_new(void);
+void code_cache_free(code_cache_t *code);
+
+typedef void (*code_patch_fn_t)(code_blob_t *, jit_label_t, uint8_t *,
+                                const uint8_t *);
+
+code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f);
+void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len);
+void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry);
+void code_blob_mark(code_blob_t *blob, jit_label_t label);
+void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn);
 
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab);

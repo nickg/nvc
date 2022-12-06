@@ -27,6 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <signal.h>
 
 typedef uint64_t mark_mask_t;
 
@@ -342,6 +343,26 @@ static void object_init(object_class_t *class)
    }
 }
 
+static void check_frozen_object_fault(int sig, void *addr,
+                                      struct cpu_state *cpu, void *context)
+{
+   if (sig != SIGSEGV)
+      return;
+
+   for (unsigned i = 1; i < all_arenas.count; i++) {
+      object_arena_t *arena = AGET(all_arenas, i);
+      if (!arena->frozen)
+         continue;
+      else if (addr < arena->base)
+         continue;
+      else if (addr >= arena->limit)
+         continue;
+
+      fatal_trace("Write to object in frozen arena %s [address=%p]",
+                  istr(object_arena_name(arena)), addr);
+   }
+}
+
 void object_one_time_init(void)
 {
    extern object_class_t tree_object;
@@ -360,6 +381,8 @@ void object_one_time_init(void)
       const uint32_t format_fudge = 28;
 
       format_digest += format_fudge * UINT32_C(2654435761);
+
+      add_fault_handler(check_frozen_object_fault, NULL);
 
       done = true;
    }
@@ -1214,22 +1237,6 @@ void object_arena_freeze(object_arena_t *arena)
    }
 
    arena->frozen = true;
-}
-
-void check_frozen_object_fault(void *addr)
-{
-   for (unsigned i = 1; i < all_arenas.count; i++) {
-      object_arena_t *arena = AGET(all_arenas, i);
-      if (!arena->frozen)
-         continue;
-      else if (addr < arena->base)
-         continue;
-      else if (addr >= arena->limit)
-         continue;
-
-      fatal_trace("Write to object in frozen arena %s [address=%p]",
-                  istr(object_arena_name(arena)), addr);
-   }
 }
 
 void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
