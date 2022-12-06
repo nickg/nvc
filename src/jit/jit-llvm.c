@@ -127,6 +127,7 @@ typedef struct _cgen_block cgen_block_t;
 
 #define DEBUG_METADATA_VERSION 3
 #define CTOR_MAX_ORDER         2
+#define CLOSED_WORLD           1
 
 typedef struct _llvm_obj {
    LLVMModuleRef         module;
@@ -179,6 +180,7 @@ typedef enum {
    FUNC_ATTR_NONNULL,
    FUNC_ATTR_COLD,
    FUNC_ATTR_OPTNONE,
+   FUNC_ATTR_NOALIAS,
 
    // Attributes requiring special handling
    FUNC_ATTR_PRESERVE_FP,
@@ -257,6 +259,7 @@ static void llvm_add_func_attr(llvm_obj_t *obj, LLVMValueRef fn,
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval",
          "uwtable", "noinline", "writeonly", "nonnull", "cold", "optnone",
+         "noalias",
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -637,6 +640,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_do_exit", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 2);
       }
       break;
 
@@ -1173,6 +1177,7 @@ static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    cgb->outregs[ir->result] = LLVMBuildLoad2(obj->builder, int64_type, ptr,
                                              cgen_reg_name(ir->result));
+   LLVMSetAlignment(cgb->outregs[ir->result], sizeof(int64_t));
 }
 
 static void cgen_op_send(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1198,12 +1203,14 @@ static void cgen_op_send(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                             cgen_arg_name(nth));
 
 #ifdef LLVM_HAS_OPAQUE_POINTERS
-   LLVMBuildStore(obj->builder, value, ptr);
+   LLVMValueRef store = LLVMBuildStore(obj->builder, value, ptr);
 #else
    LLVMTypeRef ptr_type = LLVMPointerType(LLVMTypeOf(value), 0);
    LLVMValueRef cast = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
-   LLVMBuildStore(obj->builder, value, cast);
+   LLVMValueRef store = LLVMBuildStore(obj->builder, value, cast);
 #endif
+
+   LLVMSetAlignment(store, sizeof(int64_t));
 }
 
 static void cgen_op_store(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1213,12 +1220,14 @@ static void cgen_op_store(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef ptr   = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR);
 
 #ifdef LLVM_HAS_OPAQUE_POINTERS
-   LLVMBuildStore(obj->builder, value, ptr);
+   LLVMValueRef store = LLVMBuildStore(obj->builder, value, ptr);
 #else
    LLVMTypeRef ptr_type = LLVMPointerType(LLVMTypeOf(value), 0);
    LLVMValueRef cast = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
-   LLVMBuildStore(obj->builder, value, cast);
+   LLVMValueRef store = LLVMBuildStore(obj->builder, value, cast);
 #endif
+
+   LLVMSetAlignment(store, 1 << ir->size);
 }
 
 static void cgen_op_load(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1231,12 +1240,16 @@ static void cgen_op_load(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    ptr = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
 #endif
 
-   if (type == LLVM_INT64)
-      cgb->outregs[ir->result] = LLVMBuildLoad2(obj->builder, obj->types[type],
-                                                ptr, cgen_reg_name(ir->result));
+   if (type == LLVM_INT64) {
+      LLVMValueRef value = LLVMBuildLoad2(obj->builder, obj->types[type],
+                                          ptr, cgen_reg_name(ir->result));
+      LLVMSetAlignment(value, 1 << ir->size);
+      cgb->outregs[ir->result] = value;
+   }
    else {
       LLVMValueRef tmp =
          LLVMBuildLoad2(obj->builder, obj->types[type], ptr, "");
+      LLVMSetAlignment(tmp, 1 << ir->size);
       if (ir->op == J_ULOAD)
          cgen_zext_result(obj, cgb, ir, tmp);
       else
@@ -1579,9 +1592,13 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
       fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
 
+#if CLOSED_WORLD
+      entry = llvm_add_fn(obj, istr(callee->name), obj->types[LLVM_ENTRY_FN]);
+#else
       // Must have acquire semantics to synchronise with installing new code
       entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
       LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
+#endif
    }
    else {
       entry = llvm_ptr(obj, callee->entry);
@@ -2113,9 +2130,14 @@ static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
-   func->llvmfn = LLVMAddFunction(obj->module, func->name,
-                                  obj->types[LLVM_ENTRY_FN]);
+   func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_UWTABLE, -1);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_READONLY, 1);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NONNULL, 1);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_READONLY, 2);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NOALIAS, 3);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NONNULL, 3);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NOALIAS, 4);
 
    LLVMMetadataRef file_ref =
       cgen_debug_file(obj, &(func->source->object->loc));
@@ -2161,7 +2183,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 
+#if !CLOSED_WORLD
       LLVMSetLinkage(func->llvmfn, LLVMInternalLinkage);
+#endif
    }
 
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
