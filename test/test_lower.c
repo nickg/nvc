@@ -4873,6 +4873,31 @@ START_TEST(test_signal5)
 }
 END_TEST
 
+START_TEST(test_bigarray)
+{
+   input_from_file(TESTDIR "/lower/bigarray.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit("WORK.BIGARRAY.GET_ARRAY()21WORK.BIGARRAY.INT_VEC");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1048576 },
+      { VCODE_OP_INDEX, .name = "R" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1048576 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4986,6 +5011,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_genpack1);
    tcase_add_test(tc, test_predef1);
    tcase_add_test(tc, test_signal5);
+   tcase_add_test(tc, test_bigarray);
    suite_add_tcase(s, tc);
 
    return s;

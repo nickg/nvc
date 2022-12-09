@@ -3378,9 +3378,7 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
       return false;
 
    type_t type = tree_type(expr);
-
-   if (!lower_const_bounds(type))
-      return false;
+   assert(lower_const_bounds(type));
 
    tree_t a0 = tree_assoc(expr, 0);
    if (tree_subkind(a0) != A_OTHERS)
@@ -3413,7 +3411,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       tree_t rep_elem = NULL;
       if (lower_can_use_const_rep(expr, &rep_size, &rep_elem) && rep_size > 1) {
          vcode_reg_t elem_reg = lower_rvalue(rep_elem);
-         return emit_const_rep(lower_type(type), elem_reg, rep_size);
+         if (hint != VCODE_INVALID_REG) {
+            emit_memset(hint, elem_reg, emit_const(vtype_offset(), rep_size));
+            return hint;
+         }
+         else
+            return emit_const_rep(lower_type(type), elem_reg, rep_size);
       }
       else {
          int nvals;
