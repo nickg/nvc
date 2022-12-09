@@ -29,6 +29,7 @@ bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
+	lib/libgnulib.a \
 	$(check_LIBS) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS)

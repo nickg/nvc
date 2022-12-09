@@ -35,6 +35,8 @@ AM_CONDITIONAL([ENABLE_GIT_SHA], [test -d ${srcdir}/.git])
 
 FORCE_OUT_OF_TREE
 
+AC_USE_SYSTEM_EXTENSIONS
+
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
@@ -46,7 +48,7 @@ AC_C_INLINE
 AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
-AC_CHECK_FUNCS([tcgetwinsize])
+AC_CHECK_FUNCS([tcgetwinsize memmem])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -62,6 +64,11 @@ AS_IF([test "$ac_cv_header_ucontext_h" = yes ],
          [AC_MSG_RESULT([yes])
           AC_DEFINE([HAVE_GETCONTEXT], [1], [Defined if getcontext is available])],
          [AC_MSG_RESULT([no])])])
+
+case $host_os in
+  darwin*) ac_cv_func_memmem=no ;;
+esac
+AM_CONDITIONAL([GNULIB_MEMMEM], [test "x$ac_cv_func_memmem" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=

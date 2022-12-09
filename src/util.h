@@ -114,6 +114,11 @@
 #define LCOV_EXCL_BR_START
 #define LCOV_EXCL_BR_STOP
 
+#ifndef HAVE_MEMMEM
+void *memmem(const void *haystack, size_t haystacklen,
+             const void *needle, size_t needlelen);
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })

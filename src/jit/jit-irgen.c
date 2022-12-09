@@ -57,6 +57,7 @@ typedef struct {
    irgen_label_t  *labels;
    irgen_label_t **blocks;
    size_t          cpoolptr;
+   size_t          oldptr;
    jit_value_t     statereg;
    vcode_reg_t     flags;
    unsigned        bufsz;
@@ -824,8 +825,22 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
 
    const size_t result = ALIGN_UP(g->cpoolptr, align);
    DEBUG_ONLY(memset(g->func->cpool + result, 0xde, sz));
+   g->oldptr = result;
    g->cpoolptr = result + sz;
    return result;
+}
+
+static jit_value_t irgen_dedup_cpool(jit_irgen_t *g)
+{
+   unsigned char *dup = memmem(g->func->cpool, g->oldptr,
+                               g->func->cpool + g->oldptr,
+                               g->cpoolptr - g->oldptr);
+   if (dup != NULL) {
+      g->cpoolptr = g->oldptr;
+      return jit_value_from_cpool_addr(dup - g->func->cpool);
+   }
+   else
+      return jit_value_from_cpool_addr(g->oldptr);
 }
 
 static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
@@ -987,7 +1002,7 @@ static void irgen_op_const_array(jit_irgen_t *g, int op)
       irgen_copy_const(g, p, elem, elemsz);
    }
 
-   g->map[result] = jit_value_from_cpool_addr(offset);
+   g->map[result] = irgen_dedup_cpool(g);
 }
 
 static void irgen_op_const_rep(jit_irgen_t *g, int op)
@@ -1009,7 +1024,7 @@ static void irgen_op_const_rep(jit_irgen_t *g, int op)
       irgen_copy_const(g, p, arg0, elemsz);
    }
 
-   g->map[result] = jit_value_from_cpool_addr(offset);
+   g->map[result] = irgen_dedup_cpool(g);
 }
 
 static void irgen_op_const_record(jit_irgen_t *g, int op)
