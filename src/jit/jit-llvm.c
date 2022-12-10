@@ -1889,6 +1889,35 @@ static void cgen_macro_putpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    llvm_call_fn(obj, LLVM_PUTPRIV, args, ARRAY_LEN(args));
 }
 
+static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   jit_ir_t *first = cgb->func->source->irbuf + cgb->source->first;
+   if (ir > first && (ir - 1)->op == MACRO_CASE)
+      return;    // Combined into previous $CASE
+
+   LLVMBasicBlockRef elsebb = (cgb + 1)->bbref;
+
+   LLVMValueRef test = cgb->outregs[ir->result];
+   assert(test != NULL);
+
+   jit_ir_t *last = cgb->func->source->irbuf + cgb->source->last;
+
+   const int numcases = last - ir + 1;
+   assert(cgb->source->out.count == numcases + 1);
+
+   LLVMValueRef stmt = LLVMBuildSwitch(obj->builder, test, elsebb, numcases);
+
+   for (int nth = 0; nth < numcases; ir++, nth++) {
+      assert(ir->op == MACRO_CASE);
+
+      LLVMValueRef onval = cgen_get_value(obj, cgb, ir->arg1);
+      LLVMBasicBlockRef dest =
+         cgb->func->blocks[jit_get_edge(&(cgb->source->out), nth + 1)].bbref;
+
+      LLVMAddCase(stmt, onval, dest);
+   }
+}
+
 static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -2018,6 +2047,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_PUTPRIV:
       cgen_macro_putpriv(obj, cgb, ir);
+      break;
+   case MACRO_CASE:
+      cgen_macro_case(obj, cgb, ir);
       break;
    default:
       cgen_abort(cgb, ir, "cannot generate LLVM for %s", jit_op_name(ir->op));

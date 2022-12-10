@@ -76,6 +76,7 @@ typedef enum {
    MACRO_PUTPRIV,
    MACRO_LALLOC,
    MACRO_SALLOC,
+   MACRO_CASE,
 } jit_op_t;
 
 typedef enum {

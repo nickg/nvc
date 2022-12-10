@@ -1432,6 +1432,58 @@ START_TEST(test_issue575)
 }
 END_TEST
 
+START_TEST(test_cfg2)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    RECV    R0, #0       \n"
+      "    $CASE   R0, #1, L1   \n"
+      "    $CASE   R0, #2, L2   \n"
+      "    $CASE   R0, #3, L3   \n"
+      "    JUMP    L4           \n"
+      "L1: RET                  \n"
+      "L2: RET                  \n"
+      "L3: RET                  \n"
+      "L4: RET                  \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_scalar_t result, p0 = { .integer = 5 };
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
+
+   ck_assert_int_eq(result.integer, 5);
+
+   jit_func_t *f1 = jit_get_func(j, h1);
+   jit_cfg_t *cfg1 = jit_get_cfg(f1);
+
+   ck_assert_int_eq(cfg1->nblocks, 6);
+   ck_assert_int_eq(cfg1->blocks[1].first, 4);
+
+   const char *text2 =
+      "    RECV    R0, #0       \n"
+      "    $CASE   R0, #2, L1   \n"
+      "    $CASE   R0, #3, L2   \n"
+      "    SEND    #0, #55      \n"
+      "    RET                  \n"
+      "L1: RET                  \n"
+      "L2: RET                  \n";
+
+   jit_handle_t h2 = jit_assemble(j, ident_new("myfunc2"), text2);
+
+   fail_unless(jit_fastcall(j, h2, &result, p0, p0, NULL));
+   ck_assert_int_eq(result.integer, 55);
+
+   jit_func_t *f2 = jit_get_func(j, h2);
+   jit_cfg_t *cfg2 = jit_get_cfg(f2);
+
+   ck_assert_int_eq(cfg2->nblocks, 4);
+   ck_assert_int_eq(cfg2->blocks[1].first, 3);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1472,6 +1524,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn2);
    tcase_add_test(tc, test_lvn3);
    tcase_add_test(tc, test_issue575);
+   tcase_add_test(tc, test_cfg2);
    suite_add_tcase(s, tc);
 
    return s;
