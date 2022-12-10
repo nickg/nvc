@@ -1087,6 +1087,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "CMP",   J_CMP,      0, 2 },
       { "JUMP",  J_JUMP,     0, 1 },
       { "$COPY", MACRO_COPY, 1, 2 },
+      { "$CASE", MACRO_CASE, 1, 2 },
    };
 
    static const struct {
@@ -1254,7 +1255,10 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
    for (int i = 0; i < lpatch.count; i++) {
       jit_ir_t *ir = &(f->irbuf[lpatch.items[i]]);
-      ir->arg1.label = labels[ir->arg1.label];
+      if (ir->arg1.kind == JIT_VALUE_LABEL)
+         ir->arg1.label = labels[ir->arg1.label];
+      else
+         ir->arg2.label = labels[ir->arg2.label];
    }
 
    return f->handle;

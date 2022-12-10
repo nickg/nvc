@@ -27,9 +27,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Control flow graph construction
 
-static bool cfg_is_terminator(jit_op_t op)
+static bool cfg_is_terminator(jit_func_t *func, jit_ir_t *ir)
 {
-   return op == J_JUMP || op == J_RET;
+   if (ir->op == MACRO_CASE)
+      return ir + 1 < func->irbuf + func->nirs && (ir + 1)->op != MACRO_CASE;
+   else
+      return ir->op == J_JUMP || ir->op == J_RET;
 }
 
 static bool cfg_will_abort(jit_ir_t *ir)
@@ -88,6 +91,16 @@ static jit_reg_t cfg_get_reg(jit_value_t value)
    }
 }
 
+static inline bool cfg_reads_result(jit_ir_t *ir)
+{
+   return ir->op == MACRO_COPY || ir->op == MACRO_CASE || ir->op == MACRO_BZERO;
+}
+
+static inline bool cfg_writes_result(jit_ir_t *ir)
+{
+   return ir->result != JIT_REG_INVALID && ir->op != MACRO_CASE;
+}
+
 static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
 {
    // Algorithm from "Engineering a Compiler" chapter 8.6
@@ -109,7 +122,10 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
          if (reg2 != JIT_REG_INVALID && !mask_test(&b->varkill, reg2))
             mask_set(&b->livein, reg2);
 
-         if (ir->result != JIT_REG_INVALID)
+         if (cfg_reads_result(ir))
+            mask_set(&b->livein, ir->result);
+
+         if (cfg_writes_result(ir))
             mask_set(&b->varkill, ir->result);
       }
    }
@@ -163,7 +179,7 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
       jit_ir_t *ir = &(f->irbuf[i]);
       if (ir->target && i > 0 && first != i)
          first = i, nb++;
-      if (cfg_is_terminator(ir->op) && i + 1 < f->nirs)
+      if (cfg_is_terminator(f, ir) && i + 1 < f->nirs)
          first = i + 1, nb++;
    }
 
@@ -186,8 +202,9 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
       else if (cfg_will_abort(ir))
          bb->aborts = 1;
 
-      if (cfg_is_terminator(ir->op) && i + 1 < f->nirs) {
-         if (ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
+      if (cfg_is_terminator(f, ir) && i + 1 < f->nirs) {
+         if ((ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
+             || ir->op == MACRO_CASE)
             cfg_add_edge(cfg, bb, bb + 1);   // Fall-through case
          (++bb)->first = i + 1;
       }
@@ -195,8 +212,14 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
-      if (ir->op == J_JUMP) {
-         jit_label_t label = ir->arg1.label;
+      jit_label_t label = JIT_LABEL_INVALID;
+
+      if (ir->op == J_JUMP)
+         label = ir->arg1.label;
+      else if (ir->op == MACRO_CASE)
+         label = ir->arg2.label;
+
+      if (label != JIT_LABEL_INVALID) {
          assert(label < f->nirs);
          jit_block_t *from = jit_block_for(cfg, i);
          jit_block_t *to = jit_block_for(cfg, label);

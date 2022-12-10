@@ -212,6 +212,8 @@ static void irgen_bind_label(jit_irgen_t *g, irgen_label_t *l)
          jit_ir_t *ir = &(g->func->irbuf[p->offsets[i]]);
          if (ir->arg1.kind == JIT_VALUE_LABEL)
             ir->arg1.label = l->label;
+         else if (ir->arg2.kind == JIT_VALUE_LABEL)
+            ir->arg2.label = l->label;
          else
             fatal_trace("cannot find label argument to patch");
       }
@@ -265,9 +267,9 @@ static jit_ir_t *irgen_emit_unary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
    return ir;
 }
 
-static void irgen_emit_binary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
-                              jit_cc_t cc, jit_reg_t result, jit_value_t arg1,
-                              jit_value_t arg2)
+static jit_ir_t *irgen_emit_binary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
+                                   jit_cc_t cc, jit_reg_t result,
+                                   jit_value_t arg1, jit_value_t arg2)
 {
    jit_ir_t *ir = irgen_append(g);
    ir->op     = op;
@@ -278,6 +280,20 @@ static void irgen_emit_binary(jit_irgen_t *g, jit_op_t op, jit_size_t sz,
    ir->result = result;
    ir->arg1   = arg1;
    ir->arg2   = arg2;
+
+   return ir;
+}
+
+static void irgen_patch_label(jit_irgen_t *g, jit_ir_t *ir, irgen_label_t *l)
+{
+   if (l->label == JIT_LABEL_INVALID) {
+      patch_list_t *p = &(l->patchlist);
+      for (; p->count == PATCH_CHUNK_SZ; p = p->next) {
+         if (p->next == NULL)
+            p->next = xcalloc(sizeof(patch_list_t));
+      }
+      p->offsets[p->count++] = ir - g->func->irbuf;
+   }
 }
 
 static jit_value_t j_recv(jit_irgen_t *g, int pos)
@@ -310,15 +326,7 @@ static void j_jump(jit_irgen_t *g, jit_cc_t cc, irgen_label_t *l)
 {
    jit_ir_t *ir = irgen_emit_unary(g, J_JUMP, JIT_SZ_UNSPEC, cc,
                                    JIT_REG_INVALID, jit_value_from_label(l));
-
-   if (l->label == JIT_LABEL_INVALID) {
-      patch_list_t *p = &(l->patchlist);
-      for (; p->count == PATCH_CHUNK_SZ; p = p->next) {
-         if (p->next == NULL)
-            p->next = xcalloc(sizeof(patch_list_t));
-      }
-      p->offsets[p->count++] = ir - g->func->irbuf;
-   }
+   irgen_patch_label(g, ir, l);
 }
 
 static void j_call(jit_irgen_t *g, jit_handle_t handle)
@@ -617,6 +625,14 @@ static void macro_putpriv(jit_irgen_t *g, jit_handle_t handle, jit_value_t ptr)
 {
    irgen_emit_binary(g, MACRO_PUTPRIV, JIT_SZ_UNSPEC, JIT_CC_NONE,
                      JIT_REG_INVALID, jit_value_from_handle(handle), ptr);
+}
+
+static void macro_case(jit_irgen_t *g, jit_reg_t test, jit_value_t cmp,
+                       irgen_label_t *l)
+{
+   jit_ir_t *ir = irgen_emit_binary(g, MACRO_CASE, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                                    test, cmp, jit_value_from_label(l));
+   irgen_patch_label(g, ir, l);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2004,11 +2020,13 @@ static void irgen_op_cond(jit_irgen_t *g, int op)
 static void irgen_op_case(jit_irgen_t *g, int op)
 {
    jit_value_t value = irgen_get_arg(g, op, 0);
+   jit_reg_t reg = jit_value_as_reg(value);
 
    const int nargs = vcode_count_args(op);
    for (int i = 1; i < nargs; i++) {
-      j_cmp(g, JIT_CC_EQ, value, irgen_get_arg(g, op, i));
-      j_jump(g, JIT_CC_T, g->blocks[vcode_get_target(op, i)]);
+      irgen_label_t *l = g->blocks[vcode_get_target(op, i)];
+      jit_value_t cmp = irgen_get_arg(g, op, i);
+      macro_case(g, reg, cmp, l);
    }
 
    j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 0)]);

@@ -716,6 +716,15 @@ static void interp_putpriv(jit_interp_t *state, jit_ir_t *ir)
    *jit_get_privdata_ptr(state->func->jit, f) = ptr;
 }
 
+static void interp_case(jit_interp_t *state, jit_ir_t *ir)
+{
+   jit_scalar_t test = state->regs[ir->result];
+   jit_scalar_t cmp = interp_get_value(state, ir->arg1);
+
+   if (test.integer == cmp.integer)
+      interp_branch_to(state, ir->arg2);
+}
+
 static void interp_loop(jit_interp_t *state)
 {
    for (;;) {
@@ -851,6 +860,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_PUTPRIV:
          interp_putpriv(state, ir);
+         break;
+      case MACRO_CASE:
+         interp_case(state, ir);
          break;
       default:
          interp_dump(state);
