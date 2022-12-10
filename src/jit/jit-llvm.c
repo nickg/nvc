@@ -128,6 +128,7 @@ typedef struct _cgen_block cgen_block_t;
 #define DEBUG_METADATA_VERSION 3
 #define CTOR_MAX_ORDER         2
 #define CLOSED_WORLD           1
+#define ARGCACHE_SIZE          6
 
 typedef struct _llvm_obj {
    LLVMModuleRef         module;
@@ -157,6 +158,8 @@ typedef struct _cgen_block {
 typedef struct _cgen_func {
    LLVMValueRef     llvmfn;
    LLVMValueRef     args;
+   LLVMValueRef     argcache[ARGCACHE_SIZE];
+   LLVMValueRef     irpos;
    LLVMValueRef     tlab;
    LLVMValueRef     anchor;
    LLVMValueRef     cpool;
@@ -650,6 +653,9 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
 
          fn = llvm_add_fn(obj, "__nvc_do_exit", obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 2);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 2);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 3);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 4);
       }
       break;
 
@@ -1183,10 +1189,7 @@ static void cgen_zext_result(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir,
 static void cgen_sync_irpos(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    const unsigned irpos = ir - cgb->func->source->irbuf;
-   LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(obj->builder,
-                                                obj->types[LLVM_ANCHOR],
-                                                cgb->func->anchor, 2, "irpos");
-   LLVMBuildStore(obj->builder, llvm_int32(obj, irpos), irpos_ptr);
+   LLVMBuildStore(obj->builder, llvm_int32(obj, irpos), cgb->func->irpos);
 }
 
 static void cgen_debug_loc(llvm_obj_t *obj, cgen_func_t *func, const loc_t *loc)
@@ -1214,19 +1217,23 @@ static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    llvm_type_t type =
       mask_test(&cgb->func->ptr_mask, ir->result) ? LLVM_PTR : LLVM_INT64;
 
-   assert(nth < JIT_MAX_ARGS);
-   LLVMValueRef indexes[] = { llvm_int32(obj, nth) };
+   LLVMValueRef ptr;
+   if (nth < ARGCACHE_SIZE)
+      ptr = cgb->func->argcache[nth];
+   else {
+      assert(nth < JIT_MAX_ARGS);
+      LLVMValueRef indexes[] = { llvm_int32(obj, nth) };
 #ifdef LLVM_HAS_OPAQUE_POINTERS
-   LLVMValueRef cast = cgb->func->args;
+      LLVMValueRef cast = cgb->func->args;
 #else
-   LLVMTypeRef ptr_type = LLVMPointerType(int64_type, 0);
-   LLVMValueRef cast =
-      LLVMBuildPointerCast(obj->builder, cgb->func->args, ptr_type, "");
+      LLVMTypeRef ptr_type = LLVMPointerType(obj->types[type], 0);
+      LLVMValueRef cast =
+         LLVMBuildPointerCast(obj->builder, cgb->func->args, ptr_type, "");
 #endif
-   LLVMValueRef ptr = LLVMBuildInBoundsGEP2(obj->builder, obj->types[type],
-                                            cast, indexes,
-                                            ARRAY_LEN(indexes),
-                                            cgen_arg_name(nth));
+      ptr = LLVMBuildInBoundsGEP2(obj->builder, obj->types[type],
+                                  cast, indexes, ARRAY_LEN(indexes),
+                                  cgen_arg_name(nth));
+   }
 
    cgb->outregs[ir->result] = LLVMBuildLoad2(obj->builder, obj->types[type],
                                              ptr, cgen_reg_name(ir->result));
@@ -1240,20 +1247,24 @@ static void cgen_op_send(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef value = cgen_get_value(obj, cgb, ir->arg2);
 
-   assert(nth < JIT_MAX_ARGS);
-   LLVMValueRef indexes[] = { llvm_int32(obj, nth) };
-   LLVMTypeRef int64_type = obj->types[LLVM_INT64];
+   LLVMValueRef ptr;
+   if (nth < ARGCACHE_SIZE)
+      ptr = cgb->func->argcache[nth];
+   else {
+      assert(nth < JIT_MAX_ARGS);
+      LLVMValueRef indexes[] = { llvm_int32(obj, nth) };
+      LLVMTypeRef int64_type = obj->types[LLVM_INT64];
 #ifdef LLVM_HAS_OPAQUE_POINTERS
-   LLVMValueRef args_cast = cgb->func->args;
+      LLVMValueRef args_cast = cgb->func->args;
 #else
-   LLVMTypeRef args_ptr_type = LLVMPointerType(int64_type, 0);
-   LLVMValueRef args_cast =
-      LLVMBuildPointerCast(obj->builder, cgb->func->args, args_ptr_type, "");
+      LLVMTypeRef args_ptr_type = LLVMPointerType(int64_type, 0);
+      LLVMValueRef args_cast =
+         LLVMBuildPointerCast(obj->builder, cgb->func->args, args_ptr_type, "");
 #endif
-   LLVMValueRef ptr = LLVMBuildInBoundsGEP2(obj->builder, int64_type,
-                                            args_cast, indexes,
-                                            ARRAY_LEN(indexes),
-                                            cgen_arg_name(nth));
+      ptr = LLVMBuildInBoundsGEP2(obj->builder, int64_type,
+                                  args_cast, indexes, ARRAY_LEN(indexes),
+                                  cgen_arg_name(nth));
+   }
 
 #ifdef LLVM_HAS_OPAQUE_POINTERS
    LLVMValueRef store = LLVMBuildStore(obj->builder, value, ptr);
@@ -2277,6 +2288,33 @@ static void cgen_pointer_mask(cgen_func_t *func)
    }
 }
 
+static void cgen_cache_args(llvm_obj_t *obj, cgen_func_t *func)
+{
+   // Attempt to limit the number of getelementptr instructions
+   // generated for the argument array
+
+   for (int i = 0; i < ARGCACHE_SIZE; i++) {
+      LLVMValueRef indexes[] = { llvm_int32(obj, i) };
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+      LLVMValueRef cast = func->args;
+#else
+      LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_INT64], 0);
+      LLVMValueRef cast =
+         LLVMBuildPointerCast(obj->builder, func->args, ptr_type, "");
+#endif
+      func->argcache[i] = LLVMBuildInBoundsGEP2(obj->builder,
+                                                obj->types[LLVM_INT64],
+                                                cast, indexes,
+                                                ARRAY_LEN(indexes),
+                                                cgen_arg_name(i));
+   }
+
+   // Also cache the IR position pointer in the anchor
+   func->irpos  = LLVMBuildStructGEP2(obj->builder,
+                                      obj->types[LLVM_ANCHOR],
+                                      func->anchor, 2, "irpos");
+}
+
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
@@ -2347,6 +2385,8 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    func->tlab = LLVMGetParam(func->llvmfn, 3);
    LLVMSetValueName(func->tlab, "tlab");
+
+   cgen_cache_args(obj, func);
 
    jit_cfg_t *cfg = func->cfg = jit_get_cfg(func->source);
    cgen_basic_blocks(obj, func, cfg);
