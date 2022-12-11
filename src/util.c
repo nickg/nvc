@@ -234,7 +234,7 @@ char *xstrdup(const char *str)
 {
    char *copy = strdup(str);
    if (copy == NULL)
-      fatal("memory exhausted (strdup %p)", str);
+      fatal("memory exhausted (strdup)");
    return copy;
 }
 
@@ -242,7 +242,7 @@ char *xvasprintf(const char *fmt, va_list ap)
 {
    char *strp = NULL;
    if (vasprintf(&strp, fmt, ap) < 0)
-      abort();
+      fatal("memory exhausted (vasprintf)");
    return strp;
 }
 
