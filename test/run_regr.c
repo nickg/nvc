@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <dirent.h>
+#include <ctype.h>
 
 #ifdef __CYGWIN__
 #include <process.h>
@@ -96,6 +97,7 @@ struct test {
    char      *work;
    unsigned   olevel;
    char      *heapsz;
+   char      *cover;
 };
 
 struct arglist {
@@ -237,6 +239,24 @@ static run_status_t win32_run_cmd(FILE *log, arglist_t **args)
 }
 #endif
 
+static char *xvasprintf(const char *fmt, va_list ap)
+{
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+   return strp;
+}
+
+__attribute__((format(printf, 1, 2)))
+static char *xasprintf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *strp = xvasprintf(fmt, ap);
+   va_end(ap);
+   return strp;
+}
+
 static void set_attr(int escape)
 {
    if (is_tty)
@@ -350,8 +370,11 @@ static bool parse_test_list(int argc, char **argv)
          }
          else if (strncmp(opt, "H=", 2) == 0)
             test->heapsz = strdup(opt + 2);
-         else if (strcmp(opt, "cover") == 0)
+         else if (strncmp(opt, "cover", 5) == 0) {
             test->flags |= F_COVER;
+            if (opt[5] == '=')
+               test->cover = strdup(opt + 6);
+         }
          else if (opt[0] == 'g' || opt[0] == '$') {
             char *value = strchr(opt, '=');
             if (value == NULL) {
@@ -414,11 +437,9 @@ static bool parse_test_list(int argc, char **argv)
 __attribute__((format(printf, 2, 3)))
 static void push_arg(arglist_t **args, const char *fmt, ...)
 {
-   char *cmd = NULL;
    va_list ap;
    va_start(ap, fmt);
-   if (vasprintf(&cmd, fmt, ap) == -1)
-      abort();
+   char *cmd = xvasprintf(fmt, ap);
    va_end(ap);
 
    arglist_t *n = calloc(1, sizeof(arglist_t));
@@ -583,6 +604,12 @@ static bool dir_exists(const char *path)
    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
+static bool file_exists(const char *path)
+{
+   struct stat st;
+   return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static bool enter_test_directory(test_t *test, char *dir)
 {
 #ifdef __MINGW32__
@@ -610,6 +637,24 @@ static bool enter_test_directory(test_t *test, char *dir)
    return true;
 }
 
+__attribute__((format(printf, 1, 2)))
+static void failed(const char *fmt, ...)
+{
+   char *reason = NULL;
+   if (fmt != NULL) {
+      va_list ap;
+      va_start(ap, fmt);
+      reason = xvasprintf(fmt, ap);
+      va_end(ap);
+   }
+
+   set_attr(ANSI_FG_RED);
+   printf("failed (%s)\n", reason);
+   set_attr(ANSI_RESET);
+
+   free(reason);
+}
+
 static bool run_test(test_t *test)
 {
    printf("%15s : ", test->name);
@@ -634,25 +679,19 @@ static bool run_test(test_t *test)
    char dir[PATH_MAX], cwd[PATH_MAX];
 
    if (getcwd(cwd, PATH_MAX) == NULL) {
-      set_attr(ANSI_FG_RED);
-      printf("failed (error getting working directory: %s)\n", strerror(errno));
-      set_attr(ANSI_RESET);
+      failed("error getting working directory: %s", strerror(errno));
       return false;
    }
 
    if (!enter_test_directory(test, dir)) {
-      set_attr(ANSI_FG_RED);
-      printf("failed (error creating test directory: %s)\n", strerror(errno));
-      set_attr(ANSI_RESET);
+      failed("error creating test directory: %s", strerror(errno));
       return false;
    }
 
    FILE *outf = fopen(OUTFILE, "w");
    if (outf == NULL) {
-      set_attr(ANSI_FG_RED);
-      printf("failed (error creating %s/out log file: %s)\n",
-             dir, strerror(errno));
-      set_attr(ANSI_RESET);
+      failed("error creating %s/out log file: %s", dir, strerror(errno));
+      result = false;
       goto out_chdir;
    }
 
@@ -693,8 +732,12 @@ static bool run_test(test_t *test)
       push_arg(&args, "%s", test->name);
       push_arg(&args, "-O%u", test->olevel);
 
-      if (test->flags & F_COVER)
-         push_arg(&args, "--cover");
+      if (test->flags & F_COVER) {
+         if (test->cover)
+            push_arg(&args, "--cover=%s", test->cover);
+         else
+            push_arg(&args, "--cover");
+      }
 
       for (param_t *p = test->params; p != NULL; p = p->next) {
          switch (p->kind) {
@@ -708,8 +751,11 @@ static bool run_test(test_t *test)
       }
 
       if (test->flags & F_FAIL) {
-         if (run_cmd(outf, &args) != RUN_OK)
+         if (run_cmd(outf, &args) != RUN_OK) {
+            failed(NULL);
+            result = false;
             goto out_print;
+         }
 
          push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
          push_std(test, &args);
@@ -737,16 +783,40 @@ static bool run_test(test_t *test)
    else
       result = (status == RUN_OK);
 
-   if (result && test->flags & F_GOLD) {
+   if (result && (test->flags & F_COVER) && !(test->flags & F_SHELL)) {
+      // Generate coverage report
+      push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
+      push_arg(&args, "-c");
+      push_arg(&args, "--report");
+      push_arg(&args, "html");
+
+      char *unit = strdup(test->name);
+      for (char *p = unit; *p; p++)
+         *p = toupper((int)*p);
+
+      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+      free(unit);
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("coverage report");
+         result = false;
+         goto out_print;
+      }
+      else if (!file_exists("html/index.html")) {
+         failed("missing coverage report index.html");
+         result = false;
+         goto out_print;
+      }
+   }
+
+   if (result && (test->flags & F_GOLD)) {
       char goldname[PATH_MAX + 19];
       snprintf(goldname, sizeof(goldname), "%s/regress/gold/%s.txt",
                test_dir, test->name);
 
       FILE *goldf = fopen(goldname, "r");
       if (goldf == NULL) {
-         set_attr(ANSI_FG_RED);
-         printf("failed (missing gold file)\n");
-         set_attr(ANSI_RESET);
+         failed("missing gold file");
          result = false;
          goto out_close;
       }
@@ -768,8 +838,7 @@ static bool run_test(test_t *test)
          }
 
          if (!match) {
-            set_attr(ANSI_FG_RED);
-            printf("failed (no match line %d)\n", lineno);
+            failed("no match line %d", lineno);
             set_attr(ANSI_FG_CYAN);
             printf("%s\n", gold_line);
             set_attr(ANSI_RESET);
@@ -783,9 +852,7 @@ static bool run_test(test_t *test)
       while (fgets(out_line, sizeof(out_line), outf)) {
          if (strstr(out_line, "*** Caught signal") != NULL
              || strstr(out_line, "fatal_trace") != NULL) {
-            set_attr(ANSI_FG_RED);
-            printf("failed (crashed!)\n");
-            set_attr(ANSI_RESET);
+            failed("crashed!");
             result = false;
             break;
          }
@@ -799,10 +866,6 @@ static bool run_test(test_t *test)
       set_attr(ANSI_RESET);
    }
    else {
-      set_attr(ANSI_FG_RED);
-      printf("failed\n");
-      set_attr(ANSI_RESET);
-
       char line[256];
       outf = freopen(OUTFILE, "r", outf);
       assert(outf != NULL);
@@ -884,9 +947,7 @@ int main(int argc, char **argv)
    if (!parse_test_list(argc - 1, argv + 1))
       return EXIT_FAILURE;
 
-   char *newpath;
-   if (asprintf(&newpath, "%s:%s", bin_dir, getenv("PATH")) == -1)
-      abort();
+   char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));
 
 #ifndef __MINGW32__
    setenv("PATH", newpath, 1);

@@ -260,7 +260,7 @@ issue111        normal
 issue115        normal
 issue116        normal
 issue112        normal
-cover1          cover,shell
+cover1          cover=statement,gold
 issue121        normal
 issue122        normal
 issue95         normal
@@ -692,9 +692,9 @@ issue570        normal,2008
 issue571        normal,2008,relaxed
 operator6       normal,2008
 vecorder2       normal,2008
-cover2          cover,shell
-cover3          cover,shell
-cover4          cover,shell
+cover2          cover=toggle,gold
+cover3          cover=branch,gold
+cover4          cover=branch,gold
 cover5          cover,shell
 cover6          cover,shell
 issue577        normal,2008
