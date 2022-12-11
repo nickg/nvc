@@ -4920,6 +4920,19 @@ START_TEST(test_bigarray)
 }
 END_TEST
 
+START_TEST(test_issue582)
+{
+   input_from_file(TESTDIR "/lower/issue582.vhd");
+
+   tree_t e = run_elab();
+
+   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
+   lower_unit(e, tagging);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5034,6 +5047,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_predef1);
    tcase_add_test(tc, test_signal5);
    tcase_add_test(tc, test_bigarray);
+   tcase_add_test(tc, test_issue582);
    suite_add_tcase(s, tc);
 
    return s;

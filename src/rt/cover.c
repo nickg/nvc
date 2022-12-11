@@ -454,6 +454,9 @@ void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
 {
    assert(tagging->top_scope != NULL);
 
+   if (!is_design_unit(unit))
+      return;   // Generate block, etc.
+
    range_array_t *excl = &(tagging->top_scope->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
