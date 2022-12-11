@@ -283,7 +283,7 @@ typedef enum {
 typedef struct {
    jit_t                 *jit;
    jit_state_t            state;
-   jmp_buf                abort_env;
+   sigjmp_buf             abort_env;
    volatile sig_atomic_t  jmp_buf_valid;
    jit_anchor_t          *anchor;
 } jit_thread_local_t;

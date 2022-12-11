@@ -745,7 +745,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    args[0] = context;
 
    if (ffi_is_integral(atype))
-      args[1].integer = ffi_widen_int(atype, input, insz);
+      args[1].integer = ffi_widen_int(atype, input);
    else if (atype == FFI_FLOAT) {
       assert(insz == sizeof(double));
       args[1].real = *(double *)input;
@@ -760,7 +760,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
       return false;
 
    if (ffi_is_integral(rtype))
-      ffi_store_int(rtype, result.integer, output, outsz);
+      ffi_store_int(rtype, result.integer, output);
    else if (rtype == FFI_FLOAT) {
       assert(outsz == sizeof(double));
       *(double *)output = result.real;
