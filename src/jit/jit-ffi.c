@@ -150,7 +150,7 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
          jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", tb_get(tb));
    }
 
-   jit_scalar_t result;
+   intmax_t result;
    ffi_call(&ff->cif, ff->ptr, &result, aptrs);
 
    if ((ff->spec & 0xf) == FFI_UARRAY) {
@@ -158,8 +158,10 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
       args[1].integer = u.dims[0].left;
       args[2].integer = u.dims[0].length;
    }
+   else if (ffi_is_integral(ff->spec & 0xf))
+      args[0].integer = ffi_widen_int(ff->spec & 0xf, &result);
    else
-      args[0] = result;
+      args[0].integer = result;
 }
 
 int ffi_count_args(ffi_spec_t spec)
@@ -191,21 +193,20 @@ bool ffi_is_integral(ffi_type_t type)
       || type == FFI_INT64;
 }
 
-int64_t ffi_widen_int(ffi_type_t type, const void *input, size_t insz)
+int64_t ffi_widen_int(ffi_type_t type, const void *input)
 {
    switch (type) {
    case FFI_INT8: return *((int8_t *)input);
    case FFI_INT16: return *((int16_t *)input);
    case FFI_INT32: return *((int32_t *)input);
-   case FFI_INT64: return *((int32_t *)input);
+   case FFI_INT64: return *((int64_t *)input);
    default:
       fatal_trace("invalid integer type in ffi_widen_int");
    }
 }
 
-void ffi_store_int(ffi_type_t type, uint64_t value, void *output, size_t outsz)
+void ffi_store_int(ffi_type_t type, uint64_t value, void *output)
 {
-   assert(outsz <= sizeof(int64_t));
    switch (type) {
    case FFI_INT8: *(uint8_t *)output = (uint8_t)value; break;
    case FFI_INT16: *(uint16_t *)output = (uint16_t)value; break;
