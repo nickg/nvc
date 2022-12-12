@@ -1737,6 +1737,83 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t l
    return result;
 }
 
+static void lower_std_logic_expr_coverage(tree_t fcall, tree_t decl,
+                                          vcode_reg_t *args)
+{
+   assert(tree_kind(decl) == T_FUNC_DECL);
+
+   ident_t ident = tree_ident(decl);
+   ident_t ident_2 = tree_ident2(decl);
+
+   if (!ident_starts_with(ident_2, ident_new("IEEE.STD_LOGIC_1164")))
+      return;
+
+   // TODO: Shoul we create this array somewhere in advance ?
+   struct {
+      ident_t op;
+      unsigned flags;
+   } allowed_ops[] = {
+      { ident_new("\"and\"")  ,COVER_FLAGS_AND_EXPR},
+      { ident_new("\"nand\"") ,COVER_FLAGS_AND_EXPR},
+      { ident_new("\"or\"")   ,COVER_FLAGS_OR_EXPR},
+      { ident_new("\"nor\"")  ,COVER_FLAGS_OR_EXPR},
+      { ident_new("\"xor\"")  ,COVER_FLAGS_XOR_EXPR},
+      { ident_new("\"xnor\"") ,COVER_FLAGS_XOR_EXPR}
+   };
+
+   unsigned flags = 0;
+   for (int i = 0; i < ARRAY_LEN(allowed_ops); i++)
+      if (!ident_compare(ident, allowed_ops[i].op))
+         flags |= allowed_ops[i].flags;
+
+   if (!flags)
+      return;
+
+   assert(tree_params(fcall) == 2);
+
+   // TODO: Handle logic ops on std_logic_vector!
+   if (type_is_array(type_param(tree_type(decl), 0)))
+      return;
+
+   flags |= COV_FLAG_EXPR_STD_LOGIC;
+
+   vcode_reg_t lhs = args[1];
+   vcode_reg_t rhs = args[2];
+
+   vcode_type_t logic_type = vcode_reg_type(args[1]);
+   // Corresponds to values how std_ulogic enum is translated
+   vcode_reg_t log_0 = emit_const(logic_type, 2);
+   vcode_reg_t log_1 = emit_const(logic_type, 3);
+
+   struct {
+      unsigned flag;
+      vcode_reg_t lhs_exp;
+      vcode_reg_t rhs_exp;
+   } bins[] = {
+      { COV_FLAG_00 ,log_0 ,log_0},
+      { COV_FLAG_01 ,log_0 ,log_1},
+      { COV_FLAG_10 ,log_1 ,log_0},
+      { COV_FLAG_11 ,log_1 ,log_1},
+   };
+
+   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+   vcode_reg_t zero = emit_const(vc_int, 0);
+   vcode_reg_t mask = emit_const(vc_int, 0);
+
+   for (int i = 0; i < ARRAY_LEN(bins); i++)
+      if (flags & bins[i].flag) {
+         vcode_reg_t cmp_lhs = emit_cmp(VCODE_CMP_EQ, lhs, bins[i].lhs_exp);
+         vcode_reg_t cmp_rhs = emit_cmp(VCODE_CMP_EQ, rhs, bins[i].rhs_exp);
+         vcode_reg_t lhs_rhs_match = emit_and(cmp_lhs, cmp_rhs);
+         vcode_reg_t new_mask = emit_select(lhs_rhs_match,
+                                            emit_const(vc_int, bins[i].flag),
+                                            zero);
+         mask = emit_add(mask, new_mask);
+      }
+
+   lower_expression_coverage(fcall, flags, mask);
+}
+
 static bool lower_side_effect_free(tree_t expr)
 {
    // True if expression is side-effect free with no function calls
@@ -2367,6 +2444,10 @@ static vcode_reg_t lower_fcall(tree_t fcall)
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
+
+   if (cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
+      lower_std_logic_expr_coverage(fcall, decl, args.items);
+
    return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 
