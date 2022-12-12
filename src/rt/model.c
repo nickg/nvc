@@ -1796,8 +1796,9 @@ static void reset_coverage(rt_model_t *m)
 
    m->cover = cover_read_tags(f);
 
-   int32_t n_stmts, n_branches, n_toggles;
-   cover_count_tags(m->cover, &n_stmts, &n_branches, &n_toggles);
+   int32_t n_stmts, n_branches, n_toggles, n_expressions;
+   cover_count_tags(m->cover, &n_stmts, &n_branches, &n_toggles,
+                    &n_expressions);
 
    int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
    if (cover_stmts != NULL)
@@ -1811,6 +1812,10 @@ static void reset_coverage(rt_model_t *m)
    if (cover_toggles != NULL)
       memset(cover_toggles, '\0', sizeof(int32_t) * n_toggles);
 
+   int32_t *cover_expressions = ffi_find_symbol(NULL, "cover_expressions");
+   if (cover_expressions != NULL)
+      memset(cover_expressions, '\0', sizeof(int32_t) * n_expressions);
+
    fbuf_close(f, NULL);
 }
 
@@ -1820,10 +1825,11 @@ static void emit_coverage(rt_model_t *m)
       const int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
       const int32_t *cover_branches = ffi_find_symbol(NULL, "cover_branches");
       const int32_t *cover_toggles = ffi_find_symbol(NULL, "cover_toggles");
+      const int32_t *cover_expressions = ffi_find_symbol(NULL, "cover_expressions");
 
       fbuf_t *covdb =  cover_open_lib_file(m->top, FBUF_OUT, true);
       cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, cover_stmts,
-                      cover_branches, cover_toggles);
+                      cover_branches, cover_toggles, cover_expressions);
       fbuf_close(covdb, NULL);
    }
 }
