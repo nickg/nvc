@@ -105,6 +105,7 @@ typedef enum {
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_BRANCH,
    VCODE_OP_COVER_TOGGLE,
+   VCODE_OP_COVER_EXPR,
    VCODE_OP_UARRAY_LEN,
    VCODE_OP_UNDEFINED,
    VCODE_OP_RANGE_NULL,
@@ -473,6 +474,7 @@ void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
+void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag);
 vcode_reg_t emit_undefined(vcode_type_t type);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,

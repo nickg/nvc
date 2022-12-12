@@ -49,7 +49,18 @@ typedef enum {
    // signal is 100% covered. Ports and internal signals are flagged.
    TAG_TOGGLE,
 
-   // TODO: Expression coverage
+   // Expression coverage
+   //
+   // Each logic operation: = /=, >, <, <=, >= , AND, OR, NOR, NAND, XOR, XNOR
+   // contains flags:
+   //    =, /=, <, >, <=, >= - Flags for result values: true, false
+   //    AND   - Flags for operand values: 11, 01, 10.
+   //    NAND  - Flags for operand values: 11, 10, 01
+   //    OR    - Flags for operand values: 00, 01, 10.
+   //    NOR   - Flags for operand values: 00, 01, 10
+   //    XOR   - Flags for operand values: 01, 10, 11, 00
+   //    XNOR  - Flags for operand values: 01, 10, 11, 00
+   TAG_EXPRESSION,
 
    // Tag used to represent hierarchy break in the linear sequence of tags.
    // Does not hold any coverage information
@@ -95,13 +106,22 @@ typedef enum {
    COV_FLAG_TRUE           = (1 << 0),
    COV_FLAG_FALSE          = (1 << 1),
    COV_FLAG_CHOICE         = (1 << 2),
+   COV_FLAG_00             = (1 << 3),
+   COV_FLAG_01             = (1 << 4),
+   COV_FLAG_10             = (1 << 5),
+   COV_FLAG_11             = (1 << 6),
    COV_FLAG_HIER_UP        = (1 << 8),
    COV_FLAG_HIER_DOWN      = (1 << 9),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
-   COV_FLAG_TOGGLE_PORT    = (1 << 18)
+   COV_FLAG_TOGGLE_PORT    = (1 << 18),
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
 } cover_flags_t;
+
+#define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
+#define COVER_FLAGS_OR_EXPR (COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
+#define COVER_FLAGS_XOR_EXPR (COV_FLAG_11 | COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
 
 typedef enum {
    COV_DUMP_ELAB,
@@ -113,12 +133,13 @@ typedef enum {
    COVER_MASK_STMT                        = (1 << 0),
    COVER_MASK_BRANCH                      = (1 << 1),
    COVER_MASK_TOGGLE                      = (1 << 2),
+   COVER_MASK_EXPRESSION                  = (1 << 3),
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
    COVER_MASK_TOGGLE_IGNORE_MEMS          = (1 << 10)
 } cover_mask_t;
 
-#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE)
+#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION)
 
 cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
@@ -143,11 +164,12 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 void cover_report(const char *path, cover_tagging_t *tagging);
 
 void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
-                      int32_t *n_branches, int32_t *n_toggles);
+                      int32_t *n_branches, int32_t *n_toggles,
+                      int32_t *n_expressions);
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *stmts, const int32_t *branches,
-                     const int32_t *toggles);
+                     const int32_t *toggles, const int32_t *expressions);
 
 cover_tagging_t *cover_read_tags(fbuf_t *f);
 
