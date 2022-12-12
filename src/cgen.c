@@ -3076,13 +3076,16 @@ static void cgen_op_unreachable(int op, cgen_ctx_t *ctx)
    LLVMBuildUnreachable(builder);
 }
 
-static LLVMValueRef cgen_get_cover_cnt(int op, const char *cnt_name)
+static LLVMValueRef cgen_get_cover_cnt(int op, cgen_ctx_t *ctx,
+                                       const char *cnt_name, bool has_offset)
 {
-   const uint32_t cover_tag = vcode_get_tag(op);
+   LLVMValueRef index = llvm_int32(vcode_get_tag(op));
+   if (has_offset)
+      index = LLVMBuildAdd(builder, index, cgen_get_arg(op, 1, ctx), "");
 
    LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, cnt_name);
 
-   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef indexes[] = { llvm_int32(0), index };
    LLVMValueRef ptr = LLVMBuildGEP(builder, cover_counts,
                                    indexes, ARRAY_LEN(indexes), "");
    return ptr;
@@ -3090,7 +3093,7 @@ static LLVMValueRef cgen_get_cover_cnt(int op, const char *cnt_name)
 
 static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef count_ptr = cgen_get_cover_cnt(op, "cover_stmts");
+   LLVMValueRef count_ptr = cgen_get_cover_cnt(op, ctx, "cover_stmts", false);
 
    LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
    LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
@@ -3100,7 +3103,7 @@ static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_cover_branch(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_branches");
+   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, ctx, "cover_branches", false);
    LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_branches");
    uint32_t flags = vcode_get_subkind(op);
 
@@ -3123,7 +3126,7 @@ static void cgen_op_cover_branch(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_cover_toggle(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_toggles");
+   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, ctx, "cover_toggles", false);
 
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
    LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
@@ -3139,7 +3142,7 @@ static void cgen_op_cover_toggle(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_cover_expr(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_expressions");
+   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, ctx, "cover_expressions", true);
    LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_expressions");
    LLVMValueRef new_mask = cgen_get_arg(op, 0, ctx);
    LLVMValueRef or_res = LLVMBuildOr(builder, mask, new_mask, "");

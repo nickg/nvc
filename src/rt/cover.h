@@ -98,6 +98,9 @@ typedef struct _cover_tag {
    // Hierarchy path of the covered object
    ident_t        hier;
 
+   // Tag Specific Data
+   int32_t        metadata[2];
+
    // Hierarchy level
    int            level;
 } cover_tag_t;
@@ -112,6 +115,7 @@ typedef enum {
    COV_FLAG_11             = (1 << 6),
    COV_FLAG_HIER_UP        = (1 << 8),
    COV_FLAG_HIER_DOWN      = (1 << 9),
+   COV_FLAG_METADATA       = (1 << 10),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
@@ -155,6 +159,9 @@ void cover_dec_array_depth(cover_tagging_t *tagging);
 
 bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);
+bool cover_skip_vect_expr(cover_tagging_t *tagging, int v_size);
+
+unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 

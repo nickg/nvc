@@ -1661,10 +1661,42 @@ static void lower_expression_coverage(tree_t fcall, unsigned flags,
 {
    assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
 
-   cover_tag_t *tag = cover_add_tag(fcall, NULL, cover_tags,
-                                          TAG_EXPRESSION, flags);
+   cover_tag_t *tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, flags);
+
+   // TODO: Should we split OP COVER EXPR array to separate OP to avoid extra
+   //       emit of zero constant in non-array ops? Or is it negligible and
+   //       optimizations will take care of it? Probably not an issue since
+   //       each expression tag between single bit expressions add lot of
+   //       VCODE rubbish around, and thus one more constant is negligible.
+   if (tag != NULL) {
+      vcode_reg_t offset = emit_const(vtype_int(0, INT32_MAX), 0);
+      emit_cover_expr(mask, tag->tag, offset);
+   }
+}
+
+static void lower_expression_coverage_array(tree_t fcall, unsigned flags,
+                                            vcode_reg_t mask, vcode_reg_t offset,
+                                            int64_t array_size, int64_t lhs_first,
+                                            int64_t rhs_first, bool lhs_up,
+                                            int64_t rhs_up)
+{
+   assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
+   assert(array_size > 1);
+
+   cover_tag_t *tag;
+   cover_tag_t *first_tag;
+
+   unsigned new_flags = flags | COV_FLAG_METADATA;
+   for (int i = 0; i < array_size; i++) {
+      tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, new_flags);
+      tag->metadata[0] = (lhs_up) ? (lhs_first + i) : (lhs_first - i);
+      tag->metadata[1] = (rhs_up) ? (rhs_first + i) : (rhs_first - i);
+      if (i == 0)
+         first_tag = tag;
+   }
+
    if (tag != NULL)
-      emit_cover_expr(mask, tag->tag);
+      emit_cover_expr(mask, first_tag->tag, offset);
 }
 
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
@@ -1740,6 +1772,148 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
    lower_expression_coverage(fcall, flags, mask);
 
    return result;
+}
+
+static vcode_reg_t lower_logic_expr_coverage_for(tree_t fcall, vcode_reg_t lhs,
+                                                 vcode_reg_t rhs, unsigned flags)
+{
+   // Corresponds to values how std_ulogic enum is translated
+   vcode_type_t vc_logic = vcode_reg_type(lhs);
+   vcode_reg_t log_0 = emit_const(vc_logic, 2);
+   vcode_reg_t log_1 = emit_const(vc_logic, 3);
+
+   struct {
+      unsigned flag;
+      vcode_reg_t lhs_exp;
+      vcode_reg_t rhs_exp;
+   } bins[] = {
+      { COV_FLAG_00 ,log_0 ,log_0},
+      { COV_FLAG_01 ,log_0 ,log_1},
+      { COV_FLAG_10 ,log_1 ,log_0},
+      { COV_FLAG_11 ,log_1 ,log_1},
+   };
+
+   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+   vcode_reg_t zero = emit_const(vc_int, 0);
+   vcode_reg_t mask = emit_const(vc_int, 0);
+
+   // Build logic to check combinations of LHS and RHS
+   for (int i = 0; i < ARRAY_LEN(bins); i++)
+      if (flags & bins[i].flag) {
+         vcode_reg_t cmp_lhs = emit_cmp(VCODE_CMP_EQ, lhs, bins[i].lhs_exp);
+         vcode_reg_t cmp_rhs = emit_cmp(VCODE_CMP_EQ, rhs, bins[i].rhs_exp);
+         vcode_reg_t lhs_rhs_match = emit_and(cmp_lhs, cmp_rhs);
+         vcode_reg_t new_mask = emit_select(lhs_rhs_match,
+                                            emit_const(vc_int, bins[i].flag),
+                                            zero);
+         mask = emit_add(mask, new_mask);
+      }
+
+   return mask;
+}
+
+static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
+                                      vcode_reg_t *args)
+{
+   unsigned flags = cover_get_std_log_expr_flags(decl);
+   if (!flags)
+      return;
+
+   flags |= COV_FLAG_EXPR_STD_LOGIC;
+
+   assert(tree_params(fcall) == 2);
+
+   type_t arg_type = type_param(tree_type(decl), 0);
+
+   if (type_is_array(arg_type)) {
+      assert(type_is_array(type_param(tree_type(decl), 1)));
+
+      type_t lhs_type = tree_type(tree_value(tree_param(fcall, 0)));
+      type_t rhs_type = tree_type(tree_value(tree_param(fcall, 1)));
+      tree_t lhs_r = range_of(lhs_type, 0);
+      tree_t rhs_r = range_of(rhs_type, 0);
+      int64_t lhs_low, lhs_high, rhs_low, rhs_high;
+
+      if (folded_bounds(lhs_r, &lhs_low, &lhs_high) &&
+          folded_bounds(rhs_r, &rhs_low, &rhs_high)) {
+
+         // Skip mismatching lengths -> Throws failure assert in simulation.
+         // Generally considered coding error, no need to emit coverage on
+         // least common length.
+         int64_t lhs_len = lhs_high - lhs_low + 1;
+         int64_t rhs_len = rhs_high - rhs_low + 1;
+         if (lhs_len != rhs_len)
+            return;
+
+         // Skip due due to being longer than array_size
+         if (cover_skip_vect_expr(cover_tags, lhs_len))
+            return;
+
+         int64_t lhs_first, rhs_first;
+         bool lhs_up, rhs_up;
+         if (tree_subkind(lhs_r) == RANGE_DOWNTO) {
+            lhs_first = lhs_high;
+            lhs_up = false;
+         }
+         else {
+            lhs_first = lhs_low;
+            lhs_up = true;
+         }
+
+         if (tree_subkind(rhs_r) == RANGE_DOWNTO) {
+            rhs_first = rhs_high;
+            rhs_up = false;
+         }
+         else {
+            rhs_first = rhs_low;
+            rhs_up = true;
+         }
+
+         vcode_reg_t lhs_i = lower_array_data(args[1]);
+         vcode_reg_t rhs_i = lower_array_data(args[2]);
+
+         vcode_type_t voffset = vtype_offset();
+         vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
+         emit_store(emit_const(voffset, 0), i_var);
+
+         vcode_block_t test_bb = emit_block();
+         vcode_block_t body_bb = emit_block();
+         vcode_block_t exit_bb = emit_block();
+
+         emit_jump(test_bb);
+
+         // Build for loop to go over indices
+         vcode_select_block(test_bb);
+         vcode_reg_t i_loaded = emit_load(i_var);
+         vcode_reg_t end_loop = emit_cmp(VCODE_CMP_GT, i_loaded,
+                                         emit_const(voffset, lhs_len));
+         emit_cond(end_loop, exit_bb, body_bb);
+
+         // Compute mask for each index. Emit only single cover op, but multiple
+         // Cover tags. Pass offset to cover_op to index within run-time data
+         vcode_select_block(body_bb);
+         vcode_reg_t index = emit_load(i_var);
+         vcode_reg_t l_ptr = emit_array_ref(lhs_i, index);
+         vcode_reg_t r_ptr = emit_array_ref(rhs_i, index);
+         vcode_reg_t lhs_v = emit_load_indirect(l_ptr);
+         vcode_reg_t rhs_v = emit_load_indirect(r_ptr);
+
+         vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, lhs_v, rhs_v, flags);
+         lower_expression_coverage_array(fcall, flags, mask, index, lhs_len,
+                                         lhs_first, rhs_first, lhs_up, rhs_up);
+
+         vcode_reg_t i_inc = emit_add(i_loaded, emit_const(voffset, 1));
+         emit_store(i_inc, i_var);
+         emit_jump(test_bb);
+
+         vcode_select_block(exit_bb);
+         lower_release_temp(i_var);
+      }
+   }
+   else {
+      vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
+      lower_expression_coverage(fcall, flags, mask);
+   }
 }
 
 static bool lower_side_effect_free(tree_t expr)
@@ -2393,6 +2567,10 @@ static vcode_reg_t lower_fcall(tree_t fcall)
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
+
+   if (cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
+      lower_logic_expr_coverage(fcall, decl, args.items);
+
    return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 

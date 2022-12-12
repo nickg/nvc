@@ -205,7 +205,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      28
+#define VCODE_VERSION      29
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -4898,7 +4898,7 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
    VCODE_ASSERT((vtype_kind(rtype) == VCODE_TYPE_POINTER
                  && vtype_kind(vtype_pointed(rtype)) != VCODE_TYPE_UARRAY)
                 || vtype_kind(rtype) == VCODE_TYPE_SIGNAL,
-                "argument to array ref must a pointer or signal");
+                "argument to array ref must be a pointer or signal");
    VCODE_ASSERT(vcode_reg_kind(offset) == VCODE_TYPE_OFFSET,
                 "array ref offset argument must have offset type");
 
@@ -5513,10 +5513,11 @@ void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag)
+void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag, vcode_reg_t offset)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_EXPR);
    vcode_add_arg(op, new_mask);
+   vcode_add_arg(op, offset);
    op->tag = tag;
 }
 

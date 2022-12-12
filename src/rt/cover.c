@@ -175,6 +175,37 @@ static bool cover_is_branch(tree_t branch)
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND;
 }
 
+unsigned cover_get_std_log_expr_flags(tree_t decl)
+{
+   assert(tree_kind(decl) == T_FUNC_DECL);
+
+   ident_t ident = tree_ident(decl);
+   ident_t ident_2 = tree_ident2(decl);
+
+   if (!ident_starts_with(ident_2, ident_new("IEEE.STD_LOGIC_1164")))
+      return 0;
+
+   // TODO: Should we create this array somewhere in advance ?
+   struct {
+      ident_t op;
+      unsigned flags;
+   } std_log_ops[] = {
+      { ident_new("\"and\"")  ,COVER_FLAGS_AND_EXPR},
+      { ident_new("\"nand\"") ,COVER_FLAGS_AND_EXPR},
+      { ident_new("\"or\"")   ,COVER_FLAGS_OR_EXPR},
+      { ident_new("\"nor\"")  ,COVER_FLAGS_OR_EXPR},
+      { ident_new("\"xor\"")  ,COVER_FLAGS_XOR_EXPR},
+      { ident_new("\"xnor\"") ,COVER_FLAGS_XOR_EXPR}
+   };
+
+   unsigned flags = 0;
+   for (int i = 0; i < ARRAY_LEN(std_log_ops); i++)
+      if (!ident_compare(ident, std_log_ops[i].op))
+         flags |= std_log_ops[i].flags;
+
+   return flags;
+}
+
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
 {
    assert (tagging);
@@ -186,6 +217,17 @@ bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
    // Array is multi-dimensional or nested
    if (cover_enabled(tagging, COVER_MASK_TOGGLE_IGNORE_MEMS) &&
        tagging->array_depth > 0)
+      return true;
+
+   return false;
+}
+
+bool cover_skip_vect_expr(cover_tagging_t *tagging, int v_size)
+{
+   assert (tagging);
+
+   // Vector size is bigger than configured array limit
+   if (tagging->array_limit != 0 && v_size >= tagging->array_limit)
       return true;
 
    return false;
@@ -308,6 +350,12 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
 
       write_u8(tag->kind, f);
       write_u32(tag->tag, f);
+      write_u32(tag->flags, f);
+
+      if (tag->flags & COV_FLAG_METADATA) {
+         write_u32(tag->metadata[0], f);
+         write_u32(tag->metadata[1], f);
+      }
 
       if (dt == COV_DUMP_RUNTIME) {
          const int32_t *cnts = NULL;
@@ -336,7 +384,6 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                 istr(tag->hier), tag->kind, tag->data);
 #endif
       }
-      write_u32(tag->flags, f);
       write_u32(tag->level, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
@@ -520,8 +567,12 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
       return;
 
    tag->tag = read_u32(f);
-   tag->data = read_u32(f);
    tag->flags = read_u32(f);
+   if (tag->flags & COV_FLAG_METADATA) {
+      tag->metadata[0] = read_u32(f);
+      tag->metadata[1] = read_u32(f);
+   }
+   tag->data = read_u32(f);
    tag->level = read_u32(f);
 
    loc_read(&(tag->loc), loc_rd);
@@ -1159,8 +1210,14 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair)
       if (pair->flags & COV_FLAG_00 || pair->flags & COV_FLAG_01 ||
           pair->flags & COV_FLAG_10 || pair->flags & COV_FLAG_11) {
 
-         fprintf(f, "<th style=\"width:100px;\">LHS</th>");
-         fprintf(f, "<th style=\"width:100px;\">RHS</th>");
+         fprintf(f, "<th style=\"width:100px;\">LHS");
+         if (pair->tag->flags & COV_FLAG_METADATA)
+            fprintf(f, " (%d)", pair->tag->metadata[0]);
+         fprintf(f, "</th>");
+         fprintf(f, "<th style=\"width:100px;\">RHS");
+         if (pair->tag->flags & COV_FLAG_METADATA)
+            fprintf(f, " (%d)", pair->tag->metadata[1]);
+         fprintf(f, "</th>");
 
          if (pair->flags & COV_FLAG_00)
             fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
