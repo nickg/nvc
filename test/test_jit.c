@@ -1300,8 +1300,8 @@ START_TEST(test_lvn1)
       "    MUL     R1, #0, R2    \n"
       "    ADD     R1, R1, #0    \n"
       "    SUB     R1, R1, #0    \n"
-      "    SUB     R1, #0, R1    \n"
-      "    SUB.O   R1, #0, R1    \n"
+      "    SUB     R2, #0, R2    \n"
+      "    SUB.O   R2, #0, R2    \n"
       "    RET                   \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
@@ -1343,7 +1343,7 @@ START_TEST(test_lvn1)
 
    ck_assert_int_eq(f->irbuf[14].op, J_NEG);
    ck_assert_int_eq(f->irbuf[14].arg1.kind, JIT_VALUE_REG);
-   ck_assert_int_eq(f->irbuf[14].arg1.reg, 1);
+   ck_assert_int_eq(f->irbuf[14].arg1.reg, 2);
 
    ck_assert_int_eq(f->irbuf[15].op, J_SUB);
 
@@ -1484,6 +1484,38 @@ START_TEST(test_cfg2)
 }
 END_TEST
 
+START_TEST(test_lvn4)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV     R0, #5          \n"
+      "    ADD     R1, R0, #2      \n"
+      "    CMP.EQ  #1, #1          \n"
+      "    CSEL    R2, #5, #6      \n"
+      "    CSET    R3              \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[1].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[1].arg1.kind, JIT_VALUE_INT64);
+   ck_assert_int_eq(f->irbuf[1].arg1.int64, 7);
+
+   ck_assert_int_eq(f->irbuf[3].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[3].arg1.kind, JIT_VALUE_INT64);
+   ck_assert_int_eq(f->irbuf[3].arg1.int64, 5);
+
+   ck_assert_int_eq(f->irbuf[4].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[4].arg1.kind, JIT_VALUE_INT64);
+   ck_assert_int_eq(f->irbuf[4].arg1.int64, 1);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1525,6 +1557,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn3);
    tcase_add_test(tc, test_issue575);
    tcase_add_test(tc, test_cfg2);
+   tcase_add_test(tc, test_lvn4);
    suite_add_tcase(s, tc);
 
    return s;

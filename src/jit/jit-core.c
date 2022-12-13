@@ -1049,6 +1049,14 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
    return jit_get_func(j, handle)->name;
 }
 
+bool jit_writes_flags(jit_ir_t *ir)
+{
+   return ir->op == J_CMP || ir->op == J_FCMP
+      || (ir->op == J_ADD && ir->cc != JIT_CC_NONE)
+      || (ir->op == J_SUB && ir->cc != JIT_CC_NONE)
+      || (ir->op == J_MUL && ir->cc != JIT_CC_NONE);
+}
+
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 {
    jit_func_t *f = chash_get(j->index, name);
@@ -1086,6 +1094,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "RET",   J_RET,      0, 0 },
       { "CMP",   J_CMP,      0, 2 },
       { "JUMP",  J_JUMP,     0, 1 },
+      { "CSEL",  J_CSEL,     1, 2 },
+      { "CSET",  J_CSET,     1, 0 },
       { "$COPY", MACRO_COPY, 1, 2 },
       { "$CASE", MACRO_CASE, 1, 2 },
    };
@@ -1202,7 +1212,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
          ir->result = atoi(tok + 1);
          f->nregs = MAX(ir->result + 1, f->nregs);
-         state = ARG1;
+         state = nargs > 0 ? ARG1 : NEWLINE;
          break;
 
       case ARG1:

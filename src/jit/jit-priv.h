@@ -322,6 +322,8 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
                   const uint8_t *debug, size_t bufsz, object_t *obj,
                   ffi_spec_t spec);
 
+bool jit_writes_flags(jit_ir_t *ir);
+
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
