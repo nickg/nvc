@@ -293,7 +293,6 @@ typedef unsigned valnum_t;
 
 #define VN_INVALID  UINT_MAX
 #define SMALL_CONST 100
-#define DUMP_LVN    0
 
 #define LVN_REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define LVN_CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
@@ -643,6 +642,18 @@ static void jit_lvn_cset(jit_ir_t *ir, lvn_state_t *state)
       lvn_convert_mov(ir, state, LVN_CONST(fconst));
 }
 
+static void jit_lvn_jump(jit_ir_t *ir, lvn_state_t *state)
+{
+   assert(ir->arg1.label < state->func->nirs);
+   jit_ir_t *dest = &(state->func->irbuf[ir->arg1.label]);
+
+   if (dest == ir + 1)
+      lvn_convert_nop(ir);
+   else if (dest->op == J_JUMP && ir->cc == JIT_CC_NONE
+            && dest->cc == JIT_CC_NONE)
+      ir->arg1 = dest->arg1;     // Simple jump threading
+}
+
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
    // Clobbers the count register
@@ -666,49 +677,35 @@ void jit_do_lvn(jit_func_t *f)
    state.regvn = xmalloc_array(f->nregs + 1, sizeof(valnum_t));
    state.hashtab = xcalloc_array(state.tabsz, sizeof(lvn_tab_t));
 
-   jit_cfg_t *cfg = jit_get_cfg(f);
+   bool reset = true;
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs;
+        reset = cfg_is_terminator(f, ir), ir++) {
 
-   for (int i = 0; i < cfg->nblocks; i++) {
-      jit_block_t *bb = &(cfg->blocks[i]);
-
-      for (int j = 0; j < f->nregs + 1; j++)
-         state.regvn[j] = VN_INVALID;
-
-      for (int j = bb->first; j <= bb->last; j++) {
-         jit_ir_t *ir = &(f->irbuf[j]);
-
-         if (jit_writes_flags(ir))
-            state.regvn[f->nregs] = VN_INVALID;
-
-         switch (ir->op) {
-         case J_MUL: jit_lvn_mul(ir, &state); break;
-         case J_DIV: jit_lvn_div(ir, &state); break;
-         case J_ADD: jit_lvn_add(ir, &state); break;
-         case J_SUB: jit_lvn_sub(ir, &state); break;
-         case J_MOV: jit_lvn_mov(ir, &state); break;
-         case J_CMP: jit_lvn_cmp(ir, &state); break;
-         case J_CSEL: jit_lvn_csel(ir, &state); break;
-         case J_CSET: jit_lvn_cset(ir, &state); break;
-         case MACRO_COPY: jit_lvn_copy(ir, &state); break;
-         case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
-         default: break;
-         }
+      if (reset || ir->target) {
+         for (int j = 0; j < f->nregs + 1; j++)
+            state.regvn[j] = VN_INVALID;
       }
 
-#if DUMP_LVN
-      printf("BB%d:", i);
-      for (int j = 0; j < f->nregs + 1; j++) {
-         if (state.regvn[j] != VN_INVALID) {
-            if (j == f->nregs)
-               printf(" FLAGS=>%d", state.regvn[j]);
-            else
-               printf(" R%d=>%d", j, state.regvn[j]);
-         }
+      if (jit_writes_flags(ir))
+         state.regvn[f->nregs] = VN_INVALID;
+
+      switch (ir->op) {
+      case J_MUL: jit_lvn_mul(ir, &state); break;
+      case J_DIV: jit_lvn_div(ir, &state); break;
+      case J_ADD: jit_lvn_add(ir, &state); break;
+      case J_SUB: jit_lvn_sub(ir, &state); break;
+      case J_MOV: jit_lvn_mov(ir, &state); break;
+      case J_CMP: jit_lvn_cmp(ir, &state); break;
+      case J_CSEL: jit_lvn_csel(ir, &state); break;
+      case J_CSET: jit_lvn_cset(ir, &state); break;
+      case J_JUMP: jit_lvn_jump(ir, &state); break;
+      case MACRO_COPY: jit_lvn_copy(ir, &state); break;
+      case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
+      default: break;
       }
-      printf("\n");
-      jit_dump(f);
-#endif
    }
+
+   jit_free_cfg(f);   // Jump threading may have changed CFG
 
    free(state.regvn);
    free(state.hashtab);

@@ -35,10 +35,21 @@
 
 #define REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
+#define LABEL(l) ((jit_value_t){ .kind = JIT_VALUE_LABEL, .label = (l) })
 
 static jit_handle_t compile_for_test(jit_t *j, const char *name)
 {
    return jit_lazy_compile(j, ident_new(name));
+}
+
+static inline int64_t extend_value(jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_LABEL: return value.label;
+   case JIT_VALUE_HANDLE: return value.handle;
+   case JIT_VALUE_REG: return value.reg;
+   default: return value.int64;
+   }
 }
 
 static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
@@ -46,7 +57,7 @@ static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
 {
    jit_ir_t *ir = &(f->irbuf[nth]);
    if (ir->op == expect && ir->arg1.kind == arg1.kind
-       && ir->arg1.int64 == arg1.int64)
+       && extend_value(ir->arg1) == extend_value(arg1))
       return;
 
    jit_dump_with_mark(f, nth, false);
@@ -59,7 +70,7 @@ static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
                    ir->arg1.kind);
    else
       ck_abort_msg("expected arg1 value %"PRIi64" but have %"PRIi64,
-                   arg1.int64, ir->arg1.int64);
+                   extend_value(arg1), extend_value(ir->arg1));
 }
 
 static void check_binary(jit_func_t *f, int nth, jit_op_t expect,
@@ -1548,7 +1559,7 @@ START_TEST(test_lvn4)
       "    DIV     R7, #4, #0      \n"
       "    DIV     R8, R7, #1      \n"
       "    MUL     R9, R7, #16     \n"
-      "    MUL     R10, R7, #16     \n";
+      "    MUL     R10, R7, #16    \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
@@ -1564,6 +1575,31 @@ START_TEST(test_lvn4)
    check_unary(f, 8, J_MOV, REG(7));
    check_binary(f, 9, J_ASL, REG(7), CONST(4));
    check_unary(f, 10, J_MOV, REG(9));
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_lvn5)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    JUMP    L1              \n"
+      "L1: NOP                     \n"
+      "    JUMP    L2              \n"
+      "    MOV     R0, R2          \n"
+      "L2: JUMP    L3              \n"
+      "    NOP                     \n"
+      "L3: NOP                     \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[0].op, J_NOP);
+   check_unary(f, 2, J_JUMP, LABEL(6));
 
    jit_free(j);
 }
@@ -1611,6 +1647,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_issue575);
    tcase_add_test(tc, test_cfg2);
    tcase_add_test(tc, test_lvn4);
+   tcase_add_test(tc, test_lvn5);
    suite_add_tcase(s, tc);
 
    return s;

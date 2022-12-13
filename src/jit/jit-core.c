@@ -1097,6 +1097,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "JUMP",  J_JUMP,     0, 1 },
       { "CSEL",  J_CSEL,     1, 2 },
       { "CSET",  J_CSET,     1, 0 },
+      { "NOP",   J_NOP,      0, 0 },
       { "$COPY", MACRO_COPY, 1, 2 },
       { "$CASE", MACRO_CASE, 1, 2 },
    };
