@@ -1453,6 +1453,25 @@ static void cgen_op_rem(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                             cgen_reg_name(ir->result));
 }
 
+static void cgen_op_asl(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
+
+   LLVMValueRef neg = LLVMBuildNeg(obj->builder, arg2, "");
+   cgb->outregs[ir->result] = LLVMBuildAShr(obj->builder, arg1, neg,
+                                            cgen_reg_name(ir->result));
+}
+
+static void cgen_op_asr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
+
+   cgb->outregs[ir->result] = LLVMBuildAShr(obj->builder, arg1, arg2,
+                                            cgen_reg_name(ir->result));
+}
+
 static void cgen_op_fadd(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_DOUBLE);
@@ -1860,31 +1879,36 @@ static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, f->name);
-   tb_cat(tb, ".privdata");
+   LLVMValueRef ptrptr;
+   if (obj->ctor[1] == NULL)
+      ptrptr = llvm_ptr(obj, jit_get_privdata_ptr(f->jit, f));
+   else {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, f->name);
+      tb_cat(tb, ".privdata");
 
-   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-   if (global == NULL) {
-      global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
-      LLVMSetUnnamedAddr(global, true);
-      LLVMSetLinkage(global, LLVMPrivateLinkage);
-      LLVMSetInitializer(global, llvm_ptr(obj, NULL));
+      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
+      if (global == NULL) {
+         global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
+         LLVMSetUnnamedAddr(global, true);
+         LLVMSetLinkage(global, LLVMPrivateLinkage);
+         LLVMSetInitializer(global, llvm_ptr(obj, NULL));
 
-      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
+         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
 
-      LLVMValueRef args[] = {
-         cgen_get_value(obj, cgb, ir->arg1)
-      };
-      LLVMValueRef init =
-         llvm_call_fn(obj, LLVM_GETPRIV, args, ARRAY_LEN(args));
-      LLVMBuildStore(obj->builder, init, global);
+         LLVMValueRef args[] = {
+            cgen_get_value(obj, cgb, ir->arg1)
+         };
+         LLVMValueRef init =
+            llvm_call_fn(obj, LLVM_GETPRIV, args, ARRAY_LEN(args));
+         LLVMBuildStore(obj->builder, init, global);
 
-      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+         LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+      }
+
+      ptrptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
    }
 
-   LLVMValueRef ptrptr =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
    LLVMValueRef ptr =
       LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "");
 
@@ -1959,6 +1983,12 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_REM:
       cgen_op_rem(obj, cgb, ir);
+      break;
+   case J_ASL:
+      cgen_op_asl(obj, cgb, ir);
+      break;
+   case J_ASR:
+      cgen_op_asr(obj, cgb, ir);
       break;
    case J_FADD:
       cgen_op_fadd(obj, cgb, ir);

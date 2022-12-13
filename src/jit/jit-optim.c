@@ -490,15 +490,43 @@ static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
 
    lvn_commute_const(ir, state);
 
-   if (ir->arg2.kind == JIT_VALUE_INT64) {
-      if (ir->arg2.int64 == 0) {
+   if (lvn_is_const(ir->arg2, state, &rhs)) {
+      if (rhs == 0) {
          lvn_convert_mov(ir, state, LVN_CONST(0));
          return;
       }
-      else if (ir->arg2.int64 == 1) {
+      else if (rhs == 1) {
          lvn_convert_mov(ir, state, LVN_REG(ir->arg1.reg));
          return;
       }
+      else if (rhs > 0 && is_power_of_2(rhs) && ir->size == JIT_SZ_UNSPEC) {
+         ir->op = J_ASL;
+         ir->arg2 = LVN_CONST(ilog2(rhs));
+         jit_lvn_generic(ir, state, VN_INVALID);
+         return;
+      }
+   }
+
+   jit_lvn_generic(ir, state, VN_INVALID);
+}
+
+static void jit_lvn_div(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t lhs, rhs;
+   if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs != 0) {
+      // XXX: potential bug here with INT_MIN/-1
+#define FOLD_DIV(type) do {                                             \
+         type result = (type)lhs / (type)rhs;                           \
+         lvn_convert_mov(ir, state, LVN_CONST(result));                 \
+         return;                                                        \
+      } while (0)
+
+      FOR_ALL_SIZES(ir->size, FOLD_DIV);
+#undef FOLD_DIV
+   }
+   else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 1) {
+      lvn_convert_mov(ir, state, LVN_REG(ir->arg1.reg));
+      return;
    }
 
    jit_lvn_generic(ir, state, VN_INVALID);
@@ -522,7 +550,7 @@ static void jit_lvn_add(jit_ir_t *ir, lvn_state_t *state)
 
    lvn_commute_const(ir, state);
 
-   if (ir->arg2.kind == JIT_VALUE_INT64 && ir->arg2.int64 == 0) {
+   if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0) {
       lvn_convert_mov(ir, state, LVN_REG(ir->arg1.reg));
       return;
    }
@@ -546,11 +574,11 @@ static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
 #undef FOLD_SUB
    }
 
-   if (ir->arg2.kind == JIT_VALUE_INT64 && ir->arg2.int64 == 0) {
+   if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0) {
       lvn_convert_mov(ir, state, LVN_REG(ir->arg1.reg));
       return;
    }
-   else if (ir->arg1.kind == JIT_VALUE_INT64 && ir->arg1.int64 == 0
+   else if (lvn_is_const(ir->arg1, state, &lhs) && lhs == 0
             && ir->cc == JIT_CC_NONE && ir->size == JIT_SZ_UNSPEC) {
      ir->op        = J_NEG;
      ir->arg1      = ir->arg2;
@@ -654,6 +682,7 @@ void jit_do_lvn(jit_func_t *f)
 
          switch (ir->op) {
          case J_MUL: jit_lvn_mul(ir, &state); break;
+         case J_DIV: jit_lvn_div(ir, &state); break;
          case J_ADD: jit_lvn_add(ir, &state); break;
          case J_SUB: jit_lvn_sub(ir, &state); break;
          case J_MOV: jit_lvn_mov(ir, &state); break;

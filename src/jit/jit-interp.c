@@ -365,6 +365,22 @@ static void interp_fadd(jit_interp_t *state, jit_ir_t *ir)
    state->regs[ir->result].real = arg1.real + arg2.real;
 }
 
+static void interp_asl(jit_interp_t *state, jit_ir_t *ir)
+{
+   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
+   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+
+   state->regs[ir->result].integer = arg1.integer << arg2.integer;
+}
+
+static void interp_asr(jit_interp_t *state, jit_ir_t *ir)
+{
+   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
+   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+
+   state->regs[ir->result].integer = arg1.integer >> arg2.integer;
+}
+
 static void interp_store(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
@@ -770,6 +786,12 @@ static void interp_loop(jit_interp_t *state)
       case J_FDIV:
          interp_fdiv(state, ir);
          break;
+      case J_ASL:
+         interp_asl(state, ir);
+         break;
+      case J_ASR:
+         interp_asr(state, ir);
+         break;
       case J_RET:
          return;
       case J_STORE:
@@ -827,6 +849,7 @@ static void interp_loop(jit_interp_t *state)
          interp_rem(state, ir);
          break;
       case J_DEBUG:
+      case J_NOP:
          break;
       case MACRO_COPY:
          interp_copy(state, ir);

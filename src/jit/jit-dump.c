@@ -52,7 +52,8 @@ const char *jit_op_name(jit_op_t op)
          "SEND", "RECV", "ADD", "RET", "TRAP", "ULOAD", "STORE", "JUMP", "CMP",
          "CSET", "SUB", "MOV", "FADD", "MUL", "FMUL", "CALL", "NEG", "LOAD",
          "CSEL", "LEA", "NOT", "DIV", "FDIV", "SCVTF", "FNEG", "FCVTNS",
-         "FCMP", "AND", "OR", "XOR", "FSUB", "REM", "DEBUG", "NOP"
+         "FCMP", "AND", "OR", "XOR", "FSUB", "REM", "DEBUG", "NOP", "ASR",
+         "ASL",
       };
       assert(op < ARRAY_LEN(names));
       return names[op];

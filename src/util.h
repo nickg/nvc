@@ -62,7 +62,7 @@
 #define siglongjmp(x, y) longjmp((x), (y))
 #endif
 
-#define is_power_of_2(x) (((x) & ~(x)) == 0)
+#define is_power_of_2(x) (((x) & (x - 1)) == 0)
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 #define ALIGN_UP(p, a) (typeof(p))({                  \

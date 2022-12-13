@@ -31,10 +31,63 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <inttypes.h>
+
+#define REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
+#define CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
 
 static jit_handle_t compile_for_test(jit_t *j, const char *name)
 {
    return jit_lazy_compile(j, ident_new(name));
+}
+
+static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
+                        jit_value_t arg1)
+{
+   jit_ir_t *ir = &(f->irbuf[nth]);
+   if (ir->op == expect && ir->arg1.kind == arg1.kind
+       && ir->arg1.int64 == arg1.int64)
+      return;
+
+   jit_dump_with_mark(f, nth, false);
+
+   if (ir->op != expect)
+      ck_abort_msg("expected op %s but have %s", jit_op_name(expect),
+                   jit_op_name(ir->op));
+   else if (ir->arg1.kind != arg1.kind)
+      ck_abort_msg("expected arg1 kind %d but have %d", arg1.kind,
+                   ir->arg1.kind);
+   else
+      ck_abort_msg("expected arg1 value %"PRIi64" but have %"PRIi64,
+                   arg1.int64, ir->arg1.int64);
+}
+
+static void check_binary(jit_func_t *f, int nth, jit_op_t expect,
+                         jit_value_t arg1, jit_value_t arg2)
+{
+   jit_ir_t *ir = &(f->irbuf[nth]);
+   if (ir->op == expect && ir->arg1.kind == arg1.kind
+       && ir->arg1.int64 == arg1.int64 && ir->arg2.kind == arg2.kind
+       && ir->arg2.int64 == arg2.int64)
+      return;
+
+   jit_dump_with_mark(f, nth, false);
+
+   if (ir->op != expect)
+      ck_abort_msg("expected op %s but have %s", jit_op_name(expect),
+                   jit_op_name(ir->op));
+   else if (ir->arg1.kind != arg1.kind)
+      ck_abort_msg("expected arg1 kind %d but have %d", arg1.kind,
+                   ir->arg1.kind);
+   else if (ir->arg1.int64 != arg1.int64)
+      ck_abort_msg("expected arg1 value %"PRIi64" but have %"PRIi64,
+                   arg1.int64, ir->arg1.int64);
+   else if (ir->arg2.kind != arg2.kind)
+      ck_abort_msg("expected arg2 kind %d but have %d", arg2.kind,
+                   ir->arg2.kind);
+   else
+      ck_abort_msg("expected arg2 value %"PRIi64" but have %"PRIi64,
+                   arg2.int64, ir->arg2.int64);
 }
 
 START_TEST(test_add1)
@@ -1324,12 +1377,8 @@ START_TEST(test_lvn1)
    ck_assert_int_eq(f->irbuf[5].op, J_MOV);
    ck_assert_int_eq(f->irbuf[5].arg1.reg, f->irbuf[4].result);
 
-   ck_assert_int_eq(f->irbuf[7].op, J_MOV);
-   ck_assert_int_eq(f->irbuf[7].arg1.reg, f->irbuf[6].result);
-
-   ck_assert_int_eq(f->irbuf[9].op, J_MUL);
-   ck_assert_int_eq(f->irbuf[9].arg1.reg, 2);
-   ck_assert_int_eq(f->irbuf[9].arg2.int64, 3);
+   check_unary(f, 7, J_MOV, REG(f->irbuf[6].result));
+   check_binary(f, 9, J_MUL, REG(2), CONST(3));
 
    ck_assert_int_eq(f->irbuf[10].op, J_MOV);
    ck_assert_int_eq(f->irbuf[10].arg1.reg, 2);
@@ -1493,24 +1542,28 @@ START_TEST(test_lvn4)
       "    ADD     R1, R0, #2      \n"
       "    CMP.EQ  #1, #1          \n"
       "    CSEL    R2, #5, #6      \n"
-      "    CSET    R3              \n";
+      "    CSET    R3              \n"
+      "    DIV     R5, R4, #2      \n"
+      "    DIV     R6, #7, #5      \n"
+      "    DIV     R7, #4, #0      \n"
+      "    DIV     R8, R7, #1      \n"
+      "    MUL     R9, R7, #16     \n"
+      "    MUL     R10, R7, #16     \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
    jit_func_t *f = jit_get_func(j, h1);
    jit_do_lvn(f);
 
-   ck_assert_int_eq(f->irbuf[1].op, J_MOV);
-   ck_assert_int_eq(f->irbuf[1].arg1.kind, JIT_VALUE_INT64);
-   ck_assert_int_eq(f->irbuf[1].arg1.int64, 7);
-
-   ck_assert_int_eq(f->irbuf[3].op, J_MOV);
-   ck_assert_int_eq(f->irbuf[3].arg1.kind, JIT_VALUE_INT64);
-   ck_assert_int_eq(f->irbuf[3].arg1.int64, 5);
-
-   ck_assert_int_eq(f->irbuf[4].op, J_MOV);
-   ck_assert_int_eq(f->irbuf[4].arg1.kind, JIT_VALUE_INT64);
-   ck_assert_int_eq(f->irbuf[4].arg1.int64, 1);
+   check_unary(f, 1, J_MOV, CONST(7));
+   check_unary(f, 3, J_MOV, CONST(5));
+   check_unary(f, 4, J_MOV, CONST(1));
+   check_binary(f, 5, J_DIV, REG(4), CONST(2));
+   check_unary(f, 6, J_MOV, CONST(1));
+   check_binary(f, 7, J_DIV, CONST(4), CONST(0));
+   check_unary(f, 8, J_MOV, REG(7));
+   check_binary(f, 9, J_ASL, REG(7), CONST(4));
+   check_unary(f, 10, J_MOV, REG(9));
 
    jit_free(j);
 }
