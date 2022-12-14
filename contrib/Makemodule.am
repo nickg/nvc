@@ -5,6 +5,7 @@ pkglibexec_SCRIPTS += \
 	contrib/install-uvvm.sh \
 	contrib/install-vivado.sh \
 	contrib/install-quartus.sh \
-	contrib/install-ise.sh
+	contrib/install-ise.sh \
+	contrib/install-icecube2.sh
 
 EXTRA_DIST += $(pkglibexec_SCRIPTS)

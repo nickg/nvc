@@ -196,6 +196,6 @@ simulation libraries of common FPGA vendors.
 * For Xilinx ISE use `nvc --install ise`
 * For Xilinx Vivado use `nvc --install vivado`
 * For Altera Quartus use `nvc --install quartus`
-* For Lattice iCEcube2 use `./tools/build-lattice.rb`
+* For Lattice iCEcube2 use `nvc --install icecube2`
 
 The libraries will be installed under `~/.nvc/lib`.
