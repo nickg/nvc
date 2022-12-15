@@ -28,13 +28,32 @@
 #include <stdio.h>
 #include <time.h>
 
+static volatile int start = 0;
+
+static void run_test(thread_fn_t fn, void *arg)
+{
+   const int nproc = MIN(nvc_nprocs(), MAX_THREADS - 1);
+   nvc_thread_t *handles[MAX_THREADS];
+
+   full_barrier();
+
+   for (int i = 0; i < nproc; i++)
+      handles[i] = thread_create(fn, arg, "test thread %d", i);
+
+   store_release(&start, 1);
+
+   for (int i = 0; i < nproc; i++)
+      thread_join(handles[i]);
+
+   store_release(&start, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Concurrent calls to ident_new
 
 #define NWORDS 10000
 static char *words[NWORDS];
 static ident_t idents[NWORDS];
-static volatile int start = 0;
 
 static void *test_ident_thread(void *arg)
 {
@@ -79,15 +98,7 @@ START_TEST(test_ident_new)
 
    fclose(f);
 
-   const int nproc = nvc_nprocs();
-   nvc_thread_t *handles[nproc];
-   for (int i = 0; i < nproc; i++)
-      handles[i] = thread_create(test_ident_thread, NULL, "test thread %d", i);
-
-   store_release(&start, 1);
-
-   for (int i = 0; i < nproc; i++)
-      thread_join(handles[i]);
+   run_test(test_ident_thread, NULL);
 }
 END_TEST
 
@@ -135,15 +146,7 @@ START_TEST(test_chash_rand)
 
    chash_t *h = chash_new(CHASH_NVALUES / 4);
 
-   const int nproc = nvc_nprocs();
-   nvc_thread_t *handles[nproc];
-   for (int i = 0; i < nproc; i++)
-      handles[i] = thread_create(test_chash_thread, h, "test thread %d", i);
-
-   store_release(&start, 1);
-
-   for (int i = 0; i < nproc; i++)
-      thread_join(handles[i]);
+   run_test(test_chash_thread, h);
 
    chash_free(h);
 }

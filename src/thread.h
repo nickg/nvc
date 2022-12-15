@@ -43,6 +43,8 @@
 #define store_release(p, v) __atomic_store_n((p), (v), __ATOMIC_RELEASE)
 #define load_acquire(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)
 
+#define full_barrier() __atomic_thread_fence(__ATOMIC_SEQ_CST)
+
 typedef struct _nvc_thread nvc_thread_t;
 
 void thread_init(void);
