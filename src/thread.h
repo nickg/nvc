@@ -45,6 +45,8 @@
 
 #define full_barrier() __atomic_thread_fence(__ATOMIC_SEQ_CST)
 
+#define MAX_THREADS 64
+
 typedef struct _nvc_thread nvc_thread_t;
 
 void thread_init(void);

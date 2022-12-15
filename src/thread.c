@@ -35,7 +35,6 @@
 #include <sanitizer/tsan_interface.h>
 #endif
 
-#define MAX_THREADS  64
 #define LOCK_SPINS   15
 #define MIN_TAKE     8
 #define PARKING_BAYS 64
@@ -172,6 +171,7 @@ struct _nvc_thread {
    pthread_t       handle;
    thread_fn_t     fn;
    void           *arg;
+   int             victim;
 };
 
 typedef struct {
@@ -355,7 +355,7 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 
 void *thread_join(nvc_thread_t *thread)
 {
-   if (thread == my_thread || thread->id == 0)
+   if (thread == my_thread || thread->kind == MAIN_THREAD)
       fatal_trace("cannot join self or main thread");
 
    void *retval = NULL;
@@ -604,6 +604,9 @@ static void globalq_put(globalq_t *gq, const task_t *tasks, size_t count)
 
 static size_t globalq_take(globalq_t *gq, threadq_t *tq)
 {
+   if (relaxed_load(&gq->wptr) == relaxed_load(&gq->rptr))
+      return 0;
+
    SCOPED_LOCK(gq->lock);
 
    if (gq->wptr == gq->rptr)
@@ -684,8 +687,6 @@ void workq_scan(workq_t *wq, scan_fn_t fn, void *arg)
 
 static int estimate_depth(threadq_t *tq)
 {
-   if (tq == NULL) return 0;
-
    const abp_age_t age = { .bits = relaxed_load(&tq->age.bits) };
    const abp_idx_t bot = relaxed_load(&tq->bot);
 
@@ -703,45 +704,43 @@ static threadq_t *get_thread_queue(int id)
    return &(t->queue);
 }
 
+static threadq_t *find_victim(void)
+{
+   threadq_t *last = get_thread_queue(my_thread->victim);
+   if (last != NULL && estimate_depth(last) > 0)
+      return last;
+
+   const int start = rand() % MAX_THREADS;
+   int idx = start;
+   do {
+      if (idx != my_thread->id) {
+         threadq_t *q = get_thread_queue(idx);
+         if (q != NULL && estimate_depth(q) > 0) {
+            my_thread->victim = idx;
+            return q;
+         }
+      }
+   } while ((idx = (idx + 1) % MAX_THREADS) != start);
+
+   return NULL;
+}
+
 static bool steal_task(void)
 {
-   int nthreads = relaxed_load(&running_threads), victim;
-   if (nthreads > 2) {
-      // Pick two threads at random and steal from the one with the
-      // longest queue
-      int t1, t2;
-      do {
-         t1 = rand() % nthreads;
-      } while (t1 == my_thread->id);
-      do {
-         t2 = rand() % nthreads;
-      } while (t2 == my_thread->id || t1 == t2);
-
-      threadq_t *q1 = get_thread_queue(t1);
-      threadq_t *q2 = get_thread_queue(t2);
-
-      if (estimate_depth(q1) > estimate_depth(q2))
-         victim = t1;
-      else
-         victim = t2;
-   }
-   else if (nthreads == 1)
-      victim = my_thread->id ^ 1;  // Pick the only other thread
-   else
-      return false;   // No one to steal from
-
-   threadq_t *tq = get_thread_queue(victim);
+   threadq_t *tq = find_victim();
+   if (tq == NULL)
+      return false;
 
    task_t task;
-   if (tq != NULL && pop_top(tq, &task)) {
+   if (pop_top(tq, &task)) {
       WORKQ_EVENT(steals, 1);
       (*task.fn)(task.context, task.arg);
       WORKQ_EVENT(comp, 1);
       atomic_add(&(task.workq->comp), 1);
       return true;
    }
-   else
-      return false;
+
+   return false;
 }
 
 static void maybe_backoff(void)
