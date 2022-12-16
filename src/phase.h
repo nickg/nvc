@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -44,6 +44,9 @@ void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for a design unit
 void cgen(tree_t top, vcode_unit_t vu, cover_tagging_t *cover);
+
+// Generate ahead-of-time preload library
+void aotgen(const char *outfile, char **argv, int argc);
 
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);

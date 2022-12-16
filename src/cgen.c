@@ -4530,8 +4530,25 @@ static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
    APUSH(*units, root);
 }
 
+static bool cgen_is_preload(ident_t name)
+{
+#if CGEN_USE_JIT
+   if (ident_starts_with(name, well_known(W_STD)))
+      return true;
+   else if (ident_starts_with(name, well_known(W_IEEE)))
+      return true;
+   else if (ident_starts_with(name, well_known(W_NVC)))
+      return true;
+   else
+#endif
+      return false;
+}
+
 static void cgen_add_dependency(ident_t name, unit_list_t *list)
 {
+   if (cgen_is_preload(name))
+      return;
+
    vcode_state_t state;
    vcode_state_save(&state);
 
@@ -5649,6 +5666,7 @@ static void cgen_async_work(void *context, void *arg)
       llvm_aot_compile(obj, jit, handle);
    }
 
+   llvm_obj_finalise(obj, LLVM_O0);
    llvm_obj_emit(obj, job->obj_path);
 
    ACLEAR(job->units);
@@ -5729,3 +5747,142 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 }
 
 #endif
+
+static void preload_add_children(vcode_unit_t vu, unit_list_t *list)
+{
+   vcode_select_unit(vu);
+   APUSH(*list, vu);
+
+   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
+      preload_add_children(it, list);
+}
+
+static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
+{
+   tree_t unit = lib_get(lib, ident);
+
+   if (!unit_needs_cgen(unit))
+      return;
+   else if (tree_kind(unit) == T_PACK_BODY)
+      unit = tree_primary(unit);
+
+   ident_t name = tree_ident(unit);
+   vcode_unit_t vu = vcode_find_unit(name);
+   if (vu == NULL)
+      fatal("missing code for %s", istr(name));
+
+   unit_list_t *list = ctx;
+   preload_add_children(vu, list);
+}
+
+static void preload_do_link(const char *so_name, const char *obj_file)
+{
+#ifdef LINKER_PATH
+   cgen_link_arg("%s", LINKER_PATH);
+   cgen_link_arg("--eh-frame-hdr");
+#else
+   cgen_link_arg("%s", SYSTEM_CC);
+#endif
+
+#if defined __APPLE__
+   cgen_link_arg("-bundle");
+   cgen_link_arg("-flat_namespace");
+   cgen_link_arg("-undefined");
+   cgen_link_arg("dynamic_lookup");
+#elif defined __OpenBSD__
+   cgen_link_arg("-Bdynamic");
+   cgen_link_arg("-shared");
+   cgen_link_arg("/usr/lib/crtbeginS.o");
+#else
+   cgen_link_arg("-shared");
+#endif
+
+   cgen_link_arg("-o");
+   cgen_link_arg("%s", so_name);
+
+   cgen_link_arg("%s", obj_file);
+
+#if defined LINKER_PATH && defined __OpenBSD__
+   // Extra linker arguments to make constructors work on OpenBSD
+   cgen_link_arg("-L/usr/lib");
+   cgen_link_arg("-lcompiler_rt");
+   cgen_link_arg("/usr/lib/crtendS.o");
+#endif
+
+#ifdef IMPLIB_REQUIRED
+   const char *cyglib = getenv("NVC_IMP_LIB");
+   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : LIBDIR);
+   cgen_link_arg(cygarg);
+   cgen_link_arg("-lnvcimp");
+#endif
+
+   APUSH(link_args, NULL);
+
+   run_program((const char * const *)link_args.items);
+
+   progress("linking shared library");
+
+   for (size_t i = 0; i < link_args.count; i++)
+      free(link_args.items[i]);
+   ACLEAR(link_args);
+}
+
+void aotgen(const char *outfile, char **argv, int argc)
+{
+   unit_list_t units = AINIT;
+
+   for (int i = 0; i < argc; i++) {
+      for (char *p = argv[i]; *p; p++)
+         *p = toupper((int)*p);
+
+      lib_t lib = lib_require(ident_new(argv[i]));
+      lib_walk_index(lib, preload_walk_index, &units);
+   }
+
+   for (unsigned i = 0; i < units.count; i++)
+      cgen_find_dependencies(units.items[i], &units);
+
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   jit_t *jit = jit_new();
+
+   progress("initialising");
+
+   llvm_obj_t *obj = llvm_obj_new("preload");
+   llvm_add_abi_version(obj);
+
+   for (int i = 0; i < units.count; i++) {
+      vcode_unit_t vu = units.items[i];
+      vcode_select_unit(vu);
+
+      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
+      assert(handle != JIT_HANDLE_INVALID);
+
+      llvm_aot_compile(obj, jit, handle);
+   }
+
+   progress("code generation for %d units", units.count);
+
+   llvm_opt_level_t olevel = opt_get_int(OPT_OPTIMISE);
+   llvm_obj_finalise(obj, olevel);
+
+   progress("LLVM module optimisation passes");
+
+   char *objfile LOCAL = nvc_temp_file();
+   llvm_obj_emit(obj, objfile);
+
+   progress("native code generation");
+
+   preload_do_link(outfile, objfile);
+
+   if (remove(objfile) != 0)
+      warnf("remove: %s: %s", objfile, last_os_error());
+
+   LLVMShutdown();
+
+   ACLEAR(units);
+   jit_free(jit);
+
+   ACLEAR(units);
+}

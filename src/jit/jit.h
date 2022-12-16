@@ -74,6 +74,7 @@ void jit_limit_backedges(jit_t *j, int limit);
 void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
+void jit_preload(jit_t *j);
 int jit_exit_status(jit_t *j);
 void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);

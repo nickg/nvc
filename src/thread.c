@@ -1004,7 +1004,7 @@ void workq_start(workq_t *wq)
 
    if (wq->parallel && nparallel > 0) {
       nvc_unlock(&globalq.lock);
-      create_workers(nparallel / 2);
+      create_workers(nparallel);
    }
 }
 

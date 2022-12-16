@@ -232,6 +232,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
 void *map_huge_pages(size_t align, size_t sz);
 
 void run_program(const char *const *args);
+char *nvc_temp_file(void);
 
 text_buf_t *safe_symbol(ident_t id);
 text_buf_t *unsafe_symbol(const char *text);

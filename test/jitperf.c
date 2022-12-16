@@ -58,6 +58,7 @@ static void run_benchmark(tree_t pack, tree_t proc)
    ident_t name = tree_ident2(proc);
 
    jit_t *j = jit_new();
+   jit_preload(j);
 
 #if defined LLVM_HAS_LLJIT && 1
    jit_register_llvm_plugin(j);

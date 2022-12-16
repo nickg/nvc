@@ -98,6 +98,7 @@ typedef struct _jit {
    int             exit_status;
    jit_tier_t     *tiers;
    aot_dll_t      *aotlib;
+   aot_dll_t      *preloadlib;
    func_array_t   *funcs;
    unsigned        next_handle;
    nvc_lock_t      lock;
@@ -163,10 +164,13 @@ void jit_free(jit_t *j)
    store_release(&j->shutdown, true);
    async_barrier();
 
-   if (j->aotlib != NULL) {
-      ffi_unload_dll(j->aotlib->dll);
-      jit_pack_free(j->aotlib->pack);
-      free(j->aotlib);
+   aot_dll_t *libs[] = { j->aotlib, j->preloadlib };
+   for (int i = 0; i < ARRAY_LEN(libs); i++) {
+      if (libs[i] != NULL) {
+         ffi_unload_dll(libs[i]->dll);
+         jit_pack_free(libs[i]->pack);
+         free(libs[i]);
+      }
    }
 
    for (int i = 0; i < j->next_handle; i++)
@@ -233,11 +237,11 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       return f->handle;
 
    aot_descr_t *descr = NULL;
-   if (j->aotlib != NULL) {
+   if (j->aotlib != NULL || j->preloadlib != NULL) {
       LOCAL_TEXT_BUF tb = safe_symbol(name);
       tb_cat(tb, ".descr");
 
-      aot_dll_t *try[] = { j->aotlib };
+      aot_dll_t *try[] = { j->aotlib, j->preloadlib };
       for (int i = 0; i < ARRAY_LEN(try); i++) {
          if (try[i] == NULL)
             continue;
@@ -384,6 +388,11 @@ jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
    return f;
 }
 
+static inline bool jit_fill_from_aot(jit_func_t *f, aot_dll_t *lib)
+{
+   return lib != NULL && jit_pack_fill(lib->pack, f->jit, f);
+}
+
 void jit_fill_irbuf(jit_func_t *f)
 {
    switch (load_acquire(&(f->state))) {
@@ -413,7 +422,9 @@ void jit_fill_irbuf(jit_func_t *f)
 
    if (f->symbol && f->irbuf != NULL)
       return;   // XXX: delete me
-   else if (f->jit->aotlib && jit_pack_fill(f->jit->aotlib->pack, f->jit, f))
+   else if (jit_fill_from_aot(f, f->jit->aotlib))
+      return;
+   else if (jit_fill_from_aot(f, f->jit->preloadlib))
       return;
    else if (f->unit)
       jit_irgen(f);
@@ -1001,6 +1012,62 @@ int jit_backedge_limit(jit_t *j)
    return j->backedge;
 }
 
+static aot_dll_t *load_dll_internal(jit_t *j, const char *path)
+{
+   uint32_t abi_version = 0;
+
+   // Loading the DLL can execute constructors
+   jit_transition(j, JIT_IDLE, JIT_NATIVE);
+
+   aot_dll_t *lib = xcalloc(sizeof(aot_dll_t));
+   lib->pack = jit_pack_new();
+
+   lib->dll = ffi_load_dll(path);
+
+   uint32_t *p = ffi_find_symbol(lib->dll, "__nvc_abi_version");
+   if (p == NULL)
+      warnf("%s: cannot find symbol __nvc_abi_version", path);
+   else
+      abi_version = *p;
+
+   jit_transition(j, JIT_NATIVE, JIT_IDLE);
+
+   if (abi_version != RT_ABI_VERSION)
+      fatal("%s: ABI version %d does not match current version %d",
+            path, abi_version, RT_ABI_VERSION);
+
+   if (opt_get_int(OPT_JIT_LOG))
+      debugf("loaded AOT library from %s", path);
+
+   return lib;
+}
+
+void jit_preload(jit_t *j)
+{
+#ifdef HAVE_LLVM
+   if (j->preloadlib != NULL)
+      fatal_trace("Preload library already loaded");
+
+   lib_t std = lib_find(well_known(W_STD));
+   if (std == NULL)
+      fatal("cannot find STD library");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, lib_path(std));
+   tb_cat(tb, DIR_SEP "..");
+
+   const char *preload_vers[] = { "93", "93", "93", "93", "08", "19" };
+   tb_printf(tb, DIR_SEP "preload%s." DLL_EXT, preload_vers[standard()]);
+
+   const char *path = tb_get(tb);
+   struct stat st;
+   if (stat(path, &st) != 0 || !S_ISREG(st.st_mode))
+      fatal("missing preload library at %s", path);
+
+   j->preloadlib = load_dll_internal(j, path);
+#endif  // HAVE_LLVM
+}
+
 void jit_load_dll(jit_t *j, ident_t name)
 {
    lib_t lib = lib_require(ident_until(name, '.'));
@@ -1017,29 +1084,10 @@ void jit_load_dll(jit_t *j, ident_t name)
    if (access(so_path, F_OK) != 0)
       return;
 
-   uint32_t abi_version = 0;
-
-   // Loading the DLL can execute constructors
-   jit_transition(j, JIT_IDLE, JIT_NATIVE);
-
    if (j->aotlib != NULL)
-      fatal_trace("AOT library alreadt loaded");
+      fatal_trace("AOT library already loaded");
 
-   j->aotlib = xcalloc(sizeof(aot_dll_t));
-   j->aotlib->pack = jit_pack_new();
-   j->aotlib->dll  = ffi_load_dll(so_path);
-
-   uint32_t *p = ffi_find_symbol(j->aotlib->dll, "__nvc_abi_version");
-   if (p == NULL)
-      warnf("%s: cannot find symbol __nvc_abi_version", so_path);
-   else
-      abi_version = *p;
-
-   jit_transition(j, JIT_NATIVE, JIT_IDLE);
-
-   if (abi_version != RT_ABI_VERSION)
-      fatal("%s: ABI version %d does not match current version %d",
-            so_path, abi_version, RT_ABI_VERSION);
+   j->aotlib = load_dll_internal(j, so_path);
 }
 
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)

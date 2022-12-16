@@ -179,9 +179,9 @@ AC_DEFUN([AX_LLVM_C], [
     AC_SUBST(LLVM_LDFLAGS)
     AC_SUBST(LLVM_LIBS)
     AM_CONDITIONAL([LLVM_STATIC], [test x$llvm_maybe_static = xyes])
-    AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
-    AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
-    AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
+    AC_DEFINE(HAVE_LLVM, [1], [Defined if LLVM is available])
+    AC_DEFINE_UNQUOTED(LLVM_VERSION, ["$LLVM_VERSION"], [Version of LLVM installed])
+    AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR, ["$LLVM_CONFIG_BINDIR"], [Location of LLVM binaries])
 
     case $host_os in
       *cygwin*|msys*|mingw32*)

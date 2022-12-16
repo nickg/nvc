@@ -82,7 +82,7 @@ static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
-      "--init", "--install", "--print-deps",
+      "--init", "--install", "--print-deps", "--aotgen"
    };
 
    for (int i = start; i < argc; i++) {
@@ -280,6 +280,15 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
    }
 }
 
+static int parse_optimise_level(const char *str)
+{
+   char *eptr;
+   const int level = strtoul(optarg, &eptr, 10);
+   if (level > 3 || *eptr != '\0')
+      fatal("invalid optimisation level %s", optarg);
+   return level;
+}
+
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -299,13 +308,7 @@ static int elaborate(int argc, char **argv)
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'O':
-         {
-            char *eptr;
-            const int level = strtoul(optarg, &eptr, 10);
-            if (level > 3)
-               fatal("Invalid optimisation level %s", optarg);
-            opt_set_int(OPT_OPTIMISE, level);
-         }
+         opt_set_int(OPT_OPTIMISE, parse_optimise_level(optarg));
          break;
       case 'd':
          opt_set_int(OPT_DUMP_LLVM, 1);
@@ -596,6 +599,9 @@ static int run(int argc, char **argv)
 
    jit_t *jit = jit_new();
    jit_enable_runtime(jit, true);
+#if 0
+   jit_preload(jit);
+#endif
 
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
@@ -999,6 +1005,49 @@ static int dump_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+#if ENABLE_LLVM
+static int aotgen_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const char *outfile = "preload." DLL_EXT;
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = ":o:VO:";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0: break;  // Set a flag
+      case 'V':
+         opt_set_int(OPT_VERBOSE, 1);
+         break;
+      case 'O':
+         opt_set_int(OPT_OPTIMISE, parse_optimise_level(optarg));
+         break;
+      case 'o': outfile = optarg; break;
+      case '?': bad_option("aotgen", argv);
+      case ':': missing_argument("aotgen", argv);
+      default: abort();
+      }
+   }
+
+   const int count = next_cmd - optind;
+   aotgen(outfile, argv + optind, count);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+#else
+static int aotgen_cmd(int argc, char **argv)
+{
+   fatal("$bold$--aotgen$$ not supported without LLVM");
+}
+#endif
+
 static uint32_t parse_cover_print_spec(char *str)
 {
    uint32_t mask = 0;
@@ -1318,6 +1367,7 @@ static int process_command(int argc, char **argv)
       { "init",       no_argument, 0, 'i' },
       { "install",    no_argument, 0, 'I' },
       { "print-deps", no_argument, 0, 'P' },
+      { "aotgen",     no_argument, 0, 'A' },
       { 0, 0, 0, 0 }
    };
 
@@ -1349,6 +1399,8 @@ static int process_command(int argc, char **argv)
       return install_cmd(argc, argv);
    case 'P':
       return print_deps_cmd(argc, argv);
+   case 'A':
+      return aotgen_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;

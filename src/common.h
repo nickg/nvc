@@ -196,6 +196,7 @@ typedef enum {
    W_NUMERIC_BIT,
    W_NUMERIC_STD_UNSIGNED,
    W_NUMERIC_BIT_UNSIGNED,
+   W_NVC,
 
    NUM_WELL_KNOWN
 } well_known_t;

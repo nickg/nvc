@@ -181,6 +181,7 @@ typedef struct _cgen_func {
    LLVMTypeRef      cpool_type;
    LLVMValueRef     descr;
    LLVMTypeRef      descr_type;
+   LLVMTypeRef      reloc_type;
    LLVMMetadataRef  debugmd;
    cgen_block_t    *blocks;
    jit_func_t      *source;
@@ -417,11 +418,10 @@ static void llvm_verify_module(LLVMModuleRef module)
 #endif
 }
 
-static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target)
+static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target,
+                          llvm_opt_level_t olevel)
 {
-   const int olevel = opt_get_int(OPT_OPTIMISE);
-   if (olevel < 0 || olevel > 3)
-      fatal("invalid optimisation level %d", olevel);
+   assert(olevel >= LLVM_O0 && olevel <= LLVM_O3);
 
 #if LLVM_HAS_PASS_BUILDER
    LLVMPassBuilderOptionsRef options = LLVMCreatePassBuilderOptions();
@@ -443,17 +443,6 @@ static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target)
    LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
    LLVMPassManagerRef mpm = LLVMCreatePassManager();
 
-   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
-   LLVMPassManagerBuilderSetOptLevel(builder, olevel);
-   LLVMPassManagerBuilderSetSizeLevel(builder, 0);
-
-   if (olevel >= 2)
-      LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
-
-   LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
-   LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
-   LLVMPassManagerBuilderDispose(builder);
-
    LLVMInitializeFunctionPassManager(fpm);
 
    for (LLVMValueRef fn = LLVMGetFirstFunction(module);
@@ -463,19 +452,19 @@ static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target)
    LLVMFinalizeFunctionPassManager(fpm);
    LLVMDisposePassManager(fpm);
 
+   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
+   LLVMPassManagerBuilderSetOptLevel(builder, olevel);
+   LLVMPassManagerBuilderSetSizeLevel(builder, 0);
+
+   if (olevel >= 2)
+      LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
+
+   LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
+   LLVMPassManagerBuilderDispose(builder);
+
    LLVMRunPassManager(mpm, module);
    LLVMDisposePassManager(mpm);
 #endif
-}
-
-static void llvm_finalise(llvm_obj_t *obj)
-{
-   DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
-
-   llvm_dump_module(obj->module, "initial");
-   llvm_verify_module(obj->module);
-   llvm_optimise(obj->module, obj->target);
-   llvm_dump_module(obj->module, "final");
 }
 
 static LLVMTargetMachineRef llvm_target_machine(LLVMRelocMode reloc,
@@ -851,6 +840,15 @@ static void llvm_set_value_name(LLVMValueRef value, const char *name)
    if (curlen == 0)
       LLVMSetValueName(value, name);
 }
+
+__attribute__((unused))
+static void llvm_dump_value(const char *tag, LLVMValueRef value)
+{
+   fprintf(stderr, "%s: ", tag);
+   fflush(stderr);
+   LLVMDumpValue(value);
+   fprintf(stderr, "\n");
+}
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -915,9 +913,12 @@ static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
    LLVMValueRef array = LLVMBuildStructGEP2(obj->builder, func->descr_type,
                                             func->descr, 4, "");
 
-   LLVMValueRef indexes[] = { llvm_intptr(obj, reloc->nth) };
+   LLVMValueRef indexes[] = {
+      llvm_intptr(obj, 0),
+      llvm_intptr(obj, reloc->nth)
+   };
    LLVMValueRef elem =
-      LLVMBuildInBoundsGEP2(obj->builder, obj->types[LLVM_AOT_RELOC], array,
+      LLVMBuildInBoundsGEP2(obj->builder, func->reloc_type, array,
                             indexes, ARRAY_LEN(indexes), "");
    LLVMValueRef ptr =
       LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_AOT_RELOC],
@@ -1659,9 +1660,12 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
          LLVMBuildStructGEP2(obj->builder, cgb->func->descr_type,
                              cgb->func->descr, 4, "");
 
-      LLVMValueRef indexes[] = { llvm_intptr(obj, reloc->nth) };
+      LLVMValueRef indexes[] = {
+         llvm_intptr(obj, 0),
+         llvm_intptr(obj, reloc->nth)
+      };
       LLVMValueRef elem =
-         LLVMBuildInBoundsGEP2(obj->builder, obj->types[LLVM_AOT_RELOC], array,
+         LLVMBuildInBoundsGEP2(obj->builder, cgb->func->reloc_type, array,
                                indexes, ARRAY_LEN(indexes), "");
       LLVMValueRef ptr =
          LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_AOT_RELOC],
@@ -1679,6 +1683,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    if (entry == NULL) {
       // Must have acquire semantics to synchronise with installing new code
       entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+      LLVMSetAlignment(entry, sizeof(void *));
       LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
    }
 
@@ -1879,8 +1884,14 @@ static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       ptrptr = cgen_load_from_reloc(obj, cgb->func, RELOC_PRIVDATA,
                                     ir->arg1.handle);
 
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_PTR], 0);
+   ptrptr = LLVMBuildPointerCast(obj->builder, ptrptr, ptr_type, "");
+#endif
+
    LLVMValueRef ptr =
       LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "p2");
+   LLVMSetAlignment(ptr, sizeof(void *));
    LLVMSetOrdering(ptr, LLVMAtomicOrderingAcquire);
 
    cgen_pointer_result(obj, cgb, ir, ptr);
@@ -1893,7 +1904,13 @@ static void cgen_macro_putpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    if (cgb->func->mode == CGEN_AOT) {
       LLVMValueRef ptr = cgen_load_from_reloc(obj, cgb->func, RELOC_PRIVDATA,
                                               ir->arg1.handle);
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+      LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_PTR], 0);
+      ptr = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
+#endif
+
       LLVMValueRef store = LLVMBuildStore(obj->builder, value, ptr);
+      LLVMSetAlignment(store, sizeof(void *));
       LLVMSetOrdering(store, LLVMAtomicOrderingRelease);
    }
    else {
@@ -2272,8 +2289,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
    APUSH(relocs, (cgen_reloc_t){ .kind = RELOC_NULL });
    func->relocs = relocs.items;
 
-   LLVMTypeRef reloc_type =
-      LLVMArrayType(obj->types[LLVM_AOT_RELOC], relocs.count);
+   func->reloc_type = LLVMArrayType(obj->types[LLVM_AOT_RELOC], relocs.count);
 
    LLVMValueRef *reloc_elems LOCAL =
       xmalloc_array(relocs.count, sizeof(LLVMValueRef));
@@ -2295,7 +2311,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
       obj->types[LLVM_INT64],   // FFI spec
       obj->types[LLVM_PTR],     // JIT pack buffer
       obj->types[LLVM_PTR],     // Constant pool
-      reloc_type                // Relocations list
+      func->reloc_type          // Relocations list
    };
    func->descr_type = LLVMStructTypeInContext(obj->context, ftypes,
                                               ARRAY_LEN(ftypes), false);
@@ -2499,8 +2515,13 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       if (i == cgb->source->first) {
          LLVMPositionBuilderAtEnd(obj->builder, cgb->bbref);
 
-         LLVMTypeRef int1_type = obj->types[LLVM_INT1];
-         cgb->inflags = LLVMBuildPhi(obj->builder, int1_type, "FLAGS");
+         if (cgb->source->in.count > 0) {
+            LLVMTypeRef int1_type = obj->types[LLVM_INT1];
+            cgb->inflags = LLVMBuildPhi(obj->builder, int1_type, "FLAGS");
+         }
+         else
+            cgb->inflags = llvm_int1(obj, false);
+
          cgb->outflags = cgb->inflags;
 
          cgen_block_t *dom = NULL;
@@ -2522,7 +2543,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
                llvm_type_t type =
                   mask_test(&func->ptr_mask, j) ? LLVM_PTR : LLVM_INT64;
                const char *name = cgen_reg_name(j);
-               LLVMValueRef init = i == 0   // Entry block
+               LLVMValueRef init = cgb->source->in.count == 0
                   ? LLVMConstNull(obj->types[type])
                   : LLVMBuildPhi(obj->builder, obj->types[type], name);
                cgb->inregs[j] = cgb->outregs[j] = init;
@@ -2553,9 +2574,11 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       }
    }
 
-   LLVMValueRef flags0_in[] = { llvm_int1(obj, false) };
-   LLVMBasicBlockRef flags0_bb[] = { entry_bb };
-   LLVMAddIncoming(func->blocks[0].inflags, flags0_in, flags0_bb, 1);
+   if (cfg->blocks[0].in.count > 0) {
+      LLVMValueRef flags0_in[] = { llvm_int1(obj, false) };
+      LLVMBasicBlockRef flags0_bb[] = { entry_bb };
+      LLVMAddIncoming(func->blocks[0].inflags, flags0_in, flags0_bb, 1);
+   }
 
    LLVMValueRef *phi_in LOCAL = xmalloc_array(maxin, sizeof(LLVMValueRef));
    LLVMBasicBlockRef *phi_bb LOCAL =
@@ -2564,6 +2587,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    for (int i = 0; i < cfg->nblocks; i++) {
       jit_block_t *bb = &(cfg->blocks[i]);
       cgen_block_t *cgb = &(func->blocks[i]);
+
+      if (bb->in.count == 0)
+         continue;
 
       // Flags
       for (int j = 0; j < bb->in.count; j++) {
@@ -2759,10 +2785,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    cgen_function(&obj, &func);
 
-   if (obj.fns[LLVM_TLAB_ALLOC] != NULL)
-      cgen_tlab_alloc_body(&obj);
-
-   llvm_finalise(&obj);
+   llvm_obj_finalise(&obj, LLVM_O0);
 
    LLVMOrcThreadSafeModuleRef tsm =
       LLVMOrcCreateNewThreadSafeModule(obj.module, state->context);
@@ -2772,10 +2795,8 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, func.name);
 
    const uint64_t end_us = get_timestamp_us();
-   static __thread uint64_t slowest = 0;
-   if (end_us - start_us > slowest)
-      debugf("%s at %p [%"PRIi64" us]", func.name, (void *)addr,
-             (slowest = end_us - start_us));
+   debugf("%s at %p [%"PRIi64" us]", func.name, (void *)addr,
+          end_us - start_us);
 
    store_release(&f->entry, (jit_entry_fn_t)addr);
 
@@ -2887,15 +2908,23 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    free(func.name);
 }
 
-void llvm_obj_emit(llvm_obj_t *obj, const char *path)
+void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
 {
    if (obj->fns[LLVM_TLAB_ALLOC] != NULL)
       cgen_tlab_alloc_body(obj);
 
-   llvm_finalise(obj);
+   DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
 
+   llvm_dump_module(obj->module, "initial");
+   llvm_verify_module(obj->module);
+   llvm_optimise(obj->module, obj->target, olevel);
+   llvm_dump_module(obj->module, "final");
+}
+
+void llvm_obj_emit(llvm_obj_t *obj, const char *path)
+{
    char *error;
-   if (LLVMTargetMachineEmitToFile(obj->target, obj->module, path,
+   if (LLVMTargetMachineEmitToFile(obj->target, obj->module, (char *)path,
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -27,9 +27,17 @@ void jit_register_llvm_plugin(jit_t *j);
 
 typedef struct _llvm_obj llvm_obj_t;
 
+typedef enum {
+   LLVM_O0,
+   LLVM_O1,
+   LLVM_O2,
+   LLVM_O3
+} llvm_opt_level_t;
+
 llvm_obj_t *llvm_obj_new(const char *name);
 void llvm_add_abi_version(llvm_obj_t *obj);
 void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle);
+void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t level);
 void llvm_obj_emit(llvm_obj_t *obj, const char *path);
 
 #endif  // _JIT_LLVM_H

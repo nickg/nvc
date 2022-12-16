@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1450,6 +1450,26 @@ void run_program(const char *const *args)
          tb_printf(tb, "%s%s", i > 0 ? " " : "", args[i]);
       fatal("$bold$%s$$ failed with status %d", tb_get(tb), status);
    }
+}
+
+char *nvc_temp_file(void)
+{
+   static const char *try[] = { "TMPDIR", "TEMP", "TMP" };
+   const char *tmpdir = NULL;
+   for (int i = 0; tmpdir == NULL && i < ARRAY_LEN(try); i++)
+      tmpdir = getenv(try[i]);
+
+#ifdef __MINGW32__
+   char *buf = xasprintf("%s\\nvc-XXXXXX", tmpdir ?: ".");
+   return _mktemp(buf);
+#else
+   char *buf = xasprintf("%s/nvc-XXXXXX", tmpdir ?: "/tmp");
+   int fd = mkstemp(buf);
+   if (fd < 0)
+      fatal_errno("mkstemp");
+   close(fd);
+   return buf;
+#endif
 }
 
 void file_read_lock(int fd)

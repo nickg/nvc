@@ -8,6 +8,8 @@ deps_pp = sed \
 	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \
 	-e 's|$(abs_top_builddir)/||g'
 
+DRIVER = bin/nvc$(EXEEXT)
+
 gen-deps: $(DRIVER)
 	$(MAKE) gen-deps-std gen-deps-std-08 gen-deps-ieee \
 	  gen-deps-synopsys gen-deps-vital gen-deps-ieee-08 \
@@ -25,11 +27,58 @@ bootstrap: $(DRIVER)
 	$(MAKE) clean-libs
 	$(MAKE) libs-std libs-std-08 libs-ieee libs-ieee-08 libs-synopsys \
 	  libs-vital libs-nvc libs-nvc-08 libs-std-19 libs-nvc-19 \
-	  libs-ieee-19
+	  libs-ieee-19 $(preload_SCRIPTS)
 
-DRIVER = bin/nvc$(EXEEXT)
+if ENABLE_LLVM
+preloaddir = $(pkglibdir)
+
+if IMPLIB_REQUIRED
+aotgen = $(nvc_verbose)NVC_IMP_LIB=$(top_builddir)/lib $(top_builddir)/bin/nvc$(EXEEXT)
+else
+aotgen = $(nvc)
+endif
+
+preload_SCRIPTS = lib/preload93.$(DLL_EXT) lib/preload08.$(DLL_EXT) lib/preload19.$(DLL_EXT)
+
+BOOTSTRAPLIBS += $(preload_SCRIPTS)
+
+preload: $(preload_SCRIPTS)
+
+PRELOAD93_DEPS = \
+	$(std_DATA) \
+	$(ieee_DATA) \
+	$(nvc_DATA) \
+	$(vital_DATA) \
+	$(synopsys_ieee_DATA)
+
+PRELOAD08_DEPS = \
+	$(std_08_DATA) \
+	$(ieee_08_DATA) \
+	$(nvc_08_DATA) \
+	$(vital_08_DATA) \
+	$(synopsys_ieee_08_DATA)
+
+PRELOAD19_DEPS = \
+	$(std_19_DATA) \
+	$(ieee_19_DATA) \
+	$(nvc_19_DATA) \
+	$(vital_19_DATA) \
+	$(synopsys_ieee_19_DATA)
+
+lib/preload93.@DLL_EXT@: $(PRELOAD93_DEPS) @ifGNUmake@ | $(DRIVER)
+	$(aotgen) -L lib/ --std=1993 --aotgen -O2 -o $@ std nvc ieee
+
+lib/preload08.@DLL_EXT@: $(PRELOAD08_DEPS) @ifGNUmake@ | $(DRIVER)
+	$(aotgen) -L lib/ --std=2008 --aotgen -O2 -o $@ std nvc ieee
+
+lib/preload19.@DLL_EXT@: $(PRELOAD19_DEPS) @ifGNUmake@ | $(DRIVER)
+	$(aotgen) -L lib/ --std=2019 --aotgen -O2 -o $@ std nvc ieee
+endif
 
 # For compatibility with BSD make
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std.08/STD.STANDARD
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std.19/STD.STANDARD
+@ifnGNUmake@.ORDER: $(DRIVER) lib/preload93.$(DLL_EXT)
+@ifnGNUmake@.ORDER: $(DRIVER) lib/preload08.$(DLL_EXT)
+@ifnGNUmake@.ORDER: $(DRIVER) lib/preload19.$(DLL_EXT)
