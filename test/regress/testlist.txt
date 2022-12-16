@@ -698,4 +698,4 @@ cover4          cover=branch,gold
 cover5          cover,shell
 cover6          cover,shell
 issue577        normal,2008
-cover8          cover,shell
+cover8          cover=expression,gold

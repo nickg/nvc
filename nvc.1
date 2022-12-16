@@ -487,39 +487,28 @@ branch (one for each of true/false)
 \fB0\fP -> \fB1\fP and \fB1\fP -> \fB0\fR transitions).
 .It
 .Cm expression
-- NVC creates multiple coverage bins for combinations of input operands of
-following logic operands:
-.Ql and
-,
-.Ql nand
-,
-.Ql or
-,
-.Ql nor
-,
-.Ql xor
-,
-.Ql xnor
-, such that propagation of operand values causes expression result to change its
-value. Further, NVC creates two coverage bins for evaluating expression result to
+- NVC creates multiple coverage bins for combinations of input operands
+of the following logical operators:
+.Ql and Ns ,
+.Ql nand Ns ,
+.Ql or Ns ,
+.Ql nor Ns ,
+.Ql xor Ns ,
+.Ql xnor Ns ,
+such that propagation of operand values causes the expression result to
+change its value.  Further, NVC creates two coverage bins for evaluating
+expression result to
 .Ql True
 and
 .Ql False
-for following operands:
-.Ql =
-,
-.Ql /=
-,
-.Ql >
-,
-.Ql <
-,
-.Ql <=
-,
-.Ql >=
-,
-.Ql not
-.
+for the following operators:
+.Ql = Ns ,
+.Ql /= Ns ,
+.Ql > Ns ,
+.Ql < Ns ,
+.Ql <= Ns ,
+.Ql >= Ns ,
+.Ql not Ns .
 .El
 .Pp
 Collecting each coverage type can be enabled separately at elaboration time:

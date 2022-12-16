@@ -1670,69 +1670,70 @@ static void lower_expression_coverage(tree_t fcall, unsigned flags,
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t lhs,
                                  vcode_reg_t rhs, subprogram_kind_t builtin)
 {
-   if (cover_enabled(cover_tags, COVER_MASK_EXPRESSION)) {
-      uint32_t flags = 0;
-      vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+   if (!cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
+      return result;
 
-      switch (builtin) {
-      case S_SCALAR_AND:
-      case S_SCALAR_NAND:
-         flags = COVER_FLAGS_AND_EXPR;
-         break;
+   uint32_t flags = 0;
+   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
 
-      case S_SCALAR_OR:
-      case S_SCALAR_NOR:
-         flags = COVER_FLAGS_OR_EXPR;
-         break;
+   switch (builtin) {
+   case S_SCALAR_AND:
+   case S_SCALAR_NAND:
+      flags = COVER_FLAGS_AND_EXPR;
+      break;
 
-      case S_SCALAR_XOR:
-      case S_SCALAR_XNOR:
-         flags = COVER_FLAGS_XOR_EXPR;
-         break;
+   case S_SCALAR_OR:
+   case S_SCALAR_NOR:
+      flags = COVER_FLAGS_OR_EXPR;
+      break;
 
-      case S_SCALAR_EQ:
-      case S_SCALAR_NEQ:
-      case S_SCALAR_LT:
-      case S_SCALAR_GT:
-      case S_SCALAR_LE:
-      case S_SCALAR_GE:
-      case S_SCALAR_NOT:
-         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
-         vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
-         vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
-         vcode_reg_t mask = emit_select(result, c_true, c_false);
-         lower_expression_coverage(fcall, flags, mask);
-      default:
-         return result;
-      }
+   case S_SCALAR_XOR:
+   case S_SCALAR_XNOR:
+      flags = COVER_FLAGS_XOR_EXPR;
+      break;
 
-      vcode_reg_t lhs_n = emit_not(lhs);
-      vcode_reg_t rhs_n = emit_not(rhs);
-
-      struct {
-         unsigned    flag;
-         vcode_reg_t lhs;
-         vcode_reg_t rhs;
-      } bins[] = {
-         {COV_FLAG_00, lhs_n, rhs_n},
-         {COV_FLAG_01, lhs_n, rhs},
-         {COV_FLAG_10, lhs,   rhs_n},
-         {COV_FLAG_11, lhs,   rhs},
-      };
-
-      // Check LHS/RHS combinations
-      vcode_reg_t zero = emit_const(vc_int, 0);
-      vcode_reg_t mask = emit_const(vc_int, 0);
-      for (int i = 0; i < ARRAY_LEN(bins); i++)
-         if (flags & bins[i].flag) {
-            vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
-            vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
-            vcode_reg_t set_bit = emit_select(select, flag, zero);
-            mask = emit_add(mask, set_bit);
-      }
-
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_SCALAR_LT:
+   case S_SCALAR_GT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GE:
+   case S_SCALAR_NOT:
+      flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
+      vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
+      vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
+      vcode_reg_t mask = emit_select(result, c_true, c_false);
       lower_expression_coverage(fcall, flags, mask);
+   default:
+      return result;
    }
+
+   vcode_reg_t lhs_n = emit_not(lhs);
+   vcode_reg_t rhs_n = emit_not(rhs);
+
+   struct {
+      unsigned    flag;
+      vcode_reg_t lhs;
+      vcode_reg_t rhs;
+   } bins[] = {
+      {COV_FLAG_00, lhs_n, rhs_n},
+      {COV_FLAG_01, lhs_n, rhs},
+      {COV_FLAG_10, lhs,   rhs_n},
+      {COV_FLAG_11, lhs,   rhs},
+   };
+
+   // Check LHS/RHS combinations
+   vcode_reg_t zero = emit_const(vc_int, 0);
+   vcode_reg_t mask = emit_const(vc_int, 0);
+   for (int i = 0; i < ARRAY_LEN(bins); i++)
+      if (flags & bins[i].flag) {
+         vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
+         vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
+         vcode_reg_t set_bit = emit_select(select, flag, zero);
+         mask = emit_add(mask, set_bit);
+   }
+
+   lower_expression_coverage(fcall, flags, mask);
 
    return result;
 }
