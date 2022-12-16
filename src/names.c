@@ -2202,14 +2202,33 @@ static void begin_overload_resolution(overload_t *o)
 
    // Prune candidates with more required arguments than supplied
    if (o->candidates.count > 1) {
+      int first_named = 0;
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t d = o->candidates.items[i];
          int nrequired = 0;
          const int nports = tree_ports(d);
          for (int i = 0; i < nports; i++) {
-            if (!tree_has_value(tree_port(d, i)))
+            tree_t port = tree_port(d, i);
+            if (!tree_has_value(port))
                nrequired++;
+            else if (first_named < o->nactuals) {
+               // Named optional arguments should not count against the
+               // required argument total
+               ident_t id = tree_ident(port);
+               for (int j = first_named; j < o->nactuals; j++) {
+                  tree_t p = tree_param(o->tree, j);
+                  if (tree_subkind(p) == P_NAMED) {
+                     tree_t ref = name_to_ref(tree_name(p));
+                     if (ref != NULL && tree_ident(ref) == id) {
+                        nrequired++;
+                        break;
+                     }
+                  }
+                  else if (j <= first_named)
+                     first_named = j + 1;
+               }
+            }
          }
 
          if (o->nactuals < nrequired)
