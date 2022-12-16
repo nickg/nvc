@@ -1706,7 +1706,6 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t l
          return result;
       }
 
-      vcode_reg_t mask = emit_const(vc_int, 0);
       vcode_reg_t lhs_n = emit_not(lhs);
       vcode_reg_t rhs_n = emit_not(rhs);
 
@@ -1723,13 +1722,14 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t l
 
       // Check LHS/RHS combinations
       vcode_reg_t zero = emit_const(vc_int, 0);
+      vcode_reg_t mask = emit_const(vc_int, 0);
       for (int i = 0; i < ARRAY_LEN(bins); i++)
          if (flags & bins[i].flag) {
             vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
             vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
             vcode_reg_t set_bit = emit_select(select, flag, zero);
             mask = emit_add(mask, set_bit);
-         }
+      }
 
       lower_expression_coverage(fcall, flags, mask);
    }
@@ -1841,6 +1841,8 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, subprogram_kind_t builtin)
       }
 
       // TODO: Should we emit coverage also for consts? Maybe as config option?
+      //       With first arg constant, it would make sense to emit only conds
+      //       which are reachable.
       return result;
    }
 
@@ -1898,12 +1900,17 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, subprogram_kind_t builtin)
                       builtin);
    }
 
+   // Only emit expression coverage when also arg1 is evaluated.
+   // TODO: Add option to exclude cases like: "01" bin on AND expression.
+   lower_logical(fcall, emit_load(tmp_var), r0, r1, builtin);
+
    emit_jump(after_bb);
 
    vcode_select_block(after_bb);
    vcode_reg_t result = emit_load(tmp_var);
    lower_release_temp(tmp_var);
-   return lower_logical(fcall, result, r0, r1, builtin);
+
+   return result;
 }
 
 static void lower_flatten_concat(tree_t arg, concat_list_t *list)
