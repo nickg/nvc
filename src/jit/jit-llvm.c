@@ -2056,6 +2056,8 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case J_DEBUG:
       cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc));
       break;
+   case J_NOP:
+      break;
    case MACRO_EXP:
       cgen_macro_exp(obj, cgb, ir);
       break;
@@ -2345,6 +2347,26 @@ static void cgen_cache_args(llvm_obj_t *obj, cgen_func_t *func)
                                       func->anchor, 2, "irpos");
 }
 
+static void cgen_fix_liveout_types(llvm_obj_t *obj, cgen_block_t *cgb)
+{
+   for (int j = 0; j < cgb->func->source->nregs; j++) {
+      if (!mask_test(&cgb->source->liveout, j))
+         continue;
+
+      const bool want_ptr = mask_test(&cgb->func->ptr_mask, j);
+      if (want_ptr && !llvm_is_ptr(cgb->outregs[j])) {
+         LLVMValueRef last = LLVMGetBasicBlockTerminator(cgb->bbref);
+         if (last != NULL)
+            LLVMPositionBuilderBefore(obj->builder, last);
+
+         cgb->outregs[j] = LLVMBuildIntToPtr(obj->builder,
+                                             cgb->outregs[j],
+                                             obj->types[LLVM_PTR],
+                                             cgen_reg_name(j));
+      }
+   }
+}
+
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
@@ -2436,7 +2458,8 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
          for (int j = 0; j < func->source->nregs; j++) {
             if (mask_test(&cgb->source->livein, j)) {
-               llvm_type_t type = mask_test(&func->ptr_mask, j) ? LLVM_PTR : LLVM_INT64;
+               llvm_type_t type =
+                  mask_test(&func->ptr_mask, j) ? LLVM_PTR : LLVM_INT64;
                const char *name = cgen_reg_name(j);
                LLVMValueRef init = i == 0   // Entry block
                   ? LLVMConstNull(obj->types[type])
@@ -2455,6 +2478,8 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       if (i == cgb->source->last) {
          if (cgb->source->aborts)
             LLVMBuildUnreachable(obj->builder);
+
+         cgen_fix_liveout_types(obj, cgb);
 
          if (LLVMGetBasicBlockTerminator(cgb->bbref) == NULL) {
             // Fall through to next block
