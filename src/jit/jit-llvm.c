@@ -2456,8 +2456,22 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
          cgb->inflags = LLVMBuildPhi(obj->builder, int1_type, "FLAGS");
          cgb->outflags = cgb->inflags;
 
+         cgen_block_t *dom = NULL;
+         if (cgb->source->in.count == 1)
+            dom = &(func->blocks[jit_get_edge(&cgb->source->in, 0)]);
+
          for (int j = 0; j < func->source->nregs; j++) {
             if (mask_test(&cgb->source->livein, j)) {
+               if (dom != NULL && dom < cgb) {
+                  assert(dom->outregs[j] != NULL);
+                  if (!LLVMIsAPHINode(dom->outregs[j])) {
+                     // Skip generating a phi instruction if there is
+                     // just one dominating block
+                     cgb->inregs[j] = cgb->outregs[j] = dom->outregs[j];
+                     continue;
+                  }
+               }
+
                llvm_type_t type =
                   mask_test(&func->ptr_mask, j) ? LLVM_PTR : LLVM_INT64;
                const char *name = cgen_reg_name(j);
@@ -2514,7 +2528,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
       // Live-in registers
       for (int j = 0; j < func->source->nregs; j++) {
-         if (cgb->inregs[j] != NULL) {
+         if (cgb->inregs[j] != NULL && LLVMIsAPHINode(cgb->inregs[j])) {
             for (int k = 0; k < bb->in.count; k++) {
                const int edge = jit_get_edge(&bb->in, k);
                assert(func->blocks[edge].outregs[j] != NULL);
