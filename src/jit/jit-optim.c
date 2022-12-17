@@ -499,7 +499,7 @@ static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
          return;
       }
       else if (rhs > 0 && is_power_of_2(rhs) && ir->size == JIT_SZ_UNSPEC) {
-         ir->op = J_ASL;
+         ir->op = J_SHL;
          ir->arg2 = LVN_CONST(ilog2(rhs));
          jit_lvn_generic(ir, state, VN_INVALID);
          return;

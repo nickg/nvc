@@ -1453,14 +1453,13 @@ static void cgen_op_rem(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                             cgen_reg_name(ir->result));
 }
 
-static void cgen_op_asl(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+static void cgen_op_shl(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
-   LLVMValueRef neg = LLVMBuildNeg(obj->builder, arg2, "");
-   cgb->outregs[ir->result] = LLVMBuildAShr(obj->builder, arg1, neg,
-                                            cgen_reg_name(ir->result));
+   cgb->outregs[ir->result] = LLVMBuildShl(obj->builder, arg1, arg2,
+                                           cgen_reg_name(ir->result));
 }
 
 static void cgen_op_asr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1984,8 +1983,8 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case J_REM:
       cgen_op_rem(obj, cgb, ir);
       break;
-   case J_ASL:
-      cgen_op_asl(obj, cgb, ir);
+   case J_SHL:
+      cgen_op_shl(obj, cgb, ir);
       break;
    case J_ASR:
       cgen_op_asr(obj, cgb, ir);

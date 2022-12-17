@@ -1573,7 +1573,7 @@ START_TEST(test_lvn4)
    check_unary(f, 6, J_MOV, CONST(1));
    check_binary(f, 7, J_DIV, CONST(4), CONST(0));
    check_unary(f, 8, J_MOV, REG(7));
-   check_binary(f, 9, J_ASL, REG(7), CONST(4));
+   check_binary(f, 9, J_SHL, REG(7), CONST(4));
    check_unary(f, 10, J_MOV, REG(9));
 
    jit_free(j);

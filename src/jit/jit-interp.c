@@ -365,7 +365,7 @@ static void interp_fadd(jit_interp_t *state, jit_ir_t *ir)
    state->regs[ir->result].real = arg1.real + arg2.real;
 }
 
-static void interp_asl(jit_interp_t *state, jit_ir_t *ir)
+static void interp_shl(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
@@ -786,8 +786,8 @@ static void interp_loop(jit_interp_t *state)
       case J_FDIV:
          interp_fdiv(state, ir);
          break;
-      case J_ASL:
-         interp_asl(state, ir);
+      case J_SHL:
+         interp_shl(state, ir);
          break;
       case J_ASR:
          interp_asr(state, ir);
