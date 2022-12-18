@@ -1667,8 +1667,9 @@ static void lower_expression_coverage(tree_t fcall, unsigned flags,
       emit_cover_expr(mask, tag->tag);
 }
 
-static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t lhs,
-                                 vcode_reg_t rhs, subprogram_kind_t builtin)
+static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
+                                 vcode_reg_t lhs, vcode_reg_t rhs,
+                                 subprogram_kind_t builtin)
 {
    if (!cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
       return result;
@@ -1699,11 +1700,13 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t l
    case S_SCALAR_LE:
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
-      flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
-      vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
-      vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
-      vcode_reg_t mask = emit_select(result, c_true, c_false);
-      lower_expression_coverage(fcall, flags, mask);
+      {
+         vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
+         vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
+         vcode_reg_t mask = emit_select(result, c_true, c_false);
+         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
+         lower_expression_coverage(fcall, flags, mask);
+      }
    default:
       return result;
    }
@@ -1716,21 +1719,22 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result, vcode_reg_t l
       vcode_reg_t lhs;
       vcode_reg_t rhs;
    } bins[] = {
-      {COV_FLAG_00, lhs_n, rhs_n},
-      {COV_FLAG_01, lhs_n, rhs},
-      {COV_FLAG_10, lhs,   rhs_n},
-      {COV_FLAG_11, lhs,   rhs},
+      { COV_FLAG_00, lhs_n, rhs_n },
+      { COV_FLAG_01, lhs_n, rhs   },
+      { COV_FLAG_10, lhs,   rhs_n },
+      { COV_FLAG_11, lhs,   rhs   },
    };
 
    // Check LHS/RHS combinations
    vcode_reg_t zero = emit_const(vc_int, 0);
    vcode_reg_t mask = emit_const(vc_int, 0);
-   for (int i = 0; i < ARRAY_LEN(bins); i++)
+   for (int i = 0; i < ARRAY_LEN(bins); i++) {
       if (flags & bins[i].flag) {
          vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
          vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
          vcode_reg_t set_bit = emit_select(select, flag, zero);
          mask = emit_add(mask, set_bit);
+      }
    }
 
    lower_expression_coverage(fcall, flags, mask);
@@ -2014,6 +2018,25 @@ static vcode_reg_t lower_concat(tree_t expr, vcode_reg_t hint,
    return var_reg;
 }
 
+static vcode_reg_t lower_comparison(tree_t fcall, subprogram_kind_t builtin,
+                                    vcode_reg_t r0, vcode_reg_t r1)
+{
+   vcode_cmp_t cmp;
+   switch (builtin) {
+   case S_SCALAR_EQ:  cmp = VCODE_CMP_EQ; break;
+   case S_SCALAR_NEQ: cmp = VCODE_CMP_NEQ; break;
+   case S_SCALAR_LT:  cmp = VCODE_CMP_LT; break;
+   case S_SCALAR_GT:  cmp = VCODE_CMP_GT; break;
+   case S_SCALAR_LE:  cmp = VCODE_CMP_LEQ; break;
+   case S_SCALAR_GE:  cmp = VCODE_CMP_GEQ; break;
+   default:
+      fatal_trace("unhandled built-in comparison %d", builtin);
+   }
+
+   vcode_reg_t result = emit_cmp(cmp, r0, r1);
+   return lower_logical(fcall, result, r0, r1, builtin);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
                                  vcode_reg_t *out_r0, vcode_reg_t *out_r1)
 {
@@ -2036,17 +2059,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
 
    switch (builtin) {
    case S_SCALAR_EQ:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_EQ, r0, r1), r0, r1, builtin);
    case S_SCALAR_NEQ:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_NEQ, r0, r1), r0, r1, builtin);
    case S_SCALAR_LT:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_LT, r0, r1), r0, r1, builtin);
    case S_SCALAR_GT:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_GT, r0, r1), r0, r1, builtin);
    case S_SCALAR_LE:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_LEQ, r0, r1), r0, r1, builtin);
    case S_SCALAR_GE:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_GEQ, r0, r1), r0, r1, builtin);
+      return lower_comparison(fcall, builtin, r0, r1);
    case S_MUL:
    case S_ADD:
    case S_SUB:
