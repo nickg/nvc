@@ -28,10 +28,6 @@
 #include <string.h>
 #include <assert.h>
 
-#ifndef __MINGW32__
-#include <sys/mman.h>
-#endif
-
 #ifdef HAVE_CAPSTONE
 #include <capstone/capstone.h>
 #endif
@@ -90,9 +86,15 @@ static void code_fault_handler(int sig, void *addr, struct cpu_state *cpu,
    if (pc < code->mem || pc > code->mem + CODECACHE_SIZE)
       return;
 
+   uintptr_t mark = cpu->pc;
+#ifndef __MINGW32__
+   if (sig == SIGTRAP)
+      mark--;   // Point to faulting instruction
+#endif
+
    for (code_span_t *span = code->spans; span; span = span->next) {
       if (pc >= span->base && pc < span->base + span->size)
-         code_disassemble(code, span, cpu->pc, cpu);
+         code_disassemble(code, span, mark, cpu);
    }
 }
 
@@ -171,7 +173,7 @@ static void code_disassemble(code_cache_t *code, code_span_t *span,
          if (strlen(hex1) > 16)
             col = printf("\n%15s -%-16s", "", hex1 + 16) - 1;
 
-         if (j + 1 < count && insn[j + 1].address == mark) {
+         if (mark != 0 && (j + 1 == count || insn[j + 1].address > mark)) {
             for (; col < 66; col++)
                fputc(' ', stdout);
             printf("<=============\n");
@@ -186,6 +188,7 @@ static void code_disassemble(code_cache_t *code, code_span_t *span,
             for (int i = 0; i < 32; i++)
                printf("\tR%d\t%"PRIx64"\n", i, cpu->regs[i]);
 #endif
+            mark = 0;
          }
          else
             printf("\n");

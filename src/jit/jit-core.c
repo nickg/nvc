@@ -1090,6 +1090,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "SUB",   J_SUB,      1, 2 },
       { "MUL",   J_MUL,      1, 2 },
       { "DIV",   J_DIV,      1, 2 },
+      { "REM",   J_REM,      1, 2 },
       { "RECV",  J_RECV,     1, 1 },
       { "SEND",  J_SEND,     0, 2 },
       { "RET",   J_RET,      0, 0 },

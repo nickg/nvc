@@ -135,7 +135,205 @@ START_TEST(test_add)
    ck_assert_int_eq(jit_call(j, h5, INT32_MAX, INT32_MAX).integer, 0);
    ck_assert_int_eq(jit_call(j, h5, UINT32_MAX, UINT32_MAX).integer, 1);
 
+   const char *text6 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    ADD.8   R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h6 = assemble(j, text6, "add6", "ii");
+
+   ck_assert_int_eq(jit_call(j, h6, 1, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, h6, 2, 3).integer, 5);
+   ck_assert_int_eq(jit_call(j, h6, 2, -3).integer, -1);
+
    jit_free(j);
+}
+END_TEST
+
+START_TEST(test_mul)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    MUL     R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h1 = assemble(j, text1, "mul1", "II");
+
+   ck_assert_int_eq(jit_call(j, h1, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h1, 2, 3).integer, 6);
+   ck_assert_int_eq(jit_call(j, h1, INT64_C(-5), 2).integer, -10);
+   ck_assert_int_eq(jit_call(j, h1, INT64_C(-5), INT64_C(-6)).integer, 30);
+
+   const char *text2 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    MUL.O.32  R2, R0, R1      \n"
+      "    CSET      R3              \n"
+      "    SEND      #0, R3          \n"
+      "    RET                       \n";
+
+   jit_handle_t h2 = assemble(j, text2, "mul2", "ii");
+
+   ck_assert_int_eq(jit_call(j, h2, 4, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, INT32_MAX/2, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, INT32_MAX, 2).integer, 1);
+   ck_assert_int_eq(jit_call(j, h2, INT32_MAX, INT32_C(-1)).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, INT32_MIN, INT32_C(-1)).integer, 1);
+   ck_assert_int_eq(jit_call(j, h2, INT64_C(-5), INT64_C(-6)).integer, 0);
+
+   const char *text3 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    MUL.C.32  R2, R0, R1      \n"
+      "    CSET      R3              \n"
+      "    SEND      #0, R3          \n"
+      "    RET                       \n";
+
+   jit_handle_t h3 = assemble(j, text3, "mul3", "ii");
+
+   ck_assert_int_eq(jit_call(j, h3, 4, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, INT32_MAX/2, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, INT32_MAX, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, UINT32_MAX, 2).integer, 1);
+   ck_assert_int_eq(jit_call(j, h3, UINT32_MAX, UINT32_MAX).integer, 1);
+
+   const char *text4 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    MUL.32  R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h4 = assemble(j, text4, "mul4", "ii");
+
+   ck_assert_int_eq(jit_call(j, h4, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h4, 2, 3).integer, 6);
+   ck_assert_int_eq(jit_call(j, h4, INT32_C(-5), 2).integer, -10);
+   ck_assert_int_eq(jit_call(j, h4, INT32_C(-5), INT64_C(-6)).integer, 30);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_div)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    DIV     R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h1 = assemble(j, text1, "div1", "II");
+
+   ck_assert_int_eq(jit_call(j, h1, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h1, 2, 3).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, 100, 5).integer, 20);
+   ck_assert_int_eq(jit_call(j, h1, INT64_C(-50), 6).integer, -8);
+
+   const char *text2 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    DIV.16  R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h2 = assemble(j, text2, "div2", "ii");
+
+   ck_assert_int_eq(jit_call(j, h2, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h2, 2, 3).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, 100, 5).integer, 20);
+   ck_assert_int_eq(jit_call(j, h2, INT32_C(-50), 6).integer, -8);
+
+   const char *text3 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    DIV.32  R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h3 = assemble(j, text3, "div3", "ii");
+
+   ck_assert_int_eq(jit_call(j, h3, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h3, 2, 3).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, 100, 5).integer, 20);
+   ck_assert_int_eq(jit_call(j, h3, INT32_C(-50), 6).integer, -8);
+
+   const char *text4 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    DIV.8   R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h4 = assemble(j, text4, "div4", "ii");
+
+   ck_assert_int_eq(jit_call(j, h4, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h4, 2, 3).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, 100, 5).integer, 20);
+   ck_assert_int_eq(jit_call(j, h4, INT32_C(-50), 6).integer, -8);
+   ck_assert_int_eq(jit_call(j, h4, 50, INT32_C(-6)).integer, -8);
+
+   const char *text5 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    DIV.16  R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h5 = assemble(j, text5, "div5", "ii");
+
+   ck_assert_int_eq(jit_call(j, h5, 4, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h5, 2, 3).integer, 0);
+   ck_assert_int_eq(jit_call(j, h5, 100, 5).integer, 20);
+   ck_assert_int_eq(jit_call(j, h5, INT32_C(-50), 6).integer, -8);
+   ck_assert_int_eq(jit_call(j, h5, 5000, INT32_C(-6)).integer, -833);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_rem)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    REM     R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h1 = assemble(j, text1, "rem1", "II");
+
+   ck_assert_int_eq(jit_call(j, h1, 4, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, 2, 3).integer, 2);
+   ck_assert_int_eq(jit_call(j, h1, 100, 6).integer, 4);
+   ck_assert_int_eq(jit_call(j, h1, INT64_C(-50), 6).integer, -2);
+   ck_assert_int_eq(jit_call(j, h1, 6, INT64_C(-50)).integer, 6);
+
+   const char *text2 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    REM.16  R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h2 = assemble(j, text2, "rem2", "ii");
+
+   ck_assert_int_eq(jit_call(j, h2, 4, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, 2, 3).integer, 2);
+   ck_assert_int_eq(jit_call(j, h2, 100, 6).integer, 4);
+   ck_assert_int_eq(jit_call(j, h2, INT32_C(-50), 6).integer, -2);
+   ck_assert_int_eq(jit_call(j, h2, 6, INT32_C(-50)).integer, 6);
 }
 END_TEST
 
@@ -145,6 +343,9 @@ Suite *get_native_tests(void)
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_add);
+   tcase_add_test(tc, test_mul);
+   tcase_add_test(tc, test_div);
+   tcase_add_test(tc, test_rem);
    suite_add_tcase(s, tc);
 
    return s;

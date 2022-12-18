@@ -92,24 +92,13 @@ static const x86_operand_t __EBP = REG(5);
 static const x86_operand_t __ESI = REG(6);
 static const x86_operand_t __EDI = REG(7);
 static const x86_operand_t __R8  = REG(16);
-#ifdef __MINGW32__
 static const x86_operand_t __R9  = REG(17);
-#endif
 
-#ifdef __MINGW32__
-#define FPTR_REG   __ECX
-#define ANCHOR_REG __EDX
-#define ARGS_REG   __R8
-#define TLAB_REG   __R9
-#define FLAGS_REG  __ESI
-#else
-// X86 SysV calling convention
 #define FPTR_REG   __EDI
 #define ANCHOR_REG __ESI
-#define ARGS_REG   __EDX
-#define TLAB_REG   __ECX
-#define FLAGS_REG  __R8
-#endif
+#define ARGS_REG   __R8
+#define TLAB_REG   __R9
+#define FLAGS_REG  __EBX
 
 typedef enum {
    __BYTE = 1,
@@ -133,12 +122,22 @@ typedef enum {
 #define RET() __(0xc3)
 #define LEAVE() __(0xc9)
 #define INT3() __(0xcc)
+#define CQO() __(0x48, 0x99)
+#define CDQ() __(0x99)
+#define CWD() __(0x66, 0x99)
+#define CWDE() __(0x98)
+#define CDQE() __(0x48, 0x98)
 #define PUSH(src) asm_push(blob, (src))
 #define POP(dst) asm_pop(blob, (dst))
 #define ADD(dst, src, size) asm_add(blob, (dst), (src), (size))
 #define SUB(dst, src, size) asm_sub(blob, (dst), (src), (size))
+#define MUL(src, size) asm_mul(blob, (src), (size))
+#define IMUL(dst, src, size) asm_imul(blob, (dst), (src), (size))
+#define IDIV(src, size) asm_idiv(blob, (src), (size))
 #define XOR(dst, src, size) asm_xor(blob, (dst), (src), (size))
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
+#define MOVSX(dst, src, dsize, ssize) \
+   asm_movsx(blob, (dst), (src), (dsize), (ssize))
 #define SETO(dst) asm_setcc(blob, (dst), X86_CMP_O)
 #define SETC(dst) asm_setcc(blob, (dst), X86_CMP_C)
 #define SETZ(dst) asm_setcc(blob, (dst), X86_CMP_EQ)
@@ -188,8 +187,10 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 {
    switch (COMBINE(dst, src)) {
    case REG_REG:
-      asm_rex(blob, size, dst.reg, src.reg, 0);
-      __(0x8b, __MODRM(3, dst.reg, src.reg));
+      if (dst.reg != src.reg) {
+         asm_rex(blob, size, dst.reg, src.reg, 0);
+         __(0x8b, __MODRM(3, dst.reg, src.reg));
+      }
       break;
 
    case MEM_REG:
@@ -228,6 +229,18 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 
    default:
       fatal_trace("unhandled operand combination in asm_mov");
+   }
+}
+
+static void asm_movsx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                      x86_size_t dsize, x86_size_t ssize)
+{
+   assert(COMBINE(dst, src) == REG_REG);
+   asm_rex(blob, dsize, src.reg, dst.reg, 0);
+   switch (ssize) {
+   case __BYTE: __(0x0f, 0xbe, __MODRM(3, src.reg, dst.reg)); break;
+   default:
+      fatal_trace("unhandled source size %d in asm_movsx", ssize);
    }
 }
 
@@ -283,6 +296,39 @@ static void asm_sub(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 
    default:
       fatal_trace("unhandled operand combination in asm_sub");
+   }
+}
+
+static void asm_mul(code_blob_t *blob, x86_operand_t src, x86_size_t size)
+{
+   assert(src.kind == X86_REG);
+   asm_rex(blob, size, src.reg, 0, 0);
+   __(0xf7, __MODRM(3, 4, src.reg));
+}
+
+static void asm_imul(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                     x86_size_t size)
+{
+   assert(COMBINE(dst, src) == REG_REG);
+   asm_rex(blob, size, dst.reg, src.reg, 0);
+   __(0x0f, 0xaf, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
+{
+   assert(src.kind == X86_REG);
+   asm_rex(blob, size, src.reg, 0, 0);
+   switch (size) {
+   case __BYTE:
+   case __WORD:
+      __(0x66, 0xf7, __MODRM(3, 7, src.reg));
+      break;
+   case __DWORD:
+   case __QWORD:
+      __(0xf7, __MODRM(3, 7, src.reg));
+      break;
+   default:
+      fatal_trace("unhandled size %d in asm_idiv", size);
    }
 }
 
@@ -357,12 +403,10 @@ static void jit_x86_push_call_clobbered(code_blob_t *blob)
    PUSH(ANCHOR_REG);
    PUSH(ARGS_REG);
    PUSH(TLAB_REG);
-   PUSH(FLAGS_REG);
 }
 
 static void jit_x86_pop_call_clobbered(code_blob_t *blob)
 {
-   POP(FLAGS_REG);
    POP(TLAB_REG);
    POP(ARGS_REG);
    POP(ANCHOR_REG);
@@ -414,6 +458,36 @@ static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
    MOV(ADDR(__EBP, -(dst + 1) * sizeof(int64_t)), src, __QWORD);
 }
 
+static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
+{
+   switch (ir->cc) {
+   case JIT_CC_O: SETO(FLAGS_REG); break;
+   case JIT_CC_C: SETC(FLAGS_REG); break;
+   default: break;
+   }
+}
+
+static void jit_x86_sext(code_blob_t *blob, x86_operand_t reg, x86_size_t size)
+{
+   assert(reg.reg == __EAX.reg);
+   switch (size) {
+   case __BYTE: MOVSX(reg, reg, __QWORD, __BYTE); break;
+   case __WORD: CWDE(); // Fall-through
+   case __DWORD: CDQE(); break;
+   default: break;
+   }
+}
+
+static x86_size_t jit_x86_size(jit_ir_t *ir)
+{
+   switch (ir->size) {
+   case JIT_SZ_8: return __BYTE;
+   case JIT_SZ_16: return __WORD;
+   case JIT_SZ_32: return __DWORD;
+   default: return __QWORD;
+   }
+}
+
 static void jit_x86_recv(code_blob_t *blob, jit_ir_t *ir)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
@@ -435,59 +509,85 @@ static void jit_x86_send(code_blob_t *blob, jit_ir_t *ir)
 static void jit_x86_add(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __EBX, ir->arg2);
+   jit_x86_get(blob, __ECX, ir->arg2);
 
-   x86_size_t size = __QWORD;
-   switch (ir->size) {
-   case JIT_SZ_8: size = __BYTE; break;
-   case JIT_SZ_16: size = __WORD; break;
-   case JIT_SZ_32: size = __DWORD; break;
-   default: break;
-   }
+   const x86_size_t size = jit_x86_size(ir);
 
-   ADD(__EAX, __EBX, size);
+   ADD(__EAX, __ECX, size);
 
-   switch (ir->cc) {
-   case JIT_CC_O: SETO(FLAGS_REG); break;
-   case JIT_CC_C: SETC(FLAGS_REG); break;
-   default: break;
-   }
-
+   jit_x86_set_flags(blob, ir);
+   jit_x86_sext(blob, __EAX, size);
    jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_sub(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __EBX, ir->arg2);
+   jit_x86_get(blob, __ECX, ir->arg2);
 
-   x86_size_t size = __QWORD;
-   switch (ir->size) {
-   case JIT_SZ_8: size = __BYTE; break;
-   case JIT_SZ_16: size = __WORD; break;
-   case JIT_SZ_32: size = __DWORD; break;
-   default: break;
-   }
+   const x86_size_t size = jit_x86_size(ir);
 
-   SUB(__EAX, __EBX, size);
+   SUB(__EAX, __ECX, size);
 
-   switch (ir->cc) {
-   case JIT_CC_O: SETO(FLAGS_REG); break;
-   case JIT_CC_C: SETC(FLAGS_REG); break;
-   default: break;
-   }
+   jit_x86_set_flags(blob, ir);
+   jit_x86_sext(blob, __EAX, size);
+   jit_x86_put(blob, ir->result, __EAX);
+}
 
+static void jit_x86_mul(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   const x86_size_t size = jit_x86_size(ir);
+
+   if (ir->cc == JIT_CC_O)
+      IMUL(__EAX, __ECX, size);
+   else
+      MUL(__ECX, size);
+
+   jit_x86_set_flags(blob, ir);
+   jit_x86_sext(blob, __EAX, size);
    jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_rem(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   const x86_size_t size = jit_x86_size(ir);
+
+   switch (size) {
+   case __WORD: CWD(); break;
+   case __DWORD: CDQ(); break;
+   default: CQO(); break;
+   }
+
+   IDIV(__ECX, size);
+   MOV(__EAX, __EDX, MAX(size, __DWORD));
+
+   jit_x86_sext(blob, __EAX, size);
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_div(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   const x86_size_t size = jit_x86_size(ir);
+
+   switch (size) {
+   case __WORD: CWD(); break;
+   case __DWORD: CDQ(); break;
+   default: CQO(); break;
+   }
+
+   IDIV(__ECX, size);
+
+   jit_x86_sext(blob, __EAX, size);
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_neg(code_blob_t *blob, jit_ir_t *ir)
@@ -556,9 +656,9 @@ static void jit_x86_lea(code_blob_t *blob, jit_ir_t *ir)
 static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __EBX, ir->arg2);
+   jit_x86_get(blob, __ECX, ir->arg2);
 
-   CMP(__EAX, __EBX, __QWORD);
+   CMP(__EAX, __ECX, __QWORD);
 
    switch (ir->cc) {
    case JIT_CC_EQ:
@@ -647,6 +747,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case J_SUB:
       jit_x86_sub(blob, ir);
       break;
+   case J_MUL:
+      jit_x86_mul(blob, ir);
+      break;
    case J_REM:
       jit_x86_rem(blob, ir);
       break;
@@ -724,6 +827,20 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
    PUSH(__EBX);
+
+   // Shuffle incoming arguments
+#ifdef __MINGW32__
+   MOV(FPTR_REG, __ECX, __QWORD);
+   MOV(ANCHOR_REG, __EDX, __QWORD);
+   MOV(ARGS_REG, __R8, __QWORD);
+   MOV(TLAB_REG, __R9, __QWORD);
+#else
+   MOV(FPTR_REG, __EDI, __QWORD);
+   MOV(ANCHOR_REG, __ESI, __QWORD);
+   MOV(ARGS_REG, __EDX, __QWORD);
+   MOV(TLAB_REG, __ECX, __QWORD);
+#endif
+
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
    const size_t framesz = f->framesz + f->nregs * sizeof(int64_t);
