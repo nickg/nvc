@@ -316,6 +316,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_COVER_BRANCH:
       case VCODE_OP_COVER_TOGGLE:
       case VCODE_OP_COVER_STMT:
+      case VCODE_OP_COVER_EXPR:
          if (e->tag != vcode_get_tag(i)) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have cover tag %d but has %d",
@@ -2019,9 +2020,30 @@ START_TEST(test_cover)
       { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_COVER_EXPR, .tag = 0 },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_COVER_EXPR, .tag = 1 },
       { VCODE_OP_OR },
+      { VCODE_OP_NOT },
+      { VCODE_OP_NOT },
+      { VCODE_OP_CONST, .value = 0},
+      { VCODE_OP_AND },
+      { VCODE_OP_CONST, .value = 8},
+      { VCODE_OP_SELECT },
+      { VCODE_OP_AND },
+      { VCODE_OP_CONST, .value = 16},
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_AND },
+      { VCODE_OP_CONST, .value = 32 },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_COVER_EXPR, .tag = 2 },
       { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };

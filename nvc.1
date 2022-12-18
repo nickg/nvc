@@ -485,11 +485,35 @@ branch (one for each of true/false)
 .Ql std_logic
 (including nested arrays) creates two coverage bins (to track
 \fB0\fP -> \fB1\fP and \fB1\fP -> \fB0\fR transitions).
+.It
+.Cm expression
+- NVC creates multiple coverage bins for combinations of input operands
+of the following logical operators:
+.Ql and Ns ,
+.Ql nand Ns ,
+.Ql or Ns ,
+.Ql nor Ns ,
+.Ql xor Ns ,
+.Ql xnor Ns ,
+such that propagation of operand values causes the expression result to
+change its value.  Further, NVC creates two coverage bins for evaluating
+expression result to
+.Ql True
+and
+.Ql False
+for the following operators:
+.Ql = Ns ,
+.Ql /= Ns ,
+.Ql > Ns ,
+.Ql < Ns ,
+.Ql <= Ns ,
+.Ql >= Ns ,
+.Ql not Ns .
 .El
 .Pp
 Collecting each coverage type can be enabled separately at elaboration time:
 .Bd -literal -offset indent
-$ nvc -e --cover=statement,branch,toggle <top>
+$ nvc -e --cover=statement,branch,toggle,expression <top>
 .Ed
 .Pp
 If no coverage type is specified as argument of

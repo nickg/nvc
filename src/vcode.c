@@ -47,7 +47,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_PCALL                                                 \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_COVER_BRANCH)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
@@ -71,7 +71,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
    (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_BRANCH              \
-    || x == VCODE_OP_COVER_TOGGLE)
+    || x == VCODE_OP_COVER_TOGGLE || x == VCODE_OP_COVER_EXPR)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_TARGET(x)                                                \
@@ -205,7 +205,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      27
+#define VCODE_VERSION      28
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -924,9 +924,9 @@ const char *vcode_op_string(vcode_op_t op)
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover branch",
-      "cover toggle", "uarray len", "undefined", "range null", "var upref",
-      "resolved", "last value", "init signal", "map signal", "drive signal",
-      "link var", "resolution wrapper", "last active", "driving",
+      "cover toggle", "cover expression", "uarray len", "undefined", "range null",
+      "var upref", "resolved", "last value", "init signal", "map signal",
+      "drive signal", "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
@@ -2119,14 +2119,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_COVER_BRANCH:
-            {
-               printf("%s %u ", vcode_op_string(op->kind), op->tag);
-               vcode_dump_reg(op->args.items[0]);
-            }
-            break;
-
          case VCODE_OP_COVER_TOGGLE:
+         case VCODE_OP_COVER_BRANCH:
+         case VCODE_OP_COVER_EXPR:
             {
                printf("%s %u ", vcode_op_string(op->kind), op->tag);
                vcode_dump_reg(op->args.items[0]);
@@ -5498,17 +5493,25 @@ void emit_cover_stmt(uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_branch(vcode_reg_t test, uint32_t tag)
+void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
    vcode_add_arg(op, test);
    op->tag = tag;
+   op->subkind = flags;
 }
 
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_TOGGLE);
    vcode_add_arg(op, signal);
+   op->tag = tag;
+}
+
+void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_EXPR);
+   vcode_add_arg(op, new_mask);
    op->tag = tag;
 }
 

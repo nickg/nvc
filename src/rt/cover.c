@@ -56,6 +56,7 @@ typedef struct _cover_scope {
    ident_t        name;
    int            branch_label;
    int            stmt_label;
+   int            expression_label;
    cover_scope_t *parent;
    range_array_t  ignore_lines;
 } cover_scope_t;
@@ -64,6 +65,7 @@ struct _cover_tagging {
    int            next_stmt_tag;
    int            next_branch_tag;
    int            next_toggle_tag;
+   int            next_expression_tag;
    int            next_hier_tag;
    ident_t        hier;
    tag_array_t    tags;
@@ -81,6 +83,8 @@ typedef struct {
    unsigned    hit_branches;
    unsigned    total_toggles;
    unsigned    hit_toggles;
+   unsigned    total_expressions;
+   unsigned    hit_expressions;
 } cover_stats_t;
 
 typedef struct {
@@ -120,6 +124,7 @@ struct _cover_report_ctx {
    cover_chain_t        ch_stmt;
    cover_chain_t        ch_branch;
    cover_chain_t        ch_toggle;
+   cover_chain_t        ch_expression;
 };
 
 static cover_file_t  *files;
@@ -163,6 +168,11 @@ bool cover_is_stmt(tree_t t)
    default:
       return false;
    }
+}
+
+static bool cover_is_branch(tree_t branch)
+{
+   return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND;
 }
 
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
@@ -212,9 +222,10 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    }
 
    switch (kind) {
-      case TAG_STMT:   cnt = &(ctx->next_stmt_tag);   break;
-      case TAG_BRANCH: cnt = &(ctx->next_branch_tag); break;
-      case TAG_TOGGLE: cnt = &(ctx->next_toggle_tag); break;
+      case TAG_STMT:       cnt = &(ctx->next_stmt_tag);        break;
+      case TAG_BRANCH:     cnt = &(ctx->next_branch_tag);      break;
+      case TAG_TOGGLE:     cnt = &(ctx->next_toggle_tag);      break;
+      case TAG_EXPRESSION: cnt = &(ctx->next_expression_tag);  break;
       case TAG_HIER:
          cnt = &(ctx->next_hier_tag);
          if (flags & COV_FLAG_HIER_DOWN)
@@ -232,6 +243,14 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    ident_t hier = ctx->hier;
    if (suffix)
       hier = ident_prefix(hier, suffix, '\0');
+
+   // Expression tags do not nest scope, expression name must be created
+   if (kind == TAG_EXPRESSION) {
+      char buf[16];
+      checked_sprintf(buf, sizeof(buf), "_E%d", ctx->top_scope->expression_label);
+      hier = ident_prefix(hier, ident_new(buf), '.');
+      ctx->top_scope->expression_label++;
+   }
 
 #ifdef COVER_DEBUG
    printf("Tag: %s\n", istr(hier));
@@ -260,7 +279,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *stmts, const int32_t *branches,
-                     const int32_t *toggles)
+                     const int32_t *toggles, const int32_t *expressions)
 {
 
 #ifdef COVER_DEBUG
@@ -268,6 +287,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    printf("Number of statement tags: %d\n", ctx->next_stmt_tag);
    printf("Number of branch tags: %d\n", ctx->next_branch_tag);
    printf("Number of toggle tags: %d\n", ctx->next_toggle_tag);
+   printf("Number of expression tags: %d\n", ctx->next_expression_tag);
    printf("Number of hierarchy tags: %d\n", ctx->next_hier_tag);
    printf("Total tag count: %d\n", ctx->tags.count);
 #endif
@@ -277,6 +297,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    write_u32(ctx->next_stmt_tag, f);
    write_u32(ctx->next_branch_tag, f);
    write_u32(ctx->next_toggle_tag, f);
+   write_u32(ctx->next_expression_tag, f);
    write_u32(ctx->next_hier_tag, f);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
@@ -296,6 +317,8 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
             cnts = branches;
          else if (tag->kind == TAG_TOGGLE)
             cnts = toggles;
+         else if (tag->kind == TAG_EXPRESSION)
+            cnts = expressions;
 
          int32_t data = (cnts) ? cnts[tag->tag] : 0;
          write_u32(data, f);
@@ -361,39 +384,38 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
    ident_t name = NULL;
-   tree_kind_t kind = tree_kind(t);
+   char prefix[16] = {0};
+   int *cnt;
+   char c = 0;
 
-   // Named tree elements give hierarchy
-   if (kind != T_ASSOC && kind != T_COND && tree_has_ident(t))
-      name = tree_ident(t);
-
-   // Branches / Statements are implicitly labelled like so:
-   //   - By counter relevant for each scope
-   //   - others choice separately
-   else {
-      assert(tagging->top_scope);
-
-      char prefix[16] = {0};
-      int *cnt;
-      char c;
-
-      // when others choice labelled explicitly
-      if (kind == T_ASSOC && tree_subkind(t) == A_OTHERS)
+   if (cover_is_branch(t)) {
+      if (tree_kind(t) == T_ASSOC && tree_subkind(t) == A_OTHERS)
          checked_sprintf(prefix, sizeof(prefix), "_B_OTHERS");
       else {
-         if (kind == T_ASSOC || kind == T_COND) {
-            cnt = &tagging->top_scope->branch_label;
-            c = 'B';
-         }
-         else {
-            cnt = &tagging->top_scope->stmt_label;
-            c = 'S';
-         }
-         checked_sprintf(prefix, sizeof(prefix), "_%c%u", c, *cnt);
-         (*cnt)++;
+         assert(tagging->top_scope);
+         cnt = &tagging->top_scope->branch_label;
+         c = 'B';
       }
-      name = ident_new(prefix);
    }
+   // Consider everything else as statement
+   // Expressions do not get scope pushed, so if scope for e.g.
+   // T_FCALL is pushed it will be concurent function call -> Label as statement
+   else {
+      if (tree_has_ident(t))
+         name = tree_ident(t);
+      else {
+         assert(tagging->top_scope);
+         cnt = &tagging->top_scope->stmt_label;
+         c = 'S';
+      }
+   }
+
+   if (c) {
+      checked_sprintf(prefix, sizeof(prefix), "_%c%u", c, *cnt);
+      (*cnt)++;
+   }
+   if (name == NULL)
+      name = ident_new(prefix);
 
    s->name   = name;
    s->parent = tagging->top_scope;
@@ -403,6 +425,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 
 #ifdef COVER_DEBUG
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
+   printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
 #endif
 }
 
@@ -485,6 +508,7 @@ static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
    tagging->next_stmt_tag = read_u32(f);
    tagging->next_branch_tag = read_u32(f);
    tagging->next_toggle_tag = read_u32(f);
+   tagging->next_expression_tag = read_u32(f);
    tagging->next_hier_tag = read_u32(f);
 }
 
@@ -564,6 +588,7 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
                break;
             case TAG_TOGGLE:
             case TAG_BRANCH:
+            case TAG_EXPRESSION:
                old->data |= new.data;
                break;
             default:
@@ -585,17 +610,20 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
 }
 
 void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
-                      int32_t *n_branches, int32_t *n_toggles)
+                      int32_t *n_branches, int32_t *n_toggles,
+                      int32_t *n_expressions)
 {
    if (tagging == NULL) {
       *n_stmts = 0;
       *n_branches = 0;
       *n_toggles = 0;
+      *n_expressions = 0;
    }
    else {
       *n_stmts = tagging->next_stmt_tag;
       *n_branches = tagging->next_branch_tag;
       *n_toggles = tagging->next_toggle_tag;
+      *n_expressions = tagging->next_expression_tag;
    }
 }
 
@@ -607,32 +635,32 @@ static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
                                           int32_t *toggle_mask)
 {
    if (old == _0 && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _1 && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
                                         int32_t *toggle_mask)
 {
    if (old == _U && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _U && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
                                         int32_t *toggle_mask)
 {
    if (old == _0 && new == _Z)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
    if (old == _Z && new == _1)
-      *toggle_mask |= 0x1;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
 
    if (old == _1 && new == _Z)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
    if (old == _Z && new == _0)
-      *toggle_mask |= 0x2;
+      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
 }
 
 static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
@@ -814,11 +842,20 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "      font-size: 35px;\n"
               "   }\n"
               "\n"
-              "   h2, h3 {\n"
+              "   h2 {\n"
               "      word-wrap: break-word;\n"
               "      width:70%%\n"
               "   }\n"
+              "   h3 {\n"
+              "      word-wrap: break-word;\n"
+              "      margin-bottom: 0px;\n"
+              "   }\n"
               "\n"
+              "   hr {\n"
+              "      border:none;\n"
+              "      height: 2px;\n"
+              "      background: black;\n"
+              "   }\n"
               "   nav {\n"
               "      float: left;\n"
               "      background-color: #ccc;\n"
@@ -841,7 +878,7 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "\n"
               "     .tabcontent {\n"
               "         display: none;\n"
-              "         padding: 6px 12px;\n"
+              "         padding: 0px 0px;\n"
               "         border: 2px solid #ccc;\n"
               "         border-top: none;\n"
               "         word-wrap: break-word;\n"
@@ -951,11 +988,12 @@ static void cover_print_hierarchy_header(FILE *f)
 {
    fprintf(f, "<table style=\"width:70%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
               "  <tr>\n"
-              "     <th bgcolor=#777777 style=\"width:40%%\">Instance</th>\n"
-              "     <th bgcolor=#777777 style=\"width:10%%\">Statement</th>\n"
-              "     <th bgcolor=#777777 style=\"width:10%%\">Branch</th>\n"
-              "     <th bgcolor=#777777 style=\"width:10%%\">Toggle</th>\n"
-              "     <th bgcolor=#777777 style=\"width:10%%\">Average</th>\n"
+              "     <th bgcolor=#999999 style=\"width:30%%\">Instance</th>\n"
+              "     <th bgcolor=#999999 style=\"width:10%%\">Statement</th>\n"
+              "     <th bgcolor=#999999 style=\"width:10%%\">Branch</th>\n"
+              "     <th bgcolor=#999999 style=\"width:10%%\">Toggle</th>\n"
+              "     <th bgcolor=#999999 style=\"width:10%%\">Expression</th>\n"
+              "     <th bgcolor=#999999 style=\"width:10%%\">Average</th>\n"
               "  </tr>\n");
 }
 
@@ -987,9 +1025,13 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
    cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
    cover_print_percents_cell(f, stats->hit_branches, stats->total_branches);
    cover_print_percents_cell(f, stats->hit_toggles, stats->total_toggles);
+   cover_print_percents_cell(f, stats->hit_expressions, stats->total_expressions);
 
-   int avg_total = stats->total_stmts + stats->total_branches + stats->total_toggles;
-   int avg_hit = stats->hit_stmts + stats->hit_branches + stats->hit_toggles;
+   int avg_total = stats->total_stmts + stats->total_branches +
+                   stats->total_toggles + stats->total_expressions;
+   int avg_hit = stats->hit_stmts + stats->hit_branches +
+                 stats->hit_toggles + stats->hit_expressions;
+
    cover_print_percents_cell(f, avg_hit, avg_total);
 
    fprintf(f, "   </tr>\n");
@@ -998,28 +1040,194 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
       notef("code coverage results for: %s", istr(hier));
 
       if (stats->total_stmts > 0)
-         notef("     statement:  %.1f %% (%d/%d)",
+         notef("     statement:     %.1f %% (%d/%d)",
                100.0 * ((double)stats->hit_stmts) / stats->total_stmts,
                stats->hit_stmts, stats->total_stmts);
       else
-         notef("     statement:  N.A.");
+         notef("     statement:     N.A.");
 
       if (stats->total_branches > 0)
-         notef("     branch:     %.1f %% (%d/%d)",
+         notef("     branch:        %.1f %% (%d/%d)",
                100.0 * ((double)stats->hit_branches) / stats->total_branches,
                stats->hit_branches, stats->total_branches);
       else
-         notef("     branch:     N.A.");
+         notef("     branch:        N.A.");
 
       if (stats->total_toggles > 0)
-         notef("     toggle:     %.1f %% (%d/%d)",
+         notef("     toggle:        %.1f %% (%d/%d)",
                100.0 * ((double)stats->hit_toggles) / stats->total_toggles,
                stats->hit_toggles, stats->total_toggles);
       else
-         notef("     toggle:     N.A.");
+         notef("     toggle:        N.A.");
+
+      if (stats->total_expressions > 0)
+         notef("     expression:    %.1f %% (%d/%d)",
+               100.0 * ((double)stats->hit_expressions) / stats->total_expressions,
+               stats->hit_expressions, stats->total_expressions);
+      else
+         notef("     expression:    N.A.");
    }
 }
 
+static void cover_print_code_line(FILE *f, loc_t loc, cover_line_t *line)
+{
+   fprintf(f, "&nbsp;<code>");
+   int last = strlen(line->text);
+   int curr = 0;
+   while (curr <= last) {
+      if (curr == loc.first_column)
+         fprintf(f, "<code style=\"background-color:#bbbbbb;\">");
+      fprintf(f, "%c", line->text[curr]);
+      if (curr == (loc.first_column + loc.column_delta) &&
+            loc.line_delta == 0)
+         fprintf(f, "</code>");
+      curr++;
+   }
+   if (loc.line_delta > 0)
+      fprintf(f, "</code>");
+   fprintf(f, "</code>");
+}
+
+static void cover_print_bins(FILE *f, cover_pair_t *pair)
+{
+   loc_t loc = pair->tag->loc;
+   fprintf(f, "<br><table style=\"border:2px;text-align:center;margin-top:8px;\">");
+
+   switch (pair->tag->kind) {
+   case TAG_BRANCH:
+      fprintf(f, "<tr style=\"background-color:#999999;\">");
+      fprintf(f, "<th style=\"width:40px;\"></th>");
+      if (pair->flags & COV_FLAG_TRUE)
+         fprintf(f, "<th style=\"width:100px;\">Evaluated to</th>");
+      else
+         fprintf(f, "<th style=\"width:100px;\">Choice of</th>");
+      fprintf(f, "</tr>");
+
+      if (pair->flags & COV_FLAG_TRUE)
+         fprintf(f, "<tr><td><b>Bin</b></td><td>True</td></tr>");
+      if (pair->flags & COV_FLAG_FALSE)
+         fprintf(f, "<tr><td><b>Bin</b></td><td>False</td></tr>");
+      if (pair->flags & COV_FLAG_CHOICE) {
+         fprintf(f, "<tr><td><b>Bin</b></td><td>");
+         int curr = loc.first_column;
+         int last = (loc.line_delta) ? strlen(pair->line->text) :
+                                       loc.column_delta + curr;
+         fprintf(f, "<code>");
+         while (curr <= last) {
+            fprintf(f, "%c", pair->line->text[curr]);
+            curr++;
+         }
+         fprintf(f, "</code></td></tr>");
+      }
+      break;
+
+   case TAG_TOGGLE:
+      fprintf(f, "<tr style=\"background-color:#999999;\">");
+      fprintf(f, "<th style=\"width:40px;\"></th>");
+      fprintf(f, "<th style=\"width:100px;\">From</th>");
+      fprintf(f, "<th style=\"width:100px;\">To</th>");
+      fprintf(f, "</tr>");
+      if (pair->flags & COV_FLAG_TOGGLE_TO_1)
+         fprintf(f, "<tr><td><b>Bin</></td><td>0</td><td>1</td></tr>");
+      if (pair->flags & COV_FLAG_TOGGLE_TO_0)
+         fprintf(f, "<tr><td><b>Bin</b></td><td>1</td><td>0</td></tr>");
+      break;
+
+   case TAG_EXPRESSION:
+      fprintf(f, "<tr style=\"background-color:#999999;\">");
+      fprintf(f, "<th style=\"width:40px;\"></th>");
+
+      char t_str[6] = {0};
+      char f_str[6] = {0};
+      if (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) {
+         sprintf(t_str, "'1'");
+         sprintf(f_str, "'0'");
+      }
+      else {
+         sprintf(t_str, "True");
+         sprintf(f_str, "False");
+      }
+
+      if (pair->flags & COV_FLAG_TRUE || pair->flags & COV_FLAG_FALSE) {
+         fprintf(f, "<th style=\"width:100px;\">Evaluated to</th>");
+         if (pair->flags & COV_FLAG_TRUE)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td></tr>", t_str);
+         if (pair->flags & COV_FLAG_FALSE)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td></tr>", f_str);
+      }
+
+      if (pair->flags & COV_FLAG_00 || pair->flags & COV_FLAG_01 ||
+          pair->flags & COV_FLAG_10 || pair->flags & COV_FLAG_11) {
+
+         fprintf(f, "<th style=\"width:100px;\">LHS</th>");
+         fprintf(f, "<th style=\"width:100px;\">RHS</th>");
+
+         if (pair->flags & COV_FLAG_00)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
+                    f_str, f_str);
+         if (pair->flags & COV_FLAG_01)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
+                    f_str, t_str);
+         if (pair->flags & COV_FLAG_10)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
+                    t_str, f_str);
+         if (pair->flags & COV_FLAG_11)
+            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
+                    t_str, t_str);
+      }
+      break;
+   default:
+      fatal("Unsupported type of code coverage: %d !", pair->tag->kind);
+   }
+   fprintf(f, "</table>");
+}
+
+static void cover_print_pair(FILE *f, cover_pair_t *pair)
+{
+   loc_t loc = pair->tag->loc;
+   fprintf(f, "<p>");
+
+   switch (pair->tag->kind) {
+   case TAG_STMT:
+      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
+      cover_print_code_line(f, loc, pair->line);
+      fprintf(f, "<hr>");
+      break;
+
+   case TAG_BRANCH:
+      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
+      cover_print_code_line(f, loc, pair->line);
+      cover_print_bins(f, pair);
+      fprintf(f, "<hr>");
+      break;
+
+   case TAG_TOGGLE:
+      if (pair->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
+         fprintf(f, "<h3>Signal:</h3>");
+      else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
+         fprintf(f, "<h3>Port:</h3>");
+
+      ident_t sig_name = pair->tag->hier;
+      for (int i = 0; i < pair->tag->level; i++)
+         sig_name = ident_from(sig_name, '.');
+      fprintf(f, "&nbsp;<code>%s</code>", istr(sig_name));
+
+      cover_print_bins(f, pair);
+      fprintf(f, "<hr>");
+      break;
+
+   case TAG_EXPRESSION:
+      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
+      cover_print_code_line(f, loc, pair->line);
+      cover_print_bins(f, pair);
+      fprintf(f, "<hr>");
+      break;
+
+   default:
+      fatal("Unsupported type of code coverage: %d !", pair->tag->kind);
+   }
+   fprintf(f, "</p>");
+}
 
 static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
 {
@@ -1031,6 +1239,9 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
       fprintf(f, "Branch");
    else if (kind == TAG_TOGGLE)
       fprintf(f, "Toggle");
+   else if (kind == TAG_EXPRESSION)
+      fprintf(f, "Expression");
+
    fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
                           "margin-right:auto; margin-top:10px; border: 2px solid black;\">\n");
 
@@ -1047,7 +1258,13 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          n = chn->n_hits;
       }
 
-      fprintf(f, "   <h3>");
+      fprintf(f, "<section style=\"background-color:");
+      if (i == 0)
+         fprintf(f, "#ffcccc;\">");
+      else
+         fprintf(f, "#ccffcc;\">");
+
+      fprintf(f, "   <h2>");
       if (i == 0)
          fprintf(f, "Uncovered ");
       else
@@ -1059,74 +1276,16 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
          fprintf(f, "branches:");
       else if (kind == TAG_TOGGLE)
          fprintf(f, "toggles:");
-      fprintf(f, "   </h3>");
+      else if (kind == TAG_EXPRESSION)
+         fprintf(f, "expressions:");
+      fprintf(f, "   </h2>");
 
+      fprintf(f, "<section style=\"padding:0px 10px;\"");
       for (int j = 0; j < n; j++) {
-         loc_t loc = pair->tag->loc;
-
-         if (kind == TAG_BRANCH || kind == TAG_STMT)
-            fprintf(f, "<p><b>Line %d", loc.first_line);
-
-         if (kind == TAG_BRANCH) {
-            // True / False flags set for T_IF on tag
-            if ((pair->tag->flags & COV_FLAG_HAS_TRUE) &&
-                (pair->tag->flags & COV_FLAG_HAS_FALSE))
-            {
-               fprintf(f, " (Evaluated to ");
-               if (pair->flags & COV_FLAG_HAS_TRUE)
-                  fprintf(f, "True)");
-               else
-                  fprintf(f, "False)");
-            }
-            else
-               fprintf(f, " (Choice)");
-         }
-         if (kind == TAG_BRANCH || kind == TAG_STMT)
-            fprintf(f, ":</b><br>");
-
-         // Print line on with the tag, and highlight its location
-         if (kind == TAG_BRANCH || kind == TAG_STMT) {
-            fprintf(f, "<code>");
-            int last = strlen(pair->line->text);
-            int curr = 0;
-            while (curr <= last) {
-               if (curr == loc.first_column)
-                  fprintf(f, "<code style=\"background-color:#bbbbbb;\">");
-               fprintf(f, "%c", pair->line->text[curr]);
-               if (curr == (loc.first_column + loc.column_delta) &&
-                   loc.line_delta == 0)
-                  fprintf(f, "</code>");
-               curr++;
-            }
-            if (loc.line_delta > 0)
-               fprintf(f, "</code>");
-         }
-         fprintf(f, "</code>");
-
-         // Hier contains also indices of sub-signals
-         if (kind == TAG_TOGGLE) {
-            fprintf(f, "<b>");
-            if (pair->flags & COV_FLAG_TOGGLE_TO_1)
-               fprintf(f, "Toggle 0 -> 1 &emsp;");
-            else if (pair->flags & COV_FLAG_TOGGLE_TO_0)
-               fprintf(f, "Toggle 1 -> 0 &emsp;");
-
-            fprintf(f, "on ");
-            if (pair->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
-               fprintf(f, "signal:");
-            else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
-               fprintf(f, "port:&nbsp&nbsp&nbsp");
-            fprintf(f, "</b><br>");
-
-            ident_t sig_name = pair->tag->hier;
-            for (int i = 0; i < pair->tag->level; i++)
-               sig_name = ident_from(sig_name, '.');
-            fprintf(f, "<code>%s</code>", istr(sig_name));
-         }
-
-         fprintf(f, "</p>\n");
+         cover_print_pair(f, pair);
          pair++;
       }
+      fprintf(f, "</section></section>");
    }
 
    fprintf(f, "</div>\n");
@@ -1138,11 +1297,13 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" onclick=\"selectCoverage(event, 'Statement')\" id=\"defaultOpen\">Statement</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Branch')\">Branch</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
+              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
               "</div>\n");
 
    cover_print_chain(f, &(ctx->ch_stmt), TAG_STMT);
    cover_print_chain(f, &(ctx->ch_branch), TAG_BRANCH);
    cover_print_chain(f, &(ctx->ch_toggle), TAG_TOGGLE);
+   cover_print_chain(f, &(ctx->ch_expression), TAG_EXPRESSION);
 
    fprintf(f, "<script>\n"
               "   document.getElementById(\"defaultOpen\").click();"
@@ -1162,30 +1323,79 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "</script>\n");
 }
 
-static void cover_append_to_chain(cover_chain_t *chain, bool hits,
-                                  cover_tag_t *tag, cover_line_t *line,
-                                  unsigned flags)
+static void cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
+                                  cover_line_t *line, unsigned hits,
+                                  unsigned misses)
 {
+
    if (hits) {
       if (chain->n_hits == chain->alloc_hits) {
          chain->alloc_hits *= 2;
-         chain->hits = xrealloc_array(chain->hits, chain->alloc_hits, sizeof(cover_pair_t));
+         chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
+                                      sizeof(cover_pair_t));
       }
       chain->hits[chain->n_hits].tag = tag;
       chain->hits[chain->n_hits].line = line;
-      chain->hits[chain->n_hits].flags = flags;
+      chain->hits[chain->n_hits].flags = hits;
       chain->n_hits++;
    }
-   else {
+
+   if (misses) {
       if (chain->n_miss == chain->alloc_miss) {
          chain->alloc_miss *= 2;
-         chain->miss = xrealloc_array(chain->miss, chain->alloc_miss, sizeof(cover_pair_t));
+         chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
+                                      sizeof(cover_pair_t));
       }
       chain->miss[chain->n_miss].tag = tag;
       chain->miss[chain->n_miss].line = line;
-      chain->miss[chain->n_miss].flags = flags;
+      chain->miss[chain->n_miss].flags = misses;
       chain->n_miss++;
    }
+}
+
+static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
+                               cover_flags_t flag, unsigned *hits,
+                               unsigned *misses)
+{
+   unsigned *flat_total;
+   unsigned *nested_total;
+   unsigned *flat_hits;
+   unsigned *nested_hits;
+
+   switch (tag->kind) {
+   case TAG_BRANCH:
+      flat_total = &(ctx->flat_stats.total_branches);
+      nested_total = &(ctx->nested_stats.total_branches);
+      flat_hits = &(ctx->flat_stats.hit_branches);
+      nested_hits = &(ctx->nested_stats.hit_branches);
+      break;
+   case TAG_TOGGLE:
+      flat_total = &(ctx->flat_stats.total_toggles);
+      nested_total = &(ctx->nested_stats.total_toggles);
+      flat_hits = &(ctx->flat_stats.hit_toggles);
+      nested_hits = &(ctx->nested_stats.hit_toggles);
+      break;
+   case TAG_EXPRESSION:
+      flat_total = &(ctx->flat_stats.total_expressions);
+      nested_total = &(ctx->nested_stats.total_expressions);
+      flat_hits = &(ctx->flat_stats.hit_expressions);
+      nested_hits = &(ctx->nested_stats.hit_expressions);
+      break;
+   default:
+      fatal("Unsupported type of code coverage: %d !", tag->kind);
+   }
+
+   (*flat_total)++;
+   (*nested_total)++;
+
+   if (tag->data & flag) {
+      (*flat_hits)++;
+      (*nested_hits)++;
+      (*hits) |= flag;
+   }
+   else
+      (*misses) |= flag;
+
 }
 
 static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
@@ -1214,9 +1424,14 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
    ctx->ch_toggle.alloc_hits = 1024;
    ctx->ch_toggle.alloc_miss = 1024;
 
+   ctx->ch_expression.hits = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_expression.miss = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_expression.alloc_hits = 1024;
+   ctx->ch_expression.alloc_miss = 1024;
+
    cover_print_html_header(f, ctx, false, "NVC code coverage report");
 
-   fprintf(f, "  <h3 style=\"margin-left: " MARGIN_LEFT ";\"> Sub-instances: </h3>\n");
+   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Sub-instances: </h2>\n");
    cover_print_hierarchy_header(f);
 
    for(;;) {
@@ -1240,6 +1455,8 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             ctx->nested_stats.total_branches += sub_ctx.nested_stats.total_branches;
             ctx->nested_stats.hit_toggles += sub_ctx.nested_stats.hit_toggles;
             ctx->nested_stats.total_toggles += sub_ctx.nested_stats.total_toggles;
+            ctx->nested_stats.hit_expressions += sub_ctx.nested_stats.hit_expressions;
+            ctx->nested_stats.total_expressions += sub_ctx.nested_stats.total_expressions;
 
          }
          else if (tag->flags & COV_FLAG_HIER_UP)
@@ -1253,93 +1470,75 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             continue;
          cover_line_t *line = &(f_src->lines[tag->loc.first_line-1]);
 
-         switch (tag->kind){
+         unsigned hits = 0;
+         unsigned misses = 0;
+
+         switch (tag->kind) {
          case TAG_STMT:
             (ctx->flat_stats.total_stmts)++;
             (ctx->nested_stats.total_stmts)++;
 
-            if (tag->data > 0) {
+            hits = (tag->data > 0);
+            misses = (tag->data == 0);
+            if (hits) {
                (ctx->flat_stats.hit_stmts)++;
                (ctx->nested_stats.hit_stmts)++;
-               cover_append_to_chain(&(ctx->ch_stmt), true, tag, line, 0);
             }
-            else
-               cover_append_to_chain(&(ctx->ch_stmt), false, tag, line, 0);
-
+            cover_append_to_chain(&(ctx->ch_stmt), tag, line, hits, misses);
             break;
 
          case TAG_BRANCH:
-            if (tag->flags & COV_FLAG_HAS_TRUE) {
-               (ctx->flat_stats.total_branches)++;
-               (ctx->nested_stats.total_branches)++;
-
-               if (tag->data & 0x1) {
-                  (ctx->flat_stats.hit_branches)++;
-                  (ctx->nested_stats.hit_branches)++;
-                  cover_append_to_chain(&(ctx->ch_branch), true, tag,
-                                        line, COV_FLAG_HAS_TRUE);
-               }
-               else
-                  cover_append_to_chain(&(ctx->ch_branch), false, tag,
-                                        line, COV_FLAG_HAS_TRUE);
+            // If/else, when else
+            if (tag->flags & COV_FLAG_TRUE && tag->flags & COV_FLAG_FALSE) {
+               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE, &hits, &misses);
+               cover_append_to_chain(&(ctx->ch_branch), tag, line, hits, misses);
             }
-            if (tag->flags & COV_FLAG_HAS_FALSE) {
-               (ctx->flat_stats.total_branches)++;
-               (ctx->nested_stats.total_branches)++;
 
-               if (tag->data & 0x2) {
-                  (ctx->flat_stats.hit_branches)++;
-                  (ctx->nested_stats.hit_branches)++;
-
-                  cover_append_to_chain(&(ctx->ch_branch), true, tag,
-                                        line, COV_FLAG_HAS_FALSE);
-               }
-               else
-                  cover_append_to_chain(&(ctx->ch_branch), false, tag,
-                                        line, COV_FLAG_HAS_FALSE);
+            // Case, with select
+            if (tag->flags & COV_FLAG_CHOICE) {
+               cover_tag_to_chain(ctx, tag, COV_FLAG_CHOICE, &hits, &misses);
+               cover_append_to_chain(&(ctx->ch_branch), tag, line, hits, misses);
             }
             break;
 
          case TAG_TOGGLE:
-            (ctx->flat_stats.total_toggles) += 2;
-            (ctx->nested_stats.total_toggles) += 2;
+            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_1, &hits, &misses);
+            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_0, &hits, &misses);
+            cover_append_to_chain(&(ctx->ch_toggle), tag, line, hits, misses);
+            break;
 
-            if (tag->data & 0x1) {
-               (ctx->flat_stats.hit_toggles)++;
-               (ctx->nested_stats.hit_toggles)++;
-               cover_append_to_chain(&(ctx->ch_toggle), true, tag,
-                                     line, COV_FLAG_TOGGLE_TO_1);
-            }
-            else
-               cover_append_to_chain(&(ctx->ch_toggle), false, tag,
-                                     line, COV_FLAG_TOGGLE_TO_1);
+         case TAG_EXPRESSION:
+            if (tag->flags & COV_FLAG_00)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_00, &hits, &misses);
+            if (tag->flags & COV_FLAG_01)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_01, &hits, &misses);
+            if (tag->flags & COV_FLAG_10)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_10, &hits, &misses);
+            if (tag->flags & COV_FLAG_11)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_11, &hits, &misses);
+            if (tag->flags & COV_FLAG_TRUE)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE, &hits, &misses);
+            if (tag->flags & COV_FLAG_FALSE)
+               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE, &hits, &misses);
 
-            if (tag->data & 0x2) {
-               (ctx->flat_stats.hit_toggles)++;
-               (ctx->nested_stats.hit_toggles)++;
-               cover_append_to_chain(&(ctx->ch_toggle), true, tag,
-                                     line, COV_FLAG_TOGGLE_TO_0);
-            }
-            else
-               cover_append_to_chain(&(ctx->ch_toggle), false, tag,
-                                     line, COV_FLAG_TOGGLE_TO_0);
-
+            cover_append_to_chain(&(ctx->ch_expression), tag, line, hits, misses);
             break;
 
          default:
-            fatal("Unsupported type of code coverage:%d !", tag->kind);
+            fatal("Unsupported type of code coverage: %d !", tag->kind);
          }
       }
    }
 
    cover_print_hierarchy_footer(f);
 
-   fprintf(f, "  <h3 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h3>\n");
+   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h2>\n");
    cover_print_hierarchy_header(f);
    cover_print_hierarchy_summary(f, &(ctx->flat_stats), tag->hier, false);
    cover_print_hierarchy_footer(f);
 
-   fprintf(f, "  <h3 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h3>\n");
+   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
    cover_print_hierarchy_guts(f, ctx);
    cover_print_timestamp(f);
 

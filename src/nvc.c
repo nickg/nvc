@@ -229,6 +229,7 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
       { "statement",             COVER_MASK_STMT                        },
       { "toggle",                COVER_MASK_TOGGLE                      },
       { "branch",                COVER_MASK_BRANCH                      },
+      { "expression",            COVER_MASK_EXPRESSION                  },
       { "all",                   COVER_MASK_ALL                         },
       { "count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED },
       { "count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      },
@@ -253,7 +254,8 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
                diag_hint(d, NULL, "valid coverage types are: \n"
                          "  statement\n"
                          "  toggle\n"
-                         "  branch");
+                         "  branch\n"
+                         "  expression");
                diag_hint(d, NULL, "selected coverage types shall be "
                          "comma separated e.g $bold$--cover=toggle,branch$$");
                diag_emit(d);
@@ -355,7 +357,7 @@ static int elaborate(int argc, char **argv)
 
    if (cover != NULL) {
       fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
-      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL, NULL, NULL);
+      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL, NULL, NULL, NULL);
       fbuf_close(covdb, NULL);
       progress("dumping coverage data");
    }
@@ -985,7 +987,7 @@ static int coverage(int argc, char **argv)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL, NULL, NULL);
+      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL, NULL, NULL, NULL);
       fbuf_close(f, NULL);
    }
 
@@ -1040,6 +1042,7 @@ static void usage(void)
           "                    \t statement\n"
           "                    \t toggle\n"
           "                    \t branch\n"
+          "                    \t expression\n"
           "                    \t Ommiting '=<types>' collects all\n"
           "                    \t coverage types.\n"
           "     --dump-llvm\tDump generated LLVM IR\n"

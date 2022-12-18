@@ -57,13 +57,6 @@ typedef enum {
 } lower_mode_t;
 
 typedef enum {
-   SHORT_CIRCUIT_AND,
-   SHORT_CIRCUIT_OR,
-   SHORT_CIRCUIT_NOR,
-   SHORT_CIRCUIT_NAND,
-} short_circuit_op_t;
-
-typedef enum {
    SCOPE_HAS_PROTECTED = (1 << 1),
 } scope_flags_t;
 
@@ -1507,7 +1500,7 @@ static void lower_branch_coverage(tree_t b, unsigned int flags,
 
    cover_tag_t *tag = cover_add_tag(b, NULL, cover_tags, TAG_BRANCH, flags);
    if (tag != NULL)
-      emit_cover_branch(hit_reg, tag->tag);
+      emit_cover_branch(hit_reg, tag->tag, flags);
 }
 
 static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
@@ -1663,16 +1656,88 @@ static void lower_toggle_coverage(tree_t decl)
    cover_pop_scope(cover_tags);
 }
 
-static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
+static void lower_expression_coverage(tree_t fcall, unsigned flags,
+                                      vcode_reg_t mask)
 {
-   // TODO: Change to expression coverage, not branch!
-   //
-   //int32_t cover_tag, sub_cond;
-   //if (!cover_is_tagged(cover_tags, fcall, &cover_tag, &sub_cond))
-   //   return result;
-   //
-   //if (sub_cond > 0)
-   //   emit_cover_cond(result, cover_tag, sub_cond);
+   assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
+
+   cover_tag_t *tag = cover_add_tag(fcall, NULL, cover_tags,
+                                          TAG_EXPRESSION, flags);
+   if (tag != NULL)
+      emit_cover_expr(mask, tag->tag);
+}
+
+static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
+                                 vcode_reg_t lhs, vcode_reg_t rhs,
+                                 subprogram_kind_t builtin)
+{
+   if (!cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
+      return result;
+
+   uint32_t flags = 0;
+   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+
+   switch (builtin) {
+   case S_SCALAR_AND:
+   case S_SCALAR_NAND:
+      flags = COVER_FLAGS_AND_EXPR;
+      break;
+
+   case S_SCALAR_OR:
+   case S_SCALAR_NOR:
+      flags = COVER_FLAGS_OR_EXPR;
+      break;
+
+   case S_SCALAR_XOR:
+   case S_SCALAR_XNOR:
+      flags = COVER_FLAGS_XOR_EXPR;
+      break;
+
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_SCALAR_LT:
+   case S_SCALAR_GT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GE:
+   case S_SCALAR_NOT:
+      {
+         vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
+         vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
+         vcode_reg_t mask = emit_select(result, c_true, c_false);
+         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
+         lower_expression_coverage(fcall, flags, mask);
+      }
+   default:
+      return result;
+   }
+
+   vcode_reg_t lhs_n = emit_not(lhs);
+   vcode_reg_t rhs_n = emit_not(rhs);
+
+   struct {
+      unsigned    flag;
+      vcode_reg_t lhs;
+      vcode_reg_t rhs;
+   } bins[] = {
+      { COV_FLAG_00, lhs_n, rhs_n },
+      { COV_FLAG_01, lhs_n, rhs   },
+      { COV_FLAG_10, lhs,   rhs_n },
+      { COV_FLAG_11, lhs,   rhs   },
+   };
+
+   // Check LHS/RHS combinations
+   vcode_reg_t zero = emit_const(vc_int, 0);
+   vcode_reg_t mask = emit_const(vc_int, 0);
+   for (int i = 0; i < ARRAY_LEN(bins); i++) {
+      if (flags & bins[i].flag) {
+         vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
+         vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
+         vcode_reg_t set_bit = emit_select(select, flag, zero);
+         mask = emit_add(mask, set_bit);
+      }
+   }
+
+   lower_expression_coverage(fcall, flags, mask);
 
    return result;
 }
@@ -1756,38 +1821,50 @@ static vcode_reg_t lower_falling_rising_edge(tree_t fcall,
    return r;
 }
 
-static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
+static vcode_reg_t lower_short_circuit(tree_t fcall, subprogram_kind_t builtin)
 {
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
-
    int64_t value;
    if (vcode_reg_const(r0, &value)) {
       vcode_reg_t result = VCODE_INVALID_REG;
-      switch (op) {
-      case SHORT_CIRCUIT_AND:
+      switch (builtin) {
+      case S_SCALAR_AND:
          result = value ? lower_subprogram_arg(fcall, 1) : r0;
          break;
-      case SHORT_CIRCUIT_OR:
+      case S_SCALAR_OR:
          result = value ? r0 : lower_subprogram_arg(fcall, 1);
          break;
-      case SHORT_CIRCUIT_NOR:
+      case S_SCALAR_NOR:
          result = emit_not(value ? r0 : lower_subprogram_arg(fcall, 1));
          break;
-      case SHORT_CIRCUIT_NAND:
+      case S_SCALAR_NAND:
          result = emit_not(value ? lower_subprogram_arg(fcall, 1) : r0);
          break;
+      default:
+         fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
+                      builtin);
       }
 
-      return lower_logical(fcall, result);
+      // TODO: Should we emit coverage also for consts? Maybe as config option?
+      //       With first arg constant, it would make sense to emit only conds
+      //       which are reachable.
+      return result;
    }
 
    if (lower_side_effect_free(tree_value(tree_param(fcall, 1)))) {
       vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
-      switch (op) {
-      case SHORT_CIRCUIT_AND: return lower_logical(fcall, emit_and(r0, r1));
-      case SHORT_CIRCUIT_OR: return lower_logical(fcall, emit_or(r0, r1));
-      case SHORT_CIRCUIT_NOR: return lower_logical(fcall, emit_nor(r0, r1));
-      case SHORT_CIRCUIT_NAND: return lower_logical(fcall, emit_nand(r0, r1));
+      switch (builtin) {
+      case S_SCALAR_AND:
+         return lower_logical(fcall, emit_and(r0, r1), r0, r1, builtin);
+      case S_SCALAR_OR:
+         return lower_logical(fcall, emit_or(r0, r1), r0, r1, builtin);
+      case S_SCALAR_NOR:
+         return lower_logical(fcall, emit_nor(r0, r1), r0, r1, builtin);
+      case S_SCALAR_NAND:
+         return lower_logical(fcall, emit_nand(r0, r1), r0, r1, builtin);
+      default:
+         fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
+                      builtin);
       }
    }
 
@@ -1797,12 +1874,12 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    vcode_type_t vbool = vtype_bool();
    vcode_var_t tmp_var = lower_temp_var("shortcircuit", vbool, vbool);
 
-   if (op == SHORT_CIRCUIT_NOR || op == SHORT_CIRCUIT_NAND)
+   if (builtin == S_SCALAR_NOR || builtin == S_SCALAR_NAND)
       emit_store(emit_not(r0), tmp_var);
    else
       emit_store(r0, tmp_var);
 
-   if (op == SHORT_CIRCUIT_AND || op == SHORT_CIRCUIT_NAND)
+   if (builtin == S_SCALAR_AND || builtin == S_SCALAR_NAND)
       emit_cond(r0, arg1_bb, after_bb);
    else
       emit_cond(r0, after_bb, arg1_bb);
@@ -1810,27 +1887,35 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    vcode_select_block(arg1_bb);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
 
-   switch (op) {
-   case SHORT_CIRCUIT_AND:
+   switch (builtin) {
+   case S_SCALAR_AND:
       emit_store(emit_and(r0, r1), tmp_var);
       break;
-   case SHORT_CIRCUIT_OR:
+   case S_SCALAR_OR:
       emit_store(emit_or(r0, r1), tmp_var);
       break;
-   case SHORT_CIRCUIT_NOR:
+   case S_SCALAR_NOR:
       emit_store(emit_nor(r0, r1), tmp_var);
       break;
-   case SHORT_CIRCUIT_NAND:
+   case S_SCALAR_NAND:
       emit_store(emit_nand(r0, r1), tmp_var);
       break;
+   default:
+      fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
+                      builtin);
    }
+
+   // Only emit expression coverage when also arg1 is evaluated.
+   // TODO: Add option to exclude cases like: "01" bin on AND expression.
+   lower_logical(fcall, emit_load(tmp_var), r0, r1, builtin);
 
    emit_jump(after_bb);
 
    vcode_select_block(after_bb);
    vcode_reg_t result = emit_load(tmp_var);
    lower_release_temp(tmp_var);
-   return lower_logical(fcall, result);
+
+   return result;
 }
 
 static void lower_flatten_concat(tree_t arg, concat_list_t *list)
@@ -1933,17 +2018,31 @@ static vcode_reg_t lower_concat(tree_t expr, vcode_reg_t hint,
    return var_reg;
 }
 
+static vcode_reg_t lower_comparison(tree_t fcall, subprogram_kind_t builtin,
+                                    vcode_reg_t r0, vcode_reg_t r1)
+{
+   vcode_cmp_t cmp;
+   switch (builtin) {
+   case S_SCALAR_EQ:  cmp = VCODE_CMP_EQ; break;
+   case S_SCALAR_NEQ: cmp = VCODE_CMP_NEQ; break;
+   case S_SCALAR_LT:  cmp = VCODE_CMP_LT; break;
+   case S_SCALAR_GT:  cmp = VCODE_CMP_GT; break;
+   case S_SCALAR_LE:  cmp = VCODE_CMP_LEQ; break;
+   case S_SCALAR_GE:  cmp = VCODE_CMP_GEQ; break;
+   default:
+      fatal_trace("unhandled built-in comparison %d", builtin);
+   }
+
+   vcode_reg_t result = emit_cmp(cmp, r0, r1);
+   return lower_logical(fcall, result, r0, r1, builtin);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
                                  vcode_reg_t *out_r0, vcode_reg_t *out_r1)
 {
-   if (builtin == S_SCALAR_AND)
-      return lower_short_circuit(fcall, SHORT_CIRCUIT_AND);
-   else if (builtin == S_SCALAR_OR)
-      return lower_short_circuit(fcall, SHORT_CIRCUIT_OR);
-   else if (builtin == S_SCALAR_NOR)
-      return lower_short_circuit(fcall, SHORT_CIRCUIT_NOR);
-   else if (builtin == S_SCALAR_NAND)
-      return lower_short_circuit(fcall, SHORT_CIRCUIT_NAND);
+   if (builtin == S_SCALAR_AND || builtin == S_SCALAR_OR ||
+       builtin == S_SCALAR_NOR || builtin == S_SCALAR_NAND)
+      return lower_short_circuit(fcall, builtin);
    else if (builtin == S_CONCAT)
       return lower_concat(fcall, VCODE_INVALID_REG, VCODE_INVALID_REG);
    else if (builtin == S_RISING_EDGE || builtin == S_FALLING_EDGE)
@@ -1960,17 +2059,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
 
    switch (builtin) {
    case S_SCALAR_EQ:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_EQ, r0, r1));
    case S_SCALAR_NEQ:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_NEQ, r0, r1));
    case S_SCALAR_LT:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_LT, r0, r1));
    case S_SCALAR_GT:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_GT, r0, r1));
    case S_SCALAR_LE:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_LEQ, r0, r1));
    case S_SCALAR_GE:
-      return lower_logical(fcall, emit_cmp(VCODE_CMP_GEQ, r0, r1));
+      return lower_comparison(fcall, builtin, r0, r1);
    case S_MUL:
    case S_ADD:
    case S_SUB:
@@ -2015,11 +2109,11 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
    case S_IDENTITY:
       return r0;
    case S_SCALAR_NOT:
-      return lower_logical(fcall, emit_not(r0));
+      return lower_logical(fcall, emit_not(r0), r0, 0, builtin);
    case S_SCALAR_XOR:
-      return lower_logical(fcall, emit_xor(r0, r1));
+      return lower_logical(fcall, emit_xor(r0, r1), r0, r1, builtin);
    case S_SCALAR_XNOR:
-      return lower_logical(fcall, emit_xnor(r0, r1));
+      return lower_logical(fcall, emit_xnor(r0, r1), r0, r1, builtin);
    case S_ENDFILE:
       return emit_endfile(r0);
    case S_FILE_OPEN1:
@@ -5549,8 +5643,7 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
          vcode_reg_t test = lower_rvalue(v);
 
          if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-            lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
-                                  test);
+            lower_branch_coverage(v, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
 
          vcode_block_t btrue = emit_block();
 
@@ -5899,8 +5992,7 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
       vcode_reg_t test = lower_rvalue(v);
 
       if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-         lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
-                               test);
+         lower_branch_coverage(v, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
 
       emit_cond(test, body_bb, exit_bb);
    }
@@ -5950,8 +6042,7 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
       vcode_reg_t result = lower_rvalue(v);
 
       if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-         lower_branch_coverage(v, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE,
-                               result);
+         lower_branch_coverage(v, COV_FLAG_FALSE | COV_FLAG_TRUE, result);
 
       emit_cond(result, true_bb, false_bb);
 
@@ -6000,7 +6091,7 @@ static void lower_case_others_branch_coverage(tree_t stmt, vcode_reg_t *hit_regs
    }
 
    cover_push_scope(cover_tags, a_others);
-   lower_branch_coverage(a_others, COV_FLAG_HAS_TRUE, merged);
+   lower_branch_coverage(a_others, COV_FLAG_CHOICE, merged);
    cover_pop_scope(cover_tags);
 }
 
@@ -6038,7 +6129,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
          hit_regs[i] = emit_and(lcmp_reg, hcmp_reg);
 
          if (cover_enabled(cover_tags, COVER_MASK_BRANCH))
-            lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
+            lower_branch_coverage(a, COV_FLAG_CHOICE, hit_regs[i]);
 
          vcode_block_t skip_bb = emit_block();
 
@@ -6092,7 +6183,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
          if (cover_enabled(cover_tags, COVER_MASK_BRANCH)) {
             hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], value_reg);
-            lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
+            lower_branch_coverage(a, COV_FLAG_CHOICE, hit_regs[i]);
          }
 
          blocks[cptr] = hit_bb;
@@ -6315,7 +6406,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
             // TODO: How to handle have_dup == true ?
             if (cover_enabled(cover_tags, COVER_MASK_BRANCH)) {
                hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], enc_reg);
-               lower_branch_coverage(a, COV_FLAG_HAS_TRUE, hit_regs[i]);
+               lower_branch_coverage(a, COV_FLAG_CHOICE, hit_regs[i]);
             }
 
             blocks[cptr]   = entry_bb;
