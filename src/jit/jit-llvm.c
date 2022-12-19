@@ -1748,6 +1748,26 @@ static void cgen_op_neg(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    cgb->outregs[ir->result] = neg;
 }
 
+static void cgen_op_cneg(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef neg = LLVMBuildNeg(obj->builder, arg1, "");
+   LLVMValueRef result = LLVMBuildSelect(obj->builder, cgb->outflags, arg1,
+                                         neg, cgen_reg_name(ir->result));
+
+   cgb->outregs[ir->result] = result;
+}
+
+static void cgen_op_clamp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef zero = llvm_int64(obj, 0);
+   LLVMValueRef isneg = LLVMBuildICmp(obj->builder, LLVMIntSLT, arg1, zero, "");
+   LLVMValueRef clamp = LLVMBuildSelect(obj->builder, isneg, zero, arg1, "");
+
+   cgb->outregs[ir->result] = clamp;
+}
+
 static void cgen_macro_exp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
@@ -2051,6 +2071,12 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_NEG:
       cgen_op_neg(obj, cgb, ir);
+      break;
+   case J_CNEG:
+      cgen_op_cneg(obj, cgb, ir);
+      break;
+   case J_CLAMP:
+      cgen_op_clamp(obj, cgb, ir);
       break;
    case J_DEBUG:
       cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc));

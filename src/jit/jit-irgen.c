@@ -546,6 +546,20 @@ static jit_value_t j_csel(jit_irgen_t *g, jit_value_t iftrue,
    return jit_value_from_reg(r);
 }
 
+static jit_value_t j_clamp(jit_irgen_t *g, jit_value_t value)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   irgen_emit_unary(g, J_CLAMP, JIT_SZ_UNSPEC, JIT_CC_NONE, r, value);
+   return jit_value_from_reg(r);
+}
+
+static jit_value_t j_cneg(jit_irgen_t *g, jit_value_t value)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   irgen_emit_unary(g, J_CNEG, JIT_SZ_UNSPEC, JIT_CC_NONE, r, value);
+   return jit_value_from_reg(r);
+}
+
 static void macro_copy(jit_irgen_t *g, jit_value_t dest, jit_value_t src,
                        jit_reg_t count)
 {
@@ -1698,12 +1712,8 @@ static void irgen_op_wrap(jit_irgen_t *g, int op)
       j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
       jit_value_t diff   = j_csel(g, diff_down, diff_up);
       jit_value_t length = j_add(g, diff, jit_value_from_int64(1));
-      jit_value_t zero   = jit_value_from_int64(0);
-      j_cmp(g, JIT_CC_LT, diff, zero);
-      jit_value_t clamped = j_csel(g, zero, length);
-      jit_value_t neg     = j_neg(g, clamped);
-      j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
-      jit_value_t signlen = j_csel(g, neg, clamped);
+      jit_value_t clamped = j_clamp(g, length);
+      jit_value_t signlen = j_cneg(g, clamped);
 
       j_mov(g, dims[i*2], left);
       j_mov(g, dims[i*2 + 1], signlen);
@@ -2000,10 +2010,8 @@ static void irgen_op_range_length(jit_irgen_t *g, int op)
    irgen_bind_label(g, l_after);
 
    jit_value_t diff = j_csel(g, diff_down, diff_up);
-   jit_value_t zero = jit_value_from_int64(0);
    jit_value_t length = j_add(g, diff, jit_value_from_int64(1));
-   j_cmp(g, JIT_CC_LT, diff, zero);
-   jit_value_t clamped = j_csel(g, zero, length);
+   jit_value_t clamped = j_clamp(g, length);
 
    g->map[vcode_get_result(op)] = clamped;
 }

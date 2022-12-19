@@ -1605,6 +1605,34 @@ START_TEST(test_lvn5)
 }
 END_TEST
 
+START_TEST(test_lvn6)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV           R29, R28     \n"
+      "    MOV           R32, #1      \n"
+      "    MOV           R33, #-1     \n"
+      "    CMP.EQ        #1, #1       \n"
+      "    MOV           R34, R33     \n"
+      "    ADD           R35, R34, #1 \n"
+      "    CLAMP         R36, R35     \n"
+      "    CNEG          R37, R36     \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   check_unary(f, 4, J_MOV, CONST(-1));
+   check_unary(f, 5, J_MOV, CONST(0));;
+   check_unary(f, 6, J_MOV, CONST(0));
+   check_unary(f, 7, J_MOV, CONST(0));
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1648,6 +1676,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_cfg2);
    tcase_add_test(tc, test_lvn4);
    tcase_add_test(tc, test_lvn5);
+   tcase_add_test(tc, test_lvn6);
    suite_add_tcase(s, tc);
 
    return s;

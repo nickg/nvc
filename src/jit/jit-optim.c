@@ -276,6 +276,8 @@ typedef unsigned valnum_t;
 
 #define VN_INVALID  UINT_MAX
 #define SMALL_CONST 100
+#define MAX_CONSTS  32
+#define FIRST_VN    (SMALL_CONST + MAX_CONSTS)
 
 #define LVN_REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define LVN_CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
@@ -288,6 +290,8 @@ typedef struct {
    valnum_t    nextvn;
    lvn_tab_t  *hashtab;
    size_t      tabsz;
+   int64_t     consttab[MAX_CONSTS];
+   unsigned    nconsts;
 } lvn_state_t;
 
 typedef struct _lvn_tab {
@@ -302,6 +306,20 @@ static inline valnum_t lvn_new_value(lvn_state_t *state)
    return state->nextvn++;
 }
 
+static bool lvn_get_const(valnum_t vn, lvn_state_t *state, int64_t *cval)
+{
+   if (vn < SMALL_CONST) {
+      *cval = vn;
+      return true;
+   }
+   else if (vn < SMALL_CONST + MAX_CONSTS) {
+      *cval = state->consttab[vn - SMALL_CONST];
+      return true;
+   }
+   else
+      return false;
+}
+
 static bool lvn_is_const(jit_value_t value, lvn_state_t *state, int64_t *cval)
 {
    switch (value.kind) {
@@ -309,12 +327,7 @@ static bool lvn_is_const(jit_value_t value, lvn_state_t *state, int64_t *cval)
       *cval = value.int64;
       return true;
    case JIT_VALUE_REG:
-      if (state->regvn[value.reg] < SMALL_CONST) {
-         *cval = state->regvn[value.reg];
-         return true;
-      }
-      else
-         return false;
+      return lvn_get_const(state->regvn[value.reg], state, cval);
    default:
       return false;
    }
@@ -359,8 +372,19 @@ static valnum_t lvn_value_num(jit_value_t value, lvn_state_t *state)
    case JIT_VALUE_INT64:
       if (value.int64 >= 0 && value.int64 < SMALL_CONST)
          return value.int64;
-      else
-         return lvn_new_value(state);   // TODO: add constant table
+      else {
+         for (int i = 0; i < state->nconsts; i++) {
+            if (state->consttab[i] == value.int64)
+               return SMALL_CONST + i;
+         }
+
+         if (state->nconsts < MAX_CONSTS) {
+            state->consttab[state->nconsts] = value.int64;
+            return SMALL_CONST + state->nconsts++;
+         }
+         else
+            return lvn_new_value(state);
+      }
 
    case JIT_VALUE_INVALID:
       return VN_INVALID;
@@ -417,15 +441,22 @@ static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state, valnum_t vn)
 
    const unsigned hash = tuple[0]*29 + tuple[1]*1093 + tuple[2]*6037;
 
-   for (int idx = hash & (state->tabsz - 1), limit = 0; limit < 10;
+   for (int idx = hash & (state->tabsz - 1), limit = 0, stale = -1; limit < 10;
         idx = (idx + 1) & (state->tabsz - 1), limit++) {
 
       lvn_tab_t *tab = &(state->hashtab[idx]);
-      if (tab->ir == NULL || (tab->vn != state->regvn[tab->ir->result])) {
+      if (tab->ir == NULL) {
+         if (stale >= 0)  // Reuse earlier stale entry if possible
+            tab = &(state->hashtab[stale]);
          tab->ir = ir;
          tab->vn = state->regvn[ir->result] =
             (vn == VN_INVALID ? lvn_new_value(state) : vn);
          break;
+      }
+      else if (tab->vn != state->regvn[tab->ir->result]) {
+         // Stale entry may be reused if we do not find matching value
+         stale = idx;
+         continue;
       }
       else {
          int cmp[3];
@@ -439,8 +470,9 @@ static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state, valnum_t vn)
             ir->cc   = JIT_CC_NONE;
 
             // Propagate constants where possible
-            if (state->regvn[tab->ir->result] < SMALL_CONST)
-               ir->arg1 = LVN_CONST(state->regvn[tab->ir->result]);
+            int64_t cval;
+            if (lvn_get_const(state->regvn[tab->ir->result], state, &cval))
+               ir->arg1 = LVN_CONST(cval);
             else
                ir->arg1 = LVN_REG(tab->ir->result);
 
@@ -571,6 +603,15 @@ static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
    jit_lvn_generic(ir, state, VN_INVALID);
 }
 
+static void jit_lvn_neg(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t value;
+   if (lvn_is_const(ir->arg1, state, &value))
+      lvn_convert_mov(ir, state, LVN_CONST(-value));
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
 static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state)
 {
    if (ir->arg1.kind == JIT_VALUE_REG && ir->arg1.reg == ir->result) {
@@ -634,6 +675,33 @@ static void jit_lvn_jump(jit_ir_t *ir, lvn_state_t *state)
       ir->arg1 = dest->arg1;     // Simple jump threading
 }
 
+static void jit_lvn_clamp(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t value;
+   if (lvn_is_const(ir->arg1, state, &value))
+      lvn_convert_mov(ir, state, LVN_CONST(value < 0 ? 0 : value));
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
+static void jit_lvn_cneg(jit_ir_t *ir, lvn_state_t *state)
+{
+   const int fconst = state->regvn[state->func->nregs];
+   if (fconst != VN_INVALID) {
+      if (fconst) {
+         ir->op = J_NEG;
+         jit_lvn_neg(ir, state);
+         return;
+      }
+      else {
+         lvn_convert_mov(ir, state, ir->arg1);
+         return;
+      }
+   }
+
+   jit_lvn_generic(ir, state, VN_INVALID);
+}
+
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
    // Clobbers the count register
@@ -651,7 +719,7 @@ void jit_do_lvn(jit_func_t *f)
    lvn_state_t state = {
       .tabsz  = next_power_of_2(f->nirs),
       .func   = f,
-      .nextvn = SMALL_CONST
+      .nextvn = FIRST_VN
    };
 
    state.regvn = xmalloc_array(f->nregs + 1, sizeof(valnum_t));
@@ -674,11 +742,14 @@ void jit_do_lvn(jit_func_t *f)
       case J_DIV: jit_lvn_div(ir, &state); break;
       case J_ADD: jit_lvn_add(ir, &state); break;
       case J_SUB: jit_lvn_sub(ir, &state); break;
+      case J_NEG: jit_lvn_neg(ir, &state); break;
       case J_MOV: jit_lvn_mov(ir, &state); break;
       case J_CMP: jit_lvn_cmp(ir, &state); break;
       case J_CSEL: jit_lvn_csel(ir, &state); break;
       case J_CSET: jit_lvn_cset(ir, &state); break;
+      case J_CNEG: jit_lvn_cneg(ir, &state); break;
       case J_JUMP: jit_lvn_jump(ir, &state); break;
+      case J_CLAMP: jit_lvn_clamp(ir, &state); break;
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
       default: break;

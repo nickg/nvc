@@ -527,9 +527,23 @@ static void interp_rem(jit_interp_t *state, jit_ir_t *ir)
    state->regs[ir->result].integer = x - (x / y) * y;
 }
 
+static void interp_clamp(jit_interp_t *state, jit_ir_t *ir)
+{
+   const int64_t value = interp_get_value(state, ir->arg1).integer;
+
+   state->regs[ir->result].integer = value < 0 ? 0 : value;
+}
+
 static void interp_cset(jit_interp_t *state, jit_ir_t *ir)
 {
    state->regs[ir->result].integer = !!(state->flags);
+}
+
+static void interp_cneg(jit_interp_t *state, jit_ir_t *ir)
+{
+   const int64_t value = interp_get_value(state, ir->arg1).integer;
+
+   state->regs[ir->result].integer = state->flags ? -value : value;
 }
 
 static void interp_branch_to(jit_interp_t *state, jit_value_t label)
@@ -812,6 +826,9 @@ static void interp_loop(jit_interp_t *state)
       case J_CSET:
          interp_cset(state, ir);
          break;
+      case J_CNEG:
+         interp_cneg(state, ir);
+         break;
       case J_JUMP:
          interp_jump(state, ir);
          break;
@@ -847,6 +864,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case J_REM:
          interp_rem(state, ir);
+         break;
+      case J_CLAMP:
+         interp_clamp(state, ir);
          break;
       case J_DEBUG:
       case J_NOP:
