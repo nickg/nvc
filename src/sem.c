@@ -4991,6 +4991,18 @@ static bool sem_check_for_generate(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_case_generate(tree_t t, nametab_t *tab)
+{
+   tree_t test = tree_value(t);
+   if (!sem_check(test, tab))
+      return false;
+
+   // TODO
+   sem_error(t, "sorry, case generate statements are not yet supported");
+
+   return true;
+}
+
 static bool sem_check_open(tree_t t)
 {
    return true;
@@ -5509,6 +5521,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_if_generate(t, tab);
    case T_FOR_GENERATE:
       return sem_check_for_generate(t, tab);
+   case T_CASE_GENERATE:
+      return sem_check_case_generate(t, tab);
    case T_OPEN:
       return sem_check_open(t);
    case T_FIELD_DECL:

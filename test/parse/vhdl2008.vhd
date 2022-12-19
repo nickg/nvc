@@ -229,4 +229,17 @@ begin
     else foo: generate
     end bar;                            -- Error
     end generate;
+
+    g2: case integer'(5) generate       -- OK
+        when 1 => begin end;
+        when 2 => begin end;
+        when others => begin end;
+    end generate;
+
+    g3: case integer'(5) generate       -- OK
+        when foo: 1 => begin end;
+        when 2 => begin end;
+        when bar: others => begin end;
+    end generate g5;                    -- Error
+
 end architecture;

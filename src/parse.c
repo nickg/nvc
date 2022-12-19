@@ -9807,6 +9807,52 @@ static tree_t p_if_generate_statement(ident_t label)
    return g;
 }
 
+static void p_case_generate_alternative(tree_t stmt)
+{
+   // when [ alternative_label : ] choices => generate_statement_body
+
+   BEGIN("case generate alternative");
+
+   consume(tWHEN);
+
+   ident_t alt_label = NULL;
+   if (peek() == tID && peek_nth(2) == tCOLON) {
+      alt_label = p_identifier();
+      consume(tCOLON);
+   }
+
+   type_t type = tree_type(tree_value(stmt));
+
+   const int nstart = tree_assocs(stmt);
+   p_choices(stmt, type);
+
+   consume(tASSOC);
+
+   push_scope(nametab);
+   scope_set_prefix(nametab, alt_label ?: tree_ident(stmt));
+
+   tree_t b = tree_new(T_BLOCK);
+   p_generate_statement_body(b, alt_label);
+
+   tree_set_loc(b, CURRENT_LOC);
+   pop_scope(nametab);
+
+   const int nassocs = tree_assocs(stmt);
+   for (int i = nstart; i < nassocs; i++) {
+      tree_t a = tree_assoc(stmt, i);
+      tree_set_value(a, b);
+
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         solve_types(nametab, tree_name(a), type);
+         break;
+      case A_RANGE:
+         solve_types(nametab, tree_range(a, 0), type);
+         break;
+      }
+   }
+}
+
 static tree_t p_case_generate_statement(ident_t label)
 {
    // case expression generate case_generate_alternative
@@ -9816,9 +9862,32 @@ static tree_t p_case_generate_statement(ident_t label)
 
    consume(tCASE);
 
-   parse_error(CURRENT_LOC, "sorry, case generate statements are not "
-               "yet supported");
-   return ensure_labelled(tree_new(T_BLOCK), label);
+   tree_t g = tree_new(T_CASE_GENERATE);
+   tree_set_ident(g, label);
+
+   tree_t value = p_expression();
+   tree_set_value(g, value);
+
+   solve_types(nametab, value, NULL);
+
+   consume(tGENERATE);
+
+   do {
+      p_case_generate_alternative(g);
+   } while (peek() == tWHEN);
+
+   consume(tEND);
+   consume(tGENERATE);
+
+   p_trailing_label(label);
+   consume(tSEMI);
+
+   if (label == NULL)
+      parse_error(CURRENT_LOC, "generate statement must have a label");
+
+   tree_set_loc(g, CURRENT_LOC);
+   sem_check(g, nametab);
+   return g;
 }
 
 static tree_t p_generate_statement(ident_t label)
@@ -9919,6 +9988,7 @@ static tree_t p_concurrent_statement(void)
 
       case tIF:
       case tFOR:
+      case tCASE:
          return p_generate_statement(label);
 
       case tLPAREN:
@@ -9926,7 +9996,7 @@ static tree_t p_concurrent_statement(void)
 
       default:
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
-                tWITH, tASSERT, tBLOCK, tIF, tFOR);
+                tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE);
          drop_tokens_until(tSEMI);
          return ensure_labelled(tree_new(T_BLOCK), label);
       }

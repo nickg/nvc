@@ -331,6 +331,7 @@ typedef enum tree_kind {
    T_STRING,
    T_PATH_ELT,
    T_PRAGMA,
+   T_CASE_GENERATE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

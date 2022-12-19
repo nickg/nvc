@@ -3641,6 +3641,9 @@ START_TEST(test_vhdl2008)
       { 182, "prefix of 'ELEMENT attribute does not have a type" },
       { 228, "unexpected trailing label for generate statement body without" },
       { 230, "expected trailing generate statement body label to match FOO" },
+      { 233, "sorry, case generate statements are not yet supported" },
+      { 243, "expected trailing case generate statement label to match G3" },
+      { 239, "sorry, case generate statements are not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);
