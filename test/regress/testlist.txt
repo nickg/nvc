@@ -699,3 +699,4 @@ cover5          cover,shell
 cover6          cover,shell
 issue577        normal,2008
 cover8          cover=expression,gold
+issue586        shell

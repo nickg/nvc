@@ -631,6 +631,11 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
       rt_scope_t *sub = child_scope(scope, d);
       if (sub == NULL)
          ;    // Signal was optimised out
+      else if (cons != NULL) {
+         // Use constrained type when available
+         assert(tree_kind(cons) == T_ELEM_CONSTRAINT);
+         fst_create_record_var(wd, d, sub, tree_type(cons), tb);
+      }
       else
          fst_create_record_var(wd, d, sub, type, tb);
    }
@@ -814,9 +819,6 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
 
 void wave_dumper_free(wave_dumper_t *wd)
 {
-   if (wd->model != NULL)
-      fatal_trace("wave_dumper_free called before end of simulation");
-
    free(wd);
 }
 
