@@ -9657,7 +9657,7 @@ static void p_generate_statement_body(tree_t container, ident_t alt_label)
       consume(tBEGIN);
    }
 
-   while (not_at_token(tEND, tELSIF, tELSE))
+   while (not_at_token(tEND, tELSIF, tELSE, tWHEN))
       tree_add_stmt(container, p_concurrent_statement());
 
    if (peek() == tEND && (peek_nth(2) == tID || peek_nth(2) == tSEMI)) {

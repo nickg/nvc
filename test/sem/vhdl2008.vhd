@@ -1,7 +1,9 @@
 entity vhdl2008 is
+    generic ( g : integer );
 end entity;
 
 architecture test of vhdl2008 is
+    signal s : integer;
 begin
 
     process is
@@ -38,5 +40,13 @@ begin
         x := baz'subtype(4);            -- Error
         report to_string(x'subtype);    -- Error
     end process;
+
+    g1: case g generate                 -- OK
+        when 5 =>
+            s <= 2;
+        when g =>                       -- OK
+            s <= 3;
+    end generate;
+
 
 end architecture;
