@@ -1752,8 +1752,8 @@ static void cgen_op_cneg(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef neg = LLVMBuildNeg(obj->builder, arg1, "");
-   LLVMValueRef result = LLVMBuildSelect(obj->builder, cgb->outflags, arg1,
-                                         neg, cgen_reg_name(ir->result));
+   LLVMValueRef result = LLVMBuildSelect(obj->builder, cgb->outflags, neg,
+                                         arg1, cgen_reg_name(ir->result));
 
    cgb->outregs[ir->result] = result;
 }
