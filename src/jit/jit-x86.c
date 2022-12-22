@@ -138,6 +138,7 @@ typedef enum {
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
 #define MOVSX(dst, src, dsize, ssize) \
    asm_movsx(blob, (dst), (src), (dsize), (ssize))
+#define LEA(dst, addr) asm_lea(blob, (dst), (addr))
 #define SETO(dst) asm_setcc(blob, (dst), X86_CMP_O)
 #define SETC(dst) asm_setcc(blob, (dst), X86_CMP_C)
 #define SETZ(dst) asm_setcc(blob, (dst), X86_CMP_EQ)
@@ -180,6 +181,13 @@ static void asm_xor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    assert(COMBINE(dst, src) == REG_REG);
    asm_rex(blob, size, src.reg, dst.reg, 0);
    __(0x33, __MODRM(3, src.reg, dst.reg));
+}
+
+static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   assert(COMBINE(dst, src) == REG_MEM);
+   asm_rex(blob, __QWORD, src.reg, dst.reg, 0);
+   __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
 }
 
 static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
@@ -417,7 +425,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
 {
    switch (src.kind) {
    case JIT_VALUE_REG:
-      MOV(dst, ADDR(__EBP, -(src.reg + 1) * sizeof(int64_t)), __QWORD);
+      MOV(dst, ADDR(__EBP, -(src.reg + 4) * sizeof(int64_t)), __QWORD);
       break;
    case JIT_VALUE_INT64:
       MOV(dst, IMM(src.int64), __QWORD);
@@ -455,7 +463,7 @@ static void jit_x86_patch(code_blob_t *blob, jit_label_t label, uint8_t *wptr,
 
 static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
 {
-   MOV(ADDR(__EBP, -(dst + 1) * sizeof(int64_t)), src, __QWORD);
+   MOV(ADDR(__EBP, -(dst + 4) * sizeof(int64_t)), src, __QWORD);
 }
 
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
@@ -701,8 +709,6 @@ static void jit_x86_call(code_blob_t *blob, jit_x86_state_t *state,
 
    MOV(__EAX, PTR(f), __QWORD);
    CALL(PTR(state->stubs[CALL_STUB]));
-
-   INT3();
 }
 
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
@@ -843,8 +849,33 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
-   const size_t framesz = f->framesz + f->nregs * sizeof(int64_t);
+   // Frame layout
+   //
+   //       |-------------------|
+   //     0 | Caller's PC       |    <--- RBP
+   //       |-------------------|
+   //    -4 | Padding           |
+   //       |-------------------|
+   //    -8 | IR position       |
+   //   -16 | Function pointer  |
+   //   -24 | Caller's anchor   |    <--- Frame anchor
+   //       |-------------------|
+   //   -32 | Local registers   |
+   //       .                   .
+   //       |-------------------|
+   //       | Local variables   |
+   //       .                   .
+   //       |-------------------|
+
+   const size_t framesz = f->framesz + f->nregs * sizeof(int64_t) + 32;
    SUB(__ESP, IMM(framesz), __QWORD);
+
+   // Build frame anchor
+   MOV(ADDR(__EBP, -24), ANCHOR_REG, __QWORD);
+   MOV(ADDR(__EBP, -16), FPTR_REG, __QWORD);
+   MOV(ADDR(__EBP, -8), FLAGS_REG, __DWORD);
+
+   LEA(ANCHOR_REG, ADDR(__EBP, -24));
 
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
@@ -853,13 +884,6 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    }
 
    code_blob_finalise(blob, &(f->entry));
-}
-
-static void jit_x86_trampoline_call(code_blob_t *blob, x86_operand_t tmp,
-                                    const void *fn)
-{
-   MOV(tmp, PTR(fn), __QWORD);
-   CALL(tmp);
 }
 
 static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
@@ -871,7 +895,8 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
 
    MOV(__EDI, __EAX, __DWORD);   // Exit number in EAX, clobbers FPTR
 
-   jit_x86_trampoline_call(blob, __EAX, __nvc_do_exit);
+   MOV(__EAX, PTR(__nvc_do_exit), __QWORD);
+   CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);
 

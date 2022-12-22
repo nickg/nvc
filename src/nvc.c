@@ -585,14 +585,13 @@ static int run(int argc, char **argv)
 
    jit_t *jit = jit_new();
    jit_enable_runtime(jit, true);
-#if defined ARCH_X86_64 && 0
-   jit_register_native_plugin(jit);
-#endif
 
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
 #if defined ENABLE_JIT && defined LLVM_HAS_LLJIT
    jit_register_llvm_plugin(jit);
+#elif defined ARCH_X86_64 && 0
+   jit_register_native_plugin(jit);
 #endif
 
    _std_standard_init();

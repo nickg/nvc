@@ -527,11 +527,17 @@ static void jit_interp_trace(diag_t *d)
             break;
       }
 
-      tree_t enclosing = tree_from_object(a->func->object);
-      assert(enclosing != NULL);
+      if (a->func->object == NULL) {
+         // This should only occur in unit tests
+         diag_trace(d, loc, "%s", istr(a->func->name));
+      }
+      else {
+         tree_t enclosing = tree_from_object(a->func->object);
+         assert(enclosing != NULL);
 
-      const char *symbol = istr(a->func->name);
-      jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
+         const char *symbol = istr(a->func->name);
+         jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
+      }
    }
 }
 
@@ -1101,6 +1107,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "NOP",   J_NOP,      0, 0 },
       { "CLAMP", J_CLAMP,    1, 1 },
       { "CNEG",  J_CNEG,     1, 1 },
+      { "CALL",  J_CALL,     0, 1 },
+      { "$EXIT", MACRO_EXIT, 0, 1 },
       { "$COPY", MACRO_COPY, 1, 2 },
       { "$CASE", MACRO_CASE, 1, 2 },
    };
@@ -1234,6 +1242,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       case ARG2:
          {
             jit_value_t arg;
+            size_t toklen = strlen(tok);
             if (tok[0] == 'R') {
                arg.kind = JIT_VALUE_REG;
                arg.reg  = atoi(tok + 1);
@@ -1253,6 +1262,11 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                arg.reg  = atoi(tok + 2);
                arg.disp = 0;
                f->nregs = MAX(arg.reg + 1, f->nregs);
+            }
+            else if (tok[0] == '<' && tok[toklen - 1] == '>') {
+               tok[toklen - 1] = '\0';
+               arg.kind = JIT_VALUE_HANDLE;
+               arg.handle = jit_lazy_compile(j, ident_new(tok + 1));
             }
             else if (tok[0] == '\n')
                fatal_trace("got newline, expecting argument");

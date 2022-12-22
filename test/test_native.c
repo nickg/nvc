@@ -34,6 +34,7 @@ static jit_handle_t assemble(jit_t *j, const char *text, const char *name,
       switch (*ss) {
       case 'i': spec |= FFI_INT32; break;
       case 'I': spec |= FFI_INT64; break;
+      case 'p': spec |= FFI_POINTER; break;
       default:
          fatal_trace("invalid character '%c' in spec", *ss);
       }
@@ -337,6 +338,63 @@ START_TEST(test_rem)
 }
 END_TEST
 
+static void test_call_diag_fn(diag_t *d)
+{
+   ck_assert_str_eq(diag_get_text(d), "invalid integer value \"foo\"");
+   ck_assert_int_eq(diag_traces(d), 2);
+   ck_assert_str_eq(diag_get_trace(d, 0), "do_str2int");
+   ck_assert_str_eq(diag_get_trace(d, 1), "do_atest");
+}
+
+START_TEST(test_call)
+{
+   jit_t *j = get_native_jit();
+
+   const char *do_add =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    ADD     R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   const char *do_double =
+      "    RECV    R0, #0          \n"
+      "    SEND    #1, R0          \n"
+      "    CALL    <do_add>        \n"
+      "    RET                     \n";
+
+   assemble(j, do_add, "do_add", "II");
+   jit_handle_t h_double = assemble(j, do_double, "do_double", "II");
+
+   ck_assert_int_eq(jit_call(j, h_double, 4).integer, 8);
+   ck_assert_int_eq(jit_call(j, h_double, 2).integer, 4);
+   ck_assert_int_eq(jit_call(j, h_double, 5).integer, 10);
+
+   const char *do_str2int =
+      "    SEND    #2, #0          \n"
+      "    $EXIT   #25             \n"
+      "    RET                     \n";
+
+   jit_handle_t h_str2int = assemble(j, do_str2int, "do_str2int", "pI");
+   ck_assert_int_eq(jit_call(j, h_str2int, "4", 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h_str2int, "5", 1).integer, 5);
+   ck_assert_int_eq(jit_call(j, h_str2int, "-123", 4).integer, -123);
+
+   const char *do_atest =
+      "    CALL    <do_str2int>    \n"
+      "    RET                     \n";
+
+   jit_handle_t h_atest = assemble(j, do_atest, "do_atest", "pI");
+   ck_assert_int_eq(jit_call(j, h_atest, "4", 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h_atest, "5", 1).integer, 5);
+
+   diag_set_consumer(test_call_diag_fn);
+
+   jit_scalar_t result;
+   fail_if(jit_try_call(j, h_atest, &result, "foo", 4));
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -346,6 +404,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_mul);
    tcase_add_test(tc, test_div);
    tcase_add_test(tc, test_rem);
+   tcase_add_test(tc, test_call);
    suite_add_tcase(s, tc);
 
    return s;
