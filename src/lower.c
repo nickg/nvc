@@ -1684,19 +1684,17 @@ static void lower_expression_coverage_array(tree_t fcall, unsigned flags,
    assert(array_size > 1);
 
    cover_tag_t *tag;
-   cover_tag_t *first_tag;
 
    unsigned new_flags = flags | COV_FLAG_METADATA;
    for (int i = 0; i < array_size; i++) {
       tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, new_flags);
-      tag->metadata[0] = (lhs_up) ? (lhs_first + i) : (lhs_first - i);
-      tag->metadata[1] = (rhs_up) ? (rhs_first + i) : (rhs_first - i);
-      if (i == 0)
-         first_tag = tag;
+      if (tag != NULL) {
+         tag->metadata[0] = (lhs_up) ? (lhs_first + i) : (lhs_first - i);
+         tag->metadata[1] = (rhs_up) ? (rhs_first + i) : (rhs_first - i);
+         if (i == 0)
+            emit_cover_expr(mask, tag->tag, offset);
+      }
    }
-
-   if (tag != NULL)
-      emit_cover_expr(mask, first_tag->tag, offset);
 }
 
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
