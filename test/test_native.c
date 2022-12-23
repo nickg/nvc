@@ -524,6 +524,38 @@ START_TEST(test_copy)
 }
 END_TEST
 
+START_TEST(test_shift)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    SHL       R2, R0, R1      \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h1 = assemble(j, text1, "shift1", "ii");
+   ck_assert_int_eq(jit_call(j, h1, 1, 1).integer, 2);
+   ck_assert_int_eq(jit_call(j, h1, 2, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h1, 4, 5).integer, 128);
+
+   const char *text2 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    ASR       R2, R0, R1      \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h2 = assemble(j, text2, "shift2", "ii");
+   ck_assert_int_eq(jit_call(j, h2, 8, 1).integer, 4);
+   ck_assert_int_eq(jit_call(j, h2, 128, 5).integer, 4);
+   ck_assert_int_eq(jit_call(j, h2, 4, 5).integer, 0);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -537,6 +569,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_stack);
    tcase_add_test(tc, test_bzero);
    tcase_add_test(tc, test_copy);
+   tcase_add_test(tc, test_shift);
    suite_add_tcase(s, tc);
 
    return s;

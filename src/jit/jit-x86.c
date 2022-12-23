@@ -137,6 +137,8 @@ typedef enum {
 #define MUL(src, size) asm_mul(blob, (src), (size))
 #define IMUL(dst, src, size) asm_imul(blob, (dst), (src), (size))
 #define IDIV(src, size) asm_idiv(blob, (src), (size))
+#define SHL(src, size) asm_shl(blob, (src), (size))
+#define SAR(src, size) asm_sar(blob, (src), (size))
 #define XOR(dst, src, size) asm_xor(blob, (dst), (src), (size))
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
 #define MOVSX(dst, src, dsize, ssize) \
@@ -192,8 +194,10 @@ static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
    assert(COMBINE(dst, src) == REG_MEM);
    asm_rex(blob, __QWORD, src.reg, dst.reg, 0);
-   assert(is_imm8(src.addr.off));
-   __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+   if (is_imm8(src.addr.off))
+      __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+   else
+      __(0x8d, __MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
 }
 
 static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
@@ -208,38 +212,31 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       break;
 
    case MEM_REG:
-      assert(is_imm8(dst.addr.off));
       asm_rex(blob, size, src.addr.reg, dst.reg, 0);
       switch (size) {
       case __QWORD:
-      case __DWORD:
-         __(0x89, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
-         break;
-      case __WORD:
-         __(0x66, 0x89, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
-         break;
-      case __BYTE:
-         __(0x88, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
-         break;
-      default:
-         fatal_trace("unhandled size %d in asm_mov", size);
+      case __DWORD: __(0x89); break;
+      case __WORD: __(0x66, 0x89); break;
+      case __BYTE: __(0x88); break;
       }
+      if (is_imm8(dst.addr.off))
+         __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
+      else
+         __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
       break;
 
    case REG_MEM:
-      assert(is_imm8(src.addr.off));
       asm_rex(blob, size, dst.reg, src.addr.reg, 0);
       switch (size) {
       case __QWORD:
-      case __DWORD:
-         __(0x8b, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-         break;
-      case __BYTE:
-         __(0x8a, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-         break;
-      default:
-         fatal_trace("unhandled size %d in asm_mov", size);
+      case __DWORD: __(0x8b); break;
+      case __WORD: __(0x66, 0x8b); break;
+      case __BYTE: __(0x8a); break;
       }
+      if (is_imm8(src.addr.off))
+         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+      else
+         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
       break;
 
    case REG_IMM:
@@ -396,6 +393,20 @@ static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
    default:
       fatal_trace("unhandled size %d in asm_idiv", size);
    }
+}
+
+static void asm_shl(code_blob_t *blob, x86_operand_t src, x86_size_t size)
+{
+   assert(src.kind == X86_REG);
+   asm_rex(blob, size, src.reg, 0, 0);
+   __(0xd3, __MODRM(3, 7, src.reg));
+}
+
+static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_size_t size)
+{
+   assert(src.kind == X86_REG);
+   asm_rex(blob, size, src.reg, 0, 0);
+   __(0xd3, __MODRM(3, 4, src.reg));
 }
 
 static void asm_test(code_blob_t *blob, x86_operand_t src1,
@@ -798,6 +809,26 @@ static void jit_x86_call(code_blob_t *blob, jit_x86_state_t *state,
    CALL(PTR(state->stubs[CALL_STUB]));
 }
 
+static void jit_x86_shl(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   SAR(__EAX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
+static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   SHL(__EAX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
                                jit_ir_t *ir)
 {
@@ -915,6 +946,12 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case J_CALL:
       jit_x86_call(blob, state, ir);
       break;
+   case J_SHL:
+      jit_x86_shl(blob, ir);
+      break;
+   case J_ASR:
+      jit_x86_asr(blob, ir);
+      break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);
       break;
@@ -931,7 +968,7 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       jit_x86_macro_copy(blob, ir);
       break;
    default:
-      jit_dump_with_mark(blob->func, blob->func->irbuf - ir, false);
+      jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
       fatal_trace("unhandled opcode %s in x86 backend", jit_op_name(ir->op));
    }
 }

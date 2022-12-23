@@ -1111,6 +1111,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "STORE",   J_STORE,      0, 2 },
       { "LOAD",    J_LOAD,       1, 1 },
       { "ULOAD",   J_ULOAD,      1, 1 },
+      { "SHL",     J_SHL,        1, 2 },
+      { "ASR",     J_ASR,        1, 2 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },
