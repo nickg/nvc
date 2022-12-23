@@ -636,7 +636,7 @@ static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_ret(code_blob_t *blob, jit_ir_t *ir)
 {
-   POP(__EBX);
+   MOV(__EBX, ADDR(__EBP, -8), __QWORD);
    LEAVE();
    RET();
 }
