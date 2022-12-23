@@ -462,6 +462,68 @@ START_TEST(test_stack)
 }
 END_TEST
 
+START_TEST(test_bzero)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    $BZERO    R1, [R0]        \n"
+      "    RET                       \n";
+
+   uint8_t mem[16];
+   memset(mem, 'x', sizeof(mem));
+
+   jit_handle_t h1 = assemble(j, text1, "bzero1", "pI");
+   jit_call(j, h1, mem, sizeof(mem));
+   for (int i = 0; i < sizeof(mem); i++)
+      ck_assert_int_eq(mem[i], '\0');
+
+   memset(mem, 'x', sizeof(mem));
+   jit_call(j, h1, mem, 4);
+   for (int i = 0; i < 4; i++)
+      ck_assert_int_eq(mem[i], '\0');
+   for (int i = 4; i < sizeof(mem); i++)
+      ck_assert_int_eq(mem[i], 'x');
+
+   memset(mem, 'x', sizeof(mem));
+   jit_call(j, h1, mem, sizeof(mem));
+   for (int i = 0; i < sizeof(mem); i++)
+      ck_assert_int_eq(mem[i], '\0');
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_copy)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    RECV      R2, #2          \n"
+      "    $COPY     R2, [R0], [R1]  \n"
+      "    RET                       \n";
+
+   char mem[16];
+   memset(mem, 'x', sizeof(mem));
+
+   jit_handle_t h1 = assemble(j, text1, "copy1", "ppI");
+   jit_call(j, h1, mem, "hello", sizeof("hello"));
+   ck_assert_str_eq(mem, "hello");
+
+   jit_call(j, h1, mem, "world", sizeof("world"));
+   ck_assert_str_eq(mem, "world");
+
+   jit_call(j, h1, mem, "123456789", sizeof("123456789"));
+   ck_assert_str_eq(mem, "123456789");
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -473,6 +535,8 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_rem);
    tcase_add_test(tc, test_call);
    tcase_add_test(tc, test_stack);
+   tcase_add_test(tc, test_bzero);
+   tcase_add_test(tc, test_copy);
    suite_add_tcase(s, tc);
 
    return s;

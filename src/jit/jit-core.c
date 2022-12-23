@@ -1115,6 +1115,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },
       { "$SALLOC", MACRO_SALLOC, 1, 2 },
+      { "$BZERO",  MACRO_BZERO,  1, 1 },
    };
 
    static const struct {

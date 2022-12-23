@@ -491,6 +491,11 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
    case JIT_VALUE_TREE:
       MOV(dst, IMM((intptr_t)src.tree), __QWORD);
       break;
+   case JIT_ADDR_REG:
+      MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
+      if (src.disp != 0)
+         LEA(dst, ADDR(dst, src.disp));
+      break;
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
    }
@@ -824,7 +829,24 @@ static void jit_x86_macro_lalloc(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+
+   XOR(__EAX, __EAX, __DWORD);
+   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+   __(0xf3, 0x48, 0xaa);   // REP STOS
+}
+
+static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir)
+{
+   PUSH(__ESI);
+
+   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
+
+   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+   __(0xf3, 0x48, 0xa4);   // REP MOVS
+
+   POP(__ESI);
 }
 
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
@@ -905,6 +927,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case MACRO_BZERO:
       jit_x86_macro_bzero(blob, ir);
       break;
+   case MACRO_COPY:
+      jit_x86_macro_copy(blob, ir);
+      break;
    default:
       jit_dump_with_mark(blob->func, blob->func->irbuf - ir, false);
       fatal_trace("unhandled opcode %s in x86 backend", jit_op_name(ir->op));
@@ -941,7 +966,7 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    // Frame layout
    //
    //       |-------------------|
-   //    -8 | Caller's PC       |    <--- RBP
+   //    +8 | Caller's PC       |    <--- RBP
    //       |-------------------|
    //     0 | Saved RBP         |    <--- RBP
    //       |-------------------|
