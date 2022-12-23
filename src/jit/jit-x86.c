@@ -42,6 +42,9 @@ typedef struct {
 // Conservative guess at the number of bytes emitted per IR
 #define BYTES_PER_IR 8
 
+// Size of fixed part of call frame
+#define FRAME_FIXED_SIZE 40
+
 ////////////////////////////////////////////////////////////////////////////////
 // X86 assembler
 
@@ -138,6 +141,8 @@ typedef enum {
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
 #define MOVSX(dst, src, dsize, ssize) \
    asm_movsx(blob, (dst), (src), (dsize), (ssize))
+#define MOVZX(dst, src, dsize, ssize) \
+   asm_movzx(blob, (dst), (src), (dsize), (ssize))
 #define LEA(dst, addr) asm_lea(blob, (dst), (addr))
 #define SETO(dst) asm_setcc(blob, (dst), X86_CMP_O)
 #define SETC(dst) asm_setcc(blob, (dst), X86_CMP_C)
@@ -187,6 +192,7 @@ static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
    assert(COMBINE(dst, src) == REG_MEM);
    asm_rex(blob, __QWORD, src.reg, dst.reg, 0);
+   assert(is_imm8(src.addr.off));
    __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
 }
 
@@ -202,11 +208,15 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       break;
 
    case MEM_REG:
+      assert(is_imm8(dst.addr.off));
       asm_rex(blob, size, src.addr.reg, dst.reg, 0);
       switch (size) {
       case __QWORD:
       case __DWORD:
          __(0x89, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
+         break;
+      case __WORD:
+         __(0x66, 0x89, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
          break;
       case __BYTE:
          __(0x88, __MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
@@ -217,8 +227,19 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       break;
 
    case REG_MEM:
+      assert(is_imm8(src.addr.off));
       asm_rex(blob, size, dst.reg, src.addr.reg, 0);
-      __(0x8b, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+      switch (size) {
+      case __QWORD:
+      case __DWORD:
+         __(0x8b, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+         break;
+      case __BYTE:
+         __(0x8a, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+         break;
+      default:
+         fatal_trace("unhandled size %d in asm_mov", size);
+      }
       break;
 
    case REG_IMM:
@@ -243,13 +264,50 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 static void asm_movsx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                       x86_size_t dsize, x86_size_t ssize)
 {
-   assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, dsize, src.reg, dst.reg, 0);
-   switch (ssize) {
-   case __BYTE: __(0x0f, 0xbe, __MODRM(3, src.reg, dst.reg)); break;
+   switch (COMBINE(dst, src)) {
+   case REG_REG:
+      asm_rex(blob, dsize, src.reg, dst.reg, 0);
+      switch (ssize) {
+      case __BYTE: __(0x0f, 0xbe, __MODRM(3, src.reg, dst.reg)); break;
+      default:
+         fatal_trace("unhandled source size %d in asm_movsx", ssize);
+      }
+      break;
+
+   case REG_MEM:
+      asm_rex(blob, dsize, src.reg, dst.reg, 0);
+      switch (ssize) {
+      case __DWORD:
+         __(0x63, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+         break;
+      case __BYTE:
+         __(0x0f, 0xbe, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+         break;
+      default:
+         fatal_trace("unhandled source size %d in asm_movsx", ssize);
+      }
+      break;
+
    default:
-      fatal_trace("unhandled source size %d in asm_movsx", ssize);
+      fatal_trace("unhandled operand combination in asm_mov");
    }
+}
+
+static void asm_movzx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                      x86_size_t dsize, x86_size_t ssize)
+{
+   assert(COMBINE(dst, src) == REG_MEM);
+   asm_rex(blob, ssize, dst.reg, src.addr.reg, 0);
+   switch (ssize) {
+   case __QWORD:
+   case __DWORD: __(0x8b); break;
+   case __WORD: __(0x0f, 0xb7); break;
+   case __BYTE: __(0x0f, 0xb6); break;
+   }
+   if (is_imm8(src.addr.off))
+      __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+   else
+      __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
 }
 
 static void asm_push(code_blob_t *blob, x86_operand_t src)
@@ -425,7 +483,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
 {
    switch (src.kind) {
    case JIT_VALUE_REG:
-      MOV(dst, ADDR(__EBP, -40 - src.reg*sizeof(int64_t)), __QWORD);
+      MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
       break;
    case JIT_VALUE_INT64:
       MOV(dst, IMM(src.int64), __QWORD);
@@ -435,6 +493,18 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
       break;
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
+   }
+}
+
+static x86_operand_t jit_x86_get_addr(code_blob_t *blob, jit_value_t addr,
+                                      x86_operand_t tmp)
+{
+   switch (addr.kind) {
+   case JIT_ADDR_REG:
+      MOV(tmp, ADDR(__EBP, -FRAME_FIXED_SIZE - addr.reg*8), __QWORD);
+      return ADDR(tmp, addr.disp);
+   default:
+      fatal_trace("cannot handle value kind %d in jit_x86_get_addr", addr.kind);
    }
 }
 
@@ -463,7 +533,7 @@ static void jit_x86_patch(code_blob_t *blob, jit_label_t label, uint8_t *wptr,
 
 static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
 {
-   MOV(ADDR(__EBP, -40 - dst*sizeof(int64_t)), src, __QWORD);
+   MOV(ADDR(__EBP, -FRAME_FIXED_SIZE - dst*8), src, __QWORD);
 }
 
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
@@ -643,17 +713,29 @@ static void jit_x86_ret(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
+   const x86_size_t size = jit_x86_size(ir);
+
+   MOVSX(__EAX, addr, __QWORD, size);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_uload(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
+   const x86_size_t size = jit_x86_size(ir);
+
+   MOVZX(__EAX, addr, __QWORD, size);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_store(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg2, __ECX);
+   MOV(addr, __EAX, jit_x86_size(ir));
 }
 
 static void jit_x86_lea(code_blob_t *blob, jit_ir_t *ir)
@@ -725,7 +807,14 @@ static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
 
 static void jit_x86_macro_salloc(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   assert(ir->arg1.int64 + ir->arg2.int64 <= blob->func->framesz);
+
+   const ptrdiff_t locals =
+      FRAME_FIXED_SIZE + blob->func->nregs*8 + blob->func->framesz;
+
+   LEA(__EAX, ADDR(__EBP, -locals + ir->arg1.int64));
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_macro_lalloc(code_blob_t *blob, jit_ir_t *ir)
@@ -871,7 +960,8 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    //       .                   .
    //       |-------------------|
 
-   const size_t framesz = f->framesz + f->nregs * sizeof(int64_t) + 32;
+   const size_t framesz = f->framesz + f->nregs * sizeof(int64_t)
+      + FRAME_FIXED_SIZE - 8 /* RBX pushed above */;
    SUB(__ESP, IMM(framesz), __QWORD);
 
    // Build frame anchor

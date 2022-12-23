@@ -394,6 +394,71 @@ START_TEST(test_call)
 
    jit_scalar_t result;
    fail_if(jit_try_call(j, h_atest, &result, "foo", 4));
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_stack)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV      R0, #0          \n"
+      "    $SALLOC   R1, #0, #4      \n"
+      "    STORE.32  R0, [R1]        \n"
+      "    LOAD.32   R2, [R1]        \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h1 = assemble(j, text1, "stack1", "i");
+   ck_assert_int_eq(jit_call(j, h1, 4).integer, 4);
+   ck_assert_int_eq(jit_call(j, h1, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, h1, INT32_C(-5)).integer, -5);
+
+   const char *text2 =
+      "    RECV      R0, #0          \n"
+      "    $SALLOC   R1, #0, #1      \n"
+      "    STORE.8   R0, [R1]        \n"
+      "    MOV       R2, #0xdeadbeef \n"
+      "    ULOAD.8   R2, [R1]        \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h2 = assemble(j, text2, "stack2", "i");
+   ck_assert_int_eq(jit_call(j, h2, 4).integer, 4);
+   ck_assert_int_eq(jit_call(j, h2, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, h2, 255).integer, 255);
+
+   const char *text3 =
+      "    RECV      R0, #0          \n"
+      "    $SALLOC   R1, #0, #4      \n"
+      "    STORE.32  R0, [R1]        \n"
+      "    MOV       R2, #-1         \n"
+      "    ULOAD.32  R2, [R1]        \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h3 = assemble(j, text3, "stack3", "i");
+   ck_assert_int_eq(jit_call(j, h3, 4).integer, 4);
+   ck_assert_int_eq(jit_call(j, h3, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, h3, 255).integer, 255);
+
+   const char *text4 =
+      "    RECV      R0, #0          \n"
+      "    $SALLOC   R1, #0, #2      \n"
+      "    STORE.16  R0, [R1]        \n"
+      "    MOV       R2, #0xdeadbeef \n"
+      "    ULOAD.16  R2, [R1]        \n"
+      "    SEND      #0, R2          \n"
+      "    RET                       \n";
+
+   jit_handle_t h4 = assemble(j, text4, "stack4", "i");
+   ck_assert_int_eq(jit_call(j, h4, 4).integer, 4);
+   ck_assert_int_eq(jit_call(j, h4, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, h4, 1000).integer, 1000);
+
+   jit_free(j);
 }
 END_TEST
 
@@ -407,6 +472,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_div);
    tcase_add_test(tc, test_rem);
    tcase_add_test(tc, test_call);
+   tcase_add_test(tc, test_stack);
    suite_add_tcase(s, tc);
 
    return s;

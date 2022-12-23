@@ -1091,26 +1091,30 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       int         nresult;
       int         nargs;
    } optab[] = {
-      { "MOV",   J_MOV,      1, 1 },
-      { "ADD",   J_ADD,      1, 2 },
-      { "SUB",   J_SUB,      1, 2 },
-      { "MUL",   J_MUL,      1, 2 },
-      { "DIV",   J_DIV,      1, 2 },
-      { "REM",   J_REM,      1, 2 },
-      { "RECV",  J_RECV,     1, 1 },
-      { "SEND",  J_SEND,     0, 2 },
-      { "RET",   J_RET,      0, 0 },
-      { "CMP",   J_CMP,      0, 2 },
-      { "JUMP",  J_JUMP,     0, 1 },
-      { "CSEL",  J_CSEL,     1, 2 },
-      { "CSET",  J_CSET,     1, 0 },
-      { "NOP",   J_NOP,      0, 0 },
-      { "CLAMP", J_CLAMP,    1, 1 },
-      { "CNEG",  J_CNEG,     1, 1 },
-      { "CALL",  J_CALL,     0, 1 },
-      { "$EXIT", MACRO_EXIT, 0, 1 },
-      { "$COPY", MACRO_COPY, 1, 2 },
-      { "$CASE", MACRO_CASE, 1, 2 },
+      { "MOV",     J_MOV,        1, 1 },
+      { "ADD",     J_ADD,        1, 2 },
+      { "SUB",     J_SUB,        1, 2 },
+      { "MUL",     J_MUL,        1, 2 },
+      { "DIV",     J_DIV,        1, 2 },
+      { "REM",     J_REM,        1, 2 },
+      { "RECV",    J_RECV,       1, 1 },
+      { "SEND",    J_SEND,       0, 2 },
+      { "RET",     J_RET,        0, 0 },
+      { "CMP",     J_CMP,        0, 2 },
+      { "JUMP",    J_JUMP,       0, 1 },
+      { "CSEL",    J_CSEL,       1, 2 },
+      { "CSET",    J_CSET,       1, 0 },
+      { "NOP",     J_NOP,        0, 0 },
+      { "CLAMP",   J_CLAMP,      1, 1 },
+      { "CNEG",    J_CNEG,       1, 1 },
+      { "CALL",    J_CALL,       0, 1 },
+      { "STORE",   J_STORE,      0, 2 },
+      { "LOAD",    J_LOAD,       1, 1 },
+      { "ULOAD",   J_ULOAD,      1, 1 },
+      { "$EXIT",   MACRO_EXIT,   0, 1 },
+      { "$COPY",   MACRO_COPY,   1, 2 },
+      { "$CASE",   MACRO_CASE,   1, 2 },
+      { "$SALLOC", MACRO_SALLOC, 1, 2 },
    };
 
    static const struct {
@@ -1285,6 +1289,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       case NEWLINE:
          if (*tok != '\n')
             fatal_trace("expected newline, got '%s'", tok);
+         if (ir->op == MACRO_SALLOC)
+            f->framesz += ALIGN_UP(ir->arg2.int64, 8);
          state = LABEL;
          if (*++tok != '\0')
             goto again;
