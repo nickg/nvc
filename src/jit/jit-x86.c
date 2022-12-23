@@ -425,7 +425,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
 {
    switch (src.kind) {
    case JIT_VALUE_REG:
-      MOV(dst, ADDR(__EBP, -(src.reg + 4) * sizeof(int64_t)), __QWORD);
+      MOV(dst, ADDR(__EBP, -40 - src.reg*sizeof(int64_t)), __QWORD);
       break;
    case JIT_VALUE_INT64:
       MOV(dst, IMM(src.int64), __QWORD);
@@ -463,7 +463,7 @@ static void jit_x86_patch(code_blob_t *blob, jit_label_t label, uint8_t *wptr,
 
 static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
 {
-   MOV(ADDR(__EBP, -(dst + 4) * sizeof(int64_t)), src, __QWORD);
+   MOV(ADDR(__EBP, -40 - dst*sizeof(int64_t)), src, __QWORD);
 }
 
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
@@ -852,15 +852,19 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    // Frame layout
    //
    //       |-------------------|
-   //     0 | Caller's PC       |    <--- RBP
+   //    -8 | Caller's PC       |    <--- RBP
    //       |-------------------|
-   //    -4 | Padding           |
+   //     0 | Saved RBP         |    <--- RBP
    //       |-------------------|
-   //    -8 | IR position       |
-   //   -16 | Function pointer  |
-   //   -24 | Caller's anchor   |    <--- Frame anchor
+   //    -8 | Saved RBX         |
    //       |-------------------|
-   //   -32 | Local registers   |
+   //   -12 | Padding           |
+   //       |-------------------|
+   //   -16 | IR position       |
+   //   -24 | Function pointer  |
+   //   -32 | Caller's anchor   |    <--- Frame anchor
+   //       |-------------------|
+   //   -40 | Local registers   |
    //       .                   .
    //       |-------------------|
    //       | Local variables   |
@@ -871,11 +875,11 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    SUB(__ESP, IMM(framesz), __QWORD);
 
    // Build frame anchor
-   MOV(ADDR(__EBP, -24), ANCHOR_REG, __QWORD);
-   MOV(ADDR(__EBP, -16), FPTR_REG, __QWORD);
-   MOV(ADDR(__EBP, -8), FLAGS_REG, __DWORD);
+   MOV(ADDR(__EBP, -32), ANCHOR_REG, __QWORD);
+   MOV(ADDR(__EBP, -24), FPTR_REG, __QWORD);
+   MOV(ADDR(__EBP, -16), FLAGS_REG, __DWORD);
 
-   LEA(ANCHOR_REG, ADDR(__EBP, -24));
+   LEA(ANCHOR_REG, ADDR(__EBP, -32));
 
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
