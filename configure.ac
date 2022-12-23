@@ -214,7 +214,7 @@ AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
 case $host_cpu in
-  x86_64)
+  x86_64|amd64)
     AC_DEFINE_UNQUOTED([ARCH_X86_64], [1], [Host is x86_64])
     ;;
   aarch64)
@@ -222,7 +222,8 @@ case $host_cpu in
     ;;
 esac
 
-AM_CONDITIONAL([ARCH_X86_64], [test x$host_cpu = xx86_64])
+AM_CONDITIONAL([ARCH_X86_64],
+               [test x$host_cpu = xx86_64 -o x$host_cpu = xamd64])
 AM_CONDITIONAL([ARCH_ARM64], [test x$host_cpu = xaarch64])
 
 # Prefer calling the linker directy to using CC

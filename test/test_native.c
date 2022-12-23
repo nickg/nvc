@@ -335,6 +335,8 @@ START_TEST(test_rem)
    ck_assert_int_eq(jit_call(j, h2, 100, 6).integer, 4);
    ck_assert_int_eq(jit_call(j, h2, INT32_C(-50), 6).integer, -2);
    ck_assert_int_eq(jit_call(j, h2, 6, INT32_C(-50)).integer, 6);
+
+   jit_free(j);
 }
 END_TEST
 

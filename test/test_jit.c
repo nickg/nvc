@@ -78,8 +78,9 @@ static void check_binary(jit_func_t *f, int nth, jit_op_t expect,
 {
    jit_ir_t *ir = &(f->irbuf[nth]);
    if (ir->op == expect && ir->arg1.kind == arg1.kind
-       && ir->arg1.int64 == arg1.int64 && ir->arg2.kind == arg2.kind
-       && ir->arg2.int64 == arg2.int64)
+       && extend_value(ir->arg1) == extend_value(arg1)
+       && ir->arg2.kind == arg2.kind
+       && extend_value(ir->arg2) == extend_value(arg2))
       return;
 
    jit_dump_with_mark(f, nth, false);
@@ -92,13 +93,13 @@ static void check_binary(jit_func_t *f, int nth, jit_op_t expect,
                    ir->arg1.kind);
    else if (ir->arg1.int64 != arg1.int64)
       ck_abort_msg("expected arg1 value %"PRIi64" but have %"PRIi64,
-                   arg1.int64, ir->arg1.int64);
+                   extend_value(arg1), extend_value(ir->arg1));
    else if (ir->arg2.kind != arg2.kind)
       ck_abort_msg("expected arg2 kind %d but have %d", arg2.kind,
                    ir->arg2.kind);
    else
       ck_abort_msg("expected arg2 value %"PRIi64" but have %"PRIi64,
-                   arg2.int64, ir->arg2.int64);
+                   extend_value(arg2), extend_value(ir->arg2));
 }
 
 START_TEST(test_add1)

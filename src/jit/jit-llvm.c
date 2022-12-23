@@ -1124,7 +1124,7 @@ static void cgen_pointer_result(llvm_obj_t *obj, cgen_block_t *cgb,
 
    if (mask_test(&cgb->func->ptr_mask, ir->result)) {
       DEBUG_ONLY(LLVMSetValueName(value, cgen_reg_name(ir->result)));
-      cgb->outregs[ir->result] = value;
+      cgb->outregs[ir->result] = PTR(value);
    }
    else
       cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, value,
@@ -2750,6 +2750,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    LLVMDisposeTargetData(obj.data_ref);
    LLVMDisposeBuilder(obj.builder);
+   LLVMDisposeDIBuilder(obj.debuginfo);
    free(func.name);
 }
 

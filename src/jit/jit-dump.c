@@ -265,6 +265,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
    }
 
    printf("------------------------------------------------------------\n\n");
+   fflush(stdout);
 }
 
 void jit_dump(jit_func_t *f)
