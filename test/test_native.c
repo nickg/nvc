@@ -556,6 +556,32 @@ START_TEST(test_shift)
 }
 END_TEST
 
+START_TEST(test_imm)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    MOV    R0, #-1         \n"
+      "    SEND   #0, R0          \n"
+      "    RET                    \n";
+
+   jit_handle_t h1 = assemble(j, text1, "imm1", "");
+   ck_assert_int_eq(jit_call(j, h1).integer, -1);
+   ck_assert_int_eq(jit_call(j, h1).integer, -1);
+
+   const char *text2 =
+      "    MOV    R0, #0x11adbeefcafebabe  \n"
+      "    SEND   #0, R0                   \n"
+      "    RET                             \n";
+
+   jit_handle_t h2 = assemble(j, text2, "imm2", "");
+   ck_assert_int_eq(jit_call(j, h2).integer, INT64_C(0x11adbeefcafebabe));
+   ck_assert_int_eq(jit_call(j, h2).integer, INT64_C(0x11adbeefcafebabe));
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -570,6 +596,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_bzero);
    tcase_add_test(tc, test_copy);
    tcase_add_test(tc, test_shift);
+   tcase_add_test(tc, test_imm);
    suite_add_tcase(s, tc);
 
    return s;

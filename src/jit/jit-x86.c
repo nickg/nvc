@@ -242,14 +242,27 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    case REG_IMM:
       if (src.imm == 0)
          XOR(dst, dst, size);
-      else if (is_imm32(src.imm)) {
-         asm_rex(blob, __DWORD, 0, dst.reg, 0);
-         __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
-      }
       else {
-         assert(size == __QWORD);
-         asm_rex(blob, __QWORD, 0, dst.reg, 0);
-         __(0xb8 + (dst.reg & 7), __IMM64(src.imm));
+         printf("mov const %lx\n", src.imm);
+         switch (size) {
+         case __QWORD:
+            if (is_imm32(src.imm) && src.imm > 0) {
+               asm_rex(blob, __DWORD, 0, dst.reg, 0);
+               __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+            }
+            else {
+               asm_rex(blob, __QWORD, 0, dst.reg, 0);
+               __(0xb8 + (dst.reg & 7), __IMM64(src.imm));
+            }
+            break;
+         case __DWORD:
+            assert(is_imm32(src.imm));
+            asm_rex(blob, __DWORD, 0, dst.reg, 0);
+            __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+            break;
+         default:
+            fatal_trace("unhandled immediate size %d in asm_mov", size);
+         }
       }
       break;
 
