@@ -137,6 +137,7 @@ typedef enum {
 #define MUL(src, size) asm_mul(blob, (src), (size))
 #define IMUL(dst, src, size) asm_imul(blob, (dst), (src), (size))
 #define IDIV(src, size) asm_idiv(blob, (src), (size))
+#define AND(dst, src, size) asm_and(blob, (dst), (src), (size))
 #define SHL(src, size) asm_shl(blob, (src), (size))
 #define SAR(src, size) asm_sar(blob, (src), (size))
 #define XOR(dst, src, size) asm_xor(blob, (dst), (src), (size))
@@ -418,6 +419,24 @@ static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
    case __DWORD:
    case __QWORD:
       __(0xf7, __MODRM(3, 7, src.reg));
+      break;
+   default:
+      fatal_trace("unhandled size %d in asm_idiv", size);
+   }
+}
+
+static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                    x86_size_t size)
+{
+   assert(COMBINE(dst, src) == REG_IMM);
+   asm_rex(blob, size, src.reg, dst.reg, 0);
+   switch (size) {
+   case __QWORD:
+   case __DWORD:
+      if (is_imm8(src.imm))
+         __(0x83, __MODRM(3, 4, dst.reg), src.imm);
+      else
+         __(0x81, __MODRM(3, 4, dst.reg), __IMM32(src.imm));
       break;
    default:
       fatal_trace("unhandled size %d in asm_idiv", size);
@@ -933,6 +952,15 @@ static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir)
    POP(__ESI);
 }
 
+static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
+   void **ptr = jit_get_privdata_ptr(blob->func->jit, f);
+
+   MOV(__EAX, IMM((intptr_t)ptr), __QWORD);
+   MOV(__EAX, ADDR(__EAX, 0), __QWORD);
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1020,6 +1048,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case MACRO_COPY:
       jit_x86_macro_copy(blob, ir);
       break;
+   case MACRO_GETPRIV:
+      jit_x86_macro_getpriv(blob, ir);
+      break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
       fatal_trace("unhandled opcode %s in x86 backend", jit_op_name(ir->op));
@@ -1075,8 +1106,9 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    //       .                   .
    //       |-------------------|
 
-   const size_t framesz = f->framesz + f->nregs * sizeof(int64_t)
-      + FRAME_FIXED_SIZE - 8 /* RBX pushed above */;
+   const size_t framebytes =
+      f->framesz + f->nregs * sizeof(int64_t) + FRAME_FIXED_SIZE;
+   const size_t framesz = ALIGN_UP(framebytes, 16) - 8 /* RBX pushed above */;
    SUB(__ESP, IMM(framesz), __QWORD);
 
    // Build frame anchor
@@ -1100,15 +1132,29 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
    ident_t name = ident_new("exit stub");
    code_blob_t *blob = code_blob_new(state->code, name, NULL);
 
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
    jit_x86_push_call_clobbered(blob);
 
+#ifdef __MINGW32__
+   MOV(__ECX, __EAX, __DWORD);   // Exit number in EAX, clobbers FPTR
+   MOV(__EDX, ANCHOR_REG, __QWORD);
+   MOV(__R8, ARGS_REG, __QWORD);
+   MOV(__R9, TLAB_REG, __QWORD);
+#else
    MOV(__EDI, __EAX, __DWORD);   // Exit number in EAX, clobbers FPTR
+   MOV(__ESI, ANCHOR_REG, __QWORD);
+   MOV(__EDX, ARGS_REG, __QWORD);
+   MOV(__ECX, TLAB_REG, __QWORD);
+#endif
 
    MOV(__EAX, PTR(__nvc_do_exit), __QWORD);
    CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);
 
+   LEAVE();
    RET();
 
    code_blob_finalise(blob, &(state->stubs[EXIT_STUB]));
@@ -1119,7 +1165,22 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
    ident_t name = ident_new("call stub");
    code_blob_t *blob = code_blob_new(state->code, name, NULL);
 
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
    jit_x86_push_call_clobbered(blob);
+
+#ifdef __MINGW32__
+   MOV(__ECX, FPTR_REG, __QWORD);
+   MOV(__EDX, ANCHOR_REG, __QWORD);
+   MOV(__R8, ARGS_REG, __QWORD);
+   MOV(__R9, TLAB_REG, __QWORD);
+#else
+   MOV(__EDI, FPTR_REG, __QWORD);
+   MOV(__ESI, ANCHOR_REG, __QWORD);
+   MOV(__EDX, ARGS_REG, __QWORD);
+   MOV(__ECX, TLAB_REG, __QWORD);
+#endif
 
    MOV(FPTR_REG, __EAX, __QWORD);
    MOV(__EAX, ADDR(__EAX, offsetof(jit_func_t, entry)), __QWORD);
@@ -1127,6 +1188,7 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
 
    jit_x86_pop_call_clobbered(blob);
 
+   LEAVE();
    RET();
 
    code_blob_finalise(blob, &(state->stubs[CALL_STUB]));
