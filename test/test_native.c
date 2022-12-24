@@ -622,6 +622,40 @@ START_TEST(test_csel)
 }
 END_TEST
 
+START_TEST(test_lalloc)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    SHL      R4, R0, #2      \n"
+      "    $LALLOC  R1, R4          \n"
+      "    MOV      R2, #0          \n"
+      "    CMP.GE   R2, R0          \n"
+      "    JUMP.T   L2              \n"
+      "L1: SHL      R5, R2, #2      \n"
+      "    ADD      R3, R1, R5      \n"
+      "    STORE.32 R2, [R3]        \n"
+      "    ADD      R2, R2, #1      \n"
+      "    CMP.LT   R2, R0          \n"
+      "    JUMP.T   L1              \n"
+      "L2: SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "lalloc1", "i");
+
+   static const int trials[] = { 5, 5, 1, 10, 100 };
+   for (int i = 0; i < ARRAY_LEN(trials); i++) {
+      int *p = jit_call(j, h1, trials[i]).pointer;
+      ck_assert_ptr_nonnull(p);
+      for (int j = 0; j < trials[i]; j++)
+         ck_assert_int_eq(p[j], j);
+   }
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -639,6 +673,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_imm);
    tcase_add_test(tc, test_lea);
    tcase_add_test(tc, test_csel);
+   tcase_add_test(tc, test_lalloc);
    suite_add_tcase(s, tc);
 
    return s;

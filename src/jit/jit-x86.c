@@ -29,6 +29,7 @@
 typedef enum {
    EXIT_STUB,
    CALL_STUB,
+   ALLOC_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -439,7 +440,7 @@ static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
          __(0x81, __MODRM(3, 4, dst.reg), __IMM32(src.imm));
       break;
    default:
-      fatal_trace("unhandled size %d in asm_idiv", size);
+      fatal_trace("unhandled size %d in asm_and", size);
    }
 }
 
@@ -447,14 +448,14 @@ static void asm_shl(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
    assert(src.kind == X86_REG);
    asm_rex(blob, size, src.reg, 0, 0);
-   __(0xd3, __MODRM(3, 7, src.reg));
+   __(0xd3, __MODRM(3, 4, src.reg));
 }
 
 static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
    assert(src.kind == X86_REG);
    asm_rex(blob, size, src.reg, 0, 0);
-   __(0xd3, __MODRM(3, 4, src.reg));
+   __(0xd3, __MODRM(3, 7, src.reg));
 }
 
 static void asm_test(code_blob_t *blob, x86_operand_t src1,
@@ -795,9 +796,7 @@ static void jit_x86_ret(code_blob_t *blob, jit_ir_t *ir)
 static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir)
 {
    x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
-   const x86_size_t size = jit_x86_size(ir);
-
-   MOVSX(__EAX, addr, __QWORD, size);
+   MOVSX(__EAX, addr, __QWORD, jit_x86_size(ir));
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -805,9 +804,7 @@ static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir)
 static void jit_x86_uload(code_blob_t *blob, jit_ir_t *ir)
 {
    x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
-   const x86_size_t size = jit_x86_size(ir);
-
-   MOVZX(__EAX, addr, __QWORD, size);
+   MOVZX(__EAX, addr, __QWORD, jit_x86_size(ir));
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -886,7 +883,7 @@ static void jit_x86_shl(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   SAR(__EAX, __QWORD);
+   SHL(__EAX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -896,7 +893,7 @@ static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   SHL(__EAX, __QWORD);
+   SAR(__EAX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -925,9 +922,14 @@ static void jit_x86_macro_salloc(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
-static void jit_x86_macro_lalloc(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_lalloc(code_blob_t *blob, jit_x86_state_t *state,
+                                 jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   CALL(PTR(state->stubs[ALLOC_STUB]));
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir)
@@ -1040,7 +1042,7 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       jit_x86_macro_salloc(blob, ir);
       break;
    case MACRO_LALLOC:
-      jit_x86_macro_lalloc(blob, ir);
+      jit_x86_macro_lalloc(blob, state, ir);
       break;
    case MACRO_BZERO:
       jit_x86_macro_bzero(blob, ir);
@@ -1087,7 +1089,7 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    // Frame layout
    //
    //       |-------------------|
-   //    +8 | Caller's PC       |    <--- RBP
+   //    +8 | Caller's PC       |
    //       |-------------------|
    //     0 | Saved RBP         |    <--- RBP
    //       |-------------------|
@@ -1137,13 +1139,14 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
 
    jit_x86_push_call_clobbered(blob);
 
+   // Exit number in EAX, clobbers FPTR
 #ifdef __MINGW32__
-   MOV(__ECX, __EAX, __DWORD);   // Exit number in EAX, clobbers FPTR
+   MOV(__ECX, __EAX, __DWORD);
    MOV(__EDX, ANCHOR_REG, __QWORD);
    MOV(__R8, ARGS_REG, __QWORD);
    MOV(__R9, TLAB_REG, __QWORD);
 #else
-   MOV(__EDI, __EAX, __DWORD);   // Exit number in EAX, clobbers FPTR
+   MOV(__EDI, __EAX, __DWORD);
    MOV(__ESI, ANCHOR_REG, __QWORD);
    MOV(__EDX, ARGS_REG, __QWORD);
    MOV(__ECX, TLAB_REG, __QWORD);
@@ -1194,6 +1197,36 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[CALL_STUB]));
 }
 
+static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("alloc stub");
+   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
+   jit_x86_push_call_clobbered(blob);
+
+   // Size in EAX, clobbers FPTR
+#ifdef __MINGW32__
+   MOV(__ECX, __EAX, __DWORD);
+   MOV(__EDX, ANCHOR_REG, __QWORD);
+#else
+   MOV(__EDI, __EAX, __DWORD);
+   MOV(__ESI, ANCHOR_REG, __QWORD);
+#endif
+
+   MOV(__EAX, PTR(__nvc_mspace_alloc2), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   LEAVE();
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[ALLOC_STUB]));
+}
+
 static void *jit_x86_init(jit_t *jit)
 {
    jit_x86_state_t *state = xcalloc(sizeof(jit_x86_state_t));
@@ -1202,6 +1235,7 @@ static void *jit_x86_init(jit_t *jit)
 
    jit_x86_gen_exit_stub(state);
    jit_x86_gen_call_stub(state);
+   jit_x86_gen_alloc_stub(state);
 
    return state;
 }
