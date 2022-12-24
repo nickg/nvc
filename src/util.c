@@ -60,6 +60,9 @@
 #include <sys/sysctl.h>
 #include <libproc.h>
 #endif
+#ifdef __FreeBSD__
+#include <sys/sysctl.h>
+#endif
 #ifndef __MINGW32__
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -1710,6 +1713,14 @@ bool get_exe_path(text_buf_t *tb)
    char buf[PATH_MAX];
    if (proc_pidpath(getpid(), buf, sizeof(buf)) > 0) {
       tb_cat(tb, buf);
+      return true;
+   }
+#elif defined __FreeBSD__
+   char buf[PATH_MAX];
+   size_t size = sizeof(buf);
+   const int name[] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
+   if (sysctl(name, ARRAY_LEN(name), buf, &size, NULL, 0) == 0) {
+      tb_catn(tb, buf, size);
       return true;
    }
 #elif defined __MINGW32__
