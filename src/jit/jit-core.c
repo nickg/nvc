@@ -66,6 +66,11 @@ typedef struct {
    jit_func_t *items[0];
 } func_array_t;
 
+typedef struct _aot_dll {
+   jit_dll_t  *dll;
+   jit_pack_t *pack;
+} aot_dll_t;
+
 typedef struct _jit {
    chash_t        *index;
    mspace_t       *mspace;
@@ -77,7 +82,7 @@ typedef struct _jit {
    unsigned        backedge;
    int             exit_status;
    jit_tier_t     *tiers;
-   jit_dll_t      *aotlib;
+   aot_dll_t      *aotlib;
    func_array_t   *funcs;
    unsigned        next_handle;
    nvc_lock_t      lock;
@@ -133,14 +138,17 @@ static void jit_free_func(jit_func_t *f)
    mptr_free(f->jit->mspace, &(f->privdata));
    free(f->irbuf);
    free(f->varoff);
-   free(f->cpool);
+   if (f->owns_cpool) free(f->cpool);
    free(f);
 }
 
 void jit_free(jit_t *j)
 {
-   if (j->aotlib != NULL)
-      ffi_unload_dll(j->aotlib);
+   if (j->aotlib != NULL) {
+      ffi_unload_dll(j->aotlib->dll);
+      jit_pack_free(j->aotlib->pack);
+      free(j->aotlib);
+   }
 
    for (int i = 0; i < j->next_handle; i++)
       jit_free_func(j->funcs->items[i]);
@@ -212,7 +220,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    void *symbol = NULL;
    if (j->aotlib != NULL) {
       LOCAL_TEXT_BUF tb = safe_symbol(name);
-      symbol = ffi_find_symbol(j->aotlib, tb_get(tb));
+      symbol = ffi_find_symbol(j->aotlib->dll, tb_get(tb));
    }
 
    vcode_unit_t vu = vcode_find_unit(name);
@@ -281,6 +289,41 @@ jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
    return f;
 }
 
+void jit_fill_irbuf(jit_func_t *f)
+{
+   switch (load_acquire(&(f->state))) {
+   case JIT_FUNC_READY:
+      if (f->irbuf != NULL)
+         return;   // XXX: temporary
+      if (atomic_cas(&(f->state), JIT_FUNC_READY, JIT_FUNC_COMPILING))
+         break;   // XXX: temporary
+      // Fall-through
+   case JIT_FUNC_PLACEHOLDER:
+      if (atomic_cas(&(f->state), JIT_FUNC_PLACEHOLDER, JIT_FUNC_COMPILING))
+         break;
+      // Fall-through
+   case JIT_FUNC_COMPILING:
+      // Another thread is compiling this function
+      for (int timeout = 10000; load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
+         if (timeout-- == 0)
+            fatal_trace("timeout waiting for %s", istr(f->name));
+         thread_sleep(100);
+      }
+      break;
+   default:
+      fatal_trace("illegal function state for %s", istr(f->name));
+   }
+
+   if (f->symbol && f->irbuf != NULL)
+      return;   // XXX: delete me
+   else if (f->jit->aotlib && jit_pack_fill(f->jit->aotlib->pack, f->jit, f))
+      return;
+   else if (f->unit)
+      jit_irgen(f);
+   else
+      fatal_trace("cannot generate JIT IR for %s", istr(f->name));
+}
+
 jit_handle_t jit_compile(jit_t *j, ident_t name)
 {
    jit_handle_t handle = jit_lazy_compile(j, name);
@@ -288,15 +331,13 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
       return handle;
 
    jit_func_t *f = jit_get_func(j, handle);
-   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
-      jit_irgen(f);
+   jit_fill_irbuf(f);
 
    return handle;
 }
 
 void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
-                  const uint8_t *debug, size_t bufsz, object_t *obj,
-                  ffi_spec_t spec)
+                  const uint8_t *debug, const uint8_t *cpool)
 {
    jit_func_t *f = chash_get(j->index, name);
    if (f != NULL)
@@ -307,71 +348,14 @@ void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
-   f->state     = JIT_FUNC_READY;
-   f->unit      = vcode_find_unit(f->name);
+   f->state     = JIT_FUNC_PLACEHOLDER;
    f->jit       = j;
    f->handle    = j->next_handle++;
-   f->next_tier = j->tiers;
-   f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
+   f->next_tier = NULL;
+   f->hotness   = UINT_MAX;
    f->entry     = fn;
-   f->irbuf     = xcalloc_array(bufsz, sizeof(jit_ir_t));
-   f->nirs      = bufsz;
-   f->object    = obj;
-   f->spec      = spec;
 
-   for (int i = 0; i < bufsz; i++) {
-      jit_ir_t *ir = &(f->irbuf[i]);
-      ir->op        = J_TRAP;
-      ir->size      = JIT_SZ_UNSPEC;
-      ir->result    = JIT_REG_INVALID;
-      ir->arg1.kind = JIT_VALUE_INVALID;
-      ir->arg2.kind = JIT_VALUE_INVALID;
-   }
-
-   char *file LOCAL = NULL;
-   loc_file_ref_t file_ref = FILE_INVALID;
-   int pos = 0, lineno;
-   for (const uint8_t *cmd = debug; *cmd >> 4 != DC_STOP; cmd++) {
-      jit_ir_t *ir = &(f->irbuf[pos]);
-
-      switch (*cmd >> 4) {
-      case DC_TRAP:
-         pos += *cmd & 0xf;
-         break;
-      case DC_LONG_TRAP:
-         pos += *(cmd + 1) | *(cmd + 2) << 8;
-         cmd += 2;
-         break;
-      case DC_TARGET:
-         ir->target = 1;
-         break;
-      case DC_LOCINFO:
-         lineno = *cmd & 0xf;
-         ir->op = J_DEBUG;
-         ir->arg1.kind = JIT_VALUE_LOC;
-         ir->arg1.loc = get_loc(lineno, 0, lineno, 0, file_ref);
-         pos++;
-         break;
-      case DC_LONG_LOCINFO:
-         lineno = *(cmd + 1) | *(cmd + 2) << 8;
-         ir->op = J_DEBUG;
-         ir->arg1.kind = JIT_VALUE_LOC;
-         ir->arg1.loc = get_loc(lineno, 0, lineno, 0, file_ref);
-         pos++;
-         cmd += 2;
-         break;
-      case DC_FILE:
-         {
-            char *p = file = xmalloc(1 << (*cmd & 0xf));
-            do { *p++ = *++cmd; } while (*cmd);
-            file_ref = loc_file_ref(file, NULL);
-         }
-         break;
-      default:
-         fatal_trace("unhandled debug command %x", *cmd);
-      }
-   }
-   assert(pos == bufsz);
+   jit_pack_put(j->aotlib->pack, name, cpool, debug);
 
    jit_install(j, f);
 }
@@ -514,6 +498,8 @@ static void jit_native_trace(diag_t *d)
 static void jit_interp_trace(diag_t *d)
 {
    for (jit_anchor_t *a = jit_thread_local()->anchor; a; a = a->caller) {
+      jit_fill_irbuf(a->func);
+
       // Scan backwards to find the last debug info
       assert(a->irpos < a->func->nirs);
       const loc_t *loc = NULL;
@@ -669,8 +655,8 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
 static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
 {
-   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
-      jit_irgen(f);   // Ensure FFI spec is set
+   if (f->symbol == NULL)   // XXX: should be unconditional
+      jit_fill_irbuf(f);  // Ensure FFI spec is set
 
    const int nargs = ffi_count_args(f->spec);
    assert(nargs <= JIT_MAX_ARGS);
@@ -739,9 +725,8 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 {
    jit_func_t *f = jit_get_func(j, handle);
 
-   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
-      jit_irgen(f);   // Ensure FFI spec is set
-
+   if (f->symbol == NULL)   // XXX: should be unconditional
+      jit_fill_irbuf(f);   // Ensure FFI spec is set
    assert(f->spec != 0);
 
    ffi_type_t atype = (f->spec >> 8) & 0xf;
@@ -785,6 +770,7 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
 
    jit_func_t *f = xcalloc(sizeof(jit_func_t));
+   f->state  = JIT_FUNC_COMPILING;
    f->unit   = unit;
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
@@ -965,9 +951,11 @@ void jit_load_dll(jit_t *j, ident_t name)
    if (j->aotlib != NULL)
       fatal_trace("AOT library alreadt loaded");
 
-   j->aotlib = ffi_load_dll(so_path);
+   j->aotlib = xcalloc(sizeof(aot_dll_t));
+   j->aotlib->pack = jit_pack_new();
+   j->aotlib->dll  = ffi_load_dll(so_path);
 
-   uint32_t *p = ffi_find_symbol(j->aotlib, "__nvc_abi_version");
+   uint32_t *p = ffi_find_symbol(j->aotlib->dll, "__nvc_abi_version");
    if (p == NULL)
       warnf("%s: cannot find symbol __nvc_abi_version", so_path);
    else

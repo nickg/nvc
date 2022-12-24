@@ -9,7 +9,8 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-exits.c \
 	src/jit/jit-optim.c \
 	src/jit/jit-ffi.c \
-	src/jit/jit-code.c
+	src/jit/jit-code.c \
+	src/jit/jit-pack.c
 
 if ARCH_X86_64
 lib_libnvc_a_SOURCES += src/jit/jit-x86.c

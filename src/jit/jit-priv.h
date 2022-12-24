@@ -263,6 +263,7 @@ typedef struct _jit_func {
    unsigned        nregs;
    unsigned        nvars;
    unsigned        cpoolsz;
+   bool            owns_cpool;
    jit_handle_t    handle;
    void           *symbol;
    unsigned        hotness;
@@ -309,16 +310,6 @@ typedef struct {
 
 typedef struct _jit_interp jit_interp_t;
 
-typedef enum {
-   DC_TRAP,
-   DC_LONG_TRAP,
-   DC_STOP,
-   DC_LOCINFO,
-   DC_TARGET,
-   DC_FILE,
-   DC_LONG_LOCINFO,
-} debug_cmd_t;
-
 void jit_irgen(jit_func_t *f);
 void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
@@ -336,16 +327,16 @@ int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
-                  const uint8_t *debug, size_t bufsz, object_t *obj,
-                  ffi_spec_t spec);
-
-bool jit_writes_flags(jit_ir_t *ir);
+                  const uint8_t *debug, const uint8_t *cpool);
+void jit_fill_irbuf(jit_func_t *f);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 int jit_get_edge(jit_edge_list_t *list, int nth);
+
 bool jit_will_abort(jit_ir_t *ir);
+bool jit_writes_flags(jit_ir_t *ir);
 
 void jit_do_lvn(jit_func_t *f);
 
@@ -360,6 +351,11 @@ void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len);
 void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry);
 void code_blob_mark(code_blob_t *blob, jit_label_t label);
 void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn);
+
+bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f);
+const uint8_t *jit_pack_get(jit_pack_t *jp, ident_t name, size_t *size);
+void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
+                  const uint8_t *buf);
 
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab);

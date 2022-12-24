@@ -55,6 +55,7 @@ struct _lib_unit {
    bool          error;
    lib_mtime_t   mtime;
    vcode_unit_t  vcode;
+   jit_pack_t   *jitpack;
    lib_unit_t   *next;
 };
 
@@ -724,6 +725,17 @@ static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
 bool lib_contains(lib_t lib, tree_t unit)
 {
    return hash_get(lib->lookup, unit) != NULL;
+}
+
+void lib_put_jit(lib_t lib, tree_t unit, jit_pack_t *jp)
+{
+   lib_unit_t *where = lib_find_unit(lib, unit);
+
+   if (where->jitpack != NULL)
+      fatal_trace("bytecode already stored for %s", istr(tree_ident(unit)));
+
+   where->jitpack = jp;
+   where->dirty = true;
 }
 
 void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)

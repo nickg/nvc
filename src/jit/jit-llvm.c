@@ -143,6 +143,7 @@ typedef struct _llvm_obj {
    LLVMValueRef          ctor[CTOR_MAX_ORDER];
    LLVMMetadataRef       debugcu;
    shash_t              *string_pool;
+   jit_pack_t           *jitpack;
 } llvm_obj_t;
 
 typedef struct _cgen_block {
@@ -732,9 +733,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             obj->types[LLVM_PTR],
             obj->types[LLVM_PTR],
             obj->types[LLVM_PTR],
-            obj->types[LLVM_INT32],
             obj->types[LLVM_PTR],
-            obj->types[LLVM_INT64],
          };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
@@ -1036,7 +1035,10 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
    case JIT_ADDR_CPOOL:
       assert(value.int64 >= 0 && value.int64 <= cgb->func->source->cpoolsz);
       if (cgb->func->cpool != NULL) {
-         LLVMValueRef indexes[] = { llvm_intptr(obj, value.int64) };
+         LLVMValueRef indexes[] = {
+            llvm_intptr(obj, 0),
+            llvm_intptr(obj, value.int64)
+         };
          return LLVMBuildInBoundsGEP2(obj->builder, cgb->func->cpool_type,
                                       cgb->func->cpool, indexes,
                                       ARRAY_LEN(indexes), "");
@@ -2236,74 +2238,24 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    tb_istr(tb, f->name);
    tb_cat(tb, ".debug");
 
-   int run = 0, lineno = 0;
-   const char *file = NULL;
+   jit_pack_encode(obj->jitpack, f->jit, f->handle);
 
-   SCOPED_A(LLVMValueRef) enc = AINIT;
-   ARESERVE(enc, MIN(f->nirs + 100, 1024));
+   size_t size;
+   const uint8_t *buf = jit_pack_get(obj->jitpack, f->name, &size);
+   assert(buf != NULL);
 
-   for (int i = 0; i < f->nirs; i++) {
-      jit_ir_t *ir = &(f->irbuf[i]);
-      if ((ir->target || ir->op == J_DEBUG) && run > 0) {
-         if (run < 16)
-            APUSH(enc, llvm_int8(obj, (DC_TRAP << 4) | run));
-         else {
-            APUSH(enc, llvm_int8(obj, DC_LONG_TRAP << 4));
-            APUSH(enc, llvm_int8(obj, run & 0xff));
-            APUSH(enc, llvm_int8(obj, (run >> 8) & 0xff));
-         }
-         run = 0;
-      }
+   LLVMValueRef *data LOCAL = xmalloc_array(size, sizeof(LLVMValueRef));
+   for (size_t i = 0; i < size; i++)
+      data[i] = llvm_int8(obj, buf[i]);
 
-      if (ir->target)
-         APUSH(enc, llvm_int8(obj, DC_TARGET << 4));
-
-      if (ir->op == J_DEBUG) {
-         if (file == NULL) {
-            file = loc_file_str(&ir->arg1.loc) ?: "";
-            lineno = 0;
-            const int len2 = ilog2(strlen(file) + 1);
-            assert(len2 < 16);
-            APUSH(enc, llvm_int8(obj, (DC_FILE << 4) | len2));
-
-            const char *p = file;
-            do {
-               APUSH(enc, llvm_int8(obj, *p));
-            } while (*p++);
-         }
-
-         const int delta = ir->arg1.loc.first_line - lineno;
-         if (delta >= 0 && delta < 16)
-            APUSH(enc, llvm_int8(obj, (DC_LOCINFO << 4) | delta));
-         else {
-            APUSH(enc, llvm_int8(obj, DC_LONG_LOCINFO << 4));
-            APUSH(enc, llvm_int8(obj, ir->arg1.loc.first_line & 0xff));
-            APUSH(enc, llvm_int8(obj, (ir->arg1.loc.first_line >> 8) & 0xff));
-         }
-      }
-      else
-         run++;
-   }
-
-   if (run > 0 && run < 16)
-      APUSH(enc, llvm_int8(obj, (DC_TRAP << 4) | run));
-   else if (run > 0) {
-      APUSH(enc, llvm_int8(obj, DC_LONG_TRAP << 4));
-      APUSH(enc, llvm_int8(obj, run & 0xff));
-      APUSH(enc, llvm_int8(obj, (run >> 8) & 0xff));
-   }
-
-   APUSH(enc, llvm_int8(obj, DC_STOP << 4));
-
-   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], enc.count);
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], size);
 
    LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, tb_get(tb));
    LLVMSetLinkage(global, LLVMPrivateLinkage);
    LLVMSetGlobalConstant(global, true);
    LLVMSetUnnamedAddr(global, true);
 
-   LLVMValueRef init =
-      LLVMConstArray(obj->types[LLVM_INT8], enc.items, enc.count);
+   LLVMValueRef init = LLVMConstArray(obj->types[LLVM_INT8], data, size);
    LLVMSetInitializer(global, init);
 
    return global;
@@ -2467,9 +2419,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
          llvm_const_string(obj, func->name),
          PTR(func->llvmfn),
          PTR(cgen_debug_irbuf(obj, func->source)),
-         llvm_int32(obj, func->source->nirs),
-         cgen_rematerialise_object(obj, func->source->object),
-         llvm_int64(obj, func->source->spec),
+         PTR(func->cpool),
       };
       llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
 
@@ -2819,6 +2769,7 @@ llvm_obj_t *llvm_obj_new(const char *name)
    obj->target    = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
    obj->data_ref  = LLVMCreateTargetDataLayout(obj->target);
    obj->debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj->module);
+   obj->jitpack   = jit_pack_new();
 
    char *triple = LLVMGetTargetMachineTriple(obj->target);
    LLVMSetTarget(obj->module, triple);
@@ -2886,8 +2837,7 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    DEBUG_ONLY(const uint64_t start_us = get_timestamp_us());
 
    jit_func_t *f = jit_get_func(j, handle);
-   if (load_acquire(&(f->state)) != JIT_FUNC_READY)
-      jit_irgen(f);
+   jit_fill_irbuf(f);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, f->name);
@@ -2933,6 +2883,7 @@ void llvm_obj_emit(llvm_obj_t *obj, const char *path)
    LLVMContextDispose(obj->context);
 
    shash_free(obj->string_pool);
+   jit_pack_free(obj->jitpack);
 
    free(obj);
 }

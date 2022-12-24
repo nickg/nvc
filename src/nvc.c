@@ -152,7 +152,8 @@ static int analyse(int argc, char **argv)
    }
 
    lib_t work = lib_work();
-   eval_t *eval = eval_new();
+   jit_t *jit = jit_new();
+   eval_t *eval = eval_new();  // XXX: share jit
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
@@ -178,6 +179,8 @@ static int analyse(int argc, char **argv)
 
    eval_free(eval);
    eval = NULL;
+
+   jit_free(jit);
 
    if (error_count() > 0)
       return EXIT_FAILURE;

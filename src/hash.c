@@ -547,3 +547,12 @@ void *chash_get(chash_t *h, const void *key)
 
    return NULL;
 }
+
+void chash_iter(chash_t *h, hash_iter_fn_t fn)
+{
+   for (int i = 0; i < h->size; i++) {
+      for (chash_node_t *it = load_acquire(&(h->slots[i]));
+           it != NULL; it = load_acquire(&(it->chain)))
+         (*fn)(it->key, it->value);
+   }
+}

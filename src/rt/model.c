@@ -862,7 +862,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       active_scope = s;
       signals_tail = &(s->signals);
 
-      jit_handle_t handle = jit_compile(m->jit, s->name);
+      jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
       if (handle == JIT_HANDLE_INVALID)
          fatal_trace("failed to compile %s", istr(s->name));
 

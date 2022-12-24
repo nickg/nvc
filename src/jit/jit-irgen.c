@@ -851,6 +851,7 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
       g->func->cpoolsz = MAX(128, MAX((g->func->cpoolsz * 3) / 2,
                                       g->cpoolptr + sz + align - 1));
       g->func->cpool = xrealloc(g->func->cpool, g->func->cpoolsz);
+      g->func->owns_cpool = true;
    }
 
    const size_t result = ALIGN_UP(g->cpoolptr, align);
@@ -1902,7 +1903,7 @@ static void irgen_op_var_upref(jit_irgen_t *g, int op)
    // TODO: it would be better to avoid this entirely
    const unsigned *varoff = load_acquire(&(cf->varoff));
    if (varoff == NULL) {
-      jit_irgen(cf);
+      jit_fill_irbuf(cf);
       varoff = load_acquire(&(cf->varoff));
       assert(varoff);
    }
@@ -3692,33 +3693,9 @@ static bool irgen_is_procedure(void)
    }
 }
 
-static bool irgen_enter(jit_func_t *f)
-{
-   switch (load_acquire(&(f->state))) {
-   case JIT_FUNC_READY:
-      return f->symbol != NULL;   // XXX: should be false
-   case JIT_FUNC_PLACEHOLDER:
-      if (atomic_cas(&(f->state), JIT_FUNC_PLACEHOLDER, JIT_FUNC_COMPILING))
-         return true;
-      // Fall-through
-   case JIT_FUNC_COMPILING:
-      // Another thread is compiling this function
-      for (int timeout = 10000; load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
-         if (timeout-- == 0)
-            fatal_trace("timeout waiting for %s", istr(f->name));
-         thread_sleep(100);
-      }
-      return false;
-   default:
-      fatal_trace("illegal function state for %s", istr(f->name));
-   }
-}
-
 void jit_irgen(jit_func_t *f)
 {
-   if (!irgen_enter(f))
-      return;
-
+   assert(load_acquire(&f->state) == JIT_FUNC_COMPILING);
    assert(f->irbuf == NULL);
 
    vcode_select_unit(f->unit);

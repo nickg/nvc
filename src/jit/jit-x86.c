@@ -641,8 +641,6 @@ static x86_operand_t jit_x86_get_addr(code_blob_t *blob, jit_value_t addr,
 static void jit_x86_patch(code_blob_t *blob, jit_label_t label, uint8_t *wptr,
                           const uint8_t *dest)
 {
-   printf("patch! label=%d wptr=%p dest=%p\n", label, wptr, dest);
-
    const int size = *(wptr - 1);
    assert(size == 8 || size == 32);
 
