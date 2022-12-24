@@ -582,6 +582,46 @@ START_TEST(test_imm)
 }
 END_TEST
 
+START_TEST(test_lea)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV   R0, #0          \n"
+      "    LEA    R1, [R0+5]      \n"
+      "    SEND   #0, R1          \n"
+      "    RET                    \n";
+
+   jit_handle_t h1 = assemble(j, text1, "lea1", "I");
+   ck_assert_int_eq(jit_call(j, h1, 0).integer, 5);
+   ck_assert_int_eq(jit_call(j, h1, 5).integer, 10);
+   ck_assert_int_eq(jit_call(j, h1, 100).integer, 105);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_csel)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    CMP.LT   R0, R1          \n"
+      "    CSEL     R2, R1, R0      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "csel1", "ii");
+   ck_assert_int_eq(jit_call(j, h1, 2, 3).integer, 3);
+   ck_assert_int_eq(jit_call(j, h1, 100, 2000).integer, 2000);
+   ck_assert_int_eq(jit_call(j, h1, -2, 5).integer, 5);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -597,6 +637,8 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_copy);
    tcase_add_test(tc, test_shift);
    tcase_add_test(tc, test_imm);
+   tcase_add_test(tc, test_lea);
+   tcase_add_test(tc, test_csel);
    suite_add_tcase(s, tc);
 
    return s;

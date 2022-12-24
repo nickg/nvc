@@ -145,6 +145,10 @@ typedef enum {
    asm_movsx(blob, (dst), (src), (dsize), (ssize))
 #define MOVZX(dst, src, dsize, ssize) \
    asm_movzx(blob, (dst), (src), (dsize), (ssize))
+#define CMOVZ(dst, src, size)                           \
+   asm_cmovcc(blob, (dst), (src), (size), X86_CMP_EQ)
+#define CMOVNZ(dst, src, size)                          \
+   asm_cmovcc(blob, (dst), (src), (size), X86_CMP_NE)
 #define LEA(dst, addr) asm_lea(blob, (dst), (addr))
 #define SETO(dst) asm_setcc(blob, (dst), X86_CMP_O)
 #define SETC(dst) asm_setcc(blob, (dst), X86_CMP_C)
@@ -243,7 +247,6 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       if (src.imm == 0)
          XOR(dst, dst, size);
       else {
-         printf("mov const %lx\n", src.imm);
          switch (size) {
          case __QWORD:
             if (is_imm32(src.imm) && src.imm > 0) {
@@ -320,6 +323,21 @@ static void asm_movzx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
 }
 
+static void asm_cmovcc(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                       x86_size_t size, x86_cmp_t cmp)
+{
+   assert(COMBINE(dst, src) == REG_REG);
+   asm_rex(blob, size, src.reg, dst.reg, 0);
+   switch (size) {
+   case __DWORD:
+   case __QWORD:
+      __(0x0f, 0x40 + cmp, __MODRM(3, dst.reg, src.reg));
+      break;
+   default:
+      fatal_trace("unhandled size %d in asm_cmovcc", size);
+   }
+}
+
 static void asm_push(code_blob_t *blob, x86_operand_t src)
 {
    asm_rex(blob, __DWORD, 0, src.reg, 0);   // Actually pushes QWORD
@@ -348,8 +366,6 @@ static void asm_add(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    case __QWORD:
       __(0x01, __MODRM(3, src.reg, dst.reg));
       break;
-   default:
-      fatal_trace("unhandled size %d in asm_add", size);
    }
 }
 
@@ -425,11 +441,25 @@ static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 static void asm_test(code_blob_t *blob, x86_operand_t src1,
                      x86_operand_t src2, x86_size_t size)
 {
-   assert(COMBINE(src1, src2) == REG_IMM);
-   asm_rex(blob, __QWORD, 0, src1.reg, 0);
-   switch (size) {
-   case __BYTE: __(0xf6, __MODRM(3, 0, src1.reg), src2.imm); break;
-   default: __(0xf7, __MODRM(3, 0, src1.reg), __IMM32(src2.imm)); break;
+   switch (COMBINE(src1, src2)) {
+   case REG_IMM:
+      asm_rex(blob, size, 0, src1.reg, 0);
+      switch (size) {
+      case __BYTE: __(0xf6, __MODRM(3, 0, src1.reg), src2.imm); break;
+      default: __(0xf7, __MODRM(3, 0, src1.reg), __IMM32(src2.imm)); break;
+      }
+      break;
+
+   case REG_REG:
+      asm_rex(blob, size, 0, src1.reg, 0);
+      switch (size) {
+      case __BYTE: __(0x84, __MODRM(3, src2.reg, src1.reg)); break;
+      default: __(0x85, __MODRM(3, src2.reg, src1.reg)); break;
+      }
+      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_test");
    }
 }
 
@@ -519,6 +549,9 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
       MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
       if (src.disp != 0)
          LEA(dst, ADDR(dst, src.disp));
+      break;
+   case JIT_ADDR_CPOOL:
+      MOV(dst, IMM((intptr_t)blob->func->cpool + src.disp), __QWORD);
       break;
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
@@ -769,7 +802,8 @@ static void jit_x86_store(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_lea(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir)
@@ -810,7 +844,13 @@ static void jit_x86_cset(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_csel(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   TEST(FLAGS_REG, FLAGS_REG, __BYTE);
+   CMOVZ(__EAX, __ECX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_call(code_blob_t *blob, jit_x86_state_t *state,

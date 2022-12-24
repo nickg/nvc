@@ -1113,6 +1113,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "ULOAD",   J_ULOAD,      1, 1 },
       { "SHL",     J_SHL,        1, 2 },
       { "ASR",     J_ASR,        1, 2 },
+      { "LEA",     J_LEA,        1, 1 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },
@@ -1129,6 +1130,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "EQ", JIT_CC_EQ },
       { "O",  JIT_CC_O },
       { "C",  JIT_CC_C },
+      { "LT", JIT_CC_LT },
    };
 
    const unsigned bufsz = 128;
@@ -1265,9 +1267,15 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                arg.label = atoi(tok + 1);
             }
             else if (tok[0] == '[' && tok[1] == 'R') {
+               char *eptr = NULL;
                arg.kind = JIT_ADDR_REG;
-               arg.reg  = atoi(tok + 2);
-               arg.disp = 0;
+               arg.reg = strtol(tok + 2, &eptr, 0);
+               if (*eptr == '+' || *eptr == '-')
+                  arg.disp = strtol(eptr, &eptr, 0);
+               else
+                  arg.disp = 0;
+               if (*eptr != ']')
+                  fatal_trace("invalid address %s", tok);
                f->nregs = MAX(arg.reg + 1, f->nregs);
             }
             else if (tok[0] == '<' && tok[toklen - 1] == '>') {
