@@ -656,6 +656,69 @@ START_TEST(test_lalloc)
 }
 END_TEST
 
+START_TEST(test_logical)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    AND      R2, R1, R0      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "logical1", "ii");
+   ck_assert_int_eq(jit_call(j, h1, 1, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, 1, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h1, 0, 0).integer, 0);
+
+   const char *text2 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    OR       R2, R1, R0      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h2 = assemble(j, text2, "logical2", "ii");
+   ck_assert_int_eq(jit_call(j, h2, 1, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h2, 1, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h2, 0, 0).integer, 0);
+
+   const char *text3 =
+      "    RECV     R0, #0          \n"
+      "    NOT      R1, R0          \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h3 = assemble(j, text3, "logical3", "i");
+   ck_assert_int_eq(jit_call(j, h3, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h3, 1).integer, 0);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_neg)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    NEG      R1, R0          \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "neg1", "i");
+   ck_assert_int_eq(jit_call(j, h1, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, 5).integer, -5);
+   ck_assert_int_eq(jit_call(j, h1, -5).integer, 5);
+   ck_assert_int_eq(jit_call(j, h1, 1000).integer, -1000);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -674,6 +737,8 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_lea);
    tcase_add_test(tc, test_csel);
    tcase_add_test(tc, test_lalloc);
+   tcase_add_test(tc, test_logical);
+   tcase_add_test(tc, test_neg);
    suite_add_tcase(s, tc);
 
    return s;

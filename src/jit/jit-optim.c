@@ -400,7 +400,7 @@ static valnum_t lvn_value_num(jit_value_t value, lvn_state_t *state)
 
 static inline bool lvn_is_commutative(jit_op_t op)
 {
-   return op == J_ADD || op == J_MUL;
+   return op == J_ADD || op == J_MUL || op == J_AND || op == J_OR;
 }
 
 static void lvn_commute_const(jit_ir_t *ir, lvn_state_t *state)

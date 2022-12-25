@@ -139,9 +139,11 @@ typedef enum {
 #define IMUL(dst, src, size) asm_imul(blob, (dst), (src), (size))
 #define IDIV(src, size) asm_idiv(blob, (src), (size))
 #define AND(dst, src, size) asm_and(blob, (dst), (src), (size))
+#define OR(dst, src, size) asm_or(blob, (dst), (src), (size))
 #define SHL(src, size) asm_shl(blob, (src), (size))
 #define SAR(src, size) asm_sar(blob, (src), (size))
 #define XOR(dst, src, size) asm_xor(blob, (dst), (src), (size))
+#define NEG(dst, size) asm_neg(blob, (dst), (size))
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
 #define MOVSX(dst, src, dsize, ssize) \
    asm_movsx(blob, (dst), (src), (dsize), (ssize))
@@ -196,6 +198,13 @@ static void asm_xor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    __(0x33, __MODRM(3, src.reg, dst.reg));
 }
 
+static void asm_neg(code_blob_t *blob, x86_operand_t dst, x86_size_t size)
+{
+   assert(dst.kind == X86_REG);
+   asm_rex(blob, size, 0, dst.reg, 0);
+   __(0xf7, __MODRM(3, 3, dst.reg));
+}
+
 static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
    assert(COMBINE(dst, src) == REG_MEM);
@@ -247,7 +256,7 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 
    case REG_IMM:
       if (src.imm == 0)
-         XOR(dst, dst, size);
+         XOR(dst, dst, MIN(size, __DWORD));
       else {
          switch (size) {
          case __QWORD:
@@ -429,18 +438,57 @@ static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
-   assert(COMBINE(dst, src) == REG_IMM);
+   switch (COMBINE(dst, src)) {
+   case REG_IMM:
+      asm_rex(blob, size, src.reg, dst.reg, 0);
+      switch (size) {
+      case __QWORD:
+      case __DWORD:
+         if (is_imm8(src.imm))
+            __(0x83, __MODRM(3, 4, dst.reg), src.imm);
+         else
+            __(0x81, __MODRM(3, 4, dst.reg), __IMM32(src.imm));
+         break;
+      default:
+         fatal_trace("unhandled size %d in asm_and", size);
+      }
+      break;
+
+   case REG_REG:
+      asm_rex(blob, size, src.reg, dst.reg, 0);
+      switch (size) {
+      case __QWORD:
+      case __DWORD:
+         __(0x21, __MODRM(3, src.reg, dst.reg));
+         break;
+      case __BYTE:
+         __(0x20, __MODRM(3, src.reg, dst.reg));
+         break;
+      default:
+         fatal_trace("unhandled size %d in asm_and", size);
+      }
+      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_and");
+   }
+}
+
+static void asm_or(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
+                   x86_size_t size)
+{
+   assert(COMBINE(dst, src) == REG_REG);
    asm_rex(blob, size, src.reg, dst.reg, 0);
    switch (size) {
    case __QWORD:
    case __DWORD:
-      if (is_imm8(src.imm))
-         __(0x83, __MODRM(3, 4, dst.reg), src.imm);
-      else
-         __(0x81, __MODRM(3, 4, dst.reg), __IMM32(src.imm));
+      __(0x09, __MODRM(3, src.reg, dst.reg));
+      break;
+   case __BYTE:
+      __(0x08, __MODRM(3, src.reg, dst.reg));
       break;
    default:
-      fatal_trace("unhandled size %d in asm_and", size);
+      fatal_trace("unhandled size %d in asm_or", size);
    }
 }
 
@@ -752,12 +800,42 @@ static void jit_x86_div(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_neg(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   NEG(__EAX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_not(code_blob_t *blob, jit_ir_t *ir)
 {
-   INT3();
+   jit_x86_get(blob, __ECX, ir->arg1);
+
+   XOR(__EAX, __EAX, __DWORD);
+   TEST(__ECX, __ECX, __BYTE);
+   SETZ(__EAX);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
+static void jit_x86_and(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   AND(__EAX, __ECX, __BYTE);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
+static void jit_x86_or(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   OR(__EAX, __ECX, __BYTE);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_mov(code_blob_t *blob, jit_ir_t *ir)
@@ -995,6 +1073,12 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_NOT:
       jit_x86_not(blob, ir);
+      break;
+   case J_AND:
+      jit_x86_and(blob, ir);
+      break;
+   case J_OR:
+      jit_x86_or(blob, ir);
       break;
    case J_DEBUG:
    case J_NOP:
