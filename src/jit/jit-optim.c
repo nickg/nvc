@@ -761,3 +761,38 @@ void jit_do_lvn(jit_func_t *f)
    free(state.regvn);
    free(state.hashtab);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Copy propagation
+
+void jit_do_cprop(jit_func_t *f)
+{
+   jit_value_t *map LOCAL = xmalloc_array(f->nregs, sizeof(jit_value_t));
+
+   bool reset = true;
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs;
+        reset = cfg_is_terminator(f, ir), ir++) {
+
+      if (reset || ir->target) {
+         for (int j = 0; j < f->nregs; j++)
+            map[j].kind = JIT_VALUE_INVALID;
+      }
+
+      if (ir->arg1.kind == JIT_VALUE_REG) {
+         jit_value_t copy = map[ir->arg1.reg];
+         if (copy.kind != JIT_VALUE_INVALID)
+            ir->arg1 = copy;
+      }
+
+      if (ir->arg2.kind == JIT_VALUE_REG) {
+         jit_value_t copy = map[ir->arg2.reg];
+         if (copy.kind != JIT_VALUE_INVALID)
+            ir->arg2 = copy;
+      }
+
+      if (ir->op == J_MOV)
+         map[ir->result] = ir->arg1;
+      else if (ir->result != JIT_REG_INVALID)
+         map[ir->result].kind = JIT_VALUE_INVALID;
+   }
+}

@@ -3775,6 +3775,7 @@ void jit_irgen(jit_func_t *f)
    g->labels = NULL;
 
    jit_do_lvn(f);
+   jit_do_cprop(f);
    jit_free_cfg(f);
 
    // Function can be executed immediately after this store
