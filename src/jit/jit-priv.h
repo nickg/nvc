@@ -341,6 +341,7 @@ bool jit_writes_flags(jit_ir_t *ir);
 void jit_do_lvn(jit_func_t *f);
 void jit_do_cprop(jit_func_t *f);
 void jit_do_dce(jit_func_t *f);
+void jit_delete_nops(jit_func_t *f);
 
 code_cache_t *code_cache_new(void);
 void code_cache_free(code_cache_t *code);

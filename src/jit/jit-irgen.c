@@ -3774,10 +3774,13 @@ void jit_irgen(jit_func_t *f)
    }
    g->labels = NULL;
 
-   jit_do_lvn(f);
-   jit_do_cprop(f);
-   jit_do_dce(f);
-   jit_free_cfg(f);
+   if (kind != VCODE_UNIT_THUNK) {
+      jit_do_lvn(f);
+      jit_do_cprop(f);
+      jit_do_dce(f);
+      jit_delete_nops(f);
+      jit_free_cfg(f);
+   }
 
    // Function can be executed immediately after this store
    store_release(&(f->state), JIT_FUNC_READY);

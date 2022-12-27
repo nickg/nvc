@@ -1650,7 +1650,7 @@ START_TEST(test_cprop1)
    jit_do_cprop(f);
 
    check_unary(f, 0, J_MOV, CONST(0));
-   check_unary(f, 1, J_MOV, CONST(0));;
+   check_unary(f, 1, J_MOV, CONST(0));
    check_unary(f, 2, J_MOV, CONST(0));
    check_binary(f, 3, J_ADD, CONST(0), CONST(0));
 
@@ -1675,6 +1675,48 @@ START_TEST(test_dce1)
    ck_assert_int_eq(f->irbuf[0].op, J_NOP);
    ck_assert_int_eq(f->irbuf[1].op, J_NOP);
    ck_assert_int_eq(f->irbuf[2].op, J_NOP);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_nops1)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    ADD    R1, R1, #2   \n"
+      "    NOP                 \n"
+      "    NOP                 \n"
+      "    ADD    R2, R1, R1   \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f1 = jit_get_func(j, h1);
+   jit_delete_nops(f1);
+
+   ck_assert_int_eq(f1->nirs, 2);
+
+   check_binary(f1, 0, J_ADD, REG(1), CONST(2));
+   check_binary(f1, 1, J_ADD, REG(1), REG(1));
+
+   const char *text2 =
+      "    NOP                 \n"
+      "    ADD    R1, R1, #2   \n"
+      "    NOP                 \n"
+      "L1: NOP                 \n"
+      "    JUMP   L1           \n";
+
+   jit_handle_t h2 = jit_assemble(j, ident_new("myfunc2"), text2);
+
+   jit_func_t *f2 = jit_get_func(j, h2);
+   jit_delete_nops(f2);
+
+   ck_assert_int_eq(f2->nirs, 2);
+
+   check_binary(f2, 0, J_ADD, REG(1), CONST(2));
+   check_unary(f2, 1, J_JUMP, LABEL(1));
+   ck_assert_int_eq(f2->irbuf[1].target, 1);
 
    jit_free(j);
 }
@@ -1726,6 +1768,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn6);
    tcase_add_test(tc, test_cprop1);
    tcase_add_test(tc, test_dce1);
+   tcase_add_test(tc, test_nops1);
    suite_add_tcase(s, tc);
 
    return s;

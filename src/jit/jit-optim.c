@@ -831,3 +831,35 @@ void jit_do_dce(jit_func_t *f)
       }
    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// NOP deletion
+
+void jit_delete_nops(jit_func_t *f)
+{
+   jit_label_t *map LOCAL = xmalloc_array(f->nirs, sizeof(jit_label_t));
+
+   int wptr = 0;
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
+      map[ir - f->irbuf] = wptr;
+
+      if (ir->op != J_NOP) {
+         jit_ir_t *dest = f->irbuf + wptr++;
+         if (dest != ir)
+            *dest = *ir;
+      }
+   }
+
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
+      if (ir->arg1.kind == JIT_VALUE_LABEL) {
+         ir->arg1.label = map[ir->arg1.label];
+         f->irbuf[ir->arg1.label].target = 1;
+      }
+      if (ir->arg2.kind == JIT_VALUE_LABEL) {
+         ir->arg2.label = map[ir->arg2.label];
+         f->irbuf[ir->arg2.label].target = 1;
+      }
+   }
+
+   f->nirs = wptr;
+}
