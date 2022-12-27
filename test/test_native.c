@@ -48,6 +48,7 @@ static jit_handle_t assemble(jit_t *j, const char *text, const char *name,
 static jit_t *get_native_jit(void)
 {
    opt_set_int(OPT_JIT_THRESHOLD, 1);
+   opt_set_int(OPT_JIT_ASYNC, 0);
 
    jit_t *j = jit_new();
    jit_register_native_plugin(j);

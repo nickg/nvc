@@ -509,6 +509,27 @@ START_TEST(test_threads)
 }
 END_TEST
 
+static void async_add_cb(void *context, void *arg)
+{
+   (*(int *)arg)++;
+}
+
+START_TEST(test_async)
+{
+   int numbers[100];
+   for (int i = 0; i < ARRAY_LEN(numbers); i++)
+      numbers[i] = i;
+
+   for (int i = 0; i < ARRAY_LEN(numbers); i++)
+      async_do(async_add_cb, NULL, &(numbers[i]));
+
+   async_barrier();
+
+   for (int i = 0; i < ARRAY_LEN(numbers); i++)
+      ck_assert_int_eq(numbers[i], i + 1);
+}
+END_TEST
+
 START_TEST(test_fbuf_pipe)
 {
    opt_set_int(OPT_ERROR_LIMIT, -1);
@@ -577,6 +598,7 @@ Suite *get_misc_tests(void)
 
    TCase *tc_thread = tcase_create("thread");
    tcase_add_test(tc_heap, test_threads);
+   tcase_add_test(tc_heap, test_async);
    suite_add_tcase(s, tc_thread);
 
    TCase *tc_fbuf = tcase_create("fbuf");

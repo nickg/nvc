@@ -79,6 +79,7 @@ typedef struct _jit {
    hash_t         *layouts;
    bool            silent;
    bool            runtime;
+   bool            shutdown;
    unsigned        backedge;
    int             exit_status;
    jit_tier_t     *tiers;
@@ -144,6 +145,9 @@ static void jit_free_func(jit_func_t *f)
 
 void jit_free(jit_t *j)
 {
+   store_release(&j->shutdown, true);
+   async_barrier();
+
    if (j->aotlib != NULL) {
       ffi_unload_dll(j->aotlib->dll);
       jit_pack_free(j->aotlib->pack);
@@ -1014,12 +1018,24 @@ int jit_exit_status(jit_t *j)
    return j->exit_status;
 }
 
+static void jit_async_cgen(void *context, void *arg)
+{
+   jit_func_t *f = context;
+   jit_tier_t *tier = arg;
+
+   if (!load_acquire(&f->jit->shutdown))
+      (*tier->plugin.cgen)(f->jit, f->handle, tier->context);
+}
+
 void jit_tier_up(jit_func_t *f)
 {
    assert(f->hotness <= 0);
    assert(f->next_tier != NULL);
 
-   (*f->next_tier->plugin.cgen)(f->jit, f->handle, f->next_tier->context);
+   if (opt_get_int(OPT_JIT_ASYNC))
+      async_do(jit_async_cgen, f, f->next_tier);
+   else
+      (f->next_tier->plugin.cgen)(f->jit, f->handle, f->next_tier->context);
 
    f->hotness   = 0;
    f->next_tier = NULL;

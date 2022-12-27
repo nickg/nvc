@@ -258,6 +258,8 @@ message_style_t get_message_style(void);
 typedef struct {
    unsigned rss;
    unsigned ms;
+   unsigned user;
+   unsigned sys;
 } nvc_rusage_t;
 
 void nvc_rusage(nvc_rusage_t *ru);

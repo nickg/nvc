@@ -56,6 +56,7 @@ typedef enum {
    OPT_LLVM_VERBOSE,
    OPT_JIT_THRESHOLD,
    OPT_ASM_VERBOSE,
+   OPT_JIT_ASYNC,
 
    OPT_LAST_NAME
 } opt_name_t;

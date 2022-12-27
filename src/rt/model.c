@@ -442,6 +442,13 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->delta_driverq = workq_new(m);
    m->effq          = workq_new(m);
 
+   workq_not_thread_safe(m->procq);
+   workq_not_thread_safe(m->delta_procq);
+   workq_not_thread_safe(m->postponedq);
+   workq_not_thread_safe(m->driverq);
+   workq_not_thread_safe(m->delta_driverq);
+   workq_not_thread_safe(m->effq);
+
    scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
 
@@ -561,8 +568,8 @@ void model_free(rt_model_t *m)
       for (memblock_t *mb = m->memblocks; mb; mb = mb->chain)
          mem += mb->pagesz - (MEMBLOCK_LINE_SZ * mb->free);
 
-      notef("setup:%ums run:%ums maxrss:%ukB static:%ukB",
-            m->ready_rusage.ms, ru.ms, ru.rss, mem / 1024);
+      notef("setup:%ums run:%ums user:%ums sys:%ums maxrss:%ukB static:%ukB",
+            m->ready_rusage.ms, ru.ms, ru.user, ru.sys, ru.rss, mem / 1024);
    }
 
    while (heap_size(m->eventq_heap) > 0)
@@ -2560,8 +2567,6 @@ void model_run(rt_model_t *m, uint64_t stop_time)
    if (m->force_stop)
       return;   // Was error during intialisation
 
-   stop_workers();   // Runtime is not thread-safe
-
    global_event(m, RT_START_OF_SIMULATION);
 
    while (!should_stop_now(m, stop_time))
@@ -3198,8 +3203,10 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
 
    rt_model_t *m = get_model();
 
-   if (m->implicitq == NULL)
+   if (m->implicitq == NULL) {
       m->implicitq = workq_new(m);
+      workq_not_thread_safe(m->implicitq);
+   }
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_implicit_t *imp = static_alloc(m, sizeof(rt_implicit_t) + datasz);

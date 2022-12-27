@@ -193,7 +193,8 @@ static nvc_thread_t *threads[MAX_THREADS];
 static unsigned      max_workers = 0;
 static int           running_threads = 0;
 static bool          should_stop = false;
-static globalq_t     globalq;
+static globalq_t     globalq __attribute__((aligned(64)));
+static int           async_pending __attribute__((aligned(64))) = 0;
 
 #ifdef DEBUG
 static lock_stats_t  lock_stats[MAX_THREADS];
@@ -260,12 +261,6 @@ static void join_worker_threads(void)
    assert(atomic_load(&running_threads) == 1);
 }
 
-void stop_workers(void)
-{
-   // Temporary until runtime is thread-safe
-   join_worker_threads();
-}
-
 static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
                                 thread_kind_t kind, char *name)
 {
@@ -305,7 +300,7 @@ void thread_init(void)
    assert(my_thread->id == 0);
 
    max_workers = MIN(nvc_nprocs(), MAX_THREADS);
-   assert(max_workers >= 0);
+   assert(max_workers > 0);
 
 #ifdef DEBUG
    if (getenv("NVC_THREAD_VERBOSE") != NULL)
@@ -631,7 +626,10 @@ static bool globalq_poll(globalq_t *gq, threadq_t *tq)
       int comp = 0;
       for (; pop_bot(tq, &task); comp++) {
          (*task.fn)(task.context, task.arg);
-         atomic_add(&(task.workq->comp), 1);
+         if (task.workq != NULL)
+            atomic_add(&(task.workq->comp), 1);
+         else
+            atomic_add(&async_pending, -1);
       }
 
       WORKQ_EVENT(comp, comp);
@@ -647,10 +645,16 @@ workq_t *workq_new(void *context)
       fatal_trace("work queues can only be created by the main thread");
 
    workq_t *wq = xcalloc(sizeof(workq_t));
-   wq->state   = IDLE;
-   wq->context = context;
+   wq->state    = IDLE;
+   wq->context  = context;
+   wq->parallel = max_workers > 1;
 
    return wq;
+}
+
+void workq_not_thread_safe(workq_t *wq)
+{
+   wq->parallel = false;
 }
 
 void workq_free(workq_t *wq)
@@ -799,8 +803,6 @@ void workq_start(workq_t *wq)
    if (my_thread->kind != MAIN_THREAD)
       fatal_trace("workq_start can only be called from the main thread");
 
-   wq->parallel = max_workers > 0 && !relaxed_load(&should_stop);
-
    if (wq->parallel) {
       create_workers(wq->wptr);
 
@@ -843,5 +845,29 @@ void workq_drain(workq_t *wq)
       assert(wq->state == START);
       wq->state = IDLE;
       wq->wptr = wq->rptr = wq->comp = 0;
+   }
+}
+
+void async_do(task_fn_t fn, void *context, void *arg)
+{
+   if (max_workers == 1)
+      (*fn)(context, arg);   // Single CPU
+   else {
+      create_workers(2);
+
+      atomic_add(&async_pending, 1);
+
+      task_t tasks[1] = {
+         { fn, context, arg, NULL }
+      };
+      globalq_put(&globalq, tasks, 1);
+   }
+}
+
+void async_barrier(void)
+{
+   while (atomic_load(&async_pending) > 0) {
+      if (!globalq_poll(&globalq, &(my_thread->queue)))
+         maybe_backoff();
    }
 }

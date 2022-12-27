@@ -59,8 +59,6 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
   __attribute__((format(printf, 3, 4)));
 void *thread_join(nvc_thread_t *thread);
 
-void stop_workers(void);
-
 void spin_wait(void);
 
 typedef int8_t nvc_lock_t;
@@ -92,5 +90,9 @@ void workq_start(workq_t *wq);
 void workq_do(workq_t *wq, task_fn_t fn, void *arg);
 void workq_drain(workq_t *wq);
 void workq_scan(workq_t *wq, scan_fn_t fn, void *arg);
+void workq_not_thread_safe(workq_t *wq);
+
+void async_do(task_fn_t fn, void *context, void *arg);
+void async_barrier(void);
 
 #endif  // _THREAD_H

@@ -42,6 +42,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <math.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <assert.h>
@@ -1350,25 +1351,29 @@ message_style_t get_message_style(void)
 }
 
 #ifndef __MINGW32__
-static unsigned tv2ms(struct timeval *tv)
+static uint64_t timeval_us(struct timeval *tv)
 {
-   return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
+   return (tv->tv_sec * UINT64_C(1000000)) + tv->tv_usec;
 }
 #endif
 
 void nvc_rusage(nvc_rusage_t *ru)
 {
 #ifndef __MINGW32__
-   static struct rusage last;
+   static uint64_t last_user, last_sys;
 
-   struct rusage sys;
-   if (getrusage(RUSAGE_SELF, &sys) < 0)
+   struct rusage buf;
+   if (getrusage(RUSAGE_SELF, &buf) < 0)
       fatal_errno("getrusage");
 
-   const unsigned utime = tv2ms(&(sys.ru_utime)) - tv2ms(&(last.ru_utime));
-   const unsigned stime = tv2ms(&(sys.ru_stime)) - tv2ms(&(last.ru_stime));
+   const uint64_t user = timeval_us(&(buf.ru_utime));
+   const uint64_t sys = timeval_us(&(buf.ru_stime));
 
-   ru->ms = utime + stime;
+   ru->user = (user - last_user) / 1000;
+   ru->sys = (sys - last_sys) / 1000;
+
+   last_sys = sys;
+   last_user = user;
 
 #ifdef __APPLE__
    const int rss_units = 1024;
@@ -1376,11 +1381,9 @@ void nvc_rusage(nvc_rusage_t *ru)
    const int rss_units = 1;
 #endif
 
-   ru->rss = sys.ru_maxrss / rss_units;
-
-   last = sys;
+   ru->rss = buf.ru_maxrss / rss_units;
 #else
-   static long long last;
+   static ULARGE_INTEGER last_kernel, last_user;
    ULARGE_INTEGER lv_Tkernel, lv_Tuser;
    HANDLE hProcess = GetCurrentProcess();
 
@@ -1393,8 +1396,11 @@ void nvc_rusage(nvc_rusage_t *ru)
    lv_Tuser.LowPart = ftUser.dwLowDateTime;
    lv_Tuser.HighPart = ftUser.dwHighDateTime;
 
-   ru->ms = (lv_Tkernel.QuadPart + lv_Tuser.QuadPart) / 10000 - last;
-   last = ru->ms;
+   ru->user = (lv_Tuser.QuadPart - last_user.QuadPart) / 10000;
+   ru->sys = (lv_Tkernel.QuadPart - last_kernel.QuadPart) / 10000;
+
+   last_user = lv_Tuser;
+   last_kernel = lv_Tkernel;
 
    PROCESS_MEMORY_COUNTERS counters;
    if (!GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
@@ -1402,6 +1408,11 @@ void nvc_rusage(nvc_rusage_t *ru)
 
    ru->rss = counters.PeakWorkingSetSize / 1024;
 #endif
+
+   static uint64_t last_ts;
+   const uint64_t ts = get_timestamp_us();
+   ru->ms = last_ts == 0 ? ru->user + ru->sys : (ts - last_ts) / 1000;
+   last_ts = ts;
 }
 
 void run_program(const char *const *args)
@@ -1785,7 +1796,14 @@ void progress(const char *fmt, ...)
 
       nvc_rusage_t ru;
       nvc_rusage(&ru);
-      notef("%s [%ums %+dkB]", msg, ru.ms, ru.rss - last_ru.rss);
+
+      const double conc = (double)(ru.user + ru.sys) / ru.ms;
+
+      if (!isinf(conc) && conc > 1.1)
+         notef("%s [%ums %.1fx %+dkB]", msg, ru.ms, conc,
+               ru.rss - last_ru.rss);
+      else
+         notef("%s [%ums %+dkB]", msg, ru.ms, ru.rss - last_ru.rss);
 
       last_ru = ru;
    }

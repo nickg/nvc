@@ -138,4 +138,5 @@ void set_default_options(void)
    opt_set_str(OPT_LLVM_VERBOSE, getenv("NVC_LLVM_VERBOSE"));
    opt_set_int(OPT_JIT_THRESHOLD, atoi(getenv("NVC_JIT_THRESHOLD") ?: "100"));
    opt_set_str(OPT_ASM_VERBOSE, getenv("NVC_ASM_VERBOSE"));
+   opt_set_int(OPT_JIT_ASYNC, atoi(getenv("NVC_JIT_ASYNC") ?: "1"));
 }
