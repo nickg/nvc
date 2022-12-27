@@ -1124,6 +1124,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "O",  JIT_CC_O },
       { "C",  JIT_CC_C },
       { "LT", JIT_CC_LT },
+      { "GT", JIT_CC_GT },
       { "GE", JIT_CC_GE },
    };
 

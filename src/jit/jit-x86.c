@@ -153,6 +153,10 @@ typedef enum {
    asm_cmovcc(blob, (dst), (src), (size), X86_CMP_EQ)
 #define CMOVNZ(dst, src, size)                          \
    asm_cmovcc(blob, (dst), (src), (size), X86_CMP_NE)
+#define CMOVGT(dst, src, size)                          \
+   asm_cmovcc(blob, (dst), (src), (size), X86_CMP_GT)
+#define CMOVLT(dst, src, size)                          \
+   asm_cmovcc(blob, (dst), (src), (size), X86_CMP_LT)
 #define LEA(dst, addr) asm_lea(blob, (dst), (addr))
 #define SETO(dst) asm_setcc(blob, (dst), X86_CMP_O)
 #define SETC(dst) asm_setcc(blob, (dst), X86_CMP_C)
@@ -301,15 +305,16 @@ static void asm_movsx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    case REG_MEM:
       asm_rex(blob, dsize, src.reg, dst.reg, 0);
       switch (ssize) {
-      case __DWORD:
-         __(0x63, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-         break;
-      case __BYTE:
-         __(0x0f, 0xbe, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-         break;
+      case __QWORD: __(0x8b); break;
+      case __DWORD: __(0x63); break;
+      case __BYTE: __(0x0f, 0xbe); break;
       default:
          fatal_trace("unhandled source size %d in asm_movsx", ssize);
       }
+      if (is_imm8(src.addr.off))
+         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+      else
+         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
       break;
 
    default:
@@ -575,11 +580,22 @@ static void asm_jmp(code_blob_t *blob, x86_operand_t addr)
 
 static void asm_jcc(code_blob_t *blob, x86_operand_t addr, x86_cmp_t cmp)
 {
-   assert(addr.kind == X86_PATCH);
-   if (is_imm8(addr.imm))
-      __(0x70 + cmp, 8);
-   else
-      __(0x0f, 0x80 + cmp, 0, 0, 0, 32);
+   switch (addr.kind) {
+   case X86_PATCH:
+      if (is_imm8(addr.imm))
+         __(0x70 + cmp, 8);
+      else
+         __(0x0f, 0x80 + cmp, 0, 0, 0, 32);
+      break;
+   case X86_IMM:
+      if (is_imm8(addr.imm))
+         __(0x70 + cmp, addr.imm);
+      else
+         __(0x0f, 0x80 + cmp, __IMM32(addr.imm));
+      break;
+   default:
+      fatal_trace("unhandled operand kind in asm_jcc");
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -842,6 +858,28 @@ static void jit_x86_mov(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
+static void jit_x86_clamp(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __ECX, ir->arg1);
+
+   XOR(__EAX, __EAX, __DWORD);
+   TEST(__ECX, __ECX, __QWORD);
+   CMOVGT(__EAX, __ECX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
+static void jit_x86_cneg(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   TEST(FLAGS_REG, FLAGS_REG, __BYTE);
+   JZ(IMM(3));
+   NEG(__EAX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
 static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
 {
    const int distance = (ir - blob->func->irbuf) * BYTES_PER_IR;
@@ -1065,6 +1103,12 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_NEG:
       jit_x86_neg(blob, ir);
+      break;
+   case J_CLAMP:
+      jit_x86_clamp(blob, ir);
+      break;
+   case J_CNEG:
+      jit_x86_cneg(blob, ir);
       break;
    case J_MOV:
       jit_x86_mov(blob, ir);
