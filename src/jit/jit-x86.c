@@ -882,7 +882,8 @@ static void jit_x86_cneg(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
 {
-   const int distance = (ir - blob->func->irbuf) * BYTES_PER_IR;
+   const int this = ir - blob->func->irbuf;
+   const int distance = (this - ir->arg1.label) * BYTES_PER_IR;
 
    if (ir->cc == JIT_CC_NONE)
       JMP(PATCH(distance));
@@ -1077,6 +1078,17 @@ static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
    MOV(__EAX, ADDR(__EAX, 0), __QWORD);
 }
 
+static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
+   void **ptr = jit_get_privdata_ptr(blob->func->jit, f);
+
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   MOV(__EAX, IMM((intptr_t)ptr), __QWORD);
+   MOV(ADDR(__EAX, 0), __ECX, __QWORD);
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1177,6 +1189,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       jit_x86_macro_copy(blob, ir);
       break;
    case MACRO_GETPRIV:
+      jit_x86_macro_getpriv(blob, ir);
+      break;
+   case MACRO_PUTPRIV:
       jit_x86_macro_getpriv(blob, ir);
       break;
    default:
