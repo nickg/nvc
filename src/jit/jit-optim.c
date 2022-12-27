@@ -796,3 +796,38 @@ void jit_do_cprop(jit_func_t *f)
          map[ir->result].kind = JIT_VALUE_INVALID;
    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Dead code elimination
+
+static inline void dce_count_use(jit_value_t value, int *count)
+{
+   if (value.kind == JIT_VALUE_REG || value.kind == JIT_ADDR_REG)
+      count[value.reg]++;
+}
+
+void jit_do_dce(jit_func_t *f)
+{
+   int *count LOCAL = xcalloc_array(f->nregs, sizeof(int));
+
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
+      dce_count_use(ir->arg1, count);
+      dce_count_use(ir->arg2, count);
+
+      if (cfg_reads_result(ir))
+         count[ir->result]++;
+   }
+
+   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
+      if (jit_writes_flags(ir))
+          continue;
+      else if (ir->result != JIT_REG_INVALID && count[ir->result] == 0) {
+         ir->op        = J_NOP;
+         ir->result    = JIT_REG_INVALID;
+         ir->cc        = JIT_CC_NONE;
+         ir->size      = JIT_SZ_UNSPEC;
+         ir->arg1.kind = JIT_VALUE_INVALID;
+         ir->arg2.kind = JIT_VALUE_INVALID;
+      }
+   }
+}
