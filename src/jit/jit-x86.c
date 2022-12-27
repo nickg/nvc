@@ -30,6 +30,7 @@ typedef enum {
    EXIT_STUB,
    CALL_STUB,
    ALLOC_STUB,
+   FFI_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -1089,6 +1090,13 @@ static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir)
    MOV(ADDR(__EAX, 0), __ECX, __QWORD);
 }
 
+static void jit_x86_macro_fficall(code_blob_t *blob, jit_x86_state_t *state,
+                                  jit_ir_t *ir)
+{
+   MOV(__EAX, PTR(ir->arg1.foreign), __QWORD);
+   CALL(PTR(state->stubs[FFI_STUB]));
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1192,7 +1200,10 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       jit_x86_macro_getpriv(blob, ir);
       break;
    case MACRO_PUTPRIV:
-      jit_x86_macro_getpriv(blob, ir);
+      jit_x86_macro_putpriv(blob, ir);
+      break;
+   case MACRO_FFICALL:
+      jit_x86_macro_fficall(blob, state, ir);
       break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
@@ -1315,18 +1326,17 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
    jit_x86_push_call_clobbered(blob);
 
 #ifdef __MINGW32__
-   MOV(__ECX, FPTR_REG, __QWORD);
+   MOV(__ECX, __EAX, __QWORD);
    MOV(__EDX, ANCHOR_REG, __QWORD);
    MOV(__R8, ARGS_REG, __QWORD);
    MOV(__R9, TLAB_REG, __QWORD);
 #else
-   MOV(__EDI, FPTR_REG, __QWORD);
+   MOV(__EDI, __EAX, __QWORD);
    MOV(__ESI, ANCHOR_REG, __QWORD);
    MOV(__EDX, ARGS_REG, __QWORD);
    MOV(__ECX, TLAB_REG, __QWORD);
 #endif
 
-   MOV(FPTR_REG, __EAX, __QWORD);
    MOV(__EAX, ADDR(__EAX, offsetof(jit_func_t, entry)), __QWORD);
    CALL(__EAX);
 
@@ -1368,6 +1378,37 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[ALLOC_STUB]));
 }
 
+static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("ffi stub");
+   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
+   jit_x86_push_call_clobbered(blob);
+
+#ifdef __MINGW32__
+   MOV(__ECX, __EAX, __QWORD);
+   MOV(__EDX, ANCHOR_REG, __QWORD);
+   MOV(__R8, ARGS_REG, __QWORD);
+#else
+   MOV(__EDI, __EAX, __QWORD);
+   MOV(__ESI, ANCHOR_REG, __QWORD);
+   MOV(__EDX, ARGS_REG, __QWORD);
+#endif
+
+   MOV(__EAX, PTR(__nvc_do_fficall), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   LEAVE();
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[FFI_STUB]));
+}
+
 static void *jit_x86_init(jit_t *jit)
 {
    jit_x86_state_t *state = xcalloc(sizeof(jit_x86_state_t));
@@ -1377,6 +1418,7 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_exit_stub(state);
    jit_x86_gen_call_stub(state);
    jit_x86_gen_alloc_stub(state);
+   jit_x86_gen_ffi_stub(state);
 
    return state;
 }
