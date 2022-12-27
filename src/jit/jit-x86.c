@@ -42,7 +42,7 @@ typedef struct {
 } jit_x86_state_t;
 
 // Conservative guess at the number of bytes emitted per IR
-#define BYTES_PER_IR 10
+#define BYTES_PER_IR 16
 
 // Size of fixed part of call frame
 #define FRAME_FIXED_SIZE 40
@@ -265,9 +265,15 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       else {
          switch (size) {
          case __QWORD:
-            if (is_imm32(src.imm) && src.imm > 0) {
-               asm_rex(blob, __DWORD, 0, dst.reg, 0);
-               __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+            if (is_imm32(src.imm)) {
+               if (src.imm > 0) {
+                  asm_rex(blob, __DWORD, 0, dst.reg, 0);
+                  __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+               }
+               else {
+                  asm_rex(blob, __QWORD, 0, dst.reg, 0);
+                  __(0xc7, __MODRM(3, 0, dst.reg), __IMM32(src.imm));
+               }
             }
             else {
                asm_rex(blob, __QWORD, 0, dst.reg, 0);
@@ -636,7 +642,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
          LEA(dst, ADDR(dst, src.disp));
       break;
    case JIT_ADDR_CPOOL:
-      MOV(dst, IMM((intptr_t)blob->func->cpool + src.disp), __QWORD);
+      MOV(dst, IMM((intptr_t)blob->func->cpool + src.int64), __QWORD);
       break;
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
