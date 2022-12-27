@@ -42,7 +42,7 @@ typedef struct {
 } jit_x86_state_t;
 
 // Conservative guess at the number of bytes emitted per IR
-#define BYTES_PER_IR 8
+#define BYTES_PER_IR 10
 
 // Size of fixed part of call frame
 #define FRAME_FIXED_SIZE 40
@@ -1048,6 +1048,16 @@ static void jit_x86_macro_lalloc(code_blob_t *blob, jit_x86_state_t *state,
    jit_x86_put(blob, ir->result, __EAX);
 }
 
+static void jit_x86_macro_galloc(code_blob_t *blob, jit_x86_state_t *state,
+                                 jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   CALL(PTR(state->stubs[ALLOC_STUB]));
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
 static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
@@ -1189,6 +1199,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_LALLOC:
       jit_x86_macro_lalloc(blob, state, ir);
+      break;
+   case MACRO_GALLOC:
+      jit_x86_macro_galloc(blob, state, ir);
       break;
    case MACRO_BZERO:
       jit_x86_macro_bzero(blob, ir);

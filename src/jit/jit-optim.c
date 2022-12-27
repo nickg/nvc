@@ -668,6 +668,16 @@ static void jit_lvn_jump(jit_ir_t *ir, lvn_state_t *state)
    assert(ir->arg1.label < state->func->nirs);
    jit_ir_t *dest = &(state->func->irbuf[ir->arg1.label]);
 
+   const int fconst = state->regvn[state->func->nregs];
+   if (ir->cc != JIT_CC_NONE && fconst != VN_INVALID) {
+      if (fconst == (ir->cc == JIT_CC_T))
+         ir->cc = JIT_CC_NONE;
+      else {
+         lvn_convert_nop(ir);
+         return;
+      }
+   }
+
    if (dest == ir + 1)
       lvn_convert_nop(ir);
    else if (dest->op == J_JUMP && ir->cc == JIT_CC_NONE

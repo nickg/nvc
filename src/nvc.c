@@ -591,7 +591,7 @@ static int run(int argc, char **argv)
 
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
-#if defined ENABLE_JIT && defined LLVM_HAS_LLJIT
+#if defined ENABLE_JIT && defined LLVM_HAS_LLJIT && 1
    jit_register_llvm_plugin(jit);
 #elif defined ARCH_X86_64 && 0
    jit_register_native_plugin(jit);

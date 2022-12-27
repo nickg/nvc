@@ -1594,13 +1594,31 @@ START_TEST(test_lvn5)
       "    NOP                     \n"
       "L3: NOP                     \n";
 
-   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
 
-   jit_func_t *f = jit_get_func(j, h1);
-   jit_do_lvn(f);
+   jit_func_t *f1 = jit_get_func(j, h1);
+   jit_do_lvn(f1);
 
-   ck_assert_int_eq(f->irbuf[0].op, J_NOP);
-   check_unary(f, 2, J_JUMP, LABEL(6));
+   ck_assert_int_eq(f1->irbuf[0].op, J_NOP);
+   check_unary(f1, 2, J_JUMP, LABEL(6));
+
+   const char *text2 =
+      "    CMP.EQ  #1, #1       \n"
+      "    JUMP.T  L1           \n"
+      "    NOP                  \n"
+      "L1: NOP                  \n"
+      "    CMP.EQ  #1, #0       \n"
+      "    JUMP.T  L1           \n"
+      "    RET                  \n";
+
+   jit_handle_t h2 = jit_assemble(j, ident_new("myfunc2"), text2);
+
+   jit_func_t *f2 = jit_get_func(j, h2);
+   jit_do_lvn(f2);
+
+   check_unary(f2, 1, J_JUMP, LABEL(3));
+   ck_assert_int_eq(f2->irbuf[1].cc, JIT_CC_NONE);
+   ck_assert_int_eq(f2->irbuf[5].op, J_NOP);
 
    jit_free(j);
 }
