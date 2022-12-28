@@ -877,8 +877,14 @@ static tree_t simp_case(tree_t t)
 
          // This choice is always executed
          if (tree_stmts(alt) > 0) {
-            tree_t seq = tree_new(T_SEQUENCE);
+            const tree_kind_t kind =
+               tree_kind(t) == T_CASE_GENERATE ? T_BLOCK : T_SEQUENCE;
+            tree_t seq = tree_new(kind);
             tree_set_loc(seq, tree_loc(alt));
+            if (tree_has_ident(alt))
+               tree_set_ident(seq, tree_ident(alt));
+            else if (tree_has_ident(t))
+               tree_set_ident(seq, tree_ident(t));
 
             const int nstmts = tree_stmts(alt);
             for (int i = 0; i < nstmts; i++)
@@ -1654,6 +1660,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
+   case T_CASE_GENERATE:
       return simp_case(t);
    case T_WHILE:
       return simp_while(t);

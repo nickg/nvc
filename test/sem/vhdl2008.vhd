@@ -46,7 +46,8 @@ begin
             s <= 2;
         when g =>                       -- OK
             s <= 3;
+        when s =>                       -- Error
+            s <= 5;
     end generate;
-
 
 end architecture;

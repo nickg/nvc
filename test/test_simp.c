@@ -1401,6 +1401,24 @@ START_TEST(test_issue574)
 }
 END_TEST
 
+START_TEST(test_casegen)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/casegen.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   ck_assert_int_eq(tree_stmts(a), 1);
+
+   tree_t five = tree_stmt(a, 0);
+   fail_unless(tree_kind(five) == T_BLOCK);
+   fail_unless(tree_ident(five) == ident_new("FIVE"));
+   fail_unless(tree_stmts(five) == 1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1456,6 +1474,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_genpack1);
    tcase_add_test(tc_core, test_casefold1);
    tcase_add_test(tc_core, test_issue574);
+   tcase_add_test(tc_core, test_casegen);
    suite_add_tcase(s, tc_core);
 
    return s;

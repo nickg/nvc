@@ -4758,6 +4758,14 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
          sem_error(test, "case expression must have locally static subtype");
    }
 
+   static_fn_t static_fn = sem_locally_static;
+   const char *static_str = "locally";
+
+   if (tree_kind(t) == T_CASE_GENERATE) {
+      static_fn = sem_globally_static;
+      static_str = "globally";
+   }
+
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
@@ -4790,8 +4798,8 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                if (!sem_check_type(name, type))
                   sem_error(name, "case choice must have type %s but found %s",
                             type_pp(type), type_pp(tree_type(name)));
-               else if (!sem_locally_static(name))
-                  sem_error(name, "case choice must be locally static");
+               else if (!(*static_fn)(name))
+                  sem_error(name, "case choice must be %s static", static_str);
             }
             break;
 
@@ -4801,12 +4809,12 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                if (!sem_check_discrete_range(r, type, tab))
                   return false;
 
-               if (!sem_locally_static(tree_left(r)))
+               if (!(*static_fn)(tree_left(r)))
                   sem_error(tree_left(r), "left index of case choice range is "
-                            "not locally static");
-               else if (!sem_locally_static(tree_right(r)))
+                            "not %s static", static_str);
+               else if (!(*static_fn)(tree_right(r)))
                   sem_error(tree_right(r), "right index of case choice range "
-                            "is not locally static");
+                            "is not %s static", static_str);
             }
             break;
          }
@@ -5528,7 +5536,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_FOR_GENERATE:
       return sem_check_for_generate(t, tab);
    case T_CASE_GENERATE:
-      return sem_check_case_generate(t, tab);
+      return sem_check_case(t, tab);
    case T_OPEN:
       return sem_check_open(t);
    case T_FIELD_DECL:

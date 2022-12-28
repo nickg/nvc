@@ -2553,7 +2553,7 @@ START_TEST(test_vhdl2008)
       { 31, "case choice must be locally static" },
       { 40, "no visible declaration for BAZ" },
       { 41, "SUBTYPE attribute is only allowed in a type mark" },
-      { 44, "sorry, case generate statements are not yet supported" },
+      { 49, "case choice must be globally static" },
       { -1, NULL }
    };
    expect_errors(expect);
