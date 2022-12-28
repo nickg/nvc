@@ -618,19 +618,24 @@ static size_t globalq_take(globalq_t *gq, threadq_t *tq)
    return take;
 }
 
+static void execute_task(task_t *task)
+{
+   (*task->fn)(task->context, task->arg);
+
+   if (task->workq != NULL)
+      atomic_add(&(task->workq->comp), 1);
+   else
+      atomic_add(&async_pending, -1);
+}
+
 static bool globalq_poll(globalq_t *gq, threadq_t *tq)
 {
    int ntasks;
    if ((ntasks = globalq_take(gq, tq))) {
       task_t task;
       int comp = 0;
-      for (; pop_bot(tq, &task); comp++) {
-         (*task.fn)(task.context, task.arg);
-         if (task.workq != NULL)
-            atomic_add(&(task.workq->comp), 1);
-         else
-            atomic_add(&async_pending, -1);
-      }
+      for (; pop_bot(tq, &task); comp++)
+         execute_task(&task);
 
       WORKQ_EVENT(comp, comp);
       return true;
@@ -738,9 +743,8 @@ static bool steal_task(void)
    task_t task;
    if (pop_top(tq, &task)) {
       WORKQ_EVENT(steals, 1);
-      (*task.fn)(task.context, task.arg);
+      execute_task(&task);
       WORKQ_EVENT(comp, 1);
-      atomic_add(&(task.workq->comp), 1);
       return true;
    }
 
