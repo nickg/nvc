@@ -2,7 +2,6 @@ set -xe
 
 pwd
 which nvc
-which fstdump
 
 # Track only from U
 nvc -a $TESTDIR/regress/cover6.vhd -e --cover=toggle,count-from-undefined cover6 -r

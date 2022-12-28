@@ -837,42 +837,58 @@ static tree_t simp_wait(tree_t t)
 
 static tree_t simp_case(tree_t t)
 {
-   const int nassocs = tree_assocs(t);
-   if (nassocs == 0)
+   const int nstmts = tree_stmts(t);
+   if (nstmts == 0)
       return NULL;    // All choices are unreachable
 
    int64_t ival;
    if (!folded_int(tree_value(t), &ival))
       return t;
 
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         {
-            int64_t aval;
-            if (!folded_int(tree_name(a), &aval))
-               continue;
-            else if (ival != aval)
-               continue;
-         }
-         break;
+   for (int i = 0; i < nstmts; i++) {
+      tree_t alt = tree_stmt(t, i);
 
-      case A_RANGE:
-         {
-            int64_t low, high;
-            if (!folded_bounds(tree_range(a, 0), &low, &high))
-               continue;
-            else if (ival < low || ival > high)
-               continue;
+      const int nassocs = tree_assocs(alt);
+      for (int j = 0; j < nassocs; j++) {
+         tree_t a = tree_assoc(alt, j);
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            {
+               int64_t aval;
+               if (!folded_int(tree_name(a), &aval))
+                  continue;
+               else if (ival != aval)
+                  continue;
+            }
+            break;
+
+         case A_RANGE:
+            {
+               int64_t low, high;
+               if (!folded_bounds(tree_range(a, 0), &low, &high))
+                  continue;
+               else if (ival < low || ival > high)
+                  continue;
+            }
+
+         case A_OTHERS:
+            break;
          }
 
-      case A_OTHERS:
-         break;
+         // This choice is always executed
+         if (tree_stmts(alt) > 0) {
+            tree_t seq = tree_new(T_SEQUENCE);
+            tree_set_loc(seq, tree_loc(alt));
+
+            const int nstmts = tree_stmts(alt);
+            for (int i = 0; i < nstmts; i++)
+               tree_add_stmt(seq, tree_stmt(alt, i));
+
+            return seq;
+         }
+         else
+            return NULL;
       }
-
-      // This choice is always executed
-      return tree_has_value(a) ? tree_value(a) : NULL;
    }
 
    return NULL;  // No choices can be executed
@@ -1109,9 +1125,14 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       {
          simp_build_wait(wait, tree_value(expr), all);
 
-         const int nassocs = tree_assocs(expr);
-         for (int i = 0; i < nassocs; i++)
-            simp_build_wait(wait, tree_value(tree_assoc(expr, i)), all);
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++) {
+            tree_t alt = tree_stmt(expr, i);
+
+            const int nstmts = tree_stmts(alt);
+            for (int j = 0; j < nstmts; j++)
+               simp_build_wait(wait, tree_stmt(alt, j), all);
+         }
       }
       break;
 
@@ -1252,9 +1273,9 @@ static tree_t simp_select(tree_t t)
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
 
-   const int nassocs = tree_assocs(t);
-   for (int i = 0; i < nassocs; i++)
-      tree_add_assoc(c, tree_assoc(t, i));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      tree_add_stmt(c, tree_stmt(t, i));
 
    return c;
 }
@@ -1333,14 +1354,6 @@ static tree_t simp_signal_assign(tree_t t)
 
    if (tree_kind(target) == T_OPEN)
       return NULL;    // Delete it
-
-   return t;
-}
-
-static tree_t simp_assoc(tree_t t)
-{
-   if (!tree_has_value(t))
-      return NULL;   // Delete it
 
    return t;
 }
@@ -1667,8 +1680,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_if_generate(t);
    case T_SIGNAL_ASSIGN:
       return simp_signal_assign(t);
-   case T_ASSOC:
-      return simp_assoc(t);
    case T_TYPE_CONV:
       return simp_type_conv(t, ctx);
    case T_LITERAL:

@@ -941,6 +941,43 @@ static void dump_waveforms(tree_t t)
    }
 }
 
+static void dump_alternative(tree_t t, int indent)
+{
+   tab(indent);
+   syntax("#when ");
+   if (tree_has_ident(t))
+      printf("%s: ", istr(tree_ident(t)));
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      if (i > 0) printf("| ");
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         dump_expr(tree_name(a));
+         break;
+      case A_OTHERS:
+         syntax("#others");
+         break;
+      case A_RANGE:
+         dump_range(tree_range(a, 0));
+         break;
+      }
+   }
+   printf(" =>\n");
+   if (tree_decls(t) > 0) {
+      dump_decls(t, indent + 4);
+      tab(indent + 2);
+      syntax("#begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 4);
+      tab(indent + 2);
+      syntax("#end;\n");
+   }
+   else {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+   }
+}
+
 static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
@@ -951,7 +988,6 @@ static void dump_stmt(tree_t t, int indent)
       if (label[0] != '_')   // Skip generated labels
 #endif
          printf("%s: ", label);
-
    }
 
    switch (tree_kind(t)) {
@@ -1110,28 +1146,8 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#case ");
       dump_expr(tree_value(t));
       syntax(" #is\n");
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
-         tab(indent + 2);
-         tree_t a = tree_assoc(t, i);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            syntax("#when ");
-            dump_expr(tree_name(a));
-            printf(" =>\n");
-            break;
-         case A_OTHERS:
-            syntax("#when #others =>\n");
-            break;
-         case A_RANGE:
-            syntax("#when ");
-            dump_range(tree_range(a, 0));
-            printf(" => ");
-            break;
-         default:
-            assert(false);
-         }
-         dump_stmt(tree_value(a), indent + 4);
-      }
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_alternative(tree_stmt(t, i), indent + 2);
       tab(indent);
       syntax("#end #case");
       break;
@@ -1180,6 +1196,15 @@ static void dump_stmt(tree_t t, int indent)
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
+      syntax("#end #generate");
+      break;
+
+   case T_CASE_GENERATE:
+      syntax("#case ");
+      dump_expr(tree_value(t));
+      syntax(" #generate\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_alternative(tree_stmt(t, i), indent + 2);
       syntax("#end #generate");
       break;
 
@@ -1238,8 +1263,15 @@ static void dump_stmt(tree_t t, int indent)
    case T_COND_ASSIGN:
       dump_expr(tree_target(t));
       printf(" <= ");
-      color_printf("$red$/* TODO: T_COND_ASSIGN */$$");
-      break;
+      for (int i = 0; i < tree_conds(t); i++) {
+         tree_t c = tree_cond(t, i);
+         dump_waveforms(tree_stmt(c, 0));
+         if (tree_has_value(c)) {
+            syntax(" #when ");
+            dump_expr(tree_value(c));
+         }
+      }
+      return;
 
    case T_SELECT:
       printf(" <= ");
@@ -1478,6 +1510,7 @@ void dump(tree_t t)
       break;
    case T_INSTANCE:
    case T_FOR_GENERATE:
+   case T_CASE_GENERATE:
    case T_BLOCK:
    case T_PROCESS:
    case T_CASE:

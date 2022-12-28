@@ -4758,40 +4758,49 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
          sem_error(test, "case expression must have locally static subtype");
    }
 
-   bool ok = true;
-   const int nassocs = tree_assocs(t);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-      switch (tree_subkind(a)) {
-      case A_OTHERS:
-         if (i != nassocs - 1) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
-            diag_printf(d, "others choice must appear last");
-            diag_hint(d, tree_loc(a), "others choice");
-            diag_hint(d, tree_loc(tree_assoc(t, i + 1)),
-                      "further choices follow this");
-            diag_emit(d);
-            return false;
-         }
-         break;
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t alt = tree_stmt(t, i);
 
-      case A_NAMED:
-         {
-            tree_t name = tree_name(a);
-            if ((ok = sem_check(name, tab) && ok)) {
+      const int nassocs = tree_assocs(alt);
+      for (int j = 0; j < nassocs; j++) {
+         tree_t a = tree_assoc(alt, j);
+         switch (tree_subkind(a)) {
+         case A_OTHERS:
+            if (j != nassocs - 1 || i != nstmts - 1) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
+               diag_printf(d, "others choice must appear last");
+               diag_hint(d, tree_loc(a), "others choice");
+
+               tree_t more = j + 1 < nassocs
+                  ? tree_assoc(alt, j + 1) : tree_assoc(tree_stmt(t, i + 1), 0);
+               diag_hint(d, tree_loc(more), "further choices follow this");
+
+               diag_emit(d);
+               return false;
+            }
+            break;
+
+         case A_NAMED:
+            {
+               tree_t name = tree_name(a);
+               if (!sem_check(name, tab))
+                  return false;
+
                if (!sem_check_type(name, type))
                   sem_error(name, "case choice must have type %s but found %s",
                             type_pp(type), type_pp(tree_type(name)));
                else if (!sem_locally_static(name))
                   sem_error(name, "case choice must be locally static");
             }
-         }
-         break;
+            break;
 
-      case A_RANGE:
-         {
-            tree_t r = tree_range(a, 0);
-            if ((ok = sem_check_discrete_range(r, type, tab) && ok)) {
+         case A_RANGE:
+            {
+               tree_t r = tree_range(a, 0);
+               if (!sem_check_discrete_range(r, type, tab))
+                  return false;
+
                if (!sem_locally_static(tree_left(r)))
                   sem_error(tree_left(r), "left index of case choice range is "
                             "not locally static");
@@ -4799,15 +4808,12 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                   sem_error(tree_right(r), "right index of case choice range "
                             "is not locally static");
             }
+            break;
          }
-         break;
-
-      default:
-         sem_error(a, "sorry, this form of choice is not supported");
       }
    }
 
-   return ok;
+   return true;
 }
 
 static bool sem_check_match_case(tree_t t, nametab_t *tab)

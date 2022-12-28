@@ -2332,7 +2332,13 @@ START_TEST(test_issue407)
    tree_t s0 = tree_stmt(a, 0);
    fail_unless(tree_kind(s0) == T_CONCURRENT);
 
-   tree_t w = tree_waveform(tree_value(tree_assoc(tree_stmt(s0, 0), 0)), 0);
+   tree_t sel = tree_stmt(s0, 0);
+   fail_unless(tree_kind(sel) == T_SELECT);
+
+   tree_t alt0 = tree_stmt(sel, 0);
+   fail_unless(tree_kind(alt0) == T_ALTERNATIVE);
+
+   tree_t w = tree_waveform(tree_stmt(alt0, 0), 0);
    tree_t assoc = tree_assoc(tree_value(w), 0);
    fail_unless(tree_kind(assoc) == T_ASSOC);
    fail_unless(tree_subkind(assoc) == A_RANGE);

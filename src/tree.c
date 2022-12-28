@@ -152,7 +152,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
 
    // T_CASE
-   (I_IDENT | I_VALUE | I_ASSOCS),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_BLOCK
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_PARAMS | I_GENMAPS),
@@ -164,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE | I_FLAGS),
 
    // T_SELECT
-   (I_IDENT | I_VALUE | I_ASSOCS),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_COMPONENT
    (I_IDENT | I_PORTS | I_GENERICS),
@@ -305,7 +305,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_REF),
 
    // T_MATCH_CASE
-   (I_IDENT | I_VALUE | I_ASSOCS),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_FUNC_INST
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
@@ -328,7 +328,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND),
 
    // T_CASE_GENERATE
-   (I_IDENT | I_VALUE | I_ASSOCS),
+   (I_IDENT | I_VALUE | I_STMTS),
+
+   // T_ALTERNATIVE
+   (I_IDENT | I_ASSOCS | I_STMTS | I_DECLS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -365,7 +368,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
    "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
-   "T_CASE_GENERATE",
+   "T_CASE_GENERATE",   "T_ALTERNATIVE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -396,13 +399,14 @@ struct _type {
 };
 
 static const tree_kind_t stmt_kinds[] = {
-   T_PROCESS,    T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
-   T_ASSERT,     T_INSTANCE,        T_IF,           T_NULL,
-   T_RETURN,     T_COND_ASSIGN,     T_WHILE,        T_FOR,
-   T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
-   T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
-   T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
-   T_RELEASE,    T_MATCH_CASE,      T_SEQUENCE,     T_CASE_GENERATE,
+   T_PROCESS,     T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
+   T_ASSERT,      T_INSTANCE,        T_IF,           T_NULL,
+   T_RETURN,      T_COND_ASSIGN,     T_WHILE,        T_FOR,
+   T_EXIT,        T_PCALL,           T_CASE,         T_BLOCK,
+   T_SELECT,      T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
+   T_PROT_PCALL,  T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
+   T_RELEASE,     T_MATCH_CASE,      T_SEQUENCE,     T_CASE_GENERATE,
+   T_ALTERNATIVE,
 };
 
 static tree_kind_t expr_kinds[] = {

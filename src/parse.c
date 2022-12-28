@@ -9015,7 +9015,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
    return call;
 }
 
-static void p_case_statement_alternative(tree_t stmt)
+static tree_t p_case_statement_alternative(type_t type)
 {
    // when choices => sequence_of_statements
 
@@ -9023,30 +9023,16 @@ static void p_case_statement_alternative(tree_t stmt)
 
    consume(tWHEN);
 
-   type_t type = tree_type(tree_value(stmt));
+   tree_t alt = tree_new(T_ALTERNATIVE);
 
-   const int nstart = tree_assocs(stmt);
-   p_choices(stmt, type);
+   p_choices(alt, type);
 
    consume(tASSOC);
 
-   tree_t b = tree_new(T_SEQUENCE);
-   p_sequence_of_statements(b);
+   p_sequence_of_statements(alt);
 
-   const int nassocs = tree_assocs(stmt);
-   for (int i = nstart; i < nassocs; i++) {
-      tree_t a = tree_assoc(stmt, i);
-      tree_set_value(a, b);
-
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         solve_types(nametab, tree_name(a), type);
-         break;
-      case A_RANGE:
-         solve_types(nametab, tree_range(a, 0), type);
-         break;
-      }
-   }
+   tree_set_loc(alt, CURRENT_LOC);
+   return alt;
 }
 
 static tree_t p_case_statement(ident_t label)
@@ -9069,12 +9055,12 @@ static tree_t p_case_statement(ident_t label)
    tree_t value = p_expression();
    tree_set_value(t, value);
 
-   solve_types(nametab, value, NULL);
+   type_t type = solve_types(nametab, value, NULL);
 
    consume(tIS);
 
    do {
-      p_case_statement_alternative(t);
+      tree_add_stmt(t, p_case_statement_alternative(type));
    } while (peek() == tWHEN);
 
    consume(tEND);
@@ -9407,16 +9393,17 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
 
       p_waveform(a, constraint);
 
+      sem_check(a, nametab);
+
       consume(tWHEN);
 
-      const int nstart = tree_assocs(stmt);
-      p_choices(stmt, with_type);
+      tree_t alt = tree_new(T_ALTERNATIVE);
+      tree_add_stmt(alt, a);
 
-      const int nassocs = tree_assocs(stmt);
-      for (int i = nstart; i < nassocs; i++)
-         tree_set_value(tree_assoc(stmt, i), a);
+      p_choices(alt, with_type);
 
-      sem_check(a, nametab);
+      tree_set_loc(alt, CURRENT_LOC);
+      tree_add_stmt(stmt, alt);
    } while (optional(tCOMMA));
 }
 
@@ -9807,7 +9794,7 @@ static tree_t p_if_generate_statement(ident_t label)
    return g;
 }
 
-static void p_case_generate_alternative(tree_t stmt)
+static tree_t p_case_generate_alternative(type_t type)
 {
    // when [ alternative_label : ] choices => generate_statement_body
 
@@ -9821,36 +9808,21 @@ static void p_case_generate_alternative(tree_t stmt)
       consume(tCOLON);
    }
 
-   type_t type = tree_type(tree_value(stmt));
-
-   const int nstart = tree_assocs(stmt);
-   p_choices(stmt, type);
+   tree_t alt = tree_new(T_ALTERNATIVE);
+   tree_set_ident(alt, alt_label);
+   p_choices(alt, type);
 
    consume(tASSOC);
 
    push_scope(nametab);
-   scope_set_prefix(nametab, alt_label ?: tree_ident(stmt));
+   scope_set_prefix(nametab, alt_label);
 
-   tree_t b = tree_new(T_BLOCK);
-   p_generate_statement_body(b, alt_label);
+   p_generate_statement_body(alt, alt_label);
 
-   tree_set_loc(b, CURRENT_LOC);
+   tree_set_loc(alt, CURRENT_LOC);
    pop_scope(nametab);
 
-   const int nassocs = tree_assocs(stmt);
-   for (int i = nstart; i < nassocs; i++) {
-      tree_t a = tree_assoc(stmt, i);
-      tree_set_value(a, b);
-
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         solve_types(nametab, tree_name(a), type);
-         break;
-      case A_RANGE:
-         solve_types(nametab, tree_range(a, 0), type);
-         break;
-      }
-   }
+   return alt;
 }
 
 static tree_t p_case_generate_statement(ident_t label)
@@ -9868,12 +9840,12 @@ static tree_t p_case_generate_statement(ident_t label)
    tree_t value = p_expression();
    tree_set_value(g, value);
 
-   solve_types(nametab, value, NULL);
+   type_t type = solve_types(nametab, value, NULL);
 
    consume(tGENERATE);
 
    do {
-      p_case_generate_alternative(g);
+      tree_add_stmt(g, p_case_generate_alternative(type));
    } while (peek() == tWHEN);
 
    consume(tEND);

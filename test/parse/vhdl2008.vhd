@@ -231,7 +231,11 @@ begin
     end generate;
 
     g2: case integer'(5) generate       -- OK
-        when 1 => begin end;
+        when 1 =>
+            signal s : bit;
+        begin
+            s <= '1';
+        end;
         when 2 => begin end;
         when others => begin end;
     end generate;

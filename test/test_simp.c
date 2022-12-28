@@ -154,9 +154,7 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 4)), true));
 
    p = tree_stmt(a, 5);
-   s = tree_stmt(p, 0);
-   fail_unless(tree_kind(s) == T_SEQUENCE);
-   fail_unless(tree_stmts(s) == 0);
+   fail_unless(tree_stmts(p) == 0);
 
    p = tree_stmt(a, 6);
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 3.0));

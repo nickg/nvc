@@ -2,7 +2,6 @@ set -xe
 
 pwd
 which nvc
-which fstdump
 
 nvc -a $TESTDIR/regress/cover5.vhd -e -gG_VAL=1 --cover=all cover5 -r
 mv work/_WORK.COVER5.elab.covdb DB1.covdb

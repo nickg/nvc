@@ -613,11 +613,11 @@ START_TEST(test_seq)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_CASE);
-   fail_unless(tree_assocs(s) == 4 + 1);
-   fail_unless(tree_subkind(tree_assoc(s, 0)) == A_NAMED);
-   fail_unless(tree_subkind(tree_assoc(s, 4)) == A_OTHERS);
-   b = tree_value(tree_assoc(s, 0));
-   fail_unless(tree_kind(b) == T_SEQUENCE);
+   fail_unless(tree_stmts(s) == 4);
+   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 0), 0)) == A_NAMED);
+   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 3), 0)) == A_OTHERS);
+   b = tree_stmt(s, 0);
+   fail_unless(tree_kind(b) == T_ALTERNATIVE);
    fail_unless(tree_stmts(b) == 1);
    fail_unless(tree_kind(tree_stmt(b, 0)) == T_NULL);
 
@@ -647,8 +647,8 @@ START_TEST(test_seq)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_CASE);
-   fail_unless(tree_assocs(s) == 1);
-   fail_unless(tree_subkind(tree_assoc(s, 0)) == A_NAMED);
+   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 0), 0)) == A_NAMED);
 
    // Process with all-sensitivity
 
@@ -1831,7 +1831,9 @@ START_TEST(test_conc)
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_SELECT);
-   fail_unless(tree_assocs(s) == 3);
+   fail_unless(tree_stmts(s) == 3);
+   fail_unless(tree_kind(tree_stmt(s, 0)) == T_ALTERNATIVE);
+   fail_unless(tree_assocs(tree_stmt(s, 0)) == 1);
 
    s = tree_stmt(a, 3);
    fail_unless(tree_kind(s) == T_CONCURRENT);
@@ -3642,8 +3644,8 @@ START_TEST(test_vhdl2008)
       { 228, "unexpected trailing label for generate statement body without" },
       { 230, "expected trailing generate statement body label to match FOO" },
       { 233, "sorry, case generate statements are not yet supported" },
-      { 243, "expected trailing case generate statement label to match G3" },
-      { 239, "sorry, case generate statements are not yet supported" },
+      { 247, "expected trailing case generate statement label to match G3" },
+      { 243, "sorry, case generate statements are not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);

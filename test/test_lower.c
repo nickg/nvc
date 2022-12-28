@@ -2505,8 +2505,10 @@ START_TEST(test_choice1)
 {
    input_from_file(TESTDIR "/lower/choice1.vhd");
 
+   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_BRANCH, 0);
+
    tree_t e = run_elab();
-   lower_unit(e, NULL);
+   lower_unit(e, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -2521,6 +2523,7 @@ START_TEST(test_choice1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LEQ },
       { VCODE_OP_AND },
+      { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_COND, .target = 4, .target_else = 3 },
    };
 
@@ -2546,6 +2549,10 @@ START_TEST(test_choice1)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
+      { VCODE_OP_CMP },
+      { VCODE_OP_COVER_BRANCH, .tag = 1 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_COVER_BRANCH, .tag = 2 },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2554,6 +2561,12 @@ START_TEST(test_choice1)
    CHECK_BB(5);
 
    EXPECT_BB(6) = {
+      { VCODE_OP_CMP },
+      { VCODE_OP_COVER_BRANCH, .tag = 3 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_COVER_BRANCH, .tag = 4 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_COVER_BRANCH, .tag = 5 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2562,6 +2575,8 @@ START_TEST(test_choice1)
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_COVER_BRANCH, .tag = 6 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
