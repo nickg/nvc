@@ -1823,6 +1823,11 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
 
    type_t arg_type = type_param(tree_type(decl), 0);
 
+   // TODO: Following implementation has so far following issues:
+   //          1. mixed operands between "logic" and "logic_vector"
+   //          2. Obtaining dimensions crashes when LHS/RHS is output
+   //             of another function, e.g.:
+   //               (vect_a and vect_b) xor (vect_c or vect_d)
    if (type_is_array(arg_type)) {
       assert(type_is_array(type_param(tree_type(decl), 1)));
 
