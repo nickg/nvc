@@ -313,7 +313,7 @@ void jit_fill_irbuf(jit_func_t *f)
             fatal_trace("timeout waiting for %s", istr(f->name));
          thread_sleep(100);
       }
-      break;
+      return;
    default:
       fatal_trace("illegal function state for %s", istr(f->name));
    }
