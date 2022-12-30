@@ -138,7 +138,7 @@ struct _fault_handler {
 static bool             want_color = false;
 static bool             want_links = false;
 static message_style_t  message_style = MESSAGE_FULL;
-static sig_atomic_t     crashing = 0;
+static sig_atomic_t     crashing = SIG_ATOMIC_MAX;
 static int              term_width = 0;
 static void            *ctrl_c_arg = NULL;
 static fault_handler_t *fault_handlers = NULL;
@@ -462,7 +462,7 @@ bool color_terminal(void)
 
 void fatal_exit(int status)
 {
-   if (atomic_load(&crashing))
+   if (atomic_load(&crashing) != SIG_ATOMIC_MAX || thread_id() != 0)
       _exit(status);
    else
       exit(status);
@@ -770,7 +770,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
    color_fprintf(stderr, " ***$$\n\n");
    fflush(stderr);
 
-   if (sig != SIGUSR1 && !atomic_cas(&crashing, 0, thread_id())) {
+   if (sig != SIGUSR1 && !atomic_cas(&crashing, SIG_ATOMIC_MAX, thread_id())) {
       sleep(60);
       _exit(EXIT_FAILURE);
    }
