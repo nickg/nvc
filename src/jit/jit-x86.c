@@ -155,7 +155,7 @@ typedef enum {
 #define AND(dst, src, size) asm_and(blob, (dst), (src), (size))
 #define OR(dst, src, size) asm_or(blob, (dst), (src), (size))
 #define SHL(src, size) asm_shl(blob, (src), (size))
-#define SAR(src, size) asm_sar(blob, (src), (size))
+#define SAR(src, count, size) asm_sar(blob, (src), (count), (size))
 #define XOR(dst, src, size) asm_xor(blob, (dst), (src), (size))
 #define NEG(dst, size) asm_neg(blob, (dst), (size))
 #define MOV(dst, src, size) asm_mov(blob, (dst), (src), (size))
@@ -202,8 +202,15 @@ typedef enum {
 static void asm_rex(code_blob_t *blob, x86_size_t size, x86_reg_t modrm_reg,
                     x86_reg_t modrm_rm, x86_reg_t modrm_sib)
 {
-   if (size > __DWORD || (modrm_reg & 0x10) || (modrm_sib & 0x10)
-       || (modrm_rm & 0x10))
+   const bool want_prefix =
+      // Quadword operation
+      size > __DWORD ||
+      // Uses R8 - R15
+      (modrm_reg & 0x10) || (modrm_sib & 0x10) || (modrm_rm & 0x10) ||
+      // Byte operation on SPL, BPL, SIL, DIL
+      (size == __BYTE && ((modrm_rm & 7) >= 4 || ((modrm_reg & 7) >= 4)));
+
+   if (want_prefix)
       __REX(size > __DWORD, !!(modrm_reg & 0x10), !!(modrm_sib & 0x10),
             !!(modrm_rm & 0x10));
 }
@@ -524,11 +531,25 @@ static void asm_shl(code_blob_t *blob, x86_operand_t src, x86_size_t size)
    __(0xd3, __MODRM(3, 4, src.reg));
 }
 
-static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_size_t size)
+static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_operand_t count,
+                    x86_size_t size)
 {
-   assert(src.kind == X86_REG);
-   asm_rex(blob, size, src.reg, 0, 0);
-   __(0xd3, __MODRM(3, 7, src.reg));
+   switch (COMBINE(src, count)) {
+   case REG_REG:
+      assert(count.reg == __ECX.reg);
+      asm_rex(blob, size, src.reg, 0, 0);
+      __(0xd3, __MODRM(3, 7, src.reg));
+      break;
+
+   case REG_IMM:
+      assert(count.imm == 1);
+      asm_rex(blob, size, src.reg, 0, 0);
+      __(0xd1, __MODRM(3, 7, src.reg));
+      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_sar");
+   }
 }
 
 static void asm_test(code_blob_t *blob, x86_operand_t src1,
@@ -544,7 +565,7 @@ static void asm_test(code_blob_t *blob, x86_operand_t src1,
       break;
 
    case REG_REG:
-      asm_rex(blob, size, 0, src1.reg, 0);
+      asm_rex(blob, size, src2.reg, src1.reg, 0);
       switch (size) {
       case __BYTE: __(0x84, __MODRM(3, src2.reg, src1.reg)); break;
       default: __(0x85, __MODRM(3, src2.reg, src1.reg)); break;
@@ -1049,7 +1070,7 @@ static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   SAR(__EAX, __QWORD);
+   SAR(__EAX, __ECX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -1168,6 +1189,24 @@ static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
    code_blob_patch(blob, ir->arg2.label, jit_x86_patch);
 }
 
+static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EDI, ir->arg1);    // Clobbers FPTR_REG
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   TEST(__ECX, __ECX, __QWORD);
+   MOV(__EAX, IMM(1), __DWORD);
+   JZ(IMM(18));
+   TEST(__ECX, IMM(1), __BYTE);
+   JZ(IMM(4));
+   IMUL(__EAX, __EDI, __QWORD);
+   IMUL(__EDI, __EDI, __QWORD);
+   SAR(__ECX, IMM(1), __QWORD);
+   JNZ(IMM(-18));
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1281,6 +1320,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_CASE:
       jit_x86_macro_case(blob, ir);
+      break;
+   case MACRO_EXP:
+      jit_x86_macro_exp(blob, ir);
       break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
