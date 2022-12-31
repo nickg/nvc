@@ -1075,6 +1075,11 @@ static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
+static void jit_x86_trap(code_blob_t *blob, jit_ir_t *ir)
+{
+   INT3();
+}
+
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
                                jit_ir_t *ir)
 {
@@ -1290,6 +1295,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_ASR:
       jit_x86_asr(blob, ir);
+      break;
+   case J_TRAP:
+      jit_x86_trap(blob, ir);
       break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);

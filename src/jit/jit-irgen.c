@@ -3644,6 +3644,7 @@ static void irgen_jump_table(jit_irgen_t *g)
 
    jit_value_t state_ptr = irgen_state_ptr(g);
    jit_value_t state = j_load(g, JIT_SZ_32, state_ptr);
+   jit_reg_t state_reg = jit_value_as_reg(state);
 
    const bool is_process = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
    const int nblocks = vcode_count_blocks();
@@ -3669,11 +3670,12 @@ static void irgen_jump_table(jit_irgen_t *g)
       if (target == VCODE_INVALID_BLOCK || mask_test(&have, target))
          continue;
 
-      j_cmp(g, JIT_CC_EQ, state, jit_value_from_int64(target));
-      j_jump(g, JIT_CC_T, g->blocks[target]);
+      macro_case(g, state_reg, jit_value_from_int64(target), g->blocks[target]);
 
       mask_set(&have, target);
    }
+
+   DEBUG_ONLY(j_trap(g));
 
    irgen_bind_label(g, cont);
    mask_free(&have);
