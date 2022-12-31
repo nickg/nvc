@@ -941,9 +941,12 @@ static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_ret(code_blob_t *blob, jit_ir_t *ir)
 {
-   MOV(__EBX, ADDR(__EBP, -8), __QWORD);
-   LEAVE();
-   RET();
+   jit_ir_t *endir = blob->func->irbuf + blob->func->nirs;
+   if (ir + 1 < endir) {
+      const int distance = (endir - ir) * BYTES_PER_IR;
+      JMP(PATCH(distance));
+      code_blob_patch(blob, JIT_LABEL_INVALID, jit_x86_patch);
+   }
 }
 
 static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir)
@@ -1348,6 +1351,13 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
          code_blob_mark(blob, i);
       jit_x86_op(blob, state, &(f->irbuf[i]));
    }
+
+
+   code_blob_mark(blob, JIT_LABEL_INVALID);
+
+   MOV(__EBX, ADDR(__EBP, -8), __QWORD);
+   LEAVE();
+   RET();
 
    code_blob_finalise(blob, &(f->entry));
 }
