@@ -725,6 +725,7 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 
 #else
 
+#ifndef __SANITIZE_THREAD__
 static const char *signame(int sig, siginfo_t *info)
 {
    switch (sig) {
@@ -779,6 +780,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
       abort();
    }
 }
+#endif  // !__SANITIZE_THREAD__
 
 static __thread struct cpu_state *thread_regs = NULL;
 

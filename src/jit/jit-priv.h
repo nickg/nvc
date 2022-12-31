@@ -298,12 +298,12 @@ typedef struct _code_span code_span_t;
 typedef struct _patch_list patch_list_t;
 
 typedef struct {
-   code_cache_t *owner;
    code_span_t  *span;
    jit_func_t   *func;
    uint8_t      *wptr;
    ihash_t      *labels;
    patch_list_t *patches;
+   bool          overflow;
 } code_blob_t;
 
 #define JIT_MAX_ARGS 64

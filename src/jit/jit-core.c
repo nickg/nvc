@@ -602,7 +602,8 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
          jit_scalar_t args[JIT_MAX_ARGS];
          args[0] = p1;
          args[1] = p2;
-         (*f->entry)(f, NULL, args, tlab);
+         jit_entry_fn_t entry = load_acquire(&f->entry);
+         (*entry)(f, NULL, args, tlab);
          *result = args[0];
          jit_transition(j, JIT_INTERP, JIT_IDLE);
       }

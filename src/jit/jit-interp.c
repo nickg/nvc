@@ -595,7 +595,8 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
       jit_msg(NULL, DIAG_FATAL, "missing definition for subprogram");
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-      (*f->entry)(f, state->anchor, state->args, state->tlab);
+      jit_entry_fn_t entry = load_acquire(&f->entry);
+      (*entry)(f, state->anchor, state->args, state->tlab);
    }
 }
 
@@ -917,10 +918,11 @@ static void interp_loop(jit_interp_t *state)
 void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
                 tlab_t *tlab)
 {
-   if (f->entry != jit_interp) {
+   jit_entry_fn_t entry = load_acquire(&f->entry);
+   if (entry != jit_interp) {
       // Came from stale compiled code
       // TODO: should we patch the call site?
-      (*f->entry)(f, caller, args, tlab);
+      (*entry)(f, caller, args, tlab);
       return;
    }
 

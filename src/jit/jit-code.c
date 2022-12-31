@@ -32,14 +32,22 @@
 #include <capstone/capstone.h>
 #endif
 
-#define CODECACHE_ALIGN 4096
-#define CODECACHE_SIZE  0x100000
+#define CODECACHE_ALIGN   4096
+#define CODECACHE_SIZE    0x400000
+#define THREAD_CACHE_SIZE 0x10000
+#define CODE_BLOB_ALIGN   256
+#define DEFAULT_BLOB_SIZE 0x4000
+
+STATIC_ASSERT(DEFAULT_BLOB_SIZE <= THREAD_CACHE_SIZE);
+STATIC_ASSERT(DEFAULT_BLOB_SIZE % CODE_BLOB_ALIGN == 0);
+STATIC_ASSERT(CODECACHE_SIZE % THREAD_CACHE_SIZE == 0);
 
 typedef struct _code_span {
-   code_span_t *next;
-   ident_t      name;
-   uint8_t     *base;
-   size_t       size;
+   code_cache_t *owner;
+   code_span_t  *next;
+   ident_t       name;
+   uint8_t      *base;
+   size_t        size;
 } code_span_t;
 
 typedef struct _patch_list {
@@ -52,15 +60,19 @@ typedef struct _patch_list {
 typedef struct _code_cache {
    nvc_lock_t   lock;
    uint8_t     *mem;
-   size_t       freeptr;
    code_span_t *spans;
+   code_span_t *freelist[MAX_THREADS];
+   code_span_t *globalfree;
 #ifdef HAVE_CAPSTONE
    csh          capstone;
 #endif
+#ifdef DEBUG
+   size_t       used;
+#endif
 } code_cache_t;
 
-static void code_disassemble(code_cache_t *code, code_span_t *span,
-                             uintptr_t mark, struct cpu_state *cpu);
+static void code_disassemble(code_span_t *span, uintptr_t mark,
+                             struct cpu_state *cpu);
 
 static void code_cache_unwinder(uintptr_t addr, debug_frame_t *frame,
                                 void *context)
@@ -94,8 +106,27 @@ static void code_fault_handler(int sig, void *addr, struct cpu_state *cpu,
 
    for (code_span_t *span = code->spans; span; span = span->next) {
       if (pc >= span->base && pc < span->base + span->size)
-         code_disassemble(code, span, mark, cpu);
+         code_disassemble(span, mark, cpu);
    }
+}
+
+static code_span_t *code_span_new(code_cache_t *code, ident_t name,
+                                  uint8_t *base, size_t size)
+{
+   assert(base >= code->mem);
+   assert(base + size <= code->mem + CODECACHE_SIZE);
+
+   SCOPED_LOCK(code->lock);
+
+   code_span_t *span = xcalloc(sizeof(code_span_t));
+   span->name  = name;
+   span->next  = code->spans;
+   span->base  = base;
+   span->size  = size;
+   span->owner = code;
+
+   code->spans = span;
+   return span;
 }
 
 code_cache_t *code_cache_new(void)
@@ -121,6 +152,8 @@ code_cache_t *code_cache_new(void)
    add_fault_handler(code_fault_handler, code);
    debug_add_unwinder(code->mem, CODECACHE_SIZE, code_cache_unwinder, code);
 
+   code->globalfree = code_span_new(code, NULL, code->mem, CODECACHE_SIZE);
+
    return code;
 }
 
@@ -140,15 +173,17 @@ void code_cache_free(code_cache_t *code)
    cs_close(&(code->capstone));
 #endif
 
+   DEBUG_ONLY(debugf("JIT code footprint: %zu bytes", code->used));
+
    free(code);
 }
 
-static void code_disassemble(code_cache_t *code, code_span_t *span,
-                             uintptr_t mark, struct cpu_state *cpu)
+static void code_disassemble(code_span_t *span, uintptr_t mark,
+                             struct cpu_state *cpu)
 {
 #ifdef HAVE_CAPSTONE
    cs_insn *insn;
-   size_t count = cs_disasm(code->capstone,
+   size_t count = cs_disasm(span->owner->capstone,
                             (const uint8_t *)span->base,
                             span->size, (uintptr_t)span->base, 0, &insn);
    if (count > 0) {
@@ -207,23 +242,49 @@ static void code_disassemble(code_cache_t *code, code_span_t *span,
 
 code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
 {
-   code_span_t *span = xcalloc(sizeof(code_span_t));
-   span->name = name;
-   span->next = code->spans;
-   span->base = code->mem + code->freeptr;
-   span->size = 0x10000;
+   code_span_t **freeptr = &(code->freelist[thread_id()]);
 
-   code->spans = span;
+   code_span_t *free = relaxed_load(freeptr);
+   if (free == NULL) {
+      free = code_span_new(code, NULL, code->mem, 0);
+      relaxed_store(freeptr, free);
+   }
+
+   if (free->size < DEFAULT_BLOB_SIZE) {
+#ifdef DEBUG
+      if (free->size > 0)
+         debugf("thread %d needs new code cache from global free list "
+                "(wasted %zu bytes)", thread_id(), free->size);
+#endif
+
+      SCOPED_LOCK(code->lock);
+
+      if (code->globalfree->size == 0)
+         return NULL;
+
+      const size_t take = MIN(code->globalfree->size, THREAD_CACHE_SIZE);
+
+      free->size = take;
+      free->base = code->globalfree->base;
+
+      code->globalfree->base += take;
+      code->globalfree->size -= take;
+   }
+
+   assert(DEFAULT_BLOB_SIZE <= free->size);
+   assert(((uintptr_t)free->base & (CODE_BLOB_ALIGN - 1)) == 0);
+
+   code_span_t *span = code_span_new(code, name, free->base, DEFAULT_BLOB_SIZE);
+
+   free->base += DEFAULT_BLOB_SIZE;
+   free->size -= DEFAULT_BLOB_SIZE;
 
    code_blob_t *blob = xcalloc(sizeof(code_blob_t));
-   blob->owner = code;
    blob->span  = span;
    blob->func  = f;
    blob->wptr  = span->base;
 
    assert(f == NULL || name == f->name);
-
-   code->freeptr += span->size;
 
    return blob;
 }
@@ -233,9 +294,29 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
    code_span_t *span = blob->span;
    span->size = blob->wptr - span->base;
 
+   code_span_t *freespan = relaxed_load(&(span->owner->freelist[thread_id()]));
+   assert(freespan->base == span->base + DEFAULT_BLOB_SIZE);
+
+   ihash_free(blob->labels);
+   blob->labels = NULL;
+
+   if (unlikely(blob->patches != NULL))
+      fatal_trace("not all labels in %s were patched", istr(span->name));
+   else if (unlikely(blob->overflow)) {
+      // Return all the memory
+      freespan->base = span->base;
+      freespan->size += DEFAULT_BLOB_SIZE;
+      free(blob);
+      return;
+   }
+
+   uint8_t *aligned = ALIGN_UP(blob->wptr, CODE_BLOB_ALIGN);
+   freespan->size += freespan->base - aligned;
+   freespan->base = aligned;
+
    if (opt_get_verbose(OPT_ASM_VERBOSE, istr(span->name))) {
       color_printf("\n$bold$$blue$");
-      code_disassemble(blob->owner, span, 0, NULL);
+      code_disassemble(span, 0, NULL);
       color_printf("$$\n");
    }
 
@@ -243,17 +324,24 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
 
    store_release(entry, (jit_entry_fn_t)span->base);
 
-   if (blob->patches != NULL)
-      fatal_trace("not all labels in %s were patched", istr(span->name));
-
-   ihash_free(blob->labels);
+   DEBUG_ONLY(relaxed_add(&span->owner->used, span->size));
    free(blob);
 }
 
 void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
 {
-   if (blob->wptr + len >= blob->span->base + blob->span->size)
-      fatal_trace("JIT code buffer too small %zu", blob->span->size);
+   if (unlikely(blob->overflow))
+      return;
+   else if (unlikely(blob->wptr + len >= blob->span->base + blob->span->size)) {
+      warnf("JIT code buffer for %s too small", istr(blob->span->name));
+      for (patch_list_t *it = blob->patches, *tmp; it; it = tmp) {
+         tmp = it->next;
+         free(it);
+      }
+      blob->patches = NULL;
+      blob->overflow = true;
+      return;
+   }
 
    for (size_t i = 0; i < len; i++)
       *(blob->wptr++) = bytes[i];
@@ -261,7 +349,9 @@ void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
 
 void code_blob_mark(code_blob_t *blob, jit_label_t label)
 {
-   if (blob->labels == NULL)
+   if (unlikely(blob->overflow))
+      return;
+   else if (blob->labels == NULL)
       blob->labels = ihash_new(256);
 
    ihash_put(blob->labels, label, blob->wptr);
@@ -281,7 +371,9 @@ void code_blob_mark(code_blob_t *blob, jit_label_t label)
 void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn)
 {
    void *ptr = NULL;
-   if (blob->labels != NULL && (ptr = ihash_get(blob->labels, label)))
+   if (unlikely(blob->overflow))
+      return;
+   else if (blob->labels != NULL && (ptr = ihash_get(blob->labels, label)))
       (*fn)(blob, label, blob->wptr, ptr);
    else {
       patch_list_t *new = xmalloc(sizeof(patch_list_t));

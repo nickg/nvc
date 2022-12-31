@@ -597,9 +597,15 @@ static void globalq_put(globalq_t *gq, const task_t *tasks, size_t count)
    gq->wptr += count;
 }
 
+__attribute__((no_sanitize("thread")))
+static bool globalq_unlocked_empty(globalq_t *gq)
+{
+   return relaxed_load(&gq->wptr) == relaxed_load(&gq->rptr);
+}
+
 static size_t globalq_take(globalq_t *gq, threadq_t *tq)
 {
-   if (relaxed_load(&gq->wptr) == relaxed_load(&gq->rptr))
+   if (globalq_unlocked_empty(gq))
       return 0;
 
    SCOPED_LOCK(gq->lock);

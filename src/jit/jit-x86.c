@@ -1263,6 +1263,10 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    jit_func_t *f = jit_get_func(j, handle);
 
    code_blob_t *blob = code_blob_new(state->code, f->name, f);
+   if (blob == NULL) {
+      warnf("could not allocate JIT code buffer for %s", istr(f->name));
+      return;
+   }
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
