@@ -365,5 +365,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
                       jit_scalar_t *args);
 void *__nvc_mspace_alloc2(uintptr_t size, jit_anchor_t *anchor);
+void _debug_out(intptr_t val, int32_t reg);
 
 #endif  // _JIT_PRIV_H

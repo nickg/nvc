@@ -31,6 +31,7 @@ typedef enum {
    CALL_STUB,
    ALLOC_STUB,
    FFI_STUB,
+   DEBUG_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -104,6 +105,18 @@ static const x86_operand_t __R9  = REG(17);
 #define ARGS_REG   __R8
 #define TLAB_REG   __R9
 #define FLAGS_REG  __EBX
+
+#ifdef __MINGW32__
+#define CARG0_REG __ECX
+#define CARG1_REG __EDX
+#define CARG2_REG __R8
+#define CARG3_REG __R9
+#else
+#define CARG0_REG __EDI
+#define CARG1_REG __ESI
+#define CARG2_REG __EDX
+#define CARG3_REG __ECX
+#endif
 
 typedef enum {
    __BYTE = 1,
@@ -717,6 +730,17 @@ static x86_size_t jit_x86_size(jit_ir_t *ir)
    }
 }
 
+#ifdef DEBUG
+__attribute__((unused))
+static void jit_x86_debug_out(code_blob_t *blob, jit_x86_state_t *state,
+                              x86_operand_t value, jit_reg_t reg)
+{
+   MOV(__EAX, value, __QWORD);
+   MOV(__ECX, IMM(reg), __DWORD);
+   CALL(PTR(state->stubs[DEBUG_STUB]));
+}
+#endif
+
 static void jit_x86_recv(code_blob_t *blob, jit_ir_t *ir)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
@@ -1093,6 +1117,8 @@ static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
 
    MOV(__EAX, IMM((intptr_t)ptr), __QWORD);
    MOV(__EAX, ADDR(__EAX, 0), __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
 }
 
 static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir)
@@ -1243,17 +1269,10 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    PUSH(__EBX);
 
    // Shuffle incoming arguments
-#ifdef __MINGW32__
-   MOV(FPTR_REG, __ECX, __QWORD);
-   MOV(ANCHOR_REG, __EDX, __QWORD);
-   MOV(ARGS_REG, __R8, __QWORD);
-   MOV(TLAB_REG, __R9, __QWORD);
-#else
-   MOV(FPTR_REG, __EDI, __QWORD);
-   MOV(ANCHOR_REG, __ESI, __QWORD);
-   MOV(ARGS_REG, __EDX, __QWORD);
-   MOV(TLAB_REG, __ECX, __QWORD);
-#endif
+   MOV(FPTR_REG, CARG0_REG, __QWORD);
+   MOV(ANCHOR_REG, CARG1_REG, __QWORD);
+   MOV(ARGS_REG, CARG2_REG, __QWORD);
+   MOV(TLAB_REG, CARG3_REG, __QWORD);
 
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
@@ -1311,17 +1330,10 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
    jit_x86_push_call_clobbered(blob);
 
    // Exit number in EAX, clobbers FPTR
-#ifdef __MINGW32__
-   MOV(__ECX, __EAX, __DWORD);
-   MOV(__EDX, ANCHOR_REG, __QWORD);
-   MOV(__R8, ARGS_REG, __QWORD);
-   MOV(__R9, TLAB_REG, __QWORD);
-#else
-   MOV(__EDI, __EAX, __DWORD);
-   MOV(__ESI, ANCHOR_REG, __QWORD);
-   MOV(__EDX, ARGS_REG, __QWORD);
-   MOV(__ECX, TLAB_REG, __QWORD);
-#endif
+   MOV(CARG0_REG, __EAX, __DWORD);
+   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   MOV(CARG2_REG, ARGS_REG, __QWORD);
+   MOV(CARG3_REG, TLAB_REG, __QWORD);
 
    MOV(__EAX, PTR(__nvc_do_exit), __QWORD);
    CALL(__EAX);
@@ -1344,17 +1356,10 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
 
    jit_x86_push_call_clobbered(blob);
 
-#ifdef __MINGW32__
-   MOV(__ECX, __EAX, __QWORD);
-   MOV(__EDX, ANCHOR_REG, __QWORD);
-   MOV(__R8, ARGS_REG, __QWORD);
-   MOV(__R9, TLAB_REG, __QWORD);
-#else
-   MOV(__EDI, __EAX, __QWORD);
-   MOV(__ESI, ANCHOR_REG, __QWORD);
-   MOV(__EDX, ARGS_REG, __QWORD);
-   MOV(__ECX, TLAB_REG, __QWORD);
-#endif
+   MOV(CARG0_REG, __EAX, __QWORD);
+   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   MOV(CARG2_REG, ARGS_REG, __QWORD);
+   MOV(CARG3_REG, TLAB_REG, __QWORD);
 
    MOV(__EAX, ADDR(__EAX, offsetof(jit_func_t, entry)), __QWORD);
    CALL(__EAX);
@@ -1378,13 +1383,8 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
    jit_x86_push_call_clobbered(blob);
 
    // Size in EAX, clobbers FPTR
-#ifdef __MINGW32__
-   MOV(__ECX, __EAX, __DWORD);
-   MOV(__EDX, ANCHOR_REG, __QWORD);
-#else
-   MOV(__EDI, __EAX, __DWORD);
-   MOV(__ESI, ANCHOR_REG, __QWORD);
-#endif
+   MOV(CARG0_REG, __EAX, __DWORD);
+   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
 
    MOV(__EAX, PTR(__nvc_mspace_alloc2), __QWORD);
    CALL(__EAX);
@@ -1407,15 +1407,9 @@ static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
 
    jit_x86_push_call_clobbered(blob);
 
-#ifdef __MINGW32__
-   MOV(__ECX, __EAX, __QWORD);
-   MOV(__EDX, ANCHOR_REG, __QWORD);
-   MOV(__R8, ARGS_REG, __QWORD);
-#else
-   MOV(__EDI, __EAX, __QWORD);
-   MOV(__ESI, ANCHOR_REG, __QWORD);
-   MOV(__EDX, ARGS_REG, __QWORD);
-#endif
+   MOV(CARG0_REG, __EAX, __QWORD);
+   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   MOV(CARG2_REG, ARGS_REG, __QWORD);
 
    MOV(__EAX, PTR(__nvc_do_fficall), __QWORD);
    CALL(__EAX);
@@ -1428,6 +1422,32 @@ static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[FFI_STUB]));
 }
 
+#if DEBUG
+static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("debug stub");
+   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
+   jit_x86_push_call_clobbered(blob);
+
+   MOV(CARG0_REG, __EAX, __QWORD);    // Value
+   MOV(CARG1_REG, __ECX, __DWORD);    // Register number
+
+   MOV(__EAX, PTR(_debug_out), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   LEAVE();
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[DEBUG_STUB]));
+}
+#endif
+
 static void *jit_x86_init(jit_t *jit)
 {
    jit_x86_state_t *state = xcalloc(sizeof(jit_x86_state_t));
@@ -1438,6 +1458,7 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_call_stub(state);
    jit_x86_gen_alloc_stub(state);
    jit_x86_gen_ffi_stub(state);
+   DEBUG_ONLY(jit_x86_gen_debug_stub(state));
 
    return state;
 }
