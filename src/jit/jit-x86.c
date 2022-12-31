@@ -644,6 +644,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
       MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
       break;
    case JIT_VALUE_INT64:
+   case JIT_ADDR_ABS:
       MOV(dst, IMM(src.int64), __QWORD);
       break;
    case JIT_VALUE_TREE:
@@ -669,6 +670,12 @@ static x86_operand_t jit_x86_get_addr(code_blob_t *blob, jit_value_t addr,
    case JIT_ADDR_REG:
       MOV(tmp, ADDR(__EBP, -FRAME_FIXED_SIZE - addr.reg*8), __QWORD);
       return ADDR(tmp, addr.disp);
+   case JIT_ADDR_CPOOL:
+      MOV(tmp, PTR(blob->func->cpool + addr.int64), __QWORD);
+      return ADDR(tmp, 0);
+   case JIT_ADDR_ABS:
+      MOV(tmp, IMM(addr.int64), __QWORD);
+      return ADDR(tmp, 0);
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get_addr", addr.kind);
    }
@@ -1139,6 +1146,25 @@ static void jit_x86_macro_fficall(code_blob_t *blob, jit_x86_state_t *state,
    CALL(PTR(state->stubs[FFI_STUB]));
 }
 
+static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   // Reuse test value from preceding $CASE macro if possible
+   if (ir == blob->func->irbuf || (ir - 1)->op != MACRO_CASE
+       || (ir - 1)->result != ir->result)
+      MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+
+   CMP(__EAX, __ECX, __QWORD);
+
+   const int this = ir - blob->func->irbuf;
+   const int distance = (this - ir->arg2.label) * BYTES_PER_IR;
+
+   JZ(PATCH(distance));
+
+   code_blob_patch(blob, ir->arg2.label, jit_x86_patch);
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1249,6 +1275,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_FFICALL:
       jit_x86_macro_fficall(blob, state, ir);
+      break;
+   case MACRO_CASE:
+      jit_x86_macro_case(blob, ir);
       break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);

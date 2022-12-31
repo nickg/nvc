@@ -764,6 +764,33 @@ START_TEST(test_cneg)
 }
 END_TEST
 
+START_TEST(test_case)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    $CASE    R0, #1, L1      \n"
+      "    $CASE    R0, #2, L2      \n"
+      "    $CASE    R0, #3, L3      \n"
+      "    RET                      \n"
+      "L1: SEND     #0, #10         \n"
+      "    RET                      \n"
+      "L2: SEND     #0, #20         \n"
+      "    RET                      \n"
+      "L3: SEND     #0, #30         \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "case1", "i");
+   ck_assert_int_eq(jit_call(j, h1, 1).integer, 10);
+   ck_assert_int_eq(jit_call(j, h1, 2).integer, 20);
+   ck_assert_int_eq(jit_call(j, h1, 3).integer, 30);
+   ck_assert_int_eq(jit_call(j, h1, 4).integer, 4);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -786,6 +813,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_neg);
    tcase_add_test(tc, test_clamp);
    tcase_add_test(tc, test_cneg);
+   tcase_add_test(tc, test_case);
    suite_add_tcase(s, tc);
 
    return s;

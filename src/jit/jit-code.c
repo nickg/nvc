@@ -173,7 +173,10 @@ void code_cache_free(code_cache_t *code)
    cs_close(&(code->capstone));
 #endif
 
-   DEBUG_ONLY(debugf("JIT code footprint: %zu bytes", code->used));
+#ifdef DEBUG
+   if (!opt_get_int(OPT_UNIT_TEST))
+      debugf("JIT code footprint: %zu bytes", code->used);
+#endif
 
    free(code);
 }
