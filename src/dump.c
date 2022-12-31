@@ -1559,6 +1559,9 @@ void dump(tree_t t)
       dump_constraint(t);
       printf("\n");
       break;
+   case T_ALTERNATIVE:
+      dump_alternative(t, 0);
+      break;
    default:
       cannot_dump(t, "tree");
    }

@@ -29,5 +29,6 @@ tree_t eval_try_fold(eval_t *ex, tree_t expr);
 tree_t eval_must_fold(eval_t *ex, tree_t expr);
 void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx);
 bool eval_possible(eval_t *e, tree_t t);
+tree_t eval_case(eval_t *ex, tree_t stmt);
 
 #endif  // _EVAL_H

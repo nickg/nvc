@@ -4741,6 +4741,11 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
 
 vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_PACKAGE_INIT) {
+      if (other->func == name && other->subkind == VCODE_CC_VHDL)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_PACKAGE_INIT);
    op->func    = name;
    op->subkind = VCODE_CC_VHDL;

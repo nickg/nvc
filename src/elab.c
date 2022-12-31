@@ -1551,6 +1551,39 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
+{
+   tree_t chosen = eval_case(ctx->eval, t);
+   if (chosen == NULL)
+      return;
+
+   ident_t id = tree_has_ident(chosen) ? tree_ident(chosen) : tree_ident(t);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_loc(b, tree_loc(chosen));
+   tree_set_ident(b, id);
+
+   tree_add_stmt(ctx->out, b);
+
+   const char *label = istr(id);
+   ident_t npath = hpathf(ctx->path, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
+
+   elab_ctx_t new_ctx = {
+      .out    = b,
+      .path   = npath,
+      .inst   = ninst,
+      .dotted = ndotted,
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   elab_push_scope(t, &new_ctx);
+   elab_decls(chosen, &new_ctx);
+   elab_stmts(chosen, &new_ctx);
+   elab_pop_scope(&new_ctx);
+}
+
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -1569,6 +1602,9 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_IF_GENERATE:
          elab_if_generate(s, ctx);
+         break;
+      case T_CASE_GENERATE:
+         elab_case_generate(s, ctx);
          break;
       default:
          tree_add_stmt(ctx->out, s);

@@ -9834,6 +9834,8 @@ static tree_t p_case_generate_statement(ident_t label)
 
    consume(tCASE);
 
+   require_std(STD_08, "case generate statements");
+
    tree_t g = tree_new(T_CASE_GENERATE);
    tree_set_ident(g, label);
 

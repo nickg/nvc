@@ -10151,6 +10151,85 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
       vcode_unit_unref(thunk);
 }
 
+static vcode_unit_t lower_case_generate_thunk(tree_t t)
+{
+   // TODO: this should really be in eval.c
+
+   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), NULL);
+
+   vcode_type_t vbool = vtype_bool();
+   vcode_type_t vint = vtype_int(INT32_MIN, INT32_MAX);
+   vcode_set_result(vint);
+
+   tree_t value = tree_value(t);
+   type_t type = tree_type(value);
+
+   ident_t cmp_func = NULL;
+   if (!type_is_scalar(type))
+      cmp_func = lower_predef_func_name(tree_type(value), "=");
+
+   vcode_reg_t value_reg = lower_rvalue(value);
+
+   if (cmp_func != NULL)
+      value_reg = lower_wrap(type, value_reg);
+
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t alt = tree_stmt(t, i);
+
+      const int nassocs = tree_assocs(alt);
+      for (int j = 0; j < nassocs; j++) {
+         tree_t a = tree_assoc(alt, j);
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            {
+               vcode_reg_t name_reg = lower_rvalue(tree_name(a));
+               vcode_block_t match_bb = emit_block();
+               vcode_block_t skip_bb = emit_block();
+
+               if (cmp_func != NULL) {
+                  if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
+                     name_reg = lower_wrap(type, name_reg);
+
+                  vcode_reg_t context_reg = lower_context_for_call(cmp_func);
+                  vcode_reg_t args[] = { context_reg, name_reg, value_reg };
+                  vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
+                                                  VCODE_CC_PREDEF, args, 3);
+                  emit_cond(eq_reg, match_bb, skip_bb);
+               }
+               else {
+                  vcode_reg_t eq_reg =
+                     emit_cmp(VCODE_CMP_EQ, name_reg, value_reg);
+                  emit_cond(eq_reg, match_bb, skip_bb);
+               }
+
+               vcode_select_block(match_bb);
+               emit_return(emit_const(vint, i));
+
+               vcode_select_block(skip_bb);
+            }
+            break;
+
+         case A_RANGE:
+            fatal_at(tree_loc(a), "sorry, this form of choice is not "
+                     "yet supported");
+
+         case A_OTHERS:
+            emit_return(emit_const(vint, i));
+            break;
+         }
+      }
+   }
+
+   if (!vcode_block_finished())
+      emit_return(emit_const(vint, -1));
+
+   lower_finished();
+   vcode_dump();
+
+   return thunk;
+}
+
 vcode_unit_t lower_thunk(tree_t t)
 {
    mode = LOWER_THUNK;
@@ -10161,6 +10240,8 @@ vcode_unit_t lower_thunk(tree_t t)
       ident_t thunk_i = well_known(W_THUNK);
       return vcode_find_unit(ident_prefix(tree_ident2(t), thunk_i, '$'));
    }
+   else if (tree_kind(t) == T_CASE_GENERATE)
+      return lower_case_generate_thunk(t);
    else
       assert(top_scope == NULL);
 
