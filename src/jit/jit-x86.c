@@ -20,6 +20,7 @@
 #include "opt.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
+#include "rt/rt.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -32,6 +33,7 @@ typedef enum {
    ALLOC_STUB,
    FFI_STUB,
    DEBUG_STUB,
+   TLAB_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -186,6 +188,7 @@ typedef enum {
 #define JMP(addr) asm_jmp(blob, (addr))
 #define JZ(addr) asm_jcc(blob, (addr), X86_CMP_EQ)
 #define JNZ(addr) asm_jcc(blob, (addr), X86_CMP_NE)
+#define JLT(addr) asm_jcc(blob, (addr), X86_CMP_LT)
 
 #define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
 #define __REX(size, xr, xsib, xrm) \
@@ -233,7 +236,7 @@ static void asm_neg(code_blob_t *blob, x86_operand_t dst, x86_size_t size)
 static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
    assert(COMBINE(dst, src) == REG_MEM);
-   asm_rex(blob, __QWORD, src.reg, dst.reg, 0);
+   asm_rex(blob, __QWORD, dst.reg, src.addr.reg, 0);
    if (is_imm8(src.addr.off))
       __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
    else
@@ -396,19 +399,33 @@ static void asm_pop(code_blob_t *blob, x86_operand_t dst)
 static void asm_add(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
-   assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, src.reg, dst.reg, 0);
-   switch (size) {
-   case __BYTE:
-      __(0x00, __MODRM(3, src.reg, dst.reg));
+   switch (COMBINE(dst, src)) {
+   case REG_REG:
+      asm_rex(blob, size, src.reg, dst.reg, 0);
+      switch (size) {
+      case __BYTE:
+         __(0x00, __MODRM(3, src.reg, dst.reg));
+         break;
+      case __WORD:
+         __(0x66, 0x01, __MODRM(3, src.reg, dst.reg));
+         break;
+      case __DWORD:
+      case __QWORD:
+         __(0x01, __MODRM(3, src.reg, dst.reg));
+         break;
+      }
       break;
-   case __WORD:
-      __(0x66, 0x01, __MODRM(3, src.reg, dst.reg));
+
+   case REG_IMM:
+      asm_rex(blob, size, 0, dst.reg, 0);
+      if (is_imm8(src.imm))
+         __(0x83, __MODRM(3, 0, dst.reg), src.imm);
+      else
+         __(0x81, __MODRM(3, 0, dst.reg), __IMM32(src.imm));
       break;
-   case __DWORD:
-   case __QWORD:
-      __(0x01, __MODRM(3, src.reg, dst.reg));
-      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_sub");
    }
 }
 
@@ -580,9 +597,23 @@ static void asm_test(code_blob_t *blob, x86_operand_t src1,
 static void asm_cmp(code_blob_t *blob, x86_operand_t src1,
                     x86_operand_t src2, x86_size_t size)
 {
-   assert(COMBINE(src1, src2) == REG_REG);
-   asm_rex(blob, size, src2.reg, src1.reg, 0);
-   __(0x39, __MODRM(3, src2.reg, src1.reg));
+   switch (COMBINE(src1, src2)) {
+   case REG_REG:
+      asm_rex(blob, size, src2.reg, src1.reg, 0);
+      __(0x39, __MODRM(3, src2.reg, src1.reg));
+      break;
+
+   case MEM_REG:
+      asm_rex(blob, size, src2.reg, src1.addr.reg, 0);
+      if (is_imm8(src1.addr.off))
+         __(0x39, __MODRM(1, src2.reg, src1.reg), src1.addr.off);
+      else
+         __(0x39, __MODRM(2, src2.reg, src1.reg), __IMM32(src1.addr.off));
+      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_test");
+   }
 }
 
 static void asm_setcc(code_blob_t *blob, x86_operand_t dst, x86_cmp_t cmp)
@@ -612,11 +643,22 @@ static void asm_call(code_blob_t *blob, x86_operand_t addr)
 
 static void asm_jmp(code_blob_t *blob, x86_operand_t addr)
 {
-   assert(addr.kind == X86_PATCH);
-   if (is_imm8(addr.imm))
-      __(0xeb, 8);
-   else
-      __(0xe9, 0, 0, 0, 32);
+   switch (addr.kind) {
+   case X86_PATCH:
+      if (is_imm8(addr.imm))
+         __(0xeb, 8);
+      else
+         __(0xe9, 0, 0, 0, 32);
+      break;
+   case X86_IMM:
+      if (is_imm8(addr.imm))
+         __(0xeb, addr.imm);
+      else
+         __(0xe9, __IMM32(addr.imm));
+      break;
+   default:
+      fatal_trace("unhandled operand kind in asm_jmp");
+   }
 }
 
 static void asm_jcc(code_blob_t *blob, x86_operand_t addr, x86_cmp_t cmp)
@@ -1109,7 +1151,7 @@ static void jit_x86_macro_lalloc(code_blob_t *blob, jit_x86_state_t *state,
 {
    jit_x86_get(blob, __EAX, ir->arg1);
 
-   CALL(PTR(state->stubs[ALLOC_STUB]));
+   CALL(PTR(state->stubs[TLAB_STUB]));
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -1490,6 +1532,50 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[ALLOC_STUB]));
 }
 
+static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("tlab stub");
+   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
+   // Fast path: allocate from TLAB
+
+   TEST(TLAB_REG, TLAB_REG, __QWORD);
+   JZ(IMM(33));
+
+   MOV(__ECX, ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __QWORD);
+   MOV(__EDI, __ECX, __QWORD);
+   ADD(__EDI, __EAX, __QWORD);
+   ADD(__EDI, IMM(RT_ALIGN_MASK), __QWORD);
+   AND(__EDI, IMM(~RT_ALIGN_MASK), __QWORD);
+
+   CMP(ADDR(TLAB_REG, offsetof(tlab_t, limit)), __EDI, __QWORD);
+   JLT(IMM(9));
+
+   MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EDI, __QWORD);
+   MOV(__EAX, __ECX, __QWORD);
+   JMP(IMM(26));
+
+   // Slow path: call into runtime
+
+   jit_x86_push_call_clobbered(blob);
+
+   MOV(CARG0_REG, __EAX, __DWORD);
+   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+
+   MOV(__EAX, PTR(__nvc_mspace_alloc2), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   LEAVE();
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[TLAB_STUB]));
+}
+
 static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("ffi stub");
@@ -1550,6 +1636,7 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_exit_stub(state);
    jit_x86_gen_call_stub(state);
    jit_x86_gen_alloc_stub(state);
+   jit_x86_gen_tlab_stub(state);
    jit_x86_gen_ffi_stub(state);
    DEBUG_ONLY(jit_x86_gen_debug_stub(state));
 
