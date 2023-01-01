@@ -179,31 +179,36 @@ unsigned cover_get_std_log_expr_flags(tree_t decl)
 {
    assert(tree_kind(decl) == T_FUNC_DECL);
 
-   ident_t ident = tree_ident(decl);
-   ident_t ident_2 = tree_ident2(decl);
-
-   if (!ident_starts_with(ident_2, ident_new("IEEE.STD_LOGIC_1164")))
-      return 0;
-
-   // TODO: Should we create this array somewhere in advance ?
    struct {
-      ident_t op;
+      well_known_t op;
       unsigned flags;
    } std_log_ops[] = {
-      { ident_new("\"and\"")  ,COVER_FLAGS_AND_EXPR},
-      { ident_new("\"nand\"") ,COVER_FLAGS_AND_EXPR},
-      { ident_new("\"or\"")   ,COVER_FLAGS_OR_EXPR},
-      { ident_new("\"nor\"")  ,COVER_FLAGS_OR_EXPR},
-      { ident_new("\"xor\"")  ,COVER_FLAGS_XOR_EXPR},
-      { ident_new("\"xnor\"") ,COVER_FLAGS_XOR_EXPR}
+      { W_IEEE_1164_AND    , COVER_FLAGS_AND_EXPR},
+      { W_IEEE_1164_NAND   , COVER_FLAGS_AND_EXPR},
+      { W_IEEE_1164_OR     , COVER_FLAGS_OR_EXPR},
+      { W_IEEE_1164_NOR    , COVER_FLAGS_OR_EXPR},
+      { W_IEEE_1164_XOR    , COVER_FLAGS_XOR_EXPR},
+      { W_IEEE_1164_XNOR   , COVER_FLAGS_XOR_EXPR}
    };
 
    unsigned flags = 0;
    for (int i = 0; i < ARRAY_LEN(std_log_ops); i++)
-      if (!ident_compare(ident, std_log_ops[i].op))
+      if (ident_starts_with(tree_ident2(decl), well_known(std_log_ops[i].op)))
          flags |= std_log_ops[i].flags;
 
    return flags;
+}
+
+int64_t cover_common_expr_length(int64_t *len)
+{
+   // Vector / Scalar combination -> Choose length of vector
+   if (len[0] == 0)
+      return len[1];
+   if (len[1] == 0)
+      return len[0];
+
+   // Vector / Vector -> Choose minimal common length
+   return MIN(len[0], len[1]);
 }
 
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)

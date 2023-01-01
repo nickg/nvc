@@ -1676,21 +1676,26 @@ static void lower_expression_coverage(tree_t fcall, unsigned flags,
 
 static void lower_expression_coverage_array(tree_t fcall, unsigned flags,
                                             vcode_reg_t mask, vcode_reg_t offset,
-                                            int64_t array_size, int64_t lhs_first,
-                                            int64_t rhs_first, bool lhs_up,
-                                            int64_t rhs_up)
+                                            int64_t *len, int64_t *first,
+                                            bool *up)
 {
    assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
-   assert(array_size > 1);
+   assert(len[0] > 0 || len[1] > 0);
 
    cover_tag_t *tag;
-
+   int64_t cmn_len = cover_common_expr_length(len);
    unsigned new_flags = flags | COV_FLAG_METADATA;
-   for (int i = 0; i < array_size; i++) {
+
+   if (len[0] > 0)
+      new_flags |= COV_FLAG_EXPR_LHS_INDEX;
+   if (len[1] > 0)
+      new_flags |= COV_FLAG_EXPR_RHS_INDEX;
+
+   for (int i = 0; i < cmn_len; i++) {
       tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, new_flags);
       if (tag != NULL) {
-         tag->metadata[0] = (lhs_up) ? (lhs_first + i) : (lhs_first - i);
-         tag->metadata[1] = (rhs_up) ? (rhs_first + i) : (rhs_first - i);
+         tag->metadata[0] = (up[0]) ? (first[0] + i) : (first[0] - i);
+         tag->metadata[1] = (up[1]) ? (first[1] + i) : (first[1] - i);
          if (i == 0)
             emit_cover_expr(mask, tag->tag, offset);
       }
@@ -1832,12 +1837,13 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
    };
 
    if (is_array[0] || is_array[1]) {
-      int64_t lows[2] = {0};
-      int64_t highs[2] = {0};
-      int64_t lenghts[2] = {1, 1};
-      bool bounds_ok[2] = {true, true};
+      int64_t low[2] = {0};
+      int64_t high[2] = {0};
+      // 0 - Single bit,  N (N!=0) - Array of length N
+      int64_t len[2] = {0, 0};
       int64_t first[2] = {0};
-      bool up[2] = {false};
+      bool bounds_ok[2] = {true, true};
+      bool up[2] = {false, false};
 
       for (int i = 0; i < 2; i++)
          if (is_array[i]) {
@@ -1850,28 +1856,23 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
                return;
 
             tree_t r = range_of(op_type, 0);
-            bounds_ok[i] = folded_bounds(r, &(lows[i]), &(highs[i]));
-            lenghts[i] = highs[i] - lows[i] + 1;
+            bounds_ok[i] = folded_bounds(r, &(low[i]), &(high[i]));
+            len[i] = high[i] - low[i] + 1;
             if (tree_subkind(r) == RANGE_DOWNTO) {
-               first[i] = highs[i];
+               first[i] = high[i];
                up[i] = false;
             }
             else {
-               first[i] = lows[i];
+               first[i] = low[i];
                up[i] = true;
             }
          }
 
       if (bounds_ok[0] && bounds_ok[1]) {
-
-         // Skip mismatching lengths -> Throws failure assert in simulation.
-         // Generally considered coding error, no need to emit coverage on
-         // least common length.
-         if ((lenghts[0] > 1) && (lenghts[1] > 1) && (lenghts[0] != lenghts[1]))
-            return;
+         int64_t cmn_len = cover_common_expr_length(len);
 
          // Skip due due to being longer than array_size
-         if (cover_skip_vect_expr(cover_tags, lenghts[0]))
+         if (cover_skip_vect_expr(cover_tags, cmn_len))
             return;
 
          vcode_reg_t lhs_i = args[1];
@@ -1895,7 +1896,7 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
          vcode_select_block(test_bb);
          vcode_reg_t i_loaded = emit_load(i_var);
          vcode_reg_t end_loop = emit_cmp(VCODE_CMP_GT, i_loaded,
-                                         emit_const(voffset, lenghts[0]));
+                                         emit_const(voffset, cmn_len));
          emit_cond(end_loop, exit_bb, body_bb);
 
          // Compute mask for each index. Emit only single cover op, but multiple
@@ -1908,18 +1909,17 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
          if (is_array[0]) {
             vcode_reg_t l_ptr = emit_array_ref(lhs_i, index);
             lhs_v = emit_load_indirect(l_ptr);
-            flags |= COV_FLAG_EXPR_LHS_INDEX;
          }
 
          if (is_array[1]) {
             vcode_reg_t r_ptr = emit_array_ref(rhs_i, index);
             rhs_v = emit_load_indirect(r_ptr);
-            flags |= COV_FLAG_EXPR_RHS_INDEX;
          }
 
-         vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, lhs_v, rhs_v, flags);
-         lower_expression_coverage_array(fcall, flags, mask, index, lenghts[0],
-                                         first[0], first[1], up[0], up[1]);
+         vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, lhs_v, rhs_v,
+                                                          flags);
+         lower_expression_coverage_array(fcall, flags, mask, index,
+                                         len, first, up);
 
          vcode_reg_t i_inc = emit_add(i_loaded, emit_const(voffset, 1));
          emit_store(i_inc, i_var);

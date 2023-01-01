@@ -163,6 +163,7 @@ bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);
 bool cover_skip_vect_expr(cover_tagging_t *tagging, int v_size);
 
+int64_t cover_common_expr_length(int64_t *len);
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
