@@ -1901,17 +1901,17 @@ static void irgen_op_var_upref(jit_irgen_t *g, int op)
 
    // Handle potential circular dependency
    // TODO: it would be better to avoid this entirely
-   const unsigned *varoff = load_acquire(&(cf->varoff));
-   if (varoff == NULL) {
+   const link_tab_t *tab = load_acquire(&(cf->linktab));
+   if (tab == NULL) {
       jit_fill_irbuf(cf);
-      varoff = load_acquire(&(cf->varoff));
-      assert(varoff);
+      tab = load_acquire(&(cf->linktab));
+      assert(tab);
    }
 
    vcode_state_restore(&state);
 
    assert(address < cf->nvars);
-   const int offset = varoff[address];
+   const int offset = tab[address].offset;
 
    g->map[vcode_get_result(op)] = jit_addr_from_value(context, offset);
 }
@@ -2436,33 +2436,20 @@ static void irgen_op_link_var(jit_irgen_t *g, int op)
    jit_handle_t handle = jit_compile(g->func->jit, unit_name);
    jit_func_t *f = jit_get_func(g->func->jit, handle);
 
-   vcode_select_unit(f->unit);
-
-   const int nvars = vcode_count_vars();
-   vcode_var_t var = 0;
-   for (; var < nvars; var++) {
-      if (vcode_var_name(var) == var_name)
+   link_tab_t *tab = f->linktab;
+   for (; tab < f->linktab + f->nvars; tab++) {
+      if (tab->name == var_name)
          break;
    }
 
-   if (var == nvars) {
-      vcode_dump();
-      vcode_state_restore(&state);
-      vcode_dump_with_mark(op, NULL, NULL);
-
+   if (tab == NULL)
       fatal_trace("variable %s not found in unit %s", istr(var_name),
                   istr(unit_name));
-   }
-
-   // TODO: can we store names in this table too to avoid loop above and
-   //       better debug?
-   assert(var < f->nvars);
-   const unsigned offset = f->varoff[var];
 
    vcode_state_restore(&state);
 
    jit_value_t context = irgen_get_arg(g, op, 0);
-   g->map[vcode_get_result(op)] = jit_addr_from_value(context, offset);
+   g->map[vcode_get_result(op)] = jit_addr_from_value(context, tab->offset);
 }
 
 static void irgen_op_new(jit_irgen_t *g, int op)
@@ -3549,9 +3536,7 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 
 static void irgen_locals(jit_irgen_t *g)
 {
-   const int nvars = g->func->nvars = vcode_count_vars();
-
-   unsigned *varoff = xmalloc_array(nvars, sizeof(unsigned));
+   const int nvars = vcode_count_vars();
    g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
 
    bool on_stack = true;
@@ -3579,11 +3564,14 @@ static void irgen_locals(jit_irgen_t *g)
       sz += sizeof(void *);   // Suspended procedure state
       sz += sizeof(int32_t);  // State number
 
+      link_tab_t *linktab = xmalloc_array(nvars, sizeof(link_tab_t));
+
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
          const int align = irgen_align_of(vtype);
          sz = ALIGN_UP(sz, align);
-         varoff[i] = sz;
+         linktab[i].name = vcode_var_name(i);
+         linktab[i].offset = sz;
          sz += irgen_size_bytes(vtype);
       }
 
@@ -3596,12 +3584,13 @@ static void irgen_locals(jit_irgen_t *g)
          g->statereg = mem;
 
       for (int i = 0; i < nvars; i++)
-         g->vars[i] = jit_addr_from_value(g->statereg, varoff[i]);
-   }
+         g->vars[i] = jit_addr_from_value(g->statereg, linktab[i].offset);
 
-   // Publish the variable offset table early to handle circular references
-   // This may be read by another thread while in the COMPILING state
-   store_release(&(g->func->varoff), varoff);
+      // Publish the variable offset table early to handle circular references
+      // This may be read by another thread while in the COMPILING state
+      g->func->nvars = nvars;
+      store_release(&(g->func->linktab), linktab);
+   }
 }
 
 static void irgen_params(jit_irgen_t *g, int first)

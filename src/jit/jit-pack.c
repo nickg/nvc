@@ -243,8 +243,10 @@ static void pack_func(pack_func_t *pf, jit_t *j, jit_func_t *f)
    pack_uint(pf, f->spec);
    pack_uint(pf, f->framesz);
 
-   for (int i = 0; i < f->nvars; i++)
-      pack_uint(pf, f->varoff[i]);
+   for (int i = 0; i < f->nvars; i++) {
+      pack_str(pf, istr(f->linktab[i].name));
+      pack_uint(pf, f->linktab[i].offset);
+   }
 
    ident_t unit;
    ptrdiff_t offset;
@@ -536,10 +538,15 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
 
    f->cpool = pf->cpool;
    f->irbuf = xmalloc_array(f->nirs, sizeof(jit_ir_t));
-   f->varoff = xmalloc_array(f->nvars, sizeof(unsigned));
 
-   for (int i = 0; i < f->nvars; i++)
-      f->varoff[i] = unpack_uint(pf);
+   if (f->nvars > 0) {
+      f->linktab = xmalloc_array(f->nvars, sizeof(link_tab_t));
+
+      for (int i = 0; i < f->nvars; i++) {
+         f->linktab[i].name = ident_new(unpack_str(pf));
+         f->linktab[i].offset = unpack_uint(pf);
+      }
+   }
 
    ident_t unit = ident_new(unpack_str(pf));
    ptrdiff_t offset = unpack_uint(pf);

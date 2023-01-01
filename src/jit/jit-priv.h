@@ -248,13 +248,18 @@ typedef enum {
    JIT_FUNC_READY
 } func_state_t;
 
+typedef struct {
+   ident_t  name;
+   unsigned offset;
+} link_tab_t;
+
 typedef struct _jit_func {
    jit_entry_fn_t  entry;    // Must be first
    func_state_t    state;
    jit_t          *jit;
    vcode_unit_t    unit;
    ident_t         name;
-   unsigned       *varoff;
+   link_tab_t     *linktab;
    mptr_t          privdata;
    jit_ir_t       *irbuf;
    unsigned char  *cpool;

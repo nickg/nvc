@@ -138,7 +138,7 @@ static void jit_free_func(jit_func_t *f)
    jit_free_cfg(f);
    mptr_free(f->jit->mspace, &(f->privdata));
    free(f->irbuf);
-   free(f->varoff);
+   free(f->linktab);
    if (f->owns_cpool) free(f->cpool);
    free(f);
 }
@@ -414,7 +414,7 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
       fatal_trace("%s not linked", istr(f->name));
 
    assert(var < f->nvars);
-   return *mptr_get(f->privdata) + f->varoff[var];
+   return *mptr_get(f->privdata) + f->linktab[var].offset;
 }
 
 static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
