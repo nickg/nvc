@@ -270,6 +270,33 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
+static bool lower_can_be_signal(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_RECORD:
+      {
+         const int nfields = type_fields(type);
+         for (int i = 0; i < nfields; i++) {
+            if (!lower_can_be_signal(tree_type(type_field(type, i))))
+               return false;
+         }
+
+         return true;
+      }
+   case T_ARRAY:
+      return lower_can_be_signal(type_elem(type));
+   case T_SUBTYPE:
+      return lower_can_be_signal(type_base(type));
+   case T_ACCESS:
+   case T_FILE:
+   case T_PROTECTED:
+   case T_INCOMPLETE:
+      return false;
+   default:
+      return true;
+   }
+}
+
 static bool lower_is_reverse_range(tree_t r, int *dim)
 {
    tree_t value = tree_value(r);
@@ -1005,7 +1032,8 @@ static void lower_resolved_field_cb(tree_t field, vcode_reg_t field_ptr,
 
          vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
-         vcode_reg_t wrap_reg = lower_wrap(ftype, mem_reg);
+         vcode_reg_t wrap_reg =
+            lower_wrap_with_new_bounds(ftype, field_reg, mem_reg);
          emit_store_indirect(wrap_reg, dst_ptr);
       }
 
@@ -2988,6 +3016,17 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
       return ptr_reg;
 }
 
+static type_t lower_base_type(type_t type)
+{
+   for (type_t base; type_kind(type) == T_SUBTYPE; type = base) {
+      base = type_base(type);
+      if (type_ident(base) == type_ident(type))
+         break;   // Subtype created for constrained array definition
+   }
+
+   return type;
+}
+
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 {
    if (!lower_have_signal(reg))
@@ -3011,80 +3050,22 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
       // Use a helper function to convert a record signal into a record
       // containing the resolved values
 
-      vcode_state_t state;
-      vcode_state_save(&state);
+      type_t base = lower_base_type(type);
+      ident_t helper_func =
+         ident_prefix(type_ident(base), ident_new("resolved"), '$');
 
-      vcode_unit_t helper_ctx = vcode_active_unit();
-      int hops = 0;
-      for (; vcode_unit_context() != NULL; hops++)
-         vcode_select_unit((helper_ctx = vcode_unit_context()));
-
-      ident_t context_id = vcode_unit_name();
-
-      // Do not generate helpers for anonymous subtypes
-      type_t base = type;
-      while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
-         base = type_base(base);
-
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, vcode_unit_name());
-      tb_cat(tb, "$resolved_");
-      tb_istr(tb, type_ident(base));
+      vcode_reg_t arg_reg = reg;
+      if (type_is_array(type)) {
+         if (lower_have_uarray_ptr(arg_reg))
+            arg_reg = emit_load_indirect(arg_reg);
+         else if (vcode_reg_kind(arg_reg) != VCODE_TYPE_UARRAY)
+            arg_reg = lower_wrap(type, reg);
+      }
 
       vcode_type_t vrtype = lower_func_result_type(base);
 
-      ident_t helper_func = ident_new(tb_get(tb));
-      vcode_unit_t vu = vcode_find_unit(helper_func);
-      if (vu == NULL) {
-         vu = emit_function(helper_func, type_to_object(type), helper_ctx);
-         vcode_set_result(vrtype);
-
-         lower_push_scope(NULL);
-
-         vcode_type_t vtype = lower_type(base);
-         vcode_type_t vbounds = lower_bounds(base);
-         vcode_type_t vatype = lower_param_type(base, C_SIGNAL, PORT_IN);
-
-         vcode_type_t vcontext = vtype_context(context_id);
-         emit_param(vcontext, vcontext, ident_new("context"));
-
-         vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
-
-         vcode_var_t var = emit_var(vtype, vbounds, ident_new("result"), 0);
-
-         vcode_reg_t data_reg, result_reg;
-         if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
-            type_t elem = lower_elem_recur(base);
-            vcode_reg_t count_reg = lower_array_total_len(base, p_reg);
-            data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
-                                  count_reg);
-
-            result_reg = lower_rewrap(data_reg, p_reg);
-            emit_store(result_reg, var);
-         }
-         else
-            data_reg = result_reg = emit_index(var, VCODE_INVALID_VAR);
-
-         lower_for_each_field(base, p_reg, data_reg,
-                              lower_resolved_field_cb, NULL);
-         emit_return(result_reg);
-
-         lower_pop_scope();
-         lower_finished();
-      }
-
-      vcode_state_restore(&state);
-
-      bool need_wrap = false;
-      if (type_is_array(type))
-         need_wrap = lower_const_bounds(type) && !lower_const_bounds(base);
-
-      vcode_reg_t arg = need_wrap ? lower_wrap(type, reg) : reg;
-      vcode_reg_t args[] = { emit_context_upref(hops), arg };
-      vcode_reg_t result = emit_fcall(helper_func, vrtype, vrtype,
-                                      VCODE_CC_VHDL, args, 2);
-
-      return need_wrap ? lower_array_data(result) : result;
+      vcode_reg_t args[] = { lower_context_for_call(helper_func), arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, VCODE_CC_VHDL, args, 2);
    }
 }
 
@@ -7813,6 +7794,61 @@ static void lower_value_helper(tree_t decl)
    vcode_state_restore(&state);
 }
 
+static void lower_resolved_helper(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   if (type_is_homogeneous(type) || !lower_can_be_signal(type))
+      return;
+
+   ident_t func = ident_prefix(type_ident(type), ident_new("resolved"), '$');
+
+   vcode_unit_t vu = vcode_find_unit(func);
+   if (vu != NULL)
+      return;
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   ident_t context_id = vcode_unit_name();
+
+   emit_function(func, tree_to_object(decl), vcode_active_unit());
+   vcode_set_result(lower_func_result_type(type));
+
+   lower_push_scope(NULL);
+
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
+
+   vcode_type_t vcontext = vtype_context(context_id);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
+
+   vcode_var_t var = emit_var(vtype, vbounds, ident_new("result"), 0);
+
+   vcode_reg_t data_reg, result_reg;
+   if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
+      type_t elem = lower_elem_recur(type);
+      vcode_reg_t count_reg = lower_array_total_len(type, p_reg);
+      data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
+                            count_reg);
+
+      result_reg = lower_rewrap(data_reg, p_reg);
+      emit_store(result_reg, var);
+   }
+   else
+      data_reg = result_reg = emit_index(var, VCODE_INVALID_VAR);
+
+   lower_for_each_field(type, p_reg, data_reg,
+                        lower_resolved_field_cb, NULL);
+   emit_return(result_reg);
+
+   lower_finished();
+   lower_pop_scope();
+   vcode_state_restore(&state);
+}
+
 static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
 {
    vcode_state_t state;
@@ -7885,6 +7921,7 @@ static void lower_decl(tree_t decl, vcode_unit_t context)
    case T_TYPE_DECL:
       lower_image_helper(decl);
       lower_value_helper(decl);
+      lower_resolved_helper(decl);
       break;
 
    case T_FUNC_DECL:

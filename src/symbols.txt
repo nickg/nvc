@@ -35,7 +35,6 @@
   __nvc_flush;
   __nvc_get_object;
   __nvc_mspace_alloc;
-  __nvc_mspace_alloc2;   # DEAD
   __nvc_putpriv;
   _debug_dump;
   _debug_out;

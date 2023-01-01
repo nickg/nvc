@@ -493,17 +493,16 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       jit_abort(EXIT_FAILURE);
 }
 
-void *x_mspace_alloc(size_t size, uint32_t nelems)
+void *x_mspace_alloc(size_t size)
 {
-   uint32_t total;
-   if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {
-      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
+   if (unlikely(size > UINT32_MAX)) {
+      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %zu byte object "
               "which is larger than the maximum supported %u bytes",
-              (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
+              size, UINT32_MAX);
       __builtin_unreachable();
    }
    else
-      return mspace_alloc(jit_get_mspace(jit_thread_local()->jit), total);
+      return mspace_alloc(jit_get_mspace(jit_thread_local()->jit), size);
 }
 
 void x_elab_order_fail(tree_t where)
@@ -1125,17 +1124,10 @@ void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
 
-   void *ptr = x_mspace_alloc(size, 1);
+   void *ptr = x_mspace_alloc(size);
 
    thread->anchor = NULL;
    return ptr;
-}
-
-DLLEXPORT
-void *__nvc_mspace_alloc2(uintptr_t size, jit_anchor_t *anchor)
-{
-   // TODO: remove after 1.9 release
-   return __nvc_mspace_alloc(size, anchor);
 }
 
 DLLEXPORT
