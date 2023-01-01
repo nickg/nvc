@@ -724,6 +724,20 @@ static void jit_lvn_bzero(jit_ir_t *ir, lvn_state_t *state)
    state->regvn[ir->result] = lvn_new_value(state);
 }
 
+static void jit_lvn_exp(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t base, exp;
+   if (lvn_can_fold(ir, state, &base, &exp))
+      lvn_convert_mov(ir, state, LVN_CONST(ipow(base, exp)));
+   else if (lvn_is_const(ir->arg1, state, &base) && base == 2) {
+      ir->op = J_SHL;
+      ir->arg1.int64 = 1;
+      jit_lvn_generic(ir, state, VN_INVALID);
+   }
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
 void jit_do_lvn(jit_func_t *f)
 {
    lvn_state_t state = {
@@ -762,6 +776,7 @@ void jit_do_lvn(jit_func_t *f)
       case J_CLAMP: jit_lvn_clamp(ir, &state); break;
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
+      case MACRO_EXP: jit_lvn_exp(ir, &state); break;
       default: break;
       }
    }

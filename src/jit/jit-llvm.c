@@ -1722,15 +1722,15 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 #if CLOSED_WORLD
       entry = llvm_add_fn(obj, istr(callee->name), obj->types[LLVM_ENTRY_FN]);
-#else
+#endif
+   }
+   else
+      fptr = llvm_ptr(obj, callee);
+
+   if (entry == NULL) {
       // Must have acquire semantics to synchronise with installing new code
       entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
       LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
-#endif
-   }
-   else {
-      entry = llvm_ptr(obj, callee->entry);
-      fptr = llvm_ptr(obj, callee);
    }
 
 #ifndef LLVM_HAS_OPAQUE_POINTERS

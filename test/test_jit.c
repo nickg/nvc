@@ -1367,6 +1367,8 @@ START_TEST(test_lvn1)
       "    SUB     R1, R1, #0    \n"
       "    SUB     R2, #0, R2    \n"
       "    SUB.O   R2, #0, R2    \n"
+      "    $EXP    R3, #3, #4    \n"
+      "    $EXP    R3, #2, R2    \n"
       "    RET                   \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
@@ -1407,6 +1409,12 @@ START_TEST(test_lvn1)
    ck_assert_int_eq(f->irbuf[14].arg1.reg, 2);
 
    ck_assert_int_eq(f->irbuf[15].op, J_SUB);
+
+   ck_assert_int_eq(f->irbuf[16].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[16].arg1.int64, 81);
+
+   ck_assert_int_eq(f->irbuf[17].op, J_SHL);
+   ck_assert_int_eq(f->irbuf[17].arg1.int64, 1);
 
    jit_free(j);
 }
