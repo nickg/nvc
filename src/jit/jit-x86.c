@@ -63,6 +63,7 @@ typedef enum {
    X86_IMM,
    X86_ADDR,
    X86_PATCH,
+   X86_XMM,
 } x86_kind_t;
 
 typedef int8_t x86_reg_t;
@@ -80,6 +81,7 @@ typedef struct {
 } x86_operand_t;
 
 #define REG(x) ((x86_operand_t){ X86_REG, { .reg = (x) }})
+#define XMM(x) ((x86_operand_t){ X86_XMM, { .reg = (x) }})
 #define IMM(x) ((x86_operand_t){ X86_IMM, { .imm = (x) }})
 #define PTR(x) ((x86_operand_t){ X86_IMM, { .imm = (uintptr_t)(x) }})
 #define ADDR(r, o) ((x86_operand_t){ X86_ADDR, { .addr = { (r).reg, (o) }}})
@@ -90,6 +92,8 @@ typedef struct {
 #define MEM_REG ((X86_ADDR << 4) | X86_REG)
 #define REG_MEM ((X86_REG << 4) | X86_ADDR)
 #define REG_IMM ((X86_REG << 4) | X86_IMM)
+#define XMM_MEM ((X86_XMM << 4) | X86_ADDR)
+#define MEM_XMM ((X86_ADDR << 4) | X86_XMM)
 
 static const x86_operand_t __EAX = REG(0);
 static const x86_operand_t __ECX = REG(1);
@@ -101,6 +105,9 @@ static const x86_operand_t __ESI = REG(6);
 static const x86_operand_t __EDI = REG(7);
 static const x86_operand_t __R8  = REG(16);
 static const x86_operand_t __R9  = REG(17);
+
+static const x86_operand_t __XMM0 = XMM(0);
+static const x86_operand_t __XMM1 = XMM(1);
 
 #define FPTR_REG   __EDI
 #define ANCHOR_REG __ESI
@@ -189,6 +196,8 @@ typedef enum {
 #define JZ(addr) asm_jcc(blob, (addr), X86_CMP_EQ)
 #define JNZ(addr) asm_jcc(blob, (addr), X86_CMP_NE)
 #define JLT(addr) asm_jcc(blob, (addr), X86_CMP_LT)
+#define MULSD(dst, src) asm_mulsd(blob, (dst), (src))
+#define ADDSD(dst, src) asm_addsd(blob, (dst), (src))
 
 #define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
 #define __REX(size, xr, xsib, xrm) \
@@ -280,6 +289,28 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
          __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
       else
          __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      break;
+
+   case XMM_MEM:
+      assert(size == __QWORD);
+      __(0x66);
+      asm_rex(blob, size, dst.reg, src.addr.reg, 0);
+      __(0x0f, 0x6e);
+      if (is_imm8(src.addr.off))
+         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+      else
+         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      break;
+
+   case MEM_XMM:
+      assert(size == __QWORD);
+      __(0x66);
+      asm_rex(blob, size, src.addr.reg, dst.reg, 0);
+      __(0x0f, 0x7e);
+      if (is_imm8(src.addr.off))
+         __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
+      else
+         __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
       break;
 
    case REG_IMM:
@@ -679,6 +710,16 @@ static void asm_jcc(code_blob_t *blob, x86_operand_t addr, x86_cmp_t cmp)
    default:
       fatal_trace("unhandled operand kind in asm_jcc");
    }
+}
+
+static void asm_mulsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   __(0xf2, 0x0f, 0x59, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_addsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   __(0xf2, 0x0f, 0x58, __MODRM(3, dst.reg, src.reg));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1122,6 +1163,26 @@ static void jit_x86_trap(code_blob_t *blob, jit_ir_t *ir)
    INT3();
 }
 
+static void jit_x86_fmul(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   MULSD(__XMM0, __XMM1);
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
+static void jit_x86_fadd(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   ADDSD(__XMM0, __XMM1);
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
                                jit_ir_t *ir)
 {
@@ -1340,6 +1401,12 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_TRAP:
       jit_x86_trap(blob, ir);
+      break;
+   case J_FMUL:
+      jit_x86_fmul(blob, ir);
+      break;
+   case J_FADD:
+      jit_x86_fadd(blob, ir);
       break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);

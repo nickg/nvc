@@ -1123,6 +1123,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "OR",      J_OR ,        1, 2 },
       { "NOT",     J_NOT,        1, 1 },
       { "NEG",     J_NEG,        1, 1 },
+      { "FADD",    J_FADD,       1, 2 },
+      { "FMUL",    J_FMUL,       1, 2 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },

@@ -35,6 +35,7 @@ static jit_handle_t assemble(jit_t *j, const char *text, const char *name,
       case 'i': spec |= FFI_INT32; break;
       case 'I': spec |= FFI_INT64; break;
       case 'p': spec |= FFI_POINTER; break;
+      case 'f': spec |= FFI_FLOAT; break;
       default:
          fatal_trace("invalid character '%c' in spec", *ss);
       }
@@ -814,6 +815,30 @@ START_TEST(test_exp)
 }
 END_TEST
 
+START_TEST(test_float)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    RECV     R2, #2          \n"
+      "    FMUL     R3, R1, R0      \n"
+      "    FADD     R4, R3, R2      \n"
+      "    SEND     #0, R4          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "float1", "fff");
+   ck_assert_double_eq(jit_call(j, h1, 2.0, 3.0, 0.0).real, 6.0);
+   ck_assert_double_eq(jit_call(j, h1, 5.0, 3.0, 0.0).real, 15.0);
+   ck_assert_double_eq(jit_call(j, h1, -2.0, 7.0, 0.0).real, -14.0);
+   ck_assert_double_eq(jit_call(j, h1, 2.0, 3.0, 1.0).real, 7.0);
+   ck_assert_double_eq(jit_call(j, h1, 2.5, 1.0, 0.5).real, 3.0);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -838,6 +863,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_cneg);
    tcase_add_test(tc, test_case);
    tcase_add_test(tc, test_exp);
+   tcase_add_test(tc, test_float);
    suite_add_tcase(s, tc);
 
    return s;
