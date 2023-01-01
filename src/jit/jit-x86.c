@@ -94,6 +94,9 @@ typedef struct {
 #define REG_IMM ((X86_REG << 4) | X86_IMM)
 #define XMM_MEM ((X86_XMM << 4) | X86_ADDR)
 #define MEM_XMM ((X86_ADDR << 4) | X86_XMM)
+#define REG_XMM ((X86_REG << 4) | X86_XMM)
+#define XMM_REG ((X86_XMM << 4) | X86_REG)
+#define XMM_XMM ((X86_XMM << 4) | X86_XMM)
 
 static const x86_operand_t __EAX = REG(0);
 static const x86_operand_t __ECX = REG(1);
@@ -189,6 +192,10 @@ typedef enum {
 #define SETGT(dst) asm_setcc(blob, (dst), X86_CMP_GT)
 #define SETGE(dst) asm_setcc(blob, (dst), X86_CMP_GE)
 #define SETLE(dst) asm_setcc(blob, (dst), X86_CMP_LE)
+#define SETA(dst) asm_setcc(blob, (dst), 0x7)
+#define SETAE(dst) asm_setcc(blob, (dst), 0x3)
+#define SETB(dst) asm_setcc(blob, (dst), 0x2)
+#define SETBE(dst) asm_setcc(blob, (dst), 0x6)
 #define TEST(src1, src2, size) asm_test(blob, (src1), (src2), (size))
 #define CMP(src1, src2, size) asm_cmp(blob, (src1), (src2), (size))
 #define CALL(addr) asm_call(blob, (addr))
@@ -197,7 +204,11 @@ typedef enum {
 #define JNZ(addr) asm_jcc(blob, (addr), X86_CMP_NE)
 #define JLT(addr) asm_jcc(blob, (addr), X86_CMP_LT)
 #define MULSD(dst, src) asm_mulsd(blob, (dst), (src))
+#define DIVSD(dst, src) asm_divsd(blob, (dst), (src))
 #define ADDSD(dst, src) asm_addsd(blob, (dst), (src))
+#define SUBSD(dst, src) asm_subsd(blob, (dst), (src))
+#define PXOR(dst, src) asm_pxor(blob, (dst), (src))
+#define UCOMISD(src1, src2) asm_ucomisd(blob, (src1), (src2))
 
 #define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
 #define __REX(size, xr, xsib, xrm) \
@@ -311,6 +322,13 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
          __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
       else
          __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
+      break;
+
+   case XMM_REG:
+      assert(size == __QWORD);
+      __(0x66);
+      asm_rex(blob, size, dst.reg, src.addr.reg, 0);
+      __(0x0f, 0x6e, __MODRM(3, dst.reg, src.reg));
       break;
 
    case REG_IMM:
@@ -714,12 +732,39 @@ static void asm_jcc(code_blob_t *blob, x86_operand_t addr, x86_cmp_t cmp)
 
 static void asm_mulsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   assert(COMBINE(dst, src) == XMM_XMM);
    __(0xf2, 0x0f, 0x59, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_divsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   assert(COMBINE(dst, src) == XMM_XMM);
+   __(0xf2, 0x0f, 0x5e, __MODRM(3, dst.reg, src.reg));
 }
 
 static void asm_addsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   assert(COMBINE(dst, src) == XMM_XMM);
    __(0xf2, 0x0f, 0x58, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_subsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   assert(COMBINE(dst, src) == XMM_XMM);
+   __(0xf2, 0x0f, 0x5c, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_pxor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
+{
+   assert(COMBINE(dst, src) == XMM_XMM);
+   __(0x66, 0x0f, 0xef, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_ucomisd(code_blob_t *blob, x86_operand_t src1,
+                        x86_operand_t src2)
+{
+   assert(COMBINE(src1, src2) == XMM_XMM);
+   __(0x66, 0x0f, 0x2e, __MODRM(3, src1.reg, src2.reg));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -750,6 +795,10 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
    case JIT_VALUE_INT64:
    case JIT_ADDR_ABS:
       MOV(dst, IMM(src.int64), __QWORD);
+      break;
+   case JIT_VALUE_DOUBLE:
+      MOV(__EAX, IMM(src.int64), __QWORD);
+      MOV(dst, __EAX, __QWORD);
       break;
    case JIT_VALUE_TREE:
       MOV(dst, IMM((intptr_t)src.tree), __QWORD);
@@ -814,9 +863,17 @@ static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
 {
    switch (ir->cc) {
-   case JIT_CC_O: SETO(FLAGS_REG); break;
-   case JIT_CC_C: SETC(FLAGS_REG); break;
-   default: break;
+   case JIT_CC_O:  SETO(FLAGS_REG); break;
+   case JIT_CC_C:  SETC(FLAGS_REG); break;
+   case JIT_CC_EQ: SETZ(FLAGS_REG); break;
+   case JIT_CC_NE: SETNZ(FLAGS_REG); break;
+   case JIT_CC_LT: SETLT(FLAGS_REG); break;
+   case JIT_CC_GT: SETGT(FLAGS_REG); break;
+   case JIT_CC_LE: SETLE(FLAGS_REG); break;
+   case JIT_CC_GE: SETGE(FLAGS_REG); break;
+   case JIT_CC_NONE: break;
+   default:
+      fatal_trace("unhandled JIT comparison code %d", ir->cc);
    }
 }
 
@@ -1089,28 +1146,7 @@ static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir)
 
    CMP(__EAX, __ECX, __QWORD);
 
-   switch (ir->cc) {
-   case JIT_CC_EQ:
-      SETZ(FLAGS_REG);
-      break;
-   case JIT_CC_NE:
-      SETNZ(FLAGS_REG);
-      break;
-   case JIT_CC_LT:
-      SETLT(FLAGS_REG);
-      break;
-   case JIT_CC_GT:
-      SETGT(FLAGS_REG);
-      break;
-   case JIT_CC_LE:
-      SETLE(FLAGS_REG);
-      break;
-   case JIT_CC_GE:
-      SETGE(FLAGS_REG);
-      break;
-   default:
-      fatal_trace("unhandled JIT comparison code %d", ir->cc);
-   }
+   jit_x86_set_flags(blob, ir);
 }
 
 static void jit_x86_cset(code_blob_t *blob, jit_ir_t *ir)
@@ -1173,6 +1209,16 @@ static void jit_x86_fmul(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __XMM0);
 }
 
+static void jit_x86_fdiv(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   DIVSD(__XMM0, __XMM1);
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
 static void jit_x86_fadd(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __XMM0, ir->arg1);
@@ -1181,6 +1227,43 @@ static void jit_x86_fadd(code_blob_t *blob, jit_ir_t *ir)
    ADDSD(__XMM0, __XMM1);
 
    jit_x86_put(blob, ir->result, __XMM0);
+}
+
+static void jit_x86_fsub(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   SUBSD(__XMM0, __XMM1);
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
+static void jit_x86_fneg(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+
+   PXOR(__XMM1, __XMM1);
+   SUBSD(__XMM1, __XMM0);
+
+   jit_x86_put(blob, ir->result, __XMM1);
+}
+
+static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   UCOMISD(__XMM0, __XMM1);
+
+   switch (ir->cc) {
+   case JIT_CC_LT: SETB(FLAGS_REG); break;
+   case JIT_CC_LE: SETBE(FLAGS_REG); break;
+   case JIT_CC_GT: SETA(FLAGS_REG); break;
+   case JIT_CC_GE: SETAE(FLAGS_REG); break;
+   default:
+      fatal_trace("unhandled JIT comparison code %d", ir->cc);
+   }
 }
 
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
@@ -1407,6 +1490,18 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_FADD:
       jit_x86_fadd(blob, ir);
+      break;
+   case J_FSUB:
+      jit_x86_fsub(blob, ir);
+      break;
+   case J_FDIV:
+      jit_x86_fdiv(blob, ir);
+      break;
+   case J_FNEG:
+      jit_x86_fneg(blob, ir);
+      break;
+   case J_FCMP:
+      jit_x86_fcmp(blob, ir);
       break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);

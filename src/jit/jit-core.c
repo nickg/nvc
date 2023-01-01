@@ -1124,7 +1124,11 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "NOT",     J_NOT,        1, 1 },
       { "NEG",     J_NEG,        1, 1 },
       { "FADD",    J_FADD,       1, 2 },
+      { "FSUB",    J_FSUB,       1, 2 },
       { "FMUL",    J_FMUL,       1, 2 },
+      { "FDIV",    J_FDIV,       1, 2 },
+      { "FNEG",    J_FNEG,       1, 1 },
+      { "FCMP",    J_FCMP,       0, 2 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },
@@ -1275,6 +1279,10 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
             else if (tok[0] == '#') {
                arg.kind  = JIT_VALUE_INT64;
                arg.int64 = strtoll(tok + 1, NULL, 0);
+            }
+            else if (tok[0] == '%') {
+               arg.kind  = JIT_VALUE_DOUBLE;
+               arg.dval = strtod(tok + 1, NULL);
             }
             else if (tok[0] == 'L') {
                APUSH(lpatch, ir - f->irbuf);

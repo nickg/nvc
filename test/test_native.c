@@ -835,6 +835,43 @@ START_TEST(test_float)
    ck_assert_double_eq(jit_call(j, h1, 2.0, 3.0, 1.0).real, 7.0);
    ck_assert_double_eq(jit_call(j, h1, 2.5, 1.0, 0.5).real, 3.0);
 
+   const char *text2 =
+      "    RECV     R0, #0          \n"
+      "    FDIV     R1, R0, %2.0    \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h2 = assemble(j, text2, "float2", "f");
+   ck_assert_double_eq(jit_call(j, h2, 2.0).real, 1.0);
+   ck_assert_double_eq(jit_call(j, h2, 1.0).real, 0.5);
+   ck_assert_double_eq(jit_call(j, h2, 0.5).real, 0.25);
+
+   const char *text3 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    FNEG     R1, R1          \n"
+      "    FSUB     R2, R0, R1      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h3 = assemble(j, text3, "float3", "ff");
+   ck_assert_double_eq(jit_call(j, h3, 2.0, 3.0).real, 5.0);
+   ck_assert_double_eq(jit_call(j, h3, 2.0, -3.0).real, -1.0);
+   ck_assert_double_eq(jit_call(j, h3, -1.0, 0.5).real, -0.5);
+
+   const char *text4 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    FCMP.LT  R0, R1          \n"
+      "    CSET     R2              \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h4 = assemble(j, text4, "float4", "ff");
+   ck_assert_double_eq(jit_call(j, h4, 2.0, 3.0).integer, 1);
+   ck_assert_double_eq(jit_call(j, h4, 0.0, 0.1).integer, 1);
+   ck_assert_double_eq(jit_call(j, h4, -5.0, 0.0).integer, 1);
+   ck_assert_double_eq(jit_call(j, h4, 5.0, 0.0).integer, 0);
    jit_free(j);
 }
 END_TEST
