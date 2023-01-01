@@ -1211,11 +1211,11 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair)
           pair->flags & COV_FLAG_10 || pair->flags & COV_FLAG_11) {
 
          fprintf(f, "<th style=\"width:100px;\">LHS");
-         if (pair->tag->flags & COV_FLAG_METADATA)
+         if (pair->tag->flags & COV_FLAG_EXPR_LHS_INDEX)
             fprintf(f, " (%d)", pair->tag->metadata[0]);
          fprintf(f, "</th>");
          fprintf(f, "<th style=\"width:100px;\">RHS");
-         if (pair->tag->flags & COV_FLAG_METADATA)
+         if (pair->tag->flags & COV_FLAG_EXPR_RHS_INDEX)
             fprintf(f, " (%d)", pair->tag->metadata[1]);
          fprintf(f, "</th>");
 

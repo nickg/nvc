@@ -1821,59 +1821,65 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
 
    assert(tree_params(fcall) == 2);
 
-   type_t arg_type = type_param(tree_type(decl), 0);
+   type_t arg_types[2] = {
+      type_param(tree_type(decl), 0),
+      type_param(tree_type(decl), 1)
+   };
 
-   // TODO: Following implementation has so far following issues:
-   //          1. mixed operands between "logic" and "logic_vector"
-   //          2. Obtaining dimensions crashes when LHS/RHS is output
-   //             of another function, e.g.:
-   //               (vect_a and vect_b) xor (vect_c or vect_d)
-   if (type_is_array(arg_type)) {
-      assert(type_is_array(type_param(tree_type(decl), 1)));
+   bool is_array[2] = {
+      type_is_array(arg_types[0]),
+      type_is_array(arg_types[1])
+   };
 
-      type_t lhs_type = tree_type(tree_value(tree_param(fcall, 0)));
-      type_t rhs_type = tree_type(tree_value(tree_param(fcall, 1)));
-      tree_t lhs_r = range_of(lhs_type, 0);
-      tree_t rhs_r = range_of(rhs_type, 0);
-      int64_t lhs_low, lhs_high, rhs_low, rhs_high;
+   if (is_array[0] || is_array[1]) {
+      int64_t lows[2] = {0};
+      int64_t highs[2] = {0};
+      int64_t lenghts[2] = {1, 1};
+      bool bounds_ok[2] = {true, true};
+      int64_t first[2] = {0};
+      bool up[2] = {false};
 
-      if (folded_bounds(lhs_r, &lhs_low, &lhs_high) &&
-          folded_bounds(rhs_r, &rhs_low, &rhs_high)) {
+      for (int i = 0; i < 2; i++)
+         if (is_array[i]) {
+            tree_t op = tree_param(fcall, i);
+            type_t op_type = tree_type(tree_value(op));
+
+            // TODO: For now skip nested expressions. Need to figure out
+            //       how to query dimensions here!
+            if (type_kind(op_type) == T_ARRAY)
+               return;
+
+            tree_t r = range_of(op_type, 0);
+            bounds_ok[i] = folded_bounds(r, &(lows[i]), &(highs[i]));
+            lenghts[i] = highs[i] - lows[i] + 1;
+            if (tree_subkind(r) == RANGE_DOWNTO) {
+               first[i] = highs[i];
+               up[i] = false;
+            }
+            else {
+               first[i] = lows[i];
+               up[i] = true;
+            }
+         }
+
+      if (bounds_ok[0] && bounds_ok[1]) {
 
          // Skip mismatching lengths -> Throws failure assert in simulation.
          // Generally considered coding error, no need to emit coverage on
          // least common length.
-         int64_t lhs_len = lhs_high - lhs_low + 1;
-         int64_t rhs_len = rhs_high - rhs_low + 1;
-         if (lhs_len != rhs_len)
+         if ((lenghts[0] > 1) && (lenghts[1] > 1) && (lenghts[0] != lenghts[1]))
             return;
 
          // Skip due due to being longer than array_size
-         if (cover_skip_vect_expr(cover_tags, lhs_len))
+         if (cover_skip_vect_expr(cover_tags, lenghts[0]))
             return;
 
-         int64_t lhs_first, rhs_first;
-         bool lhs_up, rhs_up;
-         if (tree_subkind(lhs_r) == RANGE_DOWNTO) {
-            lhs_first = lhs_high;
-            lhs_up = false;
-         }
-         else {
-            lhs_first = lhs_low;
-            lhs_up = true;
-         }
-
-         if (tree_subkind(rhs_r) == RANGE_DOWNTO) {
-            rhs_first = rhs_high;
-            rhs_up = false;
-         }
-         else {
-            rhs_first = rhs_low;
-            rhs_up = true;
-         }
-
-         vcode_reg_t lhs_i = lower_array_data(args[1]);
-         vcode_reg_t rhs_i = lower_array_data(args[2]);
+         vcode_reg_t lhs_i = args[1];
+         vcode_reg_t rhs_i = args[2];
+         if (is_array[0])
+            lhs_i = lower_array_data(args[1]);
+         if (is_array[1])
+            rhs_i = lower_array_data(args[2]);
 
          vcode_type_t voffset = vtype_offset();
          vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
@@ -1889,21 +1895,31 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
          vcode_select_block(test_bb);
          vcode_reg_t i_loaded = emit_load(i_var);
          vcode_reg_t end_loop = emit_cmp(VCODE_CMP_GT, i_loaded,
-                                         emit_const(voffset, lhs_len));
+                                         emit_const(voffset, lenghts[0]));
          emit_cond(end_loop, exit_bb, body_bb);
 
          // Compute mask for each index. Emit only single cover op, but multiple
          // Cover tags. Pass offset to cover_op to index within run-time data
          vcode_select_block(body_bb);
          vcode_reg_t index = emit_load(i_var);
-         vcode_reg_t l_ptr = emit_array_ref(lhs_i, index);
-         vcode_reg_t r_ptr = emit_array_ref(rhs_i, index);
-         vcode_reg_t lhs_v = emit_load_indirect(l_ptr);
-         vcode_reg_t rhs_v = emit_load_indirect(r_ptr);
+         vcode_reg_t lhs_v = lhs_i;
+         vcode_reg_t rhs_v = rhs_i;
+
+         if (is_array[0]) {
+            vcode_reg_t l_ptr = emit_array_ref(lhs_i, index);
+            lhs_v = emit_load_indirect(l_ptr);
+            flags |= COV_FLAG_EXPR_LHS_INDEX;
+         }
+
+         if (is_array[1]) {
+            vcode_reg_t r_ptr = emit_array_ref(rhs_i, index);
+            rhs_v = emit_load_indirect(r_ptr);
+            flags |= COV_FLAG_EXPR_RHS_INDEX;
+         }
 
          vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, lhs_v, rhs_v, flags);
-         lower_expression_coverage_array(fcall, flags, mask, index, lhs_len,
-                                         lhs_first, rhs_first, lhs_up, rhs_up);
+         lower_expression_coverage_array(fcall, flags, mask, index, lenghts[0],
+                                         first[0], first[1], up[0], up[1]);
 
          vcode_reg_t i_inc = emit_add(i_loaded, emit_const(voffset, 1));
          emit_store(i_inc, i_var);

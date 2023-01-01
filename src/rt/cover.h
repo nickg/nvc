@@ -120,7 +120,9 @@ typedef enum {
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
-   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
+   COV_FLAG_EXPR_LHS_INDEX = (1 << 25),
+   COV_FLAG_EXPR_RHS_INDEX = (1 << 26)
 } cover_flags_t;
 
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
