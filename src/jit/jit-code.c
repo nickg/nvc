@@ -36,10 +36,10 @@
 #define CODECACHE_SIZE    0x400000
 #define THREAD_CACHE_SIZE 0x10000
 #define CODE_BLOB_ALIGN   256
-#define DEFAULT_BLOB_SIZE 0x4000
+#define MIN_BLOB_SIZE     0x4000
 
-STATIC_ASSERT(DEFAULT_BLOB_SIZE <= THREAD_CACHE_SIZE);
-STATIC_ASSERT(DEFAULT_BLOB_SIZE % CODE_BLOB_ALIGN == 0);
+STATIC_ASSERT(MIN_BLOB_SIZE <= THREAD_CACHE_SIZE);
+STATIC_ASSERT(MIN_BLOB_SIZE % CODE_BLOB_ALIGN == 0);
 STATIC_ASSERT(CODECACHE_SIZE % THREAD_CACHE_SIZE == 0);
 
 typedef struct _code_span {
@@ -253,7 +253,7 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
       relaxed_store(freeptr, free);
    }
 
-   if (free->size < DEFAULT_BLOB_SIZE) {
+   if (free->size < MIN_BLOB_SIZE) {
 #ifdef DEBUG
       if (free->size > 0)
          debugf("thread %d needs new code cache from global free list "
@@ -274,13 +274,13 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
       code->globalfree->size -= take;
    }
 
-   assert(DEFAULT_BLOB_SIZE <= free->size);
+   assert(MIN_BLOB_SIZE <= free->size);
    assert(((uintptr_t)free->base & (CODE_BLOB_ALIGN - 1)) == 0);
 
-   code_span_t *span = code_span_new(code, name, free->base, DEFAULT_BLOB_SIZE);
+   code_span_t *span = code_span_new(code, name, free->base, free->size);
 
-   free->base += DEFAULT_BLOB_SIZE;
-   free->size -= DEFAULT_BLOB_SIZE;
+   free->base += span->size;
+   free->size -= span->size;
 
    code_blob_t *blob = xcalloc(sizeof(code_blob_t));
    blob->span  = span;
@@ -298,7 +298,7 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
    span->size = blob->wptr - span->base;
 
    code_span_t *freespan = relaxed_load(&(span->owner->freelist[thread_id()]));
-   assert(freespan->base == span->base + DEFAULT_BLOB_SIZE);
+   assert(freespan->size == 0);
 
    ihash_free(blob->labels);
    blob->labels = NULL;
@@ -307,14 +307,14 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
       fatal_trace("not all labels in %s were patched", istr(span->name));
    else if (unlikely(blob->overflow)) {
       // Return all the memory
+      freespan->size = freespan->base - span->base;
       freespan->base = span->base;
-      freespan->size += DEFAULT_BLOB_SIZE;
       free(blob);
       return;
    }
 
    uint8_t *aligned = ALIGN_UP(blob->wptr, CODE_BLOB_ALIGN);
-   freespan->size += freespan->base - aligned;
+   freespan->size = freespan->base - aligned;
    freespan->base = aligned;
 
    if (opt_get_verbose(OPT_ASM_VERBOSE, istr(span->name))) {
