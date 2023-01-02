@@ -40,8 +40,13 @@
 #include <llvm-c/DebugInfo.h>
 #include <llvm-c/Error.h>
 #include <llvm-c/ExecutionEngine.h>
+
+#if LLVM_HAS_PASS_BUILDER
+#include <llvm-c/Transforms/PassBuilder.h>
+#else
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
+#endif
 
 #ifdef LLVM_HAS_LLJIT
 #include <llvm-c/LLJIT.h>
@@ -405,12 +410,31 @@ static void llvm_verify_module(LLVMModuleRef module)
 #endif
 }
 
-static void llvm_optimise(LLVMModuleRef module)
+static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target)
 {
+   const int olevel = opt_get_int(OPT_OPTIMISE);
+   if (olevel < 0 || olevel > 3)
+      fatal("invalid optimisation level %d", olevel);
+
+#if LLVM_HAS_PASS_BUILDER
+   LLVMPassBuilderOptionsRef options = LLVMCreatePassBuilderOptions();
+   LLVMPassBuilderOptionsSetDebugLogging(options, false);
+   LLVMPassBuilderOptionsSetLoopVectorization(options, false);
+   LLVMPassBuilderOptionsSetLoopInterleaving(options, false);
+   LLVMPassBuilderOptionsSetSLPVectorization(options, false);
+   LLVMPassBuilderOptionsSetLoopUnrolling(options, false);
+   LLVMPassBuilderOptionsSetCallGraphProfile(options, false);
+
+   const char *passes[] = {
+      "default<O0>", "default<O1>", "default<O2>", "default<O3>"
+   };
+
+   LLVM_CHECK(LLVMRunPasses, module, passes[olevel], target, options);
+
+   LLVMDisposePassBuilderOptions(options);
+#else
    LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
    LLVMPassManagerRef mpm = LLVMCreatePassManager();
-
-   const int olevel = opt_get_int(OPT_OPTIMISE);
 
    LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
    LLVMPassManagerBuilderSetOptLevel(builder, olevel);
@@ -434,6 +458,7 @@ static void llvm_optimise(LLVMModuleRef module)
 
    LLVMRunPassManager(mpm, module);
    LLVMDisposePassManager(mpm);
+#endif
 }
 
 static void llvm_finalise(llvm_obj_t *obj)
@@ -442,7 +467,7 @@ static void llvm_finalise(llvm_obj_t *obj)
 
    llvm_dump_module(obj->module, "initial");
    llvm_verify_module(obj->module);
-   llvm_optimise(obj->module);
+   llvm_optimise(obj->module, obj->target);
    llvm_dump_module(obj->module, "final");
 }
 
@@ -2115,6 +2140,7 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case J_DEBUG:
       cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc));
       break;
+   case J_TRAP:
    case J_NOP:
       break;
    case MACRO_EXP:

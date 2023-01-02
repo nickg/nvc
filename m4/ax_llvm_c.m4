@@ -91,11 +91,6 @@ AC_DEFUN([AX_LLVM_C], [
       AC_MSG_ERROR([LLVM version 16.0 or later not yet supported])
     fi
 
-    # Minimum version should be 9.0 but I've not tested 9..11
-    if test "$llvm_ver_num" -ge "120"; then
-      AC_DEFINE_UNQUOTED(LLVM_HAS_LLJIT, [1], [LLVM has LLJIT API])
-    fi
-
     if test "$llvm_ver_num" -ge "100"; then
       AC_DEFINE_UNQUOTED(LLVM_HAVE_DI_SCOPE_GET_FILE, [1],
                          [Have LLVMDIScopeGetFile])
@@ -106,6 +101,15 @@ AC_DEFUN([AX_LLVM_C], [
     if test "$llvm_ver_num" -ge "110"; then
       AC_DEFINE_UNQUOTED(LLVM_CREATE_CU_HAS_SYSROOT, [1],
                          [LLVMDIBuilderCreateCompileUnit has SysRoot parameter])
+    fi
+
+    if test "$llvm_ver_num" -ge "130"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAS_PASS_BUILDER, [1], [LLVM has new pass manager])
+    fi
+
+    # Minimum version should be 9.0 but I've not tested 9..11
+    if test "$llvm_ver_num" -ge "120"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAS_LLJIT, [1], [LLVM has LLJIT API])
     fi
 
     if test "$llvm_ver_num" -ge "150"; then
