@@ -134,13 +134,22 @@ typedef struct _cgen_block cgen_block_t;
 #define CTOR_MAX_ORDER         2
 #define CLOSED_WORLD           1
 #define ARGCACHE_SIZE          6
+#define ENABLE_DWARF           0
+
+#if ENABLE_DWARF
+#define DWARF_ONLY(x) x
+#else
+#define DWARF_ONLY(x)
+#endif
 
 typedef struct _llvm_obj {
    LLVMModuleRef         module;
    LLVMContextRef        context;
    LLVMTargetMachineRef  target;
    LLVMBuilderRef        builder;
+#if ENABLE_DWARF
    LLVMDIBuilderRef      debuginfo;
+#endif
    LLVMTargetDataRef     data_ref;
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
@@ -463,7 +472,7 @@ static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target)
 
 static void llvm_finalise(llvm_obj_t *obj)
 {
-   LLVMDIBuilderFinalize(obj->debuginfo);
+   DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
 
    llvm_dump_module(obj->module, "initial");
    llvm_verify_module(obj->module);
@@ -1241,6 +1250,7 @@ static void cgen_sync_irpos(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMBuildStore(obj->builder, llvm_int32(obj, irpos), cgb->func->irpos);
 }
 
+#if ENABLE_DWARF
 static void cgen_debug_loc(llvm_obj_t *obj, cgen_func_t *func, const loc_t *loc)
 {
    if (loc_eq(loc, &(func->last_loc)))
@@ -1257,6 +1267,7 @@ static void cgen_debug_loc(llvm_obj_t *obj, cgen_func_t *func, const loc_t *loc)
    LLVMSetCurrentDebugLocation(obj->builder, md);
 #endif
 }
+#endif
 
 static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
@@ -2138,7 +2149,7 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       cgen_op_clamp(obj, cgb, ir);
       break;
    case J_DEBUG:
-      cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc));
+      DWARF_ONLY(cgen_debug_loc(obj, cgb->func, &(ir->arg1.loc)));
       break;
    case J_TRAP:
    case J_NOP:
@@ -2287,6 +2298,7 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    return global;
 }
 
+#if ENABLE_DWARF
 static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 {
    const char *file_path = loc_file_str(loc) ?: "";
@@ -2302,6 +2314,7 @@ static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 
    return LLVMDIBuilderCreateFile(obj->debuginfo, file, file_len, dir, dir_len);
 }
+#endif
 
 static void cgen_must_be_pointer(cgen_func_t *func, jit_value_t value)
 {
@@ -2407,6 +2420,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NONNULL, 3);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NOALIAS, 4);
 
+#if ENABLE_DWARF
    LLVMMetadataRef file_ref =
       cgen_debug_file(obj, &(func->source->object->loc));
 
@@ -2436,6 +2450,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    LLVMSetSubprogram(func->llvmfn, func->debugmd);
 
    cgen_debug_loc(obj, func, &(func->source->object->loc));
+#endif  // ENABLE_DWARF
 
    if (obj->ctor[0] != NULL) {
       cgen_add_ctor(obj, 0);
@@ -2718,8 +2733,11 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    obj.module    = LLVMModuleCreateWithNameInContext(tb_get(tb), obj.context);
    obj.builder   = LLVMCreateBuilderInContext(obj.context);
-   obj.debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj.module);
    obj.data_ref  = LLVMCreateTargetDataLayout(obj.target);
+
+#if ENABLE_DWARF
+   obj.debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj.module);
+#endif
 
    llvm_register_types(&obj);
 
@@ -2752,7 +2770,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    LLVMDisposeTargetData(obj.data_ref);
    LLVMDisposeBuilder(obj.builder);
-   LLVMDisposeDIBuilder(obj.debuginfo);
+   DWARF_ONLY(LLVMDisposeDIBuilder(obj.debuginfo));
    free(func.name);
 }
 
@@ -2794,8 +2812,11 @@ llvm_obj_t *llvm_obj_new(const char *name)
    obj->builder   = LLVMCreateBuilderInContext(obj->context);
    obj->target    = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
    obj->data_ref  = LLVMCreateTargetDataLayout(obj->target);
-   obj->debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj->module);
    obj->jitpack   = jit_pack_new();
+
+#if ENABLE_DWARF
+   obj->debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj->module);
+#endif
 
    char *triple = LLVMGetTargetMachineTriple(obj->target);
    LLVMSetTarget(obj->module, triple);
