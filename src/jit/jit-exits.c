@@ -1473,60 +1473,18 @@ jit_handle_t __nvc_get_handle(const char *func, ffi_spec_t spec)
 }
 
 DLLEXPORT
-void **__nvc_getpriv(jit_handle_t handle)
-{
-   jit_t *j = jit_thread_local()->jit;
-   jit_func_t *f = jit_get_func(j, handle);
-
-   return jit_get_privdata_ptr(j, f);
-}
-
-DLLEXPORT
 void __nvc_putpriv(jit_handle_t handle, void *data)
 {
    jit_t *j = jit_thread_local()->jit;
    jit_func_t *f = jit_get_func(j, handle);
 
-   *jit_get_privdata_ptr(j, f) = data;
+   store_release(jit_get_privdata_ptr(j, f), data);
 }
 
 DLLEXPORT
 void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
 {
    x_cover_setup_toggle_cb(ss, toggle_mask);
-}
-
-DLLEXPORT
-void __nvc_register(const char *name, jit_entry_fn_t fn,
-                    const uint8_t *debug, const uint8_t *cpool)
-{
-   jit_t *j = jit_thread_local()->jit;
-   jit_register(j, ident_new(name), fn, debug, cpool);
-}
-
-DLLEXPORT
-jit_func_t *__nvc_get_func(const char *name)
-{
-   jit_t *j = jit_thread_local()->jit;
-   jit_handle_t handle = jit_lazy_compile(j, ident_new(name));
-
-   if (handle == JIT_HANDLE_INVALID)
-      fatal_trace("invalid function %s", name);
-
-   return jit_get_func(j, handle);
-}
-
-DLLEXPORT
-jit_foreign_t *__nvc_get_foreign(const char *name, ffi_spec_t spec)
-{
-   ident_t id = ident_new(name);
-   return jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
-}
-
-DLLEXPORT
-tree_t __nvc_get_tree(const char *unit, ptrdiff_t offset)
-{
-   return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
 }
 
 DLLEXPORT

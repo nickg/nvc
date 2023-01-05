@@ -735,7 +735,7 @@ static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)
 {
    JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
    jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-   void *ptr = *jit_get_privdata_ptr(state->func->jit, f);
+   void *ptr = load_acquire(jit_get_privdata_ptr(state->func->jit, f));
    state->regs[ir->result].pointer = ptr;
 }
 
@@ -744,7 +744,7 @@ static void interp_putpriv(jit_interp_t *state, jit_ir_t *ir)
    JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
    jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
    void *ptr = interp_get_value(state, ir->arg2).pointer;
-   *jit_get_privdata_ptr(state->func->jit, f) = ptr;
+   store_release(jit_get_privdata_ptr(state->func->jit, f), ptr);
 }
 
 static void interp_case(jit_interp_t *state, jit_ir_t *ir)

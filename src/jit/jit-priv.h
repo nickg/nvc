@@ -248,6 +248,14 @@ typedef enum {
    JIT_FUNC_READY
 } func_state_t;
 
+typedef enum {
+   RELOC_NULL,
+   RELOC_HANDLE,
+   RELOC_FUNC,
+   RELOC_FOREIGN,
+   RELOC_PRIVDATA,
+} reloc_kind_t;
+
 typedef struct {
    ident_t  name;
    unsigned offset;
@@ -331,8 +339,6 @@ bool jit_has_runtime(jit_t *j);
 int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
-void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
-                  const uint8_t *debug, const uint8_t *cpool);
 void jit_fill_irbuf(jit_func_t *f);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);

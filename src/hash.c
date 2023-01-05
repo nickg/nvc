@@ -420,8 +420,10 @@ hset_t *hset_new(int size)
 
 void hset_free(hset_t *h)
 {
-   free(h->keys);
-   free(h);
+   if (h != NULL) {
+      free(h->keys);
+      free(h);
+   }
 }
 
 void hset_insert(hset_t *h, const void *key)

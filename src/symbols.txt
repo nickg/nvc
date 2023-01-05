@@ -42,12 +42,8 @@
   __nvc_exponent_fail;
   __nvc_flush;
   __nvc_force;
-  __nvc_get_foreign;
-  __nvc_get_func;
   __nvc_get_handle;
   __nvc_get_object;
-  __nvc_get_tree;
-  __nvc_getpriv;
   __nvc_index_fail;
   __nvc_length_fail;
   __nvc_map_const;
@@ -60,7 +56,6 @@
   __nvc_push_scope;
   __nvc_putpriv;
   __nvc_range_fail;
-  __nvc_register;
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;

@@ -71,6 +71,20 @@ typedef struct _aot_dll {
    jit_pack_t *pack;
 } aot_dll_t;
 
+typedef struct {
+   reloc_kind_t  kind;
+   void         *ptr;
+} aot_reloc_t;
+
+// The code generator knows the layout of this struct
+typedef struct {
+   jit_entry_fn_t  entry;
+   ffi_spec_t      spec;
+   const uint8_t  *debug;
+   const uint8_t  *cpool;
+   aot_reloc_t     relocs[0];
+} aot_descr_t;
+
 typedef struct _jit {
    chash_t        *index;
    mspace_t       *mspace;
@@ -209,27 +223,39 @@ static void jit_install(jit_t *j, jit_func_t *f)
    if (f->unit) chash_put(j->index, f->unit, f);
 }
 
-jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
+static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 {
+   assert_lock_held(&j->lock);
+
    jit_func_t *f = chash_get(j->index, name);
    if (f != NULL)
       return f->handle;
 
-   SCOPED_LOCK(j->lock);
+   aot_descr_t *descr = NULL;
+   if (j->aotlib != NULL) {
+      LOCAL_TEXT_BUF tb = safe_symbol(name);
+      tb_cat(tb, ".descr");
 
-   // Second check with lock held
-   if ((f = chash_get(j->index, name)))
-      return f->handle;
+      aot_dll_t *try[] = { j->aotlib };
+      for (int i = 0; i < ARRAY_LEN(try); i++) {
+         if (try[i] == NULL)
+            continue;
+         else if ((descr = ffi_find_symbol(try[i]->dll, tb_get(tb)))) {
+            jit_pack_put(try[i]->pack, name, descr->cpool, descr->debug);
+            break;
+         }
+      }
+   }
 
    void *symbol = NULL;
-   if (j->aotlib != NULL) {
+   if (descr == NULL && j->aotlib != NULL) {
       LOCAL_TEXT_BUF tb = safe_symbol(name);
       symbol = ffi_find_symbol(j->aotlib->dll, tb_get(tb));
    }
 
    vcode_unit_t vu = vcode_find_unit(name);
 
-   if (vu == NULL && symbol == NULL) {
+   if (vu == NULL && descr == NULL && symbol == NULL) {
       if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
          debugf("loading vcode for %s", istr(name));
 
@@ -241,7 +267,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    }
 
    ident_t alias = NULL;
-   if (vu == NULL && j->lower_fn != NULL) {
+   if (vu == NULL && descr == NULL && j->lower_fn != NULL) {
       vcode_state_t state;
       vcode_state_save(&state);
 
@@ -253,7 +279,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
       vcode_state_restore(&state);
    }
 
-   if (vu == NULL && symbol == NULL)
+   if (vu == NULL && symbol == NULL && descr == NULL)
       return JIT_HANDLE_INVALID;
 
    assert(vu == NULL || chash_get(j->index, vu) == NULL);
@@ -261,22 +287,72 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = alias ?: name;
-   f->state     = symbol ? JIT_FUNC_READY : JIT_FUNC_PLACEHOLDER;
+   f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
    f->unit      = vu;
    f->symbol    = symbol;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
-   f->entry     = jit_interp;
+   f->entry     = descr ? descr->entry : jit_interp;
    f->object    = vu ? vcode_unit_object(vu) : NULL;
 
+   if (symbol)  // XXX: temporary
+      f->state = JIT_FUNC_READY;
+
+   // Install now to allow circular references in relocations
    jit_install(j, f);
 
    if (alias != NULL && alias != name)
       chash_put(j->index, name, f);
 
+   if (descr != NULL) {
+      for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
+         const char *str = (char *)r->ptr;
+         if (r->kind == RELOC_FOREIGN) {
+            char *eptr = NULL;
+            ffi_spec_t spec = strtoull(str, &eptr, 10);
+            if (*eptr != '\b')
+               fatal_trace("invalid foreign reloc '%s'", str);
+
+            ident_t id = ident_new(eptr + 1);
+            r->ptr = jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
+         }
+         else {
+            jit_handle_t h = jit_lazy_compile_locked(j, ident_new(str));
+            if (h == JIT_HANDLE_INVALID)
+               fatal_trace("relocation against invalid function %s", str);
+
+            switch (r->kind) {
+            case RELOC_FUNC:
+               r->ptr = jit_get_func(j, h);
+               break;
+            case RELOC_HANDLE:
+               r->ptr = (void *)(uintptr_t)h;
+               break;
+            case RELOC_PRIVDATA:
+               r->ptr = jit_get_privdata_ptr(j, jit_get_func(j, h));
+               break;
+            default:
+               fatal_trace("unhandled relocation kind %d", r->kind);
+            }
+         }
+      }
+
+      store_release(&f->state, JIT_FUNC_READY);
+   }
+
    return f->handle;
+}
+
+jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
+{
+   jit_func_t *f = chash_get(j->index, name);
+   if (f != NULL)
+      return f->handle;
+
+   SCOPED_LOCK(j->lock);
+   return jit_lazy_compile_locked(j, name);
 }
 
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
@@ -318,6 +394,8 @@ void jit_fill_irbuf(jit_func_t *f)
       fatal_trace("illegal function state for %s", istr(f->name));
    }
 
+   assert(f->irbuf == NULL);
+
    if (f->symbol && f->irbuf != NULL)
       return;   // XXX: delete me
    else if (f->jit->aotlib && jit_pack_fill(f->jit->aotlib->pack, f->jit, f))
@@ -338,30 +416,6 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
    jit_fill_irbuf(f);
 
    return handle;
-}
-
-void jit_register(jit_t *j, ident_t name, jit_entry_fn_t fn,
-                  const uint8_t *debug, const uint8_t *cpool)
-{
-   jit_func_t *f = chash_get(j->index, name);
-   if (f != NULL)
-      fatal_trace("attempt to register existing function %s", istr(name));
-
-   SCOPED_LOCK(j->lock);
-
-   f = xcalloc(sizeof(jit_func_t));
-
-   f->name      = name;
-   f->state     = JIT_FUNC_PLACEHOLDER;
-   f->jit       = j;
-   f->handle    = j->next_handle++;
-   f->next_tier = NULL;
-   f->hotness   = UINT_MAX;
-   f->entry     = fn;
-
-   jit_pack_put(j->aotlib->pack, name, cpool, debug);
-
-   jit_install(j, f);
 }
 
 void *jit_link(jit_t *j, jit_handle_t handle)

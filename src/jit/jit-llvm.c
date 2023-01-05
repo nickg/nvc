@@ -70,9 +70,8 @@ typedef enum {
 
    LLVM_ENTRY_FN,
    LLVM_ANCHOR,
-   LLVM_CTOR_FN,
-   LLVM_CTOR,
    LLVM_TLAB,
+   LLVM_AOT_RELOC,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -112,16 +111,10 @@ typedef enum {
    LLVM_ROUND_F64,
 
    LLVM_DO_EXIT,
-   LLVM_GETPRIV,
    LLVM_PUTPRIV,
    LLVM_MSPACE_ALLOC,
    LLVM_DO_FFICALL,
-   LLVM_REGISTER,
-   LLVM_GET_FUNC,
-   LLVM_GET_FOREIGN,
-   LLVM_GET_TREE,
    LLVM_GET_OBJECT,
-   LLVM_GET_HANDLE,
    LLVM_TLAB_ALLOC,
 
    LLVM_LAST_FN,
@@ -131,7 +124,6 @@ typedef struct _cgen_func  cgen_func_t;
 typedef struct _cgen_block cgen_block_t;
 
 #define DEBUG_METADATA_VERSION 3
-#define CTOR_MAX_ORDER         2
 #define CLOSED_WORLD           1
 #define ARGCACHE_SIZE          6
 #define ENABLE_DWARF           0
@@ -154,7 +146,6 @@ typedef struct _llvm_obj {
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
-   LLVMValueRef          ctor[CTOR_MAX_ORDER];
    LLVMMetadataRef       debugcu;
    shash_t              *string_pool;
    jit_pack_t           *jitpack;
@@ -170,6 +161,15 @@ typedef struct _cgen_block {
    cgen_func_t       *func;
 } cgen_block_t;
 
+typedef enum { CGEN_JIT, CGEN_AOT } cgen_mode_t;
+
+typedef struct {
+   reloc_kind_t kind;
+   unsigned     nth;
+   LLVMValueRef str;
+   uintptr_t    key;
+} cgen_reloc_t;
+
 typedef struct _cgen_func {
    LLVMValueRef     llvmfn;
    LLVMValueRef     args;
@@ -179,6 +179,8 @@ typedef struct _cgen_func {
    LLVMValueRef     anchor;
    LLVMValueRef     cpool;
    LLVMTypeRef      cpool_type;
+   LLVMValueRef     descr;
+   LLVMTypeRef      descr_type;
    LLVMMetadataRef  debugmd;
    cgen_block_t    *blocks;
    jit_func_t      *source;
@@ -186,6 +188,8 @@ typedef struct _cgen_func {
    char            *name;
    loc_t            last_loc;
    bit_mask_t       ptr_mask;
+   cgen_mode_t      mode;
+   cgen_reloc_t    *relocs;
 } cgen_func_t;
 
 typedef enum {
@@ -201,6 +205,7 @@ typedef enum {
    FUNC_ATTR_COLD,
    FUNC_ATTR_OPTNONE,
    FUNC_ATTR_NOALIAS,
+   FUNC_ATTR_INLINE,
 
    // Attributes requiring special handling
    FUNC_ATTR_PRESERVE_FP,
@@ -279,7 +284,7 @@ static void llvm_add_func_attr(llvm_obj_t *obj, LLVMValueRef fn,
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval",
          "uwtable", "noinline", "writeonly", "nonnull", "cold", "optnone",
-         "noalias",
+         "noalias", "inlinehint",
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -350,8 +355,15 @@ static void llvm_register_types(llvm_obj_t *obj)
                                                    false);
    }
 
-   obj->types[LLVM_CTOR_FN] = LLVMFunctionType(obj->types[LLVM_VOID],
-                                               NULL, 0, false);
+   {
+      LLVMTypeRef fields[] = {
+         obj->types[LLVM_INT32],   // Kind
+         obj->types[LLVM_PTR],     // Data pointer
+      };
+      obj->types[LLVM_AOT_RELOC] = LLVMStructTypeInContext(obj->context, fields,
+                                                           ARRAY_LEN(fields),
+                                                           false);
+   }
 
    {
       LLVMTypeRef fields[] = {
@@ -373,20 +385,6 @@ static void llvm_register_types(llvm_obj_t *obj)
                                                              fields,
                                                              ARRAY_LEN(fields),
                                                              false);
-   }
-
-   {
-      LLVMTypeRef fields[] = {
-         obj->types[LLVM_INT32],
-#ifdef LLVM_HAS_OPAQUE_POINTERS
-         obj->types[LLVM_PTR],
-#else
-         LLVMPointerType(obj->types[LLVM_CTOR_FN], 0),
-#endif
-         obj->types[LLVM_PTR],
-      };
-      obj->types[LLVM_CTOR] = LLVMStructTypeInContext(obj->context, fields,
-                                                      ARRAY_LEN(fields), false);
    }
 }
 
@@ -721,16 +719,6 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       }
       break;
 
-   case LLVM_GETPRIV:
-      {
-         LLVMTypeRef args[] = { obj->types[LLVM_INT32] };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
-                                                ARRAY_LEN(args), false);
-
-         fn = llvm_add_fn(obj, "__nvc_getpriv", obj->fntypes[which]);
-      }
-      break;
-
    case LLVM_PUTPRIV:
       {
          LLVMTypeRef args[] = {
@@ -758,65 +746,6 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_mspace_alloc2", obj->fntypes[which]);
-      }
-      break;
-
-   case LLVM_REGISTER:
-      {
-         LLVMTypeRef args[] = {
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR],
-         };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
-                                                ARRAY_LEN(args), false);
-         fn = llvm_add_fn(obj, "__nvc_register", obj->fntypes[which]);
-      }
-      break;
-
-   case LLVM_GET_FUNC:
-      {
-         LLVMTypeRef args[] = { obj->types[LLVM_PTR] };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
-                                                ARRAY_LEN(args), false);
-         fn = llvm_add_fn(obj, "__nvc_get_func", obj->fntypes[which]);
-      }
-      break;
-
-   case LLVM_GET_HANDLE:
-      {
-         LLVMTypeRef args[] = {
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_INT64]
-         };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_INT32], args,
-                                                ARRAY_LEN(args), false);
-         fn = llvm_add_fn(obj, "__nvc_get_handle", obj->fntypes[which]);
-      }
-      break;
-
-   case LLVM_GET_FOREIGN:
-      {
-         LLVMTypeRef args[] = {
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_INT64]
-         };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
-                                                ARRAY_LEN(args), false);
-         fn = llvm_add_fn(obj, "__nvc_get_foreign", obj->fntypes[which]);
-      }
-      break;
-
-   case LLVM_GET_TREE:
-      {
-         LLVMTypeRef args[] = {
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_INTPTR]
-         };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
-                                                ARRAY_LEN(args), false);
-         fn = llvm_add_fn(obj, "__nvc_get_tree", obj->fntypes[which]);
       }
       break;
 
@@ -900,12 +829,14 @@ static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
 #endif
 }
 
+#if ENABLE_DWARF
 static void llvm_add_module_flag(llvm_obj_t *obj, const char *key, int value)
 {
    LLVMAddModuleFlag(obj->module, LLVMModuleFlagBehaviorWarning,
                      key, strlen(key),
                      LLVMValueAsMetadata(llvm_int32(obj, value)));
 }
+#endif
 
 static bool llvm_is_ptr(LLVMValueRef value)
 {
@@ -962,14 +893,37 @@ static void cgen_abort(cgen_block_t *cgb, jit_ir_t *ir, const char *fmt, ...)
    va_end(ap);
 }
 
-static LLVMBasicBlockRef cgen_add_ctor(llvm_obj_t *obj, int order)
+static cgen_reloc_t *cgen_find_reloc(cgen_reloc_t *list, reloc_kind_t kind,
+                                     int limit, uintptr_t key)
 {
-   assert(order < CTOR_MAX_ORDER);
-   assert(obj->ctor != NULL);
-   LLVMBasicBlockRef old_bb = LLVMGetInsertBlock(obj->builder);
-   LLVMBasicBlockRef ctor_bb = LLVMGetLastBasicBlock(obj->ctor[order]);
-   LLVMPositionBuilderAtEnd(obj->builder, ctor_bb);
-   return old_bb;
+   for (int i = 0; i < limit; i++) {
+      if (list[i].kind == kind && list[i].key == key)
+         return &(list[i]);
+      else if (list[i].kind == RELOC_NULL)
+         break;
+   }
+
+   return NULL;
+}
+
+static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
+                                         reloc_kind_t kind, uintptr_t key)
+{
+   cgen_reloc_t *reloc = cgen_find_reloc(func->relocs, kind, INT_MAX, key);
+   assert(reloc != NULL);
+
+   LLVMValueRef array = LLVMBuildStructGEP2(obj->builder, func->descr_type,
+                                            func->descr, 4, "");
+
+   LLVMValueRef indexes[] = { llvm_intptr(obj, reloc->nth) };
+   LLVMValueRef elem =
+      LLVMBuildInBoundsGEP2(obj->builder, obj->types[LLVM_AOT_RELOC], array,
+                            indexes, ARRAY_LEN(indexes), "");
+   LLVMValueRef ptr =
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_AOT_RELOC],
+                          elem, 1, "");
+
+   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 }
 
 static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
@@ -988,70 +942,23 @@ static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
    return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
 }
 
-static LLVMValueRef cgen_rematerialise_ffi(llvm_obj_t *obj, jit_foreign_t *ff)
-{
-   ident_t sym = ffi_get_sym(ff);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, sym);
-   tb_cat(tb, ".ffi");
-
-   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-   if (global == NULL) {
-      global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
-      LLVMSetUnnamedAddr(global, true);
-      LLVMSetLinkage(global, LLVMPrivateLinkage);
-      LLVMSetInitializer(global, llvm_ptr(obj, NULL));
-
-      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
-
-      tb_trim(tb, ident_len(sym));   // Strip .ffi
-
-      LLVMValueRef args[] = {
-         llvm_const_string(obj, tb_get(tb)),
-         llvm_int64(obj, ffi_get_spec(ff)),
-      };
-      LLVMValueRef init =
-         llvm_call_fn(obj, LLVM_GET_FOREIGN, args, ARRAY_LEN(args));
-      LLVMBuildStore(obj->builder, init, global);
-
-      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
-   }
-
-   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
-}
-
 static LLVMValueRef cgen_rematerialise_handle(llvm_obj_t *obj,
-                                              cgen_block_t *cgb,
+                                              cgen_func_t *func,
                                               jit_handle_t handle)
 {
-   ident_t name = jit_get_name(cgb->func->source->jit, handle);
+   LLVMValueRef ptr =
+      cgen_load_from_reloc(obj, func, RELOC_HANDLE, handle);
+   LLVMValueRef intptr =
+      LLVMBuildPtrToInt(obj->builder, ptr, obj->types[LLVM_INTPTR], "");
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, name);
-   tb_cat(tb, ".handle");
+#ifdef DEBUG
+   ident_t name = jit_get_name(func->source->jit, handle);
+   char *valname LOCAL = xasprintf("%s.handle", istr(name));
+#else
+   const char *valname = "";
+#endif
 
-   LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-   if (global == NULL) {
-      global = LLVMAddGlobal(obj->module, obj->types[LLVM_INT32], tb_get(tb));
-      LLVMSetUnnamedAddr(global, true);
-      LLVMSetLinkage(global, LLVMPrivateLinkage);
-      LLVMSetInitializer(global, llvm_int32(obj, JIT_HANDLE_INVALID));
-
-      LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
-
-      LLVMValueRef args[] = {
-         llvm_const_string(obj, istr(name)),
-         llvm_int64(obj, ~UINT64_C(0)),
-      };
-      LLVMValueRef init =
-         llvm_call_fn(obj, LLVM_GET_HANDLE, args, ARRAY_LEN(args));
-      LLVMBuildStore(obj->builder, init, global);
-
-      LLVMPositionBuilderAtEnd(obj->builder, old_bb);
-   }
-
-   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32], global, "");
+   return LLVMBuildTrunc(obj->builder, intptr, obj->types[LLVM_INT32], valname);
 }
 
 static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
@@ -1068,7 +975,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       return llvm_real(obj, value.dval);
    case JIT_ADDR_CPOOL:
       assert(value.int64 >= 0 && value.int64 <= cgb->func->source->cpoolsz);
-      if (cgb->func->cpool != NULL) {
+      if (cgb->func->mode == CGEN_AOT) {
          LLVMValueRef indexes[] = {
             llvm_intptr(obj, 0),
             llvm_intptr(obj, value.int64)
@@ -1100,19 +1007,20 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
    case JIT_VALUE_EXIT:
       return llvm_int32(obj, value.exit);
    case JIT_VALUE_HANDLE:
-      if (cgb->func->cpool != NULL && value.handle != JIT_HANDLE_INVALID)
-         return cgen_rematerialise_handle(obj, cgb, value.handle);
+      if (cgb->func->mode == CGEN_AOT && value.handle != JIT_HANDLE_INVALID)
+         return cgen_rematerialise_handle(obj, cgb->func, value.handle);
       else
          return llvm_int32(obj, value.handle);
    case JIT_ADDR_ABS:
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
    case JIT_VALUE_FOREIGN:
-      if (cgb->func->cpool != NULL)
-         return cgen_rematerialise_ffi(obj, value.foreign);
+      if (cgb->func->mode == CGEN_AOT)
+         return cgen_load_from_reloc(obj, cgb->func, RELOC_FOREIGN,
+                                     (uintptr_t)value.foreign);
       else
          return llvm_ptr(obj, value.foreign);
    case JIT_VALUE_TREE:
-      if (cgb->func->cpool != NULL)
+      if (cgb->func->mode == CGEN_AOT)
          return cgen_rematerialise_object(obj, tree_to_object(value.tree));
       else
          return llvm_ptr(obj, value.tree);
@@ -1728,33 +1636,24 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    jit_func_t *callee = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
 
    LLVMValueRef entry = NULL, fptr = NULL;
-   if (obj->ctor[1] != NULL) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, callee->name);
-      tb_cat(tb, ".func");
+   if (cgb->func->mode == CGEN_AOT) {
+      cgen_reloc_t *reloc = cgen_find_reloc(cgb->func->relocs, RELOC_FUNC,
+                                            INT_MAX, ir->arg1.handle);
+      assert(reloc != NULL);
 
-      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-      if (global == NULL) {
-         global = LLVMAddGlobal(obj->module, obj->types[LLVM_PTR], tb_get(tb));
-         LLVMSetUnnamedAddr(global, true);
-         LLVMSetLinkage(global, LLVMPrivateLinkage);
-         LLVMSetInitializer(global, llvm_ptr(obj, NULL));
+      LLVMValueRef array =
+         LLVMBuildStructGEP2(obj->builder, cgb->func->descr_type,
+                             cgb->func->descr, 4, "");
 
-         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
+      LLVMValueRef indexes[] = { llvm_intptr(obj, reloc->nth) };
+      LLVMValueRef elem =
+         LLVMBuildInBoundsGEP2(obj->builder, obj->types[LLVM_AOT_RELOC], array,
+                               indexes, ARRAY_LEN(indexes), "");
+      LLVMValueRef ptr =
+         LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_AOT_RELOC],
+                             elem, 1, "");
 
-         tb_trim(tb, ident_len(callee->name));  // Strip .func
-
-         LLVMValueRef args[] = {
-            llvm_const_string(obj, tb_get(tb)),
-         };
-         LLVMValueRef init =
-            llvm_call_fn(obj, LLVM_GET_FUNC, args, ARRAY_LEN(args));
-         LLVMBuildStore(obj->builder, init, global);
-
-         LLVMPositionBuilderAtEnd(obj->builder, old_bb);
-      }
-
-      fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], global, "");
+      fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 
 #if CLOSED_WORLD
       entry = llvm_add_fn(obj, istr(callee->name), obj->types[LLVM_ENTRY_FN]);
@@ -1957,60 +1856,39 @@ static void cgen_macro_salloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
-
    LLVMValueRef ptrptr;
-   if (obj->ctor[1] == NULL)
+   if (cgb->func->mode == CGEN_JIT) {
+      jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
       ptrptr = llvm_ptr(obj, jit_get_privdata_ptr(f->jit, f));
-   else {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, f->name);
-      tb_cat(tb, ".privdata");
-
-#ifdef LLVM_HAS_OPAQUE_POINTERS
-      LLVMTypeRef ptrptr_type = obj->types[LLVM_PTR];
-#else
-      LLVMTypeRef ptrptr_type = LLVMPointerType(obj->types[LLVM_PTR], 0);
-#endif
-
-      LLVMValueRef global = LLVMGetNamedGlobal(obj->module, tb_get(tb));
-      if (global == NULL) {
-         global = LLVMAddGlobal(obj->module, ptrptr_type, tb_get(tb));
-         LLVMSetUnnamedAddr(global, true);
-         LLVMSetLinkage(global, LLVMPrivateLinkage);
-         LLVMSetInitializer(global, LLVMConstNull(ptrptr_type));
-
-         LLVMBasicBlockRef old_bb = cgen_add_ctor(obj, 1);
-
-         LLVMValueRef args[] = {
-            cgen_get_value(obj, cgb, ir->arg1)
-         };
-         LLVMValueRef init =
-            llvm_call_fn(obj, LLVM_GETPRIV, args, ARRAY_LEN(args));
-#ifndef LLVM_HAS_OPAQUE_POINTERS
-         init = LLVMBuildPointerCast(obj->builder, init, ptrptr_type, "");
-#endif
-         LLVMBuildStore(obj->builder, init, global);
-
-         LLVMPositionBuilderAtEnd(obj->builder, old_bb);
-      }
-
-      ptrptr = LLVMBuildLoad2(obj->builder, ptrptr_type, global, "p1");
    }
+   else
+      ptrptr = cgen_load_from_reloc(obj, cgb->func, RELOC_PRIVDATA,
+                                    ir->arg1.handle);
 
    LLVMValueRef ptr =
       LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "p2");
+   LLVMSetOrdering(ptr, LLVMAtomicOrderingAcquire);
 
    cgen_pointer_result(obj, cgb, ir, ptr);
 }
 
 static void cgen_macro_putpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef args[] = {
-      cgen_get_value(obj, cgb, ir->arg1),
-      cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR),
-   };
-   llvm_call_fn(obj, LLVM_PUTPRIV, args, ARRAY_LEN(args));
+   LLVMValueRef value = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR);
+
+   if (cgb->func->mode == CGEN_AOT) {
+      LLVMValueRef ptr = cgen_load_from_reloc(obj, cgb->func, RELOC_PRIVDATA,
+                                              ir->arg1.handle);
+      LLVMValueRef store = LLVMBuildStore(obj->builder, value, ptr);
+      LLVMSetOrdering(store, LLVMAtomicOrderingRelease);
+   }
+   else {
+      LLVMValueRef args[] = {
+         cgen_get_value(obj, cgb, ir->arg1),
+         value,
+      };
+      llvm_call_fn(obj, LLVM_PUTPRIV, args, ARRAY_LEN(args));
+   }
 }
 
 static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -2298,6 +2176,117 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    return global;
 }
 
+static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
+{
+   LLVMValueRef irbuf = cgen_debug_irbuf(obj, func->source);
+
+   A(cgen_reloc_t) relocs = AINIT;
+
+   for (int i = 0; i < func->source->nirs; i++) {
+      jit_ir_t *ir = &(func->source->irbuf[i]);
+      if (ir->op == J_CALL || ir->op == MACRO_GETPRIV
+          || ir->op == MACRO_PUTPRIV) {
+         // Special handling of JIT_VALUE_HANDLE arguments
+         reloc_kind_t kind = ir->op == J_CALL ? RELOC_FUNC : RELOC_PRIVDATA;
+         if (cgen_find_reloc(relocs.items, kind, relocs.count,
+                             ir->arg1.handle) == NULL) {
+            jit_func_t *f = jit_get_func(func->source->jit, ir->arg1.handle);
+            const cgen_reloc_t r = {
+               .kind = kind,
+               .str  = llvm_const_string(obj, istr(f->name)),
+               .key  = ir->arg1.handle,
+               .nth  = relocs.count,
+            };
+            APUSH(relocs, r);
+         }
+      }
+      else {
+         jit_value_t args[2] = { ir->arg1, ir->arg2 };
+         for (int j = 0; j < ARRAY_LEN(args); j++) {
+            if (args[j].kind == JIT_VALUE_HANDLE
+                && args[j].handle != JIT_HANDLE_INVALID) {
+               if (cgen_find_reloc(relocs.items, RELOC_HANDLE, relocs.count,
+                                   args[j].handle) == NULL) {
+                  ident_t name = jit_get_name(func->source->jit,
+                                              args[j].handle);
+                  LLVMValueRef str = llvm_const_string(obj, istr(name));
+
+                  const cgen_reloc_t r = {
+                     .kind = RELOC_HANDLE,
+                     .str  = str,
+                     .key  = args[j].handle,
+                     .nth  = relocs.count,
+                  };
+                  APUSH(relocs, r);
+               }
+            }
+            else if (args[j].kind == JIT_VALUE_FOREIGN) {
+               if (cgen_find_reloc(relocs.items, RELOC_FOREIGN, relocs.count,
+                                   (uintptr_t)args[j].foreign) == NULL) {
+                  // Encode spec in name string
+                  LOCAL_TEXT_BUF tb = tb_new();
+                  tb_printf(tb, "%"PRIi64"\b", ffi_get_spec(args[j].foreign));
+                  tb_istr(tb, ffi_get_sym(args[j].foreign));
+
+                  const cgen_reloc_t r1 = {
+                     .kind = RELOC_FOREIGN,
+                     .str  = llvm_const_string(obj, tb_get(tb)),
+                     .key  = (uintptr_t)args[j].foreign,
+                     .nth  = relocs.count,
+                  };
+                  APUSH(relocs, r1);
+               }
+            }
+         }
+      }
+   }
+
+   APUSH(relocs, (cgen_reloc_t){ .kind = RELOC_NULL });
+   func->relocs = relocs.items;
+
+   LLVMTypeRef reloc_type =
+      LLVMArrayType(obj->types[LLVM_AOT_RELOC], relocs.count);
+
+   LLVMValueRef *reloc_elems LOCAL =
+      xmalloc_array(relocs.count, sizeof(LLVMValueRef));
+
+   for (int i = 0; i < relocs.count; i++) {
+      LLVMValueRef fields[] = {
+         llvm_int32(obj, relocs.items[i].kind),
+         relocs.items[i].str ?: LLVMConstNull(obj->types[LLVM_PTR])
+      };
+      reloc_elems[i] = LLVMConstNamedStruct(obj->types[LLVM_AOT_RELOC],
+                                            fields, ARRAY_LEN(fields));
+   }
+
+   LLVMValueRef reloc_array = LLVMConstArray(obj->types[LLVM_AOT_RELOC],
+                                             reloc_elems, relocs.count);
+
+   LLVMTypeRef ftypes[] = {
+      obj->types[LLVM_PTR],     // Entry function
+      obj->types[LLVM_INT64],   // FFI spec
+      obj->types[LLVM_PTR],     // JIT pack buffer
+      obj->types[LLVM_PTR],     // Constant pool
+      reloc_type                // Relocations list
+   };
+   func->descr_type = LLVMStructTypeInContext(obj->context, ftypes,
+                                              ARRAY_LEN(ftypes), false);
+
+   char *name LOCAL = xasprintf("%s.descr", func->name);
+   func->descr = LLVMAddGlobal(obj->module, func->descr_type, name);
+
+   LLVMValueRef fields[] = {
+      PTR(func->llvmfn),
+      llvm_int64(obj, 0),  // XXX: really needed?
+      PTR(irbuf),
+      PTR(func->cpool),
+      reloc_array,
+   };
+   LLVMValueRef init = LLVMConstNamedStruct(func->descr_type,
+                                            fields, ARRAY_LEN(fields));
+   LLVMSetInitializer(func->descr, init);
+}
+
 #if ENABLE_DWARF
 static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 {
@@ -2452,21 +2441,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    cgen_debug_loc(obj, func, &(func->source->object->loc));
 #endif  // ENABLE_DWARF
 
-   if (obj->ctor[0] != NULL) {
-      cgen_add_ctor(obj, 0);
+   if (func->mode == CGEN_AOT) {
       cgen_aot_cpool(obj, func);
-
-      LLVMValueRef args[] = {
-         llvm_const_string(obj, func->name),
-         PTR(func->llvmfn),
-         PTR(cgen_debug_irbuf(obj, func->source)),
-         PTR(func->cpool),
-      };
-      llvm_call_fn(obj, LLVM_REGISTER, args, ARRAY_LEN(args));
-
-#if !CLOSED_WORLD
-      LLVMSetLinkage(func->llvmfn, LLVMInternalLinkage);
-#endif
+      cgen_aot_descr(obj, func);
    }
 
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
@@ -2599,6 +2576,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    free(func->blocks);
    func->blocks = NULL;
+
+   free(func->relocs);
+   func->relocs = NULL;
 }
 
 static void cgen_tlab_alloc_body(llvm_obj_t *obj)
@@ -2744,6 +2724,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    cgen_func_t func = {
       .name   = tb_claim(tb),
       .source = f,
+      .mode   = CGEN_JIT,
    };
 
    cgen_function(&obj, &func);
@@ -2826,44 +2807,14 @@ llvm_obj_t *llvm_obj_new(const char *name)
 
    llvm_register_types(obj);
 
+#if ENABLE_DWARF
    llvm_add_module_flag(obj, "Debug Info Version", DEBUG_METADATA_VERSION);
 #ifdef __APPLE__
    llvm_add_module_flag(obj, "Dwarf Version", 2);
 #else
    llvm_add_module_flag(obj, "Dwarf Version", 4);
 #endif
-
-   LLVMValueRef ctors[CTOR_MAX_ORDER];
-
-   for (int i = 0; i < CTOR_MAX_ORDER; i++) {
-      char buf[16];
-      checked_sprintf(buf, sizeof(buf), "ctor%d", i);
-      obj->ctor[i] = LLVMAddFunction(obj->module, buf,
-                                     obj->types[LLVM_CTOR_FN]);
-      LLVMSetLinkage(obj->ctor[i], LLVMPrivateLinkage);
-
-      llvm_append_block(obj, obj->ctor[i], "entry");
-
-      LLVMValueRef entry = LLVMGetUndef(obj->types[LLVM_CTOR]);
-      entry = LLVMBuildInsertValue(obj->builder, entry,
-                                   llvm_int32(obj, 65535 - CTOR_MAX_ORDER + i),
-                                   0, "");
-      entry = LLVMBuildInsertValue(obj->builder, entry, obj->ctor[i], 1, "");
-      entry = LLVMBuildInsertValue(obj->builder, entry,
-                                   LLVMConstNull(obj->types[LLVM_PTR]), 2, "");
-
-      ctors[i] = entry;
-   }
-
-   LLVMTypeRef array_type =
-      LLVMArrayType(obj->types[LLVM_CTOR], CTOR_MAX_ORDER);
-   LLVMValueRef global =
-      LLVMAddGlobal(obj->module, array_type, "llvm.global_ctors");
-   LLVMSetLinkage(global, LLVMAppendingLinkage);
-
-   LLVMValueRef array =
-      LLVMConstArray(obj->types[LLVM_CTOR], ctors, CTOR_MAX_ORDER);
-   LLVMSetInitializer(global, array);
+#endif
 
    return obj;
 }
@@ -2892,6 +2843,7 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    cgen_func_t func = {
       .name   = tb_claim(tb),
       .source = f,
+      .mode   = CGEN_AOT,
    };
 
    cgen_function(obj, &func);
@@ -2907,12 +2859,6 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
 
 void llvm_obj_emit(llvm_obj_t *obj, const char *path)
 {
-   for (int i = 0; i < CTOR_MAX_ORDER; i++) {
-      LLVMBasicBlockRef bb = LLVMGetLastBasicBlock(obj->ctor[i]);
-      LLVMPositionBuilderAtEnd(obj->builder, bb);
-      LLVMBuildRetVoid(obj->builder);
-   }
-
    if (obj->fns[LLVM_TLAB_ALLOC] != NULL)
       cgen_tlab_alloc_body(obj);
 
