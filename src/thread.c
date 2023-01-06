@@ -136,16 +136,32 @@ typedef struct {
 
 typedef enum { IDLE, START } workq_state_t;
 
+typedef union {
+   struct {
+      uint32_t count;
+      uint32_t epoch;
+   };
+   uint64_t bits;
+} entryq_ptr_t;
+
+STATIC_ASSERT(sizeof(entryq_ptr_t) <= 8);
+
+typedef struct {
+   task_t       *tasks;
+   unsigned      queuesz;
+   entryq_ptr_t  wptr;
+   entryq_ptr_t  comp;
+} __attribute__((aligned(64))) entryq_t;
+
+STATIC_ASSERT(sizeof(entryq_t) == 64);
+
 struct _workq {
-   workq_t       *next;
-   workq_state_t  state;
-   task_t        *entryq;
-   unsigned       queuesz;
-   unsigned       wptr;
-   unsigned       rptr;
-   unsigned       comp;   // TODO: stripe this across threads
    void          *context;
+   workq_state_t  state;
+   unsigned       epoch;
+   unsigned       maxthread;
    bool           parallel;
+   entryq_t       entryqs[MAX_THREADS];
 };
 
 typedef struct {
@@ -154,7 +170,7 @@ typedef struct {
    int64_t wakes;
 } __attribute__((aligned(64))) workq_stats_t;
 
-STATIC_ASSERT(sizeof(workq_stats_t) == 64)
+STATIC_ASSERT(sizeof(workq_stats_t) == 64);
 
 typedef enum {
    MAIN_THREAD,
@@ -192,6 +208,7 @@ static parking_bay_t parking_bays[PARKING_BAYS] = {
 static nvc_thread_t *threads[MAX_THREADS];
 static unsigned      max_workers = 0;
 static int           running_threads = 0;
+static unsigned      max_thread_id = 0;
 static bool          should_stop = false;
 static globalq_t     globalq __attribute__((aligned(64)));
 static int           async_pending __attribute__((aligned(64))) = 0;
@@ -285,6 +302,12 @@ static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
       fatal_trace("cannot create more than %d threads", MAX_THREADS);
 
    thread->id = id;
+
+   unsigned max = relaxed_load(&max_thread_id);
+   while (max < id) {
+      if (__atomic_cas(&max_thread_id, &max, id))
+         break;
+   }
 
    atomic_add(&running_threads, 1);
    return thread;
@@ -583,7 +606,7 @@ static bool pop_top(threadq_t *tq, task_t *task)
 
 static void globalq_put(globalq_t *gq, const task_t *tasks, size_t count)
 {
-   SCOPED_LOCK(gq->lock);
+   assert_lock_held(&gq->lock);
 
    if (gq->wptr == gq->rptr)
       gq->wptr = gq->rptr = 0;
@@ -608,13 +631,15 @@ static size_t globalq_take(globalq_t *gq, threadq_t *tq)
    if (globalq_unlocked_empty(gq))
       return 0;
 
+   const int nthreads = relaxed_load(&running_threads);
+
    SCOPED_LOCK(gq->lock);
 
    if (gq->wptr == gq->rptr)
       return 0;
 
    const int remain = gq->wptr - gq->rptr;
-   const int share = gq->wptr / relaxed_load(&running_threads);
+   const int share = gq->wptr / nthreads;
    const int take = MIN(remain, MAX(MIN_TAKE, MIN(THREADQ_SIZE, share)));
    const int from = gq->rptr;
 
@@ -628,8 +653,15 @@ static void execute_task(task_t *task)
 {
    (*task->fn)(task->context, task->arg);
 
-   if (task->workq != NULL)
-      atomic_add(&(task->workq->comp), 1);
+   if (task->workq != NULL) {
+      entryq_t *eq = &(task->workq->entryqs[my_thread->id]);
+
+      const entryq_ptr_t cur = { .bits = relaxed_load(&eq->comp.bits) };
+      const int epoch = atomic_load(&task->workq->epoch);
+      const int count = cur.epoch == epoch ? cur.count : 0;
+      const entryq_ptr_t next = { .count = count + 1, .epoch = epoch };
+      store_release(&eq->comp.bits, next.bits);
+   }
    else
       atomic_add(&async_pending, -1);
 }
@@ -659,6 +691,7 @@ workq_t *workq_new(void *context)
    wq->state    = IDLE;
    wq->context  = context;
    wq->parallel = max_workers > 1;
+   wq->epoch    = 1;
 
    return wq;
 }
@@ -675,29 +708,48 @@ void workq_free(workq_t *wq)
 
    assert(wq->state == IDLE);
 
-   free(wq->entryq);
+   for (int i = 0; i < MAX_THREADS; i++)
+      free(wq->entryqs[i].tasks);
+
    free(wq);
 }
 
 void workq_do(workq_t *wq, task_fn_t fn, void *arg)
 {
-   if (my_thread->kind != MAIN_THREAD)
-      fatal_trace("workq_do can only be called from the main thread");
-
    assert(wq->state == IDLE);
 
-   if (wq->wptr == wq->queuesz) {
-      wq->queuesz = MAX(wq->queuesz * 2, 64);
-      wq->entryq = xrealloc_array(wq->entryq, wq->queuesz, sizeof(task_t));
+   entryq_t *eq = &(wq->entryqs[my_thread->id]);
+
+   const entryq_ptr_t cur = { .bits = relaxed_load(&eq->wptr.bits) };
+   const int epoch = atomic_load(&wq->epoch);
+   const int wptr = cur.epoch == epoch ? cur.count : 0;
+
+   if (wptr == eq->queuesz) {
+      eq->queuesz = MAX(eq->queuesz * 2, 64);
+      eq->tasks = xrealloc_array(eq->tasks, eq->queuesz, sizeof(task_t));
    }
 
-   wq->entryq[wq->wptr++] = (task_t){ fn, wq->context, arg, wq };
+   eq->tasks[wptr] = (task_t){ fn, wq->context, arg, wq };
+
+   const entryq_ptr_t next = { .count = wptr + 1, .epoch = epoch };
+   store_release(&eq->wptr.bits, next.bits);
+
+   unsigned maxthread = relaxed_load(&wq->maxthread);
+   while (maxthread < my_thread->id) {
+      if (__atomic_cas(&wq->maxthread, &maxthread, my_thread->id))
+         break;
+   }
 }
 
 void workq_scan(workq_t *wq, scan_fn_t fn, void *arg)
 {
-   for (int i = wq->rptr; i < wq->wptr; i++)
-      (*fn)(wq->context, wq->entryq[i].arg, arg);
+   const int maxthread = relaxed_load(&wq->maxthread);
+   for (int i = 0; i <= maxthread; i++) {
+      entryq_t *eq = &(wq->entryqs[my_thread->id]);
+      const entryq_ptr_t wptr = { .bits = load_acquire(&eq->wptr.bits) };
+      for (int j = 0; j < wptr.count; j++)
+         (*fn)(wq->context, eq->tasks[j].arg, arg);
+   }
 }
 
 static int estimate_depth(threadq_t *tq)
@@ -810,38 +862,81 @@ static void create_workers(int needed)
 
 void workq_start(workq_t *wq)
 {
-   if (my_thread->kind != MAIN_THREAD)
-      fatal_trace("workq_start can only be called from the main thread");
+   assert(my_thread->kind == MAIN_THREAD);
 
-   if (wq->parallel) {
-      create_workers(wq->wptr);
+   const int epoch = relaxed_load(&wq->epoch);
+   const int maxthread = relaxed_load(&wq->maxthread);
 
-      globalq_put(&globalq, wq->entryq, wq->wptr);
+   assert(wq->state == IDLE);
+   wq->state = START;
 
-      assert(wq->state == IDLE);
-      wq->state = START;
+   int nserial = 0, nparallel = 0;
+   for (int i = 0; i <= maxthread; i++) {
+      entryq_t *eq = &wq->entryqs[i];
+      const entryq_ptr_t wptr = { .bits = load_acquire(&eq->wptr.bits) };
+      if (wptr.epoch == epoch) {
+         // Only bump epoch if there are tasks to run
+         if (nserial + nparallel == 0)
+            atomic_add(&wq->epoch, 1);
+
+         assert(wptr.count > 0);
+
+         if (i == maxthread && nserial + nparallel == 0 && wptr.count == 1) {
+            execute_task(&(eq->tasks[0]));   // Only one task in total
+            nserial++;
+         }
+         else if (wq->parallel) {
+            if (nparallel == 0)
+               nvc_lock(&globalq.lock);   // Lazily acquire lock
+            globalq_put(&globalq, eq->tasks, wptr.count);
+            nparallel += wptr.count;
+         }
+         else {
+            for (int j = 0; j < wptr.count; j++)
+               execute_task(&(eq->tasks[j]));
+            nserial += wptr.count;
+         }
+      }
    }
-   else {
-      assert(wq->state == IDLE);
-      wq->state = START;
 
-      assert(wq->rptr == 0);
-      for (int i = 0; i < wq->wptr; i++)
-         (*wq->entryq[i].fn)(wq->context, wq->entryq[i].arg);
-
-      wq->rptr = wq->comp = wq->wptr;
+   if (wq->parallel && nparallel > 0) {
+      nvc_unlock(&globalq.lock);
+      create_workers(nparallel / 2);
    }
+}
+
+static int workq_outstanding(workq_t *wq)
+{
+   assert(wq->state == START);
+
+   const int epoch = atomic_load(&wq->epoch);
+   const int maxthread = relaxed_load(&max_thread_id);
+
+   int pending = 0;
+   for (int i = 0; i <= maxthread; i++) {
+      entryq_t *eq = &(wq->entryqs[i]);
+
+      const entryq_ptr_t wptr = { .bits = load_acquire(&eq->wptr.bits) };
+      if (wptr.epoch == epoch - 1)
+         pending += wptr.count;
+
+      const entryq_ptr_t comp = { .bits = load_acquire(&eq->comp.bits) };
+      if (comp.epoch == epoch)
+         pending -= comp.count;
+   }
+
+   assert(pending >= 0);
+   return pending;
 }
 
 static void workq_parallel_drain(workq_t *wq)
 {
-   while (atomic_load(&wq->comp) < wq->wptr) {
+   while (workq_outstanding(wq) > 0) {
       if (!globalq_poll(&globalq, &(my_thread->queue)) || !steal_task())
          spin_wait();
    }
 
    wq->state = IDLE;
-   wq->wptr = wq->rptr = wq->comp = 0;
 }
 
 void workq_drain(workq_t *wq)
@@ -854,7 +949,6 @@ void workq_drain(workq_t *wq)
    else {
       assert(wq->state == START);
       wq->state = IDLE;
-      wq->wptr = wq->rptr = wq->comp = 0;
    }
 }
 
@@ -870,6 +964,7 @@ void async_do(task_fn_t fn, void *context, void *arg)
       task_t tasks[1] = {
          { fn, context, arg, NULL }
       };
+      SCOPED_LOCK(globalq.lock);
       globalq_put(&globalq, tasks, 1);
    }
 }

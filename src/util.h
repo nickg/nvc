@@ -70,8 +70,12 @@
    const typeof(a) __a = (a);                         \
    (((uintptr_t)(p) + (__a) - 1) & ~((__a) - 1)); })
 
-#define MAX(x, y) ((x) > (y) ? (x) : (y))
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
+#define MAX(x, y)                               \
+  ({ typeof(x) __x = (x); typeof(y) __y = (y);  \
+    ((__x) > (__y) ? (__x) : (__y)); })
+#define MIN(x, y)                               \
+  ({ typeof(x) __x = (x); typeof(y) __y = (y);  \
+    ((__x) < (__y) ? (__x) : (__y)); })
 
 #define FLOAT_BITS(f) \
    (((union { double __d; int64_t __i; }){.__d = (f)}).__i)

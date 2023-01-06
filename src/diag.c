@@ -620,8 +620,9 @@ static void diag_emit_hints(diag_t *d, FILE *f)
    for (int i = 0; i < d->hints.count; i++) {
       if (d->hints.items[i].loc.file_ref == loc0.file_ref) {
          same_file++;
-         line_max = MAX(d->hints.items[i].loc.first_line, line_max);
-         line_min = MIN(d->hints.items[i].loc.first_line, line_min);
+         const int first_line = d->hints.items[i].loc.first_line;
+         line_max = MAX(first_line, line_max);
+         line_min = MIN(first_line, line_min);
       }
    }
 
