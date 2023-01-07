@@ -680,8 +680,7 @@ static void jit_lvn_jump(jit_ir_t *ir, lvn_state_t *state)
 
    if (dest == ir + 1)
       lvn_convert_nop(ir);
-   else if (dest->op == J_JUMP && ir->cc == JIT_CC_NONE
-            && dest->cc == JIT_CC_NONE)
+   else if (dest->op == J_JUMP && dest->cc == JIT_CC_NONE)
       ir->arg1 = dest->arg1;     // Simple jump threading
 }
 

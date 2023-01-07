@@ -2697,9 +2697,11 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    jit_func_t *f = jit_get_func(j, handle);
 
+#ifdef DEBUG
    const char *only = getenv("NVC_JIT_ONLY");
    if (only != NULL && !icmp(f->name, only))
       return;
+#endif
 
    const uint64_t start_us = get_timestamp_us();
 

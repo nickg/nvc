@@ -324,7 +324,7 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       __(0x66);
       asm_rex(blob, size, src.addr.reg, dst.reg, 0);
       __(0x0f, 0x7e);
-      if (is_imm8(src.addr.off))
+      if (is_imm8(dst.addr.off))
          __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
       else
          __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
@@ -1622,6 +1622,12 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    jit_x86_state_t *state = context;
 
    jit_func_t *f = jit_get_func(j, handle);
+
+#ifdef DEBUG
+   const char *only = getenv("NVC_JIT_ONLY");
+   if (only != NULL && !icmp(f->name, only))
+      return;
+#endif
 
    code_blob_t *blob = code_blob_new(state->code, f->name, f);
    if (blob == NULL) {
