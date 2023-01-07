@@ -872,6 +872,35 @@ START_TEST(test_float)
    ck_assert_double_eq(jit_call(j, h4, 0.0, 0.1).integer, 1);
    ck_assert_double_eq(jit_call(j, h4, -5.0, 0.0).integer, 1);
    ck_assert_double_eq(jit_call(j, h4, 5.0, 0.0).integer, 0);
+
+   const char *text5 =
+      "    RECV     R0, #0          \n"
+      "    FCVTNS   R1, R0          \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h5 = assemble(j, text5, "float5", "f");
+   ck_assert_int_eq(jit_call(j, h5, 2.0).integer, 2);
+   ck_assert_int_eq(jit_call(j, h5, 0.7).integer, 1.0);
+   ck_assert_int_eq(jit_call(j, h5, 0.1).integer, 0.0);
+   ck_assert_int_eq(jit_call(j, h5, -0.1).integer, 0.0);
+   ck_assert_int_eq(jit_call(j, h5, -0.8).integer, -1);
+
+   const int tie = jit_call(j, h5, 0.5).integer;
+   fail_unless(tie == 0 || tie == 1);   // LRM allows either result
+
+   const char *text6 =
+      "    RECV     R0, #0          \n"
+      "    SCVTF    R1, R0          \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h6 = assemble(j, text6, "float6", "i");
+   ck_assert_double_eq(jit_call(j, h6, 2).real, 2.0);
+   ck_assert_double_eq(jit_call(j, h6, 0).real, 0.0);
+   ck_assert_double_eq(jit_call(j, h6, -5).real, -5.0);
+   ck_assert_double_eq(jit_call(j, h6, 123).real, 123.0);
+
    jit_free(j);
 }
 END_TEST

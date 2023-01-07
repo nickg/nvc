@@ -1183,6 +1183,8 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "FDIV",    J_FDIV,       1, 2 },
       { "FNEG",    J_FNEG,       1, 1 },
       { "FCMP",    J_FCMP,       0, 2 },
+      { "FCVTNS",  J_FCVTNS,     1, 1 },
+      { "SCVTF",   J_SCVTF,      1, 1 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },

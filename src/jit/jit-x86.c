@@ -26,6 +26,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
+#include <smmintrin.h>
 
 typedef enum {
    EXIT_STUB,
@@ -209,6 +210,9 @@ typedef enum {
 #define SUBSD(dst, src) asm_subsd(blob, (dst), (src))
 #define PXOR(dst, src) asm_pxor(blob, (dst), (src))
 #define UCOMISD(src1, src2) asm_ucomisd(blob, (src1), (src2))
+#define CVTSD2SI(dst, src, size) asm_cvtsd2si(blob, (dst), (src), (size))
+#define CVTSI2SD(dst, src, size) asm_cvtsi2sd(blob, (dst), (src), (size))
+#define ROUNDSD(dst, src, mode) asm_roundsd(blob, (dst), (src), (mode))
 
 #define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
 #define __REX(size, xr, xsib, xrm) \
@@ -767,6 +771,31 @@ static void asm_ucomisd(code_blob_t *blob, x86_operand_t src1,
    __(0x66, 0x0f, 0x2e, __MODRM(3, src1.reg, src2.reg));
 }
 
+static void asm_cvtsd2si(code_blob_t *blob, x86_operand_t dst,
+                         x86_operand_t src, x86_size_t size)
+{
+   assert(COMBINE(dst, src) == REG_XMM);
+   __(0xF2);
+   asm_rex(blob, size, dst.reg, src.reg, 0);
+   __(0x0F, 0x2D, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_cvtsi2sd(code_blob_t *blob, x86_operand_t dst,
+                         x86_operand_t src, x86_size_t size)
+{
+   assert(COMBINE(dst, src) == XMM_REG);
+   __(0xF2);
+   asm_rex(blob, size, dst.reg, src.reg, 0);
+   __(0x0F, 0x2A, __MODRM(3, dst.reg, src.reg));
+}
+
+static void asm_roundsd(code_blob_t *blob, x86_operand_t dst,
+                        x86_operand_t src, uint8_t mode)
+{
+   assert(COMBINE(dst, src) == XMM_XMM);
+   __(0x66, 0x0F, 0x3A, 0x0B, __MODRM(3, dst.reg, src.reg), mode);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT IR to X86 assembly lowering
 
@@ -1266,6 +1295,25 @@ static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir)
    }
 }
 
+static void jit_x86_fcvtns(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+
+   ROUNDSD(__XMM0, __XMM0, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+   CVTSD2SI(__EAX, __XMM0, __QWORD);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
+static void jit_x86_scvtf(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+
+   CVTSI2SD(__XMM0, __EAX, __QWORD);
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
                                jit_ir_t *ir)
 {
@@ -1502,6 +1550,12 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_FCMP:
       jit_x86_fcmp(blob, ir);
+      break;
+   case J_FCVTNS:
+      jit_x86_fcvtns(blob, ir);
+      break;
+   case J_SCVTF:
+      jit_x86_scvtf(blob, ir);
       break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);
