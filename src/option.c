@@ -103,6 +103,15 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
       return strstr(filter, value) != NULL;
 }
 
+static int get_int_env(const char *var, int def)
+{
+   const char *env = getenv(var);
+   if (env == NULL)
+      return def;
+
+   return atoi(env);
+}
+
 void set_default_options(void)
 {
    opt_set_int(OPT_RT_STATS, 0);
@@ -129,14 +138,15 @@ void set_default_options(void)
    opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
    opt_set_int(OPT_HEAP_SIZE, 16 * 1024 * 1024);
    opt_set_int(OPT_ERROR_LIMIT, 20);
-   opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| getenv("NVC_GC_STRESS") != 0));
+   opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| get_int_env("NVC_GC_STRESS", 0)));
    opt_set_int(OPT_RELAXED, 0);
    opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
-   opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
+   opt_set_int(OPT_JIT_LOG, get_int_env("NVC_JIT_LOG", 0));
    opt_set_int(OPT_WARN_HIDDEN, 0);
    opt_set_int(OPT_NO_SAVE, 0);
    opt_set_str(OPT_LLVM_VERBOSE, getenv("NVC_LLVM_VERBOSE"));
-   opt_set_int(OPT_JIT_THRESHOLD, atoi(getenv("NVC_JIT_THRESHOLD") ?: "100"));
+   opt_set_int(OPT_JIT_THRESHOLD, get_int_env("NVC_JIT_THRESHOLD", 100));
    opt_set_str(OPT_ASM_VERBOSE, getenv("NVC_ASM_VERBOSE"));
-   opt_set_int(OPT_JIT_ASYNC, atoi(getenv("NVC_JIT_ASYNC") ?: "1"));
+   opt_set_int(OPT_JIT_ASYNC, get_int_env("NVC_JIT_ASYNC", 1));
+   opt_set_int(OPT_PERF_MAP, get_int_env("NVC_PERF_MAP", 0));
 }

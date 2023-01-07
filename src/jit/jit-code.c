@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,9 +24,11 @@
 #include "option.h"
 #include "thread.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #ifdef HAVE_CAPSTONE
 #include <capstone/capstone.h>
@@ -63,6 +65,7 @@ typedef struct _code_cache {
    code_span_t *spans;
    code_span_t *freelist[MAX_THREADS];
    code_span_t *globalfree;
+   FILE        *perfmap;
 #ifdef HAVE_CAPSTONE
    csh          capstone;
 #endif
@@ -154,6 +157,9 @@ code_cache_t *code_cache_new(void)
 
    code->globalfree = code_span_new(code, NULL, code->mem, CODECACHE_SIZE);
 
+   if (getenv("PERF_BUILDID_DIR") != NULL)
+      opt_set_int(OPT_PERF_MAP, 1);   // Running under Linux perf
+
    return code;
 }
 
@@ -243,6 +249,26 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
 #endif
 }
 
+static void code_write_perf_map(code_span_t *span)
+{
+   SCOPED_LOCK(span->owner->lock);
+
+   if (span->owner->perfmap == NULL) {
+      char *fname LOCAL = xasprintf("/tmp/perf-%d.map", getpid());
+      if ((span->owner->perfmap = fopen(fname, "w")) == NULL) {
+         warnf("cannot create %s: %s", fname, last_os_error());
+         opt_set_int(OPT_PERF_MAP, 0);
+         return;
+      }
+      else
+         debugf("writing perf map to %s", fname);
+   }
+
+   fprintf(span->owner->perfmap, "%p 0x%zx %s\n", span->base, span->size,
+           istr(span->name));
+   fflush(span->owner->perfmap);
+}
+
 code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
 {
    code_span_t **freeptr = &(code->freelist[thread_id()]);
@@ -329,6 +355,9 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
 
    DEBUG_ONLY(relaxed_add(&span->owner->used, span->size));
    free(blob);
+
+   if (opt_get_int(OPT_PERF_MAP))
+      code_write_perf_map(span);
 }
 
 void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
