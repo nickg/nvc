@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _OPT_H
-#define _OPT_H
+#ifndef _OPTION_H
+#define _OPTION_H
 
 #include "prim.h"
 
@@ -69,4 +69,4 @@ bool opt_get_verbose(opt_name_t name, const char *filter);
 
 void set_default_options(void);
 
-#endif  // _OPT_H
+#endif  // _OPTION_H

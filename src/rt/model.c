@@ -22,7 +22,7 @@
 #include "hash.h"
 #include "jit/jit.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/alloc.h"
 #include "rt/heap.h"
 #include "rt/model.h"

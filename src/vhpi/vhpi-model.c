@@ -21,7 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/rt.h"
 #include "rt/model.h"
 #include "tree.h"

@@ -19,7 +19,7 @@
 #include "ident.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
-#include "opt.h"
+#include "option.h"
 
 #include <stdlib.h>
 #include <inttypes.h>

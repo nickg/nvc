@@ -20,7 +20,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "mask.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/heap.h"
 #include "thread.h"
 

@@ -22,7 +22,7 @@
 #include "jit/jit.h"
 #include "jit/jit-llvm.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
 #include "rt/model.h"

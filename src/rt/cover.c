@@ -20,7 +20,7 @@
 #include "common.h"
 #include "cover.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/model.h"
 #include "rt/rt.h"
 #include "rt/structs.h"

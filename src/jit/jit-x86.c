@@ -17,7 +17,7 @@
 
 #include "util.h"
 #include "ident.h"
-#include "opt.h"
+#include "option.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "rt/rt.h"

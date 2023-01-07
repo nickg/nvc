@@ -25,7 +25,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/structs.h"

@@ -19,7 +19,7 @@
 #include "common.h"
 #include "diag.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "scan.h"
 #include "tree.h"

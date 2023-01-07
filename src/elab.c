@@ -23,7 +23,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "type.h"
 

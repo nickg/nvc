@@ -30,7 +30,7 @@
 #include "cpustate.h"
 #include "debug.h"
 #include "diag.h"
-#include "opt.h"
+#include "option.h"
 #include "thread.h"
 
 #include <stdlib.h>

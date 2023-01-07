@@ -18,7 +18,7 @@
 #include "test_util.h"
 #include "ident.h"
 #include "jit/jit.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "rt/model.h"
 #include "rt/structs.h"

@@ -16,7 +16,7 @@
 //
 
 #include "util.h"
-#include "opt.h"
+#include "option.h"
 #include "thread.h"
 
 #include <stdlib.h>

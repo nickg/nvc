@@ -18,7 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "jit/jit-ffi.h"
-#include "opt.h"
+#include "option.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
 #include "vhpi/vhpi-util.h"

@@ -23,7 +23,7 @@
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "prim.h"
 #include "rt/mspace.h"

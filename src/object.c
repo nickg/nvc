@@ -22,7 +22,7 @@
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 
 #include <string.h>
 #include <stdlib.h>

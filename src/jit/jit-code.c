@@ -21,7 +21,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-priv.h"
-#include "opt.h"
+#include "option.h"
 #include "thread.h"
 
 #include <stdlib.h>

@@ -21,7 +21,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 #include "tree.h"
 #include "vcode.h"
 #include "vlog/vlog-node.h"

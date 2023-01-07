@@ -16,7 +16,7 @@
 //
 
 #include "util.h"
-#include "opt.h"
+#include "option.h"
 #include "jit/jit.h"
 #include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"

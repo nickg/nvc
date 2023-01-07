@@ -22,7 +22,7 @@
 #include "diag.h"
 #include "eval.h"
 #include "vcode.h"
-#include "opt.h"
+#include "option.h"
 #include "diag.h"
 
 #include <assert.h>

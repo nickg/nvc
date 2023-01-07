@@ -21,7 +21,7 @@
 #include "diag.h"
 #include "fstapi.h"
 #include "hash.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/model.h"
 #include "rt/rt.h"
 #include "rt/structs.h"

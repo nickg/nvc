@@ -20,7 +20,7 @@
 #include "cpustate.h"
 #include "diag.h"
 #include "mask.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/mspace.h"
 
 #include <assert.h>

@@ -21,7 +21,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 
 #include <limits.h>

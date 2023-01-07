@@ -18,7 +18,7 @@
 #include "util.h"
 #include "hash.h"
 #include "ident.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/mspace.h"
 #include "thread.h"
 

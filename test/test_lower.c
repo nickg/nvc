@@ -19,7 +19,7 @@
 #include "common.h"
 #include "diag.h"
 #include "eval.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
 #include "scan.h"

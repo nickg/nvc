@@ -24,7 +24,7 @@
 #include "jit/jit.h"
 #include "mask.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"

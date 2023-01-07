@@ -22,7 +22,7 @@
 #include "jit/jit-priv.h"
 #include "lib.h"
 #include "mask.h"
-#include "opt.h"
+#include "option.h"
 #include "tree.h"
 #include "vcode.h"
 

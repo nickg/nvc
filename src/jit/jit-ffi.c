@@ -20,7 +20,7 @@
 #include "ident.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit.h"
-#include "opt.h"
+#include "option.h"
 #include "thread.h"
 
 #include <assert.h>

@@ -19,7 +19,7 @@
 #include "array.h"
 #include "diag.h"
 #include "fbuf.h"
-#include "opt.h"
+#include "option.h"
 
 #include <ctype.h>
 #include <string.h>

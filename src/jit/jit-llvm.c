@@ -23,7 +23,7 @@
 #include "jit/jit-priv.h"
 #include "lib.h"
 #include "object.h"
-#include "opt.h"
+#include "option.h"
 #include "rt/rt.h"
 #include "thread.h"
 
