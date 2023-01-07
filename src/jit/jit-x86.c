@@ -248,8 +248,8 @@ static void asm_xor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
    assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, src.reg, dst.reg, 0);
-   __(0x33, __MODRM(3, src.reg, dst.reg));
+   asm_rex(blob, size, dst.reg, src.reg, 0);
+   __(0x33, __MODRM(3, dst.reg, src.reg));
 }
 
 static void asm_neg(code_blob_t *blob, x86_operand_t dst, x86_size_t size)
@@ -1085,6 +1085,16 @@ static void jit_x86_or(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
+static void jit_x86_xor(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   XOR(__EAX, __ECX, __BYTE);
+
+   jit_x86_put(blob, ir->result, __EAX);
+}
+
 static void jit_x86_mov(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EAX, ir->arg1);
@@ -1508,6 +1518,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_OR:
       jit_x86_or(blob, ir);
+      break;
+   case J_XOR:
+      jit_x86_xor(blob, ir);
       break;
    case J_DEBUG:
    case J_NOP:
