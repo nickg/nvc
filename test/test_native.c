@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -900,6 +900,19 @@ START_TEST(test_float)
    ck_assert_double_eq(jit_call(j, h6, 0).real, 0.0);
    ck_assert_double_eq(jit_call(j, h6, -5).real, -5.0);
    ck_assert_double_eq(jit_call(j, h6, 123).real, 123.0);
+
+   const char *text7 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    $FEXP    R2, R0, R1      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h7 = assemble(j, text7, "float7", "ff");
+   ck_assert_double_eq(jit_call(j, h7, 2.0, 3.0).real, 8.0);
+   ck_assert_double_eq(jit_call(j, h7, 1.0, 3.0).real, 1.0);
+   ck_assert_double_eq(jit_call(j, h7, 2.0, -1.0).real, 0.5);
+   ck_assert_double_eq(jit_call(j, h7, 0.5, 2.0).real, 0.25);
 
    jit_free(j);
 }

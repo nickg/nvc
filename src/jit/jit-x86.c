@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <smmintrin.h>
@@ -35,6 +36,7 @@ typedef enum {
    FFI_STUB,
    DEBUG_STUB,
    TLAB_STUB,
+   FEXP_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -825,6 +827,9 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
    case JIT_ADDR_ABS:
       MOV(dst, IMM(src.int64), __QWORD);
       break;
+   case JIT_VALUE_HANDLE:
+      MOV(dst, IMM(src.handle), __DWORD);
+      break;
    case JIT_VALUE_DOUBLE:
       MOV(__EAX, IMM(src.int64), __QWORD);
       MOV(dst, __EAX, __QWORD);
@@ -1290,8 +1295,10 @@ static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir)
    case JIT_CC_LE: SETBE(FLAGS_REG); break;
    case JIT_CC_GT: SETA(FLAGS_REG); break;
    case JIT_CC_GE: SETAE(FLAGS_REG); break;
+   case JIT_CC_EQ: SETZ(FLAGS_REG); break;
+   case JIT_CC_NE: SETNZ(FLAGS_REG); break;
    default:
-      fatal_trace("unhandled JIT comparison code %d", ir->cc);
+      fatal_trace("unhandled FCMP comparison code %d", ir->cc);
    }
 }
 
@@ -1446,6 +1453,17 @@ static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
+static void jit_x86_macro_fexp(code_blob_t *blob, jit_x86_state_t *state,
+                               jit_ir_t *ir)
+{
+   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get(blob, __XMM1, ir->arg2);
+
+   CALL(PTR(state->stubs[FEXP_STUB]));
+
+   jit_x86_put(blob, ir->result, __XMM0);
+}
+
 static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -1589,6 +1607,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_EXP:
       jit_x86_macro_exp(blob, ir);
+      break;
+   case MACRO_FEXP:
+      jit_x86_macro_fexp(blob, state, ir);
       break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
@@ -1843,6 +1864,27 @@ static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
 }
 #endif
 
+static void jit_x86_gen_fexp_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("fexp stub");
+   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+
+   PUSH(__EBP);
+   MOV(__EBP, __ESP, __QWORD);
+
+   jit_x86_push_call_clobbered(blob);
+
+   MOV(__EAX, PTR(pow), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   LEAVE();
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[FEXP_STUB]));
+}
+
 static void *jit_x86_init(jit_t *jit)
 {
    jit_x86_state_t *state = xcalloc(sizeof(jit_x86_state_t));
@@ -1854,6 +1896,7 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_alloc_stub(state);
    jit_x86_gen_tlab_stub(state);
    jit_x86_gen_ffi_stub(state);
+   jit_x86_gen_fexp_stub(state);
    DEBUG_ONLY(jit_x86_gen_debug_stub(state));
 
    return state;

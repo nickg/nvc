@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2810,7 +2810,7 @@ static void irgen_op_file_write(jit_irgen_t *g, int op)
    vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
    if (vtype_kind(data_type) != VCODE_TYPE_POINTER) {
       ptr = macro_salloc(g, irgen_size_bytes(data_type));
-      j_store(g, irgen_jit_size(data_type), data, ptr);
+      j_store(g, irgen_jit_size(data_type), data, jit_addr_from_value(ptr, 0));
       elem_type = data_type;
    }
    else

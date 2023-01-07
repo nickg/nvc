@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1192,6 +1192,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "$LALLOC", MACRO_LALLOC, 1, 1 },
       { "$BZERO",  MACRO_BZERO,  1, 1 },
       { "$EXP",    MACRO_EXP,    1, 2 },
+      { "$FEXP",   MACRO_FEXP,   1, 2 },
    };
 
    static const struct {
