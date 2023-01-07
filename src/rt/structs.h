@@ -148,6 +148,7 @@ typedef struct _rt_source {
    rt_source_t    *chain_output;
    source_kind_t   tag;
    unsigned        disconnected : 1;
+   unsigned        fastqueued : 1;
    union {
       rt_port_t    port;
       rt_driver_t  driver;

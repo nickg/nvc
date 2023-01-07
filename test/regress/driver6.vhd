@@ -20,11 +20,13 @@ architecture test of driver6 is
     type rint_vec is array (natural range <>) of rint;
 
     signal y : rint_vec(1 to 2) := (0, 0);
+    signal z : natural;
 begin
 
     p1: process is
     begin
         x <= 1;
+        assert x'driving_value = 0;
         wait for 1 ns;
         assert x = 3;
         assert x'driving;
@@ -35,6 +37,7 @@ begin
     p2: process is
     begin
         x <= 2;
+        assert x'driving_value = 0;
         wait for 1 ns;
         assert x'driving;
         assert x'driving_value = 2;
@@ -56,6 +59,16 @@ begin
         y(1) <= 5;
         wait for 1 ns;
         assert not y'driving;
+        wait;
+    end process;
+
+    p5: process is
+    begin
+        z <= 1;
+        assert z = 0;
+        assert z'driving_value = 0;
+        wait for 1 ns;
+        assert z'driving_value = 1;
         wait;
     end process;
 

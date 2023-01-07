@@ -135,6 +135,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
 static void async_update_driver(void *context, void *arg);
+static void async_fast_driver(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
 static void async_disconnect(void *context, void *arg);
 
@@ -1050,6 +1051,11 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    if (n->n_sources < UINT8_MAX)
       n->n_sources++;
 
+   if (n->n_sources > 1) {
+      assert(!n->sources.fastqueued);
+      n->flags &= ~NET_F_FAST_DRIVER;
+   }
+
    src->chain_input  = NULL;
    src->chain_output = NULL;
    src->tag          = kind;
@@ -1299,6 +1305,12 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
 
          clone_waveform(nexus, w_new, w_old, offset);
 
+         // Pending fast driver update
+         if ((nexus->flags & NET_F_FAST_DRIVER) && old->fastqueued) {
+            workq_do(m->delta_driverq, async_fast_driver, new);
+            new->fastqueued = 1;
+         }
+
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = alloc_waveform());
@@ -1444,7 +1456,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->n_nexus       = 1;
    s->shared.size   = count * size;
    s->shared.offset = offset;
-   s->flags         = flags | NET_F_LAST_VALUE;
+   s->flags         = flags;
    s->parent        = active_scope;
 
    *signals_tail = s;
@@ -1454,7 +1466,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->nexus.size       = size;
    s->nexus.n_sources  = 0;
    s->nexus.resolved   = s->shared.data;
-   s->nexus.flags      = flags | NET_F_LAST_VALUE;
+   s->nexus.flags      = flags | NET_F_FAST_DRIVER;
    s->nexus.signal     = s;
    s->nexus.net        = NULL;
 
@@ -2091,24 +2103,57 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
    return already_scheduled;
 }
 
-static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
-                         uint64_t reject, rt_value_t value)
+static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
+                                uint64_t after, uint64_t reject)
 {
-   rt_source_t *d = find_driver(nexus);
-   assert(d != NULL);
+   if (after == 0 && (nexus->flags & NET_F_FAST_DRIVER)) {
+      rt_source_t *d = &(nexus->sources);
+      assert(nexus->n_sources == 1);
 
-   if (unlikely(reject > after))
-      jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
-              "than delay %s", istr(tree_ident(nexus->signal->where)),
-              trace_time(reject), trace_time(after));
+      waveform_t *w = &d->u.driver.waveforms;
+      w->when = m->now;
+      assert(w->next == NULL);
 
-   waveform_t *w = alloc_waveform();
-   w->when  = m->now + after;
-   w->next  = NULL;
-   w->value = value;
+      if (!d->fastqueued) {
+         workq_do(m->delta_driverq, async_fast_driver, d);
+         m->next_is_delta = true;
+         d->fastqueued = 1;
+      }
+      else
+         assert(m->next_is_delta);
 
-   if (!insert_transaction(m, nexus, d, w, w->when, reject))
-      deltaq_insert_driver(m, after, nexus, d);
+      return w;
+   }
+   else {
+      rt_source_t *d = find_driver(nexus);
+      assert(d != NULL);
+
+      if ((nexus->flags & NET_F_FAST_DRIVER) && d->fastqueued) {
+         // A fast update to this driver is already scheduled
+         waveform_t *w0 = alloc_waveform();
+         w0->when  = m->now;
+         w0->next  = NULL;
+         w0->value = alloc_value(m, nexus);
+
+         const uint8_t *prev = value_ptr(nexus, &(d->u.driver.waveforms.value));
+         copy_value_ptr(nexus, &w0->value, prev);
+
+         assert(d->u.driver.waveforms.next == NULL);
+         d->u.driver.waveforms.next = w0;
+      }
+
+      nexus->flags &= ~NET_F_FAST_DRIVER;
+
+      waveform_t *w = alloc_waveform();
+      w->when  = m->now + after;
+      w->next  = NULL;
+      w->value = alloc_value(m, nexus);
+
+      if (!insert_transaction(m, nexus, d, w, w->when, reject))
+         deltaq_insert_driver(m, after, nexus, d);
+
+      return w;
+   }
 }
 
 static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
@@ -2343,6 +2388,31 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
    tlab_reset(__nvc_tlab);   // No allocations can be live past here
 }
 
+static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
+{
+   if (likely(nexus->flags & NET_F_FAST_DRIVER)) {
+      // Updating drivers may involve calling resolution functions
+      if (!tlab_valid(__nvc_tlab))
+         tlab_acquire(m->mspace, &__nvc_tlab);
+
+      rt_source_t *src = &(nexus->sources);
+
+      // Preconditions for fast driver updates
+      assert(nexus->n_sources == 1);
+      assert(src->tag == SOURCE_DRIVER);
+      assert(src->u.driver.waveforms.next == NULL);
+
+      update_driving(m, nexus);
+
+      assert(src->fastqueued);
+      src->fastqueued = 0;
+
+      tlab_reset(__nvc_tlab);   // No allocations can be live past here
+   }
+   else
+      update_driver(m, nexus, &(nexus->sources));
+}
+
 static void async_update_driver(void *context, void *arg)
 {
    rt_model_t *m = context;
@@ -2350,6 +2420,15 @@ static void async_update_driver(void *context, void *arg)
 
    MODEL_ENTRY(m);
    update_driver(m, src->u.driver.nexus, src);
+}
+
+static void async_fast_driver(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_source_t *src = arg;
+
+   MODEL_ENTRY(m);
+   fast_update_driver(m, src->u.driver.nexus);
 }
 
 static void async_disconnect(void *context, void *arg)
@@ -2577,11 +2656,30 @@ void model_run(rt_model_t *m, uint64_t stop_time)
    emit_coverage(m);
 }
 
+bool model_step(rt_model_t *m)
+{
+   MODEL_ENTRY(m);
+
+   if (!m->force_stop)
+      model_cycle(m);
+
+   return should_stop_now(m, TIME_HIGH);
+}
+
 static inline void check_postponed(int64_t after)
 {
    if (unlikely(active_proc->wakeable.postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
             istr(active_proc->name));
+}
+
+static inline void check_reject_limit(rt_signal_t *s, uint64_t after,
+                                      uint64_t reject)
+{
+   if (unlikely(reject > after))
+      jit_msg(NULL, DIAG_FATAL, "signal %s pulse reject limit %s is greater "
+              "than delay %s", istr(tree_ident(s->where)),
+              trace_time(reject), trace_time(after));
 }
 
 bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
@@ -2800,14 +2898,13 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
          trace_time(reject));
 
    check_postponed(after);
+   check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
 
-   rt_value_t value = alloc_value(m, n);
-   value.qword = scalar;
-
-   sched_driver(m, n, after, reject, value);
+   waveform_t *w = sched_driver(m, n, after, reject);
+   w->value.qword = scalar;
 }
 
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
@@ -2820,6 +2917,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
          count, trace_time(after), trace_time(reject));
 
    check_postponed(after);
+   check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -2828,12 +2926,11 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       count -= n->width;
       assert(count >= 0);
 
-      const size_t valuesz = n->width * n->size;
-      rt_value_t value = alloc_value(m, n);
-      copy_value_ptr(n, &value, vptr);
-      vptr += valuesz;
+      waveform_t *w = sched_driver(m, n, after, reject);
 
-      sched_driver(m, n, after, reject, value);
+      const size_t valuesz = n->width * n->size;
+      copy_value_ptr(n, &(w->value), vptr);
+      vptr += valuesz;
    }
 }
 
@@ -3184,8 +3281,13 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
          jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver "
                  "for %s", istr(active_proc->name), istr(tree_ident(s->where)));
 
-      memcpy(p, value_ptr(n, &(src->u.driver.waveforms.value)),
-             n->width * n->size);
+      const uint8_t *driving;
+      if (n->flags & NET_F_FAST_DRIVER)
+         driving = n->resolved;
+      else
+         driving = value_ptr(n, &(src->u.driver.waveforms.value));
+
+      memcpy(p, driving, n->width * n->size);
       p += n->width * n->size;
 
       count -= n->width;
@@ -3236,6 +3338,7 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
          trace_time(reject));
 
    check_postponed(after);
+   check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);

@@ -158,6 +158,62 @@ START_TEST(test_alias1)
 }
 END_TEST
 
+START_TEST(test_fast1)
+{
+   input_from_file(TESTDIR "/model/fast1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   lower_unit(top, NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   tree_t x = search_decls(b0, ident_new("X"), 0);
+   fail_if(x == NULL);
+
+   rt_signal_t *sx = find_signal(root, x);
+   fail_if(sx == NULL);
+   fail_unless(sx->n_nexus == 1);
+   fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
+
+   fail_if(model_step(m));
+
+   fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->nexus.sources.fastqueued);
+   ck_assert_int_eq(*(int32_t *)sx->shared.data, 0);
+
+   fail_if(model_step(m));
+
+   unsigned deltas;
+   ck_assert_int_eq(model_now(m, &deltas), 0);
+   ck_assert_int_eq(deltas, 1);
+
+   fail_if(sx->nexus.flags & NET_F_FAST_DRIVER);
+   fail_if(sx->nexus.sources.fastqueued);
+   ck_assert_int_eq(*(int32_t *)sx->shared.data, 1);
+
+   fail_unless(model_step(m));
+
+   ck_assert_int_eq(model_now(m, &deltas), 1000000);
+   ck_assert_int_eq(deltas, 0);
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -166,6 +222,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_basic1);
    tcase_add_test(tc, test_index1);
    tcase_add_test(tc, test_alias1);
+   tcase_add_test(tc, test_fast1);
    suite_add_tcase(s, tc);
 
    return s;

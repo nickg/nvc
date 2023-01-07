@@ -25,6 +25,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit);
 void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
 void model_run(rt_model_t *m, uint64_t stop_time);
+bool model_step(rt_model_t *m);
 bool model_can_create_delta(rt_model_t *m);
 int64_t model_now(rt_model_t *m, unsigned *deltas);
 void model_stop(rt_model_t *m);
