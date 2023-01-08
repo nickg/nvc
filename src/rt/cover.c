@@ -175,6 +175,30 @@ static bool cover_is_branch(tree_t branch)
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND;
 }
 
+unsigned cover_get_std_log_expr_flags(tree_t decl)
+{
+   assert(tree_kind(decl) == T_FUNC_DECL);
+
+   struct {
+      well_known_t op;
+      unsigned flags;
+   } std_log_ops[] = {
+      { W_IEEE_1164_AND    , COVER_FLAGS_AND_EXPR},
+      { W_IEEE_1164_NAND   , COVER_FLAGS_AND_EXPR},
+      { W_IEEE_1164_OR     , COVER_FLAGS_OR_EXPR},
+      { W_IEEE_1164_NOR    , COVER_FLAGS_OR_EXPR},
+      { W_IEEE_1164_XOR    , COVER_FLAGS_XOR_EXPR},
+      { W_IEEE_1164_XNOR   , COVER_FLAGS_XOR_EXPR}
+   };
+
+   unsigned flags = 0;
+   for (int i = 0; i < ARRAY_LEN(std_log_ops); i++)
+      if (ident_starts_with(tree_ident2(decl), well_known(std_log_ops[i].op)))
+         flags |= std_log_ops[i].flags;
+
+   return flags;
+}
+
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
 {
    assert (tagging);

@@ -23,6 +23,8 @@
   `-integer'left` now produces an error.
 - Default OSVVM version updated to 2022.11.
 - `case .. generate` statements are now supported in VHDL-2008.
+- Coverage implementation was reworked and now collects statement,
+  branch, expression and toggle metrics (from @Blebowski).
 
 ## Version 1.7.2 - 2022-10-16
 - Fixed build on FreeBSD/arm (#534).

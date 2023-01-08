@@ -3078,11 +3078,9 @@ static void cgen_op_unreachable(int op, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_get_cover_cnt(int op, const char *cnt_name)
 {
-   const uint32_t cover_tag = vcode_get_tag(op);
-
    LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, cnt_name);
 
-   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(vcode_get_tag(op)) };
    LLVMValueRef ptr = LLVMBuildGEP(builder, cover_counts,
                                    indexes, ARRAY_LEN(indexes), "");
    return ptr;

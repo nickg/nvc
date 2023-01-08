@@ -509,6 +509,14 @@ for the following operators:
 .Ql <= Ns ,
 .Ql >= Ns ,
 .Ql not Ns .
+NVC collects expression coverage also on overloaded logic operators from
+.Ql ieee.std_logic_1164
+library.  It tracks combinations of input values to logic operators for
+.Ql std_logic
+operand type.  NVC does not collect expression coverage for VHDL 2008
+overloaded operands for
+.Ql std_logic_vector
+type.
 .El
 .Pp
 Collecting each coverage type can be enabled separately at elaboration time:
@@ -569,8 +577,8 @@ transitions.
 nested arrays (array of array), disabled by default.
 .It
 .Cm ignore-arrays-from-<size>
-- When set, NVC does not collect toggle coverage for any array which is equal to
-or larger than
+- When set, NVC does not collect toggle coverage on arrays whose size is equal
+to or larger than
 .Cm <size>
 .El
 .Pp

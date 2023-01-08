@@ -957,6 +957,12 @@ void intern_strings(void)
    id_cache[W_IEEE_UNSIGNED]  = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    id_cache[W_IEEE_LOGIC]     = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
    id_cache[W_IEEE_ULOGIC]    = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   id_cache[W_IEEE_1164_AND]  = ident_new("IEEE.STD_LOGIC_1164.\"and\"");
+   id_cache[W_IEEE_1164_NAND] = ident_new("IEEE.STD_LOGIC_1164.\"nand\"");
+   id_cache[W_IEEE_1164_OR]   = ident_new("IEEE.STD_LOGIC_1164.\"or\"");
+   id_cache[W_IEEE_1164_NOR]  = ident_new("IEEE.STD_LOGIC_1164.\"nor\"");
+   id_cache[W_IEEE_1164_XOR]  = ident_new("IEEE.STD_LOGIC_1164.\"xor\"");
+   id_cache[W_IEEE_1164_XNOR] = ident_new("IEEE.STD_LOGIC_1164.\"xnor\"");
    id_cache[W_FOREIGN]        = ident_new("FOREIGN");
    id_cache[W_WORK]           = ident_new("WORK");
    id_cache[W_STD]            = ident_new("STD");

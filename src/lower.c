@@ -1742,6 +1742,72 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
    return result;
 }
 
+static vcode_reg_t lower_logic_expr_coverage_for(tree_t fcall,
+                                                 vcode_reg_t lhs,
+                                                 vcode_reg_t rhs,
+                                                 unsigned flags)
+{
+   // Corresponds to values how std_ulogic enum is translated
+   vcode_type_t vc_logic = vcode_reg_type(lhs);
+   vcode_reg_t log_0 = emit_const(vc_logic, 2);
+   vcode_reg_t log_1 = emit_const(vc_logic, 3);
+
+   struct {
+      unsigned flag;
+      vcode_reg_t lhs_exp;
+      vcode_reg_t rhs_exp;
+   } bins[] = {
+      { COV_FLAG_00, log_0, log_0 },
+      { COV_FLAG_01, log_0, log_1 },
+      { COV_FLAG_10, log_1, log_0 },
+      { COV_FLAG_11, log_1, log_1 },
+   };
+
+   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+   vcode_reg_t zero = emit_const(vc_int, 0);
+   vcode_reg_t mask = emit_const(vc_int, 0);
+
+   // Build logic to check combinations of LHS and RHS
+   for (int i = 0; i < ARRAY_LEN(bins); i++) {
+      if (flags & bins[i].flag) {
+         vcode_reg_t cmp_lhs = emit_cmp(VCODE_CMP_EQ, lhs, bins[i].lhs_exp);
+         vcode_reg_t cmp_rhs = emit_cmp(VCODE_CMP_EQ, rhs, bins[i].rhs_exp);
+         vcode_reg_t lhs_rhs_match = emit_and(cmp_lhs, cmp_rhs);
+         vcode_reg_t new_mask = emit_select(lhs_rhs_match,
+                                            emit_const(vc_int, bins[i].flag),
+                                            zero);
+         mask = emit_add(mask, new_mask);
+      }
+   }
+
+   return mask;
+}
+
+static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
+                                      vcode_reg_t *args)
+{
+   unsigned flags = cover_get_std_log_expr_flags(decl);
+   if (!flags)
+      return;
+
+   flags |= COV_FLAG_EXPR_STD_LOGIC;
+
+   assert(tree_params(fcall) == 2);
+
+   bool is_array[2] = {
+      type_is_array(type_param(tree_type(decl), 0)),
+      type_is_array(type_param(tree_type(decl), 1))
+   };
+
+   // Skip arrays -> Matches behavior of VCS and Modelsim
+   if (is_array[0] || is_array[1])
+      return;
+
+   vcode_reg_t mask =
+      lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
+   lower_expression_coverage(fcall, flags, mask);
+}
+
 static bool lower_side_effect_free(tree_t expr)
 {
    // True if expression is side-effect free with no function calls
@@ -2393,6 +2459,10 @@ static vcode_reg_t lower_fcall(tree_t fcall)
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
+
+   if (cover_enabled(cover_tags, COVER_MASK_EXPRESSION))
+      lower_logic_expr_coverage(fcall, decl, args.items);
+
    return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 

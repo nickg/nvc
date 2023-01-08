@@ -156,6 +156,8 @@ void cover_dec_array_depth(cover_tagging_t *tagging);
 bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);
 
+unsigned cover_get_std_log_expr_flags(tree_t decl);
+
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 
 cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
