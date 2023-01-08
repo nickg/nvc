@@ -813,7 +813,6 @@ tree_t range_of(type_t type, unsigned dim)
       }
       else
          return range_of(type_base(type), dim);
-
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:

@@ -1661,45 +1661,10 @@ static void lower_expression_coverage(tree_t fcall, unsigned flags,
 {
    assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
 
-   cover_tag_t *tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, flags);
-
-   // TODO: Should we split OP COVER EXPR array to separate OP to avoid extra
-   //       emit of zero constant in non-array ops? Or is it negligible and
-   //       optimizations will take care of it? Probably not an issue since
-   //       each expression tag between single bit expressions add lot of
-   //       VCODE rubbish around, and thus one more constant is negligible.
-   if (tag != NULL) {
-      vcode_reg_t offset = emit_const(vtype_int(0, INT32_MAX), 0);
-      emit_cover_expr(mask, tag->tag, offset);
-   }
-}
-
-static void lower_expression_coverage_array(tree_t fcall, unsigned flags,
-                                            vcode_reg_t mask, vcode_reg_t offset,
-                                            int64_t *len, int64_t *first,
-                                            bool *up)
-{
-   assert(cover_enabled(cover_tags, COVER_MASK_EXPRESSION));
-   assert(len[0] > 0 || len[1] > 0);
-
-   cover_tag_t *tag;
-   int64_t cmn_len = cover_common_expr_length(len);
-   unsigned new_flags = flags | COV_FLAG_METADATA;
-
-   if (len[0] > 0)
-      new_flags |= COV_FLAG_EXPR_LHS_INDEX;
-   if (len[1] > 0)
-      new_flags |= COV_FLAG_EXPR_RHS_INDEX;
-
-   for (int i = 0; i < cmn_len; i++) {
-      tag = cover_add_tag(fcall, NULL, cover_tags, TAG_EXPRESSION, new_flags);
-      if (tag != NULL) {
-         tag->metadata[0] = (up[0]) ? (first[0] + i) : (first[0] - i);
-         tag->metadata[1] = (up[1]) ? (first[1] + i) : (first[1] - i);
-         if (i == 0)
-            emit_cover_expr(mask, tag->tag, offset);
-      }
-   }
+   cover_tag_t *tag = cover_add_tag(fcall, NULL, cover_tags,
+                                          TAG_EXPRESSION, flags);
+   if (tag != NULL)
+      emit_cover_expr(mask, tag->tag);
 }
 
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result,
@@ -1826,113 +1791,17 @@ static void lower_logic_expr_coverage(tree_t fcall, tree_t decl,
 
    assert(tree_params(fcall) == 2);
 
-   type_t arg_types[2] = {
-      type_param(tree_type(decl), 0),
-      type_param(tree_type(decl), 1)
-   };
-
    bool is_array[2] = {
-      type_is_array(arg_types[0]),
-      type_is_array(arg_types[1])
+      type_is_array(type_param(tree_type(decl), 0)),
+      type_is_array(type_param(tree_type(decl), 1))
    };
 
-   if (is_array[0] || is_array[1]) {
-      int64_t low[2] = {0};
-      int64_t high[2] = {0};
-      // 0 - Single bit,  N (N!=0) - Array of length N
-      int64_t len[2] = {0, 0};
-      int64_t first[2] = {0};
-      bool bounds_ok[2] = {true, true};
-      bool up[2] = {false, false};
+   // Skip arrays -> Matches behavior of VCS and Modelsim
+   if (is_array[0] || is_array[1])
+      return;
 
-      for (int i = 0; i < 2; i++)
-         if (is_array[i]) {
-            tree_t op = tree_param(fcall, i);
-            type_t op_type = tree_type(tree_value(op));
-
-            // TODO: For now skip nested expressions. Need to figure out
-            //       how to query dimensions here!
-            if (type_kind(op_type) == T_ARRAY)
-               return;
-
-            tree_t r = range_of(op_type, 0);
-            bounds_ok[i] = folded_bounds(r, &(low[i]), &(high[i]));
-            len[i] = high[i] - low[i] + 1;
-            if (tree_subkind(r) == RANGE_DOWNTO) {
-               first[i] = high[i];
-               up[i] = false;
-            }
-            else {
-               first[i] = low[i];
-               up[i] = true;
-            }
-         }
-
-      if (bounds_ok[0] && bounds_ok[1]) {
-         int64_t cmn_len = cover_common_expr_length(len);
-
-         // Skip due due to being longer than array_size
-         if (cover_skip_vect_expr(cover_tags, cmn_len))
-            return;
-
-         vcode_reg_t lhs_i = args[1];
-         vcode_reg_t rhs_i = args[2];
-         if (is_array[0])
-            lhs_i = lower_array_data(args[1]);
-         if (is_array[1])
-            rhs_i = lower_array_data(args[2]);
-
-         vcode_type_t voffset = vtype_offset();
-         vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
-         emit_store(emit_const(voffset, 0), i_var);
-
-         vcode_block_t test_bb = emit_block();
-         vcode_block_t body_bb = emit_block();
-         vcode_block_t exit_bb = emit_block();
-
-         emit_jump(test_bb);
-
-         // Build for loop to go over indices
-         vcode_select_block(test_bb);
-         vcode_reg_t i_loaded = emit_load(i_var);
-         vcode_reg_t end_loop = emit_cmp(VCODE_CMP_GT, i_loaded,
-                                         emit_const(voffset, cmn_len));
-         emit_cond(end_loop, exit_bb, body_bb);
-
-         // Compute mask for each index. Emit only single cover op, but multiple
-         // Cover tags. Pass offset to cover_op to index within run-time data
-         vcode_select_block(body_bb);
-         vcode_reg_t index = emit_load(i_var);
-         vcode_reg_t lhs_v = lhs_i;
-         vcode_reg_t rhs_v = rhs_i;
-
-         if (is_array[0]) {
-            vcode_reg_t l_ptr = emit_array_ref(lhs_i, index);
-            lhs_v = emit_load_indirect(l_ptr);
-         }
-
-         if (is_array[1]) {
-            vcode_reg_t r_ptr = emit_array_ref(rhs_i, index);
-            rhs_v = emit_load_indirect(r_ptr);
-         }
-
-         vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, lhs_v, rhs_v,
-                                                          flags);
-         lower_expression_coverage_array(fcall, flags, mask, index,
-                                         len, first, up);
-
-         vcode_reg_t i_inc = emit_add(i_loaded, emit_const(voffset, 1));
-         emit_store(i_inc, i_var);
-         emit_jump(test_bb);
-
-         vcode_select_block(exit_bb);
-         lower_release_temp(i_var);
-      }
-   }
-   else {
-      vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
-      lower_expression_coverage(fcall, flags, mask);
-   }
+   vcode_reg_t mask = lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
+   lower_expression_coverage(fcall, flags, mask);
 }
 
 static bool lower_side_effect_free(tree_t expr)

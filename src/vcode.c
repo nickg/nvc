@@ -205,7 +205,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      29
+#define VCODE_VERSION      28
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -5513,11 +5513,10 @@ void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag, vcode_reg_t offset)
+void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_EXPR);
    vcode_add_arg(op, new_mask);
-   vcode_add_arg(op, offset);
    op->tag = tag;
 }
 
