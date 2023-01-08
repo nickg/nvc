@@ -184,7 +184,7 @@ bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
       return true;
 
    // Array is multi-dimensional or nested
-   if (cover_enabled(tagging, COVER_MASK_TOGGLE_IGNORE_MEMS) &&
+   if ((!cover_enabled(tagging, COVER_MASK_TOGGLE_INCLUDE_MEMS)) &&
        tagging->array_depth > 0)
       return true;
 
