@@ -51,7 +51,7 @@ typedef struct {
 #define BYTES_PER_IR 16
 
 // Size of fixed part of call frame
-#define FRAME_FIXED_SIZE 40
+#define FRAME_FIXED_SIZE 80
 
 ////////////////////////////////////////////////////////////////////////////////
 // X86 assembler
@@ -111,6 +111,14 @@ static const x86_operand_t __ESI = REG(6);
 static const x86_operand_t __EDI = REG(7);
 static const x86_operand_t __R8  = REG(16);
 static const x86_operand_t __R9  = REG(17);
+static const x86_operand_t __R10 = REG(18);
+static const x86_operand_t __R11 = REG(19);
+#if 0
+static const x86_operand_t __R12 = REG(20);
+static const x86_operand_t __R13 = REG(21);
+static const x86_operand_t __R14 = REG(22);
+static const x86_operand_t __R15 = REG(23);
+#endif
 
 static const x86_operand_t __XMM0 = XMM(0);
 static const x86_operand_t __XMM1 = XMM(1);
@@ -281,7 +289,7 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       break;
 
    case MEM_REG:
-      asm_rex(blob, size, src.addr.reg, dst.reg, 0);
+      asm_rex(blob, size, src.reg, dst.addr.reg, 0);
       switch (size) {
       case __QWORD:
       case __DWORD: __(0x89); break;
@@ -803,18 +811,30 @@ static void asm_roundsd(code_blob_t *blob, x86_operand_t dst,
 
 static void jit_x86_push_call_clobbered(code_blob_t *blob)
 {
-   PUSH(FPTR_REG);
-   PUSH(ANCHOR_REG);
-   PUSH(ARGS_REG);
-   PUSH(TLAB_REG);
+   PUSH(__ECX);
+   PUSH(__EDX);
+#ifndef __MINGW32__
+   PUSH(__ESI);
+   PUSH(__EDI);
+#endif
+   PUSH(__R8);
+   PUSH(__R9);
+   PUSH(__R10);
+   PUSH(__R11);
 }
 
 static void jit_x86_pop_call_clobbered(code_blob_t *blob)
 {
-   POP(TLAB_REG);
-   POP(ARGS_REG);
-   POP(ANCHOR_REG);
-   POP(FPTR_REG);
+   POP(__R11);
+   POP(__R10);
+   POP(__R9);
+   POP(__R8);
+#ifndef __MINGW32__
+   POP(__EDI);
+   POP(__ESI);
+#endif
+   POP(__EDX);
+   POP(__ECX);
 }
 
 static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
@@ -1650,7 +1670,53 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
-   PUSH(__EBX);
+
+   // Frame layout
+   //
+   //       |-------------------|
+   //    +8 | Caller's PC       |
+   //       |-------------------|
+   //     0 | Saved RBP         |    <--- RBP
+   //       |-------------------|
+   //       | Saved RBX         |
+   //       | Saved RDI (Win)   |
+   //       | Saved RSI (Win)   |
+   //       | Saved R12         |
+   //       | Saved R13         |
+   //       | Saved R14         |
+   //   -56 | Saved R15         |
+   //       |-------------------|
+   //   -60 | Padding           |
+   //       |-------------------|
+   //   -64 | IR position       |
+   //   -72 | Function pointer  |
+   //   -80 | Caller's anchor   |    <--- Frame anchor
+   //       |-------------------|    <--- End of fixed frame
+   //       | Local registers   |
+   //       .                   .
+   //       |-------------------|
+   //       | Local variables   |
+   //       .                   .
+   //       |-------------------|    <--- RSP
+
+   const size_t framebytes =
+      f->framesz + f->nregs * sizeof(int64_t) + FRAME_FIXED_SIZE;
+   const size_t framesz = ALIGN_UP(framebytes, 16);
+   SUB(__ESP, IMM(framesz), __QWORD);
+
+   // Callee saves
+   MOV(ADDR(__EBP, -8), __EBX, __QWORD);
+#ifdef __MINGW32__
+   MOV(ADDR(__EBP, -16), __EDI, __QWORD);
+   MOV(ADDR(__EBP, -24), __ESI, __QWORD);
+#endif
+#if 0
+   // Not currently used
+   MOV(ADDR(__EBP, -32), __R12, __QWORD);
+   MOV(ADDR(__EBP, -40), __R13, __QWORD);
+   MOV(ADDR(__EBP, -48), __R14, __QWORD);
+   MOV(ADDR(__EBP, -56), __R15, __QWORD);
+#endif
 
    // Shuffle incoming arguments
    MOV(FPTR_REG, CARG0_REG, __QWORD);
@@ -1660,39 +1726,12 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
-   // Frame layout
-   //
-   //       |-------------------|
-   //    +8 | Caller's PC       |
-   //       |-------------------|
-   //     0 | Saved RBP         |    <--- RBP
-   //       |-------------------|
-   //    -8 | Saved RBX         |
-   //       |-------------------|
-   //   -12 | Padding           |
-   //       |-------------------|
-   //   -16 | IR position       |
-   //   -24 | Function pointer  |
-   //   -32 | Caller's anchor   |    <--- Frame anchor
-   //       |-------------------|
-   //   -40 | Local registers   |
-   //       .                   .
-   //       |-------------------|
-   //       | Local variables   |
-   //       .                   .
-   //       |-------------------|
-
-   const size_t framebytes =
-      f->framesz + f->nregs * sizeof(int64_t) + FRAME_FIXED_SIZE;
-   const size_t framesz = ALIGN_UP(framebytes, 16) - 8 /* RBX pushed above */;
-   SUB(__ESP, IMM(framesz), __QWORD);
-
    // Build frame anchor
-   MOV(ADDR(__EBP, -32), ANCHOR_REG, __QWORD);
-   MOV(ADDR(__EBP, -24), FPTR_REG, __QWORD);
-   MOV(ADDR(__EBP, -16), FLAGS_REG, __DWORD);
+   MOV(ADDR(__EBP, -80), ANCHOR_REG, __QWORD);
+   MOV(ADDR(__EBP, -72), FPTR_REG, __QWORD);
+   MOV(ADDR(__EBP, -64), FLAGS_REG, __DWORD);
 
-   LEA(ANCHOR_REG, ADDR(__EBP, -32));
+   LEA(ANCHOR_REG, ADDR(__EBP, -80));
 
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
@@ -1700,10 +1739,20 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
       jit_x86_op(blob, state, &(f->irbuf[i]));
    }
 
-
    code_blob_mark(blob, JIT_LABEL_INVALID);
 
    MOV(__EBX, ADDR(__EBP, -8), __QWORD);
+#ifdef __MINGW32__
+   MOV(__EDI, ADDR(__EBP, -16), __QWORD);
+   MOV(__ESI, ADDR(__EBP, -24), __QWORD);
+#endif
+#if 0
+   MOV(__R12, ADDR(__EBP, -32), __QWORD);
+   MOV(__R13, ADDR(__EBP, -40), __QWORD);
+   MOV(__R14, ADDR(__EBP, -48), __QWORD);
+   MOV(__R15, ADDR(__EBP, -56), __QWORD);
+#endif
+
    LEAVE();
    RET();
 
