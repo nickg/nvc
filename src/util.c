@@ -19,7 +19,6 @@
 #define WINVER 0x0A00
 #define _WIN32_WINNT 0x0A00
 #include <windows.h>
-#include <DbgHelp.h>
 #include <fileapi.h>
 #include <psapi.h>
 #include <io.h>
@@ -947,7 +946,7 @@ void term_init(void)
    HANDLE hConsole = GetStdHandle(STD_ERROR_HANDLE);
    DWORD mode;
    if (GetConsoleMode(hConsole, &mode)) {
-      mode |= 0x04; // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+      mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT;
       if (!SetConsoleMode(hConsole, mode))
          want_color = false;
 
@@ -977,7 +976,7 @@ void term_init(void)
    want_links = want_color && is_tty;
 
    // Diagnostics are printed to stderr and explicitly flushed
-   setvbuf(stderr, NULL, _IOLBF, 0);
+   setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
 }
 
 int terminal_width(void)

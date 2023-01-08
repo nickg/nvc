@@ -100,18 +100,8 @@ AC_DEFINE_UNQUOTED([SH_PATH], ["$sh_path"], [Path to POSIX shell])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
-    # LLVM on Windows needs libffi and curses
-    AX_WITH_CURSES
-    if test "x$ax_cv_curses" != xyes; then
-      AC_MSG_ERROR([LLVM on Windows requires curses])
-    fi
-
-    LIBS="$LIBS -lDbgHelp"    # For StackTrace64
-
-    AC_SEARCH_LIBS([ffi_call], [ffi], [],
-      [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
+    LIBS="$LIBS -ldbghelp"    # For StackTrace64
     ;;
-
   *)
     AC_SEARCH_LIBS([dlopen], [dl dld], [], [
       AC_MSG_ERROR([unable to find the dlopen() function])

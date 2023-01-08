@@ -1,4 +1,4 @@
-nvc = $(nvc_verbose)$(top_builddir)/bin/nvc
+nvc = $(nvc_verbose)$(top_builddir)/bin/nvc$(EXEEXT)
 
 nvc_verbose = $(nvc_verbose_@AM_V@)
 nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)

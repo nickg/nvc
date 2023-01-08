@@ -458,9 +458,11 @@ static void push_arg(arglist_t **args, const char *fmt, ...)
    }
 }
 
+#ifndef __MINGW32__
 static void signal_handler(int sig)
 {
 }
+#endif
 
 static run_status_t run_cmd(FILE *log, arglist_t **args)
 {

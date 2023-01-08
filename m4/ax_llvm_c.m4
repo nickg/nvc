@@ -182,5 +182,18 @@ AC_DEFUN([AX_LLVM_C], [
     AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
     AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
     AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
+
+    case $host_os in
+      *cygwin*|msys*|mingw32*)
+        # LLVM on Windows needs libffi and curses
+        AX_WITH_CURSES
+        if test "x$ax_cv_curses" != xyes; then
+          AC_MSG_ERROR([LLVM on Windows requires curses])
+        fi
+
+        AC_SEARCH_LIBS([ffi_call], [ffi], [],
+                       [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
+        ;;
+    esac
   fi
 ])
