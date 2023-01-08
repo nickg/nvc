@@ -653,6 +653,8 @@ void show_stacktrace(void)
    color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
                  "installing the libdw-dev package and reconfiguring$$\n");
 #endif
+
+   fflush(stderr);
 }
 
 #ifdef __MINGW32__

@@ -792,47 +792,46 @@ static inline void debug_walk_frames(debug_info_t *di)
 __attribute__((noinline))
 static void debug_walk_frames(debug_info_t *di)
 {
-   CONTEXT context;
-   RtlCaptureContext(&context);
-
 #ifdef __WIN64
-   STACKFRAME64 stk;
-   memset(&stk, 0, sizeof(stk));
-
-   stk.AddrPC.Offset    = context.Rip;
-   stk.AddrPC.Mode      = AddrModeFlat;
-   stk.AddrStack.Offset = context.Rsp;
-   stk.AddrStack.Mode   = AddrModeFlat;
-   stk.AddrFrame.Offset = context.Rbp;
-   stk.AddrFrame.Mode   = AddrModeFlat;
-
    HANDLE hProcess = GetCurrentProcess();
 
    static bool done_sym_init = false;
    if (!done_sym_init) {
-     SymInitialize(hProcess, NULL, TRUE);
-     done_sym_init = true;
+      SymInitialize(hProcess, NULL, TRUE);
+      done_sym_init = true;
    }
 
-   int skip = 2;
+   CONTEXT Context;
+   RtlCaptureContext(&Context);
+
+   UNWIND_HISTORY_TABLE UnwindHistoryTable;
+   RtlZeroMemory(&UnwindHistoryTable, sizeof(UNWIND_HISTORY_TABLE));
+
    for (ULONG n = 0; n < MAX_TRACE_DEPTH; n++) {
-      if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64,
-                       hProcess,
-                       GetCurrentThread(),
-                       &stk,
-                       &context,
-                       NULL,
-                       SymFunctionTableAccess,
-                       SymGetModuleBase,
-                       NULL))
+      ULONG64 ImageBase;
+      PRUNTIME_FUNCTION RuntimeFunction =
+         RtlLookupFunctionEntry(Context.Rip, &ImageBase, &UnwindHistoryTable);
+
+      if (RuntimeFunction == NULL)
          break;
 
-      if (skip-- > 0)
-         continue;
+      PVOID   HandlerData;
+      ULONG64 EstablisherFrame;
+      RtlVirtualUnwind(UNW_FLAG_NHANDLER,
+                       ImageBase,
+                       Context.Rip,
+                       RuntimeFunction,
+                       &Context,
+                       &HandlerData,
+                       &EstablisherFrame,
+                       NULL);
 
-      const uintptr_t ip = (uintptr_t)stk.AddrPC.Offset;
+      if (!Context.Rip)
+         break;
+
       debug_frame_t *frame;
-      if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame)) {
+      if (!di_lru_get(Context.Rip, &frame)
+          && !custom_fill_frame(Context.Rip, frame)) {
          frame->kind = FRAME_PROG;
 
          char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
@@ -842,7 +841,7 @@ static void debug_walk_frames(debug_info_t *di)
          psym->MaxNameLen = MAX_SYM_NAME;
 
          DWORD64 disp;
-         if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
+         if (SymFromAddr(hProcess, Context.Rip, &disp, psym)) {
             text_buf_t *tb = unsafe_symbol(psym->Name);
             frame->symbol = tb_claim(tb);
             frame->disp   = disp;
@@ -851,7 +850,7 @@ static void debug_walk_frames(debug_info_t *di)
          IMAGEHLP_MODULE module;
          memset(&module, '\0', sizeof(module));
          module.SizeOfStruct = sizeof(module);
-         if (SymGetModuleInfo(hProcess, stk.AddrPC.Offset, &module)) {
+         if (SymGetModuleInfo(hProcess, Context.Rip, &module)) {
             frame->module = xstrdup(module.ModuleName);
 
             if (lib_at(module.ImageName) != NULL)
