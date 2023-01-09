@@ -254,12 +254,9 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
                diag_t *d = diag_new(DIAG_FATAL, NULL);
                diag_printf(d, "unknown coverage type '%.*s'",
                            (int)(str - start), start);
-               diag_hint(d, NULL, "valid coverage types are: \n"
-                         "  statement\n"
-                         "  toggle\n"
-                         "  branch\n"
-                         "  expression");
-               diag_hint(d, NULL, "selected coverage types shall be "
+               diag_hint(d, NULL, "valid coverage types are: statement, "
+                         "toggle, branch, and expression");
+               diag_hint(d, NULL, "selected coverage types should be "
                          "comma separated e.g $bold$--cover=toggle,branch$$");
                diag_emit(d);
                fatal_exit(EXIT_FAILURE);

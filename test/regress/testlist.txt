@@ -692,7 +692,7 @@ issue570        normal,2008
 issue571        normal,2008,relaxed
 operator6       normal,2008
 vecorder2       normal,2008
-cover2          cover,shell
+cover2          cover=toggle+include-mems,gold
 cover3          cover=branch,gold
 cover4          cover=branch,gold
 cover5          cover,shell

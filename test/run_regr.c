@@ -372,8 +372,12 @@ static bool parse_test_list(int argc, char **argv)
             test->heapsz = strdup(opt + 2);
          else if (strncmp(opt, "cover", 5) == 0) {
             test->flags |= F_COVER;
-            if (opt[5] == '=')
+            if (opt[5] == '=') {
                test->cover = strdup(opt + 6);
+               for (char *p = test->cover; *p; p++) {
+                  if (*p == '+') *p = ',';  // Allow + instead of , as separator
+               }
+            }
          }
          else if (opt[0] == 'g' || opt[0] == '$') {
             char *value = strchr(opt, '=');
