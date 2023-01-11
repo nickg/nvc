@@ -200,7 +200,7 @@ static void interp_and(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer && arg2.integer;
+   state->regs[ir->result].integer = arg1.integer & arg2.integer;
 }
 
 static void interp_or(jit_interp_t *state, jit_ir_t *ir)
@@ -208,7 +208,7 @@ static void interp_or(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer || arg2.integer;
+   state->regs[ir->result].integer = arg1.integer | arg2.integer;
 }
 
 static void interp_xor(jit_interp_t *state, jit_ir_t *ir)
@@ -218,7 +218,6 @@ static void interp_xor(jit_interp_t *state, jit_ir_t *ir)
 
    state->regs[ir->result].integer = arg1.integer ^ arg2.integer;
 }
-
 
 static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
 {

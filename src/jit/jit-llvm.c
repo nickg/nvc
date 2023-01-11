@@ -1514,8 +1514,8 @@ static void cgen_op_not(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_and(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_INT1);
-   LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_INT1);
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
    LLVMValueRef logical = LLVMBuildAnd(obj->builder, arg1, arg2, "");
    cgen_zext_result(obj, cgb, ir, logical);
@@ -1523,8 +1523,8 @@ static void cgen_op_and(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_or(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_INT1);
-   LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_INT1);
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
    LLVMValueRef logical = LLVMBuildOr(obj->builder, arg1, arg2, "");
    cgen_zext_result(obj, cgb, ir, logical);
@@ -1532,8 +1532,8 @@ static void cgen_op_or(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_op_xor(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_INT1);
-   LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_INT1);
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
    LLVMValueRef logical = LLVMBuildXor(obj->builder, arg1, arg2, "");
    cgen_zext_result(obj, cgb, ir, logical);
