@@ -101,6 +101,7 @@ typedef struct _jit {
    func_array_t   *funcs;
    unsigned        next_handle;
    nvc_lock_t      lock;
+   int32_t        *cover_mem[4];
 } jit_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
@@ -317,6 +318,20 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 
             ident_t id = ident_new(eptr + 1);
             r->ptr = jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
+         }
+         else if (r->kind == RELOC_COVER) {
+            // TODO: get rid of the double indirection here by
+            //       allocating coverage memory earlier
+            if (strcmp(str, "stmt") == 0)
+               r->ptr = &(j->cover_mem[JIT_COVER_STMT]);
+            else if (strcmp(str, "branch") == 0)
+               r->ptr = &(j->cover_mem[JIT_COVER_BRANCH]);
+            else if (strcmp(str, "expr") == 0)
+               r->ptr = &(j->cover_mem[JIT_COVER_EXPRESSION]);
+            else if (strcmp(str, "toggle") == 0)
+               r->ptr = &(j->cover_mem[JIT_COVER_TOGGLE]);
+            else
+               fatal_trace("relocation against invalid coverage kind %s", str);
          }
          else {
             jit_handle_t h = jit_lazy_compile_locked(j, ident_new(str));
@@ -1415,4 +1430,51 @@ bool jit_will_abort(jit_ir_t *ir)
    }
    else
       return ir->op == J_TRAP;
+}
+
+void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
+                         int n_expressions)
+{
+   int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
+   if (cover_stmts != NULL)
+      memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
+   else
+      cover_stmts = xcalloc_array(n_stmts, sizeof(int32_t));  // XXX: leaks
+
+   int32_t *cover_branches = ffi_find_symbol(NULL, "cover_branches");
+   if (cover_branches != NULL)
+      memset(cover_branches, '\0', sizeof(int32_t) * n_branches);
+   else
+      cover_branches = xcalloc_array(n_branches, sizeof(int32_t));  // XXX: leaks
+
+   int32_t *cover_toggles = ffi_find_symbol(NULL, "cover_toggles");
+   if (cover_toggles != NULL)
+      memset(cover_toggles, '\0', sizeof(int32_t) * n_toggles);
+   else
+      cover_toggles = xcalloc_array(n_toggles, sizeof(int32_t));  // XXX: leaks
+
+   int32_t *cover_expressions = ffi_find_symbol(NULL, "cover_expressions");
+   if (cover_expressions != NULL)
+      memset(cover_expressions, '\0', sizeof(int32_t) * n_expressions);
+   else
+      cover_expressions = xcalloc_array(n_expressions, sizeof(int32_t));  // XXX: leaks
+
+   j->cover_mem[JIT_COVER_STMT] = cover_stmts;
+   j->cover_mem[JIT_COVER_BRANCH] = cover_branches;
+   j->cover_mem[JIT_COVER_TOGGLE] = cover_toggles;
+   j->cover_mem[JIT_COVER_EXPRESSION] = cover_expressions;
+}
+
+int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind)
+{
+   assert(kind < ARRAY_LEN(j->cover_mem));
+   return j->cover_mem[kind];
+}
+
+int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
+{
+   assert(addr.kind == JIT_ADDR_COVER);
+   int32_t *base = jit_get_cover_mem(j, addr.int64 & 3);
+   assert(base != NULL);
+   return base + (addr.int64 >> 2);
 }

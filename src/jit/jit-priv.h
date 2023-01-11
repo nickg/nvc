@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -154,6 +154,7 @@ typedef enum {
    JIT_EXIT_DRIVING,
    JIT_EXIT_DRIVING_VALUE,
    JIT_EXIT_CLAIM_TLAB,
+   JIT_EXIT_COVER_TOGGLE,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -167,6 +168,7 @@ typedef enum {
    JIT_ADDR_REG,
    JIT_ADDR_ABS,
    JIT_ADDR_CPOOL,
+   JIT_ADDR_COVER,
    JIT_VALUE_LABEL,
    JIT_VALUE_HANDLE,
    JIT_VALUE_EXIT,
@@ -254,6 +256,7 @@ typedef enum {
    RELOC_FUNC,
    RELOC_FOREIGN,
    RELOC_PRIVDATA,
+   RELOC_COVER,
 } reloc_kind_t;
 
 typedef struct {
@@ -340,6 +343,7 @@ int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
+int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

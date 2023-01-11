@@ -671,7 +671,6 @@ static bool run_test(test_t *test)
 #endif
 #ifndef HAVE_LLVM
    skip |= (test->flags & F_SLOW);
-   skip |= (test->flags & F_COVER);  // Only supported with LLVM for now
 #endif
 
    if (skip) {

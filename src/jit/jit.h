@@ -53,6 +53,13 @@ typedef struct {
    void (*cleanup)(void *);
 } jit_plugin_t;
 
+typedef enum {
+   JIT_COVER_STMT,
+   JIT_COVER_BRANCH,
+   JIT_COVER_TOGGLE,
+   JIT_COVER_EXPRESSION,
+} jit_cover_mem_t;
+
 jit_t *jit_new(void);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
@@ -72,6 +79,10 @@ void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 ident_t jit_get_name(jit_t *j, jit_handle_t handle);
 void jit_register_native_plugin(jit_t *j);
+
+void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
+                         int n_expressions);
+int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind);
 
 bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...);
 bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,

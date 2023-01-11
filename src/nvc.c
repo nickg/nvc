@@ -99,6 +99,9 @@ static void bad_option(const char *what, char **argv)
 {
    if (optopt == 0)
       fatal("unrecognised %s option $bold$%s$$", what, argv[optind - 1]);
+   else if (optarg == NULL)
+      fatal("%s option $bold$%s$$ requires an argument",
+            what, argv[optind - 1]);
    else
       fatal("unrecognised %s option $bold$-%c$$", what, optopt);
 }

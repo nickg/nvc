@@ -865,6 +865,9 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
    case JIT_ADDR_CPOOL:
       MOV(dst, IMM((intptr_t)blob->func->cpool + src.int64), __QWORD);
       break;
+   case JIT_ADDR_COVER:
+      MOV(dst, PTR(jit_get_cover_ptr(blob->func->jit, src)), __QWORD);
+      break;
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
    }
@@ -882,6 +885,9 @@ static x86_operand_t jit_x86_get_addr(code_blob_t *blob, jit_value_t addr,
       return ADDR(tmp, 0);
    case JIT_ADDR_ABS:
       MOV(tmp, IMM(addr.int64), __QWORD);
+      return ADDR(tmp, 0);
+   case JIT_ADDR_COVER:
+      MOV(tmp, PTR(jit_get_cover_ptr(blob->func->jit, addr)), __QWORD);
       return ADDR(tmp, 0);
    default:
       fatal_trace("cannot handle value kind %d in jit_x86_get_addr", addr.kind);

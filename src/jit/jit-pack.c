@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -203,6 +203,7 @@ static void pack_value(pack_func_t *pf, jit_t *j, jit_value_t value)
       pack_uint(pf, value.disp);
       break;
    case JIT_ADDR_ABS:
+   case JIT_ADDR_COVER:
       pack_uint(pf, value.int64);
       break;
    case JIT_VALUE_LABEL:
@@ -471,6 +472,7 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
       value.disp = unpack_uint(pf);
       break;
    case JIT_ADDR_ABS:
+   case JIT_ADDR_COVER:
       value.int64 = unpack_uint(pf);
       break;
    case JIT_VALUE_LABEL:

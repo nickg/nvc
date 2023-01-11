@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1057,6 +1057,15 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          if (tlab != NULL)
             x_claim_tlab(tlab);
+      }
+      break;
+
+   case JIT_EXIT_COVER_TOGGLE:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t      *mem    = args[1].pointer;
+
+         x_cover_setup_toggle_cb(shared, mem);
       }
       break;
 

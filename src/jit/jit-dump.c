@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "MAP_CONST", "RESOLVE_SIGNAL", "LAST_EVENT", "LAST_ACTIVE",
       "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
       "POP_SCOPE", "IMPLICIT_SIGNAL", "DRIVING", "DRIVING_VALUE",
-      "CLAIM_TLAB",
+      "CLAIM_TLAB", "COVER_TOGGLE",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
@@ -112,6 +112,12 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       }
    case JIT_ADDR_ABS:
       return printf("[#%016"PRIx64"]", value.int64);
+   case JIT_ADDR_COVER:
+      {
+         const char *kind[] = { "STMT", "BRANCH", "TOGGLE", "EXPR" };
+         return printf("[$%s:%"PRIi64"]", kind[value.int64 & 3],
+                       value.int64 >> 2);
+      }
    case JIT_VALUE_LABEL:
       if (value.label == JIT_LABEL_INVALID)
          return printf("???");

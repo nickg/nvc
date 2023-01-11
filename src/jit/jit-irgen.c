@@ -23,6 +23,7 @@
 #include "lib.h"
 #include "mask.h"
 #include "option.h"
+#include "rt/cover.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -154,6 +155,14 @@ static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
    default:
       fatal_trace("cannot convert value kind %d to address", value.kind);
    }
+}
+
+static jit_value_t jit_addr_from_cover_tag(jit_cover_mem_t kind, uint32_t tag)
+{
+   return (jit_value_t){
+      .kind = JIT_ADDR_COVER,
+      .int64 = kind | ((int64_t)tag << 2)
+   };
 }
 
 static jit_value_t jit_value_from_label(irgen_label_t *l)
@@ -3178,6 +3187,72 @@ static void irgen_op_driving_value(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
+static void irgen_op_cover_stmt(jit_irgen_t *g, int op)
+{
+   uint32_t tag = vcode_get_tag(op);
+   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_STMT, tag);
+
+   // XXX: this should be atomic
+   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
+   jit_value_t inc = j_add(g, cur, jit_value_from_int64(1));
+   j_store(g, JIT_SZ_32, inc, mem);
+}
+
+static void irgen_op_cover_branch(jit_irgen_t *g, int op)
+{
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   if (arg0 != g->flags) {
+      jit_value_t result = irgen_get_arg(g, op, 0);
+      j_cmp(g, JIT_CC_NE, result, jit_value_from_int64(0));
+   }
+
+   uint32_t tag = vcode_get_tag(op);
+   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_BRANCH, tag);
+
+   jit_value_t tval, fval;
+   if (vcode_get_subkind(op) & COV_FLAG_CHOICE) {
+      // TODO: just make a seperate cover choice op?
+      tval = jit_value_from_int64(COV_FLAG_CHOICE);
+      fval = jit_value_from_int64(0);
+   }
+   else {
+      tval = jit_value_from_int64(COV_FLAG_TRUE);
+      fval = jit_value_from_int64(COV_FLAG_FALSE);
+   }
+
+   jit_value_t mask = j_csel(g, tval, fval);
+
+   // XXX: this should be atomic
+   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
+   jit_value_t next = j_or(g, cur, mask);
+   j_store(g, JIT_SZ_32, next, mem);
+}
+
+static void irgen_op_cover_expr(jit_irgen_t *g, int op)
+{
+   jit_value_t mask = irgen_get_arg(g, op, 0);
+
+   uint32_t tag = vcode_get_tag(op);
+   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_EXPRESSION, tag);
+
+   // XXX: this should be atomic
+   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
+   jit_value_t next = j_or(g, cur, mask);
+   j_store(g, JIT_SZ_32, next, mem);
+}
+
+static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+
+   uint32_t tag = vcode_get_tag(op);
+   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_TOGGLE, tag);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, mem);
+   macro_exit(g, JIT_EXIT_COVER_TOGGLE);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3527,6 +3602,18 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_DRIVING_VALUE:
          irgen_op_driving_value(g, i);
+         break;
+      case VCODE_OP_COVER_STMT:
+         irgen_op_cover_stmt(g, i);
+         break;
+      case VCODE_OP_COVER_BRANCH:
+         irgen_op_cover_branch(g, i);
+         break;
+      case VCODE_OP_COVER_EXPR:
+         irgen_op_cover_expr(g, i);
+         break;
+      case VCODE_OP_COVER_TOGGLE:
+         irgen_op_cover_toggle(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));

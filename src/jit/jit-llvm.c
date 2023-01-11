@@ -1013,6 +1013,20 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
          return llvm_int32(obj, value.handle);
    case JIT_ADDR_ABS:
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
+   case JIT_ADDR_COVER:
+      if (cgb->func->mode == CGEN_AOT) {
+         LLVMValueRef ptr = cgen_load_from_reloc(obj, cgb->func,
+                                                 RELOC_COVER, value.int64 & 3);
+         LLVMValueRef base = LLVMBuildLoad2(obj->builder,
+                                            obj->types[LLVM_PTR], ptr, "");
+         LLVMValueRef indexes[] = {
+            llvm_intptr(obj, value.int64 >> 2)
+         };
+         return LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT32],
+                              base, indexes, 1, "");
+      }
+      else
+         return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source->jit, value));
    case JIT_VALUE_FOREIGN:
       if (cgb->func->mode == CGEN_AOT)
          return cgen_load_from_reloc(obj, cgb->func, RELOC_FOREIGN,
@@ -2228,13 +2242,27 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                   tb_printf(tb, "%"PRIi64"\b", ffi_get_spec(args[j].foreign));
                   tb_istr(tb, ffi_get_sym(args[j].foreign));
 
-                  const cgen_reloc_t r1 = {
+                  const cgen_reloc_t r = {
                      .kind = RELOC_FOREIGN,
                      .str  = llvm_const_string(obj, tb_get(tb)),
                      .key  = (uintptr_t)args[j].foreign,
                      .nth  = relocs.count,
                   };
-                  APUSH(relocs, r1);
+                  APUSH(relocs, r);
+               }
+            }
+            else if (args[j].kind == JIT_ADDR_COVER) {
+               const jit_cover_mem_t kind = args[j].int64 & 3;
+               if (cgen_find_reloc(relocs.items, RELOC_COVER, relocs.count,
+                                   kind) == NULL) {
+                  const char *map[] = { "stmt", "branch", "toggle", "expr" };
+                  const cgen_reloc_t r = {
+                     .kind = RELOC_COVER,
+                     .str  = llvm_const_string(obj, map[kind]),
+                     .key  = kind,
+                     .nth  = relocs.count,
+                  };
+                  APUSH(relocs, r);
                }
             }
          }
