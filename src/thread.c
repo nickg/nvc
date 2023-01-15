@@ -482,6 +482,12 @@ void *thread_join(nvc_thread_t *thread)
    return retval;
 }
 
+nvc_thread_t *get_thread(int id)
+{
+   assert(id >= 0 && id < MAX_THREADS);
+   return atomic_load(&threads[id]);
+}
+
 static parking_bay_t *parking_bay_for(void *cookie)
 {
    uint32_t a = (uint32_t)((uintptr_t)cookie >> 2);

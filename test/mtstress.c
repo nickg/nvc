@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -179,6 +179,48 @@ START_TEST(test_stop_world)
 END_TEST
 
 ////////////////////////////////////////////////////////////////////////////////
+// Concurrent GC
+
+__attribute__((noinline))
+static void gc_alloc_loop(mspace_t *m)
+{
+   int32_t *saved[5];
+   int nsaved = 0;
+
+   for (int i = 0; i < 100000; i++) {
+      int32_t *mem = mspace_alloc(m, 4 + (rand() % 1000));
+      ck_assert_ptr_nonnull(mem);
+
+      if (nsaved < ARRAY_LEN(saved) && (rand() % 2 == 0)) {
+         saved[nsaved++] = mem;
+         *mem = nsaved | (thread_id() << 16);
+      }
+   }
+
+   for (int i = 0; i < ARRAY_LEN(saved); i++)
+      ck_assert_int_eq(*saved[i], (i + 1) | (thread_id() << 16));
+}
+
+static void *test_gc_thread(void *arg)
+{
+   mspace_t *m = arg;
+   mspace_stack_limit(MSPACE_CURRENT_FRAME);
+   gc_alloc_loop(m);
+
+   return NULL;
+}
+
+START_TEST(test_gc)
+{
+   mspace_t *m = mspace_new(0x100000);
+
+   run_test(test_gc_thread, m);
+
+   mspace_destroy(m);
+}
+END_TEST
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -200,9 +242,15 @@ int main(int argc, char **argv)
 
    TCase *tc_chash = tcase_create("chash");
    tcase_add_test(tc_chash, test_chash_rand);
+   tcase_set_timeout(tc_chash, 10.0);
    suite_add_tcase(s, tc_chash);
 
 #ifndef __SANITIZE_THREAD__
+   TCase *tc_gc = tcase_create("gc");
+   tcase_add_test(tc_gc, test_gc);
+   tcase_set_timeout(tc_gc, 20.0);
+   suite_add_tcase(s, tc_gc);
+
    TCase *tc_stop_world = tcase_create("stop_world");
    tcase_add_test(tc_stop_world, test_stop_world);
    tcase_set_timeout(tc_stop_world, 20.0);

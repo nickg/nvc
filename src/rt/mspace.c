@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "mask.h"
 #include "option.h"
 #include "rt/mspace.h"
+#include "thread.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -57,6 +58,11 @@ typedef struct {
    work_list_t worklist;
 } gc_state_t;
 
+typedef struct {
+   struct cpu_state  cpu;
+   intptr_t         *stack_limit;
+} gc_thread_t;
+
 typedef struct _free_list free_list_t;
 
 struct _free_list {
@@ -66,6 +72,7 @@ struct _free_list {
 };
 
 struct _mspace {
+   nvc_lock_t       lock;
    size_t           maxsize;
    unsigned         maxlines;
    char            *space;
@@ -82,7 +89,7 @@ struct _mspace {
 #endif
 };
 
-static __thread intptr_t *stack_limit = NULL;
+static gc_thread_t threads[MAX_THREADS];
 
 static void mspace_gc(mspace_t *m);
 static bool is_mspace_ptr(mspace_t *m, char *p);
@@ -150,7 +157,50 @@ void mspace_destroy(mspace_t *m)
 void mspace_stack_limit(void *limit)
 {
    assert(limit != NULL);
-   stack_limit = limit;
+   threads[thread_id()].stack_limit = limit;
+}
+
+static void *mspace_try_alloc(mspace_t *m, size_t size)
+{
+   // Add one to size before rounding up to LINE_SIZE to allow a valid
+   // pointer to point at one element past the end of an array
+   const int nlines = (size + LINE_SIZE) / LINE_SIZE;
+   const size_t asize = nlines * LINE_SIZE;
+
+   SCOPED_LOCK(m->lock);
+
+   for (free_list_t **it = &(m->free_list); *it; it = &((*it)->next)) {
+      assert((*it)->size % LINE_SIZE == 0);
+      if ((*it)->size >= asize) {
+         char *base = (*it)->ptr;
+         assert((uintptr_t)base % LINE_SIZE == 0);
+
+         MSPACE_UNPOISON(base, size);
+
+         const int line = (base - m->space) / LINE_SIZE;
+         mask_set(&(m->headmask), line);
+         if (nlines > 1)
+            mask_clear_range(&(m->headmask), line + 1, nlines - 1);
+
+         if ((*it)->size == asize) {
+            free_list_t *next = (*it)->next;
+            free(*it);
+            *it = next;
+         }
+         else {
+            (*it)->size -= asize;
+            (*it)->ptr += asize;
+         }
+
+         // Make sure the first fault to the page is a write to
+         // allocate THP on Linux
+         *(volatile char *)base = 0;
+
+         return base;
+      }
+   }
+
+   return NULL;
 }
 
 void *mspace_alloc(mspace_t *m, size_t size)
@@ -163,43 +213,11 @@ void *mspace_alloc(mspace_t *m, size_t size)
       mspace_gc(m);
 #endif
 
-   // Add one to size before rounding up to LINE_SIZE to allow a valid
-   // pointer to point at one element past the end of an array
-   const int nlines = (size + LINE_SIZE) / LINE_SIZE;
-   const size_t asize = nlines * LINE_SIZE;
-
    int retry = 1;
    do {
-      for (free_list_t **it = &(m->free_list); *it; it = &((*it)->next)) {
-         assert((*it)->size % LINE_SIZE == 0);
-         if ((*it)->size >= asize) {
-            char *base = (*it)->ptr;
-            assert((uintptr_t)base % LINE_SIZE == 0);
-
-            MSPACE_UNPOISON(base, size);
-
-            const int line = (base - m->space) / LINE_SIZE;
-            mask_set(&(m->headmask), line);
-            if (nlines > 1)
-               mask_clear_range(&(m->headmask), line + 1, nlines - 1);
-
-            if ((*it)->size == asize) {
-               free_list_t *next = (*it)->next;
-               free(*it);
-               *it = next;
-            }
-            else {
-               (*it)->size -= asize;
-               (*it)->ptr += asize;
-            }
-
-            // Make sure the first fault to the page is a write to
-            // allocate THP on Linux
-            *(volatile char *)base = 0;
-
-            return base;
-         }
-      }
+      void *ptr = mspace_try_alloc(m, size);
+      if (ptr != NULL)
+         return ptr;
 
       mspace_gc(m);
    } while (retry--);
@@ -268,6 +286,8 @@ void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn)
 
 mptr_t mptr_new(mspace_t *m, const char *name)
 {
+   SCOPED_LOCK(m->lock);
+
    mptr_t ptr;
    if (m->free_mptrs != NULL) {
       ptr = m->free_mptrs;
@@ -293,6 +313,8 @@ void mptr_free(mspace_t *m, mptr_t *ptr)
 {
    if (*ptr == MPTR_INVALID)
       return;
+
+   SCOPED_LOCK(m->lock);
 
    if ((*ptr)->next != NULL)
       (*ptr)->next->prev = (*ptr)->prev;
@@ -398,31 +420,47 @@ static void mspace_mark_mptr(mspace_t *m, mptr_t ptr, gc_state_t *state)
    mspace_mark_root(m, (intptr_t)ptr->ptr, state);
 }
 
+static void mspace_suspend_cb(int thread_id, struct cpu_state *cpu, void *arg)
+{
+   assert(thread_id < MAX_THREADS);
+   threads[thread_id].cpu = *cpu;
+}
+
 __attribute__((no_sanitize_address, noinline))
 static void mspace_gc(mspace_t *m)
 {
    const uint64_t start_ticks = get_timestamp_us();
 
-   if (stack_limit == NULL)
+   if (threads[thread_id()].stack_limit == NULL)
       fatal_trace("GC requested without setting stack limit");
+
+#if defined __SANITIZE_THREAD__ && !defined __APPLE__
+   return;   // Cannot reliably suspend threads with tsan
+#endif
 
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
 
+   SCOPED_LOCK(m->lock);
+
+   stop_world(mspace_suspend_cb, NULL);
+
+   for (int i = 0; i < MAX_THREADS; i++) {
+      if (get_thread(i) == NULL)
+         continue;
+
+      for (int j = 0; j < MAX_CPU_REGS; j++)
+         mspace_mark_root(m, threads[i].cpu.regs[j], &state);
+
+      intptr_t *stack_top = (intptr_t *)threads[i].cpu.sp;
+      assert(stack_top <= threads[i].stack_limit);   // Stack must grow down
+
+      for (intptr_t *p = stack_top; p < threads[i].stack_limit; p++)
+         mspace_mark_root(m, *p, &state);
+   }
+
    for (mptr_t p = m->roots; p; p = p->next)
       mspace_mark_mptr(m, p, &state);
-
-   struct cpu_state cpu;
-   capture_registers(&cpu);
-
-   for (int i = 0; i < MAX_CPU_REGS; i++)
-      mspace_mark_root(m, cpu.regs[i], &state);
-
-   intptr_t *stack_top = (intptr_t *)cpu.sp;
-   assert(stack_top <= stack_limit);   // Stack must grow down
-
-   for (intptr_t *p = stack_top; p < stack_limit; p++)
-      mspace_mark_root(m, *p, &state);
 
    while (state.worklist.count > 0) {
       const uint64_t enc = APOP(state.worklist);
@@ -472,6 +510,8 @@ static void mspace_gc(mspace_t *m)
          line += clear;
       }
    }
+
+   start_world();
 
    if (opt_get_verbose(OPT_GC_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;

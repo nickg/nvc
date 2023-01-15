@@ -59,6 +59,8 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
   __attribute__((format(printf, 3, 4)));
 void *thread_join(nvc_thread_t *thread);
 
+nvc_thread_t *get_thread(int id);
+
 void spin_wait(void);
 
 typedef int8_t nvc_lock_t;
