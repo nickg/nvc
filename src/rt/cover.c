@@ -155,7 +155,7 @@ static const struct {
 } bin_map[] = {
    { "BIN_TRUE",       COV_FLAG_TRUE},
    { "BIN_FALSE",      COV_FLAG_FALSE},
-   { "BIN_CHOICE",     COV_FLAG_FALSE},
+   { "BIN_CHOICE",     COV_FLAG_CHOICE},
    { "BIN_0_0",        COV_FLAG_00},
    { "BIN_0_1",        COV_FLAG_01},
    { "BIN_1_0",        COV_FLAG_10},
@@ -871,8 +871,7 @@ uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
       if (strcmp(bin, bin_map[i].name))
          continue;
       if ((allowed & bin_map[i].flag) != 0)
-         break;
-      return bin_map[i].flag;
+         return bin_map[i].flag;
    }
 
    char LOCAL *bin_list = cover_bmask_to_bin_list(allowed);
@@ -1755,11 +1754,11 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             (ctx->flat_stats.total_stmts)++;
             (ctx->nested_stats.total_stmts)++;
 
-            hits = (tag->data > 0);
+            hits = (tag->data != 0);
             misses = (tag->data == 0) && (tag->excl_msk == 0);
-            excludes = (tag->excl_msk > 0);
+            excludes = (tag->data == 0) && (tag->excl_msk != 0);
 
-            if (hits) {
+            if (hits | excludes) {
                (ctx->flat_stats.hit_stmts)++;
                (ctx->nested_stats.hit_stmts)++;
             }
