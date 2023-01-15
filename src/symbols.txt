@@ -3,7 +3,6 @@
 #
 {
   # Exported from src/rt/standard.c
-  _std_hstring_bit_vec;
   _std_standard_now;
   _std_to_hstring_bit_vec;
   _std_to_ostring_bit_vec;
@@ -61,11 +60,8 @@
   __nvc_resolve_signal;
   __nvc_setup_toggle_cb;
   __nvc_tlab;
-  __nvc_trampoline;
   __nvc_unreachable;
-  _assert_fail;
   _canon_value;
-  _convert_signal;
   _debug_dump;
   _debug_out;
   _disconnect;
@@ -81,7 +77,6 @@
   _int_to_string;
   _last_active;
   _last_event;
-  _link_signal;
   _real_to_string;
   _sched_event;
   _sched_process;

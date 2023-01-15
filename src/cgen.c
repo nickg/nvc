@@ -5658,8 +5658,7 @@ static void cgen_async_work(void *context, void *arg)
 
 static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
                                 const char *base_name, int units_per_job,
-                                tree_t top, cover_tagging_t *cover,
-                                obj_list_t *objs)
+                                tree_t top, obj_list_t *objs)
 {
    int counter = 0;
 
@@ -5680,7 +5679,6 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
       job->module_name = module_name;
       job->obj_path    = xstrdup(obj_path);
       job->index       = counter;
-      job->cover       = cover;
 
       for (unsigned j = i; j < units->count && j < i + units_per_job; j++)
          APUSH(job->units, units->items[j]);
@@ -5710,8 +5708,7 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    workq_t *wq = workq_new(jit);
 
    obj_list_t objs = AINIT;
-   cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB,
-                       top, cover, &objs);
+   cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB, top, &objs);
 
    workq_start(wq);
    workq_drain(wq);

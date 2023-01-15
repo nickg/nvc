@@ -493,7 +493,7 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       jit_abort(EXIT_FAILURE);
 }
 
-void *x_mspace_alloc(uint32_t size, uint32_t nelems)
+void *x_mspace_alloc(size_t size, uint32_t nelems)
 {
    uint32_t total;
    if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {

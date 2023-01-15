@@ -92,7 +92,7 @@ void x_resolve_signal2(sig_shared_t *ss, jit_handle_t handle, void *context,
                        int32_t ileft, int32_t nlits, int32_t flags);
 void x_elab_order_fail(tree_t where);
 void x_unreachable(tree_t where);
-void *x_mspace_alloc(uint32_t size, uint32_t nelems);
+void *x_mspace_alloc(size_t size, uint32_t nelems);
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask);
 
 #endif  // _JIT_EXITS_H
