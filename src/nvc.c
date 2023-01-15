@@ -958,6 +958,7 @@ static int coverage(int argc, char **argv)
          break;
       case 'e':
          exclude_file = optarg;
+         break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
          break;

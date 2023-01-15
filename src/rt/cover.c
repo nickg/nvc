@@ -325,6 +325,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .tag        = *cnt,
       .data       = 0,
       .flags      = flags,
+      .excl_msk   = 0,
       .loc        = *tree_loc(t),
       .hier       = hier,
       .level      = ctx->level
@@ -396,6 +397,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
 #endif
       }
       write_u32(tag->flags, f);
+      write_u32(tag->excl_msk, f);
       write_u32(tag->level, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
@@ -581,6 +583,7 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->tag = read_u32(f);
    tag->data = read_u32(f);
    tag->flags = read_u32(f);
+   tag->excl_msk = read_u32(f);
    tag->level = read_u32(f);
 
    loc_read(&(tag->loc), loc_rd);
