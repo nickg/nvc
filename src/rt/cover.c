@@ -102,10 +102,13 @@ typedef struct {
 typedef struct {
    cover_pair_t *hits;
    cover_pair_t *miss;
+   cover_pair_t *excl;
    int          n_hits;
    int          n_miss;
+   int          n_excl;
    int          alloc_hits;
    int          alloc_miss;
+   int          alloc_excl;
 } cover_chain_t;
 
 struct _cover_file {
@@ -1482,13 +1485,17 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
    fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
                           "margin-right:auto; margin-top:10px; border: 2px solid black;\">\n");
 
-   for (int i = 0; i < 2; i++) {
+   for (int i = 0; i < 3; i++) {
       int n;
       cover_pair_t *pair;
 
       if (i == 0) {
          pair = chn->miss;
          n = chn->n_miss;
+      }
+      else if (i == 1) {
+         pair = chn->excl;
+         n = chn->n_excl;
       }
       else {
          pair = chn->hits;
@@ -1498,12 +1505,16 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
       fprintf(f, "<section style=\"background-color:");
       if (i == 0)
          fprintf(f, "#ffcccc;\">");
+      else if (i == 1)
+         fprintf(f, "#d6eaf8;\">");
       else
          fprintf(f, "#ccffcc;\">");
 
       fprintf(f, "   <h2>");
       if (i == 0)
          fprintf(f, "Uncovered ");
+      else if (i == 1)
+         fprintf(f, "Excluded ");
       else
          fprintf(f, "Covered ");
 
@@ -1562,7 +1573,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
 
 static void cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
                                   cover_line_t *line, unsigned hits,
-                                  unsigned misses)
+                                  unsigned misses, unsigned excludes)
 {
 
    if (hits) {
@@ -1588,11 +1599,23 @@ static void cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
       chain->miss[chain->n_miss].flags = misses;
       chain->n_miss++;
    }
+
+   if (excludes) {
+      if (chain->n_excl == chain->alloc_excl) {
+         chain->alloc_excl *= 2;
+         chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
+                                      sizeof(cover_pair_t));
+      }
+      chain->excl[chain->n_excl].tag = tag;
+      chain->excl[chain->n_excl].line = line;
+      chain->excl[chain->n_excl].flags = excludes;
+      chain->n_excl++;
+   }
 }
 
 static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
                                cover_flags_t flag, unsigned *hits,
-                               unsigned *misses)
+                               unsigned *misses, unsigned *excludes)
 {
    unsigned *flat_total;
    unsigned *nested_total;
@@ -1630,6 +1653,11 @@ static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
       (*nested_hits)++;
       (*hits) |= flag;
    }
+   else if (tag->excl_msk & flag) {
+      (*flat_hits)++;
+      (*nested_hits)++;
+      (*excludes) |= flag;
+   }
    else
       (*misses) |= flag;
 
@@ -1644,27 +1672,35 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
    // TODO: Handle escaped identifiers in hierarchy path!
    FILE *f = fopen(hier, "w");
    if (f == NULL)
-      fatal("Failed to open file: %s\n", hier);
+      fatal("Failed to open report file: %s\n", hier);
 
    ctx->ch_stmt.hits = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_stmt.miss = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_stmt.excl = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_stmt.alloc_hits = 1024;
    ctx->ch_stmt.alloc_miss = 1024;
+   ctx->ch_stmt.alloc_excl = 1024;
 
    ctx->ch_branch.hits = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_branch.miss = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_branch.excl = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_branch.alloc_hits = 1024;
    ctx->ch_branch.alloc_miss = 1024;
+   ctx->ch_branch.alloc_excl = 1024;
 
    ctx->ch_toggle.hits = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_toggle.miss = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_toggle.excl = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_toggle.alloc_hits = 1024;
    ctx->ch_toggle.alloc_miss = 1024;
+   ctx->ch_toggle.alloc_excl = 1024;
 
    ctx->ch_expression.hits = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_expression.miss = xcalloc_array(1024, sizeof(cover_pair_t));
+   ctx->ch_expression.excl = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_expression.alloc_hits = 1024;
    ctx->ch_expression.alloc_miss = 1024;
+   ctx->ch_expression.alloc_excl = 1024;
 
    cover_print_html_header(f, ctx, false, "NVC code coverage report");
 
@@ -1709,6 +1745,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 
          unsigned hits = 0;
          unsigned misses = 0;
+         unsigned excludes = 0;
 
          switch (tag->kind) {
          case TAG_STMT:
@@ -1716,50 +1753,68 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             (ctx->nested_stats.total_stmts)++;
 
             hits = (tag->data > 0);
-            misses = (tag->data == 0);
+            misses = (tag->data == 0) && (tag->excl_msk == 0);
+            excludes = (tag->excl_msk > 0);
+
             if (hits) {
                (ctx->flat_stats.hit_stmts)++;
                (ctx->nested_stats.hit_stmts)++;
             }
-            cover_append_to_chain(&(ctx->ch_stmt), tag, line, hits, misses);
+            cover_append_to_chain(&(ctx->ch_stmt), tag, line,
+                                  hits, misses, excludes);
             break;
 
          case TAG_BRANCH:
             // If/else, when else
             if (tag->flags & COV_FLAG_TRUE && tag->flags & COV_FLAG_FALSE) {
-               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE, &hits, &misses);
-               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE, &hits, &misses);
-               cover_append_to_chain(&(ctx->ch_branch), tag, line, hits, misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE,
+                                  &hits, &misses, &excludes);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
+                                  &hits, &misses, &excludes);
+               cover_append_to_chain(&(ctx->ch_branch), tag, line,
+                                     hits, misses, excludes);
             }
 
             // Case, with select
             if (tag->flags & COV_FLAG_CHOICE) {
-               cover_tag_to_chain(ctx, tag, COV_FLAG_CHOICE, &hits, &misses);
-               cover_append_to_chain(&(ctx->ch_branch), tag, line, hits, misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_CHOICE,
+                                  &hits, &misses, &excludes);
+               cover_append_to_chain(&(ctx->ch_branch), tag, line,
+                                     hits, misses, excludes);
             }
             break;
 
          case TAG_TOGGLE:
-            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_1, &hits, &misses);
-            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_0, &hits, &misses);
-            cover_append_to_chain(&(ctx->ch_toggle), tag, line, hits, misses);
+            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_1,
+                               &hits, &misses, &excludes);
+            cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_0,
+                               &hits, &misses, &excludes);
+            cover_append_to_chain(&(ctx->ch_toggle), tag, line,
+                                  hits, misses, excludes);
             break;
 
          case TAG_EXPRESSION:
             if (tag->flags & COV_FLAG_00)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_00, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_00,
+                                  &hits, &misses, &excludes);
             if (tag->flags & COV_FLAG_01)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_01, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_01,
+                                  &hits, &misses, &excludes);
             if (tag->flags & COV_FLAG_10)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_10, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_10,
+                                  &hits, &misses, &excludes);
             if (tag->flags & COV_FLAG_11)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_11, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_11,
+                                  &hits, &misses, &excludes);
             if (tag->flags & COV_FLAG_TRUE)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE,
+                                  &hits, &misses, &excludes);
             if (tag->flags & COV_FLAG_FALSE)
-               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE, &hits, &misses);
+               cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
+                                  &hits, &misses, &excludes);
 
-            cover_append_to_chain(&(ctx->ch_expression), tag, line, hits, misses);
+            cover_append_to_chain(&(ctx->ch_expression), tag, line,
+                                  hits, misses, excludes);
             break;
 
          default:
