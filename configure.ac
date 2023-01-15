@@ -48,7 +48,7 @@ AC_C_INLINE
 AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
-AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr])
+AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr getline])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -71,6 +71,7 @@ case $host_os in
 esac
 AM_CONDITIONAL([GNULIB_MEMMEM], [test "x$ac_cv_func_memmem" != xyes])
 AM_CONDITIONAL([GNULIB_STRCASESTR], [test "x$ac_cv_func_strcasestr" != xyes])
+AM_CONDITIONAL([GNULIB_GETLINE], [test "x$ac_cv_func_getline" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=

@@ -128,6 +128,10 @@ void *memmem(const void *haystack, size_t haystacklen,
 char *strcasestr(const char *haystack_start, const char *needle_start);
 #endif
 
+#ifndef HAVE_GETLINE
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })
