@@ -95,4 +95,10 @@ void workq_not_thread_safe(workq_t *wq);
 void async_do(task_fn_t fn, void *context, void *arg);
 void async_barrier(void);
 
+struct cpu_state;
+typedef void (*stop_world_fn_t)(int, struct cpu_state *, void *);
+
+void stop_world(stop_world_fn_t callback, void *arg);
+void start_world(void);
+
 #endif  // _THREAD_H

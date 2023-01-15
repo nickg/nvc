@@ -27,6 +27,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -939,6 +940,10 @@ static inline void debug_walk_frames(debug_info_t *di)
 __attribute__((noinline))
 debug_info_t *debug_capture(void)
 {
+   // The various DWARF libraries do not seem to be thread-safe
+   static nvc_lock_t lock;
+   SCOPED_LOCK(lock);
+
    debug_info_t *di = xcalloc(sizeof(debug_info_t));
    debug_walk_frames(di);
    return di;

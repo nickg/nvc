@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -530,6 +530,34 @@ START_TEST(test_async)
 }
 END_TEST
 
+static void stop_world_cb(int thread_id, struct cpu_state *cpu, void *arg)
+{
+   // Avoid ck_assert* here as it does I/O
+   assert(arg == (void *)0xdeadbeef);
+}
+
+static void *stop_world_thread_fn(void *__arg)
+{
+   for (int i = 0; i < 100; i++) {
+      stop_world(stop_world_cb, (void *)0xdeadbeef);
+      start_world();
+   }
+
+   return NULL;
+}
+
+START_TEST(test_stop_world)
+{
+   static const int N = 5;
+   nvc_thread_t *threads[N];
+   for (int i = 0; i < N; i++)
+      threads[i] = thread_create(stop_world_thread_fn, NULL, "t%d", i);
+
+   for (int i = 0; i < N; i++)
+      thread_join(threads[i]);
+}
+END_TEST
+
 START_TEST(test_fbuf_pipe)
 {
    opt_set_int(OPT_ERROR_LIMIT, -1);
@@ -597,8 +625,11 @@ Suite *get_misc_tests(void)
    suite_add_tcase(s, tc_mask);
 
    TCase *tc_thread = tcase_create("thread");
-   tcase_add_test(tc_heap, test_threads);
-   tcase_add_test(tc_heap, test_async);
+   tcase_add_test(tc_thread, test_threads);
+   tcase_add_test(tc_thread, test_async);
+#ifndef __SANITIZE_THREAD__
+   tcase_add_test(tc_thread, test_stop_world);
+#endif
    suite_add_tcase(s, tc_thread);
 
    TCase *tc_fbuf = tcase_create("fbuf");

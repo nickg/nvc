@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -99,6 +99,7 @@ void diag_show_source(diag_t *d, bool show);
 void diag_emit(diag_t *d);
 void diag_femit(diag_t *d, FILE *f);
 void diag_suppress(diag_t *d, bool suppress);
+void diag_stacktrace(diag_t *d, bool stacktrace);
 
 unsigned error_count(void);
 void reset_error_count(void);

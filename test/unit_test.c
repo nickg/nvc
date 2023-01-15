@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2018-2022  Nick Gasson
+//  Copyright (C) 2018-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,8 +16,9 @@
 //
 
 #include "test_util.h"
-#include "phase.h"
 #include "common.h"
+#include "option.h"
+#include "phase.h"
 #include "rt/mspace.h"
 #include "thread.h"
 
@@ -71,10 +72,20 @@ int main(int argc, char **argv)
 
    term_init();
    thread_init();
+   set_default_options();
+   intern_strings();
    register_signal_handlers();
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
 
-   setenv("NVC_LIBPATH", "./lib", 1);
+   opt_set_int(OPT_UNIT_TEST, 1);
+   opt_set_int(OPT_ERROR_LIMIT, -1);
+   opt_set_int(OPT_ARENA_SIZE, 1 << 20);
+   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
+   opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
+   opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
+
+   if (getenv("NVC_LIBPATH") == NULL)
+      setenv("NVC_LIBPATH", "./lib", 1);
 
    int nfail = 0;
    nfail += RUN_TESTS(ident);

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "fbuf.h"
 #include "option.h"
+#include "thread.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -79,6 +80,7 @@ struct _diag {
    bool          color;
    bool          source;
    bool          suppress;
+   bool          stacktrace;
 };
 
 typedef struct _hint_rec {
@@ -86,11 +88,13 @@ typedef struct _hint_rec {
    void           *context;
 } hint_rec_t;
 
-static diag_consumer_t  consumer = NULL;
 static unsigned         n_errors = 0;
 static file_list_t      loc_files;
 static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
 static diag_level_t     stderr_level = DIAG_DEBUG;
+static nvc_lock_t       diag_lock = 0;
+
+static __thread diag_consumer_t consumer = NULL;
 
 #define MAX_HINT_RECS 4
 static __thread hint_rec_t hint_recs[MAX_HINT_RECS];
@@ -816,65 +820,80 @@ static void diag_emit_trace(diag_t *d, FILE *f)
    }
 }
 
+static void diag_format_compact(diag_t *d, FILE *f)
+{
+   if (d->hints.count > 0) {
+      loc_t *loc = &(d->hints.items[0].loc);
+      if (!loc_invalid_p(loc)) {
+         loc_file_t *file_data = loc_file_data(loc);
+         fprintf(f, "%s:%d:%d: ", file_data->name_str, loc->first_line,
+                 loc->first_column + 1);
+      }
+   }
+
+   switch (d->level) {
+   case DIAG_DEBUG: fprintf(f, "debug: "); break;
+   case DIAG_NOTE:  fprintf(f, "note: "); break;
+   case DIAG_WARN:  fprintf(f, "warning: "); break;
+   case DIAG_ERROR: fprintf(f, "error: "); break;
+   case DIAG_FATAL: fprintf(f, "fatal: "); break;
+   }
+
+   fprintf(f, "%s\n", tb_get(d->msg));
+}
+
+static void diag_format_full(diag_t *d, FILE *f)
+{
+   if (tb_len(d->msg) > 0) {
+      int col = 0;
+      switch (d->level) {
+      case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
+      case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
+      case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
+      case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
+      case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
+      }
+
+      diag_paginate(tb_get(d->msg), col, f);
+      fputc('\n', f);
+   }
+
+   if (d->hints.count > 0)
+      diag_emit_hints(d, f);
+
+   if (d->trace.count > 0)
+      diag_emit_trace(d, f);
+
+#if TRAILING_BLANK
+   if (d->trace.count > 0 || d->hints.count > 0)
+      fputc('\n', f);
+#endif
+
+   fflush(f);
+}
+
 void diag_femit(diag_t *d, FILE *f)
 {
    if (d->suppress)
       return;
    else if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
-   else if (get_message_style() == MESSAGE_COMPACT) {
-      if (d->hints.count > 0) {
-         loc_t *loc = &(d->hints.items[0].loc);
-         if (!loc_invalid_p(loc)) {
-            loc_file_t *file_data = loc_file_data(loc);
-            fprintf(f, "%s:%d:%d: ", file_data->name_str, loc->first_line,
-                    loc->first_column + 1);
-         }
-      }
-
-      switch (d->level) {
-      case DIAG_DEBUG: fprintf(f, "debug: "); break;
-      case DIAG_NOTE:  fprintf(f, "note: "); break;
-      case DIAG_WARN:  fprintf(f, "warning: "); break;
-      case DIAG_ERROR: fprintf(f, "error: "); break;
-      case DIAG_FATAL: fprintf(f, "fatal: "); break;
-      }
-
-      fprintf(f, "%s\n", tb_get(d->msg));
-   }
    else {
-      if (tb_len(d->msg) > 0) {
-         int col = 0;
-         switch (d->level) {
-         case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
-         case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
-         case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
-         case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
-         case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
-         }
+      SCOPED_LOCK(diag_lock);
 
-         diag_paginate(tb_get(d->msg), col, f);
-         fputc('\n', f);
-      }
+      if (get_message_style() == MESSAGE_COMPACT)
+         diag_format_compact(d, f);
+      else
+         diag_format_full(d, f);
 
-      if (d->hints.count > 0)
-         diag_emit_hints(d, f);
-
-      if (d->trace.count > 0)
-         diag_emit_trace(d, f);
-
-#if TRAILING_BLANK
-      if (d->trace.count > 0 || d->hints.count > 0)
-         fputc('\n', f);
-#endif
-
-      fflush(f);
+      if (d->stacktrace)
+         show_stacktrace();
    }
 
    const bool is_error = d->level >= DIAG_ERROR
       || (opt_get_int(OPT_UNIT_TEST) && d->level > DIAG_DEBUG);
 
-   if (is_error && ++n_errors == opt_get_int(OPT_ERROR_LIMIT))
+   if (is_error && relaxed_add(&n_errors, 1) == opt_get_int(OPT_ERROR_LIMIT))
       fatal("too many errors, giving up");
 
    for (int i = 0; i < d->hints.count; i++)
@@ -902,6 +921,11 @@ void diag_show_source(diag_t *d, bool show)
 void diag_suppress(diag_t *d, bool suppress)
 {
    d->suppress = suppress;
+}
+
+void diag_stacktrace(diag_t *d, bool stacktrace)
+{
+   d->stacktrace = stacktrace;
 }
 
 void diag_set_consumer(diag_consumer_t fn)

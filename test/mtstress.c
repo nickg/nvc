@@ -153,6 +153,32 @@ START_TEST(test_chash_rand)
 END_TEST
 
 ////////////////////////////////////////////////////////////////////////////////
+// Stop/start world
+
+static void stop_world_cb(int thread_id, struct cpu_state *cpu, void *arg)
+{
+}
+
+static void *stop_world_thread_fn(void *__arg)
+{
+   while (load_acquire(&start) == 0)
+      spin_wait();
+
+   for (int i = 0; i < 10000; i++) {
+      stop_world(stop_world_cb, NULL);
+      start_world();
+   }
+
+   return NULL;
+}
+
+START_TEST(test_stop_world)
+{
+   run_test(stop_world_thread_fn, NULL);
+}
+END_TEST
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -176,8 +202,15 @@ int main(int argc, char **argv)
    tcase_add_test(tc_chash, test_chash_rand);
    suite_add_tcase(s, tc_chash);
 
+#ifndef __SANITIZE_THREAD__
+   TCase *tc_stop_world = tcase_create("stop_world");
+   tcase_add_test(tc_stop_world, test_stop_world);
+   tcase_set_timeout(tc_stop_world, 20.0);
+   suite_add_tcase(s, tc_stop_world);
+#endif
+
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);
 
-   return srunner_ntests_failed(sr) == 0;
+   return srunner_ntests_failed(sr) == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

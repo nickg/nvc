@@ -101,7 +101,7 @@ bin_mtstress_LDADD = \
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
-	LIB_DIR=$(abs_top_builddir)/lib \
+	NVC_LIBPATH=$(abs_top_builddir)/lib \
 	EXEEXT=$(EXEEXT)
 
 test/run_regr: $(VHPI_PLUGINS)

@@ -542,8 +542,8 @@ void fatal_trace(const char *fmt, ...)
 
    diag_set_consumer(NULL);
    diag_suppress(d, false);
+   diag_stacktrace(d, true);
    diag_emit(d);
-   show_stacktrace();
    fatal_exit(EXIT_FAILURE);
 }
 
@@ -756,29 +756,34 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
 {
    static volatile __thread sig_atomic_t recurse = 0;
 
-   color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)%s",
-                 sig, signame(sig, info),
-                 recurse > 0 ? " inside signal handler" : "");
+   if (recurse++ > 1) {
+      signal(SIGABRT, SIG_DFL);
+      abort();
+   }
+
+   char buf[512], *p = buf, *end = buf + ARRAY_LEN(buf);
+   p += checked_sprintf(p, end - p, "\n%s*** Caught signal %d (%s)%s",
+                        want_color ? "\033[31m\033[1m" : "",
+                        sig, signame(sig, info),
+                        recurse > 0 ? " inside signal handler" : "");
 
    switch (sig) {
    case SIGSEGV:
    case SIGILL:
    case SIGFPE:
    case SIGBUS:
-      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)cpu->pc);
+      p += checked_sprintf(p, end -p, " [address=%p, ip=%p]",
+                           info->si_addr, (void*)cpu->pc);
       break;
    }
 
-   color_fprintf(stderr, " ***$$\n\n");
-   fflush(stderr);
+   p += checked_sprintf(p, end - p, " ***%s\n\n", want_color ? "\033[0m" : "");
+
+   write(STDERR_FILENO, buf, p - buf);
 
    if (sig != SIGUSR1 && !atomic_cas(&crashing, SIG_ATOMIC_MAX, thread_id())) {
       sleep(60);
       _exit(EXIT_FAILURE);
-   }
-   else if (recurse++ > 0) {
-      signal(SIGABRT, SIG_DFL);
-      abort();
    }
 }
 #endif  // !__SANITIZE_THREAD__

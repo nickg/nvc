@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,14 +16,18 @@
 //
 
 #include "util.h"
+#include "cpustate.h"
 #include "rt/mspace.h"
 #include "thread.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
@@ -35,9 +39,26 @@
 #include <sanitizer/tsan_interface.h>
 #endif
 
-#define LOCK_SPINS   15
-#define MIN_TAKE     8
-#define PARKING_BAYS 64
+#if defined __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#elif defined __APPLE__
+#define task_t __task_t
+#include <mach/thread_act.h>
+#include <mach/machine.h>
+#undef task_t
+#endif
+
+#define LOCK_SPINS      15
+#define MIN_TAKE        8
+#define PARKING_BAYS    64
+#define SUSPEND_TIMEOUT 1
+
+#if !defined __MINGW32__ && !defined __APPLE__
+#define POSIX_SUSPEND 1
+#define SIGSUSPEND    SIGRTMIN
+#define SIGRESUME     (SIGRTMIN + 1)
+#endif
 
 typedef struct {
    int64_t locks;
@@ -188,6 +209,9 @@ struct _nvc_thread {
    thread_fn_t     fn;
    void           *arg;
    int             victim;
+#ifdef __APPLE__
+   thread_port_t   port;
+#endif
 };
 
 typedef struct {
@@ -205,13 +229,19 @@ static parking_bay_t parking_bays[PARKING_BAYS] = {
    }
 };
 
-static nvc_thread_t *threads[MAX_THREADS];
-static unsigned      max_workers = 0;
-static int           running_threads = 0;
-static unsigned      max_thread_id = 0;
-static bool          should_stop = false;
-static globalq_t     globalq __attribute__((aligned(64)));
-static int           async_pending __attribute__((aligned(64))) = 0;
+static nvc_thread_t    *threads[MAX_THREADS];
+static unsigned         max_workers = 0;
+static int              running_threads = 0;
+static unsigned         max_thread_id = 0;
+static bool             should_stop = false;
+static globalq_t        globalq __attribute__((aligned(64)));
+static int              async_pending __attribute__((aligned(64))) = 0;
+static nvc_lock_t       stop_lock = 0;
+static stop_world_fn_t  stop_callback = NULL;
+static void            *stop_arg = NULL;
+#ifdef POSIX_SUSPEND
+static sem_t            stop_sem;
+#endif
 
 #ifdef DEBUG
 static lock_stats_t  lock_stats[MAX_THREADS];
@@ -221,6 +251,10 @@ static workq_stats_t workq_stats[MAX_THREADS];
 static __thread nvc_thread_t *my_thread = NULL;
 
 static parking_bay_t *parking_bay_for(void *cookie);
+
+#ifdef POSIX_SUSPEND
+static void suspend_handler(int sig, siginfo_t *info, void *context);
+#endif
 
 #ifdef DEBUG
 static void print_lock_stats(void)
@@ -313,12 +347,40 @@ static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
    return thread;
 }
 
+#ifdef POSIX_SUSPEND
+static void unmask_fatal_signals(sigset_t *mask)
+{
+   sigdelset(mask, SIGQUIT);
+   sigdelset(mask, SIGABRT);
+   sigdelset(mask, SIGTERM);
+}
+#endif
+
+#ifdef __APPLE__
+static void reset_mach_ports(void)
+{
+   for (int i = 0; i < MAX_THREADS; i++) {
+      nvc_thread_t *t = atomic_load(&(threads[i]));
+      if (t == NULL)
+         continue;
+
+      // Mach ports are not valid after fork
+      t->port = pthread_mach_thread_np(t->handle);
+   }
+}
+#endif
+
 void thread_init(void)
 {
    assert(my_thread == NULL);
 
    my_thread = thread_new(NULL, NULL, MAIN_THREAD, xstrdup("main thread"));
    my_thread->handle = pthread_self();
+
+#ifdef __APPLE__
+   my_thread->port = pthread_mach_thread_np(my_thread->handle);
+   pthread_atfork(NULL, NULL, reset_mach_ports);
+#endif
 
    assert(my_thread->id == 0);
 
@@ -331,6 +393,28 @@ void thread_init(void)
 #endif
 
    atexit(join_worker_threads);
+
+#ifdef POSIX_SUSPEND
+   sem_init(&stop_sem, 0, 0);
+
+   struct sigaction sa = {
+      .sa_sigaction = suspend_handler,
+      .sa_flags = SA_RESTART | SA_SIGINFO
+   };
+   sigfillset(&sa.sa_mask);
+   unmask_fatal_signals(&sa.sa_mask);
+
+   sigaction(SIGSUSPEND, &sa, NULL);
+   sigaction(SIGRESUME, &sa, NULL);
+
+   sigset_t mask;
+   PTHREAD_CHECK(pthread_sigmask, SIG_SETMASK, NULL, &mask);
+
+   sigdelset(&mask, SIGSUSPEND);
+   sigaddset(&mask, SIGRESUME);
+
+   PTHREAD_CHECK(pthread_sigmask, SIG_SETMASK, &mask, NULL);
+#endif
 }
 
 int thread_id(void)
@@ -342,7 +426,6 @@ int thread_id(void)
 void thread_sleep(int usec)
 {
    usleep(usec);
-   // TODO: thread_poll here
 }
 
 static void *thread_wrapper(void *arg)
@@ -351,6 +434,12 @@ static void *thread_wrapper(void *arg)
    my_thread = arg;
 
    void *result = (*my_thread->fn)(my_thread->arg);
+
+   // Avoid races with stop_world
+   SCOPED_LOCK(stop_lock);
+
+   assert(threads[my_thread->id] == my_thread);
+   atomic_store(&(threads[my_thread->id]),  NULL);
 
    atomic_add(&running_threads, -1);
    return result;
@@ -363,10 +452,17 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
    char *name = xvasprintf(fmt, ap);
    va_end(ap);
 
+   // Avoid races with stop_world
+   SCOPED_LOCK(stop_lock);
+
    nvc_thread_t *thread = thread_new(fn, arg, USER_THREAD, name);
 
    PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                  thread_wrapper, thread);
+
+#ifdef __APPLE__
+   thread->port = pthread_mach_thread_np(thread->handle);
+#endif
 
    return thread;
 }
@@ -378,9 +474,6 @@ void *thread_join(nvc_thread_t *thread)
 
    void *retval = NULL;
    PTHREAD_CHECK(pthread_join, thread->handle, &retval);
-
-   assert(threads[thread->id] == thread);
-   atomic_store(&(threads[thread->id]),  NULL);
 
    //free(thread->name);
    //free(thread);
@@ -975,4 +1068,203 @@ void async_barrier(void)
       if (!globalq_poll(&globalq, &(my_thread->queue)))
          maybe_backoff();
    }
+}
+
+#ifdef POSIX_SUSPEND
+static void suspend_handler(int sig, siginfo_t *info, void *context)
+{
+   if (info->si_pid != getpid())
+      return;   // Not sent by us, ignore it
+   else if (sig == SIGRESUME)
+      return;
+
+   const int olderrno = errno;
+
+   if (my_thread != NULL) {
+      struct cpu_state cpu;
+      fill_cpu_state(&cpu, (ucontext_t *)context);
+
+      stop_world_fn_t callback = atomic_load(&stop_callback);
+      void *arg = atomic_load(&stop_arg);
+
+      (*callback)(my_thread->id, &cpu, arg);
+   }
+
+   sem_post(&stop_sem);
+
+   sigset_t mask;
+   sigfillset(&mask);
+   unmask_fatal_signals(&mask);
+   sigdelset(&mask, SIGRESUME);
+
+   sigsuspend(&mask);
+
+   sem_post(&stop_sem);
+
+   errno = olderrno;
+}
+#endif
+
+void stop_world(stop_world_fn_t callback, void *arg)
+{
+   nvc_lock(&stop_lock);
+
+   atomic_store(&stop_callback, callback);
+   atomic_store(&stop_arg, arg);
+
+   const int maxthread = relaxed_load(&max_thread_id);
+
+#ifdef __MINGW32__
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      HANDLE h = pthread_gethandle(thread->handle);
+      if (SuspendThread(h) != 0)
+         fatal_errno("SuspendThread");
+
+      CONTEXT context;
+      context.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL;
+      if (!GetThreadContext(h, &context))
+         fatal_errno("GetThreadContext");
+
+      struct cpu_state cpu;
+      fill_cpu_state(&cpu, &context);
+
+      (*callback)(thread->id, &cpu, arg);
+   }
+#elif defined __APPLE__
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      kern_return_t kern_result;
+      do {
+         kern_result = thread_suspend(thread->port);
+      } while (kern_result == KERN_ABORTED);
+
+      if (kern_result != KERN_SUCCESS)
+         fatal_trace("failed to suspend thread %d (%d)", i, kern_result);
+
+#ifdef __aarch64__
+      arm_thread_state64_t state;
+      mach_msg_type_number_t count = ARM_THREAD_STATE64_COUNT;
+      thread_state_flavor_t flavor = ARM_THREAD_STATE64;
+#else
+      x86_thread_state64_t state;
+      mach_msg_type_number_t count = x86_THREAD_STATE64_COUNT;
+      thread_state_flavor_t flavor = x86_THREAD_STATE64;
+#endif
+      kern_result = thread_get_state(thread->port, flavor,
+                                     (natural_t *)&state, &count);
+      if (kern_result != KERN_SUCCESS)
+         fatal_trace("failed to get thread %d state (%d)", i, kern_result);
+
+      // Fake a ucontext_t that we can pass to fill_cpu_state
+      ucontext_t uc;
+      typeof(*uc.uc_mcontext) mc;
+      uc.uc_mcontext = &mc;
+      mc.__ss = state;
+
+      struct cpu_state cpu;
+      fill_cpu_state(&cpu, &uc);
+
+      (*callback)(thread->id, &cpu, arg);
+   }
+#elif defined __SANITIZE_THREAD__
+   // https://github.com/google/sanitizers/issues/1179
+   fatal_trace("stop_world is not supported with tsan");
+#else
+   assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
+
+   int signalled = 0;
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      PTHREAD_CHECK(pthread_kill, thread->handle, SIGSUSPEND);
+      signalled++;
+   }
+
+   struct timespec ts;
+   if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
+      fatal_errno("clock_gettime");
+
+   ts.tv_sec += SUSPEND_TIMEOUT;
+
+   for (; signalled > 0; signalled--) {
+      if (sem_timedwait(&stop_sem, &ts) != 0)
+         fatal_trace("timeout waiting for %d threads to suspend", signalled);
+   }
+
+   assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
+#endif
+
+   struct cpu_state cpu;
+   capture_registers(&cpu);
+
+   (*callback)(my_thread->id, &cpu, arg);
+}
+
+void start_world(void)
+{
+   assert_lock_held(&stop_lock);
+
+   const int maxthread = relaxed_load(&max_thread_id);
+
+#ifdef __MINGW32__
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      HANDLE h = pthread_gethandle(thread->handle);
+      if (ResumeThread(h) != 1)
+         fatal_errno("ResumeThread");
+   }
+#elif defined __APPLE__
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      kern_return_t kern_result;
+      do {
+         kern_result = thread_resume(thread->port);
+      } while (kern_result == KERN_ABORTED);
+
+      if (kern_result != KERN_SUCCESS)
+         fatal_trace("failed to resume thread %d (%d)", i, kern_result);
+   }
+#else
+   assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
+
+   int signalled = 0;
+   for (int i = 0; i <= maxthread; i++) {
+      nvc_thread_t *thread = atomic_load(&threads[i]);
+      if (thread == NULL || thread == my_thread)
+         continue;
+
+      PTHREAD_CHECK(pthread_kill, thread->handle, SIGRESUME);
+      signalled++;
+   }
+
+   struct timespec ts;
+   if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
+      fatal_errno("clock_gettime");
+
+   ts.tv_sec += SUSPEND_TIMEOUT;
+
+   for (; signalled > 0; signalled--) {
+      if (sem_timedwait(&stop_sem, &ts) != 0)
+         fatal_trace("timeout waiting for %d threads to resume", signalled);
+   }
+
+   assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
+#endif
+
+   nvc_unlock(&stop_lock);
 }

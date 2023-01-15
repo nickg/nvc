@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -58,24 +58,6 @@ static void test_error_fn(diag_t *d)
    errors_seen++;
 }
 
-static void setup(void)
-{
-   const char *lib_dir = getenv("LIB_DIR");
-   if (lib_dir)
-      lib_add_search_path(lib_dir);
-
-   set_default_options();
-
-   opt_set_int(OPT_UNIT_TEST, 1);
-   opt_set_int(OPT_ERROR_LIMIT, -1);
-   opt_set_int(OPT_ARENA_SIZE, 1 << 20);
-   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
-   opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
-   opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
-
-   intern_strings();
-}
-
 static void setup_per_test(void)
 {
    test_lib = lib_tmp("work");
@@ -121,7 +103,6 @@ void check_expected_errors(void)
 TCase *nvc_unit_test(void)
 {
    TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, NULL);
    tcase_add_checked_fixture(tc_core, setup_per_test, teardown_per_test);
    return tc_core;
 }
