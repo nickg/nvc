@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,10 +23,19 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION 7
-#define RT_ALIGN_MASK  0x7
+#define RT_ABI_VERSION   7
+#define RT_ALIGN_MASK    0x7
+#define RT_MULTITHREADED 0
 
 #define TIME_HIGH INT64_MAX  // Value of TIME'HIGH
+
+#if RT_MULTITHREADED
+#define RT_LOCK(x) SCOPED_LOCK(x)
+#define MULTITHREADED_ONLY(x) x
+#else
+#define RT_LOCK(x)
+#define MULTITHREADED_ONLY(x)
+#endif
 
 typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
@@ -46,16 +55,14 @@ typedef enum {
    R_COMPOSITE = (1 << 2),
 } res_flags_t;
 
-typedef enum {
-   NET_F_FORCED       = (1 << 0),
-   NET_F_INOUT        = (1 << 1),
-   // Unused          = (1 << 2),
-   NET_F_R_IDENT      = (1 << 3),
-   NET_F_IMPLICIT     = (1 << 4),
-   NET_F_REGISTER     = (1 << 5),
-   NET_F_FAST_DRIVER  = (1 << 6),
-   NET_F_EFFECTIVE    = (1 << 7),
-} net_flags_t;
+#define NET_F_FORCED       (1 << 0)
+#define NET_F_INOUT        (1 << 1)
+#define NET_F_R_IDENT      (1 << 3)
+#define NET_F_IMPLICIT     (1 << 4)
+#define NET_F_REGISTER     (1 << 5)
+#define NET_F_FAST_DRIVER  (1 << 6)
+#define NET_F_EFFECTIVE    (1 << 7)
+typedef uint8_t net_flags_t;
 
 typedef enum {
    SIGNAL_BUS,

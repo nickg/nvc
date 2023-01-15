@@ -1118,9 +1118,8 @@ void stop_world(stop_world_fn_t callback, void *arg)
    atomic_store(&stop_callback, callback);
    atomic_store(&stop_arg, arg);
 
-   const int maxthread = relaxed_load(&max_thread_id);
-
 #ifdef __MINGW32__
+   const int maxthread = relaxed_load(&max_thread_id);
    for (int i = 0; i <= maxthread; i++) {
       nvc_thread_t *thread = atomic_load(&threads[i]);
       if (thread == NULL || thread == my_thread)
@@ -1141,6 +1140,7 @@ void stop_world(stop_world_fn_t callback, void *arg)
       (*callback)(thread->id, &cpu, arg);
    }
 #elif defined __APPLE__
+   const int maxthread = relaxed_load(&max_thread_id);
    for (int i = 0; i <= maxthread; i++) {
       nvc_thread_t *thread = atomic_load(&threads[i]);
       if (thread == NULL || thread == my_thread)
@@ -1186,6 +1186,7 @@ void stop_world(stop_world_fn_t callback, void *arg)
    assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
 
    int signalled = 0;
+   const int maxthread = relaxed_load(&max_thread_id);
    for (int i = 0; i <= maxthread; i++) {
       nvc_thread_t *thread = atomic_load(&threads[i]);
       if (thread == NULL || thread == my_thread)

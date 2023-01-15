@@ -77,9 +77,9 @@ void assert_lock_held(nvc_lock_t *lock);
 void __scoped_unlock(nvc_lock_t **plock);
 
 #define SCOPED_LOCK(lock)                               \
-  __attribute__((cleanup(__scoped_unlock), unused))     \
-  nvc_lock_t *__lock = &(lock);                         \
-  nvc_lock(&(lock));
+   __attribute__((cleanup(__scoped_unlock), unused))    \
+   nvc_lock_t *UNIQUE(__lock) = &(lock);                \
+   nvc_lock(&(lock));
 
 typedef struct _workq workq_t;
 

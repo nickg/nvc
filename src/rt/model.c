@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -443,8 +443,10 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->delta_driverq = workq_new(m);
    m->effq          = workq_new(m);
 
+#if !RT_MULTITHREADED
    workq_not_thread_safe(m->procq);
    workq_not_thread_safe(m->delta_procq);
+#endif
    workq_not_thread_safe(m->postponedq);
    workq_not_thread_safe(m->driverq);
    workq_not_thread_safe(m->delta_driverq);
@@ -1417,6 +1419,8 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
                                int offset, int count)
 {
+   MULTITHREADED_ONLY(assert_lock_held(&s->lock));
+
    rt_nexus_t *n0 = &(s->nexus);
    if (likely(offset == 0 && n0->width == count))
       return n0;
@@ -2674,6 +2678,8 @@ static inline void check_reject_limit(rt_signal_t *s, uint64_t after,
 
 bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
 {
+   RT_LOCK(s->lock);
+
    TRACE("force signal %s to %"PRIu64"%s",
          istr(tree_ident(s->where)), buf[0], count > 1 ? "..." : "");
 
@@ -2813,8 +2819,9 @@ void *rt_tlab_alloc(size_t size)
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
-sig_shared_t *x_init_signal(int count, int size, const uint8_t *values,
-                            net_flags_t flags, tree_t where, int offset)
+sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
+                            const uint8_t *values, net_flags_t flags,
+                            tree_t where, int32_t offset)
 {
    TRACE("init signal %s count=%d size=%d values=%s flags=%x offset=%d",
          istr(tree_ident(where)), count, size,
@@ -2838,6 +2845,7 @@ sig_shared_t *x_init_signal(int count, int size, const uint8_t *values,
 void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("drive signal %s+%d count=%d", istr(tree_ident(s->where)),
          offset, count);
@@ -2882,6 +2890,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
                         int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_sched_waveform_s %s+%d value=%"PRIi64" after=%s reject=%s",
          istr(tree_ident(s->where)), offset, scalar, trace_time(after),
@@ -2901,6 +2910,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
                       int32_t count, int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_sched_waveform %s+%d value=%s count=%d after=%s reject=%s",
          istr(tree_ident(s->where)), offset, fmt_values(values, count),
@@ -2927,6 +2937,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_test_net_event %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
@@ -2948,6 +2959,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_test_net_active %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
@@ -2970,6 +2982,7 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
                    bool oneshot, sig_shared_t *wake_ss)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_sched_event %s+%d count=%d oneshot=%d proc %s",
          istr(tree_ident(s->where)), offset, count, oneshot,
@@ -2994,6 +3007,7 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_alias_signal(sig_shared_t *ss, tree_t where)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("alias signal %s to %s", istr(tree_ident(s->where)),
          istr(tree_ident(where)));
@@ -3020,6 +3034,7 @@ void x_claim_tlab(tlab_t *tlab)
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_last_event %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
@@ -3043,6 +3058,7 @@ int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 int64_t x_last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_last_active %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
@@ -3069,7 +3085,10 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
                   ffi_closure_t *closure)
 {
    rt_signal_t *src_s = container_of(src_ss, rt_signal_t, shared);
+   RT_LOCK(src_s->lock);
+
    rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
+   RT_LOCK(dst_s->lock);
 
    TRACE("map signal %s+%d to %s+%d count %d/%d%s",
          istr(tree_ident(src_s->where)), src_offset,
@@ -3154,6 +3173,7 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
                  const uint8_t *values, uint32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("map const %s to %s+%d count %d", fmt_values(values, count),
          istr(tree_ident(s->where)), offset, count);
@@ -3224,6 +3244,7 @@ void x_pop_scope(void)
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_driving %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);

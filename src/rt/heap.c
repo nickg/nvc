@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,8 @@
 //
 
 #include "util.h"
-#include "heap.h"
+#include "rt/heap.h"
+#include "rt/rt.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -93,6 +94,8 @@ void heap_free(heap_t *h)
 
 void *heap_extract_min(heap_t *h)
 {
+   RT_LOCK(h->lock);
+
    if (unlikely(h->size < 1))
       fatal_trace("heap underflow") LCOV_EXCL_LINE;
 
@@ -105,6 +108,8 @@ void *heap_extract_min(heap_t *h)
 
 void *heap_min(heap_t *h)
 {
+   RT_LOCK(h->lock);
+
    if (unlikely(h->size < 1))
       fatal_trace("heap underflow") LCOV_EXCL_LINE;
 
@@ -113,6 +118,8 @@ void *heap_min(heap_t *h)
 
 void heap_insert(heap_t *h, uint64_t key, void *user)
 {
+   RT_LOCK(h->lock);
+
    if (unlikely(h->size == h->max_size)) {
       h->max_size *= 2;
       h->nodes = xrealloc_array(h->nodes, h->max_size, sizeof(heap_node_t));
@@ -128,6 +135,8 @@ void heap_insert(heap_t *h, uint64_t key, void *user)
 
 void heap_walk(heap_t *h, heap_walk_fn_t fn, void *context)
 {
+   RT_LOCK(h->lock);
+
    for (size_t i = 1; i <= h->size; i++)
       (*fn)(KEY(h, i), USER(h, i), context);
 }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
 #ifndef _HEAP_H
 #define _HEAP_H
 
+#include "thread.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -27,6 +29,7 @@ typedef struct {
    heap_node_t *nodes;
    size_t       size;
    size_t       max_size;
+   nvc_lock_t   lock;
 } heap_t;
 
 typedef void (*heap_walk_fn_t)(uint64_t key, void *user, void *context);
@@ -38,6 +41,6 @@ void *heap_min(heap_t *h);
 void heap_insert(heap_t *h, uint64_t key, void *user);
 void heap_walk(heap_t *h, heap_walk_fn_t fn, void *context);
 
-#define heap_size(h) ((h)->size)
+#define heap_size(h) atomic_load(&(h)->size)
 
 #endif

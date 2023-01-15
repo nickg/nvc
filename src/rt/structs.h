@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "jit/jit-ffi.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
+#include "thread.h"
 
 typedef void *(*value_fn_t)(rt_nexus_t *);
 
@@ -179,9 +180,9 @@ typedef struct _rt_nexus {
    rt_net_t     *net;
    rt_value_t    forcing;
    uint32_t      width;
-   net_flags_t   flags : 8;
-   unsigned      size : 8;
-   unsigned      n_sources : 8;
+   net_flags_t   flags;
+   uint8_t       size;
+   uint8_t       n_sources;
    rt_source_t   sources;
    rt_signal_t  *signal;
    rt_source_t  *outputs;
@@ -208,6 +209,7 @@ typedef struct _rt_signal {
    rt_scope_t     *parent;
    rt_index_t     *index;
    res_memo_t     *resolution;
+   nvc_lock_t      lock;
    net_flags_t     flags;
    uint32_t        n_nexus;
    rt_nexus_t      nexus;

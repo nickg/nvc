@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -111,6 +111,10 @@
 #endif
 
 #define UNUSED __attribute__((unused))
+
+#define PASTE(x, y) x ## y
+#define JOIN(x, y) PASTE(x, y)
+#define UNIQUE(name) JOIN(name, __COUNTER__)
 
 #define LCOV_EXCL_LINE
 #define LCOV_EXCL_START
