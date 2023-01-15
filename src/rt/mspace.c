@@ -58,11 +58,6 @@ typedef struct {
    work_list_t worklist;
 } gc_state_t;
 
-typedef struct {
-   struct cpu_state  cpu;
-   intptr_t         *stack_limit;
-} gc_thread_t;
-
 typedef struct _free_list free_list_t;
 
 struct _free_list {
@@ -89,7 +84,7 @@ struct _mspace {
 #endif
 };
 
-static gc_thread_t threads[MAX_THREADS];
+static intptr_t *stack_limit[MAX_THREADS];
 
 static void mspace_gc(mspace_t *m);
 static bool is_mspace_ptr(mspace_t *m, char *p);
@@ -157,7 +152,7 @@ void mspace_destroy(mspace_t *m)
 void mspace_stack_limit(void *limit)
 {
    assert(limit != NULL);
-   threads[thread_id()].stack_limit = limit;
+   atomic_store(&(stack_limit[thread_id()]), limit);
 }
 
 static void *mspace_try_alloc(mspace_t *m, size_t size)
@@ -209,7 +204,9 @@ void *mspace_alloc(mspace_t *m, size_t size)
       return NULL;
 
 #ifdef DEBUG
-   if (m->stress)
+   if (stack_limit[thread_id()] == NULL)
+      fatal_trace("cannot allocate without setting stack limit");
+   else if (m->stress)
       mspace_gc(m);
 #endif
 
@@ -422,8 +419,9 @@ static void mspace_mark_mptr(mspace_t *m, mptr_t ptr, gc_state_t *state)
 
 static void mspace_suspend_cb(int thread_id, struct cpu_state *cpu, void *arg)
 {
+   struct cpu_state *array = arg;
    assert(thread_id < MAX_THREADS);
-   threads[thread_id].cpu = *cpu;
+   array[thread_id] = *cpu;
 }
 
 __attribute__((no_sanitize_address, noinline))
@@ -431,8 +429,10 @@ static void mspace_gc(mspace_t *m)
 {
    const uint64_t start_ticks = get_timestamp_us();
 
-   if (threads[thread_id()].stack_limit == NULL)
+#ifdef DEBUG
+   if (stack_limit[thread_id()] == NULL)
       fatal_trace("GC requested without setting stack limit");
+#endif
 
 #if defined __SANITIZE_THREAD__ && !defined __APPLE__
    return;   // Cannot reliably suspend threads with tsan
@@ -441,21 +441,28 @@ static void mspace_gc(mspace_t *m)
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
 
+   struct cpu_state *cpu LOCAL =
+      xcalloc_array(MAX_THREADS, sizeof(struct cpu_state));
+
    SCOPED_LOCK(m->lock);
 
-   stop_world(mspace_suspend_cb, NULL);
+   stop_world(mspace_suspend_cb, cpu);
 
    for (int i = 0; i < MAX_THREADS; i++) {
       if (get_thread(i) == NULL)
          continue;
 
+      intptr_t *limit = atomic_load(&(stack_limit[i]));
+      if (limit == NULL)
+         continue;
+
       for (int j = 0; j < MAX_CPU_REGS; j++)
-         mspace_mark_root(m, threads[i].cpu.regs[j], &state);
+         mspace_mark_root(m, cpu[i].regs[j], &state);
 
-      intptr_t *stack_top = (intptr_t *)threads[i].cpu.sp;
-      assert(stack_top <= threads[i].stack_limit);   // Stack must grow down
+      intptr_t *stack_top = (intptr_t *)cpu[i].sp;
+      assert(stack_top <= limit);   // Stack must grow down
 
-      for (intptr_t *p = stack_top; p < threads[i].stack_limit; p++)
+      for (intptr_t *p = stack_top; p < limit; p++)
          mspace_mark_root(m, *p, &state);
    }
 
