@@ -48,9 +48,10 @@ typedef struct {
 typedef A(cover_tag_t) tag_array_t;
 typedef A(line_range_t) range_array_t;
 
-typedef struct _cover_report_ctx cover_report_ctx_t;
-typedef struct _cover_file       cover_file_t;
-typedef struct _cover_scope      cover_scope_t;
+typedef struct _cover_report_ctx    cover_report_ctx_t;
+typedef struct _cover_file          cover_file_t;
+typedef struct _cover_scope         cover_scope_t;
+typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
 
 typedef struct _cover_scope {
    ident_t        name;
@@ -128,6 +129,37 @@ struct _cover_report_ctx {
 };
 
 static cover_file_t  *files;
+
+struct _cover_exclude_ctx {
+   FILE     *ef;
+   char     *line;
+   int      line_num;
+   size_t   line_len;
+};
+
+static const char* tag_kind_str[] = {
+   "statement",
+   "branch",
+   "toggle",
+   "expression",
+   "hierarchy",
+   "last"
+};
+
+static const struct {
+   const char *name;
+   uint32_t   flag;
+} bin_map[] = {
+   { "BIN_TRUE",       COV_FLAG_TRUE},
+   { "BIN_FALSE",      COV_FLAG_FALSE},
+   { "BIN_CHOICE",     COV_FLAG_FALSE},
+   { "BIN_0_0",        COV_FLAG_00},
+   { "BIN_0_1",        COV_FLAG_01},
+   { "BIN_1_0",        COV_FLAG_10},
+   { "BIN_1_1",        COV_FLAG_11},
+   { "BIN_0_TO_1",     COV_FLAG_TOGGLE_TO_1},
+   { "BIN_1_TO_0",     COV_FLAG_TOGGLE_TO_0},
+};
 
 enum std_ulogic {
    _U  = 0x0,
@@ -774,6 +806,187 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
       fn = &cover_toggle_cb_0_1_z;
 
    model_set_event_cb(m, s, fn, toggle_mask, false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Exclude file
+///////////////////////////////////////////////////////////////////////////////
+
+#define COVER_EXCLUDE_MSG(DIAG_LEVEL, ctx, fmt)   {                     \
+      va_list args;                                                     \
+      va_start(args, fmt);                                              \
+                                                                        \
+      diag_t *d = diag_new(DIAG_LEVEL, NULL);                           \
+      diag_printf(d, "Line %d: ", ctx->line_num);                       \
+      diag_vprintf(d, fmt, args);                                       \
+      diag_emit(d);                                                     \
+                                                                        \
+      va_end(args);                                                     \
+   }
+
+void cover_exclude_error(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+{
+   COVER_EXCLUDE_MSG(DIAG_ERROR, ctx, fmt)
+
+   fatal_exit(EXIT_FAILURE);
+}
+
+void cover_exclude_warning(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+{
+   COVER_EXCLUDE_MSG(DIAG_WARN, ctx, fmt)
+}
+
+void cover_exclude_info(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+{
+   COVER_EXCLUDE_MSG(DIAG_NOTE, ctx, fmt)
+}
+
+char* cover_bmask_to_bin_list(uint32_t bmask)
+{
+   char *str = calloc(128, sizeof(char));
+   bool empty = true;
+   for (int i = 0; i < ARRAY_LEN(bin_map); i++)
+      if (bmask & bin_map[i].flag) {
+         if (!empty)
+            strcat(str, ", ");
+         strcat(str, bin_map[i].name);
+         empty = false;
+      }
+   return str;
+}
+
+uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
+                                cover_tag_t *tag)
+{
+   uint32_t allowed = tag->flags & COVER_FLAGS_ALL_BINS;
+
+   // Check if bin is valid for given coverage tag kind
+   for (int i = 0; i < ARRAY_LEN(bin_map); i++) {
+      if (strcmp(bin, bin_map[i].name))
+         continue;
+      if ((allowed & bin_map[i].flag) != 0)
+         break;
+      return bin_map[i].flag;
+   }
+
+   char LOCAL *bin_list = cover_bmask_to_bin_list(allowed);
+   cover_exclude_error(ctx, "Invalid bin: $bold$'%s'$$ for %s: '%s'."
+                            "Valid bins are: %s", bin, tag_kind_str[tag->kind],
+                            istr(tag->hier), bin_list);
+   return 0;
+}
+
+void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
+                        const char *excl_hier, const char *bin)
+{
+   bool match = false;
+   int len = strlen(excl_hier);
+
+   for (int i = 0; i < tagging->tags.count; i++) {
+      cover_tag_t *tag = AREF(tagging->tags, i);
+
+      if (tag->kind == TAG_HIER || tag->kind == TAG_LAST)
+         continue;
+
+      if (ident_glob(tag->hier, excl_hier, len)) {
+         match = true;
+
+         // By default, exclude all bins of a tag
+         uint32_t bmask = (tag->kind == TAG_STMT) ?
+                              0xFFFFFFFF : (tag->flags & (COVER_FLAGS_ALL_BINS));
+
+#ifdef COVER_DEBUG
+         printf("Applying matching exclude:\n");
+         printf("    Tag:        %s\n", istr(tag->hier));
+         printf("    Tag flags:  %x\n", tag->flags);
+         printf("    Tag data:   %x\n", tag->data);
+         printf("    Bin mask:   %x\n", bmask);
+#endif
+
+         if (bin) {
+            if (tag->kind == TAG_STMT)
+               cover_exclude_error(ctx, "Statements do not contain bins,"
+                                   "but bin '%s' was given for statement: '%s'",
+                                   bin, istr(tag->hier));
+            bmask = cover_bin_str_to_bmask(ctx, bin, tag);
+         }
+
+         // Info about exclude
+         if (tag->kind == TAG_STMT)
+            cover_exclude_info(ctx, "Excluding statement: '%s'", istr(tag->hier));
+         else {
+            char LOCAL *blist = cover_bmask_to_bin_list(bmask);
+            cover_exclude_info(ctx, "Excluding %s: '%s' bins: %s",
+                                     tag_kind_str[tag->kind], istr(tag->hier),
+                                     blist);
+         }
+
+         // Check attempt to exclude something already covered
+         uint32_t excl_cov = bmask & tag->data;
+         if (excl_cov) {
+            if (tag->kind == TAG_STMT)
+               cover_exclude_warning(ctx, "Statement: '%s' already covered!",
+                                     istr(tag->hier));
+            else {
+               char LOCAL *blist = cover_bmask_to_bin_list(excl_cov);
+               cover_exclude_warning(ctx, "%s: '%s' bins: %s already covered!",
+                                     tag_kind_str[tag->kind], istr(tag->hier),
+                                     blist);
+            }
+         }
+
+         // Mark as excluded
+         tag->excl_msk |= bmask;
+      }
+   }
+
+   if (!match)
+      cover_exclude_warning(ctx,
+         "Exluded hierarchy does not match any coverage item: '%s'", excl_hier);
+}
+
+void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
+{
+   cover_exclude_ctx_t ctx = {0};
+
+   ctx.ef = fopen(path, "r");
+   if (ctx.ef == NULL)
+      fatal("Failed to open exclude file: %s\n", path);
+
+   char *delim = " ";
+   ssize_t read;
+
+   while ((read = getline(&(ctx.line), &(ctx.line_len), ctx.ef)) != -1) {
+
+      // Strip comments and newline
+      char *cmnt = strchr(ctx.line, '#');
+      char *nl = strchr(ctx.line, '\n');
+      if (cmnt)
+         *cmnt = '\0';
+      if (nl)
+         *nl = '\0';
+
+      // Parse line as space separated tokens
+      char *tok = strtok(ctx.line, delim);
+      while (tok != NULL) {
+         if (!strcmp(tok, "exclude")) {
+            char *excl_hier = strtok(NULL, delim);
+            char *bin = strtok(NULL, delim);
+
+            if (!excl_hier)
+               cover_exclude_error(&ctx, "Exclude hierarchy missing!");
+
+            cover_exclude_hier(tagging, &ctx, excl_hier, bin);
+         }
+         else
+            cover_exclude_error(&ctx, "Invalid command: $bold$%s$$", tok);
+
+         tok = strtok(NULL, delim);
+      }
+      ctx.line_num++;
+   }
+
+   fclose(ctx.ef);
 }
 
 
