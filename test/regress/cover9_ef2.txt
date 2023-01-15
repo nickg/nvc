@@ -1,0 +1,5 @@
+# Warning for tag which does not match any hierarchy
+exclude THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING
+
+# Invalid command
+exducles HALO.HALO
