@@ -1,62 +1,62 @@
-** Note: Line 4: Excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_0_TO_1, BIN_1_TO_0
 ** Warning: Line 4: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_1_TO_0 already covered!
-** Note: Line 4: Excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: Excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: Excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: Excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: Excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0'
-** Warning: Line 4: Statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
-** Note: Line 4: Excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0'
+** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
+** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
 ** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_1 already covered!
-** Note: Line 4: Excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0'
-** Warning: Line 4: Statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' already covered!
-** Note: Line 4: Excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
+** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0'
+** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' already covered!
+** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
 ** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE already covered!
-** Note: Line 4: Excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
+** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
 ** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE already covered!
-** Note: Line 4: Excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
+** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
 ** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0 already covered!
-** Note: Line 4: Excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE, BIN_FALSE
+** Note: Line 4: excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE, BIN_FALSE
 ** Warning: Line 4: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_FALSE already covered!
-** Note: Line 4: Excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._S0'
-** Note: Line 4: Excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0'
-** Warning: Line 4: Statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
-** Note: Line 4: Excluding statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0'
-** Warning: Line 4: Statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' already covered!
-** Note: Line 9: Excluding statement: 'WORK.COVER9.AND_GATE._S0._B0._S0'
-** Note: Line 10: Excluding statement: 'WORK.COVER9._P1._S0._S3'
-** Note: Line 11: Excluding statement: 'WORK.COVER9._P1._S0._S4'
-** Note: Line 12: Excluding statement: 'WORK.COVER9._P1._S0._S5'
-** Note: Line 19: Excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
-** Note: Line 22: Excluding branch: 'WORK.COVER9._P1._S0._B3._B0' bins: BIN_CHOICE
-** Note: Line 25: Excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
-** Note: Line 26: Excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
-** Note: Line 31: Excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_0
-** Note: Line 32: Excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
-** Note: Line 33: Excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
-** Note: Line 34: Excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_1
-** Note: Line 36: Excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
+** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._S0'
+** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0'
+** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
+** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0'
+** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' already covered!
+** Note: Line 9: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0._S0'
+** Note: Line 10: excluding statement: 'WORK.COVER9._P1._S0._S3'
+** Note: Line 11: excluding statement: 'WORK.COVER9._P1._S0._S4'
+** Note: Line 12: excluding statement: 'WORK.COVER9._P1._S0._S5'
+** Note: Line 19: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
+** Note: Line 22: excluding branch: 'WORK.COVER9._P1._S0._B3._B0' bins: BIN_CHOICE
+** Note: Line 25: excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
+** Note: Line 26: excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
+** Note: Line 31: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_0
+** Note: Line 32: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
+** Note: Line 33: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
+** Note: Line 34: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_1
+** Note: Line 36: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
 ** Warning: Line 36: expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_FALSE already covered!
-** Note: Line 37: Excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
+** Note: Line 37: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
 ** Warning: Line 37: expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_FALSE already covered!
-** Note: Line 38: Excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
-** Note: Line 44: Excluding toggle: 'WORK.COVER9.S_A' bins: BIN_0_TO_1
-** Note: Line 45: Excluding toggle: 'WORK.COVER9.S_B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 46: Excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_0_TO_1
-** Note: Line 47: Excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_1_TO_0
-** Note: Line 48: Excluding toggle: 'WORK.COVER9.S_Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 49: Excluding toggle: 'WORK.COVER9.S_Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 50: Excluding toggle: 'WORK.COVER9.A' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 51: Excluding toggle: 'WORK.COVER9.B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 52: Excluding toggle: 'WORK.COVER9.Y' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 38: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
+** Note: Line 44: excluding toggle: 'WORK.COVER9.S_A' bins: BIN_0_TO_1
+** Note: Line 45: excluding toggle: 'WORK.COVER9.S_B' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 46: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_0_TO_1
+** Note: Line 47: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_1_TO_0
+** Note: Line 48: excluding toggle: 'WORK.COVER9.S_Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 49: excluding toggle: 'WORK.COVER9.S_Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 50: excluding toggle: 'WORK.COVER9.A' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 51: excluding toggle: 'WORK.COVER9.B' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: Line 52: excluding toggle: 'WORK.COVER9.Y' bins: BIN_0_TO_1, BIN_1_TO_0
 ** Note: code coverage results for: WORK.COVER9
 ** Note:      statement:     100.0 % (29/29)
 ** Note:      branch:        100.0 % (10/10)
 ** Note:      toggle:        79.4 % (27/34)
 ** Note:      expression:    100.0 % (22/22)
-** Warning: Line 1: Exluded hierarchy does not match any coverage item: 'THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING'
-** Error: Line 4: Invalid command: exducles
-** Error: Line 2: Invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Error: Line 2: Invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Error: Line 2: Statements do not contain bins,but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
-** Error: Line 2: Exclude hierarchy missing!
+** Warning: Line 1: exluded hierarchy does not match any coverage item: 'THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING'
+** Error: Line 4: invalid command: exducles
+** Error: Line 2: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+** Error: Line 2: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+** Error: Line 2: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
+** Error: Line 2: exclude hierarchy missing!

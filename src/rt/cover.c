@@ -293,7 +293,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
             ctx->level--;
          break;
       default:
-         fatal("Unknown coverage type: %d", kind);
+         fatal("unknown coverage type: %d", kind);
    }
    assert (cnt != NULL);
 
@@ -830,39 +830,39 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
       va_end(args);                                                     \
    }
 
-void cover_exclude_error(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+static void cover_exclude_error(cover_exclude_ctx_t *ctx, const char *fmt, ...)
 {
    COVER_EXCLUDE_MSG(DIAG_ERROR, ctx, fmt)
 
    fatal_exit(EXIT_FAILURE);
 }
 
-void cover_exclude_warning(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+static void cover_exclude_warning(cover_exclude_ctx_t *ctx, const char *fmt, ...)
 {
    COVER_EXCLUDE_MSG(DIAG_WARN, ctx, fmt)
 }
 
-void cover_exclude_info(cover_exclude_ctx_t *ctx, const char *fmt, ...)
+static void cover_exclude_info(cover_exclude_ctx_t *ctx, const char *fmt, ...)
 {
    COVER_EXCLUDE_MSG(DIAG_NOTE, ctx, fmt)
 }
 
-char* cover_bmask_to_bin_list(uint32_t bmask)
+static char* cover_bmask_to_bin_list(uint32_t bmask)
 {
-   char *str = calloc(128, sizeof(char));
+   LOCAL_TEXT_BUF tb = tb_new();
    bool empty = true;
    for (int i = 0; i < ARRAY_LEN(bin_map); i++)
       if (bmask & bin_map[i].flag) {
          if (!empty)
-            strcat(str, ", ");
-         strcat(str, bin_map[i].name);
+            tb_cat(tb, ", ");
+         tb_cat(tb, bin_map[i].name);
          empty = false;
       }
-   return str;
+   return tb_claim(tb);
 }
 
-uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
-                                cover_tag_t *tag)
+static uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
+                                       cover_tag_t *tag)
 {
    uint32_t allowed = tag->flags & COVER_FLAGS_ALL_BINS;
 
@@ -875,14 +875,14 @@ uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
    }
 
    char LOCAL *bin_list = cover_bmask_to_bin_list(allowed);
-   cover_exclude_error(ctx, "Invalid bin: $bold$'%s'$$ for %s: '%s'."
+   cover_exclude_error(ctx, "invalid bin: $bold$'%s'$$ for %s: '%s'."
                             "Valid bins are: %s", bin, tag_kind_str[tag->kind],
                             istr(tag->hier), bin_list);
    return 0;
 }
 
-void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
-                        const char *excl_hier, const char *bin)
+static void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
+                               const char *excl_hier, const char *bin)
 {
    bool match = false;
    int len = strlen(excl_hier);
@@ -910,7 +910,7 @@ void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
 
          if (bin) {
             if (tag->kind == TAG_STMT)
-               cover_exclude_error(ctx, "Statements do not contain bins,"
+               cover_exclude_error(ctx, "statements do not contain bins, "
                                    "but bin '%s' was given for statement: '%s'",
                                    bin, istr(tag->hier));
             bmask = cover_bin_str_to_bmask(ctx, bin, tag);
@@ -918,10 +918,10 @@ void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
 
          // Info about exclude
          if (tag->kind == TAG_STMT)
-            cover_exclude_info(ctx, "Excluding statement: '%s'", istr(tag->hier));
+            cover_exclude_info(ctx, "excluding statement: '%s'", istr(tag->hier));
          else {
             char LOCAL *blist = cover_bmask_to_bin_list(bmask);
-            cover_exclude_info(ctx, "Excluding %s: '%s' bins: %s",
+            cover_exclude_info(ctx, "excluding %s: '%s' bins: %s",
                                      tag_kind_str[tag->kind], istr(tag->hier),
                                      blist);
          }
@@ -930,7 +930,7 @@ void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
          uint32_t excl_cov = bmask & tag->data;
          if (excl_cov) {
             if (tag->kind == TAG_STMT)
-               cover_exclude_warning(ctx, "Statement: '%s' already covered!",
+               cover_exclude_warning(ctx, "statement: '%s' already covered!",
                                      istr(tag->hier));
             else {
                char LOCAL *blist = cover_bmask_to_bin_list(excl_cov);
@@ -947,16 +947,16 @@ void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ctx,
 
    if (!match)
       cover_exclude_warning(ctx,
-         "Exluded hierarchy does not match any coverage item: '%s'", excl_hier);
+         "exluded hierarchy does not match any coverage item: '%s'", excl_hier);
 }
 
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
 {
-   cover_exclude_ctx_t ctx = {0};
+   cover_exclude_ctx_t ctx = {};
 
    ctx.ef = fopen(path, "r");
    if (ctx.ef == NULL)
-      fatal("Failed to open exclude file: %s\n", path);
+      fatal("failed to open exclude file: %s\n", path);
 
    char *delim = " ";
    ssize_t read;
@@ -964,27 +964,23 @@ void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
    while ((read = getline(&(ctx.line), &(ctx.line_len), ctx.ef)) != -1) {
 
       // Strip comments and newline
-      char *cmnt = strchr(ctx.line, '#');
-      char *nl = strchr(ctx.line, '\n');
-      if (cmnt)
-         *cmnt = '\0';
-      if (nl)
-         *nl = '\0';
+      char *p = ctx.line;
+      for (; *p != '\0' && *p != '#' && *p != '\n'; p++);
+      *p = '\0';
 
       // Parse line as space separated tokens
-      char *tok = strtok(ctx.line, delim);
-      while (tok != NULL) {
+      for (char *tok = strtok(ctx.line, delim); tok; tok = strtok(NULL, delim)) {
          if (!strcmp(tok, "exclude")) {
             char *excl_hier = strtok(NULL, delim);
             char *bin = strtok(NULL, delim);
 
             if (!excl_hier)
-               cover_exclude_error(&ctx, "Exclude hierarchy missing!");
+               cover_exclude_error(&ctx, "exclude hierarchy missing!");
 
             cover_exclude_hier(tagging, &ctx, excl_hier, bin);
          }
          else
-            cover_exclude_error(&ctx, "Invalid command: $bold$%s$$", tok);
+            cover_exclude_error(&ctx, "invalid command: $bold$%s$$", tok);
 
          tok = strtok(NULL, delim);
       }
@@ -1419,7 +1415,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair)
       }
       break;
    default:
-      fatal("Unsupported type of code coverage: %d !", pair->tag->kind);
+      fatal("unsupported type of code coverage: %d !", pair->tag->kind);
    }
    fprintf(f, "</table>");
 }
@@ -1466,7 +1462,7 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair)
       break;
 
    default:
-      fatal("Unsupported type of code coverage: %d !", pair->tag->kind);
+      fatal("unsupported type of code coverage: %d !", pair->tag->kind);
    }
    fprintf(f, "</p>");
 }
@@ -1644,7 +1640,7 @@ static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
       nested_hits = &(ctx->nested_stats.hit_expressions);
       break;
    default:
-      fatal("Unsupported type of code coverage: %d !", tag->kind);
+      fatal("unsupported type of code coverage: %d !", tag->kind);
    }
 
    (*flat_total)++;
@@ -1674,7 +1670,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
    // TODO: Handle escaped identifiers in hierarchy path!
    FILE *f = fopen(hier, "w");
    if (f == NULL)
-      fatal("Failed to open report file: %s\n", hier);
+      fatal("failed to open report file: %s\n", hier);
 
    ctx->ch_stmt.hits = xcalloc_array(1024, sizeof(cover_pair_t));
    ctx->ch_stmt.miss = xcalloc_array(1024, sizeof(cover_pair_t));
@@ -1820,7 +1816,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             break;
 
          default:
-            fatal("Unsupported type of code coverage: %d !", tag->kind);
+            fatal("unsupported type of code coverage: %d !", tag->kind);
          }
       }
    }
