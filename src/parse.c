@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -5354,6 +5354,7 @@ static type_t p_integer_type_definition(tree_t r, ident_t id)
    type_t t = type_new(T_INTEGER);
    type_add_dim(t, r);
    type_set_ident(t, id);
+   mangle_type(nametab, t);
 
    return t;
 }
@@ -5367,6 +5368,7 @@ static type_t p_real_type_definition(tree_t r, ident_t id)
    type_t t = type_new(T_REAL);
    type_add_dim(t, r);
    type_set_ident(t, id);
+   mangle_type(nametab, t);
 
    return t;
 }
@@ -5425,6 +5427,7 @@ static type_t p_physical_type_definition(tree_t range, ident_t id)
 
    type_t t = type_new(T_PHYSICAL);
    type_set_ident(t, id);
+   mangle_type(nametab, t);
 
    consume(tUNITS);
 
@@ -5480,6 +5483,7 @@ static type_t p_enumeration_type_definition(ident_t id)
 
    type_t t = type_new(T_ENUM);
    type_set_ident(t, id);
+   mangle_type(nametab, t);
 
    consume(tLPAREN);
 
@@ -5545,6 +5549,7 @@ static type_t p_access_type_definition(ident_t id)
    type_t t = type_new(T_ACCESS);
    type_set_ident(t, id);
    type_set_access(t, p_subtype_indication());
+   mangle_type(nametab, t);
 
    return t;
 }
@@ -5561,6 +5566,7 @@ static type_t p_file_type_definition(ident_t id)
    type_t t = type_new(T_FILE);
    type_set_ident(t, id);
    type_set_file(t, p_type_mark());
+   mangle_type(nametab, t);
 
    return t;
 }
@@ -5602,6 +5608,7 @@ static type_t p_record_type_definition(ident_t id)
 
    type_t r = type_new(T_RECORD);
    type_set_ident(r, id);
+   mangle_type(nametab, r);
 
    do {
       p_element_declaration(r);
@@ -5650,6 +5657,8 @@ static type_t p_unconstrained_array_definition(ident_t id)
       type_add_index_constr(t, p_index_subtype_definition());
    } while (optional(tCOMMA));
 
+   mangle_type(nametab, t);
+
    consume(tRPAREN);
    consume(tOF);
 
@@ -5675,6 +5684,8 @@ static type_t p_constrained_array_definition(ident_t id)
    type_set_base(sub, base);
    type_add_constraint(sub, constraint);
    type_set_ident(sub, id);
+
+   mangle_type(nametab, sub);
 
    consume(tLPAREN);
    do {
@@ -5786,6 +5797,7 @@ static type_t p_protected_type_declaration(tree_t tdecl)
    type_t type = type_new(T_PROTECTED);
    ident_t id = tree_ident(tdecl);
    type_set_ident(type, id);
+   mangle_type(nametab, type);
 
    tree_set_type(tdecl, type);
 
@@ -5862,7 +5874,6 @@ static type_t p_full_type_declaration(tree_t tdecl)
    consume(tIS);
 
    type_t t = p_type_definition(tdecl);
-   mangle_type(nametab, t);
 
    consume(tSEMI);
 

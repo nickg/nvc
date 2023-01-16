@@ -703,3 +703,4 @@ cover8          cover=expression,gold
 issue586        shell
 case15          normal,2008
 driver16        normal
+issue589        normal,2000
