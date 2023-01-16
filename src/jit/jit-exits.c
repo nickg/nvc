@@ -718,11 +718,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int64_t value = args[0].integer;
 
          mspace_t *m = jit_get_mspace(jit_thread_local()->jit);
-         char *buf = mspace_alloc(m, 20);
+         char *buf = mspace_alloc(m, 28);
          if (buf == NULL)
             return;
 
-         ffi_uarray_t u = x_int_to_string(value, buf, 20);
+         ffi_uarray_t u = x_int_to_string(value, buf, 28);
          args[0].pointer = u.ptr;
          args[1].integer = u.dims[0].left;
          args[2].integer = u.dims[0].length;
@@ -1226,8 +1226,8 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 DLLEXPORT
 void _int_to_string(int64_t value, ffi_uarray_t *u)
 {
-   char *buf = rt_tlab_alloc(20);
-   *u = x_int_to_string(value, buf, 20);
+   char *buf = rt_tlab_alloc(28);
+   *u = x_int_to_string(value, buf, 28);
 }
 
 DLLEXPORT
