@@ -4916,7 +4916,8 @@ START_TEST(test_bigarray)
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   vcode_unit_t vu = find_unit("WORK.BIGARRAY.GET_ARRAY()21WORK.BIGARRAY.INT_VEC");
+   vcode_unit_t vu =
+      find_unit("WORK.BIGARRAY.GET_ARRAY()21WORK.BIGARRAY.INT_VEC");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -4944,6 +4945,18 @@ START_TEST(test_issue582)
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
    lower_unit(e, tagging);
 
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue591)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue591.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
    fail_if_errors();
 }
 END_TEST
@@ -5063,6 +5076,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_signal5);
    tcase_add_test(tc, test_bigarray);
    tcase_add_test(tc, test_issue582);
+   tcase_add_test(tc, test_issue591);
    suite_add_tcase(s, tc);
 
    return s;

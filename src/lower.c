@@ -3684,9 +3684,9 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       dims[0].dir   = dir_reg;
 
       for (int i = 1; i < count; i++) {
-         dims[i].left  = lower_array_left(elem_type, i - 1, a0_reg);
-         dims[i].right = lower_array_right(elem_type, i - 1, a0_reg);
-         dims[i].dir   = lower_array_dir(elem_type, i - 1, a0_reg);
+         dims[i].left  = emit_uarray_left(a0_reg, i - 1);
+         dims[i].right = emit_uarray_right(a0_reg, i - 1);
+         dims[i].dir   = emit_uarray_dir(a0_reg, i - 1);
       }
 
       wrap_reg = emit_wrap(mem_reg, dims, count);
