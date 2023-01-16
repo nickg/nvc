@@ -36,8 +36,9 @@ typedef uint32_t wakeup_gen_t;
 typedef struct {
    wakeup_gen_t    wakeup_gen;
    wakeable_kind_t kind : 8;
-   bool            pending;
-   bool            postponed;
+   unsigned        pending : 1;
+   unsigned        postponed : 1;
+   unsigned        delayed : 1;
 } rt_wakeable_t;
 
 typedef struct _rt_proc {
@@ -50,39 +51,6 @@ typedef struct _rt_proc {
    rt_proc_t     *chain;
    mptr_t         privdata;
 } rt_proc_t;
-
-typedef enum {
-   EVENT_TIMEOUT,
-   EVENT_DRIVER,
-   EVENT_PROCESS,
-   EVENT_DISCONNECT,
-} event_kind_t;
-
-typedef struct {
-   timeout_fn_t  fn;
-   void         *user;
-} event_timeout_t;
-
-typedef struct {
-   rt_nexus_t   *nexus;
-   rt_source_t  *source;
-} event_driver_t;
-
-typedef struct {
-   rt_proc_t    *proc;
-   wakeup_gen_t  wakeup_gen;
-} event_proc_t;
-
-struct event {
-   uint64_t            when;
-   event_kind_t        kind;
-   union {
-      event_timeout_t  timeout;
-      event_driver_t   driver;
-      event_proc_t     proc;
-      rt_nexus_t      *effective;
-   };
-};
 
 typedef union {
    uint8_t   bytes[8];

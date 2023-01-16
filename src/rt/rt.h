@@ -39,7 +39,6 @@
 
 typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
-typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(rt_model_t *m, void *user);
 
 typedef enum {

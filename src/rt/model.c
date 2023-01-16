@@ -45,6 +45,13 @@ typedef struct _callback {
    callback_t    *next;
 } callback_t;
 
+typedef enum {
+   EVENT_TIMEOUT,
+   EVENT_DRIVER,
+   EVENT_PROCESS,
+   EVENT_DISCONNECT,
+} event_kind_t;
+
 #define MEMBLOCK_LINE_SZ 64
 #define MEMBLOCK_PAGE_SZ 0x800000
 
@@ -72,7 +79,6 @@ typedef struct _rt_model {
    unsigned           n_signals;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
-   rt_alloc_stack_t   event_stack;
    rt_alloc_stack_t   watch_stack;
    rt_alloc_stack_t   callback_stack;
    rt_watch_t        *watches;
@@ -398,6 +404,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
             p->wakeable.wakeup_gen = 0;
             p->wakeable.pending    = false;
             p->wakeable.postponed  = !!(tree_flags(t) & TREE_F_POSTPONED);
+            p->wakeable.delayed    = false;
 
             *procp = p;
             procp = &(p->chain);
@@ -427,7 +434,6 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
 
    m->can_create_delta = true;
 
-   m->event_stack    = rt_alloc_stack_new(sizeof(event_t), "event");
    m->watch_stack    = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    m->callback_stack = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
@@ -575,8 +581,11 @@ void model_free(rt_model_t *m)
             m->ready_rusage.ms, ru.ms, ru.user, ru.sys, ru.rss, mem / 1024);
    }
 
-   while (heap_size(m->eventq_heap) > 0)
-      rt_free(m->event_stack, heap_extract_min(m->eventq_heap));
+   while (heap_size(m->eventq_heap) > 0) {
+      void *e = heap_extract_min(m->eventq_heap);
+      if (pointer_tag(e) == EVENT_TIMEOUT)
+         rt_free(m->callback_stack, untag_pointer(e, callback_t));
+   }
 
    tlab_release(&__nvc_tlab);
 
@@ -604,7 +613,6 @@ void model_free(rt_model_t *m)
       }
    }
 
-   rt_alloc_stack_destroy(m->event_stack);
    rt_alloc_stack_destroy(m->watch_stack);
    rt_alloc_stack_destroy(m->callback_stack);
 
@@ -711,25 +719,27 @@ size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
    return offset + 1;
 }
 
-static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *wake)
+static inline void set_pending(rt_wakeable_t *wake)
+{
+   assert(!wake->pending);
+   assert(!wake->delayed);
+   wake->pending = true;
+   ++(wake->wakeup_gen);
+}
+
+static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 {
    if (delta == 0) {
-      assert(!wake->wakeable.pending);
-      wake->wakeable.pending = true;
-      ++(wake->wakeable.wakeup_gen);
-
-      workq_do(m->delta_procq, async_run_process, wake);
-
+      set_pending(&proc->wakeable);
+      workq_do(m->delta_procq, async_run_process, proc);
       m->next_is_delta = true;
    }
    else {
-      event_t *e = rt_alloc(m->event_stack);
-      e->when            = m->now + delta;
-      e->kind            = EVENT_PROCESS;
-      e->proc.wakeup_gen = wake->wakeable.wakeup_gen;
-      e->proc.proc       = wake;
+      assert(!proc->wakeable.delayed);
+      proc->wakeable.delayed = true;
 
-      heap_insert(m->eventq_heap, e->when, e);
+      void *e = tag_pointer(proc, EVENT_PROCESS);
+      heap_insert(m->eventq_heap, m->now + delta, e);
    }
 }
 
@@ -741,32 +751,15 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
       m->next_is_delta = true;
    }
    else {
-      event_t *e = rt_alloc(m->event_stack);
-      e->when          = m->now + delta;
-      e->kind          = EVENT_DRIVER;
-      e->driver.nexus  = nexus;
-      e->driver.source = source;
-
-      heap_insert(m->eventq_heap, e->when, e);
+      void *e = tag_pointer(source, EVENT_DRIVER);
+      heap_insert(m->eventq_heap, m->now + delta, e);
    }
 }
 
-static void deltaq_insert_force_release(rt_model_t *m, uint64_t delta,
-                                        rt_nexus_t *nexus)
+static void deltaq_insert_force_release(rt_model_t *m, rt_nexus_t *nexus)
 {
-   if (delta == 0) {
-      workq_do(m->delta_driverq, async_update_driving, nexus);
-      m->next_is_delta = true;
-   }
-   else {
-      event_t *e = rt_alloc(m->event_stack);
-      e->when          = m->now + delta;
-      e->kind          = EVENT_DRIVER;
-      e->driver.nexus  = nexus;
-      e->driver.source = NULL;
-
-      heap_insert(m->eventq_heap, e->when, e);
-   }
+   workq_do(m->delta_driverq, async_update_driving, nexus);
+   m->next_is_delta = true;
 }
 
 static void deltaq_insert_disconnect(rt_model_t *m, uint64_t delta,
@@ -777,13 +770,8 @@ static void deltaq_insert_disconnect(rt_model_t *m, uint64_t delta,
       m->next_is_delta = true;
    }
    else {
-      event_t *e = rt_alloc(m->event_stack);
-      e->when          = m->now + delta;
-      e->kind          = EVENT_DISCONNECT;
-      e->driver.nexus  = source->u.driver.nexus;
-      e->driver.source = source;
-
-      heap_insert(m->eventq_heap, e->when, e);
+      void *e = tag_pointer(source, EVENT_DISCONNECT);
+      heap_insert(m->eventq_heap, m->now + delta, e);
    }
 }
 
@@ -2001,12 +1989,6 @@ void model_reset(rt_model_t *m)
    }
 }
 
-static bool is_stale_event(event_t *e)
-{
-   return (e->kind == EVENT_PROCESS)
-      && (e->proc.wakeup_gen != e->proc.proc->wakeable.wakeup_gen);
-}
-
 static bool is_stale_pending_entry(rt_pending_t *p, rt_wakeable_t *obj)
 {
    return p->wake == NULL
@@ -2177,11 +2159,11 @@ static void async_watch_callback(void *context, void *arg)
 static void async_timeout_callback(void *context, void *arg)
 {
    rt_model_t *m = context;
-   event_t *e = arg;
+   callback_t *cb = arg;
 
    MODEL_ENTRY(m);
-   (*e->timeout.fn)(m->now, e->timeout.user);
-   rt_free(m->event_stack, e);
+   (*cb->fn)(m, cb->user);
+   rt_free(m->callback_stack, cb);
 }
 
 static void async_update_implicit_signal(void *context, void *arg)
@@ -2208,6 +2190,14 @@ static void async_run_process(void *context, void *arg)
    run_process(m, proc);
 }
 
+static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
+{
+   if (pointer_tag(value) != EVENT_PROCESS)
+      return false;
+
+   return untag_pointer(value, rt_proc_t) == search;
+}
+
 static void wakeup_one(rt_model_t *m, rt_pending_t *p)
 {
    // To avoid having each process keep a list of the signals it is
@@ -2229,6 +2219,13 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
             TRACE("wakeup %sprocess %s", p->wake->postponed ? "postponed " : "",
                   istr(proc->name));
             workq_do(wq, async_run_process, proc);
+
+            if (proc->wakeable.delayed) {
+               // This process was already scheduled to run at a later
+               // time so we need to delete it from the simulation queue
+               heap_delete(m->eventq_heap, heap_delete_proc_cb, proc);
+               proc->wakeable.delayed = false;
+            }
          }
          break;
 
@@ -2252,8 +2249,7 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
          break;
       }
 
-      ++(p->wake->wakeup_gen);
-      p->wake->pending = true;
+      set_pending(p->wake);
    }
 
    if (p->oneshot)
@@ -2521,16 +2517,7 @@ static void model_cycle(rt_model_t *m)
    if (is_delta_cycle)
       m->iteration = m->iteration + 1;
    else {
-      event_t *peek = heap_min(m->eventq_heap);
-      while (unlikely(is_stale_event(peek))) {
-         // Discard stale events
-         rt_free(m->event_stack, heap_extract_min(m->eventq_heap));
-         if (heap_size(m->eventq_heap) == 0)
-            return;
-         else
-            peek = heap_min(m->eventq_heap);
-      }
-      m->now = peek->when;
+      m->now = heap_min_key(m->eventq_heap);
       m->iteration = 0;
    }
 
@@ -2548,36 +2535,40 @@ static void model_cycle(rt_model_t *m)
       global_event(m, RT_NEXT_TIME_STEP);
 
       for (;;) {
-         event_t *e = heap_extract_min(m->eventq_heap);
-         switch (e->kind) {
+         void *e = heap_extract_min(m->eventq_heap);
+         switch (pointer_tag(e)) {
          case EVENT_PROCESS:
-            if (!is_stale_event(e)) {
-               assert(!e->proc.proc->wakeable.pending);
-               workq_do(m->procq, async_run_process, e->proc.proc);
-               e->proc.proc->wakeable.pending = true;
-               ++(e->proc.proc->wakeable.wakeup_gen);
+            {
+               rt_proc_t *proc = untag_pointer(e, rt_proc_t);
+               assert(proc->wakeable.delayed);
+               proc->wakeable.delayed = false;
+               set_pending(&proc->wakeable);
+               workq_do(m->procq, async_run_process, proc);
             }
-            rt_free(m->event_stack, e);
             break;
          case EVENT_DRIVER:
-            workq_do(m->driverq, async_update_driver, e->driver.source);
-            rt_free(m->event_stack, e);
+            {
+               rt_source_t *source = untag_pointer(e, rt_source_t);
+               workq_do(m->driverq, async_update_driver, source);
+            }
             break;
          case EVENT_TIMEOUT:
-            workq_do(m->driverq, async_timeout_callback, e);
-            // Event freed in callback
+            {
+               callback_t *cb = untag_pointer(e, callback_t);
+               workq_do(m->driverq, async_timeout_callback, cb);
+            }
             break;
          case EVENT_DISCONNECT:
-            workq_do(m->driverq, async_disconnect, e->driver.source);
-            rt_free(m->event_stack, e);
+            {
+               rt_source_t *source = untag_pointer(e, rt_source_t);
+               workq_do(m->driverq, async_disconnect, source);
+            }
             break;
          }
 
          if (heap_size(m->eventq_heap) == 0)
             break;
-
-         event_t *peek = heap_min(m->eventq_heap);
-         if (peek->when > m->now)
+         else if (heap_min_key(m->eventq_heap) > m->now)
             break;
       }
    }
@@ -2627,10 +2618,8 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
       return false;
    else if (heap_size(m->eventq_heap) == 0)
       return true;
-   else {
-      event_t *peek = heap_min(m->eventq_heap);
-      return peek->when > stop_time;
-   }
+   else
+      return heap_min_key(m->eventq_heap) > stop_time;
 }
 
 void model_run(rt_model_t *m, uint64_t stop_time)
@@ -2703,7 +2692,7 @@ bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
 
       FOR_ALL_SIZES(n->size, SIGNAL_FORCE_EXPAND_U64);
 
-      deltaq_insert_force_release(m, 0, n);
+      deltaq_insert_force_release(m, n);
 
       offset += n->width;
       count -= n->width;
@@ -2743,17 +2732,18 @@ void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
    m->global_cbs[event] = cb;
 }
 
-void model_set_timeout_cb(rt_model_t *m, uint64_t when, timeout_fn_t fn,
+void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                           void *user)
 {
-   event_t *e = rt_alloc(m->event_stack);
-   e->when         = m->now + when;
-   e->kind         = EVENT_TIMEOUT;
-   e->timeout.fn   = fn;
-   e->timeout.user = user;
+   callback_t *cb = rt_alloc(m->callback_stack);
+   cb->next = NULL;
+   cb->fn   = fn;
+   cb->user = user;
 
    assert(when > m->now);   // TODO: delta timeouts?
-   heap_insert(m->eventq_heap, e->when, e);
+
+   void *e = tag_pointer(cb, EVENT_TIMEOUT);
+   heap_insert(m->eventq_heap, m->now + when, e);
 }
 
 rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
@@ -2780,6 +2770,7 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
       w->wakeable.kind       = W_WATCH;
       w->wakeable.postponed  = postponed;
       w->wakeable.pending    = false;
+      w->wakeable.delayed    = false;
       w->wakeable.wakeup_gen = 0;
 
       m->watches = w;
@@ -2882,7 +2873,8 @@ int x_current_delta(void)
 
 void x_sched_process(int64_t delay)
 {
-   TRACE("_sched_process delay=%s", trace_time(delay));
+   TRACE("schedule process %s delay=%s", istr(active_proc->name),
+         trace_time(delay));
    deltaq_insert_proc(get_model(), delay, active_proc);
 }
 
@@ -3385,7 +3377,7 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
       copy_value_ptr(n, &(n->forcing), vptr);
       vptr += n->width * n->size;
 
-      deltaq_insert_force_release(m, 0, n);
+      deltaq_insert_force_release(m, n);
    }
 }
 
@@ -3410,7 +3402,7 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
          n->forcing.qword = 0;
       }
 
-      deltaq_insert_force_release(m, 0, n);
+      deltaq_insert_force_release(m, n);
    }
 }
 

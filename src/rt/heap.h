@@ -20,6 +20,7 @@
 
 #include "thread.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -33,13 +34,16 @@ typedef struct {
 } heap_t;
 
 typedef void (*heap_walk_fn_t)(uint64_t key, void *user, void *context);
+typedef bool (*heap_delete_fn_t)(uint64_t key, void *user, void *context);
 
 heap_t *heap_new(size_t init_size);
 void heap_free(heap_t *h);
 void *heap_extract_min(heap_t *h);
 void *heap_min(heap_t *h);
+uint64_t heap_min_key(heap_t *h);
 void heap_insert(heap_t *h, uint64_t key, void *user);
 void heap_walk(heap_t *h, heap_walk_fn_t fn, void *context);
+bool heap_delete(heap_t *h, heap_delete_fn_t fn, void *context);
 
 #define heap_size(h) atomic_load(&(h)->size)
 

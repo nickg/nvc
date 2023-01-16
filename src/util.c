@@ -765,7 +765,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
    p += checked_sprintf(p, end - p, "\n%s*** Caught signal %d (%s)%s",
                         want_color ? "\033[31m\033[1m" : "",
                         sig, signame(sig, info),
-                        recurse > 0 ? " inside signal handler" : "");
+                        recurse > 1 ? " inside signal handler" : "");
 
    switch (sig) {
    case SIGSEGV:

@@ -419,7 +419,7 @@ static void vhpi_do_callback(c_callback *cb)
    }
 }
 
-static void vhpi_timeout_cb(uint64_t now, void *user)
+static void vhpi_timeout_cb(rt_model_t *m, void *user)
 {
    c_callback *cb;
    if ((cb = is_callback(user)))

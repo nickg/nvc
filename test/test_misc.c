@@ -295,6 +295,47 @@ START_TEST(test_heap_rand)
 }
 END_TEST
 
+static bool heap_delete_cb(uint64_t key, void *value, void *context)
+{
+   ck_assert_int_eq(key, (uintptr_t)value);
+   return value == context;
+}
+
+START_TEST(test_heap_delete)
+{
+   heap_t *h = heap_new(128);
+
+   static const int N = 1024;
+   uintptr_t keys[N];
+
+   for (int i = 0; i < N; i++) {
+      keys[i] = 1 + rand() % 10000;
+      heap_insert(h, keys[i], (void*)keys[i]);
+   }
+
+   int deleted = 0;
+   for (int i = 0; i < N; i++) {
+      if (rand() % 20 == 0) {
+         ck_assert(heap_delete(h, heap_delete_cb, (void*)keys[i]));
+         keys[i] = 0;
+         deleted++;
+      }
+   }
+
+   ck_assert_int_eq(heap_size(h), N - deleted);
+
+   qsort(keys, N, sizeof(uintptr_t), magnitude_compar);
+
+   for (int i = 0; i < deleted; i++)
+      ck_assert_int_eq(keys[i], 0);
+
+   for (int i = deleted; i < N; i++)
+      ck_assert_ptr_eq(heap_extract_min(h), (void*)keys[i]);
+
+   heap_free(h);
+}
+END_TEST
+
 START_TEST(test_color_printf)
 {
    setenv("NVC_COLORS", "always", 1);
@@ -609,6 +650,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_heap, test_heap_basic);
    tcase_add_test(tc_heap, test_heap_rand);
    tcase_add_test(tc_heap, test_heap_walk);
+   tcase_add_test(tc_heap, test_heap_delete);
    suite_add_tcase(s, tc_heap);
 
    TCase *tc_util = tcase_create("util");

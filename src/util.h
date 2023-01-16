@@ -140,6 +140,15 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })
 
+#define tag_pointer(p, tag) ({                          \
+         assert(((uintptr_t)(p) & 7) == 0);             \
+         assert((unsigned)tag < 8u);                    \
+         (void *)((uintptr_t)(p) | (uintptr_t)(tag));   \
+      })
+
+#define untag_pointer(p, type) (type *)((uintptr_t)(p) & ~7)
+#define pointer_tag(p) ((uintptr_t)p & 7)
+
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xmalloc_flex(size_t fixed, size_t nelems, size_t size) RETURNS_NONNULL;
