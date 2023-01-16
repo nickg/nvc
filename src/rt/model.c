@@ -23,7 +23,6 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
-#include "rt/alloc.h"
 #include "rt/heap.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -36,14 +35,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct _callback callback_t;
+typedef struct _rt_callback rt_callback_t;
 typedef struct _memblock memblock_t;
 
-typedef struct _callback {
+typedef struct _rt_callback {
    rt_event_fn_t  fn;
    void          *user;
-   callback_t    *next;
-} callback_t;
+   rt_callback_t *next;
+} rt_callback_t;
 
 typedef enum {
    EVENT_TIMEOUT,
@@ -79,8 +78,6 @@ typedef struct _rt_model {
    unsigned           n_signals;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
-   rt_alloc_stack_t   watch_stack;
-   rt_alloc_stack_t   callback_stack;
    rt_watch_t        *watches;
    workq_t           *procq;
    workq_t           *delta_procq;
@@ -89,7 +86,7 @@ typedef struct _rt_model {
    workq_t           *effq;
    workq_t           *postponedq;
    workq_t           *implicitq;
-   callback_t        *global_cbs[RT_LAST_EVENT];
+   rt_callback_t     *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
    memblock_t        *memblocks;
@@ -287,13 +284,13 @@ static void *static_alloc(rt_model_t *m, size_t size)
 
 static void global_event(rt_model_t *m, rt_event_t kind)
 {
-   callback_t *list = m->global_cbs[kind];
+   rt_callback_t *list = m->global_cbs[kind];
    m->global_cbs[kind] = NULL;
 
-   for (callback_t *it = list, *tmp; it; it = tmp) {
+   for (rt_callback_t *it = list, *tmp; it; it = tmp) {
       tmp = it->next;
       (*it->fn)(m, it->user);
-      rt_free(m->callback_stack, it);
+      free(it);
    }
 }
 
@@ -433,9 +430,6 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->res_memo    = ihash_new(128);
 
    m->can_create_delta = true;
-
-   m->watch_stack    = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
-   m->callback_stack = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
    m->root = xcalloc(sizeof(rt_scope_t));
    m->root->kind     = SCOPE_ROOT;
@@ -584,7 +578,7 @@ void model_free(rt_model_t *m)
    while (heap_size(m->eventq_heap) > 0) {
       void *e = heap_extract_min(m->eventq_heap);
       if (pointer_tag(e) == EVENT_TIMEOUT)
-         rt_free(m->callback_stack, untag_pointer(e, callback_t));
+         free(untag_pointer(e, rt_callback_t));
    }
 
    tlab_release(&__nvc_tlab);
@@ -603,18 +597,15 @@ void model_free(rt_model_t *m)
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
-      rt_free(m->watch_stack, it);
+      free(it);
    }
 
    for (int i = 0; i < RT_LAST_EVENT; i++) {
-      for (callback_t *it = m->global_cbs[i], *tmp; it; it = tmp) {
+      for (rt_callback_t *it = m->global_cbs[i], *tmp; it; it = tmp) {
          tmp = it->next;
-         rt_free(m->callback_stack, it);
+         free(it);
       }
    }
-
-   rt_alloc_stack_destroy(m->watch_stack);
-   rt_alloc_stack_destroy(m->callback_stack);
 
    for (memblock_t *mb = m->memblocks, *tmp; mb; mb = tmp) {
       tmp = mb->chain;
@@ -2159,11 +2150,11 @@ static void async_watch_callback(void *context, void *arg)
 static void async_timeout_callback(void *context, void *arg)
 {
    rt_model_t *m = context;
-   callback_t *cb = arg;
+   rt_callback_t *cb = arg;
 
    MODEL_ENTRY(m);
    (*cb->fn)(m, cb->user);
-   rt_free(m->callback_stack, cb);
+   free(cb);
 }
 
 static void async_update_implicit_signal(void *context, void *arg)
@@ -2554,7 +2545,7 @@ static void model_cycle(rt_model_t *m)
             break;
          case EVENT_TIMEOUT:
             {
-               callback_t *cb = untag_pointer(e, callback_t);
+               rt_callback_t *cb = untag_pointer(e, rt_callback_t);
                workq_do(m->driverq, async_timeout_callback, cb);
             }
             break;
@@ -2724,7 +2715,7 @@ void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
 {
    assert(event < RT_LAST_EVENT);
 
-   callback_t *cb = rt_alloc(m->callback_stack);
+   rt_callback_t *cb = xcalloc(sizeof(rt_callback_t));
    cb->next = m->global_cbs[event];
    cb->fn   = fn;
    cb->user = user;
@@ -2735,7 +2726,7 @@ void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
 void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                           void *user)
 {
-   callback_t *cb = rt_alloc(m->callback_stack);
+   rt_callback_t *cb = xcalloc(sizeof(rt_callback_t));
    cb->next = NULL;
    cb->fn   = fn;
    cb->user = user;
@@ -2761,7 +2752,7 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
       return NULL;
    }
    else {
-      rt_watch_t *w = rt_alloc(m->watch_stack);
+      rt_watch_t *w = xcalloc(sizeof(rt_watch_t));
       w->signal    = s;
       w->fn        = fn;
       w->chain_all = m->watches;
