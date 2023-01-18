@@ -3872,19 +3872,28 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                    "mode OUT", istr(tree_ident(decl)));
    }
 
-   if (standard() < STD_08) {
-      if (mode == PORT_IN && !sem_globally_static(actual)
-          && !sem_static_name(actual, sem_globally_static)) {
+   if (mode == PORT_IN && !sem_globally_static(actual)
+       && !sem_static_name(actual, sem_globally_static)) {
+      // LRM 08 section 6.5.6.3 the actual is converted to a concurrent
+      // signal assignment to an anonymous signal that is then
+      // associated with the formal
+      if (standard() >= STD_08) {
+         tree_t w = tree_new(T_WAVEFORM);
+         tree_set_loc(w, tree_loc(value));
+         tree_set_value(w, value);
+
+         tree_set_value(param, w);
+      }
+      else
          sem_error(value, "actual associated with port %s of mode IN must be "
-                "a globally static expression or static name",
+                   "a globally static expression or static name",
                    istr(tree_ident(decl)));
-      }
-      else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
-               && !sem_static_signal_name(actual)) {
-         sem_error(value, "actual associated with port %s of mode %s must be "
-                   "a static signal name or OPEN",
-                   istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
-      }
+   }
+   else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
+            && !sem_static_signal_name(actual)) {
+      sem_error(value, "actual associated with port %s of mode %s must be "
+                "a static signal name or OPEN",
+                istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
    }
 
    return true;

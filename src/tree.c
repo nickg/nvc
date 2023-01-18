@@ -760,8 +760,6 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   if ((v != NULL) && (t->object.kind != T_ASSOC) && (t->object.kind != T_SPEC))
-      tree_assert_expr(v);
    lookup_item(&tree_object, t, I_VALUE)->object = &(v->object);
    object_write_barrier(&(t->object), &(v->object));
 }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1456,9 +1456,7 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
       tree_t m = tree_param(t, i);
 
       tree_t value = tree_value(m);
-      if (tree_kind(value) != T_FCALL)
-         continue;
-      else if (tree_flags(value) & TREE_F_GLOBALLY_STATIC)
+      if (tree_kind(value) != T_WAVEFORM)
          continue;
 
       char *signame LOCAL = xasprintf("%s_actual_%d", istr(tree_ident(t)), i);
@@ -1484,11 +1482,8 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
       tree_t a = tree_new(T_SIGNAL_ASSIGN);
       tree_set_ident(a, ident_new("assign"));
       tree_set_target(a, r);
+      tree_add_waveform(a, value);
       tree_add_stmt(p, a);
-
-      tree_t wave = tree_new(T_WAVEFORM);
-      tree_set_value(wave, value);
-      tree_add_waveform(a, wave);
 
       tree_t wait = tree_new(T_WAIT);
       tree_set_ident(wait, ident_new("wait"));
