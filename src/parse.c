@@ -990,6 +990,9 @@ static void declare_binary(tree_t container, ident_t name, type_t lhs,
    mangle_func(nametab, d);
    insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
+
+   if (bootstrapping && type_is_universal(lhs))
+      tree_set_flag(d, TREE_F_UNIVERSAL);
 }
 
 static void declare_unary(tree_t container, ident_t name, type_t operand,
@@ -999,6 +1002,9 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
    mangle_func(nametab, d);
    insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
+
+   if (bootstrapping && type_is_universal(operand))
+      tree_set_flag(d, TREE_F_UNIVERSAL);
 }
 
 static bool all_character_literals(type_t type)
@@ -1021,20 +1027,6 @@ static bool is_bit_or_std_ulogic(type_t type)
    ident_t name = type_ident(type);
 
    return name == well_known(W_STD_BIT) || name == well_known(W_IEEE_ULOGIC);
-}
-
-static bool is_bootstrap_universal(tree_t std, type_t type)
-{
-   if (!bootstrapping)
-      return false;
-
-   const type_kind_t kind = type_kind(type);
-   if (kind == T_INTEGER && type == std_type(std, STD_UNIVERSAL_INTEGER))
-      return true;
-   else if (kind == T_REAL && type == std_type(std, STD_UNIVERSAL_REAL))
-      return true;
-
-   return false;
 }
 
 static void declare_predefined_ops(tree_t container, type_t t)
@@ -1189,7 +1181,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_unary(container, minus, t, t, S_NEGATE);
 
       // Exponentiation
-      if (!is_bootstrap_universal(std, t)) {
+      if (!bootstrapping) {
          std_int = std_type(std, STD_INTEGER);
          declare_binary(container, ident_new("\"**\""), t, std_int, t, S_EXP);
       }
@@ -1450,31 +1442,44 @@ static void declare_alias(tree_t container, tree_t to, ident_t name)
    tree_add_decl(container, alias);
 }
 
-static void declare_standard_to_string(tree_t unit)
+static void declare_additional_standard_operators(tree_t unit)
 {
+   assert(bootstrapping);
+
+   // The exponentiation operator must be declared here after INTEGER is
+   // declared
+
+   type_t std_uint  = std_type(unit, STD_UNIVERSAL_INTEGER);
+   type_t std_ureal = std_type(unit, STD_UNIVERSAL_REAL);
+   type_t std_int   = std_type(unit, STD_INTEGER);
+   type_t std_real  = std_type(unit, STD_REAL);
+
+   ident_t exp_i = ident_new("\"**\"");
+
+   declare_binary(unit, exp_i, std_uint, std_int, std_uint, S_EXP);
+   declare_binary(unit, exp_i, std_ureal, std_int, std_ureal, S_EXP);
+   declare_binary(unit, exp_i, std_int, std_int, std_int, S_EXP);
+   declare_binary(unit, exp_i, std_real, std_int, std_real, S_EXP);
+
+   if (standard() < STD_08)
+      return;
+
    // LRM 08 5.2.6 says TO_STRING is declared at the end of the STANDARD
    // package
-
-   assert(bootstrapping);
 
    ident_t to_string   = ident_new("TO_STRING");
    type_t  std_string  = std_type(unit, STD_STRING);
    type_t  std_time    = std_type(unit, STD_TIME);
-   type_t  std_real    = std_type(unit, STD_REAL);
    type_t  std_natural = std_type(unit, STD_NATURAL);
    type_t  std_bit_vec = std_type(unit, STD_BIT_VECTOR);
 
    const int ndecls = tree_decls(unit);
-   for (int i = 0, dpos = ndecls; i < ndecls; i++) {
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_TYPE_DECL) {
          type_t type = tree_type(d);
-         if (type_is_scalar(type)) {
+         if (type_is_scalar(type))
             declare_unary(unit, to_string, type, std_string, S_TO_STRING);
-            if (type_is_universal(type))
-               tree_set_flag(tree_decl(unit, dpos), TREE_F_UNIVERSAL);
-            dpos++;
-         }
       }
    }
 
@@ -1778,11 +1783,7 @@ static void make_universal_type(tree_t container, type_kind_t kind,
 
    tree_add_decl(container, decl);
 
-   int dpos = tree_decls(container);
    declare_predefined_ops(container, type);
-
-   for (; dpos < tree_decls(container); dpos++)
-      tree_set_flag(tree_decl(container, dpos), TREE_F_UNIVERSAL);
 }
 
 static void make_universal_int(tree_t container)
@@ -7623,8 +7624,8 @@ static void p_package_declaration(tree_t unit)
       p_package_header(unit);
    p_package_declarative_part(unit);
 
-   if (bootstrapping && standard() >= STD_08)
-      declare_standard_to_string(unit);
+   if (bootstrapping)
+      declare_additional_standard_operators(unit);
 
    pop_scope(nametab);
 

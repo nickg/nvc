@@ -1444,11 +1444,10 @@ static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
       return reg;
 }
 
-static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
-                               vcode_reg_t r0, vcode_reg_t r1)
+static void lower_coerce_scalar(vcode_reg_t *r0, vcode_reg_t *r1)
 {
-   vcode_type_t r0_type = vcode_reg_type(r0);
-   vcode_type_t r1_type = vcode_reg_type(r1);
+   vcode_type_t r0_type = vcode_reg_type(*r0);
+   vcode_type_t r1_type = vcode_reg_type(*r1);
    if (!vtype_eq(r0_type, r1_type)) {
       const unsigned r0_bits = bits_for_range(vtype_low(r0_type),
                                               vtype_high(r0_type));
@@ -1456,10 +1455,16 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
                                               vtype_high(r1_type));
 
       if (r1_bits > r0_bits)
-         r0 = emit_cast(r1_type, vcode_reg_bounds(r0), r0);
+         *r0 = emit_cast(r1_type, vcode_reg_bounds(*r0), *r0);
       else
-         r1 = emit_cast(r0_type, vcode_reg_bounds(r1), r1);
+         *r1 = emit_cast(r0_type, vcode_reg_bounds(*r1), *r1);
    }
+}
+
+static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
+                               vcode_reg_t r0, vcode_reg_t r1)
+{
+   lower_coerce_scalar(&r0, &r1);
 
    type_t type = tree_type(fcall);
 
@@ -2087,6 +2092,8 @@ static vcode_reg_t lower_concat(tree_t expr, vcode_reg_t hint,
 static vcode_reg_t lower_comparison(tree_t fcall, subprogram_kind_t builtin,
                                     vcode_reg_t r0, vcode_reg_t r1)
 {
+   lower_coerce_scalar(&r0, &r1);
+
    vcode_cmp_t cmp;
    switch (builtin) {
    case S_SCALAR_EQ:  cmp = VCODE_CMP_EQ; break;
@@ -2165,7 +2172,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
       {
          if (type_is_integer(r0_type)) {
             vcode_reg_t locus = lower_debug_locus(fcall);
-            return emit_trap_neg(r0, locus);
+            return lower_narrow(tree_type(fcall), emit_trap_neg(r0, locus));
          }
          else
             return emit_neg(r0);
