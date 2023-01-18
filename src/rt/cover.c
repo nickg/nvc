@@ -846,7 +846,7 @@ static uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin
 
    char LOCAL *bin_list = cover_bmask_to_bin_list(allowed);
    fatal_at(&ctx->loc, "invalid bin: $bold$'%s'$$ for %s: '%s'."
-            "Valid bins are: %s", bin, tag_kind_str[tag->kind],
+            " Valid bins are: %s", bin, tag_kind_str[tag->kind],
             istr(tag->hier), bin_list);
    return 0;
 }
