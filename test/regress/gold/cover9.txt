@@ -1,62 +1,290 @@
-** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_0_TO_1, BIN_1_TO_0
-** Warning: Line 4: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_1_TO_0 already covered!
-** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0'
-** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
-** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_1 already covered!
-** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0'
-** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' already covered!
-** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
-** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE already covered!
-** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
-** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE already covered!
-** Note: Line 4: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
-** Warning: Line 4: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0 already covered!
-** Note: Line 4: excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE, BIN_FALSE
-** Warning: Line 4: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_FALSE already covered!
-** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._S0'
-** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0'
-** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
-** Note: Line 4: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0'
-** Warning: Line 4: statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' already covered!
-** Note: Line 9: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0._S0'
-** Note: Line 10: excluding statement: 'WORK.COVER9._P1._S0._S3'
-** Note: Line 11: excluding statement: 'WORK.COVER9._P1._S0._S4'
-** Note: Line 12: excluding statement: 'WORK.COVER9._P1._S0._S5'
-** Note: Line 19: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
-** Note: Line 22: excluding branch: 'WORK.COVER9._P1._S0._B3._B0' bins: BIN_CHOICE
-** Note: Line 25: excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
-** Note: Line 26: excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
-** Note: Line 31: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_0
-** Note: Line 32: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
-** Note: Line 33: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
-** Note: Line 34: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_1
-** Note: Line 36: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
-** Warning: Line 36: expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_FALSE already covered!
-** Note: Line 37: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
-** Warning: Line 37: expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_FALSE already covered!
-** Note: Line 38: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
-** Note: Line 44: excluding toggle: 'WORK.COVER9.S_A' bins: BIN_0_TO_1
-** Note: Line 45: excluding toggle: 'WORK.COVER9.S_B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 46: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_0_TO_1
-** Note: Line 47: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_1_TO_0
-** Note: Line 48: excluding toggle: 'WORK.COVER9.S_Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 49: excluding toggle: 'WORK.COVER9.S_Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 50: excluding toggle: 'WORK.COVER9.A' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 51: excluding toggle: 'WORK.COVER9.B' bins: BIN_0_TO_1, BIN_1_TO_0
-** Note: Line 52: excluding toggle: 'WORK.COVER9.Y' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_0_TO_1, BIN_1_TO_0
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_1_TO_0 already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B' bins: BIN_0_TO_1, BIN_1_TO_0
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2)' bins: BIN_0_TO_1, BIN_1_TO_0
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0'
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E0' bins: BIN_0_1 already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0'
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0 already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE, BIN_FALSE
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_FALSE already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._S0'
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0'
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0'
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' already covered!
+   > /home/nick/nvc/test/regress/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0._S0'
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:10
+    |
+ 10 | exclude WORK.COVER9.AND_GATE._S0._B0._S0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9._P1._S0._S3'
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:11
+    |
+ 11 | exclude WORK.COVER9._P1._S0._S3
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9._P1._S0._S4'
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:12
+    |
+ 12 | exclude WORK.COVER9._P1._S0._S4
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9._P1._S0._S5'
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:13
+    |
+ 13 | exclude WORK.COVER9._P1._S0._S5
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:20
+    |
+ 20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9._P1._S0._B3._B0' bins: BIN_CHOICE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:23
+    |
+ 23 | exclude WORK.COVER9._P1._S0._B3._B0 BIN_CHOICE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:26
+    |
+ 26 | exclude WORK.COVER9._P1._S0._B4._B0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:27
+    |
+ 27 | exclude WORK.COVER9._P1._S0._B_OTHERS
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:32
+    |
+ 32 | exclude WORK.COVER9._P0._S0._E0 BIN_0_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:33
+    |
+ 33 | exclude WORK.COVER9._P0._S0._E0 BIN_0_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:34
+    |
+ 34 | exclude WORK.COVER9._P0._S0._E0 BIN_1_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_1
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:35
+    |
+ 35 | exclude WORK.COVER9._P0._S0._E0 BIN_1_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_FALSE already covered!
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_TRUE, BIN_FALSE
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:38
+    |
+ 38 | exclude WORK.COVER9.AND_GATE._S0._B0._E1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: expression: 'WORK.COVER9.AND_GATE._S0._B0._E1' bins: BIN_FALSE already covered!
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:38
+    |
+ 38 | exclude WORK.COVER9.AND_GATE._S0._B0._E1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2' bins: BIN_0_1, BIN_1_0, BIN_1_1
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:39
+    |
+ 39 | exclude WORK.COVER9.AND_GATE._S0._B0._E2
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_A' bins: BIN_0_TO_1
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:45
+    |
+ 45 | exclude WORK.COVER9.S_A BIN_0_TO_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_B' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:46
+    |
+ 46 | exclude WORK.COVER9.S_B
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_0_TO_1
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:47
+    |
+ 47 | exclude WORK.COVER9.S_Y(2) BIN_0_TO_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:48
+    |
+ 48 | exclude WORK.COVER9.S_Y(2) BIN_1_TO_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:49
+    |
+ 49 | exclude WORK.COVER9.S_Y(1)
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:50
+    |
+ 50 | exclude WORK.COVER9.S_Y(0)
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.A' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:51
+    |
+ 51 | exclude WORK.COVER9.A
+    | ^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.B' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:52
+    |
+ 52 | exclude WORK.COVER9.B
+    | ^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.Y' bins: BIN_0_TO_1, BIN_1_TO_0
+    > /home/nick/nvc/test/regress/cover9_ef1.txt:53
+    |
+ 53 | exclude WORK.COVER9.Y
+    | ^^^^^^^^^^^^^^^^^^^^^
 ** Note: code coverage results for: WORK.COVER9
 ** Note:      statement:     100.0 % (29/29)
 ** Note:      branch:        100.0 % (10/10)
 ** Note:      toggle:        79.4 % (27/34)
 ** Note:      expression:    100.0 % (22/22)
-** Warning: Line 1: exluded hierarchy does not match any coverage item: 'THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING'
-** Error: Line 4: invalid command: exducles
-** Error: Line 2: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Error: Line 2: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Error: Line 2: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
-** Error: Line 2: exclude hierarchy missing!
+** Warning: exluded hierarchy does not match any coverage item: 'THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING'
+   > /home/nick/nvc/test/regress/cover9_ef2.txt:2
+   |
+ 2 | exclude THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Fatal: invalid command: exducles
+   > /home/nick/nvc/test/regress/cover9_ef2.txt:5
+   |
+ 5 | exducles HALO.HALO
+   | ^^^^^^^^^^^^^^^^^^
+** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+   > /home/nick/nvc/test/regress/cover9_ef3.txt:3
+   |
+ 3 | exclude WORK.COVER9._P0._S0._E0 WTF_BIN
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'.Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+   > /home/nick/nvc/test/regress/cover9_ef3.txt:3
+   |
+ 3 | exclude WORK.COVER9._P0._S0._E0 WTF_BIN
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Fatal: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
+   > /home/nick/nvc/test/regress/cover9_ef4.txt:3
+   |
+ 3 | exclude WORK.COVER9._P1._S0._S5 ADDED_BIN_WHERE_IT_SHOULD_NOT_BE
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Fatal: exclude hierarchy missing!
+   > /home/nick/nvc/test/regress/cover9_ef5.txt:3
+   |
+ 3 | exclude
+   | ^^^^^^^
