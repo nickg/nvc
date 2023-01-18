@@ -217,7 +217,7 @@ ident_t ident_uniq(const char *prefix)
    char suffix[16] = "";
    for (;;) {
       hash_state_t hash = base_hash;
-      int sufflen = hash_update(&hash, suffix, INT_MAX);
+      int sufflen = hash_update(&hash, suffix, ARRAY_LEN(suffix));
 
       const int slot = hash & (TABLE_SZ - 1);
       for (;;) {

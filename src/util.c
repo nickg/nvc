@@ -779,7 +779,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
 
    p += checked_sprintf(p, end - p, " ***%s\n\n", want_color ? "\033[0m" : "");
 
-   write(STDERR_FILENO, buf, p - buf);
+   (void)write(STDERR_FILENO, buf, p - buf);
 
    if (sig != SIGUSR1 && !atomic_cas(&crashing, SIG_ATOMIC_MAX, thread_id())) {
       sleep(60);
