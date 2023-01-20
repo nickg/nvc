@@ -624,10 +624,11 @@ signal cnt : std_logic_vector(3 downto 0);
 NVC can exclude any coverage items when generating code coverage report.
 When a coverage item is excluded, it is counted as "Covered" in the
 coverage summary and displayed in a dedicated group in the code coverage
-report. Format of commands in exclude file is following:
+report.  Format of commands in exclude file is following:
 .Bd -literal -offset indent
 exclude <HIERARCHY> (BIN)
 .Ed
+.Pp
 Where
 .Ql <HIERARCHY>
 is the name of coverage item, and
@@ -636,35 +637,41 @@ is one of following bins:
 .Bl -bullet
 .It
 .Cm BIN_TRUE
-- Excludes "Evaluated to: True" bin. Applicable to if/else branch, when/else branch or expression.
+- Excludes "Evaluated to: True" bin.  Applicable to if/else branch,
+when/else branch or expression.
 .It
 .Cm BIN_FALSE
-- Excludes "Evaluated to: False" bin. Applicable to if/else branch, when/else branch or expression.
+- Excludes "Evaluated to: False" bin.  Applicable to if/else branch,
+when/else branch or expression.
 .It
 .Cm BIN_CHOICE
-- Excludes "Choice of:" bin. Applicable to case/with branch choices.
+- Excludes "Choice of:" bin.  Applicable to case/with branch choices.
 .It
 .Cm BIN_X_Y
-- Excludes bins for combination of input operands (LHS, RHS) of an expression. Applicable to an
-  expression for which combinations of input operand values is tracked.
-.Ql X
-,
+- Excludes bins for combination of input operands (LHS, RHS) of an
+expression.  Applicable to an expression for which combinations of input
+operand values is tracked.
+.Ql X ,
 .Ql Y
-shall be 0 or 1. Excludes bin where LHS =
+shall be 0 or 1.  Excludes bin where LHS =
 .Ql X
 and RHS =
-.Ql Y
-, see an example exclude file below.
+.Ql Y ,
+see an example exclude file below.
 .It
 .Cm BIN_0_TO_1
-- Excludes "Toggle from 0 to 1" bin. Applicable to signal / port toggle coverage.
+- Excludes "Toggle from 0 to 1" bin.  Applicable to signal / port toggle
+coverage.
 .It
 .Cm BIN_1_TO_0
-- Excludes "Toggle from 1 to 0" bin. Applicable to signal / port toggle coverage.
+- Excludes "Toggle from 1 to 0" bin.  Applicable to signal / port toggle
+coverage.
 .El
+.Pp
 If
 .Ql BIN
-is ommited, NVC excludes all bins for given coverage item. An example of exclude file:
+is ommited, NVC excludes all bins for given coverage item.  An example
+of exclude file:
 .Bd -literal -offset indent
 # Placing '#' is treated as comment till end of line
 
