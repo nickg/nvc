@@ -20,7 +20,7 @@ nvc -c --exclude-file $TESTDIR/regress/data/cover9_ef4.txt work/_WORK.COVER9.ela
 nvc -c --exclude-file $TESTDIR/regress/data/cover9_ef5.txt work/_WORK.COVER9.elab.covdb 2>&1 | tee -a out.txt
 
 # Adjust output to be work directory relative
-sed -i -e "s/[^ ]\+regress\/data\//data\//g" out.txt
+sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt
 
 if [ ! -f html/index.html ]; then
   echo "missing coverage report"
