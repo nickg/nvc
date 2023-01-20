@@ -1518,11 +1518,11 @@ static int32_t lower_toggle_tag_for(type_t type, tree_t where, ident_t prefix,
    if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
       return -1;
 
-   unsigned int flags = 0;
+   unsigned int flags = COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1;
    if (tree_kind(where) == T_SIGNAL_DECL)
-      flags = COV_FLAG_TOGGLE_SIGNAL;
+      flags |= COV_FLAG_TOGGLE_SIGNAL;
    else
-      flags = COV_FLAG_TOGGLE_PORT;
+      flags |= COV_FLAG_TOGGLE_PORT;
 
    if (type_is_array(type)) {
       int t_dims = dimension_of(type);

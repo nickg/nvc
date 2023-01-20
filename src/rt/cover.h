@@ -82,15 +82,25 @@ typedef struct _cover_tag {
    int32_t        tag;
 
    // Coverage data:
-   //    TAG_STMT    - Counter of hits
-   //    TAG_BRANCH  - Bit 0 - Evaluated to True
-   //                - Bit 1 - Evaluated to False
-   //    TAG_TOOGLE  - Bit 0 - 0 -> 1 transition
-   //                - Bit 1 - 1 -> 0 transition
+   //    TAG_STMT       - Number of times statement was executed
+   //    TAG_BRANCH     - Bit COV_FLAG_TRUE:        Branch evaluated to True
+   //                   - Bit COV_FLAG_FALSE:       Branch evaluated to False
+   //                   - Bit COV_FLAG_CHOICE:      Case/Select choice was selected
+   //    TAG_TOOGLE     - Bit COV_FLAG_TOGGLE_TO_1: 0 -> 1 transition
+   //                   - Bit COV_FLAG_TOGGLE_TO_0: 1 -> 0 transition
+   //    TAG_EXPRESSION - Bit COV_FLAG_TRUE:        Expression evaluated to True
+   //                     Bit COV_FLAG_FALSE:       Expression evaluated to False
+   //                     Bit COV_FLAG_00:          LHS = 0/False and RHS = 0/False
+   //                     Bit COV_FLAG_01:          LHS = 0/False and RHS = 1/True
+   //                     Bit COV_FLAG_10:          LHS = 1/True  and RHS = 0/False
+   //                     Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
    int32_t        data;
 
    // Flags for coverage tag
    int32_t        flags;
+
+   // Exclude mask - Bit corresponding to a bin excludes it
+   int32_t        excl_msk;
 
    // Location in the source file
    loc_t          loc;
@@ -122,6 +132,10 @@ typedef enum {
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
 #define COVER_FLAGS_OR_EXPR (COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
 #define COVER_FLAGS_XOR_EXPR (COV_FLAG_11 | COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
+
+#define COVER_FLAGS_ALL_BINS (COV_FLAG_TRUE | COV_FLAG_FALSE | COV_FLAG_CHOICE | \
+                              COV_FLAG_00 | COV_FLAG_01 | COV_FLAG_10 | COV_FLAG_11 | \
+                              COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1)
 
 typedef enum {
    COV_DUMP_ELAB,
@@ -163,6 +177,7 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags);
 
+void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
 void cover_report(const char *path, cover_tagging_t *tagging);
 
 void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,

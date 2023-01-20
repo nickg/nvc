@@ -938,12 +938,13 @@ static int dump_cmd(int argc, char **argv)
 static int coverage(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "report", required_argument, 0, 'r' },
-      { "merge",  required_argument, 0, 'm' },
+      { "report",       required_argument, 0, 'r' },
+      { "exclude-file", required_argument, 0, 'e' },
+      { "merge",        required_argument, 0, 'm' },
       { 0, 0, 0, 0 }
    };
 
-   const char *out_db = NULL, *rpt_file = NULL;
+   const char *out_db = NULL, *rpt_file = NULL, *exclude_file = NULL;
    int c, index;
    const char *spec = "V";
 
@@ -954,6 +955,9 @@ static int coverage(int argc, char **argv)
          break;
       case 'm':
          out_db = optarg;
+         break;
+      case 'e':
+         exclude_file = optarg;
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -994,6 +998,11 @@ static int coverage(int argc, char **argv)
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
       cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL, NULL, NULL, NULL);
       fbuf_close(f, NULL);
+   }
+
+   if (exclude_file && cover) {
+      progress("Loading exclude file: %s", exclude_file);
+      cover_load_exclude_file(exclude_file, cover);
    }
 
    if (rpt_file && cover) {
@@ -1078,6 +1087,7 @@ static void usage(void)
           "Coverage processing options:\n"
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
           "                        to OUTPUT coverage database.\n"
+          "     --exclude-file=EXCLUDE\tApply EXCLUDE file when generating report.\n"
           "     --report=DIR\tGenerate HTML report with code coverage results\n"
           "                    \tto DIR folder.\n"
           "\n"

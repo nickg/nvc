@@ -706,3 +706,4 @@ driver16        normal
 issue589        normal,2000
 issue590        normal
 issue595        normal,2008
+cover9          cover,shell

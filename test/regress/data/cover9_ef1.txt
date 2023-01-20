@@ -1,0 +1,54 @@
+
+###############################################################################
+# Test wildcard exclude
+###############################################################################
+exclude WORK.COVER9.SUB_BLOCK_INST.*
+
+###############################################################################
+# Test statement excluding
+###############################################################################
+exclude WORK.COVER9.AND_GATE._S0._B0._S0
+exclude WORK.COVER9._P1._S0._S3
+exclude WORK.COVER9._P1._S0._S4
+exclude WORK.COVER9._P1._S0._S5
+
+###############################################################################
+# Test branch excluding
+###############################################################################
+
+# Bin evaluated to true
+exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+
+# Choice excluded with exact bin name
+exclude WORK.COVER9._P1._S0._B3._B0 BIN_CHOICE
+
+# Choices excluded without bin name
+exclude WORK.COVER9._P1._S0._B4._B0
+exclude WORK.COVER9._P1._S0._B_OTHERS
+
+###############################################################################
+# Test expression excluding
+###############################################################################
+exclude WORK.COVER9._P0._S0._E0 BIN_0_0
+exclude WORK.COVER9._P0._S0._E0 BIN_0_1
+exclude WORK.COVER9._P0._S0._E0 BIN_1_0
+exclude WORK.COVER9._P0._S0._E0 BIN_1_1
+
+exclude WORK.COVER9.AND_GATE._S0._B0._E0
+exclude WORK.COVER9.AND_GATE._S0._B0._E1
+exclude WORK.COVER9.AND_GATE._S0._B0._E2
+
+###############################################################################
+# Test Toggle excluding
+###############################################################################
+
+exclude WORK.COVER9.S_A BIN_0_TO_1
+exclude WORK.COVER9.S_B
+exclude WORK.COVER9.S_Y(2) BIN_0_TO_1
+exclude WORK.COVER9.S_Y(2) BIN_1_TO_0
+exclude WORK.COVER9.S_Y(1)
+exclude WORK.COVER9.S_Y(0)
+exclude WORK.COVER9.A
+exclude WORK.COVER9.B
+exclude WORK.COVER9.Y
+

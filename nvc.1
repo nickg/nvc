@@ -370,6 +370,10 @@ code coverage database.
 Generate HTML code coverage report to
 .Ar dir
 directory.
+.It Fl -exclude-file= Ns Ar efile
+Apply commands in
+.Ar efile
+exclude file when generating code coverage report.
 .El
 .\" ------------------------------------------------------------
 .\" Make options
@@ -535,6 +539,7 @@ $ nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> \\
       first.covdb second.covdb third.covdb ...
 .Ed
 .Pp
+.Ss Additional code coverage options
 NVC supports following additional options to control coverage collection:
 .Bl -bullet
 .It
@@ -614,6 +619,87 @@ Toggle coverage collection on specific signals can be also disabled:
 -- coverage off
 signal cnt : std_logic_vector(3 downto 0);
 -- coverage on
+.Ed
+.Ss Exclude file
+NVC can exclude any coverage items when generating code coverage report.
+When a coverage item is excluded, it is counted as "Covered" in the
+coverage summary and displayed in a dedicated group in the code coverage
+report.  Format of commands in exclude file is following:
+.Bd -literal -offset indent
+exclude <HIERARCHY> (BIN)
+.Ed
+.Pp
+Where
+.Ql <HIERARCHY>
+is the name of coverage item, and
+.Ql BIN
+is one of following bins:
+.Bl -bullet
+.It
+.Cm BIN_TRUE
+- Excludes "Evaluated to: True" bin.  Applicable to if/else branch,
+when/else branch or expression.
+.It
+.Cm BIN_FALSE
+- Excludes "Evaluated to: False" bin.  Applicable to if/else branch,
+when/else branch or expression.
+.It
+.Cm BIN_CHOICE
+- Excludes "Choice of:" bin.  Applicable to case/with branch choices.
+.It
+.Cm BIN_X_Y
+- Excludes bins for combination of input operands (LHS, RHS) of an
+expression.  Applicable to an expression for which combinations of input
+operand values is tracked.
+.Ql X ,
+.Ql Y
+shall be 0 or 1.  Excludes bin where LHS =
+.Ql X
+and RHS =
+.Ql Y ,
+see an example exclude file below.
+.It
+.Cm BIN_0_TO_1
+- Excludes "Toggle from 0 to 1" bin.  Applicable to signal / port toggle
+coverage.
+.It
+.Cm BIN_1_TO_0
+- Excludes "Toggle from 1 to 0" bin.  Applicable to signal / port toggle
+coverage.
+.El
+.Pp
+If
+.Ql BIN
+is ommited, NVC excludes all bins for given coverage item.  An example
+of exclude file:
+.Bd -literal -offset indent
+# Placing '#' is treated as comment till end of line
+
+# Example how to exclude statement
+# For statements BIN shall be ommited
+exclude WORK.TOP._P1._S0._S3
+
+# Example how to exclude all coverage items which match wildcard:
+exclude WORK.TOP.SUB_BLOCK_INST.*
+
+# Example how to exclude 4 coverage bins for combinations of input
+# operands value (LHS, RHS) of an expression:
+exclude WORK.TOP.XOR_GATE._S0._E0 BIN_0_0
+exclude WORK.TOP.XOR_GATE._S0._E0 BIN_0_1
+exclude WORK.TOP.XOR_GATE._S0._E0 BIN_1_0
+exclude WORK.TOP.XOR_GATE._S0._E0 BIN_1_1
+
+# Example which excludes the same items as previous example,
+# but excludes all bins by a single command:
+exclude WORK.TOP.XOR_GATE._S0._E0
+
+# Example how to exclude branch 'Evaluated to: False' bin:
+exclude WORK.TOP._P0._S0._B0 BIN_FALSE
+
+# Example how to exclude toggle bin 'Toggle from 0 to 1' on
+# a signal, and all toggle bins on a port of sub-instance:
+exclude WORK.TOP.SIGNAL_NAME BIN_0_TO_1
+exclude WORK.TOP.SUB_BLOCK_INST.PORT_NAME
 .Ed
 .\" ------------------------------------------------------------
 .\" Relaxed rules
