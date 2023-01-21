@@ -1,13 +1,19 @@
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER6
 ** Note:      statement:     N.A.
 ** Note:      branch:        N.A.
 ** Note:      toggle:        16.7 % (2/12)
 ** Note:      expression:    N.A.
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER6
 ** Note:      statement:     N.A.
 ** Note:      branch:        N.A.
 ** Note:      toggle:        33.3 % (4/12)
 ** Note:      expression:    N.A.
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER6
 ** Note:      statement:     N.A.
 ** Note:      branch:        N.A.
