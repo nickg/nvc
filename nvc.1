@@ -374,6 +374,20 @@ directory.
 Apply commands in
 .Ar efile
 exclude file when generating code coverage report.
+.It Fl -dont-print= Ns Ar <options>
+When set, NVC does not place code coverage details specified by <options> to
+code coverage report. <options> is comma separated list with following valid values:
+.Bl -tag -width Ds
+.It
+.Cm covered
+- Does not included covered items.
+.It
+.Cm uncovered
+- Does not included uncovered items.
+.It
+.Cm excluded
+- Does not included excluded items.
+.El
 .El
 .\" ------------------------------------------------------------
 .\" Make options
