@@ -708,3 +708,4 @@ issue590        normal
 issue595        normal,2008
 cover9          cover,shell
 issue592        normal
+cover10         cover,shell
