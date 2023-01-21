@@ -935,18 +935,40 @@ static int dump_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static uint32_t parse_cover_print_spec(char *str)
+{
+   uint32_t mask = 0;
+   const char *delim = ",";
+   for (char *tok = strtok(str, delim); tok; tok = strtok(NULL, delim)) {
+      if (!strcmp(tok, "covered"))
+         mask |= COVER_MASK_DONT_PRINT_COVERED;
+      else if (!strcmp(tok, "uncovered"))
+         mask |= COVER_MASK_DONT_PRINT_UNCOVERED;
+      else if (!strcmp(tok, "excluded"))
+         mask |= COVER_MASK_DONT_PRINT_EXCLUDED;
+      else
+      {
+         fatal("Invalid option: %s for '--dont-print'. Valid options are: "
+               "'covered', 'uncovered', 'excluded'", tok);
+      }
+   }
+   return mask;
+}
+
 static int coverage(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "report",       required_argument, 0, 'r' },
       { "exclude-file", required_argument, 0, 'e' },
       { "merge",        required_argument, 0, 'm' },
+      { "dont-print",   required_argument, 0, 'd' },
       { 0, 0, 0, 0 }
    };
 
    const char *out_db = NULL, *rpt_file = NULL, *exclude_file = NULL;
    int c, index;
    const char *spec = "V";
+   cover_mask_t rpt_mask = 0;
 
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -958,6 +980,9 @@ static int coverage(int argc, char **argv)
          break;
       case 'e':
          exclude_file = optarg;
+         break;
+      case 'd':
+         rpt_mask = parse_cover_print_spec(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -983,7 +1008,7 @@ static int coverage(int argc, char **argv)
       if (f != NULL) {
          progress("Loading input coverage database: %s", argv[i]);
          if (i == optind)
-            cover = cover_read_tags(f);
+            cover = cover_read_tags(f, rpt_mask);
          else
             cover_merge_tags(f, cover);
       }
@@ -1006,7 +1031,7 @@ static int coverage(int argc, char **argv)
    }
 
    if (rpt_file && cover) {
-      progress("Generating coverage report to folder: %s.", rpt_file);
+      progress("Generating code coverage report.");
       cover_report(rpt_file, cover);
    }
 

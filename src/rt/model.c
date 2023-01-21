@@ -1796,7 +1796,7 @@ static void reset_coverage(rt_model_t *m)
    if (f == NULL)
       return;
 
-   m->cover = cover_read_tags(f);
+   m->cover = cover_read_tags(f, 0);
 
    int32_t n_stmts, n_branches, n_toggles, n_expressions;
    cover_count_tags(m->cover, &n_stmts, &n_branches, &n_toggles,

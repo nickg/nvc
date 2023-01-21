@@ -121,6 +121,7 @@ struct _cover_file {
 };
 
 struct _cover_report_ctx {
+   cover_tagging_t      *tagging;
    cover_stats_t        flat_stats;
    cover_stats_t        nested_stats;
    cover_report_ctx_t   *parent;
@@ -589,7 +590,7 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->hier = ident_read(ident_ctx);
 }
 
-cover_tagging_t *cover_read_tags(fbuf_t *f)
+cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
 {
 #ifdef COVER_DEBUG
    printf("Reading coverage database.\n");
@@ -597,6 +598,7 @@ cover_tagging_t *cover_read_tags(fbuf_t *f)
 
    cover_tagging_t *tagging = xcalloc(sizeof(cover_tagging_t));
    cover_read_header(f, tagging);
+   tagging->mask |= pre_mask;
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -1440,7 +1442,8 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair)
    fprintf(f, "</p>");
 }
 
-static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
+static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
+                              cover_chain_t *chn, tag_kind_t kind)
 {
    // HTML TAB
    fprintf(f, "<div id=\"");
@@ -1461,14 +1464,20 @@ static void cover_print_chain(FILE *f, cover_chain_t *chn, tag_kind_t kind)
       cover_pair_t *pair;
 
       if (i == 0) {
+         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_UNCOVERED))
+            continue;
          pair = chn->miss;
          n = chn->n_miss;
       }
       else if (i == 1) {
+         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_EXCLUDED))
+            continue;
          pair = chn->excl;
          n = chn->n_excl;
       }
       else {
+         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_COVERED))
+            continue;
          pair = chn->hits;
          n = chn->n_hits;
       }
@@ -1519,10 +1528,10 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
               "</div>\n");
 
-   cover_print_chain(f, &(ctx->ch_stmt), TAG_STMT);
-   cover_print_chain(f, &(ctx->ch_branch), TAG_BRANCH);
-   cover_print_chain(f, &(ctx->ch_toggle), TAG_TOGGLE);
-   cover_print_chain(f, &(ctx->ch_expression), TAG_EXPRESSION);
+   cover_print_chain(f, ctx->tagging, &(ctx->ch_stmt), TAG_STMT);
+   cover_print_chain(f, ctx->tagging, &(ctx->ch_branch), TAG_BRANCH);
+   cover_print_chain(f, ctx->tagging, &(ctx->ch_toggle), TAG_TOGGLE);
+   cover_print_chain(f, ctx->tagging, &(ctx->ch_expression), TAG_EXPRESSION);
 
    fprintf(f, "<script>\n"
               "   document.getElementById(\"defaultOpen\").click();"
@@ -1688,6 +1697,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             cover_report_ctx_t sub_ctx = {0};
             sub_ctx.start_tag = tag;
             sub_ctx.parent = ctx;
+            sub_ctx.tagging = ctx->tagging;
             tag = cover_report_hierarchy(&sub_ctx, dir);
             cover_print_hierarchy_summary(f, &(sub_ctx.nested_stats),
                                           tag->hier, false);
@@ -1816,10 +1826,37 @@ void cover_report(const char *path, cover_tagging_t *tagging)
    make_dir(path);
    make_dir(subdir);
 
+   static const struct {
+      const char *name;
+      cover_mask_t mask;
+   } lst[] = {
+      { "covered",      COVER_MASK_DONT_PRINT_COVERED       },
+      { "uncovered",    COVER_MASK_DONT_PRINT_UNCOVERED     },
+      { "excluded",     COVER_MASK_DONT_PRINT_EXCLUDED      },
+   };
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "Code coverage report contains: ");
+
+   bool first = true;
+   for (int i = 0; i < ARRAY_LEN(lst); i++)
+      if (!cover_enabled(tagging, lst[i].mask)) {
+         if (first)
+            first = false;
+         else
+            tb_printf(tb, ", ");
+         tb_printf(tb, "%s", lst[i].name);
+      }
+   tb_printf(tb, " coverage details.");
+
+   notef("Code coverage report folder: %s.", path);
+   notef("%s", tb_get(tb));
+
    assert(tagging->tags.items[0].kind == TAG_HIER);
 
    cover_report_ctx_t top_ctx = {0};
    top_ctx.start_tag = AREF(tagging->tags, 0);
+   top_ctx.tagging = tagging;
    cover_report_hierarchy(&top_ctx, subdir);
 
    char *top LOCAL = xasprintf("%s/index.html", path);

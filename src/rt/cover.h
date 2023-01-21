@@ -150,7 +150,10 @@ typedef enum {
    COVER_MASK_EXPRESSION                  = (1 << 3),
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
-   COVER_MASK_TOGGLE_INCLUDE_MEMS         = (1 << 10)
+   COVER_MASK_TOGGLE_INCLUDE_MEMS         = (1 << 10),
+   COVER_MASK_DONT_PRINT_COVERED          = (1 << 16),
+   COVER_MASK_DONT_PRINT_UNCOVERED        = (1 << 17),
+   COVER_MASK_DONT_PRINT_EXCLUDED         = (1 << 18)
 } cover_mask_t;
 
 #define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION)
@@ -188,7 +191,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *stmts, const int32_t *branches,
                      const int32_t *toggles, const int32_t *expressions);
 
-cover_tagging_t *cover_read_tags(fbuf_t *f);
+cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask);
 
 void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging);
 
