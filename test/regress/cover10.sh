@@ -42,5 +42,7 @@ if grep SIGNAL_WHICH_IS_UNCOVERED html/hier/*; then
   exit 1
 fi
 
+# Replace absolute paths
+sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt
 
 diff -u $TESTDIR/regress/gold/cover10.txt out.txt
