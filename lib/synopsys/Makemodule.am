@@ -67,7 +67,7 @@ lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd @ifGNUma
 	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
 
 gen-deps-synopsys:
-	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only | \
+	$(nvc) -L lib/ --work=lib/synopsys --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
 
 lib/ieee/IEEE.STD_LOGIC_MISC: lib/synopsys/SYNOPSYS.ATTRIBUTES

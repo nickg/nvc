@@ -81,8 +81,8 @@ static ident_t to_unit_name(const char *str)
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
-      "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list", "--init",
-      "--install",
+      "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
+      "--init", "--install", "--print-deps",
    };
 
    for (int i = start; i < argc; i++) {
@@ -631,6 +631,47 @@ static int run(int argc, char **argv)
    return rc == 0 && argc > 1 ? process_command(argc, argv) : rc;
 }
 
+static int print_deps_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   opt_set_int(OPT_MAKE_DEPS_ONLY, 1);
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = "";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0: break;  // Set a flag
+      default: bad_option("make", argv);
+      }
+   }
+
+   const int count = next_cmd - optind;
+   tree_t *targets = xmalloc_array(count, sizeof(tree_t));
+
+   lib_t work = lib_work();
+
+   for (int i = optind; i < next_cmd; i++) {
+      ident_t name = to_unit_name(argv[i]);
+      ident_t elab = ident_prefix(name, well_known(W_ELAB), '.');
+      if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
+         if ((targets[i - optind] = lib_get(work, name)) == NULL)
+            fatal("cannot find unit %s in library %s",
+                  istr(name), istr(lib_name(work)));
+      }
+   }
+
+   make(targets, count, stdout);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
 static int make_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -638,6 +679,10 @@ static int make_cmd(int argc, char **argv)
       { "posix",     no_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
+
+   warnf("the $bold$--make$$ command is deprecated and may be repurposed in a "
+         "future release");
+   notef("use $bold$--print-deps$$ to print Makefile dependencies instead");
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
@@ -647,16 +692,14 @@ static int make_cmd(int argc, char **argv)
       case 0:
          // Set a flag
          break;
-      case '?':
-         bad_option("make", argv);
       case 'd':
          opt_set_int(OPT_MAKE_DEPS_ONLY, 1);
          break;
       case 'p':
-         opt_set_int(OPT_MAKE_POSIX, 1);
+         // Does nothing
          break;
       default:
-         abort();
+         bad_option("make", argv);
       }
    }
 
@@ -1055,7 +1098,7 @@ static void usage(void)
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
           " --list\t\t\t\tPrint all units in the library\n"
-          " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
+          " --print-deps [UNIT]...\t\tPrint dependencies in Makefile format\n"
           " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
@@ -1127,10 +1170,6 @@ static void usage(void)
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
-          "\n"
-          "Make options:\n"
-          "     --deps-only\tOutput dependencies without actions\n"
-          "     --posix\t\tStrictly POSIX compliant makefile\n"
           "\n"
           "Install options:\n"
           "     --dest=DIR\t\tCompile libraries into directory DEST\n"
@@ -1249,12 +1288,13 @@ static void parse_work_name(char *str, const char **name, const char **path)
 static int process_command(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "dump",    no_argument, 0, 'd' },
-      { "make",    no_argument, 0, 'm' },
-      { "syntax",  no_argument, 0, 's' },
-      { "list",    no_argument, 0, 'l' },
-      { "init",    no_argument, 0, 'i' },
-      { "install", no_argument, 0, 'I' },
+      { "dump",       no_argument, 0, 'd' },
+      { "make",       no_argument, 0, 'm' },
+      { "syntax",     no_argument, 0, 's' },
+      { "list",       no_argument, 0, 'l' },
+      { "init",       no_argument, 0, 'i' },
+      { "install",    no_argument, 0, 'I' },
+      { "print-deps", no_argument, 0, 'P' },
       { 0, 0, 0, 0 }
    };
 
@@ -1284,6 +1324,8 @@ static int process_command(int argc, char **argv)
       return init_cmd(argc, argv);
    case 'I':
       return install_cmd(argc, argv);
+   case 'P':
+      return print_deps_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;

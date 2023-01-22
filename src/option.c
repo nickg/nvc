@@ -123,7 +123,6 @@ void set_default_options(void)
    opt_set_int(OPT_STOP_DELTA, 10000);
    opt_set_int(OPT_UNIT_TEST, 0);
    opt_set_int(OPT_MAKE_DEPS_ONLY, 0);
-   opt_set_int(OPT_MAKE_POSIX, 0);
    opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);

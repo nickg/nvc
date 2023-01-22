@@ -108,7 +108,7 @@ lib/ieee.19/IEEE.IEEE_BIT_CONTEXT: $(srcdir)/lib/ieee.08/ieee_bit_context.vhdl @
 	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/ieee.08/ieee_bit_context.vhdl
 
 gen-deps-ieee-19:
-	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 --make --posix --deps-only \
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 --print-deps \
 		 | $(deps_pp) > $(srcdir)/lib/ieee.19/deps.mk
 
 include lib/ieee.19/deps.mk

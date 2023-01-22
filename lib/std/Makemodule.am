@@ -25,7 +25,7 @@ lib/std/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVE
 	$(nvc) -L lib/ --work=lib/std -a $(srcdir)/lib/std/textio-body.vhd
 
 gen-deps-std:
-	$(nvc) -L lib/ --work=lib/std --make --posix --deps-only | \
+	$(nvc) -L lib/ --work=lib/std --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/std/deps.mk
 
 include lib/std/deps.mk

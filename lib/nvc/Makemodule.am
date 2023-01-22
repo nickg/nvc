@@ -29,7 +29,7 @@ lib/nvc/NVC.POLYFILL-body: $(srcdir)/lib/nvc/polyfill-body.vhd @ifGNUmake@ | $(D
 	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
 
 gen-deps-nvc:
-	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only | \
+	$(nvc) -L lib/ --work=lib/nvc --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
 
 include lib/nvc/deps.mk

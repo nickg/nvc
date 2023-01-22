@@ -25,6 +25,9 @@
 - `case .. generate` statements are now supported in VHDL-2008.
 - Coverage implementation was reworked and now collects statement,
   branch, expression and toggle metrics (from @Blebowski).
+- The `--make` command is deprecated and will be repurposed in a later
+  release.  Use the new `--print-deps` command instead to generate
+  Makefile dependencies.
 
 ## Version 1.7.2 - 2022-10-16
 - Fixed build on FreeBSD/arm (#534).

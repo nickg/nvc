@@ -64,7 +64,7 @@ lib/ieee/IEEE.MATH_COMPLEX-body: $(srcdir)/lib/ieee/math_complex-body.vhdl @ifGN
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex-body.vhdl
 
 gen-deps-ieee:
-	$(nvc) -L lib/ --work=lib/ieee --make --posix --deps-only \
+	$(nvc) -L lib/ --work=lib/ieee --print-deps \
 		 | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
 
 include lib/ieee/deps.mk
