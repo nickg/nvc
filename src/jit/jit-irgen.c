@@ -114,6 +114,7 @@ static inline jit_reg_t jit_value_as_reg(jit_value_t value)
    return value.reg;
 }
 
+#ifdef DEBUG
 static inline bool jit_value_is_addr(jit_value_t value)
 {
    switch (value.kind) {
@@ -125,6 +126,7 @@ static inline bool jit_value_is_addr(jit_value_t value)
       return false;
    }
 }
+#endif
 
 static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
 {

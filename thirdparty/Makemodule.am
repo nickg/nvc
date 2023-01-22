@@ -14,11 +14,11 @@ lib_libcpustate_a_SOURCES = thirdparty/cpustate.c thirdparty/cpustate.h
 lib_libgnulib_a_SOURCES =
 
 if GNULIB_MEMMEM
-lib_libgnulib_a_SOURCES += thirdparty/memmem.c
+lib_libgnulib_a_SOURCES += thirdparty/memmem.c thirdparty/str-two-way.h
 endif
 
 if GNULIB_STRCASESTR
-lib_libgnulib_a_SOURCES += thirdparty/strcasestr.c
+lib_libgnulib_a_SOURCES += thirdparty/strcasestr.c thirdparty/str-two-way.h
 endif
 
 if GNULIB_GETLINE
