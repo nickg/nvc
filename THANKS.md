@@ -12,6 +12,8 @@ following people:
   fixed several bugs.
 - Michael Mitchener (@mitchsm) made many improvements to the bounds
   checking pass.
+- Ondrej Ille (@Blebowski) added many features to code coverage
+  collection and reporting.
 - Olaf Kraigher (@kraigher) made several improvements to the parser and
   `std.textio` implementation.
 - Sebastien Van Cauwenbergh (@svancau) contributed the JSON output
