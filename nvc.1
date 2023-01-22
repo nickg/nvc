@@ -374,6 +374,19 @@ directory.
 Apply commands in
 .Ar efile
 exclude file when generating code coverage report.
+.It Fl -dont-print= Ns Ar options
+When set, NVC does not place code coverage details specified by <options> to
+code coverage report.
+.Ar options
+is comma separated list of the following values:
+.Bl -tag -width "uncovered"
+.It Cm covered
+Does not include covered items.
+.It Cm uncovered
+Does not include uncovered items.
+.It Cm excluded
+Does not include excluded items.
+.El
 .El
 .\" ------------------------------------------------------------
 .\" Make options
@@ -538,7 +551,6 @@ hierarchy coverage report in HTML format, run:
 $ nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> \\
       first.covdb second.covdb third.covdb ...
 .Ed
-.Pp
 .Ss Additional code coverage options
 NVC supports following additional options to control coverage collection:
 .Bl -bullet

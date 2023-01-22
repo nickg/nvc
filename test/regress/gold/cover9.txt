@@ -253,6 +253,8 @@
     |
  53 | exclude WORK.COVER9.Y
     | ^^^^^^^^^^^^^^^^^^^^^
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER9
 ** Note:      statement:     100.0 % (29/29)
 ** Note:      branch:        100.0 % (10/10)

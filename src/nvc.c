@@ -935,18 +935,43 @@ static int dump_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static uint32_t parse_cover_print_spec(char *str)
+{
+   uint32_t mask = 0;
+   const char *delim = ",";
+   for (char *tok = strtok(str, delim); tok; tok = strtok(NULL, delim)) {
+      if (!strcmp(tok, "covered"))
+         mask |= COVER_MASK_DONT_PRINT_COVERED;
+      else if (!strcmp(tok, "uncovered"))
+         mask |= COVER_MASK_DONT_PRINT_UNCOVERED;
+      else if (!strcmp(tok, "excluded"))
+         mask |= COVER_MASK_DONT_PRINT_EXCLUDED;
+      else {
+         diag_t *d = diag_new(DIAG_FATAL, NULL);
+         diag_printf(d, "invalid option: '%s' for $bold$--dont-print$$", tok);
+         diag_hint(d, NULL, "valid options are: 'covered', 'uncovered', "
+                   "'excluded'");
+         diag_emit(d);
+         fatal_exit(EXIT_FAILURE);
+      }
+   }
+   return mask;
+}
+
 static int coverage(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "report",       required_argument, 0, 'r' },
       { "exclude-file", required_argument, 0, 'e' },
       { "merge",        required_argument, 0, 'm' },
+      { "dont-print",   required_argument, 0, 'd' },
       { 0, 0, 0, 0 }
    };
 
    const char *out_db = NULL, *rpt_file = NULL, *exclude_file = NULL;
    int c, index;
    const char *spec = "V";
+   cover_mask_t rpt_mask = 0;
 
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -958,6 +983,9 @@ static int coverage(int argc, char **argv)
          break;
       case 'e':
          exclude_file = optarg;
+         break;
+      case 'd':
+         rpt_mask = parse_cover_print_spec(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -983,7 +1011,7 @@ static int coverage(int argc, char **argv)
       if (f != NULL) {
          progress("Loading input coverage database: %s", argv[i]);
          if (i == optind)
-            cover = cover_read_tags(f);
+            cover = cover_read_tags(f, rpt_mask);
          else
             cover_merge_tags(f, cover);
       }
@@ -1006,7 +1034,7 @@ static int coverage(int argc, char **argv)
    }
 
    if (rpt_file && cover) {
-      progress("Generating coverage report to folder: %s.", rpt_file);
+      progress("Generating code coverage report.");
       cover_report(rpt_file, cover);
    }
 
@@ -1050,15 +1078,14 @@ static void usage(void)
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
-          "     --cover=<types>\tEnable code coverage collection.\n"
-          "                    \t<types> is comma separated list\n"
-          "                    \tof coverage types to collect:\n"
-          "                    \t statement\n"
-          "                    \t toggle\n"
-          "                    \t branch\n"
-          "                    \t expression\n"
-          "                    \t Ommiting '=<types>' collects all\n"
-          "                    \t coverage types.\n"
+          "     --cover[=TYPES]\tEnable code coverage collection. TYPES is a\n"
+          "                    \tcomma separated list of coverage types to "
+          "collect:\n"
+          "                    \t  statement\n"
+          "                    \t  toggle\n"
+          "                    \t  branch\n"
+          "                    \t  expression\n"
+          "                    \tOmitting TYPES collects all coverage types.\n"
           "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
@@ -1086,8 +1113,14 @@ static void usage(void)
           "\n"
           "Coverage processing options:\n"
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
-          "                        to OUTPUT coverage database.\n"
-          "     --exclude-file=EXCLUDE\tApply EXCLUDE file when generating report.\n"
+          "                   \tto OUTPUT coverage database\n"
+          "     --exclude-file=\tApply exclude file when generating report\n"
+          "     --dont-print=\tDo not include specified tags in generated "
+          "code\n"
+          "                  \tcoverage report. Argument is a list of:\n"
+          "                  \t  covered\n"
+          "                  \t  uncovered\n"
+          "                  \t  excluded\n"
           "     --report=DIR\tGenerate HTML report with code coverage results\n"
           "                    \tto DIR folder.\n"
           "\n"
