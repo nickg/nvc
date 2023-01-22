@@ -761,7 +761,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
       abort();
    }
 
-   char buf[512], *p = buf, *end = buf + ARRAY_LEN(buf);
+   char buf[512], *p = buf, *s = buf, *end = buf + ARRAY_LEN(buf);
    p += checked_sprintf(p, end - p, "\n%s*** Caught signal %d (%s)%s",
                         want_color ? "\033[31m\033[1m" : "",
                         sig, signame(sig, info),
@@ -779,7 +779,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
 
    p += checked_sprintf(p, end - p, " ***%s\n\n", want_color ? "\033[0m" : "");
 
-   (void)write(STDERR_FILENO, buf, p - buf);
+   for (int n; s < p && (n = write(STDERR_FILENO, s, p - s)) > 0; s += n);
 
    if (sig != SIGUSR1 && !atomic_cas(&crashing, SIG_ATOMIC_MAX, thread_id())) {
       sleep(60);
