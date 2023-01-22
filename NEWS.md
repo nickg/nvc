@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.8.0 - 2023-01-22
 - The `--disable-opt` and `--native` elaborate options which were
   deprecated in version 1.3 have been removed.
 - The JSON dumper which was unmaintained for several years has been

@@ -60,6 +60,27 @@ compile-commands:
 	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) \
 	  $(check_PROGRAMS) $(EXTRA_PROGRAMS) $(pkglibexec_PROGRAMS)
 
+release: update-test-dist
+	echo $(PACKAGE_VERSION) | grep -E "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$$"
+	$(AM_V_GEN)( \
+	  v=$(PACKAGE_VERSION); d=$$(date '+%Y-%m-%d'); \
+	  n=$$(date '+%d'); l=$$(date '+%B %Y'); \
+	  case $$d in \
+	    1?) n=$${n}th ;; \
+	    *1) n=$${n}st ;; \
+	    *2) n=$${n}nd ;; \
+	    *3) n=$${n}rd ;; \
+	    *)  n=$${n}th ;; \
+	  esac; \
+	  sed -i "s/\(Unreleased changes\)/\1\n\n## Version $$v - $$d/" $(top_srcdir)/NEWS.md; \
+	  sed -i -e "/define(__version,/cdefine(__version, \`$$v')dnl/" \
+	    -e "/define(__release_date,/cdefine(__release_date, \`$$n $$l')dnl/" \
+	    -e "/define(__release_date_short,/cdefine(__release_date_short, \`$$d')dnl/" \
+	    $(top_srcdir)/www/defs.m4; \
+	  $(MAKE) -C $(top_builddir) distcheck; \
+	  gpg -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
+	)
+
 clean-local: clean-test clean-libs
 
-.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands
+.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands release

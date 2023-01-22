@@ -8,6 +8,7 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-exits.h \
 	src/jit/jit-exits.c \
 	src/jit/jit-optim.c \
+	src/jit/jit-ffi.h \
 	src/jit/jit-ffi.c \
 	src/jit/jit-code.c \
 	src/jit/jit-pack.c
