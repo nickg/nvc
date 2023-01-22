@@ -946,10 +946,13 @@ static uint32_t parse_cover_print_spec(char *str)
          mask |= COVER_MASK_DONT_PRINT_UNCOVERED;
       else if (!strcmp(tok, "excluded"))
          mask |= COVER_MASK_DONT_PRINT_EXCLUDED;
-      else
-      {
-         fatal("Invalid option: %s for '--dont-print'. Valid options are: "
-               "'covered', 'uncovered', 'excluded'", tok);
+      else {
+         diag_t *d = diag_new(DIAG_FATAL, NULL);
+         diag_printf(d, "invalid option: '%s' for $bold$--dont-print$$", tok);
+         diag_hint(d, NULL, "valid options are: 'covered', 'uncovered', "
+                   "'excluded'");
+         diag_emit(d);
+         fatal_exit(EXIT_FAILURE);
       }
    }
    return mask;
@@ -1075,15 +1078,14 @@ static void usage(void)
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
-          "     --cover=<types>\tEnable code coverage collection.\n"
-          "                    \t<types> is comma separated list\n"
-          "                    \tof coverage types to collect:\n"
-          "                    \t statement\n"
-          "                    \t toggle\n"
-          "                    \t branch\n"
-          "                    \t expression\n"
-          "                    \t Ommiting '=<types>' collects all\n"
-          "                    \t coverage types.\n"
+          "     --cover[=TYPES]\tEnable code coverage collection. TYPES is a\n"
+          "                    \tcomma separated list of coverage types to "
+          "collect:\n"
+          "                    \t  statement\n"
+          "                    \t  toggle\n"
+          "                    \t  branch\n"
+          "                    \t  expression\n"
+          "                    \tOmitting TYPES collects all coverage types.\n"
           "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
@@ -1111,13 +1113,14 @@ static void usage(void)
           "\n"
           "Coverage processing options:\n"
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
-          "                        to OUTPUT coverage database.\n"
-          "     --exclude-file=EXCLUDE\tApply EXCLUDE file when generating report.\n"
-          "     --dont-print=OPTIONS\tDo not put tags specified by OPTIONS to generated\n"
-          "                         \tcode coverage report. OPTIONS can be list of:\n"
-          "                            \t covered\n"
-          "                            \t uncovered\n"
-          "                            \t excluded\n"
+          "                   \tto OUTPUT coverage database\n"
+          "     --exclude-file=\tApply exclude file when generating report\n"
+          "     --dont-print=\tDo not include specified tags in generated "
+          "code\n"
+          "                  \tcoverage report. Argument is a list of:\n"
+          "                  \t  covered\n"
+          "                  \t  uncovered\n"
+          "                  \t  excluded\n"
           "     --report=DIR\tGenerate HTML report with code coverage results\n"
           "                    \tto DIR folder.\n"
           "\n"
