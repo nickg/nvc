@@ -1514,7 +1514,7 @@ void *map_file(int fd, size_t size)
    if (!handle)
       fatal_errno("CreateFileMapping");
 
-   void *ptr = MapViewOfFileEx(handle, FILE_MAP_COPY, 0,
+   void *ptr = MapViewOfFileEx(handle, FILE_MAP_READ, 0,
                                0, (SIZE_T) size, (LPVOID) NULL);
    CloseHandle(handle);
    if (ptr == NULL)
