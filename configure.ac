@@ -96,28 +96,26 @@ AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 
 AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
 
-AC_PATH_PROG([sh_path], ["sh"], ["/bin/sh"])
-AC_DEFINE_UNQUOTED([SH_PATH], ["$sh_path"], [Path to POSIX shell])
-
 case $host_os in
   *cygwin*|msys*|mingw32*)
     LIBS="$LIBS -ldbghelp"    # For StackTrace64
+    DIR_SEP=\\\\
+    pathprog="cygpath -m"
     ;;
   *)
     AC_SEARCH_LIBS([dlopen], [dl dld], [], [
       AC_MSG_ERROR([unable to find the dlopen() function])
     ])
+    DIR_SEP=/
+    pathprog="echo"
     ;;
 esac
 
-case $host_os in
-  msys*|mingw32*)
-    DIR_SEP=\\\\
-    ;;
-  *)
-    DIR_SEP=/
-    ;;
-esac
+AC_PATH_PROG([sh_path], ["sh"], ["/bin/sh"])
+AC_DEFINE_UNQUOTED([SH_PATH], ["`$pathprog $sh_path`"], [Path to POSIX shell])
+
+AC_PATH_PROG([diff_path], ["diff"], ["/usr/bin/diff"])
+AC_DEFINE_UNQUOTED([DIFF_PATH], ["`$pathprog $diff_path`"], [Path to diff program])
 
 AC_DEFINE_UNQUOTED([DIR_SEP], ["$DIR_SEP"], [Directory separator])
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])

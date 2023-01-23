@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -42,6 +42,7 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include "fstapi.h"
 
@@ -50,6 +51,7 @@ static unsigned int *scope_idx = NULL;
 
 static char **scope_names = NULL;
 long allocated_scopes = 1;
+FILE *outf;
 
 static void extractVarNames(void *xc)
 {
@@ -119,7 +121,7 @@ static void fst_callback2(void *ctx, uint64_t pnt_time, fstHandle pnt_facidx,
    char *fn;
    fn = get_facname(ctx, pnt_facidx);
 
-   printf("#%"PRIu64" %s %.*s\n", pnt_time, fn, plen, pnt_value);
+   fprintf(outf, "#%"PRIu64" %s %.*s\n", pnt_time, fn, plen, pnt_value);
 }
 
 static void fst_callback(void *ctx, uint64_t pnt_time, fstHandle pnt_facidx,
@@ -134,14 +136,38 @@ static void fst_callback(void *ctx, uint64_t pnt_time, fstHandle pnt_facidx,
 
 int main(int argc, char **argv)
 {
-   if (argc != 2) {
-      fprintf(stderr, "usage: fstdump FILE\n");
+   int c;
+   opterr = 0;
+   outf = stdout;
+   while ((c = getopt (argc, argv, "o:")) != -1) {
+      switch (c) {
+      case 'o':
+         if ((outf = fopen(optarg, "w")) == NULL) {
+            fprintf(stderr, "failed to open %s\n", optarg);
+            return 1;
+         }
+         break;
+      case '?':
+         if (optopt == 'o')
+            fprintf(stderr, "option -%c requires an argument\n", optopt);
+         else if (isprint (optopt))
+            fprintf(stderr, "unknown option `-%c'\n", optopt);
+         else
+            fprintf(stderr, "unknown option character `\\x%x'\n", optopt);
+         return 1;
+      default:
+         abort ();
+      }
+   }
+
+   if (optind != argc - 1) {
+      fprintf(stderr, "usage: fstdump [-o OUT] FILE\n");
       return 1;
    }
 
-   void *ctx = fstReaderOpen(argv[1]);
+   void *ctx = fstReaderOpen(argv[optind]);
    if (ctx == NULL) {
-      fprintf(stderr, "failed to open %s\n", argv[1]);
+      fprintf(stderr, "failed to open %s\n", argv[optind]);
       return 1;
    }
 

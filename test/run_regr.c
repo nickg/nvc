@@ -1,3 +1,20 @@
+//
+//  Copyright (C) 2016-2023  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -70,6 +87,7 @@
 #define F_SLOW    (1 << 14)
 #define F_VERILOG (1 << 15)
 #define F_MIXED   (1 << 16)
+#define F_WAVE    (1 << 17)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -361,6 +379,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_MIXED;
          else if (strcmp(opt, "verilog") == 0)
             test->flags |= F_VERILOG;
+         else if (strcmp(opt, "wave") == 0)
+            test->flags |= F_WAVE;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -778,6 +798,9 @@ static bool run_test(test_t *test)
          push_arg(&args, "--load=%s/../lib/%s.so%s", bin_dir,
                   test->name, EXEEXT);
 
+      if (test->flags & F_WAVE)
+         push_arg(&args, "-w");
+
       push_arg(&args, "%s", test->name);
    }
 
@@ -809,6 +832,30 @@ static bool run_test(test_t *test)
       }
       else if (!file_exists("html/index.html")) {
          failed("missing coverage report index.html");
+         result = false;
+         goto out_print;
+      }
+   }
+
+   if (result && (test->flags & F_WAVE)) {
+      push_arg(&args, "%s/fstdump%s", bin_dir, EXEEXT);
+      push_arg(&args, "-o");
+      push_arg(&args, "%s.dump", test->name);
+      push_arg(&args, "%s.fst", test->name);
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("fstdump");
+         result = false;
+         goto out_print;
+      }
+
+      push_arg(&args, "%s", DIFF_PATH);
+      push_arg(&args, "-u");
+      push_arg(&args, "%s/regress/gold/%s.dump", test_dir, test->name);
+      push_arg(&args, "%s.dump", test->name);
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("waveform mismatch");
          result = false;
          goto out_print;
       }
