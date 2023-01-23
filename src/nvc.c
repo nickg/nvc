@@ -99,11 +99,13 @@ static void bad_option(const char *what, char **argv)
 {
    if (optopt == 0)
       fatal("unrecognised %s option $bold$%s$$", what, argv[optind - 1]);
-   else if (optarg == NULL)
-      fatal("%s option $bold$%s$$ requires an argument",
-            what, argv[optind - 1]);
    else
       fatal("unrecognised %s option $bold$-%c$$", what, optopt);
+}
+
+static void missing_argument(const char *what, char **argv)
+{
+   fatal("%s option $bold$%s$$ requires an argument", what, argv[optind - 1]);
 }
 
 static int analyse(int argc, char **argv)
@@ -120,7 +122,7 @@ static int analyse(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -129,6 +131,8 @@ static int analyse(int argc, char **argv)
          break;
       case '?':
          bad_option("analyse", argv);
+      case ':':
+         missing_argument("analyse", argv);
       case 'b':
          opt_set_int(OPT_BOOTSTRAP, 1);
          break;
@@ -291,7 +295,7 @@ static int elaborate(int argc, char **argv)
    int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "Vg:O:";
+   const char *spec = ":Vg:O:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'O':
@@ -329,6 +333,8 @@ static int elaborate(int argc, char **argv)
          break;
       case '?':
          bad_option("elaborate", argv);
+      case ':':
+         missing_argument("elaborate", argv);
       default:
          abort();
       }
@@ -484,7 +490,7 @@ static int run(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
-   const char *spec = "w::l:g";
+   const char *spec = ":w::l:g";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -492,6 +498,8 @@ static int run(int argc, char **argv)
          break;
       case '?':
          bad_option("run", argv);
+      case ':':
+         missing_argument("run", argv);
       case 't':
          opt_set_int(OPT_RT_TRACE, 1);
          break;
@@ -641,11 +649,13 @@ static int print_deps_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0: break;  // Set a flag
-      default: bad_option("make", argv);
+      case '?': bad_option("make", argv);
+      case ':': missing_argument("make", argv);
+      default: abort();
       }
    }
 
@@ -686,7 +696,7 @@ static int make_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -698,8 +708,12 @@ static int make_cmd(int argc, char **argv)
       case 'p':
          // Does nothing
          break;
-      default:
+      case '?':
          bad_option("make", argv);
+      case ':':
+         missing_argument("make", argv);
+      default:
+         abort();
       }
    }
 
@@ -751,7 +765,7 @@ static int list_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -759,6 +773,8 @@ static int list_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("list", argv);
+      case ':':
+         missing_argument("list", argv);
       default:
          abort();
       }
@@ -780,7 +796,7 @@ static int init_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -788,7 +804,8 @@ static int init_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("init", argv);
-         break;
+      case ':':
+         missing_argument("init", argv);
       }
    }
 
@@ -840,7 +857,7 @@ static int install_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -848,7 +865,8 @@ static int install_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("install", argv);
-         break;
+      case ':':
+         missing_argument("install", argv);
       case 'd':
          setenv("NVC_INSTALL_DEST", optarg , 1);
          break;
@@ -901,7 +919,7 @@ static int syntax_cmd(int argc, char **argv)
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = ":";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -909,7 +927,8 @@ static int syntax_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("syntax", argv);
-         break;
+      case ':':
+         missing_argument("syntax", argv);
       }
    }
 
@@ -939,7 +958,7 @@ static int dump_cmd(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    bool add_elab = false, add_body = false;
    int c, index = 0;
-   const char *spec = "Eb";
+   const char *spec = ":Eb";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -947,6 +966,8 @@ static int dump_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("dump", argv);
+      case ':':
+         missing_argument("dump", argv);
       case 'E':
          add_elab = true;
          break;
@@ -1013,7 +1034,7 @@ static int coverage(int argc, char **argv)
 
    const char *out_db = NULL, *rpt_file = NULL, *exclude_file = NULL;
    int c, index;
-   const char *spec = "V";
+   const char *spec = ":V";
    cover_mask_t rpt_mask = 0;
 
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
@@ -1035,6 +1056,8 @@ static int coverage(int argc, char **argv)
          break;
       case '?':
          bad_option("coverage", argv);
+      case ':':
+         missing_argument("coverage", argv);
       default:
          abort();
       }
@@ -1365,7 +1388,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = "aehrcvL:M:P:G:H:";
+   const char *spec = ":aehrcvL:M:P:G:H:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -1417,6 +1440,8 @@ int main(int argc, char **argv)
          break;
       case '?':
          bad_option("global", argv);
+      case ':':
+         missing_argument("global", argv);
       default:
          abort();
       }
