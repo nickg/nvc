@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Initial signal values for certain types were not dumped correctly in
+  FST files on Windows (#596).
 
 ## Version 1.8.0 - 2023-01-22
 - The `--disable-opt` and `--native` elaborate options which were
