@@ -1,5 +1,10 @@
 ## Unreleased changes
 
+## Version 1.8.1 - 2023-01-23
+- Initial signal values for certain types were not dumped correctly in
+  FST files on Windows (#596).
+- Missing `thirdparty/str-two-way.h` from distribution tarball (#599).
+
 ## Version 1.8.0 - 2023-01-22
 - The `--disable-opt` and `--native` elaborate options which were
   deprecated in version 1.3 have been removed.
