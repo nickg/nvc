@@ -1042,9 +1042,6 @@ static void fstDestroyMmaps(struct fstWriterContext *xc, int is_closing)
 (void)is_closing;
 #endif
 
-fstMunmap(xc->valpos_mem, xc->maxhandle * 4 * sizeof(uint32_t));
-xc->valpos_mem = NULL;
-
 #if defined __CYGWIN__ || defined __MINGW32__
 if(xc->curval_mem)
         {
@@ -1064,7 +1061,28 @@ if(xc->curval_mem)
                 lseek(__fd, cur_offs, SEEK_SET);
                 }
         }
+ if(xc->valpos_mem)
+        {
+        if(!is_closing) /* need to flush out for next emulated mmap() read */
+                {
+                char *pnt = (char *)xc->valpos_mem;
+                int __fd = fileno(xc->valpos_handle);
+                fst_off_t cur_offs = lseek(__fd, 0, SEEK_CUR);
+                size_t i;
+                size_t __len = xc->maxhandle * 4 * sizeof(uint32_t);
+
+                lseek(__fd, 0, SEEK_SET);
+                for(i=0;i<__len;i+=SSIZE_MAX)
+                        {
+                        write(__fd, pnt + i, ((__len - i) >= SSIZE_MAX) ? SSIZE_MAX : (__len - i));
+                        }
+                lseek(__fd, cur_offs, SEEK_SET);
+                }
+        }
 #endif
+
+fstMunmap(xc->valpos_mem, xc->maxhandle * 4 * sizeof(uint32_t));
+xc->valpos_mem = NULL;
 
 fstMunmap(xc->curval_mem, xc->maxvalpos);
 xc->curval_mem = NULL;
