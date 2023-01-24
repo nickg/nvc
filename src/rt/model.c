@@ -1900,6 +1900,71 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
       dump_signals(m, c);
 }
 
+static text_buf_t *signal_full_name(rt_signal_t *s)
+{
+   text_buf_t *tb = tb_new();
+   if (s->parent->kind == SCOPE_SIGNAL)
+      tb_printf(tb, "%s.", istr(s->parent->name));
+   tb_cat(tb, istr(tree_ident(s->where)));
+   return tb;
+}
+
+static void check_undriven_std_logic(rt_nexus_t *n)
+{
+   // Print a warning if any STD_LOGIC signal has multiple sources one
+   // of which is an undriven port with initial value 'U'. The resolved
+   // value will then always be 'U' which often confuses users.
+
+   if (n->n_sources < 2 || !(n->signal->flags & NET_F_STD_LOGIC))
+      return;
+
+   rt_signal_t *undriven = NULL;
+   for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+      if (s->tag == SOURCE_PORT) {
+         rt_nexus_t *input = s->u.port.input;
+         if (input->n_sources == 0) {
+            const unsigned char *init = input->resolved, *p = init;
+            for (; *p == 0 && p < init + input->width; p++);
+
+            if (p == init + input->width)
+               undriven = s->u.port.input->signal;
+         }
+      }
+   }
+
+   if (undriven == NULL)
+      return;
+
+   LOCAL_TEXT_BUF sig_name = signal_full_name(n->signal);
+   LOCAL_TEXT_BUF port_name = signal_full_name(undriven);
+
+   const loc_t *sig_loc = tree_loc(n->signal->where);
+   rt_scope_t *sig_scope = n->signal->parent;
+   for (; sig_scope->kind == SCOPE_SIGNAL; sig_scope = sig_scope->parent)
+      sig_loc = tree_loc(sig_scope->where);
+
+   const loc_t *port_loc = tree_loc(undriven->where);
+   rt_scope_t *port_scope = undriven->parent;
+   for (; port_scope->kind == SCOPE_SIGNAL; port_scope = port_scope->parent)
+      port_loc = tree_loc(port_scope->where);
+
+   diag_t *d = diag_new(DIAG_WARN, sig_loc);
+   diag_printf(d, "%ssignal %s has %d sources including port %s which has "
+               "initial value 'U' and no driver in instance %s",
+               n->signal->n_nexus > 1 ? "sub-element of " : "",
+               tb_get(sig_name), n->n_sources,
+               tb_get(port_name), istr(tree_ident(port_scope->where)));
+   diag_hint(d, sig_loc, "signal %s declared here", tb_get(sig_name));
+   diag_hint(d, port_loc, "sourced by port %s which always contributes 'U'",
+             tb_get(port_name));
+   diag_hint(d, NULL, "the resolved value will always be 'U' which was almost "
+             "certainly not intended");
+   diag_emit(d);
+
+   // Prevent multiple warnings for the same signal
+   n->signal->flags &= ~NET_F_STD_LOGIC;
+}
+
 void model_reset(rt_model_t *m)
 {
    MODEL_ENTRY(m);
@@ -1964,6 +2029,8 @@ void model_reset(rt_model_t *m)
          TRACE("%s initial value %s", istr(tree_ident(n->signal->where)),
                fmt_nexus(n, initial));
       }
+
+      check_undriven_std_logic(n);
    }
 
    heap_free(q);

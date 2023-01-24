@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -6977,7 +6977,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
                               int ncons, type_t init_type, vcode_var_t sig_var,
                               vcode_reg_t sig_ptr, vcode_reg_t init_reg,
                               vcode_reg_t resolution, vcode_reg_t null_reg,
-                              vcode_reg_t flags_reg)
+                              net_flags_t flags)
 {
    bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
@@ -7013,6 +7013,12 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (has_scope)
          emit_push_scope(locus, lower_type(type));
 
+      well_known_t wk = is_well_known(type_ident(type_base_recur(type)));
+      if (wk == W_IEEE_ULOGIC || wk == W_IEEE_ULOGIC_VECTOR
+          || wk == W_IEEE_LOGIC || wk == W_IEEE_LOGIC_VECTOR)
+         flags |= NET_F_STD_LOGIC;
+
+      vcode_reg_t flags_reg = emit_const(voffset, flags);
       vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg, init_reg,
                                          flags_reg, locus, null_reg);
 
@@ -7101,7 +7107,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       vcode_reg_t null_off_reg = emit_array_ref(null_reg, i_reg);
 
       lower_sub_signals(elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
-                        ptr_reg, data_reg, resolution, null_off_reg, flags_reg);
+                        ptr_reg, data_reg, resolution, null_off_reg, flags);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -7147,7 +7153,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          tree_t fcons[MAX_CONSTRAINTS];
          const int nfcons = pack_field_constraints(type, f, rcons, fcons);
          lower_sub_signals(ft, f, fcons, nfcons, ft, VCODE_INVALID_VAR, ptr_reg,
-                           field_reg, resolution, null_field_reg, flags_reg);
+                           field_reg, resolution, null_field_reg, flags);
       }
 
       emit_pop_scope();
@@ -7181,11 +7187,9 @@ static void lower_signal_decl(tree_t decl)
    if (tree_flags(decl) & TREE_F_REGISTER)
       flags |= NET_F_REGISTER;
 
-   vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
-
    lower_sub_signals(type, decl, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags_reg);
+                     VCODE_INVALID_REG, flags);
 
    if (cover_enabled(cover_tags, COVER_MASK_TOGGLE))
       lower_toggle_coverage(decl);
@@ -9863,11 +9867,9 @@ static void lower_port_signal(tree_t port)
    if (tree_subkind(port) == PORT_INOUT)
       flags |= NET_F_EFFECTIVE | NET_F_INOUT;
 
-   vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
-
    lower_sub_signals(type, port, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags_reg);
+                     VCODE_INVALID_REG, flags);
 }
 
 static void lower_ports(tree_t block)

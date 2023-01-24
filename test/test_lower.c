@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -606,10 +606,10 @@ START_TEST(test_signal1)
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 4 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_RETURN }
@@ -2600,9 +2600,9 @@ START_TEST(test_tag)
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_STORE, .name = "P" },
          { VCODE_OP_DEBUG_LOCUS },
@@ -2624,9 +2624,9 @@ START_TEST(test_tag)
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_STORE, .name = "S" },
          { VCODE_OP_RETURN },
@@ -3881,10 +3881,10 @@ START_TEST(test_instance1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "WIDTH" },
       { VCODE_OP_CONST_REP, .value = 5 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST_ARRAY, .length = 5 },
@@ -4558,10 +4558,10 @@ START_TEST(test_directmap)
       { VCODE_OP_ALIAS_SIGNAL },
       { VCODE_OP_STORE, .name = "I" },
       { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_STORE, .name = "O" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
@@ -4755,10 +4755,10 @@ START_TEST(test_directmap3)
       { VCODE_OP_ALIAS_SIGNAL },
       { VCODE_OP_STORE, .name = "P" },
       { VCODE_OP_CONST_REP, .value = 2 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_STORE, .name = "O" },
       { VCODE_OP_ARRAY_REF },
