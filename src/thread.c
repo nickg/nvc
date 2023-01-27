@@ -956,6 +956,10 @@ static void create_workers(int needed)
 
       PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                     thread_wrapper, thread);
+
+#ifdef __APPLE__
+      thread->port = pthread_mach_thread_np(thread->handle);
+#endif
    }
 }
 
@@ -1145,6 +1149,8 @@ void stop_world(stop_world_fn_t callback, void *arg)
       nvc_thread_t *thread = atomic_load(&threads[i]);
       if (thread == NULL || thread == my_thread)
          continue;
+
+      assert(thread->port != MACH_PORT_NULL);
 
       kern_return_t kern_result;
       do {
