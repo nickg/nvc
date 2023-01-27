@@ -176,6 +176,13 @@ enum std_ulogic {
    _DC = 0x8
 };
 
+typedef enum {
+   PAIR_UNCOVERED    = 0,
+   PAIR_EXCLUDED     = 1,
+   PAIR_COVERED      = 2,
+   PAIR_LAST         = 3
+} cov_pair_kind_t;
+
 bool cover_is_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1301,57 +1308,107 @@ static void cover_print_code_line(FILE *f, loc_t loc, cover_line_t *line)
    fprintf(f, "</code>");
 }
 
-static void cover_print_bins(FILE *f, cover_pair_t *pair)
+static void cover_print_get_exclude_button(FILE *f, cover_tag_t *tag,
+                                           uint32_t flag, bool add_td)
+{
+
+   const char *bin_name = "";
+   if (flag)
+      for (int i = 0; i < ARRAY_LEN(bin_map); i++)
+         if (bin_map[i].flag == flag)
+            bin_name = bin_map[i].name;
+
+   if (add_td)
+      fprintf(f, "<td>");
+
+   fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
+              "Copy %sto Clipoard</button>", istr(tag->hier), bin_name,
+           (tag->kind == TAG_STMT) ? "style=\"float: right;\"" : "",
+           (tag->kind == TAG_STMT) ? "Exclude Command " : "");
+
+   if (add_td)
+      fprintf(f, "</td>");
+}
+
+static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
+                            cov_pair_kind_t pkind, int cols, ...)
+{
+   va_list argp;
+   va_start(argp, cols);
+
+   if (pair->flags & flag) {
+      fprintf(f, "<tr><td><b>Bin</b></td>");
+
+      for (int i = 0; i < cols; i++) {
+         const char *val = va_arg(argp, const char *);
+         fprintf(f, "<td>%s</td>", val);
+      }
+
+      if (pkind == PAIR_UNCOVERED)
+         cover_print_get_exclude_button(f, pair->tag, flag, true);
+
+      fprintf(f, "</tr>");
+   }
+}
+
+static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...)
+{
+   va_list argp;
+   va_start(argp, cols);
+
+   fprintf(f, "<tr style=\"background-color:#999999;\">");
+   fprintf(f, "<th style=\"width:40px;\"></th>");
+
+   for (int i = 0; i < cols; i++) {
+      const char *val = va_arg(argp, const char *);
+      fprintf(f, "<th style=\"width:100px;\">%s</th>", val);
+   }
+
+   if (pkind == PAIR_UNCOVERED)
+         fprintf(f, "<th style=\"width:150px;\">Exclude Command</th>");
+
+   fprintf(f, "</tr>");
+}
+
+static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
    loc_t loc = pair->tag->loc;
+   char t_str[6] = {0};
+   char f_str[6] = {0};
+
    fprintf(f, "<br><table style=\"border:2px;text-align:center;margin-top:8px;\">");
 
    switch (pair->tag->kind) {
    case TAG_BRANCH:
-      fprintf(f, "<tr style=\"background-color:#999999;\">");
-      fprintf(f, "<th style=\"width:40px;\"></th>");
-      if (pair->flags & COV_FLAG_TRUE)
-         fprintf(f, "<th style=\"width:100px;\">Evaluated to</th>");
-      else
-         fprintf(f, "<th style=\"width:100px;\">Choice of</th>");
-      fprintf(f, "</tr>");
+      cover_print_bin_header(f, pkind, 1, (pair->flags & COV_FLAG_CHOICE) ?
+                              "Choice of" : "Evaluated to");
+      cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
+      cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
 
-      if (pair->flags & COV_FLAG_TRUE)
-         fprintf(f, "<tr><td><b>Bin</b></td><td>True</td></tr>");
-      if (pair->flags & COV_FLAG_FALSE)
-         fprintf(f, "<tr><td><b>Bin</b></td><td>False</td></tr>");
       if (pair->flags & COV_FLAG_CHOICE) {
-         fprintf(f, "<tr><td><b>Bin</b></td><td>");
          int curr = loc.first_column;
          int last = (loc.line_delta) ? strlen(pair->line->text) :
                                        loc.column_delta + curr;
-         fprintf(f, "<code>");
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_printf(tb, "<code>");
          while (curr <= last) {
-            fprintf(f, "%c", pair->line->text[curr]);
+            tb_printf(tb, "%c", pair->line->text[curr]);
             curr++;
          }
-         fprintf(f, "</code></td></tr>");
+         tb_printf(tb, "</code>");
+
+         cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
       }
       break;
 
    case TAG_TOGGLE:
-      fprintf(f, "<tr style=\"background-color:#999999;\">");
-      fprintf(f, "<th style=\"width:40px;\"></th>");
-      fprintf(f, "<th style=\"width:100px;\">From</th>");
-      fprintf(f, "<th style=\"width:100px;\">To</th>");
-      fprintf(f, "</tr>");
-      if (pair->flags & COV_FLAG_TOGGLE_TO_1)
-         fprintf(f, "<tr><td><b>Bin</></td><td>0</td><td>1</td></tr>");
-      if (pair->flags & COV_FLAG_TOGGLE_TO_0)
-         fprintf(f, "<tr><td><b>Bin</b></td><td>1</td><td>0</td></tr>");
+      cover_print_bin_header(f, pkind, 2, "From", "To");
+      cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
+      cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
       break;
 
    case TAG_EXPRESSION:
-      fprintf(f, "<tr style=\"background-color:#999999;\">");
-      fprintf(f, "<th style=\"width:40px;\"></th>");
-
-      char t_str[6] = {0};
-      char f_str[6] = {0};
       if (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) {
          sprintf(t_str, "'1'");
          sprintf(f_str, "'0'");
@@ -1361,32 +1418,20 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair)
          sprintf(f_str, "False");
       }
 
-      if (pair->flags & COV_FLAG_TRUE || pair->flags & COV_FLAG_FALSE) {
-         fprintf(f, "<th style=\"width:100px;\">Evaluated to</th>");
-         if (pair->flags & COV_FLAG_TRUE)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td></tr>", t_str);
-         if (pair->flags & COV_FLAG_FALSE)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td></tr>", f_str);
+      if ((pair->flags & COV_FLAG_TRUE) || (pair->flags & COV_FLAG_FALSE)) {
+         cover_print_bin_header(f, pkind, 1, "Evaluated to");
+         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, t_str);
+         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, f_str);
       }
 
       if (pair->flags & COV_FLAG_00 || pair->flags & COV_FLAG_01 ||
           pair->flags & COV_FLAG_10 || pair->flags & COV_FLAG_11) {
+         cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
 
-         fprintf(f, "<th style=\"width:100px;\">LHS</th>");
-         fprintf(f, "<th style=\"width:100px;\">RHS</th>");
-
-         if (pair->flags & COV_FLAG_00)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
-                    f_str, f_str);
-         if (pair->flags & COV_FLAG_01)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
-                    f_str, t_str);
-         if (pair->flags & COV_FLAG_10)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
-                    t_str, f_str);
-         if (pair->flags & COV_FLAG_11)
-            fprintf(f, "<tr><td><b>Bin</b></td><td>%s</td><td>%s</td></tr>",
-                    t_str, t_str);
+         cover_print_bin(f, pair, COV_FLAG_00, pkind, 2, f_str, f_str);
+         cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, f_str, t_str);
+         cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, t_str, f_str);
+         cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, t_str, t_str);
       }
       break;
    default:
@@ -1395,13 +1440,15 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair)
    fprintf(f, "</table>");
 }
 
-static void cover_print_pair(FILE *f, cover_pair_t *pair)
+static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
    loc_t loc = pair->tag->loc;
    fprintf(f, "<p>");
 
    switch (pair->tag->kind) {
    case TAG_STMT:
+      if (pkind == PAIR_UNCOVERED)
+         cover_print_get_exclude_button(f, pair->tag, 0, false);
       fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
       cover_print_code_line(f, loc, pair->line);
       fprintf(f, "<hr>");
@@ -1410,7 +1457,7 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair)
    case TAG_BRANCH:
       fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
       cover_print_code_line(f, loc, pair->line);
-      cover_print_bins(f, pair);
+      cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");
       break;
 
@@ -1425,14 +1472,14 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair)
          sig_name = ident_from(sig_name, '.');
       fprintf(f, "&nbsp;<code>%s</code>", istr(sig_name));
 
-      cover_print_bins(f, pair);
+      cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");
       break;
 
    case TAG_EXPRESSION:
       fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
       cover_print_code_line(f, loc, pair->line);
-      cover_print_bins(f, pair);
+      cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");
       break;
 
@@ -1459,17 +1506,17 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
    fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
                           "margin-right:auto; margin-top:10px; border: 2px solid black;\">\n");
 
-   for (int i = 0; i < 3; i++) {
+   for (cov_pair_kind_t pkind = PAIR_UNCOVERED; pkind < PAIR_LAST; pkind++) {
       int n;
       cover_pair_t *pair;
 
-      if (i == 0) {
+      if (pkind == PAIR_UNCOVERED) {
          if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_UNCOVERED))
             continue;
          pair = chn->miss;
          n = chn->n_miss;
       }
-      else if (i == 1) {
+      else if (pkind == PAIR_EXCLUDED) {
          if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_EXCLUDED))
             continue;
          pair = chn->excl;
@@ -1483,17 +1530,17 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
       }
 
       fprintf(f, "<section style=\"background-color:");
-      if (i == 0)
+      if (pkind == PAIR_UNCOVERED)
          fprintf(f, "#ffcccc;\">");
-      else if (i == 1)
+      else if (pkind == PAIR_EXCLUDED)
          fprintf(f, "#d6eaf8;\">");
       else
          fprintf(f, "#ccffcc;\">");
 
       fprintf(f, "   <h2>");
-      if (i == 0)
+      if (pkind == PAIR_UNCOVERED)
          fprintf(f, "Uncovered ");
-      else if (i == 1)
+      else if (pkind == PAIR_EXCLUDED)
          fprintf(f, "Excluded ");
       else
          fprintf(f, "Covered ");
@@ -1510,7 +1557,7 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
 
       fprintf(f, "<section style=\"padding:0px 10px;\"");
       for (int j = 0; j < n; j++) {
-         cover_print_pair(f, pair);
+         cover_print_pair(f, pair, pkind);
          pair++;
       }
       fprintf(f, "</section></section>");
@@ -1547,6 +1594,9 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "      }\n"
               "      document.getElementById(coverageType).style.display = \"block\";\n"
               "      evt.currentTarget.className += \" active\";\n"
+              "   }\n"
+              "   function GetExclude(excludeCmd) {\n"
+              "      navigator.clipboard.writeText(excludeCmd);\n"
               "   }\n"
               "</script>\n");
 }
