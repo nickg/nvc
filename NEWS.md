@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Fixed "failed to suspend thread" crash on macOS.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
