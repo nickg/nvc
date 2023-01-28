@@ -484,9 +484,8 @@ void *thread_join(nvc_thread_t *thread)
    void *retval = NULL;
    PTHREAD_CHECK(pthread_join, thread->handle, &retval);
 
-   //free(thread->name);
-   //free(thread);
-   // TODO: free at safe point
+   async_free(thread->name);
+   async_free(thread);
 
    return retval;
 }
@@ -1097,6 +1096,11 @@ void async_barrier(void)
       if (!globalq_poll(&globalq, &(my_thread->queue)))
          maybe_backoff();
    }
+}
+
+void async_free(void *ptr)
+{
+   // TODO: free when all threads in quiescent state
 }
 
 #ifdef POSIX_SUSPEND

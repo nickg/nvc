@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #define _THREAD_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define atomic_add(p, n) __atomic_add_fetch((p), (n), __ATOMIC_SEQ_CST)
 #define atomic_fetch_add(p, n) __atomic_fetch_add((p), (n), __ATOMIC_SEQ_CST)
@@ -97,6 +98,7 @@ void workq_not_thread_safe(workq_t *wq);
 
 void async_do(task_fn_t fn, void *context, void *arg);
 void async_barrier(void);
+void async_free(void *ptr);
 
 struct cpu_state;
 typedef void (*stop_world_fn_t)(int, struct cpu_state *, void *);

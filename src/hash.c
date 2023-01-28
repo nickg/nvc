@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -184,11 +184,16 @@ static inline int shash_slot(shash_t *h, const char *key)
    // DJB2 hash function from here:
    //   http://www.cse.yorku.ca/~oz/hash.html
 
-   unsigned long hash = 5381;
+   uint32_t hash = 5381;
    int c;
 
    while ((c = *key++))
       hash = ((hash << 5) + hash) + c;
+
+   // Scrambling function from MurmurHash3
+   hash *= 0xcc9e2d51;
+   hash = (hash << 15) | (hash >> 17);
+   hash *= 0x1b873593;
 
    return hash & (h->size - 1);
 }

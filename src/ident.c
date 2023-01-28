@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,7 +30,11 @@
 #include <limits.h>
 
 #define HASH_INIT 5381;
-typedef unsigned long hash_state_t;
+typedef uint32_t hash_state_t;
+
+#define INITIAL_SIZE  1024
+#define REPROPE_LIMIT 20
+#define MOVED_TAG     1
 
 typedef A(char) char_array_t;
 
@@ -49,15 +53,20 @@ struct ident_wr_ctx {
 };
 
 struct _ident {
-   ident_t  chain;
-   uint32_t write_index;
-   uint16_t write_gen;
-   uint16_t length;
-   char     bytes[0];
+   hash_state_t hash;
+   uint32_t     write_index;
+   uint16_t     write_gen;
+   uint16_t     length;
+   char         bytes[0];
 };
 
-#define TABLE_SZ 1024
-static ident_t table[TABLE_SZ];
+typedef struct {
+   size_t  size;
+   ident_t slots[0];
+} ident_tab_t;
+
+static ident_tab_t *table = NULL;
+static ident_tab_t *resizing = NULL;
 
 static inline int hash_update(hash_state_t *state, const char *key, int nchars)
 {
@@ -68,19 +77,39 @@ static inline int hash_update(hash_state_t *state, const char *key, int nchars)
    const char *p = key;
    for (; p < key + nchars && *p; p++)
       hash = ((hash << 5) + hash) + *p;
+
    *state = hash;
    return p - key;
 }
 
-static bool ident_install(ident_t *where, ident_t new, int len)
+static inline void hash_scramble(hash_state_t *state)
+{
+   hash_state_t hash = *state;
+
+   // Scrambling function from MurmurHash3
+   hash *= 0xcc9e2d51;
+   hash = (hash << 15) | (hash >> 17);
+   hash *= 0x1b873593;
+
+   *state = hash;
+}
+
+static ident_t ident_alloc(size_t len, hash_state_t hash)
+{
+   ident_t id = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));
+   id->length      = len;
+   id->write_gen   = 0;
+   id->write_index = 0;
+   id->hash        = hash;
+   id->bytes[len]  = '\0';
+
+   return id;
+}
+
+static inline bool ident_install(ident_t *where, ident_t new, size_t len)
 {
    if (unlikely(len >= UINT16_MAX))
       fatal("identifier '%s' too long", new->bytes);
-
-   new->length      = len;
-   new->chain       = NULL;
-   new->write_gen   = 0;
-   new->write_index = 0;
 
    if (atomic_cas(where, NULL, new))
       return true;
@@ -90,22 +119,177 @@ static bool ident_install(ident_t *where, ident_t new, int len)
    }
 }
 
-static ident_t ident_from_bytes(const char *str, hash_state_t hash, int len)
+static void copy_table(ident_tab_t *from, ident_tab_t *to)
 {
-   const int slot = hash & (TABLE_SZ - 1);
-   for (;;) {
-      ident_t *ptr = &(table[slot]);
-      for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
-         if (it->length == len && memcmp(it->bytes, str, len) == 0)
-            return it;
+   for (int i = 0; i < from->size; i++) {
+      for (;;) {
+         ident_t id = load_acquire(&(from->slots[i]));
+         assert(pointer_tag(id) != MOVED_TAG);
+
+         if (id != NULL) {
+            for (int slot = id->hash & (to->size - 1), i = 1;;
+                 slot = (slot + i) & (to->size - 1), i++) {
+               ident_t exist = load_acquire(&(to->slots[slot]));
+               if (exist == NULL) {
+                  store_release(&(to->slots[slot]), id);
+                  break;
+               }
+               else
+                  assert(exist != id);
+            }
+         }
+
+         if (atomic_cas(&(from->slots[i]), id, tag_pointer(id, MOVED_TAG)))
+            break;
       }
+   }
+}
 
-      ident_t new = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));
-      memcpy(new->bytes, str, len);
-      new->bytes[len] = '\0';
+static void wait_for_resize(void)
+{
+   for (;;) {
+      ident_tab_t *from = atomic_load(&table);
+      ident_tab_t *to = atomic_load(&resizing);
 
-      if (ident_install(ptr, new, len))
-         return new;
+      if (from == to)
+         break;
+
+      // We could help to resize the table here but the extra complexity
+      // doesn't seem worth it
+      thread_sleep(10);
+   }
+}
+
+static void finish_resizing(ident_tab_t *old, ident_tab_t *new)
+{
+   assert(atomic_load(&resizing) == new);
+
+   if (!atomic_cas(&table, old, new))
+      fatal_trace("bug in concurrent resize protocol");
+}
+
+static ident_tab_t *get_table(void)
+{
+   ident_tab_t *cur = atomic_load(&table);
+   if (unlikely(cur == NULL)) {
+      ident_tab_t *newtab =
+         xcalloc_flex(sizeof(ident_tab_t), INITIAL_SIZE, sizeof(ident_t));
+      newtab->size = INITIAL_SIZE;
+
+      if (atomic_cas(&resizing, NULL, newtab)) {
+         finish_resizing(NULL, newtab);
+         return newtab;
+      }
+      else {
+         free(newtab);
+         wait_for_resize();
+         return atomic_load(&table);
+      }
+   }
+   else
+      return cur;
+}
+
+static void grow_table(ident_tab_t *cur)
+{
+   ident_tab_t *newtab =
+      xcalloc_flex(sizeof(ident_tab_t), cur->size * 2, sizeof(ident_t));
+   newtab->size = cur->size * 2;
+
+   if (atomic_cas(&resizing, cur, newtab)) {
+      copy_table(cur, newtab);
+      finish_resizing(cur, newtab);
+   }
+   else {
+      free(newtab);
+      wait_for_resize();
+   }
+}
+
+static ident_t ident_from_bytes(const char *str, hash_state_t hash, size_t len)
+{
+   hash_scramble(&hash);
+
+   for (;;) {
+      ident_tab_t *cur = get_table();
+
+      for (int reprobe = 0, i = 1, slot = hash & (cur->size - 1);;
+           slot = (slot + i) & (cur->size - 1), i++) {
+         ident_t *ptr = &(cur->slots[slot]);
+
+         ident_t id = load_acquire(ptr);
+         if (pointer_tag(id) == MOVED_TAG) {
+            wait_for_resize();
+            break;
+         }
+         else if (id == NULL) {
+            ident_t new = ident_alloc(len, hash);
+            memcpy(new->bytes, str, len);
+
+            if (ident_install(ptr, new, len))
+               return new;
+            else
+               break;
+         }
+         else if (id->length == len && memcmp(id->bytes, str, len) == 0)
+            return id;
+
+         if (++reprobe == REPROPE_LIMIT) {
+            grow_table(cur);
+            break;
+         }
+      }
+   }
+}
+
+static ident_t ident_from_byte_vec(hash_state_t hash, bool uniq, int nparts,
+                                   const char *str_vec[nparts],
+                                   const size_t len_vec[nparts])
+{
+   hash_scramble(&hash);
+
+   size_t len = 0;
+   for (int i = 0; i < nparts; i++)
+      len += len_vec[i];
+
+   for (;;) {
+      ident_tab_t *cur = get_table();
+
+      for (int reprobe = 0, i = 1, slot = hash & (cur->size - 1);;
+           slot = (slot + i) & (cur->size - 1), i++) {
+         ident_t *ptr = &(cur->slots[slot]);
+
+         ident_t id = load_acquire(ptr);
+         if (pointer_tag(id) == MOVED_TAG) {
+            wait_for_resize();
+            break;
+         }
+         else if (id == NULL) {
+            ident_t new = ident_alloc(len, hash);
+            char *p = new->bytes;
+            for (int i = 0; i < nparts; p += len_vec[i++])
+               memcpy(p, str_vec[i], len_vec[i]);
+
+            if (ident_install(ptr, new, len))
+               return new;
+            else
+               break;
+         }
+         else if (id->length == len) {
+            int pos = 0;
+            for (const char *p = id->bytes;
+                 pos < nparts && memcmp(p, str_vec[pos], len_vec[pos]) == 0;
+                 p += len_vec[pos++]);
+
+            if (pos == nparts)
+               return uniq ? NULL : id;
+         }
+
+         if (++reprobe == REPROPE_LIMIT) {
+            grow_table(cur);
+            break;
+         }
+      }
    }
 }
 
@@ -219,27 +403,13 @@ ident_t ident_uniq(const char *prefix)
       hash_state_t hash = base_hash;
       int sufflen = hash_update(&hash, suffix, ARRAY_LEN(suffix));
 
-      const int slot = hash & (TABLE_SZ - 1);
-      for (;;) {
-         ident_t *ptr = &(table[slot]);
-         for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
-            if (it->length == len + sufflen
-                && memcmp(it->bytes, prefix, len) == 0
-                && memcmp(it->bytes + len, suffix, sufflen) == 0)
-               goto exist;
-         }
+      const char *str_vec[] = { prefix, suffix };
+      const size_t len_vec[] = { len, sufflen };
 
-         ident_t new = xmalloc_flex(sizeof(struct _ident), len + sufflen + 1,
-                                    sizeof(char));
-         memcpy(new->bytes, prefix, len);
-         memcpy(new->bytes + len, suffix, sufflen);
-         new->bytes[len + sufflen] = '\0';
+      ident_t new = ident_from_byte_vec(hash, true, 2, str_vec, len_vec);
+      if (new != NULL)
+         return new;
 
-         if (ident_install(ptr, new, len + sufflen))
-            return new;
-      }
-
-   exist:
       checked_sprintf(suffix, sizeof(suffix), "%d", relaxed_add(&counter, 1));
    }
 }
@@ -250,33 +420,24 @@ ident_t ident_prefix(ident_t a, ident_t b, char sep)
       return b;
    else if (b == NULL)
       return a;
+   else if (sep == '\0') {
+      hash_state_t hash = HASH_INIT;
+      hash_update(&hash, a->bytes, a->length);
+      hash_update(&hash, b->bytes, b->length);
 
-   hash_state_t hash = HASH_INIT;
-   hash_update(&hash, a->bytes, a->length);
-   hash_update(&hash, &sep, 1);
-   hash_update(&hash, b->bytes, b->length);
+      const char *str_vec[] = { a->bytes, b->bytes };
+      const size_t len_vec[] = { a->length, b->length };
+      return ident_from_byte_vec(hash, false, 2, str_vec, len_vec);
+   }
+   else {
+      hash_state_t hash = HASH_INIT;
+      hash_update(&hash, a->bytes, a->length);
+      hash_update(&hash, &sep, 1);
+      hash_update(&hash, b->bytes, b->length);
 
-   const int len = a->length + b->length + (sep != '\0');
-   const int slot = hash & (TABLE_SZ - 1);
-
-   for (;;) {
-      ident_t *ptr = &(table[slot]);
-      for (ident_t it; (it = load_acquire(ptr)); ptr = &(it->chain)) {
-         if (it->length == len
-             && memcmp(it->bytes, a->bytes, a->length) == 0
-             && (sep == '\0' || it->bytes[a->length] == sep)
-             && memcmp(it->bytes + a->length + (sep != '\0'),
-                       b->bytes, b->length) == 0)
-            return it;
-      }
-
-      ident_t new = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));
-      memcpy(new->bytes, a->bytes, a->length);
-      if (sep != '\0') new->bytes[a->length] = sep;
-      memcpy(new->bytes + a->length + (sep != '\0'), b->bytes, b->length + 1);
-
-      if (ident_install(ptr, new, len))
-         return new;
+      const char *str_vec[] = { a->bytes, &sep, b->bytes };
+      const size_t len_vec[] = { a->length, 1, b->length };
+      return ident_from_byte_vec(hash, false, 3, str_vec, len_vec);
    }
 }
 

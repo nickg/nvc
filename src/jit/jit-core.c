@@ -206,23 +206,24 @@ static void jit_install(jit_t *j, jit_func_t *f)
 {
    assert_lock_held(&(j->lock));
 
-   if (f->handle >= j->funcs->length) {
-      const size_t newlen = MAX(f->handle + 1, j->funcs->length * 2);
+   func_array_t *list = j->funcs;
+   if (f->handle >= list->length) {
+      const size_t newlen = MAX(f->handle + 1, list->length * 2);
       func_array_t *new = xcalloc_flex(sizeof(func_array_t),
                                        newlen, sizeof(jit_func_t *));
       new->length = newlen;
-      for (size_t i = 0; i < j->funcs->length; i++)
-         new->items[i] = j->funcs->items[i];
+      for (size_t i = 0; i < list->length; i++)
+         new->items[i] = list->items[i];
 
       // Synchronises with load_acquire in jit_get_func
       store_release(&(j->funcs), new);
 
-      // XXX: the old list leaks here: it should be cleaned up when
-      // no more threads can reference it
+      async_free(list);
+      list = new;
    }
 
    // Synchronises with load_acquire in jit_get_func
-   store_release(&(j->funcs->items[f->handle]), f);
+   store_release(&(list->items[f->handle]), f);
 
    chash_put(j->index, f->name, f);
    if (f->unit) chash_put(j->index, f->unit, f);

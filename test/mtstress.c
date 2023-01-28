@@ -51,7 +51,7 @@ static void run_test(thread_fn_t fn, void *arg)
 ////////////////////////////////////////////////////////////////////////////////
 // Concurrent calls to ident_new
 
-#define NWORDS 10000
+#define NWORDS 1000000
 static char *words[NWORDS];
 static ident_t idents[NWORDS];
 
@@ -84,8 +84,12 @@ START_TEST(test_ident_new)
 
    char *line LOCAL = NULL;
    size_t bufsz = 0;
-   for (int pos = 0; pos < NWORDS; ) {
-      const int nchars = getline(&line, &bufsz, f);
+   int pos = 0;
+   for (; pos < NWORDS; ) {
+      int nchars = getline(&line, &bufsz, f);
+      if (nchars == -1)
+         break;
+
       ck_assert_int_ge(nchars, 2);
 
       if (islower(line[0]) && nchars > 2 && line[nchars - 3] != '\'') {
@@ -95,6 +99,9 @@ START_TEST(test_ident_new)
          bufsz = 0;
       }
    }
+
+   for (; pos < NWORDS; pos++)
+      words[pos] = words[rand() % pos];
 
    fclose(f);
 
