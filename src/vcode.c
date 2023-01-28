@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -5001,6 +5001,12 @@ void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
          emit_jump(blocks[i]);
          return;
       }
+   }
+
+   int64_t cval;
+   if (vcode_reg_const(value, &cval)) {
+      emit_jump(def);
+      return;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CASE);
