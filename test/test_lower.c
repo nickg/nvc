@@ -4961,6 +4961,24 @@ START_TEST(test_issue591)
 }
 END_TEST
 
+START_TEST(test_case2)
+{
+   input_from_file(TESTDIR "/lower/case2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.CASE2.U.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_JUMP, .target = 6 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5077,6 +5095,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_bigarray);
    tcase_add_test(tc, test_issue582);
    tcase_add_test(tc, test_issue591);
+   tcase_add_test(tc, test_case2);
    suite_add_tcase(s, tc);
 
    return s;
