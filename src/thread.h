@@ -51,6 +51,7 @@ typedef struct _nvc_thread nvc_thread_t;
 
 void thread_init(void);
 int thread_id(void);
+bool thread_attached(void);
 void thread_sleep(int usec);
 
 typedef void *(*thread_fn_t)(void *);

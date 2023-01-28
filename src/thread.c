@@ -72,12 +72,14 @@ typedef struct {
 STATIC_ASSERT(sizeof(lock_stats_t) == 64)
 
 #ifdef DEBUG
-#define LOCK_EVENT(what, n) do {                \
-      lock_stats[my_thread->id].what += (n);    \
+#define LOCK_EVENT(what, n) do {                  \
+      if (likely(my_thread != NULL))              \
+         lock_stats[my_thread->id].what += (n);   \
    } while (0)
 
-#define WORKQ_EVENT(what, n) do {               \
-      workq_stats[my_thread->id].what += (n);   \
+#define WORKQ_EVENT(what, n) do {                 \
+      if (likely(my_thread != NULL))              \
+         workq_stats[my_thread->id].what += (n);  \
    } while (0)
 #else
 #define LOCK_EVENT(what, n)
@@ -421,6 +423,11 @@ int thread_id(void)
 {
    assert(my_thread != NULL);
    return my_thread->id;
+}
+
+bool thread_attached(void)
+{
+   return my_thread != NULL;
 }
 
 void thread_sleep(int usec)
