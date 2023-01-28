@@ -824,28 +824,56 @@ void jit_do_cprop(jit_func_t *f)
 ////////////////////////////////////////////////////////////////////////////////
 // Dead code elimination
 
-static inline void dce_count_use(jit_value_t value, int *count)
+typedef struct {
+   int       *count;
+   jit_reg_t *renumber;
+   jit_reg_t  next;
+} dce_state_t;
+
+static void dce_count_use(jit_value_t value, dce_state_t *state)
 {
-   if (value.kind == JIT_VALUE_REG || value.kind == JIT_ADDR_REG)
-      count[value.reg]++;
+   if (value.kind == JIT_VALUE_REG || value.kind == JIT_ADDR_REG) {
+      if (state->count[value.reg]++ == 0)
+         state->renumber[value.reg] = state->next++;
+   }
+}
+
+static void dce_renumber(jit_value_t *value, dce_state_t *state)
+{
+   if (value->kind == JIT_VALUE_REG || value->kind == JIT_ADDR_REG)
+      value->reg = state->renumber[value->reg];
 }
 
 void jit_do_dce(jit_func_t *f)
 {
-   int *count LOCAL = xcalloc_array(f->nregs, sizeof(int));
+   dce_state_t state = {};
+   state.count = xcalloc_array(f->nregs, sizeof(int));
+   state.renumber = xcalloc_array(f->nregs, sizeof(jit_reg_t));
+
+#ifdef DEBUG
+   for (int i = 0; i < f->nregs; i++)
+      state.renumber[i] = JIT_REG_INVALID;
+#endif
 
    for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
-      dce_count_use(ir->arg1, count);
-      dce_count_use(ir->arg2, count);
+      dce_count_use(ir->arg1, &state);
+      dce_count_use(ir->arg2, &state);
 
-      if (cfg_reads_result(ir))
-         count[ir->result]++;
+      const bool must_keep_result =
+         ir->result != JIT_REG_INVALID &&
+         (cfg_reads_result(ir) || jit_writes_flags(ir));
+
+      if (must_keep_result && state.count[ir->result]++ == 0)
+         state.renumber[ir->result] = state.next++;
    }
 
    for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
-      if (jit_writes_flags(ir))
-          continue;
-      else if (ir->result != JIT_REG_INVALID && count[ir->result] == 0) {
+      dce_renumber(&ir->arg1, &state);
+      dce_renumber(&ir->arg2, &state);
+
+      if (ir->result == JIT_REG_INVALID)
+         continue;
+      else if (state.count[ir->result] == 0 && !jit_writes_flags(ir)) {
          ir->op        = J_NOP;
          ir->result    = JIT_REG_INVALID;
          ir->cc        = JIT_CC_NONE;
@@ -853,7 +881,14 @@ void jit_do_dce(jit_func_t *f)
          ir->arg1.kind = JIT_VALUE_INVALID;
          ir->arg2.kind = JIT_VALUE_INVALID;
       }
+      else
+         ir->result = state.renumber[ir->result];
    }
+
+   f->nregs = state.next;
+
+   free(state.count);
+   free(state.renumber);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

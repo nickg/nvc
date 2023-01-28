@@ -88,11 +88,19 @@ static int jit_dump_label(jit_dump_t *d, jit_label_t label)
    return printf("L%d", (int)(uintptr_t)map);
 }
 
+static int jit_dump_reg(jit_reg_t reg)
+{
+   if (reg == JIT_REG_INVALID)
+      return printf("RINVALID");
+   else
+      return printf("R%d", reg);
+}
+
 static int jit_dump_value(jit_dump_t *d, jit_value_t value)
 {
    switch (value.kind) {
    case JIT_VALUE_REG:
-      return printf("R%d", value.reg);
+      return jit_dump_reg(value.reg);
    case JIT_VALUE_INT64:
       if (value.int64 < 4096)
          return printf("#%"PRIi64, value.int64);
@@ -104,7 +112,8 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("[CP+%"PRIi64"]", value.int64);
    case JIT_ADDR_REG:
       {
-         int num = printf("[R%d", value.reg);
+         int num = printf("[");
+         num += jit_dump_reg(value.reg);
          if (value.disp != 0)
             num += printf("+%d", value.disp);
          num += printf("]");

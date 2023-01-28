@@ -200,7 +200,10 @@ static jit_ir_t *irgen_append(jit_irgen_t *g)
 
 static jit_reg_t irgen_alloc_reg(jit_irgen_t *g)
 {
-   return g->next_reg++;
+   if (unlikely(g->next_reg == JIT_REG_INVALID))
+      fatal("unit %s is too big to compile", istr(g->func->name));
+   else
+      return g->next_reg++;
 }
 
 static irgen_label_t *irgen_alloc_label(jit_irgen_t *g)
