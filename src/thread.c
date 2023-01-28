@@ -211,6 +211,7 @@ struct _nvc_thread {
    thread_fn_t     fn;
    void           *arg;
    int             victim;
+   uint32_t        rngstate;
 #ifdef __APPLE__
    thread_port_t   port;
 #endif
@@ -318,10 +319,11 @@ static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
                                 thread_kind_t kind, char *name)
 {
    nvc_thread_t *thread = xcalloc(sizeof(nvc_thread_t));
-   thread->name  = name;
-   thread->fn    = fn;
-   thread->arg   = arg;
-   thread->kind  = kind;
+   thread->name     = name;
+   thread->fn       = fn;
+   thread->arg      = arg;
+   thread->kind     = kind;
+   thread->rngstate = rand();
 
    atomic_store(&thread->queue.age.bits, 0);
    atomic_store(&thread->queue.bot, 0);
@@ -877,13 +879,23 @@ static threadq_t *get_thread_queue(int id)
    return &(t->queue);
 }
 
+static uint32_t fast_rand(void)
+{
+   uint32_t state = my_thread->rngstate;
+   state ^= (state << 13);
+   state ^= (state >> 17);
+   state ^= (state << 5);
+   return (my_thread->rngstate = state);
+}
+
 static threadq_t *find_victim(void)
 {
    threadq_t *last = get_thread_queue(my_thread->victim);
    if (last != NULL && estimate_depth(last) > 0)
       return last;
 
-   const int start = rand() % MAX_THREADS;
+   const int maxthread = relaxed_load(&max_thread_id);
+   const int start = fast_rand() % (maxthread + 1);
    int idx = start;
    do {
       if (idx != my_thread->id) {
@@ -893,7 +905,7 @@ static threadq_t *find_victim(void)
             return q;
          }
       }
-   } while ((idx = (idx + 1) % MAX_THREADS) != start);
+   } while ((idx = (idx + 1) % (maxthread + 1)) != start);
 
    return NULL;
 }
