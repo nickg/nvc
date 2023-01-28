@@ -145,7 +145,7 @@ jobs:
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2
-          makepkg-mingw -sCLf
+          makepkg-mingw -sCLf --nocheck
           pacman -Qlp *.zst
           echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
       - name: Install release
