@@ -6479,9 +6479,9 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
                cptr++;
             }
-
-            cover_pop_scope(cover_tags);
          }
+
+         cover_pop_scope(cover_tags);
 
          vcode_select_block(hit_bb);
 
