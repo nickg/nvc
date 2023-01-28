@@ -79,7 +79,7 @@ static inline void heap_decrease_key(heap_t *h, size_t i, uint64_t key)
 
 heap_t *heap_new(size_t init_size)
 {
-   heap_t *h = xmalloc(sizeof(heap_t));
+   heap_t *h = xcalloc(sizeof(heap_t));
    h->nodes    = xmalloc_array(init_size, sizeof(heap_node_t));
    h->max_size = init_size;
    h->size     = 0;

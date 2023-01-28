@@ -61,6 +61,12 @@ typedef struct _memblock {
    char       *ptr;
 } memblock_t;
 
+typedef struct {
+   waveform_t *free_waveforms;
+   tlab_t      tlab;
+   tlab_t      spare_tlab;
+} __attribute__((aligned(64))) model_thread_t;
+
 typedef struct _rt_model {
    tree_t             top;
    hash_t            *scopes;
@@ -90,11 +96,13 @@ typedef struct _rt_model {
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
    memblock_t        *memblocks;
+   model_thread_t    *threads[MAX_THREADS];
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
 #define NEXUS_INDEX_MIN 8
 #define TRACE_SIGNALS   1
+#define WAVEFORM_CHUNK  256
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -123,10 +131,6 @@ static __thread rt_scope_t   *active_scope = NULL;
 static __thread rt_signal_t **signals_tail = NULL;
 static __thread rt_scope_t  **scopes_tail = NULL;
 static __thread rt_model_t   *__model = NULL;
-static __thread tlab_t        spare_tlab = {};
-static __thread waveform_t   *free_waveforms = NULL;
-
-DLLEXPORT tlab_t __nvc_tlab = {};   // TODO: this should be thread-local
 
 static bool __trace_on = false;
 
@@ -258,6 +262,16 @@ static const char *fmt_values(const void *values, uint32_t len)
 {
    static char buf[FMT_VALUES_SZ*2 + 2];
    return fmt_values_r(values, len, buf, sizeof(buf));
+}
+
+static model_thread_t *model_thread(rt_model_t *m)
+{
+   const int my_id = thread_id();
+
+   if (unlikely(m->threads[my_id] == NULL))
+      return (m->threads[my_id] = xcalloc(sizeof(model_thread_t)));
+
+   return m->threads[my_id];
 }
 
 static void *static_alloc(rt_model_t *m, size_t size)
@@ -480,10 +494,11 @@ rt_proc_t *get_active_proc(void)
    return active_proc;
 }
 
-static void free_waveform(waveform_t *w)
+static void free_waveform(rt_model_t *m, waveform_t *w)
 {
-   w->next = free_waveforms;
-   free_waveforms = w;
+   model_thread_t *thread = model_thread(m);
+   w->next = thread->free_waveforms;
+   thread->free_waveforms = w;
 }
 
 static void cleanup_net(rt_net_t *net)
@@ -504,7 +519,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
          for (waveform_t *it = s->u.driver.waveforms.next, *next;
               it; it = next) {
             next = it->next;
-            free_waveform(it);
+            free_waveform(m, it);
          }
          break;
 
@@ -581,9 +596,15 @@ void model_free(rt_model_t *m)
          free(untag_pointer(e, rt_callback_t));
    }
 
-   tlab_release(&__nvc_tlab);
-
    cleanup_scope(m, m->root);
+
+   for (int i = 0; i < MAX_THREADS; i++) {
+      model_thread_t *thread = m->threads[i];
+      if (thread != NULL) {
+         tlab_release(&thread->tlab);
+         free(thread);
+      }
+   }
 
    workq_free(m->procq);
    workq_free(m->delta_procq);
@@ -771,7 +792,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    TRACE("reset process %s", istr(proc->name));
 
    assert(!tlab_valid(proc->tlab));
-   assert(!tlab_valid(__nvc_tlab));   // Not used during reset
+   assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
 
    active_proc = proc;
    active_scope = proc->scope;
@@ -793,18 +814,20 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
          istr(proc->name));
 
-   assert(!tlab_valid(spare_tlab));
+   model_thread_t *thread = model_thread(m);
+
+   assert(!tlab_valid(thread->spare_tlab));
 
    if (tlab_valid(proc->tlab)) {
       TRACE("using private TLAB at %p (%zu used)", proc->tlab.base,
             proc->tlab.alloc - proc->tlab.base);
-      tlab_move(__nvc_tlab, spare_tlab);
-      tlab_move(proc->tlab, __nvc_tlab);
+      tlab_move(thread->tlab, thread->spare_tlab);
+      tlab_move(proc->tlab, thread->tlab);
    }
-   else if (!tlab_valid(__nvc_tlab))
-      tlab_acquire(m->mspace, &__nvc_tlab);
+   else if (!tlab_valid(thread->tlab))
+      tlab_acquire(m->mspace, &thread->tlab);
 
-   tlab_t *tlab = &__nvc_tlab;
+   tlab_t *tlab = &thread->tlab;
 
    active_proc = proc;
    active_scope = proc->scope;
@@ -825,21 +848,21 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
    active_proc = NULL;
 
-   if (tlab_valid(__nvc_tlab)) {
+   if (tlab_valid(thread->tlab)) {
       // The TLAB is still valid which means the process finished
       // instead of suspending at a wait statement and none of the data
       // inside it can be live anymore
       assert(!tlab_valid(proc->tlab));
-      tlab_reset(__nvc_tlab);
+      tlab_reset(thread->tlab);
 
-      if (tlab_valid(spare_tlab))   // Surplus TLAB
-         tlab_release(&spare_tlab);
+      if (tlab_valid(thread->spare_tlab))   // Surplus TLAB
+         tlab_release(&thread->spare_tlab);
    }
    else {
       // Process must have claimed TLAB or otherwise it would be lost
       assert(tlab_valid(proc->tlab));
-      if (tlab_valid(spare_tlab))
-         tlab_move(spare_tlab, __nvc_tlab);
+      if (tlab_valid(thread->spare_tlab))
+         tlab_move(thread->spare_tlab, thread->tlab);
    }
 }
 
@@ -977,10 +1000,13 @@ static void free_value(rt_nexus_t *n, rt_value_t v)
 
 static void *local_alloc(size_t size)
 {
-   if (tlab_valid(__nvc_tlab))
-      return tlab_alloc(&__nvc_tlab, size);
+   rt_model_t *m = get_model();
+   model_thread_t *thread = model_thread(m);
+
+   if (tlab_valid(thread->tlab))
+      return tlab_alloc(&thread->tlab, size);
    else
-      return mspace_alloc(get_model()->mspace, size);
+      return mspace_alloc(m->mspace, size);
 }
 
 static inline uint8_t *value_ptr(rt_nexus_t *n, rt_value_t *v)
@@ -1195,21 +1221,22 @@ static rt_nexus_t *lookup_index(rt_signal_t *s, int *offset)
    }
 }
 
-static waveform_t *alloc_waveform(void)
+static waveform_t *alloc_waveform(rt_model_t *m)
 {
-   if (free_waveforms == NULL) {
+   model_thread_t *thread = model_thread(m);
+
+   if (thread->free_waveforms == NULL) {
       // Ensure waveforms are always within one cache line
       STATIC_ASSERT(sizeof(waveform_t) <= 32);
-      const int chunksz = 1024;
-      char *mem = nvc_memalign(64, chunksz * 32);
-      for (int i = 1; i < chunksz; i++)
-         free_waveform((waveform_t *)(mem + i*32));
+      char *mem = static_alloc(m, WAVEFORM_CHUNK * 32);
+      for (int i = 1; i < WAVEFORM_CHUNK; i++)
+         free_waveform(m, (waveform_t *)(mem + i*32));
 
       return (waveform_t *)mem;
    }
    else {
-      waveform_t *w = free_waveforms;
-      free_waveforms = w->next;
+      waveform_t *w = thread->free_waveforms;
+      thread->free_waveforms = w->next;
       __builtin_prefetch(w->next, 1, 1);
       w->next = NULL;
       return w;
@@ -1299,7 +1326,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
 
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
-            w_new = (w_new->next = alloc_waveform());
+            w_new = (w_new->next = alloc_waveform(m));
             clone_waveform(nexus, w_new, w_old, offset);
 
             assert(w_old->when >= m->now);
@@ -2117,7 +2144,7 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
          waveform_t *next = it->next;
          last->next = next;
          free_value(nexus, it->value);
-         free_waveform(it);
+         free_waveform(m, it);
          it = next;
       }
       else {
@@ -2136,7 +2163,7 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
       next = it->next;
       already_scheduled |= (it->when == when);
       free_value(nexus, it->value);
-      free_waveform(it);
+      free_waveform(m, it);
    }
 
    return already_scheduled;
@@ -2169,7 +2196,7 @@ static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
 
       if ((nexus->flags & NET_F_FAST_DRIVER) && d->fastqueued) {
          // A fast update to this driver is already scheduled
-         waveform_t *w0 = alloc_waveform();
+         waveform_t *w0 = alloc_waveform(m);
          w0->when  = m->now;
          w0->next  = NULL;
          w0->value = alloc_value(m, nexus);
@@ -2183,7 +2210,7 @@ static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
 
       nexus->flags &= ~NET_F_FAST_DRIVER;
 
-      waveform_t *w = alloc_waveform();
+      waveform_t *w = alloc_waveform(m);
       w->when  = m->now + after;
       w->next  = NULL;
       w->value = alloc_value(m, nexus);
@@ -2417,9 +2444,11 @@ static void update_driving(rt_model_t *m, rt_nexus_t *nexus)
 
 static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
 {
+   model_thread_t *thread = model_thread(m);
+
    // Updating drivers may involve calling resolution functions
-   if (!tlab_valid(__nvc_tlab))
-      tlab_acquire(m->mspace, &__nvc_tlab);
+   if (!tlab_valid(thread->tlab))
+      tlab_acquire(m->mspace, &thread->tlab);
 
    if (likely(source != NULL)) {
       waveform_t *w_now  = &(source->u.driver.waveforms);
@@ -2428,7 +2457,7 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
       if (likely((w_next != NULL) && (w_next->when == m->now))) {
          free_value(nexus, w_now->value);
          *w_now = *w_next;
-         free_waveform(w_next);
+         free_waveform(m, w_next);
          source->disconnected = 0;
          update_driving(m, nexus);
       }
@@ -2438,15 +2467,17 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
    else  // Update due to force/release
       update_driving(m, nexus);
 
-   tlab_reset(__nvc_tlab);   // No allocations can be live past here
+   tlab_reset(thread->tlab);   // No allocations can be live past here
 }
 
 static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
 {
    if (likely(nexus->flags & NET_F_FAST_DRIVER)) {
+      model_thread_t *thread = model_thread(m);
+
       // Updating drivers may involve calling resolution functions
-      if (!tlab_valid(__nvc_tlab))
-         tlab_acquire(m->mspace, &__nvc_tlab);
+      if (!tlab_valid(thread->tlab))
+         tlab_acquire(m->mspace, &thread->tlab);
 
       rt_source_t *src = &(nexus->sources);
 
@@ -2460,7 +2491,7 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
       assert(src->fastqueued);
       src->fastqueued = 0;
 
-      tlab_reset(__nvc_tlab);   // No allocations can be live past here
+      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else
       update_driver(m, nexus, &(nexus->sources));
@@ -2864,8 +2895,11 @@ void model_interrupt(rt_model_t *m)
 // TODO: this interface should be removed eventually
 void *rt_tlab_alloc(size_t size)
 {
-   if (tlab_valid(__nvc_tlab))
-      return tlab_alloc(&__nvc_tlab, size);
+   rt_model_t *m = get_model();
+   model_thread_t *thread = model_thread(m);
+
+   if (tlab_valid(thread->tlab))
+      return tlab_alloc(&thread->tlab, size);
    else
       return mspace_alloc(get_model()->mspace, size);
 }

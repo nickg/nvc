@@ -1306,13 +1306,6 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 }
 
 DLLEXPORT
-void __nvc_claim_tlab(void)
-{
-   extern tlab_t __nvc_tlab;
-   x_claim_tlab(&__nvc_tlab);
-}
-
-DLLEXPORT
 int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    return x_last_event(ss, offset, count);

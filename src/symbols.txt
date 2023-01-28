@@ -32,7 +32,6 @@
   # Exported from src/jit/jit-exits.c
   __nvc_alias_signal;
   __nvc_assert_fail;
-  __nvc_claim_tlab;
   __nvc_div_zero;
   __nvc_do_exit;
   __nvc_do_fficall;
@@ -59,7 +58,6 @@
   __nvc_report;
   __nvc_resolve_signal;
   __nvc_setup_toggle_cb;
-  __nvc_tlab;
   __nvc_unreachable;
   _canon_value;
   _debug_dump;
