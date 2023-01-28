@@ -461,7 +461,9 @@ bool color_terminal(void)
 
 void fatal_exit(int status)
 {
-   if (atomic_load(&crashing) != SIG_ATOMIC_MAX || thread_id() != 0)
+   if (atomic_load(&crashing) != SIG_ATOMIC_MAX)
+      _exit(status);   // Exit during crash
+   else if (!thread_attached() || thread_id() != 0)
       _exit(status);
    else
       exit(status);
