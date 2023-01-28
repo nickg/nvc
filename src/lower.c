@@ -10304,7 +10304,6 @@ static vcode_unit_t lower_case_generate_thunk(tree_t t)
       emit_return(emit_const(vint, -1));
 
    lower_finished();
-   vcode_dump();
 
    return thunk;
 }
