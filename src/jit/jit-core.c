@@ -586,17 +586,15 @@ static void jit_interp_trace(diag_t *d)
             break;
       }
 
-      if (a->func->object == NULL) {
-         // This should only occur in unit tests
-         diag_trace(d, loc, "%s", istr(a->func->name));
-      }
-      else {
-         tree_t enclosing = tree_from_object(a->func->object);
-         assert(enclosing != NULL);
+      tree_t enclosing = NULL;
+      if (a->func->object != NULL)
+          enclosing = tree_from_object(a->func->object);
 
-         const char *symbol = istr(a->func->name);
+      const char *symbol = istr(a->func->name);
+      if (enclosing != NULL)
          jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
-      }
+      else
+         diag_trace(d, loc, "%s", symbol);
    }
 }
 
