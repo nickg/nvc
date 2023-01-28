@@ -1236,11 +1236,13 @@ static void cover_print_timestamp(FILE *f)
 }
 
 static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t hier,
-                                          bool top)
+                                          bool top, bool full_hier)
 {
+   ident_t print_hier = (full_hier) ? hier : ident_rfrom(hier, '.');
+
    fprintf(f, "   <tr>\n"
               "      <td><a href=\"%s%s.html\">%s</a></td>\n",
-              top ? "hier/" : "", istr(hier), istr(hier));
+              top ? "hier/" : "", istr(hier), istr(print_hier));
 
    cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
    cover_print_percents_cell(f, stats->hit_branches, stats->total_branches);
@@ -1746,7 +1748,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             sub_ctx.tagging = ctx->tagging;
             tag = cover_report_hierarchy(&sub_ctx, dir);
             cover_print_hierarchy_summary(f, &(sub_ctx.nested_stats),
-                                          tag->hier, false);
+                                          tag->hier, false, false);
 
             // Add coverage from sub-hierarchies
             ctx->nested_stats.hit_stmts += sub_ctx.nested_stats.hit_stmts;
@@ -1854,7 +1856,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h2>\n");
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, &(ctx->flat_stats), tag->hier, false);
+   cover_print_hierarchy_summary(f, &(ctx->flat_stats), tag->hier, false, true);
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
@@ -1911,7 +1913,7 @@ void cover_report(const char *path, cover_tagging_t *tagging)
    cover_print_html_header(f, &top_ctx, true, "NVC code coverage report");
    cover_print_hierarchy_header(f);
    cover_print_hierarchy_summary(f, &(top_ctx.nested_stats),
-                                 top_ctx.start_tag->hier, true);
+                                 top_ctx.start_tag->hier, true, true);
    cover_print_hierarchy_footer(f);
    cover_print_timestamp(f);
 
