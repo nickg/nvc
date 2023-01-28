@@ -121,7 +121,7 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
    do {
       changed = false;
 
-      for (int i = 0; i < cfg->nblocks; i++) {
+      for (int i = cfg->nblocks - 1; i >= 0; i--) {
          jit_block_t *b = &(cfg->blocks[i]);
          mask_clearall(&new);
 
