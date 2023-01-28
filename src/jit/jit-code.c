@@ -157,9 +157,6 @@ code_cache_t *code_cache_new(void)
 
    code->globalfree = code_span_new(code, NULL, code->mem, CODECACHE_SIZE);
 
-   if (getenv("PERF_BUILDID_DIR") != NULL)
-      opt_set_int(OPT_PERF_MAP, 1);   // Running under Linux perf
-
    return code;
 }
 

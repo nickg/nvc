@@ -33,7 +33,7 @@
 typedef uint32_t hash_state_t;
 
 #define INITIAL_SIZE  1024
-#define REPROPE_LIMIT 20
+#define REPROBE_LIMIT 20
 #define MOVED_TAG     1
 
 typedef A(char) char_array_t;
@@ -80,18 +80,6 @@ static inline int hash_update(hash_state_t *state, const char *key, int nchars)
 
    *state = hash;
    return p - key;
-}
-
-static inline void hash_scramble(hash_state_t *state)
-{
-   hash_state_t hash = *state;
-
-   // Scrambling function from MurmurHash3
-   hash *= 0xcc9e2d51;
-   hash = (hash << 15) | (hash >> 17);
-   hash *= 0x1b873593;
-
-   *state = hash;
 }
 
 static ident_t ident_alloc(size_t len, hash_state_t hash)
@@ -208,7 +196,7 @@ static void grow_table(ident_tab_t *cur)
 
 static ident_t ident_from_bytes(const char *str, hash_state_t hash, size_t len)
 {
-   hash_scramble(&hash);
+   hash = mix_bits_32(hash);
 
    for (;;) {
       ident_tab_t *cur = get_table();
@@ -234,7 +222,7 @@ static ident_t ident_from_bytes(const char *str, hash_state_t hash, size_t len)
          else if (id->length == len && memcmp(id->bytes, str, len) == 0)
             return id;
 
-         if (++reprobe == REPROPE_LIMIT) {
+         if (++reprobe == REPROBE_LIMIT) {
             grow_table(cur);
             break;
          }
@@ -246,7 +234,7 @@ static ident_t ident_from_byte_vec(hash_state_t hash, bool uniq, int nparts,
                                    const char *str_vec[nparts],
                                    const size_t len_vec[nparts])
 {
-   hash_scramble(&hash);
+   hash = mix_bits_32(hash);
 
    size_t len = 0;
    for (int i = 0; i < nparts; i++)
@@ -285,7 +273,7 @@ static ident_t ident_from_byte_vec(hash_state_t hash, bool uniq, int nparts,
                return uniq ? NULL : id;
          }
 
-         if (++reprobe == REPROPE_LIMIT) {
+         if (++reprobe == REPROBE_LIMIT) {
             grow_table(cur);
             break;
          }

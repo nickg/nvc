@@ -149,6 +149,22 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #define untag_pointer(p, type) (type *)((uintptr_t)(p) & ~7)
 #define pointer_tag(p) ((uintptr_t)p & 7)
 
+// Scrambling functions from MurmurHash3
+#define mix_bits_32(n) ({                       \
+         uint32_t __n = (uint32_t)(n);          \
+         __n *= 0xcc9e2d51;                     \
+         __n = (__n << 15) | (__n >> 17);       \
+         __n *= 0x1b873593;                     \
+      })
+#define mix_bits_64(n) ({                       \
+         uint64_t __n = (uint64_t)(n);          \
+         __n ^= (__n >> 33);                    \
+         __n *= UINT64_C(0xff51afd7ed558ccd);   \
+         __n ^= (__n >> 33);                    \
+         __n *= UINT64_C(0xc4ceb9fe1a85ec53);   \
+         __n ^= (__n >> 33);                    \
+      })
+
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xmalloc_flex(size_t fixed, size_t nelems, size_t size) RETURNS_NONNULL;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -439,7 +439,8 @@ static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state, valnum_t vn)
    int tuple[3];
    lvn_get_tuple(ir, state, tuple);
 
-   const unsigned hash = tuple[0]*29 + tuple[1]*1093 + tuple[2]*6037;
+   const uint32_t hash =
+      mix_bits_32(tuple[0]*29 + tuple[1]*1093 + tuple[2]*6037);
 
    for (int idx = hash & (state->tabsz - 1), limit = 0, stale = -1; limit < 10;
         idx = (idx + 1) & (state->tabsz - 1), limit++) {

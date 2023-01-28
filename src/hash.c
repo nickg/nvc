@@ -35,23 +35,7 @@ struct _hash {
 static inline int hash_slot(unsigned size, const void *key)
 {
    assert(key != NULL);
-
-   uintptr_t uptr = (uintptr_t)key;
-
-   // Bottom two bits will always be zero with 32-bit pointers
-   uptr >>= 2;
-
-   // Hash function from here:
-   //   http://burtleburtle.net/bob/hash/integer.html
-
-   uint32_t a = (uint32_t)uptr;
-   a = (a ^ 61) ^ (a >> 16);
-   a = a + (a << 3);
-   a = a ^ (a >> 4);
-   a = a * UINT32_C(0x27d4eb2d);
-   a = a ^ (a >> 15);
-
-   return a & (size - 1);
+   return mix_bits_64(key) & (size - 1);
 }
 
 hash_t *hash_new(int size)
@@ -103,7 +87,7 @@ bool hash_put(hash_t *h, const void *key, void *value)
 
    int slot = hash_slot(h->size, key);
 
-   for (; ; slot = (slot + 1) & (h->size - 1)) {
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
       if (h->keys[slot] == key) {
          h->values[slot] = value;
          return true;
@@ -123,7 +107,7 @@ void hash_delete(hash_t *h, const void *key)
 {
    int slot = hash_slot(h->size, key);
 
-   for (; ; slot = (slot + 1) & (h->size - 1)) {
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
       if (h->keys[slot] == key) {
          h->values[slot] = NULL;
          return;
@@ -137,7 +121,7 @@ void *hash_get(hash_t *h, const void *key)
 {
    int slot = hash_slot(h->size, key);
 
-   for (; ; slot = (slot + 1) & (h->size - 1)) {
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
       if (h->keys[slot] == key)
          return h->values[slot];
       else if (h->keys[slot] == NULL)
@@ -190,12 +174,7 @@ static inline int shash_slot(shash_t *h, const char *key)
    while ((c = *key++))
       hash = ((hash << 5) + hash) + c;
 
-   // Scrambling function from MurmurHash3
-   hash *= 0xcc9e2d51;
-   hash = (hash << 15) | (hash >> 17);
-   hash *= 0x1b873593;
-
-   return hash & (h->size - 1);
+   return mix_bits_32(hash) & (h->size - 1);
 }
 
 shash_t *shash_new(int size)

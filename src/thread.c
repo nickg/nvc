@@ -496,16 +496,9 @@ nvc_thread_t *get_thread(int id)
    return atomic_load(&threads[id]);
 }
 
-static parking_bay_t *parking_bay_for(void *cookie)
+static inline parking_bay_t *parking_bay_for(void *cookie)
 {
-   uint32_t a = (uint32_t)((uintptr_t)cookie >> 2);
-   a = (a ^ 61) ^ (a >> 16);
-   a = a + (a << 3);
-   a = a ^ (a >> 4);
-   a = a * UINT32_C(0x27d4eb2d);
-   a = a ^ (a >> 15);
-
-   return &(parking_bays[a % PARKING_BAYS]);
+   return &(parking_bays[mix_bits_64(cookie) % PARKING_BAYS]);
 }
 
 static void thread_park(void *cookie, park_fn_t fn)
