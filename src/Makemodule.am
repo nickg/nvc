@@ -82,11 +82,10 @@ bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 if IMPLIB_REQUIRED
 bin_nvc_LDFLAGS += -Wl,--out-implib=lib/libnvcimp.a
 
-lib_LIBRARIES += lib/libnvcimp.a
+implibdir = $(pkglibdir)
+implib_DATA = lib/libnvcimp.a
 
 lib/libnvcimp.a: bin/nvc$(EXEEXT)
-
-lib_libnvcimp_a_SOURCES =
 endif
 
 nodist_EXTRA_bin_nvc_SOURCES =

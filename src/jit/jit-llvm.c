@@ -1674,7 +1674,8 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 
 #if CLOSED_WORLD
-      entry = llvm_add_fn(obj, istr(callee->name), obj->types[LLVM_ENTRY_FN]);
+      LOCAL_TEXT_BUF symbol = safe_symbol(callee->name);
+      entry = llvm_add_fn(obj, tb_get(symbol), obj->types[LLVM_ENTRY_FN]);
 #endif
    }
    else
@@ -2318,6 +2319,9 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
 
    char *name LOCAL = xasprintf("%s.descr", func->name);
    func->descr = LLVMAddGlobal(obj->module, func->descr_type, name);
+#ifdef IMPLIB_REQUIRED
+   LLVMSetDLLStorageClass(func->descr, LLVMDLLExportStorageClass);
+#endif
 
    LLVMValueRef fields[] = {
       PTR(func->llvmfn),
@@ -2446,6 +2450,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_UWTABLE, -1);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_DLLEXPORT, -1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_READONLY, 1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NONNULL, 1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_READONLY, 2);
@@ -2888,8 +2893,7 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    jit_func_t *f = jit_get_func(j, handle);
    jit_fill_irbuf(f);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, f->name);
+   LOCAL_TEXT_BUF tb = safe_symbol(f->name);
 
    cgen_func_t func = {
       .name   = tb_claim(tb),

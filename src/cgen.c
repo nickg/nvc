@@ -50,7 +50,7 @@
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 #include <llvm-c/TargetMachine.h>
 
-#define CGEN_USE_JIT 0
+#define CGEN_USE_JIT 1
 
 typedef A(vcode_unit_t) unit_list_t;
 typedef A(char *) obj_list_t;
@@ -4533,15 +4533,15 @@ static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
 static bool cgen_is_preload(ident_t name)
 {
 #if CGEN_USE_JIT
-   if (ident_starts_with(name, well_known(W_STD)))
-      return true;
-   else if (ident_starts_with(name, well_known(W_IEEE)))
-      return true;
-   else if (ident_starts_with(name, well_known(W_NVC)))
-      return true;
-   else
+   const char *preload[] = { "STD.", "IEEE.", "NVC." };
+   const char *str = istr(name);
+   for (int i = 0; i < ARRAY_LEN(preload); i++) {
+      if (strncmp(str, preload[i], strlen(preload[i])) == 0)
+         return true;
+   }
 #endif
-      return false;
+
+   return false;
 }
 
 static void cgen_add_dependency(ident_t name, unit_list_t *list)
@@ -5419,10 +5419,19 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
       cgen_link_arg(obj);
 
 #ifdef IMPLIB_REQUIRED
+   tb_rewind(tb);
    const char *cyglib = getenv("NVC_IMP_LIB");
-   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : LIBDIR);
-   cgen_link_arg(cygarg);
+   if (cyglib != NULL)
+      tb_cat(tb, cyglib);
+   else
+      get_lib_dir(tb);
+
+   cgen_link_arg("-L%s", tb_get(tb));
+   cgen_link_arg("-L%s/nvc", LIBDIR);
    cgen_link_arg("-lnvcimp");
+
+   const char *preload_vers[] = { "93", "93", "93", "93", "08", "19" };
+   cgen_link_arg("%s/preload%s.dll", tb_get(tb), preload_vers[standard()]);
 #endif
 
    APUSH(link_args, NULL);
@@ -5810,9 +5819,14 @@ static void preload_do_link(const char *so_name, const char *obj_file)
 #endif
 
 #ifdef IMPLIB_REQUIRED
+   LOCAL_TEXT_BUF tb = tb_new();
    const char *cyglib = getenv("NVC_IMP_LIB");
-   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : LIBDIR);
-   cgen_link_arg(cygarg);
+   if (cyglib != NULL)
+      tb_cat(tb, cyglib);
+   else
+      get_lib_dir(tb);
+
+   cgen_link_arg("-L%s", tb_get(tb));
    cgen_link_arg("-lnvcimp");
 #endif
 

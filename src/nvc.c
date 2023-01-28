@@ -599,9 +599,7 @@ static int run(int argc, char **argv)
 
    jit_t *jit = jit_new();
    jit_enable_runtime(jit, true);
-#if 0
    jit_preload(jit);
-#endif
 
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 

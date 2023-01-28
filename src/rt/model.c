@@ -995,8 +995,13 @@ static inline uint8_t *value_ptr(rt_nexus_t *n, rt_value_t *v)
 static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
 {
    const size_t valuesz = n->width * n->size;
-   if (valuesz <= sizeof(rt_value_t))
+   if (valuesz <= sizeof(rt_value_t)) {
+#if __SANITIZE_ADDRESS__
+      memcpy(v->bytes, p, valuesz);
+#else
       v->qword = *(uint64_t *)p;
+#endif
+   }
    else
       memcpy(v->ext, p, valuesz);
 }

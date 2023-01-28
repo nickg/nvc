@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Code generation has been rewritten to enable faster elaboration and
+  "just-in-time" compilation in the future.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in

@@ -10,8 +10,8 @@ architecture test of signal25 is
     signal r : rec(f(1 to 2));
 begin
 
-    v(1 to r.f'right) <= (others => '1');
-    v(r.f'right + 1 to 3) <= (others => '0');
+    p0: v(1 to r.f'right) <= (others => '1');
+    p1: v(r.f'right + 1 to 3) <= (others => '0');
 
     check: process is
     begin

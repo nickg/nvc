@@ -31,6 +31,7 @@ DISTCLEANFILES =
 BOOTSTRAPLIBS =
 LIBDIRS =
 lib_LIBRARIES =
+pkglib_LIBRARIES =
 
 include thirdparty/Makemodule.am
 include src/Makemodule.am
