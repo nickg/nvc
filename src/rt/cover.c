@@ -1313,10 +1313,12 @@ static void cover_print_get_exclude_button(FILE *f, cover_tag_t *tag,
 {
 
    const char *bin_name = "";
-   if (flag)
-      for (int i = 0; i < ARRAY_LEN(bin_map); i++)
+   if (flag) {
+      for (int i = 0; i < ARRAY_LEN(bin_map); i++) {
          if (bin_map[i].flag == flag)
             bin_name = bin_map[i].name;
+      }
+   }
 
    if (add_td)
       fprintf(f, "<td>");
@@ -1365,7 +1367,7 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
    }
 
    if (pkind == PAIR_UNCOVERED)
-         fprintf(f, "<th style=\"width:150px;\">Exclude Command</th>");
+      fprintf(f, "<th style=\"width:150px;\">Exclude Command</th>");
 
    fprintf(f, "</tr>");
 }
@@ -1373,8 +1375,6 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
 static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
    loc_t loc = pair->tag->loc;
-   char t_str[6] = {0};
-   char f_str[6] = {0};
 
    fprintf(f, "<br><table style=\"border:2px;text-align:center;margin-top:8px;\">");
 
@@ -1409,14 +1409,9 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       break;
 
    case TAG_EXPRESSION:
-      if (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) {
-         sprintf(t_str, "'1'");
-         sprintf(f_str, "'0'");
-      }
-      else {
-         sprintf(t_str, "True");
-         sprintf(f_str, "False");
-      }
+      {
+      char *t_str = (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
+      char *f_str = (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
 
       if ((pair->flags & COV_FLAG_TRUE) || (pair->flags & COV_FLAG_FALSE)) {
          cover_print_bin_header(f, pkind, 1, "Evaluated to");
@@ -1432,6 +1427,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
          cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, f_str, t_str);
          cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, t_str, f_str);
          cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, t_str, t_str);
+      }
       }
       break;
    default:
