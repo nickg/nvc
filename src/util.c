@@ -981,8 +981,12 @@ void term_init(void)
    }
 #endif
 
+#ifndef __MINGW32__
    // Only print link escape codes if this is really a terminal
    want_links = want_color && is_tty;
+#else
+   want_links = false;    // Winpty doesn't recognise these
+#endif
 
    // Diagnostics are printed to stderr and explicitly flushed
    setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
