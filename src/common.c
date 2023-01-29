@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1280,73 +1280,18 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    }
 }
 
-tree_t find_mangled_decl(tree_t container, ident_t name)
+tree_t std_func(ident_t mangled)
 {
-   const int ndecls = tree_decls(container);
+   tree_t std = cached_std(NULL);
+
+   const int ndecls = tree_decls(std);
    for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-      if (is_subprogram(d) && tree_has_ident2(d) && tree_ident2(d) == name)
+      tree_t d = tree_decl(std, i);
+      if (is_subprogram(d) && tree_has_ident2(d) && tree_ident2(d) == mangled)
          return d;
-      else if (tree_kind(d) == T_TYPE_DECL
-               && type_ident(tree_type(d)) == ident_until(name, '$'))
-         return d;
-      else if (is_container(d) && (d = find_mangled_decl(d, name)))
-         return d;
-   }
-
-   const tree_kind_t kind = tree_kind(container);
-   if (kind == T_ARCH || kind == T_ELAB || kind == T_BLOCK) {
-      ident_t leaf = ident_rfrom(name, '.');
-      const int nstmts = tree_stmts(container);
-      for (int i = 0; i < nstmts; i++) {
-         tree_t s = tree_stmt(container, i);
-         const tree_kind_t skind = tree_kind(s);
-         if (skind == T_PROCESS || skind == T_BLOCK) {
-            if (tree_ident(s) == leaf)
-               return s;
-
-            tree_t d = find_mangled_decl(s, name);
-            if (d != NULL)
-               return d;
-         }
-      }
    }
 
    return NULL;
-}
-
-tree_t find_enclosing_decl(ident_t unit_name, const char *symbol)
-{
-   tree_t unit = lib_get_qualified(unit_name);
-   if (unit == NULL)
-      return NULL;
-
-   tree_t search = unit;
-   if (tree_kind(unit) == T_PACKAGE) {
-      tree_t body = body_of(unit);
-      if (body != NULL)
-         search = body;
-   }
-
-   static shash_t *cache = NULL;
-   if (cache == NULL)
-      cache = shash_new(256);
-
-   tree_t enclosing = shash_get(cache, symbol);
-   if (enclosing == NULL) {
-      ident_t id = ident_new(symbol);
-      if (id == unit_name)
-         shash_put(cache, symbol, (enclosing = unit));
-      else if ((enclosing = find_mangled_decl(search, id)))
-         shash_put(cache, symbol, enclosing);
-   }
-
-   return enclosing;
-}
-
-tree_t std_func(ident_t mangled)
-{
-   return find_mangled_decl(cached_std(NULL), mangled);
 }
 
 tree_t name_to_ref(tree_t name)

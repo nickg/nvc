@@ -281,7 +281,6 @@ typedef struct _jit_func {
    unsigned        cpoolsz;
    bool            owns_cpool;
    jit_handle_t    handle;
-   void           *symbol;
    unsigned        hotness;
    jit_tier_t     *next_tier;
    jit_cfg_t      *cfg;
@@ -297,8 +296,7 @@ typedef struct _jit_anchor {
 
 typedef enum {
    JIT_IDLE,
-   JIT_NATIVE,
-   JIT_INTERP
+   JIT_RUNNING
 } jit_state_t;
 
 typedef struct {

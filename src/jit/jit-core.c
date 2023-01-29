@@ -177,6 +177,9 @@ void jit_free(jit_t *j)
       jit_free_func(j->funcs->items[i]);
    free(j->funcs);
 
+   for (int i = 0; i < ARRAY_LEN(j->cover_mem); i++)
+      free(j->cover_mem[i]);
+
    if (j->layouts != NULL) {
       hash_iter_t it = HASH_BEGIN;
       const void *key;
@@ -253,15 +256,9 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       }
    }
 
-   void *symbol = NULL;
-   if (descr == NULL && j->aotlib != NULL) {
-      LOCAL_TEXT_BUF tb = safe_symbol(name);
-      symbol = ffi_find_symbol(j->aotlib->dll, tb_get(tb));
-   }
-
    vcode_unit_t vu = vcode_find_unit(name);
 
-   if (vu == NULL && descr == NULL && symbol == NULL) {
+   if (vu == NULL && descr == NULL) {
       if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
          debugf("loading vcode for %s", istr(name));
 
@@ -285,7 +282,7 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       vcode_state_restore(&state);
    }
 
-   if (vu == NULL && symbol == NULL && descr == NULL)
+   if (vu == NULL && descr == NULL)
       return JIT_HANDLE_INVALID;
 
    assert(vu == NULL || chash_get(j->index, vu) == NULL);
@@ -295,16 +292,12 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
    f->name      = alias ?: name;
    f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
    f->unit      = vu;
-   f->symbol    = symbol;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = descr ? descr->entry : jit_interp;
    f->object    = vu ? vcode_unit_object(vu) : NULL;
-
-   if (symbol)  // XXX: temporary
-      f->state = JIT_FUNC_READY;
 
    // Install now to allow circular references in relocations
    jit_install(j, f);
@@ -396,15 +389,14 @@ static inline bool jit_fill_from_aot(jit_func_t *f, aot_dll_t *lib)
 
 void jit_fill_irbuf(jit_func_t *f)
 {
-   switch (load_acquire(&(f->state))) {
+   const func_state_t state = load_acquire(&(f->state));
+   switch (state) {
    case JIT_FUNC_READY:
       if (f->irbuf != NULL)
-         return;   // XXX: temporary
-      if (atomic_cas(&(f->state), JIT_FUNC_READY, JIT_FUNC_COMPILING))
-         break;   // XXX: temporary
+         return;
       // Fall-through
    case JIT_FUNC_PLACEHOLDER:
-      if (atomic_cas(&(f->state), JIT_FUNC_PLACEHOLDER, JIT_FUNC_COMPILING))
+      if (atomic_cas(&(f->state), state, JIT_FUNC_COMPILING))
          break;
       // Fall-through
    case JIT_FUNC_COMPILING:
@@ -421,9 +413,7 @@ void jit_fill_irbuf(jit_func_t *f)
 
    assert(f->irbuf == NULL);
 
-   if (f->symbol && f->irbuf != NULL)
-      return;   // XXX: delete me
-   else if (jit_fill_from_aot(f, f->jit->aotlib))
+   if (jit_fill_from_aot(f, f->jit->aotlib))
       return;
    else if (jit_fill_from_aot(f, f->jit->preloadlib))
       return;
@@ -533,53 +523,6 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
    }
 }
 
-static void jit_native_trace(diag_t *d)
-{
-   assert(jit_thread_local()->state == JIT_NATIVE);
-
-   debug_info_t *di = debug_capture();
-
-   const int nframes = debug_count_frames(di);
-   for (int i = 0; i < nframes; i++) {
-      const debug_frame_t *f = debug_get_frame(di, i);
-      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL || f->symbol == NULL)
-         continue;
-
-      for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next) {
-         tree_t enclosing = find_enclosing_decl(inl->vhdl_unit, inl->symbol);
-         if (enclosing == NULL)
-            continue;
-
-         // Processes should never be inlined
-         assert(tree_kind(enclosing) != T_PROCESS);
-
-         loc_file_ref_t file_ref = loc_file_ref(inl->srcfile, NULL);
-         loc_t loc = get_loc(inl->lineno, inl->colno, inl->lineno,
-                             inl->colno, file_ref);
-
-         jit_emit_trace(d, &loc, enclosing, inl->symbol);
-      }
-
-      tree_t enclosing = find_enclosing_decl(f->vhdl_unit, f->symbol);
-      if (enclosing == NULL)
-         continue;
-
-      loc_t loc;
-      if (f->lineno == 0) {
-         // Exact DWARF debug info not available
-         loc = *tree_loc(enclosing);
-      }
-      else {
-         loc_file_ref_t file_ref = loc_file_ref(f->srcfile, NULL);
-         loc = get_loc(f->lineno, f->colno, f->lineno, f->colno, file_ref);
-      }
-
-      jit_emit_trace(d, &loc, enclosing, f->symbol);
-   }
-
-   debug_free(di);
-}
-
 static void jit_interp_trace(diag_t *d)
 {
    for (jit_anchor_t *a = jit_thread_local()->anchor; a; a = a->caller) {
@@ -620,10 +563,7 @@ static void jit_diag_cb(diag_t *d, void *arg)
    }
 
    switch (jit_thread_local()->state) {
-   case JIT_NATIVE:
-      jit_native_trace(d);
-      break;
-   case JIT_INTERP:
+   case JIT_RUNNING:
       jit_interp_trace(d);
       break;
    case JIT_IDLE:
@@ -643,8 +583,7 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
    thread->state = to;
 
    switch (to) {
-   case JIT_NATIVE:
-   case JIT_INTERP:
+   case JIT_RUNNING:
       if (from == JIT_IDLE) {
          diag_add_hint_fn(jit_diag_cb, j);
          thread->jit = j;
@@ -670,29 +609,21 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    if (rc == 0) {
       thread->jmp_buf_valid = 1;
 
-      if (f->symbol) {
-         jit_transition(j, JIT_IDLE, JIT_NATIVE);
-         void *(*fn)(void *, void *) = f->symbol;
-         result->pointer = (*fn)(p1.pointer, p2.pointer);
-         jit_transition(j, JIT_NATIVE, JIT_IDLE);
-      }
-      else {
-         jit_transition(j, JIT_IDLE, JIT_INTERP);
-         jit_scalar_t args[JIT_MAX_ARGS];
-         args[0] = p1;
-         args[1] = p2;
-         jit_entry_fn_t entry = load_acquire(&f->entry);
-         (*entry)(f, NULL, args, tlab);
-         *result = args[0];
-         jit_transition(j, JIT_INTERP, JIT_IDLE);
-      }
+      jit_transition(j, JIT_IDLE, JIT_RUNNING);
+      jit_scalar_t args[JIT_MAX_ARGS];
+      args[0] = p1;
+      args[1] = p2;
+      jit_entry_fn_t entry = load_acquire(&f->entry);
+      (*entry)(f, NULL, args, tlab);
+      *result = args[0];
+      jit_transition(j, JIT_RUNNING, JIT_IDLE);
 
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
       return true;
    }
    else {
-      jit_transition(j, f->symbol ? JIT_NATIVE : JIT_INTERP, JIT_IDLE);
+      jit_transition(j, JIT_RUNNING, JIT_IDLE);
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
       atomic_cas(&(j->exit_status), 0, rc - 1);
@@ -707,21 +638,12 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
    bool failed = false;
    const jit_state_t oldstate = thread->state;
-   const jit_state_t newstate = f->symbol ? JIT_NATIVE : JIT_INTERP;
    const int rc = sigsetjmp(thread->abort_env, 0);
    if (rc == 0) {
       thread->jmp_buf_valid = 1;
-      jit_transition(j, oldstate, newstate);
+      jit_transition(j, oldstate, JIT_RUNNING);
 
-      if (f->symbol != NULL) {
-         jit_foreign_t *ff = jit_ffi_get(f->name);
-         if (ff == NULL)
-            ff = jit_ffi_bind(f->name, f->spec, f->symbol);
-
-         jit_ffi_call(ff, args);
-      }
-      else
-         (*f->entry)(f, NULL, args, NULL);
+      (*f->entry)(f, NULL, args, NULL);
 
       *result = args[0];
    }
@@ -730,7 +652,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       failed = true;
    }
 
-   jit_transition(j, newstate, oldstate);
+   jit_transition(j, JIT_RUNNING, oldstate);
    thread->jmp_buf_valid = 0;
    thread->anchor = NULL;
 
@@ -739,8 +661,7 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
 static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
 {
-   if (f->symbol == NULL)   // XXX: should be unconditional
-      jit_fill_irbuf(f);  // Ensure FFI spec is set
+   jit_fill_irbuf(f);  // Ensure FFI spec is set
 
    const int nargs = ffi_count_args(f->spec);
    assert(nargs <= JIT_MAX_ARGS);
@@ -809,8 +730,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 {
    jit_func_t *f = jit_get_func(j, handle);
 
-   if (f->symbol == NULL)   // XXX: should be unconditional
-      jit_fill_irbuf(f);   // Ensure FFI spec is set
+   jit_fill_irbuf(f);   // Ensure FFI spec is set
    assert(f->spec != 0);
 
    ffi_type_t atype = (f->spec >> 8) & 0xf;
@@ -1015,21 +935,15 @@ static aot_dll_t *load_dll_internal(jit_t *j, const char *path)
 {
    uint32_t abi_version = 0;
 
-   // Loading the DLL can execute constructors
-   jit_transition(j, JIT_IDLE, JIT_NATIVE);
-
    aot_dll_t *lib = xcalloc(sizeof(aot_dll_t));
    lib->pack = jit_pack_new();
-
-   lib->dll = ffi_load_dll(path);
+   lib->dll  = ffi_load_dll(path);
 
    uint32_t *p = ffi_find_symbol(lib->dll, "__nvc_abi_version");
    if (p == NULL)
       warnf("%s: cannot find symbol __nvc_abi_version", path);
    else
       abi_version = *p;
-
-   jit_transition(j, JIT_NATIVE, JIT_IDLE);
 
    if (abi_version != RT_ABI_VERSION)
       fatal("%s: ABI version %d does not match current version %d",
@@ -1112,8 +1026,7 @@ void jit_abort(int code)
    case JIT_IDLE:
       fatal_exit(code);
       break;
-   case JIT_NATIVE:
-   case JIT_INTERP:
+   case JIT_RUNNING:
       assert(code >= 0);
       if (thread->jmp_buf_valid)
          siglongjmp(thread->abort_env, code + 1);
@@ -1482,34 +1395,14 @@ bool jit_will_abort(jit_ir_t *ir)
 void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
                          int n_expressions)
 {
-   int32_t *cover_stmts = ffi_find_symbol(NULL, "cover_stmts");
-   if (cover_stmts != NULL)
-      memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
-   else
-      cover_stmts = xcalloc_array(n_stmts, sizeof(int32_t));  // XXX: leaks
-
-   int32_t *cover_branches = ffi_find_symbol(NULL, "cover_branches");
-   if (cover_branches != NULL)
-      memset(cover_branches, '\0', sizeof(int32_t) * n_branches);
-   else
-      cover_branches = xcalloc_array(n_branches, sizeof(int32_t));  // XXX: leaks
-
-   int32_t *cover_toggles = ffi_find_symbol(NULL, "cover_toggles");
-   if (cover_toggles != NULL)
-      memset(cover_toggles, '\0', sizeof(int32_t) * n_toggles);
-   else
-      cover_toggles = xcalloc_array(n_toggles, sizeof(int32_t));  // XXX: leaks
-
-   int32_t *cover_expressions = ffi_find_symbol(NULL, "cover_expressions");
-   if (cover_expressions != NULL)
-      memset(cover_expressions, '\0', sizeof(int32_t) * n_expressions);
-   else
-      cover_expressions = xcalloc_array(n_expressions, sizeof(int32_t));  // XXX: leaks
-
-   j->cover_mem[JIT_COVER_STMT] = cover_stmts;
-   j->cover_mem[JIT_COVER_BRANCH] = cover_branches;
-   j->cover_mem[JIT_COVER_TOGGLE] = cover_toggles;
-   j->cover_mem[JIT_COVER_EXPRESSION] = cover_expressions;
+   j->cover_mem[JIT_COVER_STMT] =
+      xcalloc_array(n_stmts, sizeof(int32_t));
+   j->cover_mem[JIT_COVER_BRANCH] =
+      xcalloc_array(n_branches, sizeof(int32_t));
+   j->cover_mem[JIT_COVER_TOGGLE] =
+      xcalloc_array(n_toggles, sizeof(int32_t));
+   j->cover_mem[JIT_COVER_EXPRESSION] =
+      xcalloc_array(n_expressions, sizeof(int32_t));
 }
 
 int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -67,8 +67,6 @@ bool is_uninstantiated_subprogram(tree_t decl);
 tree_t search_decls(tree_t container, ident_t name, int nth);
 bool is_builtin(subprogram_kind_t kind);
 bool is_open_coded_builtin(subprogram_kind_t kind);
-tree_t find_mangled_decl(tree_t container, ident_t name);
-tree_t find_enclosing_decl(ident_t unit_name, const char *symbol);
 tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
 void mangle_one_type(text_buf_t *buf, type_t type);
