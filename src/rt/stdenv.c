@@ -345,7 +345,7 @@ void _std_env_file_path(ffi_uarray_t **ptr)
 
    const char *file = loc_file_str(&(stack->frames[1].loc));
    const char *sep = find_dir_separator(file);
-   *ptr = to_line(sep ? sep + 1 : file);
+   *ptr = to_line_n(file, sep - file);
 }
 
 DLLEXPORT
