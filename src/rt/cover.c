@@ -55,12 +55,12 @@ typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
 
 typedef struct _cover_scope {
    ident_t        name;
-   ident_t        sig_name;
    int            branch_label;
    int            stmt_label;
    int            expression_label;
    cover_scope_t *parent;
    range_array_t  ignore_lines;
+   int            sig_pos;
 } cover_scope_t;
 
 struct _cover_tagging {
@@ -217,11 +217,10 @@ static bool cover_is_branch(tree_t branch)
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND;
 }
 
-static bool cover_is_toggle(tree_t decl)
+static bool cover_is_toggle_first(tree_t decl)
 {
    return tree_kind(decl) == T_SIGNAL_DECL ||
-          tree_kind(decl) == T_PORT_DECL ||
-          tree_kind(decl) == T_FIELD_DECL;
+          tree_kind(decl) == T_PORT_DECL;
 
 }
 
@@ -309,12 +308,8 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    // Everything creates scope, so name of current tag is already given
    // by scope in hierarchy.
    ident_t hier = ctx->hier;
-   ident_t sig_name = ctx->top_scope->sig_name;
-   if (suffix) {
+   if (suffix)
       hier = ident_prefix(hier, suffix, '\0');
-      if (sig_name)
-         sig_name = ident_prefix(sig_name, suffix, '\0');
-   }
 
    // Expression tags do not nest scope, expression name must be created
    if (kind == TAG_EXPRESSION) {
@@ -330,7 +325,6 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    printf("    First column: %d\n", tree_loc(t)->first_column);
    printf("    Line delta: %d\n", tree_loc(t)->line_delta);
    printf("    Column delta: %d\n", tree_loc(t)->column_delta);
-   printf("    Signal name: %s\n", istr(sig_name));
    printf("\n\n");
 #endif
 
@@ -342,7 +336,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .excl_msk   = 0,
       .loc        = *tree_loc(t),
       .hier       = hier,
-      .sig_name   = sig_name
+      .sig_pos    = ctx->top_scope->sig_pos,
    };
 
    APUSH(ctx->tags, new);
@@ -414,7 +408,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
       write_u32(tag->excl_msk, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
-      ident_write(tag->sig_name, ident_ctx);
+      write_u32(tag->sig_pos, f);
    }
 
    write_u8(TAG_LAST, f);
@@ -471,11 +465,12 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
          c = 'B';
       }
    }
-   // For toggle coverage, build up the signal name
-   else if (cover_is_toggle(t)) {
+   // For toggle coverage, remember the position where its name in
+   // the hierarchy starts.
+   else if (cover_is_toggle_first(t)) {
       assert(tree_has_ident(t));
       name = tree_ident(t);
-      s->sig_name = ident_prefix(tagging->top_scope->sig_name, name, '.');
+      s->sig_pos = ident_len(tagging->hier) + 1;
    }
    // Consider everything else as statement
    // Expressions do not get scope pushed, so if scope for e.g.
@@ -499,13 +494,14 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 
    s->name   = name;
    s->parent = tagging->top_scope;
+   if (s->sig_pos == 0)
+      s->sig_pos = tagging->top_scope->sig_pos;
 
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
 
 #ifdef COVER_DEBUG
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
-   printf("Signal name: %s\n", istr(s->sig_name));
    printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
 #endif
 }
@@ -607,7 +603,7 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
 
    loc_read(&(tag->loc), loc_rd);
    tag->hier = ident_read(ident_ctx);
-   tag->sig_name = ident_read(ident_ctx);
+   tag->sig_pos = read_u32(f);
 }
 
 cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
@@ -1478,7 +1474,9 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       else if (pair->tag->flags & COV_FLAG_TOGGLE_PORT)
          fprintf(f, "<h3>Port:</h3>");
 
-      fprintf(f, "&nbsp;<code>%s</code>", istr(pair->tag->sig_name));
+      const char *sig_name = istr(pair->tag->hier);
+      sig_name += pair->tag->sig_pos;
+      fprintf(f, "&nbsp;<code>%s</code>", sig_name);
 
       cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");

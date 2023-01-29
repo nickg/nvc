@@ -108,9 +108,8 @@ typedef struct _cover_tag {
    // Hierarchy path of the covered object
    ident_t        hier;
 
-   // Name of the signal/port (for toggle coverage)
-   ident_t        sig_name;
-
+   // Start position for signal name
+   int            sig_pos;
 } cover_tag_t;
 
 typedef enum {
