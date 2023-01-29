@@ -1832,7 +1832,7 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
    MOV(CARG0_REG, __EAX, __DWORD);
    MOV(CARG1_REG, ANCHOR_REG, __QWORD);
 
-   MOV(__EAX, PTR(__nvc_mspace_alloc2), __QWORD);
+   MOV(__EAX, PTR(__nvc_mspace_alloc), __QWORD);
    CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);
@@ -1876,7 +1876,7 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    MOV(CARG0_REG, __EAX, __DWORD);
    MOV(CARG1_REG, ANCHOR_REG, __QWORD);
 
-   MOV(__EAX, PTR(__nvc_mspace_alloc2), __QWORD);
+   MOV(__EAX, PTR(__nvc_mspace_alloc), __QWORD);
    CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);

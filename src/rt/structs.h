@@ -66,7 +66,7 @@ struct waveform {
    rt_value_t  value;
 };
 
-STATIC_ASSERT(sizeof(rt_value_t) <= 24);
+STATIC_ASSERT(sizeof(waveform_t) <= 24);
 
 typedef struct {
    rt_wakeable_t *wake;
@@ -125,14 +125,6 @@ typedef struct _rt_source {
 } rt_source_t;
 
 STATIC_ASSERT(sizeof(rt_source_t) <= 64);
-
-// The code generator knows the layout of this struct
-typedef struct _rt_resolution {
-   ffi_closure_t    closure;
-   uint32_t         flags;
-   int32_t          ileft;
-   int32_t          nlits;
-} rt_resolution_t;
 
 typedef struct {
    ffi_closure_t closure;

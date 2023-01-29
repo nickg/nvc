@@ -734,7 +734,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
 
-         fn = llvm_add_fn(obj, "__nvc_mspace_alloc2", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "__nvc_mspace_alloc", obj->fntypes[which]);
       }
       break;
 
