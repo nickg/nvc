@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -580,8 +580,8 @@ void object_arena_gc(object_arena_t *arena)
  skip_gc:
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
-      notef("GC: %s: freed %d objects; %d allocated [%d us]",
-            istr(object_arena_name(arena)), dead, live, ticks);
+      debugf("GC: %s: freed %d objects; %d allocated [%d us]",
+             istr(object_arena_name(arena)), dead, live, ticks);
    }
 }
 
@@ -1174,8 +1174,8 @@ void object_copy(object_copy_ctx_t *ctx)
    }
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
-      notef("copied %d objects into arena %s", ncopied,
-            istr(object_arena_name(global_arena)));
+      debugf("copied %d objects into arena %s", ncopied,
+             istr(object_arena_name(global_arena)));
 
    for (unsigned i = 0; i < ctx->nroots; i++) {
       object_t *copy = hash_get(ctx->copy_map, ctx->roots[i]);
@@ -1221,8 +1221,8 @@ void object_arena_freeze(object_arena_t *arena)
       object_arena_gc(arena);
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
-      notef("arena %s frozen (%d bytes)", istr(object_arena_name(arena)),
-            (int)(arena->alloc - arena->base));
+      debugf("arena %s frozen (%d bytes)", istr(object_arena_name(arena)),
+             (int)(arena->alloc - arena->base));
 
    void *next_page = ALIGN_UP(arena->alloc, OBJECT_PAGE_SZ);
    nvc_memprotect(arena->base, next_page - arena->base, MEM_RO);

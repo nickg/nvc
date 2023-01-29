@@ -10030,7 +10030,7 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
       return;   // No code generated for uninstantiated packages
 
    const tree_kind_t kind = tree_kind(unit);
-   if (unit_name == vcode_unit_name())
+   if (kind != T_ENTITY && unit_name == vcode_unit_name())
       return;   // Package body depends on package
    else if (kind == T_PACKAGE || kind == T_PACK_INST)
       emit_package_init(unit_name, VCODE_INVALID_REG);
