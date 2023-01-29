@@ -52,5 +52,6 @@ std_suffix () {
   case "$1" in
     1993) ;;
     2008) echo ".08" ;;
+    2019) echo ".19" ;;
   esac
 }
