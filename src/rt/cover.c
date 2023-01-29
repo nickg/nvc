@@ -219,9 +219,8 @@ static bool cover_is_branch(tree_t branch)
 
 static bool cover_is_toggle_first(tree_t decl)
 {
-   return tree_kind(decl) == T_SIGNAL_DECL ||
-          tree_kind(decl) == T_PORT_DECL;
-
+   const tree_kind_t kind = tree_kind(decl);
+   return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
 }
 
 unsigned cover_get_std_log_expr_flags(tree_t decl)
