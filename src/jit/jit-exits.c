@@ -502,7 +502,7 @@ void *x_mspace_alloc(size_t size)
       __builtin_unreachable();
    }
    else
-      return mspace_alloc(jit_get_mspace(jit_thread_local()->jit), size);
+      return jit_mspace_alloc(size);
 }
 
 void x_elab_order_fail(tree_t where)
@@ -716,10 +716,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          int64_t value = args[0].integer;
 
-         mspace_t *m = jit_get_mspace(jit_thread_local()->jit);
-         char *buf = mspace_alloc(m, 28);
-         if (buf == NULL)
-            return;
+         char *buf = jit_mspace_alloc(28);
 
          ffi_uarray_t u = x_int_to_string(value, buf, 28);
          args[0].pointer = u.ptr;
@@ -741,10 +738,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          double value = args[0].real;
 
-         mspace_t *m = jit_get_mspace(jit_thread_local()->jit);
-         char *buf = mspace_alloc(m, 32);
-         if (buf == NULL)
-            return;
+         char *buf = jit_mspace_alloc(32);
 
          ffi_uarray_t u = x_real_to_string(value, buf, 32);
          args[0].pointer = u.ptr;
@@ -872,9 +866,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          uint8_t *ptr = args[0].pointer;
          int32_t  len = args[1].integer;
 
-         char *buf = mspace_alloc(jit_get_mspace(jit_thread_local()->jit), len);
-         if (buf == NULL)
-            return;
+         char *buf = jit_mspace_alloc(len);
 
          ffi_uarray_t u = x_canon_value(ptr, len, buf);
          args[0].pointer = u.ptr;

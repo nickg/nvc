@@ -205,6 +205,13 @@ mspace_t *jit_get_mspace(jit_t *j)
    return j->mspace;
 }
 
+void *jit_mspace_alloc(size_t size)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   assert(thread->state == JIT_RUNNING);
+   return mspace_alloc(thread->jit->mspace, size);
+}
+
 static void jit_install(jit_t *j, jit_func_t *f)
 {
    assert_lock_held(&(j->lock));
@@ -523,34 +530,43 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
    }
 }
 
-static void jit_interp_trace(diag_t *d)
+jit_stack_trace_t *jit_stack_trace(void)
 {
-   for (jit_anchor_t *a = jit_thread_local()->anchor; a; a = a->caller) {
+   jit_thread_local_t *thread = jit_thread_local();
+
+   int count = 0;
+   for (jit_anchor_t *a = thread->anchor; a; a = a->caller)
+      count++;
+
+   jit_stack_trace_t *stack =
+      xmalloc_flex(sizeof(jit_stack_trace_t), count, sizeof(jit_frame_t));
+   stack->count = count;
+
+   jit_frame_t *frame = stack->frames;
+   for (jit_anchor_t *a = thread->anchor; a; a = a->caller, frame++) {
       jit_fill_irbuf(a->func);
+
+      frame->decl = NULL;
+      if (a->func->object != NULL)
+         frame->decl = tree_from_object(a->func->object);
 
       // Scan backwards to find the last debug info
       assert(a->irpos < a->func->nirs);
-      const loc_t *loc = NULL;
+      frame->loc = frame->decl ? *tree_loc(frame->decl) : LOC_INVALID;
       for (jit_ir_t *ir = &(a->func->irbuf[a->irpos]);
            ir >= a->func->irbuf; ir--) {
          if (ir->op == J_DEBUG) {
-            loc = &ir->arg1.loc;
+            frame->loc = ir->arg1.loc;
             break;
          }
          else if (ir->target)
             break;
       }
 
-      tree_t enclosing = NULL;
-      if (a->func->object != NULL)
-          enclosing = tree_from_object(a->func->object);
-
-      const char *symbol = istr(a->func->name);
-      if (enclosing != NULL)
-         jit_emit_trace(d, loc ?: tree_loc(enclosing), enclosing, symbol);
-      else
-         diag_trace(d, loc, "%s", symbol);
+      frame->symbol = a->func->name;
    }
+
+   return stack;
 }
 
 static void jit_diag_cb(diag_t *d, void *arg)
@@ -561,13 +577,18 @@ static void jit_diag_cb(diag_t *d, void *arg)
       diag_suppress(d, true);
       return;
    }
-
-   switch (jit_thread_local()->state) {
-   case JIT_RUNNING:
-      jit_interp_trace(d);
-      break;
-   case JIT_IDLE:
+   else if (unlikely(jit_thread_local()->state == JIT_IDLE))
       fatal_trace("JIT diag callback called when idle");
+
+   jit_stack_trace_t *stack LOCAL = jit_stack_trace();
+
+   for (int i = 0; i < stack->count; i++) {
+      jit_frame_t *frame = &(stack->frames[i]);
+
+      if (frame->decl != NULL)
+         jit_emit_trace(d, &(frame->loc), frame->decl, istr(frame->symbol));
+      else
+         diag_trace(d, &(frame->loc), "%s", istr(frame->symbol));
    }
 }
 

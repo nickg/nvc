@@ -13,6 +13,10 @@
   # Exported from src/rt/stdenv.c
   _std_env_createdir;
   _std_env_epoch;
+  _std_env_file_line;
+  _std_env_file_name;
+  _std_env_file_path;
+  _std_env_get_call_path;
   _std_env_get_workingdir;
   _std_env_getenv;
   _std_env_gmtime;

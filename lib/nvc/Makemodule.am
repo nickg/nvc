@@ -9,7 +9,9 @@ nvc_DATA = \
 EXTRA_DIST += \
 	lib/nvc/sim_pkg.vhd \
 	lib/nvc/polyfill.vhd \
-	lib/nvc/polyfill-body.vhd
+	lib/nvc/polyfill-body.vhd \
+	lib/nvc/textbuf.vhd \
+	lib/nvc/textbuf-body.vhd
 
 BOOTSTRAPLIBS += $(nvc_DATA)
 

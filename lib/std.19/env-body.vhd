@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2022  Nick Gasson
+--  Copyright (C) 2022-2023  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 --  See the License for the specific language governing permissions and
 --  limitations under the License.
 -------------------------------------------------------------------------------
+
+library nvc;
+use nvc.textbuf.all;
 
 package body env is
 
@@ -346,54 +349,94 @@ package body env is
     impure function to_string (variable call_path : inout call_path_element)
         return string is
     begin
-        report "not implemented" severity failure;
+        return call_path.file_path.all & DIR_SEPARATOR & call_path.file_name.all
+            & ":" & to_string(call_path.file_line) & ":" & call_path.name.all;
     end function;
 
     impure function to_string (variable call_path : inout call_path_vector;
-                               separator : string := "" & lf)
-        return string is
+                               separator : string := "" & lf) return string is
+        variable tb : text_buf_t;
     begin
-        report "not implemented" severity failure;
+        if call_path'length > 0 then
+            for i in call_path'range loop
+                if i > call_path'left then
+                    tb_cat(tb, separator);
+                end if;
+                tb_cat(tb, to_string(call_path(i)));
+            end loop;
+            return to_string(tb);
+        else
+            return "";
+        end if;
     end function;
 
-    impure function to_string (variable call_path : inout call_path_vector_ptr; separator : string := "" & lf) return string is
+    impure function to_string (variable call_path : inout call_path_vector_ptr;
+                               separator : string := "" & lf) return string is
     begin
-        report "not implemented" severity failure;
+        if call_path /= null then
+            return to_string(call_path.all);
+        else
+            return "";
+        end if;
     end function;
 
     impure function get_call_path return call_path_vector_ptr is
+        procedure impl (ptr : out call_path_vector_ptr);
+        attribute foreign of impl : procedure is "_std_env_get_call_path";
+        variable result : call_path_vector_ptr;
     begin
-        report "not implemented" severity failure;
+        impl(result);
+        return result;
     end function;
 
     impure function file_name return line is
+        procedure impl (ptr : out line);
+        attribute foreign of impl : procedure is "_std_env_file_name";
+        variable result : line;
     begin
-        report "not implemented" severity failure;
+        impl(result);
+        return result;
     end function;
 
     impure function file_name return string is
+        procedure impl (ptr : out line);
+        attribute foreign of impl : procedure is "_std_env_file_name";
+        variable result : line;
     begin
-        report "not implemented" severity failure;
+        impl(result);
+        return result.all;
     end function;
 
     impure function file_path return line is
+        procedure impl (ptr : out line);
+        attribute foreign of impl : procedure is "_std_env_file_path";
+        variable result : line;
     begin
-        report "not implemented" severity failure;
+        impl(result);
+        return result;
     end function;
 
     impure function file_path return string is
+        procedure impl (ptr : out line);
+        attribute foreign of impl : procedure is "_std_env_file_path";
+        variable result : line;
     begin
-        report "not implemented" severity failure;
+        impl(result);
+        return result.all;
     end function;
 
     impure function file_line return positive is
+        impure function impl return positive;
+        attribute foreign of impl : function is "_std_env_file_line";
     begin
-        report "not implemented" severity failure;
+        return impl;
     end function;
 
     impure function file_line return string is
+        impure function impl return positive;
+        attribute foreign of impl : function is "_std_env_file_line";
     begin
-        report "not implemented" severity failure;
+        return to_string(impl);
     end function;
 
     impure function IsVhdlAssertFailed return boolean is

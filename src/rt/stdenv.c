@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "jit/jit-ffi.h"
 #include "rt/rt.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <math.h>
@@ -58,6 +59,13 @@ typedef enum {
    DIR_CREATE_STATUS_ERROR = 3
 } dir_create_status_t;
 
+typedef struct {
+   ffi_uarray_t *name;
+   ffi_uarray_t *file_name;
+   ffi_uarray_t *file_path;
+   int32_t       file_line;
+} call_path_element_t;
+
 static void copy_str(const char *str, ffi_uarray_t *u)
 {
    const size_t len = strlen(str);
@@ -73,6 +81,21 @@ static char *to_cstring(const char *data, int len)
    memcpy(cstr, data, len);
    cstr[len] = '\0';
    return cstr;
+}
+
+static ffi_uarray_t *to_line_n(const char *str, size_t len)
+{
+   char *buf = jit_mspace_alloc(len);
+   memcpy(buf, str, len);
+
+   ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
+   *u = ffi_wrap_str(buf, len);
+   return u;
+}
+
+static ffi_uarray_t *to_line(const char *str)
+{
+   return to_line_n(str, strlen(str));
 }
 
 static int8_t errno_to_dir_open_status(void)
@@ -94,6 +117,16 @@ static int8_t errno_to_dir_create_status(void)
    case EACCES: return DIR_CREATE_STATUS_ACCESS_DENIED;
    default: return DIR_CREATE_STATUS_ERROR;
    }
+}
+
+static const char *find_dir_separator(const char *str)
+{
+   // Forward slash is a valid separator even on Windows
+   const char *fwd = strrchr(str, '/');
+   if (fwd == NULL && DIR_SEP[0] != '/')
+      return strrchr(str, DIR_SEP[0]);
+   else
+      return fwd;
 }
 
 DLLEXPORT
@@ -255,6 +288,73 @@ bool _std_env_itemisdir(EXPLODED_UARRAY(path))
       return false;
 
    return (sb.st_mode & S_IFMT) == S_IFDIR;
+}
+
+DLLEXPORT
+void _std_env_get_call_path(ffi_uarray_t **ptr)
+{
+   jit_stack_trace_t *stack LOCAL = jit_stack_trace();
+
+   call_path_element_t *array =
+      jit_mspace_alloc((stack->count - 1) * sizeof(call_path_element_t));
+
+   for (int i = 1; i < stack->count; i++) {
+      jit_frame_t *frame = &(stack->frames[i]);
+      call_path_element_t *cpe = &(array[i - 1]);
+
+      cpe->name = to_line(istr(tree_ident(frame->decl)));
+      cpe->file_line = frame->loc.first_line;
+
+      const char *file = loc_file_str(&frame->loc);
+      const char *sep = find_dir_separator(file);
+
+      if (sep != NULL) {
+         cpe->file_name = to_line(sep + 1);
+         cpe->file_path = to_line_n(file, sep - file);
+      }
+      else {
+         cpe->file_name = to_line(file);
+         cpe->file_path = to_line(".");
+      }
+   }
+
+   ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
+   u->dims[0].left = 0;
+   u->dims[0].length = stack->count - 1;
+   u->ptr = array;
+
+   *ptr = u;
+}
+
+DLLEXPORT
+void _std_env_file_name(ffi_uarray_t **ptr)
+{
+   jit_stack_trace_t *stack LOCAL = jit_stack_trace();
+   assert(stack->count > 1);
+
+   const char *file = loc_file_str(&(stack->frames[1].loc));
+   const char *sep = find_dir_separator(file);
+   *ptr = to_line(sep ? sep + 1 : file);
+}
+
+DLLEXPORT
+void _std_env_file_path(ffi_uarray_t **ptr)
+{
+   jit_stack_trace_t *stack LOCAL = jit_stack_trace();
+   assert(stack->count > 1);
+
+   const char *file = loc_file_str(&(stack->frames[1].loc));
+   const char *sep = find_dir_separator(file);
+   *ptr = to_line(sep ? sep + 1 : file);
+}
+
+DLLEXPORT
+int32_t _std_env_file_line(void)
+{
+   jit_stack_trace_t *stack LOCAL = jit_stack_trace();
+   assert(stack->count > 1);
+
+   return stack->frames[1].loc.first_line;
 }
 
 void _std_env_init(void)

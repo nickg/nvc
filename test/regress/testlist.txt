@@ -712,3 +712,4 @@ cover10         cover,shell
 cmdline5        shell
 cmdline6        shell
 issue597        normal,gold
+stdenv3         normal,2019

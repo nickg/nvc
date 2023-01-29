@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -60,6 +60,17 @@ typedef enum {
    JIT_COVER_EXPRESSION,
 } jit_cover_mem_t;
 
+typedef struct {
+   loc_t   loc;
+   tree_t  decl;
+   ident_t symbol;
+} jit_frame_t;
+
+typedef struct {
+   size_t      count;
+   jit_frame_t frames[0];
+} jit_stack_trace_t;
+
 jit_t *jit_new(void);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
@@ -80,6 +91,9 @@ void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 ident_t jit_get_name(jit_t *j, jit_handle_t handle);
 void jit_register_native_plugin(jit_t *j);
+
+void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
+jit_stack_trace_t *jit_stack_trace(void);
 
 void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
                          int n_expressions);
