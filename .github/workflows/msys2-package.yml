@@ -26,10 +26,15 @@ jobs:
           install: >-
             base-devel
             git
+            mingw-w64-${{matrix.env}}-tcl
+      - name: Debugging for tags
+        run: |
+          git tag
+          git describe --long
       - name: Build MSYS2 ${{matrix.sys}} package
         run: |
           cd contrib/msys2
-          makepkg-mingw -sCLf --needed --noconfirm
+          makepkg-mingw -sCLf --needed --noconfirm --nocheck
           pacman -Qlp *.zst
           echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
       - name: Install package
