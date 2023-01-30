@@ -1,0 +1,2 @@
+
+exclude WORK.COVER11.ARR_B*
