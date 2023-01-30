@@ -1076,6 +1076,7 @@ static int coverage(int argc, char **argv)
       { "exclude-file", required_argument, 0, 'e' },
       { "merge",        required_argument, 0, 'm' },
       { "dont-print",   required_argument, 0, 'd' },
+      { "item-limit",   required_argument, 0, 'l' },
       { 0, 0, 0, 0 }
    };
 
@@ -1083,6 +1084,7 @@ static int coverage(int argc, char **argv)
    int c, index;
    const char *spec = ":V";
    cover_mask_t rpt_mask = 0;
+   int item_limit = 5000;
 
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -1097,6 +1099,9 @@ static int coverage(int argc, char **argv)
          break;
       case 'd':
          rpt_mask = parse_cover_print_spec(optarg);
+         break;
+      case 'l':
+         item_limit = atoi(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -1148,7 +1153,7 @@ static int coverage(int argc, char **argv)
 
    if (rpt_file && cover) {
       progress("Generating code coverage report.");
-      cover_report(rpt_file, cover);
+      cover_report(rpt_file, cover, item_limit);
    }
 
    return 0;

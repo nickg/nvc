@@ -181,7 +181,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags);
 
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
-void cover_report(const char *path, cover_tagging_t *tagging);
+void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);
 
 void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
                       int32_t *n_branches, int32_t *n_toggles,
