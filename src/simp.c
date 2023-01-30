@@ -374,9 +374,12 @@ static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
                                     simp_ctx_t *ctx)
 {
    tree_t name = tree_name(t);
-   assert(tree_kind(name) == T_REF);
 
-   tree_t decl = tree_ref(name);
+   tree_t ref = name_to_ref(name);
+   if (ref == NULL)
+      return t;
+
+   tree_t decl = tree_ref(ref);
 
    const tree_kind_t kind = tree_kind(decl);
    if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL)
@@ -391,19 +394,24 @@ static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
       return t;
 
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, tree_ident(name));
+   tb_istr(tb, tree_ident(ref));
    switch (which) {
    case ATTR_TRANSACTION: tb_cat(tb, "$transaction"); break;
    case ATTR_DELAYED:     tb_printf(tb, "$delayed_%"PRIi64, iparam); break;
    default: break;
    }
 
-   ident_t id = ident_new(tb_get(tb));
+   ident_t id;
+   if (ref == name) {
+      id = ident_new(tb_get(tb));
 
-   for (imp_signal_t *it = ctx->imp_signals; it; it = it->next) {
-      if (it->name == id)
-         return make_ref(it->signal);
+      for (imp_signal_t *it = ctx->imp_signals; it; it = it->next) {
+         if (it->name == id)
+            return make_ref(it->signal);
+      }
    }
+   else
+      id = ident_uniq(tb_get(tb));
 
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_loc(s, tree_loc(t));

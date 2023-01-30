@@ -2,6 +2,8 @@
 - Fixed "failed to suspend thread" crash on macOS.
 - Fix incorrect coverage scope nesting with array case statements (from
   @Blebowski).
+- Expressions like `FOO(X)'DELAYED` now work as expected rather than
+  producing a fatal error (#603).
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
