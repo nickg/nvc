@@ -40,6 +40,8 @@ begin
         assert stack(0).file_line = 36;
 
         proc3;
+
+        report file_path;
         wait;
     end process;
 

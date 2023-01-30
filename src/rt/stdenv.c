@@ -22,6 +22,7 @@
 #include "rt/rt.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <math.h>
@@ -127,6 +128,23 @@ static const char *find_dir_separator(const char *str)
       return strrchr(str, DIR_SEP[0]);
    else
       return fwd;
+}
+
+static ffi_uarray_t *to_absolute_path(const char *input, size_t len)
+{
+   if (input[0] == DIR_SEP[0] || input[0] == '/')
+      return to_line_n(input, len);
+
+#ifdef __MINGW32__
+   if (isalpha((int)input[0]) && input[1] == ':')
+      return to_line_n(input, len);
+#endif
+
+   char buf[PATH_MAX];
+   if (realpath(input, buf) == NULL)
+      return to_line(input);
+   else
+      return to_line(buf);
 }
 
 DLLEXPORT
@@ -310,11 +328,11 @@ void _std_env_get_call_path(ffi_uarray_t **ptr)
 
       if (sep != NULL) {
          cpe->file_name = to_line(sep + 1);
-         cpe->file_path = to_line_n(file, sep - file);
+         cpe->file_path = to_absolute_path(file, sep - file);
       }
       else {
          cpe->file_name = to_line(file);
-         cpe->file_path = to_line(".");
+         cpe->file_path = to_absolute_path(".", 1);
       }
    }
 
@@ -347,9 +365,9 @@ void _std_env_file_path(ffi_uarray_t **ptr)
    const char *sep = find_dir_separator(file);
 
    if (sep == NULL)
-      *ptr = to_line(".");
+      *ptr = to_absolute_path(".", 1);
    else
-      *ptr = to_line_n(file, sep - file);
+      *ptr = to_absolute_path(file, sep - file);
 }
 
 DLLEXPORT
