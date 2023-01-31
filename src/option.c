@@ -26,12 +26,14 @@
 typedef enum {
    OPT_KIND_UNDEF,
    OPT_KIND_INT,
-   OPT_KIND_STRING
+   OPT_KIND_STRING,
+   OPT_KIND_SIZE,
 } option_kind_t;
 
 typedef union {
-   int   i;
-   char *s;
+   int     i;
+   char   *s;
+   size_t  z;
 } optval_t;
 
 typedef struct {
@@ -70,7 +72,7 @@ static optval_t opt_get_generic(opt_name_t name, option_kind_t kind)
 
 void opt_set_int(opt_name_t name, int val)
 {
-   opt_set_generic(name, OPT_KIND_INT, (optval_t)val);
+   opt_set_generic(name, OPT_KIND_INT, (optval_t){ .i = val });
 }
 
 int opt_get_int(opt_name_t name)
@@ -78,9 +80,20 @@ int opt_get_int(opt_name_t name)
    return opt_get_generic(name, OPT_KIND_INT).i;
 }
 
+void opt_set_size(opt_name_t name, size_t val)
+{
+   opt_set_generic(name, OPT_KIND_SIZE, (optval_t){ .z = val });
+}
+
+size_t opt_get_size(opt_name_t name)
+{
+   return opt_get_generic(name, OPT_KIND_SIZE).z;
+}
+
 void opt_set_str(opt_name_t name, const char *val)
 {
-   opt_set_generic(name, OPT_KIND_STRING, (optval_t)(val ? strdup(val) : NULL));
+   opt_set_generic(name, OPT_KIND_STRING,
+                   (optval_t){ .s = val ? strdup(val) : NULL });
 }
 
 const char *opt_get_str(opt_name_t name)
@@ -129,13 +142,13 @@ void set_default_options(void)
    opt_set_int(OPT_RT_PROFILE, 0);
    opt_set_int(OPT_MISSING_BODY, 1);
    opt_set_int(OPT_IEEE_WARNINGS, 1);
-   opt_set_int(OPT_ARENA_SIZE, 1 << 24);
+   opt_set_size(OPT_ARENA_SIZE, 1 << 24);
    opt_set_int(OPT_DUMP_ARRAYS, 0);
    opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));
    opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE") DEBUG_ONLY(?: "1"));
    opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
    opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
-   opt_set_int(OPT_HEAP_SIZE, 16 * 1024 * 1024);
+   opt_set_size(OPT_HEAP_SIZE, 16 * 1024 * 1024);
    opt_set_int(OPT_ERROR_LIMIT, 20);
    opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| get_int_env("NVC_GC_STRESS", 0)));
    opt_set_int(OPT_RELAXED, 0);

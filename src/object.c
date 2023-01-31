@@ -1188,7 +1188,7 @@ void object_copy(object_copy_ctx_t *ctx)
 
 size_t object_arena_default_size(void)
 {
-   return ALIGN_UP(opt_get_int(OPT_ARENA_SIZE), OBJECT_PAGE_SZ);
+   return ALIGN_UP(opt_get_size(OPT_ARENA_SIZE), OBJECT_PAGE_SZ);
 }
 
 object_arena_t *object_arena_new(size_t size, unsigned std)

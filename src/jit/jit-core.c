@@ -110,9 +110,9 @@ static void jit_oom_cb(mspace_t *m, size_t size)
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
 
-   const int heapsize = opt_get_int(OPT_HEAP_SIZE);
-   diag_hint(d, NULL, "the current heap size is %u bytes which you can "
-             "increase with the $bold$-H$$ option, for example $bold$-H %um$$",
+   const size_t heapsize = opt_get_size(OPT_HEAP_SIZE);
+   diag_hint(d, NULL, "the current heap size is %zu bytes which you can "
+             "increase with the $bold$-H$$ option, for example $bold$-H %zum$$",
              heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
 
    diag_emit(d);
@@ -135,7 +135,7 @@ jit_t *jit_new(void)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
    j->index = chash_new(FUNC_HASH_SZ);
-   j->mspace = mspace_new(opt_get_int(OPT_HEAP_SIZE));
+   j->mspace = mspace_new(opt_get_size(OPT_HEAP_SIZE));
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));

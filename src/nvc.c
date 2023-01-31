@@ -594,7 +594,7 @@ static int run(int argc, char **argv)
    else if (gtkw_fname != NULL)
       warnf("$bold$--gtkw$$ option has no effect without $bold$--wave$$");
 
-   if (opt_get_int(OPT_HEAP_SIZE) < 0x100000)
+   if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
    jit_t *jit = jit_new();
@@ -1298,7 +1298,7 @@ static message_style_t parse_message_style(const char *str)
 static size_t parse_size(const char *str)
 {
    char *eptr;
-   const long size = strtol(str, &eptr, 0);
+   const ssize_t size = strtoll(str, &eptr, 0);
 
    if (size <= 0)
       fatal("invalid size '%s' (must be positive)", str);
@@ -1475,7 +1475,7 @@ int main(int argc, char **argv)
          warnf("the --native option is deprecated and has no effect");
          break;
       case 'M':
-         opt_set_int(OPT_ARENA_SIZE, parse_size(optarg));
+         opt_set_size(OPT_ARENA_SIZE, parse_size(optarg));
          break;
       case 'P':
       case 'G':
@@ -1483,7 +1483,7 @@ int main(int argc, char **argv)
                "-H option sets a unified heap size)", c);
          break;
       case 'H':
-         opt_set_int(OPT_HEAP_SIZE, parse_size(optarg));
+         opt_set_size(OPT_HEAP_SIZE, parse_size(optarg));
          break;
       case 'E':
          set_stderr_severity(parse_severity(optarg));
