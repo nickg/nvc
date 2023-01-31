@@ -51,8 +51,9 @@
 #include <dlfcn.h>
 #endif
 
-#define FUNC_HASH_SZ  1024
-#define FUNC_LIST_SZ  512
+#define FUNC_HASH_SZ    1024
+#define FUNC_LIST_SZ    512
+#define COMPILE_TIMEOUT 100000
 
 typedef struct _jit_tier {
    jit_tier_t    *next;
@@ -408,7 +409,8 @@ void jit_fill_irbuf(jit_func_t *f)
       // Fall-through
    case JIT_FUNC_COMPILING:
       // Another thread is compiling this function
-      for (int timeout = 10000; load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
+      for (int timeout = COMPILE_TIMEOUT;
+           load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
          if (timeout-- == 0)
             fatal_trace("timeout waiting for %s", istr(f->name));
          thread_sleep(100);
