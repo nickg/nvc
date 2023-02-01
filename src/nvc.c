@@ -249,7 +249,7 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
    for (const char *start = str; ; str++) {
       if (*str == ',' || *str == '\0') {
          if (strncmp(start, "ignore-arrays-from-", 19) == 0)
-            *array_limit = atoi(start + 19);
+            *array_limit = parse_int(start + 19);
          else {
             int pos = 0;
             for (; pos < ARRAY_LEN(options); pos++) {
@@ -1101,7 +1101,7 @@ static int coverage(int argc, char **argv)
          rpt_mask = parse_cover_print_spec(optarg);
          break;
       case 'l':
-         item_limit = atoi(optarg);
+         item_limit = parse_int(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
