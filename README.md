@@ -7,9 +7,9 @@ Status](https://github.com/nickg/nvc/workflows/Build%20and%20test/badge.svg?bran
 NVC is a [VHDL](https://en.wikipedia.org/wiki/VHDL) compiler and
 simulator.
 
-NVC supports almost all of VHDL-2002 and it has been successfully used
-to simulate several real-world designs.  Experimental support for
-VHDL-2008 is under development.
+NVC supports almost all of VHDL-2008 with the exception of PSL, and it
+has been successfully used to simulate several real-world designs.
+Experimental support for VHDL-2019 is under development.
 
 NVC has a particular emphasis on simulation performance and uses
 [LLVM](https://llvm.org/) to compile VHDL to native machine code.

@@ -1,6 +1,8 @@
 NVC was written by Nick Gasson <nick@nickg.me.uk> with help from the
 following people:
 
+- Adam Barnes (@amb5l) wrote the installation and test scripts for
+  OSVVM, and the MSYS2 packaging scripts.
 - Arild Velure (@avelure) made a huge number of useful bug reports.
 - Brian Padalino (@bpadalino) provided lots of useful feedback and bug
   reports.

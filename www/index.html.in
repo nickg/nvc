@@ -6,8 +6,8 @@ include(`header.html.in')dnl
   NVC is a free
   software <a href="https://en.wikipedia.org/wiki/VHDL">VHDL</a>
   compiler and simulator implementing almost all
-  of <a href="https://standards.ieee.org/standard/1076-2002.html">IEEE
-  1076-2002</a>.
+  of <a href="https://standards.ieee.org/standard/1076-2008.html">IEEE
+  1076-2008</a>.
 </p>
 <p>
   Find out more in the <a href="readme.html">README</a>, see a detailed

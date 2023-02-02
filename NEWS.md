@@ -2,7 +2,7 @@
 - Code generation has been rewritten to enable faster elaboration and
   "just-in-time" compilation in the future.
 - Implemented the VHDL-2019 call path reporting API.
-- The ``elsif` VHDL-2019 conditional analysis directive now works
+- The `elsif` VHDL-2019 conditional analysis directive now works
   correctly (#604).
 
 ## Version 1.8.1 - 2023-01-23
