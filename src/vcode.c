@@ -4996,15 +4996,23 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases)
 {
+   int64_t cval1, cval2;
+   bool is_const = vcode_reg_const(value, &cval1);
+
    for (int i = 0; i < ncases; i++) {
-      if (cases[i] == value) {
+      bool can_fold = false;
+      if (cases[i] == value)
+         can_fold = true;
+      else if (is_const && vcode_reg_const(cases[i], &cval2))
+         can_fold = (cval1 == cval2);
+
+      if (can_fold) {
          emit_jump(blocks[i]);
          return;
       }
    }
 
-   int64_t cval;
-   if (vcode_reg_const(value, &cval)) {
+   if (is_const) {
       emit_jump(def);
       return;
    }
