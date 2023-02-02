@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "diag.h"
 #include "scan.h"
 
@@ -25,6 +26,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
+
+typedef struct {
+   bool  result;
+   bool  taken;
+   loc_t loc;
+} cond_state_t;
+
+typedef A(cond_state_t) cond_stack_t;
 
 static const char     *file_start;
 static size_t          file_sz;
@@ -33,6 +43,14 @@ static hdl_kind_t      src_kind;
 static loc_file_ref_t  file_ref = FILE_INVALID;
 static int             colno;
 static int             lineno;
+static int             lookahead;
+static cond_stack_t    cond_stack;
+
+extern int yylex(void);
+extern yylval_t yylval;
+extern loc_t yylloc;
+
+static bool pp_cond_analysis_expr(void);
 
 void input_from_file(const char *file)
 {
@@ -92,10 +110,11 @@ void input_from_file(const char *file)
       reset_vhdl_parser();
    }
 
-   read_ptr = file_start;
-   file_ref = loc_file_ref(file, file_start);
-   lineno   = 1;
-   colno    = 0;
+   read_ptr  = file_start;
+   file_ref  = loc_file_ref(file, file_start);
+   lineno    = 1;
+   colno     = 0;
+   lookahead = -1;
 }
 
 hdl_kind_t source_kind(void)
@@ -133,4 +152,291 @@ void begin_token(char *tok, int length)
 
    extern loc_t yylloc;
    yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
+}
+
+const char *token_str(int tok)
+{
+   static const char *token_strs[] = {
+      "end of file", "identifier", "entity", "is", "end", "generic", "port",
+      "constant", "component", "configuration", "architecture", "of", "begin",
+      "for", "type", "to", "all", "in", "out", "buffer", "bus", "unaffected",
+      "signal", "downto", "process", "postponed", "wait", "report", "(", ")",
+      ";", ":=", ":", ",", "integer", "string", "error", "inout", "linkage",
+      "variable", "if", "range", "subtype", "units", "package", "library",
+      "use", ".", "null", "'", "function", "impure", "return", "pure", "array",
+      "<>", "=>", "others", "assert", "severity", "on", "map", "then", "else",
+      "elsif", "body", "while", "loop", "after", "alias", "attribute",
+      "procedure", "exit", "next", "when", "case", "label", "group", "literal",
+      "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
+      "with", "select", "generate", "access", "file", "open", "real", "until",
+      "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
+      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
+      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
+      "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
+      "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
+      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
+      "release", "^", "@", "?", "parameter"
+   };
+
+   if (tok < 0 || tok >= ARRAY_LEN(token_strs))
+      return "???";
+   else
+      return token_strs[tok];
+}
+
+static const char *get_cond_analysis_identifier(const char *name)
+{
+   if (strcmp(name, "VHDL_VERSION") == 0)
+      return standard_text(standard());
+   else if (strcmp(name, "TOOL_TYPE") == 0)
+      return "SIMULATION";
+   else if (strcmp(name, "TOOL_VENDOR") == 0)
+      return PACKAGE_URL;
+   else if (strcmp(name, "TOOL_NAME") == 0)
+      return PACKAGE_NAME;
+   else if (strcmp(name, "TOOL_EDITION") == 0)
+      return "";
+   else if (strcmp(name, "TOOL_VERSION") == 0)
+      return PACKAGE_VERSION;
+   else
+      return NULL;
+}
+
+static int pp_yylex(void)
+{
+   const int tok = lookahead != -1 ? lookahead : yylex();
+   lookahead = -1;
+   return tok;
+}
+
+static bool pp_expect(int expect)
+{
+   const int got = pp_yylex();
+   if (got != expect) {
+      error_at(&yylloc, "expected $yellow$%s$$ while parsing conditional "
+               "directive but found $yellow$%s$$", token_str(expect),
+               token_str(got));
+      return false;
+   }
+
+   return true;
+}
+
+static bool pp_cond_analysis_relation(void)
+{
+   // ( conditional_analysis_expression )
+   //   | not ( conditional_analysis_expression )
+   //   | conditional_analysis_identifier = string_literal
+   //   | conditional_analysis_identifier /= string_literal
+   //   | conditional_analysis_identifier < string_literal
+   //   | conditional_analysis_identifier <= string_literal
+   //   | conditional_analysis_identifier > string_literal
+   //   | conditional_analysis_identifier >= string_literal
+
+   bool result = false;
+   token_t tok = pp_yylex();
+
+   switch (tok) {
+   case tLPAREN:
+      result = pp_cond_analysis_expr();
+      pp_expect(tRPAREN);
+      break;
+
+   case tNOT:
+      pp_expect(tLPAREN);
+      result = !pp_cond_analysis_expr();
+      pp_expect(tRPAREN);
+      break;
+
+   case tID:
+      {
+         char *name = yylval.s;
+         token_t rel = pp_yylex();
+
+         if (pp_expect(tSTRING)) {
+            const char *value = get_cond_analysis_identifier(name);
+            if (value == NULL)
+               error_at(&yylloc, "undefined conditional analysis "
+                        "identifier %s", name);
+            else {
+               char *cmp = yylval.s + 1;
+               cmp[strlen(cmp) - 1] = '\0';
+
+               switch (rel) {
+               case tEQ:
+                  result = strcmp(value, cmp) == 0;
+                  break;
+               case tNEQ:
+                  result = strcmp(value, cmp) != 0;
+                  break;
+               case tLT:
+                  result = strcmp(value, cmp) < 0;
+                  break;
+               case tLE:
+                  result = strcmp(value, cmp) <= 0;
+                  break;
+               case tGT:
+                  result = strcmp(value, cmp) > 0;
+                  break;
+               case tGE:
+                  result = strcmp(value, cmp) >= 0;
+                  break;
+               default:
+                  error_at(&yylloc, "expected conditional analysis relation "
+                           "but found $yellow$%s$$", token_str(rel));
+                  break;
+               }
+            }
+
+            free(yylval.s);
+         }
+
+         free(name);
+      }
+      break;
+
+   default:
+      error_at(&yylloc, "unexpected $yellow$%s$$ while parsing conditional "
+               "analysis relation", token_str(tok));
+   }
+
+   return result;
+}
+
+static bool pp_cond_analysis_expr(void)
+{
+   // conditional_analysis_relation
+   //   | conditional_analysis_relation { and conditional_analysis_relation }
+   //   | conditional_analysis_relation { or conditional_analysis_relation }
+   //   | conditional_analysis_relation { xor conditional_analysis_relation }
+   //   | conditional_analysis_relation { xnor conditional_analysis_relation }
+
+   const bool lhs = pp_cond_analysis_relation();
+   switch ((lookahead = yylex())) {
+   case tAND:
+      lookahead = -1;
+      return pp_cond_analysis_relation() && lhs;
+   case tOR:
+      lookahead = -1;
+      return pp_cond_analysis_relation() || lhs;
+   case tXOR:
+      lookahead = -1;
+      return pp_cond_analysis_relation() ^ lhs;
+   case tXNOR:
+      lookahead = -1;
+      return !(pp_cond_analysis_relation() ^ lhs);
+   default:
+      return lhs;
+   }
+   return lhs;
+}
+
+int processed_yylex(void)
+{
+   assert(lookahead == -1);
+
+   for (;;) {
+      token_t token = lookahead != -1 ? lookahead : yylex();
+      lookahead = -1;
+      switch (token) {
+      case tCONDIF:
+         {
+            cond_state_t new = { .loc = yylloc };
+            new.result = new.taken = pp_cond_analysis_expr();
+
+            pp_expect(tTHEN);
+
+            new.loc.column_delta =
+               yylloc.first_column + yylloc.column_delta - new.loc.first_column;
+            new.loc.line_delta =
+               yylloc.first_line + yylloc.line_delta - new.loc.first_line;
+
+            APUSH(cond_stack, new);
+         }
+         break;
+
+      case tCONDELSIF:
+         {
+            if (cond_stack.count == 0) {
+               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+                        "analysis block", token_str(token));
+               (void)pp_cond_analysis_expr();
+            }
+            else {
+               const bool result = pp_cond_analysis_expr();
+
+               if (!ATOP(cond_stack).taken) {
+                  ATOP(cond_stack).result = result;
+                  ATOP(cond_stack).taken = result;
+               }
+               else
+                  ATOP(cond_stack).result = false;
+            }
+
+            pp_expect(tTHEN);
+         }
+         break;
+
+      case tCONDELSE:
+         {
+            if (cond_stack.count == 0)
+               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+                        "analysis block", token_str(token));
+            else {
+               cond_state_t *cs = &(cond_stack.items[cond_stack.count - 1]);
+               cs->result = !(cs->taken);
+            }
+         }
+         break;
+
+      case tCONDEND:
+         {
+            if (cond_stack.count == 0)
+               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+                        "analysis block", token_str(token));
+            else
+               APOP(cond_stack);
+
+            if ((lookahead = yylex()) == tIF)
+               lookahead = -1;
+         }
+         break;
+
+      case tCONDERROR:
+      case tCONDWARN:
+         {
+            loc_t loc = yylloc;
+            if (pp_expect(tSTRING)) {
+               loc.column_delta =
+                  yylloc.first_column + yylloc.column_delta - loc.first_column;
+               loc.line_delta =
+                  yylloc.first_line + yylloc.line_delta - loc.first_line;
+
+               if (cond_stack.count == 0 || ATOP(cond_stack).result) {
+                  const diag_level_t level =
+                     token == tCONDWARN ? DIAG_WARN : DIAG_ERROR;
+                  diag_t *d = diag_new(level, &loc);
+                  diag_printf(d, "%s", yylval.s);
+                  diag_emit(d);
+               }
+
+               free(yylval.s);
+            }
+         }
+         break;
+
+      case tEOF:
+         while (cond_stack.count > 0) {
+            error_at(&(ATOP(cond_stack).loc), "unterminated conditional "
+                     "analysis block");
+            APOP(cond_stack);
+         }
+         return tEOF;
+
+      default:
+         if (cond_stack.count == 0 || ATOP(cond_stack).result)
+            return token;
+         break;
+      }
+   }
 }

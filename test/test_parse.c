@@ -3254,6 +3254,7 @@ START_TEST(test_cond1)
       { 25, "\"VHDL version is correct\"" },
       { 32, "undefined conditional analysis identifier FOO" },
       { 35, "unterminated conditional analysis block" },
+      { 38, "unexpected end of file while parsing package declaration" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -5158,6 +5159,30 @@ START_TEST(test_issue541)
 }
 END_TEST
 
+START_TEST(test_issue604)
+{
+   set_standard(STD_19);
+
+   const error_t expect[] = {
+      { 11, "\"Tool is NVC\"" },
+      { 18, "unexpected `elsif outside conditional analysis block" },
+      { 19, "unexpected `end outside conditional analysis block" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/parse/issue604.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5260,6 +5285,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue580);
    tcase_add_test(tc_core, test_visibility7);
    tcase_add_test(tc_core, test_issue541);
+   tcase_add_test(tc_core, test_issue604);
    suite_add_tcase(s, tc_core);
 
    return s;

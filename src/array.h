@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2012-2021  Nick Gasson
+//  Copyright (C) 2012-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -156,5 +156,7 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
          assert((unsigned)(index) < (a).count);         \
          &((a).items[(index)]);                         \
       })
+
+#define ATOP(a) (a).items[(a).count - 1]
 
 #endif  // _ARRAY_H

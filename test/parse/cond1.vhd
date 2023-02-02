@@ -32,6 +32,6 @@ package cond2 is
     `if FOO = "bar" then
     `end
 
-    `if TOOL_NAME = "nvc" then
+    `if TOOL_NAME = "ghdl" then
     -- Unterminated
-end package
+end package;

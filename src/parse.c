@@ -53,14 +53,6 @@ typedef struct {
    int     depth;
 } look_params_t;
 
-typedef struct cond_state cond_state_t;
-
-struct cond_state {
-   cond_state_t *next;
-   bool          result;
-   loc_t         loc;
-};
-
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
@@ -93,13 +85,11 @@ static int            tokenq_tail;
 static yylval_t       last_lval;
 static token_t        opt_hist[8];
 static int            nopt_hist = 0;
-static cond_state_t  *cond_state = NULL;
 static nametab_t     *nametab = NULL;
 static bool           bootstrapping = false;
 static tree_list_t    pragmas = AINIT;
 
 loc_t yylloc;
-int yylex(void);
 
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
@@ -172,7 +162,6 @@ static tree_t p_record_element_constraint(type_t base);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
-static token_t conditional_yylex(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -197,165 +186,46 @@ static void _push_state(const state_t *s)
 #endif
 }
 
-static const char *token_str(token_t tok)
-{
-   static const char *token_strs[] = {
-      "end of file", "identifier", "entity", "is", "end", "generic", "port",
-      "constant", "component", "configuration", "architecture", "of", "begin",
-      "for", "type", "to", "all", "in", "out", "buffer", "bus", "unaffected",
-      "signal", "downto", "process", "postponed", "wait", "report", "(", ")",
-      ";", ":=", ":", ",", "integer", "string", "error", "inout", "linkage",
-      "variable", "if", "range", "subtype", "units", "package", "library",
-      "use", ".", "null", "'", "function", "impure", "return", "pure", "array",
-      "<>", "=>", "others", "assert", "severity", "on", "map", "then", "else",
-      "elsif", "body", "while", "loop", "after", "alias", "attribute",
-      "procedure", "exit", "next", "when", "case", "label", "group", "literal",
-      "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
-      "with", "select", "generate", "access", "file", "open", "real", "until",
-      "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
-      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
-      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
-      "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
-      "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release", "^", "@", "?", "parameter"
-   };
-
-   if ((size_t)tok >= ARRAY_LEN(token_strs))
-      return "???";
-   else
-      return token_strs[tok];
-}
-
-static token_t skip_pragma(pragma_kind_t kind)
+static void skip_pragma(pragma_kind_t kind)
 {
    tree_t p = tree_new(T_PRAGMA);
    tree_set_loc(p, &yylloc);
    tree_set_subkind(p, kind);
 
    APUSH(pragmas, p);
-   return conditional_yylex();
 }
 
-static token_t conditional_yylex(void)
+static token_t wrapped_yylex(void)
 {
-   const token_t token = yylex();
+   for (;;) {
+      const token_t token = processed_yylex();
+      switch (token) {
+      case tSYNTHON:
+         skip_pragma(PRAGMA_SYNTHESIS_ON);
+         break;
 
-#if 0
-   printf("%s %s\n", (cond_state ? (cond_state->result ? "1" : "0") : "-"),
-          token_str(token));
-#endif
+      case tSYNTHOFF:
+         skip_pragma(PRAGMA_SYNTHESIS_OFF);
+         break;
 
-   switch (token) {
-   case tCONDIF:
-      {
-         BEGIN("conditional analysis directive");
+      case tCOVERAGEON:
+         skip_pragma(PRAGMA_COVERAGE_ON);
+         break;
 
-         cond_state_t *new = xmalloc(sizeof(cond_state_t));
-         new->loc    = yylloc;
-         new->result = p_cond_analysis_expr();
-         new->next   = cond_state;
+      case tCOVERAGEOFF:
+         skip_pragma(PRAGMA_COVERAGE_OFF);
+         break;
 
-         consume(tTHEN);
-
-         new->loc.column_delta =
-            yylloc.first_column + yylloc.column_delta - new->loc.first_column;
-         new->loc.line_delta =
-            yylloc.first_line + yylloc.line_delta - new->loc.first_line;
-
-         cond_state = new;
-         return conditional_yylex();
-      }
-
-   case tCONDELSE:
-      {
-         BEGIN("conditional analysis directive");
-
-         if (cond_state == NULL)
-            parse_error(&yylloc, "unexpected $yellow$%s$$ outside conditional "
-                        "analysis block", token_str(token));
-         else
-            cond_state->result = !(cond_state->result);
-
-         return conditional_yylex();
-      }
-
-   case tCONDEND:
-      {
-         BEGIN("conditional analysis directive");
-
-         if (cond_state == NULL)
-            parse_error(&yylloc, "unexpected $yellow$%s$$ outside conditional "
-                        "analysis block", token_str(token));
-         else {
-            cond_state_t *old = cond_state;
-            cond_state = cond_state->next;
-            free(old);
-         }
-
-         optional(tIF);
-
-         return conditional_yylex();
-      }
-
-   case tCONDERROR:
-   case tCONDWARN:
-      {
-         if (cond_state == NULL || cond_state->result) {
-            BEGIN("conditional analysis directive");
-
-            loc_t loc = yylloc;
-            if (consume(tSTRING)) {
-               loc.column_delta =
-                  yylloc.first_column + yylloc.column_delta - loc.first_column;
-               loc.line_delta =
-                  yylloc.first_line + yylloc.line_delta - loc.first_line;
-
-               if (token == tCONDWARN)
-                  warn_at(&loc, "%s", last_lval.s);
-               else
-                  parse_error(&loc, "%s", last_lval.s);
-
-               free(last_lval.s);
-            }
-         }
-
-         return conditional_yylex();
-      }
-
-   case tSYNTHON:
-      return skip_pragma(PRAGMA_SYNTHESIS_ON);
-
-   case tSYNTHOFF:
-      return skip_pragma(PRAGMA_SYNTHESIS_OFF);
-
-   case tCOVERAGEON:
-      return skip_pragma(PRAGMA_COVERAGE_ON);
-
-   case tCOVERAGEOFF:
-      return skip_pragma(PRAGMA_COVERAGE_OFF);
-
-   case tEOF:
-      if (cond_state != NULL) {
-         parse_error(&(cond_state->loc), "unterminated conditional "
-                     "analysis block");
-         n_correct = 0;
-      }
-      return tEOF;
-
-   default:
-      if (cond_state == NULL || cond_state->result)
+      default:
          return token;
-      else
-         return conditional_yylex();
+      }
    }
 }
 
 static token_t peek_nth(int n)
 {
    while (((tokenq_head - tokenq_tail) & (tokenq_sz - 1)) < n) {
-      // Calling conditional_yylex may recursively call this function
-      const token_t token = conditional_yylex();
+      const token_t token = wrapped_yylex();
 
       int next = (tokenq_head + 1) & (tokenq_sz - 1);
       if (unlikely(next == tokenq_tail)) {
@@ -10347,12 +10217,6 @@ tree_t parse(void)
    nametab = nametab_new();
 
    tree_t unit = p_design_unit();
-
-   while (cond_state != NULL) {
-      cond_state_t *tmp = cond_state->next;
-      free(cond_state);
-      cond_state = tmp;
-   }
 
    nametab_finish(nametab);
    nametab = NULL;

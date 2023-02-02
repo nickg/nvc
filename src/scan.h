@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,20 +20,22 @@
 
 #include "prim.h"
 
+typedef union {
+   double  d;
+   char   *s;
+   int64_t n;
+} yylval_t;
+
 // Functions shared between VHDL and Verilog scanners
 
 typedef enum { SOURCE_VHDL, SOURCE_VERILOG } hdl_kind_t;
 
 void input_from_file(const char *file);
 hdl_kind_t source_kind(void);
+int processed_yylex(void);
+const char *token_str(int tok);
 
 // Private interface to Flex scanners
-
-typedef union {
-   double  d;
-   char   *s;
-   int64_t n;
-} yylval_t;
 
 void begin_token(char *tok, int length);
 int get_next_char(char *b, int max_buffer);
