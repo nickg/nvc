@@ -74,6 +74,7 @@ struct _cover_tagging {
    cover_mask_t   mask;
    int            array_limit;
    int            array_depth;
+   int            report_item_limit;
    cover_scope_t *top_scope;
 };
 
@@ -1606,46 +1607,61 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "</script>\n");
 }
 
-static void cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
-                                  cover_line_t *line, unsigned hits,
-                                  unsigned misses, unsigned excludes)
+static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
+                                 cover_line_t *line, unsigned hits,
+                                 unsigned misses, unsigned excludes,
+                                 int limit)
 {
-
+   int rv = 0;
    if (hits) {
-      if (chain->n_hits == chain->alloc_hits) {
-         chain->alloc_hits *= 2;
-         chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
-                                      sizeof(cover_pair_t));
+      if (chain->n_hits <= limit) {
+         if (chain->n_hits == chain->alloc_hits) {
+            chain->alloc_hits *= 2;
+            chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
+                                       sizeof(cover_pair_t));
+         }
+         chain->hits[chain->n_hits].tag = tag;
+         chain->hits[chain->n_hits].line = line;
+         chain->hits[chain->n_hits].flags = hits;
+         chain->n_hits++;
       }
-      chain->hits[chain->n_hits].tag = tag;
-      chain->hits[chain->n_hits].line = line;
-      chain->hits[chain->n_hits].flags = hits;
-      chain->n_hits++;
+      else
+         rv++;
    }
 
    if (misses) {
-      if (chain->n_miss == chain->alloc_miss) {
-         chain->alloc_miss *= 2;
-         chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
-                                      sizeof(cover_pair_t));
+      if (chain->n_miss <= limit) {
+         if (chain->n_miss == chain->alloc_miss) {
+            chain->alloc_miss *= 2;
+            chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
+                                       sizeof(cover_pair_t));
+         }
+         chain->miss[chain->n_miss].tag = tag;
+         chain->miss[chain->n_miss].line = line;
+         chain->miss[chain->n_miss].flags = misses;
+         chain->n_miss++;
       }
-      chain->miss[chain->n_miss].tag = tag;
-      chain->miss[chain->n_miss].line = line;
-      chain->miss[chain->n_miss].flags = misses;
-      chain->n_miss++;
+      else
+         rv++;
    }
 
    if (excludes) {
-      if (chain->n_excl == chain->alloc_excl) {
-         chain->alloc_excl *= 2;
-         chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
-                                      sizeof(cover_pair_t));
+      if (chain->n_excl <= limit) {
+         if (chain->n_excl == chain->alloc_excl) {
+            chain->alloc_excl *= 2;
+            chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
+                                       sizeof(cover_pair_t));
+         }
+         chain->excl[chain->n_excl].tag = tag;
+         chain->excl[chain->n_excl].line = line;
+         chain->excl[chain->n_excl].flags = excludes;
+         chain->n_excl++;
       }
-      chain->excl[chain->n_excl].tag = tag;
-      chain->excl[chain->n_excl].line = line;
-      chain->excl[chain->n_excl].flags = excludes;
-      chain->n_excl++;
+      else
+         rv++;
    }
+
+   return rv;
 }
 
 static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
@@ -1742,6 +1758,8 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Sub-instances: </h2>\n");
    cover_print_hierarchy_header(f);
 
+   int skipped = 0;
+
    for(;;) {
       tag++;
 
@@ -1782,6 +1800,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
          unsigned hits = 0;
          unsigned misses = 0;
          unsigned excludes = 0;
+         int limit = ctx->tagging->report_item_limit;
 
          switch (tag->kind) {
          case TAG_STMT:
@@ -1796,8 +1815,8 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
                (ctx->flat_stats.hit_stmts)++;
                (ctx->nested_stats.hit_stmts)++;
             }
-            cover_append_to_chain(&(ctx->ch_stmt), tag, line,
-                                  hits, misses, excludes);
+            skipped += cover_append_to_chain(&(ctx->ch_stmt), tag, line,
+                                             hits, misses, excludes, limit);
             break;
 
          case TAG_BRANCH:
@@ -1807,16 +1826,16 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
                                   &hits, &misses, &excludes);
                cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
                                   &hits, &misses, &excludes);
-               cover_append_to_chain(&(ctx->ch_branch), tag, line,
-                                     hits, misses, excludes);
+               skipped += cover_append_to_chain(&(ctx->ch_branch), tag, line,
+                                                hits, misses, excludes, limit);
             }
 
             // Case, with select
             if (tag->flags & COV_FLAG_CHOICE) {
                cover_tag_to_chain(ctx, tag, COV_FLAG_CHOICE,
                                   &hits, &misses, &excludes);
-               cover_append_to_chain(&(ctx->ch_branch), tag, line,
-                                     hits, misses, excludes);
+               skipped += cover_append_to_chain(&(ctx->ch_branch), tag, line,
+                                                hits, misses, excludes, limit);
             }
             break;
 
@@ -1825,8 +1844,8 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
                                &hits, &misses, &excludes);
             cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_0,
                                &hits, &misses, &excludes);
-            cover_append_to_chain(&(ctx->ch_toggle), tag, line,
-                                  hits, misses, excludes);
+            skipped += cover_append_to_chain(&(ctx->ch_toggle), tag, line,
+                                             hits, misses, excludes, limit);
             break;
 
          case TAG_EXPRESSION:
@@ -1849,8 +1868,8 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
                cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
                                   &hits, &misses, &excludes);
 
-            cover_append_to_chain(&(ctx->ch_expression), tag, line,
-                                  hits, misses, excludes);
+            skipped += cover_append_to_chain(&(ctx->ch_expression), tag, line,
+                                             hits, misses, excludes, limit);
             break;
 
          default:
@@ -1867,6 +1886,10 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
+   if (skipped)
+      fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
+                 "printed items was reached (%d). Total %d items are not "
+                 "displayed.</h2>", ctx->tagging->report_item_limit, skipped);
    cover_print_hierarchy_guts(f, ctx);
    cover_print_timestamp(f);
 
@@ -1875,7 +1898,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 }
 
 
-void cover_report(const char *path, cover_tagging_t *tagging)
+void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
 {
    char *subdir LOCAL = xasprintf("%s/hier", path);
    make_dir(path);
@@ -1912,6 +1935,7 @@ void cover_report(const char *path, cover_tagging_t *tagging)
    cover_report_ctx_t top_ctx = {0};
    top_ctx.start_tag = AREF(tagging->tags, 0);
    top_ctx.tagging = tagging;
+   tagging->report_item_limit = item_limit;
    cover_report_hierarchy(&top_ctx, subdir);
 
    char *top LOCAL = xasprintf("%s/index.html", path);
