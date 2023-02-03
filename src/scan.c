@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "diag.h"
+#include "option.h"
 #include "scan.h"
 
 #include <assert.h>
@@ -26,6 +27,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdlib.h>
 
 typedef struct {
@@ -44,6 +46,7 @@ static loc_file_ref_t  file_ref = FILE_INVALID;
 static int             colno;
 static int             lineno;
 static int             lookahead;
+static int             pperrors;
 static cond_stack_t    cond_stack;
 
 extern int yylex(void);
@@ -115,6 +118,7 @@ void input_from_file(const char *file)
    lineno    = 1;
    colno     = 0;
    lookahead = -1;
+   pperrors  = 0;
 }
 
 hdl_kind_t source_kind(void)
@@ -209,11 +213,25 @@ static int pp_yylex(void)
    return tok;
 }
 
+static void pp_error(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   if (pperrors++ == 0 || opt_get_int(OPT_UNIT_TEST)) {
+      diag_t *d = diag_new(DIAG_ERROR, &yylloc);
+      diag_vprintf(d, fmt, ap);
+      diag_emit(d);
+   }
+
+   va_end(ap);
+}
+
 static bool pp_expect(int expect)
 {
    const int got = pp_yylex();
    if (got != expect) {
-      error_at(&yylloc, "expected $yellow$%s$$ while parsing conditional "
+      pp_error("expected $yellow$%s$$ while parsing conditional "
                "directive but found $yellow$%s$$", token_str(expect),
                token_str(got));
       return false;
@@ -256,8 +274,7 @@ static bool pp_cond_analysis_relation(void)
          if (pp_expect(tSTRING)) {
             const char *value = get_cond_analysis_identifier(name);
             if (value == NULL)
-               error_at(&yylloc, "undefined conditional analysis "
-                        "identifier %s", name);
+               pp_error("undefined conditional analysis identifier %s", name);
             else {
                char *cmp = yylval.s + 1;
                cmp[strlen(cmp) - 1] = '\0';
@@ -282,7 +299,7 @@ static bool pp_cond_analysis_relation(void)
                   result = strcmp(value, cmp) >= 0;
                   break;
                default:
-                  error_at(&yylloc, "expected conditional analysis relation "
+                  pp_error("expected conditional analysis relation "
                            "but found $yellow$%s$$", token_str(rel));
                   break;
                }
@@ -296,7 +313,7 @@ static bool pp_cond_analysis_relation(void)
       break;
 
    default:
-      error_at(&yylloc, "unexpected $yellow$%s$$ while parsing conditional "
+      pp_error("unexpected $yellow$%s$$ while parsing conditional "
                "analysis relation", token_str(tok));
    }
 
@@ -312,7 +329,7 @@ static bool pp_cond_analysis_expr(void)
    //   | conditional_analysis_relation { xnor conditional_analysis_relation }
 
    const bool lhs = pp_cond_analysis_relation();
-   switch ((lookahead = yylex())) {
+   switch ((lookahead = pp_yylex())) {
    case tAND:
       lookahead = -1;
       return pp_cond_analysis_relation() && lhs;
@@ -336,13 +353,18 @@ int processed_yylex(void)
    assert(lookahead == -1);
 
    for (;;) {
-      token_t token = lookahead != -1 ? lookahead : yylex();
-      lookahead = -1;
+      token_t token = pp_yylex();
       switch (token) {
       case tCONDIF:
          {
             cond_state_t new = { .loc = yylloc };
             new.result = new.taken = pp_cond_analysis_expr();
+
+            if (cond_stack.count > 0 && !ATOP(cond_stack).result) {
+               // Suppress nested conditionals in not-taken branches
+               new.taken = true;
+               new.result = false;
+            }
 
             pp_expect(tTHEN);
 
@@ -357,14 +379,13 @@ int processed_yylex(void)
 
       case tCONDELSIF:
          {
-            if (cond_stack.count == 0) {
-               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+            if (cond_stack.count == 0)
+               pp_error("unexpected $yellow$%s$$ outside conditional "
                         "analysis block", token_str(token));
-               (void)pp_cond_analysis_expr();
-            }
-            else {
-               const bool result = pp_cond_analysis_expr();
 
+            const bool result = pp_cond_analysis_expr();
+
+            if (cond_stack.count > 0) {
                if (!ATOP(cond_stack).taken) {
                   ATOP(cond_stack).result = result;
                   ATOP(cond_stack).taken = result;
@@ -380,7 +401,7 @@ int processed_yylex(void)
       case tCONDELSE:
          {
             if (cond_stack.count == 0)
-               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+               pp_error("unexpected $yellow$%s$$ outside conditional "
                         "analysis block", token_str(token));
             else {
                cond_state_t *cs = &(cond_stack.items[cond_stack.count - 1]);
@@ -392,7 +413,7 @@ int processed_yylex(void)
       case tCONDEND:
          {
             if (cond_stack.count == 0)
-               error_at(&yylloc, "unexpected $yellow$%s$$ outside conditional "
+               pp_error("unexpected $yellow$%s$$ outside conditional "
                         "analysis block", token_str(token));
             else
                APOP(cond_stack);
