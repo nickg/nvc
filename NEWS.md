@@ -4,6 +4,8 @@
   @Blebowski).
 - Expressions like `FOO(X)'DELAYED` now work as expected rather than
   producing a fatal error (#603).
+- Fixed a bug where data was not propagated through inout ports in
+  certain conditions (#609).
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
