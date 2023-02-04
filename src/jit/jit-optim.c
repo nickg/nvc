@@ -105,7 +105,7 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
          if (reg2 != JIT_REG_INVALID && !mask_test(&b->varkill, reg2))
             mask_set(&b->livein, reg2);
 
-         if (cfg_reads_result(ir))
+         if (cfg_reads_result(ir) && !mask_test(&b->varkill, ir->result))
             mask_set(&b->livein, ir->result);
 
          if (cfg_writes_result(ir))

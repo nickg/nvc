@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1748,6 +1748,31 @@ START_TEST(test_nops1)
 }
 END_TEST
 
+START_TEST(test_issue608)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    JUMP    L1              \n"
+      "L1: MOV     R2, #5          \n"
+      "    $COPY   R2, [R1], [R0]  \n"
+      "    RET                     \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_cfg_t *cfg = jit_get_cfg(f);
+
+   ck_assert_int_eq(cfg->nblocks, 2);
+   ck_assert_int_eq(cfg->blocks[0].liveout.bits, 0x3);
+   ck_assert_int_eq(cfg->blocks[1].livein.bits, 0x3);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1795,6 +1820,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_cprop1);
    tcase_add_test(tc, test_dce1);
    tcase_add_test(tc, test_nops1);
+   tcase_add_test(tc, test_issue608);
    suite_add_tcase(s, tc);
 
    return s;
