@@ -126,7 +126,8 @@ typedef enum {
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
-   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
+   COV_FLAG_UNREACHABLE    = (1 << 25)
 } cover_flags_t;
 
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
@@ -151,6 +152,7 @@ typedef enum {
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
    COVER_MASK_TOGGLE_INCLUDE_MEMS         = (1 << 10),
+   COVER_MASK_EXCLUDE_UNREACHABLE         = (1 << 11),
    COVER_MASK_DONT_PRINT_COVERED          = (1 << 16),
    COVER_MASK_DONT_PRINT_UNCOVERED        = (1 << 17),
    COVER_MASK_DONT_PRINT_EXCLUDED         = (1 << 18)

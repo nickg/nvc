@@ -811,12 +811,49 @@ DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_z,   cover_toggle_check_0_1_z)
 DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u_z, cover_toggle_check_0_1_u_z)
 
 
+static bool is_constant_input(rt_signal_t *s)
+{
+   tree_t decl = s->where;
+   tree_kind_t kind = tree_kind(decl);
+
+   if (kind == T_FIELD_DECL) {
+      rt_scope_t *sc = s->parent;
+      while (sc->parent->kind == SCOPE_SIGNAL) {
+         sc = sc->parent;
+      }
+      decl = sc->where;
+   }
+
+   if (tree_kind(decl) != T_PORT_DECL) {
+      return false;
+   } else if (tree_subkind(decl) != PORT_IN) {
+      return false;
+   } else {
+      rt_nexus_t *n = &(s->nexus);
+      for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
+         if (n->n_sources > 0)
+            return false;
+      }
+      return true;
+   }
+}
+
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
    cover_mask_t op_mask = get_coverage(m)->mask;
    sig_event_fn_t fn = &cover_toggle_cb_0_1;
+
+   if (is_constant_input(s)) {
+      for (int i = 0; i < s->shared.size; i++) {
+         // Remember un-reachability in run-time data. Exclude mask not
+         // available at run-time.
+         (*toggle_mask) |= COV_FLAG_UNREACHABLE;
+         toggle_mask++;
+      }
+      return;
+   }
 
    if ((op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
        (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
@@ -1360,6 +1397,12 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->tag, flag, true);
 
+      if (pkind == PAIR_EXCLUDED) {
+         const char *er = (pair->flags & COV_FLAG_UNREACHABLE) ?
+            "Unreachable" : "Exclude file";
+         fprintf(f, "<td>%s</td>", er);
+      }
+
       fprintf(f, "</tr>");
    }
 }
@@ -1379,6 +1422,9 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
 
    if (pkind == PAIR_UNCOVERED)
       fprintf(f, "<th style=\"width:150px;\">Exclude Command</th>");
+
+   if (pkind == PAIR_EXCLUDED)
+      fprintf(f, "<th style=\"width:150px;\">Excluded due to</th>");
 
    fprintf(f, "</tr>");
 }
@@ -1456,6 +1502,11 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
    case TAG_STMT:
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->tag, 0, false);
+      if (pkind == PAIR_EXCLUDED) {
+         const char *er = (pair->flags & COV_FLAG_UNREACHABLE) ?
+            "Unreachable" : "Exclude file";
+         fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> %s</div>", er);
+      }
       fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
       cover_print_code_line(f, loc, pair->line);
       fprintf(f, "<hr>");
@@ -1664,6 +1715,13 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
    return rv;
 }
 
+static bool cover_tag_unreachable(cover_report_ctx_t *ctx, cover_tag_t *tag)
+{
+   if ((ctx->tagging->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
+      return false;
+   return (tag->data & COV_FLAG_UNREACHABLE);
+}
+
 static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
                                cover_flags_t flag, unsigned *hits,
                                unsigned *misses, unsigned *excludes)
@@ -1704,10 +1762,12 @@ static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
       (*nested_hits)++;
       (*hits) |= flag;
    }
-   else if (tag->excl_msk & flag) {
+   else if ((tag->excl_msk & flag) || cover_tag_unreachable(ctx, tag)) {
       (*flat_hits)++;
       (*nested_hits)++;
       (*excludes) |= flag;
+      if (cover_tag_unreachable(ctx, tag))
+         (*excludes) |= COV_FLAG_UNREACHABLE;
    }
    else
       (*misses) |= flag;
