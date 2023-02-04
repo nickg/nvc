@@ -715,4 +715,4 @@ issue597        normal,gold
 stdenv3         normal,2019
 issue603        normal
 cover11         cover,shell
-issue608        normal
+issue609        normal

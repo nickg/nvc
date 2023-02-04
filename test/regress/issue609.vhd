@@ -27,10 +27,10 @@ end architecture;
 library ieee;
 use ieee.std_logic_1164.all;
 
-entity issue608 is
+entity issue609 is
 end entity;
 
-architecture test of issue608 is
+architecture test of issue609 is
     signal data : std_logic_vector(15 downto 0) := X"0000";
 
     procedure drive_half (signal x : inout std_logic_vector(15 downto 0)) is
