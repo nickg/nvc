@@ -606,9 +606,18 @@ nested arrays (array of array), disabled by default.
 - When set, NVC does not collect toggle coverage on arrays whose size is equal
 to or larger than
 .Cm <size>
+.It
+.Cm exclude-unreachable
+- When set, NVC detects unreachable coverage bins and automatically excludes
+them during code coverage report generation. NVC detects following
+unreachable coverage items:
+.Bl
+.It
+Toggle coverage on instance ports driven by constant value.
+.El
 .El
 .Pp
-All of the options above are passed comma separated to
+All additional coverage options are passed comma separated to
 .Fl -cover
 elaboration option, e.g.:
 .Bd -literal -offset indent
