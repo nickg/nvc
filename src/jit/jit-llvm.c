@@ -2537,12 +2537,10 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
             if (mask_test(&cgb->source->livein, j)) {
                if (dom != NULL && dom < cgb) {
                   assert(dom->outregs[j] != NULL);
-                  if (!LLVMIsAPHINode(dom->outregs[j])) {
-                     // Skip generating a phi instruction if there is
-                     // just one dominating block
-                     cgb->inregs[j] = cgb->outregs[j] = dom->outregs[j];
-                     continue;
-                  }
+                  // Skip generating a phi instruction if there is
+                  // just one dominating block
+                  cgb->inregs[j] = cgb->outregs[j] = dom->outregs[j];
+                  continue;
                }
 
                llvm_type_t type =
@@ -2606,7 +2604,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
       // Live-in registers
       for (int j = 0; j < func->source->nregs; j++) {
-         if (cgb->inregs[j] != NULL && LLVMIsAPHINode(cgb->inregs[j])) {
+         if (cgb->inregs[j] != NULL && LLVMIsAPHINode(cgb->inregs[j])
+             && LLVMGetInstructionParent(cgb->inregs[j]) == cgb->bbref) {
+
             for (int k = 0; k < bb->in.count; k++) {
                const int edge = jit_get_edge(&bb->in, k);
                assert(func->blocks[edge].outregs[j] != NULL);
