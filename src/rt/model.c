@@ -137,8 +137,7 @@ static bool __trace_on = false;
 static void *driving_value(rt_nexus_t *nexus);
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src);
 static void free_value(rt_nexus_t *n, rt_value_t v);
-static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
-                               rt_net_t *net);
+static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
 static void async_update_driver(void *context, void *arg);
@@ -1282,8 +1281,8 @@ static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
    }
 }
 
-static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
-                         int offset, rt_net_t *net)
+static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
+                         rt_source_t *old, int offset)
 {
    rt_source_t *new = add_source(m, nexus, old->tag);
 
@@ -1300,7 +1299,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
             if (old->u.port.input->width == offset)
                new->u.port.input = old->u.port.input->chain;  // Cycle breaking
             else {
-               rt_nexus_t *n = clone_nexus(m, old->u.port.input, offset, net);
+               rt_nexus_t *n = clone_nexus(m, old->u.port.input, offset);
                new->u.port.input = n;
             }
             assert(new->u.port.input->width == nexus->width);
@@ -1338,8 +1337,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
    }
 }
 
-static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
-                               rt_net_t *net)
+static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
 {
    assert(offset < old->width);
 
@@ -1358,30 +1356,26 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
    old->width = offset;
 
    if (old->net != NULL) {
-      if (net == NULL) {
-         rt_net_t *new_net = get_net(m, new);
-         rt_net_t *old_net = get_net(m, old);
+      rt_net_t *new_net = get_net(m, new);
+      rt_net_t *old_net = get_net(m, old);
 
-         new_net->last_active  = old_net->last_active;
-         new_net->last_event   = old_net->last_event;
-         new_net->active_delta = old_net->active_delta;
-         new_net->event_delta  = old_net->event_delta;
+      new_net->last_active  = old_net->last_active;
+      new_net->last_event   = old_net->last_event;
+      new_net->active_delta = old_net->active_delta;
+      new_net->event_delta  = old_net->event_delta;
 
-         new_net->pend0 = old_net->pend0;
+      new_net->pend0 = old_net->pend0;
 
-         if (old_net->npending > 0) {
-            new_net->npending = new_net->maxpend = old_net->npending;
-            new_net->pending =
-               xmalloc_array(new_net->maxpend, sizeof(rt_pending_t));
+      if (old_net->npending > 0) {
+         new_net->npending = new_net->maxpend = old_net->npending;
+         new_net->pending =
+            xmalloc_array(new_net->maxpend, sizeof(rt_pending_t));
 
-            for (int i = 0; i < old_net->npending; i++)
-               new_net->pending[i] = old_net->pending[i];
-         }
-
-         new->net = net = new_net;
+         for (int i = 0; i < old_net->npending; i++)
+            new_net->pending[i] = old_net->pending[i];
       }
-      else
-         new->net = net;
+
+      new->net = new_net;
    }
 
    if (new->chain == NULL)
@@ -1389,7 +1383,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 
    if (old->n_sources > 0) {
       for (rt_source_t *it = &(old->sources); it; it = it->chain_input)
-         clone_source(m, new, it, offset, net);
+         clone_source(m, new, it, offset);
    }
 
    int nth = 0;
@@ -1405,7 +1399,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
          if (old_o->u.port.output->width == offset)
             out_n = old_o->u.port.output->chain;   // Cycle breaking
          else
-            out_n = clone_nexus(m, old_o->u.port.output, offset, net);
+            out_n = clone_nexus(m, old_o->u.port.output, offset);
 
          for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
             if (s->tag == SOURCE_DRIVER)
@@ -1446,13 +1440,13 @@ static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
          continue;
       }
       else if (offset > 0) {
-         clone_nexus(m, it, offset, NULL);
+         clone_nexus(m, it, offset);
          offset = 0;
          continue;
       }
       else {
          if (it->width > count)
-            clone_nexus(m, it, count, NULL);
+            clone_nexus(m, it, count);
 
          count -= it->width;
 
@@ -2323,8 +2317,8 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
       case W_IMPLICIT:
          {
             rt_implicit_t *imp = container_of(p->wake, rt_implicit_t, wakeable);
-            TRACE("wakeup %svalue change callback %s",
-                  p->wake->postponed ? "postponed " : "",
+            TRACE("wakeup implicit signal %s closure %s",
+                  istr(tree_ident(imp->signal.where)),
                   istr(jit_get_name(m->jit, imp->closure.handle)));
             workq_do(m->implicitq, async_update_implicit_signal, imp);
          }
@@ -2333,8 +2327,8 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
       case W_WATCH:
          {
             rt_watch_t *w = container_of(p->wake, rt_watch_t, wakeable);
-            TRACE("wakeup implicit signal %s",
-                  istr(tree_ident(w->signal->where)));
+            TRACE("wakeup %svalue change callback %p",
+                  p->wake->postponed ? "postponed " : "", /* dlsym */ w->fn);
             workq_do(wq, async_watch_callback, w);
          }
          break;
@@ -3212,9 +3206,9 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
 
    while (src_count > 0 && dst_count > 0) {
       if (src_n->width > dst_n->width && closure == NULL)
-         clone_nexus(m, src_n, dst_n->width, NULL);
+         clone_nexus(m, src_n, dst_n->width);
       else if (src_n->width < dst_n->width && closure == NULL)
-         clone_nexus(m, dst_n, src_n->width, NULL);
+         clone_nexus(m, dst_n, src_n->width);
 
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
