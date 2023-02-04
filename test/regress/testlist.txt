@@ -716,4 +716,8 @@ stdenv3         normal,2019
 issue603        normal
 cover11         cover,shell
 issue609        normal
+<<<<<<< HEAD
 implicit5       normal
+=======
+cover12         cover,shell
+>>>>>>> test: Add cover12 to test exclusion of constant driven port.
