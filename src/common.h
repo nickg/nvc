@@ -87,6 +87,9 @@ tree_t change_ref(tree_t name, tree_t new);
 #define MAX_CONSTRAINTS 8
 int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS]);
 
+typedef void (*build_wait_fn_t)(tree_t, void *);
+void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx);
+
 typedef union {
    int64_t integer;
    double  real;

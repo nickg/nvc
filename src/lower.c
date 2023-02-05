@@ -9696,6 +9696,88 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
    }
 }
 
+static void lower_build_wait_cb(tree_t expr, void *ctx)
+{
+   vcode_reg_t nets_reg = lower_lvalue(expr);
+   vcode_reg_t count_reg = lower_type_width(tree_type(expr), nets_reg);
+   vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+   emit_sched_static(data_reg, count_reg, VCODE_INVALID_REG);
+}
+
+static void lower_non_static_actual(tree_t port, type_t type,
+                                    vcode_reg_t port_reg, tree_t wave)
+{
+   // Construct the equivalent process according the procedure in LRM 08
+   // section 6.5.6.3
+
+   assert(standard() >= STD_08);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, tree_ident(port));
+   tb_cat(tb, "_actual");
+
+   ident_t name = ident_uniq(tb_get(tb));
+
+   vcode_type_t signal_type = lower_signal_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
+   emit_store(port_reg, var);
+
+   tree_t expr = tree_value(wave);
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   ident_t pname = ident_prefix(vcode_unit_name(), name, '.');
+   emit_process(pname, tree_to_object(wave), vcode_active_unit());
+
+   lower_push_scope(NULL);
+
+   {
+      vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
+      vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+      emit_drive_signal(data_reg, count_reg);
+   }
+
+   build_wait(expr, lower_build_wait_cb, NULL);
+
+   emit_return(VCODE_INVALID_REG);
+
+   vcode_block_t main_bb = emit_block();
+   vcode_select_block(main_bb);
+
+   vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
+   vcode_reg_t value_reg = lower_rvalue(expr);
+   vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
+
+   target_part_t parts[] = {
+      { .kind = PART_ALL,
+        .reg = nets_reg,
+        .off = VCODE_INVALID_REG,
+        .target = port },
+      { .kind = PART_POP,
+        .reg = VCODE_INVALID_REG,
+        .off = VCODE_INVALID_REG,
+      }
+   };
+
+   target_part_t *ptr = parts;
+   lower_signal_assign_target(&ptr, port, value_reg, type,
+                              zero_time_reg, zero_time_reg);
+
+   emit_return(VCODE_INVALID_REG);
+
+   lower_finished();
+   lower_pop_scope();
+
+   vcode_state_restore(&state);
+
+   emit_process_init(pname, lower_debug_locus(wave));
+}
+
 static void lower_port_map(tree_t block, tree_t map)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
@@ -9820,6 +9902,8 @@ static void lower_port_map(tree_t block, tree_t map)
 
       lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func);
    }
+   else if (tree_kind(value) == T_WAVEFORM)
+      lower_non_static_actual(port, name_type, port_reg, value);
    else {
       vcode_reg_t value_reg = lower_rvalue(value);
 

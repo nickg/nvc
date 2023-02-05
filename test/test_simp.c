@@ -812,17 +812,17 @@ START_TEST(test_allsens)
    fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
    fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
 
-   // P12: x, v(1), v(2)
+   // P12: v(2), x, v(1)
    w = tree_stmt(tree_stmt(a, 12), 1);
    fail_unless(tree_kind(w) == T_WAIT);
    fail_unless(tree_triggers(w) == 3);
    e = tree_trigger(w, 0);
-   fail_unless(tree_kind(e) == T_REF);
-   fail_unless(tree_ident(e) == ident_new("X"));
-   e = tree_trigger(w, 1);
    fail_unless(tree_kind(e) == T_ARRAY_REF);
    fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
    fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("X"));
    e = tree_trigger(w, 2);
    fail_unless(tree_kind(e) == T_ARRAY_REF);
    fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
@@ -1184,16 +1184,13 @@ START_TEST(test_ports2008)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   fail_unless(tree_decls(b) == 3);
-   fail_unless(tree_stmts(b) == 3);
+   fail_unless(tree_decls(b) == 1);
+   fail_unless(tree_stmts(b) == 1);
 
    tree_t inst = tree_stmt(b, 0);
    fail_unless(tree_kind(inst) == T_INSTANCE);
-   fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_REF);
-
-   tree_t ydecl = tree_decl(b, 1);
-   fail_unless(tree_kind(ydecl) == T_SIGNAL_DECL);
-   fail_unless(type_kind(tree_type(ydecl)) == T_SUBTYPE);
+   fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_WAVEFORM);
+   fail_unless(tree_kind(tree_value(tree_param(inst, 1))) == T_WAVEFORM);
 }
 END_TEST
 

@@ -1224,7 +1224,7 @@ static void bounds_check_block(tree_t t)
 
       tree_t value = tree_value(m);
       for (tree_kind_t kind = tree_kind(value);
-           kind == T_TYPE_CONV || kind == T_QUALIFIED;
+           kind == T_TYPE_CONV || kind == T_QUALIFIED || kind == T_WAVEFORM;
            value = tree_value(value), kind = tree_kind(value))
          ;
 

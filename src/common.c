@@ -1864,3 +1864,201 @@ tree_t change_ref(tree_t name, tree_t new)
                   tree_kind_str(tree_kind(name)));
    }
 }
+
+static void build_wait_for_target(tree_t expr, build_wait_fn_t fn, void *ctx)
+{
+   switch (tree_kind(expr)) {
+   case T_ARRAY_SLICE:
+      build_wait(tree_range(expr, 0), fn, ctx);
+      break;
+
+   case T_ARRAY_REF:
+      {
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++)
+            build_wait(tree_value(tree_param(expr, i)), fn, ctx);
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
+void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
+{
+   // LRM 08 section 10.2 has rules for building a wait statement from a
+   // sensitivity list. LRM 08 section 11.3 extends these rules to
+   // all-sensitised processes.
+
+   switch (tree_kind(expr)) {
+   case T_REF:
+      if (class_of(tree_ref(expr)) == C_SIGNAL)
+         (*fn)(expr, ctx);
+      break;
+
+   case T_WAVEFORM:
+   case T_QUALIFIED:
+   case T_TYPE_CONV:
+   case T_ASSERT:
+      if (tree_has_value(expr))
+         build_wait(tree_value(expr), fn, ctx);
+      break;
+
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_RECORD_REF:
+      {
+         tree_t ref = name_to_ref(expr);
+         if (ref != NULL && class_of(ref) == C_SIGNAL) {
+            if (longest_static_prefix(expr) == expr)
+               (*fn)(expr, ctx);
+            else {
+               build_wait(tree_value(expr), fn, ctx);
+               build_wait_for_target(expr, fn, ctx);
+            }
+         }
+         else
+            build_wait(tree_value(expr), fn, ctx);
+      }
+      break;
+
+   case T_FCALL:
+   case T_PCALL:
+   case T_PROT_FCALL:
+   case T_PROT_PCALL:
+      {
+         tree_t decl = tree_ref(expr);
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++) {
+            const port_mode_t mode = tree_subkind(tree_port(decl, i));
+            if (mode == PORT_IN || mode == PORT_INOUT)
+               build_wait(tree_value(tree_param(expr, i)), fn, ctx);
+         }
+      }
+      break;
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(expr);
+         for (int i = 0; i < nassocs; i++)
+            build_wait(tree_value(tree_assoc(expr, i)), fn, ctx);
+      }
+      break;
+
+   case T_ATTR_REF:
+      {
+         const attr_kind_t predef = tree_subkind(expr);
+         if (predef == ATTR_EVENT || predef == ATTR_ACTIVE)
+            build_wait(tree_name(expr), fn, ctx);
+
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++)
+            build_wait(tree_value(tree_param(expr, i)), fn, ctx);
+      }
+      break;
+
+   case T_LITERAL:
+   case T_STRING:
+      break;
+
+   case T_IF:
+      {
+         const int nconds = tree_conds(expr);
+         for (int i = 0; i < nconds; i++)
+            build_wait(tree_cond(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_COND:
+      {
+         if (tree_has_value(expr))
+            build_wait(tree_value(expr), fn, ctx);
+
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++)
+            build_wait(tree_stmt(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_PROCESS:
+   case T_SEQUENCE:
+   case T_PROC_BODY:
+      {
+         const int ndecls = tree_decls(expr);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(expr, i);
+            if (tree_kind(d) == T_PROC_BODY)
+               build_wait(d, fn, ctx);
+         }
+
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++)
+            build_wait(tree_stmt(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_SIGNAL_ASSIGN:
+      {
+         build_wait_for_target(tree_target(expr), fn, ctx);
+
+         const int nwaves = tree_waveforms(expr);
+         for (int i = 0; i < nwaves; i++)
+            build_wait(tree_waveform(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_VAR_ASSIGN:
+      build_wait_for_target(tree_target(expr), fn, ctx);
+      build_wait(tree_value(expr), fn, ctx);
+      break;
+
+   case T_CASE:
+      {
+         build_wait(tree_value(expr), fn, ctx);
+
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++) {
+            tree_t alt = tree_stmt(expr, i);
+
+            const int nstmts = tree_stmts(alt);
+            for (int j = 0; j < nstmts; j++)
+               build_wait(tree_stmt(alt, j), fn, ctx);
+         }
+      }
+      break;
+
+   case T_FOR:
+      {
+         build_wait(tree_range(expr, 0), fn, ctx);
+
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++)
+            build_wait(tree_stmt(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_WHILE:
+      {
+         build_wait(tree_value(expr), fn, ctx);
+
+         const int nstmts = tree_stmts(expr);
+         for (int i = 0; i < nstmts; i++)
+            build_wait(tree_stmt(expr, i), fn, ctx);
+      }
+      break;
+
+   case T_RANGE:
+      if (tree_subkind(expr) == RANGE_EXPR)
+         build_wait(tree_value(expr), fn, ctx);
+      else {
+         build_wait(tree_left(expr), fn, ctx);
+         build_wait(tree_right(expr), fn, ctx);
+      }
+      break;
+
+   default:
+      fatal_trace("Cannot handle tree kind %s in wait expression",
+                  tree_kind_str(tree_kind(expr)));
+   }
+}

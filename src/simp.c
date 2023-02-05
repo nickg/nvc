@@ -48,7 +48,6 @@ typedef struct {
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
-static void simp_build_wait(tree_t wait, tree_t expr, bool all);
 
 static tree_t simp_call_args(tree_t t)
 {
@@ -772,6 +771,24 @@ static tree_t simp_array_ref(tree_t t, simp_ctx_t *ctx)
    return t;
 }
 
+static void simp_build_wait_cb(tree_t expr, void *ctx)
+{
+   tree_t wait = ctx;
+
+   if (tree_kind(expr) == T_REF) {
+      // Check for duplicates
+      tree_t decl = tree_ref(expr);
+      const int ntriggers = tree_triggers(wait);
+      for (int i = 0; i < ntriggers; i++) {
+         tree_t t = tree_trigger(wait, i);
+         if (tree_kind(t) == T_REF && tree_ref(t) == decl)
+            return;
+      }
+   }
+
+   tree_add_trigger(wait, expr);
+}
+
 static tree_t simp_process(tree_t t)
 {
    // Replace sensitivity list with a "wait on" statement
@@ -797,7 +814,7 @@ static tree_t simp_process(tree_t t)
       tree_set_ident(w, tree_ident(p));
       tree_set_flag(w, TREE_F_STATIC_WAIT);
       if (ntriggers == 1 && tree_kind(tree_trigger(t, 0)) == T_ALL)
-         simp_build_wait(w, t, true);
+         build_wait(t, simp_build_wait_cb, w);
       else {
          for (int i = 0; i < ntriggers; i++)
             tree_add_trigger(w, tree_trigger(t, i));
@@ -821,7 +838,7 @@ static tree_t simp_wait(tree_t t)
    // condition clause
 
    if (tree_has_value(t) && tree_triggers(t) == 0)
-      simp_build_wait(t, tree_value(t), false);
+      build_wait(tree_value(t), simp_build_wait_cb, t);
 
    return t;
 }
@@ -961,213 +978,6 @@ static tree_t simp_while(tree_t t)
       return t;
 }
 
-static void simp_build_wait_for_target(tree_t wait, tree_t expr, bool all)
-{
-   switch (tree_kind(expr)) {
-   case T_ARRAY_SLICE:
-      simp_build_wait(wait, tree_range(expr, 0), all);
-      break;
-
-   case T_ARRAY_REF:
-      {
-         const int nparams = tree_params(expr);
-         for (int i = 0; i < nparams; i++)
-            simp_build_wait(wait, tree_value(tree_param(expr, i)), all);
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
-static void simp_build_wait(tree_t wait, tree_t expr, bool all)
-{
-   // LRM 08 section 10.2 has rules for building a wait statement from a
-   // sensitivity list. LRM 08 section 11.3 extends these rules to
-   // all-sensitised processes.
-
-   switch (tree_kind(expr)) {
-   case T_REF:
-      {
-         tree_t decl = tree_ref(expr);
-         if (class_of(decl) == C_SIGNAL) {
-            // Check for duplicates
-            const int ntriggers = tree_triggers(wait);
-            for (int i = 0; i < ntriggers; i++) {
-               tree_t t = tree_trigger(wait, i);
-               if (tree_kind(t) == T_REF && tree_ref(t) == decl)
-                  return;
-            }
-
-            tree_add_trigger(wait, expr);
-         }
-      }
-      break;
-
-   case T_WAVEFORM:
-   case T_QUALIFIED:
-   case T_TYPE_CONV:
-   case T_ASSERT:
-      if (tree_has_value(expr))
-         simp_build_wait(wait, tree_value(expr), all);
-      break;
-
-   case T_ARRAY_REF:
-   case T_ARRAY_SLICE:
-   case T_RECORD_REF:
-      {
-         tree_t ref = name_to_ref(expr);
-         if (ref != NULL && class_of(ref) == C_SIGNAL) {
-            if (longest_static_prefix(expr) == expr)
-               tree_add_trigger(wait, expr);
-            else {
-               simp_build_wait(wait, tree_value(expr), all);
-               simp_build_wait_for_target(wait, expr, all);
-            }
-         }
-         else
-            simp_build_wait(wait, tree_value(expr), all);
-      }
-      break;
-
-   case T_FCALL:
-   case T_PCALL:
-   case T_PROT_FCALL:
-   case T_PROT_PCALL:
-      {
-         tree_t decl = tree_ref(expr);
-         const int nparams = tree_params(expr);
-         for (int i = 0; i < nparams; i++) {
-            const port_mode_t mode = tree_subkind(tree_port(decl, i));
-            if (mode == PORT_IN || mode == PORT_INOUT)
-               simp_build_wait(wait, tree_value(tree_param(expr, i)), all);
-         }
-
-         const tree_kind_t kind = tree_kind(decl);
-         if (all && kind == T_PROC_BODY)
-            simp_build_wait(wait, decl, all);
-      }
-      break;
-
-   case T_AGGREGATE:
-      {
-         const int nassocs = tree_assocs(expr);
-         for (int i = 0; i < nassocs; i++)
-            simp_build_wait(wait, tree_value(tree_assoc(expr, i)), all);
-      }
-      break;
-
-   case T_ATTR_REF:
-      {
-         const attr_kind_t predef = tree_subkind(expr);
-         if (predef == ATTR_EVENT || predef == ATTR_ACTIVE)
-            simp_build_wait(wait, tree_name(expr), all);
-
-         const int nparams = tree_params(expr);
-         for (int i = 0; i < nparams; i++)
-            simp_build_wait(wait, tree_value(tree_param(expr, i)), all);
-      }
-      break;
-
-   case T_LITERAL:
-   case T_STRING:
-      break;
-
-   case T_IF:
-      {
-         const int nconds = tree_conds(expr);
-         for (int i = 0; i < nconds; i++)
-            simp_build_wait(wait, tree_cond(expr, i), all);
-      }
-      break;
-
-   case T_COND:
-      {
-         if (tree_has_value(expr))
-            simp_build_wait(wait, tree_value(expr), all);
-
-         const int nstmts = tree_stmts(expr);
-         for (int i = 0; i < nstmts; i++)
-            simp_build_wait(wait, tree_stmt(expr, i), all);
-      }
-      break;
-
-   case T_PROCESS:
-   case T_SEQUENCE:
-   case T_PROC_BODY:
-      {
-         const int nstmts = tree_stmts(expr);
-         for (int i = 0; i < nstmts; i++)
-            simp_build_wait(wait, tree_stmt(expr, i), all);
-      }
-      break;
-
-   case T_SIGNAL_ASSIGN:
-      {
-         simp_build_wait_for_target(wait, tree_target(expr), all);
-
-         const int nwaves = tree_waveforms(expr);
-         for (int i = 0; i < nwaves; i++)
-            simp_build_wait(wait, tree_waveform(expr, i), all);
-      }
-      break;
-
-   case T_VAR_ASSIGN:
-      simp_build_wait_for_target(wait, tree_target(expr), all);
-      simp_build_wait(wait, tree_value(expr), all);
-      break;
-
-   case T_CASE:
-      {
-         simp_build_wait(wait, tree_value(expr), all);
-
-         const int nstmts = tree_stmts(expr);
-         for (int i = 0; i < nstmts; i++) {
-            tree_t alt = tree_stmt(expr, i);
-
-            const int nstmts = tree_stmts(alt);
-            for (int j = 0; j < nstmts; j++)
-               simp_build_wait(wait, tree_stmt(alt, j), all);
-         }
-      }
-      break;
-
-   case T_FOR:
-      {
-         simp_build_wait(wait, tree_range(expr, 0), all);
-
-         const int nstmts = tree_stmts(expr);
-         for (int i = 0; i < nstmts; i++)
-            simp_build_wait(wait, tree_stmt(expr, i), all);
-      }
-      break;
-
-   case T_WHILE:
-      {
-         simp_build_wait(wait, tree_value(expr), all);
-
-         const int nstmts = tree_stmts(expr);
-         for (int i = 0; i < nstmts; i++)
-            simp_build_wait(wait, tree_stmt(expr, i), all);
-      }
-      break;
-
-   case T_RANGE:
-      if (tree_subkind(expr) == RANGE_EXPR)
-         simp_build_wait(wait, tree_value(expr), all);
-      else {
-         simp_build_wait(wait, tree_left(expr), all);
-         simp_build_wait(wait, tree_right(expr), all);
-      }
-      break;
-
-   default:
-      fatal_trace("Cannot handle tree kind %s in wait expression",
-                  tree_kind_str(tree_kind(expr)));
-   }
-}
-
 static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
 {
    // See LRM 93 section 9.3
@@ -1238,7 +1048,7 @@ static tree_t simp_concurrent(tree_t t)
 
    tree_add_stmt(container, s0);
 
-   simp_build_wait(w, s0, false);
+   build_wait(s0, simp_build_wait_cb, w);
 
    tree_add_stmt(p, w);
    return p;
@@ -1435,64 +1245,6 @@ static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
    return decl;
 }
 
-static void simp_port_map(tree_t t, simp_ctx_t *ctx)
-{
-   // Replace any non-globally-static actuals with temporary signals
-   assert(standard() >= STD_08);
-
-   tree_t unit = tree_ref(t);
-
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++) {
-      tree_t m = tree_param(t, i);
-
-      tree_t value = tree_value(m);
-      if (tree_kind(value) != T_WAVEFORM)
-         continue;
-
-      char *signame LOCAL = xasprintf("%s_actual_%d", istr(tree_ident(t)), i);
-
-      tree_t port = NULL;
-      switch (tree_subkind(m)) {
-      case P_POS: port = tree_port(unit, tree_pos(m)); break;
-      case P_NAMED: port = tree_name(m); break;
-      }
-      assert(port != NULL);
-
-      tree_t s = tree_new(T_SIGNAL_DECL);
-      tree_set_loc(s, tree_loc(value));
-      tree_set_ident(s, ident_uniq(signame));
-      tree_set_type(s, tree_type(port));
-
-      tree_t p = tree_new(T_PROCESS);
-      tree_set_loc(p, tree_loc(t));
-      tree_set_ident(p, ident_prefix(tree_ident(s), ident_new("p"), '_'));
-
-      tree_t r = make_ref(s);
-
-      tree_t a = tree_new(T_SIGNAL_ASSIGN);
-      tree_set_ident(a, ident_new("assign"));
-      tree_set_target(a, r);
-      tree_add_waveform(a, value);
-      tree_add_stmt(p, a);
-
-      tree_t wait = tree_new(T_WAIT);
-      tree_set_ident(wait, ident_new("wait"));
-      tree_set_flag(wait, TREE_F_STATIC_WAIT);
-      simp_build_wait(wait, value, false);
-      tree_add_stmt(p, wait);
-
-      tree_set_value(m, r);
-
-      imp_signal_t *imp = xmalloc(sizeof(imp_signal_t));
-      imp->next    = ctx->imp_signals;
-      imp->signal  = s;
-      imp->process = p;
-
-      ctx->imp_signals = imp;
-   }
-}
-
 static void simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
@@ -1683,9 +1435,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_PROC_DECL:
       return simp_subprogram_decl(t, ctx);
    case T_INSTANCE:
-      if (standard() >= STD_08)
-         simp_port_map(t, ctx);
-      // Fall-through
    case T_BINDING:
       simp_generic_map(t, tree_ref(t));
       return t;
