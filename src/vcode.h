@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -155,6 +155,7 @@ typedef enum {
    VCODE_OP_CANON_VALUE,
    VCODE_OP_CONVSTR,
    VCODE_OP_TRAP_NEG,
+   VCODE_OP_PROCESS_INIT,
 } vcode_op_t;
 
 typedef enum {
@@ -493,6 +494,7 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
                          vcode_type_t rtype);
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
+void emit_process_init(ident_t name, vcode_reg_t locus);
 vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);

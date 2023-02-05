@@ -397,7 +397,6 @@ static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
    tb_istr(tb, tree_ident(ref));
    switch (which) {
    case ATTR_TRANSACTION: tb_cat(tb, "$transaction"); break;
-   case ATTR_DELAYED:     tb_printf(tb, "$delayed_%"PRIi64, iparam); break;
    default: break;
    }
 
@@ -429,21 +428,6 @@ static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
    tree_set_target(a, r);
 
    switch (which) {
-   case ATTR_DELAYED:
-      {
-         if (tree_has_value(decl))
-            tree_set_value(s, tree_value(decl));
-
-         tree_t delay = tree_value(tree_param(t, 0));
-
-         tree_t wave = tree_new(T_WAVEFORM);
-         tree_set_value(wave, name);
-         tree_set_delay(wave, delay);
-
-         tree_add_waveform(a, wave);
-      }
-      break;
-
    case ATTR_TRANSACTION:
       {
          tree_t not_decl = std_func(ident_new("STD.STANDARD.\"not\"(B)B"));
@@ -525,7 +509,6 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
    const attr_kind_t predef = tree_subkind(t);
    switch (predef) {
-   case ATTR_DELAYED:
    case ATTR_TRANSACTION:
       return simp_signal_attribute(t, predef, ctx);
 

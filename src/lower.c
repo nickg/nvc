@@ -7222,27 +7222,96 @@ static void lower_implicit_decl(tree_t decl)
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
    lower_put_vcode_obj(decl, var, top_scope);
 
-   ident_t func = NULL;
    switch (tree_subkind(decl)) {
    case IMPLICIT_GUARD:
-      func = lower_guard_func(tree_ident(decl), tree_value(decl));
+      {
+         ident_t func = lower_guard_func(tree_ident(decl), tree_value(decl));
+         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t locus = lower_debug_locus(decl);
+         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t closure =
+            emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
+         vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
+         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
+                                                kind_reg, closure);
+         emit_store(sig, var);
+
+         tree_visit_only(tree_value(decl), lower_guard_refs_cb,
+                         (void *)(uintptr_t)sig, T_REF);
+      }
       break;
-   }
 
-   vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
-   vcode_reg_t locus = lower_debug_locus(decl);
-   vcode_reg_t context_reg = lower_context_for_call(func);
-   vcode_reg_t closure =
-      emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
-   vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
-   vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
-                                          kind_reg, closure);
-   emit_store(sig, var);
+   case IMPLICIT_DELAYED:
+      {
+         tree_t wave = tree_value(decl);
+         assert(tree_kind(wave) == T_WAVEFORM);
 
-   switch (tree_subkind(decl)) {
-   case IMPLICIT_GUARD:
-      tree_visit_only(tree_value(decl), lower_guard_refs_cb,
-                      (void *)(uintptr_t)sig, T_REF);
+         tree_t expr = tree_value(wave);
+         type_t type = tree_type(expr);
+
+         vcode_reg_t init_reg = lower_rvalue(expr);
+         lower_sub_signals(type, decl, NULL, 0, type, var,
+                           VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, 0);
+
+         vcode_state_t state;
+         vcode_state_save(&state);
+
+         ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
+         emit_process(name, tree_to_object(decl), vcode_active_unit());
+
+         lower_push_scope(NULL);
+
+         {
+            vcode_reg_t nets_reg = lower_signal_ref(decl);
+            vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+            vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+            emit_drive_signal(data_reg, count_reg);
+         }
+
+         {
+            tree_t prefix = longest_static_prefix(expr);
+            vcode_reg_t nets_reg = lower_lvalue(prefix);
+            vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+            vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+            emit_sched_static(data_reg, count_reg, VCODE_INVALID_REG);
+         }
+
+         emit_return(VCODE_INVALID_REG);
+
+         vcode_block_t main_bb = emit_block();
+         vcode_select_block(main_bb);
+
+         vcode_reg_t delay_reg = lower_rvalue(tree_delay(wave));
+         vcode_reg_t reject_reg = emit_const(vtype_time(), 0);
+         vcode_reg_t value_reg = lower_rvalue(expr);
+
+         target_part_t parts[] = {
+            { .kind = PART_ALL,
+              .reg = lower_signal_ref(decl),
+              .off = VCODE_INVALID_REG,
+              .target = decl },
+            { .kind = PART_POP,
+              .reg = VCODE_INVALID_REG,
+              .off = VCODE_INVALID_REG,
+            }
+         };
+
+         target_part_t *ptr = parts;
+         lower_signal_assign_target(&ptr, decl, value_reg, type,
+                                    reject_reg, delay_reg);
+
+         emit_return(VCODE_INVALID_REG);
+
+         lower_finished();
+         lower_pop_scope();
+
+         vcode_state_restore(&state);
+
+         emit_process_init(name, lower_debug_locus(decl));
+      }
       break;
    }
 }

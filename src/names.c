@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2022  Nick Gasson
+//  Copyright (C) 2020-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -497,6 +497,8 @@ static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
       else if (what == S_PROCESS && tree_kind(s->container) == T_PROCESS)
          return s->container;
       else if (what == S_PROTECTED && tree_kind(s->container) == T_PROT_BODY)
+         return s->container;
+      else if (what == S_CONCURRENT_BLOCK && is_concurrent_block(s->container))
          return s->container;
    }
 

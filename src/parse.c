@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <float.h>
+#include <inttypes.h>
 
 typedef struct {
    token_t  token;
@@ -1685,6 +1686,7 @@ static void make_universal_real(tree_t container)
 static void make_implicit_guard_signal(tree_t block, tree_t expr)
 {
    tree_t guard = tree_new(T_IMPLICIT_SIGNAL);
+   tree_set_subkind(guard, IMPLICIT_GUARD);
    tree_set_ident(guard, ident_new("GUARD"));
    tree_set_loc(guard, tree_loc(expr));
    tree_set_type(guard, std_type(NULL, STD_BOOLEAN));
@@ -2190,6 +2192,71 @@ static type_t apply_type_attribute(tree_t aref)
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
    }
+}
+
+static void implicit_signal_attribute(tree_t aref)
+{
+   if (find_enclosing(nametab, S_SUBPROGRAM) != NULL) {
+      parse_error(tree_loc(aref), "implicit signal %s cannot be used in a "
+                  "subprogram body", istr(tree_ident(aref)));
+      return;
+   }
+
+   tree_t b = find_enclosing(nametab, S_CONCURRENT_BLOCK);
+   if (b == NULL) {
+      parse_error(tree_loc(aref), "implicit signal %s cannot be used in "
+                  "this context", istr(tree_ident(aref)));
+      return;
+   }
+
+   tree_t prefix = tree_name(aref);
+
+   tree_t delay = NULL;
+   bool const_delay = false;
+   if (tree_params(aref) > 0) {
+      delay = tree_value(tree_param(aref, 0));
+      const_delay = (tree_kind(delay) == T_LITERAL);
+   }
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tree_t ref = name_to_ref(prefix);
+   if (ref != NULL)
+      tb_istr(tb, tree_ident(ref));
+   tb_cat(tb, "$delayed");
+   if (const_delay) {
+      tb_printf(tb, "_%"PRIi64, tree_ival(delay));
+      if (tree_has_ident(delay))
+         tb_printf(tb, "_%s", istr(tree_ident(delay)));
+   }
+
+   ident_t id;
+   if (ref == prefix && (delay == NULL || const_delay)) {
+      id = ident_new(tb_get(tb));
+
+      tree_t exist = search_decls(b, id, 0);
+      if (exist != NULL) {
+         tree_set_value(aref, make_ref(exist));
+         return;
+      }
+   }
+   else
+      id = ident_uniq(tb_get(tb));
+
+   tree_t w = tree_new(T_WAVEFORM);
+   tree_set_loc(w, CURRENT_LOC);
+   tree_set_value(w, prefix);
+   tree_set_delay(w, delay ?: get_time(0, CURRENT_LOC));
+
+   tree_t imp = tree_new(T_IMPLICIT_SIGNAL);
+   tree_set_subkind(imp, IMPLICIT_DELAYED);
+   tree_set_ident(imp, id);
+   tree_set_loc(imp, CURRENT_LOC);
+   tree_set_value(imp, w);
+   tree_set_type(imp, tree_type(aref));
+
+   tree_add_decl(b, imp);
+
+   tree_set_value(aref, make_ref(imp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3096,6 +3163,9 @@ static tree_t p_attribute_name(tree_t prefix)
    }
    else
       solve_types(nametab, t, NULL);
+
+   if (kind == ATTR_DELAYED)
+      implicit_signal_attribute(t);
 
    return t;
 }
@@ -9477,10 +9547,10 @@ static tree_t p_block_statement(ident_t label)
    else {
       tree_set_loc(b, CURRENT_LOC);
       insert_name(nametab, b, NULL);
-      scope_set_prefix(nametab, label);
    }
 
    push_scope(nametab);
+   scope_set_prefix(nametab, label ?: error_marker());
    scope_set_container(nametab, b);
 
    if (peek() == tLPAREN) {
@@ -9551,6 +9621,8 @@ static tree_t p_for_generate_statement(ident_t label)
    tree_t g = tree_new(T_FOR_GENERATE);
    tree_set_ident(g, label);
 
+   scope_set_container(nametab, g);
+
    p_parameter_specification(g, T_GENERIC_DECL);
 
    consume(tGENERATE);
@@ -9596,6 +9668,7 @@ static tree_t p_if_generate_statement(ident_t label)
    }
 
    push_scope(nametab);
+   scope_set_container(nametab, g);
    scope_set_prefix(nametab, alt_label ?: label);
 
    tree_t c0 = tree_new(T_COND);

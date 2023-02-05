@@ -3323,6 +3323,9 @@ static bool sem_check_valid_implicit_signal(tree_t t, nametab_t *tab)
    // Certain attributes are illegal inside a subprogram according to LRM
    // 93 section 2.1.1.2
 
+   if (tree_subkind(t) == ATTR_DELAYED)
+      return true;   // XXX: now checked by parser
+
    if (find_enclosing(tab, S_SUBPROGRAM) != NULL)
       sem_error(t, "implicit signal %s cannot be used in a "
                 "subprogram body", istr(tree_ident(t)));

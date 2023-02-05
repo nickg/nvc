@@ -26,4 +26,13 @@ begin
         wait;
     end process;
 
+    g1: for i in 1 to 3 generate
+    begin
+        p2: process is
+        begin
+            assert x(i)'delayed = '0';
+            wait;
+        end process;
+    end generate;
+
 end architecture;

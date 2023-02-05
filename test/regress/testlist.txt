@@ -716,3 +716,4 @@ stdenv3         normal,2019
 issue603        normal
 cover11         cover,shell
 issue609        normal
+implicit5       normal

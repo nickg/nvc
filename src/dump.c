@@ -193,6 +193,19 @@ static void dump_address(tree_t t)
 #endif
 }
 
+static void dump_waveform(tree_t w)
+{
+   if (tree_has_value(w))
+      dump_expr(tree_value(w));
+   else
+      syntax("#null");
+
+   if (tree_has_delay(w)) {
+      syntax(" #after ");
+      dump_expr(tree_delay(w));
+   }
+}
+
 static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -399,6 +412,10 @@ static void dump_expr(tree_t t)
 
    case T_BOX:
       printf("<>");
+      break;
+
+   case T_WAVEFORM:
+      dump_waveform(t);
       break;
 
    default:
@@ -929,15 +946,7 @@ static void dump_waveforms(tree_t t)
    const int nwaves = tree_waveforms(t);
    for (int i = 0; i < nwaves; i++) {
       if (i > 0) printf(", ");
-      tree_t w = tree_waveform(t, i);
-      if (tree_has_value(w))
-         dump_expr(tree_value(w));
-      else
-         syntax("#null");
-      if (tree_has_delay(w)) {
-         syntax(" #after ");
-         dump_expr(tree_delay(w));
-      }
+      dump_waveform(tree_waveform(t, i));
    }
 }
 

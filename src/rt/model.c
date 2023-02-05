@@ -370,17 +370,23 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
    const int ndecls = tree_decls(block);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(block, i);
-      if (tree_kind(d) == T_PACK_INST) {
-         rt_scope_t *p = xcalloc(sizeof(rt_scope_t));
-         p->where    = d;
-         p->name     = ident_prefix(s->name, tree_ident(d), '.');
-         p->kind     = SCOPE_PACKAGE;
-         p->privdata = mptr_new(m->mspace, "pack inst privdata");
+      switch (tree_kind(d)) {
+      case T_PACK_INST:
+         {
+            rt_scope_t *p = xcalloc(sizeof(rt_scope_t));
+            p->where    = d;
+            p->name     = ident_prefix(s->name, tree_ident(d), '.');
+            p->kind     = SCOPE_PACKAGE;
+            p->privdata = mptr_new(m->mspace, "pack inst privdata");
 
-         hash_put(m->scopes, d, p);
+            hash_put(m->scopes, d, p);
 
-         *childp = p;
-         childp = &(p->chain);
+            *childp = p;
+            childp = &(p->chain);
+         }
+
+      default:
+         break;
       }
    }
 
@@ -3522,4 +3528,32 @@ void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
       for (int i = 0; i < s->n_nexus; i++, n = n->chain)
          n->flags |= NET_F_R_IDENT;
    }
+}
+
+void x_process_init(jit_handle_t handle, tree_t where)
+{
+   rt_model_t *m = get_model();
+   ident_t name = jit_get_name(m->jit, handle);
+
+   TRACE("init process %s", istr(name));
+
+   rt_scope_t *s = active_scope;
+   assert(s != NULL);
+   assert(s->kind == SCOPE_INSTANCE);
+
+   rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+   p->where     = where;
+   p->name      = name;
+   p->handle    = handle;
+   p->scope     = s;
+   p->privdata  = mptr_new(m->mspace, "process privdata");
+   p->chain     = s->procs;
+
+   p->wakeable.kind       = W_PROC;
+   p->wakeable.wakeup_gen = 0;
+   p->wakeable.pending    = false;
+   p->wakeable.postponed  = false;
+   p->wakeable.delayed    = false;
+
+   s->procs = p;
 }

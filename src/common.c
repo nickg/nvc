@@ -611,6 +611,20 @@ bool is_container(tree_t t)
    }
 }
 
+bool is_concurrent_block(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_ARCH:
+   case T_ENTITY:
+   case T_BLOCK:
+   case T_IF_GENERATE:
+   case T_FOR_GENERATE:
+      return true;
+   default:
+      return false;
+   }
+}
+
 bool is_package(tree_t t)
 {
    switch (tree_kind(t)) {

@@ -47,11 +47,12 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_PCALL                                                 \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_COVER_BRANCH)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_COVER_BRANCH         \
+    || x == VCODE_OP_PROCESS_INIT)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_LINK_INSTANCE)
@@ -914,28 +915,27 @@ const char *vcode_op_string(vcode_op_t op)
 {
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
-      "mul", "add", "comment", "const array", "index", "sub",
-      "cast", "load indirect", "store indirect", "return",
-      "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem", "alloc", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap", "not", "and",
-      "event", "active", "const record", "record ref", "copy", "sched event",
-      "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
-      "case", "endfile", "file open", "file write", "file close",
+      "mul", "add", "comment", "const array", "index", "sub", "cast",
+      "load indirect", "store indirect", "return", "sched waveform",
+      "cond", "report", "div", "neg", "exp", "abs", "mod", "rem", "alloc",
+      "select", "or", "wrap", "uarray left", "uarray right", "uarray dir",
+      "unwrap", "not", "and", "event", "active", "const record", "record ref",
+      "copy", "sched event", "pcall", "resume", "xor", "xnor", "nand", "nor",
+      "memset", "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover branch",
-      "cover toggle", "cover expression", "uarray len", "undefined", "range null",
-      "var upref", "resolved", "last value", "init signal", "map signal",
-      "drive signal", "link var", "resolution wrapper", "last active", "driving",
-      "driving value", "address of", "closure", "protected init",
-      "context upref", "const rep", "protected free", "sched static",
-      "implicit signal", "disconnect", "link package", "index check",
-      "debug locus", "length check", "range check", "array ref", "range length",
-      "exponent check", "zero check", "map const", "resolve signal",
-      "push scope", "pop scope", "alias signal", "trap add",
+      "cover toggle", "cover expression", "uarray len", "undefined",
+      "range null", "var upref", "resolved", "last value", "init signal",
+      "map signal", "drive signal", "link var", "resolution wrapper",
+      "last active", "driving", "driving value", "address of", "closure",
+      "protected init", "context upref", "const rep", "protected free",
+      "sched static", "implicit signal", "disconnect", "link package",
+      "index check", "debug locus", "length check", "range check", "array ref",
+      "range length", "exponent check", "zero check", "map const",
+      "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
-      "trap neg"
+      "trap neg", "process init",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1433,6 +1433,14 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->args.items[0]);
                }
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_PROCESS_INIT:
+            {
+               color_printf("%s $magenta$%s$$ locus ",
+                            vcode_op_string(op->kind), istr(op->func));
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -4777,6 +4785,17 @@ vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context)
                 "invalid protected init context argument");
 
    return (op->result = vcode_add_reg(type));
+}
+
+void emit_process_init(ident_t name, vcode_reg_t locus)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PROCESS_INIT);
+   vcode_add_arg(op, locus);
+   op->func    = name;
+   op->subkind = VCODE_CC_VHDL;
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to process init must be a debug locus");
 }
 
 void emit_protected_free(vcode_reg_t obj)

@@ -2242,6 +2242,18 @@ static void irgen_op_protected_free(jit_irgen_t *g, int op)
    // TODO: files allowed in protected types
 }
 
+static void irgen_op_process_init(jit_irgen_t *g, int op)
+{
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+   ident_t func = vcode_get_func(op);
+
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
+
+   j_send(g, 0, jit_value_from_handle(handle));
+   j_send(g, 1, locus);
+   macro_exit(g, JIT_EXIT_PROCESS_INIT);
+}
+
 static void irgen_op_index_check(jit_irgen_t *g, int op)
 {
    jit_value_t value = irgen_get_arg(g, op, 0);
@@ -3529,6 +3541,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_PROTECTED_FREE:
          irgen_op_protected_free(g, i);
+         break;
+      case VCODE_OP_PROCESS_INIT:
+         irgen_op_process_init(g, i);
          break;
       case VCODE_OP_FILE_OPEN:
          irgen_op_file_open(g, i);
