@@ -3399,7 +3399,7 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
-                                uint32_t kind, ffi_closure_t *closure)
+                                implicit_kind_t kind, ffi_closure_t *closure)
 {
    TRACE("_implicit_signal %s count=%d size=%d kind=%d",
          istr(tree_ident(where)), count, size, kind);
@@ -3418,13 +3418,28 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    imp->closure = *closure;
    imp->wakeable.kind = W_IMPLICIT;
 
-   jit_scalar_t result;
-   if (!jit_try_call(m->jit, imp->closure.handle, &result,
-                     imp->closure.context))
-      m->force_stop = true;
+   switch (kind) {
+   case IMPLICIT_GUARD:
+      {
+         jit_scalar_t result;
+         if (!jit_try_call(m->jit, imp->closure.handle, &result,
+                           imp->closure.context))
+            m->force_stop = true;
 
-   assert(size * count == 1);
-   memcpy(imp->signal.shared.data, &result.integer, imp->signal.shared.size);
+         assert(size * count == 1);
+         memcpy(imp->signal.shared.data, &result.integer,
+                imp->signal.shared.size);
+      }
+      break;
+
+   case IMPLICIT_TRANSACTION:
+      assert(size * count == 1);
+      imp->signal.shared.data[0] = 0;
+      break;
+
+   default:
+      fatal_trace("invalid implicit signal kind %d", kind);
+   }
 
    return &(imp->signal.shared);
 }

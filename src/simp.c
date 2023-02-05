@@ -30,17 +30,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-typedef struct _imp_signal imp_signal_t;
-
-struct _imp_signal {
-   imp_signal_t *next;
-   ident_t       name;
-   tree_t        signal;
-   tree_t        process;
-};
-
 typedef struct {
-   imp_signal_t *imp_signals;
    tree_t        top;
    eval_t       *eval;
    tree_flags_t  eval_mask;
@@ -369,106 +359,6 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    }
 }
 
-static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
-                                    simp_ctx_t *ctx)
-{
-   tree_t name = tree_name(t);
-
-   tree_t ref = name_to_ref(name);
-   if (ref == NULL)
-      return t;
-
-   tree_t decl = tree_ref(ref);
-
-   const tree_kind_t kind = tree_kind(decl);
-   if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL)
-      return t;
-
-   tree_t param = NULL;
-   if (which != ATTR_TRANSACTION)
-      param = tree_value(tree_param(t, 0));
-
-   int64_t iparam = 0;
-   if (param != NULL && !folded_int(param, &iparam))
-      return t;
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, tree_ident(ref));
-   switch (which) {
-   case ATTR_TRANSACTION: tb_cat(tb, "$transaction"); break;
-   default: break;
-   }
-
-   ident_t id;
-   if (ref == name) {
-      id = ident_new(tb_get(tb));
-
-      for (imp_signal_t *it = ctx->imp_signals; it; it = it->next) {
-         if (it->name == id)
-            return make_ref(it->signal);
-      }
-   }
-   else
-      id = ident_uniq(tb_get(tb));
-
-   tree_t s = tree_new(T_SIGNAL_DECL);
-   tree_set_loc(s, tree_loc(t));
-   tree_set_ident(s, id);
-   tree_set_type(s, tree_type(t));
-
-   tree_t r = make_ref(s);
-
-   tree_t p = tree_new(T_PROCESS);
-   tree_set_loc(p, tree_loc(t));
-   tree_set_ident(p, ident_prefix(tree_ident(s), ident_new("p"), '_'));
-
-   tree_t a = tree_new(T_SIGNAL_ASSIGN);
-   tree_set_ident(a, ident_new("assign"));
-   tree_set_target(a, r);
-
-   switch (which) {
-   case ATTR_TRANSACTION:
-      {
-         tree_t not_decl = std_func(ident_new("STD.STANDARD.\"not\"(B)B"));
-         assert(not_decl != NULL);
-
-         tree_t not = tree_new(T_FCALL);
-         tree_set_ident(not, ident_new("\"not\""));
-         tree_set_ref(not, not_decl);
-         tree_set_type(not, type_result(tree_type(not_decl)));
-         add_param(not, r, P_POS, NULL);
-
-         tree_t wave = tree_new(T_WAVEFORM);
-         tree_set_value(wave, not);
-
-         tree_add_waveform(a, wave);
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   tree_add_stmt(p, a);
-
-   tree_t wait = tree_new(T_WAIT);
-   tree_set_ident(wait, ident_new("wait"));
-   tree_set_flag(wait, TREE_F_STATIC_WAIT);
-   tree_add_trigger(wait, name);
-
-   tree_add_stmt(p, wait);
-
-   imp_signal_t *imp = xmalloc(sizeof(imp_signal_t));
-   imp->next    = ctx->imp_signals;
-   imp->signal  = s;
-   imp->process = p;
-   imp->name    = id;
-
-   ctx->imp_signals = imp;
-
-   return r;
-}
-
 static tree_t simp_convert_range_bound(attr_kind_t attr, tree_t r)
 {
    tree_t expr;
@@ -508,9 +398,6 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
    const attr_kind_t predef = tree_subkind(t);
    switch (predef) {
-   case ATTR_TRANSACTION:
-      return simp_signal_attribute(t, predef, ctx);
-
    case ATTR_POS:
       {
          tree_t value = tree_value(tree_param(t, 0));
@@ -1361,19 +1248,6 @@ static void simp_generic_map(tree_t t, tree_t unit)
       tree_trim_genmaps(t, last_pos + values.count);
 }
 
-static void simp_add_implicit_signals(tree_t t, simp_ctx_t *ctx)
-{
-   for (imp_signal_t *s = ctx->imp_signals, *tmp; s; s = tmp) {
-      tree_add_decl(t, s->signal);
-      if (s->process != NULL)
-         tree_add_stmt(t, s->process);
-
-      tmp = s->next;
-      free(s);
-   }
-   ctx->imp_signals = NULL;
-}
-
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1439,11 +1313,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       simp_generic_map(t, tree_ref(t));
       return t;
    case T_BLOCK:
-      simp_add_implicit_signals(t, ctx);
       simp_generic_map(t, t);
-      return t;
-   case T_ARCH:
-      simp_add_implicit_signals(t, ctx);
       return t;
    case T_COND:
       return simp_cond(t);
@@ -1515,28 +1385,24 @@ static void simp_pre_cb(tree_t t, void *__ctx)
 void simplify_local(tree_t top, eval_t *ex)
 {
    simp_ctx_t ctx = {
-      .imp_signals = NULL,
-      .top         = top,
-      .eval        = ex,
-      .eval_mask   = TREE_F_LOCALLY_STATIC,
+      .top       = top,
+      .eval      = ex,
+      .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
    tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
 
    if (ctx.generics)
       hash_free(ctx.generics);
-
-   assert(ctx.imp_signals == NULL);
 }
 
 void simplify_global(tree_t top, hash_t *generics, eval_t *ex)
 {
    simp_ctx_t ctx = {
-      .imp_signals = NULL,
-      .top         = top,
-      .eval        = ex,
-      .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
-      .generics    = generics,
+      .top       = top,
+      .eval      = ex,
+      .eval_mask = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
+      .generics  = generics,
    };
 
    type_rewrite_post_fn_t type_cb = NULL;
@@ -1547,6 +1413,4 @@ void simplify_global(tree_t top, hash_t *generics, eval_t *ex)
 
    if (generics == NULL && ctx.generics != NULL)
       hash_free(ctx.generics);
-
-   assert(ctx.imp_signals == NULL);
 }

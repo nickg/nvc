@@ -82,7 +82,7 @@ void x_pop_scope(void);
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count);
 void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count);
 sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
-                                uint32_t kind, ffi_closure_t *closure);
+                                implicit_kind_t kind, ffi_closure_t *closure);
 void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
                   int64_t after, int64_t reject);
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);

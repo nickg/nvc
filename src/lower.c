@@ -7176,39 +7176,15 @@ static void lower_signal_decl(tree_t decl)
       lower_toggle_coverage(decl);
 }
 
-static ident_t lower_guard_func(ident_t prefix, tree_t expr)
+static void lower_build_wait_cb(tree_t expr, void *ctx)
 {
-   ident_t qual = ident_prefix(vcode_unit_name(), prefix, '.');
-   ident_t func = ident_prefix(qual, ident_new("guard"), '$');
+   vcode_reg_t wake_reg = (uintptr_t)ctx;
 
-   vcode_state_t state;
-   vcode_state_save(&state);
+   vcode_reg_t nets_reg = lower_lvalue(expr);
+   vcode_reg_t count_reg = lower_type_width(tree_type(expr), nets_reg);
+   vcode_reg_t data_reg = lower_array_data(nets_reg);
 
-   ident_t context_id = vcode_unit_name();
-
-   emit_function(func, tree_to_object(expr), vcode_active_unit());
-   vcode_set_result(lower_type(tree_type(expr)));
-
-   vcode_type_t vcontext = vtype_context(context_id);
-   emit_param(vcontext, vcontext, ident_new("context"));
-
-   lower_push_scope(NULL);
-
-   emit_return(lower_rvalue(expr));
-
-   lower_pop_scope();
-   lower_finished();
-   vcode_state_restore(&state);
-
-   return func;
-}
-
-static void lower_guard_refs_cb(tree_t ref, void *__ctx)
-{
-   vcode_reg_t wake = (uintptr_t)__ctx;
-
-   if (class_of(ref) == C_SIGNAL)
-      lower_sched_event(ref, true, wake);
+   emit_sched_static(data_reg, count_reg, wake_reg);
 }
 
 static void lower_implicit_decl(tree_t decl)
@@ -7225,7 +7201,29 @@ static void lower_implicit_decl(tree_t decl)
    switch (tree_subkind(decl)) {
    case IMPLICIT_GUARD:
       {
-         ident_t func = lower_guard_func(tree_ident(decl), tree_value(decl));
+         tree_t expr = tree_value(decl);
+
+         ident_t context_id = vcode_unit_name();
+         ident_t qual = ident_prefix(context_id, name, '.');
+         ident_t func = ident_prefix(qual, ident_new("guard"), '$');
+
+         vcode_state_t state;
+         vcode_state_save(&state);
+
+         emit_function(func, tree_to_object(expr), vcode_active_unit());
+         vcode_set_result(vtype);
+
+         vcode_type_t vcontext = vtype_context(context_id);
+         emit_param(vcontext, vcontext, ident_new("context"));
+
+         lower_push_scope(NULL);
+
+         emit_return(lower_rvalue(expr));
+
+         lower_pop_scope();
+         lower_finished();
+         vcode_state_restore(&state);
+
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
          vcode_reg_t context_reg = lower_context_for_call(func);
@@ -7236,8 +7234,7 @@ static void lower_implicit_decl(tree_t decl)
                                                 kind_reg, closure);
          emit_store(sig, var);
 
-         tree_visit_only(tree_value(decl), lower_guard_refs_cb,
-                         (void *)(uintptr_t)sig, T_REF);
+         build_wait(expr, lower_build_wait_cb, (void *)(uintptr_t)sig);
       }
       break;
 
@@ -7247,7 +7244,6 @@ static void lower_implicit_decl(tree_t decl)
          assert(tree_kind(wave) == T_WAVEFORM);
 
          tree_t expr = tree_value(wave);
-         type_t type = tree_type(expr);
 
          vcode_reg_t init_reg = lower_rvalue(expr);
          lower_sub_signals(type, decl, NULL, 0, type, var,
@@ -7262,22 +7258,14 @@ static void lower_implicit_decl(tree_t decl)
 
          lower_push_scope(NULL);
 
-         {
-            vcode_reg_t nets_reg = lower_signal_ref(decl);
-            vcode_reg_t count_reg = lower_type_width(type, nets_reg);
-            vcode_reg_t data_reg = lower_array_data(nets_reg);
+         vcode_reg_t nets_reg = lower_signal_ref(decl);
+         vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+         vcode_reg_t data_reg = lower_array_data(nets_reg);
 
-            emit_drive_signal(data_reg, count_reg);
-         }
+         emit_drive_signal(data_reg, count_reg);
 
-         {
-            tree_t prefix = longest_static_prefix(expr);
-            vcode_reg_t nets_reg = lower_lvalue(prefix);
-            vcode_reg_t count_reg = lower_type_width(type, nets_reg);
-            vcode_reg_t data_reg = lower_array_data(nets_reg);
-
-            emit_sched_static(data_reg, count_reg, VCODE_INVALID_REG);
-         }
+         build_wait(expr, lower_build_wait_cb,
+                    (void *)(uintptr_t)VCODE_INVALID_REG);
 
          emit_return(VCODE_INVALID_REG);
 
@@ -7311,6 +7299,48 @@ static void lower_implicit_decl(tree_t decl)
          vcode_state_restore(&state);
 
          emit_process_init(name, lower_debug_locus(decl));
+      }
+      break;
+
+   case IMPLICIT_TRANSACTION:
+      {
+         ident_t context_id = vcode_unit_name();
+         ident_t func = ident_prefix(context_id, name, '.');
+
+         vcode_state_t state;
+         vcode_state_save(&state);
+
+         tree_t expr = tree_value(decl);
+
+         emit_function(func, tree_to_object(expr), vcode_active_unit());
+         vcode_set_result(vtype);
+
+         vcode_type_t vcontext = vtype_context(context_id);
+         emit_param(vcontext, vcontext, ident_new("context"));
+
+         lower_push_scope(NULL);
+
+         emit_return(lower_rvalue(expr));
+
+         lower_pop_scope();
+         lower_finished();
+         vcode_state_restore(&state);
+
+         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t locus = lower_debug_locus(decl);
+         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t closure =
+            emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
+         vcode_reg_t kind_reg =
+            emit_const(vtype_offset(), IMPLICIT_TRANSACTION);
+         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
+                                                kind_reg, closure);
+         emit_store(sig, var);
+
+         assert(tree_triggers(decl) == 1);
+         tree_t trigger = tree_trigger(decl, 0);
+
+         build_wait(trigger, lower_build_wait_cb, (void *)(uintptr_t)sig);
       }
       break;
    }
@@ -9696,15 +9726,6 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
    }
 }
 
-static void lower_build_wait_cb(tree_t expr, void *ctx)
-{
-   vcode_reg_t nets_reg = lower_lvalue(expr);
-   vcode_reg_t count_reg = lower_type_width(tree_type(expr), nets_reg);
-   vcode_reg_t data_reg = lower_array_data(nets_reg);
-
-   emit_sched_static(data_reg, count_reg, VCODE_INVALID_REG);
-}
-
 static void lower_non_static_actual(tree_t port, type_t type,
                                     vcode_reg_t port_reg, tree_t wave)
 {
@@ -9742,7 +9763,7 @@ static void lower_non_static_actual(tree_t port, type_t type,
       emit_drive_signal(data_reg, count_reg);
    }
 
-   build_wait(expr, lower_build_wait_cb, NULL);
+   build_wait(expr, lower_build_wait_cb, (void *)(uintptr_t)VCODE_INVALID_REG);
 
    emit_return(VCODE_INVALID_REG);
 

@@ -223,6 +223,7 @@ typedef enum {
 typedef enum {
    IMPLICIT_GUARD,
    IMPLICIT_DELAYED,
+   IMPLICIT_TRANSACTION,
 } implicit_kind_t;
 
 typedef enum {

@@ -4,6 +4,8 @@
 - Implemented the VHDL-2019 call path reporting API.
 - The `elsif` VHDL-2019 conditional analysis directive now works
   correctly (#604).
+- The `'transaction` implicit signal no longer incurs a delta-cycle
+  delay.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in

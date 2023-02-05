@@ -3323,9 +3323,6 @@ static bool sem_check_valid_implicit_signal(tree_t t, nametab_t *tab)
    // Certain attributes are illegal inside a subprogram according to LRM
    // 93 section 2.1.1.2
 
-   if (tree_subkind(t) == ATTR_DELAYED)
-      return true;   // XXX: now checked by parser
-
    if (find_enclosing(tab, S_SUBPROGRAM) != NULL)
       sem_error(t, "implicit signal %s cannot be used in a "
                 "subprogram body", istr(tree_ident(t)));
@@ -3580,14 +3577,14 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       tree_set_flag(name, TREE_F_FORMAL_NAME);
       return true;
 
-   case ATTR_DELAYED:
    case ATTR_STABLE:
    case ATTR_QUIET:
+      if (!sem_check_valid_implicit_signal(t, tab))
+         return false;
+      // Fall-through
+   case ATTR_DELAYED:
       {
          if (!sem_check_signal_attr(t))
-            return false;
-
-         if (!sem_check_valid_implicit_signal(t, tab))
             return false;
 
          type_t std_time = std_type(NULL, STD_TIME);
@@ -3608,9 +3605,6 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       }
    case ATTR_TRANSACTION:
       if (!sem_check_signal_attr(t))
-         return false;
-
-      if (!sem_check_valid_implicit_signal(t, tab))
          return false;
 
       return true;
