@@ -824,11 +824,11 @@ static bool is_constant_input(rt_signal_t *s)
       decl = sc->where;
    }
 
-   if (tree_kind(decl) != T_PORT_DECL) {
+   if (tree_kind(decl) != T_PORT_DECL)
       return false;
-   } else if (tree_subkind(decl) != PORT_IN) {
+   else if (tree_subkind(decl) != PORT_IN)
       return false;
-   } else {
+   else {
       rt_nexus_t *n = &(s->nexus);
       for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
          if (n->n_sources > 0)
