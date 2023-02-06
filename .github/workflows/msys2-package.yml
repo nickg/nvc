@@ -34,7 +34,7 @@ jobs:
       - name: Build MSYS2 ${{matrix.sys}} package
         run: |
           cd contrib/msys2
-          makepkg-mingw -sCLf --needed --noconfirm --nocheck
+          makepkg-mingw -sCLf --needed --noconfirm
           pacman -Qlp *.zst
           echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
       - name: Install package

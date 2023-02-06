@@ -850,6 +850,9 @@ static bool run_test(test_t *test)
       }
 
       push_arg(&args, "%s", DIFF_PATH);
+#if defined __MINGW32__ || defined __CYGWIN__
+      push_arg(&args, "--strip-trailing-cr");
+#endif
       push_arg(&args, "-u");
       push_arg(&args, "%s/regress/gold/%s.dump", test_dir, test->name);
       push_arg(&args, "%s.dump", test->name);
