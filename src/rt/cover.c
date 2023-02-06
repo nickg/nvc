@@ -849,8 +849,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
       for (int i = 0; i < s->shared.size; i++) {
          // Remember un-reachability in run-time data. Exclude mask not
          // available at run-time.
-         (*toggle_mask) |= COV_FLAG_UNREACHABLE;
-         toggle_mask++;
+         (*toggle_mask++) |= COV_FLAG_UNREACHABLE;
       }
       return;
    }
