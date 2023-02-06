@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@ cover_tagging_t *get_coverage(rt_model_t *m);
 rt_scope_t *find_scope(rt_model_t *m, tree_t container);
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl);
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl);
+rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);

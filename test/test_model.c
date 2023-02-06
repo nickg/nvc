@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -214,6 +214,44 @@ START_TEST(test_fast1)
 }
 END_TEST
 
+START_TEST(test_stateless1)
+{
+   input_from_file(TESTDIR "/model/stateless1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   lower_unit(top, NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+   ck_assert_int_eq(tree_stmts(b0), 2);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   rt_proc_t *p1 = find_proc(root, tree_stmt(b0, 0));
+   ck_assert_ptr_nonnull(p1);
+   ck_assert_str_eq(istr(p1->name), ":stateless1:p1");
+   ck_assert_ptr_null(*mptr_get(p1->privdata));
+
+   rt_proc_t *p2 = find_proc(root, tree_stmt(b0, 1));
+   ck_assert_ptr_nonnull(p2);
+   ck_assert_str_eq(istr(p2->name), ":stateless1:p2");
+   ck_assert_ptr_nonnull(*mptr_get(p2->privdata));
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -223,6 +261,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_index1);
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_fast1);
+   tcase_add_test(tc, test_stateless1);
    suite_add_tcase(s, tc);
 
    return s;

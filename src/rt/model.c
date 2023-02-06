@@ -660,6 +660,16 @@ rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
    return NULL;
 }
 
+rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc)
+{
+   for (rt_proc_t *p = scope->procs; p; p = p->chain) {
+      if (p->where == proc)
+         return p;
+   }
+
+   return NULL;
+}
+
 rt_scope_t *find_scope(rt_model_t *m, tree_t container)
 {
    return hash_get(m->scopes, container);
@@ -816,7 +826,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
 {
-   TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
+   TRACE("run %sprocess %s", *mptr_get(proc->privdata) ? "" :  "stateless ",
          istr(proc->name));
 
    model_thread_t *thread = model_thread(m);

@@ -60,6 +60,7 @@ typedef struct {
    size_t          cpoolptr;
    size_t          oldptr;
    jit_value_t     statereg;
+   jit_value_t     contextarg;
    vcode_reg_t     flags;
    unsigned        bufsz;
 } jit_irgen_t;
@@ -855,6 +856,8 @@ static jit_value_t irgen_get_context(jit_irgen_t *g)
 {
    if (g->statereg.kind != JIT_VALUE_INVALID)
       return j_load(g, JIT_SZ_PTR, jit_addr_from_value(g->statereg, 0));
+   else if (g->contextarg.kind != JIT_VALUE_INVALID)
+      return g->contextarg;
    else
       return g->map[vcode_param_reg(0)];
 }
@@ -1186,12 +1189,14 @@ static void irgen_op_return(jit_irgen_t *g, int op)
 {
    switch (vcode_unit_kind()) {
    case VCODE_UNIT_PROCESS:
-      {
+      if (g->statereg.kind != JIT_VALUE_INVALID) {
          // Set up for first call to process after reset
          jit_value_t ptr = irgen_state_ptr(g);
          j_store(g, JIT_SZ_32, jit_value_from_int64(1), ptr);
          j_send(g, 0, g->statereg);
       }
+      else
+         j_send(g, 0, jit_null_ptr());   // Stateless process
       break;
 
    case VCODE_UNIT_PROCEDURE:
@@ -3641,7 +3646,7 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
    }
 }
 
-static void irgen_locals(jit_irgen_t *g)
+static void irgen_locals(jit_irgen_t *g, bool force_stack)
 {
    const int nvars = vcode_count_vars();
    g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
@@ -3653,7 +3658,7 @@ static void irgen_locals(jit_irgen_t *g)
    else if (vcode_unit_child(vcode_active_unit()) != NULL)
       on_stack = false;
 
-   if (on_stack) {
+   if (on_stack || force_stack) {
       // Local variables on stack
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
@@ -3791,6 +3796,48 @@ static bool irgen_is_procedure(void)
    }
 }
 
+static bool irgen_process_is_stateless(void)
+{
+   // A process is stateless if it has no non-temporary variables and
+   // all wait statements resume at the initial block
+
+   assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
+
+   if (vcode_unit_child(vcode_active_unit()) != NULL)
+      return false;
+
+   const int nvars = vcode_count_vars();
+   for (int i = 0; i < nvars; i++) {
+      if (!(vcode_var_flags(i) & VAR_TEMP))
+         return false;
+   }
+
+   const int nblocks = vcode_count_blocks();
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int last_op = vcode_count_ops() - 1;
+      switch (vcode_get_op(last_op)) {
+      case VCODE_OP_WAIT: break;
+      case VCODE_OP_PCALL: return false;
+      default: continue;
+      }
+
+      if (vcode_get_target(last_op, 0) != 1) {
+         // This a kludge: remove it when vcode optimises better
+         vcode_select_block(vcode_get_target(last_op, 0));
+         if (vcode_count_ops() != 1)
+            return false;
+         else if (vcode_get_op(0) != VCODE_OP_JUMP)
+            return false;
+         else if (vcode_get_target(0, 0) != 1)
+            return false;
+      }
+   }
+
+   return true;
+}
+
 void jit_irgen(jit_func_t *f)
 {
    assert(load_acquire(&f->state) == JIT_FUNC_COMPILING);
@@ -3806,13 +3853,16 @@ void jit_irgen(jit_func_t *f)
    g->map  = xmalloc_array(vcode_count_regs(), sizeof(jit_value_t));
 
    const vunit_kind_t kind = vcode_unit_kind();
+   const bool is_stateless =
+      kind == VCODE_UNIT_PROCESS && irgen_process_is_stateless();
    const bool has_privdata =
       kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
    const bool has_params =
       kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
       || kind == VCODE_UNIT_THUNK;
    const bool has_jump_table =
-      kind == VCODE_UNIT_PROCESS || kind == VCODE_UNIT_PROCEDURE;
+      (kind == VCODE_UNIT_PROCESS && !is_stateless)
+      || kind == VCODE_UNIT_PROCEDURE;
 
    if (has_privdata) {
       // It's harmless to initialise a package multiple times, just
@@ -3841,13 +3891,21 @@ void jit_irgen(jit_func_t *f)
    if (has_jump_table)
       irgen_jump_table(g);
 
+   irgen_locals(g, is_stateless);
+
+   if (is_stateless) {
+      g->contextarg = j_recv(g, 1);
+
+      jit_value_t state = j_recv(g, 0);
+      j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+      j_jump(g, JIT_CC_F, g->blocks[1]);
+   }
+
    if (kind == VCODE_UNIT_PROCESS) {
       // Schedule the process to run immediately
       j_send(g, 0, jit_value_from_int64(0));
       macro_exit(g, JIT_EXIT_SCHED_PROCESS);
    }
-
-   irgen_locals(g);
 
    if (g->statereg.kind != JIT_VALUE_INVALID) {
       // Stash context pointer
