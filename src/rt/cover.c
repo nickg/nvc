@@ -1718,7 +1718,7 @@ static bool cover_tag_unreachable(cover_report_ctx_t *ctx, cover_tag_t *tag)
 {
    if ((ctx->tagging->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
-   return (tag->data & COV_FLAG_UNREACHABLE);
+   return !!(tag->data & COV_FLAG_UNREACHABLE);
 }
 
 static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
