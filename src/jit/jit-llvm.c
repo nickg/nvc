@@ -328,9 +328,9 @@ static void llvm_register_types(llvm_obj_t *obj)
       LLVMTypeRef fields[] = {
          obj->types[LLVM_PTR],     // Mspace object
          obj->types[LLVM_PTR],     // Base pointer
-         obj->types[LLVM_PTR],     // Allocation pointer
-         obj->types[LLVM_PTR],     // Limit pointer
-         obj->types[LLVM_INT32],   // Mptr object
+         obj->types[LLVM_INT32],   // Allocation pointer
+         obj->types[LLVM_INT32],   // Limit pointer
+         obj->types[LLVM_PTR],     // Mptr object
       };
       obj->types[LLVM_TLAB] = LLVMStructTypeInContext(obj->context, fields,
                                                       ARRAY_LEN(fields), false);
@@ -370,7 +370,8 @@ static void llvm_register_types(llvm_obj_t *obj)
       LLVMTypeRef fields[] = {
          obj->types[LLVM_PTR],    // Caller
          obj->types[LLVM_PTR],    // Function
-         obj->types[LLVM_INT32]   // IR position
+         obj->types[LLVM_INT32],  // IR position
+         obj->types[LLVM_INT32]   // TLAB watermark
       };
       obj->types[LLVM_ANCHOR] = LLVMStructTypeInContext(obj->context, fields,
                                                         ARRAY_LEN(fields),
@@ -1952,6 +1953,20 @@ static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    }
 }
 
+static void cgen_macro_restore(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef watermark_ptr = LLVMBuildStructGEP2(obj->builder,
+                                                    obj->types[LLVM_ANCHOR],
+                                                    cgb->func->anchor, 3, "");
+   LLVMValueRef watermark = LLVMBuildLoad2(obj->builder,
+                                           obj->types[LLVM_INT32],
+                                           watermark_ptr, "");
+   LLVMValueRef alloc_ptr = LLVMBuildStructGEP2(obj->builder,
+                                                obj->types[LLVM_TLAB],
+                                                cgb->func->tlab, 2, "");
+   LLVMBuildStore(obj->builder, watermark, alloc_ptr);
+}
+
 static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -2100,6 +2115,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_CASE:
       cgen_macro_case(obj, cgb, ir);
       break;
+   case MACRO_RESTORE:
+      cgen_macro_restore(obj, cgb, ir);
+      break;
    default:
       cgen_abort(cgb, ir, "cannot generate LLVM for %s", jit_op_name(ir->op));
    }
@@ -2150,6 +2168,15 @@ static void cgen_frame_anchor(llvm_obj_t *obj, cgen_func_t *func)
    LLVMValueRef irpos_ptr = LLVMBuildStructGEP2(obj->builder, type,
                                                 func->anchor, 2, "");
    LLVMBuildStore(obj->builder, llvm_int32(obj, 0), irpos_ptr);
+
+   LLVMValueRef watermark_ptr = LLVMBuildStructGEP2(obj->builder, type,
+                                                    func->anchor, 3, "");
+   LLVMValueRef alloc_ptr = LLVMBuildStructGEP2(obj->builder,
+                                                obj->types[LLVM_TLAB],
+                                                func->tlab, 2, "");
+   LLVMValueRef alloc = LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32],
+                                       alloc_ptr, "");
+   LLVMBuildStore(obj->builder, alloc, watermark_ptr);
 }
 
 static void cgen_aot_cpool(llvm_obj_t *obj, cgen_func_t *func)
@@ -2498,14 +2525,13 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    LLVMBasicBlockRef entry_bb = llvm_append_block(obj, func->llvmfn, "entry");
    LLVMPositionBuilderAtEnd(obj->builder, entry_bb);
 
-   cgen_frame_anchor(obj, func);
-
    func->args = LLVMGetParam(func->llvmfn, 2);
    LLVMSetValueName(func->args, "args");
 
    func->tlab = LLVMGetParam(func->llvmfn, 3);
    LLVMSetValueName(func->tlab, "tlab");
 
+   cgen_frame_anchor(obj, func);
    cgen_cache_args(obj, func);
 
    jit_cfg_t *cfg = func->cfg = jit_get_cfg(func->source);
@@ -2658,55 +2684,57 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMValueRef anchor = LLVMGetParam(fn, 2);
    LLVMSetValueName(anchor, "anchor");
 
-   LLVMValueRef tlab_valid = LLVMBuildIsNotNull(obj->builder, tlab, "");
-
    LLVMBasicBlockRef fast_bb = llvm_append_block(obj, fn, "");
-   LLVMBasicBlockRef update_bb = llvm_append_block(obj, fn, "");
    LLVMBasicBlockRef slow_bb = llvm_append_block(obj, fn, "");
 
-   LLVMBuildCondBr(obj->builder, tlab_valid, fast_bb, slow_bb);
-
-   LLVMPositionBuilderAtEnd(obj->builder, fast_bb);
-
+   LLVMValueRef base_ptr =
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 1, "");
    LLVMValueRef alloc_ptr =
       LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 2, "");
    LLVMValueRef limit_ptr =
       LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 3, "");
 
    LLVMValueRef alloc =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], alloc_ptr, "");
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32], alloc_ptr, "");
    LLVMValueRef limit =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], limit_ptr, "");
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32], limit_ptr, "");
 
-   LLVMValueRef align_mask = llvm_intptr(obj, RT_ALIGN_MASK);
+   LLVMValueRef bytes_trunc = LLVMBuildTrunc(obj->builder, bytes,
+                                             obj->types[LLVM_INT32], "");
+
+   LLVMValueRef align_mask = llvm_int32(obj, RT_ALIGN_MASK);
    LLVMValueRef align_up =
       LLVMBuildAnd(obj->builder,
-                   LLVMBuildAdd(obj->builder, bytes, align_mask, ""),
-                   LLVMBuildNot(obj->builder, align_mask, ""), "");
+                   LLVMBuildAdd(obj->builder, bytes_trunc, align_mask, ""),
+                   LLVMConstNot(align_mask), "");
 
-   LLVMValueRef indexes[] = {
-      LLVMBuildZExt(obj->builder, align_up, obj->types[LLVM_INTPTR], "")
-   };
-   LLVMValueRef next = LLVMBuildInBoundsGEP2(obj->builder,
-                                             obj->types[LLVM_INT8],
-                                             alloc, indexes,
-                                             ARRAY_LEN(indexes), "");
+   LLVMValueRef next = LLVMBuildAdd(obj->builder, alloc, align_up, "");
 
    LLVMValueRef over = LLVMBuildICmp(obj->builder, LLVMIntUGT, next, limit, "");
-   LLVMBuildCondBr(obj->builder, over, slow_bb, update_bb);
+   LLVMBuildCondBr(obj->builder, over, slow_bb, fast_bb);
 
-   LLVMPositionBuilderAtEnd(obj->builder, update_bb);
+   LLVMPositionBuilderAtEnd(obj->builder, fast_bb);
 
    LLVMBuildStore(obj->builder, next, alloc_ptr);
-   LLVMBuildRet(obj->builder, alloc);
+
+   LLVMValueRef base =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], base_ptr, "");
+
+   LLVMValueRef indexes[] = { alloc };
+   LLVMValueRef fast_ptr = LLVMBuildInBoundsGEP2(obj->builder,
+                                                 obj->types[LLVM_INT8],
+                                                 base, indexes,
+                                                 ARRAY_LEN(indexes), "");
+
+   LLVMBuildRet(obj->builder, fast_ptr);
 
    LLVMPositionBuilderAtEnd(obj->builder, slow_bb);
 
    LLVMValueRef args[] = { bytes, anchor };
-   LLVMValueRef ptr = llvm_call_fn(obj, LLVM_MSPACE_ALLOC, args,
-                                   ARRAY_LEN(args));
+   LLVMValueRef slow_ptr = llvm_call_fn(obj, LLVM_MSPACE_ALLOC, args,
+                                        ARRAY_LEN(args));
 
-   LLVMBuildRet(obj->builder, ptr);
+   LLVMBuildRet(obj->builder, slow_ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

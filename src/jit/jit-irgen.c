@@ -63,6 +63,7 @@ typedef struct {
    jit_value_t     contextarg;
    vcode_reg_t     flags;
    unsigned        bufsz;
+   bool            used_tlab;
 } jit_irgen_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -664,6 +665,11 @@ static void macro_case(jit_irgen_t *g, jit_reg_t test, jit_value_t cmp,
    irgen_patch_label(g, ir, l);
 }
 
+static void macro_restore(jit_irgen_t *g)
+{
+   irgen_emit_nullary(g, MACRO_RESTORE, JIT_CC_NONE, JIT_REG_INVALID);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Vcode to JIT IR lowering
 
@@ -1201,6 +1207,7 @@ static void irgen_op_return(jit_irgen_t *g, int op)
 
    case VCODE_UNIT_PROCEDURE:
       j_send(g, 0, jit_null_ptr());
+      macro_restore(g);
       break;
 
    case VCODE_UNIT_INSTANCE:
@@ -1215,6 +1222,10 @@ static void irgen_op_return(jit_irgen_t *g, int op)
          irgen_send_args(g, op, 0);
       else
          j_send(g, 0, jit_null_ptr());  // Procedure compiled as function
+
+      if (g->used_tlab && !vcode_unit_has_escaping_tlab(g->func->unit))
+         macro_restore(g);
+
       break;
    }
 
@@ -2123,10 +2134,15 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       j_call(g, handle);
 
       if (result != VCODE_INVALID_REG) {
-         const int slots = irgen_slots_for_type(vcode_reg_type(result));
+         vcode_type_t vtype = vcode_reg_type(result);
+         const int slots = irgen_slots_for_type(vtype);
          g->map[result] = j_recv(g, 0);
          for (int i = 1; i < slots; i++)
             j_recv(g, i);   // Must be contiguous registers
+
+         const vtype_kind_t vkind = vtype_kind(vtype);
+         g->used_tlab |= vkind == VCODE_TYPE_UARRAY
+            || vkind == VCODE_TYPE_POINTER;
       }
       else if (vcode_unit_kind() == VCODE_UNIT_FUNCTION) {
          irgen_label_t *cont = irgen_alloc_label(g);

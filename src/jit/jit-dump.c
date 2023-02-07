@@ -42,7 +42,7 @@ const char *jit_op_name(jit_op_t op)
       static const char *names[] = {
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
          "$FFICALL", "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC",
-         "$CASE",
+         "$CASE", "$RESTORE",
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];

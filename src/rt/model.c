@@ -818,7 +818,9 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    jit_scalar_t state = { .pointer = NULL };
    jit_scalar_t result;
 
-   if (jit_fastcall(m->jit, proc->handle, &result, state, context, NULL))
+   tlab_t tlab = jit_null_tlab(m->jit);
+
+   if (jit_fastcall(m->jit, proc->handle, &result, state, context, &tlab))
       *mptr_get(proc->privdata) = result.pointer;
    else
       m->force_stop = true;
@@ -834,8 +836,8 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    assert(!tlab_valid(thread->spare_tlab));
 
    if (tlab_valid(proc->tlab)) {
-      TRACE("using private TLAB at %p (%zu used)", proc->tlab.base,
-            proc->tlab.alloc - proc->tlab.base);
+      TRACE("using private TLAB at %p (%u used)", proc->tlab.base,
+            proc->tlab.alloc);
       tlab_move(thread->tlab, thread->spare_tlab);
       tlab_move(proc->tlab, thread->tlab);
    }
@@ -899,7 +901,9 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       if (s->parent != NULL)
          context.pointer = *mptr_get(s->parent->privdata);
 
-      if (jit_fastcall(m->jit, handle, &result, context, p2, NULL))
+      tlab_t tlab = jit_null_tlab(m->jit);
+
+      if (jit_fastcall(m->jit, handle, &result, context, p2, &tlab))
          *mptr_get(s->privdata) = result.pointer;
       else {
          m->force_stop = true;
@@ -3122,13 +3126,13 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
 
 void x_claim_tlab(tlab_t *tlab)
 {
-   TRACE("claiming TLAB for private use (used %zu/%d)",
-         tlab->alloc - tlab->base, TLAB_SIZE);
+   TRACE("claiming TLAB for private use (used %u/%u)",
+         tlab->alloc, tlab->limit);
 
-   assert(tlab_valid(*tlab));
-   assert(tlab->alloc > tlab->base);
-
-   tlab_move(*tlab, active_proc->tlab);
+   if (tlab_valid(*tlab)) {
+      assert(tlab->alloc <= tlab->limit);
+      tlab_move(*tlab, active_proc->tlab);
+   }
 }
 
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)

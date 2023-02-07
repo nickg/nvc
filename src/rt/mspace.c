@@ -345,8 +345,8 @@ void tlab_acquire(mspace_t *m, tlab_t *t)
 
    t->mspace = m;
    t->base   = mspace_alloc(m, TLAB_SIZE);
-   t->limit  = t->base + TLAB_SIZE;
-   t->alloc  = t->base;
+   t->limit  = TLAB_SIZE;
+   t->alloc  = 0;
    t->mptr   = mptr_new(m, "tlab");
 
    // This ensures the TLAB is kept alive over GCs
@@ -369,10 +369,10 @@ void tlab_release(tlab_t *t)
 void *tlab_alloc(tlab_t *t, size_t size)
 {
    assert(t->alloc <= t->limit);
-   assert(((uintptr_t)t->alloc & (sizeof(double) - 1)) == 0);
+   assert((t->alloc & (sizeof(double) - 1)) == 0);
 
    if (t->alloc + size <= t->limit) {
-      void *p = t->alloc;
+      void *p = t->base + t->alloc;
       t->alloc += ALIGN_UP(size, sizeof(double));
       return p;
    }

@@ -107,6 +107,8 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result);
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
 
+tlab_t jit_null_tlab(jit_t *j);
+
 jit_pack_t *jit_pack_new(void);
 void jit_pack_free(jit_pack_t *jp);
 void jit_pack_encode(jit_pack_t *jp, jit_t *j, jit_handle_t handle);

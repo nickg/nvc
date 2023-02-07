@@ -1244,8 +1244,9 @@ START_TEST(test_assemble1)
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
+   tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, &tlab));
 
    ck_assert_int_eq(result.integer, 7);
 
@@ -1268,8 +1269,9 @@ START_TEST(test_assemble2)
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
+   tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, &tlab));
 
    ck_assert_int_eq(result.integer, 0);
 
@@ -1294,8 +1296,9 @@ START_TEST(test_cfg1)
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
+   tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, &tlab));
 
    ck_assert_int_eq(result.integer, 120);
 
@@ -1518,8 +1521,9 @@ START_TEST(test_cfg2)
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
 
+   tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t result, p0 = { .integer = 5 };
-   fail_unless(jit_fastcall(j, h1, &result, p0, p0, NULL));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p0, &tlab));
 
    ck_assert_int_eq(result.integer, 5);
 
@@ -1540,7 +1544,7 @@ START_TEST(test_cfg2)
 
    jit_handle_t h2 = jit_assemble(j, ident_new("myfunc2"), text2);
 
-   fail_unless(jit_fastcall(j, h2, &result, p0, p0, NULL));
+   fail_unless(jit_fastcall(j, h2, &result, p0, p0, &tlab));
    ck_assert_int_eq(result.integer, 55);
 
    jit_func_t *f2 = jit_get_func(j, h2);
@@ -1773,6 +1777,37 @@ START_TEST(test_issue608)
 }
 END_TEST
 
+START_TEST(test_tlab1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/jit/tlab1.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   jit_t *j = jit_new();
+
+   jit_handle_t h1 = compile_for_test(j, "WORK.TLAB1.FUNC1(I)I");
+
+   mspace_t *m = jit_get_mspace(j);
+
+   tlab_t tlab = {};
+   tlab_acquire(m, &tlab);
+
+   jit_scalar_t p0 = { .integer = 0 };
+   jit_scalar_t p1 = { .integer = 5 };
+   jit_scalar_t result;
+   fail_unless(jit_fastcall(j, h1, &result, p0, p1, &tlab));
+
+   ck_assert_int_eq(tlab.alloc, 0);
+
+   tlab_release(&tlab);
+
+   jit_free(j);
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1821,6 +1856,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_dce1);
    tcase_add_test(tc, test_nops1);
    tcase_add_test(tc, test_issue608);
+   tcase_add_test(tc, test_tlab1);
    suite_add_tcase(s, tc);
 
    return s;

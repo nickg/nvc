@@ -23,6 +23,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "object.h"
+#include "rt/mspace.h"
 #include "rt/rt.h"
 #include "type.h"
 
@@ -1046,8 +1047,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_CLAIM_TLAB:
       {
-         if (tlab != NULL)
-            x_claim_tlab(tlab);
+         x_claim_tlab(tlab);
       }
       break;
 

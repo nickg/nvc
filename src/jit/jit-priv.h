@@ -81,6 +81,7 @@ typedef enum {
    MACRO_LALLOC,
    MACRO_SALLOC,
    MACRO_CASE,
+   MACRO_RESTORE,
 } jit_op_t;
 
 typedef enum {
@@ -289,10 +290,12 @@ typedef struct _jit_func {
    object_t       *object;
 } jit_func_t;
 
+// The code generator knows the layout of this struct
 typedef struct _jit_anchor {
    jit_anchor_t *caller;
    jit_func_t   *func;
-   unsigned      irpos;
+   uint32_t      irpos;
+   uint32_t      watermark;
 } jit_anchor_t;
 
 typedef enum {

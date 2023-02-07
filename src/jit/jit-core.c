@@ -463,8 +463,9 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    if (kind != VCODE_UNIT_PACKAGE && kind != VCODE_UNIT_INSTANCE)
       fatal_trace("cannot link unit %s", istr(f->name));
 
+   tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
-   if (!jit_fastcall(j, f->handle, &result, p1, p2, NULL)) {
+   if (!jit_fastcall(j, f->handle, &result, p1, p2, &tlab)) {
       error_at(&(f->object->loc), "failed to initialise %s", istr(f->name));
       result.pointer = NULL;
    }
@@ -666,7 +667,8 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       thread->jmp_buf_valid = 1;
       jit_transition(j, oldstate, JIT_RUNNING);
 
-      (*f->entry)(f, NULL, args, NULL);
+      tlab_t tlab = jit_null_tlab(j);
+      (*f->entry)(f, NULL, args, &tlab);
 
       *result = args[0];
    }
@@ -811,6 +813,12 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
 
    jit_free_func(f);
    return ok;
+}
+
+tlab_t jit_null_tlab(jit_t *j)
+{
+   tlab_t t = { .mspace = j->mspace };
+   return t;
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)

@@ -75,6 +75,8 @@ static void run_benchmark(tree_t pack, tree_t proc)
 
    double ops_sec[ITERATIONS + 1], usec_op[ITERATIONS + 1];
 
+   tlab_t tlab = jit_null_tlab(j);
+
    for (int trial = 0; trial < ITERATIONS + 1; trial++) {
       if (trial == 0)
          printf("Warmup:      ");
@@ -87,7 +89,7 @@ static void run_benchmark(tree_t pack, tree_t proc)
       for (; (now = get_timestamp_us()) < start + 1000000; iters++) {
          jit_scalar_t result;
          jit_scalar_t dummy = { .integer = 0 };
-         if (!jit_fastcall(j, hproc, &result, context, dummy, NULL))
+         if (!jit_fastcall(j, hproc, &result, context, dummy, &tlab))
             fatal("error in benchmark subprogram");
       }
 

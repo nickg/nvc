@@ -31,8 +31,8 @@ typedef void (*mspace_oom_fn_t)(mspace_t *, size_t);
 typedef struct _tlab {
    mspace_t *mspace;
    char     *base;
-   char     *alloc;
-   char     *limit;
+   uint32_t  alloc;
+   uint32_t  limit;
    mptr_t    mptr;
 } tlab_t;
 
@@ -46,7 +46,7 @@ typedef struct _tlab {
 
 #define tlab_reset(t) do {                      \
       assert(tlab_valid((t)));                  \
-      (t).alloc = (t).base;                     \
+      (t).alloc = 0;                            \
    } while (0)
 
 mspace_t *mspace_new(size_t size);

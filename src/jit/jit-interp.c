@@ -706,11 +706,7 @@ static void interp_lalloc(jit_interp_t *state, jit_ir_t *ir)
    thread->anchor = state->anchor;
 
    const size_t bytes = interp_get_value(state, ir->arg1).integer;
-
-   if (state->tlab != NULL)
-      state->regs[ir->result].pointer = tlab_alloc(state->tlab, bytes);
-   else
-      state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
+   state->regs[ir->result].pointer = tlab_alloc(state->tlab, bytes);
 
    thread->anchor = NULL;
 }
@@ -757,6 +753,12 @@ static void interp_case(jit_interp_t *state, jit_ir_t *ir)
 
    if (test.integer == cmp.integer)
       interp_branch_to(state, ir->arg2);
+}
+
+static void interp_restore(jit_interp_t *state, jit_ir_t *ir)
+{
+   assert(state->tlab->alloc >= state->anchor->watermark);
+   state->tlab->alloc = state->anchor->watermark;
 }
 
 static void interp_loop(jit_interp_t *state)
@@ -911,6 +913,9 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_CASE:
          interp_case(state, ir);
          break;
+      case MACRO_RESTORE:
+         interp_restore(state, ir);
+         break;
       default:
          interp_dump(state);
          fatal_trace("cannot interpret opcode %s", jit_op_name(ir->op));
@@ -929,8 +934,9 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
       jit_tier_up(f);
 
    jit_anchor_t anchor = {
-      .caller = caller,
-      .func   = f,
+      .caller    = caller,
+      .func      = f,
+      .watermark = tlab->alloc,
    };
 
    // Using VLAs here as we need these allocated on the stack so the
