@@ -244,6 +244,7 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
       { "count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED },
       { "count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      },
       { "include-mems",          COVER_MASK_TOGGLE_INCLUDE_MEMS         },
+      { "exclude-unreachable",   COVER_MASK_EXCLUDE_UNREACHABLE         }
    };
 
    for (const char *start = str; ; str++) {
