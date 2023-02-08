@@ -532,6 +532,45 @@ void x_func_wait(void)
 // Entry point from interpreter or JIT compiled code
 
 DLLEXPORT
+void __nvc_sched_waveform(jit_anchor_t *anchor, jit_scalar_t *args,
+                          tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = anchor;
+
+   sig_shared_t *shared = args[0].pointer;
+   int32_t       offset = args[1].integer;
+   int32_t       count  = args[2].integer;
+   jit_scalar_t  value  = { .integer = args[3].integer };
+   int64_t       after  = args[4].integer;
+   int64_t       reject = args[5].integer;
+   bool          scalar = args[6].integer;
+
+   if (scalar)
+      x_sched_waveform_s(shared, offset, value.integer, after, reject);
+   else
+      x_sched_waveform(shared, offset, value.pointer, count,
+                       after, reject);
+
+   thread->anchor = NULL;
+}
+
+DLLEXPORT
+void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = anchor;
+
+   sig_shared_t *shared = args[0].pointer;
+   int32_t       offset = args[1].integer;
+   int32_t       count  = args[2].integer;
+
+   args[0].integer = x_test_net_event(shared, offset, count);
+
+   thread->anchor = NULL;
+}
+
+DLLEXPORT
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab)
 {
@@ -684,21 +723,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_SCHED_WAVEFORM:
-      {
-         sig_shared_t *shared = args[0].pointer;
-         int32_t       offset = args[1].integer;
-         int32_t       count  = args[2].integer;
-         jit_scalar_t  value  = { .integer = args[3].integer };
-         int64_t       after  = args[4].integer;
-         int64_t       reject = args[5].integer;
-         bool          scalar = args[6].integer;
-
-         if (scalar)
-            x_sched_waveform_s(shared, offset, value.integer, after, reject);
-         else
-            x_sched_waveform(shared, offset, value.pointer, count,
-                             after, reject);
-      }
+      __nvc_sched_waveform(anchor, args, tlab);
       break;
 
    case JIT_EXIT_SCHED_EVENT:
@@ -1006,13 +1031,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_TEST_EVENT:
-      {
-         sig_shared_t *shared = args[0].pointer;
-         int32_t       offset = args[1].integer;
-         int32_t       count  = args[2].integer;
-
-         args[0].integer = x_test_net_event(shared, offset, count);
-      }
+      __nvc_test_event(anchor, args, tlab);
       break;
 
    case JIT_EXIT_TEST_ACTIVE:

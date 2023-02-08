@@ -40,6 +40,8 @@
   __nvc_get_object;
   __nvc_mspace_alloc;
   __nvc_putpriv;
+  __nvc_sched_waveform;
+  __nvc_test_event;
   _debug_dump;
   _debug_out;
 

@@ -116,6 +116,8 @@ typedef enum {
    LLVM_DO_FFICALL,
    LLVM_GET_OBJECT,
    LLVM_TLAB_ALLOC,
+   LLVM_SCHED_WAVEFORM,
+   LLVM_TEST_EVENT,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -688,6 +690,36 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 2);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 3);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 4);
+      }
+      break;
+
+   case LLVM_SCHED_WAVEFORM:
+   case LLVM_TEST_EVENT:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_INT64], 0),
+#endif
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_TLAB], 0),
+#endif
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         const char *sym = which == LLVM_SCHED_WAVEFORM
+            ? "__nvc_sched_waveform" : "__nvc_test_event";
+
+         fn = llvm_add_fn(obj, sym, obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 1);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 1);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 2);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 3);
       }
       break;
 
@@ -1797,15 +1829,43 @@ static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    cgen_sync_irpos(obj, cgb, ir);
 
-   LLVMValueRef which = cgen_get_value(obj, cgb, ir->arg1);
+   switch (ir->arg1.exit) {
+   case JIT_EXIT_SCHED_WAVEFORM:
+      {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            cgb->func->args,
+            cgb->func->tlab,
+         };
+         llvm_call_fn(obj, LLVM_SCHED_WAVEFORM, args, ARRAY_LEN(args));
+      }
+      break;
 
-   LLVMValueRef args[] = {
-      which,
-      PTR(cgb->func->anchor),
-      cgb->func->args,
-      cgb->func->tlab,
-   };
-   llvm_call_fn(obj, LLVM_DO_EXIT, args, ARRAY_LEN(args));
+   case JIT_EXIT_TEST_EVENT:
+      {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            cgb->func->args,
+            cgb->func->tlab,
+         };
+         llvm_call_fn(obj, LLVM_TEST_EVENT, args, ARRAY_LEN(args));
+      }
+      break;
+
+   default:
+      {
+         LLVMValueRef which = cgen_get_value(obj, cgb, ir->arg1);
+
+         LLVMValueRef args[] = {
+            which,
+            PTR(cgb->func->anchor),
+            cgb->func->args,
+            cgb->func->tlab,
+         };
+         llvm_call_fn(obj, LLVM_DO_EXIT, args, ARRAY_LEN(args));
+      }
+      break;
+   }
 }
 
 static void cgen_macro_fficall(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)

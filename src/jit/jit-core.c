@@ -124,7 +124,7 @@ jit_thread_local_t *jit_thread_local(void)
 {
    static __thread jit_thread_local_t *local = NULL;
 
-   if (local == NULL) {
+   if (unlikely(local == NULL)) {
       local = xcalloc(sizeof(jit_thread_local_t));
       local->state = JIT_IDLE;
    }
