@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,19 +21,31 @@
 #include "prim.h"
 #include "jit/jit.h"
 
-typedef enum {
-   FFI_VOID,
-   FFI_INT8,
-   FFI_INT16,
-   FFI_INT32,
-   FFI_INT64,
-   FFI_FLOAT,
-   FFI_POINTER,
-   FFI_UARRAY,
-   FFI_SIGNAL,
-} ffi_type_t;
+typedef char ffi_type_t;
+#define FFI_VOID 'v'
+#define FFI_INT8 'b'
+#define FFI_INT16 'w'
+#define FFI_INT32 'd'
+#define FFI_INT64 'q'
+#define FFI_FLOAT 'f'
+#define FFI_POINTER 'p'
+#define FFI_UARRAY 'u'
+#define FFI_SIGNAL 's'
 
-typedef uint64_t ffi_spec_t;
+typedef union {
+   struct {
+      ffi_type_t embed[7];
+      uint8_t    count;
+   };
+   const ffi_type_t *ext;
+   uint64_t          bits;
+} ffi_spec_t;
+
+STATIC_ASSERT(sizeof(ffi_spec_t) == 8);
+
+#define ffi_spec_valid(s) ((s).bits != 0)
+#define ffi_spec_get(s, n) ((s).count ? (s).embed[(n)] : s.ext[(n)])
+#define ffi_spec_has(s, n) (((s).count == 0 && (s).ext[(n)]) || (n) < (s).count)
 
 typedef struct _jit_foreign jit_foreign_t;
 
@@ -64,7 +76,8 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
 ident_t ffi_get_sym(jit_foreign_t *ff);
 ffi_spec_t ffi_get_spec(jit_foreign_t *ff);
 
-int ffi_count_args(ffi_spec_t spec);
+ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
+
 ffi_uarray_t ffi_wrap_str(char *buf, size_t len);
 size_t ffi_uarray_len(const ffi_uarray_t *u);
 bool ffi_is_integral(ffi_type_t type);

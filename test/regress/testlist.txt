@@ -718,3 +718,4 @@ cover11         cover,shell
 issue609        normal
 implicit5       normal
 cover12         cover,shell
+issue612        normal,vhpi

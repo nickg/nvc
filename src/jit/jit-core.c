@@ -317,10 +317,11 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
          const char *str = (char *)r->ptr;
          if (r->kind == RELOC_FOREIGN) {
-            char *eptr = NULL;
-            ffi_spec_t spec = strtoull(str, &eptr, 10);
-            if (*eptr != '\b')
+            const char *eptr = strchr(str, '\b');
+            if (eptr == NULL)
                fatal_trace("invalid foreign reloc '%s'", str);
+
+            ffi_spec_t spec = ffi_spec_new(str, eptr - str);
 
             ident_t id = ident_new(eptr + 1);
             r->ptr = jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
@@ -688,11 +689,9 @@ static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
 {
    jit_fill_irbuf(f);  // Ensure FFI spec is set
 
-   const int nargs = ffi_count_args(f->spec);
-   assert(nargs <= JIT_MAX_ARGS);
    int wptr = 0;
-   for (ffi_spec_t spec = f->spec >> 4; wptr < nargs; spec >>= 4) {
-      switch (spec & 0xf) {
+   for (int i = 1; ffi_spec_has(f->spec, i); i++) {
+      switch (ffi_spec_get(f->spec, i)) {
       case FFI_POINTER:
          args[wptr++].pointer = va_arg(ap, void *);
          break;
@@ -714,7 +713,6 @@ static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
          break;
       }
    }
-   assert(wptr == nargs);
 }
 
 bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...)
@@ -756,10 +754,10 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    jit_func_t *f = jit_get_func(j, handle);
 
    jit_fill_irbuf(f);   // Ensure FFI spec is set
-   assert(f->spec != 0);
+   assert(ffi_spec_valid(f->spec));
 
-   ffi_type_t atype = (f->spec >> 8) & 0xf;
-   ffi_type_t rtype = f->spec & 0xf;
+   ffi_type_t atype = ffi_spec_get(f->spec, 2);
+   ffi_type_t rtype = ffi_spec_get(f->spec, 0);
 
    jit_scalar_t args[JIT_MAX_ARGS];
    args[0] = context;

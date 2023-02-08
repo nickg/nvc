@@ -241,7 +241,7 @@ static void pack_func(pack_func_t *pf, jit_t *j, jit_func_t *f)
    pack_uint(pf, f->nregs);
    pack_uint(pf, f->nvars);
    pack_uint(pf, f->cpoolsz);
-   pack_uint(pf, f->spec);
+   pack_uint(pf, f->spec.bits);   // XXX: need a function to pack jit_foreign_t
    pack_uint(pf, f->framesz);
 
    for (int i = 0; i < f->nvars; i++) {
@@ -531,12 +531,12 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
 
    pf->wptr = ubuf;
 
-   f->nirs    = unpack_uint(pf);
-   f->nregs   = unpack_uint(pf);
-   f->nvars   = unpack_uint(pf);
-   f->cpoolsz = unpack_uint(pf);
-   f->spec    = unpack_uint(pf);
-   f->framesz = unpack_uint(pf);
+   f->nirs      = unpack_uint(pf);
+   f->nregs     = unpack_uint(pf);
+   f->nvars     = unpack_uint(pf);
+   f->cpoolsz   = unpack_uint(pf);
+   f->spec.bits = unpack_uint(pf);
+   f->framesz   = unpack_uint(pf);
 
    f->cpool = pf->cpool;
    f->irbuf = xmalloc_array(f->nirs, sizeof(jit_ir_t));

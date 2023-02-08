@@ -2344,7 +2344,12 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                                    (uintptr_t)args[j].foreign) == NULL) {
                   // Encode spec in name string
                   LOCAL_TEXT_BUF tb = tb_new();
-                  tb_printf(tb, "%"PRIi64"\b", ffi_get_spec(args[j].foreign));
+                  ffi_spec_t spec = ffi_get_spec(args[j].foreign);
+                  if (spec.count > 0)
+                     tb_catn(tb, spec.embed, spec.count);
+                  else
+                     tb_cat(tb, spec.ext);
+                  tb_append(tb, '\b');
                   tb_istr(tb, ffi_get_sym(args[j].foreign));
 
                   const cgen_reloc_t r = {

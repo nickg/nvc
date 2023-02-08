@@ -961,20 +961,21 @@ static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
    if (ff != NULL)
       return ff;
 
-   ffi_spec_t spec = 0;
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   vcode_reg_t result = vcode_get_result(op);
+   if (result != VCODE_INVALID_REG)
+      tb_append(tb, irgen_ffi_type(vcode_reg_type(result)));
+   else
+      tb_append(tb, FFI_VOID);
 
    const int nargs = vcode_count_args(op);
    for (int i = 0; i < nargs; i++) {
       vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, i));
-      spec |= irgen_ffi_type(vtype) << (i + 1) * 4;
+      tb_append(tb, irgen_ffi_type(vtype));
    }
 
-   vcode_reg_t result = vcode_get_result(op);
-   if (result != VCODE_INVALID_REG)
-      spec |= irgen_ffi_type(vcode_reg_type(result));
-   else
-      spec |= FFI_VOID;
-
+   ffi_spec_t spec = ffi_spec_new(tb_get(tb), tb_len(tb));
    return jit_ffi_bind(func, spec, NULL);
 }
 
@@ -3720,7 +3721,10 @@ static void irgen_locals(jit_irgen_t *g, bool force_stack)
 
 static void irgen_params(jit_irgen_t *g, int first)
 {
-   ffi_spec_t spec = 0;
+   // We never need more than the first few argument types
+   ffi_type_t types[7];
+   types[first] = FFI_POINTER;
+   types[0] = FFI_VOID;
 
    const int nparams = vcode_count_params();
    for (int i = 0, pslot = first; i < nparams; i++) {
@@ -3730,23 +3734,20 @@ static void irgen_params(jit_irgen_t *g, int first)
       g->map[preg] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers
-      spec |= irgen_ffi_type(vtype) << (i + 1) * 4;
+
+      if (i + first + 1 < ARRAY_LEN(types))
+         types[i + first + 1] = irgen_ffi_type(vtype);
    }
 
    vunit_kind_t kind = vcode_unit_kind();
-   bool has_state_arg = (kind == VCODE_UNIT_PROCEDURE);
    if (kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_THUNK) {
       vcode_type_t rtype = vcode_unit_result();
-      if (rtype == VCODE_INVALID_TYPE)
-         has_state_arg = true;
-      else
-         spec |= irgen_ffi_type(rtype);
+      if (rtype != VCODE_INVALID_TYPE)
+         types[0] = irgen_ffi_type(rtype);
    }
 
-   if (has_state_arg)
-      spec = (spec << 4) | (FFI_POINTER << 4);
-
-   g->func->spec = spec;
+   const int ntypes = MIN(ARRAY_LEN(types), first + nparams + 1);
+   g->func->spec = ffi_spec_new(types, ntypes);
 }
 
 static void irgen_jump_table(jit_irgen_t *g)
@@ -3892,8 +3893,10 @@ void jit_irgen(jit_func_t *f)
    const int first_param = irgen_is_procedure() || has_jump_table ? 1 : 0;
    if (has_params)
       irgen_params(g, first_param);
-   else if (kind == VCODE_UNIT_PROCESS)
-      g->func->spec = (FFI_POINTER << 8) | (FFI_POINTER << 4);
+   else if (kind == VCODE_UNIT_PROCESS) {
+      const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
+      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+   }
 
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));

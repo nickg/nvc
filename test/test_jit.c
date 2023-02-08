@@ -1149,9 +1149,8 @@ START_TEST(test_ffi1)
 
    fail_unless(jit_ffi_get(add_i) == NULL);
 
-   const ffi_spec_t add_spec = FFI_INT32
-      | (FFI_INT32 << 4)
-      | (FFI_INT32 << 8);
+   const ffi_type_t add_types[] = { FFI_INT32, FFI_INT32, FFI_INT32 };
+   ffi_spec_t add_spec = ffi_spec_new(add_types, 3);
 
    jit_foreign_t *add_ff = jit_ffi_bind(add_i, add_spec, NULL);
    fail_if(add_ff == NULL);
@@ -1172,10 +1171,10 @@ START_TEST(test_ffi1)
 
    ident_t fma_i = ident_new("test_ffi_fma");
 
-   const ffi_spec_t fma_spec = FFI_FLOAT
-      | (FFI_FLOAT << 4)
-      | (FFI_FLOAT << 8)
-      | (FFI_FLOAT << 12);
+   const ffi_type_t fma_types[] = {
+      FFI_FLOAT, FFI_FLOAT, FFI_FLOAT, FFI_FLOAT
+   };
+   ffi_spec_t fma_spec = ffi_spec_new(fma_types, 4);
 
    jit_foreign_t *fma_ff = jit_ffi_bind(fma_i, fma_spec, NULL);
    fail_if(fma_ff == NULL);
@@ -1198,8 +1197,8 @@ START_TEST(test_ffi1)
 
    ident_t len_i = ident_new("len");
 
-   const ffi_spec_t len_spec = FFI_INT32
-      | (FFI_UARRAY << 4);
+   const ffi_type_t len_types[] = { FFI_INT32, FFI_UARRAY };
+   ffi_spec_t len_spec = ffi_spec_new(len_types, 2);
 
    jit_foreign_t *len_ff = jit_ffi_bind(len_i, len_spec, test_ffi_arraylen);
    fail_if(len_ff == NULL);
@@ -1214,8 +1213,8 @@ START_TEST(test_ffi1)
 
    ident_t sum_i = ident_new("sum");
 
-   const ffi_spec_t sum_spec = FFI_INT32
-      | (FFI_UARRAY << 4);
+   const ffi_type_t sum_types[] = { FFI_INT32, FFI_UARRAY };
+   ffi_spec_t sum_spec = ffi_spec_new(sum_types, 2);
 
    jit_foreign_t *sum_ff = jit_ffi_bind(sum_i, sum_spec, test_ffi_arraysum);
    fail_if(sum_ff == NULL);

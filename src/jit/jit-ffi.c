@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <ffi.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +42,7 @@ typedef struct _jit_foreign {
    ident_t     sym;
    ffi_spec_t  spec;
    int         nargs;
-   ffi_type   *args[0];
+   ffi_type   *args[];
 } jit_foreign_t;
 
 typedef struct _jit_dll {
@@ -92,37 +93,42 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
 
    assert(hash_get(cache, sym) == NULL);
 
-   const int nargs = ffi_count_args(spec);
-   if (nargs > 15)
-      fatal("sorry, cannot call foreign function %s with more than "
-            "15 arguments", istr(sym));
+   ffi_spec_t copy = spec;
+   if (spec.count == 0)
+      copy.ext = xstrdup(spec.ext);
 
-   int adj_nargs = nargs;
-   if ((spec & 0xf) == FFI_UARRAY)
-      adj_nargs++;
+   int nargs = 0;
+   for (int i = 1; ffi_spec_has(spec, i); i++) {
+      const ffi_type_t type = ffi_spec_get(spec, i);
+      nargs += (type == FFI_UARRAY) ? 3 : 1;
+   }
+
+   const ffi_type_t rtype = ffi_spec_get(spec, 0);
+   const int adj_nargs = (rtype == FFI_UARRAY) ? nargs + 1 : nargs;
 
    jit_foreign_t *ff = xcalloc_flex(sizeof(jit_foreign_t),
                                     adj_nargs, sizeof(ffi_type *));
    ff->ptr   = ptr;
    ff->sym   = sym;
+   ff->spec  = copy;
    ff->nargs = nargs;
-   ff->spec  = spec;
 
    int wptr = 0;
-   for (ffi_spec_t s = spec >> 4; (s & 0xf) != FFI_VOID; s >>= 4) {
-      if ((s & 0xf) == FFI_UARRAY) {
+   for (int i = 1; ffi_spec_has(spec, i); i++) {
+      const ffi_type_t type = ffi_spec_get(spec, i);
+      if (type == FFI_UARRAY) {
          ff->args[wptr++] = &ffi_type_pointer;
          ff->args[wptr++] = &ffi_type_sint32;   // Left
          ff->args[wptr++] = &ffi_type_sint32;   // Length
       }
       else
-         ff->args[wptr++] = libffi_type_for(s & 0xf);
+         ff->args[wptr++] = libffi_type_for(type);
    }
-   if ((spec & 0xf) == FFI_UARRAY)
+   if (rtype == FFI_UARRAY)
       ff->args[wptr++] = &ffi_type_pointer;
    assert(wptr == adj_nargs);
 
-   ffi_type *ret = libffi_type_for(spec & 0xf);
+   ffi_type *ret = libffi_type_for(rtype);
 
    if (ffi_prep_cif(&ff->cif, FFI_DEFAULT_ABI, adj_nargs,
                     ret, ff->args) != FFI_OK)
@@ -138,8 +144,10 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
    for (int i = 0; i < ff->nargs; i++)
       aptrs[i] = &(args[i].integer);
 
+   const ffi_type_t rtype = ffi_spec_get(ff->spec, 0);
+
    ffi_uarray_t u, *up = &u;
-   if ((ff->spec & 0xf) == FFI_UARRAY)
+   if (rtype == FFI_UARRAY)
       aptrs[ff->nargs] = &up;
 
    if (ff->ptr == NULL) {
@@ -153,24 +161,15 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
    intmax_t result;
    ffi_call(&ff->cif, ff->ptr, &result, aptrs);
 
-   if ((ff->spec & 0xf) == FFI_UARRAY) {
+   if (rtype == FFI_UARRAY) {
       args[0].pointer = u.ptr;
       args[1].integer = u.dims[0].left;
       args[2].integer = u.dims[0].length;
    }
-   else if (ffi_is_integral(ff->spec & 0xf))
-      args[0].integer = ffi_widen_int(ff->spec & 0xf, &result);
+   else if (ffi_is_integral(rtype))
+      args[0].integer = ffi_widen_int(rtype, &result);
    else
       args[0].integer = result;
-}
-
-int ffi_count_args(ffi_spec_t spec)
-{
-   int count = 0;
-   for (ffi_spec_t s = spec >> 4; s; s >>= 4)
-      count += (s & 0xf) == FFI_UARRAY ? 3 : 1;
-
-   return count;
 }
 
 ffi_uarray_t ffi_wrap_str(char *buf, size_t len)
@@ -329,4 +328,24 @@ ident_t ffi_get_sym(jit_foreign_t *ff)
 ffi_spec_t ffi_get_spec(jit_foreign_t *ff)
 {
    return ff->spec;
+}
+
+ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
+{
+   assert(count > 0);
+
+#ifdef DEBUG
+   for (int i = 0; i < count; i++)
+      assert(islower(types[i]));
+#endif
+
+   ffi_spec_t spec = {};
+   if (count < 7) {
+      memcpy(spec.embed, types, count);
+      spec.count = count;
+   }
+   else
+      spec.ext = types;
+
+   return spec;
 }

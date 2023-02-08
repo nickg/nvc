@@ -29,20 +29,22 @@ static jit_handle_t assemble(jit_t *j, const char *text, const char *name,
 {
    jit_handle_t h = jit_assemble(j, ident_new(name), text);
 
-   ffi_spec_t spec = 0;
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_append(tb, 'v');
+
    for (; *ss; ss++) {
       switch (*ss) {
-      case 'i': spec |= FFI_INT32; break;
-      case 'I': spec |= FFI_INT64; break;
-      case 'p': spec |= FFI_POINTER; break;
-      case 'f': spec |= FFI_FLOAT; break;
+      case 'i': tb_append(tb, FFI_INT32); break;
+      case 'I': tb_append(tb, FFI_INT64); break;
+      case 'p': tb_append(tb, FFI_POINTER); break;
+      case 'f': tb_append(tb, FFI_FLOAT); break;
       default:
          fatal_trace("invalid character '%c' in spec", *ss);
       }
-      spec <<= 4;
    }
 
-   jit_get_func(j, h)->spec = spec;
+   ck_assert_int_le(tb_len(tb), 7);   // Would have to copy otherwise
+   jit_get_func(j, h)->spec = ffi_spec_new(tb_get(tb), tb_len(tb));
    return h;
 }
 
