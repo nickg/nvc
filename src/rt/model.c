@@ -2908,6 +2908,25 @@ void *rt_tlab_alloc(size_t size)
       return mspace_alloc(get_model()->mspace, size);
 }
 
+static bool nexus_active(rt_model_t *m, rt_nexus_t *nexus)
+{
+   rt_net_t *net = get_net(m, nexus);
+   if (net->last_active == m->now && net->active_delta == m->iteration)
+      return true;
+
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_PORT) {
+            RT_LOCK(s->u.port.input->signal->lock);
+            if (nexus_active(m, s->u.port.input))
+               return true;
+         }
+      }
+   }
+
+   return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -3060,8 +3079,7 @@ int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_net_t *net = get_net(m, n);
-      if (net->last_active == m->now && net->active_delta == m->iteration)
+      if (nexus_active(m, n))
          return 1;
 
       count -= n->width;
@@ -3240,22 +3258,9 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
 
-      // For inout ports and ports with conversion functions the driving
-      // value and the effective value may be different so 'EVENT and
-      // 'ACTIVE are not necessarily equal for all signals attached to
-      // the same net
-      if (((dst_n->flags | src_n->flags) & NET_F_EFFECTIVE) == 0) {
-         if (src_n->net == NULL)
-            src_n->net = get_net(m, dst_n);
-         else {
-            assert(dst_n->net == NULL);
-            dst_n->net = get_net(m, src_n);
-         }
-      }
-      else {
-         src_n->flags |= NET_F_EFFECTIVE;
-         dst_n->flags |= NET_F_EFFECTIVE;
-      }
+      // Effective value updates must propagate through ports
+      src_n->flags |= (dst_n->flags & NET_F_EFFECTIVE);
+      dst_n->flags |= (src_n->flags & NET_F_EFFECTIVE);
 
       rt_source_t *port = add_source(m, dst_n, SOURCE_PORT);
       port->u.port.input = src_n;
