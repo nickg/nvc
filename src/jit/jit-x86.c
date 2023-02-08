@@ -1500,7 +1500,7 @@ static void jit_x86_macro_fexp(code_blob_t *blob, jit_x86_state_t *state,
    jit_x86_put(blob, ir->result, __XMM0);
 }
 
-static void jit_x86_macro_restore(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_trim(code_blob_t *blob, jit_ir_t *ir)
 {
    MOV(__EAX, ADDR(ANCHOR_REG, offsetof(jit_anchor_t, watermark)), __DWORD);
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EAX, __DWORD);
@@ -1656,8 +1656,8 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case MACRO_FEXP:
       jit_x86_macro_fexp(blob, state, ir);
       break;
-   case MACRO_RESTORE:
-      jit_x86_macro_restore(blob, ir);
+   case MACRO_TRIM:
+      jit_x86_macro_trim(blob, ir);
       break;
    default:
       jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);

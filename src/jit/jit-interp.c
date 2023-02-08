@@ -755,7 +755,7 @@ static void interp_case(jit_interp_t *state, jit_ir_t *ir)
       interp_branch_to(state, ir->arg2);
 }
 
-static void interp_restore(jit_interp_t *state, jit_ir_t *ir)
+static void interp_trim(jit_interp_t *state, jit_ir_t *ir)
 {
    assert(state->tlab->alloc >= state->anchor->watermark);
    state->tlab->alloc = state->anchor->watermark;
@@ -913,8 +913,8 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_CASE:
          interp_case(state, ir);
          break;
-      case MACRO_RESTORE:
-         interp_restore(state, ir);
+      case MACRO_TRIM:
+         interp_trim(state, ir);
          break;
       default:
          interp_dump(state);

@@ -1953,7 +1953,7 @@ static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    }
 }
 
-static void cgen_macro_restore(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+static void cgen_macro_trim(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef watermark_ptr = LLVMBuildStructGEP2(obj->builder,
                                                     obj->types[LLVM_ANCHOR],
@@ -2115,8 +2115,8 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_CASE:
       cgen_macro_case(obj, cgb, ir);
       break;
-   case MACRO_RESTORE:
-      cgen_macro_restore(obj, cgb, ir);
+   case MACRO_TRIM:
+      cgen_macro_trim(obj, cgb, ir);
       break;
    default:
       cgen_abort(cgb, ir, "cannot generate LLVM for %s", jit_op_name(ir->op));

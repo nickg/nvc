@@ -665,9 +665,9 @@ static void macro_case(jit_irgen_t *g, jit_reg_t test, jit_value_t cmp,
    irgen_patch_label(g, ir, l);
 }
 
-static void macro_restore(jit_irgen_t *g)
+static void macro_trim(jit_irgen_t *g)
 {
-   irgen_emit_nullary(g, MACRO_RESTORE, JIT_CC_NONE, JIT_REG_INVALID);
+   irgen_emit_nullary(g, MACRO_TRIM, JIT_CC_NONE, JIT_REG_INVALID);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1207,7 +1207,7 @@ static void irgen_op_return(jit_irgen_t *g, int op)
 
    case VCODE_UNIT_PROCEDURE:
       j_send(g, 0, jit_null_ptr());
-      macro_restore(g);
+      macro_trim(g);
       break;
 
    case VCODE_UNIT_INSTANCE:
@@ -1224,7 +1224,7 @@ static void irgen_op_return(jit_irgen_t *g, int op)
          j_send(g, 0, jit_null_ptr());  // Procedure compiled as function
 
       if (g->used_tlab && !vcode_unit_has_escaping_tlab(g->func->unit))
-         macro_restore(g);
+         macro_trim(g);
 
       break;
    }
