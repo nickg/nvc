@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "cover.h"
+#include "debug.h"
 #include "hash.h"
 #include "jit/jit.h"
 #include "lib.h"

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -65,5 +65,7 @@ const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n);
 void debug_add_unwinder(void *start, size_t len, debug_unwind_fn_t fn,
                         void *context);
 void debug_remove_unwinder(void *start);
+
+const char *debug_symbol_name(void *addr);
 
 #endif   // _DEBUG_H

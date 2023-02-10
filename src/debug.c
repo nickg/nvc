@@ -92,7 +92,6 @@ struct _debug_unwinder {
    uintptr_t          end;
 };
 
-static di_lru_cache_t *lru_cache = NULL;
 static debug_unwinder_t *unwinders = NULL;
 
 static void di_lru_reuse_frame(debug_frame_t *frame, uintptr_t pc)
@@ -116,6 +115,8 @@ static void di_lru_reuse_frame(debug_frame_t *frame, uintptr_t pc)
 
 static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
 {
+   static __thread di_lru_cache_t *lru_cache = NULL;
+
    unsigned size;
    di_lru_cache_t **it;
    for (it = &lru_cache, size = 0;
@@ -123,7 +124,11 @@ static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
         it = &((*it)->next), size++)
       ;
 
-   if (*it != NULL) {
+   if (*it != NULL && *it == lru_cache) {
+      *pframe = &((*it)->frame);
+      return true;
+   }
+   else if (*it != NULL) {
       di_lru_cache_t *tmp = *it;
       if ((*it)->next) (*it)->next->prev = (*it)->prev;
       *it = (*it)->next;
@@ -286,7 +291,7 @@ static void libdw_fill_inlining(uintptr_t biased_ip, Dwarf_Die *fundie,
    }
 }
 
-static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
+static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    static Dwfl *handle = NULL;
    static Dwfl_Module *home = NULL;
@@ -306,7 +311,7 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
          fatal("dwfl_linux_proc_report failed");
       dwfl_report_end(handle, NULL, NULL);
 
-      home = dwfl_addrmodule(handle, (uintptr_t)libdw_fill_frame);
+      home = dwfl_addrmodule(handle, (uintptr_t)platform_fill_frame);
    }
 
    Dwfl_Module *mod = dwfl_addrmodule(handle, ip);
@@ -407,7 +412,7 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
 
    debug_frame_t *frame;
    if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
-      libdw_fill_frame(ip, frame);
+      platform_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
 
@@ -704,7 +709,7 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
    return found;
 }
 
-static void libdwarf_fill_frame(uintptr_t ip, debug_frame_t *frame)
+static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    Dl_info dli;
    if (!dladdr((void *)ip, &dli))
@@ -768,7 +773,7 @@ static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
 
    debug_frame_t *frame;
    if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
-      libdwarf_fill_frame(ip, frame);
+      platform_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
 
@@ -790,15 +795,43 @@ static inline void debug_walk_frames(debug_info_t *di)
 
 #elif defined __MINGW32__ || defined __CYGWIN__
 
+static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
+{
+   HANDLE hProcess = GetCurrentProcess();
+
+   frame->kind = FRAME_PROG;
+
+   char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+   PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
+   memset(buffer, '\0', sizeof(SYMBOL_INFO));
+   psym->SizeOfStruct = sizeof(SYMBOL_INFO);
+   psym->MaxNameLen = MAX_SYM_NAME;
+
+   DWORD64 disp;
+   if (SymFromAddr(hProcess, ip, &disp, psym)) {
+      text_buf_t *tb = unsafe_symbol(psym->Name);
+      frame->symbol = tb_claim(tb);
+      frame->disp   = disp;
+   }
+
+   IMAGEHLP_MODULE module;
+   memset(&module, '\0', sizeof(module));
+   module.SizeOfStruct = sizeof(module);
+   if (SymGetModuleInfo(hProcess, ip, &module)) {
+      frame->module = xstrdup(module.ModuleName);
+
+      if (lib_at(module.ImageName) != NULL)
+         guess_vhdl_symbol(frame);
+   }
+}
+
 __attribute__((noinline))
 static void debug_walk_frames(debug_info_t *di)
 {
 #ifdef __WIN64
-   HANDLE hProcess = GetCurrentProcess();
-
    static bool done_sym_init = false;
    if (!done_sym_init) {
-      SymInitialize(hProcess, NULL, TRUE);
+      SymInitialize(GetCurrentProcess(), NULL, TRUE);
       done_sym_init = true;
    }
 
@@ -832,32 +865,8 @@ static void debug_walk_frames(debug_info_t *di)
 
       debug_frame_t *frame;
       if (!di_lru_get(Context.Rip, &frame)
-          && !custom_fill_frame(Context.Rip, frame)) {
-         frame->kind = FRAME_PROG;
-
-         char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-         PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
-         memset(buffer, '\0', sizeof(SYMBOL_INFO));
-         psym->SizeOfStruct = sizeof(SYMBOL_INFO);
-         psym->MaxNameLen = MAX_SYM_NAME;
-
-         DWORD64 disp;
-         if (SymFromAddr(hProcess, Context.Rip, &disp, psym)) {
-            text_buf_t *tb = unsafe_symbol(psym->Name);
-            frame->symbol = tb_claim(tb);
-            frame->disp   = disp;
-         }
-
-         IMAGEHLP_MODULE module;
-         memset(&module, '\0', sizeof(module));
-         module.SizeOfStruct = sizeof(module);
-         if (SymGetModuleInfo(hProcess, Context.Rip, &module)) {
-            frame->module = xstrdup(module.ModuleName);
-
-            if (lib_at(module.ImageName) != NULL)
-               guess_vhdl_symbol(frame);
-         }
-      }
+          && !custom_fill_frame(Context.Rip, frame))
+         platform_fill_frame(Context.Rip, frame);
 
       APUSH(di->frames, frame);
    }
@@ -869,7 +878,7 @@ static void debug_walk_frames(debug_info_t *di)
 
 #else
 
-static void unwind_fill_frame(uintptr_t ip, debug_frame_t *frame)
+static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    Dl_info dli;
    if (!dladdr((void *)ip, &dli))
@@ -915,7 +924,7 @@ static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,
 
    debug_frame_t *frame;
    if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
-      unwind_fill_frame(ip, frame);
+      platform_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
 
@@ -990,4 +999,13 @@ void debug_remove_unwinder(void *start)
    }
 
    fatal_trace("no unwinder registered for %p", start);
+}
+
+const char *debug_symbol_name(void *addr)
+{
+   debug_frame_t *frame;
+   if (!di_lru_get((uintptr_t)addr, &frame))
+      platform_fill_frame((uintptr_t)addr, frame);
+
+   return frame->symbol;
 }

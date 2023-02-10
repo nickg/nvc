@@ -66,12 +66,19 @@ START_TEST(test_capture)
 }
 END_TEST
 
+START_TEST(test_symbol_name)
+{
+   ck_assert_str_eq(debug_symbol_name(global_func), "global_func");
+}
+END_TEST
+
 Suite *get_debug_tests(void)
 {
    Suite *s = suite_create("debug");
 
    TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_capture);
+   tcase_add_test(tc_core, test_symbol_name);
    suite_add_tcase(s, tc_core);
 
    return s;

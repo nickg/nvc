@@ -297,7 +297,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_ALLOC:
       case VCODE_OP_SCHED_EVENT:
-      case VCODE_OP_SCHED_STATIC:
       case VCODE_OP_FILE_OPEN:
       case VCODE_OP_FILE_CLOSE:
       case VCODE_OP_INDEX_CHECK:
@@ -1366,7 +1365,7 @@ START_TEST(test_staticwait)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DRIVE_SIGNAL },
-      { VCODE_OP_SCHED_STATIC },
+      { VCODE_OP_SCHED_EVENT },
       { VCODE_OP_RETURN }
    };
 
@@ -1959,7 +1958,7 @@ START_TEST(test_issue116)
       { VCODE_OP_DRIVE_SIGNAL },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_CONST, .value = 7 },
-      { VCODE_OP_SCHED_STATIC },
+      { VCODE_OP_SCHED_EVENT },
       { VCODE_OP_RETURN }
    };
 
