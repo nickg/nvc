@@ -126,7 +126,6 @@ typedef enum {
    VCODE_OP_CONTEXT_UPREF,
    VCODE_OP_CONST_REP,
    VCODE_OP_PROTECTED_FREE,
-   VCODE_OP_SCHED_STATIC,
    VCODE_OP_IMPLICIT_SIGNAL,
    VCODE_OP_DISCONNECT,
    VCODE_OP_LINK_PACKAGE,
@@ -156,6 +155,7 @@ typedef enum {
    VCODE_OP_CONVSTR,
    VCODE_OP_TRAP_NEG,
    VCODE_OP_PROCESS_INIT,
+   VCODE_OP_CLEAR_EVENT,
 } vcode_op_t;
 
 typedef enum {
@@ -445,8 +445,8 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
-void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
-void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake);
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake);
+void emit_clear_event(vcode_reg_t nets, vcode_reg_t count);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,

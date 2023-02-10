@@ -73,7 +73,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "MAP_CONST", "RESOLVE_SIGNAL", "LAST_EVENT", "LAST_ACTIVE",
       "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
       "POP_SCOPE", "IMPLICIT_SIGNAL", "DRIVING", "DRIVING_VALUE",
-      "CLAIM_TLAB", "COVER_TOGGLE", "PROCESS INIT",
+      "CLAIM_TLAB", "COVER_TOGGLE", "PROCESS_INIT", "CLEAR_EVENT",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

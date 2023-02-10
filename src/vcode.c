@@ -206,7 +206,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      28
+#define VCODE_VERSION      29
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -929,13 +929,13 @@ const char *vcode_op_string(vcode_op_t op)
       "map signal", "drive signal", "link var", "resolution wrapper",
       "last active", "driving", "driving value", "address of", "closure",
       "protected init", "context upref", "const rep", "protected free",
-      "sched static", "implicit signal", "disconnect", "link package",
+      "implicit signal", "disconnect", "link package",
       "index check", "debug locus", "length check", "range check", "array ref",
       "range length", "exponent check", "zero check", "map const",
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
-      "trap neg", "process init",
+      "trap neg", "process init", "clear event",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1885,7 +1885,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_SCHED_EVENT:
-         case VCODE_OP_SCHED_STATIC:
+         case VCODE_OP_CLEAR_EVENT:
             {
                printf("%s on ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -1895,7 +1895,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   printf(" wake ");
                   vcode_dump_reg(op->args.items[2]);
                }
-
             }
             break;
 
@@ -4963,29 +4962,29 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    op->type = vtype_pointed(dtype);
 }
 
-void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems)
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
 {
    op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
-   vcode_add_arg(op, nets);
-   vcode_add_arg(op, n_elems);
-
-   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to sched event must be signal");
-}
-
-void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
-{
-   op_t *op = vcode_add_op(VCODE_OP_SCHED_STATIC);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
    if (wake != VCODE_INVALID_REG)
       vcode_add_arg(op, wake);
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to sched static must be signal");
+                "nets argument to sched event must be signal");
    VCODE_ASSERT(wake == VCODE_INVALID_REG
                 || vcode_reg_kind(wake) == VCODE_TYPE_SIGNAL,
-                "wake argument to sched static must be signal");
+                "wake argument to sched event must be signal");
+}
+
+void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CLEAR_EVENT);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, n_elems);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to clear event must be signal");
 }
 
 void emit_resume(ident_t func)

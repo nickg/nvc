@@ -4899,12 +4899,12 @@ static void lower_assert(tree_t stmt)
 }
 
 static void lower_sched_event_field_cb(tree_t field, vcode_reg_t ptr,
-                                       vcode_reg_t unused, void *__ctx)
+                                       vcode_reg_t unused, void *ctx)
 {
    type_t type = tree_type(field);
    if (!type_is_homogeneous(type))
       lower_for_each_field(type, ptr, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb, __ctx);
+                           lower_sched_event_field_cb, ctx);
    else {
       vcode_reg_t nets_reg = emit_load_indirect(ptr);
       vcode_reg_t count_reg;
@@ -4915,15 +4915,15 @@ static void lower_sched_event_field_cb(tree_t field, vcode_reg_t ptr,
       else
          count_reg = emit_const(vtype_offset(), 1);
 
-      const bool is_static = (uintptr_t)__ctx;
-      if (is_static)
-         emit_sched_static(nets_reg, count_reg, VCODE_INVALID_REG);
+      const bool clear = (uintptr_t)ctx;
+      if (clear)
+         emit_clear_event(nets_reg, count_reg);
       else
-         emit_sched_event(nets_reg, count_reg);
+         emit_sched_event(nets_reg, count_reg, VCODE_INVALID_REG);
    }
 }
 
-static void lower_sched_event(tree_t on, bool is_static, vcode_reg_t wake)
+static void lower_sched_event(tree_t on, vcode_reg_t wake)
 {
    type_t type = tree_type(on);
 
@@ -4932,8 +4932,7 @@ static void lower_sched_event(tree_t on, bool is_static, vcode_reg_t wake)
 
    if (!type_is_homogeneous(type))
       lower_for_each_field(type, nets_reg, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb,
-                           (void *)(uintptr_t)is_static);
+                           lower_sched_event_field_cb, NULL);
    else {
       vcode_reg_t count_reg;
       if (type_is_array(type)) {
@@ -4943,10 +4942,24 @@ static void lower_sched_event(tree_t on, bool is_static, vcode_reg_t wake)
       else
          count_reg = emit_const(vtype_offset(), type_width(type));
 
-      if (is_static)
-         emit_sched_static(nets_reg, count_reg, wake);
-      else
-         emit_sched_event(nets_reg, count_reg);
+      emit_sched_event(nets_reg, count_reg, wake);
+   }
+}
+
+static void lower_clear_event(tree_t on)
+{
+   type_t type = tree_type(on);
+
+   vcode_reg_t nets_reg = lower_lvalue(on);
+   assert(nets_reg != VCODE_INVALID_REG);
+
+   if (!type_is_homogeneous(type))
+      lower_for_each_field(type, nets_reg, VCODE_INVALID_REG,
+                           lower_sched_event_field_cb, (void *)1);
+   else {
+      vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+      emit_clear_event(data_reg, count_reg);
    }
 }
 
@@ -4955,11 +4968,12 @@ static void lower_wait(tree_t wait)
    const bool is_static = !!(tree_flags(wait) & TREE_F_STATIC_WAIT);
    assert(!is_static || (!tree_has_delay(wait) && !tree_has_value(wait)));
 
+   const int ntriggers = tree_triggers(wait);
+
    if (!is_static) {
       // The _sched_event for static waits is emitted in the reset block
-      const int ntriggers = tree_triggers(wait);
       for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(tree_trigger(wait, i), is_static, VCODE_INVALID_REG);
+         lower_sched_event(tree_trigger(wait, i), VCODE_INVALID_REG);
    }
 
    const bool has_delay = tree_has_delay(wait);
@@ -5017,14 +5031,17 @@ static void lower_wait(tree_t wait)
 
       vcode_select_block(again_bb);
 
-      assert(!is_static);
-      const int ntriggers = tree_triggers(wait);
       for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(tree_trigger(wait, i), is_static, VCODE_INVALID_REG);
+         lower_sched_event(tree_trigger(wait, i), VCODE_INVALID_REG);
 
       emit_wait(resume, timeout_reg);
 
       vcode_select_block(done_bb);
+   }
+
+   if (!is_static) {
+      for (int i = 0; i < ntriggers; i++)
+         lower_clear_event(tree_trigger(wait, i));
    }
 }
 
@@ -7184,7 +7201,7 @@ static void lower_build_wait_cb(tree_t expr, void *ctx)
    vcode_reg_t count_reg = lower_type_width(tree_type(expr), nets_reg);
    vcode_reg_t data_reg = lower_array_data(nets_reg);
 
-   emit_sched_static(data_reg, count_reg, wake_reg);
+   emit_sched_event(data_reg, count_reg, wake_reg);
 }
 
 static void lower_implicit_decl(tree_t decl)
@@ -9479,7 +9496,7 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 
       const int ntriggers = tree_triggers(wait);
       for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(tree_trigger(wait, i), true, VCODE_INVALID_REG);
+         lower_sched_event(tree_trigger(wait, i), VCODE_INVALID_REG);
    }
 
    emit_return(VCODE_INVALID_REG);

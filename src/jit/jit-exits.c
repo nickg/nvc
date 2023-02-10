@@ -731,10 +731,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          sig_shared_t *shared  = args[0].pointer;
          int32_t       offset  = args[1].integer;
          int32_t       count   = args[2].integer;
-         int8_t        oneshot = args[3].integer;
-         sig_shared_t *wake    = args[4].pointer;
+         sig_shared_t *wake    = args[3].pointer;
 
-         x_sched_event(shared, offset, count, oneshot, wake);
+         x_sched_event(shared, offset, count, wake);
       }
       break;
 
@@ -1085,6 +1084,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          tree_t       where  = args[1].pointer;
 
          x_process_init(handle, where);
+      }
+      break;
+
+   case JIT_EXIT_CLEAR_EVENT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         x_clear_event(shared, offset, count);
       }
       break;
 

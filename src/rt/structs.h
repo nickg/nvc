@@ -34,7 +34,6 @@ typedef enum {
 typedef uint32_t wakeup_gen_t;
 
 typedef struct {
-   wakeup_gen_t    wakeup_gen;
    wakeable_kind_t kind : 8;
    unsigned        pending : 1;
    unsigned        postponed : 1;
@@ -70,8 +69,6 @@ STATIC_ASSERT(sizeof(waveform_t) <= 24);
 
 typedef struct {
    rt_wakeable_t *wake;
-   uint32_t       wakeup_gen;
-   bool           oneshot;
 } rt_pending_t;
 
 typedef struct {

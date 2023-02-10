@@ -157,6 +157,7 @@ typedef enum {
    JIT_EXIT_CLAIM_TLAB,
    JIT_EXIT_COVER_TOGGLE,
    JIT_EXIT_PROCESS_INIT,
+   JIT_EXIT_CLEAR_EVENT,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

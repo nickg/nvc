@@ -3025,20 +3025,6 @@ static void irgen_op_sched_event(jit_irgen_t *g, int op)
    jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
    jit_value_t count  = irgen_get_arg(g, op, 1);
 
-   j_send(g, 0, shared);
-   j_send(g, 1, offset);
-   j_send(g, 2, count);
-   j_send(g, 3, jit_value_from_int64(true));
-   j_send(g, 4, jit_null_ptr());
-   macro_exit(g, JIT_EXIT_SCHED_EVENT);
-}
-
-static void irgen_op_sched_static(jit_irgen_t *g, int op)
-{
-   jit_value_t shared = irgen_get_arg(g, op, 0);
-   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
-   jit_value_t count  = irgen_get_arg(g, op, 1);
-
    jit_value_t wake = jit_null_ptr();
    if (vcode_count_args(op) > 2)
       wake = irgen_get_arg(g, op, 2);
@@ -3046,9 +3032,20 @@ static void irgen_op_sched_static(jit_irgen_t *g, int op)
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
-   j_send(g, 3, jit_value_from_int64(false));
-   j_send(g, 4, wake);
+   j_send(g, 3, wake);
    macro_exit(g, JIT_EXIT_SCHED_EVENT);
+}
+
+static void irgen_op_clear_event(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_CLEAR_EVENT);
 }
 
 static void irgen_op_event(jit_irgen_t *g, int op)
@@ -3614,11 +3611,11 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_ACTIVE:
          irgen_op_active(g, i);
          break;
-      case VCODE_OP_SCHED_STATIC:
-         irgen_op_sched_static(g, i);
-         break;
       case VCODE_OP_SCHED_EVENT:
          irgen_op_sched_event(g, i);
+         break;
+      case VCODE_OP_CLEAR_EVENT:
+         irgen_op_clear_event(g, i);
          break;
       case VCODE_OP_STRCONV:
          irgen_op_strconv(g, i);

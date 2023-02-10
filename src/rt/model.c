@@ -417,11 +417,10 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
 
-            p->wakeable.kind       = W_PROC;
-            p->wakeable.wakeup_gen = 0;
-            p->wakeable.pending    = false;
-            p->wakeable.postponed  = !!(tree_flags(t) & TREE_F_POSTPONED);
-            p->wakeable.delayed    = false;
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
+            p->wakeable.delayed   = false;
 
             *procp = p;
             procp = &(p->chain);
@@ -752,7 +751,6 @@ static inline void set_pending(rt_wakeable_t *wake)
    assert(!wake->pending);
    assert(!wake->delayed);
    wake->pending = true;
-   ++(wake->wakeup_gen);
 }
 
 static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
@@ -2095,23 +2093,15 @@ void model_reset(rt_model_t *m)
    }
 }
 
-static bool is_stale_pending_entry(rt_pending_t *p, rt_wakeable_t *obj)
-{
-   return p->wake == NULL
-      || (p->wake == obj && p->wakeup_gen != obj->wakeup_gen);
-}
-
-static void sched_event(rt_model_t *m, rt_net_t *net,
-                        rt_wakeable_t *obj, bool oneshot)
+static void sched_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
 {
    rt_pending_t *p = NULL;
-   if (is_stale_pending_entry(&(net->pend0), obj))
+   if (net->pend0.wake == NULL)
       p = &(net->pend0);
    else {
-      // See if there is already a stale entry in the pending list for this
-      // object
+      // See if there is already a stale entry in the pending list
       for (int i = 0; i < net->npending; i++) {
-         if (is_stale_pending_entry(&(net->pending[i]), obj)) {
+         if (net->pending[i].wake == NULL) {
             p = &(net->pending[i]);
             break;
          }
@@ -2128,9 +2118,18 @@ static void sched_event(rt_model_t *m, rt_net_t *net,
       }
    }
 
-   p->wake       = obj;
-   p->wakeup_gen = obj->wakeup_gen;
-   p->oneshot    = oneshot;
+   p->wake = obj;
+}
+
+static void clear_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
+{
+   if (net->pend0.wake == obj)
+      net->pend0.wake = NULL;
+
+   for (int i = 0; i < net->npending; i++) {
+      if (net->pending[i].wake == obj)
+         net->pending[i].wake = NULL;
+   }
 }
 
 static rt_source_t *find_driver(rt_nexus_t *nexus)
@@ -2306,60 +2305,50 @@ static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
 
 static void wakeup_one(rt_model_t *m, rt_pending_t *p)
 {
-   // To avoid having each process keep a list of the signals it is
-   // sensitive to, each process has a "wakeup generation" number
-   // which is incremented after each wait statement and stored in
-   // the signal sensitivity list. We then ignore any sensitivity
-   // list elements where the generation doesn't match the current
-   // process wakeup generation: these correspond to stale "wait on"
-   // statements that have already resumed.
-   const bool stale = p->oneshot && p->wakeup_gen != p->wake->wakeup_gen;
+   if (p->wake->pending)
+      return;   // Already scheduled
 
-   if (!stale && !p->wake->pending) {
-      workq_t *wq = p->wake->postponed ? m->postponedq : m->procq;
+   workq_t *wq = p->wake->postponed ? m->postponedq : m->procq;
 
-      switch (p->wake->kind) {
-      case W_PROC:
-         {
-            rt_proc_t *proc = container_of(p->wake, rt_proc_t, wakeable);
-            TRACE("wakeup %sprocess %s", p->wake->postponed ? "postponed " : "",
-                  istr(proc->name));
-            workq_do(wq, async_run_process, proc);
+   switch (p->wake->kind) {
+   case W_PROC:
+      {
+         rt_proc_t *proc = container_of(p->wake, rt_proc_t, wakeable);
+         TRACE("wakeup %sprocess %s", p->wake->postponed ? "postponed " : "",
+               istr(proc->name));
+         workq_do(wq, async_run_process, proc);
 
-            if (proc->wakeable.delayed) {
-               // This process was already scheduled to run at a later
-               // time so we need to delete it from the simulation queue
-               heap_delete(m->eventq_heap, heap_delete_proc_cb, proc);
-               proc->wakeable.delayed = false;
-            }
+         if (proc->wakeable.delayed) {
+            // This process was already scheduled to run at a later
+            // time so we need to delete it from the simulation queue
+            heap_delete(m->eventq_heap, heap_delete_proc_cb, proc);
+            proc->wakeable.delayed = false;
          }
-         break;
-
-      case W_IMPLICIT:
-         {
-            rt_implicit_t *imp = container_of(p->wake, rt_implicit_t, wakeable);
-            TRACE("wakeup implicit signal %s closure %s",
-                  istr(tree_ident(imp->signal.where)),
-                  istr(jit_get_name(m->jit, imp->closure.handle)));
-            workq_do(m->implicitq, async_update_implicit_signal, imp);
-         }
-         break;
-
-      case W_WATCH:
-         {
-            rt_watch_t *w = container_of(p->wake, rt_watch_t, wakeable);
-            TRACE("wakeup %svalue change callback %p",
-                  p->wake->postponed ? "postponed " : "", /* dlsym */ w->fn);
-            workq_do(wq, async_watch_callback, w);
-         }
-         break;
       }
+      break;
 
-      set_pending(p->wake);
+   case W_IMPLICIT:
+      {
+         rt_implicit_t *imp = container_of(p->wake, rt_implicit_t, wakeable);
+         TRACE("wakeup implicit signal %s closure %s",
+               istr(tree_ident(imp->signal.where)),
+               istr(jit_get_name(m->jit, imp->closure.handle)));
+         workq_do(m->implicitq, async_update_implicit_signal, imp);
+      }
+      break;
+
+   case W_WATCH:
+      {
+         rt_watch_t *w = container_of(p->wake, rt_watch_t, wakeable);
+         TRACE("wakeup %svalue change callback %s",
+               p->wake->postponed ? "postponed " : "",
+               debug_symbol_name(w->fn));
+         workq_do(wq, async_watch_callback, w);
+      }
+      break;
    }
 
-   if (p->oneshot)
-      p->wake = NULL;   // Mark slot as empty
+   set_pending(p->wake);
 }
 
 static void notify_event(rt_model_t *m, rt_net_t *net)
@@ -2877,17 +2866,16 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
       w->chain_all = m->watches;
       w->user_data = user;
 
-      w->wakeable.kind       = W_WATCH;
-      w->wakeable.postponed  = postponed;
-      w->wakeable.pending    = false;
-      w->wakeable.delayed    = false;
-      w->wakeable.wakeup_gen = 0;
+      w->wakeable.kind      = W_WATCH;
+      w->wakeable.postponed = postponed;
+      w->wakeable.pending   = false;
+      w->wakeable.delayed   = false;
 
       m->watches = w;
 
       rt_nexus_t *n = &(w->signal->nexus);
       for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-         sched_event(m, get_net(m, n), &(w->wakeable), false);
+         sched_event(m, get_net(m, n), &(w->wakeable));
 
       return w;
    }
@@ -3084,13 +3072,13 @@ int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
-                   bool oneshot, sig_shared_t *wake_ss)
+                   sig_shared_t *wake_ss)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("_sched_event %s+%d count=%d oneshot=%d proc %s",
-         istr(tree_ident(s->where)), offset, count, oneshot,
+   TRACE("_sched_event %s+%d count=%d proc %s",
+         istr(tree_ident(s->where)), offset, count,
          wake_ss ? "(implicit)" : istr(active_proc->name));
 
    rt_wakeable_t *wake;
@@ -3102,7 +3090,25 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      sched_event(m, get_net(m, n), wake, oneshot);
+      sched_event(m, get_net(m, n), wake);
+
+      count -= n->width;
+      assert(count >= 0);
+   }
+}
+
+void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
+
+   TRACE("clear event %s+%d count=%d",
+         istr(tree_ident(s->where)), offset, count);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      clear_event(m, get_net(m, n), &(active_proc->wakeable));
 
       count -= n->width;
       assert(count >= 0);
@@ -3579,11 +3585,10 @@ void x_process_init(jit_handle_t handle, tree_t where)
    p->privdata  = mptr_new(m->mspace, "process privdata");
    p->chain     = s->procs;
 
-   p->wakeable.kind       = W_PROC;
-   p->wakeable.wakeup_gen = 0;
-   p->wakeable.pending    = false;
-   p->wakeable.postponed  = false;
-   p->wakeable.delayed    = false;
+   p->wakeable.kind      = W_PROC;
+   p->wakeable.pending   = false;
+   p->wakeable.postponed = false;
+   p->wakeable.delayed   = false;
 
    s->procs = p;
 }
