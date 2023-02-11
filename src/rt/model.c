@@ -104,6 +104,7 @@ typedef struct _rt_model {
 #define NEXUS_INDEX_MIN 8
 #define TRACE_SIGNALS   1
 #define WAVEFORM_CHUNK  256
+#define PENDING_MIN     4
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -508,8 +509,9 @@ static void free_waveform(rt_model_t *m, waveform_t *w)
 
 static void cleanup_net(rt_net_t *net)
 {
-   if (net->pending != NULL) {
-      free(net->pending);
+   if (net->pending != NULL && pointer_tag(net->pending) == 0) {
+      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+      free(p);
       net->pending = NULL;
    }
 }
@@ -1383,15 +1385,21 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
       new_net->active_delta = old_net->active_delta;
       new_net->event_delta  = old_net->event_delta;
 
-      new_net->pend0 = old_net->pend0;
+      if (old_net->pending == NULL)
+         new_net->pending = NULL;
+      else if (pointer_tag(old_net->pending) == 1)
+         new_net->pending = old_net->pending;
+      else {
+         rt_pending_t *old_p = untag_pointer(old_net->pending, rt_pending_t);
+         rt_pending_t *new_p = xmalloc_flex(sizeof(rt_pending_t), old_p->count,
+                                            sizeof(rt_wakeable_t *));
 
-      if (old_net->npending > 0) {
-         new_net->npending = new_net->maxpend = old_net->npending;
-         new_net->pending =
-            xmalloc_array(new_net->maxpend, sizeof(rt_pending_t));
+         new_p->count = new_p->max = old_p->count;
 
-         for (int i = 0; i < old_net->npending; i++)
-            new_net->pending[i] = old_net->pending[i];
+         for (int i = 0; i < old_p->count; i++)
+            new_p->wake[i] = old_p->wake[i];
+
+         new_net->pending = tag_pointer(new_p, 0);
       }
 
       new->net = new_net;
@@ -2095,40 +2103,44 @@ void model_reset(rt_model_t *m)
 
 static void sched_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
 {
-   rt_pending_t *p = NULL;
-   if (net->pend0.wake == NULL)
-      p = &(net->pend0);
-   else {
-      // See if there is already a stale entry in the pending list
-      for (int i = 0; i < net->npending; i++) {
-         if (net->pending[i].wake == NULL) {
-            p = &(net->pending[i]);
-            break;
-         }
-      }
+   if (net->pending == NULL)
+      net->pending = tag_pointer(obj, 1);
+   else if (pointer_tag(net->pending) == 1) {
+      rt_pending_t *p = xmalloc_flex(sizeof(rt_pending_t), PENDING_MIN,
+                                     sizeof(rt_wakeable_t *));
+      p->max = PENDING_MIN;
+      p->count = 2;
+      p->wake[0] = untag_pointer(net->pending, rt_wakeable_t);
+      p->wake[1] = obj;
 
-      if (p == NULL) {
-         if (net->npending == net->maxpend) {
-            net->maxpend = MAX(4, net->maxpend * 2);
-            net->pending = xrealloc_array(net->pending, net->maxpend,
-                                          sizeof(rt_pending_t));
-         }
-
-         p = &(net->pending[net->npending++]);
-      }
+      net->pending = tag_pointer(p, 0);
    }
+   else {
+      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+      if (p->count == p->max) {
+         p->max = MAX(PENDING_MIN, p->max * 2);
+         p = xrealloc_flex(p, sizeof(rt_pending_t), p->max,
+                           sizeof(rt_wakeable_t *));
+         net->pending = tag_pointer(p, 0);
+      }
 
-   p->wake = obj;
+      p->wake[p->count++] = obj;
+   }
 }
 
 static void clear_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
 {
-   if (net->pend0.wake == obj)
-      net->pend0.wake = NULL;
-
-   for (int i = 0; i < net->npending; i++) {
-      if (net->pending[i].wake == obj)
-         net->pending[i].wake = NULL;
+   if (pointer_tag(net->pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(net->pending, rt_wakeable_t);
+      if (wake == obj)
+         net->pending = NULL;
+   }
+   else if (net->pending != NULL) {
+      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+      for (int i = 0; i < p->count; i++) {
+         if (p->wake[i] == obj)
+            p->wake[i] = NULL;
+      }
    }
 }
 
@@ -2303,18 +2315,18 @@ static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
    return untag_pointer(value, rt_proc_t) == search;
 }
 
-static void wakeup_one(rt_model_t *m, rt_pending_t *p)
+static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 {
-   if (p->wake->pending)
+   if (obj->pending)
       return;   // Already scheduled
 
-   workq_t *wq = p->wake->postponed ? m->postponedq : m->procq;
+   workq_t *wq = obj->postponed ? m->postponedq : m->procq;
 
-   switch (p->wake->kind) {
+   switch (obj->kind) {
    case W_PROC:
       {
-         rt_proc_t *proc = container_of(p->wake, rt_proc_t, wakeable);
-         TRACE("wakeup %sprocess %s", p->wake->postponed ? "postponed " : "",
+         rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
+         TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
                istr(proc->name));
          workq_do(wq, async_run_process, proc);
 
@@ -2329,7 +2341,7 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
 
    case W_IMPLICIT:
       {
-         rt_implicit_t *imp = container_of(p->wake, rt_implicit_t, wakeable);
+         rt_implicit_t *imp = container_of(obj, rt_implicit_t, wakeable);
          TRACE("wakeup implicit signal %s closure %s",
                istr(tree_ident(imp->signal.where)),
                istr(jit_get_name(m->jit, imp->closure.handle)));
@@ -2339,16 +2351,15 @@ static void wakeup_one(rt_model_t *m, rt_pending_t *p)
 
    case W_WATCH:
       {
-         rt_watch_t *w = container_of(p->wake, rt_watch_t, wakeable);
+         rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
          TRACE("wakeup %svalue change callback %s",
-               p->wake->postponed ? "postponed " : "",
-               debug_symbol_name(w->fn));
+               obj->postponed ? "postponed " : "", debug_symbol_name(w->fn));
          workq_do(wq, async_watch_callback, w);
       }
       break;
    }
 
-   set_pending(p->wake);
+   set_pending(obj);
 }
 
 static void notify_event(rt_model_t *m, rt_net_t *net)
@@ -2356,13 +2367,16 @@ static void notify_event(rt_model_t *m, rt_net_t *net)
    net->last_event = net->last_active = m->now;
    net->event_delta = net->active_delta = m->iteration;
 
-   if (net->pend0.wake != NULL)
-      wakeup_one(m, &(net->pend0));
-
-   for (int i = 0; i < net->npending; i++) {
-      rt_pending_t *p = &(net->pending[i]);
-      if (p->wake != NULL)
-         wakeup_one(m, p);
+   if (pointer_tag(net->pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(net->pending, rt_wakeable_t);
+      wakeup_one(m, wake);
+   }
+   else if (net->pending != NULL) {
+      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+      for (int i = 0; i < p->count; i++) {
+         if (p->wake[i] != NULL)
+            wakeup_one(m, p->wake[i]);
+      }
    }
 }
 

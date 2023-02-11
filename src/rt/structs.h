@@ -68,19 +68,18 @@ struct waveform {
 STATIC_ASSERT(sizeof(waveform_t) <= 24);
 
 typedef struct {
-   rt_wakeable_t *wake;
+   unsigned       count;
+   unsigned       max;
+   rt_wakeable_t *wake[];
 } rt_pending_t;
 
 typedef struct {
-   rt_pending_t  pend0;
-   rt_pending_t *pending;
-   uint64_t      last_event;
-   uint64_t      last_active;
-   int32_t       event_delta;
-   int32_t       active_delta;
-   uint32_t      net_id;
-   uint32_t      npending;
-   uint32_t      maxpend;
+   void     *pending;
+   uint64_t  last_event;
+   uint64_t  last_active;
+   int32_t   event_delta;
+   int32_t   active_delta;
+   uint32_t  net_id;
 } rt_net_t;
 
 STATIC_ASSERT(sizeof(rt_net_t) <= 64);
