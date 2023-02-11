@@ -76,9 +76,7 @@ typedef struct {
 typedef struct {
    void     *pending;
    uint64_t  last_event;
-   uint64_t  last_active;
    int32_t   event_delta;
-   int32_t   active_delta;
    uint32_t  net_id;
 } rt_net_t;
 
@@ -136,6 +134,7 @@ typedef struct _rt_nexus {
    rt_nexus_t   *chain;
    rt_signal_t  *signal;
    uint32_t      offset;
+   int32_t       delta;
    uint32_t      width;
    net_flags_t   flags;
    uint8_t       size;

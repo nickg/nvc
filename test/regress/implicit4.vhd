@@ -7,6 +7,7 @@ begin
 
     p1: process is
     begin
+        assert x'last_active = time'high;
         assert x'stable;
         assert x'quiet;
         assert x'stable(1 hr);
