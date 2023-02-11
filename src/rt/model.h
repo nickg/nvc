@@ -50,7 +50,7 @@ rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
-size_t signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max);
+size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
 size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count);
 

@@ -134,16 +134,16 @@ typedef struct {
 
 typedef struct _rt_nexus {
    rt_nexus_t   *chain;
-   void         *free_value;
-   rt_net_t     *net;
+   rt_signal_t  *signal;
+   uint32_t      offset;
    uint32_t      width;
    net_flags_t   flags;
    uint8_t       size;
    uint8_t       n_sources;
    rt_source_t   sources;
-   rt_signal_t  *signal;
    rt_source_t  *outputs;
-   void         *resolved;
+   void         *free_value;
+   rt_net_t     *net;
 } rt_nexus_t;
 
 STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);

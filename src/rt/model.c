@@ -700,55 +700,38 @@ const void *signal_last_value(rt_signal_t *s)
    return s->shared.data + s->shared.size;
 }
 
-size_t signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
+size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
 {
-   rt_nexus_t *n = &(s->nexus);
-   for (; offset > 0; n = n->chain)
-      offset -= n->width;
-   assert(offset == 0);
+   const size_t total = s->shared.size / s->nexus.size;
 
-   for (; n != NULL && offset < max; n = n->chain) {
 #define SIGNAL_READ_EXPAND_U64(type) do {                               \
-         const type *sp = (type *)n->resolved;                          \
-         for (int j = 0; (j < n->width) && (offset + j < max); j++)     \
-            buf[offset + j] = sp[j];                                    \
-      } while (0)
+      const type *sp = (type *)s->shared.data;                          \
+      for (int i = 0; i < max && i < total; i++)                        \
+         buf[i] = sp[i];                                                \
+   } while (0)
 
-      FOR_ALL_SIZES(n->size, SIGNAL_READ_EXPAND_U64);
+   FOR_ALL_SIZES(s->nexus.size, SIGNAL_READ_EXPAND_U64);
 
-      offset += n->width;
-   }
-
-   return offset;
+   return total;
 }
 
 size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
 {
    char *endp = buf + max;
-   int offset = 0;
-   rt_nexus_t *n = &(s->nexus);
-   for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
-      const char *vals = n->resolved;
-      if (likely(map != NULL)) {
-         for (int j = 0; j < n->width; j++) {
-            if (buf + 1 < endp)
-               *buf++ = map[(int)vals[j]];
-         }
-      }
-      else {
-         for (int j = 0; j < n->width; j++) {
-            if (buf + 1 < endp)
-               *buf++ = vals[j];
-         }
-      }
 
-      if (buf < endp)
-         *buf = '\0';
-
-      offset += n->width;
+   if (map != NULL) {
+      for (int j = 0; j < s->shared.size && buf + 1 < endp; j++)
+         *buf++ = map[(int)s->shared.data[j]];
+   }
+   else {
+      for (int j = 0; j < s->shared.size && buf + 1 < endp; j++)
+         *buf++ = s->shared.data[j];
    }
 
-   return offset + 1;
+   if (buf < endp)
+      *buf = '\0';
+
+   return s->shared.size + 1;
 }
 
 static inline void set_pending(rt_wakeable_t *wake)
@@ -996,6 +979,21 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    return memo;
 }
 
+static inline void *nexus_effective(rt_nexus_t *n)
+{
+   return n->signal->shared.data + n->offset;
+}
+
+static inline void *nexus_last_value(rt_nexus_t *n)
+{
+   return n->signal->shared.data + n->offset + n->signal->shared.size;
+}
+
+static inline void *nexus_driving(rt_nexus_t *n)
+{
+   return n->signal->shared.data + n->offset + 2*n->signal->shared.size;
+}
+
 static rt_value_t alloc_value(rt_model_t *m, rt_nexus_t *n)
 {
    rt_value_t result = {};
@@ -1208,7 +1206,7 @@ static void build_index(rt_signal_t *signal)
 
 static void update_index(rt_signal_t *s, rt_nexus_t *n)
 {
-   const unsigned offset = (n->resolved - (void *)s->shared.data) / n->size;
+   const unsigned offset = n->offset / n->size;
 
    if (!index_valid(s->index, offset)) {
       TRACE("rebuild index for %s offset=%d how=%d",
@@ -1376,12 +1374,12 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    signal->n_nexus++;
 
    rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
-   new->width    = old->width - offset;
-   new->size     = old->size;
-   new->signal   = signal;
-   new->resolved = (uint8_t *)old->resolved + offset * old->size;
-   new->chain    = old->chain;
-   new->flags    = old->flags;
+   new->width  = old->width - offset;
+   new->size   = old->size;
+   new->signal = signal;
+   new->offset = old->offset + offset * old->size;
+   new->chain  = old->chain;
+   new->flags  = old->flags;
 
    old->chain = new;
    old->width = offset;
@@ -1509,13 +1507,13 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    *signals_tail = s;
    signals_tail = &(s->chain);
 
-   s->nexus.width      = count;
-   s->nexus.size       = size;
-   s->nexus.n_sources  = 0;
-   s->nexus.resolved   = s->shared.data;
-   s->nexus.flags      = flags | NET_F_FAST_DRIVER;
-   s->nexus.signal     = s;
-   s->nexus.net        = NULL;
+   s->nexus.width     = count;
+   s->nexus.size      = size;
+   s->nexus.n_sources = 0;
+   s->nexus.offset    = 0;
+   s->nexus.flags     = flags | NET_F_FAST_DRIVER;
+   s->nexus.signal    = s;
+   s->nexus.net       = NULL;
 
    *m->nexus_tail = &(s->nexus);
    m->nexus_tail = &(s->nexus.chain);
@@ -1529,10 +1527,9 @@ static void copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
 
    for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
       rt_nexus_t *n = &(s->nexus);
-      for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
-         ptrdiff_t o = (uint8_t *)n->resolved - s->shared.data;
-         memcpy(buf + s->shared.offset + o, (*fn)(n), n->size * n->width);
-      }
+      for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain)
+         memcpy(buf + s->shared.offset + n->offset,
+                (*fn)(n), n->size * n->width);
    }
 
    for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
@@ -1599,10 +1596,9 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
       incopy = true;
 
       rt_nexus_t *n = &(i0->nexus);
-      for (unsigned i = 0; i < i0->n_nexus; i++, n = n->chain) {
-         ptrdiff_t o = (uint8_t *)n->resolved - i0->shared.data;
-         memcpy(indata + i0->shared.offset + o, (*fn)(n), n->size * n->width);
-      }
+      for (unsigned i = 0; i < i0->n_nexus; i++, n = n->chain)
+         memcpy(indata + i0->shared.offset + n->offset,
+                (*fn)(n), n->size * n->width);
    }
 
    rt_model_t *m = get_model();
@@ -1704,10 +1700,8 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
                         r->closure.context, inputs, r->ileft, nonnull))
          m->force_stop = true;
 
-      void *resolved = result.pointer;
-      const ptrdiff_t noff =
-         nexus->resolved - (void *)nexus->signal->shared.data;
-      return resolved + nexus->signal->shared.offset + noff - rscope->offset;
+      return result.pointer + nexus->signal->shared.offset
+         + nexus->offset - rscope->offset;
    }
    else {
       void *resolved = local_alloc(nexus->width * nexus->size);
@@ -1765,7 +1759,7 @@ static void *driving_value(rt_nexus_t *nexus)
    // If S has no source, then the driving value of S is given by the
    // default value associated with S
    if (nexus->n_sources == 0)
-      return nexus->resolved + 2*nexus->signal->shared.size;
+      return nexus_driving(nexus);
 
    res_memo_t *r = nexus->signal->resolution;
 
@@ -1792,7 +1786,7 @@ static void *driving_value(rt_nexus_t *nexus)
       case SOURCE_FORCING:
          // An undriven signal that was previously forced
          assert(s->disconnected);
-         return nexus->resolved + 2*nexus->signal->shared.size;
+         return nexus_driving(nexus);
       }
 
       return NULL;
@@ -1811,7 +1805,7 @@ static void *driving_value(rt_nexus_t *nexus)
       // values determined by the null transaction, then the driving
       // value of S is unchanged from its previous value.
       if (nonnull == 0 && (nexus->flags & NET_F_REGISTER))
-         return nexus->resolved;
+         return nexus_effective(nexus);
 
       // Otherwise, the driving value of S is obtained by executing the
       // resolution function associated with S
@@ -1832,7 +1826,7 @@ static const void *effective_value(rt_nexus_t *nexus)
             if (likely(s->u.port.conv_func == NULL))
                return effective_value(s->u.port.output);
             else
-               return nexus->resolved;
+               return nexus_effective(nexus);
          }
       }
    }
@@ -1844,9 +1838,9 @@ static const void *effective_value(rt_nexus_t *nexus)
    // If S is an unconnected port of mode in, the effective value of S
    // is given by the default value associated with S.
    if (nexus->flags & NET_F_EFFECTIVE)
-      return nexus->resolved + 2 * nexus->signal->shared.size;
+      return nexus_driving(nexus);
    else
-      return nexus->resolved;
+      return nexus_effective(nexus);
 }
 
 static void propagate_nexus(rt_nexus_t *nexus, const void *resolved)
@@ -1856,11 +1850,9 @@ static void propagate_nexus(rt_nexus_t *nexus, const void *resolved)
    // LAST_VALUE is the same as the initial value when there have
    // been no events on the signal otherwise only update it when
    // there is an event
-   void *last_value = nexus->resolved + nexus->signal->shared.size;
-   memcpy(last_value, nexus->resolved, valuesz);
-
-   if (nexus->resolved != resolved)   // Can occur during startup
-      memcpy(nexus->resolved, resolved, valuesz);
+   void *eff = nexus_effective(nexus);
+   memcpy(nexus_last_value(nexus), eff, valuesz);
+   memcpy(eff, resolved, valuesz);
 }
 
 static int nexus_rank(rt_nexus_t *nexus)
@@ -1937,23 +1929,19 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
       for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
          n_outputs++;
 
-      void *driving = NULL;
+      const void *driving = NULL;
       if (n->flags & NET_F_EFFECTIVE)
-         driving = n->resolved + 2 * n->signal->shared.size;
+         driving = nexus_driving(n);
 
-      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d ",
+      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d ",
               nth == 0 ? tb_get(tb) : "+",
-              n->width, n->size, n->n_sources, n_outputs,
-              n->net != NULL ? n->net->net_id : 0);
+              n->width, n->size, n->n_sources, n_outputs);
 
-      if (n->net != NULL) {
-         void *last_value = n->resolved + n->signal->shared.size;
-         if (n->net->event_delta == m->iteration
-             && n->net->last_event == m->now)
-            fprintf(stderr, "%s -> ", fmt_nexus(n, last_value));
-      }
+      if (n->net != NULL && n->net->event_delta == m->iteration
+          && n->net->last_event == m->now)
+         fprintf(stderr, "%s -> ", fmt_nexus(n, nexus_last_value(n)));
 
-      fputs(fmt_nexus(n, n->resolved), stderr);
+      fputs(fmt_nexus(n, nexus_effective(n)), stderr);
 
       if (driving != NULL)
          fprintf(stderr, " (%s)", fmt_nexus(n, driving));
@@ -1974,9 +1962,8 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
          fputc('=', stderr);
       fputc('\n', stderr);
 
-      fprintf(stderr, "%-20s %5s %4s %7s %7s %-4s %s\n",
-              "Signal", "Width", "Size", "Sources", "Outputs",
-              "Net", "Value");
+      fprintf(stderr, "%-20s %5s %4s %7s %7s %s\n",
+              "Signal", "Width", "Size", "Sources", "Outputs", "Value");
    }
 
    for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
@@ -2012,7 +1999,7 @@ static void check_undriven_std_logic(rt_nexus_t *n)
       if (s->tag == SOURCE_PORT) {
          rt_nexus_t *input = s->u.port.input;
          if (input->n_sources == 0) {
-            const unsigned char *init = input->resolved, *p = init;
+            const unsigned char *init = nexus_effective(input), *p = init;
             for (; *p == 0 && p < init + input->width; p++);
 
             if (p == init + input->width)
@@ -2085,7 +2072,8 @@ void model_reset(rt_model_t *m)
       if (n->n_sources > 0) {
          for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
             if (s->tag == SOURCE_DRIVER)
-               copy_value_ptr(n, &(s->u.driver.waveforms.value), n->resolved);
+               copy_value_ptr(n, &(s->u.driver.waveforms.value),
+                              nexus_effective(n));
          }
       }
 
@@ -2099,7 +2087,7 @@ void model_reset(rt_model_t *m)
 
       if (n->flags & NET_F_EFFECTIVE) {
          // Driving and effective values must be calculated separately
-         void *driving = n->resolved + 2*n->signal->shared.size;
+         void *driving = nexus_driving(n);
          memcpy(driving, driving_value(n), n->width * n->size);
 
          APUSH(effq, n);
@@ -2109,11 +2097,14 @@ void model_reset(rt_model_t *m)
       }
       else {
          // Effective value is always the same as the driving value
-         const void *initial = n->resolved;
+         const void *initial = nexus_effective(n);
          if (n->n_sources > 0)
             initial = driving_value(n);
 
-         propagate_nexus(n, initial);
+         const size_t valuesz = n->size * n->width;
+
+         memcpy(nexus_last_value(n), initial, valuesz);
+         memcpy(nexus_effective(n), initial, valuesz);
 
          TRACE("%s initial value %s", istr(tree_ident(n->signal->where)),
                fmt_nexus(n, initial));
@@ -2430,7 +2421,7 @@ static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
 
    rt_net_t *net = get_net(m, nexus);
 
-   if (memcmp(nexus->resolved, value, nexus->size * nexus->width) != 0) {
+   if (memcmp(nexus_effective(nexus), value, nexus->size * nexus->width) != 0) {
       propagate_nexus(nexus, value);
       notify_event(m, net);
    }
@@ -2475,12 +2466,11 @@ static void update_driving(rt_model_t *m, rt_nexus_t *nexus)
       // effective value later
       update_outputs = true;
 
-      void *driving = nexus->resolved + 2*nexus->signal->shared.size;
-      memcpy(driving, value, valuesz);
+      memcpy(nexus_driving(nexus), value, valuesz);
 
       enqueue_effective(m, nexus);
    }
-   else if (memcmp(nexus->resolved, value, valuesz) != 0) {
+   else if (memcmp(nexus_effective(nexus), value, valuesz) != 0) {
       propagate_nexus(nexus, value);
       notify_event(m, net);
       update_outputs = true;
@@ -2603,7 +2593,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 
    rt_net_t *net = get_net(m, n0);
 
-   if (*(int8_t *)n0->resolved != result.integer) {
+   if (*(int8_t *)nexus_effective(n0) != result.integer) {
       propagate_nexus(n0, &result.integer);
       notify_event(m, net);
    }
@@ -3344,10 +3334,8 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      void *driving = n->resolved + 2*n->signal->shared.size;
-      memcpy(driving, values, n->width * n->size);
-
-      memcpy(n->resolved, values, n->width * n->size);
+      memcpy(nexus_driving(n), values, n->width * n->size);
+      memcpy(nexus_effective(n), values, n->width * n->size);
       values += n->width * n->size;
 
       count -= n->width;
@@ -3457,7 +3445,7 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 
       const uint8_t *driving;
       if (n->flags & NET_F_FAST_DRIVER)
-         driving = n->resolved;
+         driving = nexus_effective(n);
       else
          driving = value_ptr(n, &(src->u.driver.waveforms.value));
 

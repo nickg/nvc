@@ -150,7 +150,7 @@ static void fst_close(rt_model_t *m, void *arg)
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val[data->count];
-   signal_expand(data->signal, 0, val, data->count);
+   signal_expand(data->signal, val, data->count);
 
    for (int i = 0; i < data->count; i++) {
       char buf[data->type->size + 1];
@@ -171,7 +171,7 @@ static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   signal_expand(data->signal, 0, &val, 1);
+   signal_expand(data->signal, &val, 1);
 
    fst_unit_t *unit = data->type->u.units;
    while ((val % unit->mult) != 0)
@@ -204,7 +204,7 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   signal_expand(data->signal, 0, &val, 1);
+   signal_expand(data->signal, &val, 1);
 
    fst_enum_t *e = &(data->type->u.literals);
    assert(val < e->count);
