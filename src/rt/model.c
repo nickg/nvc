@@ -537,6 +537,9 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
                free(s->u.port.conv_func);
          }
          break;
+
+      case SOURCE_FORCING:
+         break;
       }
    }
 
@@ -1067,7 +1070,7 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    rt_source_t *src = NULL;
    if (n->n_sources == 0)
       src = &(n->sources);
-   else if (n->signal->resolution == NULL
+   else if (n->signal->resolution == NULL && kind != SOURCE_FORCING
             && (n->sources.tag == SOURCE_DRIVER
                 || n->sources.u.port.conv_func == NULL))
       jit_msg(tree_loc(n->signal->where), DIAG_FATAL,
@@ -1084,10 +1087,8 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    if (n->n_sources < UINT8_MAX)
       n->n_sources++;
 
-   if (n->n_sources > 1) {
-      assert(!n->sources.fastqueued);
+   if (n->n_sources > 1)
       n->flags &= ~NET_F_FAST_DRIVER;
-   }
 
    src->chain_input  = NULL;
    src->chain_output = NULL;
@@ -1110,6 +1111,10 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
       src->u.port.conv_func = NULL;
       src->u.port.input     = NULL;
       src->u.port.output    = n;
+      break;
+
+   case SOURCE_FORCING:
+      src->u.forcing = alloc_value(m, n);
       break;
    }
 
@@ -1264,41 +1269,38 @@ static waveform_t *alloc_waveform(rt_model_t *m)
    }
 }
 
-static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
-                           waveform_t *w_old, int offset)
+static void split_value(rt_nexus_t *nexus, rt_value_t *v_new,
+                        rt_value_t *v_old, int offset)
 {
-   w_new->when = w_old->when;
-   w_new->next = NULL;
-
    const int split = offset * nexus->size;
    const int oldsz = (offset + nexus->width) * nexus->size;
    const int newsz = nexus->width * nexus->size;
 
    if (split > sizeof(rt_value_t) && newsz > sizeof(rt_value_t)) {
       // Split the external memory with no copying
-      w_new->value.ext = (char *)w_old->value.ext + split;
+      v_new->ext = (char *)v_old->ext + split;
    }
    else if (newsz > sizeof(rt_value_t)) {
       // Wasting up to eight bytes at the start of the the old waveform
-      char *ext = w_old->value.ext;
-      w_old->value.qword = *(uint64_t *)ext;
-      w_new->value.ext = ext + split;
+      char *ext = v_old->ext;
+      v_old->qword = *(uint64_t *)ext;
+      v_new->ext = ext + split;
    }
    else if (split > sizeof(rt_value_t)) {
       // Wasting up to eight bytes at the end of the the old waveform
-      memcpy(w_new->value.bytes, w_old->value.ext + split, newsz);
+      memcpy(v_new->bytes, v_old->ext + split, newsz);
    }
    else if (oldsz > sizeof(rt_value_t)) {
       // The memory backing this waveform is lost now but this can only
       // happen a bounded number of times as nexuses only ever shrink
-      char *ext = w_old->value.ext;
-      memcpy(w_new->value.bytes, ext + split, newsz);
-      w_old->value.qword = *(uint64_t *)ext;
+      char *ext = v_old->ext;
+      memcpy(v_new->bytes, ext + split, newsz);
+      v_old->qword = *(uint64_t *)ext;
    }
    else {
       // This trick with shifting probably only works on little-endian
       // systems
-      w_new->value.qword = w_old->value.qword >> (split * 8);
+      v_new->qword = v_old->qword >> (split * 8);
    }
 }
 
@@ -1336,8 +1338,9 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
          waveform_t *w_new = &(new->u.driver.waveforms);
          waveform_t *w_old = &(old->u.driver.waveforms);
          w_new->when = w_old->when;
+         w_new->next = NULL;
 
-         clone_waveform(nexus, w_new, w_old, offset);
+         split_value(nexus, &w_new->value, &w_old->value, offset);
 
          // Pending fast driver update
          if ((nexus->flags & NET_F_FAST_DRIVER) && old->fastqueued) {
@@ -1348,12 +1351,19 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = alloc_waveform(m));
-            clone_waveform(nexus, w_new, w_old, offset);
+            w_new->when = w_old->when;
+            w_new->next = NULL;
+
+            split_value(nexus, &w_new->value, &w_old->value, offset);
 
             assert(w_old->when >= m->now);
             deltaq_insert_driver(m, w_new->when - m->now, nexus, new);
          }
       }
+      break;
+
+   case SOURCE_FORCING:
+      split_value(nexus, &(new->u.forcing), &(old->u.forcing), offset);
       break;
    }
 }
@@ -1624,6 +1634,10 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
          return driving_value(src->u.port.input);
       else
          return call_conversion(&(src->u.port), driving_value);
+
+   case SOURCE_FORCING:
+      assert(src->disconnected);
+      return NULL;
    }
 
    return NULL;
@@ -1725,14 +1739,28 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    }
 }
 
+static rt_source_t *get_forcing_source(rt_model_t *m, rt_nexus_t *n)
+{
+   if (n->n_sources > 0) {
+      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_FORCING)
+            return s;
+      }
+   }
+
+   return add_source(m, n, SOURCE_FORCING);
+}
+
 static void *driving_value(rt_nexus_t *nexus)
 {
    // Algorithm for driving values is in LRM 08 section 14.7.7.2
 
    // If S is driving-value forced, the driving value of S is unchanged
    // from its previous value; no further steps are required.
-   if (unlikely(nexus->flags & NET_F_FORCED))
-      return value_ptr(nexus, &(nexus->forcing));
+   if (unlikely(nexus->flags & NET_F_FORCED)) {
+      rt_source_t *src = get_forcing_source(get_model(), nexus);
+      return value_ptr(nexus, &(src->u.forcing));
+   }
 
    // If S has no source, then the driving value of S is given by the
    // default value associated with S
@@ -1743,15 +1771,15 @@ static void *driving_value(rt_nexus_t *nexus)
 
    if (r == NULL) {
       rt_source_t *s = &(nexus->sources);
-
-      if (s->tag == SOURCE_DRIVER) {
+      switch (s->tag) {
+      case SOURCE_DRIVER:
          // If S has one source that is a driver and S is not a resolved
          // signal, then the driving value of S is the current value of
          // that driver.
          assert(!s->disconnected);
          return value_ptr(nexus, &(s->u.driver.waveforms.value));
-      }
-      else {
+
+      case SOURCE_PORT:
          // If S has one source that is a port and S is not a resolved
          // signal, then the driving value of S is the driving value of
          // the formal part of the association element that associates S
@@ -1760,7 +1788,14 @@ static void *driving_value(rt_nexus_t *nexus)
             return driving_value(s->u.port.input);
          else
             return call_conversion(&(s->u.port), driving_value);
+
+      case SOURCE_FORCING:
+         // An undriven signal that was previously forced
+         assert(s->disconnected);
+         return nexus->resolved + 2*nexus->signal->shared.size;
       }
+
+      return NULL;
    }
    else {
       // If S is a resolved signal and has one or more sources, then the
@@ -2791,14 +2826,12 @@ bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
    int offset = 0;
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->flags & NET_F_FORCED)
-         free_value(n, n->forcing);
-
       n->flags |= NET_F_FORCED;
-      n->forcing = alloc_value(m, n);
+
+      rt_source_t *src = get_forcing_source(m, n);
 
 #define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
-         type *dp = (type *)value_ptr(n, &(n->forcing));                \
+         type *dp = (type *)value_ptr(n, &(src->u.forcing));            \
          for (int i = 0; (i < n->width) && (offset + i < count); i++)   \
             dp[i] = buf[offset + i];                                    \
       } while (0)
@@ -3509,6 +3542,7 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s);
 
    TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count), count);
@@ -3522,12 +3556,10 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
       count -= n->width;
       assert(count >= 0);
 
-      if (!(n->flags & NET_F_FORCED)) {
-         n->flags |= NET_F_FORCED;
-         n->forcing = alloc_value(m, n);
-      }
+      n->flags |= NET_F_FORCED;
 
-      copy_value_ptr(n, &(n->forcing), vptr);
+      rt_source_t *src = get_forcing_source(m, n);
+      copy_value_ptr(n, &(src->u.forcing), vptr);
       vptr += n->width * n->size;
 
       deltaq_insert_force_release(m, n);
@@ -3549,11 +3581,11 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
       count -= n->width;
       assert(count >= 0);
 
-      if (n->flags & NET_F_FORCED) {
+      if (n->flags & NET_F_FORCED)
          n->flags &= ~NET_F_FORCED;
-         free_value(n, n->forcing);
-         n->forcing.qword = 0;
-      }
+
+      rt_source_t *src = get_forcing_source(m, n);
+      src->disconnected = 1;
 
       deltaq_insert_force_release(m, n);
    }

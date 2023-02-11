@@ -87,6 +87,7 @@ STATIC_ASSERT(sizeof(rt_net_t) <= 64);
 typedef enum {
    SOURCE_DRIVER,
    SOURCE_PORT,
+   SOURCE_FORCING,
 } source_kind_t;
 
 typedef struct {
@@ -117,6 +118,7 @@ typedef struct _rt_source {
    union {
       rt_port_t    port;
       rt_driver_t  driver;
+      rt_value_t   forcing;
    } u;
 } rt_source_t;
 
@@ -134,7 +136,6 @@ typedef struct _rt_nexus {
    rt_nexus_t   *chain;
    void         *free_value;
    rt_net_t     *net;
-   rt_value_t    forcing;
    uint32_t      width;
    net_flags_t   flags;
    uint8_t       size;

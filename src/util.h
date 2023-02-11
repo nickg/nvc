@@ -141,13 +141,14 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
    (type *)((char *)__mptr - offsetof(type, member)); })
 
 #define tag_pointer(p, tag) ({                          \
-         assert(((uintptr_t)(p) & 7) == 0);             \
+         typeof((p)) __p = (p);                         \
+         assert(((uintptr_t)__p & 7) == 0);             \
          assert((unsigned)tag < 8u);                    \
-         (void *)((uintptr_t)(p) | (uintptr_t)(tag));   \
+         (void *)((uintptr_t)__p | (uintptr_t)(tag));   \
       })
 
 #define untag_pointer(p, type) (type *)((uintptr_t)(p) & ~7)
-#define pointer_tag(p) ((uintptr_t)p & 7)
+#define pointer_tag(p) ((uintptr_t)(p) & 7)
 
 // Scrambling functions from MurmurHash3
 #define mix_bits_32(n) ({                       \
