@@ -75,8 +75,6 @@ typedef struct {
 
 typedef struct {
    void     *pending;
-   uint64_t  last_event;
-   int32_t   event_delta;
    uint32_t  net_id;
 } rt_net_t;
 
@@ -134,7 +132,7 @@ typedef struct _rt_nexus {
    rt_nexus_t   *chain;
    rt_signal_t  *signal;
    uint32_t      offset;
-   int32_t       delta;
+   int32_t       active_delta;
    uint32_t      width;
    net_flags_t   flags;
    uint8_t       size;
@@ -143,6 +141,7 @@ typedef struct _rt_nexus {
    rt_source_t  *outputs;
    void         *free_value;
    rt_net_t     *net;
+   uint64_t      last_event;
 } rt_nexus_t;
 
 STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);

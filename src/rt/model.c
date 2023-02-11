@@ -1125,9 +1125,7 @@ static rt_net_t *get_net(rt_model_t *m, rt_nexus_t *nexus)
       return nexus->net;
    else {
       rt_net_t *net = static_alloc(m, sizeof(rt_net_t));
-      net->pending      = NULL;
-      net->last_event   = TIME_HIGH;
-      net->event_delta  = -1;
+      net->pending = NULL;
 
       static uint32_t next_net_id = 1;
       net->net_id = next_net_id++;
@@ -1372,13 +1370,14 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    signal->n_nexus++;
 
    rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
-   new->width  = old->width - offset;
-   new->size   = old->size;
-   new->signal = signal;
-   new->offset = old->offset + offset * old->size;
-   new->chain  = old->chain;
-   new->flags  = old->flags;
-   new->delta  = old->delta;
+   new->width        = old->width - offset;
+   new->size         = old->size;
+   new->signal       = signal;
+   new->offset       = old->offset + offset * old->size;
+   new->chain        = old->chain;
+   new->flags        = old->flags;
+   new->active_delta = old->active_delta;
+   new->last_event   = old->last_event;
 
    old->chain = new;
    old->width = offset;
@@ -1386,9 +1385,6 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    if (old->net != NULL) {
       rt_net_t *new_net = get_net(m, new);
       rt_net_t *old_net = get_net(m, old);
-
-      new_net->last_event   = old_net->last_event;
-      new_net->event_delta  = old_net->event_delta;
 
       if (old_net->pending == NULL)
          new_net->pending = NULL;
@@ -1504,14 +1500,15 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    *signals_tail = s;
    signals_tail = &(s->chain);
 
-   s->nexus.width     = count;
-   s->nexus.size      = size;
-   s->nexus.n_sources = 0;
-   s->nexus.offset    = 0;
-   s->nexus.flags     = flags | NET_F_FAST_DRIVER;
-   s->nexus.signal    = s;
-   s->nexus.net       = NULL;
-   s->nexus.delta     = -1;
+   s->nexus.width        = count;
+   s->nexus.size         = size;
+   s->nexus.n_sources    = 0;
+   s->nexus.offset       = 0;
+   s->nexus.flags        = flags | NET_F_FAST_DRIVER;
+   s->nexus.signal       = s;
+   s->nexus.net          = NULL;
+   s->nexus.active_delta = -1;
+   s->nexus.last_event   = TIME_HIGH;
 
    *m->nexus_tail = &(s->nexus);
    m->nexus_tail = &(s->nexus.chain);
@@ -1935,8 +1932,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
               nth == 0 ? tb_get(tb) : "+",
               n->width, n->size, n->n_sources, n_outputs);
 
-      if (n->net != NULL && n->net->event_delta == m->iteration
-          && n->net->last_event == m->now)
+      if (n->active_delta == m->iteration && n->last_event == m->now)
          fprintf(stderr, "%s -> ", fmt_nexus(n, nexus_last_value(n)));
 
       fputs(fmt_nexus(n, nexus_effective(n)), stderr);
@@ -2390,8 +2386,7 @@ static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
 {
    rt_net_t *net = get_net(m, nexus);
 
-   net->last_event = m->now;
-   net->event_delta = m->iteration;
+   nexus->last_event = m->now;
 
    if (pointer_tag(net->pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(net->pending, rt_wakeable_t);
@@ -2413,7 +2408,7 @@ static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
    TRACE("update %s effective value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, value));
 
-   nexus->delta = m->iteration;
+   nexus->active_delta = m->iteration;
 
    if (memcmp(nexus_effective(nexus), value, nexus->size * nexus->width) != 0) {
       propagate_nexus(nexus, value);
@@ -2450,7 +2445,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *nexus)
    TRACE("update %s driving value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, value));
 
-   nexus->delta = m->iteration;
+   nexus->active_delta = m->iteration;
 
    bool update_outputs = false;
    if (nexus->flags & NET_F_EFFECTIVE) {
@@ -2581,7 +2576,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
    assert(imp->signal.n_nexus == 1);
    rt_nexus_t *n0 = &(imp->signal.nexus);
 
-   n0->delta = m->iteration;
+   n0->active_delta = m->iteration;
 
    if (*(int8_t *)nexus_effective(n0) != result.integer) {
       propagate_nexus(n0, &result.integer);
@@ -2942,7 +2937,7 @@ static bool nexus_active(rt_model_t *m, rt_nexus_t *nexus)
             if (nexus_active(m, s->u.port.input))
                return true;
          }
-         else if (s->tag == SOURCE_DRIVER && nexus->delta == m->iteration
+         else if (s->tag == SOURCE_DRIVER && nexus->active_delta == m->iteration
                   && s->u.driver.waveforms.when == m->now)
             return true;
       }
@@ -3100,8 +3095,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_net_t *net = get_net(m, n);
-      if (net->last_event == m->now && net->event_delta == m->iteration)
+      if (n->last_event == m->now && n->active_delta == m->iteration)
          return 1;
 
       count -= n->width;
@@ -3216,9 +3210,8 @@ int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_net_t *net = get_net(m, n);
-      if (net->last_event <= m->now)
-         last = MIN(last, m->now - net->last_event);
+      if (n->last_event <= m->now)
+         last = MIN(last, m->now - n->last_event);
 
       count -= n->width;
       assert(count >= 0);
