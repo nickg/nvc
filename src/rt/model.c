@@ -507,15 +507,6 @@ static void free_waveform(rt_model_t *m, waveform_t *w)
    thread->free_waveforms = w;
 }
 
-static void cleanup_net(rt_net_t *net)
-{
-   if (net->pending != NULL && pointer_tag(net->pending) == 0) {
-      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
-      free(p);
-      net->pending = NULL;
-   }
-}
-
 static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 {
    for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp) {
@@ -543,8 +534,9 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
       }
    }
 
-   if (n->net != NULL)
-      cleanup_net(n->net);
+
+   if (n->pending != NULL && pointer_tag(n->pending) == 0)
+      free(n->pending);
 }
 
 static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
@@ -1119,21 +1111,6 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    return src;
 }
 
-static rt_net_t *get_net(rt_model_t *m, rt_nexus_t *nexus)
-{
-   if (likely(nexus->net != NULL))
-      return nexus->net;
-   else {
-      rt_net_t *net = static_alloc(m, sizeof(rt_net_t));
-      net->pending = NULL;
-
-      static uint32_t next_net_id = 1;
-      net->net_id = next_net_id++;
-
-      return (nexus->net = net);
-   }
-}
-
 static inline int map_index(rt_index_t *index, unsigned offset)
 {
    if (likely(index->how >= 0))
@@ -1382,28 +1359,21 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    old->chain = new;
    old->width = offset;
 
-   if (old->net != NULL) {
-      rt_net_t *new_net = get_net(m, new);
-      rt_net_t *old_net = get_net(m, old);
+   if (old->pending == NULL)
+      new->pending = NULL;
+   else if (pointer_tag(old->pending) == 1)
+      new->pending = old->pending;
+   else {
+      rt_pending_t *old_p = untag_pointer(old->pending, rt_pending_t);
+      rt_pending_t *new_p = xmalloc_flex(sizeof(rt_pending_t), old_p->count,
+                                         sizeof(rt_wakeable_t *));
 
-      if (old_net->pending == NULL)
-         new_net->pending = NULL;
-      else if (pointer_tag(old_net->pending) == 1)
-         new_net->pending = old_net->pending;
-      else {
-         rt_pending_t *old_p = untag_pointer(old_net->pending, rt_pending_t);
-         rt_pending_t *new_p = xmalloc_flex(sizeof(rt_pending_t), old_p->count,
-                                            sizeof(rt_wakeable_t *));
+      new_p->count = new_p->max = old_p->count;
 
-         new_p->count = new_p->max = old_p->count;
+      for (int i = 0; i < old_p->count; i++)
+         new_p->wake[i] = old_p->wake[i];
 
-         for (int i = 0; i < old_p->count; i++)
-            new_p->wake[i] = old_p->wake[i];
-
-         new_net->pending = tag_pointer(new_p, 0);
-      }
-
-      new->net = new_net;
+      new->pending = tag_pointer(new_p, 0);
    }
 
    if (new->chain == NULL)
@@ -1506,7 +1476,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->nexus.offset       = 0;
    s->nexus.flags        = flags | NET_F_FAST_DRIVER;
    s->nexus.signal       = s;
-   s->nexus.net          = NULL;
+   s->nexus.pending      = NULL;
    s->nexus.active_delta = -1;
    s->nexus.last_event   = TIME_HIGH;
 
@@ -2121,42 +2091,50 @@ void model_reset(rt_model_t *m)
    }
 }
 
-static void sched_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
+static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
 {
-   if (net->pending == NULL)
-      net->pending = tag_pointer(obj, 1);
-   else if (pointer_tag(net->pending) == 1) {
+   if (n->pending == NULL)
+      n->pending = tag_pointer(obj, 1);
+   else if (pointer_tag(n->pending) == 1) {
       rt_pending_t *p = xmalloc_flex(sizeof(rt_pending_t), PENDING_MIN,
                                      sizeof(rt_wakeable_t *));
       p->max = PENDING_MIN;
       p->count = 2;
-      p->wake[0] = untag_pointer(net->pending, rt_wakeable_t);
+      p->wake[0] = untag_pointer(n->pending, rt_wakeable_t);
       p->wake[1] = obj;
 
-      net->pending = tag_pointer(p, 0);
+      n->pending = tag_pointer(p, 0);
    }
    else {
-      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
+
+      for (int i = 0; i < p->count; i++) {
+         if (p->wake[i] == NULL) {
+            p->wake[i] = obj;
+            return;
+         }
+      }
+
       if (p->count == p->max) {
          p->max = MAX(PENDING_MIN, p->max * 2);
          p = xrealloc_flex(p, sizeof(rt_pending_t), p->max,
                            sizeof(rt_wakeable_t *));
-         net->pending = tag_pointer(p, 0);
+         n->pending = tag_pointer(p, 0);
       }
 
       p->wake[p->count++] = obj;
    }
 }
 
-static void clear_event(rt_model_t *m, rt_net_t *net, rt_wakeable_t *obj)
+static void clear_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
 {
-   if (pointer_tag(net->pending) == 1) {
-      rt_wakeable_t *wake = untag_pointer(net->pending, rt_wakeable_t);
+   if (pointer_tag(n->pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(n->pending, rt_wakeable_t);
       if (wake == obj)
-         net->pending = NULL;
+         n->pending = NULL;
    }
-   else if (net->pending != NULL) {
-      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+   else if (n->pending != NULL) {
+      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] == obj)
             p->wake[i] = NULL;
@@ -2384,16 +2362,14 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 
 static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
 {
-   rt_net_t *net = get_net(m, nexus);
-
    nexus->last_event = m->now;
 
-   if (pointer_tag(net->pending) == 1) {
-      rt_wakeable_t *wake = untag_pointer(net->pending, rt_wakeable_t);
+   if (pointer_tag(nexus->pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(nexus->pending, rt_wakeable_t);
       wakeup_one(m, wake);
    }
-   else if (net->pending != NULL) {
-      rt_pending_t *p = untag_pointer(net->pending, rt_pending_t);
+   else if (nexus->pending != NULL) {
+      rt_pending_t *p = untag_pointer(nexus->pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] != NULL)
             wakeup_one(m, p->wake[i]);
@@ -2895,7 +2871,7 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
 
       rt_nexus_t *n = &(w->signal->nexus);
       for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-         sched_event(m, get_net(m, n), &(w->wakeable));
+         sched_event(m, n, &(w->wakeable));
 
       return w;
    }
@@ -3145,7 +3121,7 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      sched_event(m, get_net(m, n), wake);
+      sched_event(m, n, wake);
 
       count -= n->width;
       assert(count >= 0);
@@ -3163,7 +3139,7 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      clear_event(m, get_net(m, n), &(active_proc->wakeable));
+      clear_event(m, n, &(active_proc->wakeable));
 
       count -= n->width;
       assert(count >= 0);

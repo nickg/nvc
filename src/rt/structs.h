@@ -73,13 +73,6 @@ typedef struct {
    rt_wakeable_t *wake[];
 } rt_pending_t;
 
-typedef struct {
-   void     *pending;
-   uint32_t  net_id;
-} rt_net_t;
-
-STATIC_ASSERT(sizeof(rt_net_t) <= 64);
-
 typedef enum {
    SOURCE_DRIVER,
    SOURCE_PORT,
@@ -137,11 +130,11 @@ typedef struct _rt_nexus {
    net_flags_t   flags;
    uint8_t       size;
    uint8_t       n_sources;
-   rt_source_t   sources;
+   uint64_t      last_event;
+   void         *pending;
    rt_source_t  *outputs;
    void         *free_value;
-   rt_net_t     *net;
-   uint64_t      last_event;
+   rt_source_t   sources;
 } rt_nexus_t;
 
 STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);
@@ -159,16 +152,16 @@ typedef struct {
 } rt_index_t;
 
 typedef struct _rt_signal {
-   tree_t          where;
-   rt_signal_t    *chain;
-   rt_scope_t     *parent;
-   rt_index_t     *index;
-   res_memo_t     *resolution;
-   nvc_lock_t      lock;
-   net_flags_t     flags;
-   uint32_t        n_nexus;
-   rt_nexus_t      nexus;
-   sig_shared_t    shared;
+   tree_t        where;
+   rt_signal_t  *chain;
+   rt_scope_t   *parent;
+   rt_index_t   *index;
+   res_memo_t   *resolution;
+   nvc_lock_t    lock;
+   net_flags_t   flags;
+   uint32_t      n_nexus;
+   rt_nexus_t    nexus;
+   sig_shared_t  shared;
 } rt_signal_t;
 
 STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 192);
