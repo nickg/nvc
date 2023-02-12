@@ -3429,6 +3429,7 @@ bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
 void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
 
    TRACE("_driving_value %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
@@ -3531,7 +3532,7 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-   RT_LOCK(s);
+   RT_LOCK(s->lock);
 
    TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count), count);

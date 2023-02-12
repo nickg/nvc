@@ -242,6 +242,8 @@ static int              async_pending __attribute__((aligned(64))) = 0;
 static nvc_lock_t       stop_lock = 0;
 static stop_world_fn_t  stop_callback = NULL;
 static void            *stop_arg = NULL;
+static pthread_cond_t   wake_workers = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t  wakelock = PTHREAD_MUTEX_INITIALIZER;
 #ifdef POSIX_SUSPEND
 static sem_t            stop_sem;
 #endif
@@ -295,7 +297,13 @@ static void print_lock_stats(void)
 
 static void join_worker_threads(void)
 {
-   atomic_store(&should_stop, true);
+   // Lock the wake mutex here to avoid races with workers sleeping
+   PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
+   {
+      atomic_store(&should_stop, true);
+      PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
+   }
+   PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
 
    for (int i = 1; i < MAX_THREADS; i++) {
       nvc_thread_t *t = atomic_load(&threads[i]);
@@ -388,7 +396,11 @@ void thread_init(void)
 
    assert(my_thread->id == 0);
 
-   max_workers = MIN(nvc_nprocs(), MAX_THREADS);
+   const char *env = getenv("NVC_MAX_THREADS");
+   if (env != NULL)
+      max_workers = MAX(1, MIN(atoi(env), MAX_THREADS));
+   else
+      max_workers = MIN(nvc_nprocs(), MAX_THREADS);
    assert(max_workers > 0);
 
 #ifdef DEBUG
@@ -572,7 +584,7 @@ void nvc_lock(nvc_lock_t *lock)
    int8_t state = relaxed_load(lock);
    if (state & IS_LOCKED)
       LOCK_EVENT(contended, 1);
-   else if (likely(atomic_cas(lock, state, state | IS_LOCKED)))
+   else if (likely(__atomic_cas(lock, &state, state | IS_LOCKED)))
       goto locked;  // Fast path: acquired the lock without contention
 
    for (;;) {
@@ -919,24 +931,6 @@ static bool steal_task(void)
    return false;
 }
 
-static void maybe_backoff(void)
-{
-   const int spins = my_thread->spins++;
-
-   if (spins < 10)
-      spin_wait();
-   else if (spins < 20) {
-      for (int i = 0; i < 50; i++)
-         spin_wait();
-   }
-   else if (spins < 30)
-      sched_yield();
-   else if (spins < 40)
-      usleep(1000);
-   else
-      usleep(10000);
-}
-
 static void *worker_thread(void *arg)
 {
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
@@ -944,9 +938,16 @@ static void *worker_thread(void *arg)
    do {
       if (globalq_poll(&globalq, &(my_thread->queue)) || steal_task())
          my_thread->spins = 0;  // Did work
-      else
-         maybe_backoff();
-
+      else if (my_thread->spins++ < 2)
+         spin_wait();
+      else {
+         PTHREAD_CHECK(pthread_mutex_lock, &wakelock);
+         {
+            if (!relaxed_load(&should_stop))
+               PTHREAD_CHECK(pthread_cond_wait, &wake_workers, &wakelock);
+         }
+         PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
+      }
    } while (likely(!relaxed_load(&should_stop)));
 
    return NULL;
@@ -1016,6 +1017,8 @@ void workq_start(workq_t *wq)
    if (wq->parallel && nparallel > 0) {
       nvc_unlock(&globalq.lock);
       create_workers(nparallel);
+
+      PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
    }
 }
 
@@ -1045,8 +1048,11 @@ static int workq_outstanding(workq_t *wq)
 
 static void workq_parallel_drain(workq_t *wq)
 {
-   while (workq_outstanding(wq) > 0) {
-      if (!globalq_poll(&globalq, &(my_thread->queue)) || !steal_task())
+   if (workq_outstanding(wq) > 0) {
+      while (globalq_poll(&globalq, &(my_thread->queue)));
+      while (steal_task());
+
+      while (workq_outstanding(wq) > 0)
          spin_wait();
    }
 
@@ -1087,7 +1093,7 @@ void async_barrier(void)
 {
    while (atomic_load(&async_pending) > 0) {
       if (!globalq_poll(&globalq, &(my_thread->queue)))
-         maybe_backoff();
+         spin_wait();
    }
 }
 
