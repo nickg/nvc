@@ -1697,10 +1697,13 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
             str, type_pp(type), istr(tree_ident(generic)));
 
    if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      tree_t lit = type_enum_literal(base, value.integer);
+
       tree_t result = tree_new(T_REF);
       tree_set_type(result, type);
       tree_set_ident(result, ident_new(str));
-      tree_set_ref(result, type_enum_literal(type, value.integer));
+      tree_set_ref(result, lit);
 
       return result;
    }
