@@ -712,3 +712,4 @@ cover10         cover,shell
 cmdline5        shell
 issue603        normal
 issue609        normal
+issue618        normal,gA='1',gB='0'
