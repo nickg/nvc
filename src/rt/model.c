@@ -22,6 +22,7 @@
 #include "debug.h"
 #include "hash.h"
 #include "jit/jit.h"
+#include "jit/jit-exits.h"
 #include "lib.h"
 #include "option.h"
 #include "rt/heap.h"
@@ -2963,6 +2964,33 @@ sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
    // The driving value area is also used to save the default value
    void *driving = s->shared.data + 2*s->shared.size;
    memcpy(driving, values, s->shared.size);
+
+   return &(s->shared);
+}
+
+sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
+                              uint8_t flags, tree_t where, int32_t offset)
+{
+   TRACE("init signal %s count=%d size=%d value=%"PRIx64" flags=%x offset=%d",
+         istr(tree_ident(where)), count, size, value, flags, offset);
+
+   rt_model_t *m = get_model();
+
+   const size_t datasz = MAX(3 * count * size, 8);
+   rt_signal_t *s = static_alloc(m, sizeof(rt_signal_t) + datasz);
+   setup_signal(m, s, where, count, size, flags, offset);
+
+   // The driving value area is also used to save the default value
+   void *driving = s->shared.data + 2*s->shared.size;
+
+#define COPY_SCALAR(type) do {                  \
+      type *pi = (type *)s->shared.data;        \
+      type *pd = (type *)driving;               \
+      for (int i = 0; i < count; i++)           \
+         pi[i] = pd[i] = value;                 \
+   } while (0)
+
+   FOR_ALL_SIZES(size, COPY_SCALAR);
 
    return &(s->shared);
 }

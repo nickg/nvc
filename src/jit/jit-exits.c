@@ -617,10 +617,12 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          sig_shared_t *ss;
          if (!jit_has_runtime(thread->jit))
             ss = NULL;   // Called during constant folding
-         else {
-            const uint8_t *ptr = scalar ? &value.integer : value.pointer;
-            ss = x_init_signal(count, size, ptr, flags, where, offset);
-         }
+         else if (scalar)
+            ss = x_init_signal_s(count, size, value.integer,
+                                 flags, where, offset);
+         else
+            ss = x_init_signal(count, size, value.pointer,
+                               flags, where, offset);
 
          args[0].pointer = ss;
       }

@@ -6994,17 +6994,25 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       vcode_type_t vtype;
       bool need_wrap = false;
       if (type_is_array(type)) {
-         lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
          vtype = lower_type(lower_elem_recur(type));
          len_reg = lower_array_total_len(type, bounds_reg);
-         init_reg = lower_array_data(init_reg);
          need_wrap = !lower_const_bounds(type);
       }
       else {
          vtype = lower_type(type);
          len_reg = emit_const(voffset, 1);
-         lower_check_scalar_bounds(init_reg, type, where, where);
       }
+
+      if (init_reg == VCODE_INVALID_REG) {
+         type_t elem = lower_elem_recur(type);
+         init_reg = lower_range_left(range_of(elem, 0));
+      }
+      else if (type_is_array(type)) {
+         lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
+         init_reg = lower_array_data(init_reg);
+      }
+      else
+         lower_check_scalar_bounds(init_reg, type, where, where);
 
       vcode_reg_t locus = lower_debug_locus(where);
 
@@ -7042,7 +7050,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
       type_t elem = lower_elem_recur(type);
 
-      if (null_reg == VCODE_INVALID_REG)
+      if (null_reg == VCODE_INVALID_REG || lower_have_uarray_ptr(null_reg))
          null_reg = emit_null(vtype_pointer(lower_type(elem)));
 
       if (sig_ptr == VCODE_INVALID_REG)
@@ -7056,7 +7064,8 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          shift_constraints(&cons, &ncons, count);
       }
 
-      lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
+      if (init_reg != VCODE_INVALID_REG)
+         lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
 
       const int ndims = dimension_of(type);
       vcode_reg_t len_reg = lower_array_len(type, 0, bounds_reg);
@@ -7101,8 +7110,11 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       vcode_select_block(body_bb);
 
       vcode_reg_t ptr_reg = emit_array_ref(sig_ptr, i_reg);
-      vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
       vcode_reg_t null_off_reg = emit_array_ref(null_reg, i_reg);
+
+      vcode_reg_t data_reg = VCODE_INVALID_REG;
+      if (init_reg != VCODE_INVALID_REG)
+         data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
 
       lower_sub_signals(elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
                         ptr_reg, data_reg, resolution, null_off_reg, flags);
@@ -7116,10 +7128,11 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       lower_release_temp(i_var);
    }
    else if (type_is_record(type)) {
-      emit_push_scope(lower_debug_locus(where), lower_type(type));
+      vcode_type_t vtype = lower_type(type);
+      emit_push_scope(lower_debug_locus(where), vtype);
 
       if (null_reg == VCODE_INVALID_REG)
-         null_reg = emit_null(vcode_reg_type(init_reg));
+         null_reg = emit_null(vtype_pointer(vtype));
 
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
@@ -7132,19 +7145,23 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          tree_t f = type_field(type, i);
          type_t ft = tree_type(f);
 
-         vcode_reg_t field_reg = emit_record_ref(init_reg, i), null_field_reg;
-         if (lower_have_uarray_ptr(field_reg)) {
-            field_reg = emit_load_indirect(field_reg);
+         vcode_type_t fvtype = vtype_field(vtype, i);
 
-            vcode_type_t velem = vtype_elem(vcode_reg_type(field_reg));
-            null_field_reg = emit_null(vtype_pointer(velem));
-         }
-         else if (type_is_scalar(ft)) {
-            field_reg = emit_load_indirect(field_reg);
-            null_field_reg = emit_record_ref(null_reg, i);
-         }
+         vcode_reg_t null_field_reg;
+         if (vtype_kind(fvtype) == VCODE_TYPE_UARRAY)
+            null_field_reg = emit_null(vtype_pointer(fvtype));
          else
             null_field_reg = emit_record_ref(null_reg, i);
+
+         vcode_reg_t field_reg = VCODE_INVALID_REG;
+         if (init_reg != VCODE_INVALID_REG) {
+            field_reg = emit_record_ref(init_reg, i);
+
+            if (lower_have_uarray_ptr(field_reg))
+               field_reg = emit_load_indirect(field_reg);
+            else if (type_is_scalar(ft))
+               field_reg = emit_load_indirect(field_reg);
+         }
 
          vcode_reg_t ptr_reg = emit_record_ref(sig_ptr, i);
 
@@ -7172,14 +7189,12 @@ static void lower_signal_decl(tree_t decl)
    const int ncons = pack_constraints(type, cons);
 
    type_t value_type = type;
-   vcode_reg_t init_reg;
+   vcode_reg_t init_reg = VCODE_INVALID_REG;
    if (tree_has_value(decl)) {
       tree_t value = tree_value(decl);
       value_type = tree_type(value);
       init_reg = lower_rvalue(value);
    }
-   else
-      init_reg = lower_default_value(type, VCODE_INVALID_REG, cons, ncons);
 
    net_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
@@ -9944,14 +9959,8 @@ static void lower_port_map(tree_t block, tree_t map)
       lower_non_static_actual(port, name_type, port_reg, value);
    else {
       vcode_reg_t value_reg = lower_rvalue(value);
-
-      if (value_reg == VCODE_INVALID_REG) {
-         tree_t cons[MAX_CONSTRAINTS];
-         const int ncons = pack_constraints(name_type, cons);
-
-         value_reg = lower_default_value(name_type, VCODE_INVALID_REG,
-                                         cons, ncons);
-      }
+      if (value_reg == VCODE_INVALID_REG)
+         return;   // Was open
 
       if (type_is_array(name_type))
          value_reg = lower_array_data(value_reg);
@@ -10077,14 +10086,12 @@ static void lower_port_signal(tree_t port)
    tree_t cons[MAX_CONSTRAINTS];
    const int ncons = pack_constraints(type, cons);
 
-   vcode_reg_t init_reg;
+   vcode_reg_t init_reg = VCODE_INVALID_REG;
    if (tree_has_value(port)) {
       tree_t value = tree_value(port);
       value_type = tree_type(value);
       init_reg = lower_rvalue(value);
    }
-   else
-      init_reg = lower_default_value(type, VCODE_INVALID_REG, cons, ncons);
 
    net_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
