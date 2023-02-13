@@ -721,3 +721,4 @@ cover12         cover,shell
 issue612        normal,vhpi
 force2          normal,2008
 issue618        normal,gA='1',gB='0'
+issue613        normal,2008

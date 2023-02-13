@@ -6975,15 +6975,14 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
                               int ncons, type_t init_type, vcode_var_t sig_var,
                               vcode_reg_t sig_ptr, vcode_reg_t init_reg,
                               vcode_reg_t resolution, vcode_reg_t null_reg,
-                              net_flags_t flags)
+                              net_flags_t flags, vcode_reg_t bounds_reg)
 {
    bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
       resolution = lower_resolution_func(type, &has_scope);
 
    if (type_is_homogeneous(type)) {
-      vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (ncons > 0 && !lower_const_bounds(type) && ncons) {
+      if (ncons > 0 && !lower_const_bounds(type)) {
          const int ndims = lower_dims_for_type(type);
          bounds_reg = lower_constraints(cons, ndims, ncons);
       }
@@ -7117,7 +7116,8 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
 
       lower_sub_signals(elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
-                        ptr_reg, data_reg, resolution, null_off_reg, flags);
+                        ptr_reg, data_reg, resolution, null_off_reg, flags,
+                        VCODE_INVALID_REG);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -7168,7 +7168,8 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          tree_t fcons[MAX_CONSTRAINTS];
          const int nfcons = pack_field_constraints(type, f, rcons, fcons);
          lower_sub_signals(ft, f, fcons, nfcons, ft, VCODE_INVALID_VAR, ptr_reg,
-                           field_reg, resolution, null_field_reg, flags);
+                           field_reg, resolution, null_field_reg, flags,
+                           VCODE_INVALID_REG);
       }
 
       emit_pop_scope();
@@ -7202,7 +7203,7 @@ static void lower_signal_decl(tree_t decl)
 
    lower_sub_signals(type, decl, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags);
+                     VCODE_INVALID_REG, flags, VCODE_INVALID_REG);
 
    if (cover_enabled(cover_tags, COVER_MASK_TOGGLE))
       lower_toggle_coverage(decl);
@@ -7280,7 +7281,7 @@ static void lower_implicit_decl(tree_t decl)
          vcode_reg_t init_reg = lower_rvalue(expr);
          lower_sub_signals(type, decl, NULL, 0, type, var,
                            VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                           VCODE_INVALID_REG, 0);
+                           VCODE_INVALID_REG, 0, VCODE_INVALID_REG);
 
          vcode_state_t state;
          vcode_state_save(&state);
@@ -9749,12 +9750,16 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
 
       vcode_reg_t dst_nets = lower_array_data(dst_reg);
 
-      if (!lower_have_signal(src_reg))
-         emit_map_const(src_reg, dst_nets, src_count);
-      else {
+      if (lower_have_signal(src_reg)) {
          vcode_reg_t src_nets = lower_array_data(src_reg);
          emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
       }
+      else if (type_is_array(src_type)) {
+         vcode_reg_t src_data = lower_array_data(src_reg);
+         emit_map_const(src_data, dst_nets, src_count);
+      }
+      else
+         emit_map_const(src_reg, dst_nets, src_count);
    }
 }
 
@@ -9831,7 +9836,7 @@ static void lower_non_static_actual(tree_t port, type_t type,
    emit_process_init(pname, lower_debug_locus(wave));
 }
 
-static void lower_port_map(tree_t block, tree_t map)
+static void lower_port_map(tree_t block, tree_t map, vcode_reg_t value_reg)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
    tree_t port = NULL;
@@ -9957,15 +9962,17 @@ static void lower_port_map(tree_t block, tree_t map)
    }
    else if (tree_kind(value) == T_WAVEFORM)
       lower_non_static_actual(port, name_type, port_reg, value);
+   else if (value_reg != VCODE_INVALID_REG) {
+      // Value was computed earlier to derive port bounds
+      type_t value_type = tree_type(value);
+      lower_map_signal(value_reg, port_reg, value_type, name_type, in_conv);
+   }
    else {
-      vcode_reg_t value_reg = lower_rvalue(value);
-      if (value_reg == VCODE_INVALID_REG)
+      if ((value_reg = lower_rvalue(value)) == VCODE_INVALID_REG)
          return;   // Was open
 
-      if (type_is_array(name_type))
-         value_reg = lower_array_data(value_reg);
-
-      lower_map_signal(value_reg, port_reg, name_type, name_type, in_conv);
+      type_t value_type = tree_type(value);
+      lower_map_signal(value_reg, port_reg, value_type, name_type, in_conv);
    }
 }
 
@@ -10074,12 +10081,12 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
    hset_insert(direct, port);
 }
 
-static void lower_port_signal(tree_t port)
+static void lower_port_signal(tree_t port, vcode_reg_t bounds_reg)
 {
    type_t type = tree_type(port);
    type_t value_type = type;
 
-   vcode_type_t vtype = lower_signal_type(tree_type(port));
+   vcode_type_t vtype = lower_signal_type(type);
    vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
    lower_put_vcode_obj(port, var, top_scope);
 
@@ -10104,7 +10111,50 @@ static void lower_port_signal(tree_t port)
 
    lower_sub_signals(type, port, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags);
+                     VCODE_INVALID_REG, flags, bounds_reg);
+}
+
+static vcode_reg_t lower_constrain_port(tree_t port, int pos, tree_t block,
+                                        vcode_reg_t *map_regs)
+{
+   ident_t pname = tree_ident(port);
+   const int nparams = tree_params(block);
+   for (int i = 0; i < nparams; i++) {
+      tree_t map = tree_param(block, i);
+      switch (tree_subkind(map)) {
+      case P_POS:
+         if (tree_pos(map) != pos)
+            continue;
+         break;
+
+      case P_NAMED:
+         {
+            tree_t name = tree_name(map);
+            if (tree_kind(name) != T_REF || tree_ident(name) != pname)
+               continue;
+         }
+         break;
+      }
+
+      tree_t value = tree_value(map);
+      type_t value_type = tree_type(value);
+
+      if (type_is_unconstrained(value_type)) {
+         assert(map_regs[i] == VCODE_INVALID_REG);
+         return (map_regs[i] = lower_rvalue(value));
+      }
+      else {
+         tree_t cons[MAX_CONSTRAINTS];
+         const int ncons = pack_constraints(value_type, cons);
+         const int ndims = lower_dims_for_type(value_type);
+         return lower_constraints(cons, ndims, ncons);
+      }
+   }
+
+   // TODO: this should be an assert and a proper error generated
+   //       during sem/elab
+   fatal_at(tree_loc(block), "cannot infer bounds for port %s",
+            istr(tree_ident(port)));
 }
 
 static void lower_ports(tree_t block)
@@ -10113,28 +10163,37 @@ static void lower_ports(tree_t block)
    const int nparams = tree_params(block);
 
    hset_t *direct = hset_new(nports * 2), *poison = NULL;
+   vcode_reg_t *map_regs LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
 
    // Filter out "direct mapped" inputs which can be aliased to signals
    // in the scope above
-   for (int i = 0; i < nparams; i++)
+   for (int i = 0; i < nparams; i++) {
+      map_regs[i] = VCODE_INVALID_REG;
       lower_direct_mapped_port(block, tree_param(block, i), direct, &poison);
+   }
 
    for (int i = 0; i < nports; i++) {
       tree_t port = tree_port(block, i);
+      type_t type = tree_type(port);
+
+      vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+      if (type_is_unconstrained(type))
+         bounds_reg = lower_constrain_port(port, i, block, map_regs);
+
       if (!hset_contains(direct, port))
-         lower_port_signal(port);
+         lower_port_signal(port, bounds_reg);
       else if (poison != NULL && hset_contains(poison, port))
-         lower_port_signal(port);
+         lower_port_signal(port, bounds_reg);
    }
 
    for (int i = 0; i < nparams; i++) {
       tree_t map = tree_param(block, i);
       if (!hset_contains(direct, map))
-         lower_port_map(block, map);
+         lower_port_map(block, map, map_regs[i]);
       else if (poison != NULL && tree_subkind(map) == P_NAMED) {
          tree_t port = tree_ref(name_to_ref(tree_name(map)));
          if (hset_contains(poison, port))
-             lower_port_map(block, map);
+            lower_port_map(block, map, map_regs[i]);
       }
    }
 
