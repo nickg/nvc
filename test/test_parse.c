@@ -3718,6 +3718,17 @@ START_TEST(test_vhdl2008)
 }
 END_TEST
 
+START_TEST(test_vhdl2019) {
+   set_standard(STD_19);
+   input_from_file(TESTDIR "/parse/vhdl2019.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_issue416)
 {
    opt_set_int(OPT_RELAXED, 1);
@@ -5235,6 +5246,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_error2);
    tcase_add_test(tc_core, test_vhdl2008);
+   tcase_add_test(tc_core, test_vhdl2019);
    tcase_add_test(tc_core, test_issue416);
    tcase_add_test(tc_core, test_explicit_93);
    tcase_add_test(tc_core, test_explicit_08);
