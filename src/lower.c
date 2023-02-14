@@ -4715,7 +4715,7 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
          if (type_is_scalar(elem_type))
             emit_store_indirect(def_reg, ptr_reg);
          else if (type_is_record(elem_type))
-            emit_copy(ptr_reg, def_reg, VCODE_INVALID_REG);
+            lower_copy_record(elem_type, ptr_reg, def_reg, NULL);
          else
             emit_store_indirect(def_reg, ptr_reg);
 
@@ -4744,8 +4744,15 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
          mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
       }
 
-      tree_t rcon = shift_constraints(&cons, &ncons, 1);
-      assert(ncons == 0);   // Cannot have more constraints following record
+      tree_t rcon = NULL;
+      if (ncons > 0) {
+         rcon = shift_constraints(&cons, &ncons, 1);
+         assert(ncons == 0);   // Cannot have more constraints following record
+      }
+      else if (type_kind(type) == T_SUBTYPE && type_constraints(type) > 0) {
+         rcon = type_constraint(type, 0);
+         assert(tree_subkind(rcon) == C_RECORD);
+      }
 
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(type, i);
