@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.
 - Fix incorrect coverage scope nesting with array case statements (from
   @Blebowski).

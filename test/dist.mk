@@ -160,6 +160,7 @@ EXTRA_DIST += \
 	test/lower/bigarray.vhd \
 	test/lower/bounds1.vhd \
 	test/lower/case1.vhd \
+	test/lower/case2.vhd \
 	test/lower/choice1.vhd \
 	test/lower/closefile.vhd \
 	test/lower/concat.vhd \
@@ -806,6 +807,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue524.dump \
 	test/regress/gold/issue536.dump \
 	test/regress/gold/issue586.dump \
+	test/regress/gold/issue615.txt \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -987,7 +989,11 @@ EXTRA_DIST += \
 	test/regress/issue592.vhd \
 	test/regress/issue595.vhd \
 	test/regress/issue59.vhd \
+	test/regress/issue603.vhd \
+	test/regress/issue609.vhd \
 	test/regress/issue60.vhd \
+	test/regress/issue615.vhd \
+	test/regress/issue618.vhd \
 	test/regress/issue63.vhd \
 	test/regress/issue69.vhd \
 	test/regress/issue70.vhd \
