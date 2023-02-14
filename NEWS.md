@@ -8,6 +8,8 @@
   certain conditions (#609).
 - The `-gNAME=VALUE` option to set generic values from the command line
   now works correctly for subtypes of enumeration types (#618).
+- Fixed crash when creating an array of record subtypes where the
+  subtype declaration has an element constraint (#615).
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
