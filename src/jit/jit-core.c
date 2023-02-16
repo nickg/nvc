@@ -1123,7 +1123,8 @@ bool jit_writes_flags(jit_ir_t *ir)
    return ir->op == J_CMP || ir->op == J_FCMP
       || (ir->op == J_ADD && ir->cc != JIT_CC_NONE)
       || (ir->op == J_SUB && ir->cc != JIT_CC_NONE)
-      || (ir->op == J_MUL && ir->cc != JIT_CC_NONE);
+      || (ir->op == J_MUL && ir->cc != JIT_CC_NONE)
+      || (ir->op == MACRO_EXP && ir->cc != JIT_CC_NONE);
 }
 
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)

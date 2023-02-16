@@ -1518,7 +1518,12 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
       break;
    case S_MOD: result = emit_mod(r0, r1); break;
    case S_REM: result = emit_rem(r0, r1); break;
-   case S_EXP: result = emit_exp(r0, r1); break;
+   case S_EXP:
+      if (type_is_integer(type))
+         result = emit_trap_exp(r0, r1, lower_debug_locus(fcall));
+      else
+         result = emit_exp(r0, r1);
+      break;
    default:
       fatal_trace("invalid subprogram kind %d in lower_arith", kind);
    }

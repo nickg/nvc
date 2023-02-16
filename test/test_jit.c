@@ -350,13 +350,15 @@ START_TEST(test_overflow)
    input_from_file(TESTDIR "/jit/overflow.vhd");
 
    const error_t expect[] = {
-      { 16, "result of 2147483647 + 1 cannot be represented as INTEGER" },
-      { 16, "result of 2147483647 + 2147483647 cannot be represented as " },
-      { 21, "result of -2147483648 - 53 cannot be represented as INTEGER" },
-      { 26, "result of -1942444142 * 128910 cannot be represented as INTEGER" },
-      { 31, "result of 255 + 128 cannot be represented as UINT8" },
-      { 36, "result of 2 - 3 cannot be represented as UINT8" },
-      { 41, "result of 255 * 2 cannot be represented as UINT8" },
+      { 18, "result of 2147483647 + 1 cannot be represented as INTEGER" },
+      { 18, "result of 2147483647 + 2147483647 cannot be represented as " },
+      { 23, "result of -2147483648 - 53 cannot be represented as INTEGER" },
+      { 28, "result of -1942444142 * 128910 cannot be represented as INTEGER" },
+      { 33, "result of 5 ** 60 cannot be represented as INTEGER" },
+      { 38, "result of 255 + 128 cannot be represented as UINT8" },
+      { 43, "result of 2 - 3 cannot be represented as UINT8" },
+      { 48, "result of 255 * 2 cannot be represented as UINT8" },
+      { 53, "result of 15 ** 26 cannot be represented as UINT8" },
       { -1, NULL },
    };
    expect_errors(expect);
@@ -368,12 +370,14 @@ START_TEST(test_overflow)
    jit_handle_t add = compile_for_test(j, "WORK.OVERFLOW.ADD(II)I");
    jit_handle_t sub = compile_for_test(j, "WORK.OVERFLOW.SUB(II)I");
    jit_handle_t mul = compile_for_test(j, "WORK.OVERFLOW.MUL(II)I");
+   jit_handle_t exp = compile_for_test(j, "WORK.OVERFLOW.EXP(II)I");
 
    jit_scalar_t result;
    fail_if(jit_try_call(j, add, &result, NULL, INT32_MAX, 1));
    fail_if(jit_try_call(j, add, &result, NULL, INT32_MAX, INT32_MAX));
    fail_if(jit_try_call(j, sub, &result, NULL, INT32_MIN, 53));
    fail_if(jit_try_call(j, mul, &result, NULL, 2352523154, 128910));
+   fail_if(jit_try_call(j, exp, &result, NULL, 5, 60));
 
 #define UINT8 "19WORK.OVERFLOW.UINT8"
    jit_handle_t addu =
@@ -382,6 +386,8 @@ START_TEST(test_overflow)
       compile_for_test(j, "WORK.OVERFLOW.SUB(" UINT8 UINT8 ")" UINT8);
    jit_handle_t mulu =
       compile_for_test(j, "WORK.OVERFLOW.MUL(" UINT8 UINT8 ")" UINT8);
+   jit_handle_t expu =
+      compile_for_test(j, "WORK.OVERFLOW.EXP(" UINT8 "I)" UINT8);
 #undef UINT8
 
    ck_assert_int_eq(jit_call(j, addu, NULL, 5, 6).integer, 11);
@@ -394,6 +400,9 @@ START_TEST(test_overflow)
 
    ck_assert_int_eq(jit_call(j, mulu, NULL, 127, 2).integer, 254);
    fail_if(jit_try_call(j, mulu, &result, NULL, 255, 2));
+
+   ck_assert_int_eq(jit_call(j, expu, NULL, 3, 3).integer, 27);
+   fail_if(jit_try_call(j, expu, &result, NULL, 15, 26));
 
    jit_free(j);
    check_expected_errors();
@@ -433,7 +442,7 @@ START_TEST(test_access1)
 
    const error_t expect[] = {
       { 16, "null access dereference" },
-      { 38, "out of memory attempting to allocate 1032 byte " },
+      { 44, "out of memory attempting to allocate 1032 byte " },
       { -1, NULL },
    };
    expect_errors(expect);

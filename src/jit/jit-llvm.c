@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -106,6 +106,16 @@ typedef enum {
    LLVM_MUL_OVERFLOW_U16,
    LLVM_MUL_OVERFLOW_U32,
    LLVM_MUL_OVERFLOW_U64,
+
+   LLVM_EXP_OVERFLOW_S8,
+   LLVM_EXP_OVERFLOW_S16,
+   LLVM_EXP_OVERFLOW_S32,
+   LLVM_EXP_OVERFLOW_S64,
+
+   LLVM_EXP_OVERFLOW_U8,
+   LLVM_EXP_OVERFLOW_U16,
+   LLVM_EXP_OVERFLOW_U32,
+   LLVM_EXP_OVERFLOW_U64,
 
    LLVM_POW_F64,
    LLVM_ROUND_F64,
@@ -380,15 +390,14 @@ static void llvm_register_types(llvm_obj_t *obj)
                                                         false);
    }
 
-   {
+   for (jit_size_t sz = JIT_SZ_8; sz <= JIT_SZ_64; sz++) {
       LLVMTypeRef fields[] = {
-         obj->types[LLVM_INT32],
+         obj->types[LLVM_INT8 + sz],
          obj->types[LLVM_INT1]
       };
-      obj->types[LLVM_PAIR_I32_I1] = LLVMStructTypeInContext(obj->context,
-                                                             fields,
-                                                             ARRAY_LEN(fields),
-                                                             false);
+      llvm_fn_t which = LLVM_PAIR_I8_I1 + sz;
+      obj->types[which] = LLVMStructTypeInContext(obj->context, fields,
+                                                  ARRAY_LEN(fields), false);
    }
 }
 
@@ -638,6 +647,51 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "llvm.umul.with.overflow.i16",
             "llvm.umul.with.overflow.i32",
             "llvm.umul.with.overflow.i64"
+         };
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_EXP_OVERFLOW_S8:
+   case LLVM_EXP_OVERFLOW_S16:
+   case LLVM_EXP_OVERFLOW_S32:
+   case LLVM_EXP_OVERFLOW_S64:
+      {
+         jit_size_t sz = which - LLVM_EXP_OVERFLOW_S8;
+         LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
+         LLVMTypeRef args[] = { int_type, int_type };
+         obj->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "nvc.sexp.with.overflow.i16",
+            "nvc.sexp.with.overflow.i16",
+            "nvc.sexp.with.overflow.i32",
+            "nvc.sexp.with.overflow.i64"
+         };
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_EXP_OVERFLOW_U8:
+   case LLVM_EXP_OVERFLOW_U16:
+   case LLVM_EXP_OVERFLOW_U32:
+   case LLVM_EXP_OVERFLOW_U64:
+      {
+         jit_size_t sz = which - LLVM_EXP_OVERFLOW_U8;
+         LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
+         printf("sz=%d pair_type=%p \n", sz, pair_type);
+         LLVMTypeRef args[] = { int_type, int_type };
+         obj->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "nvc.uexp.with.overflow.i16",
+            "nvc.uexp.with.overflow.i16",
+            "nvc.uexp.with.overflow.i32",
+            "nvc.uexp.with.overflow.i64"
          };
          fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
@@ -1783,18 +1837,26 @@ static void cgen_op_clamp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 static void cgen_macro_exp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
-   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
-   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
+   llvm_fn_t fn = LLVM_EXP_OVERFLOW_S64;
+   if (ir->cc == JIT_CC_O)
+      fn = LLVM_EXP_OVERFLOW_S8 + ir->size;
+   else if (ir->cc == JIT_CC_C)
+      fn = LLVM_EXP_OVERFLOW_U8 + ir->size;
 
-   // TODO: implement this without the cast
-   LLVMValueRef cast[] = {
-      LLVMBuildUIToFP(obj->builder, arg1, obj->types[LLVM_DOUBLE], ""),
-      LLVMBuildUIToFP(obj->builder, arg2, obj->types[LLVM_DOUBLE], "")
-   };
-   LLVMValueRef real = llvm_call_fn(obj, LLVM_POW_F64, cast, 2);
+   llvm_type_t type = LLVM_INT8 + ir->size;
+   LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, type);
+   LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, type);
 
-   cgb->outregs[ir->result] = LLVMBuildFPToUI(
-      obj->builder, real, obj->types[LLVM_INT64], cgen_reg_name(ir->result));
+   LLVMValueRef args[] = { arg1, arg2 };
+   LLVMValueRef pair = llvm_call_fn(obj, fn, args, 2);
+
+   LLVMValueRef result = LLVMBuildExtractValue(obj->builder, pair, 0, "");
+   cgb->outflags = LLVMBuildExtractValue(obj->builder, pair, 1, "FLAGS");
+
+   if (ir->cc == JIT_CC_C)
+      cgen_zext_result(obj, cgb, ir, result);
+   else
+      cgen_sext_result(obj, cgb, ir, result);
 }
 
 static void cgen_macro_fexp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -2802,6 +2864,125 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMBuildRet(obj->builder, slow_ptr);
 }
 
+static void cgen_exp_overflow_body(llvm_obj_t *obj, llvm_fn_t which,
+                                   jit_size_t sz, llvm_fn_t mulbase)
+{
+   LLVMValueRef fn = obj->fns[which];
+   LLVMSetLinkage(fn, LLVMPrivateLinkage);
+
+   LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "entry");
+
+   LLVMPositionBuilderAtEnd(obj->builder, entry);
+
+   LLVMValueRef x0 = LLVMGetParam(fn, 0);
+   LLVMSetValueName(x0, "x0");
+
+   LLVMValueRef y0 = LLVMGetParam(fn, 1);
+   LLVMSetValueName(y0, "y0");
+
+   LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
+   LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
+
+   LLVMValueRef mulfn = llvm_get_fn(obj, mulbase + sz);
+   LLVMTypeRef multype = obj->fntypes[mulbase + sz];
+
+   LLVMValueRef zero = LLVMConstInt(int_type, 0, false);
+   LLVMValueRef one = LLVMConstInt(int_type, 1, false);
+
+   LLVMValueRef r0 = one;
+   LLVMValueRef o0 = llvm_int1(obj, false);
+   LLVMValueRef xo0 = llvm_int1(obj, false);
+
+   LLVMBasicBlockRef header = llvm_append_block(obj, fn, "header");
+   LLVMBasicBlockRef body = llvm_append_block(obj, fn, "body");
+   LLVMBasicBlockRef accum = llvm_append_block(obj, fn, "accum");
+   LLVMBasicBlockRef tail = llvm_append_block(obj, fn, "tail");
+   LLVMBasicBlockRef exit = llvm_append_block(obj, fn, "exit");
+
+   LLVMBuildBr(obj->builder, header);
+
+   LLVMPositionBuilderAtEnd(obj->builder, header);
+
+   LLVMValueRef x1 = LLVMBuildPhi(obj->builder, int_type, "x1");
+   LLVMValueRef y1 = LLVMBuildPhi(obj->builder, int_type, "y1");
+   LLVMValueRef r1 = LLVMBuildPhi(obj->builder, int_type, "r1");
+   LLVMValueRef o1 = LLVMBuildPhi(obj->builder, obj->types[LLVM_INT1], "o1");
+   LLVMValueRef xo1 = LLVMBuildPhi(obj->builder, obj->types[LLVM_INT1], "xo1");
+
+   LLVMValueRef test1 = LLVMBuildICmp(obj->builder, LLVMIntEQ, y1, zero, "");
+   LLVMBuildCondBr(obj->builder, test1, exit, body);
+
+   LLVMPositionBuilderAtEnd(obj->builder, body);
+
+   LLVMValueRef lsb = LLVMBuildAnd(obj->builder, y1, one, "");
+   LLVMValueRef test2 = LLVMBuildICmp(obj->builder, LLVMIntEQ, lsb, zero, "");
+   LLVMBuildCondBr(obj->builder, test2, tail, accum);
+
+   LLVMPositionBuilderAtEnd(obj->builder, accum);
+
+   LLVMValueRef r2_args[] = { r1, x1 };
+   LLVMValueRef r2_pair = LLVMBuildCall2(obj->builder, multype, mulfn, r2_args,
+                                         ARRAY_LEN(r2_args), "");
+   LLVMValueRef r2 = LLVMBuildExtractValue(obj->builder, r2_pair, 0, "r2");
+   LLVMValueRef r2_ovf = LLVMBuildExtractValue(obj->builder, r2_pair, 1, "");
+   LLVMValueRef tmp = LLVMBuildOr(obj->builder, o1, xo1, "");
+   LLVMValueRef o2 = LLVMBuildOr(obj->builder, tmp, r2_ovf, "o2");
+
+   LLVMBuildBr(obj->builder, tail);
+
+   LLVMPositionBuilderAtEnd(obj->builder, tail);
+
+   LLVMValueRef r3 = LLVMBuildPhi(obj->builder, int_type, "r3");
+
+   LLVMValueRef r3_in[] = { r1, r2 };
+   LLVMBasicBlockRef r3_bb[] = { body, accum };
+   LLVMAddIncoming(r3, r3_in, r3_bb, 2);
+
+   LLVMValueRef o3 = LLVMBuildPhi(obj->builder, obj->types[LLVM_INT1], "o3");
+
+   LLVMValueRef o3_in[] = { o1, o2 };
+   LLVMBasicBlockRef o3_bb[] = { body, accum };
+   LLVMAddIncoming(o3, o3_in, o3_bb, 2);
+
+   LLVMValueRef r1_in[] = { r0, r3 };
+   LLVMBasicBlockRef r1_bb[] = { entry, tail };
+   LLVMAddIncoming(r1, r1_in, r1_bb, 2);
+
+   LLVMValueRef y2 = LLVMBuildLShr(obj->builder, y1, one, "y2");
+
+   LLVMValueRef x2_args[] = { x1, x1 };
+   LLVMValueRef x2_pair = LLVMBuildCall2(obj->builder, multype, mulfn, x2_args,
+                                         ARRAY_LEN(x2_args), "");
+   LLVMValueRef x2 = LLVMBuildExtractValue(obj->builder, x2_pair, 0, "x2");
+   LLVMValueRef xo2 = LLVMBuildExtractValue(obj->builder, x2_pair, 1, "");
+
+   LLVMValueRef x1_in[] = { x0, x2 };
+   LLVMBasicBlockRef x1_bb[] = { entry, tail };
+   LLVMAddIncoming(x1, x1_in, x1_bb, 2);
+
+   LLVMValueRef y1_in[] = { y0, y2 };
+   LLVMBasicBlockRef y1_bb[] = { entry, tail };
+   LLVMAddIncoming(y1, y1_in, y1_bb, 2);
+
+   LLVMValueRef o1_in[] = { o0, o3 };
+   LLVMBasicBlockRef o1_bb[] = { entry, tail };
+   LLVMAddIncoming(o1, o1_in, o1_bb, 2);
+
+   LLVMValueRef xo1_in[] = { xo0, xo2 };
+   LLVMBasicBlockRef xo1_bb[] = { entry, tail };
+   LLVMAddIncoming(xo1, xo1_in, xo1_bb, 2);
+
+   LLVMBuildBr(obj->builder, header);
+
+   LLVMPositionBuilderAtEnd(obj->builder, exit);
+
+   LLVMValueRef pair = LLVMConstNull(pair_type);
+   pair = LLVMBuildInsertValue(obj->builder, pair, r1, 0, "");
+   pair = LLVMBuildInsertValue(obj->builder, pair, o1, 1, "");
+
+   LLVMBuildRet(obj->builder, pair);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT plugin interface
 
@@ -3009,6 +3190,15 @@ void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
 {
    if (obj->fns[LLVM_TLAB_ALLOC] != NULL)
       cgen_tlab_alloc_body(obj);
+
+   for (jit_size_t sz = JIT_SZ_8; sz <= JIT_SZ_64; sz++) {
+      if (obj->fns[LLVM_EXP_OVERFLOW_S8 + sz] != NULL)
+         cgen_exp_overflow_body(obj, LLVM_EXP_OVERFLOW_S8 + sz, sz,
+                                LLVM_MUL_OVERFLOW_S8);
+      if (obj->fns[LLVM_EXP_OVERFLOW_U8 + sz] != NULL)
+         cgen_exp_overflow_body(obj, LLVM_EXP_OVERFLOW_U8 + sz, sz,
+                                LLVM_MUL_OVERFLOW_U8);
+   }
 
    DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
 

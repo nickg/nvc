@@ -487,6 +487,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_TRAP_SUB:
    case VCODE_OP_TRAP_MUL:
    case VCODE_OP_TRAP_NEG:
+   case VCODE_OP_TRAP_EXP:
       // Result cannot reference pointer
       break;
 
@@ -659,6 +660,10 @@ void vcode_opt(void)
             case VCODE_OP_SELECT:
             case VCODE_OP_CAST:
             case VCODE_OP_RESOLVED:
+            case VCODE_OP_TRAP_ADD:
+            case VCODE_OP_TRAP_SUB:
+            case VCODE_OP_TRAP_MUL:
+            case VCODE_OP_TRAP_EXP:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal("defintion of r%d does not dominate all uses",
@@ -935,7 +940,7 @@ const char *vcode_op_string(vcode_op_t op)
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
-      "trap neg", "process init", "clear event",
+      "trap neg", "process init", "clear event", "trap exp"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1602,6 +1607,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_TRAP_ADD:
          case VCODE_OP_TRAP_SUB:
          case VCODE_OP_TRAP_MUL:
+         case VCODE_OP_TRAP_EXP:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -1610,6 +1616,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                case VCODE_OP_TRAP_ADD: col += printf(" + "); break;
                case VCODE_OP_TRAP_SUB: col += printf(" - "); break;
                case VCODE_OP_TRAP_MUL: col += printf(" * "); break;
+               case VCODE_OP_TRAP_EXP: col += printf(" ** "); break;
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
@@ -3761,6 +3768,16 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
    return emit_arith(VCODE_OP_EXP, lhs, rhs, VCODE_INVALID_REG);
+}
+
+vcode_reg_t emit_trap_exp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
+{
+   vcode_reg_t result = emit_arith(VCODE_OP_TRAP_EXP, lhs, rhs, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(result) == VCODE_TYPE_INT,
+                "trapping exp may only be used with integer types");
+
+   return result;
 }
 
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)

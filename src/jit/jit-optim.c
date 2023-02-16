@@ -727,7 +727,9 @@ static void jit_lvn_bzero(jit_ir_t *ir, lvn_state_t *state)
 static void jit_lvn_exp(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t base, exp;
-   if (lvn_can_fold(ir, state, &base, &exp))
+   if (ir->cc != JIT_CC_NONE)
+      jit_lvn_generic(ir, state, VN_INVALID);
+   else if (lvn_can_fold(ir, state, &base, &exp))
       lvn_convert_mov(ir, state, LVN_CONST(ipow(base, exp)));
    else if (lvn_is_const(ir->arg1, state, &base) && base == 2) {
       ir->op = J_SHL;

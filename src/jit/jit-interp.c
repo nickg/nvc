@@ -660,7 +660,44 @@ static void interp_exp(jit_interp_t *state, jit_ir_t *ir)
    const int64_t x = interp_get_value(state, ir->arg1).integer;
    const int64_t y = interp_get_value(state, ir->arg2).integer;
 
-   state->regs[ir->result].integer = ipow(x, y);
+   if (ir->cc == JIT_CC_O) {
+      int overflow = 0, xo = 0;
+
+#define EXP_OVERFLOW(type) do {                                         \
+         type xt = x, yt = y, r = 1;                                    \
+         while (yt) {                                                   \
+            if (yt & 1)                                                 \
+               overflow |= xo || __builtin_mul_overflow(r, xt, &r);     \
+            yt >>= 1;                                                   \
+            xo |= __builtin_mul_overflow(xt, xt, &xt);                  \
+         }                                                              \
+         state->regs[ir->result].integer = r;                           \
+      } while (0)
+
+      FOR_EACH_SIZE(ir->size, EXP_OVERFLOW);
+
+      state->flags = (overflow << JIT_CC_O);
+   }
+   else if (ir->cc == JIT_CC_C) {
+      int overflow = 0, xo = 0;
+
+#define UEXP_OVERFLOW(type) do {                                        \
+         u##type xt = x, yt = y, r = 1;                                 \
+         while (yt) {                                                   \
+            if (yt & 1)                                                 \
+               overflow |= xo || __builtin_mul_overflow(r, xt, &r);     \
+            yt >>= 1;                                                   \
+            xo |= __builtin_mul_overflow(xt, xt, &xt);                  \
+         }                                                              \
+         state->regs[ir->result].integer = r;                           \
+      } while (0)
+
+      FOR_EACH_SIZE(ir->size, UEXP_OVERFLOW);
+
+      state->flags = (overflow << JIT_CC_C);
+   }
+   else
+      state->regs[ir->result].integer = ipow(x, y);
 }
 
 static void interp_copy(jit_interp_t *state, jit_ir_t *ir)
@@ -688,6 +725,8 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = state->anchor;
 
+   state->anchor->irpos = ir - state->func->irbuf;
+
    const uint64_t bytes = interp_get_value(state, ir->arg1).integer;
 
    if (bytes > UINT32_MAX)
@@ -704,6 +743,8 @@ static void interp_lalloc(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = state->anchor;
+
+   state->anchor->irpos = ir - state->func->irbuf;
 
    const size_t bytes = interp_get_value(state, ir->arg1).integer;
    state->regs[ir->result].pointer = tlab_alloc(state->tlab, bytes);

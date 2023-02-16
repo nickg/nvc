@@ -629,10 +629,11 @@ static jit_value_t macro_fexp(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
    return jit_value_from_reg(r);
 }
 
-static jit_value_t macro_exp(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
+static jit_value_t macro_exp(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
+                             jit_value_t lhs, jit_value_t rhs)
 {
    jit_reg_t r = irgen_alloc_reg(g);
-   irgen_emit_binary(g, MACRO_EXP, JIT_SZ_UNSPEC, JIT_CC_NONE, r, lhs, rhs);
+   irgen_emit_binary(g, MACRO_EXP, sz, cc, r, lhs, rhs);
    return jit_value_from_reg(r);
 }
 
@@ -1389,7 +1390,32 @@ static void irgen_op_exp(jit_irgen_t *g, int op)
    if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
       g->map[result] = macro_fexp(g, arg0, arg1);
    else
-      g->map[result] = macro_exp(g, arg0, arg1);
+      g->map[result] = macro_exp(g, JIT_SZ_UNSPEC, JIT_CC_NONE, arg0, arg1);
+}
+
+static void irgen_op_trap_exp(jit_irgen_t *g, int op)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t vtype = vcode_reg_type(result);
+
+   jit_value_t arg0 = irgen_get_arg(g, op, 0);
+   jit_value_t arg1 = irgen_get_arg(g, op, 1);
+   jit_value_t locus = irgen_get_arg(g, op, 2);
+
+   jit_size_t sz = irgen_jit_size(vcode_reg_type(result));
+
+   jit_cc_t cc = vtype_repr_signed(vtype_repr(vtype)) ? JIT_CC_O : JIT_CC_C;
+   g->map[result] = macro_exp(g, sz, cc, arg0, arg1);
+
+   irgen_label_t *l_pass = irgen_alloc_label(g);
+   j_jump(g, JIT_CC_F, l_pass);
+
+   j_send(g, 0, arg0);
+   j_send(g, 1, arg1);
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_OVERFLOW);
+
+   irgen_bind_label(g, l_pass);
 }
 
 static void irgen_op_sub(jit_irgen_t *g, int op)
@@ -3365,6 +3391,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_EXP:
          irgen_op_exp(g, i);
+         break;
+      case VCODE_OP_TRAP_EXP:
+         irgen_op_trap_exp(g, i);
          break;
       case VCODE_OP_SUB:
          irgen_op_sub(g, i);

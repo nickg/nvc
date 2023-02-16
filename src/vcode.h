@@ -156,6 +156,7 @@ typedef enum {
    VCODE_OP_TRAP_NEG,
    VCODE_OP_PROCESS_INIT,
    VCODE_OP_CLEAR_EVENT,
+   VCODE_OP_TRAP_EXP,
 } vcode_op_t;
 
 typedef enum {
@@ -379,6 +380,7 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_trap_add(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
 vcode_reg_t emit_trap_sub(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
 vcode_reg_t emit_trap_mul(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
+vcode_reg_t emit_trap_exp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity, vcode_reg_t locus, vcode_reg_t hint_left,
                  vcode_reg_t hint_right);

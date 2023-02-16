@@ -288,6 +288,9 @@ void x_overflow(int64_t lhs, int64_t rhs, tree_t where)
       case S_NEGATE:
          tb_printf(tb, "-(%"PRIi64")", lhs);
          break;
+      case S_EXP:
+         tb_printf(tb, "%"PRIi64" ** %"PRIi64, lhs, rhs);
+         break;
       }
    }
 

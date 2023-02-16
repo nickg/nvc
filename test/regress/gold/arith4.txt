@@ -1,0 +1,1 @@
+1ns+0: result of 2 ** 16 cannot be represented as MY_UINT16
