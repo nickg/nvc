@@ -1414,7 +1414,7 @@ START_TEST(test_func)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 3);
+   fail_unless(tree_decls(p) == 4);
    lib_put(lib_work(), p);
 
    f = tree_decl(p, 0);
@@ -1432,6 +1432,7 @@ START_TEST(test_func)
    fail_unless(tree_kind(f) == T_FUNC_DECL);
    fail_unless(tree_ident(f) == ident_new("NAUGHTY"));
    fail_unless(tree_ports(f) == 0);
+   fail_unless(tree_flags(f) & TREE_F_IMPURE);
 
    f = tree_decl(p, 2);
    fail_unless(tree_kind(f) == T_FUNC_DECL);
@@ -1998,8 +1999,9 @@ START_TEST(test_procedure)
    input_from_file(TESTDIR "/parse/procedure.vhd");
 
    const error_t expect[] = {
-      { 37, "`\?\?' is a reserved word in VHDL-2008" },
-      { 37, "unexpected error while parsing primary" },
+      { 34, "unexpected procedure while parsing subprogram specification" },
+      { 41, "`\?\?' is a reserved word in VHDL-2008" },
+      { 41, "unexpected error while parsing primary" },
       { -1, NULL }
    };
    expect_errors(expect);

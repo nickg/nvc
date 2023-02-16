@@ -31,6 +31,10 @@ package body p is
 
     -- Parse errors below this point
 
+    pure procedure notpure is           -- Error
+    begin
+    end procedure;
+
     procedure testxxx is
         variable x : integer;
     begin

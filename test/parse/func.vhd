@@ -6,6 +6,8 @@ package func is
 
     function "+"(x, y : integer) return integer;
 
+    pure function purefunc return integer;
+
 end package;
 
 package body func is

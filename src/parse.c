@@ -6122,14 +6122,14 @@ static tree_t p_subprogram_specification(void)
    tree_t t = NULL;
    type_t type = NULL;
 
-   // XXX: this allows pure/impure procedures!
    bool impure = false;
-   if (optional(tIMPURE))
+   switch (one_of(tFUNCTION, tPROCEDURE, tPURE, tIMPURE)) {
+   case tIMPURE:
       impure = true;
-   else if (optional(tPURE))
-      ;
-
-   switch (one_of(tFUNCTION, tPROCEDURE)) {
+      // Fall-through
+   case tPURE:
+      consume(tFUNCTION);
+      // Fall-through
    case tFUNCTION:
       t = tree_new(T_FUNC_DECL);
       type = type_new(T_FUNC);
