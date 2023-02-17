@@ -345,6 +345,7 @@ static lib_t lib_find_at(const char *name, const char *path)
 
    char *best LOCAL = NULL;
    const char *std_suffix = standard_suffix(standard());
+   const size_t namelen = strlen(name);
 
    struct dirent *e;
    while ((e = readdir(d))) {
@@ -353,7 +354,9 @@ static lib_t lib_find_at(const char *name, const char *path)
 
       const char *dot = strchr(e->d_name, '.');
       if (dot != NULL) {
-         if (strncasecmp(name, e->d_name, dot - e->d_name) != 0)
+         if (namelen != dot - e->d_name)
+            continue;
+         else if (strncasecmp(name, e->d_name, namelen) != 0)
             continue;
          else if (strcmp(dot + 1, std_suffix) != 0)
             continue;
@@ -413,7 +416,7 @@ lib_t lib_new(const char *spec)
 
 #ifdef __MINGW32__
    // Ignore a leading drive letter in the path
-   if (split == spec + 1 && (spec[2] == '/' || spec[2] == '\\'))
+   if (split == copy + 1 && (copy[2] == '/' || copy[2] == '\\'))
       split = NULL;
 #endif
 

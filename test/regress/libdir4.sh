@@ -31,6 +31,4 @@ nvc --std=2008 --map foo:subdir/foo.08 -a test.vhd
 nvc --std=1993 --map foo:subdir/foo.93 --work=foo -a test.vhd
 nvc --std=1993 --work=subdir/foo -a test.vhd
 
-ls -l subdir
-
 [ ! -d subdir/foo ]
