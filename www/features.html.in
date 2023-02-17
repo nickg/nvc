@@ -157,4 +157,10 @@ table below.
     <td>Conditional compilation</td>
     <td class="feature-done">1.4</td>
   </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_082">
+        LCS2016_082</td>
+    <td>Empty Record</td>
+    <td class="feature-done">master</td>
+  </tr>
 </table>

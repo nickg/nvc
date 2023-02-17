@@ -5572,6 +5572,7 @@ static type_t p_record_type_definition(ident_t id)
    // record element_declaration { element_declaration } end record
    //   [ simple_name ]
 
+   // 2019: record { element_declaration } end record [ simple_name ]
    BEGIN("record type definition");
 
    consume(tRECORD);
@@ -5580,9 +5581,13 @@ static type_t p_record_type_definition(ident_t id)
    type_set_ident(r, id);
    mangle_type(nametab, r);
 
-   do {
-      p_element_declaration(r);
-   } while (peek() == tID);
+   if (peek() == tEND)
+      require_std(STD_19, "empty record");
+   else {
+      do {
+         p_element_declaration(r);
+      } while (peek() == tID);
+   }
 
    consume(tEND);
    consume(tRECORD);
