@@ -7108,6 +7108,7 @@ static tree_t p_subprogram_body(tree_t spec)
    push_scope(nametab);
    scope_set_subprogram(nametab, spec);
 
+   insert_generics(nametab, spec);
    insert_ports(nametab, spec);
 
    sem_check(spec, nametab);
