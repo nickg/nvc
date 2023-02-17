@@ -3718,7 +3718,8 @@ START_TEST(test_vhdl2008)
 }
 END_TEST
 
-START_TEST(test_vhdl2019) {
+START_TEST(test_vhdl2019)
+{
    set_standard(STD_19);
    input_from_file(TESTDIR "/parse/vhdl2019.vhd");
 
