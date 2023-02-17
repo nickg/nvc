@@ -1,10 +1,28 @@
--- LCS-2016-071a: Trailing semicolion
-entity ent is
-  port (
-    a : in  boolean ;
-    b : out boolean ;
-  ) ;
-end entity ;
+---- LCS-2016-071a: Trailing semicolion
+--entity ent is
+--  port (
+--    a : in  boolean ;
+--    b : out boolean ;
+--  ) ;
+--end entity ;
+
+-- LCS-2016-072b: Function Knows Vector Size
+library ieee;
+use ieee.numeric_std.all;
+
+package pack is
+    function f(x : integer) return rv_t of signed ;
+end package ;
+
+package body pack is
+
+    function to_signed(x : integer) return rv_t of signed is
+        variable rv : rv_t;
+    begin
+        return to_signed(x, rv'length);
+    end function ;
+
+end package body;
 
 -- LCS-2016-082: Empty record
 package pack is

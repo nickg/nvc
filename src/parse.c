@@ -4840,6 +4840,10 @@ static tree_t p_interface_function_specification(void)
    // [ pure | impure ] function designator
    //    [ [ parameter ] ( formal_parameter_list ) ] return type_mark
 
+   // 2019:
+   // [ pure | impure ] function designator
+   //    [ [ parameter ] ( formal_parameter_list ) ] return [ return_identifier of ] type_mark
+
    BEGIN("interface function specification");
 
    consume(tFUNCTION);
@@ -4865,7 +4869,29 @@ static tree_t p_interface_function_specification(void)
    }
 
    consume(tRETURN);
-   type_set_result(type, p_type_mark());
+   if (standard() < STD_19) {
+      if (peek_nth(2) == tOF)
+         require_std(STD_19, "function knows return type");
+      type_set_result(type, p_type_mark());
+   } else {
+      if (peek_nth(2) == tOF) {
+         ident_t id = p_identifier();
+
+         tree_t t = tree_new(T_SUBTYPE_DECL);
+         tree_set_loc(t, CURRENT_LOC);
+
+         consume(tOF);
+
+         type_t tm = p_type_mark();
+         tree_set_ident(t, id);
+         tree_set_type(t, tm);
+
+         type_set_result(type, tm);
+         insert_name(nametab, t, id);
+         sem_check(t, nametab);
+      } else
+         type_set_result(type, p_type_mark());
+   }
 
    tree_set_loc(d, CURRENT_LOC);
    return d;
@@ -6127,6 +6153,10 @@ static tree_t p_subprogram_specification(void)
    //   | [ pure | impure ] function designator subprogram_header
    //       [ [parameter] ( formal_parameter_list ) ] return type_mark
 
+   // 2019:
+   //  [ pure | impure ] function designator subprogram_header
+   //       [ [parameter] ( formal_parameter_list ) ] return [ return_identifier of ] type_mark
+
    BEGIN("subprogram specification");
 
    tree_t t = NULL;
@@ -6186,7 +6216,30 @@ static tree_t p_subprogram_specification(void)
 
    if (tree_kind(t) == T_FUNC_DECL) {
       consume(tRETURN);
-      type_set_result(type, p_type_mark());
+
+      if (standard() < STD_19) {
+         if (peek_nth(2) == tOF)
+            require_std(STD_19, "function knows return type");
+         type_set_result(type, p_type_mark());
+      } else {
+         if (peek_nth(2) == tOF) {
+            ident_t id = p_identifier();
+
+            tree_t t = tree_new(T_SUBTYPE_DECL);
+            tree_set_loc(t, CURRENT_LOC);
+
+            consume(tOF);
+
+            type_t tm = p_type_mark();
+            tree_set_ident(t, id);
+            tree_set_type(t, tm);
+
+            type_set_result(type, tm);
+            insert_name(nametab, t, id);
+            sem_check(t, nametab);
+         } else
+            type_set_result(type, p_type_mark());
+      }
    }
 
    pop_scope(nametab);
