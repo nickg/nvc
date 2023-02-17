@@ -5098,8 +5098,13 @@ static void p_interface_list(class_t def_class, tree_t parent, tree_kind_t kind)
 
    p_interface_element(def_class, parent, kind);
 
-   while (optional(tSEMI))
+   while (optional(tSEMI)) {
+      if (peek() == tRPAREN) {
+         require_std(STD_19, "optional trailing semicolons on interface lists");
+         break;
+      }
       p_interface_element(def_class, parent, kind);
+   }
 }
 
 static void p_port_list(tree_t parent)
