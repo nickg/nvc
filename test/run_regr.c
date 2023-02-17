@@ -232,12 +232,17 @@ static run_status_t win32_run_cmd(FILE *log, arglist_t **args)
       fflush(log);
    }
 
+   if (WaitForSingleObject(piProcInfo.hProcess, 1000) != WAIT_OBJECT_0)
+      win32_error("WaitForSingleObject");
+
    DWORD status;
    if (!GetExitCodeProcess(piProcInfo.hProcess, &status))
       win32_error("GetExitCodeProcess");
 
    if (status == 0x500)
       fprintf(log, "Timeout!\n");
+   else if (status == STILL_ACTIVE)
+      fprintf(log, "Still running!\n");
 
    if (WaitForSingleObject(hTimeoutThread, 1000) != WAIT_OBJECT_0)
       win32_error("WaitForSingleObject");
