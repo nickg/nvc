@@ -37,8 +37,8 @@ static void setup(void)
          tmp = "/tmp";
    }
 
-   char *path LOCAL = xasprintf("%s" DIR_SEP "test_lib", tmp);
-   work = lib_new("test_lib", path);
+   char *spec LOCAL = xasprintf("test_lib:%s" DIR_SEP "test_lib", tmp);
+   work = lib_new(spec);
    fail_if(work == NULL);
 }
 

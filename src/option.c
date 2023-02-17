@@ -161,4 +161,5 @@ void set_default_options(void)
    opt_set_str(OPT_ASM_VERBOSE, getenv("NVC_ASM_VERBOSE"));
    opt_set_int(OPT_JIT_ASYNC, get_int_env("NVC_JIT_ASYNC", 1));
    opt_set_int(OPT_PERF_MAP, get_int_env("NVC_PERF_MAP", 0));
+   opt_set_str(OPT_LIB_VERBOSE, getenv("NVC_LIB_VERBOSE"));
 }

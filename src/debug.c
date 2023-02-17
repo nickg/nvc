@@ -161,52 +161,6 @@ static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
    }
 }
 
-#if !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
-static void guess_vhdl_symbol(debug_frame_t *frame)
-{
-   // Use some dodgy heuristics to determine if this a VHDL symbol when
-   // DWARF information is not available
-
-   const char *slash = strrchr(frame->module, DIR_SEP[0]);
-   char *file LOCAL = xstrdup(slash ? slash + 1 : frame->module);
-   if (file[0] != '_')
-      return;
-
-#if !defined __MINGW32__ && !defined __CYGWIN__
-   char *last_dot = strrchr(file, '.');
-   if (last_dot == NULL || strcmp(last_dot + 1, DLL_EXT) != 0)
-      return;
-
-   *last_dot = '\0';
-#endif
-
-   if (frame->symbol == NULL)
-      return;
-
-   char *dup LOCAL = xstrdup(frame->symbol);
-
-   char *dot1 = strchr(dup, '.');
-   if (dot1 == NULL)
-      return;
-
-   char *dot2 = strchr(dot1 + 1, '.');
-   if (dot2 == NULL)
-      return;
-
-   *dot2 = '\0';
-
-   const size_t duplen = strlen(dup);
-   if (strncmp(file + 1, dup, duplen) == 0 && file[duplen + 1] == '.') {
-      frame->kind = FRAME_VHDL;
-      frame->vhdl_unit = ident_new(file + 1);
-   }
-   else {
-      frame->kind = FRAME_VHDL;
-      frame->vhdl_unit = ident_new(dup);
-   }
-}
-#endif  // !HAVE_LIBDW && !HAVE_LIBDWARF
-
 static bool custom_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    for (debug_unwinder_t *uw = unwinders; uw; uw = uw->next) {
@@ -817,12 +771,8 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
    IMAGEHLP_MODULE module;
    memset(&module, '\0', sizeof(module));
    module.SizeOfStruct = sizeof(module);
-   if (SymGetModuleInfo(hProcess, ip, &module)) {
+   if (SymGetModuleInfo(hProcess, ip, &module))
       frame->module = xstrdup(module.ModuleName);
-
-      if (lib_at(module.ImageName) != NULL)
-         guess_vhdl_symbol(frame);
-   }
 }
 
 __attribute__((noinline))
@@ -896,12 +846,8 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
    frame->module = xstrdup(dli.dli_fname);
    frame->disp   = ip - (uintptr_t)dli.dli_saddr;
 
-   if (dli.dli_sname) {
+   if (dli.dli_sname)
       frame->symbol = xstrdup(dli.dli_sname);
-
-      if (lib_at(frame->module) != NULL)
-         guess_vhdl_symbol(frame);
-   }
 }
 
 static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,

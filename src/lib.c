@@ -225,6 +225,9 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    el->standard = standard();
    loaded = el;
 
+   if (opt_get_verbose(OPT_LIB_VERBOSE, name))
+      debugf("library %s at %s", istr(l->name), l->path);
+
    if (l->lock_fd == -1 && rpath != NULL) {
       LOCAL_TEXT_BUF lock_path = lib_file_path(l, "_NVC_LIB");
 
@@ -322,52 +325,59 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
    return where;
 }
 
-static lib_t lib_find_at(const char *name, const char *path, bool exact)
+static lib_t lib_open_at(const char *name, const char *path)
 {
+   if (access(path, F_OK) < 0)
+      return NULL;
+
+   char *marker LOCAL = xasprintf("%s" DIR_SEP "_NVC_LIB", path);
+   if (access(marker, F_OK) < 0)
+      return NULL;
+
+   return lib_init(name, path, -1);
+}
+
+static lib_t lib_find_at(const char *name, const char *path)
+{
+   DIR *d = opendir(path);
+   if (d == NULL)
+      return NULL;
+
+   char *best LOCAL = NULL;
+   const char *std_suffix = standard_suffix(standard());
+
+   struct dirent *e;
+   while ((e = readdir(d))) {
+      if (!isalpha(e->d_name[0]))
+         continue;
+
+      const char *dot = strchr(e->d_name, '.');
+      if (dot != NULL) {
+         if (strncasecmp(name, e->d_name, dot - e->d_name) != 0)
+            continue;
+         else if (strcmp(dot + 1, std_suffix) != 0)
+            continue;
+      }
+      else {
+         if (strcasecmp(name, e->d_name) != 0)
+            continue;
+         else if (best != NULL)
+            continue;
+      }
+
+      free(best);
+      best = xstrdup(e->d_name);
+   }
+
+   closedir(d);
+
+   if (best == NULL)
+      return NULL;
+
    LOCAL_TEXT_BUF dir = tb_new();
    tb_cat(dir, path);
    tb_cat(dir, DIR_SEP);
-
-   if (!exact) {
-      DIR *d = opendir(path);
-      if (d == NULL)
-         return NULL;
-
-      char *best LOCAL = NULL;
-      const char *std_suffix = standard_suffix(standard());
-
-      struct dirent *e;
-      while ((e = readdir(d))) {
-         if (!isalpha(e->d_name[0]))
-            continue;
-
-         const char *dot = strchr(e->d_name, '.');
-         if (dot != NULL) {
-            if (strncasecmp(name, e->d_name, dot - e->d_name) != 0)
-               continue;
-            else if (strcmp(dot + 1, std_suffix) != 0)
-               continue;
-         }
-         else {
-            if (strcasecmp(name, e->d_name) != 0)
-               continue;
-            else if (best != NULL)
-               continue;
-         }
-
-         free(best);
-         best = xstrdup(e->d_name);
-      }
-
-      closedir(d);
-
-      if (best == NULL)
-         return NULL;
-
-      tb_cat(dir, best);
-   }
-   else if (access(path, F_OK) < 0)
-      return NULL;
+   tb_cat(dir, best);
 
    char *marker LOCAL = xasprintf("%s" DIR_SEP "_NVC_LIB", tb_get(dir));
    if (access(marker, F_OK) < 0)
@@ -396,14 +406,46 @@ lib_t lib_loaded(ident_t name_i)
    return NULL;
 }
 
-lib_t lib_new(const char *name, const char *path)
+lib_t lib_new(const char *spec)
 {
-   ident_t name_i = upcase_name(name);
+   char *copy LOCAL = xstrdup(spec);
+   char *split = strchr(copy, ':');
 
+#ifdef __MINGW32__
+   // Ignore a leading drive letter in the path
+   if (split == spec + 1 && (spec[2] == '/' || spec[2] == '\\'))
+      split = NULL;
+#endif
+
+   const char *path, *name, *search = NULL;
+   if (split == NULL) {
+      // No colon in the argument means search in the given directory
+      char *slash = strrchr(copy, *DIR_SEP) ?: strrchr(copy, '/');
+      if (slash == NULL) {
+         name = path = copy;
+         search = ".";
+      }
+      else {
+         *slash = '\0';
+         name = slash + 1;
+         path = spec;
+         search = copy;
+      }
+   }
+   else {
+      // The string after the colon specifies the exact library path
+      *split = '\0';
+      name = copy;
+      path = split + 1;
+   }
+
+   ident_t name_i = upcase_name(name);
    lib_t lib = lib_loaded(name_i);
    if (lib != NULL)
       return lib;
-   else if ((lib = lib_find_at(name, path, false)) != NULL)
+   else if (search != NULL && (lib = lib_find_at(name, search)) != NULL)
+      return lib;
+   else if (search == NULL && (lib = lib_open_at(name, path)) != NULL)
       return lib;
 
    const char *last_dot = strrchr(name, '.');
@@ -451,19 +493,6 @@ lib_t lib_new(const char *name, const char *path)
    }
 
    return lib_init(name, path, fd);
-}
-
-lib_t lib_at(const char *path)
-{
-   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
-      if (it->item->path == NULL)
-         continue;   // Temporary library
-      else if (strncmp(path, it->item->path, strlen(it->item->path)) == 0
-               && it->standard == standard())
-         return it->item;
-   }
-
-   return NULL;
 }
 
 lib_t lib_tmp(const char *name)
@@ -520,7 +549,7 @@ void lib_add_search_path(const char *path)
 
 void lib_add_map(const char *name, const char *path)
 {
-   lib_t lib = lib_find_at(name, path, true);
+   lib_t lib = lib_open_at(name, path);
    if (lib == NULL)
       warnf("library %s not found at %s", name, path);
 }
@@ -558,7 +587,7 @@ lib_t lib_find(ident_t name_i)
 
    const char *name_str = istr(name_i);
    for (search_path_t *it = search_paths; it != NULL; it = it->next) {
-      if ((lib = lib_find_at(name_str, it->path, false)))
+      if ((lib = lib_find_at(name_str, it->path)))
          break;
    }
 

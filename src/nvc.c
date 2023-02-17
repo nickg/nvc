@@ -1335,32 +1335,6 @@ static void parse_library_map(char *str)
    lib_add_map(str, split + 1);
 }
 
-static void parse_work_name(char *str, const char **name, const char **path)
-{
-   char *split = strchr(str, ':');
-
-#ifdef __MINGW32__
-   // Ignore a leading drive letter in the path
-   if (split == str + 1 && (str[2] == '/' || str[2] == '\\'))
-      split = NULL;
-#endif
-
-   if (split == NULL) {
-      char *slash = strrchr(str, *DIR_SEP) ?: strrchr(str, '/');
-      if (slash == NULL)
-         *name = *path = str;
-      else {
-         *name = slash + 1;
-         *path = str;
-      }
-   }
-   else {
-      *split = '\0';
-      *name = str;
-      *path = split + 1;
-   }
-}
-
 static int process_command(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -1439,8 +1413,6 @@ int main(int argc, char **argv)
    opterr = 0;
 
    const char *work_name = "work";
-   const char *work_path = work_name;
-   lib_t work = NULL;
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
@@ -1457,7 +1429,7 @@ int main(int argc, char **argv)
          printf("%s\n%s\n", version_string, copy_string);
          exit(EXIT_SUCCESS);
       case 'w':
-         parse_work_name(optarg, &work_name, &work_path);
+         work_name = optarg;
          break;
       case 'L':
          lib_add_search_path(optarg);
@@ -1503,8 +1475,7 @@ int main(int argc, char **argv)
       }
    }
 
-   work = lib_new(work_name, work_path);
-   lib_set_work(work);
+   lib_set_work(lib_new(work_name));
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
