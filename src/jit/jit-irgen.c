@@ -2533,6 +2533,8 @@ static void irgen_op_new(jit_irgen_t *g, int op)
 
    jit_value_t bytes = jit_value_from_int64(irgen_size_bytes(vtype));
 
+   irgen_emit_debuginfo(g, op);   // For out-of-memory stack traces
+
    if (vcode_count_args(op) > 0)
       bytes = j_mul(g, bytes, irgen_get_arg(g, op, 0));
 
