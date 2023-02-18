@@ -2,6 +2,9 @@ name: Pull request checks
 
 on: [pull_request]
 
+permissions:
+  pull-requests: write
+
 jobs:
   clang-format:
     name: Run clang-format
@@ -37,9 +40,11 @@ jobs:
             const fs = require('fs');
             const diff = fs.readFileSync('changes.diff', 'utf8');
             console.log(diff);
+            const header = 'Please run `git clang-format --diff` on your changes.';
+            const footer = 'Note the `.clang-format` rules are not perfect, please do not edit the style of existing code.';
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `Please run \`git clang-format --diff\` on your changes.\n\n\`\`\`diff\n${diff}\`\`\``
+              body: `${header}\n\n\`\`\`diff\n${diff}\`\`\`\n\n${footer}`
             })
