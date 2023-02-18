@@ -50,6 +50,7 @@
 #endif
 
 #define LOCK_SPINS      15
+#define YIELD_SPINS     32
 #define MIN_TAKE        8
 #define PARKING_BAYS    64
 #define SUSPEND_TIMEOUT 1
@@ -931,6 +932,16 @@ static bool steal_task(void)
    return false;
 }
 
+static void progressive_backoff(void)
+{
+   if (my_thread->spins++ < YIELD_SPINS)
+      spin_wait();
+   else {
+      sched_yield();
+      my_thread->spins = 0;
+   }
+}
+
 static void *worker_thread(void *arg)
 {
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
@@ -1053,7 +1064,7 @@ static void workq_parallel_drain(workq_t *wq)
       while (steal_task());
 
       while (workq_outstanding(wq) > 0)
-         spin_wait();
+         progressive_backoff();
    }
 
    wq->state = IDLE;
@@ -1093,7 +1104,7 @@ void async_barrier(void)
 {
    while (atomic_load(&async_pending) > 0) {
       if (!globalq_poll(&globalq, &(my_thread->queue)))
-         spin_wait();
+         progressive_backoff();
    }
 }
 
