@@ -7,11 +7,12 @@ entity ent is
 end entity ;
 
 -- LCS-2016-072b: Function Knows Vector Size
-package pack is
+package pack072b is
     function to_bitvector(x : natural) return rv_t of bit_vector ;
+
 end package ;
 
-package body pack is
+package body pack072b is
 
     function to_bitvector(x : natural) return rv_t of bit_vector is
         variable rv : rv_t := (others =>'0') ;
@@ -32,12 +33,10 @@ package body pack is
 end package body;
 
 -- LCS-2016-082: Empty record
-package pack is
-
+package pack082 is
     type rec is record
     end record ;
-
-end package ;
+end package;
 
 -- LCS-2016-086
 entity E is

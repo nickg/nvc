@@ -3729,6 +3729,14 @@ START_TEST(test_vhdl2019)
    fail_if(e071a == NULL);
    fail_unless(tree_kind(e071a) == T_ENTITY);
 
+   tree_t p072b = parse();
+   fail_if(p072b == NULL);
+   fail_unless(tree_kind(p072b) == T_PACKAGE);
+
+   tree_t pb072b = parse();
+   fail_if(pb072b == NULL);
+   fail_unless(tree_kind(pb072b) == T_PACK_BODY);
+
    tree_t p082 = parse();
    fail_if(p082 == NULL);
    fail_unless(tree_kind(p082) == T_PACKAGE);
