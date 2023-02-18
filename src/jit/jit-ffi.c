@@ -90,8 +90,11 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
 
    if (cache == NULL)
       cache = hash_new(128);
-
-   assert(hash_get(cache, sym) == NULL);
+   else {
+      jit_foreign_t *exist = hash_get(cache, sym);
+      if (exist != NULL)
+         return exist;
+   }
 
    ffi_spec_t copy = spec;
    if (spec.count == 0)
