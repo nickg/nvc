@@ -1,10 +1,10 @@
----- LCS-2016-071a: Trailing semicolion
---entity ent is
---  port (
---    a : in  boolean ;
---    b : out boolean ;
---  ) ;
---end entity ;
+-- LCS-2016-071a: Trailing semicolion
+entity ent is
+  port (
+    a : in  boolean ;
+    b : out boolean ;
+  ) ;
+end entity ;
 
 -- LCS-2016-072b: Function Knows Vector Size
 package pack is
@@ -14,9 +14,18 @@ end package ;
 package body pack is
 
     function to_bitvector(x : natural) return rv_t of bit_vector is
-        variable rv : rv_t;
+        variable rv : rv_t := (others =>'0') ;
+        variable leftover : natural := x ;
     begin
-        rv := to_bitvector(x, rv'length);
+        assert x < 2**rv'length
+          report "overflow"
+          severity warning ;
+        for pow in 0 to rv'high loop
+            if leftover mod 2 = 1 then
+                rv(pow) := '1' ;
+            end if ;
+            leftover := leftover / 2 ;
+        end loop ;
         return rv;
     end function ;
 
