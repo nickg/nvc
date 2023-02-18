@@ -5016,6 +5016,11 @@ static void lower_wait(tree_t wait)
 
    vcode_select_block(resume);
 
+   if (!is_static) {
+      for (int i = 0; i < ntriggers; i++)
+         lower_clear_event(tree_trigger(wait, i));
+   }
+
    if (has_value) {
       // Generate code to loop until condition is met
 
@@ -5049,11 +5054,6 @@ static void lower_wait(tree_t wait)
       emit_wait(resume, timeout_reg);
 
       vcode_select_block(done_bb);
-   }
-
-   if (!is_static) {
-      for (int i = 0; i < ntriggers; i++)
-         lower_clear_event(tree_trigger(wait, i));
    }
 }
 

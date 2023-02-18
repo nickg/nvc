@@ -2114,6 +2114,8 @@ static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
             p->wake[i] = obj;
             return;
          }
+         else
+            assert(p->wake[i] != obj);   // Should have been cleared already
       }
 
       if (p->count == p->max) {
@@ -2137,8 +2139,10 @@ static void clear_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
    else if (n->pending != NULL) {
       rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
-         if (p->wake[i] == obj)
+         if (p->wake[i] == obj) {
             p->wake[i] = NULL;
+            return;
+         }
       }
    }
 }

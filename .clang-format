@@ -10,7 +10,7 @@ IndentCaseLabels: false
 ColumnLimit: 80
 #AllowShortIfStatementsOnASingleLine: true
 #AllowShortLoopsOnASingleLine: true
-RemoveBracesLLVM: true
+#RemoveBracesLLVM: true
 ReflowComments: true
 SpaceBeforeParens: ControlStatements
 SpaceAfterCStyleCast: false

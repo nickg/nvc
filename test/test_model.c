@@ -252,6 +252,63 @@ START_TEST(test_stateless1)
 }
 END_TEST
 
+START_TEST(test_pending1)
+{
+   input_from_file(TESTDIR "/model/pending1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   lower_unit(top, NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+   ck_assert_int_eq(tree_stmts(b0), 2);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   rt_proc_t *pwakeup = find_proc(root, tree_stmt(b0, 0));
+   ck_assert_ptr_nonnull(pwakeup);
+   ck_assert_str_eq(istr(pwakeup->name), ":pending1:wakeup");
+
+   rt_proc_t *pstim = find_proc(root, tree_stmt(b0, 1));
+   ck_assert_ptr_nonnull(pstim);
+   ck_assert_str_eq(istr(pstim->name), ":pending1:stim");
+
+   tree_t x = search_decls(b0, ident_new("X"), 0);
+   fail_if(x == NULL);
+
+   rt_signal_t *sx = find_signal(root, x);
+   fail_if(sx == NULL);
+   fail_unless(sx->n_nexus == 1);
+
+   ck_assert_ptr_null(sx->nexus.pending);
+
+   model_step(m);
+
+   ck_assert_int_eq(pointer_tag(sx->nexus.pending), 1);
+   ck_assert_ptr_eq(untag_pointer(sx->nexus.pending, rt_wakeable_t),
+                    &(pwakeup->wakeable));
+
+   model_step(m);
+
+   ck_assert_int_eq(pointer_tag(sx->nexus.pending), 1);
+   ck_assert_ptr_eq(untag_pointer(sx->nexus.pending, rt_wakeable_t),
+                    &(pwakeup->wakeable));
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -262,6 +319,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_fast1);
    tcase_add_test(tc, test_stateless1);
+   tcase_add_test(tc, test_pending1);
    suite_add_tcase(s, tc);
 
    return s;
