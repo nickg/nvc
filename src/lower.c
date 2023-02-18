@@ -1905,7 +1905,10 @@ static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
 static void lower_release_temp(vcode_var_t tmp)
 {
    assert(vcode_var_flags(tmp) & VAR_TEMP);
-   APUSH(top_scope->free_temps, tmp);
+   if (top_scope != NULL)
+      APUSH(top_scope->free_temps, tmp);
+   else
+      assert(mode == LOWER_THUNK);
 }
 
 static vcode_reg_t lower_falling_rising_edge(tree_t fcall,

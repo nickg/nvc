@@ -39,7 +39,8 @@ begin
 
     casep: process
     begin
-        case mygen(1) is
+        --case mygen(1) is
+        case 1 is
            when 0 to 128 => report "value of mygen(1) is in range 0..128; value is " & integer'image(mygen(1));
            when others  =>  report "value of mygen(1) is NOT in range 0..128; value is " & integer'image(mygen(1)) severity failure;
         end case;

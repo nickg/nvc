@@ -115,13 +115,9 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 13)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 14)), false));
    fail_unless(folded_b(tree_value(tree_stmt(p, 15)), false));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 16), 0)), 2));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 17), 0)), 5));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 18), 0)), 6));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 19), 0)), 24));
+   s = tree_stmt(p, 16);
+   fail_unless(tree_kind(tree_value(tree_waveform(s, 0))) == T_ARRAY_REF);
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 20), 0)), 5));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 21), 0)), 4));
-   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 22), 0)), -1));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 23), 0)), 16));
 
    // Expressions involving TIME are not locally static
@@ -1110,7 +1106,10 @@ START_TEST(test_issue436)
    tree_t data2 = search_decls(b0, ident_new("DATA2"), 0);
    fail_if(data2 == NULL);
    fail_unless(tree_kind(data2) == T_SIGNAL_DECL);
-   fail_unless(folded_i(tree_left(range_of(tree_type(data2), 0)), 2));
+
+   // This used to be folded by simp but no longer is
+   tree_t left = tree_left(range_of(tree_type(data2), 0));
+   fail_unless(tree_kind(left) == T_ARRAY_REF);
 }
 END_TEST
 

@@ -288,6 +288,12 @@ jobs:
           export PYTHONPATH=$(pwd)/vunit
           cd vunit/examples/vhdl/axi_dma
           python3 run.py
+      - name: Run com example
+        run: |
+          export VUNIT_SIMULATOR=nvc
+          export PYTHONPATH=$(pwd)/vunit
+          cd vunit/examples/vhdl/com
+          python3 run.py
 
   osvvm:
     if: ${{ false }}    # Takes too long for now

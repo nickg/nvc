@@ -725,3 +725,4 @@ issue613        normal,2008
 issue615        normal,gold,2008
 arith4          fail,gold
 libdir4         shell
+const10         normal
