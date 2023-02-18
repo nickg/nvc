@@ -4869,28 +4869,25 @@ static tree_t p_interface_function_specification(void)
    }
 
    consume(tRETURN);
-   if (standard() < STD_19) {
-      if (peek_nth(2) == tOF)
-         require_std(STD_19, "function knows return type");
+
+   if (peek_nth(2) != tOF)
       type_set_result(type, p_type_mark());
-   } else {
-      if (peek_nth(2) == tOF) {
-         ident_t id = p_identifier();
+   else {
+      require_std(STD_19, "function knows return type") ;
+      ident_t id = p_identifier();
 
-         tree_t t = tree_new(T_SUBTYPE_DECL);
-         tree_set_loc(t, CURRENT_LOC);
+      tree_t t = tree_new(T_SUBTYPE_DECL);
+      tree_set_loc(t, CURRENT_LOC);
 
-         consume(tOF);
+      consume(tOF);
 
-         type_t tm = p_type_mark();
-         tree_set_ident(t, id);
-         tree_set_type(t, tm);
+      type_t tm = p_type_mark();
+      tree_set_ident(t, id);
+      tree_set_type(t, tm);
 
-         type_set_result(type, tm);
-         insert_name(nametab, t, id);
-         sem_check(t, nametab);
-      } else
-         type_set_result(type, p_type_mark());
+      type_set_result(type, tm);
+      insert_name(nametab, t, id);
+      sem_check(t, nametab);
    }
 
    tree_set_loc(d, CURRENT_LOC);
@@ -6217,28 +6214,24 @@ static tree_t p_subprogram_specification(void)
    if (tree_kind(t) == T_FUNC_DECL) {
       consume(tRETURN);
 
-      if (standard() < STD_19) {
-         if (peek_nth(2) == tOF)
-            require_std(STD_19, "function knows return type");
+      if (peek_nth(2) != tOF)
          type_set_result(type, p_type_mark());
-      } else {
-         if (peek_nth(2) == tOF) {
-            ident_t id = p_identifier();
+      else {
+         require_std(STD_19, "function knows return type") ;
+         ident_t id = p_identifier();
 
-            tree_t t = tree_new(T_SUBTYPE_DECL);
-            tree_set_loc(t, CURRENT_LOC);
+         tree_t t = tree_new(T_SUBTYPE_DECL);
+         tree_set_loc(t, CURRENT_LOC);
 
-            consume(tOF);
+         consume(tOF);
 
-            type_t tm = p_type_mark();
-            tree_set_ident(t, id);
-            tree_set_type(t, tm);
+         type_t tm = p_type_mark();
+         tree_set_ident(t, id);
+         tree_set_type(t, tm);
 
-            type_set_result(type, tm);
-            insert_name(nametab, t, id);
-            sem_check(t, nametab);
-         } else
-            type_set_result(type, p_type_mark());
+         type_set_result(type, tm);
+         insert_name(nametab, t, id);
+         sem_check(t, nametab);
       }
    }
 
