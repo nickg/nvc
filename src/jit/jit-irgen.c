@@ -1768,10 +1768,11 @@ static void irgen_op_wrap(jit_irgen_t *g, int op)
       jit_value_t diff_down = j_sub(g, left, right);
 
       j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
-      jit_value_t diff   = j_csel(g, diff_down, diff_up);
-      jit_value_t length = j_add(g, diff, jit_value_from_int64(1));
+      jit_value_t diff    = j_csel(g, diff_down, diff_up);
+      jit_value_t length  = j_add(g, diff, jit_value_from_int64(1));
       jit_value_t clamped = j_clamp(g, length);
-      jit_value_t signlen = j_cneg(g, clamped);
+      jit_value_t biased  = j_add(g, clamped, jit_value_from_int64(1));
+      jit_value_t signlen = j_cneg(g, biased);
 
       j_mov(g, dims[i*2], left);
       j_mov(g, dims[i*2 + 1], signlen);
@@ -1793,8 +1794,8 @@ static void irgen_op_uarray_right(jit_irgen_t *g, int op)
    jit_value_t diff   = j_add(g, left, length);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
 
-   jit_value_t adj = j_csel(g, jit_value_from_int64(1),
-                            jit_value_from_int64(-1));
+   jit_value_t adj = j_csel(g, jit_value_from_int64(2),
+                            jit_value_from_int64(-2));
 
    g->map[vcode_get_result(op)] = j_add(g, diff, adj);
 }
@@ -1839,8 +1840,9 @@ static void irgen_op_uarray_len(jit_irgen_t *g, int op)
    jit_value_t length = jit_value_from_reg(base + slots + 1 + dim*2);
    jit_value_t neg = j_neg(g, length);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
+   jit_value_t biased = j_csel(g, neg, length);
 
-   g->map[vcode_get_result(op)] = j_csel(g, neg, length);
+   g->map[vcode_get_result(op)] = j_sub(g, biased, jit_value_from_int64(1));
 }
 
 static void irgen_op_unwrap(jit_irgen_t *g, int op)

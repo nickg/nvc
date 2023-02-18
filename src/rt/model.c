@@ -933,7 +933,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          int8_t args[2] = { i, j };
          jit_scalar_t result;
          if (jit_try_call(m->jit, memo->closure.handle, &result,
-                          memo->closure.context, args, memo->ileft, 2)) {
+                          memo->closure.context, args, memo->ileft, 3)) {
             assert(result.integer < nlits && result.integer >= 0);
             memo->tab2[i][j] = result.integer;
          }
@@ -948,7 +948,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
       int8_t args[1] = { i };
       jit_scalar_t result;
       if (jit_try_call(m->jit, memo->closure.handle, &result,
-                       memo->closure.context, args, memo->ileft, 1)) {
+                       memo->closure.context, args, memo->ileft, 2)) {
          memo->tab1[i] = result.integer;
          identity = identity && (memo->tab1[i] == i);
       }
@@ -1663,7 +1663,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
       rt_model_t *m = get_model();
       jit_scalar_t result;
       if (!jit_try_call(m->jit, r->closure.handle, &result,
-                        r->closure.context, inputs, r->ileft, nonnull))
+                        r->closure.context, inputs, r->ileft, nonnull + 1))
          m->force_stop = true;
 
       return result.pointer + nexus->signal->shared.offset
@@ -1687,7 +1687,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
             jit_scalar_t result;                                        \
             if (!jit_try_call(m->jit, r->closure.handle, &result,       \
                               r->closure.context, vals, r->ileft,       \
-                              nonnull))                                 \
+                              nonnull + 1))                             \
                m->force_stop = true;                                    \
             p[j] = result.integer;                                      \
          } while (0)

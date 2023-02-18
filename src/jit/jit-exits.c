@@ -404,19 +404,19 @@ ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
       }
    }
 
-   return ffi_wrap_str(buf, p - buf);
+   return ffi_wrap(buf, 1, p - buf);
 }
 
 ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max)
 {
    size_t len = checked_sprintf(buf, max, "%"PRIi64, value);
-   return ffi_wrap_str(buf, len);
+   return ffi_wrap(buf, 1, len);
 }
 
 ffi_uarray_t x_real_to_string(double value, char *buf, size_t max)
 {
    size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, value);
-   return ffi_wrap_str(buf, len);
+   return ffi_wrap(buf, 1, len);
 }
 
 void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,

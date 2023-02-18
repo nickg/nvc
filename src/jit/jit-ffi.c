@@ -175,18 +175,16 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
       args[0].integer = result;
 }
 
-ffi_uarray_t ffi_wrap_str(char *buf, size_t len)
+ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right)
 {
+   // Assumes ascending range
+   const int64_t biased = 1 + (right < left ? 0 : right - left + 1);
+
    ffi_uarray_t u = {
-      .ptr = buf,
-      .dims = { [0] = { .left = 1, .length = len } }
+      .ptr = ptr,
+      .dims = { [0] = { .left = left, .length = biased } }
    };
    return u;
-}
-
-size_t ffi_uarray_len(const ffi_uarray_t *u)
-{
-   return abs(u->dims[0].length);
 }
 
 bool ffi_is_integral(ffi_type_t type)

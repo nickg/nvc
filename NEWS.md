@@ -6,6 +6,8 @@
   correctly (#604).
 - The `'transaction` implicit signal no longer incurs a delta-cycle
   delay.
+- `x'ascending` now reports the correct result if `x` has unconstrained
+  array type and null range.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in

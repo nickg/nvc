@@ -72,7 +72,7 @@ static void copy_str(const char *str, ffi_uarray_t *u)
    const size_t len = strlen(str);
    char *buf = rt_tlab_alloc(len);
    memcpy(buf, str, len);
-   *u = ffi_wrap_str(buf, len);
+   *u = ffi_wrap(buf, 1, len);
 }
 
 static char *to_cstring(const char *data, int len)
@@ -90,7 +90,7 @@ static ffi_uarray_t *to_line_n(const char *str, size_t len)
    memcpy(buf, str, len);
 
    ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
-   *u = ffi_wrap_str(buf, len);
+   *u = ffi_wrap(buf, 1, len);
    return u;
 }
 
@@ -161,11 +161,11 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 DLLEXPORT
 void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)
 {
-   char *LOCAL cstr = to_cstring(name_ptr, name_length);
+   char *LOCAL cstr = to_cstring(name_ptr, ffi_unbias_length(name_biased));
    const char *env = getenv(cstr);
 
    if (env == NULL)
-      *u = ffi_wrap_str(NULL, 0);
+      *u = ffi_wrap(NULL, 1, 0);
    else
       copy_str(env, u);
 }
@@ -174,14 +174,14 @@ DLLEXPORT
 void _std_env_vhdl_version(ffi_uarray_t *u)
 {
    const char *str = standard_text(standard());
-   *u = ffi_wrap_str((char *)str, strlen(str));
+   *u = ffi_wrap((char *)str, 1, strlen(str));
 }
 
 DLLEXPORT
 void _std_env_tool_version(ffi_uarray_t *u)
 {
    const char *str = PACKAGE_VERSION;
-   *u = ffi_wrap_str((char *)str, strlen(str));
+   *u = ffi_wrap((char *)str, 1, strlen(str));
 }
 
 DLLEXPORT
@@ -252,7 +252,7 @@ void _std_env_get_workingdir(ffi_uarray_t *u)
 DLLEXPORT
 void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(dir_ptr, dir_length);
+   char *cstr LOCAL = to_cstring(dir_ptr, ffi_unbias_length(dir_biased));
 
    if (chdir(cstr) == -1)
       *status = errno_to_dir_open_status();
@@ -263,7 +263,7 @@ void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
 DLLEXPORT
 void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(path_ptr, path_length);
+   char *cstr LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
 
 #ifdef __MINGW32__
    if (mkdir(cstr) == -1)
@@ -278,7 +278,7 @@ void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
 DLLEXPORT
 bool _std_env_itemexists(EXPLODED_UARRAY(path))
 {
-   char *path LOCAL = to_cstring(path_ptr, path_length);
+   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
 
    struct stat sb;
    return stat(path, &sb) == 0;
@@ -287,7 +287,7 @@ bool _std_env_itemexists(EXPLODED_UARRAY(path))
 DLLEXPORT
 bool _std_env_itemisfile(EXPLODED_UARRAY(path))
 {
-   char *path LOCAL = to_cstring(path_ptr, path_length);
+   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
 
    struct stat sb;
    if (stat(path, &sb) != 0)
@@ -299,7 +299,7 @@ bool _std_env_itemisfile(EXPLODED_UARRAY(path))
 DLLEXPORT
 bool _std_env_itemisdir(EXPLODED_UARRAY(path))
 {
-   char *path LOCAL = to_cstring(path_ptr, path_length);
+   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
 
    struct stat sb;
    if (stat(path, &sb) != 0)
@@ -337,10 +337,7 @@ void _std_env_get_call_path(ffi_uarray_t **ptr)
    }
 
    ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
-   u->dims[0].left = 0;
-   u->dims[0].length = stack->count - 1;
-   u->ptr = array;
-
+   *u = ffi_wrap(array, 0, stack->count - 2);
    *ptr = u;
 }
 

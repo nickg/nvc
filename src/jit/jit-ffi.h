@@ -52,7 +52,9 @@ typedef struct _jit_foreign jit_foreign_t;
 // Macro to generate the correct calling convention for by-value uarray
 // aggregates
 #define EXPLODED_UARRAY(name) \
-   void *name##_ptr, int32_t name##_left, int32_t name##_length
+   void *name##_ptr, int32_t name##_left, int32_t name##_biased
+
+#define ffi_unbias_length(l) (abs((l)) - 1)
 
 // The code generator knows the layout of this struct
 typedef struct _ffi_uarray {
@@ -78,8 +80,7 @@ ffi_spec_t ffi_get_spec(jit_foreign_t *ff);
 
 ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
 
-ffi_uarray_t ffi_wrap_str(char *buf, size_t len);
-size_t ffi_uarray_len(const ffi_uarray_t *u);
+ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right);
 bool ffi_is_integral(ffi_type_t type);
 int64_t ffi_widen_int(ffi_type_t type, const void *input);
 void ffi_store_int(ffi_type_t type, uint64_t value, void *output);

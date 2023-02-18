@@ -21,12 +21,14 @@
 #include "jit/jit-ffi.h"
 #include "rt/rt.h"
 
+#include <assert.h>
+#include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
 
-static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
+static ffi_uarray_t bit_vec_to_string(const uint8_t *vec, size_t vec_len,
+                                      int log_base)
 {
-   const size_t vec_len = ffi_uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
    const int left_pad = (log_base - (vec_len % log_base)) % log_base;
    char *buf = rt_tlab_alloc(result_len);
@@ -36,7 +38,7 @@ static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
       for (int j = 0; j < log_base; j++) {
          if (i > 0 || j >= left_pad) {
             nibble <<= 1;
-            nibble |= !!(((uint8_t *)vec->ptr)[i*log_base + j - left_pad]);
+            nibble |= !!(vec[i*log_base + j - left_pad]);
          }
       }
 
@@ -44,7 +46,7 @@ static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
       buf[i] = map[nibble];
    }
 
-   return ffi_wrap_str(buf, result_len);
+   return ffi_wrap(buf, 1, result_len);
 }
 
 DLLEXPORT
@@ -82,7 +84,7 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
       len = checked_sprintf(buf, max_len, "%g %s",
                             (double)value / (double)unit, unit_str);
 
-   *u = ffi_wrap_str(buf, len);
+   *u = ffi_wrap(buf, 1, len);
 }
 
 DLLEXPORT
@@ -97,19 +99,21 @@ void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
    else
       len = checked_sprintf(buf, max_len, "%.*f", digits, value);
 
-   *u = ffi_wrap_str(buf, len);
+   *u = ffi_wrap(buf, 1, len);
 }
 
 DLLEXPORT
 void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
                                 ffi_uarray_t *u)
 {
+   const size_t fmt_length = ffi_unbias_length(fmt_biased);
    char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
    memcpy(fmt_cstr, fmt_ptr, fmt_length);
    fmt_cstr[fmt_length] = '\0';
 
    if (fmt_cstr[0] != '%')
-      jit_msg(NULL, DIAG_FATAL, "conversion specification must start with '%%'");
+      jit_msg(NULL, DIAG_FATAL, "conversion specification must "
+              "start with '%%'");
 
    for (const char *p = fmt_cstr + 1; *p; p++) {
       switch (*p) {
@@ -129,21 +133,19 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
    size_t max_len = 64;
    char *buf = rt_tlab_alloc(max_len);
    size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
-   *u = ffi_wrap_str(buf, len);
+   *u = ffi_wrap(buf, 1, len);
 }
 
 DLLEXPORT
 void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
 {
-   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
-   *u = bit_vec_to_string(&vec, 4);
+   *u = bit_vec_to_string(vec_ptr, ffi_unbias_length(vec_biased), 4);
 }
 
 DLLEXPORT
 void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
 {
-   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
-   *u = bit_vec_to_string(&vec, 3);
+   *u = bit_vec_to_string(vec_ptr, ffi_unbias_length(vec_biased), 3);
 }
 
 void _std_standard_init(void)
