@@ -4874,20 +4874,24 @@ static tree_t p_interface_function_specification(void)
       type_set_result(type, p_type_mark());
    else {
       require_std(STD_19, "function knows return type") ;
-      ident_t id = p_identifier();
-
       tree_t t = tree_new(T_SUBTYPE_DECL);
       tree_set_loc(t, CURRENT_LOC);
+      ident_t id = p_identifier();
 
       consume(tOF);
 
       type_t tm = p_type_mark();
+
       tree_set_ident(t, id);
       tree_set_type(t, tm);
 
-      type_set_result(type, tm);
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_ident(sub, id);
+      type_set_base(sub, tm);
+
       insert_name(nametab, t, id);
       sem_check(t, nametab);
+      type_set_result(type, sub);
    }
 
    tree_set_loc(d, CURRENT_LOC);
@@ -6218,14 +6222,23 @@ static tree_t p_subprogram_specification(void)
          type_set_result(type, p_type_mark());
       else {
          require_std(STD_19, "function knows return type") ;
+         tree_t t = tree_new(T_SUBTYPE_DECL);
+         tree_set_loc(t, CURRENT_LOC);
          ident_t id = p_identifier();
-         
+
          consume(tOF);
-         
+
+         type_t tm = p_type_mark();
+
+         tree_set_ident(t, id);
+         tree_set_type(t, tm);
+
          type_t sub = type_new(T_SUBTYPE);
-         type_set_id(sub, id);
-         type_set_base(sub, p_type_mark());
-         
+         type_set_ident(sub, id);
+         type_set_base(sub, tm);
+
+         insert_name(nametab, t, id);
+         sem_check(t, nametab);
          type_set_result(type, sub);
       }
    }
