@@ -554,8 +554,19 @@ static void interp_branch_to(jit_interp_t *state, jit_value_t label)
    const int target = interp_get_value(state, label).integer;
    if (state->backedge > 0 && target < state->pc) {
       // Limit the number of loop iterations in bounded mode
-      if (--(state->backedge) == 0)
-         jit_msg(NULL, DIAG_FATAL, "maximum iteration limit reached");
+      if (--(state->backedge) == 0) {
+         bool safe_to_abort = true;
+         for (jit_anchor_t *a = state->anchor; a; a = a->caller) {
+            if (a->func->privdata != MPTR_INVALID) {
+               // We might be in the middle of initialising a package so
+               // cannot abandon execution here
+               safe_to_abort = false;
+            }
+         }
+
+         if (safe_to_abort)
+            jit_msg(NULL, DIAG_FATAL, "maximum iteration limit reached");
+      }
    }
 
    state->pc = target;

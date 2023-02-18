@@ -714,3 +714,4 @@ issue603        normal
 issue609        normal
 issue618        normal,gA='1',gB='0'
 issue615        normal,gold,2008
+link4           normal
