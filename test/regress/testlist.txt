@@ -727,3 +727,4 @@ arith4          fail,gold
 libdir4         shell
 const10         normal
 null3           normal
+link4           normal
