@@ -6219,19 +6219,14 @@ static tree_t p_subprogram_specification(void)
       else {
          require_std(STD_19, "function knows return type") ;
          ident_t id = p_identifier();
-
-         tree_t t = tree_new(T_SUBTYPE_DECL);
-         tree_set_loc(t, CURRENT_LOC);
-
+         
          consume(tOF);
-
-         type_t tm = p_type_mark();
-         tree_set_ident(t, id);
-         tree_set_type(t, tm);
-
-         type_set_result(type, tm);
-         insert_name(nametab, t, id);
-         sem_check(t, nametab);
+         
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_id(sub, id);
+         type_set_base(sub, p_type_mark());
+         
+         type_set_result(type, sub);
       }
    }
 
