@@ -1549,7 +1549,7 @@ static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
    tree_set_ref(ref, decl);
 
    if (*mask == 0) {
-      parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
+      parse_error(CURRENT_LOC, "name %s not xxxfound in %s", istr(suffix),
                   istr(tree_ident(prefix)));
       tree_set_type(ref, type_new(T_NONE));
    }
