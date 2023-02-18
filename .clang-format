@@ -1,0 +1,20 @@
+# -*- mode: yaml -*-
+---
+Language: Cpp
+BasedOnStyle: LLVM
+UseTab: Never
+IndentWidth: 3
+BreakBeforeBraces: Stroustrup
+AllowShortIfStatementsOnASingleLine: false
+IndentCaseLabels: false
+ColumnLimit: 80
+#AllowShortIfStatementsOnASingleLine: true
+#AllowShortLoopsOnASingleLine: true
+RemoveBracesLLVM: true
+ReflowComments: true
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpacesBeforeTrailingComments: 3
+PointerAlignment: Right
+MaxEmptyLinesToKeep: 1

@@ -1,0 +1,45 @@
+name: Pull request checks
+
+on: [pull_request]
+
+jobs:
+  clang-format:
+    name: Run clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0   # To find fork point
+      - name: Install dependencies
+        run: sudo apt-get install -y clang-format
+      - name: Run clang-format
+        id: clang-format
+        run: |
+          base=refs/remotes/origin/$GITHUB_BASE_REF
+          echo "Base ref is $base"
+          git log -1 $base
+          fork=$(git merge-base --fork-point $base)
+          echo "Fork point is $fork"
+          git log -1 $fork
+          git clang-format -q --diff $fork | tee changes.diff
+          if [ -s changes.diff ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT;
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT;
+          fi
+      - name: Post comment
+        if: ${{ steps.clang-format.outputs.changes == 'true' }}
+        uses: actions/github-script@v5
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('changes.diff', 'utf8');
+            console.log(diff);
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Please run \`git clang-format --diff\` on your changes.\n\n\`\`\`diff\n${diff}\`\`\``
+            })

@@ -1,6 +1,6 @@
 name: Build and test
 
-on: [push, pull_request, release]
+on: [release]
 
 jobs:
   build-ubuntu:
