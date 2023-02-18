@@ -4633,6 +4633,10 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
          // Generics are immediately visible in VHDL-2008
          insert_name(nametab, d, NULL);
       }
+      else if (standard() >= STD_19) {
+         // Everything is immediately visible in VHDL-2019
+         insert_name(nametab, d, NULL);
+      }
    }
 }
 
@@ -4677,6 +4681,10 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
 
       add_interface(parent, d, kind);
       sem_check(d, nametab);
+
+      // 2019: Ports and generics are immediately visible
+      if (standard() >= STD_19)
+         insert_name(nametab, d, NULL);
    }
 }
 
@@ -4716,6 +4724,9 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
 
       add_interface(parent, d, kind);
       sem_check(d, nametab);
+
+      if (standard() >= STD_19)
+         insert_name(nametab, d, NULL);
    }
 }
 
@@ -4743,6 +4754,9 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
 
       add_interface(parent, d, kind);
       sem_check(d, nametab);
+
+      if (standard() >= STD_19)
+         insert_name(nametab, d, NULL);
    }
 }
 
