@@ -1872,6 +1872,18 @@ static bool lower_side_effect_free(tree_t expr)
          return true;
       }
       break;
+   case T_RECORD_REF:
+   case T_QUALIFIED:
+   case T_TYPE_CONV:
+      return lower_side_effect_free(tree_value(expr));
+   case T_ATTR_REF:
+      {
+         const attr_kind_t kind = tree_subkind(expr);
+         if (kind == ATTR_EVENT || kind == ATTR_ACTIVE)
+            return lower_side_effect_free(tree_name(expr));
+         else
+            return false;
+      }
    default:
       return false;
    }

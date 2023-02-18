@@ -1931,9 +1931,11 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
          tree_t decl = tree_ref(expr);
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++) {
-            const port_mode_t mode = tree_subkind(tree_port(decl, i));
+            tree_t p = tree_param(expr, i);
+            assert(tree_subkind(p) == P_POS);
+            const port_mode_t mode = tree_subkind(tree_port(decl, tree_pos(p)));
             if (mode == PORT_IN || mode == PORT_INOUT)
-               build_wait(tree_value(tree_param(expr, i)), fn, ctx);
+               build_wait(tree_value(p), fn, ctx);
          }
       }
       break;

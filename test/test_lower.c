@@ -298,6 +298,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_ALLOC:
       case VCODE_OP_SCHED_EVENT:
+      case VCODE_OP_CLEAR_EVENT:
       case VCODE_OP_FILE_OPEN:
       case VCODE_OP_FILE_CLOSE:
       case VCODE_OP_INDEX_CHECK:
@@ -5017,6 +5018,46 @@ START_TEST(test_issue613)
 }
 END_TEST
 
+START_TEST(test_wait2)
+{
+   input_from_file(TESTDIR "/lower/wait2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.WAIT2.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "R" },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SCHED_EVENT },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "R" },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CLEAR_EVENT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_EVENT },
+      { VCODE_OP_AND },
+      { VCODE_OP_COND, .target = 3, .target_else = 4 },
+   };
+
+   CHECK_BB(2);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5135,6 +5176,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue591);
    tcase_add_test(tc, test_case2);
    tcase_add_test(tc, test_issue613);
+   tcase_add_test(tc, test_wait2);
    suite_add_tcase(s, tc);
 
    return s;

@@ -4981,6 +4981,16 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
 
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
 {
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_CLEAR_EVENT)
+         break;
+      else if (other->kind == VCODE_OP_SCHED_EVENT
+               && other->args.items[0] == nets
+               && other->args.items[1] == n_elems
+               && wake == VCODE_INVALID_REG && other->args.count == 2)
+         return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
@@ -4996,6 +5006,15 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
 
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)
 {
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_SCHED_EVENT)
+         break;
+      else if (other->kind == VCODE_OP_CLEAR_EVENT
+               && other->args.items[0] == nets
+               && other->args.items[1] == n_elems)
+         return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CLEAR_EVENT);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
