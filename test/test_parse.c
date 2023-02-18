@@ -3725,8 +3725,19 @@ START_TEST(test_vhdl2019)
    set_standard(STD_19);
    input_from_file(TESTDIR "/parse/vhdl2019.vhd");
 
-   tree_t e = parse();
-   fail_if(e == NULL);
+   tree_t e071a = parse();
+   fail_if(e071a == NULL);
+   fail_unless(tree_kind(e071a) == T_ENTITY);
+
+   tree_t p082 = parse();
+   fail_if(p082 == NULL);
+   fail_unless(tree_kind(p082) == T_PACKAGE);
+
+   tree_t e086 = parse();
+   fail_if(e086 == NULL);
+   fail_unless(tree_kind(e086) == T_ENTITY);
+
+   fail_unless(parse() == NULL);
 
    fail_if_errors();
 }
