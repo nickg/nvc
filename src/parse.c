@@ -6213,6 +6213,7 @@ static tree_t p_subprogram_specification(void)
          type_set_result(type, p_type_mark());
       else {
          require_std(STD_19, "function knows return type") ;
+
          ident_t id = p_identifier();
 
          consume(tOF);
@@ -6222,6 +6223,8 @@ static tree_t p_subprogram_specification(void)
          type_set_base(sub, p_type_mark());
 
          type_set_result(type, sub);
+
+         tree_set_flag(t, TREE_F_KNOWS_SIZE);
       }
    }
 
@@ -7137,6 +7140,24 @@ static tree_t p_subprogram_body(tree_t spec)
    insert_ports(nametab, spec);
 
    sem_check(spec, nametab);
+
+   if (tree_flags(spec) & TREE_F_KNOWS_SIZE) {
+      // LRM 19 section 4.2.1: an implicit subtype declaration is
+      // created as the first declarative item when the function
+      // includes a return identifier
+
+      type_t sub = type_result(tree_type(spec));
+      assert(type_kind(sub) == T_SUBTYPE);
+
+      tree_t d = tree_new(T_SUBTYPE_DECL);
+      tree_set_ident(d, type_ident(sub));
+      tree_set_type(d, sub);
+      tree_set_loc(d, CURRENT_LOC);
+
+      insert_name(nametab, d, NULL);
+
+      tree_add_decl(spec, d);
+   }
 
    p_subprogram_declarative_part(spec);
 

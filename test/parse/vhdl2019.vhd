@@ -17,7 +17,7 @@ package body pack is
         variable rv : rv_t;
     begin
         rv := to_bitvector(x, rv'length);
-        return rv
+        return rv;
     end function ;
 
 end package body;
