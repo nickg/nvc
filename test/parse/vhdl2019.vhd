@@ -7,19 +7,17 @@
 --end entity ;
 
 -- LCS-2016-072b: Function Knows Vector Size
-library ieee;
-use ieee.numeric_std.all;
-
 package pack is
-    function f(x : integer) return rv_t of signed ;
+    function to_bitvector(x : natural) return rv_t of bit_vector ;
 end package ;
 
 package body pack is
 
-    function to_signed(x : integer) return rv_t of signed is
+    function to_bitvector(x : natural) return rv_t of bit_vector is
         variable rv : rv_t;
     begin
-        return to_signed(x, rv'length);
+        rv := to_bitvector(x, rv'length);
+        return rv
     end function ;
 
 end package body;
