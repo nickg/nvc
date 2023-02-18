@@ -4643,8 +4643,11 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
       add_interface(parent, d, kind);
       sem_check(d, nametab);
 
-      if ((standard() >= STD_19) || (kind == T_GENERIC_DECL && standard() >= STD_08)) {
+      if (kind == T_GENERIC_DECL && standard() >= STD_08) {
          // Generics are immediately visible in VHDL-2008
+         insert_name(nametab, d, NULL);
+      }
+      else if (standard() >= STD_19) {
          // Everything is immediately visible in VHDL-2019
          insert_name(nametab, d, NULL);
       }
