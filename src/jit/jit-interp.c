@@ -978,7 +978,12 @@ static void interp_loop(jit_interp_t *state)
 void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
                 tlab_t *tlab)
 {
-   assert(load_acquire(&f->entry) == jit_interp);
+   jit_entry_fn_t entry = load_acquire(&f->entry);
+   if (unlikely(entry != jit_interp)) {
+      // Raced with a code generation thread installing a compiled
+      // version of this function
+      return (*entry)(f, caller, args, tlab);
+   }
 
    jit_fill_irbuf(f);
 
