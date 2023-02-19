@@ -14,6 +14,9 @@
 - It is no longer necessary on Windows to link VHPI plugins at
   elaboration time with `NVC_FOREIGN_OBJ`.  Use the `--load` option to
   load the plugin at run time as on other operating systems.
+- The experimental `--jit` elaboration option defers native code
+  generation until run time.  This can dramatically reduce total test
+  time for short-running simulations.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in

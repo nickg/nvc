@@ -298,14 +298,16 @@ static int elaborate(int argc, char **argv)
       { "cover",       optional_argument, 0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
       { "no-save",     no_argument,       0, 'N' },
+      { "jit",         no_argument,       0, 'j' },
       { 0, 0, 0, 0 }
    };
 
+   bool use_jit = false;
    cover_mask_t cover_mask = 0;
    int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = ":Vg:O:";
+   const char *spec = ":Vg:O:j";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'O':
@@ -329,6 +331,9 @@ static int elaborate(int argc, char **argv)
       case 'N':
          opt_set_int(OPT_NO_SAVE, 1);
          break;
+      case 'j':
+         use_jit = true;
+         break;
       case 'g':
          parse_generic(optarg);
          break;
@@ -343,6 +348,9 @@ static int elaborate(int argc, char **argv)
          abort();
       }
    }
+
+   if (use_jit && !opt_get_int(OPT_NO_SAVE))
+      fatal("$bold$--jit$$ option requires $bold$--no-save$$");
 
    set_top_level(argv, next_cmd);
 
@@ -386,7 +394,8 @@ static int elaborate(int argc, char **argv)
       progress("saving library");
    }
 
-   AOT_ONLY(cgen(top, vu, cover));
+   if (!use_jit)
+      AOT_ONLY(cgen(top, vu, cover));
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -604,9 +613,9 @@ static int run(int argc, char **argv)
 
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
-#if defined ENABLE_JIT && defined LLVM_HAS_LLJIT && 1
+#if defined LLVM_HAS_LLJIT && 1
    jit_register_llvm_plugin(jit);
-#elif defined ENABLE_JIT && defined ARCH_X86_64 && 0
+#elif defined ARCH_X86_64 && 0
    jit_register_native_plugin(jit);
 #endif
 
@@ -1208,6 +1217,7 @@ static void usage(void)
           "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
+          " -j, --jit\t\tEnable just-in-time compilation during simulation\n"
           "     --no-save\t\tDo not save the elaborated design to disk\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"

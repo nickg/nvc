@@ -229,6 +229,22 @@ example
 .Fl gINIT='1' ,
 and
 .Fl gSTR="hello" .
+.\" --jit
+.It Fl j , Fl -jit
+Normally
+.Nm
+compiles all code ahead-of-time during elaboration.
+The
+.Fl -jit
+option defers native code generation until run-time where each function
+will be compiled separately on a background test once it has been has
+been executed often enough in the interpreter to be deemed worthwhile.
+This dramatically reduces elaboration time at the cost of increased
+memory and CPU usage while the simulation is executing.  This option is
+beneficial for short-running simulations where the performance gain from
+ahead-of-time compilation is not so significant.  The
+.Fl -no-save
+option must also be specified.
 .\" --no-save
 .It Fl -no-save
 Do not save the elaborated design and other generated files to the
