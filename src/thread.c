@@ -299,7 +299,7 @@ static void print_lock_stats(void)
 static void join_worker_threads(void)
 {
    // Lock the wake mutex here to avoid races with workers sleeping
-   PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
+   PTHREAD_CHECK(pthread_mutex_lock, &wakelock);
    {
       atomic_store(&should_stop, true);
       PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
