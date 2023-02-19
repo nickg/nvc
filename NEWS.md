@@ -18,6 +18,19 @@
   generation until run time.  This can dramatically reduce total test
   time for short-running simulations.
 
+## Version 1.8.2 - 2023-02-14
+- Fixed "failed to suspend thread" crash on macOS.
+- Fix incorrect coverage scope nesting with array case statements (from
+  @Blebowski).
+- Expressions like `FOO(X)'DELAYED` now work as expected rather than
+  producing a fatal error (#603).
+- Fixed a bug where data was not propagated through inout ports in
+  certain conditions (#609).
+- The `-gNAME=VALUE` option to set generic values from the command line
+  now works correctly for subtypes of enumeration types (#618).
+- Fixed crash when creating an array of record subtypes where the
+  subtype declaration has an element constraint (#615).
+
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
   FST files on Windows (#596).

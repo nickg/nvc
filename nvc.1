@@ -237,7 +237,7 @@ compiles all code ahead-of-time during elaboration.
 The
 .Fl -jit
 option defers native code generation until run-time where each function
-will be compiled separately on a background test once it has been has
+will be compiled separately on a background thread once it has been has
 been executed often enough in the interpreter to be deemed worthwhile.
 This dramatically reduces elaboration time at the cost of increased
 memory and CPU usage while the simulation is executing.  This option is
