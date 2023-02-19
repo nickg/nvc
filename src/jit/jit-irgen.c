@@ -879,7 +879,7 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
    }
 
    const size_t result = ALIGN_UP(g->cpoolptr, align);
-   DEBUG_ONLY(memset(g->func->cpool + result, 0xde, sz));
+   memset(g->func->cpool + g->cpoolptr, '\0', g->func->cpoolsz - g->cpoolptr);
    g->oldptr = result;
    g->cpoolptr = result + sz;
    return result;
