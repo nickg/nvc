@@ -152,6 +152,8 @@ static vcode_reg_t lower_lvalue(tree_t expr);
 static vcode_reg_t lower_rvalue(tree_t expr);
 static bool lower_is_signal_ref(tree_t expr);
 static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds);
+static void lower_predef_field_eq_cb(tree_t field, vcode_reg_t r0,
+                                     vcode_reg_t r1, void *context);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -8344,12 +8346,9 @@ static void lower_array_cmp_inner(vcode_reg_t lhs_data,
       emit_jump(test_bb);
    }
    else if (type_is_record(elem_type)) {
-      ident_t func = lower_predef_func_name(elem_type, "=");
-      vcode_reg_t context_reg = lower_context_for_call(func);
-      vcode_reg_t args[] = { context_reg, l_ptr, r_ptr };
-      vcode_type_t vbool = vtype_bool();
-      vcode_reg_t eq = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
-      emit_cond(eq, test_bb, fail_bb);
+      lower_for_each_field(elem_type, l_ptr, r_ptr, lower_predef_field_eq_cb,
+                           (void *)(uintptr_t)fail_bb);
+      emit_jump(test_bb);
    }
    else {
       vcode_reg_t l_val = emit_load_indirect(l_ptr);
@@ -8399,6 +8398,42 @@ static void lower_predef_array_cmp(tree_t decl, vcode_unit_t context,
    emit_return(emit_const(vtype_bool(), 0));
 }
 
+static void lower_predef_field_eq_cb(tree_t field, vcode_reg_t r0,
+                                     vcode_reg_t r1, void *context)
+{
+   vcode_block_t fail_bb = (uintptr_t)context;
+
+   type_t ftype = tree_type(field);
+   if (type_is_array(ftype)) {
+      vcode_reg_t r0_data = r0, r0_array = VCODE_INVALID_REG;
+      if (lower_have_uarray_ptr(r0)) {
+         r0_array = emit_load_indirect(r0);
+         r0_data = lower_array_data(r0_array);
+      }
+
+      vcode_reg_t r1_data = r1, r1_array = VCODE_INVALID_REG;
+      if (lower_have_uarray_ptr(r1)) {
+         r1_array = emit_load_indirect(r1);
+         r1_data = lower_array_data(r1_array);
+      }
+
+      lower_array_cmp_inner(r0_data, r1_data, r0_array, r1_array,
+                            ftype, ftype, VCODE_CMP_EQ, fail_bb);
+   }
+   else if (type_is_record(ftype))
+      lower_for_each_field(ftype, r0, r1, lower_predef_field_eq_cb,
+                           (void *)(uintptr_t)fail_bb);
+   else {
+      vcode_reg_t r0_load = emit_load_indirect(r0);
+      vcode_reg_t r1_load = emit_load_indirect(r1);
+      vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, r0_load, r1_load);
+
+      vcode_block_t next_bb = emit_block();
+      emit_cond(cmp_reg, next_bb, fail_bb);
+      vcode_select_block(next_bb);
+   }
+}
+
 static void lower_predef_record_eq(tree_t decl, vcode_unit_t context)
 {
    vcode_reg_t r0 = 1, r1 = 2;
@@ -8406,48 +8441,8 @@ static void lower_predef_record_eq(tree_t decl, vcode_unit_t context)
 
    vcode_block_t fail_bb = emit_block();
 
-   const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++) {
-      vcode_reg_t lfield = emit_record_ref(r0, i);
-      vcode_reg_t rfield = emit_record_ref(r1, i);
-
-      vcode_reg_t cmp = VCODE_INVALID_REG;
-      type_t ftype = tree_type(type_field(type, i));
-      if (type_is_array(ftype)) {
-         ident_t func = lower_predef_func_name(ftype, "=");
-
-         vcode_reg_t args[3];
-         args[0] = lower_context_for_call(func);
-         if (!lower_const_bounds(ftype)) {
-            // Have pointers to uarrays
-            args[1] = emit_load_indirect(lfield);
-            args[2] = emit_load_indirect(rfield);
-         }
-         else {
-            args[1] = lower_wrap(ftype, lfield);
-            args[2] = lower_wrap(ftype, rfield);
-         }
-
-         vcode_type_t vbool = vtype_bool();
-         cmp = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
-      }
-      else if (type_is_record(ftype)) {
-         ident_t func = lower_predef_func_name(ftype, "=");
-         vcode_reg_t context_reg = lower_context_for_call(func);
-         vcode_reg_t args[] = { context_reg, lfield, rfield };
-         vcode_type_t vbool = vtype_bool();
-         cmp = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
-      }
-      else {
-         vcode_reg_t lload = emit_load_indirect(lfield);
-         vcode_reg_t rload = emit_load_indirect(rfield);
-         cmp = emit_cmp(VCODE_CMP_EQ, lload, rload);
-      }
-
-      vcode_block_t next_bb = emit_block();
-      emit_cond(cmp, next_bb, fail_bb);
-      vcode_select_block(next_bb);
-   }
+   lower_for_each_field(type, r0, r1, lower_predef_field_eq_cb,
+                        (void *)(uintptr_t)fail_bb);
 
    emit_return(emit_const(vtype_bool(), 1));
 

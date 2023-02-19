@@ -8,6 +8,9 @@
   delay.
 - `x'ascending` now reports the correct result if `x` has unconstrained
   array type and null range.
+- The predefined `"="` operator on record types now always uses the
+  predefined equality comparison for fields even in the presence of a
+  user-defined `"="` operator.
 
 ## Version 1.8.1 - 2023-01-23
 - Initial signal values for certain types were not dumped correctly in
