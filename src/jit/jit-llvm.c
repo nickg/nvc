@@ -2989,11 +2989,11 @@ static void cgen_exp_overflow_body(llvm_obj_t *obj, llvm_fn_t which,
 #ifdef LLVM_HAS_LLJIT
 
 typedef struct {
-   LLVMOrcThreadSafeContextRef context;
    LLVMOrcLLJITRef             jit;
    LLVMOrcExecutionSessionRef  session;
    LLVMOrcJITDylibRef          dylib;
    LLVMTargetMachineRef        target;
+   nvc_lock_t                  lock;
 } lljit_state_t;
 
 static void *jit_llvm_init(jit_t *jit)
@@ -3009,7 +3009,6 @@ static void *jit_llvm_init(jit_t *jit)
 
    state->session = LLVMOrcLLJITGetExecutionSession(state->jit);
    state->dylib   = LLVMOrcLLJITGetMainJITDylib(state->jit);
-   state->context = LLVMOrcCreateNewThreadSafeContext();
    state->target  = llvm_target_machine(LLVMRelocDefault,
                                         LLVMCodeModelJITDefault);
 
@@ -3038,8 +3037,10 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    const uint64_t start_us = get_timestamp_us();
 
+   LLVMOrcThreadSafeContextRef tsc = LLVMOrcCreateNewThreadSafeContext();
+
    llvm_obj_t obj = {
-      .context = LLVMOrcThreadSafeContextGetContext(state->context),
+      .context = LLVMOrcThreadSafeContextGetContext(tsc),
       .target  = state->target,
    };
 
@@ -3067,31 +3068,36 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
    llvm_obj_finalise(&obj, LLVM_O0);
 
    LLVMOrcThreadSafeModuleRef tsm =
-      LLVMOrcCreateNewThreadSafeModule(obj.module, state->context);
-   LLVMOrcLLJITAddLLVMIRModule(state->jit, state->dylib, tsm);
+      LLVMOrcCreateNewThreadSafeModule(obj.module, tsc);
 
-   LLVMOrcJITTargetAddress addr;
-   LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, func.name);
+   {
+      SCOPED_LOCK(state->lock);
 
-   const uint64_t end_us = get_timestamp_us();
-   debugf("%s at %p [%"PRIi64" us]", func.name, (void *)addr,
-          end_us - start_us);
+      LLVMOrcLLJITAddLLVMIRModule(state->jit, state->dylib, tsm);
 
-   store_release(&f->entry, (jit_entry_fn_t)addr);
+      LLVMOrcJITTargetAddress addr;
+      LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, func.name);
+
+      if (opt_get_int(OPT_JIT_LOG)) {
+         const uint64_t end_us = get_timestamp_us();
+         debugf("%s at %p [%"PRIi64" us]", func.name, (void *)addr,
+                end_us - start_us);
+      }
+
+      store_release(&f->entry, (jit_entry_fn_t)addr);
+   }
 
    LLVMDisposeTargetData(obj.data_ref);
    LLVMDisposeBuilder(obj.builder);
    DWARF_ONLY(LLVMDisposeDIBuilder(obj.debuginfo));
+   LLVMOrcDisposeThreadSafeContext(tsc);
    free(func.name);
 }
 
 static void jit_llvm_cleanup(void *context)
 {
    lljit_state_t *state = context;
-
-   LLVMOrcDisposeThreadSafeContext(state->context);
    LLVMOrcDisposeLLJIT(state->jit);
-
    free(state);
 }
 

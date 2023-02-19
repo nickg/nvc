@@ -984,6 +984,8 @@ static void create_workers(int needed)
       thread->port = pthread_mach_thread_np(thread->handle);
 #endif
    }
+
+   PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
 }
 
 void workq_start(workq_t *wq)
@@ -1028,8 +1030,6 @@ void workq_start(workq_t *wq)
    if (wq->parallel && nparallel > 0) {
       nvc_unlock(&globalq.lock);
       create_workers(nparallel);
-
-      PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
    }
 }
 
@@ -1088,9 +1088,8 @@ void async_do(task_fn_t fn, void *context, void *arg)
    if (max_workers == 1)
       (*fn)(context, arg);   // Single CPU
    else {
-      create_workers(2);
-
-      atomic_add(&async_pending, 1);
+      const int npending = atomic_add(&async_pending, 1);
+      create_workers(npending + 1 /* Do not count main thread */);
 
       task_t tasks[1] = {
          { fn, context, arg, NULL }
