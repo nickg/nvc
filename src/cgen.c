@@ -250,10 +250,6 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("/usr/lib/crtendS.o");
 #endif
 
-   const char *obj = getenv("NVC_FOREIGN_OBJ");
-   if (obj != NULL)
-      cgen_link_arg(obj);
-
 #ifdef IMPLIB_REQUIRED
    tb_rewind(tb);
    const char *cyglib = getenv("NVC_IMP_LIB");
