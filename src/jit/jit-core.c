@@ -410,10 +410,9 @@ void jit_fill_irbuf(jit_func_t *f)
       // Fall-through
    case JIT_FUNC_COMPILING:
       // Another thread is compiling this function
-      for (int timeout = COMPILE_TIMEOUT;
-           load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
-         if (timeout-- == 0)
-            fatal_trace("timeout waiting for %s", istr(f->name));
+      for (int timeout = 0; load_acquire(&(f->state)) != JIT_FUNC_READY; ) {
+         if (timeout % COMPILE_TIMEOUT == 0)
+            warnf("waiting for %s to finish compiling", istr(f->name));
          thread_sleep(100);
       }
       return;
