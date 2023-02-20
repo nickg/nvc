@@ -73,7 +73,6 @@ bin_jitperf_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
 if ENABLE_LLVM
 bin_jitperf_LDADD += \
-	lib/libcgen.a \
 	$(LLVM_LIBS)
 endif
 

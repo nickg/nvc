@@ -234,13 +234,14 @@ int ilog2(int64_t n) __attribute__((pure));
 int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
 
 typedef enum {
-   MEM_NONE, MEM_RO, MEM_RW, MEM_RWX
+   MEM_NONE, MEM_RO, MEM_RW, MEM_RX, MEM_RWX
 } mem_access_t;
 
 void *nvc_memalign(size_t align, size_t sz);
 void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
 void *map_huge_pages(size_t align, size_t sz);
+void *map_jit_pages(size_t align, size_t sz);
 
 void run_program(const char *const *args);
 char *nvc_temp_file(void);

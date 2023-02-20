@@ -21,9 +21,7 @@
 #include "prim.h"
 #include "jit/jit.h"
 
-#if defined LLVM_HAS_LLJIT
 void jit_register_llvm_plugin(jit_t *j);
-#endif
 
 typedef struct _llvm_obj llvm_obj_t;
 

@@ -28,6 +28,14 @@ jobs:
         run: ASAN_OPTIONS=detect_leaks=0 make -C build
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
+      - name: Test in JIT mode
+        run: |
+          export NVC_JIT_ASYNC=0
+          export NVC_JIT_THRESHOLD=1
+          export FORCE_JIT=1
+          export ASAN_OPTIONS=detect_leaks=0
+          cd build
+          ./bin/run_regr
       - name: JIT benchmarks
         run: |
           make -C build bin/jitperf

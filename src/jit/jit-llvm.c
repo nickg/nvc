@@ -35,21 +35,16 @@
 #include <stdint.h>
 
 #include <llvm-c/Analysis.h>
-#include <llvm-c/BitReader.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/DebugInfo.h>
 #include <llvm-c/Error.h>
-#include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/TargetMachine.h>
 
 #if LLVM_HAS_PASS_BUILDER
 #include <llvm-c/Transforms/PassBuilder.h>
 #else
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
-#endif
-
-#ifdef LLVM_HAS_LLJIT
-#include <llvm-c/LLJIT.h>
 #endif
 
 typedef enum {
@@ -139,6 +134,12 @@ typedef struct _cgen_block cgen_block_t;
 #define CLOSED_WORLD           1
 #define ARGCACHE_SIZE          6
 #define ENABLE_DWARF           0
+
+#ifdef __APPLE__
+#define JIT_CODE_MODEL LLVMCodeModelDefault
+#else
+#define JIT_CODE_MODEL LLVMCodeModelJITDefault
+#endif
 
 #if ENABLE_DWARF
 #define DWARF_ONLY(x) x
@@ -2986,46 +2987,24 @@ static void cgen_exp_overflow_body(llvm_obj_t *obj, llvm_fn_t which,
 ////////////////////////////////////////////////////////////////////////////////
 // JIT plugin interface
 
-#ifdef LLVM_HAS_LLJIT
-
 typedef struct {
-   LLVMOrcLLJITRef             jit;
-   LLVMOrcExecutionSessionRef  session;
-   LLVMOrcJITDylibRef          dylib;
-   LLVMTargetMachineRef        target;
-   nvc_lock_t                  lock;
-} lljit_state_t;
+   code_cache_t *code;
+} llvm_jit_state_t;
 
 static void *jit_llvm_init(jit_t *jit)
 {
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
 
-   lljit_state_t *state = xcalloc(sizeof(lljit_state_t));
-
-   LLVMOrcLLJITBuilderRef builder = LLVMOrcCreateLLJITBuilder();
-
-   LLVM_CHECK(LLVMOrcCreateLLJIT, &state->jit, builder);
-
-   state->session = LLVMOrcLLJITGetExecutionSession(state->jit);
-   state->dylib   = LLVMOrcLLJITGetMainJITDylib(state->jit);
-   state->target  = llvm_target_machine(LLVMRelocDefault,
-                                        LLVMCodeModelJITDefault);
-
-   const char prefix = LLVMOrcLLJITGetGlobalPrefix(state->jit);
-
-   LLVMOrcDefinitionGeneratorRef gen_ref;
-   LLVM_CHECK(LLVMOrcCreateDynamicLibrarySearchGeneratorForProcess,
-              &gen_ref, prefix, NULL, NULL);
-
-   LLVMOrcJITDylibAddGenerator(state->dylib, gen_ref);
+   llvm_jit_state_t *state = xcalloc(sizeof(llvm_jit_state_t));
+   state->code = code_cache_new();
 
    return state;
 }
 
 static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 {
-   lljit_state_t *state = context;
+   llvm_jit_state_t *state = context;
 
    jit_func_t *f = jit_get_func(j, handle);
 
@@ -3037,11 +3016,16 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    const uint64_t start_us = get_timestamp_us();
 
-   LLVMOrcThreadSafeContextRef tsc = LLVMOrcCreateNewThreadSafeContext();
+   code_blob_t *blob = code_blob_new(state->code, f->name, f);
+   if (blob == NULL)
+      return;
+
+   LLVMTargetMachineRef tm = llvm_target_machine(LLVMRelocDefault,
+                                                 JIT_CODE_MODEL);
 
    llvm_obj_t obj = {
-      .context = LLVMOrcThreadSafeContextGetContext(tsc),
-      .target  = state->target,
+      .context = LLVMContextCreate(),
+      .target  = tm,
    };
 
    LOCAL_TEXT_BUF tb = tb_new();
@@ -3049,7 +3033,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    obj.module    = LLVMModuleCreateWithNameInContext(tb_get(tb), obj.context);
    obj.builder   = LLVMCreateBuilderInContext(obj.context);
-   obj.data_ref  = LLVMCreateTargetDataLayout(obj.target);
+   obj.data_ref  = LLVMCreateTargetDataLayout(tm);
 
 #if ENABLE_DWARF
    obj.debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj.module);
@@ -3067,37 +3051,39 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    llvm_obj_finalise(&obj, LLVM_O0);
 
-   LLVMOrcThreadSafeModuleRef tsm =
-      LLVMOrcCreateNewThreadSafeModule(obj.module, tsc);
+   LLVMMemoryBufferRef buf;
+   char *error;
+   if (LLVMTargetMachineEmitToMemoryBuffer(tm, obj.module, LLVMObjectFile,
+                                           &error, &buf))
+     fatal("failed to generate native code: %s", error);
 
-   {
-      SCOPED_LOCK(state->lock);
+   const uint8_t *base = blob->wptr;
+   const void *entry_addr = blob->wptr;
 
-      LLVMOrcLLJITAddLLVMIRModule(state->jit, state->dylib, tsm);
+   code_load_object(blob, LLVMGetBufferStart(buf), LLVMGetBufferSize(buf));
 
-      LLVMOrcJITTargetAddress addr;
-      LLVM_CHECK(LLVMOrcLLJITLookup, state->jit, &addr, func.name);
+   const size_t size = blob->wptr - base;
+   code_blob_finalise(blob, &(f->entry));
 
-      if (opt_get_int(OPT_JIT_LOG)) {
-         const uint64_t end_us = get_timestamp_us();
-         debugf("%s at %p [%"PRIi64" us]", func.name, (void *)addr,
-                end_us - start_us);
-      }
-
-      store_release(&f->entry, (jit_entry_fn_t)addr);
+   if (opt_get_int(OPT_JIT_LOG)) {
+      const uint64_t end_us = get_timestamp_us();
+      debugf("%s at %p [%zu bytes in %"PRIi64" us]", func.name,
+             entry_addr, size, end_us - start_us);
    }
 
+   LLVMDisposeMemoryBuffer(buf);
    LLVMDisposeTargetData(obj.data_ref);
+   LLVMDisposeTargetMachine(tm);
    LLVMDisposeBuilder(obj.builder);
    DWARF_ONLY(LLVMDisposeDIBuilder(obj.debuginfo));
-   LLVMOrcDisposeThreadSafeContext(tsc);
+   LLVMContextDispose(obj.context);
    free(func.name);
 }
 
 static void jit_llvm_cleanup(void *context)
 {
-   lljit_state_t *state = context;
-   LLVMOrcDisposeLLJIT(state->jit);
+   llvm_jit_state_t *state = context;
+   code_cache_free(state->code);
    free(state);
 }
 
@@ -3116,7 +3102,6 @@ void jit_register_llvm_plugin(jit_t *j)
       warnf("invalid NVC_JIT_THRESOLD setting %d", threshold);
 }
 
-#endif  // LLVM_HAS_LLJIT
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ahead-of-time code generation

@@ -134,6 +134,7 @@ static test_t *test_list = NULL;
 static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
+static bool force_jit = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -701,6 +702,8 @@ static bool run_test(test_t *test)
 #endif
 #ifndef HAVE_LLVM
    skip |= (test->flags & F_SLOW);
+#else
+   if (force_jit) skip |= (test->flags & F_SLOW);
 #endif
 
    if (skip) {
@@ -797,6 +800,10 @@ static bool run_test(test_t *test)
 
          if (test->heapsz != NULL)
             push_arg(&args, "-H%s", test->heapsz);
+      }
+      else if (force_jit) {
+         push_arg(&args, "--no-save");
+         push_arg(&args, "--jit");
       }
 
       push_arg(&args, "-r");
@@ -1017,6 +1024,8 @@ int main(int argc, char **argv)
 
    if (!parse_test_list(argc - 1, argv + 1))
       return EXIT_FAILURE;
+
+   force_jit = getenv("FORCE_JIT") != NULL;
 
    char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));
 

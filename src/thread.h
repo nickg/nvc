@@ -106,4 +106,7 @@ typedef void (*stop_world_fn_t)(int, struct cpu_state *, void *);
 void stop_world(stop_world_fn_t callback, void *arg);
 void start_world(void);
 
+typedef enum { WX_WRITE, WX_EXECUTE } wx_mode_t;
+void thread_wx_mode(wx_mode_t mode);
+
 #endif  // _THREAD_H

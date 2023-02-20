@@ -1313,3 +1313,12 @@ void start_world(void)
 
    nvc_unlock(&stop_lock);
 }
+
+void thread_wx_mode(wx_mode_t mode)
+{
+#ifdef __APPLE__
+   pthread_jit_write_protect_np(mode == WX_EXECUTE);
+#else
+   // Could use Intel memory protection keys here
+#endif
+}

@@ -369,9 +369,11 @@ typedef void (*code_patch_fn_t)(code_blob_t *, jit_label_t, uint8_t *,
 
 code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f);
 void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len);
+void code_blob_align(code_blob_t *blob, unsigned align);
 void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry);
 void code_blob_mark(code_blob_t *blob, jit_label_t label);
 void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn);
+void code_load_object(code_blob_t *blob, const void *data, size_t size);
 
 bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f);
 const uint8_t *jit_pack_get(jit_pack_t *jp, ident_t name, size_t *size);

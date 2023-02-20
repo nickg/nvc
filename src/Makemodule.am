@@ -1,5 +1,5 @@
 bin_PROGRAMS += bin/nvc
-noinst_LIBRARIES += lib/libcgen.a lib/libnvc.a
+noinst_LIBRARIES += lib/libnvc.a
 
 lib_libnvc_a_SOURCES = \
 	src/lib.c \
@@ -52,8 +52,7 @@ lib_libnvc_a_SOURCES = \
 	src/thread.c
 
 if ENABLE_LLVM
-lib_libcgen_a_SOURCES = src/cgen.c
-lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+lib_libnvc_a_SOURCES += src/cgen.c
 endif
 
 bin_nvc_SOURCES = src/nvc.c
@@ -69,13 +68,8 @@ bin_nvc_LDADD = \
 	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(capstone_LIBS)
-
-if ENABLE_LLVM
-bin_nvc_LDADD += \
-	lib/libcgen.a \
+	$(capstone_LIBS) \
 	$(LLVM_LIBS)
-endif
 
 bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

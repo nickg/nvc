@@ -1131,7 +1131,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 {
 #if defined __MINGW32__
    static const int map[] = {
-      PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE,
+      PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE, PAGE_EXECUTE_READ,
       PAGE_EXECUTE_READWRITE
    };
    DWORD old_prot;
@@ -1144,7 +1144,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
       return;
 #endif
    static const int map[] = {
-      PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE,
+      PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE, PROT_READ | PROT_EXEC,
       PROT_READ | PROT_WRITE | PROT_EXEC
    };
    if (mprotect(ptr, length, map[prot]) < 0)
@@ -1167,6 +1167,21 @@ void *map_huge_pages(size_t align, size_t sz)
 #endif
 
    return nvc_memalign(align, sz);
+}
+
+void *map_jit_pages(size_t align, size_t sz)
+{
+#ifdef __APPLE__
+   void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE | PROT_EXEC,
+                    MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+   if (ptr == MAP_FAILED)
+      fatal_errno("mmap");
+#else
+   void *ptr = map_huge_pages(align, sz);
+   nvc_memprotect(ptr, sz, MEM_RWX);
+#endif
+
+   return ptr;
 }
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
