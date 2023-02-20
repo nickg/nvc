@@ -33,8 +33,8 @@ START_TEST(test_bounds)
       {  26, "left index 0 violates constraint POSITIVE" },
       {  27, "right index 60 violates constraint FOO" },
       {  31, "array S index -52 outside of POSITIVE range 1 to 10" },
-      {  32, "array S index 11 outside of POSITIVE range 1 to 10" },
-      {  33, "array S index 0 outside of POSITIVE range 1 to 10" },
+      {  32, "array S slice right index 11 outside of POSITIVE range 1 to 10" },
+      {  33, "array S slice left index 0 outside of POSITIVE range 1 to 10" },
       {  37, "aggregate choice index 0 outside of POSITIVE range "
          "1 to 2147483647" },
       {  46, "actual length 4 does not match formal length 8 for parameter X" },
@@ -75,8 +75,8 @@ START_TEST(test_bounds)
       { 227, "200 NS outside of TIME range -10 NS to 10 NS"},
       { 228, "-200 NS outside of TIME range -10 NS to 10 NS"},
       { 236, "array M index 'A' outside of CHARACTER range 'a' to 'z'" },
-      { 237, "array M index '1' outside of CHARACTER range 'a' to 'z'" },
-      { 237, "array M index '3' outside of CHARACTER range 'a' to 'z'" },
+      { 237, "array M slice left index '1' outside of CHARACTER range "
+        "'a' to 'z'" },
       { 242, "value 3 does not match length of target 4 for alias A" },
       { -1, NULL }
    };
@@ -580,6 +580,25 @@ START_TEST(test_nullrange)
 }
 END_TEST
 
+START_TEST(test_issue617)
+{
+   input_from_file(TESTDIR "/bounds/issue617.vhd");
+
+   const error_t expect[] = {
+      { 17, "array EXAMPLE right bound -32 violates BIT_VECTOR index "
+        "constraint 0 to 2147483647" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -609,6 +628,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_case3);
    tcase_add_test(tc_core, test_driver1);
    tcase_add_test(tc_core, test_nullrange);
+   tcase_add_test(tc_core, test_issue617);
    suite_add_tcase(s, tc_core);
 
    return s;

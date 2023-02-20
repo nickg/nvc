@@ -1210,7 +1210,6 @@ void _tb_cleanup(text_buf_t **tb)
       tb_free(*tb);
 }
 
-
 void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap)
 {
    int nchars, avail;
@@ -1312,6 +1311,18 @@ char *tb_claim(text_buf_t *tb)
    char *buf = tb->buf;
    tb->buf = NULL;
    return buf;
+}
+
+void tb_move(text_buf_t *to, text_buf_t *from)
+{
+   free(to->buf);
+
+   to->buf = from->buf;
+   to->len = from->len;
+   to->alloc = from->alloc;
+
+   from->alloc = from->len = 0;
+   from->buf = NULL;
 }
 
 const char *tb_get(text_buf_t *tb)

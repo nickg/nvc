@@ -406,6 +406,11 @@ void diag_printf(diag_t *d, const char *fmt, ...)
    va_end(ap);
 }
 
+void diag_message(diag_t *d, text_buf_t *tb)
+{
+   tb_move(d->msg, tb);
+}
+
 void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;

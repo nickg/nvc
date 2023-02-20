@@ -90,6 +90,7 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc);
 void diag_printf(diag_t *d, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap);
+void diag_message(diag_t *d, text_buf_t *tb);
 void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
 void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)

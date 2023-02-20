@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -181,9 +181,8 @@ static tree_t bounds_check_call_args(tree_t t)
    return t;
 }
 
-static bool bounds_check_index(tree_t index, tree_t ref, type_t type,
-                               range_kind_t kind, const char *what,
-                               int64_t low, int64_t high)
+static bool index_in_range(tree_t index, int64_t low, int64_t high,
+                           int64_t *value)
 {
    if (low > high)
       return true;   // Null range allows any index
@@ -191,35 +190,34 @@ static bool bounds_check_index(tree_t index, tree_t ref, type_t type,
    int64_t folded;
    unsigned folded_u;
    if (folded_int(index, &folded)) {
-      if (folded < low || folded > high) {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_cat(tb, what);
-         if (ref != NULL && tree_kind(ref) == T_REF)
-            tb_printf(tb, " %s", istr(tree_ident(ref)));
-         tb_printf(tb, " index %"PRIi64" outside of %s range ",
-                   folded, type_pp(type));
-         bounds_fmt_type_range(tb, type, kind, low, high);
-
-         bounds_error(index, "%s", tb_get(tb));
-         return false;
-      }
+      *value = folded;
+      return folded >= low && folded <= high;
    }
    else if (folded_enum(index, &folded_u)) {
-      if (folded_u < low || folded_u > high) {
-         type_t base = type_base_recur(tree_type(index));
-         tree_t value_lit = type_enum_literal(base, folded_u);
+      *value = folded_u;
+      return folded_u >= low && folded_u <= high;
+   }
 
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_cat(tb, what);
-         if (ref != NULL && tree_kind(ref) == T_REF)
-            tb_printf(tb, " %s", istr(tree_ident(ref)));
-         tb_printf(tb, " index %s outside of %s range ",
-                   istr(tree_ident(value_lit)), type_pp(type));
-         bounds_fmt_type_range(tb, type, kind, low, high);
+   return true;
+}
 
-         bounds_error(index, "%s", tb_get(tb));
-         return false;
-      }
+static bool bounds_check_index(tree_t index, type_t type, range_kind_t kind,
+                               const char *what, int64_t low, int64_t high)
+{
+   int64_t folded;
+   if (!index_in_range(index, low, high, &folded)) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, what);
+      tb_printf(tb, " index ");
+      to_string(tb, type, folded);
+      tb_printf(tb, " outside of %s range ", type_pp(type));
+      bounds_fmt_type_range(tb, type, kind, low, high);
+
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(index));
+      diag_message(d, tb);
+      diag_emit(d);
+
+      return false;
    }
 
    return true;
@@ -255,9 +253,23 @@ static void bounds_check_array_ref(tree_t t)
          checked = folded_int(pvalue, &ivalue);
 
          int64_t low, high;
-         if (folded_bounds(r, &low, &high))
-            checked &= bounds_check_index(pvalue, value, index_type, dir,
-                                          "array", low, high);
+         if (folded_bounds(r, &low, &high)) {
+            int64_t folded;
+            if (!index_in_range(pvalue, low, high, &folded)) {
+               LOCAL_TEXT_BUF tb = tb_new();
+               tb_cat(tb, "array");
+               if (tree_kind(value) == T_REF)
+                  tb_printf(tb, " %s", istr(tree_ident(value)));
+               tb_cat(tb, " index ");
+               to_string(tb, index_type, folded);
+               tb_printf(tb, " outside of %s range ", type_pp(index_type));
+               bounds_fmt_type_range(tb, index_type, dir, low, high);
+
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(pvalue));
+               diag_message(d, tb);
+               diag_emit(d);
+            }
+         }
       }
 
       if (value_is_ref && nparams == 1 && tree_kind(pvalue) == T_REF) {
@@ -321,8 +333,27 @@ static void bounds_check_array_slice(tree_t t)
    type_t index_type = index_type_of(value_type, 0);
    const range_kind_t dir = tree_subkind(b);
 
-   bounds_check_index(tree_left(r), value, index_type, dir, "array", blow, bhigh);
-   bounds_check_index(tree_right(r), value, index_type, dir, "array", blow, bhigh);
+   int64_t folded;
+   const char *error = NULL;
+   if (!index_in_range(tree_left(r), blow, bhigh, &folded))
+      error = "left";
+   else if (!index_in_range(tree_right(r), blow, bhigh, &folded))
+      error = "right";
+
+   if (error) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, "array");
+      if (tree_kind(value) == T_REF)
+         tb_printf(tb, " %s", istr(tree_ident(value)));
+      tb_printf(tb, " slice %s index ", error);
+      to_string(tb, index_type, folded);
+      tb_printf(tb, " outside of %s range ", type_pp(index_type));
+      bounds_fmt_type_range(tb, index_type, dir, blow, bhigh);
+
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
+      diag_message(d, tb);
+      diag_emit(d);
+   }
 }
 
 static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
@@ -455,7 +486,9 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
       bounds_fmt_interval(tb, index_type ?: type, dir, tlow, thigh);
    }
 
-   bounds_error(t, "%s", tb_get(tb));
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+   diag_message(d, tb);
+   diag_emit(d);
 }
 
 static void bounds_free_intervals(interval_t **list)
@@ -528,7 +561,7 @@ static void bounds_check_aggregate(tree_t t)
       case A_NAMED:
          {
             tree_t name = tree_name(a);
-            if (!bounds_check_index(name, NULL, index_type, dir,
+            if (!bounds_check_index(name, index_type, dir,
                                     "aggregate choice", low, high))
                known_elem_count = false;
             if (folded_int(name, &ilow))
@@ -547,10 +580,10 @@ static void bounds_check_aggregate(tree_t t)
             if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
                tree_t left = tree_left(r), right = tree_right(r);
 
-               if (!bounds_check_index(left, NULL, index_type, rkind,
+               if (!bounds_check_index(left, index_type, rkind,
                                        "aggregate choice", low, high))
                   known_elem_count = false;
-               if (!bounds_check_index(right, NULL, index_type, rkind,
+               if (!bounds_check_index(right, index_type, rkind,
                                        "aggregate choice", low, high))
                   known_elem_count = false;
 
@@ -971,7 +1004,7 @@ static void bounds_check_scalar_case(tree_t t, type_t type)
          case A_NAMED:
             {
                tree_t name = tree_name(a);
-               if (!bounds_check_index(name, NULL, type, tdir, "case choice",
+               if (!bounds_check_index(name, type, tdir, "case choice",
                                        tlow, thigh))
                   have_others = true;
                else
@@ -990,10 +1023,10 @@ static void bounds_check_scalar_case(tree_t t, type_t type)
                tree_t left = tree_left(r);
                tree_t right = tree_right(r);
 
-               if (!bounds_check_index(left, NULL, type, dir, "case choice",
+               if (!bounds_check_index(left, type, dir, "case choice",
                                        tlow, thigh))
                   have_others = true;
-               if (!bounds_check_index(right, NULL, type, dir, "case choice",
+               if (!bounds_check_index(right, type, dir, "case choice",
                                        tlow, thigh))
                   have_others = true;
 
@@ -1136,20 +1169,67 @@ static void bounds_check_type_conv(tree_t t)
       int64_t ival = 0;
       double rval = 0.0;
       bool folded = false;
-      if (type_is_real(from) && (folded = folded_real(value, &rval)))
+      if (type_is_real(from)) {
+         folded = folded_real(value, &rval);
          ival = (int64_t)rval;
-      else if (type_is_integer(from) && (folded = folded_int(value, &ival)))
-         ;
+      }
+      else if (type_is_integer(from))
+         folded = folded_int(value, &ival);
 
       if (folded) {
          int64_t b_low, b_high;
-         folded_bounds(range_of(to, 0), &b_low, &b_high);
          if (folded_bounds(range_of(to, 0), &b_low, &b_high)
              && (ival < b_low || ival > b_high)) {
             char *argstr LOCAL = type_is_real(from)
                ? xasprintf("%lg", rval) : xasprintf("%"PRIi64, ival);
             bounds_error(value, "type conversion argument %s out of "
                          "bounds %"PRIi64" to %"PRIi64, argstr, b_low, b_high);
+         }
+      }
+   }
+   else if (type_is_array(to) && !type_is_unconstrained(from)) {
+      const int ndims = dimension_of(to);
+      assert(ndims == dimension_of(from));
+
+      for (int i = 0; i < ndims; i++) {
+         type_t index_type = index_type_of(to, i);
+         tree_t r_to = range_of(index_type, i);
+         tree_t r_from = range_of(from, i);
+
+         if (tree_subkind(r_from) == RANGE_EXPR)
+            continue;
+
+         int64_t low, high;
+         if (!folded_bounds(r_to, &low, &high))
+            continue;
+
+         int64_t f_low, f_high;
+         if (!folded_bounds(r_from, &f_low, &f_high))
+            return;
+         else if (f_low > f_high)
+            return;  // Null range
+
+         int64_t folded = 0;
+         const char *error = NULL;
+         if (!index_in_range(tree_left(r_from), low, high, &folded))
+            error = "left";
+         else if (!index_in_range(tree_right(r_from), low, high, &folded))
+            error = "right";
+
+         if (error) {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, "array ");
+            if (tree_kind(value) == T_REF)
+               tb_printf(tb, "%s ", istr(tree_ident(value)));
+            tb_printf(tb, "%s bound ", error);
+            to_string(tb, index_type, folded);
+            tb_printf(tb, " violates %s index constraint ", type_pp(to));
+            bounds_fmt_type_range(tb, index_type, tree_subkind(r_to),
+                                  low, high);
+
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_message(d, tb);
+            diag_emit(d);
          }
       }
    }
@@ -1189,9 +1269,10 @@ static void bounds_check_attr_ref(tree_t t)
 static void bounds_check_wait(tree_t t)
 {
    int64_t delay = 0;
-   if (tree_has_delay(t) && folded_int(tree_delay(t), &delay))
+   if (tree_has_delay(t) && folded_int(tree_delay(t), &delay)) {
       if (delay < 0)
          bounds_error(tree_delay(t), "wait timeout may not be negative");
+   }
 }
 
 static void bounds_check_block(tree_t t)

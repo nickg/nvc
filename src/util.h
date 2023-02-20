@@ -263,6 +263,7 @@ void tb_catn(text_buf_t *tb, const char *str, size_t nchars);
 void tb_repeat(text_buf_t *tb, char ch, size_t count);
 const char *tb_get(text_buf_t *tb);
 char *tb_claim(text_buf_t *tb);
+void tb_move(text_buf_t *to, text_buf_t *from);
 char *tb_reserve(text_buf_t *tb, size_t size);
 void tb_rewind(text_buf_t *tb);
 void tb_trim(text_buf_t *tb, size_t newlen);
