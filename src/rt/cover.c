@@ -35,7 +35,12 @@
 #include <unistd.h>
 #include <time.h>
 
-//#define COVER_DEBUG
+//#define COVER_DEBUG_EMIT
+//#define COVER_DEBUG_DUMP
+//#define COVER_DEBUG_SCOPE
+//#define COVER_DEBUG_MERGE
+//#define COVER_DEBUG_CALLBACK
+//#define COVER_DEBUG_EXCLUDE
 
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "15%%"
@@ -319,7 +324,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       ctx->top_scope->expression_label++;
    }
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_EMIT
    printf("Tag: %s\n", istr(hier));
    printf("    First line: %d\n", tree_loc(t)->first_line);
    printf("    First column: %d\n", tree_loc(t)->first_column);
@@ -350,7 +355,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *toggles, const int32_t *expressions)
 {
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_DUMP
    printf("Dumping coverage entries:\n");
    printf("Number of statement tags: %d\n", ctx->next_stmt_tag);
    printf("Number of branch tags: %d\n", ctx->next_branch_tag);
@@ -391,7 +396,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
          int32_t data = (cnts) ? cnts[tag->tag] : 0;
          write_u32(data, f);
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_DUMP
          printf("Index: %4d Tag: %s Kind: %d  Data: %d\n", tag->tag,
                 istr(tag->hier), tag->kind, data);
 #endif
@@ -399,7 +404,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
       }
       else {
          write_u32(tag->data, f);
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_DUMP
          printf("Index: %4d Tag: %s Kind: %d  Data: %d\n", tag->tag,
                 istr(tag->hier), tag->kind, tag->data);
 #endif
@@ -500,7 +505,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_SCOPE
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
    printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
 #endif
@@ -519,7 +524,7 @@ void cover_pop_scope(cover_tagging_t *tagging)
    free(tagging->top_scope);
    tagging->top_scope = tmp;
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_SCOPE
    printf("Popping cover scope: %s\n", istr(tagging->hier));
 #endif
 
@@ -561,7 +566,7 @@ void cover_inc_array_depth(cover_tagging_t *tagging)
 {
    assert(tagging != NULL);
    tagging->array_depth++;
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_SCOPE
    printf("Adding dimension: %d\n", tagging->array_depth);
 #endif
 }
@@ -571,7 +576,7 @@ void cover_dec_array_depth(cover_tagging_t *tagging)
    assert(tagging != NULL);
    assert(tagging->array_depth > 0);
    tagging->array_depth--;
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_SCOPE
    printf("Subtracting dimension: %d\n", tagging->array_depth);
 #endif
 }
@@ -608,10 +613,6 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
 
 cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
 {
-#ifdef COVER_DEBUG
-   printf("Reading coverage database.\n");
-#endif
-
    cover_tagging_t *tagging = xcalloc(sizeof(cover_tagging_t));
    cover_read_header(f, tagging);
    tagging->mask |= pre_mask;
@@ -658,7 +659,7 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
          // statement / branch / signal has unique hierarchical name
          if (new.hier == old->hier) {
             assert(new.kind == old->kind);
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_MERGE
             printf("Merging coverage tag: %s\n", istr(old->hier));
 #endif
             switch (new.kind) {
@@ -764,7 +765,7 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
    cover_toggle_check_z(old, new, toggle_mask);
 }
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_CALLBACK
 #define COVER_TGL_CB_MSG(signal)                                              \
    do {                                                                       \
       printf("Time: %lu Callback on signal: %s\n",                            \
@@ -924,7 +925,7 @@ static void cover_exclude_hier(cover_tagging_t *tagging, cover_exclude_ctx_t *ct
          uint32_t bmask = (tag->kind == TAG_STMT) ?
                               0xFFFFFFFF : (tag->flags & (COVER_FLAGS_ALL_BINS));
 
-#ifdef COVER_DEBUG
+#ifdef COVER_DEBUG_EXCLUDE
          printf("Applying matching exclude:\n");
          printf("    Tag:        %s\n", istr(tag->hier));
          printf("    Tag flags:  %x\n", tag->flags);
