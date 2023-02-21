@@ -1,3 +1,24 @@
+-- LCS-2016-006f
+package pack006f is
+
+    procedure info ;
+end package;
+
+package body pack006f is
+    use std.env.all ;
+
+    procedure info is
+    begin
+        report VHDL_VERSION ;
+        report TOOL_TYPE ;
+        report TOOL_VENDOR ;
+        report TOOL_NAME ;
+        report TOOL_EDITION ;
+        report TOOL_VERSION ;
+    end procedure ;
+
+end package body ;
+
 -- LCS-2016-071a: Trailing semicolion
 entity ent is
   port (
