@@ -359,7 +359,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_072b">
         LCS2016_072b</td>
     <td>Function Knows Vector Size</td>
-    <td class="feature-done">master</td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_075">
