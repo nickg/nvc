@@ -134,6 +134,72 @@ table below.
 <table class="feature-table">
   <tr><th>LCS</th><th>Feature</th><th>Status</th></tr>
   <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_001">
+        LCS2016-001</td>
+    <td>Partially Connected Vectors on Port Map</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_002">
+        LCS2016-002</td>
+    <td>Allow access to protected type parameters on function interfaces</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_004">
+        LCS2016-004</td>
+    <td>Allow PT methods with AT and FT parameters</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006a">
+        LCS2016-006a</td>
+    <td>File IO / TextIO Updates</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
+        LCS2016-006e</td>
+    <td>File IO / Directory IO</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006f">
+        LCS2016-006f</td>
+    <td>Expose standard conditional analysis identifiers</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_007">
+        LCS2016-007</td>
+    <td>Sequential Declaration Regions</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_011">
+        LCS2016-011</td>
+    <td>Date/Time Functions</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_012">
+        LCS2016-012</td>
+    <td><code>'IMAGE</code> and <code>TO_STRING</code> for composite types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_014">
+        LCS2016-014</td>
+    <td>Composites of Protected Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_014a">
+        LCS2016-014a</td>
+    <td>Pointers to Composites of Protected Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_015">
         LCS2016_015</td>
     <td>Standard functions to report calling path</td>
@@ -146,10 +212,136 @@ table below.
     <td class="feature-done">master</td>
   </tr>
   <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_016">
+        LCS2016-016</td>
+    <td>Anonymous Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018">
+        LCS2016-018</td>
+    <td>Attributes for Enumerated Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018a">
+        LCS2016-018a</td>
+    <td>New Attributes - <code>'INDEX</code></td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018d">
+        LCS2016-018d</td>
+    <td>New Attributes - <code>'DESIGNATED_TYPE</code></td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_019">
+        LCS2016-019</td>
+    <td>Inferring Constraints from Initial Values for Signals and Variables</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_023">
+        LCS2016-023</td>
+    <td>Relax Library Requirement on Configurations</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_026c">
+        LCS2016-026c</td>
+    <td>Long Integers</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_030">
         LCS2016_030</td>
     <td>Garbage collection</td>
     <td class="feature-done">1.7</td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_032">
+        LCS2016-032</td>
+    <td><code>PATH_NAME</code> and Shared Variables and Subprograms</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_033">
+        LCS2016-033</td>
+    <td>Composition with Protected Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_034">
+        LCS2016-034</td>
+    <td>Protected Types with Generic Clause</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_036a">
+        LCS2016-036a</td>
+    <td>Allow for conditional expressions in a declaration (baseline)</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_041">
+        LCS2016-041</td>
+    <td>Record Introspection/Type Reflection</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_043">
+        LCS2016-043</td>
+    <td>Attributes for PSL</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045a">
+        LCS2016-045a</td>
+    <td>Interface - defines new mode view construct for composite interface objects</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045c">
+        LCS2016-045c</td>
+    <td>Interface - <code>'CONVERSE</code> for a mode view</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_047">
+        LCS2016-047</td>
+    <td>Protected Type: Shared Variables on Entity Interface</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_049">
+        LCS2016-049</td>
+    <td>Map Generics on Subprogram Call</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_050">
+        LCS2016-050</td>
+    <td>API for Assert</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_055a">
+        LCS2016-055a</td>
+    <td>Syntax Regulatization - component declarations</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_059">
+        LCS2016-059</td>
+    <td>Array Type Generics</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_059a">
+        LCS2016-059a</td>
+    <td>Allow ordering on any scalar array</td>
+    <td class="feature-missing"></td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_061">
@@ -164,6 +356,18 @@ table below.
     <td class="feature-done">master</td>
   </tr>
   <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_072b">
+        LCS2016_072b</td>
+    <td>Function Knows Vector Size</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_075">
+        LCS2016_075</td>
+    <td>Closely Related Record Types</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_082">
         LCS2016_082</td>
     <td>Empty Record</td>
@@ -174,5 +378,17 @@ table below.
         LCS2016_086</td>
     <td>All Interface Lists Can be Ordered</td>
     <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_094a">
+        LCS2016_094a</td>
+    <td>Conditional Return Statement</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_099">
+        LCS2016_099</td>
+    <td>Extended Ranges</td>
+    <td class="feature-missing"></td>
   </tr>
 </table>

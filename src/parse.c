@@ -4840,6 +4840,11 @@ static tree_t p_interface_function_specification(void)
    // [ pure | impure ] function designator
    //    [ [ parameter ] ( formal_parameter_list ) ] return type_mark
 
+   // 2019:
+   // [ pure | impure ] function designator
+   //    [ [ parameter ] ( formal_parameter_list ) ] 
+   //    return [ return_identifier of ] type_mark
+
    BEGIN("interface function specification");
 
    consume(tFUNCTION);
@@ -4865,7 +4870,21 @@ static tree_t p_interface_function_specification(void)
    }
 
    consume(tRETURN);
-   type_set_result(type, p_type_mark());
+
+   if (peek_nth(2) != tOF)
+      type_set_result(type, p_type_mark());
+   else {
+      require_std(STD_19, "function knows return type");
+      ident_t id = p_identifier();
+
+      consume(tOF);
+
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_ident(sub, id);
+      type_set_base(sub, p_type_mark());
+
+      type_set_result(type, sub);
+   }
 
    tree_set_loc(d, CURRENT_LOC);
    return d;
@@ -6127,6 +6146,11 @@ static tree_t p_subprogram_specification(void)
    //   | [ pure | impure ] function designator subprogram_header
    //       [ [parameter] ( formal_parameter_list ) ] return type_mark
 
+   // 2019:
+   //  [ pure | impure ] function designator subprogram_header
+   //       [ [parameter] ( formal_parameter_list ) ] 
+   //       return [ return_identifier of ] type_mark
+
    BEGIN("subprogram specification");
 
    tree_t t = NULL;
@@ -6186,7 +6210,24 @@ static tree_t p_subprogram_specification(void)
 
    if (tree_kind(t) == T_FUNC_DECL) {
       consume(tRETURN);
-      type_set_result(type, p_type_mark());
+
+      if (peek_nth(2) != tOF)
+         type_set_result(type, p_type_mark());
+      else {
+         require_std(STD_19, "function knows return type");
+
+         ident_t id = p_identifier();
+
+         consume(tOF);
+
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_ident(sub, id);
+         type_set_base(sub, p_type_mark());
+
+         type_set_result(type, sub);
+
+         tree_set_flag(t, TREE_F_KNOWS_SIZE);
+      }
    }
 
    pop_scope(nametab);
@@ -7101,6 +7142,24 @@ static tree_t p_subprogram_body(tree_t spec)
    insert_ports(nametab, spec);
 
    sem_check(spec, nametab);
+
+   if (tree_flags(spec) & TREE_F_KNOWS_SIZE) {
+      // LRM 19 section 4.2.1: an implicit subtype declaration is
+      // created as the first declarative item when the function
+      // includes a return identifier
+
+      type_t sub = type_result(tree_type(spec));
+      assert(type_kind(sub) == T_SUBTYPE);
+
+      tree_t d = tree_new(T_SUBTYPE_DECL);
+      tree_set_ident(d, type_ident(sub));
+      tree_set_type(d, sub);
+      tree_set_loc(d, CURRENT_LOC);
+
+      insert_name(nametab, d, NULL);
+
+      tree_add_decl(spec, d);
+   }
 
    p_subprogram_declarative_part(spec);
 

@@ -3722,12 +3722,28 @@ END_TEST
 
 START_TEST(test_vhdl2019)
 {
+   const error_t expect[] = {
+      { 18, "declaration of variable RV cannot have unconstrained type RV_T" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    set_standard(STD_19);
    input_from_file(TESTDIR "/parse/vhdl2019.vhd");
 
    tree_t e071a = parse();
    fail_if(e071a == NULL);
    fail_unless(tree_kind(e071a) == T_ENTITY);
+
+   tree_t p072b = parse();
+   fail_if(p072b == NULL);
+   fail_unless(tree_kind(p072b) == T_PACKAGE);
+
+   lib_put(lib_work(), p072b);
+
+   tree_t pb072b = parse();
+   fail_if(pb072b == NULL);
+   fail_unless(tree_kind(pb072b) == T_PACK_BODY);
 
    tree_t p082 = parse();
    fail_if(p082 == NULL);
@@ -3739,7 +3755,7 @@ START_TEST(test_vhdl2019)
 
    fail_unless(parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
