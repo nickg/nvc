@@ -6148,7 +6148,8 @@ static tree_t p_subprogram_specification(void)
 
    // 2019:
    //  [ pure | impure ] function designator subprogram_header
-   //       [ [parameter] ( formal_parameter_list ) ] return [ return_identifier of ] type_mark
+   //       [ [parameter] ( formal_parameter_list ) ] 
+   //       return [ return_identifier of ] type_mark
 
    BEGIN("subprogram specification");
 
