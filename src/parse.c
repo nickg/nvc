@@ -4842,7 +4842,8 @@ static tree_t p_interface_function_specification(void)
 
    // 2019:
    // [ pure | impure ] function designator
-   //    [ [ parameter ] ( formal_parameter_list ) ] return [ return_identifier of ] type_mark
+   //    [ [ parameter ] ( formal_parameter_list ) ] 
+   //    return [ return_identifier of ] type_mark
 
    BEGIN("interface function specification");
 
