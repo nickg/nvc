@@ -18,3 +18,5 @@ SpaceBeforeAssignmentOperators: true
 SpacesBeforeTrailingComments: 3
 PointerAlignment: Right
 MaxEmptyLinesToKeep: 1
+Cpp11BracedListStyle: false
+

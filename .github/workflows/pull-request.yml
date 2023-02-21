@@ -2,9 +2,6 @@ name: Pull request checks
 
 on: [pull_request]
 
-permissions:
-  issues: write
-
 jobs:
   clang-format:
     name: Run clang-format
@@ -35,7 +32,7 @@ jobs:
         if: ${{ steps.clang-format.outputs.changes == 'true' }}
         uses: actions/github-script@v5
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{secrets.ISSUE_TOKEN}}
           script: |
             const fs = require('fs');
             const diff = fs.readFileSync('changes.diff', 'utf8');
