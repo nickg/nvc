@@ -4873,7 +4873,7 @@ static tree_t p_interface_function_specification(void)
    if (peek_nth(2) != tOF)
       type_set_result(type, p_type_mark());
    else {
-      require_std(STD_19, "function knows return type") ;
+      require_std(STD_19, "function knows return type");
       ident_t id = p_identifier();
 
       consume(tOF);
@@ -6212,7 +6212,7 @@ static tree_t p_subprogram_specification(void)
       if (peek_nth(2) != tOF)
          type_set_result(type, p_type_mark());
       else {
-         require_std(STD_19, "function knows return type") ;
+         require_std(STD_19, "function knows return type");
 
          ident_t id = p_identifier();
 
