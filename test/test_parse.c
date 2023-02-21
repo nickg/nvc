@@ -3723,7 +3723,7 @@ END_TEST
 START_TEST(test_vhdl2019)
 {
    const error_t expect[] = {
-      { 39, "declaration of variable RV cannot have unconstrained type RV_T" },
+      { 50, "declaration of variable RV cannot have unconstrained type RV_T" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3740,6 +3740,10 @@ START_TEST(test_vhdl2019)
    tree_t pb006f = parse();
    fail_if(pb006f == NULL);
    fail_unless(tree_kind(pb006f) == T_PACK_BODY);
+
+   tree_t p055a = parse();
+   fail_if(p055a == NULL);
+   fail_unless(tree_kind(p055a) == T_PACKAGE);
 
    tree_t e071a = parse();
    fail_if(e071a == NULL);

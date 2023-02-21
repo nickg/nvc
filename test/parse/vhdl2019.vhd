@@ -19,6 +19,17 @@ package body pack006f is
 
 end package body ;
 
+-- LCS-2016-055a: Syntax Regularization for endings
+package pack055a is
+
+    component silly is
+      port (
+        a : bit_vector
+      ) ;
+    end ;
+
+end package ;
+
 -- LCS-2016-071a: Trailing semicolion
 entity ent is
   port (
