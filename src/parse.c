@@ -7505,10 +7505,8 @@ static tree_t p_component_declaration(void)
    pop_scope(nametab);
 
    consume(tEND);
-   if (peek() != tCOMPONENT) {
+   if (peek() != tCOMPONENT)
       require_std(STD_19, "optional end component");
-      optional(tCOMPONENT);
-   }
    else
       consume(tCOMPONENT);
    p_trailing_label(tree_ident(c));
