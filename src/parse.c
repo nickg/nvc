@@ -4842,7 +4842,7 @@ static tree_t p_interface_function_specification(void)
 
    // 2019:
    // [ pure | impure ] function designator
-   //    [ [ parameter ] ( formal_parameter_list ) ] 
+   //    [ [ parameter ] ( formal_parameter_list ) ]
    //    return [ return_identifier of ] type_mark
 
    BEGIN("interface function specification");
@@ -6148,7 +6148,7 @@ static tree_t p_subprogram_specification(void)
 
    // 2019:
    //  [ pure | impure ] function designator subprogram_header
-   //       [ [parameter] ( formal_parameter_list ) ] 
+   //       [ [parameter] ( formal_parameter_list ) ]
    //       return [ return_identifier of ] type_mark
 
    BEGIN("subprogram specification");
@@ -7479,6 +7479,10 @@ static tree_t p_component_declaration(void)
    // component identifier [ is ] [ generic_clause ] [ port_clause ]
    //   end component [ simple_name ] ;
 
+   // 2019:
+   // component identifier [ is ] [ generic_clause ] [ port_clause ]
+   //   end [ component ] [ simple_name ] ;
+
    BEGIN("component declaration");
 
    tree_t c = tree_new(T_COMPONENT);
@@ -7501,7 +7505,10 @@ static tree_t p_component_declaration(void)
    pop_scope(nametab);
 
    consume(tEND);
-   consume(tCOMPONENT);
+   if (peek() != tCOMPONENT)
+      require_std(STD_19, "optional end component");
+   else
+      consume(tCOMPONENT);
    p_trailing_label(tree_ident(c));
    consume(tSEMI);
 
