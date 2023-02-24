@@ -153,16 +153,16 @@ issues you encounter.
 
 ### Contributing
 
-Thank you for your interest, but please note that at this time I am not
-looking for additional regular contributors, nor do I have the time to
-review large new features contributed by third parties.  That said I am
-happy to accept patches to fix minor bugs, build issues, documentation,
-etc.  Patches can be sent with either [git
---send-email](https://git-send-email.io/) or as a pull request on
-GitHub.
+Patches can be sent as either pull requests on GitHub or by email using
+[git --send-email](https://git-send-email.io/).  Please note however
+that as this is purely a spare-time hobby project for me, I have limited
+time available to review patches.  All code submitted must follow the
+guidelines in [contrib/STYLE.md](contrib/STYLE.md).
 
-If you are using NVC for your work or hobby project please get in
-touch: all feedback is greatly appreciated.
+I will not accept patches that add new copyright owners under `src/`.
+This is to ensure there is clear legal ownership should, for example,
+the license need to be updated.  Significant contributors are instead
+listed in [THANKS.md](THANKS.md).
 
 ### Language Support
 
