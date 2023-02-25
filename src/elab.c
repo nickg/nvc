@@ -199,7 +199,8 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
       return tree_subkind(t) != PE_SIMPLE;
    case T_FCALL:
       // Globally static expressions should be copied and folded
-      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
+      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC)
+         && type_is_scalar(tree_type(t));
    case T_REF:
       {
          tree_t decl = tree_ref(t);
