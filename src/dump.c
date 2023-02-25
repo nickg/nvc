@@ -1514,6 +1514,7 @@ void dump(tree_t t)
    case T_CONV_FUNC:
    case T_QUALIFIED:
    case T_EXTERNAL_NAME:
+   case T_STRING:
       dump_expr(t);
       printf("\n");
       break;
@@ -1526,6 +1527,7 @@ void dump(tree_t t)
    case T_FOR:
    case T_SIGNAL_ASSIGN:
    case T_IF:
+   case T_WAIT:
       dump_stmt(t, 0);
       break;
    case T_CONST_DECL:

@@ -4444,15 +4444,10 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
          VCODE_ASSERT(dim < (other->args.count - 1) / 3,
                       "array dimension %d out of bounds", dim);
 
-         int64_t left, right, dir;
-         if (vcode_reg_const(other->args.items[dim * 3 + 1], &left)
-             && vcode_reg_const(other->args.items[dim * 3 + 2], &right)
-             && vcode_reg_const(other->args.items[dim * 3 + 3], &dir)) {
-            if (dir == RANGE_TO)
-               return emit_const(vtype_offset(), right - left + 1);
-            else
-               return emit_const(vtype_offset(), left - right + 1);
-         }
+         vcode_reg_t left_reg = other->args.items[dim * 3 + 1];
+         vcode_reg_t right_reg = other->args.items[dim * 3 + 2];
+         vcode_reg_t dir_reg = other->args.items[dim * 3 + 3];
+         return emit_range_length(left_reg, right_reg, dir_reg);
       }
    }
 

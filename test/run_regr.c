@@ -680,8 +680,13 @@ static void failed(const char *fmt, ...)
    }
 
    set_attr(ANSI_FG_RED);
-   printf("failed (%s)\n", reason);
+   if (reason != NULL)
+      printf("failed (%s)", reason);
+   else
+      printf("failed");
    set_attr(ANSI_RESET);
+   printf("\n");
+   fflush(stdout);
 
    free(reason);
 }
@@ -811,12 +816,18 @@ static bool run_test(test_t *test)
 
    run_status_t status = run_cmd(outf, &args);
 
-   if (test->flags & F_FAIL)
-      result = (status == RUN_FAILED);
-   else
-      result = (status == RUN_OK);
+   if (test->flags & F_FAIL) {
+      if (!(result = (status == RUN_FAILED))) {
+         failed("expected error");
+         goto out_print;
+      }
+   }
+   else if (!(result = (status == RUN_OK))) {
+      failed(NULL);
+      goto out_print;
+   }
 
-   if (result && (test->flags & F_COVER) && !(test->flags & F_SHELL)) {
+   if ((test->flags & F_COVER) && !(test->flags & F_SHELL)) {
       // Generate coverage report
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "-c");
@@ -842,7 +853,7 @@ static bool run_test(test_t *test)
       }
    }
 
-   if (result && (test->flags & F_WAVE)) {
+   if (test->flags & F_WAVE) {
       push_arg(&args, "%s/fstdump%s", bin_dir, EXEEXT);
       push_arg(&args, "-o");
       push_arg(&args, "%s.dump", test->name);
@@ -869,7 +880,7 @@ static bool run_test(test_t *test)
       }
    }
 
-   if (result && (test->flags & F_GOLD)) {
+   if (test->flags & F_GOLD) {
       char goldname[PATH_MAX + 19];
       snprintf(goldname, sizeof(goldname), "%s/regress/gold/%s.txt",
                test_dir, test->name);

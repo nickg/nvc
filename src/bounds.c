@@ -671,9 +671,12 @@ static void bounds_check_aggregate(tree_t t)
          tree_t a = tree_assoc(t, i);
          type_t value_type = tree_type(tree_value(a));
 
+         if (type_is_unconstrained(value_type))
+            continue;
+
          int64_t this_length;
          if (!folded_length(range_of(value_type, 0), &this_length))
-             break;
+            continue;
 
          if (length == -1)
             length = this_length;
@@ -682,101 +685,6 @@ static void bounds_check_aggregate(tree_t t)
                          "expected length %"PRIi64,
                          this_length, length);
       }
-   }
-
-   if (unconstrained && (known_elem_count || nassocs == 1)) {
-      // Construct a new array subtype using the rules in LRM 93 7.3.2.2
-
-      type_t tmp = type_new(T_SUBTYPE);
-      type_set_base(tmp, type);
-
-      tree_t constraint = tree_new(T_CONSTRAINT);
-      tree_set_subkind(constraint, C_INDEX);
-
-      tree_t left = NULL, right = NULL, r = NULL;
-
-      if (known_elem_count) {
-         const int64_t ileft = dir == RANGE_TO ? clow : chigh;
-         const int64_t iright = dir == RANGE_TO ? chigh : clow;
-
-         if (type_is_enum(index_type)) {
-            left = get_enum_lit(t, index_type, ileft);
-            right = get_enum_lit(t, index_type, iright);
-         }
-         else if (type_is_integer(index_type)) {
-            left = get_int_lit(t, index_type, ileft);
-            right = get_int_lit(t, index_type, iright);
-         }
-         else
-            fatal_trace("cannot handle aggregate index type %s",
-                        type_pp(index_type));
-      }
-      else {
-         // Must have a single association
-         assert(nassocs == 1);
-         tree_t a0 = tree_assoc(t, 0);
-         switch (tree_subkind(a0)) {
-         case A_NAMED:
-            left = right = tree_name(a0);
-            break;
-         case A_RANGE:
-            {
-               tree_t a0r = tree_range(a0, 0);
-               if (tree_subkind(a0r) == RANGE_EXPR)
-                  r = a0r;
-               else {
-                  left = tree_left(a0r);
-                  right = tree_right(a0r);
-                  dir = tree_subkind(a0r);
-               }
-            }
-            break;
-         default:
-            fatal_trace("unexpected association kind %d in unconstrained "
-                        "aggregate", tree_subkind(a0));
-         }
-      }
-
-      if (r == NULL) {
-         r = tree_new(T_RANGE);
-         tree_set_subkind(r, dir);
-         tree_set_left(r, left);
-         tree_set_right(r, right);
-         tree_set_loc(r, tree_loc(t));
-         tree_set_type(r, tree_type(left));
-      }
-
-      tree_add_range(constraint, r);
-
-      for (int i = 1; i < ndims; i++) {
-         // TODO: check this
-         tree_t dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
-         tree_add_range(constraint, dim);
-      }
-
-      type_add_constraint(tmp, constraint);
-
-      if (standard() >= STD_08 && type_is_unconstrained(type_elem(type))) {
-         assert(ndims == 1);  // TODO
-         tree_t a0 = tree_value(tree_assoc(t, 0));
-         type_t a0_type = tree_type(a0);
-         tree_t cons[MAX_CONSTRAINTS];
-         const int ncons = pack_constraints(a0_type, cons);
-         if (ncons > 0) {
-            for (int i = 0; i < ncons; i++)
-               type_add_constraint(tmp, type_constraint(a0_type, i));
-         }
-         else {
-            // This must be checked at runtime
-            tree_t c = tree_new(T_CONSTRAINT);
-            tree_set_loc(c, tree_loc(t));
-            tree_set_subkind(c, C_OPEN);
-
-            type_add_constraint(tmp, c);
-         }
-      }
-
-      tree_set_type(t, tmp);
    }
 }
 
@@ -1269,10 +1177,8 @@ static void bounds_check_attr_ref(tree_t t)
 static void bounds_check_wait(tree_t t)
 {
    int64_t delay = 0;
-   if (tree_has_delay(t) && folded_int(tree_delay(t), &delay)) {
-      if (delay < 0)
-         bounds_error(tree_delay(t), "wait timeout may not be negative");
-   }
+   if (tree_has_delay(t) && folded_int(tree_delay(t), &delay) && delay < 0)
+      bounds_error(tree_delay(t), "wait timeout may not be negative");
 }
 
 static void bounds_check_block(tree_t t)

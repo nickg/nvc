@@ -3717,11 +3717,13 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 
       type_t index_type = index_type_of(type, 0);
 
+      bool all_simple_pos = true;
       const int nassocs = tree_assocs(agg);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(agg, i);
 
-         switch ((assoc_kind_t)tree_subkind(a)) {
+         const assoc_kind_t kind = tree_subkind(a);
+         switch (kind) {
          case A_POS:
          case A_OTHERS:
             break;
@@ -3733,15 +3735,74 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             break;
          }
 
-         _solve_types(tab, tree_value(a));
+         type_t etype = _solve_types(tab, tree_value(a));
 
          // Hack to avoid pushing/popping type set on each iteration
          ATRIM(tab->top_type_set->members, 0);
          type_set_add(tab, t0, NULL);
          type_set_add(tab, t1, NULL);
+
+         if (kind != A_POS)
+            all_simple_pos = false;
+         else if (all_simple_pos && t1 != NULL && !type_eq(etype, t0))
+            all_simple_pos = false;
       }
 
       type_set_pop(tab);
+
+      if (type_is_unconstrained(type) && ndims == 1) {
+         // Create a new constrained array subtype for simple cases
+         // where the bounds are known
+
+         range_kind_t dir = RANGE_ERROR;
+         tree_t left = NULL, right = NULL;
+         if (all_simple_pos) {
+            tree_t index_r = range_of(index_type, 0);
+            left = tree_left(index_r);
+            dir = tree_subkind(index_r);
+
+            unsigned uleft;
+            int64_t ileft;
+            if (folded_int(left, &ileft))
+               right = get_int_lit(agg, index_type, ileft + nassocs - 1);
+            else if (folded_enum(left, &uleft)) {
+               type_t base = type_base_recur(index_type);
+               const int maxlit = type_enum_literals(base);
+               if (uleft + nassocs - 1 < maxlit)
+                  right = get_enum_lit(agg, index_type, uleft + nassocs - 1);
+            }
+         }
+         else if (nassocs == 1) {
+            tree_t a0 = tree_assoc(agg, 0);
+            if (tree_subkind(a0) == A_RANGE) {
+               tree_t r = tree_range(a0, 0);
+               dir = tree_subkind(r);
+               if (dir == RANGE_TO || dir == RANGE_DOWNTO) {
+                  left = tree_left(r);
+                  right = tree_right(r);
+               }
+            }
+         }
+
+         if (left != NULL && right != NULL && dir != RANGE_ERROR) {
+            type_t sub = type_new(T_SUBTYPE);
+            type_set_base(sub, type);
+
+            tree_t cons = tree_new(T_CONSTRAINT);
+            tree_set_subkind(cons, C_INDEX);
+
+            tree_t r = tree_new(T_RANGE);
+            tree_set_subkind(r, dir);
+            tree_set_left(r, left);
+            tree_set_type(r, index_type);
+
+            tree_set_right(r, right);
+            tree_add_range(cons, r);
+            type_add_constraint(sub, cons);
+
+            tree_set_type(agg, (type = sub));
+         }
+      }
    }
 
    return type;

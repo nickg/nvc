@@ -687,13 +687,17 @@ static void elab_hint_fn(diag_t *d, void *arg)
    diag_hint(d, tree_loc(t), "while elaborating instance %s",
              istr(tree_ident(t)));
 
+   tree_t unit = tree_ref(t);
+   if (tree_kind(unit) == T_CONFIGURATION)
+      unit = tree_primary(unit);
+
    const int ngenerics = tree_genmaps(t);
    for (int i = 0; i < ngenerics; i++) {
       tree_t p = tree_genmap(t, i);
       ident_t name = NULL;
       switch (tree_subkind(p)) {
       case P_POS:
-         name = tree_ident(tree_generic(tree_ref(t), tree_pos(p)));
+         name = tree_ident(tree_generic(unit, tree_pos(p)));
          break;
       case P_NAMED:
          name = tree_ident(tree_name(p));
@@ -1817,7 +1821,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    elab_decls(entity, &new_ctx);
 
    simplify_global(arch_copy, new_ctx.generics, ctx->eval);
-   bounds_check(arch);   // XXX: should be arch_copy
+   bounds_check(arch_copy);
 
    if (error_count() == 0)
       elab_arch(arch_copy, &new_ctx);
