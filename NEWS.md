@@ -17,6 +17,8 @@
 - The experimental `--jit` elaboration option defers native code
   generation until run time.  This can dramatically reduce total test
   time for short-running simulations.
+- Statements like `wait for X` where `X` is negative but not a constant
+  now produce an error at run time (#633).
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.

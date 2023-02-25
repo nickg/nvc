@@ -148,17 +148,17 @@ static void async_fast_driver(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
 static void async_disconnect(void *context, void *arg);
 
-static int fmt_time_r(char *buf, size_t len, uint64_t t)
+static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
 {
    static const struct {
-      uint64_t time;
+      int64_t time;
       const char *unit;
    } units[] = {
-      { UINT64_C(1), "fs" },
-      { UINT64_C(1000), "ps" },
-      { UINT64_C(1000000), "ns" },
-      { UINT64_C(1000000000), "us" },
-      { UINT64_C(1000000000000), "ms" },
+      { INT64_C(1), "fs" },
+      { INT64_C(1000), "ps" },
+      { INT64_C(1000000), "ns" },
+      { INT64_C(1000000000), "us" },
+      { INT64_C(1000000000000), "ms" },
       { 0, NULL }
    };
 
@@ -166,8 +166,8 @@ static int fmt_time_r(char *buf, size_t len, uint64_t t)
    while (units[u + 1].unit && (t % units[u + 1].time == 0))
       ++u;
 
-   return checked_sprintf(buf, len, "%"PRIu64"%s",
-                          t / units[u].time, units[u].unit);
+   return checked_sprintf(buf, len, "%"PRIi64"%s%s",
+                          t / units[u].time, sep, units[u].unit);
 }
 
 __attribute__((format(printf, 2, 3)))
@@ -184,7 +184,7 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
          fprintf(stderr, "TRACE (init): ");
       else {
          char buf[64];
-         fmt_time_r(buf, sizeof(buf), m->now);
+         fmt_time_r(buf, sizeof(buf), m->now, "");
          fprintf(stderr, "TRACE %s+%d: ", buf, m->iteration);
       }
       vfprintf(stderr, fmt, ap);
@@ -201,7 +201,7 @@ static const char *trace_time(uint64_t value)
    static __thread int which = 0;
 
    which ^= 1;
-   fmt_time_r(buf[which], 32, value);
+   fmt_time_r(buf[which], 32, value, "");
    return buf[which];
 }
 
@@ -213,7 +213,7 @@ static void model_diag_cb(diag_t *d, void *arg)
       diag_printf(d, "(init): ");
    else  {
       char tmbuf[64];
-      fmt_time_r(tmbuf, sizeof(tmbuf), m->now);
+      fmt_time_r(tmbuf, sizeof(tmbuf), m->now, "");
 
       diag_printf(d, "%s+%d: ", tmbuf, m->iteration);
    }
@@ -2765,6 +2765,15 @@ static inline void check_reject_limit(rt_signal_t *s, uint64_t after,
               trace_time(reject), trace_time(after));
 }
 
+static inline void check_delay(int64_t delay)
+{
+   if (unlikely(delay < 0)) {
+      char buf[32];
+      fmt_time_r(buf, sizeof(buf), delay, " ");
+      jit_msg(NULL, DIAG_FATAL, "illegal negative delay %s", buf);
+   }
+}
+
 bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
 {
    RT_LOCK(s->lock);
@@ -2885,7 +2894,7 @@ void model_interrupt(rt_model_t *m)
    model_stop(m);
 
    char tmbuf[32];
-   fmt_time_r(tmbuf, sizeof(tmbuf), m->now);
+   fmt_time_r(tmbuf, sizeof(tmbuf), m->now, "");
 
    if (active_proc != NULL)
       jit_msg(NULL, DIAG_FATAL,
@@ -3039,6 +3048,8 @@ void x_sched_process(int64_t delay)
 {
    TRACE("schedule process %s delay=%s", istr(active_proc->name),
          trace_time(delay));
+
+   check_delay(delay);
    deltaq_insert_proc(get_model(), delay, active_proc);
 }
 
@@ -3052,6 +3063,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
          istr(tree_ident(s->where)), offset, scalar, trace_time(after),
          trace_time(reject));
 
+   check_delay(after);
    check_postponed(after);
    check_reject_limit(s, after, reject);
 
@@ -3072,6 +3084,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
          istr(tree_ident(s->where)), offset, fmt_values(values, count),
          count, trace_time(after), trace_time(reject));
 
+   check_delay(after);
    check_postponed(after);
    check_reject_limit(s, after, reject);
 

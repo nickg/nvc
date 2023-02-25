@@ -729,3 +729,5 @@ const10         normal
 null3           normal
 link4           normal
 predef3         normal
+wait26          fail,gold
+signal29        fail,gold
