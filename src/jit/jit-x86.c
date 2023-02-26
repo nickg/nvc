@@ -1677,11 +1677,11 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
       return;
 #endif
 
-   code_blob_t *blob = code_blob_new(state->code, f->name, f);
-   if (blob == NULL) {
-      warnf("could not allocate JIT code buffer for %s", istr(f->name));
+   code_blob_t *blob = code_blob_new(state->code, f->name, 0);
+   if (blob == NULL)
       return;
-   }
+
+   blob->func = f;
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1778,7 +1778,7 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("exit stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1805,7 +1805,7 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
 static void jit_x86_gen_call_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("call stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1831,7 +1831,7 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
 static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("alloc stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1856,7 +1856,7 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
 static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("tlab stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1898,7 +1898,7 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
 static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("ffi stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1924,7 +1924,7 @@ static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
 static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("debug stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
@@ -1949,7 +1949,7 @@ static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
 static void jit_x86_gen_fexp_stub(jit_x86_state_t *state)
 {
    ident_t name = ident_new("fexp stub");
-   code_blob_t *blob = code_blob_new(state->code, name, NULL);
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
 
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);

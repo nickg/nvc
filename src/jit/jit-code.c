@@ -295,7 +295,7 @@ static void code_write_perf_map(code_span_t *span)
    fflush(span->owner->perfmap);
 }
 
-code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
+code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
 {
    code_span_t **freeptr = &(code->freelist[thread_id()]);
 
@@ -305,7 +305,9 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
       relaxed_store(freeptr, free);
    }
 
-   if (free->size < MIN_BLOB_SIZE) {
+   const size_t reqsz = hint ?: MIN_BLOB_SIZE;
+
+   if (free->size < reqsz) {
       SCOPED_LOCK(code->lock);
 
       if (code->globalfree->size == 0)
@@ -314,10 +316,13 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
 #ifdef DEBUG
       if (free->size > 0)
          debugf("thread %d needs new code cache from global free list "
-                "(wasted %zu bytes)", thread_id(), free->size);
+                "(requested %zu bytes, wasted %zu bytes)",
+                thread_id(), reqsz, free->size);
 #endif
 
-      const size_t take = MIN(code->globalfree->size, THREAD_CACHE_SIZE);
+      const size_t chunksz = MAX(reqsz, THREAD_CACHE_SIZE);
+      const size_t alignedsz = ALIGN_UP(chunksz, CODE_BLOB_ALIGN);
+      const size_t take = MIN(code->globalfree->size, alignedsz);
 
       free->size = take;
       free->base = code->globalfree->base;
@@ -329,7 +334,7 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
          warnf("global JIT code buffer exhausted");
    }
 
-   assert(MIN_BLOB_SIZE <= free->size);
+   assert(reqsz <= free->size);
    assert(((uintptr_t)free->base & (CODE_BLOB_ALIGN - 1)) == 0);
 
    code_span_t *span = code_span_new(code, name, free->base, free->size);
@@ -338,11 +343,8 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, jit_func_t *f)
    free->size -= span->size;
 
    code_blob_t *blob = xcalloc(sizeof(code_blob_t));
-   blob->span  = span;
-   blob->func  = f;
-   blob->wptr  = span->base;
-
-   assert(f == NULL || name == f->name);
+   blob->span = span;
+   blob->wptr = span->base;
 
    thread_wx_mode(WX_WRITE);
 

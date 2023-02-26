@@ -3016,10 +3016,6 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    const uint64_t start_us = get_timestamp_us();
 
-   code_blob_t *blob = code_blob_new(state->code, f->name, f);
-   if (blob == NULL)
-      return;
-
    LLVMTargetMachineRef tm = llvm_target_machine(LLVMRelocDefault,
                                                  JIT_CODE_MODEL);
 
@@ -3057,10 +3053,16 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
                                            &error, &buf))
      fatal("failed to generate native code: %s", error);
 
+   const size_t objsz = LLVMGetBufferSize(buf);
+
+   code_blob_t *blob = code_blob_new(state->code, f->name, objsz);
+   if (blob == NULL)
+      return;
+
    const uint8_t *base = blob->wptr;
    const void *entry_addr = blob->wptr;
 
-   code_load_object(blob, LLVMGetBufferStart(buf), LLVMGetBufferSize(buf));
+   code_load_object(blob, LLVMGetBufferStart(buf), objsz);
 
    const size_t size = blob->wptr - base;
    code_blob_finalise(blob, &(f->entry));
