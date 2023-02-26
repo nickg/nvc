@@ -1318,19 +1318,19 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
 
    fprintf(f, "   </tr>\n");
 
-   float perc_stmt = 0;
-   float perc_branch = 0;
-   float perc_toggle = 0;
-   float perc_expr = 0;
+   float perc_stmt = 0.0f;
+   float perc_branch = 0.0f;
+   float perc_toggle = 0.0f;
+   float perc_expr = 0.0f;
 
    if (stats->total_stmts > 0)
       perc_stmt = 100.0 * ((float)stats->hit_stmts) / stats->total_stmts;
    if (stats->total_branches > 0)
-      perc_branch = 100.0 * ((double)stats->hit_branches) / stats->total_branches;
+      perc_branch = 100.0 * ((float)stats->hit_branches) / stats->total_branches;
    if (stats->total_toggles > 0)
-      perc_toggle = 100.0 * ((double)stats->hit_toggles) / stats->total_toggles;
+      perc_toggle = 100.0 * ((float)stats->hit_toggles) / stats->total_toggles;
    if (stats->total_expressions > 0)
-      perc_expr = 100.0 * ((double)stats->hit_expressions) / stats->total_expressions;
+      perc_expr = 100.0 * ((float)stats->hit_expressions) / stats->total_expressions;
 
    if (top) {
       notef("code coverage results for: %s", istr(hier));
@@ -1361,7 +1361,7 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
    }
    else if (opt_get_int(OPT_VERBOSE) && !flat) {
 
-      cover_rpt_buf_t *new = calloc(1, sizeof(cover_rpt_buf_t));
+      cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
       new->tb = tb_new();
       new->prev = ctx->tagging->rpt_buf;
       ctx->tagging->rpt_buf = new;
