@@ -154,6 +154,7 @@ static bool lower_is_signal_ref(tree_t expr);
 static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds);
 static void lower_predef_field_eq_cb(tree_t field, vcode_reg_t r0,
                                      vcode_reg_t r1, void *context);
+static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t where);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -4335,9 +4336,14 @@ static vcode_reg_t lower_conversion(vcode_reg_t value_reg, tree_t where,
    }
    else if (from_k == T_INTEGER && to_k == T_REAL)
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
-   else if (type_is_array(to) && !lower_const_bounds(to)) {
+   else if (to_k == T_ARRAY && !lower_const_bounds(to)) {
       // Need to wrap in metadata
-      return lower_wrap(from, value_reg);
+      vcode_reg_t wrap_reg = lower_wrap(from, value_reg);
+      if (type_is_unconstrained(to))
+         lower_check_indexes(to, wrap_reg, where);
+      else
+         ;   // TODO: need to check length here?
+      return wrap_reg;
    }
    else if ((from_k == T_INTEGER && to_k == T_INTEGER)
             || (from_k == T_REAL && to_k == T_REAL)) {
@@ -6922,7 +6928,7 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    cover_pop_scope(cover_tags);
 }
 
-static void lower_check_indexes(type_t type, vcode_reg_t array)
+static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t where)
 {
    const int ndims = dimension_of(type);
    for (int i = 0; i < ndims; i++) {
@@ -6953,11 +6959,18 @@ static void lower_check_indexes(type_t type, vcode_reg_t array)
          vcode_select_block(check_bb);
       }
 
-      vcode_reg_t locus = lower_debug_locus(range_of(type, i));
+      vcode_reg_t hint_reg;
+      if (type_is_unconstrained(type))
+         hint_reg = lower_debug_locus(r);
+      else
+         hint_reg = lower_debug_locus(range_of(type, i));
+
+      vcode_reg_t locus = where ? lower_debug_locus(where) : hint_reg;
+
       emit_index_check(aleft_reg, ileft_reg, iright_reg, idir_reg,
-                       locus, locus);
+                       locus, hint_reg);
       emit_index_check(aright_reg, ileft_reg, iright_reg, idir_reg,
-                       locus, locus);
+                       locus, hint_reg);
 
       if (after_bb != VCODE_INVALID_BLOCK) {
          emit_jump(after_bb);
@@ -7076,7 +7089,7 @@ static void lower_var_decl(tree_t decl)
          emit_store(wrap_reg, var);
       }
       else {
-         lower_check_indexes(type, value_reg);
+         lower_check_indexes(type, value_reg, NULL);
          lower_check_array_sizes(decl, type, value_type,
                                  VCODE_INVALID_REG, value_reg);
          emit_copy(dest_reg, data_reg, count_reg);
