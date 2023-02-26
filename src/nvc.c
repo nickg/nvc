@@ -1087,6 +1087,7 @@ static int coverage(int argc, char **argv)
       { "merge",        required_argument, 0, 'm' },
       { "dont-print",   required_argument, 0, 'd' },
       { "item-limit",   required_argument, 0, 'l' },
+      { "verbose",      no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
 

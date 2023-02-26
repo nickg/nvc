@@ -57,6 +57,7 @@ typedef struct _cover_report_ctx    cover_report_ctx_t;
 typedef struct _cover_file          cover_file_t;
 typedef struct _cover_scope         cover_scope_t;
 typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
+typedef struct _cover_rpt_buf       cover_rpt_buf_t;
 
 typedef struct _cover_scope {
    ident_t        name;
@@ -68,19 +69,25 @@ typedef struct _cover_scope {
    int            sig_pos;
 } cover_scope_t;
 
+struct _cover_rpt_buf {
+   text_buf_t      *tb;
+   cover_rpt_buf_t *prev;
+};
+
 struct _cover_tagging {
-   int            next_stmt_tag;
-   int            next_branch_tag;
-   int            next_toggle_tag;
-   int            next_expression_tag;
-   int            next_hier_tag;
-   ident_t        hier;
-   tag_array_t    tags;
-   cover_mask_t   mask;
-   int            array_limit;
-   int            array_depth;
-   int            report_item_limit;
-   cover_scope_t *top_scope;
+   int               next_stmt_tag;
+   int               next_branch_tag;
+   int               next_toggle_tag;
+   int               next_expression_tag;
+   int               next_hier_tag;
+   ident_t           hier;
+   tag_array_t       tags;
+   cover_mask_t      mask;
+   int               array_limit;
+   int               array_depth;
+   int               report_item_limit;
+   cover_rpt_buf_t  *rpt_buf;
+   cover_scope_t    *top_scope;
 };
 
 typedef struct {
@@ -136,6 +143,7 @@ struct _cover_report_ctx {
    cover_chain_t        ch_branch;
    cover_chain_t        ch_toggle;
    cover_chain_t        ch_expression;
+   int                  lvl;
 };
 
 static cover_file_t  *files;
@@ -1281,10 +1289,16 @@ static void cover_print_timestamp(FILE *f)
    fprintf(f,  "</footer>");
 }
 
-static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t hier,
-                                          bool top, bool full_hier)
+static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, ident_t hier,
+                                          bool top, bool full_hier, bool flat)
 {
    ident_t print_hier = (full_hier) ? hier : ident_rfrom(hier, '.');
+   cover_stats_t *stats;
+
+   if (flat)
+      stats = &(ctx->flat_stats);
+   else
+      stats = &(ctx->nested_stats);
 
    fprintf(f, "   <tr>\n"
               "      <td><a href=\"%s%s.html\">%s</a></td>\n",
@@ -1304,36 +1318,61 @@ static void cover_print_hierarchy_summary(FILE *f, cover_stats_t *stats, ident_t
 
    fprintf(f, "   </tr>\n");
 
+   float perc_stmt = 0.0f;
+   float perc_branch = 0.0f;
+   float perc_toggle = 0.0f;
+   float perc_expr = 0.0f;
+
+   if (stats->total_stmts > 0)
+      perc_stmt = 100.0 * ((float)stats->hit_stmts) / stats->total_stmts;
+   if (stats->total_branches > 0)
+      perc_branch = 100.0 * ((float)stats->hit_branches) / stats->total_branches;
+   if (stats->total_toggles > 0)
+      perc_toggle = 100.0 * ((float)stats->hit_toggles) / stats->total_toggles;
+   if (stats->total_expressions > 0)
+      perc_expr = 100.0 * ((float)stats->hit_expressions) / stats->total_expressions;
+
    if (top) {
       notef("code coverage results for: %s", istr(hier));
 
-      if (stats->total_stmts > 0)
-         notef("     statement:     %.1f %% (%d/%d)",
-               100.0 * ((double)stats->hit_stmts) / stats->total_stmts,
+      if (perc_stmt > 0)
+         notef("     statement:     %.1f %% (%d/%d)", perc_stmt,
                stats->hit_stmts, stats->total_stmts);
       else
          notef("     statement:     N.A.");
 
-      if (stats->total_branches > 0)
-         notef("     branch:        %.1f %% (%d/%d)",
-               100.0 * ((double)stats->hit_branches) / stats->total_branches,
+      if (perc_branch > 0)
+         notef("     branch:        %.1f %% (%d/%d)", perc_branch,
                stats->hit_branches, stats->total_branches);
       else
          notef("     branch:        N.A.");
 
-      if (stats->total_toggles > 0)
-         notef("     toggle:        %.1f %% (%d/%d)",
-               100.0 * ((double)stats->hit_toggles) / stats->total_toggles,
+      if (perc_toggle > 0)
+         notef("     toggle:        %.1f %% (%d/%d)", perc_toggle,
                stats->hit_toggles, stats->total_toggles);
       else
          notef("     toggle:        N.A.");
 
-      if (stats->total_expressions > 0)
-         notef("     expression:    %.1f %% (%d/%d)",
-               100.0 * ((double)stats->hit_expressions) / stats->total_expressions,
+      if (perc_expr > 0)
+         notef("     expression:    %.1f %% (%d/%d)", perc_expr,
                stats->hit_expressions, stats->total_expressions);
       else
          notef("     expression:    N.A.");
+   }
+   else if (opt_get_int(OPT_VERBOSE) && !flat) {
+
+      cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
+      new->tb = tb_new();
+      new->prev = ctx->tagging->rpt_buf;
+      ctx->tagging->rpt_buf = new;
+
+      tb_printf(new->tb,
+         "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) %10.1f %% (%d/%d)",
+         ctx->lvl, "", 50-ctx->lvl, istr(ident_rfrom(ctx->start_tag->hier, '.')),
+         perc_stmt, stats->hit_stmts, stats->total_stmts,
+         perc_branch, stats->hit_branches, stats->total_branches,
+         perc_toggle, stats->hit_toggles, stats->total_toggles,
+         perc_expr, stats->hit_expressions, stats->total_expressions);
    }
 }
 
@@ -1831,9 +1870,10 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
             sub_ctx.start_tag = tag;
             sub_ctx.parent = ctx;
             sub_ctx.tagging = ctx->tagging;
+            sub_ctx.lvl = ctx->lvl + 2;
             tag = cover_report_hierarchy(&sub_ctx, dir);
-            cover_print_hierarchy_summary(f, &(sub_ctx.nested_stats),
-                                          tag->hier, false, false);
+            cover_print_hierarchy_summary(f, &sub_ctx,
+                                          tag->hier, false, false, false);
 
             // Add coverage from sub-hierarchies
             ctx->nested_stats.hit_stmts += sub_ctx.nested_stats.hit_stmts;
@@ -1942,7 +1982,7 @@ static cover_tag_t* cover_report_hierarchy(cover_report_ctx_t *ctx,
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h2>\n");
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, &(ctx->flat_stats), tag->hier, false, true);
+   cover_print_hierarchy_summary(f, ctx, tag->hier, false, true, true);
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
@@ -2003,10 +2043,24 @@ void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
 
    cover_print_html_header(f, &top_ctx, true, "NVC code coverage report");
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, &(top_ctx.nested_stats),
-                                 top_ctx.start_tag->hier, true, true);
+   cover_print_hierarchy_summary(f, &top_ctx, top_ctx.start_tag->hier,
+                                 true, true, false);
    cover_print_hierarchy_footer(f);
    cover_print_timestamp(f);
+
+   if (opt_get_int(OPT_VERBOSE)) {
+      notef("Coverage for sub-hierarchies:");
+      printf("%-55s %-20s %-20s %-20s %-20s\n",
+             "Hierarchy", "Statement", "Branch", "Toggle", "Expression");
+      cover_rpt_buf_t *buf = tagging->rpt_buf;
+      while (buf) {
+         printf("%s\n", tb_get(buf->tb));
+         tb_free(buf->tb);
+         tagging->rpt_buf = buf->prev;
+         free(buf);
+         buf = tagging->rpt_buf;
+      };
+   }
 
    fclose(f);
 }
