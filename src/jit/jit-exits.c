@@ -36,6 +36,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __MINGW32__
+#include <share.h>
+#endif
+
 void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
                  int32_t name_len, int8_t mode, tree_t where)
 {
@@ -72,7 +76,8 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
       *fp = stdout;
    else {
 #ifdef __MINGW32__
-      const bool failed = (fopen_s(fp, fname, mode_str[mode]) != 0);
+      const bool failed =
+         ((*fp = _fsopen(fname, mode_str[mode], _SH_DENYNO)) == NULL);
 #else
       const bool failed = ((*fp = fopen(fname, mode_str[mode])) == NULL);
 #endif
@@ -83,7 +88,7 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
          else {
             switch (errno) {
             case ENOENT: *status = NAME_ERROR; break;
-            case EPERM:  *status = MODE_ERROR; break;
+            case EACCES: *status = MODE_ERROR; break;
             default:     *status = NAME_ERROR; break;
             }
          }

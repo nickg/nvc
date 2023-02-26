@@ -731,3 +731,4 @@ link4           normal
 predef3         normal
 wait26          fail,gold
 signal29        fail,gold
+file11          normal,2008
