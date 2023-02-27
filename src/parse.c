@@ -5270,6 +5270,7 @@ static ident_t p_entity_designator()
    ident_t id = p_identifier();
 
    if (peek() == tLSQUARE) {
+      // XXX: Review what to do here
       type_t constraints = p_signature();
    }
    return id;
@@ -5281,17 +5282,12 @@ static ident_list_t *p_entity_name_list(void)
    ident_list_t *result = NULL;
 
    switch (peek()) {
-   // LRM-2019 7.2 - Attribute Specification
    case tOTHERS:
-      // Attribute applies to the names entities of the class declared in the
-      // immediately enclosing declarative part, provided that each such entity
-      // is not explicitly named in the entity name list of the previous
-      // attribute specification for the given attribute. Error if this isn't
-      // the last attribute for the given entity class.
+      consume(tOTHERS);
+      break;
    case tALL:
-      // Attribute applies to all named entities of the class declared in the
-      // immediately enclosing declarative part. Error if this isn't the last
-      // attribute for the given entity class.
+      consume(tALL);
+      ident_list_push(&result, well_known(W_ALL), last_loc);
       break;
    default:
       ident_list_push(&result, p_entity_designator(), last_loc);
@@ -5323,10 +5319,6 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
    BEGIN("attribute specification");
 
    consume(tATTRIBUTE);
-   // entity_name_list ::=
-   //   entity_designator { , entity_designator }
-   //  |others
-   //  |all
    ident_t head = p_identifier();
 
    type_t type;
