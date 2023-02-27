@@ -266,8 +266,8 @@ jobs:
           fetch-depth: 1
       - uses: actions/checkout@v3
         with:
-          repository: nickg/vunit
-          ref: nvc
+          repository: VUnit/vunit
+          ref: master
           path: vunit
           submodules: recursive
           fetch-depth: 1
