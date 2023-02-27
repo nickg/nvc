@@ -503,17 +503,8 @@ class_t class_of(tree_t t)
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
    case T_ALL:
-      return class_of(tree_value(t));
    case T_ALIAS:
-      if (tree_has_type(t)) {
-         switch (type_kind(tree_type(t))) {
-         case T_FUNC: return C_FUNCTION;
-         case T_PROC: return C_PROCEDURE;
-         default: return class_of(tree_value(t));
-         }
-      }
-      else
-         return class_of(tree_value(t));
+      return class_of(tree_value(t));
    case T_PACKAGE:
    case T_PACK_BODY:
    case T_PACK_INST:

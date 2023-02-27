@@ -5262,6 +5262,35 @@ START_TEST(test_vunit9)
 }
 END_TEST
 
+START_TEST(test_alias3)
+{
+   input_from_file(TESTDIR "/parse/alias3.vhd");
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5367,6 +5396,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue541);
    tcase_add_test(tc_core, test_issue604);
    tcase_add_test(tc_core, test_vunit9);
+   tcase_add_test(tc_core, test_alias3);
    suite_add_tcase(s, tc_core);
 
    return s;

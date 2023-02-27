@@ -3232,8 +3232,15 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
       return type;
    }
 
-   if (tree_kind(decl) == T_ALIAS && !tree_has_type(decl))
-      type = tree_type(tree_value(decl));
+   if (tree_kind(decl) == T_ALIAS) {
+      // An alias declaration for an enumeration literal may contain a
+      // signature so make sure it doesn't look like a subprogram
+      tree_t aliased = tree_value(decl);
+      if (!tree_has_type(decl) || class_of(aliased) == C_LITERAL)
+         type = tree_type(aliased);
+      else
+         type = tree_type(decl);
+   }
    else
       type = tree_type(decl);
 
