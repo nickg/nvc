@@ -121,6 +121,8 @@ START_TEST(test_bounds2)
       {  97, "assignment delays must be in ascending time order"},
       {  98, "assignment delays must be in ascending time order"},
       {  99, "assignment delays must be in ascending time order"},
+      { 127, "length of type conversion argument 9 does not match expected "
+        "length 10 for constrained array subtype BV10" },
       { -1, NULL }
    };
    expect_errors(expect);

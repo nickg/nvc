@@ -220,6 +220,9 @@ void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where)
    case T_ASSOC:
       tb_cat(tb, "expected");
       break;
+   case T_TYPE_CONV:
+      tb_printf(tb, "subtype %s", type_pp(tree_type(where)));
+      break;
    default:
       tb_cat(tb, "target");
       break;

@@ -126,7 +126,7 @@ static void lower_decls(tree_t scope, vcode_unit_t context);
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg);
 static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
                                    type_t type, unsigned dim);
-static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+static void lower_check_array_sizes(tree_t where, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval);
 static vcode_type_t lower_alias_type(tree_t alias);
 static bool lower_const_bounds(type_t type);
@@ -4342,8 +4342,13 @@ static vcode_reg_t lower_conversion(vcode_reg_t value_reg, tree_t where,
       if (type_is_unconstrained(to))
          lower_check_indexes(to, wrap_reg, where);
       else
-         ;   // TODO: need to check length here?
+         lower_check_array_sizes(where, to, from, VCODE_INVALID_REG, wrap_reg);
       return wrap_reg;
+   }
+   else if (to_k == T_ARRAY && !type_is_unconstrained(from)) {
+      lower_check_array_sizes(where, to, from, VCODE_INVALID_REG,
+                              VCODE_INVALID_REG);
+      return value_reg;
    }
    else if ((from_k == T_INTEGER && to_k == T_INTEGER)
             || (from_k == T_REAL && to_k == T_REAL)) {

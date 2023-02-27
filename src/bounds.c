@@ -1066,39 +1066,59 @@ static void bounds_check_case(tree_t t)
       bounds_check_array_case(t, type);
 }
 
-static void bounds_check_type_conv(tree_t t)
+static void bounds_check_conv_integer(tree_t value, type_t from, type_t to)
 {
-   tree_t value = tree_value(t);
-
-   type_t from = tree_type(value);
-   type_t to   = tree_type(t);
-
-   if (type_is_integer(to)) {
-      int64_t ival = 0;
-      double rval = 0.0;
-      bool folded = false;
-      if (type_is_real(from)) {
-         folded = folded_real(value, &rval);
+   int64_t ival = 0;
+   double rval = 0.0;
+   bool folded = false;
+   if (type_is_real(from)) {
+      folded = folded_real(value, &rval);
          ival = (int64_t)rval;
-      }
-      else if (type_is_integer(from))
-         folded = folded_int(value, &ival);
+   }
+   else if (type_is_integer(from))
+      folded = folded_int(value, &ival);
 
-      if (folded) {
-         int64_t b_low, b_high;
-         if (folded_bounds(range_of(to, 0), &b_low, &b_high)
-             && (ival < b_low || ival > b_high)) {
-            char *argstr LOCAL = type_is_real(from)
-               ? xasprintf("%lg", rval) : xasprintf("%"PRIi64, ival);
-            bounds_error(value, "type conversion argument %s out of "
-                         "bounds %"PRIi64" to %"PRIi64, argstr, b_low, b_high);
-         }
+   if (folded) {
+      int64_t b_low, b_high;
+      if (folded_bounds(range_of(to, 0), &b_low, &b_high)
+          && (ival < b_low || ival > b_high)) {
+         char *argstr LOCAL = type_is_real(from)
+            ? xasprintf("%lg", rval) : xasprintf("%"PRIi64, ival);
+         bounds_error(value, "type conversion argument %s out of "
+                      "bounds %"PRIi64" to %"PRIi64, argstr, b_low, b_high);
       }
    }
-   else if (type_is_array(to) && !type_is_unconstrained(from)) {
-      const int ndims = dimension_of(to);
-      assert(ndims == dimension_of(from));
+}
 
+static void bounds_check_conv_array(tree_t value, type_t from, type_t to)
+{
+   const int ndims = dimension_of(to);
+   assert(ndims == dimension_of(from));
+
+   const bool to_constrained = !type_is_unconstrained(to);
+   const bool from_constrained = !type_is_unconstrained(from);
+
+   if (to_constrained && from_constrained) {
+      for (int i = 0; i < ndims; i++) {
+         tree_t r_to = range_of(to, i);
+         tree_t r_from = range_of(from, i);
+
+         int64_t to_length;
+         if (!folded_length(r_to, &to_length))
+            continue;
+
+         int64_t from_length;
+         if (!folded_length(r_from, &from_length))
+            continue;
+
+         if (to_length != from_length)
+            bounds_error(value, "length of type conversion argument %"PRIi64
+                         " does not match expected length %"PRIi64
+                         " for constrained array subtype %s",
+                         from_length, to_length, type_pp(to));
+      }
+   }
+   else if (!to_constrained && from_constrained) {
       for (int i = 0; i < ndims; i++) {
          type_t index_type = index_type_of(to, i);
          tree_t r_to = range_of(index_type, i);
@@ -1113,9 +1133,9 @@ static void bounds_check_type_conv(tree_t t)
 
          int64_t f_low, f_high;
          if (!folded_bounds(r_from, &f_low, &f_high))
-            return;
+            continue;
          else if (f_low > f_high)
-            return;  // Null range
+            continue;  // Null range
 
          int64_t folded = 0;
          const char *error = NULL;
@@ -1135,12 +1155,25 @@ static void bounds_check_type_conv(tree_t t)
             bounds_fmt_type_range(tb, index_type, tree_subkind(r_to),
                                   low, high);
 
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
             diag_message(d, tb);
             diag_emit(d);
          }
       }
    }
+}
+
+static void bounds_check_type_conv(tree_t t)
+{
+   tree_t value = tree_value(t);
+
+   type_t from = tree_type(value);
+   type_t to   = tree_type(t);
+
+   if (type_is_integer(to))
+      bounds_check_conv_integer(value, from, to);
+   else if (type_is_array(to))
+      bounds_check_conv_array(value, from, to);
 }
 
 static void bounds_check_attr_ref(tree_t t)

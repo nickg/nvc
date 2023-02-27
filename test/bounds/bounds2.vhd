@@ -118,4 +118,14 @@ begin
     begin
     end block;
 
+    typeconv: process is
+        type bv10 is array (1 to 10) of bit;
+        variable a : bv10;
+        variable b : bit_vector(1 to 10);
+    begin
+        a := bv10(b);                   -- OK
+        a := bv10(b(1 to 9));           -- Error
+        wait;
+    end process;
+
 end architecture;
