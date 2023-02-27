@@ -20,8 +20,9 @@ simulation behaviour of the language as described by the [IEEE
 1076](https://standards.ieee.org/standard/1076-2019.html) standard.
 
 NVC supports popular verification frameworks including
-[OSVVM](https://osvvm.org/) and [UVVM](https://www.uvvm.org/).  See
-[below](#vendor-libraries) for installation instructions.
+[OSVVM](https://osvvm.org/), [UVVM](https://www.uvvm.org/), and
+[VUnit](https://vunit.github.io/).  See [below](#vendor-libraries) for
+installation instructions.
 
 ### Usage
 
@@ -106,8 +107,8 @@ Finally build and install using the standard autotools steps:
     sudo make install
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
-to the configure command.  The minimum supported LLVM version is 7.0.
-Versions 7, 8, 9, 10, 11 and 12 have all been tested.
+to the configure command.  The minimum supported LLVM version is 8.0.
+Versions between 8 and 15 have all been tested.
 
 On Linux the `libdw` or `libdwarf` libraries can be used to generate
 more accurate VHDL stack traces if installed.

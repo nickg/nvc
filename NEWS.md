@@ -19,6 +19,7 @@
   time for short-running simulations.
 - Statements like `wait for X` where `X` is negative but not a constant
   now produce an error at run time (#633).
+- NVC is now supported by [VUnit](https://vunit.github.io/).
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.
