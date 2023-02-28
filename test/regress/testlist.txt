@@ -670,6 +670,7 @@ issue519        normal,2008
 delay3          fail,gold
 issue536        shell
 wait25          normal
+issue539        normal,2008
 issue542        normal
 issue540        normal,2008
 guard3          normal
@@ -734,3 +735,4 @@ signal29        fail,gold
 file11          normal,2008
 issue617        fail,gold
 bounds39        fail,gold
+issue610        normal,2008
