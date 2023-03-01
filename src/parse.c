@@ -5264,13 +5264,48 @@ static class_t p_entity_class(void)
    }
 }
 
+static ident_t p_entity_designator()
+{
+   // entity_tag [ signature ]
+   ident_t id = p_identifier();
+
+   if (peek() == tLSQUARE) {
+      // XXX: Review what to do here
+      (void)p_signature();
+      warn_at(CURRENT_LOC, "sorry, signature in attribute entity name list is not yet supported");
+   }
+   return id;
+}
+
+static ident_list_t *p_entity_name_list(void)
+{
+   // entity_designator { , entity_designator } | others | all
+   ident_list_t *result = NULL;
+
+   switch (peek()) {
+   case tOTHERS:
+      consume(tOTHERS);
+      break;
+   case tALL:
+      consume(tALL);
+      ident_list_push(&result, well_known(W_ALL), last_loc);
+      break;
+   default:
+      ident_list_push(&result, p_entity_designator(), last_loc);
+
+      while (optional(tCOMMA))
+         ident_list_push(&result, p_entity_designator(), last_loc);
+   }
+   return result;
+}
+
 static ident_list_t *p_entity_specification(class_t *class)
 {
    // entity_name_list : entity_class
 
    BEGIN("entity specification");
 
-   ident_list_t *ids = p_identifier_list();
+   ident_list_t *ids = p_entity_name_list();
 
    consume(tCOLON);
 
