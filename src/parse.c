@@ -5271,7 +5271,8 @@ static ident_t p_entity_designator()
 
    if (peek() == tLSQUARE) {
       // XXX: Review what to do here
-      type_t constraints = p_signature();
+      (void)p_signature();
+      warn_at(CURRENT_LOC, "sorry, signature in attribute entity name list is not yet supported");
    }
    return id;
 }
