@@ -296,17 +296,19 @@ static int parse_optimise_level(const char *str)
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "dump-llvm",   no_argument,       0, 'd' },
-      { "dump-vcode",  optional_argument, 0, 'v' },
-      { "cover",       optional_argument, 0, 'c' },
-      { "verbose",     no_argument,       0, 'V' },
-      { "no-save",     no_argument,       0, 'N' },
-      { "jit",         no_argument,       0, 'j' },
+      { "dump-llvm",       no_argument,       0, 'd' },
+      { "dump-vcode",      optional_argument, 0, 'v' },
+      { "cover",           optional_argument, 0, 'c' },
+      { "cover-spec",      required_argument, 0, 's' },
+      { "verbose",         no_argument,       0, 'V' },
+      { "no-save",         no_argument,       0, 'N' },
+      { "jit",             no_argument,       0, 'j' },
       { 0, 0, 0, 0 }
    };
 
    bool use_jit = false;
    cover_mask_t cover_mask = 0;
+   char *cover_spec_file = NULL;
    int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
@@ -340,6 +342,9 @@ static int elaborate(int argc, char **argv)
       case 'g':
          parse_generic(optarg);
          break;
+      case 's':
+         cover_spec_file = optarg;
+         break;
       case 0:
          // Set a flag
          break;
@@ -369,6 +374,9 @@ static int elaborate(int argc, char **argv)
    cover_tagging_t *cover = NULL;
    if (cover_mask != 0)
       cover = cover_tags_init(cover_mask, cover_array_limit);
+
+   if (cover_spec_file)
+      cover_load_spec_file(cover, cover_spec_file);
 
    tree_t top = elab(unit, cover);
    if (top == NULL)

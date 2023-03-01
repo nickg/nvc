@@ -52,12 +52,14 @@ typedef struct {
 
 typedef A(cover_tag_t) tag_array_t;
 typedef A(line_range_t) range_array_t;
+typedef A(text_buf_t*) tb_array_t;
 
 typedef struct _cover_report_ctx    cover_report_ctx_t;
 typedef struct _cover_file          cover_file_t;
 typedef struct _cover_scope         cover_scope_t;
 typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
 typedef struct _cover_rpt_buf       cover_rpt_buf_t;
+typedef struct _cover_spec          cover_spec_t;
 
 typedef struct _cover_scope {
    ident_t        name;
@@ -67,6 +69,7 @@ typedef struct _cover_scope {
    cover_scope_t *parent;
    range_array_t  ignore_lines;
    int            sig_pos;
+   bool           emit;
 } cover_scope_t;
 
 struct _cover_rpt_buf {
@@ -74,20 +77,29 @@ struct _cover_rpt_buf {
    cover_rpt_buf_t *prev;
 };
 
+struct _cover_spec {
+   tb_array_t hier_include;
+   tb_array_t hier_exclude;
+   tb_array_t block_include;
+   tb_array_t block_exclude;
+};
+
 struct _cover_tagging {
-   int               next_stmt_tag;
-   int               next_branch_tag;
-   int               next_toggle_tag;
-   int               next_expression_tag;
-   int               next_hier_tag;
-   ident_t           hier;
-   tag_array_t       tags;
-   cover_mask_t      mask;
-   int               array_limit;
-   int               array_depth;
-   int               report_item_limit;
-   cover_rpt_buf_t  *rpt_buf;
-   cover_scope_t    *top_scope;
+   int                  next_stmt_tag;
+   int                  next_branch_tag;
+   int                  next_toggle_tag;
+   int                  next_expression_tag;
+   int                  next_hier_tag;
+   ident_t              hier;
+   ident_t              block_name;
+   tag_array_t          tags;
+   cover_mask_t         mask;
+   int                  array_limit;
+   int                  array_depth;
+   int                  report_item_limit;
+   cover_rpt_buf_t     *rpt_buf;
+   cover_spec_t        *spec;
+   cover_scope_t       *top_scope;
 };
 
 typedef struct {
@@ -294,6 +306,9 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    int *cnt;
    assert (ctx != NULL);
 
+   if (!ctx->top_scope->emit && kind != TAG_HIER)
+      return NULL;
+
    // TODO: need a better way to determine if a scope comes from an instance
    cover_scope_t *ignore_scope = ctx->top_scope;
    for (; ignore_scope->ignore_lines.count == 0 && ignore_scope->parent;
@@ -458,6 +473,31 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
    tagging->hier = hier;
 }
 
+bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
+{
+   // Hierarchy
+   for (int i = 0; i < tagging->spec->hier_exclude.count; i++)
+      if (ident_glob(tagging->hier, tb_get(AGET(tagging->spec->hier_exclude, i)), -1))
+         return false;
+
+   for (int i = 0; i < tagging->spec->hier_include.count; i++)
+      if (ident_glob(tagging->hier, tb_get(AGET(tagging->spec->hier_include, i)), -1))
+         return true;
+
+   // Block (entity, package instance or block) name
+   if (tagging->block_name) {
+      for (int i = 0; i < tagging->spec->block_exclude.count; i++)
+         if (ident_glob(tagging->block_name, tb_get(AGET(tagging->spec->block_exclude, i)), -1))
+            return false;
+
+      for (int i = 0; i < tagging->spec->block_include.count; i++)
+         if (ident_glob(tagging->block_name, tb_get(AGET(tagging->spec->block_include, i)), -1))
+            return true;
+   }
+
+   return false;
+}
+
 void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 {
    if (tagging == NULL || t == NULL)
@@ -513,9 +553,16 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
 
+   s->emit = true;
+   if (tagging->spec) {
+      s->emit = false;
+      s->emit = cover_should_emit_scope(tagging, t);
+   }
+
 #ifdef COVER_DEBUG_SCOPE
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
    printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
+   printf("Coverage emit: %d\n\n", s->emit);
 #endif
 }
 
@@ -538,6 +585,13 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    tagging->hier = ident_runtil(tagging->hier, '.');
    assert(tagging->hier != NULL);
+}
+
+void cover_set_block_name(cover_tagging_t *tagging, ident_t name)
+{
+   assert(tagging != NULL);
+
+   tagging->block_name = name;
 }
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
@@ -714,6 +768,76 @@ void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
       *n_expressions = tagging->next_expression_tag;
    }
 }
+
+void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
+{
+   cover_exclude_ctx_t ctx = {};
+
+   ctx.ef = fopen(path, "r");
+   if (ctx.ef == NULL)
+      fatal_errno("failed to open coverage specification file: %s\n", path);
+
+   tagging->spec = xcalloc(sizeof(cover_spec_t));
+
+   char *delim = " ";
+   ssize_t read;
+   loc_file_ref_t file_ref = loc_file_ref(path, NULL);
+   int line_num = 1;
+   size_t line_len;
+
+   while ((read = getline(&(ctx.line), &line_len, ctx.ef)) != -1) {
+
+      // Strip comments and newline
+      char *p = ctx.line;
+      for (; *p != '\0' && *p != '#' && *p != '\n'; p++);
+      *p = '\0';
+
+      ctx.loc = get_loc(line_num, 0, line_num, p - ctx.line - 1, file_ref);
+
+      // Parse line as space separated tokens
+      for (char *tok = strtok(ctx.line, delim); tok; tok = strtok(NULL, delim)) {
+         bool include;
+         if (tok[0] == '+')
+            include = true;
+         else if (tok[0] == '-')
+            include = false;
+         else
+            fatal_at(&ctx.loc, "Coverage specification command must "
+                               "start with '+' or '-");
+         tok++;
+
+         tb_array_t *arr;
+         if (!strcmp(tok, "hierarchy")) {
+            if (include)
+               arr = &(tagging->spec->hier_include);
+            else
+               arr = &(tagging->spec->hier_exclude);
+         }
+         else if (!strcmp(tok, "block")) {
+            if (include)
+               arr = &(tagging->spec->block_include);
+            else
+               arr = &(tagging->spec->block_exclude);
+         }
+         else
+            fatal_at(&ctx.loc, "invalid command: $bold$%s$$", tok);
+
+         char *hier = strtok(NULL, delim);
+            if (!hier)
+               fatal_at(&ctx.loc, "%s name missing", tok);
+
+         text_buf_t *tb = tb_new();
+         tb_printf(tb, "%s", hier);
+         APUSH(*arr, tb);
+
+         tok = strtok(NULL, delim);
+      }
+      line_num++;
+   }
+
+   fclose(ctx.ef);
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Runtime handling
