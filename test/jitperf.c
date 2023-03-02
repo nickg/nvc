@@ -22,6 +22,7 @@
 #include "jit/jit.h"
 #include "jit/jit-llvm.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/mspace.h"
@@ -215,10 +216,8 @@ int main(int argc, char **argv)
          if (error_count() > 0)
             return EXIT_FAILURE;
 
-         if (unit_needs_cgen(unit)) {
-            vcode_unit_t vu = lower_unit(unit, NULL);
-            lib_put_vcode(work, unit, vu);
-         }
+         if (unit_needs_cgen(unit))
+            lower_standalone_unit(unit);
 
          if (pack == NULL && tree_kind(unit) == T_PACKAGE)
             pack = unit;

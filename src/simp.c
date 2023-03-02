@@ -154,7 +154,7 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    else if (!eval_possible(ctx->eval, t))
       return t;
 
-   return eval_try_fold(ctx->eval, t);
+   return eval_try_fold(ctx->eval, t, NULL, NULL);
 }
 
 static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
@@ -1264,7 +1264,7 @@ void simplify_global(tree_t top, hash_t *generics, eval_t *ex)
    simp_ctx_t ctx = {
       .top       = top,
       .eval      = ex,
-      .eval_mask = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
+      .eval_mask = TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC,
       .generics  = generics,
    };
 

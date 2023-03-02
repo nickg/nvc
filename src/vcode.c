@@ -182,7 +182,8 @@ struct _vcode_unit {
    unit_flags_t   flags;
    vcode_unit_t   children;
    vcode_unit_t   next;
-   object_t      *object;
+   ident_t        module;
+   ptrdiff_t      offset;
 };
 
 #define MASK_CONTEXT(x)   ((x) >> 24)
@@ -940,7 +941,7 @@ const char *vcode_op_string(vcode_op_t op)
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
-      "trap neg", "process init", "clear event", "trap exp"
+      "trap neg", "process init", "clear event", "trap exp", "implicit event"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1898,10 +1899,17 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
-               if (op->args.count > 2) {
-                  printf(" wake ");
-                  vcode_dump_reg(op->args.items[2]);
-               }
+            }
+            break;
+
+         case VCODE_OP_IMPLICIT_EVENT:
+            {
+               printf("%s on ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" wake ");
+               vcode_dump_reg(op->args.items[2]);
             }
             break;
 
@@ -2920,7 +2928,8 @@ vcode_unit_t vcode_unit_context(void)
 object_t *vcode_unit_object(vcode_unit_t vu)
 {
    assert(vu != NULL);
-   return vu->object;
+   return object_from_locus(vu->module, vu->offset,
+                            (object_load_fn_t)lib_get_qualified);
 }
 
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
@@ -2971,7 +2980,8 @@ vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    vcode_add_child(context, vu);
 
@@ -2992,7 +3002,8 @@ vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    vcode_add_child(context, vu);
 
@@ -3015,7 +3026,8 @@ vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    vcode_add_child(context, vu);
 
@@ -3038,7 +3050,8 @@ vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3060,7 +3073,8 @@ vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3082,7 +3096,8 @@ vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3105,7 +3120,8 @@ vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context)
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->object   = obj;
+
+   object_locus(obj, &vu->module, &vu->offset);
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -4974,29 +4990,42 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    op->type = vtype_pointed(dtype);
 }
 
-void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems)
 {
    VCODE_FOR_EACH_OP(other) {
       if (other->kind == VCODE_OP_CLEAR_EVENT)
          break;
       else if (other->kind == VCODE_OP_SCHED_EVENT
                && other->args.items[0] == nets
-               && other->args.items[1] == n_elems
-               && wake == VCODE_INVALID_REG && other->args.count == 2)
+               && other->args.items[1] == n_elems)
          return;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
-   if (wake != VCODE_INVALID_REG)
-      vcode_add_arg(op, wake);
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "nets argument to sched event must be signal");
-   VCODE_ASSERT(wake == VCODE_INVALID_REG
-                || vcode_reg_kind(wake) == VCODE_TYPE_SIGNAL,
-                "wake argument to sched event must be signal");
+}
+
+void emit_implicit_event(vcode_reg_t nets, vcode_reg_t count, vcode_reg_t wake)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMPLICIT_EVENT) {
+      if (other->args.items[0] == nets && other->args.items[1] == count
+          && other->args.items[1] == wake)
+         return;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_EVENT);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, wake);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to implicit event must be signal");
+   VCODE_ASSERT(vcode_reg_kind(wake) == VCODE_TYPE_SIGNAL,
+                "wake argument to implicit event must be signal");
 }
 
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)
@@ -5590,12 +5619,15 @@ void emit_unreachable(vcode_reg_t locus)
       vcode_add_arg(op, locus);
 }
 
-vcode_reg_t emit_undefined(vcode_type_t type)
+vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds)
 {
    active_unit->flags |= UNIT_UNDEFINED;
 
    op_t *op = vcode_add_op(VCODE_OP_UNDEFINED);
-   return (op->result = vcode_add_reg(type));
+   op->result = vcode_add_reg(type);
+   vcode_reg_data(op->result)->bounds = bounds;
+
+   return op->result;
 }
 
 vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
@@ -5740,12 +5772,13 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
    fbuf_put_int(f, unit->flags);
    fbuf_put_int(f, unit->depth);
 
-   ident_t unit_name;
-   ptrdiff_t offset;
-   object_locus(unit->object, &unit_name, &offset);
+   if (unit->offset < 0) {
+      object_t *obj = object_from_locus(unit->module, unit->offset, NULL);
+      object_locus(obj, &unit->module, &unit->offset);
+   }
 
-   ident_write(unit_name, ident_wr_ctx);
-   fbuf_put_uint(f, offset);
+   ident_write(unit->module, ident_wr_ctx);
+   fbuf_put_uint(f, unit->offset);
 
    if (unit->context != NULL) {
       vcode_select_unit(unit);
@@ -5762,7 +5795,12 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       fbuf_put_uint(f, b->ops.count);
 
       for (unsigned j = 0; j < b->ops.count; j++) {
-         const op_t *op = &(b->ops.items[j]);
+         op_t *op = &(b->ops.items[j]);
+
+         if (op->kind == VCODE_OP_DEBUG_LOCUS && op->value < 0) {
+            object_t *obj = object_from_locus(op->ident, op->value, NULL);
+            object_locus(obj, &op->ident, &op->value);
+         }
 
          fbuf_put_uint(f, op->kind);
          fbuf_put_uint(f, op->result);
@@ -5910,17 +5948,13 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       return false;
 
    vcode_unit_t unit = xcalloc(sizeof(struct _vcode_unit));
-   unit->kind     = marker;
-   unit->name     = ident_read(ident_rd_ctx);
-   unit->result   = fbuf_get_int(f);
-   unit->flags    = fbuf_get_int(f);
-   unit->depth    = fbuf_get_int(f);
-
-   ident_t unit_name = ident_read(ident_rd_ctx);
-   ptrdiff_t offset = fbuf_get_uint(f);
-
-   unit->object = object_from_locus(unit_name, offset,
-                                    (object_load_fn_t)lib_get_qualified);
+   unit->kind   = marker;
+   unit->name   = ident_read(ident_rd_ctx);
+   unit->result = fbuf_get_int(f);
+   unit->flags  = fbuf_get_int(f);
+   unit->depth  = fbuf_get_int(f);
+   unit->module = ident_read(ident_rd_ctx);
+   unit->offset = fbuf_get_uint(f);
 
    ident_t context_name = ident_read(ident_rd_ctx);
    if (context_name != NULL) {

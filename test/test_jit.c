@@ -1047,8 +1047,7 @@ START_TEST(test_process1)
    };
    expect_errors(expect);
 
-   tree_t top = run_elab();
-   lower_unit(top, NULL);
+   run_elab();
 
    jit_t *j = jit_new();
 

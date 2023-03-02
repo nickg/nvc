@@ -89,7 +89,6 @@ typedef struct {
 typedef struct _jit {
    chash_t        *index;
    mspace_t       *mspace;
-   jit_lower_fn_t  lower_fn;
    void           *lower_ctx;
    hash_t         *layouts;
    bool            silent;
@@ -277,19 +276,6 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       vu = vcode_find_unit(name);
    }
 
-   ident_t alias = NULL;
-   if (vu == NULL && descr == NULL && j->lower_fn != NULL) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      if ((vu = (*j->lower_fn)(name, j->lower_ctx))) {
-         vcode_select_unit(vu);
-         alias = vcode_unit_name();   // May have $thunk appended
-      }
-
-      vcode_state_restore(&state);
-   }
-
    if (vu == NULL && descr == NULL)
       return JIT_HANDLE_INVALID;
 
@@ -297,7 +283,7 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 
    f = xcalloc(sizeof(jit_func_t));
 
-   f->name      = alias ?: name;
+   f->name      = name;
    f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
    f->unit      = vu;
    f->jit       = j;
@@ -309,9 +295,6 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 
    // Install now to allow circular references in relocations
    jit_install(j, f);
-
-   if (alias != NULL && alias != name)
-      chash_put(j->index, name, f);
 
    if (descr != NULL) {
       for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
@@ -790,7 +773,8 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    return true;
 }
 
-bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
+bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result,
+                    void *context)
 {
    vcode_select_unit(unit);
    assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
@@ -806,6 +790,8 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    jit_irgen(f);
 
    jit_scalar_t args[JIT_MAX_ARGS];
+   args[0].pointer = context;
+
    bool ok = jit_try_vcall(j, f, result, args);
 
    jit_free_func(f);
@@ -816,12 +802,6 @@ tlab_t jit_null_tlab(jit_t *j)
 {
    tlab_t t = { .mspace = j->mspace };
    return t;
-}
-
-void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
-{
-   j->lower_fn = fn;
-   j->lower_ctx = ctx;
 }
 
 const jit_layout_t *jit_layout(jit_t *j, type_t type)
@@ -1424,14 +1404,16 @@ bool jit_will_abort(jit_ir_t *ir)
 void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
                          int n_expressions)
 {
-   j->cover_mem[JIT_COVER_STMT] =
-      xcalloc_array(n_stmts, sizeof(int32_t));
-   j->cover_mem[JIT_COVER_BRANCH] =
-      xcalloc_array(n_branches, sizeof(int32_t));
-   j->cover_mem[JIT_COVER_TOGGLE] =
-      xcalloc_array(n_toggles, sizeof(int32_t));
-   j->cover_mem[JIT_COVER_EXPRESSION] =
-      xcalloc_array(n_expressions, sizeof(int32_t));
+   const int counts[4] = { n_stmts, n_branches, n_toggles, n_expressions };
+   for (int i = 0; i < 4; i++) {
+      if (counts[i] == 0)
+         continue;
+      else if (j->cover_mem[i] == NULL)
+         j->cover_mem[i] = xcalloc_array(counts[i], sizeof(int32_t));
+      else
+         j->cover_mem[i] = xrealloc_array(j->cover_mem[i],
+                                          counts[i], sizeof(int32_t));
+   }
 }
 
 int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind)

@@ -13,9 +13,9 @@ entity issue483 is
 end entity;
 
 architecture rtl of issue483 is
+    signal C_CONST : std_logic := glob_sig;
 begin
   p_proc : process
-    constant C_CONST : std_logic := glob_sig;
   begin
     assert C_CONST = '1';
     wait;

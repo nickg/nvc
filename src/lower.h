@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,23 +15,19 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _EVAL_H
-#define _EVAL_H
+#ifndef _LOWER_H
+#define _LOWER_H
 
-#include "prim.h"
-#include "phase.h"
+#include <prim.h>
 
-typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
+lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
+                             cover_tagging_t *cover, tree_t container);
+void lower_unit_free(lower_unit_t *lu);
 
-eval_t *eval_new(void);
-void eval_free(eval_t *ex);
-tree_t eval_try_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
-                     void *context);
-tree_t eval_must_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
-                     void *context);
-bool eval_possible(eval_t *e, tree_t t);
-tree_t eval_case(eval_t *ex, tree_t stmt);
-void *eval_instance(eval_t *ex, ident_t name, void *context);
-void eval_alloc_cover_mem(eval_t *ex, cover_tagging_t *cover);
+void lower_standalone_unit(tree_t unit);
+lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
+                             tree_t block);
+void lower_process(lower_unit_t *parent, tree_t proc);
+vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t fcall);
 
-#endif  // _EVAL_H
+#endif  // _LOWER_H

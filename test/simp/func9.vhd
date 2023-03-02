@@ -16,11 +16,12 @@ architecture test of func9 is
 
 begin
 
-    process is
-    begin
-        assert get_message('1') = "one";
-        assert get_message('0') = "zero";
-        wait;
-    end process;
+    g1: if get_message('1') /= "one" generate
+        a1: assert false;
+    end generate;
+
+    g2: if get_message('0') /= "zero" generate
+        a1: assert false;
+    end generate;
 
 end architecture;

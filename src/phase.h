@@ -37,13 +37,13 @@ void simplify_global(tree_t top, hash_t *generics, eval_t *ex);
 void bounds_check(tree_t top);
 
 // Elaborate a top level entity
-tree_t elab(tree_t top);
+tree_t elab(tree_t top, cover_tagging_t *cover);
 
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for a design unit
-void cgen(tree_t top, vcode_unit_t vu, cover_tagging_t *cover);
+void cgen(tree_t top, cover_tagging_t *cover);
 
 // Generate ahead-of-time preload library
 void aotgen(const char *outfile, char **argv, int argc);
@@ -56,11 +56,5 @@ void make(tree_t *targets, int count, FILE *out);
 
 // Read the next unit from the input file
 tree_t parse(void);
-
-// Generate vcode for a design unit
-vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover);
-
-// Generate vcode for an isolated function call
-vcode_unit_t lower_thunk(tree_t fcall);
 
 #endif  // _PHASE_H

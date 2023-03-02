@@ -4,6 +4,13 @@ package pack is
   function to_integer (constant value : unsigned) return integer;
 end package;
 
+package body pack is
+    function to_integer (constant value : unsigned) return integer is
+    begin
+        return 0;
+    end function;
+end package body;
+
 entity to_integer_string_bug is
 end entity;
 

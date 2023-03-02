@@ -41,6 +41,8 @@ typedef struct _object_arena {
    void           *alloc;
    void           *limit;
    bool            frozen;
+   bool            has_locus;
+   uint32_t       *forward;
    mark_mask_t    *mark_bits;
    size_t          mark_sz;
    generation_t    generation;
@@ -520,7 +522,7 @@ void object_arena_gc(object_arena_t *arena)
 
    // Calculate forwarding addresses
    const size_t fwdsz = (arena->alloc - arena->base) / OBJECT_ALIGN;
-   uint32_t *forward LOCAL = xmalloc_array(fwdsz, sizeof(uint32_t));
+   uint32_t *forward = xmalloc_array(fwdsz, sizeof(uint32_t));
    unsigned woffset = 0, live = 0, dead = 0;
    for (void *rptr = arena->base; rptr != arena->alloc; ) {
       assert(rptr < arena->alloc);
@@ -578,6 +580,14 @@ void object_arena_gc(object_arena_t *arena)
    arena->alloc = (char *)arena->base + woffset;
 
  skip_gc:
+   if (arena->has_locus) {
+      // Need to keep a copy of the forwarding table for loci created
+      // before freezing
+      arena->forward = forward;
+   }
+   else
+      free(forward);
+
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
       debugf("GC: %s: freed %d objects; %d allocated [%d us]",
@@ -1254,8 +1264,10 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 
    *offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
 
-   if (!arena->frozen)
+   if (!arena->frozen) {
       *offset = -*offset;
+      arena->has_locus = true;
+   }
 }
 
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
@@ -1281,9 +1293,11 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
       arena = __object_arena(droot);
    }
 
-   if (offset < 0 && arena->frozen)
+   if (offset < 0 && arena->frozen && arena->forward == NULL)
       fatal_trace("locus %s%+"PRIiPTR" was created before arena was frozen",
                   istr(module), offset);
+   else if (offset < 0 && arena->frozen)
+      offset = arena->forward[-offset] >> OBJECT_ALIGN_BITS;
    else if (offset < 0)
       offset = -offset;
 
@@ -1296,6 +1310,9 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
    if (obj->tag >= OBJECT_TAG_COUNT)
       fatal_trace("invalid tag %d for object locus %s%+"PRIiPTR, obj->tag,
                   istr(module), offset);
+   else if (obj->arena != arena->key)
+      fatal_trace("invalid arena key %d != %d for object locus %s%+"PRIiPTR,
+                  obj->arena, arena->key, istr(module), offset);
 
    return obj;
 }

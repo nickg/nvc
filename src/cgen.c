@@ -343,14 +343,40 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
    }
 }
 
-void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
+void cgen(tree_t top, cover_tagging_t *cover)
 {
-   ident_t name = tree_ident(top);
-   if (tree_kind(top) == T_PACK_BODY)
+   ident_t name = NULL;
+   vcode_unit_t vu = NULL;
+
+   switch (tree_kind(top)) {
+   case T_PACKAGE:
+      name = tree_ident(top);
+      vu = vcode_find_unit(name);
+      break;
+
+   case T_PACK_BODY:
       name = tree_ident(tree_primary(top));
+      vu = vcode_find_unit(name);
+      break;
+
+   case T_ELAB:
+      {
+         ident_t b0_name = tree_ident(tree_stmt(top, 0));
+         ident_t work_name = lib_name(lib_work());
+         name = tree_ident(top);
+         vu = vcode_find_unit(ident_prefix(work_name, b0_name, '.'));
+      }
+      break;
+
+   default:
+      fatal_trace("cannot generate code for %s", tree_kind_str(tree_kind(top)));
+   }
+
+   if (vu == NULL)
+      fatal_trace("missing vcode for %s", istr(name));
 
    unit_list_t units = AINIT;
-   cgen_find_units(vcode, &units);
+   cgen_find_units(vu, &units);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();

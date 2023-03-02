@@ -303,7 +303,7 @@ START_TEST(test_issue159)
 
    lib_t other = lib_tmp("dummy");
    lib_set_work(other);
-   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, -1);
+   parse_check_simplify_and_lower(T_PACKAGE, T_ENTITY, T_ARCH, -1);
    fail_if_errors();
 
    lib_set_work(work);
@@ -318,7 +318,8 @@ START_TEST(test_issue175)
 
    lib_t lib2 = lib_tmp("lib2");
    lib_set_work(lib2);
-   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY, -1);
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY, T_PACKAGE,
+                                  T_PACK_BODY, -1);
    fail_if_errors();
 
    lib_t lib = lib_tmp("lib");
@@ -457,9 +458,9 @@ START_TEST(test_issue305)
    fail_unless(tree_kind(s) == T_SIGNAL_DECL);
    fail_unless(icmp(tree_ident(s), "DATA_I"));
 
+   // This used to be folded but currently not
    int64_t len;
-   fail_unless(folded_length(range_of(tree_type(s), 0), &len));
-   fail_unless(len == 8);
+   fail_if(folded_length(range_of(tree_type(s), 0), &len));
 
    fail_if_errors();
 }
@@ -852,7 +853,7 @@ START_TEST(test_tc846)
    fail_if(e == NULL);
 
    tree_t b0 = tree_stmt(e, 0);
-   fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846ENT"));
+   fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846CFG"));
    fail_unless(tree_stmts(b0) == 2);
 
    tree_t a1 = tree_stmt(b0, 0);
@@ -900,7 +901,7 @@ START_TEST(test_issue442)
    fail_if(e == NULL);
 
    tree_t b0 = tree_stmt(e, 0);
-   fail_unless(tree_ident(b0) == ident_new("ISSUE442"));
+   fail_unless(tree_ident(b0) == ident_new("ISSUE442_1"));
    fail_unless(tree_stmts(b0) == 1);
 
    tree_t dut = tree_stmt(b0, 0);
@@ -956,7 +957,8 @@ START_TEST(test_fold1)
    tree_t u = tree_stmt(b0, 0);
    fail_unless(tree_ident(u) == ident_new("U"));
    fail_unless(tree_kind(u) == T_BLOCK);
-   fail_unless(tree_stmts(u) == 0);
+   // This used to get folded by the old evaluator
+   fail_unless(tree_stmts(u) == 1);
    fail_unless(tree_genmaps(u) == 1);
    fail_unless(tree_decls(u) == 3);
 
@@ -983,7 +985,8 @@ START_TEST(test_fold2)
    tree_t u = tree_stmt(b0, 0);
    fail_unless(tree_ident(u) == ident_new("U"));
    fail_unless(tree_kind(u) == T_BLOCK);
-   fail_unless(tree_stmts(u) == 0);
+   // This used to get folded by the old evaluator
+   fail_unless(tree_stmts(u) == 1);
    fail_unless(tree_genmaps(u) == 1);
    fail_unless(tree_decls(u) == 3);
 
@@ -1224,6 +1227,114 @@ START_TEST(test_config1)
 }
 END_TEST
 
+START_TEST(test_ename2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/ename2.vhd");
+
+   const error_t expect[] = {
+      { 22, "external name K not found" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_assert7)
+{
+   input_from_file(TESTDIR "/elab/assert7.vhd");
+
+   const error_t expect[] = {
+      {  8, "Assertion violation." },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue539)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue539.vhd");
+
+   const error_t expect[] = {
+      { 23, "value length 2 does not match signal S length 1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_bounds14)
+{
+   input_from_file(TESTDIR "/elab/bounds14.vhd");
+
+   const error_t expect[] = {
+      { 11, "value length 12 does not match signal X length 8" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_bounds21)
+{
+   input_from_file(TESTDIR "/elab/bounds21.vhd");
+
+   const error_t expect[] = {
+      { 18, "actual length 8 does not match generic INFO length 7" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue228)
+{
+   elab_set_generic("G", "10");
+
+   input_from_file(TESTDIR "/elab/issue228.vhd");
+
+   const error_t expect[] = {
+      {  2, "value 10 outside of INTEGER range 0 to 3 for generic G" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1294,6 +1405,12 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue514);
    tcase_add_test(tc, test_issue518);
    tcase_add_test(tc, test_config1);
+   tcase_add_test(tc, test_ename2);
+   tcase_add_test(tc, test_assert7);
+   tcase_add_test(tc, test_issue539);
+   tcase_add_test(tc, test_bounds14);
+   tcase_add_test(tc, test_bounds21);
+   tcase_add_test(tc, test_issue228);
    suite_add_tcase(s, tc);
 
    return s;

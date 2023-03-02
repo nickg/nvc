@@ -981,6 +981,14 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
+
+      if (opt_get_int(OPT_RELAXED) && tree_kind(value) == T_REF
+          && class_of(value) == C_SIGNAL) {
+         // Kludgy workaround for UVVM
+         tree_t decl = tree_ref(value);
+         if (tree_has_value(decl))
+            tree_set_value(t, tree_value(decl));
+      }
    }
 
    return true;
@@ -1625,15 +1633,13 @@ static void sem_check_static_elab(tree_t t)
          else
             id = tree_ident(t);
 
-         diag_t *d = pedantic_diag(t);
-         if (d != NULL) {
-            diag_printf(d, "cannot reference signal %s during static "
-                        "elaboration", istr(id));
-            diag_hint(d, NULL, "the value of a signal is not defined "
-                      "until after the design hierarchy is elaborated");
-            diag_lrm(d, STD_93, "12.3");
-            diag_emit(d);
-         }
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "cannot reference signal %s during static "
+                     "elaboration", istr(id));
+         diag_hint(d, NULL, "the value of a signal is not defined "
+                   "until after the design hierarchy is elaborated");
+         diag_lrm(d, STD_93, "12.3");
+         diag_emit(d);
       }
       break;
 
@@ -4576,6 +4582,8 @@ static bool sem_globally_static(tree_t t)
       const tree_kind_t decl_kind = tree_kind(decl);
       return decl_kind == T_GENERIC_DECL || decl_kind == T_CONST_DECL;
    }
+   else if (kind == T_EXTERNAL_NAME)
+      return tree_class(t) == C_CONSTANT;
 
    // An alias whose aliased name is globally static
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,10 +22,15 @@
 #include "eval.h"
 #include "hash.h"
 #include "lib.h"
+#include "lower.h"
 #include "object.h"
 #include "option.h"
 #include "phase.h"
 #include "type.h"
+
+#if !defined ENABLE_LLVM || defined ENABLE_JIT
+#include "vcode.h"
+#endif
 
 #include <ctype.h>
 #include <assert.h>
@@ -48,15 +53,17 @@ typedef struct _elab_ctx {
    ident_t           prefix[2];
    lib_t             library;
    hash_t           *generics;
-   hash_t           *subprograms;
    eval_t           *eval;
-   tree_list_t       enames;
+   lower_unit_t     *lowered;
+   bool              external_names;
+   cover_tagging_t  *cover;
+   void             *context;
 } elab_ctx_t;
 
 typedef struct {
    tree_list_t copied_subs;
    type_list_t copied_types;
-   tree_list_t external_names;
+   bool        external_names;
 } elab_copy_ctx_t;
 
 typedef struct {
@@ -75,7 +82,6 @@ struct generic_list {
    bool            used;
 };
 
-static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
@@ -83,6 +89,7 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
 static void elab_block_config(tree_t config, const elab_ctx_t *ctx);
 static tree_t elab_copy(tree_t t, elab_ctx_t *ctx);
+static void elab_external_names(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -239,7 +246,7 @@ static void elab_tree_copy_cb(tree_t t, void *__ctx)
    if (is_subprogram(t))
       APUSH(ctx->copied_subs, t);
    else if (tree_kind(t) == T_EXTERNAL_NAME)
-      APUSH(ctx->external_names, t);
+      ctx->external_names = true;
 }
 
 static void elab_type_copy_cb(type_t type, void *__ctx)
@@ -358,23 +365,13 @@ static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
             ident_t mangled = ident_new(tb_get(tb));
             tree_set_ident2(decl, mangled);
 
-            // Save a reference to this subprogram so we can find it
-            // later if we need to lower on-demand during simplification
-            const bool may_need_to_lower =
-               kind == T_FUNC_BODY || kind == T_PROC_BODY
-               || kind == T_FUNC_INST || kind == T_PROC_INST
-               || (kind == T_FUNC_DECL && tree_subkind(decl) != S_USER);
-
-            if (may_need_to_lower)
-               hash_put(ctx->subprograms, mangled, decl);
-
             break;
          }
       }
    }
    ACLEAR(copy_ctx.copied_subs);
 
-   ctx->enames = copy_ctx.external_names;
+   ctx->external_names = copy_ctx.external_names;
 
    return copy;
 }
@@ -1113,15 +1110,25 @@ static void elab_context(tree_t t)
 
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
-   ctx->parent      = parent;
-   ctx->eval        = parent->eval;
-   ctx->subprograms = parent->subprograms;
-   ctx->root        = parent->root;
-   ctx->dotted      = ctx->dotted ?: parent->dotted;
-   ctx->path        = ctx->path ?: parent->path;
-   ctx->inst        = ctx->inst ?: parent->inst;
-   ctx->library     = ctx->library ?: parent->library;
-   ctx->out         = ctx->out ?: parent->out;
+   ctx->parent  = parent;
+   ctx->eval    = parent->eval;
+   ctx->root    = parent->root;
+   ctx->dotted  = ctx->dotted ?: parent->dotted;
+   ctx->path    = ctx->path ?: parent->path;
+   ctx->inst    = ctx->inst ?: parent->inst;
+   ctx->library = ctx->library ?: parent->library;
+   ctx->out     = ctx->out ?: parent->out;
+   ctx->cover   = parent->cover;
+}
+
+static void elab_lower(tree_t b, elab_ctx_t *ctx)
+{
+   ctx->lowered = lower_instance(ctx->parent->lowered, ctx->cover, b);
+
+   if (ctx->cover != NULL)
+      eval_alloc_cover_mem(ctx->eval, ctx->cover);
+
+   ctx->context = eval_instance(ctx->eval, ctx->dotted, ctx->parent->context);
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1212,8 +1219,16 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
    }
 
-   if (error_count() == 0)
-      elab_arch(arch_copy, &new_ctx);
+   if (error_count() == 0) {
+      elab_decls(arch_copy, &new_ctx);
+      elab_external_names(b, &new_ctx);
+   }
+
+   if (error_count() == 0) {
+      elab_lower(b, &new_ctx);
+      elab_stmts(entity, &new_ctx);
+      elab_stmts(arch_copy, &new_ctx);
+   }
 
    elab_pop_scope(&new_ctx);
 }
@@ -1253,8 +1268,10 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
+static void elab_external_name_cb(tree_t t, void *__ctx)
 {
+   const elab_ctx_t *ctx = __ctx;
+
    tree_t where = ctx->root, next = NULL;
    const int nparts = tree_parts(t);
    for (int i = 0; i < nparts; i++, where = next, next = NULL) {
@@ -1330,6 +1347,9 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
                      istr(tree_ident(tree_part(t, nparts - 1))));
          diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
+         if (where == ctx->out)
+            diag_hint(d, NULL, "an object cannot be referenced by an external "
+                      "name until it has been elaborated");
          diag_emit(d);
          return;
       }
@@ -1364,6 +1384,14 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
    tree_set_type(t, tree_type(where));
 }
 
+static void elab_external_names(tree_t t, const elab_ctx_t *ctx)
+{
+   if (!ctx->external_names)
+      return;
+
+   tree_visit_only(t, elab_external_name_cb, (void *)ctx, T_EXTERNAL_NAME);
+}
+
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 {
    tree_t h = tree_new(T_HIER);
@@ -1382,16 +1410,7 @@ static void elab_pop_scope(elab_ctx_t *ctx)
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
 
-   if (ctx->enames.count > 0) {
-      // Sort the names so errors appear in a deterministic order
-      qsort(ctx->enames.items, ctx->enames.count, sizeof(tree_t),
-            tree_stable_compar);
-
-      for (int i = 0; i < ctx->enames.count; i++)
-         elab_external_name(ctx->enames.items[i], ctx);
-
-      ACLEAR(ctx->enames);
-   }
+   lower_unit_free(ctx->lowered);
 }
 
 static bool elab_copy_genvar_cb(tree_t t, void *ctx)
@@ -1412,11 +1431,12 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       tree_set_type(tmp, tree_type(r));
       tree_set_subkind(tmp, ATTR_LOW);
 
-      tree_t tlow = eval_must_fold(ctx->eval, tmp);
+      tree_t tlow = eval_must_fold(ctx->eval, tmp, ctx->lowered, ctx->context);
       if (folded_int(tlow, low)) {
          tree_set_subkind(tmp, ATTR_HIGH);
 
-         tree_t thigh = eval_must_fold(ctx->eval, tmp);
+         tree_t thigh = eval_must_fold(ctx->eval, tmp, ctx->lowered,
+                                       ctx->context);
          if (folded_int(thigh, high))
             return;
       }
@@ -1425,8 +1445,10 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       *low = *high = 0;
    }
    else if (!folded_bounds(r, low, high)) {
-      tree_t left  = eval_must_fold(ctx->eval, tree_left(r));
-      tree_t right = eval_must_fold(ctx->eval, tree_right(r));
+      tree_t left  = eval_must_fold(ctx->eval, tree_left(r),
+                                    ctx->lowered, ctx->context);
+      tree_t right = eval_must_fold(ctx->eval, tree_right(r),
+                                    ctx->lowered, ctx->context);
 
       int64_t ileft, iright;
       if (folded_int(left, &ileft) && folded_int(right, &iright)) {
@@ -1499,6 +1521,11 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       if (error_count() == 0) {
          elab_decls(copy, &new_ctx);
+         elab_external_names(b, &new_ctx);
+      }
+
+      if (error_count() == 0) {
+         elab_lower(b, &new_ctx);
          elab_stmts(copy, &new_ctx);
       }
 
@@ -1512,7 +1539,7 @@ static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
    if (folded_bool(value, &test))
       return test;
 
-   tree_t folded = eval_must_fold(ctx->eval, value);
+   tree_t folded = eval_must_fold(ctx->eval, value, ctx->lowered, ctx->context);
 
    if (folded_bool(folded, &test))
       return test;
@@ -1548,9 +1575,13 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
-         elab_stmts(cond, &new_ctx);
-         elab_pop_scope(&new_ctx);
 
+         if (error_count() == 0) {
+            elab_lower(b, &new_ctx);
+            elab_stmts(cond, &new_ctx);
+         }
+
+         elab_pop_scope(&new_ctx);
          return;
       }
    }
@@ -1585,8 +1616,24 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
-   elab_stmts(chosen, &new_ctx);
+   elab_external_names(b, &new_ctx);
+
+   if (error_count() == 0) {
+      elab_lower(b, &new_ctx);
+      elab_stmts(chosen, &new_ctx);
+   }
+
    elab_pop_scope(&new_ctx);
+}
+
+static void elab_process(tree_t t, const elab_ctx_t *ctx)
+{
+   elab_external_names(t, ctx);
+
+   if (error_count() == 0)
+      lower_process(ctx->lowered, t);
+
+   tree_add_stmt(ctx->out, t);
 }
 
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
@@ -1611,9 +1658,11 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       case T_CASE_GENERATE:
          elab_case_generate(s, ctx);
          break;
-      default:
-         tree_add_stmt(ctx->out, s);
+      case T_PROCESS:
+         elab_process(s, ctx);
          break;
+      default:
+         fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));
       }
    }
 }
@@ -1640,22 +1689,19 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
       .dotted = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
-   elab_inherit_context(&new_ctx, ctx);
 
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, t, &new_ctx);
    elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
-   elab_stmts(t, &new_ctx);
-   elab_pop_scope(&new_ctx);
-}
+   elab_external_names(b, &new_ctx);
 
-static void elab_arch(tree_t t, const elab_ctx_t *ctx)
-{
-   tree_t entity = tree_primary(t);
-   elab_stmts(entity, ctx);
-   elab_decls(t, ctx);
-   elab_stmts(t, ctx);
+   if (error_count() == 0) {
+      elab_lower(b, &new_ctx);
+      elab_stmts(t, &new_ctx);
+   }
+
+   elab_pop_scope(&new_ctx);
 }
 
 static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
@@ -1786,11 +1832,9 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
    }
 }
 
-static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
+static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
 {
-   ident_t ename = tree_ident2(arch);
-
-   const char *name = simple_name(istr(ename));
+   const char *name = simple_name(istr(tree_ident2(arch)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path, ':', ":%s", name);
@@ -1824,21 +1868,18 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    simplify_global(arch_copy, new_ctx.generics, ctx->eval);
    bounds_check(arch_copy);
 
-   if (error_count() == 0)
-      elab_arch(arch_copy, &new_ctx);
+   if (error_count() == 0) {
+      elab_decls(arch_copy, &new_ctx);
+      elab_external_names(b, &new_ctx);
+   }
+
+   if (error_count() == 0) {
+      elab_lower(b, &new_ctx);
+      elab_stmts(entity, &new_ctx);
+      elab_stmts(arch_copy, &new_ctx);
+   }
 
    elab_pop_scope(&new_ctx);
-}
-
-static vcode_unit_t elab_lower_cb(ident_t func, void *__ctx)
-{
-   hash_t *subprograms = __ctx;
-
-   tree_t decl = hash_get(subprograms, func);
-   if (decl == NULL)
-      return NULL;
-
-   return lower_thunk(decl);
 }
 
 void elab_set_generic(const char *name, const char *value)
@@ -1859,7 +1900,7 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(tree_t top)
+tree_t elab(tree_t top, cover_tagging_t *cover)
 {
    make_new_arena();
 
@@ -1872,35 +1913,31 @@ tree_t elab(tree_t top)
       .root     = e,
       .path     = NULL,
       .inst     = NULL,
+      .cover    = cover,
       .library  = lib_work(),
       .eval     = eval_new(),
    };
-
-   ctx.subprograms = hash_new(256);
-
-   eval_set_lower_fn(ctx.eval, elab_lower_cb, ctx.subprograms);
 
    switch (tree_kind(top)) {
    case T_ENTITY:
       {
          tree_t arch = elab_pick_arch(tree_loc(top), top, &ctx);
-         elab_top_level(arch, &ctx);
+         elab_top_level(arch, tree_ident2(arch), &ctx);
       }
       break;
    case T_ARCH:
-      elab_top_level(top, &ctx);
+      elab_top_level(top, tree_ident2(top), &ctx);
       break;
    case T_CONFIGURATION:
       {
          tree_t arch = elab_root_config(top, &ctx);
-         elab_top_level(arch, &ctx);
+         elab_top_level(arch, ident_from(tree_ident(top), '.'), &ctx);
       }
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
-   hash_free(ctx.subprograms);
    eval_free(ctx.eval);
 
    if (error_count() > 0)
@@ -1914,8 +1951,19 @@ tree_t elab(tree_t top)
          warnf("generic value for %s not used", istr(it->name));
    }
 
+   freeze_global_arena();
+
    if (error_count() == 0) {
-      lib_put(lib_work(), e);
+      lib_t work = lib_work();
+      lib_put(work, e);
+
+#if !defined ENABLE_LLVM || defined ENABLE_JIT
+      ident_t b0_name = tree_ident(tree_stmt(e, 0));
+      ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
+      vcode_unit_t vu = vcode_find_unit(vu_name);
+      lib_put_vcode(work, e, vu);
+#endif
+
       return e;
    }
    else

@@ -16,14 +16,15 @@
 //
 
 #include "test_util.h"
-#include "lib.h"
-#include "phase.h"
 #include "common.h"
 #include "diag.h"
-#include "eval.h"
-#include "vcode.h"
-#include "option.h"
 #include "diag.h"
+#include "eval.h"
+#include "lib.h"
+#include "lower.h"
+#include "option.h"
+#include "phase.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -121,7 +122,7 @@ tree_t run_elab(void)
       fail_if(error_count() > 0);
 
       if (unit_needs_cgen(t))
-         lower_unit(t, NULL);
+         lower_standalone_unit(t);
 
       const tree_kind_t kind = tree_kind(t);
       if (kind == T_ENTITY || kind == T_CONFIGURATION)
@@ -130,7 +131,7 @@ tree_t run_elab(void)
 
    eval_free(eval);
 
-   return elab(last_ent);
+   return elab(last_ent, NULL);
 }
 
 tree_t _parse_and_check(const tree_kind_t *array, int num,
@@ -162,10 +163,8 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       if (lower && error_count() == 0) {
          bounds_check(last);
 
-         if (unit_needs_cgen(last)) {
-            vcode_unit_t vu = lower_unit(last, NULL);
-            lib_put_vcode(lib_work(), last, vu);
-         }
+         if (unit_needs_cgen(last))
+            lower_standalone_unit(last);
       }
    }
 

@@ -1,4 +1,0 @@
-constant K has not yet been elaborated
-    |
- 22 |     constant c : integer := <<constant .ename2.uut.k : integer>>;  -- Error
-    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

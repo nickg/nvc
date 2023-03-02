@@ -5,6 +5,14 @@ package p is
     function f(x : boolean) return boolean;
 end package;
 
+package body p is
+    function f(x : boolean) return boolean is
+    begin
+        assert false report "do not call this";
+        return false;
+    end function;
+end package body;
+
 use work.p.all;
 
 architecture test of e is

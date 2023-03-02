@@ -157,6 +157,7 @@ typedef enum {
    VCODE_OP_PROCESS_INIT,
    VCODE_OP_CLEAR_EVENT,
    VCODE_OP_TRAP_EXP,
+   VCODE_OP_IMPLICIT_EVENT,
 } vcode_op_t;
 
 typedef enum {
@@ -447,8 +448,9 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
-void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake);
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t count);
+void emit_implicit_event(vcode_reg_t nets, vcode_reg_t count, vcode_reg_t wake);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
@@ -478,7 +480,7 @@ void emit_cover_stmt(uint32_t tag);
 void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag);
-vcode_reg_t emit_undefined(vcode_type_t type);
+vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);

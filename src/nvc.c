@@ -19,9 +19,10 @@
 #include "common.h"
 #include "diag.h"
 #include "eval.h"
-#include "jit/jit.h"
 #include "jit/jit-llvm.h"
+#include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
@@ -174,10 +175,8 @@ static int analyse(int argc, char **argv)
             simplify_local(unit, eval);
             bounds_check(unit);
 
-            if (error_count() == base_errors && unit_needs_cgen(unit)) {
-               vcode_unit_t vu = lower_unit(unit, NULL);
-               lib_put_vcode(work, unit, vu);
-            }
+            if (error_count() == base_errors && unit_needs_cgen(unit))
+               lower_standalone_unit(unit);
          }
          else
             lib_put_error(work, unit);
@@ -363,18 +362,15 @@ static int elaborate(int argc, char **argv)
 
    progress("loading top-level unit");
 
-   tree_t top = elab(unit);
-   if (top == NULL)
-      return EXIT_FAILURE;
-
-   progress("elaborating design");
-
    cover_tagging_t *cover = NULL;
    if (cover_mask != 0)
       cover = cover_tags_init(cover_mask, cover_array_limit);
 
-   vcode_unit_t vu = lower_unit(top, cover);
-   progress("generating intermediate code");
+   tree_t top = elab(unit, cover);
+   if (top == NULL)
+      return EXIT_FAILURE;
+
+   progress("elaborating design");
 
    if (cover != NULL) {
       fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
@@ -386,16 +382,13 @@ static int elaborate(int argc, char **argv)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   lib_t work = lib_work();
-   NOT_AOT_ONLY(lib_put_vcode(work, top, vu));
-
    if (!opt_get_int(OPT_NO_SAVE)) {
-      lib_save(work);
+      lib_save(lib_work());
       progress("saving library");
    }
 
    if (!use_jit)
-      AOT_ONLY(cgen(top, vu, cover));
+      AOT_ONLY(cgen(top, cover));
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

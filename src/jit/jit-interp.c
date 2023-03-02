@@ -605,8 +605,10 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
 
    state->anchor->irpos = ir - state->func->irbuf;
 
-   if (ir->arg1.handle == JIT_HANDLE_INVALID)
+   if (ir->arg1.handle == JIT_HANDLE_INVALID) {
+      jit_dump_with_mark(state->func, state->anchor->irpos, false);
       jit_msg(NULL, DIAG_FATAL, "missing definition for subprogram");
+   }
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
       jit_entry_fn_t entry = load_acquire(&f->entry);

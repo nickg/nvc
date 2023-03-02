@@ -980,6 +980,16 @@ static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
    return jit_ffi_bind(func, spec, NULL);
 }
 
+static jit_handle_t irgen_get_handle(jit_irgen_t *g, int op)
+{
+   ident_t func = vcode_get_func(op);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
+   if (handle == JIT_HANDLE_INVALID)
+      fatal_at(vcode_get_loc(op), "missing definition for %s", istr(func));
+
+   return handle;
+}
+
 static jit_value_t irgen_state_ptr(jit_irgen_t *g)
 {
    assert(g->statereg.kind != JIT_VALUE_INVALID);
@@ -2158,9 +2168,7 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       else
          irgen_send_args(g, op, 0);
 
-      ident_t func = vcode_get_func(op);
-      jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
-      j_call(g, handle);
+      j_call(g, irgen_get_handle(g, op));
 
       if (result != VCODE_INVALID_REG) {
          vcode_type_t vtype = vcode_reg_type(result);
@@ -2210,10 +2218,7 @@ static void irgen_op_pcall(jit_irgen_t *g, int op)
 
    irgen_send_args(g, op, 1);
 
-   ident_t func = vcode_get_func(op);
-
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
-   j_call(g, handle);
+   j_call(g, irgen_get_handle(g, op));
 
    irgen_label_t *cont = irgen_alloc_label(g);
    jit_value_t state = j_recv(g, 0);
@@ -2236,11 +2241,8 @@ static void irgen_op_resume(jit_irgen_t *g, int op)
    j_cmp(g, JIT_CC_EQ, old_state, jit_null_ptr());
    j_jump(g, JIT_CC_T, cont);
 
-   ident_t func = vcode_get_func(op);
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
-
    j_send(g, 0, old_state);
-   j_call(g, handle);
+   j_call(g, irgen_get_handle(g, op));
 
    jit_value_t new_state = j_recv(g, 0);
    irgen_pcall_suspend(g, new_state, cont);
@@ -2276,12 +2278,9 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
 static void irgen_op_protected_init(jit_irgen_t *g, int op)
 {
    jit_value_t arg0 = irgen_get_arg(g, op, 0);
-   ident_t func = vcode_get_func(op);
-
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
 
    j_send(g, 0, arg0);
-   j_call(g, handle);
+   j_call(g, irgen_get_handle(g, op));
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
@@ -2460,15 +2459,12 @@ static void irgen_op_length_check(jit_irgen_t *g, int op)
 
 static void irgen_op_package_init(jit_irgen_t *g, int op)
 {
-   ident_t unit_name = vcode_get_func(op);
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
-
    if (vcode_count_args(op) > 0)
       j_send(g, 0, irgen_get_arg(g, op, 0));
    else
       j_send(g, 0, jit_value_from_int64(0));
 
-   j_call(g, handle);
+   j_call(g, irgen_get_handle(g, op));
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
@@ -3056,15 +3052,24 @@ static void irgen_op_sched_event(jit_irgen_t *g, int op)
    jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
    jit_value_t count  = irgen_get_arg(g, op, 1);
 
-   jit_value_t wake = jit_null_ptr();
-   if (vcode_count_args(op) > 2)
-      wake = irgen_get_arg(g, op, 2);
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_SCHED_EVENT);
+}
+
+static void irgen_op_implicit_event(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+   jit_value_t wake   = irgen_get_arg(g, op, 2);
 
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
    j_send(g, 3, wake);
-   macro_exit(g, JIT_EXIT_SCHED_EVENT);
+   macro_exit(g, JIT_EXIT_IMPLICIT_EVENT);
 }
 
 static void irgen_op_clear_event(jit_irgen_t *g, int op)
@@ -3648,6 +3653,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_SCHED_EVENT:
          irgen_op_sched_event(g, i);
          break;
+      case VCODE_OP_IMPLICIT_EVENT:
+         irgen_op_implicit_event(g, i);
+         break;
       case VCODE_OP_CLEAR_EVENT:
          irgen_op_clear_event(g, i);
          break;
@@ -3927,6 +3935,10 @@ void jit_irgen(jit_func_t *f)
    if (has_params)
       irgen_params(g, first_param);
    else if (kind == VCODE_UNIT_PROCESS) {
+      const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
+      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+   }
+   else if (kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_INSTANCE) {
       const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
       g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
    }

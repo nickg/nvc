@@ -1015,7 +1015,6 @@ bool is_uninstantiated_subprogram(tree_t decl)
 bool unit_needs_cgen(tree_t unit)
 {
    switch (tree_kind(unit)) {
-   case T_ELAB:
    case T_PACK_INST:
       return true;
    case T_PACK_BODY:
@@ -1542,6 +1541,9 @@ static bool is_static(tree_t expr)
    case T_FCALL:
       return !!(tree_flags(expr) & (TREE_F_LOCALLY_STATIC
                                     | TREE_F_GLOBALLY_STATIC));
+
+   case T_RECORD_REF:
+      return is_static(tree_value(expr));
 
    default:
       return false;

@@ -1,6 +1,10 @@
-entity  TEST_NG is
-end     TEST_NG;
-architecture MODEL of TEST_NG is
+package pack is
+    function  MAX(A,B:integer) return integer;
+
+    function  CALC_DATA_SIZE(WIDTH:integer) return integer;
+end package;
+
+package body pack is
 
     function  MAX(A,B:integer) return integer is begin
         if (A > B) then return A;
@@ -18,6 +22,13 @@ architecture MODEL of TEST_NG is
         end loop;
         return value;
     end function;
+end package body;
+
+use work.pack.all;
+
+entity  TEST_NG is
+end     TEST_NG;
+architecture MODEL of TEST_NG is
 
     constant  T_DATA_WIDTH      : integer := 12;
     constant  M_DATA_WIDTH      : integer := 23;

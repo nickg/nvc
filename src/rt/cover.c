@@ -447,7 +447,7 @@ bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask)
 void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
 {
    if (tagging == NULL)
-    return;
+      return;
 
    assert(tagging->top_scope == NULL);
 
@@ -460,7 +460,7 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
 
 void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 {
-   if (tagging == NULL)
+   if (tagging == NULL || t == NULL)
       return;
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));

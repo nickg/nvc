@@ -174,7 +174,6 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 5)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 6)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 7)), true));
-
 }
 END_TEST
 
@@ -500,9 +499,8 @@ START_TEST(test_issue320)
    tree_t d = search_decls(b0, ident_new("INIT_VALUE"), 0);
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
-   fail_unless(tree_subkind(tree_value(d)) == L_INT);
-   fail_unless(tree_ival(tree_value(d)) == 0);
+   // This used to be folded but no longer is
+   fail_unless(tree_kind(tree_value(d)) == T_FCALL);
 }
 END_TEST
 
@@ -515,11 +513,11 @@ START_TEST(test_issue321)
 
    tree_t test_ng = tree_stmt(top, 0);
 
-   fail_unless(tree_decls(test_ng) == 7);
-   tree_t d5 = tree_decl(test_ng, 5);
+   fail_unless(tree_decls(test_ng) == 5);
+   tree_t d5 = tree_decl(test_ng, 3);
    fail_unless(tree_kind(tree_value(d5)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(d5)) == 23);
-   tree_t d6 = tree_decl(test_ng, 6);
+   tree_t d6 = tree_decl(test_ng, 4);
    fail_unless(tree_kind(tree_value(d6)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(d6)) == 5);
 }
@@ -611,7 +609,8 @@ START_TEST(test_issue362)
 
    tree_t top = run_elab();
 
-   fail_unless(tree_stmts(tree_stmt(top, 0)) == 0);
+   // Used to be optimised out
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 1);
 }
 END_TEST
 
@@ -995,7 +994,8 @@ START_TEST(test_copysub)
    tree_t sub1_x = search_decls(sub1, ident_new("X"), 0);
    fail_if(sub1_x == NULL);
    fail_unless(tree_kind(sub1_x) == T_CONST_DECL);
-   fail_unless(folded_i(tree_value(sub1_x), 5));
+   // No longer folded
+   fail_unless(tree_kind(tree_value(sub1_x)) == T_FCALL);
 
    tree_t sub2 = tree_stmt(tree_stmt(top, 0), 1);
    fail_unless(tree_kind(sub2) == T_BLOCK);
@@ -1004,7 +1004,8 @@ START_TEST(test_copysub)
    tree_t sub2_x = search_decls(sub2, ident_new("X"), 0);
    fail_if(sub2_x == NULL);
    fail_unless(tree_kind(sub2_x) == T_CONST_DECL);
-   fail_unless(folded_i(tree_value(sub2_x), 10));
+   // No longer folded
+   fail_unless(tree_kind(tree_value(sub2_x)) == T_FCALL);
 }
 END_TEST
 
@@ -1096,7 +1097,10 @@ START_TEST(test_issue436)
    tree_t data = search_decls(b0, ident_new("DATA"), 0);
    fail_if(data == NULL);
    fail_unless(tree_kind(data) == T_SIGNAL_DECL);
-   fail_unless(folded_i(tree_left(range_of(tree_type(data), 0)), 31));
+
+   // This used to be folded by simp but no longer is
+   tree_t r1 = range_of(tree_type(data), 0);
+   fail_unless(tree_kind(tree_left(r1)) == T_RECORD_REF);
 
    tree_t c2 = search_decls(b0, ident_new("C2"), 0);
    fail_if(c2 == NULL);
@@ -1108,8 +1112,8 @@ START_TEST(test_issue436)
    fail_unless(tree_kind(data2) == T_SIGNAL_DECL);
 
    // This used to be folded by simp but no longer is
-   tree_t left = tree_left(range_of(tree_type(data2), 0));
-   fail_unless(tree_kind(left) == T_ARRAY_REF);
+   tree_t r2 = range_of(tree_type(data2), 0);
+   fail_unless(tree_kind(tree_left(r2)) == T_ARRAY_REF);
 }
 END_TEST
 
@@ -1126,7 +1130,9 @@ START_TEST(test_issue437)
    fail_unless(tree_kind(u) == T_BLOCK);
    fail_unless(tree_ident(u) == ident_new("U"));
    fail_unless(tree_genmaps(u) == 1);
-   fail_unless(folded_i(tree_value(tree_genmap(u, 0)), 9));
+
+   // This is no longer folded
+   fail_unless(tree_kind(tree_value(tree_genmap(u, 0))) == T_ATTR_REF);
 }
 END_TEST
 
@@ -1169,7 +1175,10 @@ START_TEST(test_issue438)
    tree_t data = search_decls(b0, ident_new("DATA"), 0);
    fail_if(data == NULL);
    fail_unless(tree_kind(data) == T_SIGNAL_DECL);
-   fail_unless(folded_i(tree_left(range_of(tree_type(data), 0)), 7));
+
+   // This is no longer folded
+   tree_t r = range_of(tree_type(data), 0);
+   fail_unless(tree_kind(tree_left(r)) == T_RECORD_REF);
 }
 END_TEST
 
@@ -1200,8 +1209,9 @@ START_TEST(test_gentype)
 
    tree_t top = run_elab();
 
+   // This used to get folded
    tree_t b0 = tree_stmt(top, 0);
-   fail_unless(tree_stmts(b0) == 0);
+   fail_unless(tree_stmts(b0) == 1);
 }
 END_TEST
 
@@ -1260,12 +1270,15 @@ START_TEST(test_foreign1)
 {
    input_from_file(TESTDIR "/simp/foreign1.vhd");
 
-   tree_t top = run_elab();
+   const error_t expect[] = {
+      { 17, "foreign function symbol not found" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
-   tree_t b0 = tree_stmt(top, 0);
-   tree_t c1 = search_decls(b0, ident_new("C1"), 0);
-   fail_unless(tree_kind(c1) == T_CONST_DECL);
-   fail_unless(tree_kind(tree_value(c1)) == T_FCALL);
+   run_elab();
+
+   check_expected_errors();
 }
 END_TEST
 

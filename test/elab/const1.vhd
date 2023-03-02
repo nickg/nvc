@@ -1,10 +1,8 @@
-entity pwm is
-    generic (
-        CLK_FREQ : real;
-        PWM_FREQ : real );
-end entity;
+package pack is
+    function log2(x : in integer) return integer;
+end package;
 
-architecture rtl of pwm is
+package body pack is
     function log2(x : in integer) return integer is
         variable r : integer := 0;
         variable c : integer := 1;
@@ -19,7 +17,19 @@ architecture rtl of pwm is
         end if;
         return r;
     end function;
+end package body;
 
+-------------------------------------------------------------------------------
+
+entity pwm is
+    generic (
+        CLK_FREQ : real;
+        PWM_FREQ : real );
+end entity;
+
+use work.pack.all;
+
+architecture rtl of pwm is
     constant DIVIDE : integer := integer(CLK_FREQ / PWM_FREQ);
     constant BITS   : integer := log2(DIVIDE);
 

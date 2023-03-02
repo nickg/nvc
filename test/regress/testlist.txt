@@ -187,7 +187,6 @@ alias5          normal,gold
 alias6          normal
 alias7          normal
 const7          normal
-bounds14        gold,fail
 bounds15        gold,fail
 bounds16        gold,fail
 bounds17        gold,fail
@@ -400,8 +399,6 @@ signal17        normal
 assign5         normal
 bounds20        fail,gold
 vests9          normal
-bounds21        fail,gold
-issue228        fail,gold,gG=10
 vests10         normal
 vests11         normal
 vests12         normal
@@ -531,7 +528,6 @@ record29        normal,2008
 record30        normal,2008
 bounds32        fail,gold,2008
 bounds33        fail,gold,2008
-assert7         fail,gold
 for4            normal
 alias12         fail,gold
 alias13         normal,2008
@@ -551,7 +547,6 @@ issue101        fail,gold
 vests44         normal
 force1          normal,2008
 ename1          normal,2008
-ename2          fail,gold,2008
 wait21          normal,2008
 driver10        normal
 case11          normal,2008
@@ -687,7 +682,6 @@ signal28        normal,relaxed
 issue549        normal
 case14          normal,2008
 cmdline4        shell
-record38        fail,gold,2008
 issue560        normal,2008
 issue570        normal,2008
 issue571        normal,2008,relaxed

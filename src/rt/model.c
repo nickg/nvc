@@ -3145,26 +3145,41 @@ int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    return 0;
 }
 
-void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
-                   sig_shared_t *wake_ss)
+void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
    TRACE("_sched_event %s+%d count=%d proc %s",
-         istr(tree_ident(s->where)), offset, count,
-         wake_ss ? "(implicit)" : istr(active_proc->name));
-
-   rt_wakeable_t *wake;
-   if (wake_ss != NULL)
-      wake = &(container_of(wake_ss, rt_implicit_t, signal.shared)->wakeable);
-   else
-      wake = &(active_proc->wakeable);
+         istr(tree_ident(s->where)), offset, count, istr(active_proc->name));
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      sched_event(m, n, wake);
+      sched_event(m, n, &(active_proc->wakeable));
+
+      count -= n->width;
+      assert(count >= 0);
+   }
+}
+
+void x_implicit_event(sig_shared_t *ss, uint32_t offset, int32_t count,
+                      sig_shared_t *wake_ss)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
+
+   rt_implicit_t *wake_s = container_of(wake_ss, rt_implicit_t, signal.shared);
+   RT_LOCK(wake_s->signal.lock);
+
+   TRACE("implicit event %s+%d count=%d wake %s",
+         istr(tree_ident(s->where)), offset, count,
+         istr(tree_ident(wake_s->signal.where)));
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      sched_event(m, n, &(wake_s->wakeable));
 
       count -= n->width;
       assert(count >= 0);

@@ -13,6 +13,9 @@ package my_logic is
     function ">"(x : unsigned; y : integer) return boolean;
 end package;
 
+package body my_logic is
+end package body;
+
 use work.my_logic.all;
 entity  TEST_SUB is
     generic (

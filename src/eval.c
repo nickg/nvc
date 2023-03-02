@@ -23,9 +23,10 @@
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
 #include "phase.h"
-#include "prim.h"
+#include "rt/cover.h"
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
@@ -123,14 +124,15 @@ void eval_free(eval_t *ex)
    free(ex);
 }
 
-static tree_t eval_do_fold(eval_t *ex, tree_t expr)
+static tree_t eval_do_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+                           void *context)
 {
-   vcode_unit_t thunk = lower_thunk(expr);
+   vcode_unit_t thunk = lower_thunk(parent, expr);
    if (thunk == NULL)
       return expr;
 
    jit_scalar_t result;
-   const bool finished = jit_call_thunk(ex->jit, thunk, &result);
+   const bool finished = jit_call_thunk(ex->jit, thunk, &result, context);
 
    vcode_unit_unref(thunk);
    thunk = NULL;
@@ -157,25 +159,22 @@ static tree_t eval_do_fold(eval_t *ex, tree_t expr)
    return expr;
 }
 
-tree_t eval_try_fold(eval_t *ex, tree_t expr)
+tree_t eval_try_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+                     void *context)
 {
    jit_set_silent(ex->jit, true);
    jit_limit_backedges(ex->jit, ITER_LIMIT);
 
-   return eval_do_fold(ex, expr);
+   return eval_do_fold(ex, expr, parent, context);
 }
 
-tree_t eval_must_fold(eval_t *ex, tree_t expr)
+tree_t eval_must_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+                      void *context)
 {
    jit_set_silent(ex->jit, false);
    jit_limit_backedges(ex->jit, 0);
 
-   return eval_do_fold(ex, expr);
-}
-
-void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx)
-{
-   jit_set_lower_fn(ex->jit, fn, ctx);
+   return eval_do_fold(ex, expr, parent, context);
 }
 
 static bool eval_not_possible(eval_t *e, tree_t t, const char *why)
@@ -204,6 +203,8 @@ bool eval_possible(eval_t *e, tree_t t)
          else if (kind != S_USER && !is_open_coded_builtin(kind)
                   && vcode_find_unit(tree_ident2(decl)) == NULL)
             return eval_not_possible(e, t, "not yet lowered predef");
+         else if (kind == S_USER && !is_package(tree_container(decl)))
+            return eval_not_possible(e, t, "subprogram not in package");
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
@@ -297,17 +298,42 @@ tree_t eval_case(eval_t *ex, tree_t stmt)
 {
    assert(tree_kind(stmt) == T_CASE_GENERATE);
 
-   vcode_unit_t thunk = lower_thunk(stmt);
+   vcode_unit_t thunk = lower_thunk(NULL, stmt);
 
    jit_set_silent(ex->jit, false);
    jit_limit_backedges(ex->jit, 0);
 
    jit_scalar_t result = { .integer = -1 };
-   if (!jit_call_thunk(ex->jit, thunk, &result))
+   if (!jit_call_thunk(ex->jit, thunk, &result, NULL))
       error_at(tree_loc(tree_value(stmt)), "generate expression is not static");
 
    if (result.integer == -1)
       return NULL;
    else
       return tree_stmt(stmt, result.integer);
+}
+
+void *eval_instance(eval_t *ex, ident_t name, void *context)
+{
+   jit_handle_t h = jit_lazy_compile(ex->jit, name);
+   if (h == JIT_HANDLE_INVALID)
+      fatal_trace("failed to compile instance %s", istr(name));
+
+   jit_set_silent(ex->jit, false);
+   jit_limit_backedges(ex->jit, 0);
+
+   jit_scalar_t result;
+   if (!jit_try_call(ex->jit, h, &result, context, context))
+      return NULL;
+
+   return result.pointer;
+}
+
+void eval_alloc_cover_mem(eval_t *ex, cover_tagging_t *cover)
+{
+   int32_t n_stmts, n_branches, n_toggles, n_expressions;
+   cover_count_tags(cover, &n_stmts, &n_branches, &n_toggles,
+                    &n_expressions);
+
+   jit_alloc_cover_mem(ex->jit, n_stmts, n_branches, n_toggles, n_expressions);
 }

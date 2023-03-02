@@ -45,7 +45,8 @@ STATIC_ASSERT(sizeof(ffi_spec_t) == 8);
 
 #define ffi_spec_valid(s) ((s).bits != 0)
 #define ffi_spec_get(s, n) ((s).count ? (s).embed[(n)] : s.ext[(n)])
-#define ffi_spec_has(s, n) (((s).count == 0 && (s).ext[(n)]) || (n) < (s).count)
+#define ffi_spec_has(s, n) \
+   (((s).count == 0 && (s).ext && (s).ext[(n)]) || (n) < (s).count)
 
 typedef struct _jit_foreign jit_foreign_t;
 

@@ -36,8 +36,9 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset,
                           int32_t count);
-void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
-                   sig_shared_t *wake_ss);
+void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_implicit_event(sig_shared_t *ss, uint32_t offset, int32_t count,
+                      sig_shared_t *wake_ss);
 void x_alias_signal(sig_shared_t *ss, tree_t where);
 int64_t x_now(void);
 int x_current_delta(void);

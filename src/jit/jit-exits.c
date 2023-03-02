@@ -25,6 +25,7 @@
 #include "object.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
+#include "rt/structs.h"
 #include "type.h"
 
 #include <assert.h>
@@ -627,7 +628,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
          sig_shared_t *ss;
          if (!jit_has_runtime(thread->jit))
-            ss = NULL;   // Called during constant folding
+            ss = NULL;
          else if (scalar)
             ss = x_init_signal_s(count, size, value.integer,
                                  flags, where, offset);
@@ -691,6 +692,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_SIGNAL:
       {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
          sig_shared_t  *src_ss     = args[0].pointer;
          uint32_t       src_offset = args[1].integer;
          sig_shared_t  *dst_ss     = args[2].pointer;
@@ -713,6 +717,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_CONST:
       {
+         if (!jit_has_runtime(jit_thread_local()->jit))
+            return;   // Called during constant folding
+
          sig_shared_t *dst_ss     = args[0].pointer;
          uint32_t      dst_offset = args[1].integer;
          jit_scalar_t  initval    = { .integer = args[2].integer };
@@ -744,9 +751,22 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          sig_shared_t *shared  = args[0].pointer;
          int32_t       offset  = args[1].integer;
          int32_t       count   = args[2].integer;
+
+         x_sched_event(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_IMPLICIT_EVENT:
+      {
+         if (!jit_has_runtime(jit_thread_local()->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t *shared  = args[0].pointer;
+         int32_t       offset  = args[1].integer;
+         int32_t       count   = args[2].integer;
          sig_shared_t *wake    = args[3].pointer;
 
-         x_sched_event(shared, offset, count, wake);
+         x_implicit_event(shared, offset, count, wake);
       }
       break;
 
@@ -765,6 +785,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_ALIAS_SIGNAL:
       {
+         if (!jit_has_runtime(jit_thread_local()->jit))
+            return;   // Called during constant folding
+
          sig_shared_t *ss    = args[0].pointer;
          tree_t        where = args[1].pointer;
 
@@ -1084,6 +1107,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_COVER_TOGGLE:
       {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
          sig_shared_t *shared = args[0].pointer;
          int32_t      *mem    = args[1].pointer;
 
@@ -1093,6 +1119,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PROCESS_INIT:
       {
+         if (!jit_has_runtime(jit_thread_local()->jit))
+            return;   // Called during constant folding
+
          jit_handle_t handle = args[0].integer;
          tree_t       where  = args[1].pointer;
 
