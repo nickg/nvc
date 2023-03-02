@@ -2267,7 +2267,7 @@ START_TEST(test_rectype)
    fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
 
    ident_t r1_name = vtype_name(3);
-   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1$"));
+   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1"));
 }
 END_TEST
 
