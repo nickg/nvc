@@ -316,7 +316,7 @@ void jit_pack_encode(jit_pack_t *jp, jit_t *j, jit_handle_t handle)
 
    free(pf->buf);
    pf->buf = zbuf;
-   pf->bufsz = zbufsz - strm.avail_out + 4;
+   pf->bufsz = zbufsz - strm.avail_out;
 
    chash_put(jp->funcs, f->name, pf);
 }
