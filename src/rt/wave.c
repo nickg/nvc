@@ -662,6 +662,7 @@ static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
    case T_ARCH: st = FST_ST_VHDL_ARCHITECTURE; break;
    case T_BLOCK: st = FST_ST_VHDL_BLOCK; break;
    case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
+   case T_IF_GENERATE: st = FST_ST_VHDL_IF_GENERATE; break;
    case T_PACKAGE: st = FST_ST_VHDL_PACKAGE; break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
