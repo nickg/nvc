@@ -63,7 +63,6 @@ bin_nvc_LDADD = \
 	lib/libnvc.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
-	lib/libvhpi.a \
 	lib/libcpustate.a \
 	lib/libgnulib.a \
 	$(libdw_LIBS) \
