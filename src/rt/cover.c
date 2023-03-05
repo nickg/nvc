@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
+#include <ctype.h>
 
 //#define COVER_DEBUG_EMIT
 //#define COVER_DEBUG_DUMP
@@ -1161,6 +1162,12 @@ void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
 
             if (!excl_hier)
                fatal_at(&ctx.loc, "exclude hierarchy missing!");
+
+            int i = 0;
+            while (excl_hier[i]) {
+               excl_hier[i] = toupper(excl_hier[i]);
+               i++;
+            }
 
             cover_exclude_hier(tagging, &ctx, excl_hier, bin);
          }

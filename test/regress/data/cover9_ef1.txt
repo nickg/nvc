@@ -9,7 +9,7 @@ exclude WORK.COVER9.SUB_BLOCK_INST.*
 ###############################################################################
 exclude WORK.COVER9.AND_GATE._S0._B0._S0
 exclude WORK.COVER9._P1._S0._S3
-exclude WORK.COVER9._P1._S0._S4
+exclude WORK.COVER9._p1._S0._S4
 exclude WORK.COVER9._P1._S0._S5
 
 ###############################################################################
@@ -23,14 +23,14 @@ exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
 exclude WORK.COVER9._P1._S0._B3._B0 BIN_CHOICE
 
 # Choices excluded without bin name
-exclude WORK.COVER9._P1._S0._B4._B0
+exclude WORK.COVER9._P1._s0._B4._B0
 exclude WORK.COVER9._P1._S0._B_OTHERS
 
 ###############################################################################
 # Test expression excluding
 ###############################################################################
 exclude WORK.COVER9._P0._S0._E0 BIN_0_0
-exclude WORK.COVER9._P0._S0._E0 BIN_0_1
+exclude WORK.cover9._P0._S0._E0 BIN_0_1
 exclude WORK.COVER9._P0._S0._E0 BIN_1_0
 exclude WORK.COVER9._P0._S0._E0 BIN_1_1
 
