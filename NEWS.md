@@ -20,6 +20,8 @@
 - Statements like `wait for X` where `X` is negative but not a constant
   now produce an error at run time (#633).
 - NVC is now supported by [VUnit](https://vunit.github.io/).
+- Implicit signal attributes like `'transaction` are now considered
+  static signal names (#640).
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.

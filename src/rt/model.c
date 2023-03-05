@@ -1040,7 +1040,7 @@ static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
 #if __SANITIZE_ADDRESS__
       memcpy(v->bytes, p, valuesz);
 #else
-      v->qword = *(uint64_t *)p;
+      v->qword = *(const uint64_t *)p;
 #endif
    }
    else
@@ -2197,8 +2197,8 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
    return already_scheduled;
 }
 
-static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
-                                uint64_t after, uint64_t reject)
+static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
+                         uint64_t reject, const void *value)
 {
    if (after == 0 && (nexus->flags & NET_F_FAST_DRIVER)) {
       rt_source_t *d = &(nexus->sources);
@@ -2216,7 +2216,7 @@ static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
       else
          assert(m->next_is_delta);
 
-      return w;
+      copy_value_ptr(nexus, &w->value, value);
    }
    else {
       rt_source_t *d = find_driver(nexus);
@@ -2243,10 +2243,10 @@ static waveform_t *sched_driver(rt_model_t *m, rt_nexus_t *nexus,
       w->next  = NULL;
       w->value = alloc_value(m, nexus);
 
+      copy_value_ptr(nexus, &w->value, value);
+
       if (!insert_transaction(m, nexus, d, w, w->when, reject))
          deltaq_insert_driver(m, after, nexus, d);
-
-      return w;
    }
 }
 
@@ -3070,8 +3070,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
 
-   waveform_t *w = sched_driver(m, n, after, reject);
-   w->value.qword = scalar;
+   sched_driver(m, n, after, reject, &scalar);
 }
 
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
@@ -3095,11 +3094,8 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       count -= n->width;
       assert(count >= 0);
 
-      waveform_t *w = sched_driver(m, n, after, reject);
-
-      const size_t valuesz = n->width * n->size;
-      copy_value_ptr(n, &(w->value), vptr);
-      vptr += valuesz;
+      sched_driver(m, n, after, reject, vptr);
+      vptr += n->width * n->size;
    }
 }
 
