@@ -1148,6 +1148,30 @@ static vcode_reg_t lower_signal_record_aggregate(lower_unit_t *lu, tree_t expr)
    return mem_reg;
 }
 
+static vcode_reg_t lower_signal_array_aggregate(lower_unit_t *lu, tree_t expr)
+{
+   const int nassocs = tree_assocs(expr);
+   if (nassocs != 1)
+      fatal_at(tree_loc(expr), "sorry, this form of parameter is not "
+               "yet supported");
+
+   tree_t a0 = tree_assoc(expr, 0);
+   vcode_reg_t a0_reg = lower_lvalue(lu, tree_value(a0));
+
+   type_t type = tree_type(expr);
+   if (type_is_unconstrained(type)) {
+      assert(tree_subkind(a0) == A_NAMED);
+      vcode_reg_t left_reg = lower_rvalue(lu, tree_name(a0));
+      vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
+      vcode_dim_t dims[1] = { { left_reg, left_reg, dir_reg } };
+      return emit_wrap(a0_reg, dims, 1);
+   }
+   else if (!lower_const_bounds(type))
+      return lower_wrap(lu, type, a0_reg);
+   else
+      return a0_reg;
+}
+
 static vcode_reg_t lower_param(lower_unit_t *lu, tree_t value, tree_t port,
                                port_mode_t mode)
 {
@@ -1161,8 +1185,12 @@ static vcode_reg_t lower_param(lower_unit_t *lu, tree_t value, tree_t port,
    }
 
    vcode_reg_t reg;
-   if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE)
-      reg = lower_signal_record_aggregate(lu, value);
+   if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE) {
+      if (type_is_record(value_type))
+         reg = lower_signal_record_aggregate(lu, value);
+      else
+         reg = lower_signal_array_aggregate(lu, value);
+   }
    else if (class == C_SIGNAL || class == C_FILE || mode != PORT_IN)
       reg = lower_lvalue(lu, value);
    else
