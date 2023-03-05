@@ -10820,7 +10820,7 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
       tree_t hier = tree_decl(block, 0);
       assert(tree_kind(hier) == T_HIER);
 
-      tree_t unit = tree_ref(inst_hier);
+      tree_t unit = tree_ref(hier);
       if (tree_kind(unit) == T_ARCH) {
          ident_t ename = ident_rfrom(tree_ident(tree_primary(unit)), '.');
          cover_set_block_name(lu->cover, ename);

@@ -53,7 +53,7 @@ typedef struct {
 
 typedef A(cover_tag_t) tag_array_t;
 typedef A(line_range_t) range_array_t;
-typedef A(text_buf_t*) tb_array_t;
+typedef A(char*) char_array_t;
 
 typedef struct _cover_report_ctx    cover_report_ctx_t;
 typedef struct _cover_file          cover_file_t;
@@ -80,10 +80,10 @@ struct _cover_rpt_buf {
 };
 
 struct _cover_spec {
-   tb_array_t hier_include;
-   tb_array_t hier_exclude;
-   tb_array_t block_include;
-   tb_array_t block_exclude;
+   char_array_t hier_include;
+   char_array_t hier_exclude;
+   char_array_t block_include;
+   char_array_t block_exclude;
 };
 
 struct _cover_tagging {
@@ -483,19 +483,19 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
    if (ts->block_name) {
       for (int i = 0; i < spc->block_exclude.count; i++)
 
-         if (ident_glob(ts->block_name, tb_get(AGET(spc->block_exclude, i)), -1)) {
+         if (ident_glob(ts->block_name, AGET(spc->block_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: False, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), tb_get(AGET(spc->block_exclude, i)));
+                   istr(ts->block_name), AGET(spc->block_exclude, i));
 #endif
             return false;
          }
 
       for (int i = 0; i < tagging->spec->block_include.count; i++)
-         if (ident_glob(ts->block_name, tb_get(AGET(spc->block_include, i)), -1)) {
+         if (ident_glob(ts->block_name, AGET(spc->block_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), tb_get(AGET(spc->block_include, i)));
+                   istr(ts->block_name), AGET(spc->block_include, i));
 #endif
             return true;
          }
@@ -503,19 +503,19 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 
    // Hierarchy
    for (int i = 0; i < spc->hier_exclude.count; i++)
-      if (ident_glob(tagging->hier, tb_get(AGET(spc->hier_exclude, i)), -1)) {
+      if (ident_glob(tagging->hier, AGET(spc->hier_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                   istr(tagging->hier), tb_get(AGET(spc->hier_exclude, i)));
+                   istr(tagging->hier), AGET(spc->hier_exclude, i));
 #endif
          return false;
       }
 
    for (int i = 0; i < spc->hier_include.count; i++)
-      if (ident_glob(tagging->hier, tb_get(AGET(spc->hier_include, i)), -1)) {
+      if (ident_glob(tagging->hier, AGET(spc->hier_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                   istr(tagging->hier), tb_get(AGET(spc->hier_include, i)));
+                   istr(tagging->hier), AGET(spc->hier_include, i));
 #endif
          return true;
       }
@@ -579,7 +579,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
 
-   s->emit = (tagging->spec && cover_should_emit_scope(tagging, t));
+   s->emit = (tagging->spec == NULL) ? true : cover_should_emit_scope(tagging, t);
 
 #ifdef COVER_DEBUG_SCOPE
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
@@ -827,7 +827,7 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
                                "start with '+' or '-");
          tok++;
 
-         tb_array_t *arr;
+         char_array_t *arr;
          if (!strcmp(tok, "hierarchy")) {
             if (include)
                arr = &(tagging->spec->hier_include);
@@ -847,10 +847,14 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
          if (!hier)
             fatal_at(&ctx.loc, "%s name missing", tok);
 
-         text_buf_t *tb = tb_new();
-         tb_printf(tb, "%s", hier);
-         tb_upcase(tb);
-         APUSH(*arr, tb);
+         APUSH(*arr, xstrdup(hier));
+
+         char *str = AGET(*arr, arr->count - 1);
+         int i = 0;
+         while (str[i]) {
+            str[i] = toupper(str[i]);
+            i++;
+         }
 
          tok = strtok(NULL, delim);
       }
