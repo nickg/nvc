@@ -823,7 +823,7 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
          else if (tok[0] == '-')
             include = false;
          else
-            fatal_at(&ctx.loc, "Coverage specification command must "
+            fatal_at(&ctx.loc, "coverage specification command must "
                                "start with '+' or '-");
          tok++;
 
