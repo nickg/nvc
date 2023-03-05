@@ -252,7 +252,7 @@ NEXT_EVENT    ?i:next_event
                      }
 <C_COMMENT>.*"*/"    { BEGIN(comment_caller); }
 <C_COMMENT>\n        { /* Must match a single character */ }
-<C_COMMENT>.         { }
+<C_COMMENT>.*        { }
 
 <PSL>;               { BEGIN(INITIAL); TOKEN(tSEMI); }
 <PSL>{PSL_CONT}      { /* Multi-line PSL comment */ }

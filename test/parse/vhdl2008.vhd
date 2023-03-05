@@ -246,4 +246,8 @@ begin
         when bar: others => begin end;
     end generate g5;                    -- Error
 
+    /* a delimited comment
+    -- Check that write burst was received correctly
+    */
+
 end architecture;
