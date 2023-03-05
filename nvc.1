@@ -213,6 +213,14 @@ Enable code coverage reporting (see the
 .Sx CODE COVERAGE
 section below).
 .\"
+.It Fl -cover-spec= Ns Ar sfile
+Specify design part where code coverage is collected by
+.Ar sfile
+coverage specification file
+(see the
+.Sx CODE COVERAGE
+section below).
+.\"
 .It Fl -dump-llvm
 Write generated LLVM IR to the work library directory before and after
 optimisation.
@@ -670,6 +678,32 @@ Toggle coverage collection on specific signals can be also disabled:
 signal cnt : std_logic_vector(3 downto 0);
 -- coverage on
 .Ed
+.Ss Coverage specification file
+NVC can collect code coverage only on part of the simulated design.
+When Coverage specification file is passed during elaboration time,
+NVC collects code coverage only as specified in this file. If
+the file is ommited, NVC collects code coverage on whole design.
+Format of commands in coverage specification file is following:
+.Bd -literal -offset indent
+(+|-)block <ENTITY_NAME>
+(+|-)hierarchy <HIERARCHY>
+.Ed
+An example of coverage specification file is following:
+.Bd -literal -offset indent
+# Placing '#' is treated as comment till end of line
+
+# Example how to enable collecting code coverage on a hierarchy:
++hierarchy WORK.TOP.DUT_INST*
+
+# Example how to disable collecting code coverage on a hierarchy:
+-hierarchy WORK.TOP.DUT_INST.THIRD_PARTY_SUB_BLOCK_INST*
+
+# Example how to enable collecting code coverage on entity or block:
++block async_fifo
+
+# Example how to disable collecting code coverage on entity or block:
+-block clock_gate_model
+.Ed
 .Ss Exclude file
 NVC can exclude any coverage items when generating code coverage report.
 When a coverage item is excluded, it is counted as "Covered" in the
@@ -751,6 +785,15 @@ exclude WORK.TOP._P0._S0._B0 BIN_FALSE
 exclude WORK.TOP.SIGNAL_NAME BIN_0_TO_1
 exclude WORK.TOP.SUB_BLOCK_INST.PORT_NAME
 .Ed
+.Ss Additional Information
+In Coverage specification file and Exclude file
+.Ql <ENTITY_NAME>
+and
+.Ql <HIERARCHY>
+are case-insensitive. You can get examples of
+.Ql <HIERARCHY>
+from generated Code coverage report by clicking on
+a "Get Exclude Command" button.
 .\" ------------------------------------------------------------
 .\" Relaxed rules
 .\" ------------------------------------------------------------
