@@ -704,6 +704,15 @@ An example of coverage specification file is following:
 # Example how to disable collecting code coverage on entity or block:
 -block clock_gate_model
 .Ed
+In Coverage specification file
+.Ql block
+has priority over
+.Ql hierarchy
+, disabled hierarchy / block (
+.Ql -
+) has priority over enabled hierarchy / block (
+.Ql +
+).
 .Ss Exclude file
 NVC can exclude any coverage items when generating code coverage report.
 When a coverage item is excluded, it is counted as "Covered" in the
