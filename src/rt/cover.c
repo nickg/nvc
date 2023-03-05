@@ -86,20 +86,20 @@ struct _cover_spec {
 };
 
 struct _cover_tagging {
-   int                  next_stmt_tag;
-   int                  next_branch_tag;
-   int                  next_toggle_tag;
-   int                  next_expression_tag;
-   int                  next_hier_tag;
-   ident_t              hier;
-   tag_array_t          tags;
-   cover_mask_t         mask;
-   int                  array_limit;
-   int                  array_depth;
-   int                  report_item_limit;
-   cover_rpt_buf_t     *rpt_buf;
-   cover_spec_t        *spec;
-   cover_scope_t       *top_scope;
+   int               next_stmt_tag;
+   int               next_branch_tag;
+   int               next_toggle_tag;
+   int               next_expression_tag;
+   int               next_hier_tag;
+   ident_t           hier;
+   tag_array_t       tags;
+   cover_mask_t      mask;
+   int               array_limit;
+   int               array_depth;
+   int               report_item_limit;
+   cover_rpt_buf_t  *rpt_buf;
+   cover_spec_t     *spec;
+   cover_scope_t    *top_scope;
 };
 
 typedef struct {
@@ -615,7 +615,6 @@ void cover_pop_scope(cover_tagging_t *tagging)
 void cover_set_block_name(cover_tagging_t *tagging, ident_t name)
 {
    assert(tagging != NULL);
-
    tagging->top_scope->block_name = name;
 }
 
