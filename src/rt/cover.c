@@ -800,7 +800,7 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
 
    tagging->spec = xcalloc(sizeof(cover_spec_t));
 
-   char *delim = " ";
+   const char *delim = " ";
    ssize_t read;
    loc_file_ref_t file_ref = loc_file_ref(path, NULL);
    int line_num = 1;
