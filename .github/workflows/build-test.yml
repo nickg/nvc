@@ -302,6 +302,18 @@ jobs:
           export PYTHONPATH=$(pwd)/vunit
           cd vunit/examples/vhdl/com
           python3 run.py
+      - name: Run com tests
+        run: |
+          export VUNIT_SIMULATOR=nvc
+          export PYTHONPATH=$(pwd)/vunit
+          cd vunit/vunit/vhdl/com
+          python3 run.py
+      - name: Run verification_components tests
+        run: |
+          export VUNIT_SIMULATOR=nvc
+          export PYTHONPATH=$(pwd)/vunit
+          cd vunit/vunit/vhdl/verification_components
+          python3 run.py
 
   osvvm:
     if: ${{ false }}    # Takes too long for now
