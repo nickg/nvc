@@ -372,11 +372,12 @@ static int elaborate(int argc, char **argv)
    progress("loading top-level unit");
 
    cover_tagging_t *cover = NULL;
-   if (cover_mask != 0)
+   if (cover_mask != 0) {
       cover = cover_tags_init(cover_mask, cover_array_limit);
 
-   if (cover_spec_file)
-      cover_load_spec_file(cover, cover_spec_file);
+      if (cover_spec_file)
+         cover_load_spec_file(cover, cover_spec_file);
+   }
 
    tree_t top = elab(unit, cover);
    if (top == NULL)
