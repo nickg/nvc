@@ -474,7 +474,7 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
    tagging->hier = hier;
 }
 
-bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
+static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 {
    cover_scope_t *ts = tagging->top_scope;
    cover_spec_t *spc = tagging->spec;
