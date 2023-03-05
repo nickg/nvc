@@ -277,12 +277,6 @@ static tree_t simp_record_ref(tree_t t, simp_ctx_t *ctx)
       }
    }
 
-   if (ctx->eval_mask & TREE_F_GLOBALLY_STATIC) {
-      tree_t ref = name_to_ref(value);
-      if (ref != NULL && tree_kind(tree_ref(ref)) == T_CONST_DECL)
-         return simp_fold(t, ctx);
-   }
-
    return t;
 }
 

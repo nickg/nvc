@@ -412,7 +412,7 @@ START_TEST(test_issue155)
 
    tree_t dr = range_of(tree_type(tree_decl(p, 8)), 0);
    fail_unless(folded_i(tree_left(dr), 2));
-   fail_unless(folded_i(tree_right(dr), 1));
+   fail_unless(tree_kind(tree_right(dr)) == T_RECORD_REF);
 }
 END_TEST
 

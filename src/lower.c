@@ -10642,16 +10642,30 @@ static vcode_unit_t lower_package(tree_t unit)
    return context;
 }
 
-static vcode_unit_t lower_case_generate_thunk(tree_t t)
+vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 {
    // TODO: this should really be in eval.c
 
-   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), NULL);
-   lower_unit_t *lu = lower_unit_new(NULL, thunk, NULL, NULL);
+   mode = LOWER_THUNK;
+
+   ident_t context_id = NULL;
+   if (parent != NULL) {
+      vcode_select_unit(parent->vunit);
+      context_id = vcode_unit_name();
+   }
+
+   vcode_unit_t context = parent ? parent->vunit : NULL;
+   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
+   lower_unit_t *lu = lower_unit_new(parent, thunk, NULL, NULL);
 
    vcode_type_t vbool = vtype_bool();
    vcode_type_t vint = vtype_int(INT32_MIN, INT32_MAX);
    vcode_set_result(vint);
+
+   if (parent != NULL) {
+      vcode_type_t vcontext = vtype_context(context_id);
+      emit_param(vcontext, vcontext, ident_new("context"));
+   }
 
    tree_t value = tree_value(t);
    type_t type = tree_type(value);
@@ -10675,13 +10689,14 @@ static vcode_unit_t lower_case_generate_thunk(tree_t t)
          switch (tree_subkind(a)) {
          case A_NAMED:
             {
-               vcode_reg_t name_reg = lower_rvalue(lu, tree_name(a));
+               tree_t name = tree_name(a);
+               vcode_reg_t name_reg = lower_rvalue(lu, name);
                vcode_block_t match_bb = emit_block();
                vcode_block_t skip_bb = emit_block();
 
                if (cmp_func != NULL) {
                   if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
-                     name_reg = lower_wrap(lu, type, name_reg);
+                     name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
                   vcode_reg_t context_reg = lower_context_for_call(cmp_func);
                   vcode_reg_t args[] = { context_reg, name_reg, value_reg };
@@ -10725,10 +10740,6 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 {
    mode = LOWER_THUNK;
 
-   ident_t name = NULL;
-   if (tree_kind(t) == T_CASE_GENERATE)
-      return lower_case_generate_thunk(t);
-
    ident_t context_id = NULL;
    if (parent != NULL) {
       vcode_select_unit(parent->vunit);
@@ -10736,7 +10747,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    }
 
    vcode_unit_t context = parent ? parent->vunit : NULL;
-   vcode_unit_t thunk = emit_thunk(name, tree_to_object(t), context);
+   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
    lower_unit_t *lu = lower_unit_new(parent, thunk, NULL, NULL);
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;

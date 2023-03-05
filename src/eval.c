@@ -294,17 +294,17 @@ bool eval_possible(eval_t *e, tree_t t)
    }
 }
 
-tree_t eval_case(eval_t *ex, tree_t stmt)
+tree_t eval_case(eval_t *ex, tree_t stmt, lower_unit_t *parent, void *context)
 {
    assert(tree_kind(stmt) == T_CASE_GENERATE);
 
-   vcode_unit_t thunk = lower_thunk(NULL, stmt);
+   vcode_unit_t thunk = lower_case_generate_thunk(parent, stmt);
 
    jit_set_silent(ex->jit, false);
    jit_limit_backedges(ex->jit, 0);
 
    jit_scalar_t result = { .integer = -1 };
-   if (!jit_call_thunk(ex->jit, thunk, &result, NULL))
+   if (!jit_call_thunk(ex->jit, thunk, &result, context))
       error_at(tree_loc(tree_value(stmt)), "generate expression is not static");
 
    if (result.integer == -1)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ tree_t eval_try_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
 tree_t eval_must_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
                      void *context);
 bool eval_possible(eval_t *e, tree_t t);
-tree_t eval_case(eval_t *ex, tree_t stmt);
+tree_t eval_case(eval_t *ex, tree_t stmt, lower_unit_t *parent, void *context);
 void *eval_instance(eval_t *ex, ident_t name, void *context);
 void eval_alloc_cover_mem(eval_t *ex, cover_tagging_t *cover);
 

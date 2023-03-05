@@ -674,7 +674,7 @@ START_TEST(test_issue373)
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_ASSERT);
    tree_t m = tree_message(s0);
-   fail_unless(tree_kind(m) == T_QUALIFIED);
+   fail_unless(tree_kind(m) == T_REF);
    // This used to get folded by the old evaluator
 
    fail_if_errors();
@@ -960,9 +960,9 @@ START_TEST(test_fold1)
    // This used to get folded by the old evaluator
    fail_unless(tree_stmts(u) == 1);
    fail_unless(tree_genmaps(u) == 1);
-   fail_unless(tree_decls(u) == 3);
+   fail_unless(tree_decls(u) == 2);
 
-   tree_t k = tree_decl(u, 2);
+   tree_t k = tree_decl(u, 1);
    fail_unless(tree_ident(k) == ident_new("K"));
    fail_unless(tree_kind(tree_value(k)) == T_REF);
    // This used to get folded by the old evaluator
@@ -988,9 +988,9 @@ START_TEST(test_fold2)
    // This used to get folded by the old evaluator
    fail_unless(tree_stmts(u) == 1);
    fail_unless(tree_genmaps(u) == 1);
-   fail_unless(tree_decls(u) == 3);
+   fail_unless(tree_decls(u) == 2);
 
-   tree_t k = tree_decl(u, 2);
+   tree_t k = tree_decl(u, 1);
    fail_unless(tree_ident(k) == ident_new("K"));
    fail_unless(tree_kind(tree_value(k)) == T_REF);
    // This used to get folded by the old evaluator
@@ -1169,7 +1169,7 @@ START_TEST(test_comp4)
 
    tree_t u = tree_stmt(b0, 0);
    fail_unless(tree_ident(u) == ident_new("U"));
-   fail_unless(tree_stmts(u) == 0);
+   fail_unless(tree_stmts(u) == 1);
 
    fail_if_errors();
 }
@@ -1335,6 +1335,40 @@ START_TEST(test_issue228)
 }
 END_TEST
 
+START_TEST(test_generic1)
+{
+   input_from_file(TESTDIR "/elab/generic1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t u = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_stmts(u) == 2);
+
+   tree_t p1s0 = tree_stmt(tree_stmt(u, 0), 0);
+   fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
+
+   tree_t one = tree_value(tree_waveform(p1s0, 0));
+   fail_unless(tree_kind(one) == T_LITERAL);
+   fail_unless(tree_ival(one) == 1);
+
+   tree_t p2s0 = tree_stmt(tree_stmt(u, 1), 0);
+   fail_unless(tree_kind(p2s0) == T_ASSERT);
+
+   tree_t m = tree_message(p2s0);
+   fail_unless(tree_kind(m) == T_REF);
+   fail_unless(tree_ident(m) == ident_new("M"));
+   fail_unless(tree_kind(tree_ref(m)) == T_GENERIC_DECL);
+
+   tree_t sev = tree_severity(p2s0);
+   fail_unless(tree_kind(sev) == T_REF);
+   fail_unless(tree_ident(sev) == ident_new("ERROR"));
+   fail_unless(tree_kind(tree_ref(sev)) == T_ENUM_LIT);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1411,6 +1445,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds14);
    tcase_add_test(tc, test_bounds21);
    tcase_add_test(tc, test_issue228);
+   tcase_add_test(tc, test_generic1);
    suite_add_tcase(s, tc);
 
    return s;

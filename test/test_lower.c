@@ -5012,7 +5012,7 @@ START_TEST(test_driver1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_VAR_UPREF, .name = "C", .hops = 2 },
+      { VCODE_OP_VAR_UPREF, .name = "R", .hops = 1 },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },

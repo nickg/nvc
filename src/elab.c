@@ -1059,6 +1059,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
+            simplify_global(bind_expr, ctx->generics, ctx->eval);
             cg = eg;
          }
 
@@ -1071,26 +1072,42 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          continue;
       }
 
-      tree_add_genmap(ctx->out, map);
-
       tree_t value = tree_value(map);
-      const tree_kind_t kind = tree_kind(value);
-      if (kind == T_FCALL || kind == T_AGGREGATE) {
-         // Make sure the generic is only evaluated once
-         tree_t c = tree_new(T_CONST_DECL);
-         tree_set_loc(c, tree_loc(value));
-         tree_set_ident(c, tree_ident(eg));
-         tree_set_value(c, value);
-         tree_set_type(c, tree_type(value));
 
-         tree_add_decl(ctx->out, c);
-         value = make_ref(c);
+      switch (tree_kind(value)) {
+      case T_RECORD_REF:
+         if (type_is_scalar(tree_type(value))) {
+            value = eval_try_fold(ctx->eval, value,
+                                  ctx->parent->lowered,
+                                  ctx->parent->context);
+            tree_set_value(map, value);
+         }
+         break;
 
-         simplify_global(c, ctx->generics, ctx->eval);
+      default:
+         break;
       }
 
-      hash_put(ctx->generics, eg, value);
-      if (eg != cg) hash_put(ctx->generics, cg, value);
+      tree_add_genmap(ctx->out, map);
+
+      switch (tree_kind(value)) {
+      case T_REF:
+         {
+            tree_t decl = tree_ref(value);
+            if (tree_kind(decl) != T_ENUM_LIT)
+               break;
+         }
+         // Fall-through
+      case T_LITERAL:
+         // These values can be safely substituted for all references to
+         // the generic name
+         hash_put(ctx->generics, eg, value);
+         if (eg != cg) hash_put(ctx->generics, cg, value);
+         break;
+      default:
+         // Preserve the reference to the generic name
+         break;
+      }
 
       if (tree_class(eg) == C_TYPE)
          hash_put(ctx->generics, tree_type(eg), tree_type(value));
@@ -1590,7 +1607,7 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 {
-   tree_t chosen = eval_case(ctx->eval, t);
+   tree_t chosen = eval_case(ctx->eval, t, ctx->lowered, ctx->context);
    if (chosen == NULL)
       return;
 

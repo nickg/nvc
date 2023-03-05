@@ -29,5 +29,6 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
                              tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc);
 vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t fcall);
+vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t);
 
 #endif  // _LOWER_H

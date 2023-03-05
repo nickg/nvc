@@ -37,11 +37,11 @@ ARCHITECTURE c05s02b01x02p12n01i03128arch_a OF c05s02b01x02p12n01i03128ent_a IS
 BEGIN
   TESTING: PROCESS
   BEGIN
-    assert g1 /= 2    report "g1 = 2"    severity FAILURE;
-    assert g1 /= 3    report "g1 = 3"    severity FAILURE;
-    assert g1 = 4     report "g1 /= 4"    severity FAILURE;
-    assert g1 /= 5    report "g1 = 5"    severity FAILURE;
-    assert g1 /= 6    report "g1 = 6"    severity FAILURE;
+    assert g1 /= 2      severity FAILURE;
+    assert g1 /= 3      severity FAILURE;
+    assert g1 = 4        severity FAILURE;
+    assert g1 /= 5      severity FAILURE;
+    assert g1 /= 6      severity FAILURE;
     assert NOT(    g1 /= 2   and
                    g1 /= 3   and
                    g1 = 4   and
