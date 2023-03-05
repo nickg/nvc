@@ -579,11 +579,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    tagging->top_scope = s;
    tagging->hier = ident_prefix(tagging->hier, name, '.');
 
-   s->emit = true;
-   if (tagging->spec) {
-      s->emit = false;
-      s->emit = cover_should_emit_scope(tagging, t);
-   }
+   s->emit = (tagging->spec && cover_should_emit_scope(tagging, t));
 
 #ifdef COVER_DEBUG_SCOPE
    printf("Pushing cover scope: %s\n", istr(tagging->hier));
