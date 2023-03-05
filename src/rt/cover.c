@@ -68,6 +68,7 @@ typedef struct _cover_scope {
    int            expression_label;
    cover_scope_t *parent;
    range_array_t  ignore_lines;
+   ident_t        block_name;
    int            sig_pos;
    bool           emit;
 } cover_scope_t;
@@ -91,7 +92,6 @@ struct _cover_tagging {
    int                  next_expression_tag;
    int                  next_hier_tag;
    ident_t              hier;
-   ident_t              block_name;
    tag_array_t          tags;
    cover_mask_t         mask;
    int                  array_limit;
@@ -475,25 +475,49 @@ void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
 
 bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 {
-   // Hierarchy
-   for (int i = 0; i < tagging->spec->hier_exclude.count; i++)
-      if (ident_glob(tagging->hier, tb_get(AGET(tagging->spec->hier_exclude, i)), -1))
-         return false;
-
-   for (int i = 0; i < tagging->spec->hier_include.count; i++)
-      if (ident_glob(tagging->hier, tb_get(AGET(tagging->spec->hier_include, i)), -1))
-         return true;
+   cover_scope_t *ts = tagging->top_scope;
+   cover_spec_t *spc = tagging->spec;
 
    // Block (entity, package instance or block) name
-   if (tagging->block_name) {
-      for (int i = 0; i < tagging->spec->block_exclude.count; i++)
-         if (ident_glob(tagging->block_name, tb_get(AGET(tagging->spec->block_exclude, i)), -1))
+   if (ts->block_name) {
+      for (int i = 0; i < spc->block_exclude.count; i++)
+
+         if (ident_glob(ts->block_name, tb_get(AGET(spc->block_exclude, i)), -1)) {
+#ifdef COVER_DEBUG_EMIT
+            printf("Cover emit: False, block (Block: %s, Pattern: %s)\n",
+                   istr(ts->block_name), tb_get(AGET(spc->block_exclude, i)));
+#endif
             return false;
+         }
 
       for (int i = 0; i < tagging->spec->block_include.count; i++)
-         if (ident_glob(tagging->block_name, tb_get(AGET(tagging->spec->block_include, i)), -1))
+         if (ident_glob(ts->block_name, tb_get(AGET(spc->block_include, i)), -1)) {
+#ifdef COVER_DEBUG_EMIT
+            printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
+                   istr(ts->block_name), tb_get(AGET(spc->block_include, i)));
+#endif
             return true;
+         }
    }
+
+   // Hierarchy
+   for (int i = 0; i < spc->hier_exclude.count; i++)
+      if (ident_glob(tagging->hier, tb_get(AGET(spc->hier_exclude, i)), -1)) {
+#ifdef COVER_DEBUG_EMIT
+         printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
+                   istr(tagging->hier), tb_get(AGET(spc->hier_exclude, i)));
+#endif
+         return false;
+      }
+
+   for (int i = 0; i < spc->hier_include.count; i++)
+      if (ident_glob(tagging->hier, tb_get(AGET(spc->hier_include, i)), -1)) {
+#ifdef COVER_DEBUG_EMIT
+         printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
+                   istr(tagging->hier), tb_get(AGET(spc->hier_include, i)));
+#endif
+         return true;
+      }
 
    return false;
 }
@@ -545,7 +569,8 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    if (name == NULL)
       name = ident_new(prefix);
 
-   s->name   = name;
+   s->name = name;
+   s->block_name = tagging->top_scope->block_name;
    s->parent = tagging->top_scope;
    if (s->sig_pos == 0)
       s->sig_pos = tagging->top_scope->sig_pos;
@@ -591,7 +616,7 @@ void cover_set_block_name(cover_tagging_t *tagging, ident_t name)
 {
    assert(tagging != NULL);
 
-   tagging->block_name = name;
+   tagging->top_scope->block_name = name;
 }
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
@@ -823,11 +848,12 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
             fatal_at(&ctx.loc, "invalid command: $bold$%s$$", tok);
 
          char *hier = strtok(NULL, delim);
-            if (!hier)
-               fatal_at(&ctx.loc, "%s name missing", tok);
+         if (!hier)
+            fatal_at(&ctx.loc, "%s name missing", tok);
 
          text_buf_t *tb = tb_new();
          tb_printf(tb, "%s", hier);
+         tb_upcase(tb);
          APUSH(*arr, tb);
 
          tok = strtok(NULL, delim);

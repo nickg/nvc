@@ -270,6 +270,7 @@ void tb_rewind(text_buf_t *tb);
 void tb_trim(text_buf_t *tb, size_t newlen);
 size_t tb_len(text_buf_t *tb);
 void tb_downcase(text_buf_t *tb);
+void tb_upcase(text_buf_t *tb);
 void tb_replace(text_buf_t *tb, char old, char rep);
 
 #define LOCAL __attribute__((cleanup(_local_free)))

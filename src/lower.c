@@ -10817,17 +10817,23 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
    lower_unit_t *lu = lower_unit_new(parent, vu, cover, block);
 
    if (cover_enabled(lu->cover, COVER_MASK_ALL)) {
-      lower_unit_t *it;
-      for (it = lu; it != NULL; it = it->parent) {
-         if (it->hier == NULL)
-            continue;
 
-         tree_t unit = tree_ref(it->hier);
-         if (tree_kind(unit) == T_ARCH) {
-            ident_t ename = ident_rfrom(tree_ident(tree_primary(unit)), '.');
-            cover_set_block_name(lu->cover, ename);
+      // Need to find corresponding T_HIER in advance before hier
+      // of lower_scope_t is assigned.
+      tree_t inst_hier = NULL;
+      for (int i = 0; i < tree_decls(block); i++) {
+         tree_t decl = tree_decl(block, i);
+         if (tree_kind(decl) == T_HIER) {
+            inst_hier = decl;
             break;
          }
+      }
+      assert(inst_hier != NULL);
+
+      tree_t unit = tree_ref(inst_hier);
+      if (tree_kind(unit) == T_ARCH) {
+         ident_t ename = ident_rfrom(tree_ident(tree_primary(unit)), '.');
+         cover_set_block_name(lu->cover, ename);
       }
 
       cover_add_tag(block, NULL, lu->cover, TAG_HIER, COV_FLAG_HIER_DOWN);
