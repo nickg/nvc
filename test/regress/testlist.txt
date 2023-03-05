@@ -734,4 +734,8 @@ issue640        normal
 vests49         normal
 signal30        normal
 psl1            normal,psl
+<<<<<<< HEAD
 elab36          normal
+=======
+cover13         cover,shell
+>>>>>>> 66acdbd1 (test: Add cover13 to test block/hierarchy name exclusions.)
