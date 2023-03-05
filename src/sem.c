@@ -1583,35 +1583,24 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       else if (!sem_check(r, tab) || !sem_readable(r))
          return false;
 
-      // Can only reference signals in sensitivity list
-      tree_t decl = sem_check_lvalue(r);
-      if (decl == NULL)
+      if (!sem_static_name(r, sem_globally_static))
          sem_error(r, "name in sensitivity list is not a static signal name");
 
-      switch (tree_kind(decl)) {
-      case T_SIGNAL_DECL:
-      case T_PORT_DECL:
-      case T_IMPLICIT_SIGNAL:
-         break;
-      case T_PARAM_DECL:
-         if (tree_class(decl) == C_SIGNAL)
-            break;
-         // Fall-through
-      default:
-         {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
+      if (class_of(r) != C_SIGNAL) {
+         tree_t ref = name_to_ref(r);
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
+         if (ref != NULL) {
+            tree_t decl = tree_ref(ref);
             diag_printf(d, "name %s in sensitivity list is not a signal",
                         istr(tree_ident(decl)));
             diag_hint(d, tree_loc(r), "%s is a %s", istr(tree_ident(decl)),
                       class_str(class_of(decl)));
-            diag_emit(d);
-            return false;
          }
+         else
+            diag_printf(d, "name in sensitivity list is not a signal");
+         diag_emit(d);
+         return false;
       }
-
-      if (!sem_static_name(r, sem_globally_static))
-         sem_error(r, "name %s in sensitivity list is not static",
-                   istr(tree_ident(decl)));
    }
 
    return true;
@@ -4544,6 +4533,19 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
             return false;
 
          return (*check_fn)(tree_range(t, 0));
+      }
+
+   case T_ATTR_REF:
+      {
+         switch (tree_subkind(t)) {
+         case ATTR_DELAYED:
+         case ATTR_STABLE:
+         case ATTR_QUIET:
+         case ATTR_TRANSACTION:
+            return sem_static_name(tree_name(t), check_fn);
+         default:
+            return false;
+         }
       }
 
    default:

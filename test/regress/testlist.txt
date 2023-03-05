@@ -730,3 +730,4 @@ file11          normal,2008
 issue617        fail,gold
 bounds39        fail,gold
 issue610        normal,2008
+issue640        normal

@@ -511,6 +511,16 @@ class_t class_of(tree_t t)
       return C_PACKAGE;
    case T_LIBRARY:
       return C_LIBRARY;
+   case T_ATTR_REF:
+      switch (tree_subkind(t)) {
+      case ATTR_DELAYED:
+      case ATTR_STABLE:
+      case ATTR_QUIET:
+      case ATTR_TRANSACTION:
+         return C_SIGNAL;
+      default:
+         return C_DEFAULT;
+      }
    default:
       fatal_trace("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -1309,6 +1319,8 @@ tree_t name_to_ref(tree_t name)
       case T_ALL:
          name = tree_value(name);
          break;
+      case T_ATTR_REF:
+
       default:
          return NULL;
       }
