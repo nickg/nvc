@@ -1075,12 +1075,31 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_t value = tree_value(map);
 
       switch (tree_kind(value)) {
+      case T_REF:
+         if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
+            break;
+         // Fall-through
+      case T_ARRAY_REF:
       case T_RECORD_REF:
+      case T_FCALL:
          if (type_is_scalar(tree_type(value))) {
-            value = eval_try_fold(ctx->eval, value,
-                                  ctx->parent->lowered,
-                                  ctx->parent->context);
-            tree_set_value(map, value);
+            tree_t folded = eval_try_fold(ctx->eval, value,
+                                          ctx->parent->lowered,
+                                          ctx->parent->context);
+
+            if (folded == value)
+               break;
+            else if (tree_arena(map) != tree_arena(ctx->out)) {
+               tree_t m = tree_new(T_PARAM);
+               tree_set_loc(m, tree_loc(map));
+               tree_set_subkind(m, P_POS);
+               tree_set_pos(m, tree_pos(map));
+               tree_set_value(m, (value = folded));
+
+               map = m;
+            }
+            else
+               tree_set_value(map, (value = folded));
          }
          break;
 

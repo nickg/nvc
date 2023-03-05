@@ -1369,6 +1369,35 @@ START_TEST(test_generic1)
 }
 END_TEST
 
+START_TEST(test_generic2)
+{
+   input_from_file(TESTDIR "/elab/generic2.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t u = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_stmts(u) == 2);
+
+   tree_t p1s0 = tree_stmt(tree_stmt(u, 0), 0);
+   fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
+
+   tree_t two = tree_value(tree_waveform(p1s0, 0));
+   fail_unless(tree_kind(two) == T_LITERAL);
+   fail_unless(tree_ival(two) == 2);
+
+   tree_t p2s0 = tree_stmt(tree_stmt(u, 1), 0);
+   fail_unless(tree_kind(p2s0) == T_ASSERT);
+
+   tree_t value = tree_value(p2s0);
+   fail_unless(tree_kind(value) == T_REF);
+   fail_unless(tree_ident(value) == ident_new("FALSE"));
+   fail_unless(tree_kind(tree_ref(value)) == T_ENUM_LIT);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1446,6 +1475,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds21);
    tcase_add_test(tc, test_issue228);
    tcase_add_test(tc, test_generic1);
+   tcase_add_test(tc, test_generic2);
    suite_add_tcase(s, tc);
 
    return s;

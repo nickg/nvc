@@ -1,20 +1,20 @@
 entity sub is
-    generic (g : integer; m : string; b : boolean; s : severity_level);
+    generic (g : integer; b : boolean);
     port (o : out integer);
 end entity;
 
 architecture test of sub is
 begin
     p1: o <= g;
-    p2: assert b report m severity s;
+    p2: assert b;
 end architecture;
 
 -------------------------------------------------------------------------------
 
-entity generic1 is
+entity generic2 is
 end entity;
 
-architecture test of generic1 is
+architecture test of generic2 is
     type rec is record
         x : integer;
         y : string(1 to 5);
@@ -30,7 +30,7 @@ architecture test of generic1 is
 begin
 
     u: entity work.sub
-        generic map ( c.x, c.y, false, error )
+        generic map ( c.x + 1, get_rec.x = 6 )
         port map ( s );
 
 end architecture;
