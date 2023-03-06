@@ -5799,7 +5799,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
          if (op->kind == VCODE_OP_DEBUG_LOCUS && op->value < 0) {
             object_t *obj = object_from_locus(op->ident, op->value, NULL);
-            object_locus(obj, &op->ident, &op->value);
+            object_locus(obj, &op->ident, (ptrdiff_t *)&op->value);
          }
 
          fbuf_put_uint(f, op->kind);

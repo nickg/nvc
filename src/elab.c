@@ -206,9 +206,13 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
    case T_PATH_ELT:
       return tree_subkind(t) != PE_SIMPLE;
    case T_FCALL:
-      // Globally static expressions should be copied and folded
-      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC)
-         && type_is_scalar(tree_type(t));
+      if ((tree_flags(t) & TREE_F_GLOBALLY_STATIC)
+          && type_is_scalar(tree_type(t)))
+         return true;   // Globally static expression
+      else if (tree_kind(tree_ref(t)) == T_GENERIC_DECL)
+         return true;   // Call to generic subprogram
+      else
+         return false;
    case T_REF:
       {
          tree_t decl = tree_ref(t);
@@ -1113,7 +1117,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       case T_REF:
          {
             tree_t decl = tree_ref(value);
-            if (tree_kind(decl) != T_ENUM_LIT)
+            if (tree_kind(decl) != T_ENUM_LIT && !is_subprogram(decl))
                break;
          }
          // Fall-through

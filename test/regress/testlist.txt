@@ -736,3 +736,5 @@ signal30        normal
 psl1            normal,psl
 elab36          normal
 cover13         cover,shell
+gentype5        normal,2008
+issue620        normal,2008
