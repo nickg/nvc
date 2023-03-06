@@ -1364,6 +1364,12 @@ void tb_downcase(text_buf_t *tb)
       tb->buf[i] = tolower((int)tb->buf[i]);
 }
 
+void tb_upcase(text_buf_t *tb)
+{
+   for (size_t i = 0; i < tb->len; i++)
+      tb->buf[i] = toupper((int)tb->buf[i]);
+}
+
 void tb_replace(text_buf_t *tb, char old, char rep)
 {
    for (size_t i = 0; i < tb->len; i++) {

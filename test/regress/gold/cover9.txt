@@ -136,7 +136,7 @@
 ** Note: excluding statement: 'WORK.COVER9._P1._S0._S4'
     > data/cover9_ef1.txt:12
     |
- 12 | exclude WORK.COVER9._P1._S0._S4
+ 12 | exclude WORK.COVER9._p1._S0._S4
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding statement: 'WORK.COVER9._P1._S0._S5'
     > data/cover9_ef1.txt:13
@@ -156,7 +156,7 @@
 ** Note: excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
     > data/cover9_ef1.txt:26
     |
- 26 | exclude WORK.COVER9._P1._S0._B4._B0
+ 26 | exclude WORK.COVER9._P1._s0._B4._B0
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
     > data/cover9_ef1.txt:27
@@ -171,7 +171,7 @@
 ** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
     > data/cover9_ef1.txt:33
     |
- 33 | exclude WORK.COVER9._P0._S0._E0 BIN_0_1
+ 33 | exclude WORK.cover9._P0._S0._E0 BIN_0_1
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
     > data/cover9_ef1.txt:34

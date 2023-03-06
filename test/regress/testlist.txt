@@ -735,3 +735,4 @@ vests49         normal
 signal30        normal
 psl1            normal,psl
 elab36          normal
+cover13         cover,shell
