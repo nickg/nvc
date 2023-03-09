@@ -36,17 +36,56 @@ static void psl_dump_always(psl_node_t p)
    psl_dump(psl_value(p));
 }
 
+static void psl_dump_never(psl_node_t p)
+{
+   print_syntax("#never ");
+   psl_dump(psl_value(p));
+}
+
 static void psl_dump_implication(psl_node_t p)
 {
    psl_dump(psl_operand(p, 0));
-   print_syntax(" -> ");
+   print_syntax(" -> (");
    psl_dump(psl_operand(p, 1));
+   print_syntax(")");
 }
 
 static void psl_dump_next(psl_node_t p)
 {
    print_syntax("#next ");
    psl_dump(psl_value(p));
+}
+
+static void psl_dump_next_a(psl_node_t p)
+{
+   print_syntax("#next_a ");
+   psl_dump(psl_value(p));
+}
+
+static void psl_dump_next_event(psl_node_t p)
+{
+   print_syntax("#next_event (");
+   psl_dump(psl_value(p));
+   print_syntax(")");
+}
+
+static void psl_dump_sere(psl_node_t p)
+{
+   print_syntax("{");
+
+   const int n = psl_operands(p);
+   for (int i = 0; i < n; i++) {
+      if (i > 0) print_syntax("; ");
+      psl_dump(psl_operand(p, i));
+   }
+
+   print_syntax("}");
+}
+
+static void psl_dump_clock_decl(psl_node_t p)
+{
+   print_syntax("#default #clock #is ");
+   vhdl_dump(psl_tree(p), 0);
 }
 
 void psl_dump(psl_node_t p)
@@ -58,6 +97,9 @@ void psl_dump(psl_node_t p)
    case P_ALWAYS:
       psl_dump_always(p);
       break;
+   case P_NEVER:
+      psl_dump_never(p);
+      break;
    case P_HDL_EXPR:
       vhdl_dump(psl_tree(p), 0);
       break;
@@ -66,6 +108,18 @@ void psl_dump(psl_node_t p)
       break;
    case P_NEXT:
       psl_dump_next(p);
+      break;
+   case P_NEXT_A:
+      psl_dump_next_a(p);
+      break;
+   case P_NEXT_EVENT:
+      psl_dump_next_event(p);
+      break;
+   case P_CLOCK_DECL:
+      psl_dump_clock_decl(p);
+      break;
+   case P_SERE:
+      psl_dump_sere(p);
       break;
    default:
       print_syntax("\n");

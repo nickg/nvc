@@ -51,7 +51,7 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_VALUE),
 
    // P_SERE
-   (0),
+   (I_PARAMS),
 
    // P_IMPLICATION
    (I_SUBKIND | I_PARAMS),

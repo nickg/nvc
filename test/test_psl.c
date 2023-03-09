@@ -21,6 +21,7 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-node.h"
+#include "psl/psl-phase.h"
 #include "scan.h"
 
 START_TEST(test_parse1)
@@ -120,6 +121,32 @@ START_TEST(test_parse3)
 }
 END_TEST
 
+START_TEST(test_dump)
+{
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/psl/parse3.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 0)));
+   ck_assert_str_eq(tb_get(tb), "default clock is \"and\"(CLK'EVENT, \"=\"(CLK, '1'))");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 1)));
+   ck_assert_str_eq(tb_get(tb), "assert never B");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 6)));
+   ck_assert_str_eq(tb_get(tb), "assert {A; \"and\"(B, C)}");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+
 Suite *get_psl_tests(void)
 {
    Suite *s = suite_create("psl");
@@ -129,6 +156,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_parse2);
    tcase_add_test(tc_core, test_sem1);
    tcase_add_test(tc_core, test_parse3);
+   tcase_add_test(tc_core, test_dump);
    suite_add_tcase(s, tc_core);
 
    return s;

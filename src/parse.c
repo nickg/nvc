@@ -10028,17 +10028,12 @@ static psl_node_t p_psl_sere(void)
    // Boolean | Boolean Proc_Block | Sequence | SERE ; SERE | SERE : SERE
    //  | Compound_SERE
 
-   (void)p_psl_or_hdl_expression();
-
    psl_node_t p = psl_new(P_SERE);
 
-   switch (peek()) {
-   case tSEMI:
-      consume(tSEMI);
-      (void)p_psl_or_hdl_expression();
-   default:
-      break;
-   }
+   psl_add_operand(p, p_psl_or_hdl_expression());
+
+   while (optional(tSEMI))
+      psl_add_operand(p, p_psl_or_hdl_expression());
 
    psl_set_loc(p, CURRENT_LOC);
    return p;
@@ -10144,7 +10139,7 @@ static psl_node_t p_psl_fl_property(void)
 
          consume(tRSQUARE);
 
-         (void)p_psl_fl_property();
+         psl_set_value(p, p_psl_fl_property());
       }
       break;
 
@@ -10189,7 +10184,7 @@ static psl_node_t p_psl_fl_property(void)
          }
 
          consume(tLPAREN);
-         (void)p_psl_fl_property();
+         psl_set_value(p, p_psl_fl_property());
          consume(tRPAREN);
       }
       break;
@@ -10329,8 +10324,6 @@ static tree_t p_psl_clock_declaration(void)
    consume(tDEFAULT);
    consume(tCLOCK);
 
-   tree_t t = tree_new(T_PSL);
-
    consume(tIS);
 
    scan_as_hdl();
@@ -10342,6 +10335,9 @@ static tree_t p_psl_clock_declaration(void)
 
    psl_set_loc(p, CURRENT_LOC);
    psl_check(p);
+
+   tree_t t = tree_new(T_PSL);
+   tree_set_psl(t, p);
 
    tree_set_ident(t, ident_new("default clock"));
    tree_set_loc(t, CURRENT_LOC);
