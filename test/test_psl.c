@@ -150,6 +150,7 @@ START_TEST(test_dump)
 
    fail_if_errors();
 }
+END_TEST
 
 Suite *get_psl_tests(void)
 {
