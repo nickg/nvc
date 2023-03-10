@@ -680,7 +680,7 @@ signal cnt : std_logic_vector(3 downto 0);
 .Ed
 .Ss Coverage specification file
 NVC can collect code coverage only on part of the simulated design.
-When Coverage specification file is passed during elaboration time,
+When coverage specification file is passed during elaboration time,
 NVC collects code coverage only as specified in this file. If
 the file is ommited, NVC collects code coverage on whole design.
 Format of commands in coverage specification file is following:
@@ -704,7 +704,7 @@ An example of coverage specification file is following:
 # Example how to disable collecting code coverage on entity or block:
 -block clock_gate_model
 .Ed
-In Coverage specification file
+In coverage specification file
 .Ql block
 has priority over
 .Ql hierarchy
@@ -795,7 +795,7 @@ exclude WORK.TOP.SIGNAL_NAME BIN_0_TO_1
 exclude WORK.TOP.SUB_BLOCK_INST.PORT_NAME
 .Ed
 .Ss Additional Information
-In Coverage specification file and Exclude file
+In coverage specification file and Exclude file
 .Ql <ENTITY_NAME>
 and
 .Ql <HIERARCHY>
@@ -943,7 +943,7 @@ Where
 .Ql my_func
 is a global function defined in the plugin library as follows.
 .Bd -literal -offset indent
-int32_t my_func(int32_t x, const uint8_t *y, uint8_t z) { ... }
+int32_t my_func(int32_t x, const uint8_t *y, int64_t y_len, uint8_t z);
 .Ed
 .Pp
 Foreign procedures may be defined similarly:
@@ -951,7 +951,7 @@ Foreign procedures may be defined similarly:
 function my_proc (x : out integer; y : out bit_vector; z : std_logic);
 attribute foreign of my_proc : function is "VHPIDIRECT my_proc";
 
-void my_proc(int32_t *x, uint8_t *y, uint8_t z) { ... }
+void my_proc(int32_t *x, uint8_t *y, int64_t y_len, uint8_t z);
 .Ed
 .Pp
 Note that scalar
@@ -972,8 +972,11 @@ type.
 .It Constrained arrays
 Pointer to the element type.
 .It Unconstrained arrays
-Pointer to the element type.  Note that the length and bounds are not
-available and must be passed explicitly as separate arguments.
+Pointer to the element type followed by one
+.Vt int64_t
+length argument for each dimension.  Note that the bounds and direction
+are not available and must be passed explicitly as separate arguments if
+required.
 .It Records
 Not yet supported.
 .El
@@ -987,14 +990,14 @@ Here are several examples for common types:
 .It Li BOOLEAN Ta Vt uint8_t
 .It Li "BIT_VECTOR(1 to 3)" Ta Vt "uint8_t *"
 .It Li STD_LOGIC Ta uint8_t
-.It Li STD_LOGIC_VECTOR Ta Vt "uint8_t *"
+.It Li STD_LOGIC_VECTOR Ta Vt "uint8_t *" , Vt "int64_t"
 .El
 .Pp
-Foreign functions should not modify arrays passed as
+Foreign functions must not modify arrays passed as
 .Ql in
-arguments, although this is not enforced.  Additionally foreign
-subprograms should not retain any pointers passed as arguments after the
-subprogram returns.
+arguments.  Additionally foreign subprograms must not retain any
+pointers passed as arguments after the subprogram returns.  Violating
+these rules will result in unpredictable and hard to debug behaviour.
 .Sh ENVIRONMENT
 .Bl -tag -width "NVC_COLORS"
 .It Ev NVC_COLORS

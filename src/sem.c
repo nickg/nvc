@@ -1789,10 +1789,12 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
             }
          }
 
-         const bool missing =
-            !found && !(dkind != T_TYPE_DECL
-                        && ((tree_flags(d) & TREE_F_PREDEFINED)
-                            || (tree_flags(d) & TREE_F_FOREIGN)));
+         if (found)
+            continue;
+
+         const bool missing = (dkind == T_TYPE_DECL)
+            || (!(tree_flags(d) & TREE_F_PREDEFINED)
+                && tree_subkind(d) != S_FOREIGN);
 
          if (missing && opt_get_int(OPT_MISSING_BODY)) {
             warn_at(tree_loc(d), "missing body for %s %s",

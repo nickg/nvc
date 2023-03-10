@@ -1135,17 +1135,16 @@ double test_ffi_fma(double x, double y, double z)
    return x * y + z;
 }
 
-static int test_ffi_arraylen(EXPLODED_UARRAY(arr))
+static int test_ffi_arraylen(const void *ptr, int64_t len)
 {
-   return abs(arr_biased) - 1;
+   return len;
 }
 
-static int test_ffi_arraysum(EXPLODED_UARRAY(arr))
+static int test_ffi_arraysum(const void *ptr, int64_t len)
 {
-   const int len = abs(arr_biased) - 1;
    int sum = 0;
    for (int i = 0; i < len; i++)
-      sum += *((int *)arr_ptr + i);
+      sum += *((int *)ptr + i);
    return sum;
 }
 
@@ -1205,15 +1204,15 @@ START_TEST(test_ffi1)
 
    ident_t len_i = ident_new("len");
 
-   const ffi_type_t len_types[] = { FFI_INT32, FFI_UARRAY };
-   ffi_spec_t len_spec = ffi_spec_new(len_types, 2);
+   const ffi_type_t len_types[] = { FFI_INT32, FFI_POINTER, FFI_INT64 };
+   ffi_spec_t len_spec = ffi_spec_new(len_types, 3);
 
    jit_foreign_t *len_ff = jit_ffi_bind(len_i, len_spec, test_ffi_arraylen);
    fail_if(len_ff == NULL);
 
    {
       jit_scalar_t args[] = {
-         { .pointer = NULL }, { .integer = 1 }, { .integer = 5 }
+         { .pointer = NULL }, { .integer = 4 }
       };
       jit_ffi_call(len_ff, args);
       ck_assert_int_eq(args[0].integer, 4);
@@ -1221,8 +1220,8 @@ START_TEST(test_ffi1)
 
    ident_t sum_i = ident_new("sum");
 
-   const ffi_type_t sum_types[] = { FFI_INT32, FFI_UARRAY };
-   ffi_spec_t sum_spec = ffi_spec_new(sum_types, 2);
+   const ffi_type_t sum_types[] = { FFI_INT32, FFI_POINTER, FFI_INT64 };
+   ffi_spec_t sum_spec = ffi_spec_new(sum_types, 3);
 
    jit_foreign_t *sum_ff = jit_ffi_bind(sum_i, sum_spec, test_ffi_arraysum);
    fail_if(sum_ff == NULL);
@@ -1230,7 +1229,7 @@ START_TEST(test_ffi1)
    {
       int data[4] = { 1, 2, 3, 4 };
       jit_scalar_t args[] = {
-         { .pointer = data }, { .integer = 1 }, { .integer = 5 }
+         { .pointer = data }, { .integer = 4 }
       };
       jit_ffi_call(sum_ff, args);
       ck_assert_int_eq(args[0].integer, 10);

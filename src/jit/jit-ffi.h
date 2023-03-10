@@ -50,13 +50,6 @@ STATIC_ASSERT(sizeof(ffi_spec_t) == 8);
 
 typedef struct _jit_foreign jit_foreign_t;
 
-// Macro to generate the correct calling convention for by-value uarray
-// aggregates
-#define EXPLODED_UARRAY(name) \
-   void *name##_ptr, int32_t name##_left, int32_t name##_biased
-
-#define ffi_unbias_length(l) (abs((l)) - 1)
-
 // The code generator knows the layout of this struct
 typedef struct _ffi_uarray {
    void *ptr;

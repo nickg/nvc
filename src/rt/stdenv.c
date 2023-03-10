@@ -75,7 +75,7 @@ static void copy_str(const char *str, ffi_uarray_t *u)
    *u = ffi_wrap(buf, 1, len);
 }
 
-static char *to_cstring(const char *data, int len)
+static char *to_cstring(const uint8_t *data, int len)
 {
    len = abs(len);
    char *cstr = xmalloc(len + 1);
@@ -159,9 +159,9 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)
+void _std_env_getenv(const uint8_t *name_ptr, int64_t name_len, ffi_uarray_t *u)
 {
-   char *LOCAL cstr = to_cstring(name_ptr, ffi_unbias_length(name_biased));
+   char *LOCAL cstr = to_cstring(name_ptr, name_len);
    const char *env = getenv(cstr);
 
    if (env == NULL)
@@ -250,9 +250,10 @@ void _std_env_get_workingdir(ffi_uarray_t *u)
 }
 
 DLLEXPORT
-void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
+void _std_env_set_workingdir(const uint8_t *dir_ptr, int64_t dir_len,
+                             int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(dir_ptr, ffi_unbias_length(dir_biased));
+   char *cstr LOCAL = to_cstring(dir_ptr, dir_len);
 
    if (chdir(cstr) == -1)
       *status = errno_to_dir_open_status();
@@ -261,9 +262,10 @@ void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
 }
 
 DLLEXPORT
-void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
+void _std_env_createdir(const uint8_t *path_ptr, int64_t path_len,
+                        int8_t parents, int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
+   char *cstr LOCAL = to_cstring(path_ptr, path_len);
 
 #ifdef __MINGW32__
    if (mkdir(cstr) == -1)
@@ -276,18 +278,18 @@ void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
 }
 
 DLLEXPORT
-bool _std_env_itemexists(EXPLODED_UARRAY(path))
+bool _std_env_itemexists(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
+   char *path LOCAL = to_cstring(path_ptr, path_len);
 
    struct stat sb;
    return stat(path, &sb) == 0;
 }
 
 DLLEXPORT
-bool _std_env_itemisfile(EXPLODED_UARRAY(path))
+bool _std_env_itemisfile(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
+   char *path LOCAL = to_cstring(path_ptr, path_len);
 
    struct stat sb;
    if (stat(path, &sb) != 0)
@@ -297,9 +299,9 @@ bool _std_env_itemisfile(EXPLODED_UARRAY(path))
 }
 
 DLLEXPORT
-bool _std_env_itemisdir(EXPLODED_UARRAY(path))
+bool _std_env_itemisdir(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, ffi_unbias_length(path_biased));
+   char *path LOCAL = to_cstring(path_ptr, path_len);
 
    struct stat sb;
    if (stat(path, &sb) != 0)

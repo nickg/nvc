@@ -22,8 +22,10 @@
 - NVC is now supported by [VUnit](https://vunit.github.io/).
 - Implicit signal attributes like `'transaction` are now considered
   static signal names (#640).
-- Add support for fine-grained coverage collection via
-  `--coverage-spec` elab option (#567).
+- Added support for fine-grained coverage collection via
+  `--coverage-spec` elaboration option (from @Blebowski).
+- The ABI for passing unconstrained arrays to foreign subprograms
+  changed slightly, see the manual for details.
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.

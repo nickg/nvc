@@ -1498,8 +1498,6 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
       buf[i] = tree_pos(tree_ref(tree_char(value, i)));
    buf[nchars] = '\0';
 
-   subprogram_kind_t skind = S_FOREIGN;
-
    char *p = strtok(buf, " ");
    if (strcmp(p, "VHPIDIRECT") == 0) {
       p = strtok(NULL, " ");
@@ -1508,7 +1506,6 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
          char *p2 = strtok(NULL, " ");
          if (p2 != NULL) p = p2;
       }
-      skind = S_VHPIDIRECT;
    }
    else if (strtok(NULL, " ") != NULL)
       error_at(tree_loc(value), "failed to parse foregin attribute");
@@ -1516,8 +1513,8 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
    ident_t name = ident_new(p);
    tree_set_ident2(decl, name);
 
-   tree_set_subkind(decl, skind);
-   tree_set_flag(decl, TREE_F_FOREIGN | TREE_F_NEVER_WAITS);
+   tree_set_subkind(decl, S_FOREIGN);
+   tree_set_flag(decl, TREE_F_NEVER_WAITS);
 }
 
 static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)

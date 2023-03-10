@@ -196,7 +196,7 @@ bool eval_possible(eval_t *e, tree_t t)
 
          tree_t decl = tree_ref(t);
          const subprogram_kind_t kind = tree_subkind(decl);
-         if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
+         if (kind == S_FOREIGN)
             return eval_not_possible(e, t, "call to foreign function");
          else if (tree_flags(decl) & TREE_F_IMPURE)
             return eval_not_possible(e, t, "call to impure function");

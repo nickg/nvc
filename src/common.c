@@ -1054,7 +1054,9 @@ bool package_needs_body(tree_t pack)
       switch (tree_kind(d)) {
       case T_FUNC_DECL:
       case T_PROC_DECL:
-         if (tree_flags(d) & (TREE_F_PREDEFINED | TREE_F_FOREIGN))
+         if (tree_flags(d) & TREE_F_PREDEFINED)
+            continue;
+         else if (tree_subkind(d) == S_FOREIGN)
             continue;
          return true;
 
@@ -1241,7 +1243,7 @@ type_t ieee_type(ieee_type_t which)
 
 bool is_builtin(subprogram_kind_t kind)
 {
-   return kind != S_USER && kind != S_FOREIGN && kind != S_VHPIDIRECT;
+   return kind != S_USER && kind != S_FOREIGN;
 }
 
 bool is_open_coded_builtin(subprogram_kind_t kind)
@@ -1249,7 +1251,6 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    switch (kind) {
    case S_USER:
    case S_FOREIGN:
-   case S_VHPIDIRECT:
    case S_ARRAY_EQ:
    case S_ARRAY_NEQ:
    case S_ARRAY_LT:

@@ -1242,15 +1242,7 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    if (!is_open_coded_builtin(skind))
       port = tree_port(decl, nth);
 
-   vcode_reg_t preg = lower_param(lu, value, port, mode);
-
-   if (skind == S_VHPIDIRECT) {
-      // Do not pass wrapped arrays into VHPIDIRECT functions
-      if (vcode_reg_kind(preg) == VCODE_TYPE_UARRAY)
-         preg = emit_unwrap(preg);
-   }
-
-   return preg;
+   return lower_param(lu, value, port, mode);
 }
 
 static void lower_signal_flag_field_cb(lower_unit_t *lu, tree_t field,
@@ -2462,9 +2454,7 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
    tree_t decl = tree_ref(call);
    const subprogram_kind_t skind = tree_subkind(decl);
 
-   if (skind == S_FOREIGN || skind == S_VHPIDIRECT)
-      return VCODE_CC_FOREIGN;
-   else if (tree_flags(decl) & TREE_F_FOREIGN)
+   if (skind == S_FOREIGN)
       return VCODE_CC_FOREIGN;
    else if (is_builtin(skind))
       return VCODE_CC_PREDEF;
@@ -2575,8 +2565,22 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall)
    else if (cc != VCODE_CC_FOREIGN)
       APUSH(args, lower_context_for_call(name));
 
-   for (int i = 0; i < nparams; i++)
-      APUSH(args, lower_subprogram_arg(lu, fcall, i));
+   for (int i = 0; i < nparams; i++) {
+      vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i);
+      if (kind == S_FOREIGN && vcode_reg_kind(arg_reg) == VCODE_TYPE_UARRAY) {
+         // Do not pass wrapped arrays into foreign functions
+         APUSH(args, emit_unwrap(arg_reg));
+
+         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+         const int ndims = vtype_dims(vcode_reg_type(arg_reg));
+         for (int i = 0; i < ndims; i++) {
+            vcode_reg_t len_reg = emit_uarray_len(arg_reg, 0);
+            APUSH(args, emit_cast(vint64, vint64, len_reg));
+         }
+      }
+      else
+         APUSH(args, arg_reg);
+   }
 
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
@@ -6110,10 +6114,23 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
 
    const int arg0 = args.count;
    for (int i = 0; i < nparams; i++) {
-      vcode_reg_t arg = lower_subprogram_arg(lu, pcall, i);
+      vcode_reg_t arg_reg = lower_subprogram_arg(lu, pcall, i);
       if (!use_fcall)
-         vcode_heap_allocate(arg);
-      APUSH(args, arg);
+         vcode_heap_allocate(arg_reg);
+
+      if (kind == S_FOREIGN && vcode_reg_kind(arg_reg) == VCODE_TYPE_UARRAY) {
+         // Do not pass wrapped arrays into foreign functions
+         APUSH(args, emit_unwrap(arg_reg));
+
+         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+         const int ndims = vtype_dims(vcode_reg_type(arg_reg));
+         for (int i = 0; i < ndims; i++) {
+            vcode_reg_t len_reg = emit_uarray_len(arg_reg, 0);
+            APUSH(args, emit_cast(vint64, vint64, len_reg));
+         }
+      }
+      else
+         APUSH(args, arg_reg);
    }
 
    if (use_fcall)
@@ -9440,7 +9457,7 @@ static void lower_predef_negate(tree_t decl, const char *op)
 static void lower_predef(lower_unit_t *parent, tree_t decl)
 {
    const subprogram_kind_t kind = tree_subkind(decl);
-   if (kind == S_USER || kind == S_FOREIGN || kind == S_VHPIDIRECT)
+   if (kind == S_USER || kind == S_FOREIGN)
       return;
    else if (is_open_coded_builtin(kind))
       return;

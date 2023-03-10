@@ -807,8 +807,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          dd->visibility = HIDDEN;
       }
       else if (is_forward_decl(decl, dd->tree)) {
-         if ((dd->mask & N_SUBPROGRAM)
-             && (tree_flags(dd->tree) & TREE_F_FOREIGN)) {
+         if ((dd->mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
             // Hide bodies of subprograms declared with 'FOREIGN attribute
             return sym;
          }

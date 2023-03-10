@@ -103,10 +103,9 @@ void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
-                                ffi_uarray_t *u)
+void _std_to_string_real_format(double value, const void *fmt_ptr,
+                                int64_t fmt_length, ffi_uarray_t *u)
 {
-   const size_t fmt_length = ffi_unbias_length(fmt_biased);
    char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
    memcpy(fmt_cstr, fmt_ptr, fmt_length);
    fmt_cstr[fmt_length] = '\0';
@@ -137,15 +136,17 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
 }
 
 DLLEXPORT
-void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
+void _std_to_hstring_bit_vec(const uint8_t *vec_ptr, int64_t vec_len,
+                             ffi_uarray_t *u)
 {
-   *u = bit_vec_to_string(vec_ptr, ffi_unbias_length(vec_biased), 4);
+   *u = bit_vec_to_string(vec_ptr, vec_len, 4);
 }
 
 DLLEXPORT
-void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
+void _std_to_ostring_bit_vec(const uint8_t *vec_ptr, int64_t vec_len,
+                             ffi_uarray_t *u)
 {
-   *u = bit_vec_to_string(vec_ptr, ffi_unbias_length(vec_biased), 3);
+   *u = bit_vec_to_string(vec_ptr, vec_len, 3);
 }
 
 void _std_standard_init(void)

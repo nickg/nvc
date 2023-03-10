@@ -180,7 +180,6 @@ typedef enum {
    S_MATCH_EQ,
    S_MATCH_NEQ,
    S_FILE_FLUSH,
-   S_VHPIDIRECT,
 } subprogram_kind_t;
 
 typedef enum {
@@ -357,7 +356,7 @@ typedef enum {
    TREE_F_PREDEFINED      = (1 << 13),
    TREE_F_UNIVERSAL       = (1 << 14),
    // Unused              = (1 << 15),
-   TREE_F_FOREIGN         = (1 << 16),
+   // Unused              = (1 << 16),
    TREE_F_PROTECTED       = (1 << 17),
    TREE_F_STATIC_WAIT     = (1 << 18),
    TREE_F_NULL_RANGE      = (1 << 19),
