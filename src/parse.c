@@ -10058,7 +10058,8 @@ static psl_node_t p_psl_sequence(void)
 
 static psl_node_t p_psl_fl_property(void)
 {
-   // Boolean | ( FL_Property ) | always FL_Property
+   // Boolean | ( FL_Property ) | FL_Property @ Clock_Expression
+   //   | always FL_Property
    //   | never FL_Property
    //   | eventually! FL_Property
    //   | next FL_Property | next [ Number ] FL_Property
@@ -10260,13 +10261,17 @@ static psl_node_t p_psl_assert_directive(void)
 
    consume(tASSERT);
 
-   psl_node_t p = psl_new(P_ASSERT);
-   psl_set_value(p, p_psl_property());
+   psl_node_t p = p_psl_property();
+   if (!psl_has_clock(p))
+      psl_set_clock(p, find_default_clock(nametab));
+
+   psl_node_t a = psl_new(P_ASSERT);
+   psl_set_value(a, p);
 
    consume(tSEMI);
 
-   psl_set_loc(p, CURRENT_LOC);
-   return p;
+   psl_set_loc(a, CURRENT_LOC);
+   return a;
 }
 
 static psl_node_t p_psl_verification_directive(void)
@@ -10328,8 +10333,11 @@ static tree_t p_psl_clock_declaration(void)
 
    scan_as_hdl();
 
+   tree_t expr = p_expression();
+   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+
    psl_node_t p = psl_new(P_CLOCK_DECL);
-   psl_set_tree(p, p_expression());
+   psl_set_tree(p, expr);
 
    consume(tSEMI);
 
@@ -10339,8 +10347,10 @@ static tree_t p_psl_clock_declaration(void)
    tree_t t = tree_new(T_PSL);
    tree_set_psl(t, p);
 
-   tree_set_ident(t, ident_new("default clock"));
+   tree_set_ident(t, well_known(W_DEFAULT_CLOCK));
    tree_set_loc(t, CURRENT_LOC);
+
+   insert_name(nametab, t, NULL);
    return t;
 }
 

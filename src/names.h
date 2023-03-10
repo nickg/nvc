@@ -104,6 +104,7 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl);
 tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
 tree_t find_forward_decl(nametab_t *tab, tree_t decl);
+psl_node_t find_default_clock(nametab_t *tab);
 
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint);
 type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint);

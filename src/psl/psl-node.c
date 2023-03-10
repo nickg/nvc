@@ -24,10 +24,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE),
 
    // P_ALWAYS
-   (I_VALUE),
+   (I_VALUE | I_CLOCK),
 
    // P_HDL_EXPR
-   (I_FOREIGN | I_CLASS),
+   (I_FOREIGN | I_CLASS | I_CLOCK),
 
    // P_CLOCK_DECL
    (I_FOREIGN),
@@ -36,10 +36,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_VALUE),
 
    // P_NEVER
-   (I_VALUE),
+   (I_VALUE | I_CLOCK),
 
    // P_EVENTUALLY
-   (I_VALUE),
+   (I_VALUE | I_CLOCK),
 
    // P_NEXT_A
    (I_SUBKIND | I_VALUE),
@@ -51,10 +51,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_VALUE),
 
    // P_SERE
-   (I_PARAMS),
+   (I_PARAMS | I_CLOCK),
 
    // P_IMPLICATION
-   (I_SUBKIND | I_PARAMS),
+   (I_SUBKIND | I_PARAMS | I_CLOCK),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -171,21 +171,40 @@ void psl_set_value(psl_node_t p, psl_node_t v)
    object_write_barrier(&(p->object), &(v->object));
 }
 
-unsigned psl_operands(psl_node_t v)
+unsigned psl_operands(psl_node_t p)
 {
-   item_t *item = lookup_item(&psl_object, v, I_PARAMS);
+   item_t *item = lookup_item(&psl_object, p, I_PARAMS);
    return obj_array_count(item->obj_array);
 }
 
-psl_node_t psl_operand(psl_node_t v, unsigned n)
+psl_node_t psl_operand(psl_node_t p, unsigned n)
 {
-   item_t *item = lookup_item(&psl_object, v, I_PARAMS);
+   item_t *item = lookup_item(&psl_object, p, I_PARAMS);
    return psl_array_nth(item, n);
 }
 
-void psl_add_operand(psl_node_t v, psl_node_t p)
+void psl_add_operand(psl_node_t p, psl_node_t o)
 {
-   assert(p != NULL);
-   psl_array_add(lookup_item(&psl_object, v, I_PARAMS), p);
-   object_write_barrier(&(v->object), &(p->object));
+   assert(o != NULL);
+   psl_array_add(lookup_item(&psl_object, p, I_PARAMS), o);
+   object_write_barrier(&(p->object), &(o->object));
+}
+
+psl_node_t psl_clock(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_CLOCK);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _psl_node, object);
+}
+
+bool psl_has_clock(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_CLOCK)->object != NULL;
+}
+
+void psl_set_clock(psl_node_t p, psl_node_t clk)
+{
+   assert(clk == NULL || clk->object.kind == P_CLOCK_DECL);
+   lookup_item(&psl_object, p, I_CLOCK)->object = &(clk->object);
+   object_write_barrier(&(p->object), &(clk->object));
 }

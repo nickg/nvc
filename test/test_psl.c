@@ -115,7 +115,11 @@ START_TEST(test_parse3)
 
    input_from_file(TESTDIR "/psl/parse3.vhd");
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   psl_node_t p0 = tree_psl(tree_stmt(a, 1));
+   fail_unless(psl_kind(p0) == P_ASSERT);
+   fail_unless(psl_has_clock(psl_value(p0)));
 
    fail_if_errors();
 }

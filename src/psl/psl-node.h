@@ -75,8 +75,11 @@ psl_node_t psl_value(psl_node_t p);
 void psl_set_value(psl_node_t p, psl_node_t v);
 
 unsigned psl_operands(psl_node_t p);
-psl_node_t psl_operand(psl_node_t v, unsigned n);
-void psl_add_operand(psl_node_t v, psl_node_t p);
+psl_node_t psl_operand(psl_node_t p, unsigned n);
+void psl_add_operand(psl_node_t p, psl_node_t o);
 
+psl_node_t psl_clock(psl_node_t p);
+bool psl_has_clock(psl_node_t p);
+void psl_set_clock(psl_node_t p, psl_node_t clk);
 
 #endif  // _PSL_NODE_H

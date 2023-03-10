@@ -1126,6 +1126,17 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    return NULL;
 }
 
+psl_node_t find_default_clock(nametab_t *tab)
+{
+   const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_DEFAULT_CLOCK));
+   if (sym == NULL)
+      return NULL;
+
+   const decl_t *dd = get_decl(sym, 0);
+   assert(dd->kind == T_PSL);
+   return tree_psl(dd->tree);
+}
+
 void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
 {
    make_visible_slow(tab->top_scope, alias ?: tree_ident(decl), decl);

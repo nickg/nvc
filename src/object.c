@@ -64,7 +64,7 @@ typedef struct _object_arena {
                           | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
-                          | I_GUARD | I_FOREIGN)
+                          | I_GUARD | I_FOREIGN | I_CLOCK)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
@@ -84,7 +84,7 @@ static const char *item_text_map[] = {
    "I_PARTS"  ,  "I_CLASS",     "I_RANGES",   "I_NAME",       "I_PRAGMAS",
    "I_DVAL",     "I_SPEC",      "I_FOREIGN",  "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "????",
+   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_CLOCK",
    "I_GUARD",    "????",        "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "????",       "I_LEFT",      "I_RIGHT",    "????",         "????",
    "????",       "????",        "????",       "????",         "I_PRIMARY",
