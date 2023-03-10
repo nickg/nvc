@@ -179,7 +179,6 @@ typedef enum {
    S_MATCH_GE,
    S_MATCH_EQ,
    S_MATCH_NEQ,
-   S_FILE_FLUSH,
 } subprogram_kind_t;
 
 typedef enum {

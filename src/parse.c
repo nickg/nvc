@@ -1192,7 +1192,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
          ident_t read_i       = ident_new("READ");
          ident_t write_i      = ident_new("WRITE");
          ident_t endfile_i    = ident_new("ENDFILE");
-         ident_t flush_i      = ident_new("FLUSH");
 
          type_t open_kind   = std_type(NULL, STD_FILE_OPEN_KIND);
          type_t open_status = std_type(NULL, STD_FILE_OPEN_STATUS);
@@ -1221,10 +1220,41 @@ static void declare_predefined_ops(tree_t container, type_t t)
          tree_add_decl(container, file_close);
 
          if (standard() >= STD_08) {
-            tree_t flush = builtin_proc(flush_i, S_FILE_FLUSH);
+            ident_t flush_i = ident_new("FLUSH");
+
+            tree_t flush = builtin_proc(flush_i, S_FOREIGN);
+            tree_set_ident2(flush, ident_new("__nvc_flush"));
             add_port(flush, "F", t, PORT_IN, NULL);
             insert_name(nametab, flush, flush_i);
             tree_add_decl(container, flush);
+         }
+
+         if (standard() >= STD_19) {
+            ident_t rewind_i = ident_new("FILE_REWIND");
+            ident_t seek_i   = ident_new("FILE_SEEK");
+            ident_t begin_i  = ident_new("FILE_ORIGIN_BEGIN");
+
+            type_t origin_kind = std_type(NULL, STD_FILE_ORIGIN_KIND);
+
+            tree_t origin_begin = search_decls(std, begin_i, 0);
+            assert(origin_begin != NULL);
+
+            tree_t rewind = builtin_proc(rewind_i, S_FOREIGN);
+            tree_set_ident2(rewind, ident_new("__nvc_rewind"));
+            add_port(rewind, "F", t, PORT_IN, NULL);
+            insert_name(nametab, rewind, rewind_i);
+            tree_add_decl(container, rewind);
+
+            std_int = std_type(std, STD_INTEGER);
+
+            tree_t seek = builtin_proc(seek_i, S_FOREIGN);
+            tree_set_ident2(seek, ident_new("__nvc_seek"));
+            add_port(seek, "F", t, PORT_IN, NULL);
+            add_port(seek, "OFFSET", std_int, PORT_IN, NULL);
+            add_port(seek, "ORIGIN", origin_kind, PORT_IN,
+                     make_ref(origin_begin));
+            insert_name(nametab, seek, seek_i);
+            tree_add_decl(container, seek);
          }
 
          type_t of = type_file(t);

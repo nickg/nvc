@@ -84,6 +84,7 @@ void *rt_tlab_alloc(size_t size);
 
 void _std_standard_init(void);
 void _std_env_init(void);
+void _file_io_init(void);
 void _nvc_sim_pkg_init(void);
 
 #endif  // _RT_H

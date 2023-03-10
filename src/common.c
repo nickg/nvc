@@ -1173,7 +1173,7 @@ static tree_t cached_std(tree_t hint)
 
 type_t std_type(tree_t std, std_type_t which)
 {
-   static type_t cache[STD_SEVERITY_LEVEL + 1] = {};
+   static type_t cache[STD_FILE_ORIGIN_KIND + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
@@ -1191,6 +1191,7 @@ type_t std_type(tree_t std, std_type_t which)
          "NATURAL",
          "BIT_VECTOR",
          "SEVERITY_LEVEL",
+         "FILE_ORIGIN_KIND",
       };
 
       tree_t d = search_decls(cached_std(std), ident_new(names[which]), 0);

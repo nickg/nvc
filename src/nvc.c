@@ -652,6 +652,7 @@ static int run(int argc, char **argv)
 
    _std_standard_init();
    _std_env_init();
+   _file_io_init();
    _nvc_sim_pkg_init();
 
    rt_model_t *model = model_new(top, jit);

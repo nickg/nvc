@@ -3591,6 +3591,8 @@ vcode_reg_t emit_load(vcode_var_t var)
          aliased = true;
       else if (other->kind == VCODE_OP_FCALL || other->kind == VCODE_OP_PCALL)
          break;   // Nested call captures variables
+      else if (other->kind == VCODE_OP_FILE_READ)
+         break;   // May write to variable
    }
 
    var_t *v = vcode_var_data(var);
@@ -3622,7 +3624,8 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
                || other->kind == VCODE_OP_STORE
                || other->kind == VCODE_OP_STORE_INDIRECT
                || other->kind == VCODE_OP_MEMSET
-               || other->kind == VCODE_OP_COPY)
+               || other->kind == VCODE_OP_COPY
+               || other->kind == VCODE_OP_FILE_READ)
          break;   // May write to this pointer
    }
 

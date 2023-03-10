@@ -1237,9 +1237,8 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    if (nth < tree_ports(decl))
       mode = tree_subkind(tree_port(decl, nth));
 
-   const subprogram_kind_t skind = tree_subkind(decl);
    tree_t port = NULL;
-   if (!is_open_coded_builtin(skind))
+   if (!is_open_coded_builtin(tree_subkind(decl)))
       port = tree_port(decl, nth);
 
    return lower_param(lu, value, port, mode);
@@ -2346,14 +2345,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
             outlen = lower_subprogram_arg(lu, fcall, 2);
 
          emit_file_read(r0, r1, inlen, outlen);
-         return VCODE_INVALID_REG;
-      }
-   case S_FILE_FLUSH:
-      {
-         ident_t func = ident_new("__nvc_flush");
-         vcode_reg_t args[] = { r0 };
-         emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                    VCODE_CC_FOREIGN, args, 1);
          return VCODE_INVALID_REG;
       }
    case S_DEALLOCATE:

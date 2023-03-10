@@ -11,7 +11,8 @@ std_19_DATA = \
 EXTRA_DIST += \
 	lib/std.19/env.vhdl \
 	lib/std.19/env-body.vhd \
-	lib/std.19/textio.vhdl
+	lib/std.19/textio.vhdl \
+	lib/std.19/standard.vhdl
 
 BOOTSTRAPLIBS += $(std_19_DATA)
 
@@ -21,9 +22,9 @@ lib/std.19/_NVC_LIB: lib/std.19/STD.STANDARD
 
 lib/std.19/_index: lib/std.19/STD.STANDARD
 
-lib/std.19/STD.STANDARD: $(srcdir)/lib/std.08/standard.vhd @ifGNUmake@ | $(DRIVER)
+lib/std.19/STD.STANDARD: $(srcdir)/lib/std.19/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 --work=lib/std.19 -a --bootstrap \
-		$(srcdir)/lib/std.08/standard.vhd
+		$(srcdir)/lib/std.19/standard.vhd
 
 lib/std.19/STD.TEXTIO: $(srcdir)/lib/std.19/textio.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/textio.vhdl

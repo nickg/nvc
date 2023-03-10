@@ -51,7 +51,7 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    fname[name_len] = '\0';
 
    const char *mode_str[] = {
-      "rb", "wb", "ab"
+      "rb", "wb", "ab", "r+"
    };
    assert(mode < ARRAY_LEN(mode_str));
 
@@ -144,14 +144,6 @@ int8_t x_endfile(void *_f)
       ungetc(c, f);
       return 0;
    }
-}
-
-void x_file_flush(void *_f)
-{
-   if (_f == NULL)
-      jit_msg(NULL, DIAG_FATAL, "FLUSH called on closed file");
-
-   fflush(_f);
 }
 
 void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
@@ -1160,12 +1152,6 @@ void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
 
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from AOT compiled code
-
-DLLEXPORT
-void __nvc_flush(FILE *f)
-{
-   x_file_flush(f);
-}
 
 DLLEXPORT
 void _debug_out(intptr_t val, int32_t reg)

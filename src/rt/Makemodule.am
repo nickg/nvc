@@ -14,4 +14,6 @@ lib_libnvc_a_SOURCES += \
 	src/rt/standard.c \
 	src/rt/structs.h \
 	src/rt/model.h \
-	src/rt/model.c
+	src/rt/model.c \
+	src/rt/fileio.c
+
