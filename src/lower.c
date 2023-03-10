@@ -160,8 +160,6 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
 static int lower_dims_for_type(type_t type);
 static vcode_reg_t lower_constraints(lower_unit_t *lu, tree_t *cons,
                                      int count, int max);
-static vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
-static vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
 static bool lower_is_signal_ref(tree_t expr);
 static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds);
 static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
@@ -4776,45 +4774,6 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
-   }
-}
-
-static vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr)
-{
-   return lower_expr(lu, expr, EXPR_LVALUE);
-}
-
-static vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr)
-{
-   vcode_reg_t reg = lower_expr(lu, expr, EXPR_RVALUE);
-   if (reg == VCODE_INVALID_REG)
-      return reg;
-
-   for (;;) {
-      switch (vcode_reg_kind(reg)) {
-      case VCODE_TYPE_SIGNAL:
-         reg = lower_resolved(lu, tree_type(expr), reg);
-         continue;
-      case VCODE_TYPE_POINTER:
-         {
-            type_t type = tree_type(expr);
-            if (lower_have_signal(reg)) {
-               reg = lower_resolved(lu, tree_type(expr), reg);
-               continue;
-            }
-            else if (!type_is_composite(type))
-               return emit_load_indirect(reg);
-            else
-               return reg;
-         }
-      case VCODE_TYPE_UARRAY:
-         if (lower_have_signal(reg))
-            return lower_resolved(lu, tree_type(expr), reg);
-         else
-            return reg;
-      default:
-         return reg;
-      }
    }
 }
 
@@ -10642,6 +10601,45 @@ static vcode_unit_t lower_package(tree_t unit)
    return context;
 }
 
+vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr)
+{
+   return lower_expr(lu, expr, EXPR_LVALUE);
+}
+
+vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr)
+{
+   vcode_reg_t reg = lower_expr(lu, expr, EXPR_RVALUE);
+   if (reg == VCODE_INVALID_REG)
+      return reg;
+
+   for (;;) {
+      switch (vcode_reg_kind(reg)) {
+      case VCODE_TYPE_SIGNAL:
+         reg = lower_resolved(lu, tree_type(expr), reg);
+         continue;
+      case VCODE_TYPE_POINTER:
+         {
+            type_t type = tree_type(expr);
+            if (lower_have_signal(reg)) {
+               reg = lower_resolved(lu, tree_type(expr), reg);
+               continue;
+            }
+            else if (!type_is_composite(type))
+               return emit_load_indirect(reg);
+            else
+               return reg;
+         }
+      case VCODE_TYPE_UARRAY:
+         if (lower_have_signal(reg))
+            return lower_resolved(lu, tree_type(expr), reg);
+         else
+            return reg;
+      default:
+         return reg;
+      }
+   }
+}
+
 vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 {
    // TODO: this should really be in eval.c
@@ -10903,4 +10901,9 @@ void lower_unit_free(lower_unit_t *lu)
    hash_free(lu->objects);
    ACLEAR(lu->free_temps);
    free(lu);
+}
+
+vcode_unit_t get_vcode(lower_unit_t *lu)
+{
+   return lu->vunit;
 }

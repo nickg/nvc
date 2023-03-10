@@ -1157,6 +1157,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    case VCODE_UNIT_THUNK:     printf("thunk"); break;
    case VCODE_UNIT_PACKAGE:   printf("package"); break;
    case VCODE_UNIT_PROTECTED: printf("protected"); break;
+   case VCODE_UNIT_PROPERTY:  printf("property"); break;
    }
    color_printf("$$\n");
    if (vu->context != NULL)
@@ -3092,6 +3093,29 @@ vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROTECTED;
+   vu->name     = name;
+   vu->context  = context;
+   vu->depth    = vcode_unit_calc_depth(vu);
+   vu->result   = VCODE_INVALID_TYPE;
+
+   object_locus(obj, &vu->module, &vu->offset);
+
+   if (context != NULL)
+      vcode_add_child(context, vu);
+
+   vcode_select_unit(vu);
+   vcode_select_block(emit_block());
+   emit_debug_info(&(obj->loc));
+
+   vcode_registry_add(vu);
+
+   return vu;
+}
+
+vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context)
+{
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
+   vu->kind     = VCODE_UNIT_PROPERTY;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);

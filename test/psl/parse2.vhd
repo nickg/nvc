@@ -2,9 +2,9 @@ entity parse2 is
 end entity;
 
 architecture test of parse2 is
-    signal x, y : bit;
+    signal x, y, clk : bit;
 
-    default clock is rising_edge(clk);      -- OK
+    default clock is clk'event and clk = '1';   -- OK
 begin
 
     assert always x -> y ;              -- OK (PSL)

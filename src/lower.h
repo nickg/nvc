@@ -18,11 +18,18 @@
 #ifndef _LOWER_H
 #define _LOWER_H
 
-#include <prim.h>
+#include "prim.h"
+
+typedef int32_t vcode_reg_t;
 
 lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
                              cover_tagging_t *cover, tree_t container);
 void lower_unit_free(lower_unit_t *lu);
+
+vcode_unit_t get_vcode(lower_unit_t *lu);
+
+vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
+vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
 
 void lower_standalone_unit(tree_t unit);
 lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,

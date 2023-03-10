@@ -1225,6 +1225,7 @@ static void irgen_op_return(jit_irgen_t *g, int op)
    case VCODE_UNIT_INSTANCE:
    case VCODE_UNIT_PROTECTED:
    case VCODE_UNIT_PACKAGE:
+   case VCODE_UNIT_PROPERTY:
       j_send(g, 0, g->statereg);
       break;
 

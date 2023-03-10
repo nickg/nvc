@@ -208,3 +208,17 @@ void psl_set_clock(psl_node_t p, psl_node_t clk)
    lookup_item(&psl_object, p, I_CLOCK)->object = &(clk->object);
    object_write_barrier(&(p->object), &(clk->object));
 }
+
+object_t *psl_to_object(psl_node_t p)
+{
+   return &(p->object);
+}
+
+psl_node_t psl_from_object(object_t *obj)
+{
+   assert(obj != NULL);
+   if (obj->tag == OBJECT_TAG_PSL)
+      return container_of(obj, struct _psl_node, object);
+   else
+      return NULL;
+}

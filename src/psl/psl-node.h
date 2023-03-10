@@ -82,4 +82,7 @@ psl_node_t psl_clock(psl_node_t p);
 bool psl_has_clock(psl_node_t p);
 void psl_set_clock(psl_node_t p, psl_node_t clk);
 
+object_t *psl_to_object(psl_node_t p);
+psl_node_t psl_from_object(object_t *obj);
+
 #endif  // _PSL_NODE_H

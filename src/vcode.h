@@ -198,6 +198,7 @@ typedef enum {
    VCODE_UNIT_INSTANCE,
    VCODE_UNIT_PACKAGE,
    VCODE_UNIT_PROTECTED,
+   VCODE_UNIT_PROPERTY,
 } vunit_kind_t;
 
 typedef enum {
@@ -358,6 +359,7 @@ vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
