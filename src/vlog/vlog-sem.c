@@ -55,6 +55,24 @@ static void vlog_pop_scope(void)
    free(tmp);
 }
 
+static void vlog_insert_decl(vlog_node_t v)
+{
+   ident_t id = vlog_ident(v);
+
+   vlog_node_t exist = hash_get(top_scope->symbols, id);
+   if (exist != NULL) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "duplicate declaration of %s", istr(id));
+      diag_hint(d, vlog_loc(exist), "%s was previously declared here",
+                istr(id));
+      diag_hint(d, vlog_loc(v), "duplicate declaration");
+      diag_emit(d);
+      return;
+   }
+
+   hash_put(top_scope->symbols, id, v);
+}
+
 static void vlog_check_ref(vlog_node_t ref)
 {
    ident_t id = vlog_ident(ref);
@@ -69,6 +87,15 @@ static void vlog_check_ref(vlog_node_t ref)
 }
 
 static void vlog_check_nbassign(vlog_node_t stmt)
+{
+   vlog_node_t target = vlog_target(stmt);
+   vlog_check(target);
+
+   vlog_node_t value = vlog_value(stmt);
+   vlog_check(value);
+}
+
+static void vlog_check_assign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
    vlog_check(target);
@@ -131,19 +158,12 @@ static void vlog_check_systask_enable(vlog_node_t call)
 
 static void vlog_check_port_decl(vlog_node_t port)
 {
-   ident_t id = vlog_ident(port);
+   vlog_insert_decl(port);
+}
 
-   vlog_node_t exist = hash_get(top_scope->symbols, id);
-   if (exist != NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(port));
-      diag_printf(d, "duplicate declaration of %s", istr(id));
-      diag_hint(d, vlog_loc(exist), "%s was previously declared here", istr(id));
-      diag_hint(d, vlog_loc(port), "duplicate declaration");
-      diag_emit(d);
-      return;
-   }
-
-   hash_put(top_scope->symbols, id, port);
+static void vlog_check_net_decl(vlog_node_t net)
+{
+   vlog_insert_decl(net);
 }
 
 static void vlog_check_module(vlog_node_t module)
@@ -187,11 +207,17 @@ void vlog_check(vlog_node_t v)
    case V_NBASSIGN:
       vlog_check_nbassign(v);
       break;
+   case V_ASSIGN:
+      vlog_check_assign(v);
+      break;
    case V_REF:
       vlog_check_ref(v);
       break;
    case V_PORT_DECL:
       vlog_check_port_decl(v);
+      break;
+   case V_NET_DECL:
+      vlog_check_net_decl(v);
       break;
    case V_SEQ_BLOCK:
       vlog_check_seq_block(v);

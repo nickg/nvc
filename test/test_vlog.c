@@ -172,6 +172,23 @@ START_TEST(test_dump)
 }
 END_TEST
 
+START_TEST(test_parse1)
+{
+   input_from_file(TESTDIR "/vlog/parse1.v");
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+   fail_unless(vlog_stmts(m) == 1);
+   fail_unless(vlog_ports(m) == 0);
+   fail_unless(vlog_decls(m) == 2);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -181,6 +198,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_simple_sem);
    tcase_add_test(tc, test_ports);
    tcase_add_test(tc, test_dump);
+   tcase_add_test(tc, test_parse1);
    suite_add_tcase(s, tc);
 
    return s;

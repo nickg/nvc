@@ -40,6 +40,10 @@ typedef enum {
 } v_systask_kind_t;
 
 typedef enum {
+   V_NET_WIRE,
+} vlog_net_kind_t;
+
+typedef enum {
    V_MODULE,
    V_PORT_DECL,
    V_REF,
@@ -52,6 +56,8 @@ typedef enum {
    V_SYSTASK_ENABLE,
    V_STRING,
    V_NUMBER,
+   V_NET_DECL,
+   V_ASSIGN,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

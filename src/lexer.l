@@ -92,13 +92,15 @@ EXID            \\([^\\]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
-BIT_STRING      [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
+BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
-DECIMAL_LITERAL {INTEGER}(\.{INTEGER})?{EXPONENT}?
-BASED_INTEGER   [0-9a-fA-F][0-9a-fA-F_]*
-BASED_LITERAL   ({INTEGER}[#]{BASED_INTEGER}(\.{BASED_INTEGER})?[#]{EXPONENT}?)|({INTEGER}[:]{BASED_INTEGER}(\.{BASED_INTEGER})?[:]{EXPONENT}?)
+DECIMAL         {INTEGER}(\.{INTEGER})?{EXPONENT}?
+HEX             [0-9a-fA-F][0-9a-fA-F_]*
+BASED_HASH      {INTEGER}[#]{HEX}(\.{HEX})?[#]{EXPONENT}?
+BASED_COLON     {INTEGER}[:]{HEX}(\.{HEX})?[:]{EXPONENT}?
+BASED           {BASED_HASH}|{BASED_COLON}
 SPACE           [ \t\r]+
 TICK            \'
 PRAGMA          --[ \t]*
@@ -399,6 +401,7 @@ NEXT_EVENT    ?i:next_event
 <*>"!"                   { TOKEN(tBAR); }
 <*>"["                   { TOKEN(tLSQUARE); }
 <*>"]"                   { TOKEN(tRSQUARE); }
+<*>"="                   { TOKEN(tEQ); }
 
 <INITIAL,PSL>"**"        { TOKEN(tPOWER); }
 <INITIAL,PSL>":="        { TOKEN(tASSIGN); }
@@ -410,7 +413,6 @@ NEXT_EVENT    ?i:next_event
 <INITIAL,PSL>"??"        { TOKEN_08(tCCONV); }
 <INITIAL,PSL>"=>"        { TOKEN(tASSOC); }
 <INITIAL,PSL>"/="        { TOKEN(tNEQ); }
-<INITIAL,PSL>"="         { TOKEN(tEQ); }
 <INITIAL,PSL>"?/="       { TOKEN_08(tMNEQ); }
 <INITIAL,PSL>"?="        { TOKEN_08(tMEQ); }
 <INITIAL,PSL>"<<"        { TOKEN(tLTLT); }
@@ -449,14 +451,17 @@ NEXT_EVENT    ?i:next_event
 <VLOG>"initial"          { return tINITIAL; }
 <VLOG>"begin"            { return tBEGIN; }
 <VLOG>"end"              { return tEND; }
+<VLOG>"wire"             { return tWIRE; }
+<VLOG>"assign"           { return tASSIGN; }
 
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
+<VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
 
-<*>{DECIMAL_LITERAL}     { return parse_decimal_literal(yytext); }
-<*>{BASED_LITERAL}       { return parse_based_literal(yytext); }
-<*>{BIT_STRING}          { return parse_bit_string(yytext); }
-<*>{STRING}              { return parse_string(yytext); }
-<*>{CHAR}                { if (resolve_ir1045()) {
+<INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
+<INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
+<INITIAL,PSL>{BITSTRING} { return parse_bit_string(yytext); }
+<INITIAL,PSL>{STRING}    { return parse_string(yytext); }
+<INITIAL,PSL>{CHAR}      { if (resolve_ir1045()) {
                               yylval.str = xstrdup(yytext);
                               TOKEN(tID);
                            }

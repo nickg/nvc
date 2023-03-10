@@ -27,6 +27,7 @@ typedef union {
    double        real;
    char         *str;
    int64_t       i64;
+   unsigned      kind;
    ident_pair_t  pair;
    ident_t       ident;
    node_list_t  *list;
@@ -240,5 +241,7 @@ void reset_verilog_parser(void);
 #define tPOSEDGE       355
 #define tNEGEDGE       356
 #define tINITIAL       357
+#define tWIRE          358
+#define tUNSIGNED      359
 
 #endif  // _SCAN_H

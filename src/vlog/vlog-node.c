@@ -59,12 +59,19 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_NUMBER
    (0),
+
+   // V_NET_DECL
+   (I_IDENT | I_SUBKIND),
+
+   // V_ASSIGN
+   (I_TARGET | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",   "V_PORT_DECL", "V_REF",     "V_ALWAYS",    "V_TIMING",
-   "V_NBASSIGN", "V_EVENT",     "V_INITIAL", "V_SEQ_BLOCK", "V_SYSTASK_ENABLE",
-   "V_STRING",   "V_NUMBER"
+   "V_MODULE",    "V_PORT_DECL",      "V_REF",    "V_ALWAYS",
+   "V_TIMING",    "V_NBASSIGN",       "V_EVENT",  "V_INITIAL",
+   "V_SEQ_BLOCK", "V_SYSTASK_ENABLE", "V_STRING", "V_NUMBER",
+   "V_NET_DECL", "V_ASSIGN",
 };
 
 static const change_allowed_t change_allowed[] = {

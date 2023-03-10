@@ -71,6 +71,17 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    print_syntax(" %s;\n", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_net_decl(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   switch (vlog_subkind(v)) {
+   case V_NET_WIRE: print_syntax("#wire"); break;
+   }
+
+   print_syntax(" %s;\n", istr(vlog_ident(v)));
+}
+
 static void vlog_dump_always(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -130,6 +141,16 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
+static void vlog_dump_assign(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#assign ");
+   vlog_dump(vlog_target(v));
+   print_syntax(" = ");
+   vlog_dump(vlog_value(v));
+   print_syntax(";\n");
+}
+
 static void vlog_dump_systask_enable(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -170,6 +191,9 @@ static void vlog_dump_tab(vlog_node_t v, int indent)
    case V_PORT_DECL:
       vlog_dump_port_decl(v, indent);
       break;
+   case V_NET_DECL:
+      vlog_dump_net_decl(v, indent);
+      break;
    case V_ALWAYS:
       vlog_dump_always(v, indent);
       break;
@@ -184,6 +208,9 @@ static void vlog_dump_tab(vlog_node_t v, int indent)
       break;
    case V_NBASSIGN:
       vlog_dump_nbassign(v, indent);
+      break;
+   case V_ASSIGN:
+      vlog_dump_assign(v, indent);
       break;
    case V_SEQ_BLOCK:
       vlog_dump_seq_block(v, indent);

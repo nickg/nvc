@@ -200,6 +200,7 @@ const char *token_str(token_t tok)
          "parameter", "coverage on", "coverage off", "PSL directive", "always",
          "->", "<->", "default", "clock", "next!", "never", "eventually!",
          "next_a", "next_a!", "next_e", "next_e!", "next_event", "next_event!",
+         "wire", "unsigned number", "assign"
       };
 
       if (tok > 0 && tok - 200 < ARRAY_LEN(token_strs))
