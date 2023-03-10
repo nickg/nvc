@@ -6805,8 +6805,15 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          tree_t a = tree_assoc(alt, j);
          switch (tree_subkind(a)) {
          case A_NAMED:
-            test_reg = lower_rvalue(lu, tree_name(a));
-            skip_bb = emit_block();
+            {
+               tree_t name = tree_name(a);
+               test_reg = lower_rvalue(lu, name);
+
+               if (is_array && vcode_reg_kind(test_reg) != VCODE_TYPE_UARRAY)
+                  test_reg = lower_wrap(lu, tree_type(name), test_reg);
+
+               skip_bb = emit_block();
+            }
             break;
 
          case A_RANGE:
@@ -6854,9 +6861,6 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             emit_jump(hit_bb);
             continue;
          }
-
-         if (is_array && vcode_reg_kind(test_reg) != VCODE_TYPE_UARRAY)
-            test_reg = lower_wrap(lu, type, test_reg);
 
          vcode_reg_t args[] = {
             context_reg,

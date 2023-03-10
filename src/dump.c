@@ -1111,13 +1111,18 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_CASE:
-      print_syntax("#case ");
-      dump_expr(tree_value(t));
-      print_syntax(" #is\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_alternative(tree_stmt(t, i), indent + 2);
-      tab(indent);
-      print_syntax("#end #case");
+   case T_MATCH_CASE:
+      {
+         const char *suffix = tree_kind(t) == T_MATCH_CASE ? "?" : "";
+         print_syntax("#case%s ", suffix);
+         dump_expr(tree_value(t));
+         print_syntax(" #is\n");
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            dump_alternative(tree_stmt(t, i), indent + 2);
+         tab(indent);
+         print_syntax("#end #case%s", suffix);
+      }
       break;
 
    case T_RETURN:

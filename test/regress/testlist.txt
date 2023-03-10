@@ -738,3 +738,4 @@ elab36          normal
 cover13         cover,shell
 gentype5        normal,2008
 issue620        normal,2008
+issue643        normal,2008
