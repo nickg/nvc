@@ -49,14 +49,19 @@ typedef struct _jit_interp {
 } jit_interp_t;
 
 #ifdef DEBUG
-#define JIT_ASSERT(expr) do {                                           \
-      if (unlikely(!(expr))) {                                          \
-         interp_dump(state);                                            \
-         fatal_trace("assertion '" #expr "' failed");                   \
-      }                                                                 \
+#define JIT_ASSERT(expr) do {                                      \
+      if (unlikely(!(expr))) {                                     \
+         interp_dump(state);                                       \
+         fatal_trace("assertion '" #expr "' failed");              \
+      }                                                            \
+   } while (0)
+#define CANNOT_HANDLE(value) do {                                  \
+      interp_dump(state);                                          \
+      fatal_trace("cannot handle value kind %d", value.kind);      \
    } while (0)
 #else
 #define JIT_ASSERT(expr)
+#define CANNOT_HANDLE(value) __builtin_unreachable()
 #endif
 
 #define FOR_EACH_SIZE(sz, macro) do {                   \
@@ -141,7 +146,59 @@ static void interp_dump(jit_interp_t *state)
    fflush(stdout);
 }
 
-static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
+__attribute__((always_inline))
+static inline int64_t interp_get_int(jit_interp_t *state, jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      JIT_ASSERT(value.reg < state->func->nregs);
+      return state->regs[value.reg].integer;
+   case JIT_VALUE_INT64:
+      return value.int64;
+   default:
+      CANNOT_HANDLE(value);
+   }
+}
+
+__attribute__((always_inline))
+static inline double interp_get_real(jit_interp_t *state, jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      JIT_ASSERT(value.reg < state->func->nregs);
+      return state->regs[value.reg].real;
+   case JIT_VALUE_DOUBLE:
+      return value.dval;
+   default:
+      CANNOT_HANDLE(value);
+   }
+}
+
+__attribute__((always_inline))
+static inline void *interp_get_pointer(jit_interp_t *state, jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      JIT_ASSERT(value.reg < state->func->nregs);
+      return state->regs[value.reg].pointer;
+   case JIT_ADDR_CPOOL:
+      JIT_ASSERT(value.int64 >= 0 && value.int64 <= state->func->cpoolsz);
+      return state->func->cpool + value.int64;
+   case JIT_ADDR_REG:
+      JIT_ASSERT(value.reg < state->func->nregs);
+      return state->regs[value.reg].pointer + value.disp;
+   case JIT_ADDR_ABS:
+      return (void *)(intptr_t)value.int64;
+   case JIT_ADDR_COVER:
+      return jit_get_cover_ptr(state->func->jit, value);
+   default:
+      CANNOT_HANDLE(value);
+   }
+}
+
+__attribute__((always_inline))
+static inline jit_scalar_t interp_get_scalar(jit_interp_t *state,
+                                             jit_value_t value)
 {
    switch (value.kind) {
    case JIT_VALUE_REG:
@@ -151,6 +208,14 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       return (jit_scalar_t){ .integer = value.int64 };
    case JIT_VALUE_DOUBLE:
       return (jit_scalar_t){ .real = value.dval };
+   case JIT_VALUE_LABEL:
+      return (jit_scalar_t){ .integer = value.label };
+   case JIT_VALUE_HANDLE:
+      return (jit_scalar_t){ .integer = value.handle };
+   case JIT_VALUE_FOREIGN:
+      return (jit_scalar_t){ .pointer = value.foreign };
+   case JIT_VALUE_TREE:
+      return (jit_scalar_t){ .pointer = value.tree };
    case JIT_ADDR_CPOOL:
       JIT_ASSERT(value.int64 >= 0 && value.int64 <= state->func->cpoolsz);
       return (jit_scalar_t){ .pointer = state->func->cpool + value.int64 };
@@ -165,17 +230,8 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
       return (jit_scalar_t){
          .pointer = jit_get_cover_ptr(state->func->jit, value)
       };
-   case JIT_VALUE_LABEL:
-      return (jit_scalar_t){ .integer = value.label };
-   case JIT_VALUE_HANDLE:
-      return (jit_scalar_t){ .integer = value.handle };
-   case JIT_VALUE_FOREIGN:
-      return (jit_scalar_t){ .pointer = value.foreign };
-   case JIT_VALUE_TREE:
-      return (jit_scalar_t){ .pointer = value.tree };
    default:
-      interp_dump(state);
-      fatal_trace("cannot handle value kind %d", value.kind);
+      CANNOT_HANDLE(value);
    }
 }
 
@@ -195,44 +251,44 @@ static void interp_send(jit_interp_t *state, jit_ir_t *ir)
    const int nth = ir->arg1.int64;
 
    JIT_ASSERT(nth < JIT_MAX_ARGS);
-   state->args[nth] = interp_get_value(state, ir->arg2);
+   state->args[nth] = interp_get_scalar(state, ir->arg2);
    state->nargs = MAX(state->nargs, nth + 1);
 }
 
 static void interp_and(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer & arg2.integer;
+   state->regs[ir->result].integer = arg1 & arg2;
 }
 
 static void interp_or(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer | arg2.integer;
+   state->regs[ir->result].integer = arg1 | arg2;
 }
 
 static void interp_xor(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer ^ arg2.integer;
+   state->regs[ir->result].integer = arg1 ^ arg2;
 }
 
 static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
    if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define MUL_OVERFLOW(type) do {                                 \
-         type i1 = arg1.integer, i2 = arg2.integer, i0;         \
+         type i1 = arg1, i2 = arg2, i0;                         \
          overflow = __builtin_mul_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -245,7 +301,7 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
       int overflow = 0;
 
 #define UMUL_OVERFLOW(type) do {                                \
-         u##type i1 = arg1.integer, i2 = arg2.integer, i0;      \
+         u##type i1 = arg1, i2 = arg2, i0;                      \
          overflow = __builtin_mul_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -255,43 +311,43 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
       state->flags = (overflow << JIT_CC_C);
    }
    else
-      state->regs[ir->result].integer = arg1.integer * arg2.integer;
+      state->regs[ir->result].integer = arg1 * arg2;
 }
 
 static void interp_fmul(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
 
-   state->regs[ir->result].real = arg1.real * arg2.real;
+   state->regs[ir->result].real = arg1 * arg2;
 }
 
 static void interp_div(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer / arg2.integer;
+   state->regs[ir->result].integer = arg1 / arg2;
 }
 
 static void interp_fdiv(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
 
-   state->regs[ir->result].real = arg1.real / arg2.real;
+   state->regs[ir->result].real = arg1 / arg2;
 }
 
 static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
    if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define SUB_OVERFLOW(type) do {                                 \
-         type i1 = arg1.integer, i2 = arg2.integer, i0;         \
+         type i1 = arg1, i2 = arg2, i0;                         \
          overflow = __builtin_sub_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -304,7 +360,7 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
       int overflow = 0;
 
 #define USUB_OVERFLOW(type) do {                                \
-         u##type i1 = arg1.integer, i2 = arg2.integer, i0;      \
+         u##type i1 = arg1, i2 = arg2, i0;                      \
          overflow = __builtin_sub_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -314,27 +370,27 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
       state->flags = (overflow << JIT_CC_C);
    }
    else
-      state->regs[ir->result].integer = arg1.integer - arg2.integer;
+      state->regs[ir->result].integer = arg1 - arg2;
 }
 
 static void interp_fsub(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
 
-   state->regs[ir->result].real = arg1.real - arg2.real;
+   state->regs[ir->result].real = arg1 - arg2;
 }
 
 static void interp_add(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
    if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define ADD_OVERFLOW(type) do {                                 \
-         type i1 = arg1.integer, i2 = arg2.integer, i0;         \
+         type i1 = arg1, i2 = arg2, i0;                         \
          overflow = __builtin_add_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -347,7 +403,7 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
       int overflow = 0;
 
 #define UADD_OVERFLOW(type) do {                                \
-         u##type i1 = arg1.integer, i2 = arg2.integer, i0;      \
+         u##type i1 = arg1, i2 = arg2, i0;                      \
          overflow = __builtin_add_overflow(i1, i2, &i0);        \
          state->regs[ir->result].integer = i0;                  \
       } while (0)
@@ -357,54 +413,54 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
       state->flags = (overflow << JIT_CC_C);
    }
    else
-      state->regs[ir->result].integer = arg1.integer + arg2.integer;
+      state->regs[ir->result].integer = arg1 + arg2;
 }
 
 static void interp_fadd(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
 
-   state->regs[ir->result].real = arg1.real + arg2.real;
+   state->regs[ir->result].real = arg1 + arg2;
 }
 
 static void interp_shl(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer << arg2.integer;
+   state->regs[ir->result].integer = arg1 << arg2;
 }
 
 static void interp_asr(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1.integer >> arg2.integer;
+   state->regs[ir->result].integer = arg1 >> arg2;
 }
 
 static void interp_store(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   jit_scalar_t arg1 = interp_get_scalar(state, ir->arg1);
+   void *arg2 = interp_get_pointer(state, ir->arg2);
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
-   JIT_ASSERT(arg2.pointer != NULL);
-   JIT_ASSERT((uintptr_t)arg2.pointer >= 4096);
+   JIT_ASSERT(arg2 != NULL);
+   JIT_ASSERT((uintptr_t)arg2 >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:
-      *(uint8_t *)arg2.pointer = (uint8_t)arg1.integer;
+      *(uint8_t *)arg2 = (uint8_t)arg1.integer;
       break;
    case JIT_SZ_16:
-      *(uint16_t *)arg2.pointer = (uint16_t)arg1.integer;
+      *(uint16_t *)arg2 = (uint16_t)arg1.integer;
       break;
    case JIT_SZ_32:
-      *(uint32_t *)arg2.pointer = (uint32_t)arg1.integer;
+      *(uint32_t *)arg2 = (uint32_t)arg1.integer;
       break;
    case JIT_SZ_64:
-      *(uint64_t *)arg2.pointer = arg1.integer;
+      *(uint64_t *)arg2 = arg1.integer;
       break;
    case JIT_SZ_UNSPEC:
       break;
@@ -413,24 +469,24 @@ static void interp_store(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_uload(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
+   void *arg1 = interp_get_pointer(state, ir->arg1);
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
-   JIT_ASSERT(arg1.pointer != NULL);
-   JIT_ASSERT((uintptr_t)arg1.pointer >= 4096);
+   JIT_ASSERT(arg1 != NULL);
+   JIT_ASSERT((uintptr_t)arg1 >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:
-      state->regs[ir->result].integer = *(uint8_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(uint8_t *)arg1;
       break;
    case JIT_SZ_16:
-      state->regs[ir->result].integer = *(uint16_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(uint16_t *)arg1;
       break;
    case JIT_SZ_32:
-      state->regs[ir->result].integer = *(uint32_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(uint32_t *)arg1;
       break;
    case JIT_SZ_64:
-      state->regs[ir->result].integer = *(uint64_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(uint64_t *)arg1;
       break;
    case JIT_SZ_UNSPEC:
       break;
@@ -439,24 +495,24 @@ static void interp_uload(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_load(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
+   void *arg1 = interp_get_pointer(state, ir->arg1);
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
-   JIT_ASSERT(arg1.pointer != NULL);
-   JIT_ASSERT((uintptr_t)arg1.pointer >= 4096);
+   JIT_ASSERT(arg1 != NULL);
+   JIT_ASSERT((uintptr_t)arg1 >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:
-      state->regs[ir->result].integer = *(int8_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(int8_t *)arg1;
       break;
    case JIT_SZ_16:
-      state->regs[ir->result].integer = *(int16_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(int16_t *)arg1;
       break;
    case JIT_SZ_32:
-      state->regs[ir->result].integer = *(int32_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(int32_t *)arg1;
       break;
    case JIT_SZ_64:
-      state->regs[ir->result].integer = *(int64_t *)arg1.pointer;
+      state->regs[ir->result].integer = *(int64_t *)arg1;
       break;
    case JIT_SZ_UNSPEC:
       break;
@@ -465,27 +521,27 @@ static void interp_load(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
 
    switch (ir->cc) {
    case JIT_CC_EQ:
-      state->flags = (arg1.integer == arg2.integer) << JIT_CC_EQ;
+      state->flags = (arg1 == arg2) << JIT_CC_EQ;
       break;
    case JIT_CC_NE:
-      state->flags = (arg1.integer != arg2.integer) << JIT_CC_NE;
+      state->flags = (arg1 != arg2) << JIT_CC_NE;
       break;
    case JIT_CC_LT:
-      state->flags = (arg1.integer < arg2.integer) << JIT_CC_LT;
+      state->flags = (arg1 < arg2) << JIT_CC_LT;
       break;
    case JIT_CC_GT:
-      state->flags = (arg1.integer > arg2.integer) << JIT_CC_GT;
+      state->flags = (arg1 > arg2) << JIT_CC_GT;
       break;
    case JIT_CC_LE:
-      state->flags = (arg1.integer <= arg2.integer) << JIT_CC_LE;
+      state->flags = (arg1 <= arg2) << JIT_CC_LE;
       break;
    case JIT_CC_GE:
-      state->flags = (arg1.integer >= arg2.integer) << JIT_CC_GE;
+      state->flags = (arg1 >= arg2) << JIT_CC_GE;
       break;
    default:
       state->flags = 0;
@@ -495,27 +551,27 @@ static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_fcmp(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
 
    switch (ir->cc) {
    case JIT_CC_EQ:
-      state->flags = (arg1.real == arg2.real) << JIT_CC_EQ;
+      state->flags = (arg1 == arg2) << JIT_CC_EQ;
       break;
    case JIT_CC_NE:
-      state->flags = (arg1.real != arg2.real) << JIT_CC_NE;
+      state->flags = (arg1 != arg2) << JIT_CC_NE;
       break;
    case JIT_CC_LT:
-      state->flags = (arg1.real < arg2.real) << JIT_CC_LT;
+      state->flags = (arg1 < arg2) << JIT_CC_LT;
       break;
    case JIT_CC_GT:
-      state->flags = (arg1.real > arg2.real) << JIT_CC_GT;
+      state->flags = (arg1 > arg2) << JIT_CC_GT;
       break;
    case JIT_CC_LE:
-      state->flags = (arg1.real <= arg2.real) << JIT_CC_LE;
+      state->flags = (arg1 <= arg2) << JIT_CC_LE;
       break;
    case JIT_CC_GE:
-      state->flags = (arg1.real >= arg2.real) << JIT_CC_GE;
+      state->flags = (arg1 >= arg2) << JIT_CC_GE;
       break;
    default:
       state->flags = 0;
@@ -524,15 +580,15 @@ static void interp_fcmp(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_rem(jit_interp_t *state, jit_ir_t *ir)
 {
-   const int64_t x = interp_get_value(state, ir->arg1).integer;
-   const int64_t y = interp_get_value(state, ir->arg2).integer;
+   const int64_t x = interp_get_int(state, ir->arg1);
+   const int64_t y = interp_get_int(state, ir->arg2);
 
    state->regs[ir->result].integer = x - (x / y) * y;
 }
 
 static void interp_clamp(jit_interp_t *state, jit_ir_t *ir)
 {
-   const int64_t value = interp_get_value(state, ir->arg1).integer;
+   const int64_t value = interp_get_int(state, ir->arg1);
 
    state->regs[ir->result].integer = value < 0 ? 0 : value;
 }
@@ -544,15 +600,15 @@ static void interp_cset(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_cneg(jit_interp_t *state, jit_ir_t *ir)
 {
-   const int64_t value = interp_get_value(state, ir->arg1).integer;
+   const int64_t value = interp_get_int(state, ir->arg1);
 
    state->regs[ir->result].integer = state->flags ? -value : value;
 }
 
 static void interp_branch_to(jit_interp_t *state, jit_value_t label)
 {
-   const int target = interp_get_value(state, label).integer;
-   if (state->backedge > 0 && target < state->pc) {
+   JIT_ASSERT(label.kind == JIT_VALUE_LABEL);
+   if (state->backedge > 0 && label.label < state->pc) {
       // Limit the number of loop iterations in bounded mode
       if (--(state->backedge) == 0) {
          bool safe_to_abort = true;
@@ -569,7 +625,7 @@ static void interp_branch_to(jit_interp_t *state, jit_value_t label)
       }
    }
 
-   state->pc = target;
+   state->pc = label.label;
    JIT_ASSERT(state->pc < state->func->nirs);
 }
 
@@ -618,60 +674,60 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_mov(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result] = interp_get_value(state, ir->arg1);
+   state->regs[ir->result] = interp_get_scalar(state, ir->arg1);
 }
 
 static void interp_csel(jit_interp_t *state, jit_ir_t *ir)
 {
    if (state->flags)
-      state->regs[ir->result] = interp_get_value(state, ir->arg1);
+      state->regs[ir->result].integer = interp_get_int(state, ir->arg1);
    else
-      state->regs[ir->result] = interp_get_value(state, ir->arg2);
+      state->regs[ir->result].integer = interp_get_int(state, ir->arg2);
 }
 
 static void interp_neg(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result].integer = -interp_get_value(state, ir->arg1).integer;
+   state->regs[ir->result].integer = -interp_get_int(state, ir->arg1);
 }
 
 static void interp_fneg(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result].real = -interp_get_value(state, ir->arg1).real;
+   state->regs[ir->result].real = -interp_get_real(state, ir->arg1);
 }
 
 static void interp_not(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result].integer = !interp_get_value(state, ir->arg1).integer;
+   state->regs[ir->result].integer = !interp_get_int(state, ir->arg1);
 }
 
 static void interp_scvtf(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result].real = interp_get_value(state, ir->arg1).integer;
+   state->regs[ir->result].real = interp_get_int(state, ir->arg1);
 }
 
 static void interp_fcvtns(jit_interp_t *state, jit_ir_t *ir)
 {
-   const double f = interp_get_value(state, ir->arg1).real;
+   const double f = interp_get_real(state, ir->arg1);
    state->regs[ir->result].integer = round(f);
 }
 
 static void interp_lea(jit_interp_t *state, jit_ir_t *ir)
 {
-   state->regs[ir->result].pointer = interp_get_value(state, ir->arg1).pointer;
+   state->regs[ir->result].pointer = interp_get_pointer(state, ir->arg1);
 }
 
 static void interp_fexp(jit_interp_t *state, jit_ir_t *ir)
 {
-   const double x = interp_get_value(state, ir->arg1).real;
-   const double y = interp_get_value(state, ir->arg2).real;
+   const double x = interp_get_real(state, ir->arg1);
+   const double y = interp_get_real(state, ir->arg2);
 
    state->regs[ir->result].real = pow(x, y);
 }
 
 static void interp_exp(jit_interp_t *state, jit_ir_t *ir)
 {
-   const int64_t x = interp_get_value(state, ir->arg1).integer;
-   const int64_t y = interp_get_value(state, ir->arg2).integer;
+   const int64_t x = interp_get_int(state, ir->arg1);
+   const int64_t y = interp_get_int(state, ir->arg2);
 
    if (ir->cc == JIT_CC_O) {
       int overflow = 0, xo = 0;
@@ -716,8 +772,8 @@ static void interp_exp(jit_interp_t *state, jit_ir_t *ir)
 static void interp_copy(jit_interp_t *state, jit_ir_t *ir)
 {
    const size_t count = state->regs[ir->result].integer;
-   void *dest = interp_get_value(state, ir->arg1).pointer;
-   const void *src = interp_get_value(state, ir->arg2).pointer;
+   void *dest = interp_get_pointer(state, ir->arg1);
+   const void *src = interp_get_pointer(state, ir->arg2);
 
    JIT_ASSERT((uintptr_t)dest >= 4096 || count == 0);
    JIT_ASSERT((uintptr_t)src >= 4096 || count == 0);
@@ -728,7 +784,7 @@ static void interp_copy(jit_interp_t *state, jit_ir_t *ir)
 static void interp_bzero(jit_interp_t *state, jit_ir_t *ir)
 {
    const size_t count = state->regs[ir->result].integer;
-   void *dest = interp_get_value(state, ir->arg1).pointer;
+   void *dest = interp_get_pointer(state, ir->arg1);
 
    memset(dest, '\0', count);
 }
@@ -740,7 +796,7 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
 
    state->anchor->irpos = ir - state->func->irbuf;
 
-   const uint64_t bytes = interp_get_value(state, ir->arg1).integer;
+   const uint64_t bytes = interp_get_int(state, ir->arg1);
 
    if (bytes > UINT32_MAX)
       jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
@@ -759,7 +815,7 @@ static void interp_lalloc(jit_interp_t *state, jit_ir_t *ir)
 
    state->anchor->irpos = ir - state->func->irbuf;
 
-   const size_t bytes = interp_get_value(state, ir->arg1).integer;
+   const size_t bytes = interp_get_int(state, ir->arg1);
    state->regs[ir->result].pointer = tlab_alloc(state->tlab, bytes);
 
    thread->anchor = NULL;
@@ -779,9 +835,9 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
 {
-   jit_foreign_t *ff = interp_get_value(state, ir->arg1).pointer;
+   JIT_ASSERT(ir->arg1.kind == JIT_VALUE_FOREIGN);
    state->anchor->irpos = ir - state->func->irbuf;
-   __nvc_do_fficall(ff, state->anchor, state->args);
+   __nvc_do_fficall(ir->arg1.foreign, state->anchor, state->args);
 }
 
 static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)
@@ -796,16 +852,16 @@ static void interp_putpriv(jit_interp_t *state, jit_ir_t *ir)
 {
    JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
    jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-   void *ptr = interp_get_value(state, ir->arg2).pointer;
+   void *ptr = interp_get_pointer(state, ir->arg2);
    store_release(jit_get_privdata_ptr(state->func->jit, f), ptr);
 }
 
 static void interp_case(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_scalar_t test = state->regs[ir->result];
-   jit_scalar_t cmp = interp_get_value(state, ir->arg1);
+   const int64_t cmp = interp_get_int(state, ir->arg1);
 
-   if (test.integer == cmp.integer)
+   if (test.integer == cmp)
       interp_branch_to(state, ir->arg2);
 }
 
