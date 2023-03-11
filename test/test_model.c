@@ -297,6 +297,95 @@ START_TEST(test_pending1)
 }
 END_TEST
 
+START_TEST(test_fast2)
+{
+   input_from_file(TESTDIR "/model/fast2.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   tree_t x = search_decls(b0, ident_new("X"), 0);
+   fail_if(x == NULL);
+
+   rt_signal_t *sx = find_signal(root, x);
+   fail_if(sx == NULL);
+   ck_assert_int_eq(sx->n_nexus, 1);
+   fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
+   fail_if(sx->flags & NET_F_FAST_DRIVER);
+
+   rt_source_t *d0 = &(sx->nexus.sources);
+   fail_unless(d0->tag == SOURCE_DRIVER);
+   fail_if(d0->fastqueued);
+   fail_if(d0->sigqueued);
+
+   fail_if(model_step(m));
+
+   unsigned deltas;
+   ck_assert_int_eq(model_now(m, &deltas), 0);
+   ck_assert_int_eq(deltas, 0);
+
+   ck_assert_int_eq(sx->n_nexus, 8);
+   fail_unless(d0->fastqueued);
+   fail_if(d0->sigqueued);
+   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+
+   fail_if(model_step(m));
+
+   ck_assert_int_eq(model_now(m, &deltas), 0);
+   ck_assert_int_eq(deltas, 1);
+
+   ck_assert_int_eq(sx->n_nexus, 8);
+   fail_if(d0->fastqueued);
+   fail_if(d0->sigqueued);
+   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+
+   fail_if(model_step(m));
+
+   ck_assert_int_eq(model_now(m, &deltas), 1000000);
+   ck_assert_int_eq(deltas, 0);
+
+   fail_unless(d0->fastqueued);
+   fail_unless(d0->sigqueued);
+   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+
+   fail_if(model_step(m));
+
+   fail_if(d0->fastqueued);
+   fail_if(d0->sigqueued);
+   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+
+   fail_if(model_step(m));
+
+   fail_if(d0->fastqueued);
+   fail_unless(d0->sigqueued);
+   fail_unless(sx->nexus.chain->sources.fastqueued);
+   fail_if(sx->nexus.chain->sources.sigqueued);
+   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+
+   fail_unless(model_step(m));
+
+   fail_if(d0->fastqueued);
+   fail_if(d0->sigqueued);
+   fail_if(sx->flags & NET_F_FAST_DRIVER);   // Not profitable
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -308,6 +397,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_fast1);
    tcase_add_test(tc, test_stateless1);
    tcase_add_test(tc, test_pending1);
+   tcase_add_test(tc, test_fast2);
    suite_add_tcase(s, tc);
 
    return s;

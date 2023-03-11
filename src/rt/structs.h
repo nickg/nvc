@@ -104,6 +104,7 @@ typedef struct _rt_source {
    source_kind_t   tag;
    unsigned        disconnected : 1;
    unsigned        fastqueued : 1;
+   unsigned        sigqueued : 1;
    union {
       rt_port_t    port;
       rt_driver_t  driver;

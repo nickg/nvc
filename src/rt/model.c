@@ -145,6 +145,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
 static void async_update_driver(void *context, void *arg);
 static void async_fast_driver(void *context, void *arg);
+static void async_fast_all_drivers(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
 static void async_disconnect(void *context, void *arg);
 
@@ -1085,6 +1086,8 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    src->chain_output = NULL;
    src->tag          = kind;
    src->disconnected = 0;
+   src->fastqueued   = 0;
+   src->sigqueued    = 0;
 
    switch (kind) {
    case SOURCE_DRIVER:
@@ -1316,7 +1319,9 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
 
          // Pending fast driver update
          if ((nexus->flags & NET_F_FAST_DRIVER) && old->fastqueued) {
-            workq_do(m->delta_driverq, async_fast_driver, new);
+            rt_nexus_t *n0 = &(nexus->signal->nexus);
+            if (!n0->sources.sigqueued)
+               workq_do(m->delta_driverq, async_fast_driver, new);
             new->fastqueued = 1;
          }
 
@@ -1346,6 +1351,9 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
 
    rt_signal_t *signal = old->signal;
    signal->n_nexus++;
+
+   if (signal->n_nexus == 2 && (old->flags & NET_F_FAST_DRIVER))
+      signal->flags |= NET_F_FAST_DRIVER;
 
    rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
    new->width        = old->width - offset;
@@ -2208,13 +2216,26 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       w->when = m->now;
       assert(w->next == NULL);
 
-      if (!d->fastqueued) {
+      rt_signal_t *signal = nexus->signal;
+      rt_source_t *d0 = &(signal->nexus.sources);
+
+      if (d->fastqueued)
+         assert(m->next_is_delta);
+      else if ((signal->flags & NET_F_FAST_DRIVER) && d0->sigqueued) {
+         assert(m->next_is_delta);
+         d->fastqueued = 1;
+      }
+      else if (signal->flags & NET_F_FAST_DRIVER) {
+         workq_do(m->delta_driverq, async_fast_all_drivers, signal);
+         m->next_is_delta = true;
+         d0->sigqueued = 1;
+         d->fastqueued = 1;
+      }
+      else {
          workq_do(m->delta_driverq, async_fast_driver, d);
          m->next_is_delta = true;
          d->fastqueued = 1;
       }
-      else
-         assert(m->next_is_delta);
 
       copy_value_ptr(nexus, &w->value, value);
    }
@@ -2480,14 +2501,14 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
 
 static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
 {
+   rt_source_t *src = &(nexus->sources);
+
    if (likely(nexus->flags & NET_F_FAST_DRIVER)) {
       model_thread_t *thread = model_thread(m);
 
       // Updating drivers may involve calling resolution functions
       if (!tlab_valid(thread->tlab))
          tlab_acquire(m->mspace, &thread->tlab);
-
-      rt_source_t *src = &(nexus->sources);
 
       // Preconditions for fast driver updates
       assert(nexus->n_sources == 1);
@@ -2496,13 +2517,35 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
 
       update_driving(m, nexus);
 
-      assert(src->fastqueued);
-      src->fastqueued = 0;
-
       tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else
-      update_driver(m, nexus, &(nexus->sources));
+      update_driver(m, nexus, src);
+
+   assert(src->fastqueued);
+   src->fastqueued = 0;
+}
+
+static void fast_update_all_drivers(rt_model_t *m, rt_signal_t *signal)
+{
+   assert(signal->flags & NET_F_FAST_DRIVER);
+
+   rt_nexus_t *n = &(signal->nexus);
+   assert(n->sources.sigqueued);
+   n->sources.sigqueued = 0;
+
+   int count = 0;
+   for (int i = 0; i < signal->n_nexus; i++, n = n->chain) {
+      if (n->sources.fastqueued) {
+         fast_update_driver(m, n);
+         count++;
+      }
+   }
+
+   if (count < signal->n_nexus >> 1) {
+      // Unlikely to be worth the iteration cost
+      signal->flags &= ~NET_F_FAST_DRIVER;
+   }
 }
 
 static void async_update_driver(void *context, void *arg)
@@ -2521,6 +2564,15 @@ static void async_fast_driver(void *context, void *arg)
 
    MODEL_ENTRY(m);
    fast_update_driver(m, src->u.driver.nexus);
+}
+
+static void async_fast_all_drivers(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_signal_t *signal = arg;
+
+   MODEL_ENTRY(m);
+   fast_update_all_drivers(m, signal);
 }
 
 static void async_disconnect(void *context, void *arg)
