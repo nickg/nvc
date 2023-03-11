@@ -3247,6 +3247,7 @@ END_TEST
 
 START_TEST(test_cond1)
 {
+   init_cond_analysis_identifiers();
    input_from_file(TESTDIR "/parse/cond1.vhd");
 
    const error_t expect[] = {
@@ -5217,6 +5218,7 @@ END_TEST
 START_TEST(test_issue604)
 {
    set_standard(STD_19);
+   init_cond_analysis_identifiers();
 
    const error_t expect[] = {
       { 11, "\"Tool is NVC\"" },

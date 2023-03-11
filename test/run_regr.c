@@ -89,6 +89,7 @@
 #define F_MIXED   (1 << 16)
 #define F_WAVE    (1 << 17)
 #define F_PSL     (1 << 18)
+#define F_DEFINE  (1 << 19)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -117,6 +118,7 @@ struct test {
    unsigned   olevel;
    char      *heapsz;
    char      *cover;
+   char      *define;   // tODO: Adjust for multiple defines?
 };
 
 struct arglist {
@@ -448,6 +450,17 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_WORKLIB;
             test->work = strdup(value + 1);
          }
+         else if (strncmp(opt, "define", 6) == 0) {
+            char *value = strchr(opt, '=');
+            if (value == NULL) {
+               fprintf(stderr, "Error on testlist line %d: missing argument to "
+                       "define option in test %s\n", lineno, name);
+               goto out_close;
+            }
+
+            test->flags |= F_DEFINE;
+            test->define = strdup(value + 1);
+         }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -774,6 +787,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_PSL)
          push_arg(&args, "--psl");
+
+      if (test->flags & F_DEFINE)
+         push_arg(&args, "--define=%s", test->define);
 
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);

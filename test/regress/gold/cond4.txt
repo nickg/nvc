@@ -1,0 +1,2 @@
+** Note: 1ns+0: Report Note: DIRECTIVE WAS DEFINED OK!
+	 /WORK/nvc/test/regress/cond4.vhd:13
