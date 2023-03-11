@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "option.h"
 #include "scan.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <sys/types.h>
@@ -36,25 +37,19 @@ typedef struct {
    loc_t loc;
 } cond_state_t;
 
-typedef struct {
-   const char *name;
-   const char *value;
-} cond_ident_t;
-
 typedef A(cond_state_t) cond_stack_t;
-typedef A(cond_ident_t) cond_ident_arr_t;
 
-static const char      *file_start;
-static size_t           file_sz;
-static const char      *read_ptr;
-static hdl_kind_t       src_kind;
-static loc_file_ref_t   file_ref = FILE_INVALID;
-static int              colno;
-static int              lineno;
-static int              lookahead;
-static int              pperrors;
-static cond_stack_t     cond_stack;
-static cond_ident_arr_t cond_idents;
+static const char    *file_start;
+static size_t         file_sz;
+static const char    *read_ptr;
+static hdl_kind_t     src_kind;
+static loc_file_ref_t file_ref = FILE_INVALID;
+static int            colno;
+static int            lineno;
+static int            lookahead;
+static int            pperrors;
+static cond_stack_t   cond_stack;
+static shash_t       *cond_idents;
 
 extern int yylex(void);
 extern yylval_t yylval;
@@ -217,42 +212,31 @@ const char *token_str(token_t tok)
    return "???";
 }
 
-void init_cond_analysis_identifiers()
+void conda_id_init()
 {
-   add_cond_analysis_identifier("VHDL_VERSION", standard_text(standard()));
-   add_cond_analysis_identifier("TOOL_TYPE",    "SIMULATION");
-   add_cond_analysis_identifier("TOOL_VENDOR",  PACKAGE_URL);
-   add_cond_analysis_identifier("TOOL_NAME",    PACKAGE_NAME);
-   add_cond_analysis_identifier("TOOL_EDITION", "");
-   add_cond_analysis_identifier("TOOL_VERSION", PACKAGE_VERSION);
+   cond_idents = shash_new(16);
+
+   conda_id_add("VHDL_VERSION", standard_text(standard()));
+   conda_id_add("TOOL_TYPE",    "SIMULATION");
+   conda_id_add("TOOL_VENDOR",  PACKAGE_URL);
+   conda_id_add("TOOL_NAME",    PACKAGE_NAME);
+   conda_id_add("TOOL_EDITION", "");
+   conda_id_add("TOOL_VERSION", PACKAGE_VERSION);
 
 }
 
-void add_cond_analysis_identifier(const char *name, const char *value)
+void conda_id_exit()
 {
-   for (int i = 0; i < cond_idents.count; i++) {
-      cond_ident_t *id = AREF(cond_idents, i);
-      if (strcmp(id->name, name) == 0)
-         errorf("conditional analysis directive '%s' already defined (%s)",
-                name, id->value);
-   }
-
-   cond_ident_t new = {
-      .name = name,
-      .value = value
-   };
-
-   APUSH(cond_idents, new);
+   shash_free(cond_idents);
 }
 
-static const char *get_cond_analysis_identifier(const char *name)
+void conda_id_add(const char *name, const char *value)
 {
-   for (int i = 0; i < cond_idents.count; i++) {
-      cond_ident_t *it = AREF(cond_idents, i);
-      if (strcmp(it->name, name) == 0)
-         return it->value;
-   }
-   return NULL;
+   char *existing_val = (char*) shash_get(cond_idents, name);
+   if (existing_val)
+      errorf("conditional analysis directive '%s' already defined (%s)",
+             name, existing_val);
+   shash_put(cond_idents, name, (char*)value);
 }
 
 static int pp_yylex(void)
@@ -321,7 +305,7 @@ static bool pp_cond_analysis_relation(void)
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
-            const char *value = get_cond_analysis_identifier(name);
+            const char *value = (char*) shash_get(cond_idents, name);
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {

@@ -125,7 +125,7 @@ static void parse_cond_analysis_identifier(char *optarg)
          optarg++;
    }
 
-   add_cond_analysis_identifier(name, value);
+   conda_id_add(name, value);
 }
 
 static int analyse(int argc, char **argv)
@@ -146,7 +146,7 @@ static int analyse(int argc, char **argv)
    int c, index = 0;
    const char *spec = ":";
 
-   init_cond_analysis_identifiers();
+   conda_id_init();
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -235,6 +235,8 @@ static int analyse(int argc, char **argv)
          break;
       }
    }
+
+   conda_id_exit();
 
    eval_free(eval);
    eval = NULL;
