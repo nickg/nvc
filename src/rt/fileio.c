@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "jit/jit.h"
+#include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"
 #include "rt/rt.h"
 
@@ -61,6 +62,15 @@ void __nvc_seek(FILE **fp, int32_t offset, int8_t origin)
 
    if (fseek(*fp, offset, whence[origin]) < 0)
       jit_msg(NULL, DIAG_FATAL, "FILE_SEEK failed: %s", strerror(errno));
+}
+
+DLLEXPORT
+int8_t __nvc_open3(FILE **fp, const uint8_t *name_ptr, int64_t name_len,
+                   int8_t open_kind)
+{
+   int8_t status;
+   x_file_open(&status, (void **)fp, name_ptr, name_len, open_kind);
+   return status;
 }
 
 void _file_io_init(void)

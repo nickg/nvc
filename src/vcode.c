@@ -207,7 +207,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      29
+#define VCODE_VERSION      30
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -1976,11 +1976,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[2]);
                printf(" kind ");
                vcode_dump_reg(op->args.items[3]);
-               printf(" locus ");
-               vcode_dump_reg(op->args.items[4]);
-               if (op->args.count == 6) {
+               if (op->args.count == 5) {
                   printf(" status ");
-                  vcode_dump_reg(op->args.items[5]);
+                  vcode_dump_reg(op->args.items[4]);
                }
             }
             break;
@@ -5149,21 +5147,18 @@ vcode_reg_t emit_endfile(vcode_reg_t file)
 }
 
 void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
-                    vcode_reg_t kind, vcode_reg_t locus, vcode_reg_t status)
+                    vcode_reg_t kind, vcode_reg_t status)
 {
    op_t *op = vcode_add_op(VCODE_OP_FILE_OPEN);
    vcode_add_arg(op, file);
    vcode_add_arg(op, name);
    vcode_add_arg(op, length);
    vcode_add_arg(op, kind);
-   vcode_add_arg(op, locus);
    if (status != VCODE_INVALID_REG)
       vcode_add_arg(op, status);
 
    VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
                 "file open first argument must have file pointer type");
-   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to file_open must be a debug locus");
 }
 
 void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)

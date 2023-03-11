@@ -15,7 +15,7 @@ begin
         write(f, 'z');
         file_close(f);
 
-        file_open(f, "test.txt", READ_WRITE_MODE);
+        assert file_open(f, "test.txt", READ_WRITE_MODE) = OPEN_OK;
         read(f, c);
         assert c = 'x';
         file_seek(f, 1);

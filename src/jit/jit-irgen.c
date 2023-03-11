@@ -2825,18 +2825,18 @@ static void irgen_op_file_open(jit_irgen_t *g, int op)
    jit_value_t name   = irgen_get_arg(g, op, 1);
    jit_value_t length = irgen_get_arg(g, op, 2);
    jit_value_t kind   = irgen_get_arg(g, op, 3);
-   jit_value_t locus  = irgen_get_arg(g, op, 4);
+
+   irgen_emit_debuginfo(g, op);   // For stack traces
 
    jit_value_t status = jit_null_ptr();
-   if (vcode_count_args(op) == 6)
-      status = irgen_get_arg(g, op, 5);
+   if (vcode_count_args(op) == 5)
+      status = irgen_get_arg(g, op, 4);
 
    j_send(g, 0, status);
    j_send(g, 1, file);
    j_send(g, 2, name);
    j_send(g, 3, length);
    j_send(g, 4, kind);
-   j_send(g, 5, locus);
 
    macro_exit(g, JIT_EXIT_FILE_OPEN);
 }

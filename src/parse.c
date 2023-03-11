@@ -1239,6 +1239,18 @@ static void declare_predefined_ops(tree_t container, type_t t)
             tree_t origin_begin = search_decls(std, begin_i, 0);
             assert(origin_begin != NULL);
 
+            tree_t file_open3 = builtin_fn(file_open_i, open_status, S_FOREIGN,
+                                           "F", t,
+                                           "EXTERNAL_NAME", std_string,
+                                           "OPEN_KIND", open_kind,
+                                           NULL);
+            tree_set_flag(file_open3, TREE_F_IMPURE);
+            tree_set_ident2(file_open3, ident_new("__nvc_open3"));
+            tree_set_class(tree_port(file_open3, 0), C_FILE);
+            tree_set_value(tree_port(file_open3, 2), make_ref(read_mode));
+            insert_name(nametab, file_open3, file_open_i);
+            tree_add_decl(container, file_open3);
+
             tree_t rewind = builtin_proc(rewind_i, S_FOREIGN);
             tree_set_ident2(rewind, ident_new("__nvc_rewind"));
             add_port(rewind, "F", t, PORT_IN, NULL);

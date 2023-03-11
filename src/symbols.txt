@@ -37,6 +37,7 @@
   __nvc_flush;
   __nvc_rewind;
   __nvc_seek;
+  __nvc_open3;
 
   # Exported from src/jit/jit-exits.c
   __nvc_do_exit;

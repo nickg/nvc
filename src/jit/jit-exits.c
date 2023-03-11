@@ -41,8 +41,8 @@
 #include <share.h>
 #endif
 
-void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
-                 int32_t name_len, int8_t mode, tree_t where)
+void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
+                 int32_t name_len, int8_t mode)
 {
    FILE **fp = (FILE **)_fp;
 
@@ -60,14 +60,14 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 
    if (*fp != NULL) {
       if (status == NULL)
-         jit_msg(tree_loc(where), DIAG_FATAL, "file object already associated "
+         jit_msg(NULL, DIAG_FATAL, "file object already associated "
                  "with an external file");
       else
          *status = STATUS_ERROR;
    }
    else if (name_len == 0) {
       if (status == NULL)
-         jit_msg(tree_loc(where), DIAG_FATAL, "empty file name in FILE_OPEN");
+         jit_msg(NULL, DIAG_FATAL, "empty file name in FILE_OPEN");
       else
          *status = NAME_ERROR;
    }
@@ -84,7 +84,7 @@ void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 #endif
       if (failed) {
          if (status == NULL)
-            jit_msg(tree_loc(where), DIAG_FATAL, "failed to open %s: %s", fname,
+            jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
                     strerror(errno));
          else {
             switch (errno) {
@@ -988,9 +988,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          uint8_t  *name_bytes = args[2].pointer;
          int32_t   name_len   = args[3].integer;
          int32_t   mode       = args[4].integer;
-         tree_t    where      = args[5].pointer;
 
-         x_file_open(status, _fp, name_bytes, name_len, mode, where);
+         x_file_open(status, _fp, name_bytes, name_len, mode);
       }
       break;
 

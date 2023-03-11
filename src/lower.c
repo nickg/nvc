@@ -2304,9 +2304,8 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       {
          vcode_reg_t name   = lower_array_data(r1);
          vcode_reg_t length = lower_array_len(lu, r1_type, 0, r1);
-         vcode_reg_t locus  = lower_debug_locus(fcall);
          vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 2);
-         emit_file_open(r0, name, length, kind, locus, VCODE_INVALID_REG);
+         emit_file_open(r0, name, length, kind, VCODE_INVALID_REG);
          return VCODE_INVALID_REG;
       }
    case S_FILE_OPEN2:
@@ -2315,9 +2314,8 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          vcode_reg_t r2     = lower_subprogram_arg(lu, fcall, 2);
          vcode_reg_t name   = lower_array_data(r2);
          vcode_reg_t length = lower_array_len(lu, arg_type, 0, r2);
-         vcode_reg_t locus  = lower_debug_locus(fcall);
          vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 3);
-         emit_file_open(r1, name, length, kind, locus, r0);
+         emit_file_open(r1, name, length, kind, r0);
          return VCODE_INVALID_REG;
       }
    case S_FILE_WRITE:
@@ -7652,10 +7650,8 @@ static void lower_file_decl(lower_unit_t *lu, tree_t decl)
                                                name_array);
       vcode_reg_t file_ptr   = emit_index(var, VCODE_INVALID_REG);
       vcode_reg_t mode       = lower_rvalue(lu, tree_file_mode(decl));
-      vcode_reg_t locus      = lower_debug_locus(decl);
 
-      emit_file_open(file_ptr, name_data, name_len, mode,
-                     locus, VCODE_INVALID_REG);
+      emit_file_open(file_ptr, name_data, name_len, mode, VCODE_INVALID_REG);
    }
 }
 

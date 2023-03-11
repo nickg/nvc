@@ -44,8 +44,8 @@ int64_t x_now(void);
 int x_current_delta(void);
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
                         int64_t after, int64_t reject);
-void x_file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
-                 int32_t name_len, int8_t mode, tree_t where);
+void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
+                 int32_t name_len, int8_t mode);
 void x_file_write(void **_fp, uint8_t *data, int32_t len);
 void x_file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
                  int32_t *out);
