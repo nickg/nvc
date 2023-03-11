@@ -110,6 +110,24 @@ static void missing_argument(const char *what, char **argv)
    fatal("%s option $bold$%s$$ requires an argument", what, argv[optind - 1]);
 }
 
+static void parse_cond_analysis_identifier(char *optarg)
+{
+   char *name = optarg;
+   char *value = NULL;
+
+   while (*optarg) {
+      if (*optarg == '=') {
+         *optarg = '\0';
+         optarg++;
+         value = optarg;
+      }
+      else
+         optarg++;
+   }
+
+   add_cond_analysis_identifier(name, value);
+}
+
 static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -120,12 +138,15 @@ static int analyse(int argc, char **argv)
       { "psl",             no_argument,       0, 'P' },
       { "relax",           required_argument, 0, 'X' },
       { "relaxed",         no_argument,       0, 'R' },
+      { "define",          required_argument, 0, 'd' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = ":";
+
+   init_cond_analysis_identifiers();
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -158,6 +179,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'R':
          opt_set_int(OPT_RELAXED, 1);
+         break;
+      case 'd':
+         parse_cond_analysis_identifier(optarg);
          break;
       default:
          abort();

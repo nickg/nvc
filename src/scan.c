@@ -36,18 +36,25 @@ typedef struct {
    loc_t loc;
 } cond_state_t;
 
-typedef A(cond_state_t) cond_stack_t;
+typedef struct {
+   const char *name;
+   const char *value;
+} cond_ident_t;
 
-static const char     *file_start;
-static size_t          file_sz;
-static const char     *read_ptr;
-static hdl_kind_t      src_kind;
-static loc_file_ref_t  file_ref = FILE_INVALID;
-static int             colno;
-static int             lineno;
-static int             lookahead;
-static int             pperrors;
-static cond_stack_t    cond_stack;
+typedef A(cond_state_t) cond_stack_t;
+typedef A(cond_ident_t) cond_ident_arr_t;
+
+static const char      *file_start;
+static size_t           file_sz;
+static const char      *read_ptr;
+static hdl_kind_t       src_kind;
+static loc_file_ref_t   file_ref = FILE_INVALID;
+static int              colno;
+static int              lineno;
+static int              lookahead;
+static int              pperrors;
+static cond_stack_t     cond_stack;
+static cond_ident_arr_t cond_idents;
 
 extern int yylex(void);
 extern yylval_t yylval;
@@ -210,22 +217,42 @@ const char *token_str(token_t tok)
    return "???";
 }
 
+void init_cond_analysis_identifiers()
+{
+   add_cond_analysis_identifier("VHDL_VERSION", standard_text(standard()));
+   add_cond_analysis_identifier("TOOL_TYPE",    "SIMULATION");
+   add_cond_analysis_identifier("TOOL_VENDOR",  PACKAGE_URL);
+   add_cond_analysis_identifier("TOOL_NAME",    PACKAGE_NAME);
+   add_cond_analysis_identifier("TOOL_EDITION", "");
+   add_cond_analysis_identifier("TOOL_VERSION", PACKAGE_VERSION);
+
+}
+
+void add_cond_analysis_identifier(const char *name, const char *value)
+{
+   for (int i = 0; i < cond_idents.count; i++) {
+      cond_ident_t *id = AREF(cond_idents, i);
+      if (strcmp(id->name, name) == 0)
+         errorf("conditional analysis directive '%s' already defined (%s)",
+                name, id->value);
+   }
+
+   cond_ident_t new = {
+      .name = name,
+      .value = value
+   };
+
+   APUSH(cond_idents, new);
+}
+
 static const char *get_cond_analysis_identifier(const char *name)
 {
-   if (strcmp(name, "VHDL_VERSION") == 0)
-      return standard_text(standard());
-   else if (strcmp(name, "TOOL_TYPE") == 0)
-      return "SIMULATION";
-   else if (strcmp(name, "TOOL_VENDOR") == 0)
-      return PACKAGE_URL;
-   else if (strcmp(name, "TOOL_NAME") == 0)
-      return PACKAGE_NAME;
-   else if (strcmp(name, "TOOL_EDITION") == 0)
-      return "";
-   else if (strcmp(name, "TOOL_VERSION") == 0)
-      return PACKAGE_VERSION;
-   else
-      return NULL;
+   for (int i = 0; i < cond_idents.count; i++) {
+      cond_ident_t *it = AREF(cond_idents, i);
+      if (strcmp(it->name, name) == 0)
+         return it->value;
+   }
+   return NULL;
 }
 
 static int pp_yylex(void)
