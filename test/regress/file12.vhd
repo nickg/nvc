@@ -10,10 +10,13 @@ begin
         variable c : character;
     begin
         file_open(f, "test.txt", WRITE_MODE);
+        assert file_mode(f) = WRITE_MODE;
         write(f, 'x');
         write(f, 'y');
         write(f, 'z');
         file_close(f);
+
+        assert file_state(f) = STATE_CLOSED;
 
         assert file_open(f, "test.txt", READ_WRITE_MODE) = OPEN_OK;
         read(f, c);
@@ -50,6 +53,9 @@ begin
         read(f, c);
         assert c = '1';
         assert endfile(f);
+
+        assert file_state(f) = STATE_OPEN;
+        assert file_mode(f) = READ_WRITE_MODE;
 
         wait;
     end process;

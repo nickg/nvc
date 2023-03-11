@@ -27,6 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #ifdef __MINGW32__
 #include <fileapi.h>
@@ -49,6 +50,18 @@ typedef enum {
    FILE_ORIGIN_CURRENT,
    FILE_ORIGIN_END
 } file_origin_kind_t;
+
+typedef enum {
+   STATE_OPEN,
+   STATE_CLOSED
+} file_open_state_t;
+
+typedef enum {
+   READ_MODE,
+   WRITE_MODE,
+   APPEND_MODE,
+   READ_WRITE_MODE
+} file_open_kind_t;
 
 DLLEXPORT
 void __nvc_flush(FILE **fp)
@@ -139,6 +152,47 @@ void __nvc_truncate(FILE **fp, int32_t size, int8_t origin)
 
  failed:
    jit_msg(NULL, DIAG_FATAL, "FILE_TRUNCATE failed: %s", strerror(errno));
+}
+
+DLLEXPORT
+int8_t __nvc_file_state(FILE **fp)
+{
+   return *fp == NULL ? STATE_CLOSED : STATE_OPEN;
+}
+
+DLLEXPORT
+int8_t __nvc_file_mode(FILE **fp)
+{
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "FILE_MODE called on closed file");
+
+#ifdef __MINGW32__
+   fflush(*fp);
+
+   HANDLE handle = (HANDLE)_get_osfhandle(_fileno(*fp));
+   const bool can_read = ReadFile(handle, NULL, 0, NULL, NULL);
+   const bool can_write = WriteFile(handle, NULL, 0, NULL, NULL);
+
+   if (can_read && can_write)
+      return READ_WRITE_MODE;
+   else if (can_read)
+      return READ_MODE;
+   else if (can_write)
+      return WRITE_MODE;
+#else
+   const int mode = fcntl(fileno(*fp), F_GETFL);
+   if (mode < 0)
+      jit_msg(NULL, DIAG_FATAL, "FILE_MODE failed: %s", strerror(errno));
+
+   switch (mode & O_ACCMODE) {
+   case O_RDONLY: return READ_MODE;
+   case O_WRONLY: return (mode & O_APPEND) ? APPEND_MODE : WRITE_MODE;
+   case O_RDWR: return READ_WRITE_MODE;
+   }
+#endif
+
+   jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
+   return READ_MODE;
 }
 
 void _file_io_init(void)

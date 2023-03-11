@@ -1234,8 +1234,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
             ident_t seek_i     = ident_new("FILE_SEEK");
             ident_t begin_i    = ident_new("FILE_ORIGIN_BEGIN");
             ident_t truncate_i = ident_new("FILE_TRUNCATE");
+            ident_t state_i    = ident_new("FILE_STATE");
+            ident_t mode_i     = ident_new("FILE_MODE");
 
             type_t origin_kind = std_type(NULL, STD_FILE_ORIGIN_KIND);
+            type_t open_state = std_type(NULL, STD_FILE_OPEN_STATE);
 
             tree_t origin_begin = search_decls(std, begin_i, 0);
             assert(origin_begin != NULL);
@@ -1277,6 +1280,20 @@ static void declare_predefined_ops(tree_t container, type_t t)
                      make_ref(origin_begin));
             insert_name(nametab, truncate, truncate_i);
             tree_add_decl(container, truncate);
+
+            tree_t state = builtin_fn(state_i, open_state, S_FOREIGN,
+                                      "F", t, NULL);
+            tree_set_ident2(state, ident_new("__nvc_file_state"));
+            tree_set_class(tree_port(state, 0), C_FILE);
+            insert_name(nametab, state, state_i);
+            tree_add_decl(container, state);
+
+            tree_t mode = builtin_fn(mode_i, open_kind, S_FOREIGN,
+                                     "F", t, NULL);
+            tree_set_ident2(mode, ident_new("__nvc_file_mode"));
+            tree_set_class(tree_port(mode, 0), C_FILE);
+            insert_name(nametab, mode, mode_i);
+            tree_add_decl(container, mode);
          }
 
          type_t of = type_file(t);

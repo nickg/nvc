@@ -147,6 +147,7 @@ typedef enum {
    STD_BIT_VECTOR,
    STD_SEVERITY_LEVEL,
    STD_FILE_ORIGIN_KIND,
+   STD_FILE_OPEN_STATE,
 } std_type_t;
 
 type_t std_type(tree_t std, std_type_t which);
