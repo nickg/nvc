@@ -10,7 +10,10 @@ begin
     wait for 1 ns;
 
 `if USER_DIRECTIVE = "VALID_VALUE" then
-    report "DIRECTIVE WAS DEFINED OK!";
+    wait for 1 ns;
+`else
+    report "DIRECTIVE WAS NOT DEFINED OK!"
+    severity failure;
 `end
 
     wait for 1 ns;
