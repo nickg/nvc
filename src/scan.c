@@ -39,17 +39,17 @@ typedef struct {
 
 typedef A(cond_state_t) cond_stack_t;
 
-static const char    *file_start;
-static size_t         file_sz;
-static const char    *read_ptr;
-static hdl_kind_t     src_kind;
-static loc_file_ref_t file_ref = FILE_INVALID;
-static int            colno;
-static int            lineno;
-static int            lookahead;
-static int            pperrors;
-static cond_stack_t   cond_stack;
-static shash_t       *cond_idents;
+static const char     *file_start;
+static size_t          file_sz;
+static const char     *read_ptr;
+static hdl_kind_t      src_kind;
+static loc_file_ref_t  file_ref = FILE_INVALID;
+static int             colno;
+static int             lineno;
+static int             lookahead;
+static int             pperrors;
+static cond_stack_t    cond_stack;
+static shash_t        *cond_idents;
 
 extern int yylex(void);
 extern yylval_t yylval;
