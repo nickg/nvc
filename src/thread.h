@@ -18,6 +18,8 @@
 #ifndef _THREAD_H
 #define _THREAD_H
 
+#include "util.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -47,6 +49,9 @@
 #define full_barrier() __atomic_thread_fence(__ATOMIC_SEQ_CST)
 
 #define MAX_THREADS 64
+#define DEFAULT_THREADS 8
+
+STATIC_ASSERT(DEFAULT_THREADS <= MAX_THREADS);
 
 typedef struct _nvc_thread nvc_thread_t;
 

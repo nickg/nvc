@@ -401,7 +401,7 @@ void thread_init(void)
    if (env != NULL)
       max_workers = MAX(1, MIN(atoi(env), MAX_THREADS));
    else
-      max_workers = MIN(nvc_nprocs(), MAX_THREADS);
+      max_workers = MIN(nvc_nprocs(), DEFAULT_THREADS);
    assert(max_workers > 0);
 
 #ifdef DEBUG
