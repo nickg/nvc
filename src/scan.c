@@ -49,7 +49,7 @@ static int             lineno;
 static int             lookahead;
 static int             pperrors;
 static cond_stack_t    cond_stack;
-static shash_t        *cond_idents;
+static shash_t        *conda_ids;
 
 extern int yylex(void);
 extern yylval_t yylval;
@@ -214,7 +214,7 @@ const char *token_str(token_t tok)
 
 void conda_id_init()
 {
-   cond_idents = shash_new(16);
+   conda_ids = shash_new(16);
 
    conda_id_add("VHDL_VERSION", standard_text(standard()));
    conda_id_add("TOOL_TYPE",    "SIMULATION");
@@ -227,16 +227,16 @@ void conda_id_init()
 
 void conda_id_exit()
 {
-   shash_free(cond_idents);
+   shash_free(conda_ids);
 }
 
 void conda_id_add(const char *name, const char *value)
 {
-   char *existing_val = (char*) shash_get(cond_idents, name);
+   char *existing_val = (char*) shash_get(conda_ids, name);
    if (existing_val)
       errorf("conditional analysis directive '%s' already defined (%s)",
              name, existing_val);
-   shash_put(cond_idents, name, (char*)value);
+   shash_put(conda_ids, name, (char*)value);
 }
 
 static int pp_yylex(void)
@@ -305,7 +305,7 @@ static bool pp_cond_analysis_relation(void)
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
-            const char *value = (char*) shash_get(cond_idents, name);
+            const char *value = (char*) shash_get(conda_ids, name);
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {

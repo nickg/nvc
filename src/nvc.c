@@ -110,7 +110,7 @@ static void missing_argument(const char *what, char **argv)
    fatal("%s option $bold$%s$$ requires an argument", what, argv[optind - 1]);
 }
 
-static void parse_cond_analysis_identifier(char *optarg)
+static void parse_conda_id(char *optarg)
 {
    char *name = optarg;
    char *value = NULL;
@@ -181,7 +181,7 @@ static int analyse(int argc, char **argv)
          opt_set_int(OPT_RELAXED, 1);
          break;
       case 'd':
-         parse_cond_analysis_identifier(optarg);
+         parse_conda_id(optarg);
          break;
       default:
          abort();
