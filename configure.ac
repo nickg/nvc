@@ -50,12 +50,14 @@ AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
 AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr getline fseeko])
+AC_CHECK_FUNCS([ftello fpurge __fpurge])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
 AC_CHECK_HEADERS([ucontext.h])
 AC_CHECK_HEADERS([sys/ucontext.h])
+AC_CHECK_HEADERS([stdio_ext.h])
 
 AS_IF([test "$ac_cv_header_ucontext_h" = yes ],
       [AC_MSG_CHECKING([for getcontext])

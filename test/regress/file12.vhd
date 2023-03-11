@@ -32,6 +32,25 @@ begin
         read(f, c);
         assert c = 'q';
 
+        file_truncate(f, 1);
+        file_rewind(f);
+
+        read(f, c);
+        assert c = 'x';
+        assert endfile(f);
+
+        file_seek(f, 1);
+        write(f, '1');
+        write(f, '2');
+        file_truncate(f, -1, FILE_ORIGIN_END);
+
+        file_rewind(f);
+        read(f, c);
+        assert c = 'x';
+        read(f, c);
+        assert c = '1';
+        assert endfile(f);
+
         wait;
     end process;
 
