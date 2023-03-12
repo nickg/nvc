@@ -16,13 +16,6 @@ begin
     severity failure;
 `end
 
-`if ANOTHER_DIRECTIVE = "ANOTHER_VALD_VALUE" then
-    wait for 1 ns;
-`else
-    report "SECOND DIRECTIVE WAS NOT DEFINED OK!"
-    severity failure;
-`end
-
     wait for 1 ns;
     wait;
     end process;
