@@ -154,7 +154,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006a">
         LCS2016-006a</td>
     <td>File IO / TextIO updates</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
@@ -178,7 +178,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_011">
         LCS2016-011</td>
     <td>Date/time functions</td>
-    <td class="feature-partial"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_012">

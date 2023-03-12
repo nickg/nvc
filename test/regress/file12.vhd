@@ -11,9 +11,14 @@ begin
     begin
         file_open(f, "test.txt", WRITE_MODE);
         assert file_mode(f) = WRITE_MODE;
+        assert file_size(f) = 0;
         write(f, 'x');
         write(f, 'y');
         write(f, 'z');
+        assert file_position(f) = 3;
+        assert file_position(f, FILE_ORIGIN_CURRENT) = 0;
+        assert file_position(f, FILE_ORIGIN_END) = 0;
+        assert file_size(f) = 3;
         file_close(f);
 
         assert file_state(f) = STATE_CLOSED;
@@ -24,6 +29,7 @@ begin
         file_seek(f, 1);
         write(f, 'q');
         file_seek(f, 2);
+        assert file_position(f, FILE_ORIGIN_END) = 1;
         read(f, c);
         assert c = 'z';
         assert endfile(f);
@@ -36,6 +42,7 @@ begin
         assert c = 'q';
 
         file_truncate(f, 1);
+        assert file_size(f) = 1;
         file_rewind(f);
 
         read(f, c);
@@ -56,6 +63,8 @@ begin
 
         assert file_state(f) = STATE_OPEN;
         assert file_mode(f) = READ_WRITE_MODE;
+
+        assert file_canseek(f);
 
         wait;
     end process;

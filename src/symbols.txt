@@ -34,7 +34,10 @@
   _nvc_ieee_warnings;
 
   # Exported from src/rt/fileio.c
+  __nvc_file_canseek;
   __nvc_file_mode;
+  __nvc_file_position;
+  __nvc_file_size;
   __nvc_file_state;
   __nvc_flush;
   __nvc_open3;

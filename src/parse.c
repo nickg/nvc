@@ -1236,6 +1236,9 @@ static void declare_predefined_ops(tree_t container, type_t t)
             ident_t truncate_i = ident_new("FILE_TRUNCATE");
             ident_t state_i    = ident_new("FILE_STATE");
             ident_t mode_i     = ident_new("FILE_MODE");
+            ident_t position_i = ident_new("FILE_POSITION");
+            ident_t size_i     = ident_new("FILE_SIZE");
+            ident_t canseek_i  = ident_new("FILE_CANSEEK");
 
             type_t origin_kind = std_type(NULL, STD_FILE_ORIGIN_KIND);
             type_t open_state = std_type(NULL, STD_FILE_OPEN_STATE);
@@ -1294,6 +1297,27 @@ static void declare_predefined_ops(tree_t container, type_t t)
             tree_set_class(tree_port(mode, 0), C_FILE);
             insert_name(nametab, mode, mode_i);
             tree_add_decl(container, mode);
+
+            tree_t position = builtin_fn(position_i, std_int, S_FOREIGN,
+                                         "F", t, "ORIGIN", origin_kind, NULL);
+            tree_set_ident2(position, ident_new("__nvc_file_position"));
+            tree_set_class(tree_port(position, 0), C_FILE);
+            tree_set_value(tree_port(position, 1), make_ref(origin_begin));
+            insert_name(nametab, position, position_i);
+            tree_add_decl(container, position);
+
+            tree_t size = builtin_fn(size_i, std_int, S_FOREIGN, "F", t, NULL);
+            tree_set_ident2(size, ident_new("__nvc_file_size"));
+            tree_set_class(tree_port(size, 0), C_FILE);
+            insert_name(nametab, size, size_i);
+            tree_add_decl(container, size);
+
+            tree_t canseek = builtin_fn(canseek_i, std_bool, S_FOREIGN,
+                                        "F", t, NULL);
+            tree_set_ident2(canseek, ident_new("__nvc_file_canseek"));
+            tree_set_class(tree_port(canseek, 0), C_FILE);
+            insert_name(nametab, canseek, canseek_i);
+            tree_add_decl(container, canseek);
          }
 
          type_t of = type_file(t);

@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #ifdef __MINGW32__
 #include <fileapi.h>
@@ -193,6 +194,53 @@ int8_t __nvc_file_mode(FILE **fp)
 
    jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
    return READ_MODE;
+}
+
+DLLEXPORT
+int64_t __nvc_file_position(FILE **fp, int8_t origin)
+{
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "FILE_POSITION called on closed file");
+
+   if (origin == FILE_ORIGIN_CURRENT)
+      return 0;
+
+   off_t off = ftello(*fp);
+   if (off < 0)
+      jit_msg(NULL, DIAG_FATAL, "FILE_POSITION failed: %s", strerror(errno));
+
+   if (origin == FILE_ORIGIN_END) {
+      fseeko(*fp, 0, SEEK_END);
+      off_t end = ftello(*fp);
+      fseeko(*fp, off, SEEK_SET);
+      return end - off;
+   }
+   else
+      return off;
+}
+
+DLLEXPORT
+int64_t __nvc_file_size(FILE **fp, int8_t origin)
+{
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "FILE_SIZE called on closed file");
+
+   fflush(*fp);
+
+   struct stat st;
+   if (fstat(fileno(*fp), &st) < 0)
+      jit_msg(NULL, DIAG_FATAL, "FILE_SIZE failed: %s", strerror(errno));
+
+   return st.st_size;
+}
+
+DLLEXPORT
+int8_t __nvc_file_canseek(FILE **fp)
+{
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "FILE_CANSEEK called on closed file");
+
+   return fseek(*fp, 0, SEEK_CUR) == 0;
 }
 
 void _file_io_init(void)
