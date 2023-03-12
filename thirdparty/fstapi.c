@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2018 Tony Bybell.
+ * Copyright (c) 2009-2023 Tony Bybell.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -132,7 +132,7 @@ void **JenkinsIns(void *base_i, const unsigned char *mem, uint32_t length, uint3
 #define FST_GZIO_LEN                    (32768)
 #define FST_HDR_FOURPACK_DUO_SIZE       (4*1024*1024)
 
-#if defined(__i386__) || defined(__x86_64__) || defined(_AIX)
+#if defined(__i386__) || defined(__x86_64__) || defined(_AIX) || defined(__aarch64__)
 #define FST_DO_MISALIGNED_OPS
 #endif
 
@@ -141,7 +141,7 @@ void **JenkinsIns(void *base_i, const unsigned char *mem, uint32_t length, uint3
 #include <sys/sysctl.h>
 #endif
 
-#if defined(FST_MACOSX) || defined(__MINGW32__) || defined(__OpenBSD__) || defined(__FreeBSD__)
+#if defined(FST_MACOSX) || defined(__MINGW32__) || defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #define FST_UNBUFFERED_IO
 #endif
 
@@ -335,7 +335,7 @@ return(NULL);
 /*
  * mmap compatibility
  */
-#if defined __CYGWIN__ || defined __MINGW32__
+#if defined __MINGW32__
 #include <limits.h>
 #define fstMmap(__addr,__len,__prot,__flags,__fd,__off) fstMmap2((__len), (__fd), (__off))
 #define fstMunmap(__addr,__len)                         UnmapViewOfFile((LPCVOID)__addr)
@@ -988,7 +988,7 @@ if(pnt == NULL
   )
 	{
 	fprintf(stderr, "fstMmap() assigned to %s failed: errno: %d, file %s, line %d.\n", usage, errno, file, line);
-#if !defined(__CYGWIN__) && !defined(__MINGW32__)
+#if !defined(__MINGW32__)
 	perror("Why");
 #else
 	LPSTR mbuf = NULL;
@@ -4116,26 +4116,35 @@ if(xc->do_rewind)
 if(!(isfeof=feof(xc->fh)))
         {
         int tag = fgetc(xc->fh);
+	int cl;
         switch(tag)
                 {
                 case FST_ST_VCD_SCOPE:
                         xc->hier.htyp = FST_HT_SCOPE;
                         xc->hier.u.scope.typ = fgetc(xc->fh);
                         xc->hier.u.scope.name = pnt = xc->str_scope_nam;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* scopename */
-                        *pnt = 0;
-                        xc->hier.u.scope.name_length = pnt - xc->hier.u.scope.name;
+                        pnt[cl] = 0;
+                        xc->hier.u.scope.name_length = cl;
 
                         xc->hier.u.scope.component = pnt = xc->str_scope_comp;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* scopecomp */
-                        *pnt = 0;
-                        xc->hier.u.scope.component_length = pnt - xc->hier.u.scope.component;
+                        pnt[cl] = 0;
+                        xc->hier.u.scope.component_length = cl;
                         break;
 
                 case FST_ST_VCD_UPSCOPE:
@@ -4147,12 +4156,16 @@ if(!(isfeof=feof(xc->fh)))
                         xc->hier.u.attr.typ = fgetc(xc->fh);
                         xc->hier.u.attr.subtype = fgetc(xc->fh);
                         xc->hier.u.attr.name = pnt = xc->str_scope_nam;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* scopename */
-                        *pnt = 0;
-                        xc->hier.u.attr.name_length = pnt - xc->hier.u.scope.name;
+			pnt[cl] = 0;
+                        xc->hier.u.attr.name_length = cl;
 
                         xc->hier.u.attr.arg = fstReaderVarint64(xc->fh);
 
@@ -4207,12 +4220,16 @@ if(!(isfeof=feof(xc->fh)))
                         xc->hier.u.var.typ = tag;
                         xc->hier.u.var.direction = fgetc(xc->fh);
                         xc->hier.u.var.name = pnt = xc->str_scope_nam;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* varname */
-                        *pnt = 0;
-                        xc->hier.u.var.name_length = pnt - xc->hier.u.var.name;
+                        pnt[cl] = 0;
+                        xc->hier.u.var.name_length = cl;
                         xc->hier.u.var.length = fstReaderVarint32(xc->fh);
                         if(tag == FST_VT_VCD_PORT)
                                 {
@@ -4259,6 +4276,7 @@ unsigned int num_signal_dyn = 65536;
 int attrtype, subtype;
 uint64_t attrarg;
 fstHandle maxhandle_scanbuild;
+int cl;
 
 if(!xc) return(0);
 
@@ -4341,11 +4359,15 @@ while(!feof(xc->fh))
                         scopetype = fgetc(xc->fh);
                         if((scopetype < FST_ST_MIN) || (scopetype > FST_ST_MAX)) scopetype = FST_ST_VCD_MODULE;
                         pnt = str;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_ATTR_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* scopename */
-                        *pnt = 0;
+                        pnt[cl] = 0;
                         while(fgetc(xc->fh)) { }; /* scopecomp */
 
                         if(fv) fprintf(fv, "$scope %s %s $end\n", modtypes[scopetype], str);
@@ -4359,11 +4381,15 @@ while(!feof(xc->fh))
                         attrtype = fgetc(xc->fh);
                         subtype = fgetc(xc->fh);
                         pnt = str;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_ATTR_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* attrname */
-                        *pnt = 0;
+                        pnt[cl] = 0;
 
                         if(!str[0]) { strcpy(str, "\"\""); }
 
@@ -4444,11 +4470,15 @@ while(!feof(xc->fh))
                         vartype = tag;
                         /* vardir = */ fgetc(xc->fh); /* unused in VCD reader, but need to advance read pointer */
                         pnt = str;
+			cl = 0;
                         while((ch = fgetc(xc->fh)))
                                 {
-                                *(pnt++) = ch;
+				if(cl <= FST_ID_NAM_ATTR_SIZ)
+					{
+					pnt[cl++] = ch;
+					}
                                 }; /* varname */
-                        *pnt = 0;
+                        pnt[cl] = 0;
                         len = fstReaderVarint32(xc->fh);
                         alias = fstReaderVarint32(xc->fh);
 
