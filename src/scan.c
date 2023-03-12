@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "option.h"
 #include "scan.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <sys/types.h>
@@ -48,6 +49,7 @@ static int             lineno;
 static int             lookahead;
 static int             pperrors;
 static cond_stack_t    cond_stack;
+static shash_t        *pp_defines;
 
 extern int yylex(void);
 extern yylval_t yylval;
@@ -210,22 +212,25 @@ const char *token_str(token_t tok)
    return "???";
 }
 
-static const char *get_cond_analysis_identifier(const char *name)
+void pp_defines_init()
 {
-   if (strcmp(name, "VHDL_VERSION") == 0)
-      return standard_text(standard());
-   else if (strcmp(name, "TOOL_TYPE") == 0)
-      return "SIMULATION";
-   else if (strcmp(name, "TOOL_VENDOR") == 0)
-      return PACKAGE_URL;
-   else if (strcmp(name, "TOOL_NAME") == 0)
-      return PACKAGE_NAME;
-   else if (strcmp(name, "TOOL_EDITION") == 0)
-      return "";
-   else if (strcmp(name, "TOOL_VERSION") == 0)
-      return PACKAGE_VERSION;
-   else
-      return NULL;
+   pp_defines = shash_new(16);
+
+   pp_defines_add("VHDL_VERSION", standard_text(standard()));
+   pp_defines_add("TOOL_TYPE",    "SIMULATION");
+   pp_defines_add("TOOL_VENDOR",  PACKAGE_URL);
+   pp_defines_add("TOOL_NAME",    PACKAGE_NAME);
+   pp_defines_add("TOOL_EDITION", PACKAGE_VERSION);
+   pp_defines_add("TOOL_VERSION", PACKAGE_VERSION);
+}
+
+void pp_defines_add(const char *name, const char *value)
+{
+   char *existing_val = (char*) shash_get(pp_defines, name);
+   if (existing_val)
+      errorf("conditional analysis directive '%s' already defined (%s)",
+             name, existing_val);
+   shash_put(pp_defines, name, xstrdup(value));
 }
 
 static int pp_yylex(void)
@@ -294,7 +299,7 @@ static bool pp_cond_analysis_relation(void)
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
-            const char *value = get_cond_analysis_identifier(name);
+            const char *value = shash_get(pp_defines, name);
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {
