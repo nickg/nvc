@@ -511,19 +511,14 @@ void fbuf_close(fbuf_t *f, uint32_t *checksum)
 
 void fbuf_put_uint(fbuf_t *f, uint64_t val)
 {
-   uint8_t enc[10];
-   int nbytes = 0;
+   fbuf_maybe_flush(f, 10);
 
    do {
-      enc[nbytes] = val & 0x7f;
+      uint8_t enc = val & 0x7f;
       val >>= 7;
-      if (val) enc[nbytes] |= 0x80;
-      nbytes++;
+      if (val) enc |= 0x80;
+      *(f->wbuf + f->wpend++) = enc;
    } while (val);
-
-   fbuf_maybe_flush(f, nbytes);
-   for (int i = 0; i < nbytes; i++)
-      *(f->wbuf + f->wpend++) = enc[i];
 }
 
 void fbuf_put_int(fbuf_t *f, int64_t val)
@@ -583,21 +578,21 @@ void write_double(double d, fbuf_t *f)
 
 uint64_t fbuf_get_uint(fbuf_t *f)
 {
-   uint8_t dec[10];
-   int nbytes = 0;
+   ASSERT_AVAIL(f, 1);
+   const uint8_t b0 = *(f->rbuf + f->rptr++);
+   if (!(b0 & 0x80))
+      return b0;
+
+   uint64_t val = b0 & 0x7f;
+   int shift = 7;
 
    uint8_t byte;
    do {
       ASSERT_AVAIL(f, 1);
       byte = *(f->rbuf + f->rptr++);
-      dec[nbytes++] = byte & 0x7f;
+      val |= (uint64_t)(byte & 0x7f) << shift;
+      shift += 7;
    } while (byte & 0x80);
-
-   uint64_t val = 0;
-   for (int i = nbytes - 1; i >= 0; i--) {
-      val <<= 7;
-      val |= dec[i];
-   }
 
    return val;
 }
