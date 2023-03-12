@@ -222,7 +222,6 @@ void pp_defines_init()
    pp_defines_add("TOOL_NAME",    PACKAGE_NAME);
    pp_defines_add("TOOL_EDITION", PACKAGE_VERSION);
    pp_defines_add("TOOL_VERSION", PACKAGE_VERSION);
-
 }
 
 void pp_defines_add(const char *name, const char *value)
@@ -300,7 +299,7 @@ static bool pp_cond_analysis_relation(void)
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
-            const char *value = (char*) shash_get(pp_defines, name);
+            const char *value = shash_get(pp_defines, name);
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {

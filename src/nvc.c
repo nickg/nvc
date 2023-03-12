@@ -1247,6 +1247,7 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
