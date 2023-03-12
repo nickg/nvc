@@ -125,18 +125,17 @@ static int analyse(int argc, char **argv)
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
       { "error-limit",     required_argument, 0, 'l' },
-      { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "psl",             no_argument,       0, 'P' },
       { "relax",           required_argument, 0, 'X' },
       { "relaxed",         no_argument,       0, 'R' },
-      { "define",          required_argument, 0, 'd' },
+      { "define",          required_argument, 0, 'D' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = ":";
+   const char *spec = ":D:";
 
    pp_defines_init();
 
@@ -151,9 +150,6 @@ static int analyse(int argc, char **argv)
          missing_argument("analyse", argv);
       case 'b':
          opt_set_int(OPT_BOOTSTRAP, 1);
-         break;
-      case 'D':
-         opt_set_int(OPT_DUMP_LLVM, 1);
          break;
       case 'v':
          opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
@@ -172,7 +168,7 @@ static int analyse(int argc, char **argv)
       case 'R':
          opt_set_int(OPT_RELAXED, 1);
          break;
-      case 'd':
+      case 'D':
          parse_pp_define(optarg);
          break;
       default:
