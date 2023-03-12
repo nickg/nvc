@@ -4420,6 +4420,14 @@ static const int lower_get_attr_dimension(tree_t expr)
       return 0;
 }
 
+static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix)
+{
+   if (class_of(prefix) == C_SIGNAL)
+      return lower_lvalue(lu, prefix);
+   else
+      return lower_rvalue(lu, prefix);
+}
+
 static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 {
    tree_t name = tree_name(expr);
@@ -4433,7 +4441,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          type_t type = tree_type(name);
          if (type_is_unconstrained(type)) {
-            vcode_reg_t array_reg = lower_rvalue(lu, name);
+            vcode_reg_t array_reg = lower_attr_prefix(lu, name);
             if (predef == ATTR_LEFT)
                return lower_array_left(lu, type, dim, array_reg);
             else
@@ -4459,7 +4467,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          type_t type = tree_type(name);
          if (type_is_unconstrained(type)) {
-            vcode_reg_t array_reg = lower_rvalue(lu, name);
+            vcode_reg_t array_reg = lower_attr_prefix(lu, name);
             left_reg  = lower_array_left(lu, type, dim, array_reg);
             right_reg = lower_array_right(lu, type, dim, array_reg);
             dir_reg   = lower_array_dir(lu, type, dim, array_reg);
@@ -4490,7 +4498,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_LENGTH:
       {
          const int dim = lower_get_attr_dimension(expr);
-         vcode_reg_t name_reg = lower_param(lu, name, NULL, PORT_IN);
+         vcode_reg_t name_reg = lower_attr_prefix(lu, name);
          vcode_reg_t len_reg =
             lower_array_len(lu, tree_type(name), dim, name_reg);
          return emit_cast(lower_type(tree_type(expr)),
@@ -4499,7 +4507,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
    case ATTR_ELEMENT:
       {
-         vcode_reg_t array_reg = lower_rvalue(lu, name);
+         vcode_reg_t array_reg = lower_attr_prefix(lu, name);
          type_t type = tree_type(name);
          type_t elem = lower_elem_recur(type);
          vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
@@ -4514,7 +4522,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
             return emit_const(vtype_bool(),
                               direction_of(type, dim) == RANGE_TO);
          else {
-            vcode_reg_t name_reg = lower_param(lu, name, NULL, PORT_IN);
+            vcode_reg_t name_reg = lower_attr_prefix(lu, name);
             return emit_not(lower_array_dir(lu, type, dim, name_reg));
          }
       }
@@ -4523,7 +4531,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_LAST_ACTIVE:
       {
          type_t name_type = tree_type(name);
-         vcode_reg_t name_reg = lower_lvalue(lu, name);
+         vcode_reg_t name_reg = lower_attr_prefix(lu, name);
          vcode_reg_t len_reg = VCODE_INVALID_REG;
          if (type_is_array(name_type)) {
             len_reg = lower_array_total_len(lu, name_type, name_reg);
@@ -4541,7 +4549,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_DRIVING_VALUE:
       {
          type_t name_type = tree_type(name);
-         vcode_reg_t name_reg = lower_lvalue(lu, name);
+         vcode_reg_t name_reg = lower_attr_prefix(lu, name);
          if (type_is_array(name_type)) {
             vcode_reg_t len_reg =
                lower_array_total_len(lu, name_type, name_reg);

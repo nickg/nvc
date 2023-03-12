@@ -250,6 +250,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TRAP_MUL:
       case VCODE_OP_TRAP_NEG:
       case VCODE_OP_TRAP_EXP:
+      case VCODE_OP_PUSH_SCOPE:
+      case VCODE_OP_POP_SCOPE:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -5024,6 +5026,39 @@ START_TEST(test_driver1)
 }
 END_TEST
 
+START_TEST(test_attr2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/attr2.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ATTR2");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_POP_SCOPE },
+      { VCODE_OP_INDEX, .name = "R" },
+      { VCODE_OP_LOAD, .name = "K" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CAST },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_CAST },
+      { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(3);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5145,6 +5180,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_wait2);
    tcase_add_test(tc, test_link1);
    tcase_add_test(tc, test_driver1);
+   tcase_add_test(tc, test_attr2);
    suite_add_tcase(s, tc);
 
    return s;
