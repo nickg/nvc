@@ -49,7 +49,7 @@ static int             lineno;
 static int             lookahead;
 static int             pperrors;
 static cond_stack_t    cond_stack;
-static shash_t        *conda_ids;
+static shash_t        *pp_defines;
 
 extern int yylex(void);
 extern yylval_t yylval;
@@ -212,31 +212,26 @@ const char *token_str(token_t tok)
    return "???";
 }
 
-void conda_id_init()
+void pp_defines_init()
 {
-   conda_ids = shash_new(16);
+   pp_defines = shash_new(16);
 
-   conda_id_add("VHDL_VERSION", standard_text(standard()));
-   conda_id_add("TOOL_TYPE",    "SIMULATION");
-   conda_id_add("TOOL_VENDOR",  PACKAGE_URL);
-   conda_id_add("TOOL_NAME",    PACKAGE_NAME);
-   conda_id_add("TOOL_EDITION", "");
-   conda_id_add("TOOL_VERSION", PACKAGE_VERSION);
+   pp_defines_add("VHDL_VERSION", standard_text(standard()));
+   pp_defines_add("TOOL_TYPE",    "SIMULATION");
+   pp_defines_add("TOOL_VENDOR",  PACKAGE_URL);
+   pp_defines_add("TOOL_NAME",    PACKAGE_NAME);
+   pp_defines_add("TOOL_EDITION", PACKAGE_VERSION);
+   pp_defines_add("TOOL_VERSION", PACKAGE_VERSION);
 
 }
 
-void conda_id_exit()
+void pp_defines_add(const char *name, const char *value)
 {
-   shash_free(conda_ids);
-}
-
-void conda_id_add(const char *name, const char *value)
-{
-   char *existing_val = (char*) shash_get(conda_ids, name);
+   char *existing_val = (char*) shash_get(pp_defines, name);
    if (existing_val)
       errorf("conditional analysis directive '%s' already defined (%s)",
              name, existing_val);
-   shash_put(conda_ids, name, (char*)value);
+   shash_put(pp_defines, name, xstrdup(value));
 }
 
 static int pp_yylex(void)
@@ -305,7 +300,7 @@ static bool pp_cond_analysis_relation(void)
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
-            const char *value = (char*) shash_get(conda_ids, name);
+            const char *value = (char*) shash_get(pp_defines, name);
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {

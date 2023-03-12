@@ -21,6 +21,7 @@
 #include "phase.h"
 #include "rt/mspace.h"
 #include "thread.h"
+#include "scan.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -74,6 +75,7 @@ int main(int argc, char **argv)
    thread_init();
    set_default_options();
    intern_strings();
+   pp_defines_init();
    register_signal_handlers();
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
 

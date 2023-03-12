@@ -45,9 +45,8 @@ hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);
 
-void conda_id_init();
-void conda_id_exit();
-void conda_id_add(const char *ident, const char *value);
+void pp_defines_init(void);
+void pp_defines_add(const char *ident, const char *value);
 
 void scan_as_psl(void);
 void scan_as_vhdl(void);

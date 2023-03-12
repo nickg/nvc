@@ -110,22 +110,14 @@ static void missing_argument(const char *what, char **argv)
    fatal("%s option $bold$%s$$ requires an argument", what, argv[optind - 1]);
 }
 
-static void parse_conda_id(char *optarg)
+static void parse_pp_define(char *optarg)
 {
-   char *name = optarg;
-   char *value = NULL;
+   char *eq = strchr(optarg, '=');
+   if (eq == NULL)
+      fatal("$bold$--define$$ argument must be KEY=VALUE");
 
-   while (*optarg) {
-      if (*optarg == '=') {
-         *optarg = '\0';
-         optarg++;
-         value = optarg;
-      }
-      else
-         optarg++;
-   }
-
-   conda_id_add(name, value);
+   *eq = '\0';
+   pp_defines_add(optarg, eq + 1);
 }
 
 static int analyse(int argc, char **argv)
@@ -146,7 +138,7 @@ static int analyse(int argc, char **argv)
    int c, index = 0;
    const char *spec = ":";
 
-   conda_id_init();
+   pp_defines_init();
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -181,7 +173,7 @@ static int analyse(int argc, char **argv)
          opt_set_int(OPT_RELAXED, 1);
          break;
       case 'd':
-         parse_conda_id(optarg);
+         parse_pp_define(optarg);
          break;
       default:
          abort();
@@ -235,8 +227,6 @@ static int analyse(int argc, char **argv)
          break;
       }
    }
-
-   conda_id_exit();
 
    eval_free(eval);
    eval = NULL;
