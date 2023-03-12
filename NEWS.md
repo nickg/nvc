@@ -27,6 +27,10 @@
 - The ABI for passing unconstrained arrays to foreign subprograms
   changed slightly, see the manual for details.
 - Implemented new file I/O operations from VHDL-2019.
+- Added analysis option `--define` to set user-defined conditional
+  analysis identifiers (from @Blebowski).
+- Optional support for using ZSTD to compress library files if
+  `libzstd-dev` is installed.
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.

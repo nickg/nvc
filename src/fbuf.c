@@ -27,8 +27,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#if HAVE_AVX2
+#ifdef HAVE_AVX2
 #include <x86intrin.h>
+#endif
+
+#ifdef HAVE_LIBZSTD
+#include <zstd.h>
+#define DEFAULT_ZIP FBUF_ZIP_ZSTD
+#else
+#define DEFAULT_ZIP FBUF_ZIP_FASTLZ
 #endif
 
 #define SPILL_SIZE 65536
@@ -84,12 +91,17 @@ struct _fbuf {
    fbuf_t      *prev;
    cs_state_t   checksum;
    fbuf_zip_t   zip;
+#ifdef HAVE_LIBZSTD
+   ZSTD_CCtx   *zstd;
+   uint8_t     *zbuf;
+   size_t       zbufsz;
+#endif
 };
 
 static fbuf_t *open_list = NULL;
 
-#define ADLER_MOD		65521
-#define ADLER_CHUNK_LEN_32	5552
+#define ADLER_MOD               65521
+#define ADLER_CHUNK_LEN_32      5552
 #define ADLER_CHUNK_LEN_SIMD_32 (ADLER_CHUNK_LEN_32/32)*32
 
 #if HAVE_AVX2
@@ -101,7 +113,7 @@ __attribute__((target("avx2")))
 static inline uint32_t avx2_reduce_add_8x32(__m256i v)
 {
     __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(v),
-				   _mm256_extracti128_si256(v, 1));
+                                   _mm256_extracti128_si256(v, 1));
     __m128i hi64  = _mm_unpackhi_epi64(sum128, sum128);
     __m128i sum64 = _mm_add_epi32(hi64, sum128);
     __m128i hi32  = _mm_shuffle_epi32(sum64, _MM_SHUFFLE(2, 3, 0, 1));
@@ -128,7 +140,7 @@ static void adler32_update_avx2(adler32_t *state, uint8_t *data, size_t length)
       size_t chunk_len = length;
       chunk_len -= chunk_len % 32;
       if (chunk_len > ADLER_CHUNK_LEN_SIMD_32)
-	 chunk_len = ADLER_CHUNK_LEN_SIMD_32;
+         chunk_len = ADLER_CHUNK_LEN_SIMD_32;
       length -= chunk_len;
 
       __m256i sum_v = _mm256_setzero_si256();
@@ -136,13 +148,13 @@ static void adler32_update_avx2(adler32_t *state, uint8_t *data, size_t length)
 
       uint8_t *chunk_end = data + chunk_len;
       while (data < chunk_end) {
-	 __m256i chunk_v = _mm256_loadu_si256((__m256i *)data);
-	 data += 32;
+         __m256i chunk_v = _mm256_loadu_si256((__m256i *)data);
+         data += 32;
 
-	 __m256i mad = _mm256_maddubs_epi16(chunk_v, coeff_v);
-	 sum2_v = _mm256_add_epi32(sum2_v, _mm256_madd_epi16(mad, one_epi16_v));
-	 sum2_v = _mm256_add_epi32(sum2_v, _mm256_slli_epi32(sum_v, 5));
-	 sum_v = _mm256_add_epi32(sum_v, _mm256_sad_epu8(chunk_v, zero_v));
+         __m256i mad = _mm256_maddubs_epi16(chunk_v, coeff_v);
+         sum2_v = _mm256_add_epi32(sum2_v, _mm256_madd_epi16(mad, one_epi16_v));
+         sum2_v = _mm256_add_epi32(sum2_v, _mm256_slli_epi32(sum_v, 5));
+         sum_v = _mm256_add_epi32(sum_v, _mm256_sad_epu8(chunk_v, zero_v));
       }
 
       sum2 += sum * chunk_len;
@@ -156,13 +168,13 @@ static void adler32_update_avx2(adler32_t *state, uint8_t *data, size_t length)
    while (length) {
       size_t chunk_len = length;
       if (chunk_len > ADLER_CHUNK_LEN_32)
-	 chunk_len = ADLER_CHUNK_LEN_32;
+         chunk_len = ADLER_CHUNK_LEN_32;
       length -= chunk_len;
 
       const uint8_t *chunk_end = data + chunk_len;
       for (; data != chunk_end; data++) {
-	 sum  += *data;
-	 sum2 += sum;
+         sum  += *data;
+         sum2 += sum;
       }
 
       sum  %= ADLER_MOD;
@@ -233,9 +245,9 @@ static void checksum_init(cs_state_t *state, fbuf_cs_t algo)
       state->u.adler32.s2 = 0;
 #if HAVE_AVX2
       if (__builtin_cpu_supports("avx2"))
-	 state->u.adler32.update = adler32_update_avx2;
+         state->u.adler32.update = adler32_update_avx2;
       else
-	 state->u.adler32.update = adler32_update;
+         state->u.adler32.update = adler32_update;
 #else
       state->u.adler32.update = adler32_update;
 #endif
@@ -314,6 +326,43 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    fbuf_write_raw(f, bytes, 8);
 }
 
+static void fbuf_decompress_fastlz(fbuf_t *f, uint8_t *rmap, size_t bufsz)
+{
+   for (uint8_t *dst = f->rbuf, *src = rmap + 16; dst < f->rbuf + f->origsz;) {
+      const uint32_t blksz = UNPACK_BE32(src);
+      if (blksz > SPILL_SIZE)
+         fatal("file %s has invalid compression format", f->fname);
+
+      src += sizeof(uint32_t);
+
+      if (src + blksz > (uint8_t *)rmap + bufsz)
+         fatal_trace("read past end of compressed file %s", f->fname);
+
+      const int ret = fastlz_decompress(src, blksz, dst, SPILL_SIZE);
+      if (ret == 0)
+         fatal("file %s has invalid compression format", f->fname);
+
+      checksum_update(&(f->checksum), dst, ret);
+
+      dst += ret;
+      src += blksz;
+   }
+}
+
+#ifdef HAVE_LIBZSTD
+static void fbuf_decompress_zstd(fbuf_t *f, uint8_t *rmap, size_t bufsz)
+{
+   size_t dsize = ZSTD_decompress(f->rbuf, f->origsz, rmap + 16, bufsz - 16);
+   if (ZSTD_isError(dsize))
+      fatal("ZSTD decompress failed: %s", ZSTD_getErrorName(dsize));
+
+   if (dsize != f->origsz)
+      fatal("%s inconsistent size %zu vs %zu", f->fname, dsize, f->origsz);
+
+   checksum_update(&(f->checksum), f->rbuf, f->origsz);
+}
+#endif
+
 static void fbuf_decompress(fbuf_t *f)
 {
    uint8_t header[16];
@@ -321,10 +370,6 @@ static void fbuf_decompress(fbuf_t *f)
 
    if (memcmp(header, "FBUF", 4))
       fatal("%s: file created with an older version of NVC", f->fname);
-
-   if (header[4] != 'F')
-      fatal("%s has was created with unexpected compression algorithm %c",
-            f->fname, header[4]);
 
    if (header[5] != f->checksum.algo)
       fatal("%s has was created with unexpected checksum algorithm %c",
@@ -365,24 +410,22 @@ static void fbuf_decompress(fbuf_t *f)
    f->checksum.expect = checksum;
    f->rbuf = xmalloc(f->origsz);
 
-   for (uint8_t *dst = f->rbuf, *src = rmap + 16; dst < f->rbuf + f->origsz;) {
-      const uint32_t blksz = UNPACK_BE32(src);
-      if (blksz > SPILL_SIZE)
-         fatal("file %s has invalid compression format", f->fname);
-
-      src += sizeof(uint32_t);
-
-      if (src + blksz > (uint8_t *)rmap + bufsz)
-         fatal_trace("read past end of compressed file %s", f->fname);
-
-      const int ret = fastlz_decompress(src, blksz, dst, SPILL_SIZE);
-      if (ret == 0)
-         fatal("file %s has invalid compression format", f->fname);
-
-      checksum_update(&(f->checksum), dst, ret);
-
-      dst += ret;
-      src += blksz;
+   switch (header[4]) {
+   case FBUF_ZIP_FASTLZ:
+      fbuf_decompress_fastlz(f, rmap, bufsz);
+      break;
+   case FBUF_ZIP_NONE:
+      memcpy(f->rbuf, rmap + 16, f->origsz);
+      checksum_update(&(f->checksum), f->rbuf, f->origsz);
+      break;
+#ifdef HAVE_LIBZSTD
+   case FBUF_ZIP_ZSTD:
+      fbuf_decompress_zstd(f, rmap, bufsz);
+      break;
+#endif
+   default:
+      fatal("%s was created with unexpected compression algorithm %c",
+            f->fname, header[4]);
    }
 
    if (S_ISFIFO(buf.st_mode))
@@ -403,6 +446,21 @@ static fbuf_t *fbuf_new(FILE *file, char *fname, fbuf_mode_t mode,
 
    checksum_init(&(f->checksum), csum);
 
+#ifdef HAVE_LIBZSTD
+   if (zip == FBUF_ZIP_ZSTD && mode == FBUF_OUT) {
+      if ((f->zstd = ZSTD_createCCtx()) == NULL)
+         fatal_trace("ZSTD_createCCtx() failed");
+
+      size_t rc = ZSTD_CCtx_setParameter(f->zstd, ZSTD_c_compressionLevel, 3);
+      if (ZSTD_isError(rc))
+         fatal("failed to set ZSTD compression level: %s",
+               ZSTD_getErrorName(rc));
+
+      f->zbufsz = ZSTD_CStreamOutSize();
+      f->zbuf = xmalloc(f->zbufsz);
+   }
+#endif
+
    if (mode == FBUF_OUT) {
       f->wbuf = xmalloc(SPILL_SIZE);
       fbuf_write_header(f);
@@ -422,7 +480,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
    if (h == NULL)
       return NULL;
 
-   return fbuf_new(h, xstrdup(file), mode, csum, FBUF_ZIP_FASTLZ);
+   return fbuf_new(h, xstrdup(file), mode, csum, DEFAULT_ZIP);
 }
 
 fbuf_t *fbuf_fdopen(int fd, fbuf_mode_t mode, fbuf_cs_t csum)
@@ -431,7 +489,7 @@ fbuf_t *fbuf_fdopen(int fd, fbuf_mode_t mode, fbuf_cs_t csum)
    if (h == NULL)
       return NULL;
 
-   return fbuf_new(h, xasprintf("<fd:%d>", fd), mode, csum, FBUF_ZIP_FASTLZ);
+   return fbuf_new(h, xasprintf("<fd:%d>", fd), mode, csum, FBUF_ZIP_NONE);
 }
 
 const char *fbuf_file_name(fbuf_t *f)
@@ -439,11 +497,46 @@ const char *fbuf_file_name(fbuf_t *f)
    return f->fname;
 }
 
-static void fbuf_maybe_flush(fbuf_t *f, size_t more)
+static void fbuf_compress_fastlz(fbuf_t *f)
+{
+   uint8_t out[SPILL_SIZE];
+   const int ret = fastlz_compress_level(2, f->wbuf, f->wpend, out);
+
+   assert((ret > 0) && (ret < SPILL_SIZE));
+
+   const uint8_t blksz[4] = { PACK_BE32(ret) };
+   fbuf_write_raw(f, blksz, 4);
+
+   fbuf_write_raw(f, out, ret);
+}
+
+#ifdef HAVE_LIBZSTD
+static void fbuf_compress_zstd(fbuf_t *f, bool end)
+{
+   ZSTD_EndDirective mode = end ? ZSTD_e_end : ZSTD_e_continue;
+   ZSTD_inBuffer input = { f->wbuf, f->wpend, 0 };
+   bool finished;
+   do {
+      ZSTD_outBuffer output = { f->zbuf, f->zbufsz, 0 };
+      size_t remaining = ZSTD_compressStream2(f->zstd, &output, &input, mode);
+      if (ZSTD_isError(remaining))
+         fatal("ZSTD compress failed: %s", ZSTD_getErrorName(remaining));
+
+      if (output.pos > 0)
+         fbuf_write_raw(f, f->zbuf, output.pos);
+
+      finished = end ? (remaining == 0) : (input.pos == input.size);
+   } while (!finished);
+
+   assert(input.pos == input.size);
+}
+#endif
+
+static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool end)
 {
    assert(more <= BLOCK_SIZE);
    if (f->wpend + more > BLOCK_SIZE) {
-      if (f->wpend < 16) {
+      if (f->zip == FBUF_ZIP_FASTLZ && f->wpend < 16) {
          // Write dummy bytes at end to meet fastlz block size requirement
          memset(f->wbuf + f->wpend, '\0', 16 - f->wpend);
          f->wpend = 16;
@@ -451,15 +544,21 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more)
 
       checksum_update(&(f->checksum), f->wbuf, f->wpend);
 
-      uint8_t out[SPILL_SIZE];
-      const int ret = fastlz_compress_level(2, f->wbuf, f->wpend, out);
-
-      assert((ret > 0) && (ret < SPILL_SIZE));
-
-      const uint8_t blksz[4] = { PACK_BE32(ret) };
-      fbuf_write_raw(f, blksz, 4);
-
-      fbuf_write_raw(f, out, ret);
+      switch (f->zip) {
+      case FBUF_ZIP_FASTLZ:
+         fbuf_compress_fastlz(f);
+         break;
+      case FBUF_ZIP_NONE:
+         fbuf_write_raw(f, f->wbuf, f->wpend);
+         break;
+#ifdef HAVE_LIBZSTD
+      case FBUF_ZIP_ZSTD:
+         fbuf_compress_zstd(f, end);
+         break;
+#endif
+      default:
+         fatal_trace("unsupported compression algorithm %c", f->zip);
+      }
 
       f->wtotal += f->wpend;
       f->wpend = 0;
@@ -469,7 +568,7 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more)
 void fbuf_close(fbuf_t *f, uint32_t *checksum)
 {
    if (f->wbuf != NULL)
-      fbuf_maybe_flush(f, BLOCK_SIZE);
+      fbuf_maybe_flush(f, BLOCK_SIZE, true);
 
    const uint32_t cs = checksum_finish(&(f->checksum));
 
@@ -505,13 +604,20 @@ void fbuf_close(fbuf_t *f, uint32_t *checksum)
    if (checksum != NULL)
       *checksum = checksum_finish(&(f->checksum));
 
+#ifdef HAVE_LIBZSTD
+   if (f->zstd != NULL)
+      ZSTD_freeCCtx(f->zstd);
+
+   free(f->zbuf);
+#endif
+
    free(f->fname);
    free(f);
 }
 
 void fbuf_put_uint(fbuf_t *f, uint64_t val)
 {
-   fbuf_maybe_flush(f, 10);
+   fbuf_maybe_flush(f, 10, false);
 
    do {
       uint8_t enc = val & 0x7f;
@@ -529,7 +635,7 @@ void fbuf_put_int(fbuf_t *f, int64_t val)
 
 void write_u32(uint32_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 4);
+   fbuf_maybe_flush(f, 4, false);
    *(f->wbuf + f->wpend++) = (u >>  0) & UINT32_C(0xff);
    *(f->wbuf + f->wpend++) = (u >>  8) & UINT32_C(0xff);
    *(f->wbuf + f->wpend++) = (u >> 16) & UINT32_C(0xff);
@@ -538,7 +644,7 @@ void write_u32(uint32_t u, fbuf_t *f)
 
 void write_u64(uint64_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 8);
+   fbuf_maybe_flush(f, 8, false);
    *(f->wbuf + f->wpend++) = (u >>  0) & UINT64_C(0xff);
    *(f->wbuf + f->wpend++) = (u >>  8) & UINT64_C(0xff);
    *(f->wbuf + f->wpend++) = (u >> 16) & UINT64_C(0xff);
@@ -551,20 +657,20 @@ void write_u64(uint64_t u, fbuf_t *f)
 
 void write_u16(uint16_t s, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 2);
+   fbuf_maybe_flush(f, 2, false);
    *(f->wbuf + f->wpend++) = (s >> 0) & UINT16_C(0xff);
    *(f->wbuf + f->wpend++) = (s >> 8) & UINT16_C(0xff);
 }
 
 void write_u8(uint8_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 1);
+   fbuf_maybe_flush(f, 1, false);
    *(f->wbuf + f->wpend++) = u;
 }
 
 void write_raw(const void *buf, size_t len, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, len);
+   fbuf_maybe_flush(f, len, false);
    memcpy(f->wbuf + f->wpend, buf, len);
    f->wpend += len;
 }

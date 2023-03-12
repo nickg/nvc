@@ -173,12 +173,17 @@ fi
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
-PKG_CHECK_MODULES([capstone], [capstone > 4.0],
+PKG_CHECK_MODULES([capstone], [capstone >= 4.0],
                   [AC_DEFINE_UNQUOTED([HAVE_CAPSTONE], [1],
                                       [Have capstone for diassembly])],
                   [true])
 
 PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
+
+PKG_CHECK_MODULES([libzstd], [libzstd >= 1.5],
+                  [AC_DEFINE_UNQUOTED([HAVE_LIBZSTD], [1],
+                                      [Have libzstd compression library])],
+                  [true])
 
 AC_CHECK_HEADER([unwind.h], [],
   [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])

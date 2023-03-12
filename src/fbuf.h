@@ -37,6 +37,7 @@ typedef enum {
 typedef enum {
    FBUF_ZIP_NONE = '-',
    FBUF_ZIP_FASTLZ = 'F',
+   FBUF_ZIP_ZSTD = 'Z',
 } fbuf_zip_t;
 
 fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum);

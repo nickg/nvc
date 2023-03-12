@@ -42,7 +42,8 @@ bin_unit_test_LDADD = \
 	$(check_LIBS) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(capstone_LIBS)
+	$(capstone_LIBS) \
+	$(libzstd_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -58,10 +59,11 @@ bin_lockbench_SOURCES = test/lockbench.c
 
 bin_lockbench_LDADD = \
 	lib/libnvc.a \
+	lib/libfastlz.a \
+	lib/libcpustate.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	lib/libfastlz.a \
-	lib/libcpustate.a
+	$(libzstd_LIBS)
 
 bin_jitperf_SOURCES = test/jitperf.c
 
@@ -72,7 +74,8 @@ bin_jitperf_LDADD = \
 	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(capstone_LIBS)
+	$(capstone_LIBS) \
+	$(libzstd_LIBS)
 
 bin_jitperf_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -89,7 +92,8 @@ bin_workqbench_LDADD = \
 	lib/libcpustate.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(check_LIBS)
+	$(check_LIBS) \
+	$(libzstd_LIBS)
 
 bin_mtstress_SOURCES = test/mtstress.c
 
@@ -101,7 +105,8 @@ bin_mtstress_LDADD = \
 	lib/libcpustate.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(check_LIBS)
+	$(check_LIBS) \
+	$(libzstd_LIBS)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

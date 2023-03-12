@@ -110,9 +110,6 @@ To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command.  The minimum supported LLVM version is 8.0.
 Versions between 8 and 15 have all been tested.
 
-On Linux the `libdw` or `libdwarf` libraries can be used to generate
-more accurate VHDL stack traces if installed.
-
 NVC also depends on Flex to generate the lexical analyser.
 
 On a Debian derivative the following should be sufficient to install all
@@ -120,7 +117,7 @@ required dependencies:
 
     sudo apt-get install build-essential automake autoconf \
       flex check llvm-dev pkg-config zlib1g-dev libdw-dev \
-      libffi-dev
+      libffi-dev libzstd-dev
 
 Only the MSYS2 environment on Windows is supported.  The required
 dependencies can be installed with:
