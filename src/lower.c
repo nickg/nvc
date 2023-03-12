@@ -76,6 +76,7 @@ typedef struct _lower_unit {
    vcode_unit_t     vunit;
    cover_tagging_t *cover;
    bool             finished;
+   bool             elaborating;
 } lower_unit_t;
 
 typedef enum {
@@ -1182,6 +1183,12 @@ static vcode_reg_t lower_param(lower_unit_t *lu, tree_t value, tree_t port,
       port_type = tree_type(port);
       class = tree_class(port);
    }
+
+   // This is not legal in VHDL anyway, but we allow it at analysis time
+   // with --relaxed
+   if (class == C_SIGNAL && lu->elaborating)
+      fatal_at(tree_loc(value), "cannot pass signal argument during "
+               "static elaboration");
 
    vcode_reg_t reg;
    if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE) {
@@ -2978,6 +2985,18 @@ static bool lower_is_trivial_constant(tree_t decl)
       return tree_kind(tree_value(decl)) == T_LITERAL;
 }
 
+static vcode_reg_t lower_signal_dummy_rvalue(lower_unit_t *lu, tree_t decl)
+{
+   // This is a workaround to allow referencing signal initial values
+   // during elaboration with --relaxed
+   if (tree_has_value(decl))
+      return lower_expr(lu, tree_value(decl), EXPR_RVALUE);
+   else {
+      type_t type = tree_type(decl);
+      return lower_default_value(lu, type, VCODE_INVALID_REG, NULL, 0);
+   }
+}
+
 static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
@@ -2995,7 +3014,10 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
       return lower_var_ref(lu, decl, ctx);
 
    case T_PORT_DECL:
-      return lower_port_ref(lu, decl);
+      if (ctx == EXPR_RVALUE && lu->elaborating)
+         return lower_signal_dummy_rvalue(lu, decl);
+      else
+         return lower_port_ref(lu, decl);
 
    case T_PARAM_DECL:
       return lower_param_ref(lu, decl);
@@ -3005,7 +3027,10 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
    case T_SIGNAL_DECL:
    case T_IMPLICIT_SIGNAL:
-      return lower_signal_ref(lu, decl);
+      if (ctx == EXPR_RVALUE && lu->elaborating)
+         return lower_signal_dummy_rvalue(lu, decl);
+      else
+         return lower_signal_ref(lu, decl);
 
    case T_TYPE_DECL:
       return VCODE_INVALID_REG;
@@ -10891,6 +10916,18 @@ lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
    new->container = container;
    new->vunit     = vunit;
    new->cover     = cover;
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_select_unit(vunit);
+   const vunit_kind_t kind = vcode_unit_kind();
+
+   vcode_state_restore(&state);
+
+   // Prevent access to resolved signals during static elaboration
+   new->elaborating = kind == VCODE_UNIT_INSTANCE
+      || kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_PACKAGE;
 
    cover_push_scope(new->cover, container);
 
