@@ -672,6 +672,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "nvc.sexp.with.overflow.i64"
          };
          fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -741,6 +742,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_do_exit", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 2);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 2);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 3);
@@ -771,6 +773,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             ? "__nvc_sched_waveform" : "__nvc_test_event";
 
          fn = llvm_add_fn(obj, sym, obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 1);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 1);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 2);
@@ -793,6 +796,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_do_fficall", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -806,6 +810,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_putpriv", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -823,6 +828,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_mspace_alloc", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -835,6 +841,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "__nvc_get_object", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -856,6 +863,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_PTR], args,
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "tlab_alloc", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
 
@@ -2604,6 +2612,7 @@ static void cgen_fix_liveout_types(llvm_obj_t *obj, cgen_block_t *cgb)
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NOUNWIND, -1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_UWTABLE, -1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_DLLEXPORT, -1);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_READONLY, 1);
