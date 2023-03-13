@@ -21,7 +21,13 @@
 
 static const imask_t has_map[P_LAST_PSL_KIND] = {
    // P_ASSERT
-   (I_VALUE),
+   (I_VALUE | I_MESSAGE),
+
+   // P_ASSUME
+   (I_VALUE | I_MESSAGE),
+
+   // P_COVER
+   (I_VALUE | I_MESSAGE),
 
    // P_ALWAYS
    (I_VALUE | I_CLOCK),
@@ -207,6 +213,25 @@ void psl_set_clock(psl_node_t p, psl_node_t clk)
    assert(clk == NULL || clk->object.kind == P_CLOCK_DECL);
    lookup_item(&psl_object, p, I_CLOCK)->object = &(clk->object);
    object_write_barrier(&(p->object), &(clk->object));
+}
+
+tree_t psl_message(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_MESSAGE);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
+}
+
+bool psl_has_message(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_MESSAGE)->object != NULL;
+}
+
+void psl_set_message(psl_node_t p, tree_t m)
+{
+   assert(m == NULL || m->object.kind == T_FCALL);
+   lookup_item(&psl_object, p, I_MESSAGE)->object = &(m->object);
+   object_write_barrier(&(p->object), &(m->object));
 }
 
 object_t *psl_to_object(psl_node_t p)

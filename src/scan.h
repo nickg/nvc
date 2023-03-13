@@ -246,5 +246,7 @@ void reset_verilog_parser(void);
 #define tINITIAL       357
 #define tWIRE          358
 #define tUNSIGNED      359
+#define tASSUME        360
+#define tCOVER         361
 
 #endif  // _SCAN_H

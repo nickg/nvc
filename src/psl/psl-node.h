@@ -22,6 +22,8 @@
 
 typedef enum {
    P_ASSERT,
+   P_ASSUME,
+   P_COVER,
    P_ALWAYS,
    P_HDL_EXPR,
    P_CLOCK_DECL,
@@ -81,6 +83,10 @@ void psl_add_operand(psl_node_t p, psl_node_t o);
 psl_node_t psl_clock(psl_node_t p);
 bool psl_has_clock(psl_node_t p);
 void psl_set_clock(psl_node_t p, psl_node_t clk);
+
+tree_t psl_message(psl_node_t p);
+bool psl_has_message(psl_node_t p);
+void psl_set_message(psl_node_t, tree_t m);
 
 object_t *psl_to_object(psl_node_t p);
 psl_node_t psl_from_object(object_t *obj);
