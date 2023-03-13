@@ -555,8 +555,6 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             ptr = &memmove;
          else if (strcmp(name, "memset") == 0)
             ptr = &memset;
-         else if (strcmp(name, "round") == 0)
-            ptr = &round;
          else if (strcmp(name, "pow") == 0)
             ptr = &pow;
          else

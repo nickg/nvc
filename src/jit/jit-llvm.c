@@ -113,7 +113,7 @@ typedef enum {
    LLVM_EXP_OVERFLOW_U64,
 
    LLVM_POW_F64,
-   LLVM_ROUND_F64,
+   LLVM_COPYSIGN_F64,
 
    LLVM_DO_EXIT,
    LLVM_PUTPRIV,
@@ -712,13 +712,16 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       }
       break;
 
-   case LLVM_ROUND_F64:
+   case LLVM_COPYSIGN_F64:
       {
-         LLVMTypeRef args[] = { obj->types[LLVM_DOUBLE] };
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_DOUBLE],
+            obj->types[LLVM_DOUBLE]
+         };
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_DOUBLE],
                                                 args, ARRAY_LEN(args), false);
 
-         fn = llvm_add_fn(obj, "llvm.round.f64", obj->fntypes[which]);
+         fn = llvm_add_fn(obj, "llvm.copysign.f64", obj->fntypes[which]);
       }
       break;
 
@@ -1599,8 +1602,9 @@ static void cgen_op_fcvtns(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_DOUBLE);
 
-   LLVMValueRef args[] = { arg1 };
-   LLVMValueRef rounded = llvm_call_fn(obj, LLVM_ROUND_F64, args, 1);
+   LLVMValueRef args[] = { llvm_real(obj, 0.5), arg1 };
+   LLVMValueRef half = llvm_call_fn(obj, LLVM_COPYSIGN_F64, args, 2);
+   LLVMValueRef rounded = LLVMBuildFAdd(obj->builder, arg1, half, "");
 
    cgb->outregs[ir->result] = LLVMBuildFPToSI(obj->builder, rounded,
                                               obj->types[LLVM_INT64],
