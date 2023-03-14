@@ -121,6 +121,18 @@ START_TEST(test_parse3)
    fail_unless(psl_kind(p0) == P_ASSERT);
    fail_unless(psl_has_clock(psl_value(p0)));
 
+   psl_node_t p1 = tree_psl(tree_stmt(a, 7));
+   fail_unless(psl_kind(p1) == P_COVER);
+
+   psl_node_t p2 = tree_psl(tree_stmt(a, 9));
+   fail_unless(psl_kind(p2) == P_ASSUME);
+
+   psl_node_t p3 = tree_psl(tree_stmt(a, 12));
+   fail_unless(psl_kind(p3) == P_RESTRICT);
+
+   psl_node_t p4 = tree_psl(tree_stmt(a, 15));
+   fail_unless(psl_kind(p4) == P_FAIRNESS);
+
    fail_if_errors();
 }
 END_TEST
