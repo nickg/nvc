@@ -113,121 +113,126 @@ PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 
 %x COMMENT C_COMMENT PSL VLOG
 
-ENTITY        ?i:entity
-IS            ?i:is
-END           ?i:end
-GENERIC       ?i:generic
-PORT          ?i:port
-CONSTANT      ?i:constant
-CONFIGURATION ?i:configuration
-COMPONENT     ?i:component
-ARCHITECTURE  ?i:architecture
-OF            ?i:of
-BEGIN         ?i:begin
-AND           ?i:and
-OR            ?i:or
-XOR           ?i:xor
-XNOR          ?i:xnor
-NOR           ?i:nor
-NAND          ?i:nand
-ABS           ?i:abs
-NOT           ?i:not
-ALL           ?i:all
-IN            ?i:in
-OUT           ?i:out
-BUFFER        ?i:buffer
-BUS           ?i:bus
-REGISTER      ?i:register
-UNAFFECTED    ?i:unaffected
-SIGNAL        ?i:signal
-PROCESS       ?i:process
-WAIT          ?i:wait
-REPORT        ?i:report
-INOUT         ?i:inout
-LINKAGE       ?i:linkage
-VARIABLE      ?i:variable
-FOR           ?i:for
-TYPE          ?i:type
-RANGE         ?i:range
-TO            ?i:to
-DOWNTO        ?i:downto
-SUBTYPE       ?i:subtype
-UNITS         ?i:units
-PACKAGE       ?i:package
-LIBRARY       ?i:library
-USE           ?i:use
-NULL          ?i:null
-FUNCTION      ?i:function
-IMPURE        ?i:impure
-PURE          ?i:pure
-RETURN        ?i:return
-ARRAY         ?i:array
-OTHERS        ?i:others
-ASSERT        ?i:assert
-SEVERITY      ?i:severity
-ON            ?i:on
-MAP           ?i:map
-IF            ?i:if
-THEN          ?i:then
-ELSE          ?i:else
-ELSIF         ?i:elsif
-BODY          ?i:body
-WHILE         ?i:while
-LOOP          ?i:loop
-AFTER         ?i:after
-ALIAS         ?i:alias
-MOD           ?i:mod
-ATTRIBUTE     ?i:attribute
-PROCEDURE     ?i:procedure
-EXIT          ?i:exit
-REM           ?i:rem
-WHEN          ?i:when
-CASE          ?i:case
-TRANSPORT     ?i:transport
-INERTIAL      ?i:inertial
-REJECT        ?i:reject
-BLOCK         ?i:block
-WITH          ?i:with
-SELECT        ?i:select
-GENERATE      ?i:generate
-ACCESS        ?i:access
-POSTPONED     ?i:postponed
-FILE          ?i:file
-OPEN          ?i:open
-UNTIL         ?i:until
-RECORD        ?i:record
-NEW           ?i:new
-SHARED        ?i:shared
-NEXT          ?i:next
-SLL           ?i:sll
-SRL           ?i:srl
-SLA           ?i:sla
-SRA           ?i:sra
-ROL           ?i:rol
-ROR           ?i:ror
-GROUP         ?i:group
-LABEL         ?i:label
-LITERAL       ?i:literal
-GUARDED       ?i:guarded
-REVRANGE      ?i:reverse_range
-PROTECTED     ?i:protected
-CONTEXT       ?i:context
-ERROR         ?i:error
-WARNING       ?i:warning
-DISCONNECT    ?i:disconnect
-FORCE         ?i:force
-RELEASE       ?i:release
-PARAMETER     ?i:parameter
-ALWAYS        ?i:always
-DEFAULT       ?i:default
-CLOCK         ?i:clock
-NEVER         ?i:never
-EVENTUALLY    ?i:eventually
-NEXT_A        ?i:next_a
-NEXT_E        ?i:next_e
-NEXT_EVENT    ?i:next_event
-ASSUME        ?i:assume
-COVER         ?i:cover
+ENTITY               ?i:entity
+IS                   ?i:is
+END                  ?i:end
+GENERIC              ?i:generic
+PORT                 ?i:port
+CONSTANT             ?i:constant
+CONFIGURATION        ?i:configuration
+COMPONENT            ?i:component
+ARCHITECTURE         ?i:architecture
+OF                   ?i:of
+BEGIN                ?i:begin
+AND                  ?i:and
+OR                   ?i:or
+XOR                  ?i:xor
+XNOR                 ?i:xnor
+NOR                  ?i:nor
+NAND                 ?i:nand
+ABS                  ?i:abs
+NOT                  ?i:not
+ALL                  ?i:all
+IN                   ?i:in
+OUT                  ?i:out
+BUFFER               ?i:buffer
+BUS                  ?i:bus
+REGISTER             ?i:register
+UNAFFECTED           ?i:unaffected
+SIGNAL               ?i:signal
+PROCESS              ?i:process
+WAIT                 ?i:wait
+REPORT               ?i:report
+INOUT                ?i:inout
+LINKAGE              ?i:linkage
+VARIABLE             ?i:variable
+FOR                  ?i:for
+TYPE                 ?i:type
+RANGE                ?i:range
+TO                   ?i:to
+DOWNTO               ?i:downto
+SUBTYPE              ?i:subtype
+UNITS                ?i:units
+PACKAGE              ?i:package
+LIBRARY              ?i:library
+USE                  ?i:use
+NULL                 ?i:null
+FUNCTION             ?i:function
+IMPURE               ?i:impure
+PURE                 ?i:pure
+RETURN               ?i:return
+ARRAY                ?i:array
+OTHERS               ?i:others
+ASSERT               ?i:assert
+SEVERITY             ?i:severity
+ON                   ?i:on
+MAP                  ?i:map
+IF                   ?i:if
+THEN                 ?i:then
+ELSE                 ?i:else
+ELSIF                ?i:elsif
+BODY                 ?i:body
+WHILE                ?i:while
+LOOP                 ?i:loop
+AFTER                ?i:after
+ALIAS                ?i:alias
+MOD                  ?i:mod
+ATTRIBUTE            ?i:attribute
+PROCEDURE            ?i:procedure
+EXIT                 ?i:exit
+REM                  ?i:rem
+WHEN                 ?i:when
+CASE                 ?i:case
+TRANSPORT            ?i:transport
+INERTIAL             ?i:inertial
+REJECT               ?i:reject
+BLOCK                ?i:block
+WITH                 ?i:with
+SELECT               ?i:select
+GENERATE             ?i:generate
+ACCESS               ?i:access
+POSTPONED            ?i:postponed
+FILE                 ?i:file
+OPEN                 ?i:open
+UNTIL                ?i:until
+RECORD               ?i:record
+NEW                  ?i:new
+SHARED               ?i:shared
+NEXT                 ?i:next
+SLL                  ?i:sll
+SRL                  ?i:srl
+SLA                  ?i:sla
+SRA                  ?i:sra
+ROL                  ?i:rol
+ROR                  ?i:ror
+GROUP                ?i:group
+LABEL                ?i:label
+LITERAL              ?i:literal
+GUARDED              ?i:guarded
+REVRANGE             ?i:reverse_range
+PROTECTED            ?i:protected
+CONTEXT              ?i:context
+ERROR                ?i:error
+WARNING              ?i:warning
+DISCONNECT           ?i:disconnect
+FORCE                ?i:force
+RELEASE              ?i:release
+PARAMETER            ?i:parameter
+ALWAYS               ?i:always
+DEFAULT              ?i:default
+CLOCK                ?i:clock
+NEVER                ?i:never
+EVENTUALLY           ?i:eventually
+NEXT_A               ?i:next_a
+NEXT_E               ?i:next_e
+NEXT_EVENT           ?i:next_event
+ASSUME               ?i:assume
+ASSUME_GUARANTEE     ?i:assume_guarantee
+RESTRICT             ?i:restrict
+RESTRICT_GUARANTEE   ?i:restrict_guarantee
+STRONG               ?i:strong
+FAIRNESS             ?i:fairness
+COVER                ?i:cover
 
 %%
 
@@ -424,25 +429,30 @@ COVER         ?i:cover
 <INITIAL,PSL,VLOG>"<="   { TOKEN(tLE); }
 <INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
 
-<PSL>{ASSERT}            { TOKEN(tASSERT); }
-<PSL>{ASSUME}            { TOKEN(tASSUME); }
-<PSL>{COVER}             { TOKEN(tCOVER); }
-<PSL>{ALWAYS}            { TOKEN(tALWAYS); }
-<PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
-<PSL>{CLOCK}             { TOKEN(tCLOCK); }
-<PSL>{IS}                { TOKEN(tIS); }
-<PSL>"->"                { TOKEN(tIFIMPL); }
-<PSL>"<->"               { TOKEN(tIFFIMPL); }
-<PSL>{NEXT}              { TOKEN(tNEXT); }
-<PSL>{NEXT}!             { TOKEN(tNEXT1); }
-<PSL>{NEVER}             { TOKEN(tNEVER); }
-<PSL>{EVENTUALLY}!       { TOKEN(tEVENTUALLY); }
-<PSL>{NEXT_A}            { TOKEN(tNEXTA); }
-<PSL>{NEXT_A}!           { TOKEN(tNEXTA1); }
-<PSL>{NEXT_E}            { TOKEN(tNEXTE); }
-<PSL>{NEXT_E}!           { TOKEN(tNEXTE1); }
-<PSL>{NEXT_EVENT}        { TOKEN(tNEXTEVENT); }
-<PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
+<PSL>{ASSERT}              { TOKEN(tASSERT); }
+<PSL>{ASSUME}              { TOKEN(tASSUME); }
+<PSL>{ASSUME_GUARANTEE}    { TOKEN(tASSUMEG); }
+<PSL>{RESTRICT}            { TOKEN(tRESTRICT); }
+<PSL>{RESTRICT_GUARANTEE}  { TOKEN(tRESTRICTG); }
+<PSL>{STRONG}              { TOKEN(tSTRONG); }
+<PSL>{FAIRNESS}            { TOKEN(tFAIRNESS); }
+<PSL>{COVER}               { TOKEN(tCOVER); }
+<PSL>{ALWAYS}              { TOKEN(tALWAYS); }
+<PSL>{DEFAULT}             { TOKEN(tDEFAULT); }
+<PSL>{CLOCK}               { TOKEN(tCLOCK); }
+<PSL>{IS}                  { TOKEN(tIS); }
+<PSL>"->"                  { TOKEN(tIFIMPL); }
+<PSL>"<->"                 { TOKEN(tIFFIMPL); }
+<PSL>{NEXT}                { TOKEN(tNEXT); }
+<PSL>{NEXT}!               { TOKEN(tNEXT1); }
+<PSL>{NEVER}               { TOKEN(tNEVER); }
+<PSL>{EVENTUALLY}!         { TOKEN(tEVENTUALLY); }
+<PSL>{NEXT_A}              { TOKEN(tNEXTA); }
+<PSL>{NEXT_A}!             { TOKEN(tNEXTA1); }
+<PSL>{NEXT_E}              { TOKEN(tNEXTE); }
+<PSL>{NEXT_E}!             { TOKEN(tNEXTE1); }
+<PSL>{NEXT_EVENT}          { TOKEN(tNEXTEVENT); }
+<PSL>{NEXT_EVENT}!         { TOKEN(tNEXTEVENT1); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }

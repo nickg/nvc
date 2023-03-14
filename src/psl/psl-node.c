@@ -24,7 +24,13 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_MESSAGE),
 
    // P_ASSUME
-   (I_VALUE | I_MESSAGE),
+   (I_SUBKIND | I_VALUE | I_MESSAGE),
+
+   // P_RESTRICT
+   (I_SUBKIND | I_VALUE | I_MESSAGE),
+
+   // P_FAIRNESS
+   (I_SUBKIND | I_VALUE | I_MESSAGE | I_PARAMS),
 
    // P_COVER
    (I_VALUE | I_MESSAGE),

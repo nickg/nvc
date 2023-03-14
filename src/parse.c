@@ -10273,22 +10273,29 @@ static psl_node_t p_psl_assert_directive(void)
    return a;
 }
 
-static psl_node_t p_psl_assume_directive()
+static psl_node_t p_psl_assume_directive(void)
 {
-   // assume Property [ report String ] ;
+   // assume Property ;
+   // assume_guarantee Property [ report String ] ;
 
    BEGIN("assume directive");
 
-   consume(tASSUME);
+   token_t tok = peek();
+   assert(tok == tASSUME || tok == tASSUMEG);
+   consume(tok);
+
+   psl_node_t a = psl_new(P_ASSUME);
+   if (tok == tASSUME)
+      psl_set_subkind(a, PSL_NO_GUARANTEE);
+   else
+      psl_set_subkind(a, PSL_GUARANTEE);
 
    psl_node_t p = p_psl_property();
    if (!psl_has_clock(p))
       psl_set_clock(p, find_default_clock(nametab));
-
-   psl_node_t a = psl_new(P_ASSUME);
    psl_set_value(a, p);
 
-   if (peek() == tREPORT)
+   if (peek() == tREPORT && tok == tASSUMEG)
       p_psl_report(a);
 
    consume(tSEMI);
@@ -10297,7 +10304,82 @@ static psl_node_t p_psl_assume_directive()
    return a;
 }
 
-static psl_node_t p_psl_cover_directive()
+static psl_node_t p_psl_restrict_directive(void)
+{
+   // restrict Sequence  ;
+   // restrict_guarantee Sequence [ report String ] ;
+
+   BEGIN("restrict directive");
+
+   token_t tok = peek();
+   assert(tok == tRESTRICT || tok == tRESTRICTG);
+   consume(tok);
+
+   psl_node_t a = psl_new(P_RESTRICT);
+   if (tok == tRESTRICT)
+      psl_set_subkind(a, PSL_NO_GUARANTEE);
+   else
+      psl_set_subkind(a, PSL_GUARANTEE);
+
+   psl_node_t p = p_psl_sequence();
+   if (!psl_has_clock(p))
+      psl_set_clock(p, find_default_clock(nametab));
+   psl_set_value(a, p);
+
+   if (peek() == tREPORT && tok == tRESTRICTG)
+      p_psl_report(a);
+
+   consume(tSEMI);
+
+   psl_set_loc(a, CURRENT_LOC);
+   return a;
+}
+
+static psl_node_t p_psl_fairness(void)
+{
+   // fairness Boolean ;
+   // strong fairness Boolean , Boolean ;
+
+   BEGIN("fairness statement");
+
+   psl_strength_t strength = PSL_WEAK;
+   if (peek() == tSTRONG) {
+      consume(tSTRONG);
+      strength = PSL_STRONG;
+   }
+
+   consume(tFAIRNESS);
+
+   psl_node_t a = psl_new(P_FAIRNESS);
+   psl_set_subkind(a, strength);
+
+   tree_t e1 = p_expression();
+   solve_types(nametab, e1, std_type(NULL, STD_BOOLEAN));
+
+   psl_node_t p1 = psl_new(P_HDL_EXPR);
+   psl_set_tree(p1, e1);
+
+   psl_add_operand(a, p1);
+
+   if (strength == PSL_STRONG) {
+      consume(tCOMMA);
+
+      tree_t e2 = p_expression();
+      solve_types(nametab, e1, std_type(NULL, STD_BOOLEAN));
+
+      psl_node_t p2 = psl_new(P_HDL_EXPR);
+      psl_set_tree(p2, e2);
+
+      psl_add_operand(a, p2);
+   }
+
+   consume(tSEMI);
+
+   psl_set_loc(a, CURRENT_LOC);
+   return a;
+}
+
+static psl_node_t p_psl_cover_directive(void)
 {
    // cover Sequence [ report String ] ;
 
@@ -10332,7 +10414,14 @@ static psl_node_t p_psl_verification_directive(void)
    case tASSERT:
       return p_psl_assert_directive();
    case tASSUME:
+   case tASSUMEG:
       return p_psl_assume_directive();
+   case tRESTRICT:
+   case tRESTRICTG:
+      return p_psl_restrict_directive();
+   case tFAIRNESS:
+   case tSTRONG:
+      return p_psl_fairness();
    case tCOVER:
       return p_psl_cover_directive();
    default:

@@ -23,6 +23,8 @@
 typedef enum {
    P_ASSERT,
    P_ASSUME,
+   P_RESTRICT,
+   P_FAIRNESS,
    P_COVER,
    P_ALWAYS,
    P_HDL_EXPR,
@@ -56,6 +58,11 @@ typedef enum {
    PSL_WEAK,
    PSL_STRONG,
 } psl_strength_t;
+
+typedef enum {
+   PSL_GUARANTEE,
+   PSL_NO_GUARANTEE,
+} psl_guarantee_t;
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
