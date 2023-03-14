@@ -2211,8 +2211,18 @@ static type_t apply_element_attribute(tree_t aref)
       return type_new(T_NONE);
    }
 
-   // TODO: apply constraints
-   return type_elem(type);
+   if (type_kind(type) == T_SUBTYPE) {
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, type_elem(type));
+
+      const int ncon = type_constraints(type);
+      for (int i = 1; i < ncon; i++)
+         type_add_constraint(sub, type_constraint(type, i));
+
+      return sub;
+   }
+   else
+      return type_elem(type);
 }
 
 static type_t apply_base_attribute(tree_t aref)
@@ -3838,7 +3848,7 @@ static type_t p_subtype_indication(void)
    BEGIN("subtype indication");
 
    bool made_subtype = false;
-   type_t type = NULL;
+   type_t type = NULL, base = NULL;
    if ((peek() == tID && peek_nth(2) == tID) || peek() == tLPAREN) {
       type = type_new(T_SUBTYPE);
       made_subtype = true;
@@ -3846,8 +3856,7 @@ static type_t p_subtype_indication(void)
       tree_t rname = p_resolution_indication();
       type_set_resolution(type, rname);
 
-      type_t base = p_type_mark();
-      type_set_base(type, base);
+      type_set_base(type, (base = p_type_mark()));
 
       resolve_resolution(nametab, rname, type);
    }
@@ -3857,13 +3866,17 @@ static type_t p_subtype_indication(void)
    if (scan(tRANGE, tLPAREN)) {
       if (!made_subtype) {
          type_t sub = type_new(T_SUBTYPE);
-         type_set_base(sub, type);
+         type_set_base(sub, (base = type));
 
          type = sub;
       }
 
       p_constraint(type);
+
+      copy_constraints(type, 0, base);
    }
+   else if (made_subtype)
+      copy_constraints(type, 0, base);
 
    return type;
 }
@@ -5992,6 +6005,8 @@ static tree_t p_subtype_declaration(void)
       type_t new = type_new(T_SUBTYPE);
       type_set_base(new, sub);
 
+      copy_constraints(new, 0, sub);
+
       sub = new;
    }
    type_set_ident(sub, id);
@@ -6240,9 +6255,13 @@ static tree_t p_subprogram_specification(void)
 
          consume(tOF);
 
+         type_t of = p_type_mark();
+
          type_t sub = type_new(T_SUBTYPE);
          type_set_ident(sub, id);
-         type_set_base(sub, p_type_mark());
+         type_set_base(sub, of);
+
+         copy_constraints(sub, 0, of);
 
          type_set_result(type, sub);
 

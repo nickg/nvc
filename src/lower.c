@@ -841,12 +841,15 @@ static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu, type_t type,
             dims[dptr].dir   = lower_range_dir(lu, r);
          }
       }
-   }
 
-   for (; dptr < ndims; dptr++) {
-      dims[dptr].left  = lower_array_left(lu, type, dptr, array);
-      dims[dptr].right = lower_array_right(lu, type, dptr, array);
-      dims[dptr].dir   = lower_array_dir(lu, type, dptr, array);
+      assert(dptr == ndims);
+   }
+   else {
+      for (; dptr < ndims; dptr++) {
+         dims[dptr].left  = lower_array_left(lu, type, dptr, array);
+         dims[dptr].right = lower_array_right(lu, type, dptr, array);
+         dims[dptr].dir   = lower_array_dir(lu, type, dptr, array);
+      }
    }
 
    return emit_wrap(lower_array_data(data), dims, ndims);
@@ -916,6 +919,7 @@ static vcode_reg_t lower_constraints(lower_unit_t *lu, tree_t *cons,
 
    unsigned dptr = 0;
    for (int i = 0; dptr < count; i++) {
+      assert(i < max);
       assert(tree_kind(cons[i]) == T_CONSTRAINT);
       assert(tree_subkind(cons[i]) == C_INDEX);
 

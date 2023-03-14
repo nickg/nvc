@@ -5291,6 +5291,58 @@ START_TEST(test_alias3)
 }
 END_TEST
 
+START_TEST(test_subtype2008)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/subtype2008.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   type_t sub1 = tree_type(search_decls(p, ident_new("SUB1"), 0));
+   fail_unless(type_constraints(sub1) == 1);
+   fail_unless(tree_subkind(type_constraint(sub1, 0)) == C_OPEN);
+   fail_unless(type_is_unconstrained(sub1));
+
+   type_t sub2 = tree_type(search_decls(p, ident_new("SUB2"), 0));
+   fail_unless(type_constraints(sub2) == 1);
+   fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
+   fail_unless(type_is_unconstrained(sub2));
+
+   type_t sub3 = tree_type(search_decls(p, ident_new("SUB3"), 0));
+   fail_unless(type_constraints(sub3) == 1);
+   fail_unless(tree_subkind(type_constraint(sub3, 0)) == C_OPEN);
+   fail_unless(type_is_unconstrained(sub3));
+
+   type_t sub4 = tree_type(search_decls(p, ident_new("SUB4"), 0));
+   fail_unless(type_constraints(sub4) == 2);
+   fail_unless(tree_subkind(type_constraint(sub4, 0)) == C_OPEN);
+   fail_unless(tree_subkind(type_constraint(sub4, 1)) == C_OPEN);
+   fail_unless(type_is_unconstrained(sub4));
+
+   type_t sub5 = tree_type(search_decls(p, ident_new("SUB5"), 0));
+   fail_unless(type_constraints(sub5) == 2);
+   fail_unless(tree_subkind(type_constraint(sub5, 0)) == C_INDEX);
+   fail_unless(tree_subkind(type_constraint(sub5, 1)) == C_OPEN);
+   fail_unless(type_is_unconstrained(sub5));
+
+   type_t sub6 = tree_type(search_decls(p, ident_new("SUB6"), 0));
+   fail_unless(type_constraints(sub6) == 1);
+   fail_unless(tree_subkind(type_constraint(sub6, 0)) == C_INDEX);
+   fail_if(type_is_unconstrained(sub6));
+
+   type_t sub7 = tree_type(search_decls(p, ident_new("SUB7"), 0));
+   fail_unless(type_constraints(sub7) == 0);
+   fail_if(type_is_unconstrained(sub7));
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5397,6 +5449,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue604);
    tcase_add_test(tc_core, test_vunit9);
    tcase_add_test(tc_core, test_alias3);
+   tcase_add_test(tc_core, test_subtype2008);
    suite_add_tcase(s, tc_core);
 
    return s;

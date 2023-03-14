@@ -743,3 +743,4 @@ file12          normal,2019
 driver17        normal
 cond4           normal,2019,define=USER_DIRECTIVE=VALID_VALUE
 issue646        normal,relaxed
+array16         normal,2008

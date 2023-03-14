@@ -3403,14 +3403,22 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
    tree_add_range(constraint, r);
 
    type_t slice_type = type_new(T_SUBTYPE);
-   type_set_base(slice_type, base_type);
    type_add_constraint(slice_type, constraint);
 
-   if (standard() >= STD_08 && type_kind(base_type) == T_SUBTYPE) {
-      tree_t cons[MAX_CONSTRAINTS];
-      const int ncon = pack_constraints(base_type, cons);
-      for (int i = 1; i < ncon; i++)
-         type_add_constraint(slice_type, cons[i]);
+   if (type_kind(base_type) == T_SUBTYPE) {
+      type_set_base(slice_type, type_base(base_type));
+
+      // Cannot use copy_constraints here as we need to change the first
+      // constraint
+      const int ncon = type_constraints(base_type);
+      for (int i = 1; i < ncon; i++) {
+         tree_t c = type_constraint(base_type, i);
+         type_add_constraint(slice_type, c);
+      }
+   }
+   else {
+      type_set_base(slice_type, base_type);
+      copy_constraints(slice_type, 0, base_type);
    }
 
    tree_set_type(slice, slice_type);
@@ -3817,6 +3825,8 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             tree_set_right(r, right);
             tree_add_range(cons, r);
             type_add_constraint(sub, cons);
+
+            copy_constraints(sub, 0, type);
 
             tree_set_type(agg, (type = sub));
          }

@@ -1676,27 +1676,35 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g)
 
 int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
 {
+   if (type_kind(type) != T_SUBTYPE)
+      return 0;
+
+   const int ncon = type_constraints(type);
+
    int ptr = 0;
-   while (type_kind(type) == T_SUBTYPE) {
-      const int ncon = type_constraints(type);
-      for (int i = ptr; i < ncon; i++) {
+   type_t base = type_base(type);
+   if (type_kind(base) == T_SUBTYPE) {
+      ptr = pack_constraints(base, out);
+
+      for (int i = 0, pos = 0; i < ptr && pos < ncon; i++) {
+         if (tree_subkind(out[i]) == C_OPEN)
+            out[i] = type_constraint(type, pos++);
+      }
+   }
+   else {
+      for (int i = 0; i < ncon; i++) {
          tree_t c = type_constraint(type, i);
          switch (tree_subkind(c)) {
          case C_INDEX:
-         case C_OPEN:
          case C_RECORD:
+         case C_OPEN:
             if (ptr == MAX_CONSTRAINTS)
                fatal_at(tree_loc(c), "sorry, a maximum of %d nested "
                         "constraints are supported", MAX_CONSTRAINTS);
             out[ptr++] = c;
             break;
-
-         default:
-            continue;
          }
       }
-
-      type = type_base(type);
    }
 
    return ptr;
@@ -2154,4 +2162,37 @@ void capture_syntax(text_buf_t *tb)
 {
    assert(tb == NULL || syntax_buf == NULL);
    syntax_buf = tb;
+}
+
+void copy_constraints(type_t sub, int index, type_t from)
+{
+   switch (type_kind(from)) {
+   case T_SUBTYPE:
+      {
+         const int ncon = type_constraints(from);
+         for (int i = 0, have = type_constraints(sub); i < ncon; i++) {
+            tree_t c = type_constraint(from, i);
+            if (tree_subkind(c) == C_OPEN && --have < index)
+               type_add_constraint(sub, c);
+         }
+      }
+      break;
+
+   case T_ARRAY:
+      {
+         if (index >= type_constraints(sub)) {
+            tree_t c = tree_new(T_CONSTRAINT);
+            tree_set_subkind(c, C_OPEN);
+
+            type_add_constraint(sub, c);
+         }
+
+         if (standard() >= STD_08)
+            copy_constraints(sub, index + 1, type_elem(from));
+      }
+      break;
+
+   default:
+      break;
+   }
 }

@@ -705,11 +705,7 @@ bool type_is_unconstrained(type_t t)
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE) {
       const int ncon = type_constraints(t);
-      if (ncon == 0)
-         return type_is_unconstrained(type_base(t));
-      else if (standard() < STD_08)
-         return false;
-      else if (type_is_record(t)) {
+      if (type_is_record(t)) {
          // Record subtype may be partially constrained
          type_t base = type_base(t);
          const int nfields = type_fields(t);
@@ -722,8 +718,14 @@ bool type_is_unconstrained(type_t t)
          }
          return false;
       }
-      else
-         return type_freedom(t) > 0;
+      else {
+         for (int i = 0; i < ncon; i++) {
+            if (tree_subkind(type_constraint(t, i)) == C_OPEN)
+               return true;
+         }
+
+         return false;
+      }
    }
    else if (t->object.kind == T_ARRAY)
       return true;

@@ -1515,6 +1515,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_ALIAS:
    case T_FUNC_INST:
    case T_PROC_INST:
+   case T_SUBTYPE_DECL:
       dump_decl(t, indent);
       break;
    case T_PORT_DECL:
