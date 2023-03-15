@@ -218,6 +218,8 @@ static int analyse(int argc, char **argv)
                   if (error_count() == base_errors && unit_needs_cgen(unit))
                      lower_standalone_unit(unit);
                }
+               else
+                  lib_put_error(work, unit);
             }
          }
          break;

@@ -3222,7 +3222,8 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
 
    if (prefix_kind == T_REF && tree_has_ref(prefix)) {
       tree_t decl = tree_ref(prefix);
-      if (tree_kind(decl) == T_LIBRARY) {
+      const tree_kind_t kind = tree_kind(decl);
+      if (kind == T_LIBRARY) {
          ident_t unit_name = ident_prefix(tree_ident(decl), suffix, '.');
          tree_t unit = find_unit(CURRENT_LOC, unit_name, NULL);
          if (unit == NULL) {
@@ -3235,6 +3236,8 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
          else
             return external_reference(unit);
       }
+      else if (kind == T_GENERIC_DECL && tree_class(decl) == C_PACKAGE)
+         return select_decl(tree_value(decl), suffix, mask);
       else if (is_container(decl))
          return select_decl(decl, suffix, mask);
    }
