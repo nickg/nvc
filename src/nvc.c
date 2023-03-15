@@ -1007,6 +1007,20 @@ static int syntax_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static void dump_one_unit(ident_t name, bool add_elab, bool add_body)
+{
+   if (add_elab)
+      name = ident_prefix(name, well_known(W_ELAB), '.');
+   else if (add_body)
+      name = ident_prefix(name, well_known(W_BODY), '-');
+
+   tree_t top = lib_get(lib_work(), name);
+   if (top == NULL)
+      fatal("%s not analysed", istr(name));
+
+   dump(top);
+}
+
 static int dump_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -1039,19 +1053,16 @@ static int dump_cmd(int argc, char **argv)
       }
    }
 
-   set_top_level(argv, next_cmd);
-
-   ident_t name = top_level;
-   if (add_elab)
-      name = ident_prefix(name, well_known(W_ELAB), '.');
-   else if (add_body)
-      name = ident_prefix(name, well_known(W_BODY), '-');
-
-   tree_t top = lib_get(lib_work(), name);
-   if (top == NULL)
-      fatal("%s not analysed", istr(name));
-
-   dump(top);
+   if (optind == next_cmd) {
+      if (top_level == NULL)
+         fatal("missing top-level unit name");
+      else
+         dump_one_unit(top_level, add_elab, add_body);
+   }
+   else {
+      for (int i = optind; i < next_cmd; i++)
+         dump_one_unit(to_unit_name(argv[i]), add_elab, add_body);
+   }
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

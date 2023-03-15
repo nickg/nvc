@@ -578,15 +578,15 @@ static bool sem_check_array_dims(type_t type, type_t constraint, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_type(tree_t t, type_t expect)
+static bool sem_check_mapped_type(tree_t t, type_t expect, hash_t *map)
 {
    type_t actual = tree_type(t);
 
-   if (type_eq(actual, expect))
+   if (type_eq_map(actual, expect, map))
       return true;
 
    // LRM 08 section 9.3.6 rules for implicit conversion
-   if (type_is_convertible(actual, expect)) {
+   if (type_is_convertible_map(actual, expect, map)) {
       tree_set_type(t, expect);
       return true;
    }
@@ -596,6 +596,11 @@ static bool sem_check_type(tree_t t, type_t expect)
       return true;
 
    return false;
+}
+
+static inline bool sem_check_type(tree_t t, type_t expect)
+{
+   return sem_check_mapped_type(t, expect, NULL);
 }
 
 static bool sem_check_same_type(tree_t left, tree_t right)
@@ -3835,7 +3840,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    type_t value_type = tree_type(value);
 
-   if (!sem_check_type(value, get_mapped_type(tab, type)))
+   if (!sem_check_mapped_type(value, type, get_generic_map(tab)))
       sem_error(value, "type of actual %s does not match type %s of formal "
                 "port %s", type_pp(value_type), type_pp(type),
                 istr(tree_ident(decl)));
@@ -4092,7 +4097,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, get_mapped_type(tab, type)))
+      if (!sem_check_mapped_type(value, type, get_generic_map(tab)))
          sem_error(value, "type of actual %s does not match type %s of formal "
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));

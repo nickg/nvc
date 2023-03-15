@@ -76,7 +76,6 @@ void map_generic_package(nametab_t *tab, tree_t generic, tree_t actual);
 void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos);
 void map_generic_subprogram(nametab_t *tab, tree_t generic, tree_t actual);
 hash_t *get_generic_map(nametab_t *tab);
-type_t get_mapped_type(nametab_t *tab, type_t type);
 
 void mangle_func(nametab_t *tab, tree_t decl);
 void mangle_type(nametab_t *tab, type_t type);

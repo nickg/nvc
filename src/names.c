@@ -474,14 +474,6 @@ hash_t *get_generic_map(nametab_t *tab)
    return tab->top_scope->gmap;
 }
 
-type_t get_mapped_type(nametab_t *tab, type_t type)
-{
-   if (tab->top_scope->gmap != NULL)
-      return hash_get(tab->top_scope->gmap, type) ?: type;
-   else
-      return type;
-}
-
 static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
 {
    for (; s != NULL; s = s->parent) {

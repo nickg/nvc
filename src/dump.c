@@ -1289,19 +1289,28 @@ static void dump_port(tree_t t, int indent)
    default:
       assert(false);
    }
-   switch (tree_subkind(t)) {
-   case PORT_IN:      dir = "in";     break;
-   case PORT_OUT:     dir = "out";    break;
-   case PORT_INOUT:   dir = "inout";  break;
-   case PORT_BUFFER:  dir = "buffer"; break;
-   case PORT_INVALID: dir = "??";     break;
-   }
-   print_syntax("#%s %s : #%s ", class, istr(tree_ident(t)), dir);
-   dump_type(tree_type(t));
+   print_syntax("#%s %s", class, istr(tree_ident(t)));
 
-   if (tree_has_value(t)) {
-      print_syntax(" := ");
+   if (tree_class(t) == C_PACKAGE) {
+      print_syntax(" #is #new ");
       dump_expr(tree_value(t));
+      print_syntax(" #generic #map (<>)");
+   }
+   else {
+      switch (tree_subkind(t)) {
+      case PORT_IN:      dir = "in";     break;
+      case PORT_OUT:     dir = "out";    break;
+      case PORT_INOUT:   dir = "inout";  break;
+      case PORT_BUFFER:  dir = "buffer"; break;
+      case PORT_INVALID: dir = "??";     break;
+      }
+      print_syntax(" : #%s ", dir);
+      dump_type(tree_type(t));
+
+      if (tree_has_value(t)) {
+         print_syntax(" := ");
+         dump_expr(tree_value(t));
+      }
    }
 }
 
@@ -1363,16 +1372,7 @@ static void dump_entity(tree_t t)
    dump_context(t, 0);
    dump_address(t);
    print_syntax("#entity %s #is\n", istr(tree_ident(t)));
-   if (tree_generics(t) > 0) {
-      print_syntax("  #generic (\n");
-      for (unsigned i = 0; i < tree_generics(t); i++) {
-         if (i > 0)
-            print_syntax(";\n");
-         tab(4);
-         dump_port(tree_generic(t, i), 2);
-      }
-      print_syntax("  );\n");
-   }
+   dump_generics(t, 2, ";\n");
    dump_ports(t, 2);
    dump_decls(t, 2);
    if (tree_stmts(t) > 0) {

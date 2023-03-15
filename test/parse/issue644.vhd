@@ -39,14 +39,14 @@ architecture arch of issue644 is
     signal MUX_OUT  : mux_g.mux_data ;
 
 begin
-    -- U_multiplexer : entity work.multiplexer
-    --   generic map (
-    --     MUX_DATA_SIZE => MUX_DATA_SIZE,
-    --     MUX_CTRL_SIZE => MUX_CTRL_SIZE,
-    --     mux_g         => mux_g
-    --   ) port map (
-    --     MUX_CTRL => MUX_CTRL,
-    --     MUX_IN   => MUX_IN,
-    --     MUX_OUT  => MUX_OUT
-    --   ) ;
+    U_multiplexer : entity work.multiplexer
+      generic map (
+        MUX_DATA_SIZE => MUX_DATA_SIZE,
+        MUX_CTRL_SIZE => MUX_CTRL_SIZE,
+        mux_g         => mux_g
+      ) port map (
+        MUX_CTRL => MUX_CTRL,
+        MUX_IN   => MUX_IN,
+        MUX_OUT  => MUX_OUT
+      ) ;
 end architecture ;

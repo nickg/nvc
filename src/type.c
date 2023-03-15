@@ -140,6 +140,16 @@ type_kind_t type_kind(type_t t)
    return t->object.kind;
 }
 
+static inline type_t type_base_map(type_t t, hash_t *map)
+{
+   assert(t->object.kind == T_SUBTYPE);
+   type_t base = type_base(t);
+   if (map != NULL)
+      return hash_get(map, base) ?: base;
+   else
+      return base;
+}
+
 static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
 {
    assert(a != NULL);
@@ -169,9 +179,9 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    if (!strict) {
       // Subtypes are convertible to the base type
       while ((kind_a = a->object.kind) == T_SUBTYPE)
-         a = type_base(a);
+         a = type_base_map(a, map);
       while ((kind_b = b->object.kind) == T_SUBTYPE)
-         b = type_base(b);
+         b = type_base_map(b, map);
 
       if (a == b)
          return true;
@@ -814,7 +824,7 @@ unsigned type_width(type_t type)
       return 1;
 }
 
-bool type_is_convertible(type_t from, type_t to)
+bool type_is_convertible_map(type_t from, type_t to, hash_t *map)
 {
    // LRM 08 section 9.3.6 final paragraph lists rules for implicit
    // conversion from universal operands to other integer/real types.
@@ -832,8 +842,17 @@ bool type_is_convertible(type_t from, type_t to)
       return true;
    else if (fromk == T_REAL && tok == T_REAL)
       return true;
+   else if (tok == T_GENERIC && map != NULL) {
+      type_t to_map = hash_get(map, to);
+      return to_map ? type_is_convertible_map(from, to_map, map) : false;
+   }
    else
       return false;
+}
+
+bool type_is_convertible(type_t from, type_t to)
+{
+   return type_is_convertible_map(from, to, NULL);
 }
 
 bool type_is_composite(type_t t)
