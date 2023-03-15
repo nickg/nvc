@@ -18,6 +18,7 @@
 #include "util.h"
 #include "object.h"
 #include "psl/psl-node.h"
+#include "tree.h"
 
 static const imask_t has_map[P_LAST_PSL_KIND] = {
    // P_ASSERT
@@ -235,7 +236,7 @@ bool psl_has_message(psl_node_t p)
 
 void psl_set_message(psl_node_t p, tree_t m)
 {
-   assert(m == NULL || m->object.kind == T_FCALL);
+   tree_assert_expr(m);
    lookup_item(&psl_object, p, I_MESSAGE)->object = &(m->object);
    object_write_barrier(&(p->object), &(m->object));
 }
