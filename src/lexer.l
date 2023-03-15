@@ -226,6 +226,13 @@ EVENTUALLY    ?i:eventually
 NEXT_A        ?i:next_a
 NEXT_E        ?i:next_e
 NEXT_EVENT    ?i:next_event
+ASSUME        ?i:assume
+ASSUME_G      ?i:assume_guarantee
+RESTRICT      ?i:restrict
+RESTRICT_G    ?i:restrict_guarantee
+STRONG        ?i:strong
+FAIRNESS      ?i:fairness
+COVER         ?i:cover
 
 %%
 
@@ -423,6 +430,13 @@ NEXT_EVENT    ?i:next_event
 <INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
 
 <PSL>{ASSERT}            { TOKEN(tASSERT); }
+<PSL>{ASSUME}            { TOKEN(tASSUME); }
+<PSL>{ASSUME_G}          { TOKEN(tASSUMEG); }
+<PSL>{RESTRICT}          { TOKEN(tRESTRICT); }
+<PSL>{RESTRICT_G}        { TOKEN(tRESTRICTG); }
+<PSL>{STRONG}            { TOKEN(tSTRONG); }
+<PSL>{FAIRNESS}          { TOKEN(tFAIRNESS); }
+<PSL>{COVER}             { TOKEN(tCOVER); }
 <PSL>{ALWAYS}            { TOKEN(tALWAYS); }
 <PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
 <PSL>{CLOCK}             { TOKEN(tCLOCK); }

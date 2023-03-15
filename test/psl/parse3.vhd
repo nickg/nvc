@@ -14,4 +14,19 @@ begin
     -- psl assert {a};
     -- psl assert {a;b and c};
 
+    -- psl cover {a ;  b;c   };
+    -- psl named_cover   : cover {c} report "'c' is covered";
+
+    -- psl assume b;
+    -- psl named_assume     : assume (a    -> b);
+    -- psl assume_guarantee ( b ->    c) report "assume_guarantee met";
+
+    -- psl restrict {c ;b ;   c;   b};
+    -- psl named_restrict : restrict {c};
+    -- psl restrict_guarantee   {b; b} report "restrict_guarantee met";
+
+    -- psl fairness (b = '1');
+    -- psl named_fairness : fairness (a = '1');
+    -- psl strong fairness (a = '1'), (b = '1');
+
 end architecture;

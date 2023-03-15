@@ -30,6 +30,41 @@ static void psl_dump_assert(psl_node_t p)
    psl_dump(psl_value(p));
 }
 
+static void psl_dump_assume(psl_node_t p)
+{
+   if (psl_subkind(p) == PSL_GUARANTEE)
+      print_syntax("#assume guarantee");
+   else
+      print_syntax("#assume");
+   psl_dump(psl_value(p));
+}
+
+static void psl_dump_restrict(psl_node_t p)
+{
+   if (psl_subkind(p) == PSL_GUARANTEE)
+      print_syntax("#restrict guarantee");
+   else
+      print_syntax("#restrict");
+   psl_dump(psl_value(p));
+}
+
+static void psl_dump_fairness(psl_node_t p)
+{
+   if (psl_subkind(p) == PSL_STRONG)
+      print_syntax("#strong fairness");
+   else
+      print_syntax("#fairness");
+
+   for (int i = 0; i < psl_operands(p); i++)
+      psl_dump(psl_operand(p, i));
+}
+
+static void psl_dump_cover(psl_node_t p)
+{
+   print_syntax("#cover");
+   psl_dump(psl_value(p));
+}
+
 static void psl_dump_always(psl_node_t p)
 {
    print_syntax("#always ");
@@ -93,6 +128,18 @@ void psl_dump(psl_node_t p)
    switch (psl_kind(p)) {
    case P_ASSERT:
       psl_dump_assert(p);
+      break;
+   case P_ASSUME:
+      psl_dump_assume(p);
+      break;
+   case P_RESTRICT:
+      psl_dump_restrict(p);
+      break;
+   case P_FAIRNESS:
+      psl_dump_fairness(p);
+      break;
+   case P_COVER:
+      psl_dump_cover(p);
       break;
    case P_ALWAYS:
       psl_dump_always(p);

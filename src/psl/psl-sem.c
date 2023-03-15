@@ -29,6 +29,26 @@ static void psl_check_assert(psl_node_t p)
 
 }
 
+static void psl_check_assume(psl_node_t p)
+{
+
+}
+
+static void psl_check_restrict(psl_node_t p)
+{
+
+}
+
+static void psl_check_fairness(psl_node_t p)
+{
+
+}
+
+static void psl_check_cover(psl_node_t p)
+{
+
+}
+
 static void psl_check_always(psl_node_t p)
 {
 
@@ -48,6 +68,22 @@ void psl_check(psl_node_t p)
 
    case P_ASSERT:
       psl_check_assert(p);
+      break;
+
+   case P_ASSUME:
+      psl_check_assume(p);
+      break;
+
+   case P_RESTRICT:
+      psl_check_restrict(p);
+      break;
+
+   case P_FAIRNESS:
+      psl_check_fairness(p);
+      break;
+
+   case P_COVER:
+      psl_check_cover(p);
       break;
 
    case P_CLOCK_DECL:
