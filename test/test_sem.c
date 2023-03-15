@@ -2632,18 +2632,19 @@ START_TEST(test_record2008)
    input_from_file(TESTDIR "/sem/record2008.vhd");
 
    const error_t expect[] = {
-      { 10, "declaration of signal S1 cannot have unconstrained type REC1" },
-      { 12, "record type REC1 has no field named Y" },
-      { 13, "record type REC1 has no field named R2" },
-      { 22, "duplicate record element constraint for field X" },
-      { 23, "record type REC2 has no field named P" },
-      { 24, "field B in record element constraint is already constrained" },
-      { 25, "declaration of signal R8 cannot have unconstrained type REC2" },
-      { 30, "declaration of signal R10 cannot have unconstrained type T2" },
-      { 34, "duplicate record element constraint for field X" },
-      { 41, "declaration of signal R12 cannot have unconstrained type REC3" },
-      { 43, "declaration of signal R14 cannot have unconstrained type REC3" },
-      { 68, "declaration of constant C1 hides constant C1" },
+      { 10,  "declaration of signal S1 cannot have unconstrained type REC1" },
+      { 12,  "record type REC1 has no field named Y" },
+      { 13,  "record type REC1 has no field named R2" },
+      { 22,  "duplicate record element constraint for field X" },
+      { 23,  "record type REC2 has no field named P" },
+      { 24,  "field B in record element constraint is already constrained" },
+      { 25,  "declaration of signal R8 cannot have unconstrained type REC2" },
+      { 30,  "declaration of signal R10 cannot have unconstrained type T2" },
+      { 34,  "duplicate record element constraint for field X" },
+      { 41,  "declaration of signal R12 cannot have unconstrained type REC3" },
+      { 43,  "declaration of signal R14 cannot have unconstrained type REC3" },
+      { 68,  "declaration of constant C1 hides constant C1" },
+      { 110, "variable A1 cannot have unconstrained type REC1_ARRAY" },
       { -1, NULL }
    };
    expect_errors(expect);

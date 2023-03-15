@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
@@ -2189,6 +2190,47 @@ void copy_constraints(type_t sub, int index, type_t from)
 
          if (standard() >= STD_08)
             copy_constraints(sub, index + 1, type_elem(from));
+      }
+      break;
+
+   case T_RECORD:
+      {
+         tree_t cons = NULL;
+         if (index < type_constraints(sub)) {
+            cons = type_constraint(sub, index);
+            if (tree_subkind(cons) != C_RECORD)
+               return;  // Will produce error later
+         }
+
+         const int nfields = type_fields(from);
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(from, i), exist;
+            type_t ft = tree_type(f);
+            if (type_is_unconstrained(ft)) {
+               if (cons == NULL) {
+                  cons = tree_new(T_CONSTRAINT);
+                  tree_set_subkind(cons, C_RECORD);
+
+                  type_add_constraint(sub, cons);
+               }
+               else if ((exist = type_constraint_for_field(sub, f)) != NULL) {
+                  copy_constraints(tree_type(exist), 0, ft);
+                  continue;
+               }
+
+               type_t fsub = type_new(T_SUBTYPE);
+               type_set_base(fsub, ft);
+
+               copy_constraints(fsub, 0, ft);
+
+               tree_t elem = tree_new(T_ELEM_CONSTRAINT);
+               tree_set_ident(elem, tree_ident(f));
+               tree_set_ref(elem, f);
+               tree_set_type(elem, fsub);
+
+               tree_add_range(cons, elem);
+            }
+         }
       }
       break;
 

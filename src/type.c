@@ -656,9 +656,7 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
    if (t->object.kind == T_SUBTYPE) {
       const int ncon = type_constraints(t);
       if (ncon > 0) {
-         assert(ncon == 1);
-
-         tree_t c = type_constraint(t, 0);
+         tree_t c = type_constraint(t, ncon - 1);
 
          if (tree_subkind(c) != C_RECORD)
             return NULL;
@@ -705,27 +703,25 @@ bool type_is_unconstrained(type_t t)
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE) {
       const int ncon = type_constraints(t);
-      if (type_is_record(t)) {
-         // Record subtype may be partially constrained
-         type_t base = type_base(t);
-         const int nfields = type_fields(t);
-         for (int i = 0; i < nfields; i++) {
-            tree_t f = type_field(base, i);
-            if (!type_is_unconstrained(tree_type(f)))
-               continue;
-            else if (type_constraint_for_field(t, f) == NULL)
-               return true;
+      for (int i = 0; i < ncon; i++) {
+         tree_t ci = type_constraint(t, i);
+         switch (tree_subkind(ci)) {
+         case C_OPEN:
+            return true;
+         case C_RECORD:
+            {
+               const int nranges = tree_ranges(ci);
+               for (int j = 0; j < nranges; j++) {
+                  tree_t ecj = tree_range(ci, j);
+                  if (type_is_unconstrained(tree_type(ecj)))
+                     return true;
+               }
+            }
+            break;
          }
-         return false;
       }
-      else {
-         for (int i = 0; i < ncon; i++) {
-            if (tree_subkind(type_constraint(t, i)) == C_OPEN)
-               return true;
-         }
 
-         return false;
-      }
+      return false;
    }
    else if (t->object.kind == T_ARRAY)
       return true;

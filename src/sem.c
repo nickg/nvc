@@ -328,7 +328,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 
             if (type_kind(base) == T_SUBTYPE) {
                tree_t dup = type_constraint_for_field(base, fi);
-               if (dup != NULL) {
+               if (dup != NULL && !type_is_unconstrained(tree_type(dup))) {
                   diag_t *d = diag_new(DIAG_ERROR, tree_loc(ei));
                   diag_printf(d, "duplicate record element constraint for "
                               "field %s", istr(tree_ident(fi)));

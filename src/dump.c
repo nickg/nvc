@@ -402,7 +402,7 @@ static void dump_constraint(tree_t t)
       for (int i = 0; i < nranges; i++) {
          if (i > 0) print_syntax(", ");
          tree_t fc = tree_range(t, i);
-         print_syntax("%s", istr(tree_ident(tree_ref(fc))));
+         print_syntax("%s", istr(tree_ident(fc)));
 
          type_t ftype = tree_type(fc);
          const int ncon = type_constraints(ftype);

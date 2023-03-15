@@ -105,4 +105,10 @@ begin
     begin
     end process;
 
+    p6: process is
+        type rec1_array is array (natural range <>) of rec1;
+        variable a1 : rec1_array(1 to 3);  -- Error
+    begin
+    end process;
+
 end architecture;
