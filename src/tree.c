@@ -467,7 +467,7 @@ static inline void tree_assert_stmt(tree_t t)
    tree_assert_kind(t, stmt_kinds, ARRAY_LEN(stmt_kinds), "a statement");
 }
 
-inline void tree_assert_expr(tree_t t)
+static inline void tree_assert_expr(tree_t t)
 {
    tree_assert_kind(t, expr_kinds, ARRAY_LEN(expr_kinds), "an expression");
 }

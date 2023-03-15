@@ -10280,9 +10280,7 @@ static psl_node_t p_psl_assume_directive(void)
 
    BEGIN("assume directive");
 
-   token_t tok = peek();
-   assert(tok == tASSUME || tok == tASSUMEG);
-   consume(tok);
+   token_t tok = one_of(tASSUME, tASSUMEG);
 
    psl_node_t a = psl_new(P_ASSUME);
    if (tok == tASSUME)
@@ -10354,7 +10352,7 @@ static psl_node_t p_psl_fairness(void)
    psl_set_subkind(a, strength);
 
    tree_t e1 = p_expression();
-   solve_types(nametab, e1, std_type(NULL, STD_BOOLEAN));
+   solve_psl_condition(nametab, e1);
 
    psl_node_t p1 = psl_new(P_HDL_EXPR);
    psl_set_tree(p1, e1);
@@ -10365,7 +10363,7 @@ static psl_node_t p_psl_fairness(void)
       consume(tCOMMA);
 
       tree_t e2 = p_expression();
-      solve_types(nametab, e1, std_type(NULL, STD_BOOLEAN));
+      solve_psl_condition(nametab, e2);
 
       psl_node_t p2 = psl_new(P_HDL_EXPR);
       psl_set_tree(p2, e2);
