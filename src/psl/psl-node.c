@@ -71,9 +71,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
-   "P_ASSERT", "P_ALWAYS", "P_HDL_EXPR", "P_CLOCK_DECL", "P_NEXT",
-   "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
-   "P_SERE", "P_IMPLICATION",
+   "P_ASSERT", "P_ASSUME", "P_RESTRICT", "P_FAIRNESS", "P_COVER", "P_ALWAYS",
+   "P_HDL_EXPR", "P_CLOCK_DECL", "P_NEXT", "P_NEVER", "P_EVENTUALLY",
+   "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT", "P_SERE", "P_IMPLICATION",
 };
 
 static const change_allowed_t change_allowed[] = {
