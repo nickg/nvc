@@ -155,29 +155,30 @@ START_TEST(test_sum)
 
    jit_handle_t fn1 =
       compile_for_test(j, "WORK.SUMPKG.GET_LEFT(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, data, 1, 6).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, data, -5, 6).integer, -5);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, data, 1, 5).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, data, -5, 4).integer, -5);
 
    jit_handle_t fn2 =
       compile_for_test(j, "WORK.SUMPKG.GET_RIGHT(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn2, NULL, data, 1, 6).integer, 5);
-   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 1).integer, -6);
-   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 3).integer, -4);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, 1, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 0).integer, -6);
+   ck_assert_int_eq(jit_call(j, fn2, NULL, data, -5, 2).integer, -4);
 
    jit_handle_t fn3 =
       compile_for_test(j, "WORK.SUMPKG.GET_LENGTH(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn3, NULL, data, 1, 6).integer, 5);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 1).integer, 0);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 3).integer, 2);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, 1, 5).integer, 5);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, 2).integer, 2);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, data, -5, -2).integer, 1);
 
    jit_handle_t fn4 =
       compile_for_test(j, "WORK.SUMPKG.SUM(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 6).integer, 15);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 5).integer, 15);
    ck_assert_int_eq(jit_call(j, fn4, NULL, data, 5, -6).integer, 15);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 3).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 100, 3).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, data, -10, 3).integer, 3);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 100, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, -10, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, data, 1, 0).integer, 0);
 
    jit_free(j);
 
@@ -500,15 +501,15 @@ START_TEST(test_array1)
 
    jit_handle_t assign = compile_for_test(j,
       "WORK.ARRAY1.ASSIGN(14WORK.ARRAY1.IV14WORK.ARRAY1.IV)");
-   jit_call(j, assign, NULL, NULL, a0, 1, 4, a1, 1, 4);
+   jit_call(j, assign, NULL, NULL, a0, 1, 3, a1, 1, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
    a1[0] = 44;
-   jit_call(j, assign, NULL, NULL, a0, 1, 4, a1, -4, 4);
+   jit_call(j, assign, NULL, NULL, a0, 1, 3, a1, -4, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
 
    a1[0] = 99;
    jit_scalar_t result;
-   fail_if(jit_try_call(j, assign, &result, NULL, NULL, a0, 1, 4, a1, 1, 3));
+   fail_if(jit_try_call(j, assign, &result, NULL, NULL, a0, 1, 3, a1, 1, 2));
    ck_assert_mem_ne(a0, a1, sizeof(a0));
 
    jit_handle_t get_ints =
@@ -525,7 +526,7 @@ START_TEST(test_array1)
    ck_assert_int_eq(vals[4], 3);
 
    jit_handle_t issue94 = compile_for_test(j, "WORK.ARRAY1.ISSUE94(II)Q");
-   fail_unless(jit_try_call(j, issue94, &result, NULL, 4, 5));
+   fail_unless(jit_try_call(j, issue94, &result, NULL, 4, 4));
    ck_assert_ptr_nonnull(result.pointer);
 
    unsigned char *bits = result.pointer;
@@ -536,7 +537,7 @@ START_TEST(test_array1)
    ck_assert_int_eq(bits[3], 1);
 
    jit_handle_t test2 = compile_for_test(j, "WORK.ARRAY1.TEST2(S)");
-   fail_unless(jit_try_call(j, test2, &result, NULL, NULL, NULL, 1, 1));
+   fail_unless(jit_try_call(j, test2, &result, NULL, NULL, NULL, 1, 0));
 
    jit_free(j);
    check_expected_errors();
@@ -1098,25 +1099,25 @@ START_TEST(test_value1)
    jit_scalar_t result;
 
    jit_handle_t fn1 = compile_for_test(j, "WORK.VALUE1.STR_TO_INT(S)I");
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "123", 1, 4).integer, 123);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, "-5", 1, 3).integer, -5);
-   ck_assert_int_eq(jit_call(j, fn1, NULL, " 42 ", 1, 5).integer, 42);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "123", 1, 3).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "-5", 1, 2).integer, -5);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, " 42 ", 1, 4).integer, 42);
    fail_if(jit_try_call(j, fn1, &result, NULL, "42x", 1, 4));
 
    jit_handle_t fn2 = compile_for_test(j, "WORK.VALUE1.STR_TO_REAL(S)R");
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "123", 1, 4).real, 123.0);
-   ck_assert_double_eq(jit_call(j, fn2, NULL, "-4.5", 1, 5).real, -4.5);
-   fail_if(jit_try_call(j, fn2, &result, NULL, "4..4", 1, 5));
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "123", 1, 3).real, 123.0);
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "-4.5", 1, 4).real, -4.5);
+   fail_if(jit_try_call(j, fn2, &result, NULL, "4..4", 1, 4));
 
    jit_handle_t fn3 = compile_for_test(j, "WORK.VALUE1.STR_TO_TIME(S)T");
-   ck_assert_int_eq(jit_call(j, fn3, NULL, "123 FS", 1, 7).integer, 123);
-   ck_assert_int_eq(jit_call(j, fn3, NULL, " 52  PS ", 1, 9).integer, 52000);
-   fail_if(jit_try_call(j, fn3, &result, NULL, "4 FOO", 1, 6));
+   ck_assert_int_eq(jit_call(j, fn3, NULL, "123 FS", 1, 6).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, " 52  PS ", 1, 8).integer, 52000);
+   fail_if(jit_try_call(j, fn3, &result, NULL, "4 FOO", 1, 5));
 
    jit_handle_t fn4 = compile_for_test(j, "WORK.VALUE1.STR_TO_BOOL(S)B");
-   ck_assert_int_eq(jit_call(j, fn4, NULL, "true", 1, 5).integer, 1);
-   ck_assert_int_eq(jit_call(j, fn4, NULL, " FALSE ", 1, 8).integer, 0);
-   fail_if(jit_try_call(j, fn4, &result, NULL, "FOO", 1, 4));
+   ck_assert_int_eq(jit_call(j, fn4, NULL, "true", 1, 4).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, " FALSE ", 1, 7).integer, 0);
+   fail_if(jit_try_call(j, fn4, &result, NULL, "FOO", 1, 3));
 
    jit_free(j);
    check_expected_errors();
@@ -1647,14 +1648,17 @@ START_TEST(test_lvn6)
    jit_t *j = jit_new();
 
    const char *text1 =
-      "    MOV           R29, R28     \n"
-      "    MOV           R32, #1      \n"
-      "    MOV           R33, #-1     \n"
-      "    CMP.EQ        #1, #1       \n"
-      "    MOV           R34, R33     \n"
-      "    ADD           R35, R34, #1 \n"
-      "    CLAMP         R36, R35     \n"
-      "    CNEG          R37, R36     \n";
+      "    MOV         R29, R28       \n"
+      "    MOV         R32, #1        \n"
+      "    MOV         R33, #-1       \n"
+      "    CMP.EQ      #1, #1         \n"
+      "    MOV         R34, R33       \n"
+      "    ADD         R35, R34, #1   \n"
+      "    CLAMP       R36, R35       \n"
+      "    NEG         R37, #1        \n"
+      "    XOR         R38, R37, R36  \n"
+      "    ASR         R39, R38, #63  \n"
+      "    XOR         R40, R39, R38  \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
@@ -1664,7 +1668,10 @@ START_TEST(test_lvn6)
    check_unary(f, 4, J_MOV, CONST(-1));
    check_unary(f, 5, J_MOV, CONST(0));;
    check_unary(f, 6, J_MOV, CONST(0));
-   check_unary(f, 7, J_MOV, CONST(0));
+   check_unary(f, 7, J_MOV, CONST(-1));
+   check_unary(f, 8, J_MOV, CONST(-1));
+   check_unary(f, 9, J_MOV, CONST(-1));
+   check_unary(f, 10, J_MOV, CONST(0));
 
    jit_free(j);
 }

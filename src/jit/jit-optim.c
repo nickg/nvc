@@ -613,6 +613,24 @@ static void jit_lvn_neg(jit_ir_t *ir, lvn_state_t *state)
       jit_lvn_generic(ir, state, VN_INVALID);
 }
 
+static void jit_lvn_xor(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t lhs, rhs;
+   if (lvn_can_fold(ir, state, &lhs, &rhs))
+      lvn_convert_mov(ir, state, LVN_CONST(lhs ^ rhs));
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
+static void jit_lvn_asr(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t lhs, rhs;
+   if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs >= 0 && rhs < 64)
+      lvn_convert_mov(ir, state, LVN_CONST(lhs >> rhs));
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
 static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state)
 {
    if (ir->arg1.kind == JIT_VALUE_REG && ir->arg1.reg == ir->result) {
@@ -694,24 +712,6 @@ static void jit_lvn_clamp(jit_ir_t *ir, lvn_state_t *state)
       jit_lvn_generic(ir, state, VN_INVALID);
 }
 
-static void jit_lvn_cneg(jit_ir_t *ir, lvn_state_t *state)
-{
-   const int fconst = state->regvn[state->func->nregs];
-   if (fconst != VN_INVALID) {
-      if (fconst) {
-         ir->op = J_NEG;
-         jit_lvn_neg(ir, state);
-         return;
-      }
-      else {
-         lvn_convert_mov(ir, state, ir->arg1);
-         return;
-      }
-   }
-
-   jit_lvn_generic(ir, state, VN_INVALID);
-}
-
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
    // Clobbers the count register
@@ -769,11 +769,12 @@ void jit_do_lvn(jit_func_t *f)
       case J_ADD: jit_lvn_add(ir, &state); break;
       case J_SUB: jit_lvn_sub(ir, &state); break;
       case J_NEG: jit_lvn_neg(ir, &state); break;
+      case J_XOR: jit_lvn_xor(ir, &state); break;
+      case J_ASR: jit_lvn_asr(ir, &state); break;
       case J_MOV: jit_lvn_mov(ir, &state); break;
       case J_CMP: jit_lvn_cmp(ir, &state); break;
       case J_CSEL: jit_lvn_csel(ir, &state); break;
       case J_CSET: jit_lvn_cset(ir, &state); break;
-      case J_CNEG: jit_lvn_cneg(ir, &state); break;
       case J_JUMP: jit_lvn_jump(ir, &state); break;
       case J_CLAMP: jit_lvn_clamp(ir, &state); break;
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;

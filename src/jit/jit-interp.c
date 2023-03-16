@@ -598,13 +598,6 @@ static void interp_cset(jit_interp_t *state, jit_ir_t *ir)
    state->regs[ir->result].integer = !!(state->flags);
 }
 
-static void interp_cneg(jit_interp_t *state, jit_ir_t *ir)
-{
-   const int64_t value = interp_get_int(state, ir->arg1);
-
-   state->regs[ir->result].integer = state->flags ? -value : value;
-}
-
 static void interp_branch_to(jit_interp_t *state, jit_value_t label)
 {
    JIT_ASSERT(label.kind == JIT_VALUE_LABEL);
@@ -941,9 +934,6 @@ static void interp_loop(jit_interp_t *state)
          break;
       case J_CSET:
          interp_cset(state, ir);
-         break;
-      case J_CNEG:
-         interp_cneg(state, ir);
          break;
       case J_JUMP:
          interp_jump(state, ir);

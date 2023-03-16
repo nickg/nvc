@@ -66,7 +66,6 @@ typedef enum {
    J_ASR,
    J_SHL,
    J_CLAMP,
-   J_CNEG,
 
    __MACRO_BASE = 0x80,
    MACRO_COPY = __MACRO_BASE,

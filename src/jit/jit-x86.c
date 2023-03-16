@@ -1138,17 +1138,6 @@ static void jit_x86_clamp(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_put(blob, ir->result, __EAX);
 }
 
-static void jit_x86_cneg(code_blob_t *blob, jit_ir_t *ir)
-{
-   jit_x86_get(blob, __EAX, ir->arg1);
-
-   TEST(FLAGS_REG, FLAGS_REG, __BYTE);
-   JZ(IMM(3));
-   NEG(__EAX, __QWORD);
-
-   jit_x86_put(blob, ir->result, __EAX);
-}
-
 static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
 {
    const int this = ir - blob->func->irbuf;
@@ -1535,9 +1524,6 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case J_CLAMP:
       jit_x86_clamp(blob, ir);
-      break;
-   case J_CNEG:
-      jit_x86_cneg(blob, ir);
       break;
    case J_MOV:
       jit_x86_mov(blob, ir);

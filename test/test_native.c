@@ -762,29 +762,6 @@ START_TEST(test_clamp)
 }
 END_TEST
 
-START_TEST(test_cneg)
-{
-   jit_t *j = get_native_jit();
-
-   const char *text1 =
-      "    RECV     R0, #0          \n"
-      "    RECV     R1, #1          \n"
-      "    CMP.GT   R0, R1          \n"
-      "    CNEG     R2, R0          \n"
-      "    SEND     #0, R2          \n"
-      "    RET                      \n";
-
-   jit_handle_t h1 = assemble(j, text1, "cneg1", "II");
-   ck_assert_int_eq(jit_call(j, h1, 5, 4).integer, -5);
-   ck_assert_int_eq(jit_call(j, h1, 5, 8).integer, 5);
-   ck_assert_int_eq(jit_call(j, h1, 5, 2).integer, -5);
-   ck_assert_int_eq(jit_call(j, h1, INT64_C(-5), 2).integer, -5);
-   ck_assert_int_eq(jit_call(j, h1, INT64_C(-5), INT64_C(-8)).integer, 5);
-
-   jit_free(j);
-}
-END_TEST
-
 START_TEST(test_case)
 {
    jit_t *j = get_native_jit();
@@ -959,7 +936,6 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_logical);
    tcase_add_test(tc, test_neg);
    tcase_add_test(tc, test_clamp);
-   tcase_add_test(tc, test_cneg);
    tcase_add_test(tc, test_case);
    tcase_add_test(tc, test_exp);
    tcase_add_test(tc, test_float);
