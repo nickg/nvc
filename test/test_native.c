@@ -675,6 +675,7 @@ START_TEST(test_logical)
    ck_assert_int_eq(jit_call(j, h1, 1, 0).integer, 0);
    ck_assert_int_eq(jit_call(j, h1, 1, 1).integer, 1);
    ck_assert_int_eq(jit_call(j, h1, 0, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, 0xffff, 0xff00).integer, 0xff00);
 
    const char *text2 =
       "    RECV     R0, #0          \n"
@@ -687,6 +688,8 @@ START_TEST(test_logical)
    ck_assert_int_eq(jit_call(j, h2, 1, 0).integer, 1);
    ck_assert_int_eq(jit_call(j, h2, 1, 1).integer, 1);
    ck_assert_int_eq(jit_call(j, h2, 0, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, 1, 2).integer, 3);
+   ck_assert_int_eq(jit_call(j, h2, 0x11223344, 0).integer, 0x11223344);
 
    const char *text3 =
       "    RECV     R0, #0          \n"
@@ -698,6 +701,21 @@ START_TEST(test_logical)
    ck_assert_int_eq(jit_call(j, h3, 1).integer, 0);
    ck_assert_int_eq(jit_call(j, h3, 0).integer, 1);
    ck_assert_int_eq(jit_call(j, h3, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, 5).integer, 0);
+
+   const char *text4 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    XOR      R2, R1, R0      \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h4 = assemble(j, text4, "logical4", "ii");
+   ck_assert_int_eq(jit_call(j, h4, 1, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h4, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, 0, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, 0xbeef, 0xbeef).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, INT64_C(-1), 0).integer, -1);
 
    jit_free(j);
 }

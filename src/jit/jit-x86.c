@@ -1096,7 +1096,7 @@ static void jit_x86_and(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   AND(__EAX, __ECX, __BYTE);
+   AND(__EAX, __ECX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -1106,7 +1106,7 @@ static void jit_x86_or(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   OR(__EAX, __ECX, __BYTE);
+   OR(__EAX, __ECX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
@@ -1116,7 +1116,7 @@ static void jit_x86_xor(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EAX, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
-   XOR(__EAX, __ECX, __BYTE);
+   XOR(__EAX, __ECX, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX);
 }
