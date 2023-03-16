@@ -13,8 +13,13 @@ AM_CC       = $(PTHREAD_CC)
 AM_CFLAGS   += $(PTHREAD_CFLAGS)
 AM_LDFLAGS  += $(PTHREAD_LIBS)
 
-AM_CFLAGS += $(check_CFLAGS) $(libdw_CFLAGS) $(libffi_CFLAGS)
-AM_CFLAGS += $(capstone_CFLAGS) $(LLVM_CFLAGS)
+AM_CFLAGS += \
+	$(check_CFLAGS) \
+	$(libdw_CFLAGS) \
+	$(libffi_CFLAGS) \
+	$(capstone_CFLAGS) \
+	$(LLVM_CFLAGS) \
+	$(libzstd_CFLAGS)
 
 bin_PROGRAMS =
 noinst_LIBRARIES =
