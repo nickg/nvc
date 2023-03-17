@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "cpustate.h"
 #include "rt/mspace.h"
 #include "thread.h"
@@ -298,6 +299,14 @@ static void print_lock_stats(void)
 
 static void join_worker_threads(void)
 {
+   SCOPED_A(nvc_thread_t *) join_list = AINIT;
+
+   for (int i = 1; i < MAX_THREADS; i++) {
+      nvc_thread_t *t = atomic_load(&threads[i]);
+      if (t != NULL)
+         APUSH(join_list, t);
+   }
+
    // Lock the wake mutex here to avoid races with workers sleeping
    PTHREAD_CHECK(pthread_mutex_lock, &wakelock);
    {
@@ -306,10 +315,8 @@ static void join_worker_threads(void)
    }
    PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
 
-   for (int i = 1; i < MAX_THREADS; i++) {
-      nvc_thread_t *t = atomic_load(&threads[i]);
-      if (t == NULL)
-         continue;
+   for (int i = 0; i < join_list.count; i++) {
+      nvc_thread_t *t = join_list.items[i];
 
       switch (relaxed_load(&t->kind)) {
       case WORKER_THREAD:
