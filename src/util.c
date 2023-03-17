@@ -552,6 +552,7 @@ void fatal_trace(const char *fmt, ...)
 void fatal_errno(const char *fmt, ...)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_suppress(d, false);
 
    va_list ap;
    va_start(ap, fmt);

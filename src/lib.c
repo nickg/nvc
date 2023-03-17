@@ -605,6 +605,7 @@ lib_t lib_require(ident_t name)
    lib_t lib = lib_find(name);
    if (lib == NULL) {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_suppress(d, false);
       diag_printf(d, "required library %s not found", istr(name));
       lib_search_paths_to_diag(d);
       diag_emit(d);

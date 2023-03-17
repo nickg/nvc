@@ -264,21 +264,6 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
    }
 
    vcode_unit_t vu = vcode_find_unit(name);
-
-   if (vu == NULL && descr == NULL) {
-      if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
-         debugf("loading vcode for %s", istr(name));
-
-      tree_t unit = lib_get_qualified(name);
-      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
-         (void)body_of(unit);  // Make sure body is loaded
-
-      vu = vcode_find_unit(name);
-   }
-
-   if (vu == NULL && descr == NULL)
-      return JIT_HANDLE_INVALID;
-
    assert(vu == NULL || chash_get(j->index, vu) == NULL);
 
    f = xcalloc(sizeof(jit_func_t));
@@ -409,10 +394,21 @@ void jit_fill_irbuf(jit_func_t *f)
       return;
    else if (jit_fill_from_aot(f, f->jit->preloadlib))
       return;
-   else if (f->unit)
+   else if (f->unit || (f->unit = vcode_find_unit(f->name)))
       jit_irgen(f);
-   else
-      fatal_trace("cannot generate JIT IR for %s", istr(f->name));
+   else {
+      if (opt_get_int(OPT_JIT_LOG))
+         debugf("loading vcode for %s", istr(f->name));
+
+      tree_t unit = lib_get_qualified(f->name);
+      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
+         (void)body_of(unit);  // Make sure body is loaded
+
+      if ((f->unit = vcode_find_unit(f->name)) == NULL)
+         fatal_trace("cannot generate JIT IR for %s", istr(f->name));
+
+      jit_irgen(f);
+   }
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)

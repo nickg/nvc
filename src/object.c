@@ -209,6 +209,7 @@ void object_lookup_failed(object_class_t *class, object_t *object, imask_t mask)
    diag_printf(d, "%s kind %s does not have item %s", class->name,
                class->kind_text_map[object->kind], item_text_map[item]);
    diag_set_consumer(NULL);
+   diag_suppress(d, false);
    diag_emit(d);
    show_stacktrace();
    fatal_exit(EXIT_FAILURE);
@@ -413,6 +414,7 @@ object_t *object_new(object_arena_t *arena,
 
    if (unlikely(arena->limit - arena->alloc < size)) {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_suppress(d, false);
       diag_printf(d, "memory exhausted while creating unit %s",
                   istr(object_arena_name(arena)));
       diag_hint(d, NULL, "The current limit is %zu bytes which you can "
@@ -964,6 +966,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
                standard_text(dstd), istr(dep), standard_text(a->std));
       else if (a->checksum != checksum) {
          diag_t *d = diag_new(DIAG_FATAL, NULL);
+         diag_suppress(d, false);
          diag_printf(d, "%s: design unit depends on %s with checksum %08x "
                      "but the current version in the library has checksum %08x",
                      fbuf_file_name(f), istr(dep), checksum, a->checksum);
