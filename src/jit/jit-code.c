@@ -47,6 +47,22 @@
 #include <capstone.h>
 #endif
 
+#ifndef R_AARCH64_MOVW_UABS_G0_NC
+#define R_AARCH64_MOVW_UABS_G0_NC 264
+#endif
+
+#ifndef R_AARCH64_MOVW_UABS_G1_NC
+#define R_AARCH64_MOVW_UABS_G1_NC 266
+#endif
+
+#ifndef R_AARCH64_MOVW_UABS_G2_NC
+#define R_AARCH64_MOVW_UABS_G2_NC 268
+#endif
+
+#ifndef R_AARCH64_MOVW_UABS_G3
+#define R_AARCH64_MOVW_UABS_G3 269
+#endif
+
 #define CODECACHE_ALIGN   4096
 #define CODECACHE_SIZE    0x400000
 #define THREAD_CACHE_SIZE 0x10000
