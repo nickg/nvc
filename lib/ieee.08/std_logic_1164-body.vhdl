@@ -1624,4 +1624,17 @@ package body std_logic_1164 is
       return match_lt_table(l, r) or match_eq_table(l, r);
   end function;
 
+  procedure check_match_expression (val : std_ulogic_vector) is
+  begin
+    for i in val'range loop
+      assert val(i) /= '-' report "value of matching case statement expression """
+        & to_string(val) & """ contains a '-'";
+    end loop;
+  end procedure;
+
+  procedure check_match_expression (val : std_ulogic) is
+  begin
+    assert val /= '-' report "value of matching case statement expression is '-'";
+  end procedure;
+
 end package body std_logic_1164;
