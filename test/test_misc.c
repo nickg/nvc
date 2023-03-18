@@ -599,34 +599,6 @@ START_TEST(test_stop_world)
 }
 END_TEST
 
-START_TEST(test_fbuf_pipe)
-{
-   opt_set_int(OPT_ERROR_LIMIT, -1);
-
-   int rfd, wfd;
-   open_pipe(&rfd, &wfd);
-
-   fbuf_t *w = fbuf_fdopen(wfd, FBUF_OUT, FBUF_CS_ADLER32);
-   fbuf_put_int(w, 42);
-   for (int i = 0; i < 10000; i++)
-      fbuf_put_int(w, i);
-
-   uint32_t wcsum;
-   fbuf_close(w, &wcsum);
-
-   fbuf_t *r = fbuf_fdopen(rfd, FBUF_IN, FBUF_CS_ADLER32);
-   ck_assert_int_eq(fbuf_get_int(r), 42);
-   for (int i = 0; i < 10000; i++)
-      ck_assert_int_eq(fbuf_get_int(r), i);
-
-   uint32_t rcsum;
-   fbuf_close(r, &rcsum);
-
-   ck_assert_int_eq(rcsum, wcsum);
-   ck_assert_int_eq(close(rfd), -1);
-}
-END_TEST
-
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -673,10 +645,6 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_thread, test_stop_world);
 #endif
    suite_add_tcase(s, tc_thread);
-
-   TCase *tc_fbuf = tcase_create("fbuf");
-   tcase_add_test(tc_fbuf, test_fbuf_pipe);
-   suite_add_tcase(s, tc_fbuf);
 
    return s;
 }

@@ -41,7 +41,6 @@ typedef enum {
 } fbuf_zip_t;
 
 fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum);
-fbuf_t *fbuf_fdopen(int fd, fbuf_mode_t mode, fbuf_cs_t csum);
 void fbuf_close(fbuf_t *f, uint32_t *checksum);
 void fbuf_cleanup(void);
 const char *fbuf_file_name(fbuf_t *f);

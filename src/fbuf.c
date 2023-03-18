@@ -320,14 +320,7 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    if (len == -1)
       fatal_errno("%s: ftell", f->fname);
 
-   struct stat buf;
-   if (fstat(fileno(f->file), &buf) != 0)
-      fatal_errno("%s: fstat", f->fname);
-
-   if (S_ISFIFO(buf.st_mode)) {
-      // Streaming mode: length and checksum is appended instead
-   }
-   else if (fseek(f->file, 8, SEEK_SET) != 0)
+   if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
    const uint8_t bytes[12] = {
@@ -392,30 +385,6 @@ static void fbuf_decompress(fbuf_t *f)
    if (fstat(fileno(f->file), &buf) != 0)
       fatal_errno("fstat");
 
-   size_t bufsz;
-   uint8_t *rmap = NULL;
-   if (S_ISFIFO(buf.st_mode)) {
-      rmap = xmalloc((bufsz = 16384));
-      memcpy(rmap, header, sizeof(header));
-
-      size_t wptr = sizeof(header);
-      for (;;) {
-         const int nr = fread(rmap + wptr, 1, bufsz - wptr, f->file);
-         if (nr < 0)
-            fatal_errno("%s", f->fname);
-         else if (nr == 0)
-            break;
-         else if (wptr + nr == bufsz)
-            rmap = xrealloc(rmap, (bufsz *= 2));
-
-         wptr += nr;
-      }
-
-      memcpy(header + 8, rmap + wptr - 8, 8);   // Update header
-   }
-   else
-      bufsz = buf.st_size;
-
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
    uint8_t header_sz = header[6];
@@ -423,7 +392,7 @@ static void fbuf_decompress(fbuf_t *f)
    if (header_sz == 0)
       header_sz = 16;   // Compatibility with 1.8 and earlier
 
-   uint32_t filesz = bufsz;
+   uint32_t filesz = buf.st_size;
    if (header_sz > 16) {
       uint8_t header2[4];
       fbuf_read_raw(f, header2, sizeof(header2));
@@ -431,12 +400,11 @@ static void fbuf_decompress(fbuf_t *f)
       filesz = UNPACK_BE32(header2);
    }
 
-   if (filesz > bufsz)
+   if (filesz > buf.st_size)
       fatal("%s has inconsistent compressed size %u vs file size %zu",
-            f->fname, filesz, bufsz);
+            f->fname, filesz, buf.st_size);
 
-   if (rmap == NULL)
-      rmap = map_file(fileno(f->file), filesz);
+   uint8_t *rmap = map_file(fileno(f->file), filesz);
 
    f->origsz = len;
    f->checksum.expect = checksum;
@@ -460,26 +428,26 @@ static void fbuf_decompress(fbuf_t *f)
             f->fname, header[4]);
    }
 
-   if (S_ISFIFO(buf.st_mode))
-      free(rmap);
-   else
-      unmap_file(rmap, buf.st_size);
+   unmap_file(rmap, filesz);
 }
 
-static fbuf_t *fbuf_new(FILE *file, char *fname, fbuf_mode_t mode,
-                        fbuf_cs_t csum, fbuf_zip_t zip)
+fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
 {
+   FILE *h = fopen(file, mode == FBUF_OUT ? "wb" : "rb");
+   if (h == NULL)
+      return NULL;
+
    fbuf_t *f = xcalloc(sizeof(struct _fbuf));
-   f->file  = file;
-   f->fname = fname;
+   f->file  = h;
+   f->fname = xstrdup(file);
    f->mode  = mode;
    f->next  = open_list;
-   f->zip   = zip;
+   f->zip   = DEFAULT_ZIP;
 
    checksum_init(&(f->checksum), csum);
 
 #ifdef HAVE_LIBZSTD
-   if (zip == FBUF_ZIP_ZSTD && mode == FBUF_OUT) {
+   if (f->zip == FBUF_ZIP_ZSTD && mode == FBUF_OUT) {
       if ((f->zstd = ZSTD_createCCtx()) == NULL)
          fatal_trace("ZSTD_createCCtx() failed");
 
@@ -504,24 +472,6 @@ static fbuf_t *fbuf_new(FILE *file, char *fname, fbuf_mode_t mode,
       open_list->prev = f;
 
    return (open_list = f);
-}
-
-fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
-{
-   FILE *h = fopen(file, mode == FBUF_OUT ? "wb" : "rb");
-   if (h == NULL)
-      return NULL;
-
-   return fbuf_new(h, xstrdup(file), mode, csum, DEFAULT_ZIP);
-}
-
-fbuf_t *fbuf_fdopen(int fd, fbuf_mode_t mode, fbuf_cs_t csum)
-{
-   FILE *h = fdopen(fd, mode == FBUF_OUT ? "wb" : "rb");
-   if (h == NULL)
-      return NULL;
-
-   return fbuf_new(h, xasprintf("<fd:%d>", fd), mode, csum, FBUF_ZIP_NONE);
 }
 
 const char *fbuf_file_name(fbuf_t *f)
