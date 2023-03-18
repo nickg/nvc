@@ -378,6 +378,13 @@ int32_t _std_env_file_line(void)
    return stack->frames[1].loc.first_line;
 }
 
+DLLEXPORT
+int64_t _std_env_seconds_to_time(double real)
+{
+   double whole, frac = modf(real, &whole);
+   return (int64_t)whole * UINT64_C(1000000000000000) + (int64_t)(frac * 1e15);
+}
+
 void _std_env_init(void)
 {
    // Dummy function to force linking

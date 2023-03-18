@@ -24,6 +24,7 @@
   _std_env_itemisdir;
   _std_env_itemisfile;
   _std_env_localtime;
+  _std_env_seconds_to_time;
   _std_env_set_workingdir;
   _std_env_stop;
   _std_env_tool_version;

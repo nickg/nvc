@@ -128,15 +128,18 @@ package body env is
     end function;
 
     function time_to_seconds (time_val : in time) return real is
+        variable frac, whole : integer;
     begin
-        report "not implemented" severity warning;
-        return 0.0;
+        frac := (time_val mod sec) / fs;
+        whole := time_val / sec;
+        return real(whole) + real(frac) / 1.0e15;
     end function;
 
     function seconds_to_time (real_val : in real) return time is
+        function impl (real_val : real) return time;
+        attribute foreign of impl : function is "_std_env_seconds_to_time";
     begin
-        report "not implemented" severity warning;
-        return 0 fs;
+        return impl(real_val);
     end function;
 
     function to_string (trec        : time_record;
