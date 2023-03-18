@@ -38,14 +38,6 @@
 #include <stdio_ext.h>
 #endif
 
-#ifndef HAVE_FTELLO
-#define ftello(f) (off_t)ftell(f)
-#endif
-
-#ifndef HAVE_FSEEKO
-#define fseeko(f, o, w) (off_t)fseek(f, o, w)
-#endif
-
 typedef enum {
    FILE_ORIGIN_BEGIN,
    FILE_ORIGIN_CURRENT,

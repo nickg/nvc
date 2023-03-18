@@ -130,6 +130,14 @@ char *strcasestr(const char *haystack_start, const char *needle_start);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 
+#ifndef HAVE_FTELLO
+#define ftello(f) (off_t)ftell(f)
+#endif
+
+#ifndef HAVE_FSEEKO
+#define fseeko(f, o, w) (off_t)fseek(f, o, w)
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })

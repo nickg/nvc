@@ -41,6 +41,8 @@
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
+#define FBUF_HEADER_SZ 20
+
 #define UNPACK_BE32(b)                                  \
    ((uint32_t)((b)[0] << 24) | (uint32_t)((b)[1] << 16) \
     | (uint32_t)((b)[2] << 8) | (uint32_t)(b)[3])
@@ -299,22 +301,28 @@ static void fbuf_read_raw(fbuf_t *f, uint8_t *bytes, size_t count)
 
 static void fbuf_write_header(fbuf_t *f)
 {
-   const uint8_t header[16] = {
+   const uint8_t header[FBUF_HEADER_SZ] = {
       'F', 'B', 'U', 'F',     // Magic number "FBUF"
       f->zip,                 // Compression format
       f->checksum.algo,       // Checksum algorithm
-      0, 0,                   // Unused
+      FBUF_HEADER_SZ,         // Header size
+      0,                      // Unused
       0, 0, 0, 0,             // Decompressed length
       0, 0, 0, 0,             // Checksum
+      0, 0, 0, 0,             // Compressed length
    };
    fbuf_write_raw(f, header, sizeof(header));
 }
 
 static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
 {
+   off_t len = ftello(f->file);
+   if (len == -1)
+      fatal_errno("%s: ftell", f->fname);
+
    struct stat buf;
    if (fstat(fileno(f->file), &buf) != 0)
-      fatal_errno("fstat");
+      fatal_errno("%s: fstat", f->fname);
 
    if (S_ISFIFO(buf.st_mode)) {
       // Streaming mode: length and checksum is appended instead
@@ -322,13 +330,17 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    else if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
-   const uint8_t bytes[8] = { PACK_BE32(f->wtotal), PACK_BE32(checksum) };
-   fbuf_write_raw(f, bytes, 8);
+   const uint8_t bytes[12] = {
+      PACK_BE32(f->wtotal),
+      PACK_BE32(checksum),
+      PACK_BE32(len),
+   };
+   fbuf_write_raw(f, bytes, ARRAY_LEN(bytes));
 }
 
 static void fbuf_decompress_fastlz(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 {
-   for (uint8_t *dst = f->rbuf, *src = rmap + 16; dst < f->rbuf + f->origsz;) {
+   for (uint8_t *dst = f->rbuf, *src = rmap; dst < f->rbuf + f->origsz;) {
       const uint32_t blksz = UNPACK_BE32(src);
       if (blksz > SPILL_SIZE)
          fatal("file %s has invalid compression format", f->fname);
@@ -352,9 +364,10 @@ static void fbuf_decompress_fastlz(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 #ifdef HAVE_LIBZSTD
 static void fbuf_decompress_zstd(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 {
-   size_t dsize = ZSTD_decompress(f->rbuf, f->origsz, rmap + 16, bufsz - 16);
+   size_t dsize = ZSTD_decompress(f->rbuf, f->origsz, rmap, bufsz);
    if (ZSTD_isError(dsize))
-      fatal("ZSTD decompress failed: %s", ZSTD_getErrorName(dsize));
+      fatal("ZSTD decompress failed: %s: %s", f->fname,
+            ZSTD_getErrorName(dsize));
 
    if (dsize != f->origsz)
       fatal("%s inconsistent size %zu vs %zu", f->fname, dsize, f->origsz);
@@ -401,10 +414,29 @@ static void fbuf_decompress(fbuf_t *f)
       memcpy(header + 8, rmap + wptr - 8, 8);   // Update header
    }
    else
-      rmap = map_file(fileno(f->file), (bufsz = buf.st_size));
+      bufsz = buf.st_size;
 
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
+   uint8_t header_sz = header[6];
+
+   if (header_sz == 0)
+      header_sz = 16;   // Compatibility with 1.8 and earlier
+
+   uint32_t filesz = bufsz;
+   if (header_sz > 16) {
+      uint8_t header2[4];
+      fbuf_read_raw(f, header2, sizeof(header2));
+
+      filesz = UNPACK_BE32(header2);
+   }
+
+   if (filesz > bufsz)
+      fatal("%s has inconsistent compressed size %u vs file size %zu",
+            f->fname, filesz, bufsz);
+
+   if (rmap == NULL)
+      rmap = map_file(fileno(f->file), filesz);
 
    f->origsz = len;
    f->checksum.expect = checksum;
@@ -412,15 +444,15 @@ static void fbuf_decompress(fbuf_t *f)
 
    switch (header[4]) {
    case FBUF_ZIP_FASTLZ:
-      fbuf_decompress_fastlz(f, rmap, bufsz);
+      fbuf_decompress_fastlz(f, rmap + header_sz, filesz - header_sz);
       break;
    case FBUF_ZIP_NONE:
-      memcpy(f->rbuf, rmap + 16, f->origsz);
+      memcpy(f->rbuf, rmap + header_sz, f->origsz);
       checksum_update(&(f->checksum), f->rbuf, f->origsz);
       break;
 #ifdef HAVE_LIBZSTD
    case FBUF_ZIP_ZSTD:
-      fbuf_decompress_zstd(f, rmap, bufsz);
+      fbuf_decompress_zstd(f, rmap + header_sz, filesz - header_sz);
       break;
 #endif
    default:
