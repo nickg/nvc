@@ -253,7 +253,7 @@ static void parse_generic(const char *str)
    *split = '\0';
 
    for (char *p = copy; *p != '\0'; p++)
-      *p = toupper_iso85591(*p);
+      *p = toupper_iso88591(*p);
 
    elab_set_generic(copy, split + 1);
 }

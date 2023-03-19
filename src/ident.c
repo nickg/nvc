@@ -553,7 +553,7 @@ ident_t ident_downcase(ident_t i)
       buf = big = xmalloc(i->length + 1);
 
    for (int pos = 0; pos < i->length; pos++)
-      buf[pos] = tolower_iso85591(i->bytes[pos]);
+      buf[pos] = tolower_iso88591(i->bytes[pos]);
    buf[i->length] = '\0';
 
    hash_state_t hash = HASH_INIT;

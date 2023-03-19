@@ -852,7 +852,7 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
          char *str = AGET(*arr, arr->count - 1);
          int i = 0;
          while (str[i]) {
-            str[i] = toupper_iso85591(str[i]);
+            str[i] = toupper_iso88591(str[i]);
             i++;
          }
 
@@ -1165,7 +1165,7 @@ void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
 
             int i = 0;
             while (excl_hier[i]) {
-               excl_hier[i] = toupper_iso85591(excl_hier[i]);
+               excl_hier[i] = toupper_iso88591(excl_hier[i]);
                i++;
             }
 

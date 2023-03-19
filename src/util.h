@@ -235,8 +235,8 @@ int terminal_width(void);
 
 const char *ordinal_str(int n);
 
-char toupper_iso85591(unsigned char ch);
-char tolower_iso85591(unsigned char ch);
+char toupper_iso88591(unsigned char ch);
+char tolower_iso88591(unsigned char ch);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));

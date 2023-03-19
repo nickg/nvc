@@ -544,7 +544,7 @@ static int parse_id(const char *str)
 {
    char *p = (yylval.str = xmalloc(strlen(str) + 1));
    for (; *str; str++, p++)
-      *p = toupper_iso85591(*str);
+      *p = toupper_iso88591(*str);
    *p = '\0';
 
    TOKEN(tID);

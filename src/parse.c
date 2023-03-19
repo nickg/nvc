@@ -2408,7 +2408,7 @@ static ident_t p_operator_symbol(void)
 
    char *s = last_lval.str;
    for (char *p = s; *p != '\0'; p++)
-      *p = tolower_iso85591(*p);
+      *p = tolower_iso88591(*p);
    ident_t id = ident_new(s);
    free(s);
 

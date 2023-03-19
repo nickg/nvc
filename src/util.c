@@ -1056,7 +1056,7 @@ const char *ordinal_str(int n)
    }
 }
 
-char toupper_iso85591(unsigned char ch)
+char toupper_iso88591(unsigned char ch)
 {
    if (ch >= 'a' && ch <= 'z')
       return ch - 'a' + 'A';
@@ -1066,7 +1066,7 @@ char toupper_iso85591(unsigned char ch)
       return ch;
 }
 
-char tolower_iso85591(unsigned char ch)
+char tolower_iso88591(unsigned char ch)
 {
    if (ch >= 'A' && ch <= 'Z')
       return ch + 'a' - 'A';
@@ -1418,13 +1418,13 @@ void tb_trim(text_buf_t *tb, size_t newlen)
 void tb_downcase(text_buf_t *tb)
 {
    for (size_t i = 0; i < tb->len; i++)
-      tb->buf[i] = tolower_iso85591(tb->buf[i]);
+      tb->buf[i] = tolower_iso88591(tb->buf[i]);
 }
 
 void tb_upcase(text_buf_t *tb)
 {
    for (size_t i = 0; i < tb->len; i++)
-      tb->buf[i] = toupper_iso85591(tb->buf[i]);
+      tb->buf[i] = toupper_iso88591(tb->buf[i]);
 }
 
 void tb_replace(text_buf_t *tb, char old, char rep)
