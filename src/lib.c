@@ -523,6 +523,7 @@ static void push_path(const char *path)
 
 static void lib_default_search_paths(void)
 {
+#ifdef ENABLE_DEFAULT_PATHS
    if (search_paths == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
       get_lib_dir(tb);
@@ -545,6 +546,7 @@ static void lib_default_search_paths(void)
          } while ((path_tok = strtok(NULL, ":")));
       }
    }
+#endif
 }
 
 void lib_add_search_path(const char *path)

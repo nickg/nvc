@@ -344,6 +344,17 @@ if test x$enable_debug != xyes ; then
                      [Disable extra debugging checks for development])
 fi
 
+AC_ARG_ENABLE([default-paths],
+  [AS_HELP_STRING([--disable-default-paths],
+                  [Disable default library search paths])],
+  [enable_default_paths=$enableval],
+  [enable_default_paths=yes])
+
+if test x$enable_default_paths != xno ; then
+  AC_DEFINE_UNQUOTED([ENABLE_DEFAULT_PATHS], [1],
+                     [Enable default library search paths])
+fi
+
 AC_ARG_ENABLE([lto],
   [AS_HELP_STRING([--enable-lto], [Enable link time optimisation])],
   [enable_lto=$enableval],

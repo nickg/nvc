@@ -33,6 +33,8 @@
   `libzstd-dev` is installed.
 - ISO-8859-1 extended characters are now handled properly in identifiers
   and when printing to the terminal.
+- The new `configure` option `--disable-default-paths` disables the
+  default library search paths.
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.
