@@ -235,7 +235,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
       // exlusive locking on some NFS implementations
       int mode = O_RDWR;
       if (access(tb_get(lock_path), mode) != 0) {
-         if (errno == EACCES || errno == EPERM) {
+         if (errno == EACCES || errno == EPERM || errno == EROFS) {
             mode = O_RDONLY;
             l->readonly = true;
          }
