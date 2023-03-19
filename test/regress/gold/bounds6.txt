@@ -1,4 +1,4 @@
-value 1517262 outside of CHARACTER range NUL to C255 for attribute 'VAL
+value 1517262 outside of CHARACTER range NUL to 'ÿ' for attribute 'VAL
 bounds6.vhd
     |
  17 |         c := character'val(i);

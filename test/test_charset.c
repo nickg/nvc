@@ -17,6 +17,7 @@
 //
 
 #include "test_util.h"
+#include "common.h"
 #include "ident.h"
 #include "lib.h"
 #include "phase.h"
@@ -27,6 +28,11 @@ START_TEST(test_iso88591)
 {
    input_from_file(TESTDIR "/charset/iso8859-1.vhd");
 
+   const error_t expect[] = {
+      { 11, "unexpected error while parsing constant declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
    tree_t e = parse();
    fail_if(e == NULL);
    lib_put(lib_work(), e);
@@ -38,7 +44,7 @@ START_TEST(test_iso88591)
    fail_if(a == NULL);
 
    fail_unless(tree_ident(a) == ident_new("WORK.клмно-лмноџлмноџ"));
-   fail_unless(tree_decls(a) == 3);
+   fail_unless(tree_decls(a) == 4);
 
    tree_t d1 = tree_decl(a, 1);
    fail_unless(tree_kind(d1) == T_CONST_DECL);
@@ -50,7 +56,7 @@ START_TEST(test_iso88591)
 
    fail_unless(parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -75,6 +81,30 @@ START_TEST(test_utf8)
 }
 END_TEST
 
+START_TEST(test_strings)
+{
+   set_standard(_i);
+
+   input_from_file(TESTDIR "/charset/strings.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t s0 = tree_value(tree_decl(p, 0));
+   fail_unless(tree_kind(s0) == T_STRING);
+   ck_assert_int_eq(tree_chars(s0), 8);
+
+   tree_t s0c0 = tree_char(s0, 0);
+   fail_unless(tree_ident(s0c0) == ident_new("'х'"));
+   fail_unless(tree_pos(tree_ref(s0c0)) == 0xe5);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_charset_tests(void)
 {
    Suite *s = suite_create("charset");
@@ -82,6 +112,7 @@ Suite *get_charset_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_iso88591);
    tcase_add_test(tc, test_utf8);
+   tcase_add_loop_test(tc, test_strings, STD_93, STD_19);
    suite_add_tcase(s, tc);
 
    return s;

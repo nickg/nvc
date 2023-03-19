@@ -1044,6 +1044,12 @@ int main(int argc, char **argv)
    setenv("NVC_IMP_LIB", lib_dir, 1);
    setenv("NVC_LIBPATH", lib_dir, 1);
 
+#ifdef __MINGW32__
+   SetConsoleOutputCP(65001);
+#else
+   setenv("LANG", "en_US.UTF-8", 1);
+#endif
+
    if (getenv("QUICK"))
       return 0;
 

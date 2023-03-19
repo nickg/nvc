@@ -1060,7 +1060,7 @@ char toupper_iso85591(unsigned char ch)
 {
    if (ch >= 'a' && ch <= 'z')
       return ch - 'a' + 'A';
-   else if (ch >= 0xe0 && ch <= 0xfe)
+   else if ((ch >= 0xe0 && ch <= 0xf6) || (ch >= 0xf8 && ch <= 0xfe))
       return ch - 0x20;
    else
       return ch;
@@ -1070,7 +1070,7 @@ char tolower_iso85591(unsigned char ch)
 {
    if (ch >= 'A' && ch <= 'Z')
       return ch + 'a' - 'A';
-   else if (ch >= 0xc0 && ch <= 0xde)
+   else if ((ch >= 0xc0 && ch <= 0xd6) || (ch >= 0xd8 && ch <= 0xde))
       return ch + 0x20;
    else
       return ch;

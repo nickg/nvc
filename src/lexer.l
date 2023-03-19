@@ -88,8 +88,8 @@ extern loc_t yylloc;
 extern yylval_t yylval;
 %}
 
-LOWER           [a-z\xdf-\xff]
-UPPER           [A-Z\xc0-\xde]
+LOWER           [a-z\xdf-\xf6\xf8-\xff]
+UPPER           [A-Z\xc0-\xd6\xd8-\xde]
 VHDL_ID         ({LOWER}|{UPPER})({LOWER}|{UPPER}|[_0-9])*
 EXID            \\([^\\]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*

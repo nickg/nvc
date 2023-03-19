@@ -3954,12 +3954,18 @@ static tree_t p_string_literal(void)
 
    consume(tSTRING);
 
-   char *p = last_lval.str;
-   size_t len = strlen(p);
-   tree_t t = str_to_literal(p + 1, p + len - 1, NULL);
-   free(p);
-
+   tree_t t = tree_new(T_STRING);
    tree_set_loc(t, CURRENT_LOC);
+
+   for (const char *p = last_lval.str + 1; *(p + 1) != '\0'; p++) {
+      const char ch[] = { '\'', *p, '\'', '\0' };
+      tree_t ref = tree_new(T_REF);
+      tree_set_loc(ref, CURRENT_LOC);
+      tree_set_ident(ref, ident_new(ch));
+      tree_add_char(t, ref);
+   }
+
+   free(last_lval.str);
    return t;
 }
 

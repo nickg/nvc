@@ -906,39 +906,6 @@ int64_t rebase_index(type_t array_type, int dim, int64_t value)
    return (tree_subkind(r) == RANGE_TO) ? value - left : left - value;
 }
 
-tree_t str_to_literal(const char *start, const char *end, type_t type)
-{
-   tree_t t = tree_new(T_STRING);
-   type_t elem = type ? type_elem(type) : NULL;
-
-   for (const char *p = start; *p != '\0' && p != end; p++) {
-      if (*(const unsigned char *)p == 0x81)
-         continue;   // Allow UTF-8 encoded ASCII characters
-
-      const char ch[] = { '\'', *p, '\'', '\0' };
-      ident_t id = ident_new(ch);
-      tree_t ref = tree_new(T_REF);
-      tree_set_ident(ref, id);
-      tree_add_char(t, ref);
-
-      if (elem != NULL) {
-         const int nlit = type_enum_literals(elem);
-         for (int i = 0; i < nlit; i++) {
-            tree_t lit = type_enum_literal(elem, i);
-            if (tree_ident(lit) == id) {
-               tree_set_ref(ref, lit);
-               break;
-            }
-         }
-      }
-   }
-
-   if (type != NULL)
-      tree_set_type(t, subtype_for_string(t, type));
-
-   return t;
-}
-
 ident_t well_known(well_known_t id)
 {
    assert(id < NUM_WELL_KNOWN);

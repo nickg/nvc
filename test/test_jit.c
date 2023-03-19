@@ -1084,9 +1084,9 @@ START_TEST(test_value1)
    input_from_file(TESTDIR "/jit/value1.vhd");
 
    const error_t expect[] = {
-      { 73, "found invalid characters \"x\" after value \"42x\"" },
-      { 77, "invalid real value \"4..4\"" },
-      { 81, "\" FOO\" is not a valid unit name" },
+      { 72, "found invalid characters \"x\" after value \"42x\"" },
+      { 76, "invalid real value \"4..4\"" },
+      { 80, "\" FOO\" is not a valid unit name" },
       { 23, "\"FOO\" is not a valid enumeration value" },
       { -1, NULL },
    };

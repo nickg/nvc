@@ -50,7 +50,6 @@ unsigned dimension_of(type_t type);
 type_t index_type_of(type_t type, unsigned dim);
 range_kind_t direction_of(type_t type, unsigned dim);
 tree_t range_of(type_t type, unsigned dim);
-tree_t str_to_literal(const char *start, const char *end, type_t type);
 int64_t rebase_index(type_t array_type, int dim, int64_t value);
 bool unit_needs_cgen(tree_t t);
 bool package_needs_body(tree_t pack);
