@@ -104,7 +104,7 @@ static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
    // LRM specifies instance path is lowercase
    char *p = buf;
    while (*p != '\0') {
-      *p = tolower((int)*p);
+      *p = tolower_iso85591(*p);
       ++p;
    }
 

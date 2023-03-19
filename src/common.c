@@ -310,7 +310,7 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
             if (*p == '\'')
                upcase = false;
             if (upcase)
-               *p = toupper((int)*p);
+               *p = toupper_iso85591(*p);
          }
          *p = '\0';
 
@@ -349,7 +349,7 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
 
          char *copy LOCAL = xstrdup(str), *p;
          for (p = copy; *p && !isspace((int)*p); p++, str++)
-            *p = toupper((int)*p);
+            *p = toupper_iso85591(*p);
          *p = '\0';
 
          ident_t id = ident_new(copy);

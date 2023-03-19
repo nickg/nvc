@@ -87,7 +87,9 @@ extern loc_t yylloc;
 extern yylval_t yylval;
 %}
 
-ID              ?i:[a-z][a-z_0-9]*
+LOWER           [a-z\xdf-\xff]
+UPPER           [A-Z\xc0-\xde]
+VHDL_ID         ({LOWER}|{UPPER})({LOWER}|{UPPER}|[_0-9])*
 EXID            \\([^\\]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
@@ -490,7 +492,7 @@ COVER         ?i:cover
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }
 <PSL>{REPORT}            { TOKEN(tREPORT); }
 
-<INITIAL,PSL>{ID}        { return parse_id(yytext); }
+<INITIAL,PSL>{VHDL_ID}   { return parse_id(yytext); }
 {EXID}                   { return parse_ex_id(yytext); }
 <*>{SPACE}               { }
 <*>"\n"                  { /* Must match a single character */ }
@@ -537,10 +539,8 @@ static bool begin_psl_comment(void)
 static int parse_id(const char *str)
 {
    char *p = (yylval.str = xmalloc(strlen(str) + 1));
-   while (*str) {
-      *p++ = toupper((int)*str);
-      str++;
-   }
+   for (; *str; str++, p++)
+      *p = toupper_iso85591(*str);
    *p = '\0';
 
    TOKEN(tID);

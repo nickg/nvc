@@ -230,9 +230,13 @@ void set_ctrl_c_handler(void (*fn)(void *), void *arg);
 
 void term_init(void);
 bool color_terminal(void);
+bool utf8_terminal(void);
 int terminal_width(void);
 
 const char *ordinal_str(int n);
+
+char toupper_iso85591(unsigned char ch);
+char tolower_iso85591(unsigned char ch);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));

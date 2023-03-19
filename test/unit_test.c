@@ -94,6 +94,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(misc);
    nfail += RUN_TESTS(lib);
    nfail += RUN_TESTS(parse);
+   nfail += RUN_TESTS(charset);
    nfail += RUN_TESTS(sem);
    nfail += RUN_TESTS(bounds);
    nfail += RUN_TESTS(simp);

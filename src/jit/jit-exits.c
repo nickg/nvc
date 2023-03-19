@@ -394,7 +394,7 @@ ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
       if (raw_str[pos] == '\'')
          upcase = !upcase;
 
-      *p++ = upcase ? toupper((int)raw_str[pos]) : raw_str[pos];
+      *p++ = upcase ? toupper_iso85591(raw_str[pos]) : raw_str[pos];
    }
 
    for (; pos < str_len; pos++) {

@@ -514,12 +514,43 @@ void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section)
    APUSH(d->hints, h);
 }
 
+static void diag_putc_utf8(unsigned char ch, FILE *f)
+{
+   if (ch >= 128 && utf8_terminal()) {
+      // Convert ISO-8859-1 internal encoding to UTF-8
+      fputc(0xc2 + (ch > 0xbf), f);
+      fputc((ch & 0x3f) + 0x80, f);
+   }
+   else
+      fputc(ch, f);
+}
+
+static void diag_print_utf8(const char *str, size_t len, FILE *f)
+{
+   const unsigned char *ustr = (const unsigned char *)str;
+
+   bool have_non_utf8 = false;
+   for (const unsigned char *p = ustr; p < ustr + len; p++) {
+      if (*p >= 128 && !have_non_utf8) {
+         fwrite(str, 1, p - ustr, f);
+         diag_putc_utf8(*p, f);
+         have_non_utf8 = true;
+      }
+      else if (have_non_utf8)
+         diag_putc_utf8(*p, f);
+   }
+
+   if (!have_non_utf8)
+      fwrite(str, 1, len, f);
+}
+
 static void diag_paginate(const char *str, int left, FILE *f)
 {
    const int right = terminal_width();
+   const size_t len = strlen(str);
 
-   if (right == 0 || left + strlen(str) < right) {
-      fputs(str, f);
+   if (right == 0 || left + len < right) {
+      diag_print_utf8(str, len, f);
       return;
    }
 
@@ -536,7 +567,7 @@ static void diag_paginate(const char *str, int left, FILE *f)
          col = left;
       }
       else if (isspace((int)*p)) {
-         fwrite(begin, 1, p - begin + 1, f);
+         diag_print_utf8(begin, p - begin + 1, f);
          if (*p == '\n') {
             fprintf(f, "%*s", left, "");
             col = left;
@@ -550,7 +581,7 @@ static void diag_paginate(const char *str, int left, FILE *f)
    }
 
    if (begin < p)
-      fwrite(begin, 1, p - begin, f);
+      diag_print_utf8(begin, p - begin, f);
 }
 
 static const char *diag_get_source(const loc_t *loc)
@@ -713,8 +744,8 @@ static void diag_emit_hints(diag_t *d, FILE *f)
                col++;
             } while (col % 8 != 0);
          }
-         else if (isprint((int)*p)) {
-            fputc(*p, f);
+         else if (isprint((int)*p) || (unsigned char)*p >= 128) {
+            diag_putc_utf8(*p, f);
             col++;
          }
       }
@@ -844,7 +875,8 @@ static void diag_format_compact(diag_t *d, FILE *f)
    case DIAG_FATAL: fprintf(f, "fatal: "); break;
    }
 
-   fprintf(f, "%s\n", tb_get(d->msg));
+   diag_print_utf8(tb_get(d->msg), tb_len(d->msg), f);
+   fputc('\n', f);
 }
 
 static void diag_format_full(diag_t *d, FILE *f)

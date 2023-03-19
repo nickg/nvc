@@ -136,11 +136,16 @@ struct _fault_handler {
 
 static bool             want_color = false;
 static bool             want_links = false;
+static bool             want_utf8 = false;
 static message_style_t  message_style = MESSAGE_FULL;
 static sig_atomic_t     crashing = SIG_ATOMIC_MAX;
 static int              term_width = 0;
 static void            *ctrl_c_arg = NULL;
 static fault_handler_t *fault_handlers = NULL;
+
+#ifdef __MINGW32__
+static UINT win32_codepage = 0;
+#endif
 
 static void (*ctrl_c_fn)(void *) = NULL;
 
@@ -457,6 +462,12 @@ char *color_asprintf(const char *fmt, ...)
 bool color_terminal(void)
 {
    return want_color;
+}
+
+
+bool utf8_terminal(void)
+{
+   return want_utf8;
 }
 
 void fatal_exit(int status)
@@ -904,6 +915,14 @@ void set_ctrl_c_handler(void (*fn)(void *), void *arg)
    }
 }
 
+#ifdef __MINGW32__
+static void restore_win32_codepage(void)
+{
+   assert(win32_codepage != 0);
+   SetConsoleOutputCP(win32_codepage);
+}
+#endif
+
 void term_init(void)
 {
    const char *nvc_colors = getenv("NVC_COLORS");
@@ -989,6 +1008,23 @@ void term_init(void)
    want_links = false;    // Winpty doesn't recognise these
 #endif
 
+#ifndef __MINGW32__
+   // Assume the terminal is expecting UTF-8 by default
+   want_utf8 = true;
+
+   const char *lang = getenv("LANG");
+   if (lang != NULL && *lang != '\0' && strcasestr(lang, "utf-8") == NULL)
+      want_utf8 = false;
+#else
+   win32_codepage = GetConsoleOutputCP();
+   if (win32_codepage == 65001)
+      want_utf8 = true;
+   else if (win32_codepage != 28591) {
+      SetConsoleOutputCP(28591);
+      atexit(restore_win32_codepage);
+   }
+#endif
+
    // Diagnostics are printed to stderr and explicitly flushed
    setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
 }
@@ -1018,6 +1054,26 @@ const char *ordinal_str(int n)
          return buf;
       }
    }
+}
+
+char toupper_iso85591(unsigned char ch)
+{
+   if (ch >= 'a' && ch <= 'z')
+      return ch - 'a' + 'A';
+   else if (ch >= 0xe0 && ch <= 0xfe)
+      return ch - 0x20;
+   else
+      return ch;
+}
+
+char tolower_iso85591(unsigned char ch)
+{
+   if (ch >= 'A' && ch <= 'Z')
+      return ch + 'a' - 'A';
+   else if (ch >= 0xc0 && ch <= 0xde)
+      return ch + 0x20;
+   else
+      return ch;
 }
 
 int next_power_of_2(int n)
@@ -1362,13 +1418,13 @@ void tb_trim(text_buf_t *tb, size_t newlen)
 void tb_downcase(text_buf_t *tb)
 {
    for (size_t i = 0; i < tb->len; i++)
-      tb->buf[i] = tolower((int)tb->buf[i]);
+      tb->buf[i] = tolower_iso85591(tb->buf[i]);
 }
 
 void tb_upcase(text_buf_t *tb)
 {
    for (size_t i = 0; i < tb->len; i++)
-      tb->buf[i] = toupper((int)tb->buf[i]);
+      tb->buf[i] = toupper_iso85591(tb->buf[i]);
 }
 
 void tb_replace(text_buf_t *tb, char old, char rep)

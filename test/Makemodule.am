@@ -24,7 +24,8 @@ bin_unit_test_SOURCES = \
 	test/test_mspace.c \
 	test/test_jit.c \
 	test/test_model.c \
-	test/test_psl.c
+	test/test_psl.c \
+	test/test_charset.c
 
 if ENABLE_VERILOG
 bin_unit_test_SOURCES += test/test_vlog.c
