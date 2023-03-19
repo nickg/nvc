@@ -78,6 +78,7 @@ static int parse_decimal_literal(const char *str);
 static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
+static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
 
 static int last_token = -1;
@@ -112,6 +113,7 @@ COVERAGE_OFF    {PRAGMA}(?i:coverage)[ \t]+(?i:off).*
 COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
 PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
+UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 
 %x COMMENT C_COMMENT PSL VLOG
 
@@ -492,6 +494,8 @@ COVER         ?i:cover
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }
 <PSL>{REPORT}            { TOKEN(tREPORT); }
 
+<INITIAL,PSL>{UTF8_MB}   { warn_utf8(yytext); REJECT; }
+
 <INITIAL,PSL>{VHDL_ID}   { return parse_id(yytext); }
 {EXID}                   { return parse_ex_id(yytext); }
 <*>{SPACE}               { }
@@ -724,6 +728,20 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
    diag_emit(d);
 
    va_end(ap);
+}
+
+static void warn_utf8(const char *text)
+{
+   static bool warned = false;
+
+   if (!warned) {
+      diag_t *d = diag_new(DIAG_WARN, &yylloc);
+      diag_printf(d, "possible multi-byte UTF-8 character found in input");
+      diag_hint(d, NULL, "the native encoding of VHDL is ISO-8859-1");
+      diag_emit(d);
+
+      warned = true;
+   }
 }
 
 void reset_scanner(void)

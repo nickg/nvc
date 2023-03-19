@@ -54,12 +54,34 @@ START_TEST(test_iso88591)
 }
 END_TEST
 
+START_TEST(test_utf8)
+{
+   input_from_file(TESTDIR "/charset/utf8.vhd");
+
+   const error_t expect[] = {
+      {  3, "possible multi-byte UTF-8 character found in input" },
+      {  3, "unexpected error while parsing constant declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_charset_tests(void)
 {
    Suite *s = suite_create("charset");
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_iso88591);
+   tcase_add_test(tc, test_utf8);
    suite_add_tcase(s, tc);
 
    return s;
