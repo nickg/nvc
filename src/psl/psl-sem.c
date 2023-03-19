@@ -24,6 +24,16 @@ static void psl_check_clock_decl(psl_node_t p)
 
 }
 
+static void psl_check_property_decl(psl_node_t p)
+{
+
+}
+
+static void psl_check_sequence_decl(psl_node_t p)
+{
+
+}
+
 static void psl_check_assert(psl_node_t p)
 {
 
@@ -88,6 +98,14 @@ void psl_check(psl_node_t p)
 
    case P_CLOCK_DECL:
       psl_check_clock_decl(p);
+      break;
+
+   case P_PROPERTY_DECL:
+      psl_check_property_decl(p);
+      break;
+
+   case P_SEQUENCE_DECL:
+      psl_check_sequence_decl(p);
       break;
 
    case P_HDL_EXPR:

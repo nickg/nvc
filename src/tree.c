@@ -334,7 +334,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_ASSOCS | I_STMTS | I_DECLS),
 
    // T_PSL
-   (I_IDENT | I_FOREIGN),
+   (I_IDENT | I_PORTS | I_FOREIGN),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {

@@ -163,7 +163,7 @@ static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
-static tree_t p_psl_clock_declaration(void);
+static tree_t p_psl_declaration(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -8407,11 +8407,13 @@ static void p_block_declarative_item(tree_t parent)
 
    case tSTARTPSL:
       consume(tSTARTPSL);
-      tree_add_decl(parent, p_psl_clock_declaration());
+      tree_add_decl(parent, p_psl_declaration());
       break;
 
    case tDEFAULT:
-      tree_add_decl(parent, p_psl_clock_declaration());
+   case tSEQUENCE:
+   case tPROPERTY:
+      tree_add_decl(parent, p_psl_declaration());
       break;
 
    default:
@@ -10467,9 +10469,60 @@ static tree_t p_psl_directive(void)
    return t;
 }
 
-static tree_t p_psl_clock_declaration(void)
+static void p_psl_formal_parameter(tree_t parent, bool property)
+{
+   token_t tok;
+   if (property)
+      tok = one_of(tCONST, tBOOLEAN, tPROPERTY, tSEQUENCE);
+   else
+      tok = one_of(tCONST, tBOOLEAN, tSEQUENCE);
+
+   scan_as_vhdl();
+
+   psl_port_kind_t port_kind;
+   switch (tok) {
+   case tCONST:
+      port_kind = PSL_PORT_CONST;
+      break;
+   case tBOOLEAN:
+      port_kind = PSL_PORT_BOOLEAN;
+      break;
+   case tPROPERTY:
+      port_kind = PSL_PORT_PROPERTY;
+      break;
+   default:
+      port_kind = PSL_PORT_SEQUENCE;
+      break;
+   }
+
+   do {
+      tree_t p = tree_new(T_PORT_DECL);
+      tree_set_ident(p, p_identifier());
+      tree_set_subkind(p, port_kind);
+      tree_set_loc(p, CURRENT_LOC);
+      tree_add_port(parent, p);
+   } while (optional(tCOMMA));
+
+   scan_as_psl();
+}
+
+static void p_psl_formal_parameter_list(tree_t parent, bool property)
+{
+   // Formal_Parameter { ; Formal_Parameter }
+
+   BEGIN("Formal parameter list");
+
+   p_psl_formal_parameter(parent, property);
+
+   while (optional(tSEMI))
+      p_psl_formal_parameter(parent, property);
+}
+
+static psl_node_t p_psl_clock_declaration(tree_t parent)
 {
    // default clock is Clock_Expression ;
+
+   assert(tree_kind(parent) == T_PSL);
 
    BEGIN("PSL clock declaration");
 
@@ -10488,15 +10541,118 @@ static tree_t p_psl_clock_declaration(void)
    psl_node_t p = psl_new(P_CLOCK_DECL);
    psl_set_tree(p, expr);
 
+   tree_set_ident(parent, well_known(W_DEFAULT_CLOCK));
    consume(tSEMI);
 
    psl_set_loc(p, CURRENT_LOC);
    psl_check(p);
 
-   tree_t t = tree_new(T_PSL);
-   tree_set_psl(t, p);
+   return p;
+}
 
-   tree_set_ident(t, well_known(W_DEFAULT_CLOCK));
+static psl_node_t p_psl_property_declaration(tree_t parent)
+{
+   // property PSL_Identifier [ ( Formal_Parameter_List ) ] is Property ;
+
+   assert(tree_kind(parent) == T_PSL);
+
+   BEGIN("PSL property declaration");
+
+   scan_as_psl();
+
+   psl_node_t decl = psl_new(P_PROPERTY_DECL);
+   consume(tPROPERTY);
+
+   scan_as_vhdl();
+   tree_set_ident(parent, p_identifier());
+   scan_as_psl();
+
+   if (optional(tLPAREN)) {
+      p_psl_formal_parameter_list(parent, true);
+      consume(tRPAREN);
+   }
+
+   consume(tIS);
+
+   psl_node_t prop = p_psl_property();
+   psl_set_value(decl, prop);
+
+   consume(tSEMI);
+
+   psl_set_loc(decl, CURRENT_LOC);
+   psl_check(decl);
+
+   scan_as_vhdl();
+
+   return decl;
+}
+
+static psl_node_t p_psl_sequence_declaration(tree_t parent)
+{
+   // sequence PSL_Identifier [ ( Formal_Parameter_List ) ] is Sequence ;
+
+   assert(tree_kind(parent) == T_PSL);
+
+   BEGIN("PSL sequence declaration");
+
+   scan_as_psl();
+
+   psl_node_t decl = psl_new(P_SEQUENCE_DECL);
+   consume(tSEQUENCE);
+
+   scan_as_vhdl();
+   tree_set_ident(parent, p_identifier());
+   scan_as_psl();
+
+   if (optional(tLPAREN)) {
+      p_psl_formal_parameter_list(parent, false);
+      consume(tRPAREN);
+   }
+
+   consume(tIS);
+
+   psl_node_t prop = p_psl_sequence();
+   psl_set_value(decl, prop);
+
+   consume(tSEMI);
+
+   psl_set_loc(decl, CURRENT_LOC);
+   psl_check(decl);
+
+   scan_as_vhdl();
+
+   return decl;
+}
+
+static tree_t p_psl_declaration(void)
+{
+   // PSL_Declaration ::=
+   //      Property_Declaration
+   //    | Sequence_Declaration
+   //    | Clock_Declaration
+
+   BEGIN("PSL declaration");
+
+   token_t tok = peek();
+   tree_t t = tree_new(T_PSL);
+   psl_node_t p;
+
+   switch (tok) {
+   case tPROPERTY:
+      p = p_psl_property_declaration(t);
+      break;
+   case tSEQUENCE:
+      p = p_psl_sequence_declaration(t);
+      break;
+   case tDEFAULT:
+      p = p_psl_clock_declaration(t);
+      break;
+   default:
+      one_of(tPROPERTY, tSEQUENCE, tDEFAULT);
+      return NULL;
+   }
+
+   tree_set_psl(t, p);
    tree_set_loc(t, CURRENT_LOC);
 
    insert_name(nametab, t, NULL);
@@ -10643,8 +10799,10 @@ static tree_t p_concurrent_statement(void)
 
       case tSTARTPSL:
          consume(tSTARTPSL);
-         if (peek() == tDEFAULT)
-            return p_psl_clock_declaration();
+
+         token_t tok = peek();
+         if (tok == tDEFAULT  || tok == tSEQUENCE || tok == tPROPERTY)
+            return p_psl_declaration();
          else
             return p_psl_directive();
 

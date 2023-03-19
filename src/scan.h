@@ -252,5 +252,9 @@ void reset_verilog_parser(void);
 #define tSTRONG        364
 #define tFAIRNESS      365
 #define tCOVER         366
+#define tPROPERTY      367
+#define tSEQUENCE      368
+#define tCONST         370
+#define tBOOLEAN       371
 
 #endif  // _SCAN_H

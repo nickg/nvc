@@ -41,6 +41,12 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    // P_HDL_EXPR
    (I_FOREIGN | I_CLASS | I_CLOCK),
 
+   // P_PROPERTY_DECL
+   (I_VALUE),
+
+   // P_SEQUENCE_DECL
+   (I_VALUE),
+
    // P_CLOCK_DECL
    (I_FOREIGN),
 
@@ -71,8 +77,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_ASSERT", "P_ASSUME", "P_RESTRICT", "P_FAIRNESS", "P_COVER", "P_ALWAYS",
-   "P_HDL_EXPR", "P_CLOCK_DECL", "P_NEXT", "P_NEVER", "P_EVENTUALLY",
-   "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT", "P_SERE", "P_IMPLICATION",
+   "P_HDL_EXPR", "P_PROPERTY_DECL", "P_SEQUENCE_DECL", "P_CLOCK_DECL",
+   "P_NEXT", "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
+   "P_SERE", "P_IMPLICATION",
 };
 
 static const change_allowed_t change_allowed[] = {

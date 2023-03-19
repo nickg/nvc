@@ -28,6 +28,8 @@ typedef enum {
    P_COVER,
    P_ALWAYS,
    P_HDL_EXPR,
+   P_PROPERTY_DECL,
+   P_SEQUENCE_DECL,
    P_CLOCK_DECL,
    P_NEXT,
    P_NEVER,
@@ -63,6 +65,13 @@ typedef enum {
    PSL_GUARANTEE,
    PSL_NO_GUARANTEE,
 } psl_guarantee_t;
+
+typedef enum {
+   PSL_PORT_CONST,
+   PSL_PORT_BOOLEAN,
+   PSL_PORT_SEQUENCE,
+   PSL_PORT_PROPERTY,
+} psl_port_kind_t;
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);

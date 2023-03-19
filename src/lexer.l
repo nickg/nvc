@@ -237,6 +237,10 @@ RESTRICT_G    ?i:restrict_guarantee
 STRONG        ?i:strong
 FAIRNESS      ?i:fairness
 COVER         ?i:cover
+PROPERTY      ?i:property
+SEQUENCE      ?i:sequence
+CONST         ?i:const
+BOOLEAN       ?i:boolean
 
 %%
 
@@ -441,6 +445,8 @@ COVER         ?i:cover
 <PSL>{STRONG}            { TOKEN(tSTRONG); }
 <PSL>{FAIRNESS}          { TOKEN(tFAIRNESS); }
 <PSL>{COVER}             { TOKEN(tCOVER); }
+<PSL>{PROPERTY}          { TOKEN(tPROPERTY); }
+<PSL>{SEQUENCE}          { TOKEN(tSEQUENCE); }
 <PSL>{ALWAYS}            { TOKEN(tALWAYS); }
 <PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
 <PSL>{CLOCK}             { TOKEN(tCLOCK); }
@@ -457,6 +463,8 @@ COVER         ?i:cover
 <PSL>{NEXT_E}!           { TOKEN(tNEXTE1); }
 <PSL>{NEXT_EVENT}        { TOKEN(tNEXTEVENT); }
 <PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
+<PSL>{CONST}             { TOKEN(tCONST); }
+<PSL>{BOOLEAN}           { TOKEN(tBOOLEAN); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
