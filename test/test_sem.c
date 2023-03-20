@@ -2935,6 +2935,16 @@ START_TEST(test_genpack2)
 }
 END_TEST
 
+START_TEST(test_issue655)
+{
+   input_from_file(TESTDIR "/sem/issue655.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3075,6 +3085,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_altera1);
    tcase_add_test(tc_core, test_issue509);
    tcase_add_test(tc_core, test_genpack2);
+   tcase_add_test(tc_core, test_issue655);
    suite_add_tcase(s, tc_core);
 
    return s;
