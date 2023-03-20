@@ -1076,6 +1076,11 @@ char tolower_iso88591(unsigned char ch)
       return ch;
 }
 
+bool isprint_iso88591(unsigned char ch)
+{
+   return (ch >= 0x20 && ch <= 0x7e) || (ch >= 0xa0 && ch <= 0xff);
+}
+
 int next_power_of_2(int n)
 {
    n--;

@@ -666,7 +666,7 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
       tree_t digit = NULL;
 
       if (!extended) {
-         if (standard() < STD_08 || base == 10 || !isprint((int)*p)) {
+         if (standard() < STD_08 || base == 10 || !isprint_iso88591(*p)) {
             parse_error(loc, "invalid digit '%c' in bit string", *p);
             return t;
          }
