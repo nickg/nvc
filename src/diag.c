@@ -744,7 +744,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
                col++;
             } while (col % 8 != 0);
          }
-         else if (isprint_iso88591((int)*p)) {
+         else if (isprint_iso88591(*p)) {
             diag_putc_utf8(*p, f);
             col++;
          }
