@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -4847,12 +4847,26 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                if (!sem_check_discrete_range(r, type, tab))
                   return false;
 
-               if (!(*static_fn)(tree_left(r)))
-                  sem_error(tree_left(r), "left index of case choice range is "
-                            "not %s static", static_str);
-               else if (!(*static_fn)(tree_right(r)))
-                  sem_error(tree_right(r), "right index of case choice range "
-                            "is not %s static", static_str);
+               switch (tree_subkind(r)) {
+               case RANGE_TO:
+               case RANGE_DOWNTO:
+                  if (!(*static_fn)(tree_left(r)))
+                     sem_error(tree_left(r), "left index of case choice "
+                               "range is not %s static", static_str);
+                  else if (!(*static_fn)(tree_right(r)))
+                     sem_error(tree_right(r), "right index of case choice "
+                               "range is not %s static", static_str);
+                  break;
+
+               case RANGE_EXPR:
+                  if (!(*static_fn)(tree_value(r)))
+                     sem_error(tree_value(r), "range expression is not %s "
+                               "static", static_str);
+                  break;
+
+               default:
+                  return false;
+               }
             }
             break;
          }

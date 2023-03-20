@@ -35,6 +35,8 @@
   and when printing to the terminal.
 - The new `configure` option `--disable-default-paths` disables the
   default library search paths.
+- Subtype indications used as case range choices no longer crash during
+  analysis (#655).
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.
