@@ -406,7 +406,7 @@ START_TEST(test_func)
       {  25, "no visible subprogram declaration for UENUM" },
       {  27, "type of default value universal_integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
-      {  36, "missing declaration for package WORK.BAD" },
+      {  36, "design unit BAD not found in library WORK" },
       {  48, "expected return type INTEGER but have UENUM" },
       {  51, "function arguments must have mode IN" },
       {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
@@ -2572,7 +2572,7 @@ START_TEST(test_genpack)
    const error_t expect[] = {
       { 45, "unit WORK.ENT is not an uninstantiated package" },
       { 46, "unit STD.STANDARD is not an uninstantiated package" },
-      { 47, "missing declaration for package WORK.NOT_HERE" },
+      { 47, "design unit NOT_HERE not found in library WORK" },
       { 48, "missing actual for generic FRAC without a default expression" },
       { 77, "unit STD.STANDARD is not an uninstantiated package" },
       { 82, "actual for generic FIXED_PKG is not an instantiated package " },

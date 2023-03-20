@@ -3604,7 +3604,7 @@ START_TEST(test_error2)
    input_from_file(TESTDIR "/parse/error2.vhd");
 
    const error_t expect[] = {
-      {  1, "missing declaration for package WORK.DUNNO" },
+      {  1, "design unit DUNNO not found in library WORK" },
       {  2, "no visible declaration for BAR" },
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },
@@ -3934,7 +3934,7 @@ START_TEST(test_badprimary)
 
    const error_t expect[] = {
       { 17, "missing declaration for entity WORK.NOT_HERE" },
-      { 26, "design unit NOT_HERE-BAD not found in library WORK" },
+      { 26, "depends on WORK.NOT_HERE-BAD which was analysed with errors" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -5384,6 +5384,27 @@ START_TEST(test_issue644)
 }
 END_TEST
 
+START_TEST(test_issue653)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue653.vhd");
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACK_INST);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5492,6 +5513,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_alias3);
    tcase_add_test(tc_core, test_subtype2008);
    tcase_add_test(tc_core, test_issue644);
+   tcase_add_test(tc_core, test_issue653);
    suite_add_tcase(s, tc_core);
 
    return s;

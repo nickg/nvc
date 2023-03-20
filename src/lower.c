@@ -8359,7 +8359,8 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_PACKAGE:
    case T_PACK_BODY:
    case T_PACK_INST:
-      lower_instantiated_package(lu, decl);
+      if (unit_needs_cgen(decl))
+         lower_instantiated_package(lu, decl);
       break;
 
    default:

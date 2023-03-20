@@ -746,3 +746,4 @@ issue646        normal,relaxed
 array16         normal,2008
 stdenv4         normal,2019
 issue655        normal,2008
+genpack13       normal,2008

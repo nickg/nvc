@@ -1420,14 +1420,24 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          ident_t prefix = ident_until(name, '.');
          const symbol_t *psym = prefix ? iterate_symbol_for(tab, prefix) : NULL;
          if (psym != NULL && psym->ndecls == 1) {
-            const char *container = "object", *what = "name";
-            switch (psym->decls[0].kind) {
-            case T_LIBRARY: container = "library"; what = "design unit"; break;
-            default: break;
+            if (psym->decls[0].kind == T_LIBRARY) {
+               bool error = false;
+               lib_t lib = lib_require(psym->name);
+               tree_t unit = lib_get_allow_error(lib, name, &error);
+               assert(unit == NULL || error);
+
+               if (error) {
+                  diag_printf(d, "design unit depends on %s which was analysed"
+                              " with errors", istr(name));
+                  tab->top_scope->suppress = true;
+               }
+               else
+                  diag_printf(d, "design unit %s not found in library %s",
+                              istr(ident_rfrom(name, '.')), istr(psym->name));
             }
-            diag_printf(d, "%s %s not found in %s %s", what,
-                        istr(ident_rfrom(name, '.')), container,
-                        istr(psym->name));
+            else
+               diag_printf(d, "name %s not found in object %s",
+                           istr(ident_rfrom(name, '.')), istr(psym->name));
          }
          else
             diag_printf(d, "no visible declaration for %s", istr(name));

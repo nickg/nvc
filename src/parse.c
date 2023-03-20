@@ -141,6 +141,8 @@ typedef struct {
 static tree_t p_expression(void);
 static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
+static tree_t p_package_declaration(tree_t unit);
+static tree_t p_package_body(tree_t unit);
 static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_subprogram_specification(void);
@@ -6916,7 +6918,7 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    require_std(STD_08, "package instantiation declarations");
 
    ident_t unit_name = p_selected_identifier();
-   tree_t pack = find_unit(CURRENT_LOC, unit_name, "package");
+   tree_t pack = resolve_name(nametab, CURRENT_LOC, unit_name);
 
    if (pack != NULL && !is_uninstantiated_package(pack)) {
       parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
@@ -7575,6 +7577,7 @@ static void p_package_declarative_item(tree_t pack)
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
    //   | 2008: package_instantiation_declaration
+   //   | 2008: package_declaration
    //
 
    BEGIN("package declarative item");
@@ -7650,7 +7653,12 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    case tPACKAGE:
-      tree_add_decl(pack, p_package_instantiation_declaration(NULL));
+      if (peek_nth(4) == tNEW)
+         tree_add_decl(pack, p_package_instantiation_declaration(NULL));
+      else {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(pack, p_package_declaration(NULL));
+      }
       break;
 
    default:
@@ -7686,7 +7694,7 @@ static void p_package_header(tree_t unit)
    }
 }
 
-static void p_package_declaration(tree_t unit)
+static tree_t p_package_declaration(tree_t unit)
 {
    // package identifier is package_declarative_part end [ package ]
    //   [ simple_name ] ;
@@ -7698,41 +7706,54 @@ static void p_package_declaration(tree_t unit)
 
    consume(tPACKAGE);
 
-   ident_t name = p_identifier();
+   ident_t name = p_identifier(), qual = name;
 
-   tree_change_kind(unit, T_PACKAGE);
-   tree_set_ident(unit, name);
-   tree_set_loc(unit, CURRENT_LOC);
+   tree_t pack;
+   if (unit != NULL) {
+      // Package declaration as primary unit
+      assert(tree_kind(unit) == T_DESIGN_UNIT);
+      tree_change_kind(unit, T_PACKAGE);
+      pack = unit;
 
-   ident_t qual = ident_prefix(lib_name(lib_work()), name, '.');
-   scope_set_prefix(nametab, qual);
+
+      qual = ident_prefix(lib_name(lib_work()), name, '.');
+      scope_set_prefix(nametab, qual);
+   }
+   else {
+      pack = tree_new(T_PACKAGE);
+      scope_set_prefix(nametab, name);
+   }
+
+   tree_set_ident(pack, name);
+   tree_set_loc(pack, CURRENT_LOC);
 
    push_scope(nametab);
-   insert_name(nametab, unit, NULL);
+   insert_name(nametab, pack, NULL);
 
    consume(tIS);
 
    push_scope(nametab);
    if (standard() >= STD_08)
-      p_package_header(unit);
-   p_package_declarative_part(unit);
+      p_package_header(pack);
+   p_package_declarative_part(pack);
 
    if (bootstrapping)
-      declare_additional_standard_operators(unit);
+      declare_additional_standard_operators(pack);
 
    pop_scope(nametab);
 
    consume(tEND);
    optional(tPACKAGE);
-   p_trailing_label(tree_ident(unit));
+   p_trailing_label(name);
    consume(tSEMI);
 
-   tree_set_loc(unit, CURRENT_LOC);
-   sem_check(unit, nametab);
+   tree_set_loc(pack, CURRENT_LOC);
+   sem_check(pack, nametab);
 
-   tree_set_ident(unit, qual);
+   tree_set_ident(pack, qual);
 
    pop_scope(nametab);
+   return pack;
 }
 
 static ident_list_t *p_instantiation_list(void)
@@ -8294,7 +8315,7 @@ static void p_block_declarative_item(tree_t parent)
    //   | attribute_specification | configuration_specification
    //   | disconnection_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
-   //   | 2008: psl_clock_declaration
+   //   | 2008: psl_clock_declaration | 2008: package_declaration
 
    BEGIN("block declarative item");
 
@@ -8373,7 +8394,16 @@ static void p_block_declarative_item(tree_t parent)
       break;
 
    case tPACKAGE:
-      tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      if (peek_nth(4) == tNEW)
+         tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      else if (peek_nth(2) == tBODY) {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(parent, p_package_body(NULL));
+      }
+      else {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(parent, p_package_declaration(NULL));
+      }
       break;
 
    case tSTARTPSL:
@@ -10760,6 +10790,7 @@ static void p_package_body_declarative_item(tree_t parent)
    //
    // 2008: subprogram_instantiation_declaration | attribute_declaration
    //         | attribute_specification | package_instantiation_declaration
+   //         | package_declaration
 
    BEGIN("package body declarative item");
 
@@ -10827,7 +10858,16 @@ static void p_package_body_declarative_item(tree_t parent)
       break;
 
    case tPACKAGE:
-      tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      if (peek_nth(4) == tNEW)
+         tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      else if (peek_nth(2) == tBODY) {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(parent, p_package_body(NULL));
+      }
+      else {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(parent, p_package_declaration(NULL));
+      }
       break;
 
    default:
@@ -10846,7 +10886,7 @@ static void p_package_body_declarative_part(tree_t unit)
       p_package_body_declarative_item(unit);
 }
 
-static void p_package_body(tree_t unit)
+static tree_t p_package_body(tree_t unit)
 {
    // package body simple_name is package_body_declarative_part
    //   end [ package body ] [ simple_name ] ;
@@ -10856,28 +10896,37 @@ static void p_package_body(tree_t unit)
    consume(tPACKAGE);
    consume(tBODY);
 
-   ident_t name = p_identifier();
+   ident_t name = p_identifier(), qual = name;
 
-   tree_change_kind(unit, T_PACK_BODY);
+   tree_t body;
+   if (unit != NULL) {
+      // Package body as primary unit
+      assert(tree_kind(unit) == T_DESIGN_UNIT);
+      tree_change_kind(unit, T_PACK_BODY);
+      body = unit;
 
-   ident_t qual = ident_prefix(lib_name(lib_work()), name, '.');
-   tree_t pack = find_unit(CURRENT_LOC, qual, "package");
+      qual = ident_prefix(lib_name(lib_work()), name, '.');
+   }
+   else
+      body = tree_new(T_PACK_BODY);
+
+   tree_t pack = resolve_name(nametab, CURRENT_LOC, qual);
    if (pack != NULL && tree_kind(pack) != T_PACKAGE) {
       parse_error(CURRENT_LOC, "unit %s is not a package", istr(qual));
       pack = NULL;
    }
    else if (pack != NULL) {
-      tree_set_primary(unit, pack);
+      tree_set_primary(body, pack);
       insert_names_from_context(nametab, pack);
    }
 
    push_scope(nametab);
 
-   tree_set_ident(unit, ident_prefix(qual, ident_new("body"), '-'));
-   tree_set_loc(unit, CURRENT_LOC);
+   tree_set_ident(body, ident_prefix(qual, ident_new("body"), '-'));
+   tree_set_loc(body, CURRENT_LOC);
 
    scope_set_prefix(nametab, qual);
-   insert_name(nametab, unit, name);
+   insert_name(nametab, body, name);
 
    consume(tIS);
 
@@ -10888,7 +10937,7 @@ static void p_package_body(tree_t unit)
       insert_decls(nametab, pack);
    }
 
-   p_package_body_declarative_part(unit);
+   p_package_body_declarative_part(body);
 
    pop_scope(nametab);
    pop_scope(nametab);
@@ -10901,8 +10950,10 @@ static void p_package_body(tree_t unit)
    p_trailing_label(name);
    consume(tSEMI);
 
-   tree_set_loc(unit, CURRENT_LOC);
-   sem_check(unit, nametab);
+   tree_set_loc(body, CURRENT_LOC);
+   sem_check(body, nametab);
+
+   return body;
 }
 
 static void p_secondary_unit(tree_t unit)
