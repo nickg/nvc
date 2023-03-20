@@ -1,4 +1,3 @@
-//  -*- coding: iso-8859-1 -*-
 //
 //  Copyright (C) 2023  Nick Gasson
 //
@@ -38,21 +37,29 @@ START_TEST(test_iso88591)
    lib_put(lib_work(), e);
 
    ck_assert_int_eq(ident_len(tree_ident(e)), 10);
-   fail_unless(tree_ident(e) == ident_new("WORK.ÚÛÜİŞ"));
+   fail_unless(tree_ident(e) == ident_new("WORK.\xda\xdb\xdc\xdd\xde"));
 
    tree_t a = parse();
    fail_if(a == NULL);
 
-   fail_unless(tree_ident(a) == ident_new("WORK.ÚÛÜİŞ-ÛÜİŞÿÛÜİŞÿ"));
+   fail_unless(tree_ident(a) == ident_new("WORK.\xda\xdb\xdc\xdd\xde-"
+                                          "\xdb\xdc\xdd\xde\xff\xdb\xdc"
+                                          "\xdd\xde\xff"));
    fail_unless(tree_decls(a) == 4);
 
    tree_t d1 = tree_decl(a, 1);
    fail_unless(tree_kind(d1) == T_CONST_DECL);
-   fail_unless(tree_ident(d1) == ident_new("ßÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖØÙÚÛÜİŞÿ"));
+   fail_unless(tree_ident(d1) == ident_new("\xdf\xc0\xc1\xc2\xc3\xc4\xc5\xc6"
+                                           "\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce"
+                                           "\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6"
+                                           "\xd8\xd9\xda\xdb\xdc\xdd\xde\xff"));
 
    tree_t d2 = tree_decl(a, 2);
    fail_unless(tree_kind(d2) == T_CONST_DECL);
-   fail_unless(tree_ident(d2) == ident_new("ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖØÙÚÛÜİŞ"));
+   fail_unless(tree_ident(d2) == ident_new("\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7"
+                                           "\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+                                           "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd8"
+                                           "\xd9\xda\xdb\xdc\xdd\xde"));
 
    fail_unless(parse() == NULL);
 
@@ -96,7 +103,7 @@ START_TEST(test_strings)
    ck_assert_int_eq(tree_chars(s0), 8);
 
    tree_t s0c0 = tree_char(s0, 0);
-   fail_unless(tree_ident(s0c0) == ident_new("'å'"));
+   fail_unless(tree_ident(s0c0) == ident_new("'\xe5'"));
    fail_unless(tree_pos(tree_ref(s0c0)) == 0xe5);
 
    fail_unless(parse() == NULL);
