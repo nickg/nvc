@@ -6335,9 +6335,8 @@ static tree_t p_subprogram_instantiation_declaration(void)
       else {
          // Attempt to load the package body if available
          type_t type = tree_type(decl);
-         tree_t pack = tree_container(decl);
-         if (tree_kind(pack) == T_PACKAGE) {
-            tree_t pack_body = body_of(pack), d;
+         tree_t pack = tree_container(decl), pack_body, d;
+         if (tree_kind(pack) == T_PACKAGE && (pack_body = body_of(pack))) {
             ident_t id = tree_ident(decl);
             for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
                if (is_subprogram(d) && type_eq(tree_type(d), type)) {

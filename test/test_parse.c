@@ -5405,6 +5405,31 @@ START_TEST(test_issue653)
 }
 END_TEST
 
+START_TEST(test_issue654)
+{
+   set_standard(STD_08);
+
+   const error_t expect[] = {
+      { 19, "subprogram GENERATE_CLOCK cannot be instantiated until its body "
+        "has been analysed" },
+      { 19, "GENERATE_CLOCK has no generic named T" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/parse/issue654.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5514,6 +5539,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_subtype2008);
    tcase_add_test(tc_core, test_issue644);
    tcase_add_test(tc_core, test_issue653);
+   tcase_add_test(tc_core, test_issue654);
    suite_add_tcase(s, tc_core);
 
    return s;
