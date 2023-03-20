@@ -10469,8 +10469,16 @@ static tree_t p_psl_directive(void)
    return t;
 }
 
-static void p_psl_formal_parameter(tree_t parent, bool property)
+static void p_psl_formal_parameter(psl_node_t node, bool property)
 {
+   // sequence_Param_Type PSL_Identifier { , PSL_Identifier }
+   // sequence_Param_Type ::=
+   //    const | boolean | sequence
+   //
+   //  Param_Type PSL_Identifier { , PSL_Identifier }
+   //  Param_Type ::=
+   //    const | boolean | property | sequence
+
    token_t tok;
    if (property)
       tok = one_of(tCONST, tBOOLEAN, tPROPERTY, tSEQUENCE);
@@ -10496,26 +10504,26 @@ static void p_psl_formal_parameter(tree_t parent, bool property)
    }
 
    do {
-      tree_t p = tree_new(T_PORT_DECL);
-      tree_set_ident(p, p_identifier());
-      tree_set_subkind(p, port_kind);
-      tree_set_loc(p, CURRENT_LOC);
-      tree_add_port(parent, p);
+      psl_node_t p = psl_new(P_PORT_DECL);
+      psl_set_ident(p, p_identifier());
+      psl_set_subkind(p, port_kind);
+      psl_set_loc(p, CURRENT_LOC);
+      psl_add_port(node, p);
    } while (optional(tCOMMA));
 
    scan_as_psl();
 }
 
-static void p_psl_formal_parameter_list(tree_t parent, bool property)
+static void p_psl_formal_parameter_list(psl_node_t node, bool property)
 {
    // Formal_Parameter { ; Formal_Parameter }
 
    BEGIN("Formal parameter list");
 
-   p_psl_formal_parameter(parent, property);
+   p_psl_formal_parameter(node, property);
 
    while (optional(tSEMI))
-      p_psl_formal_parameter(parent, property);
+      p_psl_formal_parameter(node, property);
 }
 
 static psl_node_t p_psl_clock_declaration(tree_t parent)
@@ -10550,11 +10558,9 @@ static psl_node_t p_psl_clock_declaration(tree_t parent)
    return p;
 }
 
-static psl_node_t p_psl_property_declaration(tree_t parent)
+static psl_node_t p_psl_property_declaration(void)
 {
    // property PSL_Identifier [ ( Formal_Parameter_List ) ] is Property ;
-
-   assert(tree_kind(parent) == T_PSL);
 
    BEGIN("PSL property declaration");
 
@@ -10562,13 +10568,10 @@ static psl_node_t p_psl_property_declaration(tree_t parent)
 
    psl_node_t decl = psl_new(P_PROPERTY_DECL);
    consume(tPROPERTY);
-
-   scan_as_vhdl();
-   tree_set_ident(parent, p_identifier());
-   scan_as_psl();
+   psl_set_ident(decl, p_identifier());
 
    if (optional(tLPAREN)) {
-      p_psl_formal_parameter_list(parent, true);
+      p_psl_formal_parameter_list(decl, true);
       consume(tRPAREN);
    }
 
@@ -10587,11 +10590,9 @@ static psl_node_t p_psl_property_declaration(tree_t parent)
    return decl;
 }
 
-static psl_node_t p_psl_sequence_declaration(tree_t parent)
+static psl_node_t p_psl_sequence_declaration(void)
 {
    // sequence PSL_Identifier [ ( Formal_Parameter_List ) ] is Sequence ;
-
-   assert(tree_kind(parent) == T_PSL);
 
    BEGIN("PSL sequence declaration");
 
@@ -10599,13 +10600,10 @@ static psl_node_t p_psl_sequence_declaration(tree_t parent)
 
    psl_node_t decl = psl_new(P_SEQUENCE_DECL);
    consume(tSEQUENCE);
-
-   scan_as_vhdl();
-   tree_set_ident(parent, p_identifier());
-   scan_as_psl();
+   psl_set_ident(decl, p_identifier());
 
    if (optional(tLPAREN)) {
-      p_psl_formal_parameter_list(parent, false);
+      p_psl_formal_parameter_list(decl, false);
       consume(tRPAREN);
    }
 
@@ -10626,7 +10624,6 @@ static psl_node_t p_psl_sequence_declaration(tree_t parent)
 
 static tree_t p_psl_declaration(void)
 {
-   // PSL_Declaration ::=
    //      Property_Declaration
    //    | Sequence_Declaration
    //    | Clock_Declaration
@@ -10639,13 +10636,14 @@ static tree_t p_psl_declaration(void)
 
    switch (tok) {
    case tPROPERTY:
-      p = p_psl_property_declaration(t);
+      p = p_psl_property_declaration();
       break;
    case tSEQUENCE:
-      p = p_psl_sequence_declaration(t);
+      p = p_psl_sequence_declaration();
       break;
    case tDEFAULT:
       p = p_psl_clock_declaration(t);
+      insert_name(nametab, t, NULL);
       break;
    default:
       one_of(tPROPERTY, tSEQUENCE, tDEFAULT);
@@ -10655,7 +10653,6 @@ static tree_t p_psl_declaration(void)
    tree_set_psl(t, p);
    tree_set_loc(t, CURRENT_LOC);
 
-   insert_name(nametab, t, NULL);
    return t;
 }
 
