@@ -62,6 +62,7 @@ void lib_put_generic(lib_t lib, object_t *obj);
 tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error);
 tree_t lib_get_qualified(ident_t qual);
+bool lib_had_errors(lib_t lib, ident_t ident);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);
 int lib_index_kind(lib_t lib, ident_t ident);

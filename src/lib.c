@@ -999,6 +999,15 @@ tree_t lib_get_qualified(ident_t qual)
    return lib_get(lib, qual);
 }
 
+bool lib_had_errors(lib_t lib, ident_t ident)
+{
+   lib_unit_t *lu = lib_get_aux(lib, ident);
+   if (lu != NULL)
+      return lu->error;
+
+   return false;
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);

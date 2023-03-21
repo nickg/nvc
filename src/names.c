@@ -1421,12 +1421,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          const symbol_t *psym = prefix ? iterate_symbol_for(tab, prefix) : NULL;
          if (psym != NULL && psym->ndecls == 1) {
             if (psym->decls[0].kind == T_LIBRARY) {
-               bool error = false;
                lib_t lib = lib_require(psym->name);
-               tree_t unit = lib_get_allow_error(lib, name, &error);
-               assert(unit == NULL || error);
-
-               if (error) {
+               if (lib_had_errors(lib, name)) {
                   diag_printf(d, "design unit depends on %s which was analysed"
                               " with errors", istr(name));
                   tab->top_scope->suppress = true;
