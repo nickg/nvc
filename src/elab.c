@@ -156,8 +156,8 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
             // Note this assumes both architectures are from the same
             // file but this shouldn't be a problem with high-resolution
             // timestamps
-            uint16_t new_line = tree_loc(t)->first_line;
-            uint16_t old_line = tree_loc(*(params->tree))->first_line;
+            const unsigned new_line = tree_loc(t)->first_line;
+            const unsigned old_line = tree_loc(*(params->tree))->first_line;
 
             if (new_line > old_line)
                *(params->tree) = t;
@@ -535,22 +535,12 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
    return true;
 }
 
-static void elab_find_entity_cb(lib_t lib, ident_t name, int kind, void *__ctx)
-{
-   lib_search_params_t *params = __ctx;
-
-   if (kind == T_ENTITY && params->name == name)
-      *(params->tree) = lib_get(params->lib, name);
-}
-
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
 {
    lib_search_params_t *params = __ctx;
 
-   params->lib  = lib;
-   params->name = ident_prefix(lib_name(lib), tree_ident(params->comp), '.');
-
-   lib_walk_index(lib, elab_find_entity_cb, params);
+   ident_t name = ident_prefix(lib_name(lib), tree_ident(params->comp), '.');
+   *(params->tree) = lib_get(lib, name);
 
    return *(params->tree) == NULL;
 }
@@ -578,13 +568,12 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       full_i = ident_prefix(lib_i, ident_rfrom(full_i, '.'), '.');
    }
 
-   tree_t entity = NULL;
-   lib_search_params_t params = { lib, full_i, comp, &entity };
-   lib_walk_index(params.lib, elab_find_entity_cb, &params);
+   tree_t entity = lib_get(lib, full_i);
 
    if (entity == NULL && synth_binding) {
       // This is not correct according to the LRM but matches the
       // behaviour of many synthesis tools
+      lib_search_params_t params = { lib, full_i, comp, &entity };
       lib_for_all(elab_synth_binding_cb, &params);
    }
 
