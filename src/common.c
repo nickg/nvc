@@ -1085,7 +1085,9 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
 
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(container, i);
-      if (tree_ident(d) == name) {
+      if (!tree_has_ident(d))
+         continue;
+      else if (tree_ident(d) == name) {
          if (tree_kind(d) == T_TYPE_DECL
              && type_kind(tree_type(d)) == T_INCOMPLETE)
                best = d;

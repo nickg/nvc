@@ -9749,7 +9749,7 @@ static tree_t p_block_statement(ident_t label)
       consume(tLPAREN);
 
       tree_t expr = p_expression();
-      solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+      solve_condition(nametab, &expr, std_type(NULL, STD_BOOLEAN));
 
       make_implicit_guard_signal(b, expr);
 

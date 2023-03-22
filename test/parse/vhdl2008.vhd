@@ -250,4 +250,12 @@ begin
     -- Check that write burst was received correctly
     */
 
+    b8: block is
+        signal s : bit;
+    begin
+        g: block (s) is         -- OK
+        begin
+        end block;
+    end block;
+
 end architecture;
