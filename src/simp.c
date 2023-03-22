@@ -1214,6 +1214,9 @@ static void simp_generics(tree_t t, simp_ctx_t *ctx)
       if (map == NULL)
          continue;
 
+      if (tree_kind(map) == T_OPEN)
+         map = tree_value(g);
+
       if (ctx->generics == NULL)
          ctx->generics = hash_new(128);
 

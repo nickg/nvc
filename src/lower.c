@@ -10563,10 +10563,18 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
 
       tree_t value = tree_value(m);
       vcode_reg_t value_reg;
-      if (tree_kind(value) == T_AGGREGATE)
+      switch (tree_kind(value)) {
+      case T_AGGREGATE:
          value_reg = lower_aggregate(lu, value, mem_reg);
-      else
+         break;
+      case T_OPEN:
+         assert(tree_has_value(g));
+         value_reg = lower_rvalue(lu, tree_value(g));
+         break;
+      default:
          value_reg = lower_rvalue(lu, value);
+         break;
+      }
 
       if (is_array && mem_reg != VCODE_INVALID_REG)
          lower_check_array_sizes(lu, g, type, tree_type(value),
