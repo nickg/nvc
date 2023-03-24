@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,10 +21,9 @@
 #include "prim.h"
 #include "rt/rt.h"
 
-#if defined __MINGW32__ || defined __CYGWIN__
-#define PLI_DLLISPEC __declspec(dllexport)
-#define PLI_DLLESPEC __declspec(dllimport)
-#endif
+// We use our own DLLEXPORT macro
+#define PLI_DLLISPEC
+#define PLI_DLLESPEC
 
 #include "vhpi/vhpi_user.h"
 

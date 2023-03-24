@@ -33,15 +33,16 @@ static vhpiErrorInfoT last_error;
 ////////////////////////////////////////////////////////////////////////////////
 // Public API
 
-const vhpiPhysT vhpiFS = { 0, 1 };
-const vhpiPhysT vhpiPS = { 0, 0x3e8 };
-const vhpiPhysT vhpiNS = { 0, 0xf4240 };
-const vhpiPhysT vhpiUS = { 0, 0x3b9aca00 };
-const vhpiPhysT vhpiMS = { 0xe8, 0xd4a51000 };
-const vhpiPhysT vhpiS = { 0x38d7e, 0xa4c68000 };
-const vhpiPhysT vhpiMN = { 0xd529ae, 0x9e860000 };
-const vhpiPhysT vhpiHR = { 0x31f5c4ed, 0x27680000 };
+DLLEXPORT const vhpiPhysT vhpiFS = { 0, 1 };
+DLLEXPORT const vhpiPhysT vhpiPS = { 0, 0x3e8 };
+DLLEXPORT const vhpiPhysT vhpiNS = { 0, 0xf4240 };
+DLLEXPORT const vhpiPhysT vhpiUS = { 0, 0x3b9aca00 };
+DLLEXPORT const vhpiPhysT vhpiMS = { 0xe8, 0xd4a51000 };
+DLLEXPORT const vhpiPhysT vhpiS = { 0x38d7e, 0xa4c68000 };
+DLLEXPORT const vhpiPhysT vhpiMN = { 0xd529ae, 0x9e860000 };
+DLLEXPORT const vhpiPhysT vhpiHR = { 0x31f5c4ed, 0x27680000 };
 
+DLLEXPORT
 int vhpi_printf(const char *format, ...)
 {
    vhpi_clear_error();
@@ -55,6 +56,7 @@ int vhpi_printf(const char *format, ...)
    return ret;
 }
 
+DLLEXPORT
 int vhpi_vprintf(const char *format, va_list args)
 {
    vhpi_clear_error();
@@ -64,6 +66,7 @@ int vhpi_vprintf(const char *format, va_list args)
    return strlen(buf);
 }
 
+DLLEXPORT
 int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
 {
    vhpi_clear_error();
@@ -73,6 +76,7 @@ int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
    return handle1 == handle2;
 }
 
+DLLEXPORT
 int vhpi_check_error(vhpiErrorInfoT *error_info_p)
 {
    if (last_error.severity == 0)
@@ -83,6 +87,7 @@ int vhpi_check_error(vhpiErrorInfoT *error_info_p)
    }
 }
 
+DLLEXPORT
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 {
    vhpi_clear_error();
@@ -117,6 +122,7 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
    return 0;
 }
 
+DLLEXPORT
 int vhpi_is_printable(char ch)
 {
    if (ch < 32)

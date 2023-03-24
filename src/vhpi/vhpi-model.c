@@ -480,6 +480,7 @@ static rt_signal_t *vhpi_get_signal(c_abstractDecl *decl)
 ////////////////////////////////////////////////////////////////////////////////
 // Public API
 
+DLLEXPORT
 int vhpi_release_handle(vhpiHandleT handle)
 {
    vhpi_clear_error();
@@ -489,6 +490,7 @@ int vhpi_release_handle(vhpiHandleT handle)
    return 0;
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
    vhpi_clear_error();
@@ -552,6 +554,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    return NULL;
 }
 
+DLLEXPORT
 int vhpi_remove_cb(vhpiHandleT handle)
 {
    vhpi_clear_error();
@@ -569,6 +572,7 @@ int vhpi_remove_cb(vhpiHandleT handle)
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_disable_cb(vhpiHandleT cb_obj)
 {
    vhpi_clear_error();
@@ -586,6 +590,7 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_enable_cb(vhpiHandleT cb_obj)
 {
    vhpi_clear_error();
@@ -603,11 +608,13 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_get_cb_info(vhpiHandleT object, vhpiCbDataT *cb_data_p)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 {
    vhpi_clear_error();
@@ -656,6 +663,7 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    }
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 {
    vhpi_clear_error();
@@ -696,6 +704,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    return NULL;
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
                                  vhpiHandleT parent,
                                  int32_t index)
@@ -728,6 +737,7 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
    }
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
 {
    VHPI_TRACE("type=%s handle=%s", vhpi_one_to_many_str(type),
@@ -736,11 +746,13 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
    VHPI_MISSING;
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_scan(vhpiHandleT iterator)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 {
    vhpi_clear_error();
@@ -789,6 +801,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    }
 }
 
+DLLEXPORT
 const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 {
    vhpi_clear_error();
@@ -816,12 +829,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    }
 }
 
+DLLEXPORT
 vhpiRealT vhpi_get_real(vhpiRealPropertyT property,
                         vhpiHandleT object)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
                         vhpiHandleT handle)
 {
@@ -881,6 +896,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
    return invalid;
 }
 
+DLLEXPORT
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
    vhpi_clear_error();
@@ -1053,6 +1069,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
 }
 
+DLLEXPORT
 int vhpi_put_value(vhpiHandleT handle,
                    vhpiValueT *value_p,
                    vhpiPutValueModeT mode)
@@ -1150,6 +1167,7 @@ int vhpi_put_value(vhpiHandleT handle,
    }
 }
 
+DLLEXPORT
 int vhpi_protected_call(vhpiHandleT varHdl,
                         vhpiUserFctT userFct,
                         void *userData)
@@ -1157,6 +1175,7 @@ int vhpi_protected_call(vhpiHandleT varHdl,
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_schedule_transaction(vhpiHandleT drivHdl,
                               vhpiValueT *value_p,
                               uint32_t numValues,
@@ -1167,12 +1186,14 @@ int vhpi_schedule_transaction(vhpiHandleT drivHdl,
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_format_value(const vhpiValueT *in_value_p,
                       vhpiValueT *out_value_p)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
 {
    vhpi_clear_error();
@@ -1191,11 +1212,13 @@ void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
       *cycles = deltas;
 }
 
+DLLEXPORT
 int vhpi_get_next_time(vhpiTimeT *time_p)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_control(vhpiSimControlT command, ...)
 {
    vhpi_clear_error();
@@ -1219,6 +1242,7 @@ int vhpi_control(vhpiSimControlT command, ...)
    }
 }
 
+DLLEXPORT
 vhpiHandleT vhpi_create(vhpiClassKindT kind,
                         vhpiHandleT handle1,
                         vhpiHandleT handle2)
@@ -1226,16 +1250,19 @@ vhpiHandleT vhpi_create(vhpiClassKindT kind,
    VHPI_MISSING;
 }
 
+DLLEXPORT
 int vhpi_get_foreignf_info(vhpiHandleT hdl, vhpiForeignDataT *foreignDatap)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 size_t vhpi_get_data(int32_t id, void *dataLoc, size_t numBytes)
 {
    VHPI_MISSING;
 }
 
+DLLEXPORT
 size_t vhpi_put_data(int32_t id, void *dataLoc, size_t numBytes)
 {
    VHPI_MISSING;

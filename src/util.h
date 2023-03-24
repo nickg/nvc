@@ -293,7 +293,7 @@ void _local_free(void *ptr);
 #ifdef __MINGW32__
 #define DLLEXPORT __declspec(dllexport)
 #else
-#define DLLEXPORT
+#define DLLEXPORT __attribute__((used))
 #endif
 
 typedef enum {
