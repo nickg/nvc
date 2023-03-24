@@ -1879,6 +1879,15 @@ static void cgen_macro_copy(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef dest  = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
    LLVMValueRef src   = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR);
 
+   LLVMBuildMemCpy(obj->builder, dest, 0, src, 0, count);
+}
+
+static void cgen_macro_move(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef count = cgb->outregs[ir->result];
+   LLVMValueRef dest  = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
+   LLVMValueRef src   = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR);
+
    LLVMBuildMemMove(obj->builder, dest, 0, src, 0, count);
 }
 
@@ -2210,6 +2219,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_COPY:
       cgen_macro_copy(obj, cgb, ir);
       break;
+   case MACRO_MOVE:
+      cgen_macro_move(obj, cgb, ir);
+      break;
    case MACRO_BZERO:
       cgen_macro_bzero(obj, cgb, ir);
       break;
@@ -2537,6 +2549,7 @@ static void cgen_pointer_mask(cgen_func_t *func)
          cgen_must_be_pointer(func, ir->arg2);
          break;
       case MACRO_COPY:
+      case MACRO_MOVE:
          cgen_must_be_pointer(func, ir->arg1);
          cgen_must_be_pointer(func, ir->arg2);
          break;

@@ -76,7 +76,8 @@ static jit_reg_t cfg_get_reg(jit_value_t value)
 
 static inline bool cfg_reads_result(jit_ir_t *ir)
 {
-   return ir->op == MACRO_COPY || ir->op == MACRO_CASE || ir->op == MACRO_BZERO;
+   return ir->op == MACRO_COPY || ir->op == MACRO_CASE || ir->op == MACRO_BZERO
+      || ir->op == MACRO_MOVE;
 }
 
 static inline bool cfg_writes_result(jit_ir_t *ir)
@@ -714,6 +715,48 @@ static void jit_lvn_clamp(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
+   int64_t count;
+   if (lvn_get_const(state->regvn[ir->result], state, &count)) {
+      if (count == 0) {
+         lvn_convert_nop(ir);
+         return;
+      }
+      else if (count > 0 && count <= 8 && is_power_of_2(count)
+               && ir->arg2.kind == JIT_ADDR_CPOOL) {
+         // Replace a small copy from the constant pool with a store
+         const void *src = state->func->cpool + ir->arg2.int64;
+         ir->op = J_STORE;
+         ir->arg2 = ir->arg1;
+         ir->result = JIT_REG_INVALID;
+
+         switch (count) {
+         case 8:
+            ir->size = JIT_SZ_64;
+            ir->arg1 = LVN_CONST(*(uint64_t *)src);
+            break;
+         case 4:
+            ir->size = JIT_SZ_32;
+            ir->arg1 = LVN_CONST(*(uint32_t *)src);
+            break;
+         case 2:
+            ir->size = JIT_SZ_16;
+            ir->arg1 = LVN_CONST(*(uint16_t *)src);
+            break;
+         case 1:
+            ir->size = JIT_SZ_8;
+            ir->arg1 = LVN_CONST(*(uint8_t *)src);
+            break;
+         default:
+            jit_dump_with_mark(state->func, ir - state->func->irbuf, NULL);
+            fatal_trace("unhandled constant copy from constant pool");
+         }
+
+         return;
+      }
+   }
+   else if (ir->op == MACRO_MOVE && ir->arg2.kind == JIT_ADDR_CPOOL)
+      ir->op = MACRO_COPY;   // Cannot overlap when copying from constant pool
+
    // Clobbers the count register
    state->regvn[ir->result] = lvn_new_value(state);
 }
@@ -777,6 +820,7 @@ void jit_do_lvn(jit_func_t *f)
       case J_CSET: jit_lvn_cset(ir, &state); break;
       case J_JUMP: jit_lvn_jump(ir, &state); break;
       case J_CLAMP: jit_lvn_clamp(ir, &state); break;
+      case MACRO_MOVE:
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
       case MACRO_EXP: jit_lvn_exp(ir, &state); break;

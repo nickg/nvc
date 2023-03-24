@@ -1821,6 +1821,34 @@ START_TEST(test_tlab1)
 }
 END_TEST
 
+START_TEST(test_lvn7)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV    R1, #8            \n"
+      "    $MOVE  R1, [R2], [CP+0]  \n"
+      "    MOV    R3, #0            \n"
+      "    $COPY  R3, [R1], [R2]    \n"
+      "    $MOVE  R7, [R2], [CP+6]  \n"
+      "                             \n"
+      "00 01 02 03 04 05 06 07      \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[1].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[1].arg1.int64, UINT64_C(0x706050403020100));
+
+   ck_assert_int_eq(f->irbuf[3].op, J_NOP);
+   ck_assert_int_eq(f->irbuf[4].op, MACRO_COPY);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1870,6 +1898,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_nops1);
    tcase_add_test(tc, test_issue608);
    tcase_add_test(tc, test_tlab1);
+   tcase_add_test(tc, test_lvn7);
    suite_add_tcase(s, tc);
 
    return s;

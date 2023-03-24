@@ -748,3 +748,4 @@ stdenv4         normal,2019
 issue655        normal,2008
 genpack13       normal,2008
 genpack14       normal,2008
+slice5          normal

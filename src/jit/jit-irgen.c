@@ -576,10 +576,19 @@ static jit_value_t j_clamp(jit_irgen_t *g, jit_value_t value)
    return jit_value_from_reg(r);
 }
 
+#if 0
 static void macro_copy(jit_irgen_t *g, jit_value_t dest, jit_value_t src,
                        jit_reg_t count)
 {
    irgen_emit_binary(g, MACRO_COPY, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     count, dest, src);
+}
+#endif
+
+static void macro_move(jit_irgen_t *g, jit_value_t dest, jit_value_t src,
+                       jit_reg_t count)
+{
+   irgen_emit_binary(g, MACRO_MOVE, JIT_SZ_UNSPEC, JIT_CC_NONE,
                      count, dest, src);
 }
 
@@ -1141,7 +1150,10 @@ static void irgen_op_copy(jit_irgen_t *g, int op)
    else
       bytes = jit_value_from_int64(irgen_size_bytes(vcode_get_type(op)));
 
-   macro_copy(g, arg0, arg1, irgen_as_reg(g, bytes));
+   jit_value_t dest = jit_addr_from_value(arg0, 0);
+   jit_value_t src = jit_addr_from_value(arg1, 0);
+
+   macro_move(g, dest, src, irgen_as_reg(g, bytes));
 }
 
 static void irgen_op_memset(jit_irgen_t *g, int op)

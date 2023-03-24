@@ -770,6 +770,19 @@ static void interp_copy(jit_interp_t *state, jit_ir_t *ir)
 
    JIT_ASSERT((uintptr_t)dest >= 4096 || count == 0);
    JIT_ASSERT((uintptr_t)src >= 4096 || count == 0);
+   JIT_ASSERT(dest + count <= src || src + count <= dest);
+
+   memcpy(dest, src, count);
+}
+
+static void interp_move(jit_interp_t *state, jit_ir_t *ir)
+{
+   const size_t count = state->regs[ir->result].integer;
+   void *dest = interp_get_pointer(state, ir->arg1);
+   const void *src = interp_get_pointer(state, ir->arg2);
+
+   JIT_ASSERT((uintptr_t)dest >= 4096 || count == 0);
+   JIT_ASSERT((uintptr_t)src >= 4096 || count == 0);
 
    memmove(dest, src, count);
 }
@@ -979,6 +992,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_COPY:
          interp_copy(state, ir);
+         break;
+      case MACRO_MOVE:
+         interp_move(state, ir);
          break;
       case MACRO_BZERO:
          interp_bzero(state, ir);

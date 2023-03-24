@@ -1122,7 +1122,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
    jit_install(j, f);
 
-   enum { LABEL, INS, CCSIZE, RESULT, ARG1, ARG2, NEWLINE } state = LABEL;
+   enum { LABEL, INS, CCSIZE, RESULT, ARG1, ARG2, NEWLINE, CP } state = LABEL;
 
    static const struct {
       const char *name;
@@ -1167,6 +1167,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "SCVTF",   J_SCVTF,      1, 1 },
       { "$EXIT",   MACRO_EXIT,   0, 1 },
       { "$COPY",   MACRO_COPY,   1, 2 },
+      { "$MOVE",   MACRO_MOVE,   1, 2 },
       { "$CASE",   MACRO_CASE,   1, 2 },
       { "$SALLOC", MACRO_SALLOC, 1, 2 },
       { "$LALLOC", MACRO_LALLOC, 1, 1 },
@@ -1195,7 +1196,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    SCOPED_A(int) lpatch = AINIT;
    int *labels LOCAL = NULL, maxlabel = 0;
    jit_ir_t *ir = NULL;
-   int nresult = 0, nargs = 0;
+   int nresult = 0, nargs = 0, cpoolptr = 0;
    char *copy LOCAL = xstrdup(text);
    for (char *tok = strtok(copy, " \r\t"); tok; tok = strtok(NULL, " \r\t")) {
    again:
@@ -1218,6 +1219,10 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
             ir->target = 1;
             labels[lab] = ir - f->irbuf;
             state = INS;
+         }
+         else if (isdigit((int)tok[1])) {
+            state = CP;
+            goto again;
          }
          else {
             state = INS;
@@ -1338,6 +1343,13 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
                   fatal_trace("invalid address %s", tok);
                f->nregs = MAX(arg.reg + 1, f->nregs);
             }
+            else if (tok[0] == '[' && tok[1] == 'C' && tok[2] == 'P') {
+               char *eptr = NULL;
+               arg.int64 = strtol(tok + 4, &eptr, 0);
+               arg.kind = JIT_ADDR_CPOOL;
+               if (tok[3] != '+' || *eptr != ']')
+                  fatal_trace("invalid address %s", tok);
+            }
             else if (tok[0] == '<' && tok[toklen - 1] == '>') {
                tok[toklen - 1] = '\0';
                arg.kind = JIT_VALUE_HANDLE;
@@ -1366,8 +1378,29 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
          if (*++tok != '\0')
             goto again;
          break;
+
+      case CP:
+         {
+            if (*tok == '\n' && *++tok == '\0')
+               continue;
+
+            char *eptr = NULL;
+            unsigned long byte = strtoul(tok, &eptr, 16);
+            if (*eptr != '\0' || byte >= 256)
+               fatal_trace("invalid constant pool value '%s'", tok);
+
+            if (f->cpool == NULL)
+               f->cpool = xmalloc((f->cpoolsz = 64));
+            else if (cpoolptr == f->cpoolsz)
+               fatal_trace("constant pool overflow");
+
+            f->cpool[cpoolptr++] = byte;
+         }
+         break;
       }
    }
+
+   f->cpoolsz = cpoolptr;
 
    for (int i = 0; i < lpatch.count; i++) {
       jit_ir_t *ir = &(f->irbuf[lpatch.items[i]]);

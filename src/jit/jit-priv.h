@@ -81,6 +81,7 @@ typedef enum {
    MACRO_SALLOC,
    MACRO_CASE,
    MACRO_TRIM,
+   MACRO_MOVE,
 } jit_op_t;
 
 typedef enum {

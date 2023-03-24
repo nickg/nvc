@@ -1412,6 +1412,20 @@ static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir)
    POP(__ESI);
 }
 
+static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
+{
+   PUSH(__ESI);
+
+   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
+
+   // TODO: check for overlap
+   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+   __(0xf3, 0x48, 0xa4);   // REP MOVS
+
+   POP(__ESI);
+}
+
 static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
@@ -1623,6 +1637,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_COPY:
       jit_x86_macro_copy(blob, ir);
+      break;
+   case MACRO_MOVE:
+      jit_x86_macro_move(blob, ir);
       break;
    case MACRO_GETPRIV:
       jit_x86_macro_getpriv(blob, ir);
