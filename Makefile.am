@@ -60,7 +60,6 @@ include lib/ieee.08/Makemodule.am
 include lib/ieee.19/Makemodule.am
 include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
-include tools/Makemodule.am
 include contrib/Makemodule.am
 
 compile-commands:
