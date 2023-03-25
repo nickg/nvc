@@ -2945,6 +2945,22 @@ START_TEST(test_issue655)
 }
 END_TEST
 
+START_TEST(test_issue659)
+{
+   input_from_file(TESTDIR "/sem/issue659.vhd");
+
+   const error_t expect[] = {
+      {  8, "cannot assign to parameter Y with mode IN" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3086,6 +3102,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue509);
    tcase_add_test(tc_core, test_genpack2);
    tcase_add_test(tc_core, test_issue655);
+   tcase_add_test(tc_core, test_issue659);
    suite_add_tcase(s, tc_core);
 
    return s;

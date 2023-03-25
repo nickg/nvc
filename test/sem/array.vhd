@@ -460,7 +460,7 @@ begin
         type rec is record
             x : string(1 to 3);
         end record;
-        procedure proc (variable r : rec) is
+        procedure proc (variable r : out rec) is
             alias a : string(r.x'range) is r.x;
         begin
             a(1 to 3) := "abc";         -- OK

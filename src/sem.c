@@ -2006,14 +2006,11 @@ static bool sem_check_variable_target(tree_t target)
    }
    else {
       tree_t decl = sem_check_lvalue(target);
+      const tree_kind_t kind = decl ? tree_kind(decl) : T_LAST_TREE_KIND;
 
-      bool suitable = false;
-      if (decl != NULL) {
-         const tree_kind_t kind = tree_kind(decl);
-         suitable = kind == T_VAR_DECL
-            || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE)
-            || (kind == T_EXTERNAL_NAME && tree_class(decl) == C_VARIABLE);
-      }
+      const bool suitable = kind == T_VAR_DECL
+         || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE)
+         || (kind == T_EXTERNAL_NAME && tree_class(decl) == C_VARIABLE);
 
       if (!suitable) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
@@ -2028,8 +2025,17 @@ static bool sem_check_variable_target(tree_t target)
          diag_emit(d);
          return false;
       }
-
-      if (type_is_protected(tree_type(target)))
+      else if (kind == T_PARAM_DECL && tree_subkind(decl) == PORT_IN) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "cannot assign to parameter %s with mode IN",
+                     istr(tree_ident(decl)));
+         diag_hint(d, tree_loc(decl), "%s declared with mode IN",
+                   istr(tree_ident(decl)));
+         diag_hint(d, tree_loc(target), "target of variable assignment");
+         diag_emit(d);
+         return false;
+      }
+      else if (type_is_protected(tree_type(target)))
          sem_error(target, "may not assign to variable of a protected type");
    }
 
