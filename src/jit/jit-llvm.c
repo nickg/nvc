@@ -952,14 +952,14 @@ static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
    if (obj->string_pool == NULL)
       obj->string_pool = shash_new(256);
 
+   LLVMTypeRef array_type = NULL;
    LLVMValueRef ref = shash_get(obj->string_pool, str);
    if (ref == NULL) {
       const size_t len = strlen(str);
       LLVMValueRef init =
          LLVMConstStringInContext(obj->context, str, len, false);
-      ref = LLVMAddGlobal(obj->module,
-                          LLVMArrayType(obj->types[LLVM_INT8], len + 1),
-                          "const_string");
+      array_type = LLVMArrayType(obj->types[LLVM_INT8], len + 1);
+      ref = LLVMAddGlobal(obj->module, array_type, "const_string");
       LLVMSetGlobalConstant(ref, true);
       LLVMSetInitializer(ref, init);
       LLVMSetLinkage(ref, LLVMPrivateLinkage);
@@ -967,6 +967,10 @@ static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
 
       shash_put(obj->string_pool, str, ref);
    }
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   else
+      array_type = LLVMArrayType(obj->types[LLVM_INT8], strlen(str) + 1);
+#endif
 
 #ifdef LLVM_HAS_OPAQUE_POINTERS
    return ref;
@@ -975,7 +979,8 @@ static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
       llvm_int32(obj, 0),
       llvm_int32(obj, 0)
    };
-   return LLVMBuildGEP(obj->builder, ref, indexes, ARRAY_LEN(indexes), "");
+   return LLVMBuildGEP2(obj->builder, array_type, ref, indexes,
+                        ARRAY_LEN(indexes), "");
 #endif
 }
 
