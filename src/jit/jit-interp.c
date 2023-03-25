@@ -154,6 +154,7 @@ static inline int64_t interp_get_int(jit_interp_t *state, jit_value_t value)
       JIT_ASSERT(value.reg < state->func->nregs);
       return state->regs[value.reg].integer;
    case JIT_VALUE_INT64:
+   case JIT_VALUE_DOUBLE:
       return value.int64;
    default:
       CANNOT_HANDLE(value);
@@ -167,6 +168,7 @@ static inline double interp_get_real(jit_interp_t *state, jit_value_t value)
    case JIT_VALUE_REG:
       JIT_ASSERT(value.reg < state->func->nregs);
       return state->regs[value.reg].real;
+   case JIT_VALUE_INT64:
    case JIT_VALUE_DOUBLE:
       return value.dval;
    default:

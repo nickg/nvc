@@ -30,6 +30,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+#include <math.h>
 
 DECLARE_AND_DEFINE_ARRAY(vcode_reg);
 DECLARE_AND_DEFINE_ARRAY(vcode_block);
@@ -3731,14 +3732,25 @@ static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   vcode_type_t vbounds = VCODE_INVALID_TYPE;
-   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      reg_t *lhs_r = vcode_reg_data(lhs);
-      reg_t *rhs_r = vcode_reg_data(rhs);
+   reg_t *lhs_r = vcode_reg_data(lhs);
+   reg_t *rhs_r = vcode_reg_data(rhs);
 
-      vtype_t *bl = vcode_type_data(lhs_r->bounds);
-      vtype_t *br = vcode_type_data(rhs_r->bounds);
+   vtype_t *bl = vcode_type_data(lhs_r->bounds);
+   vtype_t *br = vcode_type_data(rhs_r->bounds);
 
+   vcode_type_t vbounds;
+   if (vcode_reg_kind(lhs) == VCODE_TYPE_REAL) {
+      const double ll = bl->low * br->low;
+      const double lh = bl->low * br->high;
+      const double hl = bl->high * br->low;
+      const double hh = bl->high * br->high;
+
+      double min = MIN(MIN(ll, lh), MIN(hl, hh));
+      double max = MAX(MAX(ll, lh), MAX(hl, hh));
+
+      vbounds = vtype_real(min, max);
+   }
+   else {
       const int64_t ll = smul64(bl->low, br->low);
       const int64_t lh = smul64(bl->low, br->high);
       const int64_t hl = smul64(bl->high, br->low);
@@ -3796,6 +3808,10 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
    if (bl->kind == VCODE_TYPE_INT && r_is_const && rconst != 0) {
       reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(bl->low / rconst, bl->high / rconst);
+   }
+   else if (bl->kind == VCODE_TYPE_REAL) {
+      reg_t *rr = vcode_reg_data(reg);
+      rr->bounds = vtype_real(-INFINITY, INFINITY);
    }
 
    return reg;
@@ -5541,7 +5557,11 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
          assert(lbounds->kind == VCODE_TYPE_REAL);
          assert(rbounds->kind == VCODE_TYPE_REAL);
 
-         if (lbounds->rlow == -DBL_MAX && rbounds->rhigh == DBL_MAX) {
+         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
+         assert(bounds->kind == VCODE_TYPE_REAL);
+
+         if (isfinite(bounds->rlow) && lbounds->rlow == -DBL_MAX
+             && isfinite(bounds->rhigh) && rbounds->rhigh == DBL_MAX) {
             // Covers the complete double range so can never overflow
             emit_comment("Elided real bounds check for r%d", reg);
             return;

@@ -751,3 +751,4 @@ genpack14       normal,2008
 slice5          normal
 access12        normal
 arith5          fail,gold
+real4           fail,gold
