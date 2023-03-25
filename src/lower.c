@@ -1586,6 +1586,7 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
       break;
    case S_MOD: result = emit_mod(r0, r1); break;
    case S_REM: result = emit_rem(r0, r1); break;
+   case S_DIV: result = emit_div(r0, r1); break;
    case S_EXP:
       if (type_is_integer(type))
          result = emit_trap_exp(r0, r1, lower_debug_locus(fcall));
@@ -2260,24 +2261,18 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
    case S_SCALAR_LE:
    case S_SCALAR_GE:
       return lower_comparison(lu, fcall, builtin, r0, r1);
+   case S_MOD:
+   case S_REM:
+   case S_DIV:
+      if (type_is_integer(r1_type)) {
+         vcode_reg_t locus = lower_debug_locus(fcall);
+         emit_zero_check(r1, locus);
+      }
+      // Fall-through
    case S_MUL:
    case S_ADD:
    case S_SUB:
-   case S_MOD:
-   case S_REM:
       return lower_arith(fcall, builtin, r0, r1);
-   case S_DIV:
-      {
-         if (type_is_integer(r1_type)) {
-            vcode_reg_t locus = lower_debug_locus(fcall);
-            emit_zero_check(r1, locus);
-         }
-
-         if (!type_eq(r0_type, r1_type))
-            r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
-
-         return lower_narrow(tree_type(fcall), emit_div(r0, r1));
-      }
    case S_EXP:
       {
          if (type_is_integer(r0_type)) {
