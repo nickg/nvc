@@ -112,6 +112,11 @@ typedef enum {
    LLVM_EXP_OVERFLOW_U32,
    LLVM_EXP_OVERFLOW_U64,
 
+   LLVM_MEMSET_U8,
+   LLVM_MEMSET_U16,
+   LLVM_MEMSET_U32,
+   LLVM_MEMSET_U64,
+
    LLVM_POW_F64,
    LLVM_COPYSIGN_F64,
    LLVM_MEMSET_INLINE,
@@ -686,7 +691,6 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          jit_size_t sz = which - LLVM_EXP_OVERFLOW_U8;
          LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
          LLVMTypeRef pair_type = obj->types[LLVM_PAIR_I8_I1 + sz];
-         printf("sz=%d pair_type=%p \n", sz, pair_type);
          LLVMTypeRef args[] = { int_type, int_type };
          obj->fntypes[which] = LLVMFunctionType(pair_type, args,
                                                 ARRAY_LEN(args), false);
@@ -696,6 +700,30 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "nvc.uexp.with.overflow.i16",
             "nvc.uexp.with.overflow.i32",
             "nvc.uexp.with.overflow.i64"
+         };
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MEMSET_U8:
+   case LLVM_MEMSET_U16:
+   case LLVM_MEMSET_U32:
+   case LLVM_MEMSET_U64:
+      {
+         jit_size_t sz = which - LLVM_MEMSET_U8;
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT8 + sz],
+            obj->types[LLVM_INT64]
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            NULL,   // Use regular memset instead
+            "nvc.memset.i16",
+            "nvc.memset.i32",
+            "nvc.memset.i64"
          };
          fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
@@ -1957,6 +1985,34 @@ static void cgen_macro_bzero(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       LLVMBuildMemSet(obj->builder, PTR(dest), llvm_int8(obj, 0), count, 0);
 }
 
+static void cgen_macro_memset(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef count = cgb->outregs[ir->result];
+   LLVMValueRef dest  = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
+   LLVMValueRef value = cgen_coerce_value(obj, cgb, ir->arg2,
+                                          LLVM_INT8 + ir->size);
+
+   if (ir->size == JIT_SZ_8) {
+#ifdef LLVM_HAS_OPAQUE_POINTERSS
+      if (LLVMIsConstant(count) && LLVMConstIntGetZExtValue(count) <= 64) {
+         LLVMValueRef args[] = {
+            dest,
+            value,
+            count,
+            llvm_int1(obj, 0),
+         };
+         llvm_call_fn(obj, LLVM_MEMSET_INLINE, args, ARRAY_LEN(args));
+      }
+      else
+#endif
+         LLVMBuildMemSet(obj->builder, PTR(dest), value, count, 0);
+   }
+   else {
+      LLVMValueRef args[] = { dest, value, count, };
+      llvm_call_fn(obj, LLVM_MEMSET_U8 + ir->size, args, ARRAY_LEN(args));
+   }
+}
+
 static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    cgen_sync_irpos(obj, cgb, ir);
@@ -2282,6 +2338,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_BZERO:
       cgen_macro_bzero(obj, cgb, ir);
+      break;
+   case MACRO_MEMSET:
+      cgen_macro_memset(obj, cgb, ir);
       break;
    case MACRO_EXIT:
       cgen_macro_exit(obj, cgb, ir);
@@ -3055,6 +3114,66 @@ static void cgen_exp_overflow_body(llvm_obj_t *obj, llvm_fn_t which,
    LLVMBuildRet(obj->builder, pair);
 }
 
+static void cgen_memset_body(llvm_obj_t *obj, llvm_fn_t which,
+                             jit_size_t sz, llvm_fn_t mulbase)
+{
+   LLVMValueRef fn = obj->fns[which];
+   LLVMSetLinkage(fn, LLVMPrivateLinkage);
+
+   LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "entry");
+
+   LLVMPositionBuilderAtEnd(obj->builder, entry);
+
+   LLVMValueRef dest = LLVMGetParam(fn, 0);
+   LLVMSetValueName(dest, "dest");
+
+   LLVMValueRef value = LLVMGetParam(fn, 1);
+   LLVMSetValueName(value, "value");
+
+   LLVMValueRef bytes = LLVMGetParam(fn, 2);
+   LLVMSetValueName(bytes, "bytes");
+
+   LLVMValueRef indexes1[] = { bytes };
+   LLVMValueRef eptr = LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT8],
+                                     dest, indexes1, 1, "eptr");
+
+   LLVMBasicBlockRef body = llvm_append_block(obj, fn, "body");
+   LLVMBasicBlockRef exit = llvm_append_block(obj, fn, "exit");
+
+   LLVMTypeRef type = obj->types[LLVM_INT8 + sz];
+
+   LLVMValueRef zero = LLVMBuildIsNull(obj->builder, bytes, "");
+   LLVMBuildCondBr(obj->builder, zero, exit, body);
+
+   LLVMPositionBuilderAtEnd(obj->builder, body);
+
+   LLVMValueRef ptr = LLVMBuildPhi(obj->builder, obj->types[LLVM_PTR], "ptr");
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(type, 0);
+   LLVMValueRef cast = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
+#else
+   LLVMValueRef cast = ptr;
+#endif
+
+   LLVMBuildStore(obj->builder, value, cast);
+
+   LLVMValueRef indexes2[] = { llvm_intptr(obj, 1) };
+   LLVMValueRef next = LLVMBuildGEP2(obj->builder, type, cast, indexes2, 1, "");
+
+   LLVMValueRef ptr_in[] = { dest, PTR(next) };
+   LLVMBasicBlockRef ptr_bb[] = { entry, body };
+   LLVMAddIncoming(ptr, ptr_in, ptr_bb, 2);
+
+   LLVMValueRef cont =
+      LLVMBuildICmp(obj->builder, LLVMIntULT, PTR(next), eptr, "");
+   LLVMBuildCondBr(obj->builder, cont, body, exit);
+
+   LLVMPositionBuilderAtEnd(obj->builder, exit);
+
+   LLVMBuildRetVoid(obj->builder);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT plugin interface
 
@@ -3262,6 +3381,9 @@ void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
       if (obj->fns[LLVM_EXP_OVERFLOW_U8 + sz] != NULL)
          cgen_exp_overflow_body(obj, LLVM_EXP_OVERFLOW_U8 + sz, sz,
                                 LLVM_MUL_OVERFLOW_U8);
+      if (obj->fns[LLVM_MEMSET_U8 + sz] != NULL)
+         cgen_memset_body(obj, LLVM_MEMSET_U8 + sz, sz,
+                          LLVM_MUL_OVERFLOW_U8);
    }
 
    DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));

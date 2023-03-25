@@ -1873,6 +1873,70 @@ START_TEST(test_lvn8)
 }
 END_TEST
 
+START_TEST(test_lvn9)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    MOV         R1, #32                        \n"
+      "    $MEMSET.16  R1, [R2], #0xffff              \n"
+      "    $MEMSET.32  R1, [R2], #0xabababab          \n"
+      "    $MEMSET.64  R1, [R2], #0x0101010101010101  \n"
+      "    $MEMSET.32  R3, [R4], #0                   \n"
+      "    MOV         R3, #0                         \n"
+      "    $MEMSET.8   R3, [R2], #0xf0                \n"
+      "    MOV         R4, #4                         \n"
+      "    $MEMSET.8   R4, [R0+20], #1                \n"
+      "    $MEMSET.16  R4, [R0+20], #0x2233           \n"
+      "    MOV         R4, #8                         \n"
+      "    $MEMSET.16  R4, [R0+20], #0x2233           \n"
+      "    $MEMSET.32  R4, [R0+20], #0x11223344       \n"
+      "    $MEMSET.64  R4, [R0+20], #0xbeef           \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[1].size, JIT_SZ_8);
+   ck_assert_int_eq(f->irbuf[1].arg2.int64, 0xff);
+
+   ck_assert_int_eq(f->irbuf[2].size, JIT_SZ_8);
+   ck_assert_int_eq(f->irbuf[2].arg2.int64, 0xab);
+
+   ck_assert_int_eq(f->irbuf[3].size, JIT_SZ_8);
+   ck_assert_int_eq(f->irbuf[3].arg2.int64, 1);
+
+   ck_assert_int_eq(f->irbuf[4].op, MACRO_BZERO);
+   ck_assert_int_eq(f->irbuf[4].size, JIT_SZ_UNSPEC);
+   ck_assert_int_eq(f->irbuf[4].arg2.kind, JIT_VALUE_INVALID);
+
+   ck_assert_int_eq(f->irbuf[6].op, J_NOP);
+
+   ck_assert_int_eq(f->irbuf[8].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[8].size, JIT_SZ_32);
+   ck_assert_int_eq(f->irbuf[8].arg1.int64, 0x1010101);
+
+   ck_assert_int_eq(f->irbuf[9].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[9].size, JIT_SZ_32);
+   ck_assert_int_eq(f->irbuf[9].arg1.int64, 0x22332233);
+
+   ck_assert_int_eq(f->irbuf[11].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[11].size, JIT_SZ_64);
+   ck_assert_int_eq(f->irbuf[11].arg1.int64, 0x2233223322332233);
+
+   ck_assert_int_eq(f->irbuf[12].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[12].size, JIT_SZ_64);
+   ck_assert_int_eq(f->irbuf[12].arg1.int64, 0x1122334411223344);
+
+   ck_assert_int_eq(f->irbuf[13].op, J_STORE);
+   ck_assert_int_eq(f->irbuf[13].size, JIT_SZ_64);
+   ck_assert_int_eq(f->irbuf[13].arg1.int64, 0xbeef);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1924,6 +1988,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_tlab1);
    tcase_add_test(tc, test_lvn7);
    tcase_add_test(tc, test_lvn8);
+   tcase_add_test(tc, test_lvn9);
    suite_add_tcase(s, tc);
 
    return s;

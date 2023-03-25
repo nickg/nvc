@@ -77,7 +77,7 @@ static jit_reg_t cfg_get_reg(jit_value_t value)
 static inline bool cfg_reads_result(jit_ir_t *ir)
 {
    return ir->op == MACRO_COPY || ir->op == MACRO_CASE || ir->op == MACRO_BZERO
-      || ir->op == MACRO_MOVE;
+      || ir->op == MACRO_MOVE || ir->op == MACRO_MEMSET;
 }
 
 static inline bool cfg_writes_result(jit_ir_t *ir)
@@ -357,6 +357,7 @@ static void lvn_convert_nop(jit_ir_t *ir)
    ir->op        = J_NOP;
    ir->size      = JIT_SZ_UNSPEC;
    ir->cc        = JIT_CC_NONE;
+   ir->result    = JIT_REG_INVALID;
    ir->arg1.kind = JIT_VALUE_INVALID;
    ir->arg2.kind = JIT_VALUE_INVALID;
 }
@@ -785,6 +786,56 @@ static void jit_lvn_bzero(jit_ir_t *ir, lvn_state_t *state)
    state->regvn[ir->result] = lvn_new_value(state);
 }
 
+static void jit_lvn_memset(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t value;
+   if (lvn_is_const(ir->arg2, state, &value)) {
+      static const uint64_t compress[JIT_SZ_UNSPEC] = {
+         0x01, 0x0101, 0x01010101, 0x0101010101010101
+      };
+      static const uint64_t expand[JIT_SZ_UNSPEC] = {
+         0x0101010101010101, 0x0001000100010001, 0x100000001, 1,
+      };
+      static const uint64_t mask[JIT_SZ_UNSPEC] = {
+         0xff, 0xffff, 0xffffffff, 0xffffffffffffffff
+      };
+
+      uint64_t bits = value;
+      if (value == 0) {
+         ir->op = MACRO_BZERO;
+         ir->size = JIT_SZ_UNSPEC;
+         ir->arg2.kind = JIT_VALUE_INVALID;
+         jit_lvn_bzero(ir, state);
+         return;
+      }
+      else if (bits == (bits & 0xff) * compress[ir->size]) {
+         ir->size = JIT_SZ_8;
+         ir->arg2 = LVN_CONST((bits &= 0xff));
+      }
+
+      int64_t bytes;
+      if (lvn_get_const(state->regvn[ir->result], state, &bytes)) {
+         if (bytes == 0) {
+            lvn_convert_nop(ir);
+            return;
+         }
+         else if (bytes > 0 && bytes <= 8 && is_power_of_2(bytes)) {
+            // Convert to a store
+            const jit_size_t newsz = ilog2(bytes);
+            ir->op     = J_STORE;
+            ir->arg2   = ir->arg1;
+            ir->arg1   = LVN_CONST((bits * expand[ir->size]) & mask[newsz]);
+            ir->result = JIT_REG_INVALID;
+            ir->size   = newsz;
+            return;
+         }
+      }
+   }
+
+   // Clobbers the count register
+   state->regvn[ir->result] = lvn_new_value(state);
+}
+
 static void jit_lvn_exp(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t base, exp;
@@ -841,6 +892,7 @@ void jit_do_lvn(jit_func_t *f)
       case MACRO_MOVE:
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
+      case MACRO_MEMSET: jit_lvn_memset(ir, &state); break;
       case MACRO_EXP: jit_lvn_exp(ir, &state); break;
       default: break;
       }

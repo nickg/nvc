@@ -52,7 +52,7 @@ typedef struct _jit_interp {
 #define JIT_ASSERT(expr) do {                                      \
       if (unlikely(!(expr))) {                                     \
          interp_dump(state);                                       \
-         fatal_trace("assertion '" #expr "' failed");              \
+         fatal_trace("assertion '%s' failed", #expr);              \
       }                                                            \
    } while (0)
 #define CANNOT_HANDLE(value) do {                                  \
@@ -795,6 +795,23 @@ static void interp_bzero(jit_interp_t *state, jit_ir_t *ir)
    memset(dest, '\0', count);
 }
 
+static void interp_memset(jit_interp_t *state, jit_ir_t *ir)
+{
+   const size_t bytes = state->regs[ir->result].integer;
+   void *dest = interp_get_pointer(state, ir->arg1);
+   const uint64_t value = interp_get_int(state, ir->arg2);
+
+#define MEMSET_LOOP(type) do {                      \
+      JIT_ASSERT((type)value == value);             \
+      JIT_ASSERT(bytes % sizeof(type) == 0);        \
+      type *eptr = dest + bytes;                    \
+      for (type *p = dest; p < eptr; p++)           \
+         *p = value;                                \
+   } while (0)
+
+   FOR_EACH_SIZE(ir->size, MEMSET_LOOP);
+}
+
 static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
 {
    jit_thread_local_t *thread = jit_thread_local();
@@ -998,6 +1015,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_BZERO:
          interp_bzero(state, ir);
+         break;
+      case MACRO_MEMSET:
+         interp_memset(state, ir);
          break;
       case MACRO_GALLOC:
          interp_galloc(state, ir);

@@ -599,6 +599,13 @@ static void macro_bzero(jit_irgen_t *g, jit_value_t dest, jit_reg_t count)
                     count, dest);
 }
 
+static void macro_memset(jit_irgen_t *g, jit_size_t sz, jit_value_t dest,
+                         jit_value_t value, jit_reg_t count)
+{
+   assert(jit_value_is_addr(dest));
+   irgen_emit_binary(g, MACRO_MEMSET, sz, JIT_CC_NONE, count, dest, value);
+}
+
 static jit_value_t macro_galloc(jit_irgen_t *g, jit_value_t bytes)
 {
    jit_reg_t r = irgen_alloc_reg(g);
@@ -1163,39 +1170,21 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
    jit_value_t length = irgen_get_arg(g, op, 2);
 
    vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, 1));
+
+   jit_value_t addr = jit_addr_from_value(base, 0);
    jit_value_t scale = jit_value_from_int64(irgen_size_bytes(vtype));
    jit_value_t bytes = j_mul(g, length, scale);
 
-   if (value.kind == JIT_VALUE_INT64 && value.int64 == 0) {
-      jit_value_t addr = jit_addr_from_value(base, 0);
-      macro_bzero(g, addr, jit_value_as_reg(bytes));
+   jit_reg_t bytes_r = jit_value_as_reg(bytes);
+
+   if (value.kind == JIT_VALUE_INT64 && value.int64 == 0)
+      macro_bzero(g, addr, bytes_r);
+   else if (value.kind == JIT_VALUE_DOUBLE) {
+      jit_value_t bits = jit_value_from_int64(value.int64);
+      macro_memset(g, irgen_jit_size(vtype), addr, bits, bytes_r);
    }
-   else {
-      irgen_label_t *l_exit = irgen_alloc_label(g);
-      irgen_label_t *l_head = irgen_alloc_label(g);
-
-      jit_value_t base_ptr = irgen_lea(g, base);
-
-      j_cmp(g, JIT_CC_LE, length, jit_value_from_int64(0));
-      j_jump(g, JIT_CC_T, l_exit);
-
-      jit_value_t end = j_add(g, base_ptr, bytes);
-
-      jit_reg_t ptr_r = irgen_alloc_reg(g);
-      j_mov(g, ptr_r, base_ptr);
-
-      irgen_bind_label(g, l_head);
-
-      jit_value_t ptr = jit_value_from_reg(ptr_r);
-      j_store(g, irgen_jit_size(vtype), value, jit_addr_from_value(ptr, 0));
-
-      jit_value_t next = j_add(g, ptr, scale);
-      j_mov(g, ptr_r, next);
-      j_cmp(g, JIT_CC_LT, next, end);
-      j_jump(g, JIT_CC_T, l_head);
-
-      irgen_bind_label(g, l_exit);
-   }
+   else
+      macro_memset(g, irgen_jit_size(vtype), addr, value, bytes_r);
 }
 
 static void irgen_send_args(jit_irgen_t *g, int op, int first)

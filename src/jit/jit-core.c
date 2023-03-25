@@ -1172,6 +1172,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "$SALLOC", MACRO_SALLOC, 1, 2 },
       { "$LALLOC", MACRO_LALLOC, 1, 1 },
       { "$BZERO",  MACRO_BZERO,  1, 1 },
+      { "$MEMSET", MACRO_MEMSET, 1, 2 },
       { "$EXP",    MACRO_EXP,    1, 2 },
       { "$FEXP",   MACRO_FEXP,   1, 2 },
    };
