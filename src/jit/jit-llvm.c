@@ -114,6 +114,8 @@ typedef enum {
 
    LLVM_POW_F64,
    LLVM_COPYSIGN_F64,
+   LLVM_MEMSET_INLINE,
+   LLVM_MEMCPY_INLINE,
 
    LLVM_DO_EXIT,
    LLVM_PUTPRIV,
@@ -722,6 +724,38 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 args, ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "llvm.copysign.f64", obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MEMSET_INLINE:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT8],
+            obj->types[LLVM_INT64],
+            obj->types[LLVM_INT1],
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID],
+                                                args, ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "llvm.memset.inline.p0.i64",
+                          obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MEMCPY_INLINE:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT64],
+            obj->types[LLVM_INT1],
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID],
+                                                args, ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "llvm.memcpy.inline.p0.p0.i64",
+                          obj->fntypes[which]);
       }
       break;
 
@@ -1879,7 +1913,19 @@ static void cgen_macro_copy(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef dest  = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
    LLVMValueRef src   = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_PTR);
 
-   LLVMBuildMemCpy(obj->builder, dest, 0, src, 0, count);
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   if (LLVMIsConstant(count) && LLVMConstIntGetZExtValue(count) <= 64) {
+      LLVMValueRef args[] = {
+         dest,
+         src,
+         count,
+         llvm_int1(obj, 0),
+      };
+      llvm_call_fn(obj, LLVM_MEMCPY_INLINE, args, ARRAY_LEN(args));
+   }
+   else
+#endif
+      LLVMBuildMemCpy(obj->builder, dest, 0, src, 0, count);
 }
 
 static void cgen_macro_move(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1896,7 +1942,19 @@ static void cgen_macro_bzero(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef count = cgb->outregs[ir->result];
    LLVMValueRef dest  = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
 
-   LLVMBuildMemSet(obj->builder, PTR(dest), llvm_int8(obj, 0), count, 0);
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+   if (LLVMIsConstant(count) && LLVMConstIntGetZExtValue(count) <= 64) {
+      LLVMValueRef args[] = {
+         dest,
+         llvm_int8(obj, 0),
+         count,
+         llvm_int1(obj, 0),
+      };
+      llvm_call_fn(obj, LLVM_MEMSET_INLINE, args, ARRAY_LEN(args));
+   }
+   else
+#endif
+      LLVMBuildMemSet(obj->builder, PTR(dest), llvm_int8(obj, 0), count, 0);
 }
 
 static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)

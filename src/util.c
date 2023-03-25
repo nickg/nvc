@@ -1096,13 +1096,13 @@ int next_power_of_2(int n)
 int ilog2(int64_t n)
 {
    if (n <= 1)
-      return 1;
+      return 0;
    else {
       int r = 0;
       int64_t c = 1;
       while (c < n) {
          r += 1;
-         c *= 2;
+         c <<= 1;
       }
       return r;
    }
