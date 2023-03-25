@@ -5083,6 +5083,10 @@ void emit_resume(ident_t func)
 
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
 {
+   int64_t lconst;
+   if (vcode_reg_const(len, &lconst) && lconst == 0)
+      return;
+
    op_t *op = vcode_add_op(VCODE_OP_MEMSET);
    vcode_add_arg(op, ptr);
    vcode_add_arg(op, value);

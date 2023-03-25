@@ -1164,9 +1164,9 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
 
    vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, 1));
    jit_value_t scale = jit_value_from_int64(irgen_size_bytes(vtype));
+   jit_value_t bytes = j_mul(g, length, scale);
 
    if (value.kind == JIT_VALUE_INT64 && value.int64 == 0) {
-      jit_value_t bytes = j_mul(g, length, scale);
       jit_value_t addr = jit_addr_from_value(base, 0);
       macro_bzero(g, addr, jit_value_as_reg(bytes));
    }
@@ -1179,19 +1179,19 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
       j_cmp(g, JIT_CC_LE, length, jit_value_from_int64(0));
       j_jump(g, JIT_CC_T, l_exit);
 
-      jit_reg_t ctr_r = irgen_alloc_reg(g);
-      j_mov(g, ctr_r, jit_value_from_int64(0));
+      jit_value_t end = j_add(g, base_ptr, bytes);
+
+      jit_reg_t ptr_r = irgen_alloc_reg(g);
+      j_mov(g, ptr_r, base_ptr);
 
       irgen_bind_label(g, l_head);
 
-      jit_value_t ctr = jit_value_from_reg(ctr_r);
-      jit_value_t off = j_mul(g, ctr, scale);
-      jit_value_t ptr = j_add(g, base_ptr, off);
+      jit_value_t ptr = jit_value_from_reg(ptr_r);
       j_store(g, irgen_jit_size(vtype), value, jit_addr_from_value(ptr, 0));
 
-      jit_value_t next = j_add(g, ctr, jit_value_from_int64(1));
-      j_mov(g, ctr_r, next);
-      j_cmp(g, JIT_CC_LT, next, length);
+      jit_value_t next = j_add(g, ptr, scale);
+      j_mov(g, ptr_r, next);
+      j_cmp(g, JIT_CC_LT, next, end);
       j_jump(g, JIT_CC_T, l_head);
 
       irgen_bind_label(g, l_exit);

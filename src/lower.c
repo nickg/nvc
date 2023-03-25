@@ -4901,7 +4901,13 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
          if (type_is_scalar(elem_type)) {
             vcode_reg_t elem_reg = lower_nested_default_value(lu, elem_type);
             const int size = lower_array_const_size(type);
-            return emit_const_rep(lower_type(type), elem_reg, size);
+            if (hint_reg == VCODE_INVALID_REG)
+               return emit_const_rep(lower_type(type), elem_reg, size);
+            else {
+               vcode_reg_t count_reg = emit_const(vtype_offset(), size);
+               emit_memset(hint_reg, elem_reg, count_reg);
+               return hint_reg;
+            }
          }
          else
             return emit_address_of(lower_nested_default_value(lu, type));
@@ -6207,9 +6213,17 @@ static void lower_wait_free_cb(tree_t t, void *ctx)
 
 static bool lower_is_wait_free(tree_t stmt)
 {
-   int count = 0;
-   tree_visit(stmt, lower_wait_free_cb, &count);
-   return count == 0;
+   switch (vcode_unit_kind()) {
+   case VCODE_UNIT_PROCEDURE:
+   case VCODE_UNIT_PROCESS:
+      {
+         int count = 0;
+         tree_visit(stmt, lower_wait_free_cb, &count);
+         return count == 0;
+      }
+   default:
+      return true;   // Can never wait
+   }
 }
 
 static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)

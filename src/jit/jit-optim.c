@@ -715,6 +715,9 @@ static void jit_lvn_clamp(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
+   if (ir->op == MACRO_MOVE && ir->arg2.kind == JIT_ADDR_CPOOL)
+      ir->op = MACRO_COPY;   // Cannot overlap when copying from constant pool
+
    int64_t count;
    if (lvn_get_const(state->regvn[ir->result], state, &count)) {
       if (count == 0) {
@@ -754,8 +757,6 @@ static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
          return;
       }
    }
-   else if (ir->op == MACRO_MOVE && ir->arg2.kind == JIT_ADDR_CPOOL)
-      ir->op = MACRO_COPY;   // Cannot overlap when copying from constant pool
 
    // Clobbers the count register
    state->regvn[ir->result] = lvn_new_value(state);

@@ -4,6 +4,7 @@ package simple is
     procedure test_sum;
     procedure test_int_image;
     procedure test_sqrt;
+    procedure test_copy;
 end package;
 
 package body simple is
@@ -100,6 +101,21 @@ package body simple is
             sum := sum + sqrt(real(i), 0.0001);
         end loop;
         assert integer(sum) = 671;
+    end procedure;
+
+    ---------------------------------------------------------------------------
+
+    procedure do_copy (dest : out bit_vector; src : in bit_vector) is
+    begin
+        dest := src;
+    end procedure;
+
+    procedure test_copy is
+        variable src, dest : bit_vector(1 to 4096);
+    begin
+        for i in 1 to 100 loop
+            do_copy(dest, src);
+        end loop;
     end procedure;
 
 end package body;

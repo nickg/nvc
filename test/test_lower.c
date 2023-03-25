@@ -541,8 +541,7 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST_REP, .value = 3 },
-      { VCODE_OP_COPY },
+      { VCODE_OP_MEMSET },
       { VCODE_OP_RETURN }
    };
 
@@ -964,8 +963,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST_REP, .value = 3 },
-      { VCODE_OP_COPY },
+      { VCODE_OP_MEMSET },
       { VCODE_OP_RETURN }
    };
 
@@ -4184,8 +4182,7 @@ START_TEST(test_array2)
          { VCODE_OP_NEW },
          { VCODE_OP_ALL },
          { VCODE_OP_CONST, .value = INT32_MIN },
-         { VCODE_OP_CONST_REP, .value = 3 },
-         { VCODE_OP_COPY },
+         { VCODE_OP_MEMSET },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CONST, .value = 0 },
@@ -5059,6 +5056,37 @@ START_TEST(test_attr2)
 }
 END_TEST
 
+START_TEST(test_copy1)
+{
+   input_from_file(TESTDIR "/lower/copy1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_standalone_unit(p);
+
+   tree_t f = search_decls(p, ident_new("TEST_COPY"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit_for(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 4096 },
+      { VCODE_OP_INDEX, .name = "SRC" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_INDEX, .name = "DEST" },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_CONST, .value = 100 },
+      { VCODE_OP_JUMP, .target = 1 },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5181,6 +5209,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_link1);
    tcase_add_test(tc, test_driver1);
    tcase_add_test(tc, test_attr2);
+   tcase_add_test(tc, test_copy1);
    suite_add_tcase(s, tc);
 
    return s;

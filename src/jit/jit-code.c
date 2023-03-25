@@ -180,6 +180,9 @@ code_cache_t *code_cache_new(void)
 #else
 #error Cannot configure capstone for this architecture
 #endif
+
+   if (cs_option(code->capstone, CS_OPT_DETAIL, 1) != CS_ERR_OK)
+      fatal_trace("failed to set capstone detailed mode");
 #endif
 
    add_fault_handler(code_fault_handler, code);
@@ -214,6 +217,15 @@ void code_cache_free(code_cache_t *code)
    free(code);
 }
 
+#ifdef HAVE_CAPSTONE
+static int code_print_spaces(int col, int tab)
+{
+   for (; col < tab; col++)
+      fputc(' ', stdout);
+   return col;
+}
+#endif
+
 static void code_disassemble(code_span_t *span, uintptr_t mark,
                              struct cpu_state *cpu)
 {
@@ -244,6 +256,19 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
          col = printf("%-12" PRIx64 " %-16.16s %s %s", insn->address,
                           hex1, insn->mnemonic, insn->op_str);
 
+#ifdef ARCH_X86_64
+         if (strcmp(insn->mnemonic, "movabs") == 0) {
+            const cs_x86_op *src = &(insn->detail->x86.operands[1]);
+            if (src->type == X86_OP_IMM) {
+               const char *sym = debug_symbol_name((void *)src->imm);
+               if (sym != NULL) {
+                  col = code_print_spaces(col, 60);
+                  col += printf(" ; %s", sym);
+               }
+            }
+         }
+#endif
+
          if (strlen(hex1) > 16)
             col = printf("\n%15s -%-16s", "", hex1 + 16) - 1;
       }
@@ -260,8 +285,7 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
       }
 
       if (mark != 0 && (ptr >= eptr || address > mark)) {
-         for (; col < 66; col++)
-            fputc(' ', stdout);
+         col = code_print_spaces(col, 66);
          printf("<=============\n");
          if (cpu != NULL) {
 #ifdef ARCH_X86_64
