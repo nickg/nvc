@@ -1757,8 +1757,13 @@ static void cgen_op_cmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
-   if (llvm_is_ptr(arg1) && !llvm_is_ptr(arg2))
+   const bool arg1_ptr = llvm_is_ptr(arg1);
+   const bool arg2_ptr = llvm_is_ptr(arg2);
+
+   if (arg1_ptr && !arg2_ptr)
       arg2 = LLVMBuildIntToPtr(obj->builder, arg2, obj->types[LLVM_PTR], "");
+   else if (!arg1_ptr && arg2_ptr)
+      arg1 = LLVMBuildIntToPtr(obj->builder, arg1, obj->types[LLVM_PTR], "");
 
    LLVMIntPredicate pred;
    switch (ir->cc) {
