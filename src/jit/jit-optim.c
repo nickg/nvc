@@ -764,6 +764,23 @@ static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_bzero(jit_ir_t *ir, lvn_state_t *state)
 {
+   int64_t count;
+   if (lvn_get_const(state->regvn[ir->result], state, &count)) {
+      if (count == 0) {
+         lvn_convert_nop(ir);
+         return;
+      }
+      else if (count > 0 && count <= 8 && is_power_of_2(count)) {
+         // Convert to a store of zero
+         ir->op     = J_STORE;
+         ir->arg2   = ir->arg1;
+         ir->arg1   = LVN_CONST(0);
+         ir->result = JIT_REG_INVALID;
+         ir->size   = ilog2(count);
+         return;
+      }
+   }
+
    // Clobbers the count register
    state->regvn[ir->result] = lvn_new_value(state);
 }
