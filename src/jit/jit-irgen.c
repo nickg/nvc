@@ -2093,8 +2093,19 @@ static void irgen_op_cond(jit_irgen_t *g, int op)
       j_cmp(g, JIT_CC_NE, test, jit_value_from_int64(0));
    }
 
-   j_jump(g, JIT_CC_T, g->blocks[vcode_get_target(op, 0)]);
-   j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 1)]);
+   vcode_block_t t0 = vcode_get_target(op, 0);
+   vcode_block_t t1 = vcode_get_target(op, 1);
+
+   vcode_block_t cur = vcode_active_block();
+
+   if (t0 == cur + 1)
+      j_jump(g, JIT_CC_F, g->blocks[t1]);
+   else if (t1 == cur + 1)
+      j_jump(g, JIT_CC_T, g->blocks[t0]);
+   else {
+      j_jump(g, JIT_CC_T, g->blocks[t0]);
+      j_jump(g, JIT_CC_NONE, g->blocks[t1]);
+   }
 }
 
 static void irgen_op_case(jit_irgen_t *g, int op)
