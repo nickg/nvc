@@ -990,20 +990,25 @@ void jit_do_dce(jit_func_t *f)
          state.renumber[ir->result] = state.next++;
    }
 
-   for (jit_ir_t *ir = f->irbuf; ir < f->irbuf + f->nirs; ir++) {
+   for (jit_ir_t *ir = f->irbuf, *cmp = NULL; ir < f->irbuf + f->nirs; ir++) {
       dce_renumber(&ir->arg1, &state);
       dce_renumber(&ir->arg2, &state);
 
+      if (jit_writes_flags(ir)) {
+         if (cmp != NULL)
+            lvn_convert_nop(cmp);   // Flags are never read
+         if (ir->op == J_CMP || ir->op == J_FCMP)
+            cmp = ir;
+         else
+            cmp = NULL;
+      }
+      else if (jit_reads_flags(ir) || cfg_is_terminator(f, ir))
+         cmp = NULL;   // Consumed flags
+
       if (ir->result == JIT_REG_INVALID)
          continue;
-      else if (state.count[ir->result] == 0 && !jit_writes_flags(ir)) {
-         ir->op        = J_NOP;
-         ir->result    = JIT_REG_INVALID;
-         ir->cc        = JIT_CC_NONE;
-         ir->size      = JIT_SZ_UNSPEC;
-         ir->arg1.kind = JIT_VALUE_INVALID;
-         ir->arg2.kind = JIT_VALUE_INVALID;
-      }
+      else if (state.count[ir->result] == 0 && !jit_writes_flags(ir))
+         lvn_convert_nop(ir);
       else
          ir->result = state.renumber[ir->result];
    }

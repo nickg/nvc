@@ -1985,6 +1985,28 @@ START_TEST(test_cfg3)
 }
 END_TEST
 
+START_TEST(test_dce2)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    CMP.EQ    R0, #1           \n"
+      "    CMP.LT    #0, #1           \n"
+      "    JUMP.T    L1               \n"
+      "L1: NOP                        \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_dce(f);
+
+   ck_assert_int_eq(f->irbuf[0].op, J_NOP);
+   ck_assert_int_eq(f->irbuf[1].op, J_CMP);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2038,6 +2060,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn8);
    tcase_add_test(tc, test_lvn9);
    tcase_add_test(tc, test_cfg3);
+   tcase_add_test(tc, test_dce2);
    suite_add_tcase(s, tc);
 
    return s;
