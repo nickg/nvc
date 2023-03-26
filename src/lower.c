@@ -1820,7 +1820,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
          vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
          vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
          vcode_reg_t mask = emit_select(result, c_true, c_false);
-         flags |= COV_FLAG_TRUE | COV_FLAG_FALSE;
+         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
          lower_expression_coverage(lu, fcall, flags, mask, unrc_msk);
       }
    default:

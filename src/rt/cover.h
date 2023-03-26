@@ -102,7 +102,7 @@ typedef struct _cover_tag {
    // Exclude mask - Bit corresponding to a bin excludes it
    int32_t        excl_msk;
 
-   // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable!
+   // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
    int32_t        unrc_msk;
 
    // Location in the source file
