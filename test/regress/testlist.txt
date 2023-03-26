@@ -752,3 +752,4 @@ slice5          normal
 access12        normal
 arith5          fail,gold
 real4           fail,gold
+cover14         cover,shell

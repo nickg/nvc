@@ -1,0 +1,2 @@
+exclude WORK.COVER14._P0._S0._E2 BIN_1_1
+exclude WORK.COVER14._P1._S0._E2 BIN_0_1
