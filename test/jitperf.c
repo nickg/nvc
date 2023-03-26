@@ -90,7 +90,7 @@ static void run_benchmark(tree_t pack, tree_t proc)
       for (; (now = get_timestamp_us()) < start + 1000000; iters++) {
          jit_scalar_t result;
          jit_scalar_t dummy = { .integer = 0 };
-         if (!jit_fastcall(j, hproc, &result, context, dummy, &tlab))
+         if (!jit_fastcall(j, hproc, &result, dummy, context, &tlab))
             fatal("error in benchmark subprogram");
       }
 
