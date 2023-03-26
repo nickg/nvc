@@ -357,6 +357,7 @@ int jit_get_edge(jit_edge_list_t *list, int nth);
 
 bool jit_will_abort(jit_ir_t *ir);
 bool jit_writes_flags(jit_ir_t *ir);
+bool jit_reads_flags(jit_ir_t *ir);
 
 void jit_do_lvn(jit_func_t *f);
 void jit_do_cprop(jit_func_t *f);

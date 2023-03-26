@@ -156,9 +156,15 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
 static void jit_dump_regset(jit_dump_t *d, bit_mask_t *m)
 {
    printf("{");
-   for (int i = 0, nth = 0; i < d->func->nregs; i++) {
-      if (mask_test(m, i))
-         printf("%sR%d", nth++ > 0 ? "," : "", i);
+   for (int i = 0, nth = 0; i < d->func->nregs + 1; i++) {
+      if (mask_test(m, i)) {
+         if (nth++ > 0)
+            fputc(',', stdout);
+         if (i == d->func->nregs)
+            fputs("FLAGS", stdout);
+         else
+            printf("R%d", i);
+      }
    }
    printf("}");
 }

@@ -1320,11 +1320,11 @@ START_TEST(test_cfg1)
    ck_assert_int_eq(cfg->blocks[0].in.count, 0);
    ck_assert_int_eq(cfg->blocks[0].out.count, 1);
    ck_assert_int_eq(jit_get_edge(&cfg->blocks[0].out, 0), 1);
-   ck_assert_int_eq(cfg->blocks[0].livein.size, 2);
+   ck_assert_int_eq(cfg->blocks[0].livein.size, 3);
    ck_assert_int_eq(cfg->blocks[0].livein.bits, 0);
-   ck_assert_int_eq(cfg->blocks[0].liveout.size, 2);
+   ck_assert_int_eq(cfg->blocks[0].liveout.size, 3);
    ck_assert_int_eq(cfg->blocks[0].liveout.bits, 0x3);
-   ck_assert_int_eq(cfg->blocks[0].varkill.size, 2);
+   ck_assert_int_eq(cfg->blocks[0].varkill.size, 3);
    ck_assert_int_eq(cfg->blocks[0].varkill.bits, 0x3);
 
    ck_assert_int_eq(cfg->blocks[1].in.count, 2);
@@ -1335,7 +1335,7 @@ START_TEST(test_cfg1)
    ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].out, 1), 3);
    ck_assert_int_eq(cfg->blocks[1].livein.bits, 0x3);
    ck_assert_int_eq(cfg->blocks[1].liveout.bits, 0x3);
-   ck_assert_int_eq(cfg->blocks[1].varkill.bits, 0);
+   ck_assert_int_eq(cfg->blocks[1].varkill.bits, 0b100);
 
    ck_assert_int_eq(cfg->blocks[2].in.count, 1);
    ck_assert_int_eq(jit_get_edge(&cfg->blocks[2].in, 0), 1);
@@ -1938,6 +1938,53 @@ START_TEST(test_lvn9)
 }
 END_TEST
 
+START_TEST(test_cfg3)
+{
+   jit_t *j = jit_new();
+
+   const char *text1 =
+      "    RECV    R0, #0       \n"
+      "    MOV     R1, #1       \n"
+      "    CMP.EQ  R0, #1       \n"
+      "    JUMP    L1           \n"
+      "L1: JUMP.T  L2           \n"
+      "L2: CMP.EQ  R0, #0       \n"
+      "    JUMP.T  L1           \n"
+      "    RET                  \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_cfg_t *cfg = jit_get_cfg(f);
+
+   ck_assert_int_eq(cfg->nblocks, 4);
+
+   ck_assert_int_eq(cfg->blocks[0].returns, 0);
+   ck_assert_int_eq(cfg->blocks[0].aborts, 0);
+   ck_assert_int_eq(cfg->blocks[0].in.count, 0);
+   ck_assert_int_eq(cfg->blocks[0].out.count, 1);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[0].out, 0), 1);
+   ck_assert_int_eq(cfg->blocks[0].livein.size, 3);
+   ck_assert_int_eq(cfg->blocks[0].livein.bits, 0);
+   ck_assert_int_eq(cfg->blocks[0].liveout.size, 3);
+   ck_assert_int_eq(cfg->blocks[0].liveout.bits, 0b101);
+   ck_assert_int_eq(cfg->blocks[0].varkill.size, 3);
+   ck_assert_int_eq(cfg->blocks[0].varkill.bits, 0b111);
+
+   ck_assert_int_eq(cfg->blocks[1].in.count, 2);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].in, 0), 0);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].in, 1), 2);
+   ck_assert_int_eq(cfg->blocks[1].out.count, 2);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].out, 0), 2);
+   ck_assert_int_eq(jit_get_edge(&cfg->blocks[1].out, 1), 2);
+   ck_assert_int_eq(cfg->blocks[1].livein.bits, 0b101);
+   ck_assert_int_eq(cfg->blocks[1].liveout.bits, 0b1);
+   ck_assert_int_eq(cfg->blocks[1].varkill.bits, 0);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1990,6 +2037,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn7);
    tcase_add_test(tc, test_lvn8);
    tcase_add_test(tc, test_lvn9);
+   tcase_add_test(tc, test_cfg3);
    suite_add_tcase(s, tc);
 
    return s;

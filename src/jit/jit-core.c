@@ -1102,6 +1102,12 @@ bool jit_writes_flags(jit_ir_t *ir)
       || (ir->op == MACRO_EXP && ir->cc != JIT_CC_NONE);
 }
 
+bool jit_reads_flags(jit_ir_t *ir)
+{
+   return (ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
+      || ir->op == J_CSET || ir->op == J_CSEL;
+}
+
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 {
    jit_func_t *f = chash_get(j->index, name);

@@ -2809,30 +2809,38 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    cgen_block_t *cgb = func->blocks;
 
+   LLVMValueRef zero_flag = llvm_int1(obj, false);
+
    int maxin = 0;
    for (int i = 0; i < func->source->nirs; i++) {
       if (i == cgb->source->first) {
          LLVMPositionBuilderAtEnd(obj->builder, cgb->bbref);
 
-         if (cgb->source->in.count > 0) {
-            LLVMTypeRef int1_type = obj->types[LLVM_INT1];
-            cgb->inflags = LLVMBuildPhi(obj->builder, int1_type, "FLAGS");
-         }
-         else
-            cgb->inflags = llvm_int1(obj, false);
-
-         cgb->outflags = cgb->inflags;
-
          cgen_block_t *dom = NULL;
          if (cgb->source->in.count == 1)
             dom = &(func->blocks[jit_get_edge(&cgb->source->in, 0)]);
+
+         cgb->inflags = zero_flag;
+
+         if (mask_test(&cgb->source->livein, func->source->nregs)) {
+             if (dom != NULL && dom < cgb) {
+                // Skip generating a phi instruction if there is just
+                // one dominating block
+                assert(dom->outflags != NULL);
+                cgb->inflags = dom->outflags;
+             }
+             else if (cgb->source->in.count > 0) {
+                LLVMTypeRef int1_type = obj->types[LLVM_INT1];
+                cgb->inflags = LLVMBuildPhi(obj->builder, int1_type, "FLAGS");
+             }
+         }
+
+         cgb->outflags = cgb->inflags;
 
          for (int j = 0; j < func->source->nregs; j++) {
             if (mask_test(&cgb->source->livein, j)) {
                if (dom != NULL && dom < cgb) {
                   assert(dom->outregs[j] != NULL);
-                  // Skip generating a phi instruction if there is
-                  // just one dominating block
                   cgb->inregs[j] = cgb->outregs[j] = dom->outregs[j];
                   continue;
                }
@@ -2871,12 +2879,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       }
    }
 
-   if (cfg->blocks[0].in.count > 0) {
-      LLVMValueRef flags0_in[] = { llvm_int1(obj, false) };
-      LLVMBasicBlockRef flags0_bb[] = { entry_bb };
-      LLVMAddIncoming(func->blocks[0].inflags, flags0_in, flags0_bb, 1);
-   }
-
    LLVMValueRef *phi_in LOCAL = xmalloc_array(maxin, sizeof(LLVMValueRef));
    LLVMBasicBlockRef *phi_bb LOCAL =
       xmalloc_array(maxin, sizeof(LLVMBasicBlockRef));
@@ -2889,12 +2891,17 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
          continue;
 
       // Flags
-      for (int j = 0; j < bb->in.count; j++) {
-         const int edge = jit_get_edge(&bb->in, j);
-         phi_in[j] = func->blocks[edge].outflags;
-         phi_bb[j] = func->blocks[edge].bbref;
+      if (mask_test(&cgb->source->livein, func->source->nregs)
+          && LLVMIsAPHINode(cgb->inflags)
+          && LLVMGetInstructionParent(cgb->inflags) == cgb->bbref) {
+
+         for (int j = 0; j < bb->in.count; j++) {
+            const int edge = jit_get_edge(&bb->in, j);
+            phi_in[j] = func->blocks[edge].outflags;
+            phi_bb[j] = func->blocks[edge].bbref;
+         }
+         LLVMAddIncoming(cgb->inflags, phi_in, phi_bb, bb->in.count);
       }
-      LLVMAddIncoming(cgb->inflags, phi_in, phi_bb, bb->in.count);
 
       // Live-in registers
       for (int j = 0; j < func->source->nregs; j++) {

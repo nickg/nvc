@@ -91,9 +91,9 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
 
    for (int i = 0; i < cfg->nblocks; i++) {
       jit_block_t *b = &(cfg->blocks[i]);
-      mask_init(&b->livein, f->nregs);
-      mask_init(&b->varkill, f->nregs);
-      mask_init(&b->liveout, f->nregs);
+      mask_init(&b->livein, f->nregs + 1);
+      mask_init(&b->varkill, f->nregs + 1);
+      mask_init(&b->liveout, f->nregs + 1);
 
       for (int j = b->first; j <= b->last; j++) {
          jit_ir_t *ir = &(f->irbuf[j]);
@@ -111,12 +111,17 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
 
          if (cfg_writes_result(ir))
             mask_set(&b->varkill, ir->result);
+
+         if (jit_writes_flags(ir))
+            mask_set(&b->varkill, f->nregs);
+         else if (jit_reads_flags(ir) && !mask_test(&b->varkill, f->nregs))
+            mask_set(&b->livein, f->nregs);
       }
    }
 
    bit_mask_t new, tmp;
-   mask_init(&new, f->nregs);
-   mask_init(&tmp, f->nregs);
+   mask_init(&new, f->nregs + 1);
+   mask_init(&tmp, f->nregs + 1);
 
    bool changed;
    do {
