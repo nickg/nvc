@@ -363,6 +363,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .data       = 0,
       .flags      = flags,
       .excl_msk   = 0,
+      .unrc_msk   = 0,
       .loc        = *tree_loc(t),
       .hier       = hier,
       .sig_pos    = ctx->top_scope->sig_pos,
@@ -434,7 +435,9 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
 #endif
       }
       write_u32(tag->flags, f);
-      write_u32(tag->excl_msk, f);
+      // Do not dump "excl_msk" since it is only filled at
+      // report generation time
+      write_u32(tag->unrc_msk, f);
       loc_write(&(tag->loc), loc_wr);
       ident_write(tag->hier, ident_ctx);
       write_u32(tag->sig_pos, f);
@@ -687,7 +690,8 @@ void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->tag = read_u32(f);
    tag->data = read_u32(f);
    tag->flags = read_u32(f);
-   tag->excl_msk = read_u32(f);
+   tag->unrc_msk = read_u32(f);
+   tag->excl_msk = 0;
 
    loc_read(&(tag->loc), loc_rd);
    tag->hier = ident_read(ident_ctx);
@@ -1006,9 +1010,9 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
 
    if (is_constant_input(s)) {
       for (int i = 0; i < s->shared.size; i++) {
-         // Remember un-reachability in run-time data. Exclude mask not
+         // Remember constant driver in run-time data. Unreachable mask not
          // available at run-time.
-         (*toggle_mask++) |= COV_FLAG_UNREACHABLE;
+         (*toggle_mask++) |= COV_FLAG_CONST_DRIVEN;
       }
       return;
    }
@@ -1593,7 +1597,7 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          cover_print_get_exclude_button(f, pair->tag, flag, true);
 
       if (pkind == PAIR_EXCLUDED) {
-         const char *er = (pair->flags & COV_FLAG_UNREACHABLE) ?
+         const char *er = (flag & pair->tag->unrc_msk) ?
             "Unreachable" : "Exclude file";
          fprintf(f, "<td>%s</td>", er);
       }
@@ -1698,9 +1702,9 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->tag, 0, false);
       if (pkind == PAIR_EXCLUDED) {
-         const char *er = (pair->flags & COV_FLAG_UNREACHABLE) ?
-            "Unreachable" : "Exclude file";
-         fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> %s</div>", er);
+         // No un-reachability on statements so far
+         assert(pair->tag->unrc_msk == 0);
+         fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
       }
       fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
       cover_print_code_line(f, loc, pair->line);
@@ -1910,11 +1914,23 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
    return rv;
 }
 
-static bool cover_tag_unreachable(cover_report_ctx_t *ctx, cover_tag_t *tag)
+static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_tag_t *tag,
+                                  unsigned flag)
 {
    if ((ctx->tagging->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
-   return !!(tag->data & COV_FLAG_UNREACHABLE);
+
+   // Toggle tags remember unreachability in run-time data. Must check tag kind
+   // not to get false unreachability on statement tags. Excludes both bins
+   // automatically!
+   if (tag->kind == TAG_TOGGLE && ((tag->data & COV_FLAG_CONST_DRIVEN) != 0))
+      return true;
+
+   // Expression tags remembed unreachability via dedicated mask
+   if (tag->kind == TAG_EXPRESSION && ((flag & tag->unrc_msk) != 0))
+      return true;
+
+   return false;
 }
 
 static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
@@ -1957,12 +1973,10 @@ static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
       (*nested_hits)++;
       (*hits) |= flag;
    }
-   else if ((tag->excl_msk & flag) || cover_tag_unreachable(ctx, tag)) {
+   else if ((tag->excl_msk & flag) || cover_bin_unreachable(ctx, tag, flag)) {
       (*flat_hits)++;
       (*nested_hits)++;
       (*excludes) |= flag;
-      if (cover_tag_unreachable(ctx, tag))
-         (*excludes) |= COV_FLAG_UNREACHABLE;
    }
    else
       (*misses) |= flag;

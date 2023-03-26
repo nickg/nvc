@@ -1769,19 +1769,23 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl)
 }
 
 static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
-                                      unsigned flags, vcode_reg_t mask)
+                                      unsigned flags, vcode_reg_t mask,
+                                      unsigned unrc_msk)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
    cover_tag_t *tag = cover_add_tag(fcall, NULL, lu->cover,
                                     TAG_EXPRESSION, flags);
-   if (tag != NULL)
+   if (tag != NULL) {
       emit_cover_expr(mask, tag->tag);
+      tag->unrc_msk = unrc_msk;
+   }
 }
 
 static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
                                  vcode_reg_t result, vcode_reg_t lhs,
-                                 vcode_reg_t rhs, subprogram_kind_t builtin)
+                                 vcode_reg_t rhs, subprogram_kind_t builtin,
+                                 unsigned unrc_msk)
 {
    if (!cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       return result;
@@ -1816,8 +1820,8 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
          vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
          vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
          vcode_reg_t mask = emit_select(result, c_true, c_false);
-         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
-         lower_expression_coverage(lu, fcall, flags, mask);
+         flags |= COV_FLAG_TRUE | COV_FLAG_FALSE;
+         lower_expression_coverage(lu, fcall, flags, mask, unrc_msk);
       }
    default:
       return result;
@@ -1849,7 +1853,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
       }
    }
 
-   lower_expression_coverage(lu, fcall, flags, mask);
+   lower_expression_coverage(lu, fcall, flags, mask, unrc_msk);
 
    return result;
 }
@@ -1919,7 +1923,7 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
 
    vcode_reg_t mask =
       lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
-   lower_expression_coverage(lu, fcall, flags, mask);
+   lower_expression_coverage(lu, fcall, flags, mask, 0);
 }
 
 static bool lower_side_effect_free(tree_t expr)
@@ -2036,9 +2040,6 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
                       builtin);
       }
 
-      // TODO: Should we emit coverage also for consts? Maybe as config option?
-      //       With first arg constant, it would make sense to emit only conds
-      //       which are reachable.
       return result;
    }
 
@@ -2046,13 +2047,13 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
       vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
       switch (builtin) {
       case S_SCALAR_AND:
-         return lower_logical(lu, fcall, emit_and(r0, r1), r0, r1, builtin);
+         return lower_logical(lu, fcall, emit_and(r0, r1), r0, r1, builtin, 0);
       case S_SCALAR_OR:
-         return lower_logical(lu, fcall, emit_or(r0, r1), r0, r1, builtin);
+         return lower_logical(lu, fcall, emit_or(r0, r1), r0, r1, builtin, 0);
       case S_SCALAR_NOR:
-         return lower_logical(lu, fcall, emit_nor(r0, r1), r0, r1, builtin);
+         return lower_logical(lu, fcall, emit_nor(r0, r1), r0, r1, builtin, 0);
       case S_SCALAR_NAND:
-         return lower_logical(lu, fcall, emit_nand(r0, r1), r0, r1, builtin);
+         return lower_logical(lu, fcall, emit_nand(r0, r1), r0, r1, builtin, 0);
       default:
          fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
                       builtin);
@@ -2096,9 +2097,18 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
                       builtin);
    }
 
+   // Automaticaly flag non-executed bins as un-reachable if set so
+   unsigned unrc_msk = 0;
+   if (cover_enabled(lu->cover, COVER_MASK_EXCLUDE_UNREACHABLE)) {
+      if (builtin == S_SCALAR_AND || builtin == S_SCALAR_NAND)
+         unrc_msk = COV_FLAG_00 | COV_FLAG_01;
+      else
+         unrc_msk = COV_FLAG_11 | COV_FLAG_10;
+   }
+
    // Only emit expression coverage when also arg1 is evaluated.
-   // TODO: Add option to exclude cases like: "01" bin on AND expression.
-   lower_logical(lu, fcall, emit_load(tmp_var), r0, r1, builtin);
+   lower_logical(lu, fcall, emit_load(tmp_var), r0, r1, builtin,
+                 unrc_msk);
 
    emit_jump(after_bb);
 
@@ -2229,7 +2239,7 @@ static vcode_reg_t lower_comparison(lower_unit_t *lu, tree_t fcall,
    }
 
    vcode_reg_t result = emit_cmp(cmp, r0, r1);
-   return lower_logical(lu, fcall, result, r0, r1, builtin);
+   return lower_logical(lu, fcall, result, r0, r1, builtin, 0);
 }
 
 static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
@@ -2299,11 +2309,11 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
    case S_IDENTITY:
       return r0;
    case S_SCALAR_NOT:
-      return lower_logical(lu, fcall, emit_not(r0), r0, 0, builtin);
+      return lower_logical(lu, fcall, emit_not(r0), r0, 0, builtin, 0);
    case S_SCALAR_XOR:
-      return lower_logical(lu, fcall, emit_xor(r0, r1), r0, r1, builtin);
+      return lower_logical(lu, fcall, emit_xor(r0, r1), r0, r1, builtin, 0);
    case S_SCALAR_XNOR:
-      return lower_logical(lu, fcall, emit_xnor(r0, r1), r0, r1, builtin);
+      return lower_logical(lu, fcall, emit_xnor(r0, r1), r0, r1, builtin, 0);
    case S_ENDFILE:
       return emit_endfile(r0);
    case S_FILE_OPEN1:
