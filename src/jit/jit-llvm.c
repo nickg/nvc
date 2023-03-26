@@ -2753,6 +2753,10 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NONNULL, 3);
    llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_NOALIAS, 4);
 
+#ifdef PRESERVE_FRAME_POINTER
+   llvm_add_func_attr(obj, func->llvmfn, FUNC_ATTR_PRESERVE_FP, -1);
+#endif
+
 #if ENABLE_DWARF
    LLVMMetadataRef file_ref =
       cgen_debug_file(obj, &(func->source->object->loc));
@@ -2946,6 +2950,10 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMValueRef fn = obj->fns[LLVM_TLAB_ALLOC];
    LLVMSetLinkage(fn, LLVMPrivateLinkage);
 
+#ifdef PRESERVE_FRAME_POINTER
+   llvm_add_func_attr(obj, fn, FUNC_ATTR_PRESERVE_FP, 0);
+#endif
+
    LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "");
 
    LLVMPositionBuilderAtEnd(obj->builder, entry);
@@ -3017,6 +3025,10 @@ static void cgen_exp_overflow_body(llvm_obj_t *obj, llvm_fn_t which,
 {
    LLVMValueRef fn = obj->fns[which];
    LLVMSetLinkage(fn, LLVMPrivateLinkage);
+
+#ifdef PRESERVE_FRAME_POINTER
+   llvm_add_func_attr(obj, fn, FUNC_ATTR_PRESERVE_FP, 0);
+#endif
 
    LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "entry");
 
@@ -3136,6 +3148,10 @@ static void cgen_memset_body(llvm_obj_t *obj, llvm_fn_t which,
 {
    LLVMValueRef fn = obj->fns[which];
    LLVMSetLinkage(fn, LLVMPrivateLinkage);
+
+#ifdef PRESERVE_FRAME_POINTER
+   llvm_add_func_attr(obj, fn, FUNC_ATTR_PRESERVE_FP, 0);
+#endif
 
    LLVMBasicBlockRef entry = llvm_append_block(obj, fn, "entry");
 

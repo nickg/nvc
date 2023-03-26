@@ -312,6 +312,18 @@ AC_ARG_ENABLE([werror],
   [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
   [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])
 
+AC_ARG_ENABLE([frame-pointer],
+  [AS_HELP_STRING([--enable-frame-pointer],
+                  [Preserve frame pointer for profiling])],
+  [EXTRA_CFLAGS="$EXTRA_CFLAGS -fno-omit-frame-pointer"
+   preserve_frame_pointer=$enableval],
+  [preserve_frame_pointer=no])
+
+if test x$preserve_frame_pointer = xyes ; then
+  AC_DEFINE_UNQUOTED([PRESERVE_FRAME_POINTER], [1],
+                     [Preserve frame pointer for profiling])
+fi
+
 AC_ARG_ENABLE([ubsan],
   [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
   [if test x$enableval = xyes; then
