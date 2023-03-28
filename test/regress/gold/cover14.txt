@@ -1,0 +1,17 @@
+** Note: excluding expression: 'WORK.COVER14._P0._S0._E2' bins: BIN_1_1
+   > data/cover14_ef1.txt:1
+   |
+ 1 | exclude WORK.COVER14._P0._S0._E2 BIN_1_1
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER14._P1._S0._E2' bins: BIN_0_1
+   > data/cover14_ef1.txt:2
+   |
+ 2 | exclude WORK.COVER14._P1._S0._E2 BIN_0_1
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK.COVER14
+** Note:      statement:     N.A.
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    85.7 % (12/14)

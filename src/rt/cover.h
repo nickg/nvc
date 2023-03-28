@@ -102,6 +102,9 @@ typedef struct _cover_tag {
    // Exclude mask - Bit corresponding to a bin excludes it
    int32_t        excl_msk;
 
+   // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
+   int32_t        unrc_msk;
+
    // Location in the source file
    loc_t          loc;
 
@@ -126,8 +129,8 @@ typedef enum {
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
-   COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
-   COV_FLAG_UNREACHABLE    = (1 << 25)
+   COV_FLAG_CONST_DRIVEN   = (1 << 19),
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
 } cover_flags_t;
 
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
