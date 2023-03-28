@@ -67,6 +67,7 @@ typedef enum {
    LLVM_ANCHOR,
    LLVM_TLAB,
    LLVM_AOT_RELOC,
+   LLVM_STRTAB,
 
    LLVM_LAST_TYPE
 } llvm_type_t;
@@ -161,14 +162,14 @@ typedef struct _llvm_obj {
    LLVMBuilderRef        builder;
 #if ENABLE_DWARF
    LLVMDIBuilderRef      debuginfo;
+   LLVMMetadataRef       debugcu;
 #endif
    LLVMTargetDataRef     data_ref;
    LLVMTypeRef           types[LLVM_LAST_TYPE];
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
-   LLVMMetadataRef       debugcu;
-   shash_t              *string_pool;
-   jit_pack_t           *jitpack;
+   LLVMValueRef          strtab;
+   pack_writer_t        *pack_writer;
 } llvm_obj_t;
 
 typedef struct _cgen_block {
@@ -344,6 +345,8 @@ static void llvm_register_types(llvm_obj_t *obj)
    obj->types[LLVM_PTR] = LLVMPointerType(obj->types[LLVM_INT8], 0);
 #endif
 
+   obj->types[LLVM_STRTAB] = LLVMArrayType(obj->types[LLVM_INT8], 0);
+
    {
       LLVMTypeRef fields[] = {
          obj->types[LLVM_PTR],     // Mspace object
@@ -379,7 +382,7 @@ static void llvm_register_types(llvm_obj_t *obj)
    {
       LLVMTypeRef fields[] = {
          obj->types[LLVM_INT32],   // Kind
-         obj->types[LLVM_PTR],     // Data pointer
+         obj->types[LLVM_INTPTR],  // Data pointer
       };
       obj->types[LLVM_AOT_RELOC] = LLVMStructTypeInContext(obj->context, fields,
                                                            ARRAY_LEN(fields),
@@ -949,39 +952,14 @@ static LLVMValueRef llvm_call_fn(llvm_obj_t *obj, llvm_fn_t which,
 
 static LLVMValueRef llvm_const_string(llvm_obj_t *obj, const char *str)
 {
-   if (obj->string_pool == NULL)
-      obj->string_pool = shash_new(256);
+   const unsigned off = pack_writer_get_string(obj->pack_writer, str);
 
-   LLVMTypeRef array_type = NULL;
-   LLVMValueRef ref = shash_get(obj->string_pool, str);
-   if (ref == NULL) {
-      const size_t len = strlen(str);
-      LLVMValueRef init =
-         LLVMConstStringInContext(obj->context, str, len, false);
-      array_type = LLVMArrayType(obj->types[LLVM_INT8], len + 1);
-      ref = LLVMAddGlobal(obj->module, array_type, "const_string");
-      LLVMSetGlobalConstant(ref, true);
-      LLVMSetInitializer(ref, init);
-      LLVMSetLinkage(ref, LLVMPrivateLinkage);
-      LLVMSetUnnamedAddr(ref, true);
-
-      shash_put(obj->string_pool, str, ref);
-   }
-#ifndef LLVM_HAS_OPAQUE_POINTERS
-   else
-      array_type = LLVMArrayType(obj->types[LLVM_INT8], strlen(str) + 1);
-#endif
-
-#ifdef LLVM_HAS_OPAQUE_POINTERS
-   return ref;
-#else
    LLVMValueRef indexes[] = {
       llvm_int32(obj, 0),
-      llvm_int32(obj, 0)
+      llvm_int32(obj, off)
    };
-   return LLVMBuildGEP2(obj->builder, array_type, ref, indexes,
-                        ARRAY_LEN(indexes), "");
-#endif
+   return LLVMBuildGEP2(obj->builder, obj->types[LLVM_STRTAB], obj->strtab,
+                        indexes, ARRAY_LEN(indexes), "string");
 }
 
 #if ENABLE_DWARF
@@ -2473,11 +2451,9 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    tb_istr(tb, f->name);
    tb_cat(tb, ".debug");
 
-   jit_pack_encode(obj->jitpack, f->jit, f->handle);
-
-   size_t size;
-   const uint8_t *buf = jit_pack_get(obj->jitpack, f->name, &size);
-   assert(buf != NULL);
+   size_t size = 0;
+   uint8_t *buf LOCAL = NULL;
+   pack_writer_emit(obj->pack_writer, f->jit, f->handle, &buf, &size);
 
    LLVMValueRef *data LOCAL = xmalloc_array(size, sizeof(LLVMValueRef));
    for (size_t i = 0; i < size; i++)
@@ -2494,6 +2470,12 @@ static LLVMValueRef cgen_debug_irbuf(llvm_obj_t *obj, jit_func_t *f)
    LLVMSetInitializer(global, init);
 
    return global;
+}
+
+static LLVMValueRef cgen_reloc_str(llvm_obj_t *obj, const char *str)
+{
+   const unsigned off = pack_writer_get_string(obj->pack_writer, str);
+   return llvm_intptr(obj, off);
 }
 
 static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
@@ -2513,7 +2495,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
             jit_func_t *f = jit_get_func(func->source->jit, ir->arg1.handle);
             const cgen_reloc_t r = {
                .kind = kind,
-               .str  = llvm_const_string(obj, istr(f->name)),
+               .str  = cgen_reloc_str(obj, istr(f->name)),
                .key  = ir->arg1.handle,
                .nth  = relocs.count,
             };
@@ -2529,11 +2511,10 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                                    args[j].handle) == NULL) {
                   ident_t name = jit_get_name(func->source->jit,
                                               args[j].handle);
-                  LLVMValueRef str = llvm_const_string(obj, istr(name));
 
                   const cgen_reloc_t r = {
                      .kind = RELOC_HANDLE,
-                     .str  = str,
+                     .str  = cgen_reloc_str(obj, istr(name)),
                      .key  = args[j].handle,
                      .nth  = relocs.count,
                   };
@@ -2555,7 +2536,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
 
                   const cgen_reloc_t r = {
                      .kind = RELOC_FOREIGN,
-                     .str  = llvm_const_string(obj, tb_get(tb)),
+                     .str  = cgen_reloc_str(obj, tb_get(tb)),
                      .key  = (uintptr_t)args[j].foreign,
                      .nth  = relocs.count,
                   };
@@ -2569,7 +2550,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                   const char *map[] = { "stmt", "branch", "toggle", "expr" };
                   const cgen_reloc_t r = {
                      .kind = RELOC_COVER,
-                     .str  = llvm_const_string(obj, map[kind]),
+                     .str  = cgen_reloc_str(obj, map[kind]),
                      .key  = kind,
                      .nth  = relocs.count,
                   };
@@ -2591,7 +2572,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
    for (int i = 0; i < relocs.count; i++) {
       LLVMValueRef fields[] = {
          llvm_int32(obj, relocs.items[i].kind),
-         relocs.items[i].str ?: LLVMConstNull(obj->types[LLVM_PTR])
+         relocs.items[i].str ?: llvm_intptr(obj, 0)
       };
       reloc_elems[i] = LLVMConstNamedStruct(obj->types[LLVM_AOT_RELOC],
                                             fields, ARRAY_LEN(fields));
@@ -2602,7 +2583,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
 
    LLVMTypeRef ftypes[] = {
       obj->types[LLVM_PTR],     // Entry function
-      obj->types[LLVM_INT64],   // FFI spec
+      obj->types[LLVM_PTR],     // String table
       obj->types[LLVM_PTR],     // JIT pack buffer
       obj->types[LLVM_PTR],     // Constant pool
       func->reloc_type          // Relocations list
@@ -2618,7 +2599,7 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
 
    LLVMValueRef fields[] = {
       PTR(func->llvmfn),
-      llvm_int64(obj, 0),  // XXX: really needed?
+      PTR(obj->strtab),
       PTR(irbuf),
       PTR(func->cpool),
       reloc_array,
@@ -3334,12 +3315,12 @@ void jit_register_llvm_plugin(jit_t *j)
 llvm_obj_t *llvm_obj_new(const char *name)
 {
    llvm_obj_t *obj = xcalloc(sizeof(llvm_obj_t));
-   obj->context   = LLVMContextCreate();
-   obj->module    = LLVMModuleCreateWithNameInContext(name, obj->context);
-   obj->builder   = LLVMCreateBuilderInContext(obj->context);
-   obj->target    = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
-   obj->data_ref  = LLVMCreateTargetDataLayout(obj->target);
-   obj->jitpack   = jit_pack_new();
+   obj->context     = LLVMContextCreate();
+   obj->module      = LLVMModuleCreateWithNameInContext(name, obj->context);
+   obj->builder     = LLVMCreateBuilderInContext(obj->context);
+   obj->target      = llvm_target_machine(LLVMRelocPIC, LLVMCodeModelDefault);
+   obj->data_ref    = LLVMCreateTargetDataLayout(obj->target);
+   obj->pack_writer = pack_writer_new();
 
 #if ENABLE_DWARF
    obj->debuginfo = LLVMCreateDIBuilderDisallowUnresolved(obj->module);
@@ -3361,6 +3342,11 @@ llvm_obj_t *llvm_obj_new(const char *name)
    llvm_add_module_flag(obj, "Dwarf Version", 4);
 #endif
 #endif
+
+   obj->strtab = LLVMAddGlobal(obj->module, obj->types[LLVM_STRTAB],
+                               "placeholder_strtab");
+   LLVMSetGlobalConstant(obj->strtab, true);
+   LLVMSetLinkage(obj->strtab, LLVMPrivateLinkage);
 
    return obj;
 }
@@ -3419,6 +3405,21 @@ void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
                           LLVM_MUL_OVERFLOW_U8);
    }
 
+   const char *strtab;
+   size_t len;
+   pack_writer_string_table(obj->pack_writer, &strtab, &len);
+
+   LLVMValueRef init =
+      LLVMConstStringInContext(obj->context, strtab, len - 1, false);
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], len);
+   LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, "strtab");
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetInitializer(global, init);
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+
+   LLVMReplaceAllUsesWith(obj->strtab, global);
+   LLVMDeleteGlobal(obj->strtab);
+
    DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
 
    llvm_dump_module(obj->module, "initial");
@@ -3440,8 +3441,7 @@ void llvm_obj_emit(llvm_obj_t *obj, const char *path)
    LLVMDisposeModule(obj->module);
    LLVMContextDispose(obj->context);
 
-   shash_free(obj->string_pool);
-   jit_pack_free(obj->jitpack);
+   pack_writer_free(obj->pack_writer);
 
    free(obj);
 }

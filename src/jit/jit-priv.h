@@ -327,6 +327,8 @@ typedef struct {
    bool          overflow;
 } code_blob_t;
 
+typedef struct _pack_writer pack_writer_t;
+
 #define JIT_MAX_ARGS 64
 
 typedef struct _jit_interp jit_interp_t;
@@ -379,9 +381,16 @@ void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn);
 void code_load_object(code_blob_t *blob, const void *data, size_t size);
 
 bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f);
-const uint8_t *jit_pack_get(jit_pack_t *jp, ident_t name, size_t *size);
 void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
-                  const uint8_t *buf);
+                  const char *strtab, const uint8_t *buf);
+
+pack_writer_t *pack_writer_new(void);
+void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
+                      uint8_t **buf, size_t *size);
+unsigned pack_writer_get_string(pack_writer_t *pw, const char *str);
+void pack_writer_string_table(pack_writer_t *pw, const char **tab,
+                              size_t *size);
+void pack_writer_free(pack_writer_t *pw);
 
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab);

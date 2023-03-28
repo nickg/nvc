@@ -74,13 +74,16 @@ typedef struct _aot_dll {
 
 typedef struct {
    reloc_kind_t  kind;
-   void         *ptr;
+   union {
+      uintptr_t  off;
+      void      *ptr;
+   };
 } aot_reloc_t;
 
 // The code generator knows the layout of this struct
 typedef struct {
    jit_entry_fn_t  entry;
-   ffi_spec_t      spec;
+   const char     *strtab;
    const uint8_t  *debug;
    const uint8_t  *cpool;
    aot_reloc_t     relocs[0];
@@ -257,7 +260,8 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
          if (try[i] == NULL)
             continue;
          else if ((descr = ffi_find_symbol(try[i]->dll, tb_get(tb)))) {
-            jit_pack_put(try[i]->pack, name, descr->cpool, descr->debug);
+            jit_pack_put(try[i]->pack, name, descr->cpool,
+                         descr->strtab, descr->debug);
             break;
          }
       }
@@ -283,7 +287,7 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 
    if (descr != NULL) {
       for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
-         const char *str = (char *)r->ptr;
+         const char *str = descr->strtab + r->off;
          if (r->kind == RELOC_FOREIGN) {
             const char *eptr = strchr(str, '\b');
             if (eptr == NULL)
