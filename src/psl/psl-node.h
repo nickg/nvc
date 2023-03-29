@@ -50,11 +50,14 @@ typedef enum {
 } psl_impl_kind_t;
 
 typedef enum {
-   PSL_TYPE_BIT,
+   PSL_TYPE_HDLTYPE,
    PSL_TYPE_BOOLEAN,
+   PSL_TYPE_BIT,
    PSL_TYPE_BITVECTOR,
    PSL_TYPE_NUMERIC,
    PSL_TYPE_STRING,
+   PSL_TYPE_SEQUENCE,
+   PSL_TYPE_PROPERTY
 } psl_type_t;
 
 typedef enum {
@@ -68,11 +71,10 @@ typedef enum {
 } psl_guarantee_t;
 
 typedef enum {
-   PSL_PORT_CONST,
-   PSL_PORT_BOOLEAN,
-   PSL_PORT_SEQUENCE,
-   PSL_PORT_PROPERTY,
-} psl_port_kind_t;
+   PSL_CLASS_CONST,
+   PSL_CLASS_MUTABLE
+} psl_class_t;
+
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
@@ -86,6 +88,12 @@ void psl_set_subkind(psl_node_t p, unsigned sub);
 
 psl_type_t psl_type(psl_node_t p);
 void psl_set_type(psl_node_t p, psl_type_t type);
+
+type_t psl_hdl_type(psl_node_t p);
+void psl_set_hdl_type(psl_node_t p, type_t type);
+
+psl_class_t psl_class(psl_node_t p);
+void psl_set_class(psl_node_t p, psl_class_t class);
 
 tree_t psl_tree(psl_node_t p);
 void psl_set_tree(psl_node_t p, tree_t t);

@@ -255,6 +255,12 @@ void reset_verilog_parser(void);
 #define tPROPERTY      367
 #define tSEQUENCE      368
 #define tCONST         370
-#define tBOOLEAN       371
+#define tMUTABLE       371
+#define tHDLTYPE       372
+#define tBOOLEAN       373
+#define tBIT           374
+#define tBITVECTOR     375
+#define tNUMERIC       376
+#define tSTRINGK       377
 
 #endif  // _SCAN_H

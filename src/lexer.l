@@ -240,7 +240,13 @@ COVER         ?i:cover
 PROPERTY      ?i:property
 SEQUENCE      ?i:sequence
 CONST         ?i:const
+MUTABLE       ?i:mutable
+HDLTYPE       ?i:hdltype
 BOOLEAN       ?i:boolean
+BIT           ?i:bit
+BITVECTOR     ?i:bitvector
+NUMERIC       ?i:numeric
+STRING_K      ?i:string
 
 %%
 
@@ -447,6 +453,14 @@ BOOLEAN       ?i:boolean
 <PSL>{COVER}             { TOKEN(tCOVER); }
 <PSL>{PROPERTY}          { TOKEN(tPROPERTY); }
 <PSL>{SEQUENCE}          { TOKEN(tSEQUENCE); }
+<PSL>{CONST}             { TOKEN(tCONST); }
+<PSL>{MUTABLE}           { TOKEN(tMUTABLE); }
+<PSL>{HDLTYPE}           { TOKEN(tHDLTYPE); }
+<PSL>{BOOLEAN}           { TOKEN(tBOOLEAN); }
+<PSL>{BIT}               { TOKEN(tBIT); }
+<PSL>{BITVECTOR}         { TOKEN(tBITVECTOR); }
+<PSL>{NUMERIC}           { TOKEN(tNUMERIC); }
+<PSL>{STRING_K}          { TOKEN(tSTRINGK); }
 <PSL>{ALWAYS}            { TOKEN(tALWAYS); }
 <PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
 <PSL>{CLOCK}             { TOKEN(tCLOCK); }
