@@ -44,6 +44,7 @@ static void dump_decls(tree_t t, int indent);
 static void dump_type(type_t type);
 static void dump_package(tree_t t, int indent);
 static void dump_package_body(tree_t t, int indent);
+static void dump_constraint(tree_t t);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -377,6 +378,16 @@ static void dump_expr(tree_t t)
    dump_type_hint(t);
 }
 
+static void dump_elem_constraint(tree_t t)
+{
+   print_syntax("%s", istr(tree_ident(t)));
+
+   type_t ftype = tree_type(t);
+   const int ncon = type_constraints(ftype);
+   for (int i = 0; i < ncon; i++)
+      dump_constraint(type_constraint(ftype, i));
+}
+
 static void dump_constraint(tree_t t)
 {
    const int nranges = tree_ranges(t);
@@ -401,13 +412,7 @@ static void dump_constraint(tree_t t)
       print_syntax("(");
       for (int i = 0; i < nranges; i++) {
          if (i > 0) print_syntax(", ");
-         tree_t fc = tree_range(t, i);
-         print_syntax("%s", istr(tree_ident(fc)));
-
-         type_t ftype = tree_type(fc);
-         const int ncon = type_constraints(ftype);
-         for (int i = 0; i < ncon; i++)
-            dump_constraint(type_constraint(ftype, i));
+         dump_elem_constraint(tree_range(t, i));
       }
       print_syntax(")");
       break;
@@ -1533,6 +1538,9 @@ void vhdl_dump(tree_t t, int indent)
       break;
    case T_CONSTRAINT:
       dump_constraint(t);
+      break;
+   case T_ELEM_CONSTRAINT:
+      dump_elem_constraint(t);
       break;
    case T_ALTERNATIVE:
       dump_alternative(t, indent);

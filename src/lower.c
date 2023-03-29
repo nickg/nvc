@@ -3522,7 +3522,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
    for (int i = 0; i < nfields; i++)
       vals[i] = VCODE_INVALID_REG;
 
-   type_t *value_types LOCAL = xcalloc_array(nfields, sizeof(type));
+   tree_t *map LOCAL = xcalloc_array(nfields, sizeof(tree_t));
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
@@ -3534,7 +3534,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
             const int pos = tree_pos(a);
             tree_t field = type_field(type, pos);
             vals[pos] = lower_record_sub_aggregate(lu, value, field, is_const);
-            value_types[pos] = tree_type(value);
+            map[pos] = value;
          }
          break;
 
@@ -3543,20 +3543,16 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
             const int pos = tree_pos(tree_ref(tree_name(a)));
             tree_t field = type_field(type, pos);
             vals[pos] = lower_record_sub_aggregate(lu, value, field, is_const);
-            value_types[pos] = tree_type(value);
+            map[pos] = value;
          }
          break;
 
       case A_OTHERS:
-         {
-            type_t value_type = tree_type(value);
-            for (int j = 0; j < nfields; j++) {
-               if (vals[j] == VCODE_INVALID_REG) {
-                  tree_t field = type_field(type, j);
-                  vals[j] = lower_record_sub_aggregate(lu, value, field,
-                                                       is_const);
-                  value_types[j] = value_type;
-               }
+         for (int j = 0; j < nfields; j++) {
+            if (vals[j] == VCODE_INVALID_REG) {
+               tree_t field = type_field(type, j);
+               vals[j] = lower_record_sub_aggregate(lu, value, field, is_const);
+               map[j] = value;
             }
          }
          break;
@@ -3582,27 +3578,38 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
       }
 
       for (int i = 0; i < nfields; i++) {
-         type_t ftype = tree_type(type_field(type, i));
+         tree_t f = type_field(type, i), cons;
+         type_t ftype = tree_type(f);
          vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
-         vcode_reg_t val_reg = vals[i];
          if (type_is_array(ftype)) {
             if (lower_const_bounds(ftype)) {
-               vcode_reg_t src_reg = lower_array_data(val_reg);
+               vcode_reg_t src_reg = lower_array_data(vals[i]);
                vcode_reg_t length_reg =
-                  lower_array_total_len(lu, ftype, val_reg);
+                  lower_array_total_len(lu, ftype, vals[i]);
                emit_copy(ptr_reg, src_reg, length_reg);
             }
             else {
-               vcode_reg_t src_reg = val_reg;
+               vcode_reg_t src_reg = vals[i];
                if (vcode_reg_kind(src_reg) != VCODE_TYPE_UARRAY)
-                  src_reg = lower_wrap(lu, value_types[i], src_reg);
+                  src_reg = lower_wrap(lu, tree_type(map[i]), src_reg);
+
+               if ((cons = type_constraint_for_field(type, f))) {
+                  // Element constraint may be OPEN for constants
+                  type_t ctype = tree_type(cons);
+                  if (!type_is_unconstrained(ctype))
+                     lower_check_array_sizes(lu, map[i], ctype,
+                                             tree_type(map[i]),
+                                             VCODE_INVALID_REG,
+                                             src_reg);
+               }
+
                emit_store_indirect(src_reg, ptr_reg);
             }
          }
          else if (type_is_record(ftype))
-            emit_copy(ptr_reg, val_reg, VCODE_INVALID_REG);
+            emit_copy(ptr_reg, vals[i], VCODE_INVALID_REG);
          else
-            emit_store_indirect(val_reg, ptr_reg);
+            emit_store_indirect(vals[i], ptr_reg);
       }
 
       return mem_reg;
