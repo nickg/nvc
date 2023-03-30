@@ -3388,6 +3388,27 @@ void llvm_aot_compile(llvm_obj_t *obj, jit_t *j, jit_handle_t handle)
    free(func.name);
 }
 
+static void llvm_finalise_string_table(llvm_obj_t *obj)
+{
+   if (obj->pack_writer == NULL)
+      return;
+
+   const char *strtab;
+   size_t len;
+   pack_writer_string_table(obj->pack_writer, &strtab, &len);
+
+   LLVMValueRef init =
+      LLVMConstStringInContext(obj->context, strtab, len - 1, false);
+   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], len);
+   LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, "strtab");
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetInitializer(global, init);
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+
+   LLVMReplaceAllUsesWith(obj->strtab, global);
+   LLVMDeleteGlobal(obj->strtab);
+}
+
 void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
 {
    if (obj->fns[LLVM_TLAB_ALLOC] != NULL)
@@ -3405,20 +3426,7 @@ void llvm_obj_finalise(llvm_obj_t *obj, llvm_opt_level_t olevel)
                           LLVM_MUL_OVERFLOW_U8);
    }
 
-   const char *strtab;
-   size_t len;
-   pack_writer_string_table(obj->pack_writer, &strtab, &len);
-
-   LLVMValueRef init =
-      LLVMConstStringInContext(obj->context, strtab, len - 1, false);
-   LLVMTypeRef array_type = LLVMArrayType(obj->types[LLVM_INT8], len);
-   LLVMValueRef global = LLVMAddGlobal(obj->module, array_type, "strtab");
-   LLVMSetGlobalConstant(global, true);
-   LLVMSetInitializer(global, init);
-   LLVMSetLinkage(global, LLVMPrivateLinkage);
-
-   LLVMReplaceAllUsesWith(obj->strtab, global);
-   LLVMDeleteGlobal(obj->strtab);
+   llvm_finalise_string_table(obj);
 
    DWARF_ONLY(LLVMDIBuilderFinalize(obj->debuginfo));
 
