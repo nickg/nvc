@@ -961,6 +961,7 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_DEBUG_LOCUS:
       return FFI_POINTER;
    case VCODE_TYPE_UARRAY:
       return FFI_UARRAY;
