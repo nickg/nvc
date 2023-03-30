@@ -498,18 +498,6 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       jit_abort(EXIT_FAILURE);
 }
 
-void *x_mspace_alloc(size_t size)
-{
-   if (unlikely(size > UINT32_MAX)) {
-      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %zu byte object "
-              "which is larger than the maximum supported %u bytes",
-              size, UINT32_MAX);
-      __builtin_unreachable();
-   }
-   else
-      return jit_mspace_alloc(size);
-}
-
 void x_elab_order_fail(tree_t where)
 {
    assert(tree_kind(where) == T_EXTERNAL_NAME);
@@ -1180,7 +1168,14 @@ void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
 
-   void *ptr = x_mspace_alloc(size);
+   if (unlikely(size > UINT32_MAX)) {
+      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %zu byte object "
+              "which is larger than the maximum supported %u bytes",
+              size, UINT32_MAX);
+      __builtin_unreachable();
+   }
+
+   void *ptr = jit_mspace_alloc(size);
 
    thread->anchor = NULL;
    return ptr;

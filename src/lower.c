@@ -286,6 +286,16 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
+static bool lower_trivially_copyable(type_t type)
+{
+   if (type_is_record(type))
+      return lower_const_bounds(type);
+   else if (type_is_array(type))
+      return lower_trivially_copyable(lower_elem_recur(type));
+   else
+      return true;
+}
+
 static bool lower_can_be_signal(type_t type)
 {
    switch (type_kind(type)) {
@@ -4922,7 +4932,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
       const int ndims = lower_dims_for_type(type);
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
       if (ncons > 0 && type_is_unconstrained(type))
-         bounds_reg = lower_constraints(lu, cons, ncons, ndims);
+         bounds_reg = lower_constraints(lu, cons, ndims, ncons);
 
       vcode_reg_t count_reg = lower_array_total_len(lu, type, bounds_reg);
       vcode_reg_t mem_reg = hint_reg;
@@ -5456,7 +5466,7 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
 {
    if (dst_ptr == src_ptr)
       return;
-   else if (lower_const_bounds(type))
+   else if (lower_trivially_copyable(type))
       emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
    else {
       type_t base = lower_base_type(type);
@@ -5467,6 +5477,41 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
          lower_context_for_call(helper_func),
          dst_ptr,
          src_ptr,
+         locus
+      };
+      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+   }
+}
+
+static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
+                             vcode_reg_t dst_array, vcode_reg_t src_array,
+                             vcode_reg_t locus)
+{
+   if (dst_array == src_array)
+      return;
+   else if (lower_trivially_copyable(dst_type)) {
+      lower_check_array_sizes(lu, dst_type, src_type, dst_array,
+                              src_array, locus);
+
+      vcode_reg_t count_reg = lower_array_total_len(lu, dst_type, dst_array);
+
+      vcode_reg_t src_data = lower_array_data(src_array);
+      vcode_reg_t dst_data = lower_array_data(dst_array);
+      emit_copy(dst_data, src_data, count_reg);
+   }
+   else {
+      type_t base = lower_base_type(dst_type);
+      ident_t helper_func =
+         ident_prefix(type_ident(base), ident_new("copy"), '$');
+
+      assert(vcode_reg_kind(dst_array) == VCODE_TYPE_UARRAY);
+      assert(vcode_reg_kind(src_array) == VCODE_TYPE_UARRAY);
+
+      vcode_reg_t args[] = {
+         lower_context_for_call(helper_func),
+         dst_array,
+         src_array,
          locus
       };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
@@ -5593,25 +5638,22 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
    }
    else if (type_is_array(type)) {
       vcode_reg_t target_reg  = lower_lvalue(lu, target);
-      vcode_reg_t count_reg   = lower_array_total_len(lu, type, target_reg);
-      vcode_reg_t target_data = lower_array_data(target_reg);
 
       vcode_reg_t value_reg;
       if (lower_can_hint_aggregate(target, value))
          value_reg = lower_aggregate(lu, value, lower_array_data(target_reg));
       else if (lower_can_hint_concat(target, value)) {
          vcode_reg_t hint_reg = lower_array_data(target_reg);
+         vcode_reg_t count_reg = lower_array_total_len(lu, type, target_reg);
          value_reg = lower_concat(lu, value, hint_reg, count_reg);
       }
       else
          value_reg = lower_rvalue(lu, value);
 
       vcode_reg_t locus = lower_debug_locus(target);
-      lower_check_array_sizes(lu, type, tree_type(value),
-                              target_reg, value_reg, locus);
 
-      vcode_reg_t data_reg = lower_array_data(value_reg);
-      emit_copy(target_data, data_reg, count_reg);
+      type_t value_type = tree_type(value);
+      lower_copy_array(lu, type, value_type, target_reg, value_reg, locus);
    }
    else {
       vcode_reg_t target_reg = lower_lvalue(lu, target);
@@ -8248,13 +8290,17 @@ static void lower_resolved_helper(lower_unit_t *parent, tree_t decl)
 static void lower_copy_helper(lower_unit_t *parent, tree_t decl)
 {
    type_t type = tree_type(decl);
-   if (!type_is_record(type) || lower_const_bounds(type))
+   if (lower_trivially_copyable(type))
       return;
 
    vcode_state_t state;
    vcode_state_save(&state);
 
    ident_t func = ident_prefix(type_ident(type), ident_new("copy"), '$');
+
+   vcode_unit_t exist = vcode_find_unit(func);
+   if (exist != NULL)
+      return;
 
    ident_t context_id = vcode_unit_name();
 
@@ -8273,38 +8319,78 @@ static void lower_copy_helper(lower_unit_t *parent, tree_t decl)
    vcode_reg_t psrc_reg = emit_param(vstype, vbounds, ident_new("src"));
    vcode_reg_t plocus = emit_param(vlocus, vlocus, ident_new("locus"));
 
-   const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++) {
-      type_t ftype = tree_type(type_field(type, i));
+   if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
 
-      vcode_reg_t dst_ptr = emit_record_ref(pdst_reg, i);
-      vcode_reg_t src_ptr = emit_record_ref(psrc_reg, i);
+         vcode_reg_t dst_ptr = emit_record_ref(pdst_reg, i);
+         vcode_reg_t src_ptr = emit_record_ref(psrc_reg, i);
 
-      if (type_is_scalar(ftype) || type_is_access(ftype)) {
-         vcode_reg_t src_reg = emit_load_indirect(src_ptr);
-         emit_store_indirect(src_reg, dst_ptr);
+         if (type_is_scalar(ftype) || type_is_access(ftype)) {
+            vcode_reg_t src_reg = emit_load_indirect(src_ptr);
+            emit_store_indirect(src_reg, dst_ptr);
+         }
+         else if (type_is_array(ftype)) {
+            vcode_reg_t src_reg = src_ptr;
+            if (lower_have_uarray_ptr(src_reg))
+               src_reg = emit_load_indirect(src_ptr);
+
+            vcode_reg_t dst_reg = dst_ptr;
+            if (lower_have_uarray_ptr(dst_reg))
+               dst_reg = emit_load_indirect(dst_ptr);
+
+            lower_copy_array(lu, ftype, ftype, dst_reg, src_reg, plocus);
+         }
+         else if (type_is_record(ftype))
+            lower_copy_record(lu, ftype, dst_ptr, src_ptr, plocus);
+         else
+            fatal_trace("unhandled field type %s in lower_copy_helper",
+                        type_pp(ftype));
       }
-      else if (type_is_array(ftype)) {
-         vcode_reg_t src_reg = src_ptr;
-         if (lower_have_uarray_ptr(src_reg))
-            src_reg = emit_load_indirect(src_ptr);
+   }
+   else {
+      assert(type_is_array(type));
 
-         vcode_reg_t dst_reg = dst_ptr;
-         if (lower_have_uarray_ptr(dst_reg))
-            dst_reg = emit_load_indirect(dst_ptr);
+      type_t elem = lower_elem_recur(type);
+      lower_check_array_sizes(lu, type, type, pdst_reg, psrc_reg, plocus);
 
-         lower_check_array_sizes(lu, ftype, ftype, dst_reg, src_reg, plocus);
+      vcode_reg_t count_reg = lower_array_total_len(lu, type, psrc_reg);
 
-         vcode_reg_t count_reg = lower_array_total_len(lu, ftype, src_reg);
+      vcode_reg_t src_data = lower_array_data(psrc_reg);
+      vcode_reg_t dst_data = lower_array_data(pdst_reg);
 
-         vcode_reg_t src_data = lower_array_data(src_reg);
-         vcode_reg_t dst_data = lower_array_data(dst_reg);
-         emit_copy(dst_data, src_data, count_reg);
-      }
-      else if (type_is_record(ftype))
-         lower_copy_record(lu, ftype, dst_ptr, src_ptr, plocus);
-      else
-         fatal_trace("unhandled type %s in lower_copy_helper", type_pp(ftype));
+      assert(!lower_trivially_copyable(elem));
+
+      vcode_type_t voffset = vtype_offset();
+
+      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+      vcode_reg_t zero_reg = emit_const(voffset, 0);
+      emit_store(zero_reg, i_var);
+
+      vcode_block_t body_bb = emit_block();
+      vcode_block_t exit_bb = emit_block();
+
+      vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, count_reg, zero_reg);
+      emit_cond(null_reg, exit_bb, body_bb);
+
+      vcode_select_block(body_bb);
+
+      vcode_reg_t i_reg = emit_load(i_var);
+      vcode_reg_t dptr_reg = emit_array_ref(dst_data, i_reg);
+      vcode_reg_t sptr_reg = emit_array_ref(src_data, i_reg);
+
+      lower_copy_record(lu, elem, dptr_reg, sptr_reg, plocus);
+
+      vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
+      emit_store(next_reg, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_reg, count_reg);
+      emit_cond(done_reg, exit_bb, body_bb);
+
+      vcode_select_block(exit_bb);
+
+      lower_release_temp(lu, i_var);
    }
 
    emit_return(VCODE_INVALID_REG);
@@ -8323,6 +8409,10 @@ static void lower_new_helper(lower_unit_t *parent, tree_t decl)
    vcode_state_save(&state);
 
    ident_t func = ident_prefix(type_ident(type), ident_new("new"), '$');
+
+   vcode_unit_t exist = vcode_find_unit(func);
+   if (exist != NULL)
+      return;
 
    ident_t context_id = vcode_unit_name();
 

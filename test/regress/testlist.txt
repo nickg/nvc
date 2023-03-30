@@ -754,3 +754,4 @@ arith5          fail,gold
 real4           fail,gold
 cover14         cover,shell
 issue616        fail,gold,2008
+record38        normal,2008
