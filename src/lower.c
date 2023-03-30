@@ -792,15 +792,16 @@ static vcode_type_t lower_signal_type(type_t type)
       }
    }
    else if (type_is_record(type)) {
-      ident_t name = ident_prefix(type_ident(type), ident_new("$"), '\0');
+      type_t base = type_base_recur(type);
+      ident_t name = ident_prefix(type_ident(base), ident_new("$"), '\0');
       vcode_type_t record = vtype_find_named_record(name);
       if (record == VCODE_INVALID_TYPE) {
          vtype_named_record(name, NULL, 0);  // Forward-declare the name
 
-         const int nfields = type_fields(type);
+         const int nfields = type_fields(base);
          vcode_type_t fields[nfields];
          for (int i = 0; i < nfields; i++)
-            fields[i] = lower_signal_type(tree_type(type_field(type, i)));
+            fields[i] = lower_signal_type(tree_type(type_field(base, i)));
 
          record = vtype_named_record(name, fields, nfields);
       }

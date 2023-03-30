@@ -5086,6 +5086,22 @@ START_TEST(test_copy1)
 }
 END_TEST
 
+START_TEST(test_issue662)
+{
+   input_from_file(TESTDIR "/lower/issue662.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.SUB.CMP");
+   vcode_select_unit(vu);
+
+   vcode_type_t vt = vtype_find_named_record(ident_new("WORK.TEST_PKG.T1$"));
+   fail_if(vt == VCODE_INVALID_TYPE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5209,6 +5225,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_driver1);
    tcase_add_test(tc, test_attr2);
    tcase_add_test(tc, test_copy1);
+   tcase_add_test(tc, test_issue662);
    suite_add_tcase(s, tc);
 
    return s;
