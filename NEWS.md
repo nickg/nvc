@@ -46,6 +46,8 @@
   a record (#662).
 - Implemented VHDL-2019 syntax relaxations for empty records and
   trailing semicolon in interface lists (from @bpadalino).
+- A Bash auto-completion script is now installed by default.  Run
+  `configure` with `--without-bash-completion` to disable this.
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.

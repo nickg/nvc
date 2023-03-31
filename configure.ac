@@ -391,6 +391,23 @@ else
 fi
 AC_SUBST(LTO_FLAG)
 
+AC_ARG_WITH([bash-completion],
+  AS_HELP_STRING(
+    [--with-bash-completion[=PATH]],
+    [Install the bash auto-completion script in this directory.]),
+  [],
+  [with_bash_completion=yes])
+
+if test "x$with_bash_completion" = "xyes"; then
+  BASH_COMPLETION_DIR="$datadir/bash-completion/completions"
+else
+  BASH_COMPLETION_DIR="$with_bash_completion"
+fi
+
+AC_SUBST([BASH_COMPLETION_DIR])
+AM_CONDITIONAL([ENABLE_BASH_COMPLETION],
+               [test "x$with_bash_completion" != "xno"])
+
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE
 if test x$_cv_have_gnu_make = xyes ; then
