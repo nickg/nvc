@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-static vhdl_standard_t  current_std  = STD_93;
+static vhdl_standard_t  current_std  = STD_02;
 static bool             have_set_std = false;
 static ident_t          id_cache[NUM_WELL_KNOWN];
 static text_buf_t      *syntax_buf = NULL;

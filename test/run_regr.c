@@ -594,6 +594,8 @@ static void push_std(test_t *test, arglist_t **args)
       push_arg(args, "--std=2008");
    else if (test->flags & F_2019)
       push_arg(args, "--std=2019");
+   else
+      push_arg(args, "--std=1993");
 }
 
 static void chomp(char *str)

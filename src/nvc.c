@@ -137,8 +137,6 @@ static int analyse(int argc, char **argv)
    int c, index = 0;
    const char *spec = ":D:";
 
-   pp_defines_init();
-
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:

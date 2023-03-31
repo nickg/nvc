@@ -166,9 +166,9 @@ listed in [THANKS.md](THANKS.md).
 
 VHDL standard revisions are commonly referred to by the year they were
 published.  For example IEEE 1076-2008 is known as VHDL-2008.  The
-default standard in NVC is VHDL-93 as this remains the most widely used
-in the industry.  The default can be changed with the `--std` argument.
-For example `--std=2008` selects the VHDL-2008 standard.
+default standard in NVC is currently VHDL-2002 but this can be changed
+with the `--std` argument.  For example `--std=2008` selects the
+VHDL-2008 standard.
 
 The 1993, 2000, and 2002 revisions of the standard are fully supported.
 Please raise bugs for any missing or incorrectly implemented features

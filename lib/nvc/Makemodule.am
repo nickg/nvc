@@ -22,16 +22,16 @@ lib/nvc/_NVC_LIB:
 lib/nvc/_index:
 
 lib/nvc/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
 
 lib/nvc/NVC.POLYFILL: $(srcdir)/lib/nvc/polyfill.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill.vhd
 
 lib/nvc/NVC.POLYFILL-body: $(srcdir)/lib/nvc/polyfill-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
 
 gen-deps-nvc:
-	$(nvc) -L lib/ --work=lib/nvc --print-deps | \
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
 
 include lib/nvc/deps.mk

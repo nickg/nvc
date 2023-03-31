@@ -58,6 +58,7 @@ extern loc_t yylloc;
 extern void reset_scanner(void);
 
 static bool pp_cond_analysis_expr(void);
+static void pp_defines_init();
 
 #ifndef ENABLE_VERILOG
 yylval_t yylval;
@@ -66,6 +67,8 @@ loc_t yylloc;
 
 void input_from_file(const char *file)
 {
+   pp_defines_init();
+
    int fd;
    if (strcmp(file, "-") == 0)
       fd = STDIN_FILENO;
@@ -212,8 +215,11 @@ const char *token_str(token_t tok)
    return "???";
 }
 
-void pp_defines_init()
+static void pp_defines_init(void)
 {
+   if (pp_defines != NULL)
+      return;
+
    pp_defines = shash_new(16);
 
    pp_defines_add("VHDL_VERSION", standard_text(standard()));
@@ -226,10 +232,15 @@ void pp_defines_init()
 
 void pp_defines_add(const char *name, const char *value)
 {
-   char *existing_val = (char*) shash_get(pp_defines, name);
-   if (existing_val)
-      errorf("conditional analysis directive '%s' already defined (%s)",
-             name, existing_val);
+   pp_defines_init();
+
+   char *existing_val = shash_get(pp_defines, name);
+   if (existing_val) {
+      warnf("conditional analysis identifier '%s' already defined (%s)",
+            name, existing_val);
+      free(existing_val);
+   }
+
    shash_put(pp_defines, name, xstrdup(value));
 }
 

@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Code generation has been rewritten to enable faster elaboration and
   "just-in-time" compilation in the future.
+- Now compatible with LLVM 16.
 - Implemented the VHDL-2019 call path reporting API.
 - The `elsif` VHDL-2019 conditional analysis directive now works
   correctly (#604).
@@ -34,9 +35,17 @@
 - ISO-8859-1 extended characters are now handled properly in identifiers
   and when printing to the terminal.
 - The new `configure` option `--disable-default-paths` disables the
-  default library search paths.
+  default library search paths (#652).
 - Subtype indications used as case range choices no longer crash during
   analysis (#655).
+- The default standard version was changed to VHDL-2002 and will likely
+  change again to -2008 in a future release.  Users are recommended to
+  use the `--std=` option to specify an explicit standard revision to
+  avoid any compatibility issues.
+- Fixed a crash when elaborating a port map which contains a subtype of
+  a record (#662).
+- Implemented VHDL-2019 syntax relaxations for empty records and
+  trailing semicolon in interface lists (from @bpadalino).
 
 ## Version 1.8.2 - 2023-02-14
 - Fixed "failed to suspend thread" crash on macOS.
