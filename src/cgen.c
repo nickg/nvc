@@ -86,7 +86,17 @@ static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
 
 static bool cgen_is_preload(ident_t name)
 {
-   const char *preload[] = { "STD.", "IEEE.", "NVC." };
+   const char *preload[] = {
+      "STD.STANDARD",
+      "STD.TEXTIO",
+      "STD.ENV",
+      "IEEE.STD_LOGIC",
+      "IEEE.NUMERIC",
+      "IEEE.MATH",
+      "IEEE.FLOAT",
+      "IEEE.FIXED",
+      "NVC."
+   };
    const char *str = istr(name);
    for (int i = 0; i < ARRAY_LEN(preload); i++) {
       if (strncmp(str, preload[i], strlen(preload[i])) == 0)
@@ -427,6 +437,9 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
       unit = tree_primary(unit);
 
    ident_t name = tree_ident(unit);
+   if (!cgen_is_preload(name))
+      return;
+
    vcode_unit_t vu = vcode_find_unit(name);
    if (vu == NULL)
       fatal("missing code for %s", istr(name));
