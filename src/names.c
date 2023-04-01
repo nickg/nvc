@@ -152,6 +152,7 @@ struct type_set {
    tracked_type_list_t  members;
    type_set_t          *down;
    bool                 cconv;
+   bool                 composite;
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
@@ -1499,6 +1500,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                // arguments
                if (!can_call_no_args(tab, m.items[i]))
                   continue;
+
+               // Remove subprograms with non-composite results when we
+               // know the type must be composite
+               if (tab->top_type_set->composite
+                   && type_is_composite(type_result(tree_type(m.items[i]))))
+                  continue;
             }
 
             m.items[wptr++] = m.items[i];
@@ -2246,6 +2253,20 @@ static void begin_overload_resolution(overload_t *o)
             overload_prune_candidate(o, i);
          else
             o->candidates.items[wptr++] = d;
+      }
+      ATRIM(o->candidates, wptr);
+   }
+
+   // If this call is on the RHS of an assignment to an aggregate then
+   // it can only have composite type
+   if (o->candidates.count > 1 && o->nametab->top_type_set->composite) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         type_t rtype = type_result(tree_type(o->candidates.items[i]));
+         if (!type_is_composite(rtype))
+            overload_prune_candidate(o, i);
+         else
+            o->candidates.items[wptr++] = o->candidates.items[i];
       }
       ATRIM(o->candidates, wptr);
    }
@@ -4060,6 +4081,21 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    type_t type = _solve_types(tab, expr);
    type_set_pop(tab);
    return type;
+}
+
+type_t solve_target(nametab_t *tab, tree_t target, tree_t value)
+{
+   type_t value_type = NULL;
+   if (tree_kind(target) == T_AGGREGATE) {
+      type_set_push(tab);
+      tab->top_type_set->composite = true;
+
+      value_type = _solve_types(tab, value);
+
+      type_set_pop(tab);
+   }
+
+   return solve_types(tab, target, value_type);
 }
 
 type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
