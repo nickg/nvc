@@ -27,6 +27,10 @@ begin
         assert v(1).x = 1;
         assert v(2).y = "110";
 
+        v(1 to 2) := t(1 to 2);
+        assert v(1).x = 1;
+        assert v(2).y = "110";
+
         wait;
     end process;
 

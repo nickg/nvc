@@ -3321,7 +3321,8 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
       .dir   = kind_reg
    };
 
-   if (type_is_unconstrained(type_elem(type))) {
+   type_t elem = type_elem(type);
+   if (type_is_array(elem) && type_is_unconstrained(elem)) {
       assert(vcode_reg_kind(array_reg) == VCODE_TYPE_UARRAY);
       const int ndims = vtype_dims(vcode_reg_type(array_reg));
       vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
