@@ -16,7 +16,7 @@ _nvc () {
   if [ "$cur" == "$have_cmd" ]; then
     COMPREPLY=( $(compgen -W "$have_cmd" -- $cur ) )
   fi
-  
+
   case "$prev" in
     --work|-L)
       _filedir -d
@@ -40,11 +40,11 @@ _nvc () {
                    --native -V --verbose'
   local run_opts='--trace --stop-time= --ieee-warnings= --stats= --stop-delta=
                   -w --wave --format='
-  
+
   case "$have_cmd" in
     -a)
-      COMPREPLY+=( $( compgen -f -X '!*.vhd' -- $cur )
-                   $( compgen -W "$analyse_opts" -- $cur ) )
+      _filedir '@(vhd|vhdl|v)'
+      COMPREPLY+=( $( compgen -W "$analyse_opts" -- $cur ) )
       ;;
     -e)
       local toplevel=$(nvc --list | awk '/(Entity|Configuration)/ {
@@ -66,9 +66,9 @@ _nvc () {
       COMPREPLY+=( $( compgen -W "$global_opts" -- $cur ) )
       ;;
   esac
-  
+
   [[ $COMPREPLY == *= ]] && compopt -o nospace
-  
+
   return 0
 } &&
 complete -F _nvc nvc
