@@ -87,10 +87,6 @@ AC_DEFUN([AX_LLVM_C], [
       AC_MSG_ERROR([LLVM version 8.0 or later required])
     fi
 
-    if test "$llvm_ver_num" -ge "160"; then
-      AC_MSG_ERROR([LLVM version 16.0 or later not yet supported])
-    fi
-
     if test "$llvm_ver_num" -ge "100"; then
       AC_DEFINE_UNQUOTED(LLVM_HAVE_DI_SCOPE_GET_FILE, [1],
                          [Have LLVMDIScopeGetFile])
