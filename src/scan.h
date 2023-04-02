@@ -235,7 +235,6 @@ void reset_verilog_parser(void);
 #define tNEXTE1        347
 #define tNEXTEVENT     348
 #define tNEXTEVENT1    349
-
 #define tMODULE        350
 #define tENDMODULE     351
 #define tINPUT         352
@@ -246,7 +245,6 @@ void reset_verilog_parser(void);
 #define tINITIAL       357
 #define tWIRE          358
 #define tUNSIGNED      359
-
 #define tASSUME        360
 #define tASSUMEG       361
 #define tRESTRICT      362

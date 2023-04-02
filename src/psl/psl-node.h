@@ -82,9 +82,6 @@ void psl_set_subkind(psl_node_t p, unsigned sub);
 psl_type_t psl_type(psl_node_t p);
 void psl_set_type(psl_node_t p, psl_type_t type);
 
-type_t psl_hdl_type(psl_node_t p);
-void psl_set_hdl_type(psl_node_t p, type_t type);
-
 tree_t psl_tree(psl_node_t p);
 void psl_set_tree(psl_node_t p, tree_t t);
 

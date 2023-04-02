@@ -179,20 +179,6 @@ void psl_set_type(psl_node_t p, psl_type_t type)
    lookup_item(&psl_object, p, I_CLASS)->ival = type;
 }
 
-type_t psl_hdl_type(psl_node_t p)
-{
-   item_t *item = lookup_item(&psl_object, p, I_TYPE);
-   assert(item->object != NULL);
-   return container_of(item->object, struct _type, object);
-}
-
-void psl_set_hdl_type(psl_node_t p, type_t type)
-{
-   assert(p != NULL);
-   lookup_item(&psl_object, p, I_TYPE)->object = &(type->object);
-   object_write_barrier(&(p->object), &(type->object));
-}
-
 tree_t psl_tree(psl_node_t p)
 {
    item_t *item = lookup_item(&psl_object, p, I_FOREIGN);

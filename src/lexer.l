@@ -477,8 +477,6 @@ STRING_K      ?i:string
 <PSL>{NEXT_E}!           { TOKEN(tNEXTE1); }
 <PSL>{NEXT_EVENT}        { TOKEN(tNEXTEVENT); }
 <PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
-<PSL>{CONST}             { TOKEN(tCONST); }
-<PSL>{BOOLEAN}           { TOKEN(tBOOLEAN); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
