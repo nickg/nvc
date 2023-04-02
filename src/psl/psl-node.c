@@ -41,9 +41,6 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    // P_HDL_EXPR
    (I_FOREIGN | I_CLASS | I_CLOCK),
 
-   // P_PORT_DECL
-   (I_IDENT | I_CLASS | I_SUBKIND | I_TYPE),
-
    // P_PROPERTY_DECL
    (I_VALUE | I_IDENT | I_PORTS),
 
@@ -81,9 +78,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_ASSERT", "P_ASSUME", "P_RESTRICT", "P_FAIRNESS", "P_COVER", "P_ALWAYS",
-   "P_HDL_EXPR", "P_PORT_DECL", "P_PROPERTY_DECL", "P_SEQUENCE_DECL",
-   "P_CLOCK_DECL", "P_NEXT", "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E",
-   "P_NEXT_EVENT", "P_SERE", "P_IMPLICATION",
+   "P_HDL_EXPR", "P_PROPERTY_DECL", "P_SEQUENCE_DECL", "P_CLOCK_DECL", "P_NEXT",
+   "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
+   "P_SERE", "P_IMPLICATION",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -120,6 +117,17 @@ static inline psl_node_t psl_array_nth(item_t *item, unsigned n)
 static inline void psl_array_add(item_t *item, psl_node_t p)
 {
    obj_array_add(&(item->obj_array), &(p->object));
+}
+
+static inline tree_t tree_array_nth(item_t *item, unsigned n)
+{
+   object_t *o = obj_array_nth(item->obj_array, n);
+   return container_of(o, struct _tree, object);
+}
+
+static inline void tree_array_add(item_t *item, tree_t t)
+{
+   obj_array_add(&(item->obj_array), &(t->object));
 }
 
 psl_node_t psl_new(psl_kind_t kind)
@@ -274,16 +282,16 @@ unsigned psl_ports(psl_node_t p)
    return obj_array_count(item->obj_array);
 }
 
-psl_node_t psl_port(psl_node_t p, unsigned n)
+tree_t psl_port(psl_node_t p, unsigned n)
 {
    item_t *item = lookup_item(&psl_object, p, I_PORTS);
-   return psl_array_nth(item, n);
+   return tree_array_nth(item, n);
 }
 
-void psl_add_port(psl_node_t p, psl_node_t o)
+void psl_add_port(psl_node_t p, tree_t o)
 {
    assert(o != NULL);
-   psl_array_add(lookup_item(&psl_object, p, I_PORTS), o);
+   tree_array_add(lookup_item(&psl_object, p, I_PORTS), o);
    object_write_barrier(&(p->object), &(o->object));
 }
 

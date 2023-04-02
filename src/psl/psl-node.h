@@ -28,7 +28,6 @@ typedef enum {
    P_COVER,
    P_ALWAYS,
    P_HDL_EXPR,
-   P_PORT_DECL,
    P_PROPERTY_DECL,
    P_SEQUENCE_DECL,
    P_CLOCK_DECL,
@@ -70,12 +69,6 @@ typedef enum {
    PSL_NO_GUARANTEE,
 } psl_guarantee_t;
 
-typedef enum {
-   PSL_CLASS_CONST,
-   PSL_CLASS_MUTABLE
-} psl_class_t;
-
-
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
 const char *psl_kind_str(psl_kind_t kind);
@@ -91,9 +84,6 @@ void psl_set_type(psl_node_t p, psl_type_t type);
 
 type_t psl_hdl_type(psl_node_t p);
 void psl_set_hdl_type(psl_node_t p, type_t type);
-
-psl_class_t psl_class(psl_node_t p);
-void psl_set_class(psl_node_t p, psl_class_t class);
 
 tree_t psl_tree(psl_node_t p);
 void psl_set_tree(psl_node_t p, tree_t t);
@@ -114,8 +104,8 @@ bool psl_has_message(psl_node_t p);
 void psl_set_message(psl_node_t, tree_t m);
 
 unsigned psl_ports(psl_node_t p);
-psl_node_t psl_port(psl_node_t p, unsigned n);
-void psl_add_port(psl_node_t p, psl_node_t o);
+tree_t psl_port(psl_node_t p, unsigned n);
+void psl_add_port(psl_node_t p, tree_t o);
 
 ident_t psl_ident(psl_node_t p);
 bool psl_has_ident(psl_node_t p);

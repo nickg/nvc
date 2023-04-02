@@ -279,7 +279,7 @@ STRING_K      ?i:string
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
 
-<PSL>;                   { BEGIN(INITIAL); TOKEN(tSEMI); }
+<PSL>;                   { TOKEN(tSEMI); }
 <PSL>{PSL_CONT}          { /* Multi-line PSL comment */ }
 <PSL>"--"                { comment_caller = YY_START; BEGIN(COMMENT); }
 

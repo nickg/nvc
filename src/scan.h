@@ -235,6 +235,7 @@ void reset_verilog_parser(void);
 #define tNEXTE1        347
 #define tNEXTEVENT     348
 #define tNEXTEVENT1    349
+
 #define tMODULE        350
 #define tENDMODULE     351
 #define tINPUT         352
@@ -245,6 +246,7 @@ void reset_verilog_parser(void);
 #define tINITIAL       357
 #define tWIRE          358
 #define tUNSIGNED      359
+
 #define tASSUME        360
 #define tASSUMEG       361
 #define tRESTRICT      362
@@ -254,13 +256,13 @@ void reset_verilog_parser(void);
 #define tCOVER         366
 #define tPROPERTY      367
 #define tSEQUENCE      368
-#define tCONST         370
-#define tMUTABLE       371
-#define tHDLTYPE       372
-#define tBOOLEAN       373
-#define tBIT           374
-#define tBITVECTOR     375
-#define tNUMERIC       376
-#define tSTRINGK       377
+#define tCONST         369
+#define tMUTABLE       370
+#define tHDLTYPE       371
+#define tBOOLEAN       372
+#define tBIT           373
+#define tBITVECTOR     374
+#define tNUMERIC       375
+#define tSTRINGK       376
 
 #endif  // _SCAN_H
