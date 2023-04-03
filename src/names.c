@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
+#include "mask.h"
 #include "names.h"
 #include "option.h"
 #include "phase.h"
@@ -3663,9 +3664,9 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       const int nfields = type_fields(type);
       const int nassocs = tree_assocs(agg);
 
-      // Mask used for finding the types of an "others" association.
-      // This won't work with more than 64 fields.
-      uint64_t fmask = 0;
+      // Mask used for finding the types of an "others" association
+      bit_mask_t fmask;
+      mask_init(&fmask, nfields);
 
       for (int i = 0; i < nassocs; i++) {
          type_set_push(tab);
@@ -3679,7 +3680,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                   tree_t f = type_field(type, pos);
                   type_set_add(tab, solve_field_subtype(type, f), f);
                }
-               if (pos < 64) fmask |= (1 << pos);
+               if (pos < nfields) mask_set(&fmask, pos);
             }
             break;
 
@@ -3694,7 +3695,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                   type_set_add(tab, solve_field_subtype(type, field), field);
                   if (tree_kind(field) == T_FIELD_DECL) {
                      const int pos = tree_pos(field);
-                     if (pos < 64) fmask |= (1 << pos);
+                     if (pos < nfields) mask_set(&fmask, pos);
                   }
                }
                else {
@@ -3708,7 +3709,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             // Add the types of all the fields that haven't already be
             // specified to the type set
             for (int i = 0; i < MIN(nfields, 64); i++) {
-               if (!(fmask & (1 << i))) {
+               if (!mask_test(&fmask, i)) {
                   tree_t f = type_field(type, i);
                   type_set_add(tab, tree_type(f), f);
                }
@@ -3727,6 +3728,8 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          _solve_types(tab, a);
          type_set_pop(tab);
       }
+
+      mask_free(&fmask);
    }
    else {
       // All elements must be of the composite base type if this is a

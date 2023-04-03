@@ -19,6 +19,7 @@
 #include "common.h"
 #include "diag.h"
 #include "lib.h"
+#include "mask.h"
 #include "names.h"
 #include "option.h"
 #include "phase.h"
@@ -3039,8 +3040,10 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
    type_t base_type = type_base_recur(composite_type);
 
    const int nfields = type_fields(base_type);
-   tree_t *have LOCAL = xcalloc_array(nfields, sizeof(tree_t));
    int pos = 0;
+
+   bit_mask_t have;
+   mask_init(&have, nfields);
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
@@ -3053,18 +3056,14 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
             tree_t name = tree_name(a);
             if (tree_kind(name) != T_REF)
                sem_error(name, "association choice must be a field name");
+            else if (!tree_has_ref(name))
+               return false;   // Was parse error
 
-            ident_t name_i = tree_ident(name);
-            for (f = 0; f < nfields; f++) {
-               if (tree_ident(type_field(base_type, f)) == name_i)
-                  break;
-            }
+            tree_t fdecl = tree_ref(name);
+            if (tree_kind(fdecl) != T_FIELD_DECL)
+               return false;   // Was parse error
 
-            if (f == nfields) {
-               // Should have been checked in parser
-               assert(error_count() > 0);
-               return false;
-            }
+            f = tree_pos(fdecl);
          }
          break;
 
@@ -3095,13 +3094,29 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
          tree_t field = type_field(base_type, j);
          type_t field_type = tree_type(field);
 
-         if (have[j]) {
+         if (mask_test(&have, j)) {
             if (f == -1)
                continue;
 
-            sem_error(a, "field %s was already given a value by earlier "
-                      "%s choice", istr(tree_ident(field)),
-                      assoc_kind_str(tree_subkind(have[j])));
+            tree_t ak = NULL;
+            for (int k = 0; k < i; k++) {
+               ak = tree_assoc(t, k);
+               if (tree_subkind(ak) == A_POS && tree_pos(ak) == j)
+                  break;
+               else if (tree_pos(tree_ref(tree_name(ak))) == j)
+                  break;
+            }
+            assert(ak != NULL);
+
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
+            diag_printf(d, "field %s was already given a value by earlier "
+                        "%s choice", istr(tree_ident(field)),
+                        assoc_kind_str(tree_subkind(ak)));
+            diag_hint(d, tree_loc(ak), "first choice associated with field %s",
+                      istr(tree_ident(field)));
+            diag_hint(d, tree_loc(a), "duplicate choice here");
+            diag_emit(d);
+            return false;
          }
 
          tree_t value = tree_value(a);
@@ -3116,7 +3131,7 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
                       type_pp2(field_type, tree_type(value)),
                       istr(tree_ident(field)));
 
-         have[j] = a;
+         mask_set(&have, j);
          nmatched++;
       }
 
@@ -3125,7 +3140,7 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
    }
 
    for (int i = 0; i < nfields; i++) {
-      if (have[i] == NULL) {
+      if (!mask_test(&have, i)) {
          tree_t field = type_field(base_type, i);
          sem_error(t, "field %s does not have a value",
                    istr(tree_ident(field)));
