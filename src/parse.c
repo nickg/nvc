@@ -10504,7 +10504,6 @@ static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *c
    BEGIN("PSL Parameter specification");
 
    *class = C_MUTABLE;
-   token_t ttok;
 
    switch (peek()) {
    case tPROPERTY:
@@ -10558,13 +10557,11 @@ static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *c
       case tSTRINGK:
          *psl_type = PSL_TYPE_STRING;
          return std_type(NULL, STD_STRING);
-         break;
       default:
-         one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK);
       }
    }
 
-  return NULL;
+  return type_new(T_NONE);
 }
 
 static void p_psl_formal_parameter(psl_node_t node)
