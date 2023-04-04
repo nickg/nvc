@@ -10533,8 +10533,7 @@ static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *c
    case tBITVECTOR:
    case tNUMERIC:
    case tSTRINGK:
-      ttok = one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK);
-      switch (ttok) {
+      switch (one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK)) {
       case tHDLTYPE:
          *psl_type = PSL_TYPE_HDLTYPE;
          scan_as_vhdl();
