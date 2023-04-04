@@ -50,8 +50,7 @@ typedef enum {
    C_PROCEDURE,
    C_LITERAL,
    C_UNITS,
-   C_LIBRARY,
-   C_MUTABLE
+   C_LIBRARY
 } class_t;
 
 typedef enum param_kind {
