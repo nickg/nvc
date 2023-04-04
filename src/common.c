@@ -270,7 +270,7 @@ tree_t get_real_lit(tree_t t, type_t type, double r)
 
 bool parse_value(type_t type, const char *str, scalar_value_t *value)
 {
-   while (isspace((int)*str))
+   while (isspace_iso88591(*str))
       ++str;
 
    type_t base = type_base_recur(type);
@@ -306,7 +306,7 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
       {
          bool upcase = true;
          char *copy LOCAL = xstrdup(str), *p;
-         for (p = copy; (*p != '\0') && !isspace((int)*p); p++, str++) {
+         for (p = copy; (*p != '\0') && !isspace_iso88591(*p); p++, str++) {
             if (*p == '\'')
                upcase = false;
             if (upcase)
@@ -345,10 +345,10 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
          double scale = strtod(str, &eptr);
          str = eptr;
 
-         while (isspace((int)*str)) ++str;
+         while (isspace_iso88591(*str)) ++str;
 
          char *copy LOCAL = xstrdup(str), *p;
-         for (p = copy; *p && !isspace((int)*p); p++, str++)
+         for (p = copy; *p && !isspace_iso88591(*p); p++, str++)
             *p = toupper_iso88591(*p);
          *p = '\0';
 
@@ -374,7 +374,7 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
    }
 
    for (; *str; str++) {
-      if (!isspace((int)*str))
+      if (!isspace_iso88591(*str))
          return false;
    }
 

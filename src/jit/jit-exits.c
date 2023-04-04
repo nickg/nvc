@@ -315,7 +315,7 @@ int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
    const char *p = (const char *)raw_str;
    const char *endp = p + str_len;
 
-   for (; p < endp && isspace((int)*p); p++)
+   for (; p < endp && isspace_iso88591(*p); p++)
       ;
 
    const bool is_negative = p < endp && *p == '-';
@@ -342,7 +342,7 @@ int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
       *used = p - (const char *)raw_str;
    else {
       for (; p < endp && *p != '\0'; p++) {
-         if (!isspace((int)*p)) {
+         if (!isspace_iso88591(*p)) {
             jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
                     "value \"%.*s\"", (int)(endp - p), p, str_len,
                     (const char *)raw_str);
@@ -360,17 +360,17 @@ double x_string_to_real(const uint8_t *raw_str, int32_t str_len)
    null[str_len] = '\0';
 
    char *p = null;
-   for (; p < p + str_len && isspace((int)*p); p++)
+   for (; p < p + str_len && isspace_iso88591(*p); p++)
       ;
 
    double value = strtod(p, &p);
 
-   if (*p != '\0' && !isspace((int)*p))
+   if (*p != '\0' && !isspace_iso88591(*p))
       jit_msg(NULL, DIAG_FATAL, "invalid real value "
               "\"%.*s\"", str_len, (const char *)raw_str);
    else {
       for (; p < null + str_len && *p != '\0'; p++) {
-         if (!isspace((int)*p)) {
+         if (!isspace_iso88591(*p)) {
             jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
                     "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
                     (const char *)raw_str);
@@ -386,11 +386,11 @@ ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
    char *p = buf;
    int pos = 0;
 
-   for (; pos < str_len && isspace((int)raw_str[pos]); pos++)
+   for (; pos < str_len && isspace_iso88591(raw_str[pos]); pos++)
       ;
 
    bool upcase = true;
-   for (; pos < str_len && !isspace((int)raw_str[pos]); pos++) {
+   for (; pos < str_len && !isspace_iso88591(raw_str[pos]); pos++) {
       if (raw_str[pos] == '\'')
          upcase = !upcase;
 
@@ -398,7 +398,7 @@ ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
    }
 
    for (; pos < str_len; pos++) {
-      if (!isspace((int)raw_str[pos])) {
+      if (!isspace_iso88591(raw_str[pos])) {
          jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
                  "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
                  (const char *)raw_str);

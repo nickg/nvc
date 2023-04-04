@@ -238,6 +238,7 @@ const char *ordinal_str(int n);
 char toupper_iso88591(unsigned char ch);
 char tolower_iso88591(unsigned char ch);
 bool isprint_iso88591(unsigned char ch);
+bool isspace_iso88591(unsigned char ch);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));

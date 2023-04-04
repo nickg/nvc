@@ -544,7 +544,7 @@ static void diag_print_utf8(const char *str, size_t len, FILE *f)
       fwrite(str, 1, len, f);
 }
 
-static void diag_paginate(const char *str, int left, FILE *f)
+static void diag_wrap_lines(const char *str, int left, FILE *f)
 {
    const int right = terminal_width();
    const size_t len = strlen(str);
@@ -564,9 +564,9 @@ static void diag_paginate(const char *str, int left, FILE *f)
       }
       else if (col + 1 >= right && p - begin + 1 < right - left) {
          fprintf(f, "\n%*s", left, "");
-         col = left;
+         col = left + p - begin;
       }
-      else if (isspace((int)*p)) {
+      else if (isspace_iso88591(*p)) {
          diag_print_utf8(begin, p - begin + 1, f);
          if (*p == '\n') {
             fprintf(f, "%*s", left, "");
@@ -817,7 +817,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          col += color_fprintf(f, HINT_STYLE "%s:$$ ",
                               hint->kind == HINT_HELP ? "Help" : "Note");
 
-      diag_paginate(hint->text, col, f);
+      diag_wrap_lines(hint->text, col, f);
       fputc('\n', f);
 
       if (!loc_invalid_p(&(hint->loc))) {
@@ -891,7 +891,7 @@ static void diag_format_full(diag_t *d, FILE *f)
       case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
       }
 
-      diag_paginate(tb_get(d->msg), col, f);
+      diag_wrap_lines(tb_get(d->msg), col, f);
       fputc('\n', f);
    }
 
