@@ -163,7 +163,7 @@ static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
-static tree_t p_psl_clock_declaration(void);
+static tree_t p_psl_declaration(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -8407,11 +8407,13 @@ static void p_block_declarative_item(tree_t parent)
 
    case tSTARTPSL:
       consume(tSTARTPSL);
-      tree_add_decl(parent, p_psl_clock_declaration());
+      tree_add_decl(parent, p_psl_declaration());
       break;
 
    case tDEFAULT:
-      tree_add_decl(parent, p_psl_clock_declaration());
+   case tSEQUENCE:
+   case tPROPERTY:
+      tree_add_decl(parent, p_psl_declaration());
       break;
 
    default:
@@ -10467,9 +10469,139 @@ static tree_t p_psl_directive(void)
    return t;
 }
 
-static tree_t p_psl_clock_declaration(void)
+static type_t p_psl_subtype_indication(void)
+{
+   BEGIN("PSL subtype indication");
+
+   // Handle ambiguity in "p_subtype_indication". Two consecutive IDs
+   // may indicate resolution function, or only "type_mark" followed by
+   // actual parameter name.
+   token_t third = peek_nth(3);
+   if (peek() == tID && peek_nth(1) == tID &&
+       (third == tSEMI || third == tCOMMA || third == tRPAREN))
+      return p_type_mark();
+   else
+      return p_subtype_indication();
+}
+
+static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *class)
+{
+   //    const
+   //    | [const | mutable] Value_Parameter
+   //    | sequence
+   //    | property
+   //
+   //    Value_Parameter ::=
+   //       HDL_Type
+   //     | PSL_Type_Class
+   //
+   //    HDL_Type ::=
+   //       hdltype HDL_VARIABLE_TYPE
+   //
+   //    PSL_Type_Class ::=
+   //       boolean | bit | bitvector | numeric | string
+
+   BEGIN("PSL Parameter specification");
+
+   *class = C_SIGNAL;
+
+   switch (peek()) {
+   case tPROPERTY:
+      consume(tPROPERTY);
+      *psl_type = PSL_TYPE_PROPERTY;
+      break;
+
+   case tSEQUENCE:
+      consume(tSEQUENCE);
+      *psl_type = PSL_TYPE_SEQUENCE;
+      break;
+
+   case tCONST:
+      *class = C_CONSTANT;
+      // Handle PSL 1.1 "const" only
+      if (peek_nth(2) == tID) {
+         consume(tCONST);
+         *psl_type = PSL_TYPE_NUMERIC;
+         return std_type(NULL, STD_INTEGER);
+      }
+   case tMUTABLE:
+      one_of(tCONST, tMUTABLE);
+   case tHDLTYPE:
+   case tBOOLEAN:
+   case tBIT:
+   case tBITVECTOR:
+   case tNUMERIC:
+   case tSTRINGK:
+      switch (one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK)) {
+      case tHDLTYPE:
+         *psl_type = PSL_TYPE_HDLTYPE;
+         scan_as_vhdl();
+         type_t t = p_psl_subtype_indication();
+         scan_as_psl();
+         return t;
+      case tBOOLEAN:
+         *psl_type = PSL_TYPE_BOOLEAN;
+         return std_type(NULL, STD_BOOLEAN);
+      case tBIT:
+         *psl_type = PSL_TYPE_BIT;
+         return std_type(NULL, STD_BIT);
+         break;
+      case tBITVECTOR:
+         *psl_type = PSL_TYPE_BITVECTOR;
+         return std_type(NULL, STD_BIT_VECTOR);
+         break;
+      case tNUMERIC:
+         *psl_type = PSL_TYPE_NUMERIC;
+         return std_type(NULL, STD_INTEGER);
+         break;
+      case tSTRINGK:
+         *psl_type = PSL_TYPE_STRING;
+         return std_type(NULL, STD_STRING);
+      }
+   }
+
+  return type_new(T_NONE);
+}
+
+static void p_psl_formal_parameter(psl_node_t node)
+{
+   // Param_Spec PSL_Identifier { , PSL_Identifier }
+
+   BEGIN("PSL Formal parameter");
+
+   psl_type_t psl_type = PSL_TYPE_NUMERIC;
+   class_t class;
+   type_t type = p_psl_param_spec(node, &psl_type, &class);
+
+   do {
+      tree_t p = tree_new(T_PARAM_DECL);
+      tree_set_ident(p, p_identifier());
+      tree_set_loc(p, CURRENT_LOC);
+      tree_set_class(p, class);
+      tree_set_subkind(p, psl_type);
+      tree_set_type(p, type);
+      psl_add_port(node, p);
+      insert_name(nametab, p, NULL);
+   } while (optional(tCOMMA));
+}
+
+static void p_psl_formal_parameter_list(psl_node_t node)
+{
+   // Formal_Parameter { ; Formal_Parameter }
+
+   BEGIN("PSL Formal parameter list");
+
+   p_psl_formal_parameter(node);
+
+   while (optional(tSEMI))
+      p_psl_formal_parameter(node);
+}
+
+static psl_node_t p_psl_clock_declaration(tree_t parent)
 {
    // default clock is Clock_Expression ;
+
+   assert(tree_kind(parent) == T_PSL);
 
    BEGIN("PSL clock declaration");
 
@@ -10488,18 +10620,123 @@ static tree_t p_psl_clock_declaration(void)
    psl_node_t p = psl_new(P_CLOCK_DECL);
    psl_set_tree(p, expr);
 
+   tree_set_ident(parent, well_known(W_DEFAULT_CLOCK));
    consume(tSEMI);
 
    psl_set_loc(p, CURRENT_LOC);
    psl_check(p);
 
-   tree_t t = tree_new(T_PSL);
-   tree_set_psl(t, p);
+   return p;
+}
 
-   tree_set_ident(t, well_known(W_DEFAULT_CLOCK));
+static psl_node_t p_psl_property_declaration(tree_t t)
+{
+   // property PSL_Identifier [ ( Formal_Parameter_List ) ] is Property ;
+
+   BEGIN("PSL property declaration");
+
+   scan_as_psl();
+
+   psl_node_t decl = psl_new(P_PROPERTY_DECL);
+   consume(tPROPERTY);
+
+   ident_t ident = p_identifier();
+   psl_set_ident(decl, ident);
+   tree_set_ident(t, ident);
+   insert_name(nametab, t, NULL);
+
+   push_scope(nametab);
+   scope_set_container(nametab, t);
+
+   if (optional(tLPAREN)) {
+      p_psl_formal_parameter_list(decl);
+      consume(tRPAREN);
+   }
+
+   consume(tIS);
+
+   psl_node_t prop = p_psl_property();
+   psl_set_value(decl, prop);
+
+   consume(tSEMI);
+
+   psl_set_loc(decl, CURRENT_LOC);
+   psl_check(decl);
+
+   pop_scope(nametab);
+
+   scan_as_vhdl();
+
+   return decl;
+}
+
+static psl_node_t p_psl_sequence_declaration(tree_t t)
+{
+   // sequence PSL_Identifier [ ( Formal_Parameter_List ) ] is Sequence ;
+
+   BEGIN("PSL sequence declaration");
+
+   scan_as_psl();
+
+   psl_node_t decl = psl_new(P_SEQUENCE_DECL);
+   consume(tSEQUENCE);
+
+   ident_t ident = p_identifier();
+   psl_set_ident(decl, ident);
+   tree_set_ident(t, ident);
+   insert_name(nametab, t, NULL);
+
+   if (optional(tLPAREN)) {
+      p_psl_formal_parameter_list(decl);
+      consume(tRPAREN);
+   }
+
+   consume(tIS);
+
+   psl_node_t prop = p_psl_sequence();
+   psl_set_value(decl, prop);
+
+   consume(tSEMI);
+
+   psl_set_loc(decl, CURRENT_LOC);
+   psl_check(decl);
+
+   scan_as_vhdl();
+
+   return decl;
+}
+
+static tree_t p_psl_declaration(void)
+{
+   //      Property_Declaration
+   //    | Sequence_Declaration
+   //    | Clock_Declaration
+
+   BEGIN("PSL declaration");
+
+   token_t tok = peek();
+   tree_t t = tree_new(T_PSL);
+   psl_node_t p;
+
+   switch (tok) {
+   case tPROPERTY:
+      p = p_psl_property_declaration(t);
+      break;
+   case tSEQUENCE:
+      p = p_psl_sequence_declaration(t);
+      break;
+   case tDEFAULT:
+      p = p_psl_clock_declaration(t);
+      insert_name(nametab, t, NULL);
+      break;
+   default:
+      one_of(tPROPERTY, tSEQUENCE, tDEFAULT);
+      return NULL;
+   }
+
+   tree_set_psl(t, p);
    tree_set_loc(t, CURRENT_LOC);
 
-   insert_name(nametab, t, NULL);
    return t;
 }
 
@@ -10643,8 +10880,9 @@ static tree_t p_concurrent_statement(void)
 
       case tSTARTPSL:
          consume(tSTARTPSL);
-         if (peek() == tDEFAULT)
-            return p_psl_clock_declaration();
+
+         if (scan(tDEFAULT, tSEQUENCE, tPROPERTY))
+            return p_psl_declaration();
          else
             return p_psl_directive();
 

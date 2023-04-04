@@ -28,6 +28,8 @@ typedef enum {
    P_COVER,
    P_ALWAYS,
    P_HDL_EXPR,
+   P_PROPERTY_DECL,
+   P_SEQUENCE_DECL,
    P_CLOCK_DECL,
    P_NEXT,
    P_NEVER,
@@ -47,11 +49,14 @@ typedef enum {
 } psl_impl_kind_t;
 
 typedef enum {
-   PSL_TYPE_BIT,
+   PSL_TYPE_HDLTYPE,
    PSL_TYPE_BOOLEAN,
+   PSL_TYPE_BIT,
    PSL_TYPE_BITVECTOR,
    PSL_TYPE_NUMERIC,
    PSL_TYPE_STRING,
+   PSL_TYPE_SEQUENCE,
+   PSL_TYPE_PROPERTY
 } psl_type_t;
 
 typedef enum {
@@ -94,6 +99,14 @@ void psl_set_clock(psl_node_t p, psl_node_t clk);
 tree_t psl_message(psl_node_t p);
 bool psl_has_message(psl_node_t p);
 void psl_set_message(psl_node_t, tree_t m);
+
+unsigned psl_ports(psl_node_t p);
+tree_t psl_port(psl_node_t p, unsigned n);
+void psl_add_port(psl_node_t p, tree_t o);
+
+ident_t psl_ident(psl_node_t p);
+bool psl_has_ident(psl_node_t p);
+void psl_set_ident(psl_node_t p, ident_t i);
 
 object_t *psl_to_object(psl_node_t p);
 psl_node_t psl_from_object(object_t *obj);
