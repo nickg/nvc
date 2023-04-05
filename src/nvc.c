@@ -502,12 +502,8 @@ static vhdl_severity_t parse_severity(const char *str)
 
 static void ctrl_c_handler(void *arg)
 {
-#ifdef __SANITIZE_THREAD__
-   _Exit(1);
-#else
    rt_model_t *model = arg;
    model_interrupt(model);
-#endif
 }
 
 static int run(int argc, char **argv)

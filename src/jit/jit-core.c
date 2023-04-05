@@ -106,6 +106,8 @@ typedef struct _jit {
    unsigned        next_handle;
    nvc_lock_t      lock;
    int32_t        *cover_mem[4];
+   jit_irq_fn_t    interrupt;
+   void           *interrupt_ctx;
 } jit_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
@@ -625,6 +627,8 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
       *result = args[0];
       jit_transition(j, JIT_RUNNING, JIT_IDLE);
 
+      jit_check_interrupt(j);
+
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
       return true;
@@ -654,6 +658,8 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       (*f->entry)(f, NULL, args, &tlab);
 
       *result = args[0];
+
+      jit_check_interrupt(j);
    }
    else {
       atomic_cas(&(j->exit_status), 0, rc - 1);
@@ -1468,4 +1474,26 @@ int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
    int32_t *base = jit_get_cover_mem(j, addr.int64 & 3);
    assert(base != NULL);
    return base + (addr.int64 >> 2);
+}
+
+void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)
+{
+   relaxed_store(&j->interrupt_ctx, ctx);
+   store_release(&j->interrupt, fn);
+}
+
+__attribute__((cold, noinline))
+static void jit_handle_interrupt(jit_t *j)
+{
+   jit_irq_fn_t fn = load_acquire(&j->interrupt);
+   if (!atomic_cas(&j->interrupt, fn, NULL))
+      return;
+
+   (*fn)(j, relaxed_load(&j->interrupt_ctx));
+}
+
+void jit_check_interrupt(jit_t *j)
+{
+   if (unlikely(relaxed_load(&j->interrupt) != NULL))
+      jit_handle_interrupt(j);
 }

@@ -2875,7 +2875,7 @@ int64_t model_now(rt_model_t *m, unsigned *deltas)
 
 void model_stop(rt_model_t *m)
 {
-   m->force_stop = true;
+   relaxed_store(&m->force_stop, true);
 }
 
 void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
@@ -2941,9 +2941,9 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
    }
 }
 
-void model_interrupt(rt_model_t *m)
+static void handle_interrupt_cb(jit_t *j, void *ctx)
 {
-   model_stop(m);
+   rt_model_t *m = ctx;
 
    char tmbuf[32];
    fmt_time_r(tmbuf, sizeof(tmbuf), m->now, "");
@@ -2954,6 +2954,12 @@ void model_interrupt(rt_model_t *m)
               istr(active_proc->name), tmbuf, m->iteration);
    else
       jit_msg(NULL, DIAG_FATAL, "interrupted at %s+%d", tmbuf, m->iteration);
+}
+
+void model_interrupt(rt_model_t *m)
+{
+   model_stop(m);
+   jit_interrupt(m->jit, handle_interrupt_cb, m);
 }
 
 // TODO: this interface should be removed eventually

@@ -530,6 +530,8 @@ void __nvc_sched_waveform(jit_anchor_t *anchor, jit_scalar_t *args,
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
 
+   jit_check_interrupt(thread->jit);
+
    sig_shared_t *shared = args[0].pointer;
    int32_t       offset = args[1].integer;
    int32_t       count  = args[2].integer;
@@ -553,6 +555,8 @@ void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
 
+   jit_check_interrupt(thread->jit);
+
    sig_shared_t *shared = args[0].pointer;
    int32_t       offset = args[1].integer;
    int32_t       count  = args[2].integer;
@@ -568,6 +572,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 {
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = anchor;
+
+   jit_check_interrupt(thread->jit);
 
    switch (which) {
    case JIT_EXIT_ASSERT_FAIL:
