@@ -627,8 +627,6 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
       *result = args[0];
       jit_transition(j, JIT_RUNNING, JIT_IDLE);
 
-      jit_check_interrupt(j);
-
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
       return true;
@@ -658,8 +656,6 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       (*f->entry)(f, NULL, args, &tlab);
 
       *result = args[0];
-
-      jit_check_interrupt(j);
    }
    else {
       atomic_cas(&(j->exit_status), 0, rc - 1);

@@ -2764,8 +2764,12 @@ static void model_cycle(rt_model_t *m)
 
 static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 {
-   if (m->force_stop)
+   if (m->force_stop) {
+      // Make sure we print the interrupted message if this was the
+      // result of an interrupt
+      jit_check_interrupt(m->jit);
       return true;
+   }
    else if (m->next_is_delta)
       return false;
    else if (heap_size(m->eventq_heap) == 0)
@@ -2943,17 +2947,14 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)
 {
-   rt_model_t *m = ctx;
-
-   char tmbuf[32];
-   fmt_time_r(tmbuf, sizeof(tmbuf), m->now, "");
-
    if (active_proc != NULL)
-      jit_msg(NULL, DIAG_FATAL,
-              "interrupted in process %s at %s+%d",
-              istr(active_proc->name), tmbuf, m->iteration);
-   else
-      jit_msg(NULL, DIAG_FATAL, "interrupted at %s+%d", tmbuf, m->iteration);
+      jit_msg(NULL, DIAG_FATAL, "interrupted in process %s",
+              istr(active_proc->name));
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "interrupted");
+      diag_emit(d);
+   }
 }
 
 void model_interrupt(rt_model_t *m)
