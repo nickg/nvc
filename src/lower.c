@@ -6701,7 +6701,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       cmp_func = lower_predef_func_name(tree_type(value), "=");
    }
 
-   int ndups = 0, cptr = 0;
+   int cptr = 0;
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
 
@@ -6738,7 +6738,6 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                vcode_block_t chain_bb = fallthrough_bb;
                for (int k = 0; k < cptr; k++) {
                   if (encoding[k] == enc) {
-                     ndups++;
                      chain_bb  = blocks[k];
                      blocks[k] = hit_bb;
                      have_dup  = true;

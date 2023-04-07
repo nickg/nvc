@@ -841,9 +841,8 @@ static void wave_process_file(const char *fname, bool include)
 
    notef("%s signals from %s", include ? "including" : "excluding", fname);
 
-   int lineno = 0;
    char line[1024];
-   while (!feof(f) && (lineno++, fgets(line, sizeof(line), f) != NULL)) {
+   while (!feof(f) && (fgets(line, sizeof(line), f) != NULL)) {
       // Erase comments
       bool comment = false;
       for (char *p = line; *p != '\0'; p++) {
