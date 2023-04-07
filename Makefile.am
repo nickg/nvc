@@ -71,8 +71,8 @@ release: update-test-dist
 	echo $(PACKAGE_VERSION) | grep -E "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$$"
 	$(AM_V_GEN)( \
 	  v=$(PACKAGE_VERSION); d=$$(date '+%Y-%m-%d'); \
-	  n=$$(date '+%d'); l=$$(date '+%B %Y'); \
-	  case $$d in \
+	  n=$$(date '+%-d'); l=$$(date '+%B %Y'); \
+	  case $$n in \
 	    1?) n=$${n}th ;; \
 	    *1) n=$${n}st ;; \
 	    *2) n=$${n}nd ;; \

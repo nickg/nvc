@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and
   "just-in-time" compilation in the future.
 - Now compatible with LLVM 16.

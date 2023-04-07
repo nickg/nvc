@@ -19,6 +19,7 @@ lib_libnvc_a_SOURCES = \
 	src/bounds.c \
 	src/make.c \
 	src/object.c \
+	src/lower.h \
 	src/lower.c \
 	src/vcode.c \
 	src/array.h \

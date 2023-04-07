@@ -68,13 +68,13 @@ PRELOAD19_DEPS = \
 	$(synopsys_ieee_19_DATA)
 
 lib/preload93.@DLL_EXT@: $(PRELOAD93_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) -L lib/ --std=1993 --aotgen -O2 -o $@ std nvc ieee
+	$(aotgen) --work=lib/std -L lib/ --std=1993 --aotgen -O2 -o $@ std nvc ieee
 
 lib/preload08.@DLL_EXT@: $(PRELOAD08_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) -L lib/ --std=2008 --aotgen -O2 -o $@ std nvc ieee
+	$(aotgen) --work=lib/std.08 -L lib/ --std=2008 --aotgen -O2 -o $@ std nvc ieee
 
 lib/preload19.@DLL_EXT@: $(PRELOAD19_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) -L lib/ --std=2019 --aotgen -O2 -o $@ std nvc ieee
+	$(aotgen) --work=lib/std.19 -L lib/ --std=2019 --aotgen -O2 -o $@ std nvc ieee
 endif
 
 # For compatibility with BSD make

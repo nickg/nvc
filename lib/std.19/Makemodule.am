@@ -12,7 +12,7 @@ EXTRA_DIST += \
 	lib/std.19/env.vhdl \
 	lib/std.19/env-body.vhd \
 	lib/std.19/textio.vhdl \
-	lib/std.19/standard.vhdl
+	lib/std.19/standard.vhd
 
 BOOTSTRAPLIBS += $(std_19_DATA)
 
