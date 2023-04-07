@@ -44,8 +44,8 @@
 #define FBUF_HEADER_SZ 20
 
 #define UNPACK_BE32(b)                                  \
-   ((uint32_t)((b)[0] << 24) | (uint32_t)((b)[1] << 16) \
-    | (uint32_t)((b)[2] << 8) | (uint32_t)(b)[3])
+   ((uint32_t)(b)[0] << 24 | (uint32_t)(b)[1] << 16     \
+    | (uint32_t)(b)[2] << 8 | (uint32_t)(b)[3])
 
 #define PACK_BE32(u)                            \
    ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,      \
@@ -611,7 +611,7 @@ void fbuf_put_uint(fbuf_t *f, uint64_t val)
 
 void fbuf_put_int(fbuf_t *f, int64_t val)
 {
-   uint64_t zz = (val << 1) ^ (val >> 63);   // Zig-zag encoding
+   uint64_t zz = ((uint64_t)val << 1) ^ (val >> 63);   // Zig-zag encoding
    fbuf_put_uint(f, zz);
 }
 

@@ -611,8 +611,9 @@ type_t tree_type(tree_t t)
 
 void tree_set_type(tree_t t, type_t ty)
 {
-   lookup_item(&tree_object, t, I_TYPE)->object = &(ty->object);
-   object_write_barrier(&(t->object), &(ty->object));
+   object_t *obj = ty ? &(ty->object) : NULL;
+   lookup_item(&tree_object, t, I_TYPE)->object = obj;
+   object_write_barrier(&(t->object), obj);
 }
 
 bool tree_has_type(tree_t t)
@@ -781,8 +782,9 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   lookup_item(&tree_object, t, I_VALUE)->object = &(v->object);
-   object_write_barrier(&(t->object), &(v->object));
+   object_t *obj = v ? &(v->object) : NULL;
+   lookup_item(&tree_object, t, I_VALUE)->object = obj;
+   object_write_barrier(&(t->object), obj);
 }
 
 unsigned tree_decls(tree_t t)
@@ -926,8 +928,9 @@ bool tree_has_ref(tree_t t)
 
 void tree_set_ref(tree_t t, tree_t decl)
 {
-   lookup_item(&tree_object, t, I_REF)->object = &(decl->object);
-   object_write_barrier(&(t->object), &(decl->object));
+   object_t *obj = decl ? &(decl->object) : NULL;
+   lookup_item(&tree_object, t, I_REF)->object = obj;
+   object_write_barrier(&(t->object), obj);
 }
 
 tree_t tree_spec(tree_t t)
@@ -944,6 +947,7 @@ bool tree_has_spec(tree_t t)
 
 void tree_set_spec(tree_t t, tree_t s)
 {
+   assert(s != NULL);
    lookup_item(&tree_object, t, I_SPEC)->object = &(s->object);
    object_write_barrier(&(t->object), &(s->object));
 }
@@ -1311,7 +1315,7 @@ int tree_stable_compar(const void *pa, const void *pb)
 
 object_t *tree_to_object(tree_t t)
 {
-   return &(t->object);
+   return t ? &(t->object) : NULL;
 }
 
 tree_t tree_from_object(object_t *obj)

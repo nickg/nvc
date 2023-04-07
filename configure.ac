@@ -345,6 +345,13 @@ AC_ARG_ENABLE([tsan],
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=thread"
    fi])
 
+AC_ARG_ENABLE([ubsan],
+  [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
+  [if test x$enableval = xyes; then
+     EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=undefined"
+     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=undefined"
+   fi])
+
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug],
                   [Enable extra debugging checks for development])],

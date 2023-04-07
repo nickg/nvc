@@ -90,7 +90,7 @@ static void pack_uint(pack_writer_t *pw, uint64_t value)
 
 static inline void pack_int(pack_writer_t *pw, int64_t value)
 {
-   uint64_t zz = (value << 1) ^ (value >> 63);   // Zig-zag encoding
+   uint64_t zz = ((uint64_t)value << 1) ^ (value >> 63);   // Zig-zag encoding
    pack_uint(pw, zz);
 }
 

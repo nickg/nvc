@@ -1084,8 +1084,8 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
 
    // Using VLAs here as we need these allocated on the stack so the
    // mspace GC can scan them
-   jit_scalar_t regs[f->nregs];
-   unsigned char frame[f->framesz];
+   jit_scalar_t regs[f->nregs + 1];
+   unsigned char frame[f->framesz + 1];
 
 #ifdef DEBUG
    memset(regs, 0xde, sizeof(jit_scalar_t) * f->nregs);

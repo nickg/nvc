@@ -3740,10 +3740,10 @@ static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
 
    vcode_type_t vbounds;
    if (vcode_reg_kind(lhs) == VCODE_TYPE_REAL) {
-      const double ll = bl->low * br->low;
-      const double lh = bl->low * br->high;
-      const double hl = bl->high * br->low;
-      const double hh = bl->high * br->high;
+      const double ll = bl->rlow * br->rlow;
+      const double lh = bl->rlow * br->rhigh;
+      const double hl = bl->rhigh * br->rlow;
+      const double hh = bl->rhigh * br->rhigh;
 
       double min = MIN(MIN(ll, lh), MIN(hl, hh));
       double max = MAX(MAX(ll, lh), MAX(hl, hh));
