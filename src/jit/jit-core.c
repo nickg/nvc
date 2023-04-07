@@ -1475,7 +1475,8 @@ int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)
 {
    relaxed_store(&j->interrupt_ctx, ctx);
-   store_release(&j->interrupt, fn);
+   if (!atomic_cas(&j->interrupt, NULL, fn))
+      fatal_exit(1);
 }
 
 __attribute__((cold, noinline))
