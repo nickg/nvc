@@ -1,6 +1,6 @@
 name: Build MSYS2 packages
 
-on: [release, workflow_dispatch]
+on: [workflow_dispatch]
 
 jobs:
   pkg-windows-msys2:
