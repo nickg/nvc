@@ -2012,3 +2012,38 @@ void remove_fault_handler(fault_fn_t fn, void *context)
 
    fatal_trace("no fault handler for %p with context %p", fn, context);
 }
+
+void list_add(ptr_list_t *l, void *item)
+{
+   if (*l == NULL) {
+      *l = xmalloc_flex(sizeof(struct _ptr_list), 16, sizeof(void *));
+      (*l)->count = 0;
+      (*l)->max   = 16;
+   }
+   else if ((*l)->count == (*l)->max) {
+      (*l)->max *= 2;
+      *l = xrealloc_flex(*l, sizeof(struct _ptr_list),
+                         (*l)->max, sizeof(void *));
+   }
+
+   (*l)->items[(*l)->count++] = item;
+}
+
+void list_free(ptr_list_t *l)
+{
+   if (*l != NULL)
+      free(*l);
+   *l = NULL;
+}
+
+void list_sort(ptr_list_t *l, list_cmp_fn_t cmp)
+{
+   if (*l != NULL)
+      qsort((*l)->items, (*l)->count, sizeof(void *), cmp);
+}
+
+void list_clear(ptr_list_t *l)
+{
+   if (*l != NULL)
+      (*l)->count = 0;
+}
