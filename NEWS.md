@@ -2,6 +2,9 @@
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
 - Fix build failure due to missing `SHT_X86_64_UNWIND` on Alpine and
   Ubuntu 18.04 (#666).
+- Elaboration now works correctly when the `--with-system-cc=` configure
+  argument is given a non-absolute path (#667).
+
 
 ## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and

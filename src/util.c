@@ -1537,7 +1537,7 @@ void run_program(const char *const *args)
    pid_t pid = fork();
    int status = 0;
    if (pid == 0) {
-      execv(args[0], (char *const *)args);
+      execvp(args[0], (char *const *)args);
       fatal_errno("execv");
    }
    else if (pid > 0) {
