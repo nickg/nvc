@@ -342,4 +342,33 @@ void remove_fault_handler(fault_fn_t fn, void *context);
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);
 
+typedef struct _ptr_list *ptr_list_t;
+
+#define LOCAL_LIST __attribute__((cleanup(list_free))) ptr_list_t
+
+typedef int (*list_cmp_fn_t)(const void *, const void *);
+
+struct _ptr_list {
+   unsigned  count;
+   unsigned  max;
+   void     *items[0];
+};
+
+void list_add(ptr_list_t *l, void *item);
+void list_free(ptr_list_t *l);
+void list_sort(ptr_list_t *l, list_cmp_fn_t cmp);
+void list_clear(ptr_list_t *l);
+
+#define list_size(l) ((l) == NULL ? 0 : (l)->count)
+
+#define list_get(l, nth) ({                     \
+         typeof (nth) __nth = (nth);            \
+         typeof (l) __l = (l);                  \
+         assert(__nth < list_size(__l));        \
+         (__l)->items[(nth)];                   \
+      })
+
+#define list_start(l) ((l) == NULL ? NULL ? (l)->items)
+#define list_end(l) ((l) == NULL ? NULL ? (l)->items + (l)->count)
+
 #endif // _UTIL_H
