@@ -22,18 +22,17 @@
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
-#include "lower.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
+#include "rt/shell.h"
 #include "rt/wave.h"
 #include "scan.h"
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
-#include "vlog/vlog-phase.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -53,12 +52,12 @@
 #define GIT_SHA_ONLY(x)
 #endif
 
-const char *copy_string =
+const char copy_string[] =
    "Copyright (C) 2011-2023  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
-const char *version_string =
+const char version_string[] =
    PACKAGE_STRING GIT_SHA_ONLY(" (" GIT_SHA ")")
    LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")") DEBUG_ONLY(" [debug]");
 
@@ -84,7 +83,7 @@ static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
-      "--init", "--install", "--print-deps", "--aotgen"
+      "--init", "--install", "--print-deps", "--aotgen", "--do", "-i"
    };
 
    for (int i = start; i < argc; i++) {
@@ -183,43 +182,11 @@ static int analyse(int argc, char **argv)
 
       switch (source_kind()) {
       case SOURCE_VERILOG:
-         {
-#ifdef ENABLE_VERILOG
-            vlog_node_t module;
-            while ((module = vlog_parse())) {
-               if (error_count() == 0) {
-                  vlog_check(module);
-
-                  vlog_dump(module);
-
-                  if (error_count() == 0)
-                     lib_put_vlog(work, module);
-               }
-            }
-#else
-            fatal("Verilog is not currently supported");
-#endif
-         }
+         analyse_verilog(false);
          break;
 
       case SOURCE_VHDL:
-         {
-            int base_errors = 0;
-            tree_t unit;
-            while (base_errors = error_count(), (unit = parse())) {
-               if (error_count() == base_errors) {
-                  lib_put(work, unit);
-
-                  simplify_local(unit, eval);
-                  bounds_check(unit);
-
-                  if (error_count() == base_errors && unit_needs_cgen(unit))
-                     lower_standalone_unit(unit);
-               }
-               else
-                  lib_put_error(work, unit);
-            }
-         }
+         analyse_vhdl(eval, false);
          break;
       }
    }
@@ -506,6 +473,26 @@ static void ctrl_c_handler(void *arg)
    model_interrupt(model);
 }
 
+static jit_t *get_jit(void)
+{
+   jit_t *jit = jit_new();
+   jit_enable_runtime(jit, true);
+   jit_preload(jit);
+
+#if defined LLVM_HAS_LLJIT && 1
+   jit_register_llvm_plugin(jit);
+#elif defined ARCH_X86_64 && 0
+   jit_register_native_plugin(jit);
+#endif
+
+   _std_standard_init();
+   _std_env_init();
+   _file_io_init();
+   _nvc_sim_pkg_init();
+
+   return jit;
+}
+
 static int run(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -542,7 +529,7 @@ static int run(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
-   const char *spec = ":w::l:g";
+   const char *spec = ":w::l:gi";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -646,22 +633,8 @@ static int run(int argc, char **argv)
    if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
-   jit_t *jit = jit_new();
-   jit_enable_runtime(jit, true);
-   jit_preload(jit);
-
+   jit_t *jit = get_jit();
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
-
-#if defined LLVM_HAS_LLJIT && 1
-   jit_register_llvm_plugin(jit);
-#elif defined ARCH_X86_64 && 0
-   jit_register_native_plugin(jit);
-#endif
-
-   _std_standard_init();
-   _std_env_init();
-   _file_io_init();
-   _nvc_sim_pkg_init();
 
    rt_model_t *model = model_new(top, jit);
 
@@ -1107,6 +1080,87 @@ static int aotgen_cmd(int argc, char **argv)
 }
 #endif
 
+static int do_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = ":";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0: break;  // Set a flag
+      case '?': bad_option("do", argv);
+      case ':': missing_argument("do", argv);
+      default: abort();
+      }
+   }
+
+   if (optind == next_cmd)
+      fatal("no script file specified");
+
+#ifdef ENABLE_TCL
+   jit_t *jit = get_jit();
+   tcl_shell_t *sh = shell_new(jit);
+
+   for (int i = optind; i < next_cmd; i++) {
+      if (!shell_do(sh, argv[i]))
+         return EXIT_FAILURE;
+   }
+
+   shell_free(sh);
+   jit_free(jit);
+#else
+   fatal("compiled without TCL support");
+#endif
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
+static int interact_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = ":";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0: break;  // Set a flag
+      case '?': bad_option("do", argv);
+      case ':': missing_argument("do", argv);
+      default: abort();
+      }
+   }
+
+   if (optind != next_cmd)
+      fatal("unexpected argument \"%s\"", argv[optind]);
+
+#ifdef ENABLE_TCL
+   jit_t *jit = get_jit();
+   tcl_shell_t *sh = shell_new(jit);
+
+   shell_interact(sh);
+
+   shell_free(sh);
+   jit_free(jit);
+#else
+   fatal("compiled without TCL support");
+#endif
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
 static uint32_t parse_cover_print_spec(char *str)
 {
    uint32_t mask = 0;
@@ -1180,7 +1234,7 @@ static int coverage(int argc, char **argv)
    progress("initialising");
 
    if (optind == argc)
-      fatal("No input coverage database FILE specified");
+      fatal("no input coverage database FILE specified");
 
    cover_tagging_t *cover = NULL;
 
@@ -1230,7 +1284,8 @@ static void usage(void)
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
           " -c [OPTION]... FILE...\t\tProcess code coverage from FILEs\n"
-          "                       \t\t'covdb' coverage databases.\n"
+          " -i\t\tLaunch interactive TCL shell\n"
+          " --do SCRIPT\tEvaluate TCL script\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
@@ -1406,10 +1461,11 @@ static int process_command(int argc, char **argv)
       { "make",       no_argument, 0, 'm' },
       { "syntax",     no_argument, 0, 's' },
       { "list",       no_argument, 0, 'l' },
-      { "init",       no_argument, 0, 'i' },
+      { "init",       no_argument, 0, 'n' },
       { "install",    no_argument, 0, 'I' },
       { "print-deps", no_argument, 0, 'P' },
       { "aotgen",     no_argument, 0, 'A' },
+      { "do",         no_argument, 0, 'D' },
       { 0, 0, 0, 0 }
    };
 
@@ -1417,7 +1473,7 @@ static int process_command(int argc, char **argv)
    optind = 1;
 
    int index = 0;
-   const char *spec = "aerc";
+   const char *spec = "aerci";
    switch (getopt_long(MIN(argc, 2), argv, spec, long_options, &index)) {
    case 'a':
       return analyse(argc, argv);
@@ -1435,7 +1491,7 @@ static int process_command(int argc, char **argv)
       return syntax_cmd(argc, argv);
    case 'l':
       return list_cmd(argc, argv);
-   case 'i':
+   case 'n':
       return init_cmd(argc, argv);
    case 'I':
       return install_cmd(argc, argv);
@@ -1443,6 +1499,10 @@ static int process_command(int argc, char **argv)
       return print_deps_cmd(argc, argv);
    case 'A':
       return aotgen_cmd(argc, argv);
+   case 'D':
+      return do_cmd(argc, argv);
+   case 'i':
+      return interact_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
@@ -1480,7 +1540,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = ":aehrcvL:M:P:G:H:";
+   const char *spec = ":aehrcivL:M:P:G:H:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:

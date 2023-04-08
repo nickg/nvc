@@ -7,7 +7,7 @@ _nvc () {
   local have_cmd
   for i in "${COMP_WORDS[@]}"; do
     case "$i" in
-      -a|-e|-r)
+      -a|-e|-r|--do)
         have_cmd=$i
         ;;
     esac
@@ -33,8 +33,8 @@ _nvc () {
   esac
 
   local global_opts='-L -h --help --messages= --std= -v --version --init --list
-                     --install --work= -a -e -r --dump --print-deps
-                     --syntax --map='
+                     --install --work= -a -e -r -i --dump --print-deps
+                     --syntax --map= --do'
   local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit='
   local elab_opts='--cover --disable-opt --dump-llvm --dump-vcode --jit --no-save
                    --native -V --verbose'
@@ -61,6 +61,9 @@ _nvc () {
                                          }')
       COMPREPLY+=( $( compgen -W "$toplevel" -- $cur )
                    $( compgen -W "$run_opts" -- $cur ) )
+      ;;
+    --do)
+      _filedir '@(pro|do|tcl)'
       ;;
     *)
       COMPREPLY+=( $( compgen -W "$global_opts" -- $cur ) )

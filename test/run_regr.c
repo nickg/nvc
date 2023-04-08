@@ -90,6 +90,7 @@
 #define F_WAVE    (1 << 17)
 #define F_PSL     (1 << 18)
 #define F_DEFINE  (1 << 19)
+#define F_TCL     (1 << 20)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -118,7 +119,7 @@ struct test {
    unsigned   olevel;
    char      *heapsz;
    char      *cover;
-   char      *define;   // tODO: Adjust for multiple defines?
+   char      *define;
 };
 
 struct arglist {
@@ -392,6 +393,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_WAVE;
          else if (strcmp(opt, "psl") == 0)
             test->flags |= F_PSL;
+         else if (strcmp(opt, "tcl") == 0)
+            test->flags |= F_TCL;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -727,6 +730,9 @@ static bool run_test(test_t *test)
 #ifndef ENABLE_VERILOG
    skip |= (test->flags & F_VERILOG) || (test->flags & F_MIXED);
 #endif
+#ifndef ENABLE_TCL
+   skip |= (test->flags & F_TCL);
+#endif
 
    if (skip) {
       set_attr(ANSI_FG_CYAN);
@@ -760,6 +766,20 @@ static bool run_test(test_t *test)
    if (test->flags & F_SHELL) {
       push_arg(&args, SH_PATH);
       push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.sh",
+               test_dir, test->name);
+   }
+   else if (test->flags & F_TCL) {
+      push_arg(&args, "%s" DIR_SEP "nvc%s", bin_dir, EXEEXT);
+      push_std(test, &args);
+
+      if (test->flags & F_WORKLIB)
+         push_arg(&args, "--work=%s", test->work);
+
+      if (test->heapsz != NULL)
+         push_arg(&args, "-H%s", test->heapsz);
+
+      push_arg(&args, "--do");
+      push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.tcl",
                test_dir, test->name);
    }
    else {

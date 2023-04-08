@@ -194,6 +194,8 @@ char *color_asprintf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 char *strip_color(const char *fmt, va_list ap);
 
+void print_centred(const char *text);
+
 void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void warnf(const char *fmt, ...)

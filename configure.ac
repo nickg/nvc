@@ -185,6 +185,30 @@ PKG_CHECK_MODULES([libzstd], [libzstd >= 1.5],
                                       [Have libzstd compression library])],
                   [true])
 
+AC_ARG_ENABLE([tcl],
+  [AS_HELP_STRING([--enable-tcl], [Build TCL interface])],
+  [enable_tcl=$enableval],
+  [enable_tcl=no])
+
+AS_IF([test x$enable_tcl = xyes],
+      [AC_DEFINE_UNQUOTED([ENABLE_TCL], [1], [TCL shell enabled])
+
+       found_tcl=no
+       for pkg in tcl8.6 tcl86; do
+         PKG_CHECK_MODULES([TCL], [$pkg >= 8.6.0],
+                           [found_tcl=yes], [true])
+       done
+       AS_IF([test x$found_tcl = xno],
+             [AC_MSG_ERROR([TCL library not found, try installing tcl-dev])])
+
+       AX_LIB_READLINE
+       if test "x$ax_cv_lib_readline" = xno ; then
+         AC_MSG_ERROR([readline or a compatible library is required when
+                       TCL is enabled])
+       fi])
+
+AM_CONDITIONAL([ENABLE_TCL], [test x$enable_tcl = xyes])
+
 AC_CHECK_HEADER([unwind.h], [],
   [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])
 

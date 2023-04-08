@@ -105,6 +105,8 @@ void diag_stacktrace(diag_t *d, bool stacktrace);
 unsigned error_count(void);
 void reset_error_count(void);
 
+void wrapped_printf(const char *fmt, ...);
+
 // Accessors for use in unit tests
 const char *diag_get_text(diag_t *d);
 const char *diag_get_hint(diag_t *d, int nth);

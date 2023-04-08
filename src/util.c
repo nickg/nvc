@@ -326,6 +326,10 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
             if ((bold = (*e == '!')))
                ++e, --len;
 
+            bool bright;
+            if ((bright = (*e == '+')))
+               ++e, --len;
+
             if ((*e == '<' || *e == '>') && *(e + 1) == '$') {
                override += *e == '<' ? -1 : 1;
                escape_start = NULL;
@@ -366,10 +370,11 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
 
                for (int i = 0; !found && i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
+                     int code = escapes[i].value + (bright ? 60 : 0);
                      if (bold)
-                        tb_printf(tb, "\033[1;%dm", escapes[i].value);
+                        tb_printf(tb, "\033[1;%dm", code);
                      else
-                        tb_printf(tb, "\033[%dm", escapes[i].value);
+                        tb_printf(tb, "\033[%dm", code);
                      found = true;
                      break;
                   }
@@ -464,10 +469,19 @@ bool color_terminal(void)
    return want_color;
 }
 
-
 bool utf8_terminal(void)
 {
    return want_utf8;
+}
+
+void print_centred(const char *text)
+{
+   if (term_width == 0)
+      fputs(text, stdout);
+   else {
+      const int pad = (term_width - strlen(text)) / 2;
+      printf("%*s%s", pad, "", text);
+   }
 }
 
 void fatal_exit(int status)

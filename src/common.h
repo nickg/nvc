@@ -84,6 +84,9 @@ type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);
 void copy_constraints(type_t sub, int index, type_t from);
 
+void analyse_vhdl(eval_t *eval, bool verbose);
+void analyse_verilog(bool verbose);
+
 void print_syntax(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void capture_syntax(text_buf_t *tb);

@@ -36,6 +36,9 @@ Suite *get_lower_tests(void);
    ({ extern Suite *get_##name##_tests(void);                   \
       run_suite(get_##name##_tests(), #name, argc, argv); })
 
+const char copy_string[] = "";
+const char version_string[] = "";
+
 static int run_suite(Suite *s, const char *name, int argc, char **argv)
 {
    bool should_run = argc == 1;
@@ -110,6 +113,9 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(psl);
 #ifdef ENABLE_VERILOG
    nfail += RUN_TESTS(vlog);
+#endif
+#ifdef ENABLE_TCL
+   nfail += RUN_TESTS(shell);
 #endif
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

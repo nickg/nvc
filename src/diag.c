@@ -1091,3 +1091,19 @@ void set_stderr_severity(vhdl_severity_t severity)
    case SEVERITY_FAILURE: stderr_level = DIAG_FATAL; break;
    }
 }
+
+void wrapped_printf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   char *text LOCAL = NULL;
+   if (strchr(fmt, '$') != 0)
+      text = color_vasprintf(fmt, ap);
+   else
+      text = xvasprintf(fmt, ap);
+
+   diag_wrap_lines(text, 0, stdout);
+
+   va_end(ap);
+}

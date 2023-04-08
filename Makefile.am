@@ -19,7 +19,8 @@ AM_CFLAGS += \
 	$(libffi_CFLAGS) \
 	$(capstone_CFLAGS) \
 	$(LLVM_CFLAGS) \
-	$(libzstd_CFLAGS)
+	$(libzstd_CFLAGS) \
+	$(TCL_CFLAGS)
 
 bin_PROGRAMS =
 noinst_LIBRARIES =

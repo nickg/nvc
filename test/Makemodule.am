@@ -35,6 +35,10 @@ if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c
 endif
 
+if ENABLE_TCL
+bin_unit_test_SOURCES += test/test_shell.c
+endif
+
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
@@ -44,7 +48,8 @@ bin_unit_test_LDADD = \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
-	$(libzstd_LIBS)
+	$(libzstd_LIBS) \
+	$(TCL_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -135,7 +140,7 @@ cov-generate:
 	mkdir -p $(covdir)
 	lcov --directory $(build) --capture --output-file $(covdir)/nvc.raw.info
 	lcov --output-file $(covdir)/nvc.info --remove $(covdir)/nvc.raw.info \
-	  '/usr/*' '*/lexer.c'
+	  '/usr/*' '*/lexer.c' '*/vlog-parse.c'
 
 cov-report: cov-generate
 	genhtml -o $(covdir) $(covdir)/nvc.info
@@ -150,7 +155,8 @@ update-test-dist:
 	  echo "EXTRA_DIST += \\" ; \
 	  cd $(top_srcdir) ; \
 	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' \
-	    'test/*.gtkw' | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
+	    'test/*.gtkw' 'test/*.tcl' \
+	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
 endif
 

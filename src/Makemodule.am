@@ -70,7 +70,8 @@ bin_nvc_LDADD = \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
 	$(libzstd_LIBS) \
-	$(LLVM_LIBS)
+	$(LLVM_LIBS) \
+	$(TCL_LIBS)
 
 bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

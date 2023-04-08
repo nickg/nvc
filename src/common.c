@@ -21,8 +21,12 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
+#include "phase.h"
+#include "scan.h"
 #include "type.h"
+#include "vlog/vlog-phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -511,6 +515,8 @@ class_t class_of(tree_t t)
    case T_PACK_BODY:
    case T_PACK_INST:
       return C_PACKAGE;
+   case T_CONFIGURATION:
+      return C_CONFIGURATION;
    case T_LIBRARY:
       return C_LIBRARY;
    case T_ATTR_REF:
@@ -523,6 +529,8 @@ class_t class_of(tree_t t)
       default:
          return C_DEFAULT;
       }
+   case T_CONTEXT:
+      return C_CONTEXT;
    default:
       fatal_trace("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -549,7 +557,8 @@ const char *class_str(class_t c)
    static const char *strs[] = {
       "default", "signal", "variable", "constant", "file", "entity",
       "component", "configuration", "architecture", "function", "package",
-      "type", "subtype", "label", "procedure", "literal", "units", "library"
+      "type", "subtype", "label", "procedure", "literal", "units", "library",
+      "context"
    };
    assert(c < ARRAY_LEN(strs));
    return strs[c];
@@ -2206,4 +2215,48 @@ void copy_constraints(type_t sub, int index, type_t from)
    default:
       break;
    }
+}
+
+void analyse_vhdl(eval_t *eval, bool verbose)
+{
+   lib_t work = lib_work();
+   int base_errors = 0;
+   tree_t unit;
+   while (base_errors = error_count(), (unit = parse())) {
+      if (error_count() == base_errors) {
+         lib_put(work, unit);
+
+         simplify_local(unit, eval);
+         bounds_check(unit);
+
+         if (error_count() == base_errors && unit_needs_cgen(unit))
+            lower_standalone_unit(unit);
+
+         if (verbose)
+            notef("analysed %s %s", class_str(class_of(unit)),
+                  istr(tree_ident(unit)));
+      }
+      else
+         lib_put_error(work, unit);
+   }
+}
+
+void analyse_verilog(bool verbose)
+{
+#ifdef ENABLE_VERILOG
+   lib_t work = lib_work();
+   vlog_node_t module;
+   while ((module = vlog_parse())) {
+      if (error_count() == 0) {
+         vlog_check(module);
+
+         vlog_dump(module);
+
+         if (error_count() == 0)
+            lib_put_vlog(work, module);
+      }
+   }
+#else
+   fatal("Verilog is not currently supported");
+#endif
 }

@@ -79,7 +79,6 @@ typedef enum {
    RT_LAST_EVENT
 } rt_event_t;
 
-void rt_start_of_tool(tree_t top, rt_model_t *m);
 void *rt_tlab_alloc(size_t size);
 
 void _std_standard_init(void);
