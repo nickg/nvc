@@ -1,9 +1,9 @@
-image: ubuntu/20.04
+image: ubuntu/18.04
 arch: amd64
 packages:
   - automake
   - autoconf
-  - llvm-dev
+  - llvm-8-dev
   - check
   - flex
   - build-essential
@@ -19,23 +19,14 @@ tasks:
       ./autogen.sh
       mkdir build
       cd build
-      ../configure --enable-debug --enable-asan \
-          --with-llvm=/usr/bin/llvm-config
+      ../configure --enable-debug \
+          --with-llvm=/usr/bin/llvm-config-8
   - build: |
       cd nvc/build
       make
   - test: |
-      export ASAN_OPTIONS=detect_leaks=0
       cd nvc/build
       make check
-  - benchmarks: |
-      cd nvc/build
-      make bin/jitperf
-      ./bin/jitperf -L lib/ ../test/perf/simple.vhd
-  - interpreter: |
-      cd nvc/build
-      ../configure --disable-llvm --enable-debug
-      make clean check
   - release: |
       cd nvc/build
       make distclean
