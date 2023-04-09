@@ -154,7 +154,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006a">
         LCS2016-006a</td>
     <td>File IO / TextIO updates</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
@@ -166,7 +166,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006f">
         LCS2016-006f</td>
     <td>Expose standard conditional analysis identifiers</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_007">
@@ -178,7 +178,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_011">
         LCS2016-011</td>
     <td>Date/time functions</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_012">
@@ -202,13 +202,13 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_015">
         LCS2016_015</td>
     <td>Standard functions to report calling path</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_015a">
         LCS2016_015a</td>
     <td>Standard functions to report current file name</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_016">
@@ -328,7 +328,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_055a">
         LCS2016-055a</td>
     <td>Syntax regulatization - component declarations</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_059">
@@ -352,7 +352,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_071a">
         LCS2016_071a</td>
     <td>Optional trailing semicolon</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_072b">
@@ -370,13 +370,13 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_082">
         LCS2016_082</td>
     <td>Empty record</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_086">
         LCS2016_086</td>
     <td>All interface lists can be ordered</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.9</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_094a">
