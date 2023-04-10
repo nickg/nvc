@@ -472,7 +472,7 @@ static const char copyright_help[] = "Display copyright information";
 static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
                                int objc, Tcl_Obj *const objv[])
 {
-   extern char *copy_string;
+   extern char copy_string[];
    printf("%s\n", copy_string);
    return TCL_OK;
 }
