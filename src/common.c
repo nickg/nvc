@@ -2021,6 +2021,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       break;
 
    case T_CASE:
+   case T_MATCH_CASE:
       {
          build_wait(tree_value(expr), fn, ctx);
 
