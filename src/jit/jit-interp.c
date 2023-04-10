@@ -703,7 +703,7 @@ static void interp_scvtf(jit_interp_t *state, jit_ir_t *ir)
 static void interp_fcvtns(jit_interp_t *state, jit_ir_t *ir)
 {
    const double f = interp_get_real(state, ir->arg1);
-   state->regs[ir->result].integer = (int)(f + copysign(0.5, f));
+   state->regs[ir->result].integer = (int64_t)(f + copysign(0.5, f));
 }
 
 static void interp_lea(jit_interp_t *state, jit_ir_t *ir)

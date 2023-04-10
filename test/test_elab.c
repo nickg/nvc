@@ -1398,6 +1398,23 @@ START_TEST(test_generic2)
 }
 END_TEST
 
+START_TEST(test_issue669)
+{
+   input_from_file(TESTDIR "/elab/issue669.vhd");
+
+   const error_t expect[] = {
+      { 14, "wait timeout may not be negative" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1476,6 +1493,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue228);
    tcase_add_test(tc, test_generic1);
    tcase_add_test(tc, test_generic2);
+   tcase_add_test(tc, test_issue669);
    suite_add_tcase(s, tc);
 
    return s;
