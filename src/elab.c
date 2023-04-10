@@ -599,7 +599,8 @@ static void elab_hint_fn(diag_t *d, void *arg)
              istr(tree_ident(t)));
 
    tree_t unit = tree_ref(t);
-   if (tree_kind(unit) == T_CONFIGURATION)
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind == T_CONFIGURATION || kind == T_ARCH)
       unit = tree_primary(unit);
 
    const int ngenerics = tree_genmaps(t);

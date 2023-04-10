@@ -6,6 +6,9 @@
   argument is given a non-absolute path (#667).
 - Fixed a crash when a subprogram declared in a for-generate block is
   called during elaboration (#668).
+- Real to physical or 64-bit integer conversion now produces the correct
+  result when evaluated during elaboration (#669).
+
 
 ## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and
