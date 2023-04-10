@@ -368,7 +368,12 @@ void list_clear(ptr_list_t *l);
          (__l)->items[(nth)];                   \
       })
 
-#define list_start(l) ((l) == NULL ? NULL ? (l)->items)
-#define list_end(l) ((l) == NULL ? NULL ? (l)->items + (l)->count)
+#define list_start(l) ((l) == NULL ? NULL : (l)->items)
+#define list_end(l) ((l) == NULL ? NULL : (l)->items + (l)->count)
+
+#define list_foreach(type, it, list)            \
+   for (type *__p = (type *)list_start(list),   \
+           *__end = (type *)list_end(list), it; \
+        __p != __end && (it = *__p, 1); __p++)
 
 #endif // _UTIL_H

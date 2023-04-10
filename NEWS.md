@@ -4,7 +4,8 @@
   Ubuntu 18.04 (#666).
 - Elaboration now works correctly when the `--with-system-cc=` configure
   argument is given a non-absolute path (#667).
-
+- Fixed a crash when a subprogram declared in a for-generate block is
+  called during elaboration (#668).
 
 ## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and

@@ -59,13 +59,6 @@ typedef struct {
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
-typedef struct {
-   tree_t      decl;
-   tree_t      body;
-   tree_list_t copied_subs;
-   type_list_t copied_types;
-} instantiate_copy_ctx_t;
-
 typedef struct _ident_list ident_list_t;
 
 struct _ident_list {
@@ -1797,7 +1790,7 @@ static bool instantiate_should_copy_type(type_t type, void *__ctx)
 
 static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
 {
-   instantiate_copy_ctx_t *ctx = __ctx;
+   tree_t decl = __ctx;
 
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
@@ -1833,39 +1826,18 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
       return true;
    case T_CONST_DECL:
       // Make a unique copy of all public constants in the package
-      return tree_container(t) == ctx->decl;
+      return tree_container(t) == decl;
    default:
       return false;
    }
 }
 
-static void instantiate_tree_copy_cb(tree_t t, void *__ctx)
-{
-   instantiate_copy_ctx_t *ctx = __ctx;
-
-   if (is_subprogram(t))
-      APUSH(ctx->copied_subs, t);
-}
-
-static void instantiate_type_copy_cb(type_t type, void *__ctx)
-{
-   instantiate_copy_ctx_t *ctx = __ctx;
-
-   if (type_has_ident(type))
-      APUSH(ctx->copied_types, type);
-}
-
 static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
 {
-   instantiate_copy_ctx_t copy_ctx = {
-      .decl = *pdecl,
-      .body = *pbody
-   };
-
    SCOPED_A(tree_t) roots = AINIT;
-   APUSH(roots, copy_ctx.decl);
-   if (copy_ctx.body != NULL)
-      APUSH(roots, copy_ctx.body);
+   APUSH(roots, *pdecl);
+   if (*pbody != NULL)
+      APUSH(roots, *pbody);
 
    // If the uninstantiated unit has any package generics then we need
    // to copy those too in order to fix up the types
@@ -1882,76 +1854,16 @@ static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
       }
    }
 
-   tree_copy(roots.items, roots.count,
-             instantiate_should_copy_tree,
-             instantiate_should_copy_type,
-             instantiate_tree_copy_cb, instantiate_type_copy_cb,
-             &copy_ctx);
-
-   *pdecl = roots.items[0];
-   *pbody = copy_ctx.body != NULL ? roots.items[1] : NULL;
-
-   ident_t prefixes[] = { tree_ident(copy_ctx.decl) };
+   ident_t prefixes[] = { tree_ident(*pdecl) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
-   // Change the name of any copied types to reflect the new hiearchy
-   for (unsigned i = 0; i < copy_ctx.copied_types.count; i++) {
-      type_t type = copy_ctx.copied_types.items[i];
-      ident_t orig = type_ident(type);
-      for (unsigned j = 0; j < ARRAY_LEN(prefixes); j++) {
-         if (ident_starts_with(orig, prefixes[j])) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_cat(tb, istr(dotted));
-            tb_cat(tb, istr(orig) + ident_len(prefixes[j]));
+   copy_with_renaming(roots.items, roots.count,
+                      instantiate_should_copy_tree,
+                      instantiate_should_copy_type,
+                      *pdecl, dotted, prefixes, 1);
 
-            type_set_ident(type, ident_new(tb_get(tb)));
-            break;
-         }
-      }
-   }
-   ACLEAR(copy_ctx.copied_types);
-
-   // Change the mangled name of copied subprograms so that copies in
-   // different instances do not collide
-   for (unsigned i = 0; i < copy_ctx.copied_subs.count; i++) {
-      tree_t decl = copy_ctx.copied_subs.items[i];
-      if (tree_kind(decl) == T_GENERIC_DECL)
-         continue;   // Does not yet have mangled name
-
-      ident_t orig = tree_ident2(decl);
-      for (unsigned j = 0; j < ARRAY_LEN(prefixes); j++) {
-         if (ident_starts_with(orig, prefixes[j])) {
-            ident_t prefix = ident_runtil(orig, '(');
-
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_cat(tb, istr(dotted));
-            tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
-
-            const tree_kind_t kind = tree_kind(decl);
-            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
-            const int nports = tree_ports(decl);
-            if (nports > 0 || is_func)
-               tb_append(tb, '(');
-
-            for (int i = 0; i < nports; i++) {
-               tree_t p = tree_port(decl, i);
-               if (tree_class(p) == C_SIGNAL)
-                  tb_printf(tb, "s");
-               mangle_one_type(tb, tree_type(p));
-            }
-
-            if (nports > 0 || is_func)
-               tb_printf(tb, ")");
-
-            if (is_func)
-               mangle_one_type(tb, type_result(tree_type(decl)));
-
-            tree_set_ident2(decl, ident_new(tb_get(tb)));
-            break;
-         }
-      }
-   }
-   ACLEAR(copy_ctx.copied_subs);
+   *pdecl = roots.items[0];
+   *pbody = *pbody != NULL ? roots.items[1] : NULL;
 }
 
 static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)

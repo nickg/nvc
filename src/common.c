@@ -30,6 +30,11 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+typedef struct {
+   ptr_list_t copied_subs;
+   ptr_list_t copied_types;
+} copy_ctx_t;
+
 static vhdl_standard_t  current_std  = STD_02;
 static bool             have_set_std = false;
 static ident_t          id_cache[NUM_WELL_KNOWN];
@@ -2206,4 +2211,89 @@ void copy_constraints(type_t sub, int index, type_t from)
    default:
       break;
    }
+}
+
+static void tree_copy_cb(tree_t t, void *__ctx)
+{
+   copy_ctx_t *ctx = __ctx;
+
+   if (is_subprogram(t))
+      list_add(&ctx->copied_subs, t);
+}
+
+static void type_copy_cb(type_t type, void *__ctx)
+{
+   copy_ctx_t *ctx = __ctx;
+
+   if (type_has_ident(type))
+      list_add(&ctx->copied_types, type);
+}
+
+void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
+                        type_copy_pred_t type_pred, void *context,
+                        ident_t dotted, ident_t *prefixes, int nprefix)
+{
+   copy_ctx_t copy_ctx = {};
+
+   tree_copy(roots, nroots, tree_pred, type_pred, context,
+             tree_copy_cb, type_copy_cb, &copy_ctx);
+
+   // Change the name of any copied types to reflect the new hiearchy
+   list_foreach(type_t, type, copy_ctx.copied_types) {
+      ident_t orig = type_ident(type);
+      for (int j = 0; j < nprefix; j++) {
+         if (ident_starts_with(orig, prefixes[j])) {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(dotted));
+            tb_cat(tb, istr(orig) + ident_len(prefixes[j]));
+
+            type_set_ident(type, ident_new(tb_get(tb)));
+            break;
+         }
+      }
+   }
+   list_clear(&copy_ctx.copied_types);
+
+   // Change the mangled name of copied subprograms so that copies in
+   // different instances do not collide
+   list_foreach(tree_t, decl, copy_ctx.copied_subs) {
+      if (tree_kind(decl) == T_GENERIC_DECL)
+         continue;   // Does not yet have mangled name
+
+      ident_t orig = tree_ident2(decl);
+      for (int j = 0; j < nprefix; j++) {
+         if (ident_starts_with(orig, prefixes[j])) {
+            ident_t prefix = ident_runtil(orig, '(');
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(dotted));
+            tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
+
+            const tree_kind_t kind = tree_kind(decl);
+            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+            const int nports = tree_ports(decl);
+            if (nports > 0 || is_func)
+               tb_append(tb, '(');
+
+            for (int k = 0; k < nports; k++) {
+               tree_t p = tree_port(decl, k);
+               if (tree_class(p) == C_SIGNAL)
+                  tb_printf(tb, "s");
+               mangle_one_type(tb, tree_type(p));
+            }
+
+            if (nports > 0 || is_func)
+               tb_printf(tb, ")");
+
+            if (is_func)
+               mangle_one_type(tb, type_result(tree_type(decl)));
+
+            ident_t mangled = ident_new(tb_get(tb));
+            tree_set_ident2(decl, mangled);
+
+            break;
+         }
+      }
+   }
+   list_clear(&copy_ctx.copied_subs);
 }

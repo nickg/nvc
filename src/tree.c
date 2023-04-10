@@ -1228,16 +1228,18 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
 void tree_copy(tree_t *roots, unsigned nroots,
                tree_copy_pred_t tree_pred,
                type_copy_pred_t type_pred,
+               void *pred_context,
                tree_copy_fn_t tree_callback,
                type_copy_fn_t type_callback,
-               void *context)
+               void *callback_context)
 {
    object_copy_ctx_t *ctx LOCAL = xcalloc_flex(sizeof(object_copy_ctx_t),
                                                nroots, sizeof(object_t *));
 
-   ctx->generation = object_next_generation();
-   ctx->context    = context;
-   ctx->nroots     = nroots;
+   ctx->generation       = object_next_generation();
+   ctx->pred_context     = pred_context;
+   ctx->callback_context = callback_context;
+   ctx->nroots           = nroots;
 
    for (unsigned i = 0; i < nroots; i++)
       ctx->roots[i] = &(roots[i]->object);

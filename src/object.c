@@ -1067,7 +1067,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 
    bool marked = false;
    if (ctx->should_copy[object->tag] != NULL)
-      marked = (*ctx->should_copy[object->tag])(object, ctx->context);
+      marked = (*ctx->should_copy[object->tag])(object, ctx->pred_context);
 
    object_t *copy = NULL;
    if (marked) {
@@ -1185,7 +1185,7 @@ void object_copy(object_copy_ctx_t *ctx)
         hash_iter(ctx->copy_map, &it, &key, &value); ) {
       object_t *copy = value;
       if (ctx->callback[copy->tag] != NULL)
-         (*ctx->callback[copy->tag])(copy, ctx->context);
+         (*ctx->callback[copy->tag])(copy, ctx->callback_context);
    }
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))

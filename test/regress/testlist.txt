@@ -755,3 +755,4 @@ real4           fail,gold
 cover14         cover,shell
 issue616        fail,gold,2008
 record38        normal,2008
+issue668        normal,gold
