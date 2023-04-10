@@ -177,7 +177,8 @@ typedef struct {
    generation_t       generation;
    object_copy_pred_t should_copy[OBJECT_TAG_COUNT];
    object_copy_fn_t   callback[OBJECT_TAG_COUNT];
-   void              *context;
+   void              *pred_context;
+   void              *callback_context;
    hash_t            *copy_map;
    unsigned           nroots;
    object_t          *roots[0];

@@ -547,9 +547,10 @@ typedef void (*type_copy_fn_t)(type_t, void *);
 void tree_copy(tree_t *roots, unsigned nroots,
                tree_copy_pred_t tree_pred,
                type_copy_pred_t type_pred,
+               void *pred_context,
                tree_copy_fn_t tree_callback,
                type_copy_fn_t type_callback,
-               void *context);
+               void *callback_context);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
 typedef void (*tree_deps_fn_t)(ident_t, void *);

@@ -756,3 +756,4 @@ cover14         cover,shell
 issue616        fail,gold,2008
 record38        normal,2008
 tcl1            normal,tcl
+issue668        normal,gold
