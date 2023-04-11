@@ -142,9 +142,9 @@ STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);
 
 // The code generator knows the layout of this struct
 typedef struct _sig_shared {
-   uint32_t size;
-   uint32_t __pad;
-   uint8_t  data[0];
+   uint32_t    size;
+   sig_flags_t flags;
+   uint8_t     data[0];
 } sig_shared_t;
 
 typedef struct {
@@ -158,7 +158,6 @@ typedef struct _rt_signal {
    rt_index_t   *index;
    res_memo_t   *resolution;
    nvc_lock_t    lock;
-   net_flags_t   flags;
    uint32_t      offset;
    uint32_t      n_nexus;
    rt_nexus_t    nexus;

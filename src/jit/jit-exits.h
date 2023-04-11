@@ -27,10 +27,10 @@
 void x_sched_process(int64_t delay);
 void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count);
 sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
-                            const uint8_t *values, uint8_t flags,
+                            const uint8_t *values, uint32_t flags,
                             tree_t where, int32_t offset);
 sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
-                              uint8_t flags, tree_t where, int32_t offset);
+                              uint32_t flags, tree_t where, int32_t offset);
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
                       int32_t count, int64_t after, int64_t reject);
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count);

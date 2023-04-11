@@ -322,7 +322,7 @@ START_TEST(test_fast2)
    fail_if(sx == NULL);
    ck_assert_int_eq(sx->n_nexus, 1);
    fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
-   fail_if(sx->flags & NET_F_FAST_DRIVER);
+   fail_if(sx->shared.flags & NET_F_FAST_DRIVER);
 
    rt_source_t *d0 = &(sx->nexus.sources);
    fail_unless(d0->tag == SOURCE_DRIVER);
@@ -338,7 +338,7 @@ START_TEST(test_fast2)
    ck_assert_int_eq(sx->n_nexus, 8);
    fail_unless(d0->fastqueued);
    fail_if(d0->sigqueued);
-   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->shared.flags & NET_F_FAST_DRIVER);
 
    fail_if(model_step(m));
 
@@ -348,7 +348,7 @@ START_TEST(test_fast2)
    ck_assert_int_eq(sx->n_nexus, 8);
    fail_if(d0->fastqueued);
    fail_if(d0->sigqueued);
-   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->shared.flags & NET_F_FAST_DRIVER);
 
    fail_if(model_step(m));
 
@@ -357,13 +357,13 @@ START_TEST(test_fast2)
 
    fail_unless(d0->fastqueued);
    fail_unless(d0->sigqueued);
-   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->shared.flags & NET_F_FAST_DRIVER);
 
    fail_if(model_step(m));
 
    fail_if(d0->fastqueued);
    fail_if(d0->sigqueued);
-   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->shared.flags & NET_F_FAST_DRIVER);
 
    fail_if(model_step(m));
 
@@ -371,13 +371,13 @@ START_TEST(test_fast2)
    fail_unless(d0->sigqueued);
    fail_unless(sx->nexus.chain->sources.fastqueued);
    fail_if(sx->nexus.chain->sources.sigqueued);
-   fail_unless(sx->flags & NET_F_FAST_DRIVER);
+   fail_unless(sx->shared.flags & NET_F_FAST_DRIVER);
 
    fail_unless(model_step(m));
 
    fail_if(d0->fastqueued);
    fail_if(d0->sigqueued);
-   fail_if(sx->flags & NET_F_FAST_DRIVER);   // Not profitable
+   fail_if(sx->shared.flags & NET_F_FAST_DRIVER);   // Not profitable
 
    model_free(m);
    jit_free(j);

@@ -1355,7 +1355,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    signal->n_nexus++;
 
    if (signal->n_nexus == 2 && (old->flags & NET_F_FAST_DRIVER))
-      signal->flags |= NET_F_FAST_DRIVER;
+      signal->shared.flags |= NET_F_FAST_DRIVER;
 
    rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
    new->width        = old->width - offset;
@@ -1470,16 +1470,16 @@ static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
 }
 
 static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
-                         unsigned count, unsigned size, net_flags_t flags,
+                         unsigned count, unsigned size, sig_flags_t flags,
                          unsigned offset)
 {
    s->where   = where;
    s->n_nexus = 1;
    s->offset  = offset;
-   s->flags   = flags;
    s->parent  = active_scope;
 
-   s->shared.size = count * size;
+   s->shared.flags = flags;
+   s->shared.size  = count * size;
 
    list_add(&active_scope->signals, s);
 
@@ -1965,7 +1965,7 @@ static void check_undriven_std_logic(rt_nexus_t *n)
    // of which is an undriven port with initial value 'U'. The resolved
    // value will then always be 'U' which often confuses users.
 
-   if (n->n_sources < 2 || !(n->signal->flags & NET_F_STD_LOGIC))
+   if (n->n_sources < 2 || !(n->signal->shared.flags & SIG_F_STD_LOGIC))
       return;
 
    rt_signal_t *undriven = NULL;
@@ -2012,7 +2012,7 @@ static void check_undriven_std_logic(rt_nexus_t *n)
    diag_emit(d);
 
    // Prevent multiple warnings for the same signal
-   n->signal->flags &= ~NET_F_STD_LOGIC;
+   n->signal->shared.flags &= ~SIG_F_STD_LOGIC;
 }
 
 void model_reset(rt_model_t *m)
@@ -2222,11 +2222,11 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
 
       if (d->fastqueued)
          assert(m->next_is_delta);
-      else if ((signal->flags & NET_F_FAST_DRIVER) && d0->sigqueued) {
+      else if ((signal->shared.flags & NET_F_FAST_DRIVER) && d0->sigqueued) {
          assert(m->next_is_delta);
          d->fastqueued = 1;
       }
-      else if (signal->flags & NET_F_FAST_DRIVER) {
+      else if (signal->shared.flags & NET_F_FAST_DRIVER) {
          workq_do(m->delta_driverq, async_fast_all_drivers, signal);
          m->next_is_delta = true;
          d0->sigqueued = 1;
@@ -2529,7 +2529,7 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
 
 static void fast_update_all_drivers(rt_model_t *m, rt_signal_t *signal)
 {
-   assert(signal->flags & NET_F_FAST_DRIVER);
+   assert(signal->shared.flags & NET_F_FAST_DRIVER);
 
    rt_nexus_t *n = &(signal->nexus);
    assert(n->sources.sigqueued);
@@ -2545,7 +2545,7 @@ static void fast_update_all_drivers(rt_model_t *m, rt_signal_t *signal)
 
    if (count < signal->n_nexus >> 1) {
       // Unlikely to be worth the iteration cost
-      signal->flags &= ~NET_F_FAST_DRIVER;
+      signal->shared.flags &= ~NET_F_FAST_DRIVER;
    }
 }
 
@@ -3017,7 +3017,7 @@ static uint64_t nexus_last_active(rt_model_t *m, rt_nexus_t *nexus)
 // Entry points from compiled code
 
 sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
-                            const uint8_t *values, net_flags_t flags,
+                            const uint8_t *values, sig_flags_t flags,
                             tree_t where, int32_t offset)
 {
    TRACE("init signal %s count=%d size=%d values=%s flags=%x offset=%d",
@@ -3040,7 +3040,7 @@ sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
 }
 
 sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
-                              uint8_t flags, tree_t where, int32_t offset)
+                              sig_flags_t flags, tree_t where, int32_t offset)
 {
    TRACE("init signal %s count=%d size=%d value=%"PRIx64" flags=%x offset=%d",
          istr(tree_ident(where)), count, size, value, flags, offset);
@@ -3555,7 +3555,7 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_implicit_t *imp = static_alloc(m, sizeof(rt_implicit_t) + datasz);
-   setup_signal(m, &(imp->signal), where, count, size, NET_F_IMPLICIT, 0);
+   setup_signal(m, &(imp->signal), where, count, size, SIG_F_IMPLICIT, 0);
 
    imp->closure = *closure;
    imp->wakeable.kind = W_IMPLICIT;
@@ -3678,7 +3678,7 @@ void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
    // Copy R_IDENT into the nexus flags to avoid rt_resolve_nexus_fast
    // having to dereference the resolution pointer in the common case
    if (s->resolution->flags & R_IDENT) {
-      s->flags |= NET_F_R_IDENT;
+      s->shared.flags |= NET_F_R_IDENT;
 
       rt_nexus_t *n = &(s->nexus);
       for (int i = 0; i < s->n_nexus; i++, n = n->chain)

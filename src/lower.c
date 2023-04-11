@@ -7270,7 +7270,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
                               tree_t *cons, int ncons, type_t init_type,
                               vcode_var_t sig_var, vcode_reg_t sig_ptr,
                               vcode_reg_t init_reg, vcode_reg_t resolution,
-                              vcode_reg_t null_reg, net_flags_t flags,
+                              vcode_reg_t null_reg, sig_flags_t flags,
                               vcode_reg_t bounds_reg)
 {
    bool has_scope = false;
@@ -7318,7 +7318,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
       well_known_t wk = is_well_known(type_ident(type_base_recur(type)));
       if (wk == W_IEEE_ULOGIC || wk == W_IEEE_ULOGIC_VECTOR
           || wk == W_IEEE_LOGIC || wk == W_IEEE_LOGIC_VECTOR)
-         flags |= NET_F_STD_LOGIC;
+         flags |= SIG_F_STD_LOGIC;
 
       vcode_reg_t flags_reg = emit_const(voffset, flags);
       vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg, init_reg,
@@ -7497,7 +7497,7 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
       init_reg = lower_rvalue(lu, value);
    }
 
-   net_flags_t flags = 0;
+   sig_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
       flags |= NET_F_REGISTER;
 
@@ -10585,7 +10585,7 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
       init_reg = lower_rvalue(lu, value);
    }
 
-   net_flags_t flags = 0;
+   sig_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
       flags |= NET_F_REGISTER;
 
