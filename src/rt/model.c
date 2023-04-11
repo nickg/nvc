@@ -1473,12 +1473,13 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
                          unsigned count, unsigned size, net_flags_t flags,
                          unsigned offset)
 {
-   s->where         = where;
-   s->n_nexus       = 1;
-   s->shared.size   = count * size;
-   s->shared.offset = offset;
-   s->flags         = flags;
-   s->parent        = active_scope;
+   s->where   = where;
+   s->n_nexus = 1;
+   s->offset  = offset;
+   s->flags   = flags;
+   s->parent  = active_scope;
+
+   s->shared.size = count * size;
 
    list_add(&active_scope->signals, s);
 
@@ -1505,8 +1506,7 @@ static void copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
    list_foreach(rt_signal_t *, s, scope->signals) {
       rt_nexus_t *n = &(s->nexus);
       for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain)
-         memcpy(buf + s->shared.offset + n->offset,
-                (*fn)(n), n->size * n->width);
+         memcpy(buf + s->offset + n->offset, (*fn)(n), n->size * n->width);
    }
 
    for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
@@ -1526,8 +1526,7 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
             if (data == NULL)
                continue;
 
-            memcpy(buf + s->shared.offset + (o++ * stride),
-                   data, n->size * n->width);
+            memcpy(buf + s->offset + (o++ * stride), data, n->size * n->width);
          }
       }
    }
@@ -1574,8 +1573,7 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
 
       rt_nexus_t *n = &(i0->nexus);
       for (unsigned i = 0; i < i0->n_nexus; i++, n = n->chain)
-         memcpy(indata + i0->shared.offset + n->offset,
-                (*fn)(n), n->size * n->width);
+         memcpy(indata + i0->offset + n->offset, (*fn)(n), n->size * n->width);
    }
 
    rt_model_t *m = get_model();
@@ -1590,7 +1588,7 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
 
    if (incopy) free(indata);
 
-   return cf->buffer + port->output->signal->shared.offset;
+   return cf->buffer + port->output->signal->offset;
 }
 
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
@@ -1677,7 +1675,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
                         r->closure.context, inputs, r->ileft, nonnull))
          m->force_stop = true;
 
-      return result.pointer + nexus->signal->shared.offset
+      return result.pointer + nexus->signal->offset
          + nexus->offset - rscope->offset;
    }
    else {
@@ -3468,7 +3466,7 @@ void x_pop_scope(void)
    for (rt_scope_t *s = active_scope->child; s; s = s->chain)
       offset = MIN(offset, s->offset);
    list_foreach(rt_signal_t *, s, active_scope->signals)
-      offset = MIN(offset, s->shared.offset);
+      offset = MIN(offset, s->offset);
    active_scope->offset = offset;
 
    active_scope = active_scope->parent;
