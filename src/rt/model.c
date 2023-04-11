@@ -97,6 +97,7 @@ typedef struct _rt_model {
    rt_callback_t     *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
+   nvc_lock_t         memlock;
    memblock_t        *memblocks;
    model_thread_t    *threads[MAX_THREADS];
 } rt_model_t;
@@ -280,6 +281,8 @@ static model_thread_t *model_thread(rt_model_t *m)
 static void *static_alloc(rt_model_t *m, size_t size)
 {
    const int nlines = ALIGN_UP(size, MEMBLOCK_LINE_SZ) / MEMBLOCK_LINE_SZ;
+
+   RT_LOCK(m->memlock);
 
    memblock_t *mb = m->memblocks;
    if (mb == NULL || mb->free < nlines) {
@@ -1297,6 +1300,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
             if (old->u.port.input->width == offset)
                new->u.port.input = old->u.port.input->chain;  // Cycle breaking
             else {
+               RT_LOCK(old->u.port.input->signal->lock);
                rt_nexus_t *n = clone_nexus(m, old->u.port.input, offset);
                new->u.port.input = n;
             }
@@ -1350,6 +1354,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    assert(offset < old->width);
 
    rt_signal_t *signal = old->signal;
+   MULTITHREADED_ONLY(assert_lock_held(&signal->lock));
    signal->n_nexus++;
 
    if (signal->n_nexus == 2 && (old->flags & NET_F_FAST_DRIVER))
@@ -1405,8 +1410,10 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
          rt_nexus_t *out_n;
          if (old_o->u.port.output->width == offset)
             out_n = old_o->u.port.output->chain;   // Cycle breaking
-         else
+         else {
+            RT_LOCK(old_o->u.port.output->signal->lock);
             out_n = clone_nexus(m, old_o->u.port.output, offset);
+         }
 
          for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
             if (s->tag == SOURCE_DRIVER)
