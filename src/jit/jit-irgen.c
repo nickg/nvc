@@ -3101,12 +3101,37 @@ static void irgen_op_event(jit_irgen_t *g, int op)
    jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
    jit_value_t count  = irgen_get_arg(g, op, 1);
 
+   jit_value_t flags = j_load(g, JIT_SZ_32, jit_addr_from_value(shared, 4));
+
+   jit_value_t cachebit = jit_value_from_int64(SIG_F_CACHE_EVENT);
+   jit_value_t cacheflag = j_and(g, flags, cachebit);
+
+   irgen_label_t *l_slow = irgen_alloc_label(g);
+   irgen_label_t *l_cont = irgen_alloc_label(g);
+
+   j_cmp(g, JIT_CC_EQ, cacheflag, jit_value_from_int64(0));
+   j_jump(g, JIT_CC_T, l_slow);
+
+   jit_value_t eventbit = jit_value_from_int64(SIG_F_EVENT_FLAG);
+   jit_value_t eventflag = j_and(g, flags, eventbit);
+
+   jit_value_t shift = jit_value_from_int64(ilog2(SIG_F_EVENT_FLAG));
+   jit_value_t result = j_asr(g, eventflag, shift);
+   g->map[vcode_get_result(op)] = result;
+
+   j_jump(g, JIT_CC_NONE, l_cont);
+
+   irgen_bind_label(g, l_slow);
+
    j_send(g, 0, shared);
    j_send(g, 1, offset);
    j_send(g, 2, count);
    macro_exit(g, JIT_EXIT_TEST_EVENT);
 
-   g->map[vcode_get_result(op)] = j_recv(g, 0);
+   jit_value_t retval = j_recv(g, 0);
+   j_mov(g, jit_value_as_reg(result), retval);
+
+   irgen_bind_label(g, l_cont);
 }
 
 static void irgen_op_active(jit_irgen_t *g, int op)

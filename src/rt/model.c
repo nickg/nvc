@@ -100,6 +100,7 @@ typedef struct _rt_model {
    nvc_lock_t         memlock;
    memblock_t        *memblocks;
    model_thread_t    *threads[MAX_THREADS];
+   ptr_list_t         eventsigs;
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -643,6 +644,7 @@ void model_free(rt_model_t *m)
    heap_free(m->eventq_heap);
    hash_free(m->scopes);
    ihash_free(m->res_memo);
+   list_free(&m->eventsigs);
    free(m);
 }
 
@@ -2653,6 +2655,23 @@ static void reached_iteration_limit(rt_model_t *m)
    jit_abort(EXIT_FAILURE);
 }
 
+static void sync_event_cache(rt_model_t *m)
+{
+   list_foreach(rt_signal_t *, s, m->eventsigs) {
+      assert(s->shared.flags & SIG_F_CACHE_EVENT);
+
+      const bool event = s->nexus.last_event == m->now
+         && s->nexus.active_delta == m->iteration;
+
+      TRACE("sync event flag %d for %s", event, istr(tree_ident(s->where)));
+
+      if (event)
+         s->shared.flags |= SIG_F_EVENT_FLAG;
+      else
+         s->shared.flags &= ~SIG_F_EVENT_FLAG;
+   }
+}
+
 static void swap_workq(workq_t **a, workq_t **b)
 {
    workq_t *tmp = *a;
@@ -2737,6 +2756,8 @@ static void model_cycle(rt_model_t *m)
       workq_start(m->implicitq);
       workq_drain(m->implicitq);
    }
+
+   sync_event_cache(m);
 
 #if TRACE_SIGNALS > 0
    if (__trace_on)
@@ -3167,17 +3188,26 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("_test_net_event %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
 
+   int32_t result = 0;
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_event == m->now && n->active_delta == m->iteration)
-         return 1;
+      if (n->last_event == m->now && n->active_delta == m->iteration) {
+         result = 1;
+         break;
+      }
 
       count -= n->width;
       assert(count >= 0);
    }
 
-   return 0;
+   if (ss->size == 1) {
+      assert(!(ss->flags & SIG_F_CACHE_EVENT));   // Should have taken fast-path
+      ss->flags |= SIG_F_CACHE_EVENT | (result ? SIG_F_EVENT_FLAG : 0);
+      list_add(&m->eventsigs, s);
+   }
+
+   return result;
 }
 
 int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)

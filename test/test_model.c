@@ -386,6 +386,66 @@ START_TEST(test_fast2)
 }
 END_TEST
 
+START_TEST(test_event1)
+{
+   input_from_file(TESTDIR "/model/event1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   tree_t s = search_decls(b0, ident_new("S"), 0);
+   fail_if(s == NULL);
+
+   rt_signal_t *ss = find_signal(root, s);
+   fail_if(ss == NULL);
+   fail_if(ss->shared.flags & SIG_F_CACHE_EVENT);
+
+   tree_t t = search_decls(b0, ident_new("T"), 0);
+   fail_if(t == NULL);
+
+   rt_signal_t *st = find_signal(root, t);
+   fail_if(st == NULL);
+   fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
+
+   fail_if(model_step(m));
+
+   fail_unless(ss->shared.flags & SIG_F_CACHE_EVENT);
+   fail_if(ss->shared.flags & SIG_F_EVENT_FLAG);
+   fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
+   fail_if(st->shared.flags & SIG_F_EVENT_FLAG);
+
+   fail_if(model_step(m));
+
+   fail_unless(ss->shared.flags & SIG_F_CACHE_EVENT);
+   fail_unless(ss->shared.flags & SIG_F_EVENT_FLAG);
+   fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
+   fail_if(st->shared.flags & SIG_F_EVENT_FLAG);
+
+   fail_unless(model_step(m));
+
+   fail_unless(ss->shared.flags & SIG_F_CACHE_EVENT);
+   fail_if(ss->shared.flags & SIG_F_EVENT_FLAG);
+   fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
+   fail_if(st->shared.flags & SIG_F_EVENT_FLAG);
+
+   model_free(m);
+   jit_free(j);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -398,6 +458,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_stateless1);
    tcase_add_test(tc, test_pending1);
    tcase_add_test(tc, test_fast2);
+   tcase_add_test(tc, test_event1);
    suite_add_tcase(s, tc);
 
    return s;
