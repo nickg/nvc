@@ -344,17 +344,15 @@ void remove_fault_handler(fault_fn_t fn, void *context);
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);
 
-typedef struct _ptr_list *ptr_list_t;
+typedef struct _ptr_list {
+   unsigned  count;
+   unsigned  max;
+   void     *items[0];
+} *ptr_list_t;
 
 #define LOCAL_LIST __attribute__((cleanup(list_free))) ptr_list_t
 
 typedef int (*list_cmp_fn_t)(const void *, const void *);
-
-struct _ptr_list {
-   unsigned  count;
-   unsigned  max;
-   void     *items[0];
-};
 
 void list_add(ptr_list_t *l, void *item);
 void list_free(ptr_list_t *l);
@@ -363,19 +361,20 @@ void list_clear(ptr_list_t *l);
 
 #define list_size(l) ((l) == NULL ? 0 : (l)->count)
 
-#define list_get(l, nth) ({                     \
-         typeof (nth) __nth = (nth);            \
-         typeof (l) __l = (l);                  \
-         assert(__nth < list_size(__l));        \
-         (__l)->items[(nth)];                   \
+#define list_get(l, nth) ({                  \
+         typeof (nth) __nth = (nth);         \
+         typeof (l) __l = (l);               \
+         assert(__nth < list_size(__l));     \
+         (__l)->items[(nth)];                \
       })
 
 #define list_start(l) ((l) == NULL ? NULL : (l)->items)
 #define list_end(l) ((l) == NULL ? NULL : (l)->items + (l)->count)
 
-#define list_foreach(type, it, list)            \
-   for (type *__p = (type *)list_start(list),   \
-           *__end = (type *)list_end(list), it; \
-        __p != __end && (it = *__p, 1); __p++)
+#define list_foreach(type, it, list)                   \
+   for (typeof(type) it,                               \
+           *__p = (typeof(__p))list_start(list),       \
+           *__end = (typeof(__end))list_end(list);     \
+        __p != __end && (it = *__p, 1); __p++)         \
 
 #endif // _UTIL_H

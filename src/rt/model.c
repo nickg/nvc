@@ -132,7 +132,6 @@ typedef struct _rt_model {
 
 static __thread rt_proc_t    *active_proc = NULL;
 static __thread rt_scope_t   *active_scope = NULL;
-static __thread rt_signal_t **signals_tail = NULL;
 static __thread rt_scope_t  **scopes_tail = NULL;
 static __thread rt_model_t   *__model = NULL;
 
@@ -564,10 +563,10 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
       free(it);
    }
 
-   for (rt_signal_t *it = scope->signals, *tmp; it; it = tmp) {
-      tmp = it->chain;
+   list_foreach(rt_signal_t *, it, scope->signals) {
       cleanup_signal(m, it);
    }
+   list_free(&scope->signals);
 
    for (rt_alias_t *it = scope->aliases, *tmp; it; it = tmp) {
       tmp = it->chain;
@@ -649,7 +648,7 @@ void model_free(rt_model_t *m)
 
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
 {
-   for (rt_signal_t *s = scope->signals; s; s = s->chain) {
+   list_foreach(rt_signal_t *, s, scope->signals) {
       if (s->where == decl)
          return s;
    }
@@ -873,7 +872,6 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       TRACE("reset scope %s", istr(s->name));
 
       active_scope = s;
-      signals_tail = &(s->signals);
 
       jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
       if (handle == JIT_HANDLE_INVALID)
@@ -895,7 +893,6 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       }
 
       active_scope = NULL;
-      signals_tail = NULL;
    }
 
    for (rt_scope_t *c = s->child; c != NULL; c = c->chain)
@@ -1483,8 +1480,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->flags         = flags;
    s->parent        = active_scope;
 
-   *signals_tail = s;
-   signals_tail = &(s->chain);
+   list_add(&active_scope->signals, s);
 
    s->nexus.width        = count;
    s->nexus.size         = size;
@@ -1506,7 +1502,7 @@ static void copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
 {
    assert(scope->kind == SCOPE_SIGNAL);
 
-   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+   list_foreach(rt_signal_t *, s, scope->signals) {
       rt_nexus_t *n = &(s->nexus);
       for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain)
          memcpy(buf + s->shared.offset + n->offset,
@@ -1521,7 +1517,7 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
 {
    assert(scope->kind == SCOPE_SIGNAL);
 
-   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+   list_foreach(rt_signal_t *, s, scope->signals) {
       rt_nexus_t *n = &(s->nexus);
       for (unsigned i = 0; i < s->n_nexus; i++) {
          unsigned o = 0;
@@ -1946,7 +1942,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
               "Signal", "Width", "Size", "Sources", "Outputs", "Value");
    }
 
-   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
+   list_foreach(rt_signal_t *, s, scope->signals)
       dump_one_signal(m, scope, s, NULL);
 
    for (rt_alias_t *a = scope->aliases; a != NULL; a = a->chain)
@@ -3459,8 +3455,6 @@ void x_push_scope(tree_t where, int32_t size)
 
    active_scope->child = s;
    active_scope = s;
-
-   signals_tail = &(s->signals);
 }
 
 void x_pop_scope(void)
@@ -3473,16 +3467,11 @@ void x_pop_scope(void)
    int offset = INT_MAX;
    for (rt_scope_t *s = active_scope->child; s; s = s->chain)
       offset = MIN(offset, s->offset);
-   for (rt_signal_t *s = active_scope->signals; s; s = s->chain)
+   list_foreach(rt_signal_t *, s, active_scope->signals)
       offset = MIN(offset, s->shared.offset);
    active_scope->offset = offset;
 
    active_scope = active_scope->parent;
-
-   for (signals_tail = &(active_scope->signals);
-        *signals_tail != NULL;
-        signals_tail = &((*signals_tail)->chain))
-      ;
 }
 
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)

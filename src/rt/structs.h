@@ -154,7 +154,6 @@ typedef struct {
 
 typedef struct _rt_signal {
    tree_t        where;
-   rt_signal_t  *chain;
    rt_scope_t   *parent;
    rt_index_t   *index;
    res_memo_t   *resolution;
@@ -191,7 +190,7 @@ typedef enum {
 } rt_scope_flags_t;
 
 typedef struct _rt_scope {
-   rt_signal_t     *signals;
+   ptr_list_t       signals;
    rt_proc_t       *procs;
    rt_alias_t      *aliases;
    rt_scope_kind_t  kind;
