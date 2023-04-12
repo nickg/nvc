@@ -1442,7 +1442,12 @@ static size_t parse_size(const char *str)
 
 static void parse_library_map(char *str)
 {
+#ifdef __MINGW32__
+   char *split = strpbrk(str, ";:");
+#else
    char *split = strchr(str, ':');
+#endif
+
    if (split == NULL)
       fatal("invalid library map syntax '%s': use NAME:PATH", str);
 

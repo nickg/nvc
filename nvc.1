@@ -488,6 +488,11 @@ specified explicitly using
 where
 .Ar path
 is the directory name.
+On Windows the
+.Li ;
+character can be used instead of
+.Li :
+as a separator.
 .Pp
 The following examples should make this behaviour clear:
 .Bd -literal -offset indent
@@ -644,7 +649,7 @@ to or larger than
 - When set, NVC detects unreachable coverage bins and automatically excludes
 them during code coverage report generation. NVC detects following
 unreachable coverage items:
-.Bl
+.Bl -bullet
 .It
 Toggle coverage on instance ports driven by constant value.
 .El
@@ -693,6 +698,7 @@ Format of commands in coverage specification file is following:
 (+|-)block <ENTITY_NAME>
 (+|-)hierarchy <HIERARCHY>
 .Ed
+.Pp
 An example of coverage specification file is following:
 .Bd -literal -offset indent
 # Placing '#' is treated as comment till end of line
@@ -709,11 +715,12 @@ An example of coverage specification file is following:
 # Example how to disable collecting code coverage on entity or block:
 -block clock_gate_model
 .Ed
+.Pp
 In coverage specification file
 .Ql block
 has priority over
-.Ql hierarchy
-, disabled hierarchy / block (
+.Ql hierarchy ,
+disabled hierarchy / block (
 .Ql -
 ) has priority over enabled hierarchy / block (
 .Ql +
@@ -1023,8 +1030,8 @@ The default is
 .\" For sections 1, 6, and 8 only.
 .\" .Sh EXAMPLES
 .Sh SEE ALSO
-.Xr gtkwave 1 ,
-.Xr ghdl 1
+.Xr ghdl 1 ,
+.Xr gtkwave 1
 .\" .Sh STANDARDS
 .\" .Sh HISTORY
 .Sh AUTHORS

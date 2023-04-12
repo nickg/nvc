@@ -1,5 +1,7 @@
 ## Unreleased changes
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
+- `;` can now be used as a separator in the `--work` and `--map`
+  arguments on Windows in addition to `:` (#671).
 
 ## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and
