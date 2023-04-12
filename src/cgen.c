@@ -211,7 +211,7 @@ static void cgen_link_arg(const char *fmt, ...)
    APUSH(link_args, buf);
 }
 
-static void cgen_link(const char *module_name, char **objs, int nobjs)
+static void cgen_linker_setup(void)
 {
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
@@ -225,6 +225,9 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("-flat_namespace");
    cgen_link_arg("-undefined");
    cgen_link_arg("dynamic_lookup");
+#ifdef HAVE_NO_FIXUP_CHAINS
+   cgen_link_arg("-Wl,-no_fixup_chains");
+#endif
 #elif defined __OpenBSD__
    cgen_link_arg("-Bdynamic");
    cgen_link_arg("-shared");
@@ -232,6 +235,11 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
 #else
    cgen_link_arg("-shared");
 #endif
+}
+
+static void cgen_link(const char *module_name, char **objs, int nobjs)
+{
+   cgen_linker_setup();
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_printf(tb, "_%s", module_name);
@@ -450,25 +458,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 
 static void preload_do_link(const char *so_name, const char *obj_file)
 {
-#ifdef LINKER_PATH
-   cgen_link_arg("%s", LINKER_PATH);
-   cgen_link_arg("--eh-frame-hdr");
-#else
-   cgen_link_arg("%s", SYSTEM_CC);
-#endif
-
-#if defined __APPLE__
-   cgen_link_arg("-bundle");
-   cgen_link_arg("-flat_namespace");
-   cgen_link_arg("-undefined");
-   cgen_link_arg("dynamic_lookup");
-#elif defined __OpenBSD__
-   cgen_link_arg("-Bdynamic");
-   cgen_link_arg("-shared");
-   cgen_link_arg("/usr/lib/crtbeginS.o");
-#else
-   cgen_link_arg("-shared");
-#endif
+   cgen_linker_setup();
 
    cgen_link_arg("-o");
    cgen_link_arg("%s", so_name);
