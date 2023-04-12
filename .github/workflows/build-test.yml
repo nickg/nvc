@@ -36,31 +36,25 @@ jobs:
           export ASAN_OPTIONS=detect_leaks=0
           cd build
           ./bin/run_regr
+      - name: Test in interpreter mode
+        run: |
+          export NVC_JIT_THRESHOLD=0
+          export FORCE_JIT=1
+          export ASAN_OPTIONS=detect_leaks=0
+          cd build
+          ./bin/run_regr
       - name: JIT benchmarks
         run: |
           make -C build bin/jitperf
           ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
       - name: Coverage report
-        run: |
-          make -C build cov-generate
-          mv build/coverage/nvc.info orig.info
-      - name: Configure for interpreter only
-        run: |
-          cd build
-          ../configure --enable-gcov --disable-llvm --enable-debug
-      - name: Interpreter only tests
-        run: make -C build clean check
-      - name: Merge coverage report
-        run: |
-          make -C build cov-generate
-          mv build/coverage/nvc.info interp.info
-          lcov -o merged.info -a interp.info -a orig.info
+        run: make -C build cov-generate
       - name: Coveralls
         continue-on-error: true
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./merged.info
+          path-to-lcov: ./build/coverage/nvc.info
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -150,6 +144,14 @@ jobs:
         run: make -C build
       - name: Test
         run: make -C build check
+      - name: Test in JIT mode
+        run: |
+          export NVC_JIT_ASYNC=0
+          export NVC_JIT_THRESHOLD=1
+          export FORCE_JIT=1
+          cd build
+          rm -rf logs
+          ./bin/run_regr
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2

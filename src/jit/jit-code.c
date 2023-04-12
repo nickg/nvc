@@ -32,7 +32,6 @@
 
 #if defined __MINGW32__
 #include <winnt.h>
-#include <math.h>   // XXX: temporary
 #elif defined __APPLE__
 #include <mach-o/loader.h>
 #include <mach-o/reloc.h>
@@ -594,13 +593,6 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             assert(sym->SectionNumber - 1 < imghdr->NumberOfSections);
             ptr = load_addr[sym->SectionNumber - 1];
          }
-         // TODO: allow ffi_find_symbol to find libc symbols
-         else if (strcmp(name, "memmove") == 0)
-            ptr = &memmove;
-         else if (strcmp(name, "memset") == 0)
-            ptr = &memset;
-         else if (strcmp(name, "pow") == 0)
-            ptr = &pow;
          else
             ptr = ffi_find_symbol(NULL, name);
 
