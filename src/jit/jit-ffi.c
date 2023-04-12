@@ -223,6 +223,23 @@ static jit_dll_t *ffi_load_exe(void)
       return dlls;  // First entry is always the executable
 
 #ifdef __MINGW32__
+   HMODULE libc_handle = GetModuleHandle("ucrtbase.dll");
+   if (libc_handle == NULL && !(libc_handle = GetModuleHandle("msvcrt.dll")))
+      fatal("failed to get handle to ucrtbase.dll or msvcrt.dll");
+
+   char *libc_path = xmalloc(MAX_PATH);
+   if (!GetModuleFileName(libc_handle, libc_path, MAX_PATH))
+      fatal("failed to get C runtime library path: %s", last_os_error());
+
+   DEBUG_ONLY(debugf("C runtime library: %s", libc_path));
+
+   jit_dll_t *libc = xcalloc(sizeof(jit_dll_t));
+   libc->next   = dlls;
+   libc->handle = libc_handle;
+   libc->path   = libc_path;
+
+   dlls = libc;
+
    HMODULE exe_handle = GetModuleHandle(NULL);
    if (exe_handle == NULL)
       fatal("failed to get handle to main process");
