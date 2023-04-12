@@ -297,6 +297,12 @@ AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 case $host_os in
   darwin*)
     VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
+
+    AX_CHECK_LINK_FLAG(
+      [-Wl,-no_fixup_chains],
+      [AC_DEFINE([HAVE_NO_FIXUP_CHAINS], [1],
+                 [Defined if linker supports -no_fixup_chains])
+       VHPI_LDFLAGS="$VHPI_LDFLAGS -Wl,-no_fixup_chains"])
     ;;
 esac
 AC_SUBST(VHPI_LDFLAGS)

@@ -8,8 +8,9 @@
   called during elaboration (#668).
 - Real to physical or 64-bit integer conversion now produces the correct
   result when evaluated during elaboration (#669).
- - Matching `case?` statements are now handled directly in inside
-   `process (all)` (#670).
+- Matching `case?` statements are now handled directly in inside
+  `process (all)` (#670).
+- Pass `-no_fixup_chains` to linker on macOS to avoid warning.
 
 ## Version 1.9.0 - 2023-04-07
 - Code generation has been rewritten to enable faster elaboration and
