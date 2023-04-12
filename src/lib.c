@@ -415,12 +415,18 @@ lib_t lib_loaded(ident_t name_i)
 lib_t lib_new(const char *spec)
 {
    char *copy LOCAL = xstrdup(spec);
-   char *split = strchr(copy, ':');
 
 #ifdef __MINGW32__
-   // Ignore a leading drive letter in the path
-   if (split == copy + 1 && (copy[2] == '/' || copy[2] == '\\'))
-      split = NULL;
+   char *split = strchr(copy, ';');
+   if (split == NULL) {
+      split = strchr(copy, ':');
+
+      // Ignore a leading drive letter in the path
+      if (split == copy + 1 && (copy[2] == '/' || copy[2] == '\\'))
+         split = NULL;
+   }
+#else
+   char *split = strchr(copy, ':');
 #endif
 
    const char *path, *name, *search = NULL;
