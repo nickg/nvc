@@ -593,6 +593,10 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             assert(sym->SectionNumber - 1 < imghdr->NumberOfSections);
             ptr = load_addr[sym->SectionNumber - 1];
          }
+         else if (strcmp(name, "___chkstk_ms") == 0) {
+            extern void ___chkstk_ms(void);
+            ptr = &___chkstk_ms;
+         }
          else
             ptr = ffi_find_symbol(NULL, name);
 
