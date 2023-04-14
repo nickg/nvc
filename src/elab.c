@@ -48,8 +48,9 @@ typedef struct _elab_ctx {
    const elab_ctx_t *parent;
    tree_t            out;
    tree_t            root;
-   ident_t           path;      // Current 'PATH_NAME
-   ident_t           inst;      // Current 'INSTANCE_NAME
+   tree_t            inst;
+   ident_t           path_name;      // Current 'PATH_NAME
+   ident_t           inst_name;      // Current 'INSTANCE_NAME
    ident_t           dotted;
    ident_t           prefix[2];
    lib_t             library;
@@ -1060,15 +1061,16 @@ static void elab_context(tree_t t)
 
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
-   ctx->parent  = parent;
-   ctx->eval    = parent->eval;
-   ctx->root    = parent->root;
-   ctx->dotted  = ctx->dotted ?: parent->dotted;
-   ctx->path    = ctx->path ?: parent->path;
-   ctx->inst    = ctx->inst ?: parent->inst;
-   ctx->library = ctx->library ?: parent->library;
-   ctx->out     = ctx->out ?: parent->out;
-   ctx->cover   = parent->cover;
+   ctx->parent    = parent;
+   ctx->eval      = parent->eval;
+   ctx->root      = parent->root;
+   ctx->dotted    = ctx->dotted ?: parent->dotted;
+   ctx->path_name = ctx->path_name ?: parent->path_name;
+   ctx->inst_name = ctx->inst_name ?: parent->inst_name;
+   ctx->library   = ctx->library ?: parent->library;
+   ctx->out       = ctx->out ?: parent->out;
+   ctx->cover     = parent->cover;
+   ctx->inst      = ctx->inst ?: parent->inst;
 }
 
 static void elab_lower(tree_t b, elab_ctx_t *ctx)
@@ -1078,7 +1080,13 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    if (ctx->cover != NULL)
       eval_alloc_cover_mem(ctx->eval, ctx->cover);
 
+   if (ctx->inst != NULL)
+      diag_add_hint_fn(elab_hint_fn, ctx->inst);
+
    ctx->context = eval_instance(ctx->eval, ctx->dotted, ctx->parent->context);
+
+   if (ctx->inst != NULL)
+      diag_remove_hint_fn(elab_hint_fn);
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1086,14 +1094,15 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    tree_t arch = NULL, config = NULL;
 
    const char *label = istr(tree_ident(t));
-   ident_t npath = hpathf(ctx->path, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
    ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(t), '.');
 
    elab_ctx_t new_ctx = {
-      .path   = npath,
-      .inst   = ninst,
-      .dotted = ndotted,
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
+      .inst      = t,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1136,9 +1145,9 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    tree_add_stmt(ctx->out, b);
 
-   new_ctx.inst = hpathf(new_ctx.inst, '@', "%s(%s)",
-                         simple_name(istr(tree_ident2(arch))),
-                         simple_name(istr(tree_ident(arch))));
+   new_ctx.inst_name = hpathf(new_ctx.inst_name, '@', "%s(%s)",
+                              simple_name(istr(tree_ident2(arch))),
+                              simple_name(istr(tree_ident(arch))));
    new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
    new_ctx.out = b;
 
@@ -1349,8 +1358,8 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_set_subkind(h, tree_kind(t));
    tree_set_ref(h, t);
 
-   tree_set_ident(h, ctx->path);
-   tree_set_ident2(h, ctx->inst);
+   tree_set_ident(h, ctx->path_name);
+   tree_set_ident2(h, ctx->inst_name);
 
    tree_add_decl(ctx->out, h);
 }
@@ -1446,16 +1455,16 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       tree_add_genmap(b, map);
 
       const char *label = istr(base);
-      ident_t npath = hpathf(ctx->path, ':', "%s(%"PRIi64")", label, i);
-      ident_t ninst = hpathf(ctx->inst, ':', "%s(%"PRIi64")", label, i);
+      ident_t npath = hpathf(ctx->path_name, ':', "%s(%"PRIi64")", label, i);
+      ident_t ninst = hpathf(ctx->inst_name, ':', "%s(%"PRIi64")", label, i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
       elab_ctx_t new_ctx = {
-         .out      = b,
-         .path     = npath,
-         .inst     = ninst,
-         .dotted   = ndotted,
-         .generics = hash_new(16),
+         .out       = b,
+         .path_name = npath,
+         .inst_name = ninst,
+         .dotted    = ndotted,
+         .generics  = hash_new(16),
       };
       elab_inherit_context(&new_ctx, ctx);
 
@@ -1514,15 +1523,15 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          tree_add_stmt(ctx->out, b);
 
          const char *label = istr(tree_ident(cond));
-         ident_t npath = hpathf(ctx->path, ':', "%s", label);
-         ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+         ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
+         ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
          ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(cond), '.');
 
          elab_ctx_t new_ctx = {
-            .out    = b,
-            .path   = npath,
-            .inst   = ninst,
-            .dotted = ndotted,
+            .out       = b,
+            .path_name = npath,
+            .inst_name = ninst,
+            .dotted    = ndotted,
          };
          elab_inherit_context(&new_ctx, ctx);
 
@@ -1555,15 +1564,15 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    const char *label = istr(id);
-   ident_t npath = hpathf(ctx->path, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
    ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
    elab_ctx_t new_ctx = {
-      .out    = b,
-      .path   = npath,
-      .inst   = ninst,
-      .dotted = ndotted,
+      .out       = b,
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1644,15 +1653,15 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    const char *label = istr(id);
-   ident_t npath = hpathf(ctx->path, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
    ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
    elab_ctx_t new_ctx = {
-      .out    = b,
-      .path   = npath,
-      .inst   = ninst,
-      .dotted = ndotted,
+      .out       = b,
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1822,9 +1831,9 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
 static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
 {
    const char *name = simple_name(istr(tree_ident2(arch)));
-   ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
+   ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
-   ident_t npath = hpathf(ctx->path, ':', ":%s", name);
+   ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
    ident_t ndotted = ident_prefix(lib_name(ctx->library), ename, '.');
 
    tree_t b = tree_new(T_BLOCK);
@@ -1834,10 +1843,10 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out    = b,
-      .path   = npath,
-      .inst   = ninst,
-      .dotted = ndotted,
+      .out       = b,
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
    elab_subprogram_prefix(arch, &new_ctx);
@@ -1896,13 +1905,13 @@ tree_t elab(tree_t top, cover_tagging_t *cover)
    tree_set_loc(e, tree_loc(top));
 
    elab_ctx_t ctx = {
-      .out      = e,
-      .root     = e,
-      .path     = NULL,
-      .inst     = NULL,
-      .cover    = cover,
-      .library  = lib_work(),
-      .eval     = eval_new(),
+      .out       = e,
+      .root      = e,
+      .path_name = NULL,
+      .inst_name = NULL,
+      .cover     = cover,
+      .library   = lib_work(),
+      .eval      = eval_new(),
    };
 
    switch (tree_kind(top)) {
