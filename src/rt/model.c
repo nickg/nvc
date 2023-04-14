@@ -3379,6 +3379,7 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          src_count, dst_count, closure ? " converted" : "");
 
    assert(src_count == dst_count || closure != NULL);
+   assert(src_s != dst_s);
 
    rt_conv_func_t *conv_func = NULL;
    if (closure != NULL) {

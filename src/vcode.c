@@ -640,6 +640,7 @@ void vcode_opt(void)
             case VCODE_OP_CONST_REP:
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
+            case VCODE_OP_VAR_UPREF:
             case VCODE_OP_ADD:
             case VCODE_OP_ARRAY_REF:
             case VCODE_OP_SUB:
