@@ -1874,12 +1874,15 @@ static void irgen_op_array_ref(jit_irgen_t *g, int op)
          jit_value_t arg0 = irgen_get_arg(g, op, 0);
          jit_value_t arg1 = irgen_get_arg(g, op, 1);
 
-         // TODO: merge this into an address somehow
-         jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
-
-         jit_value_t addr = irgen_lea(g, arg0);
-
-         g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+         if (arg1.kind == JIT_VALUE_INT64) {
+            jit_value_t addr = jit_addr_from_value(arg0, arg1.int64 * scale);
+            g->map[vcode_get_result(op)] = addr;
+         }
+         else {
+            jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
+            jit_value_t addr = irgen_lea(g, arg0);
+            g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+         }
       }
       break;
 
@@ -1888,12 +1891,18 @@ static void irgen_op_array_ref(jit_irgen_t *g, int op)
          jit_value_t shared = irgen_get_arg(g, op, 0);
          jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
 
-         jit_reg_t new = irgen_alloc_reg(g);
-         j_mov(g, new, shared);
-         g->map[vcode_get_result(op)] = jit_value_from_reg(new);
+         jit_value_t arg1 = irgen_get_arg(g, op, 1);
 
-         // Offset must be next sequential register
-         j_add(g, offset, irgen_get_arg(g, op, 1));
+         if (arg1.kind == JIT_VALUE_INT64 && arg1.int64 == 0)
+            g->map[vcode_get_result(op)] = shared;
+         else {
+            jit_reg_t new = irgen_alloc_reg(g);
+            j_mov(g, new, shared);
+            g->map[vcode_get_result(op)] = jit_value_from_reg(new);
+
+            // Offset must be next sequential register
+            j_add(g, offset, arg1);
+         }
       }
       break;
 
