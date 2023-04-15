@@ -69,6 +69,16 @@ static void psl_check_hdl_expr(psl_node_t p)
 
 }
 
+static void psl_check_property_inst(psl_node_t p)
+{
+
+}
+
+static void psl_check_sequence_inst(psl_node_t p)
+{
+
+}
+
 void psl_check(psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -110,6 +120,14 @@ void psl_check(psl_node_t p)
 
    case P_HDL_EXPR:
       psl_check_hdl_expr(p);
+      break;
+
+   case P_PROPERTY_INST:
+      psl_check_property_inst(p);
+      break;
+
+   case P_SEQUENCE_INST:
+      psl_check_sequence_inst(p);
       break;
 
    default:

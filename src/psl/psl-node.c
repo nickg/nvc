@@ -69,18 +69,23 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_VALUE),
 
    // P_SERE
-   (I_PARAMS | I_CLOCK),
+   (I_SUBKIND | I_PARAMS | I_CLOCK | I_RANGES | I_DECLS),
 
    // P_IMPLICATION
    (I_SUBKIND | I_PARAMS | I_CLOCK),
 
+   // P_PROPERTY_INST
+   (I_REF | I_PARAMS),
+
+   // P_SEQUENCE_INST
+   (I_REF | I_PARAMS),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_ASSERT", "P_ASSUME", "P_RESTRICT", "P_FAIRNESS", "P_COVER", "P_ALWAYS",
    "P_HDL_EXPR", "P_PROPERTY_DECL", "P_SEQUENCE_DECL", "P_CLOCK_DECL", "P_NEXT",
    "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
-   "P_SERE", "P_IMPLICATION",
+   "P_SERE", "P_IMPLICATION", "P_PROPERTY_INSTANCE", "P_SEQUENCE_INST"
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -296,6 +301,57 @@ bool psl_has_ident(psl_node_t p)
 void psl_set_ident(psl_node_t p, ident_t i)
 {
    lookup_item(&psl_object, p, I_IDENT)->ident = i;
+}
+
+unsigned psl_ranges(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_RANGES);
+   return obj_array_count(item->obj_array);
+}
+
+tree_t psl_range(psl_node_t p, unsigned n)
+{
+   item_t *item = lookup_item(&psl_object, p, I_RANGES);
+   return tree_array_nth(item, n);
+}
+
+void psl_add_range(psl_node_t p, tree_t r)
+{
+   assert(r != NULL);
+   tree_array_add(lookup_item(&psl_object, p, I_RANGES), r);
+   object_write_barrier(&(p->object), &(r->object));
+}
+
+unsigned psl_decls(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_DECLS);
+   return obj_array_count(item->obj_array);
+}
+
+void psl_add_decl(psl_node_t p, tree_t r)
+{
+   assert(r != NULL);
+   tree_array_add(lookup_item(&psl_object, p, I_DECLS), r);
+   object_write_barrier(&(p->object), &(r->object));
+}
+
+tree_t psl_decl(psl_node_t p, unsigned n)
+{
+   item_t *item = lookup_item(&psl_object, p, I_DECLS);
+   return tree_array_nth(item, n);
+}
+
+void psl_set_ref(psl_node_t p, psl_node_t r)
+{
+   lookup_item(&psl_object, p, I_REF)->object = &(r->object);
+   object_write_barrier(&(p->object), &(r->object));
+}
+
+psl_node_t psl_ref(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_REF);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _psl_node, object);
 }
 
 object_t *psl_to_object(psl_node_t p)

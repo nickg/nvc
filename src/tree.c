@@ -732,6 +732,11 @@ void tree_set_psl(tree_t t, psl_node_t p)
    object_write_barrier(&(t->object), &(p->object));
 }
 
+bool tree_has_psl(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_FOREIGN)->object != NULL;
+}
+
 unsigned tree_chars(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_CHARS);

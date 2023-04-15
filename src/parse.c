@@ -157,6 +157,8 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
 static tree_t p_psl_declaration(void);
+static psl_node_t p_psl_sequence(void);
+static psl_node_t p_psl_property(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -256,6 +258,14 @@ static token_t peek_nth(int n)
 
    const int pos = (tokenq_tail + n - 1) & (tokenq_sz - 1);
    return tokenq[pos].token;
+}
+
+static ident_t peek_ident(void)
+{
+   if (peek() != tID)
+      return NULL;
+
+   return ident_new(tokenq[tokenq_tail].lval.str);
 }
 
 static bool look_for(const look_params_t *params)
@@ -6979,7 +6989,7 @@ static void p_subprogram_declarative_item(tree_t sub)
    //   | attribute_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
 
-   BEGIN("subprogram delcarative item");
+   BEGIN("subprogram declarative item");
 
    switch (peek()) {
    case tVARIABLE:
@@ -9935,6 +9945,46 @@ static psl_node_t p_psl_or_hdl_expression(void)
    return p;
 }
 
+static psl_node_t p_psl_clock_expression(void)
+{
+   tree_t expr = p_expression();
+   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+
+   psl_node_t p = psl_new(P_CLOCK_DECL);
+   psl_set_tree(p, expr);
+
+   return p;
+}
+
+static psl_node_t p_psl_clock_declaration(tree_t parent)
+{
+   // default clock is Clock_Expression ;
+
+   assert(tree_kind(parent) == T_PSL);
+
+   BEGIN("PSL clock declaration");
+
+   scan_as_psl();
+
+   consume(tDEFAULT);
+   consume(tCLOCK);
+
+   consume(tIS);
+
+   scan_as_vhdl();
+
+   psl_node_t p = p_psl_clock_expression();
+
+   tree_set_ident(parent, well_known(W_DEFAULT_CLOCK));
+   consume(tSEMI);
+
+   psl_set_loc(p, CURRENT_LOC);
+   psl_check(p);
+
+   return p;
+}
+
+
 static psl_node_t p_psl_sere(void)
 {
    // Boolean | Boolean Proc_Block | Sequence | SERE ; SERE | SERE : SERE
@@ -9951,21 +10001,381 @@ static psl_node_t p_psl_sere(void)
    return p;
 }
 
-static psl_node_t p_psl_braced_sere(void)
+static psl_node_t p_psl_braced_or_clocked_sere(void)
 {
    // { SERE }
+   // { SERE } @ Clock_Expression
 
    consume(tLBRACE);
    psl_node_t p = p_psl_sere();
    consume(tRBRACE);
+
+   if (optional(tAT))
+      psl_set_clock(p, p_psl_clock_expression());
+
    return p;
+}
+
+static tree_t p_psl_count(psl_node_t p)
+{
+   //   Number
+   // | Range
+
+   BEGIN("PSL Count");
+
+   tree_t range = tree_new(T_RANGE);
+
+   scan_as_vhdl();
+
+   tree_set_subkind(range, RANGE_TO);
+
+   tree_t l = p_expression();
+   solve_types(nametab, l, std_type(NULL, STD_INTEGER));
+   tree_set_left(range, l);
+
+   if (optional(tTO)) {
+      tree_t r = p_expression();
+      solve_types(nametab, r, std_type(NULL, STD_INTEGER));
+      tree_set_right(range, r);
+   }
+
+   scan_as_psl();
+
+   return range;
+}
+
+
+static void p_psl_repeat_scheme(psl_node_t p)
+{
+   //   [* [ Count ] ]
+   // | [+]
+   // | [= Count ]
+   // | [-> [ positive_Count ] ]
+
+   BEGIN("PSL Repeat Scheme");
+
+   const token_t tok = one_of(tPLUSRPT, tTIMESRPT, tGOTORPT, tARROWRPT);
+   switch (tok) {
+   case tPLUSRPT:
+   case tTIMESRPT:
+      psl_set_subkind(p, PSL_CONSEC_REPEAT);
+      if (tok == tTIMESRPT) {
+         psl_add_range(p, p_psl_count(p));
+         consume(tRSQUARE);
+      }
+      else {
+         // TODO: Left and right does not need to be created "per-instance",
+         //       but it is enough to have one global pair.
+         tree_t l = tree_new(T_LITERAL);
+         tree_set_subkind(l, L_INT);
+         tree_set_ival(l, 1);
+
+         tree_t r = tree_new(T_LITERAL);
+         tree_set_subkind(r, L_INT);
+         tree_set_ival(r, INT_MAX);
+
+         tree_t range = tree_new(T_RANGE);
+         tree_set_subkind(range, RANGE_TO);
+         tree_set_left(range, l);
+         tree_set_right(range, r);
+
+         psl_add_range(p, range);
+      }
+      break;
+
+   case tGOTORPT:
+   case tARROWRPT:
+      psl_set_subkind(p, PSL_NON_CONSEC_REPEAT);
+      p_psl_count(p);
+      consume(tRSQUARE);
+      break;
+   }
+}
+
+static tree_t p_psl_proc_block(void)
+{
+   // TODO: PSL LRM does not define "[[" and "]]" as token, thus we keep it as two
+   // consecutive square brace tokens (possibly split by space). However, all examples
+   // and grammar description in the PSL LRM never puts spae between these two.
+   consume(tLSQUARE);
+   consume(tLSQUARE);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_loc(b, CURRENT_LOC);
+
+   scan_as_vhdl();
+
+   while (peek() != tRSQUARE && peek_nth(2) != tRSQUARE) {
+
+      if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
+               tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
+               tSHARED, tDISCONNECT, tGROUP, tPACKAGE))
+         p_block_declarative_item(b);
+      else
+         tree_add_stmt(b, p_sequential_statement());
+   }
+
+   scan_as_psl();
+
+   consume(tRSQUARE);
+   consume(tRSQUARE);
+
+   return b;
+}
+
+static type_t p_psl_subtype_indication(void)
+{
+   BEGIN("PSL subtype indication");
+
+   // Handle ambiguity in "p_subtype_indication". Two consecutive IDs
+   // may indicate resolution function, or only "type_mark" followed by
+   // actual parameter name.
+   token_t third = peek_nth(3);
+   if (peek() == tID && peek_nth(1) == tID &&
+       (third == tSEMI || third == tCOMMA || third == tRPAREN))
+      return p_type_mark();
+   else
+      return p_subtype_indication();
+}
+
+static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *class)
+{
+   //    const
+   //    | [const | mutable] Value_Parameter
+   //    | sequence
+   //    | property
+   //
+   //    Value_Parameter ::=
+   //       HDL_Type
+   //     | PSL_Type_Class
+   //
+   //    HDL_Type ::=
+   //       hdltype HDL_VARIABLE_TYPE
+   //
+   //    PSL_Type_Class ::=
+   //       boolean | bit | bitvector | numeric | string
+
+   BEGIN("PSL Parameter specification");
+
+   *class = C_SIGNAL;
+
+   switch (peek()) {
+   case tPROPERTY:
+      consume(tPROPERTY);
+      *psl_type = PSL_TYPE_PROPERTY;
+      break;
+
+   case tSEQUENCE:
+      consume(tSEQUENCE);
+      *psl_type = PSL_TYPE_SEQUENCE;
+      break;
+
+   case tCONST:
+      *class = C_CONSTANT;
+      // Handle PSL 1.1 "const" only
+      if (peek_nth(2) == tID) {
+         consume(tCONST);
+         *psl_type = PSL_TYPE_NUMERIC;
+         return std_type(NULL, STD_INTEGER);
+      }
+   case tMUTABLE:
+      one_of(tCONST, tMUTABLE);
+   case tHDLTYPE:
+   case tBOOLEAN:
+   case tBIT:
+   case tBITVECTOR:
+   case tNUMERIC:
+   case tSTRINGK:
+      switch (one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK)) {
+      case tHDLTYPE:
+         *psl_type = PSL_TYPE_HDLTYPE;
+         scan_as_vhdl();
+         type_t t = p_psl_subtype_indication();
+         scan_as_psl();
+         return t;
+      case tBOOLEAN:
+         *psl_type = PSL_TYPE_BOOLEAN;
+         return std_type(NULL, STD_BOOLEAN);
+      case tBIT:
+         *psl_type = PSL_TYPE_BIT;
+         return std_type(NULL, STD_BIT);
+         break;
+      case tBITVECTOR:
+         *psl_type = PSL_TYPE_BITVECTOR;
+         return std_type(NULL, STD_BIT_VECTOR);
+         break;
+      case tNUMERIC:
+         *psl_type = PSL_TYPE_NUMERIC;
+         return std_type(NULL, STD_INTEGER);
+         break;
+      case tSTRINGK:
+         *psl_type = PSL_TYPE_STRING;
+         return std_type(NULL, STD_STRING);
+      }
+   }
+
+  return type_new(T_NONE);
+}
+
+static void p_psl_formal_parameter(psl_node_t node)
+{
+   // Param_Spec PSL_Identifier { , PSL_Identifier }
+
+   BEGIN("PSL Formal parameter");
+
+   psl_type_t psl_type = PSL_TYPE_NUMERIC;
+   class_t class;
+   type_t type = p_psl_param_spec(node, &psl_type, &class);
+
+   do {
+      tree_t p = tree_new(T_PARAM_DECL);
+      tree_set_ident(p, p_identifier());
+      tree_set_loc(p, CURRENT_LOC);
+      tree_set_class(p, class);
+      tree_set_subkind(p, psl_type);
+      tree_set_type(p, type);
+      psl_add_port(node, p);
+      insert_name(nametab, p, NULL);
+   } while (optional(tCOMMA));
+}
+
+static void p_psl_formal_parameter_list(psl_node_t node)
+{
+   // Formal_Parameter { ; Formal_Parameter }
+
+   BEGIN("PSL Formal parameter list");
+
+   p_psl_formal_parameter(node);
+
+   while (optional(tSEMI))
+      p_psl_formal_parameter(node);
+}
+
+static void p_psl_actual_parameter(psl_node_t node, bool seq)
+{
+   // Actual_Parameter ::=
+   //    AnyType | Sequence | Property
+   // sequence_Actual_Parameter ::=
+   //    AnyType | Sequence
+
+   BEGIN("PSL Actual parameter");
+
+   // "Sequence" includes "Any_Type" parsing (HDL or PSL expression)
+   // "Property" includes "Sequence" parsing
+   psl_add_operand(node, (seq) ? p_psl_sequence() : p_psl_property());
+}
+
+static void p_psl_actual_parameter_list(psl_node_t node, bool seq)
+{
+
+   // sequence_Actual_Parameter { , sequence_Actual_Parameter }
+   // Actual_Parameter { , Actual_Parameter }
+
+   BEGIN("PSL Actual parameter list");
+
+   p_psl_actual_parameter(node, seq);
+
+   while (optional(tCOMMA))
+      p_psl_actual_parameter(node, seq);
 }
 
 static psl_node_t p_psl_sequence(void)
 {
    // Sequence_Instance | Repeated_SERE | Braced_SERE | Clocked_SERE
+   //
+   // Repeated_SERE :=
+   //      Boolean [* [ Count ] ]
+   //    | Sequence [* [ Count ] ]
+   //    | [* [ Count ] ]
+   //    | Boolean [+]
+   //    | Sequence [+]
+   //    | [+]
+   //    | Boolean [= Count ]
+   //    | Boolean [-> [ positive_Count ] ]
+   //    | Boolean Proc_Block
+   //    | Sequence Proc_Block
+   //
+   // Sequence_Instance ::=
+   //    sequence_Name [ ( sequence_Actual_Parameter_List ) ]
 
-   return p_psl_braced_sere();
+   BEGIN("PSL Sequence");
+
+   psl_node_t p;
+   tree_t decl;
+   ident_t name;
+
+   switch (peek()) {
+   case tLBRACE:
+      p = p_psl_braced_or_clocked_sere();
+      break;
+
+   case tPLUSRPT:
+   case tTIMESRPT:
+      p = psl_new(P_SERE);
+      break;
+
+   default:
+      name = peek_ident();
+
+      p = psl_new(P_SERE);
+
+      // Check for Sequence_Instance
+      if (name && (query_name(nametab, name, &decl) & N_PSL)) {
+         tree_t t_psl = tree_ref(p_name(N_PSL));
+         assert (tree_has_ident(t_psl));
+         assert (tree_has_psl(t_psl));
+
+         psl_node_t s_decl = tree_psl(t_psl);
+
+         if (psl_kind(s_decl) != P_SEQUENCE_DECL)
+            parse_error(CURRENT_LOC, "invalid PSL sequence instance: %s",
+                                       istr(name));
+
+         // Here we are surely parsing Sequence_Instance
+         psl_node_t i = psl_new(P_SEQUENCE_INST);
+         psl_set_ref(i, s_decl);
+
+         if (optional(tLPAREN)) {
+            p_psl_actual_parameter_list(i, true);
+            consume(tRPAREN);
+         }
+
+         psl_check(i);
+         psl_add_operand(p, i);
+         break;
+      }
+
+      psl_node_t op = p_psl_or_hdl_expression();
+
+      // [= and [-> are only allowed after boolean -> no need to recurse
+      if (scan(tGOTORPT, tARROWRPT))
+         p_psl_repeat_scheme(p);
+
+      psl_add_operand(p, op);
+      break;
+   }
+
+   // According to 6.1.2.3 of IEEE Std 1850-2010, multiple consecutive
+   // repeatitions shall be treated as if braces were present. Recurse
+   // and place the so-far parsed SERE as operand of new SERE. Similarly,
+   // this is valid also for Proc_Block
+   int i = 0;
+   while (scan(tPLUSRPT, tTIMESRPT) ||
+          (peek() == tLSQUARE && peek_nth(2) == tLSQUARE)) {
+      if (i > 0) {
+         psl_node_t new = psl_new(P_SERE);
+         psl_add_operand(new, p);
+         p = new;
+      }
+
+      if (scan(tPLUSRPT, tTIMESRPT))
+         p_psl_repeat_scheme(p);
+      else
+         psl_add_decl(p, p_psl_proc_block());
+      i++;
+   }
+
+   return p;
 }
 
 static psl_node_t p_psl_fl_property(void)
@@ -10369,8 +10779,14 @@ static tree_t p_psl_directive(void)
       consume(tCOLON);
    }
 
+   // Verification directive can contain Proc_Block with
+   // local declarations -> Push scope
+   push_scope(nametab);
+
    psl_node_t p = p_psl_verification_directive();
    tree_set_psl(t, p);
+
+   pop_scope(nametab);
 
    scan_as_vhdl();
 
@@ -10379,166 +10795,6 @@ static tree_t p_psl_directive(void)
 
    psl_check(p);
    return t;
-}
-
-static type_t p_psl_subtype_indication(void)
-{
-   BEGIN("PSL subtype indication");
-
-   // Handle ambiguity in "p_subtype_indication". Two consecutive IDs
-   // may indicate resolution function, or only "type_mark" followed by
-   // actual parameter name.
-   token_t third = peek_nth(3);
-   if (peek() == tID && peek_nth(1) == tID &&
-       (third == tSEMI || third == tCOMMA || third == tRPAREN))
-      return p_type_mark();
-   else
-      return p_subtype_indication();
-}
-
-static type_t p_psl_param_spec(psl_node_t node, psl_type_t *psl_type, class_t *class)
-{
-   //    const
-   //    | [const | mutable] Value_Parameter
-   //    | sequence
-   //    | property
-   //
-   //    Value_Parameter ::=
-   //       HDL_Type
-   //     | PSL_Type_Class
-   //
-   //    HDL_Type ::=
-   //       hdltype HDL_VARIABLE_TYPE
-   //
-   //    PSL_Type_Class ::=
-   //       boolean | bit | bitvector | numeric | string
-
-   BEGIN("PSL Parameter specification");
-
-   *class = C_SIGNAL;
-
-   switch (peek()) {
-   case tPROPERTY:
-      consume(tPROPERTY);
-      *psl_type = PSL_TYPE_PROPERTY;
-      break;
-
-   case tSEQUENCE:
-      consume(tSEQUENCE);
-      *psl_type = PSL_TYPE_SEQUENCE;
-      break;
-
-   case tCONST:
-      *class = C_CONSTANT;
-      // Handle PSL 1.1 "const" only
-      if (peek_nth(2) == tID) {
-         consume(tCONST);
-         *psl_type = PSL_TYPE_NUMERIC;
-         return std_type(NULL, STD_INTEGER);
-      }
-   case tMUTABLE:
-      one_of(tCONST, tMUTABLE);
-   case tHDLTYPE:
-   case tBOOLEAN:
-   case tBIT:
-   case tBITVECTOR:
-   case tNUMERIC:
-   case tSTRINGK:
-      switch (one_of(tHDLTYPE, tBOOLEAN, tBIT, tBITVECTOR, tNUMERIC, tSTRINGK)) {
-      case tHDLTYPE:
-         *psl_type = PSL_TYPE_HDLTYPE;
-         scan_as_vhdl();
-         type_t t = p_psl_subtype_indication();
-         scan_as_psl();
-         return t;
-      case tBOOLEAN:
-         *psl_type = PSL_TYPE_BOOLEAN;
-         return std_type(NULL, STD_BOOLEAN);
-      case tBIT:
-         *psl_type = PSL_TYPE_BIT;
-         return std_type(NULL, STD_BIT);
-         break;
-      case tBITVECTOR:
-         *psl_type = PSL_TYPE_BITVECTOR;
-         return std_type(NULL, STD_BIT_VECTOR);
-         break;
-      case tNUMERIC:
-         *psl_type = PSL_TYPE_NUMERIC;
-         return std_type(NULL, STD_INTEGER);
-         break;
-      case tSTRINGK:
-         *psl_type = PSL_TYPE_STRING;
-         return std_type(NULL, STD_STRING);
-      }
-   }
-
-  return type_new(T_NONE);
-}
-
-static void p_psl_formal_parameter(psl_node_t node)
-{
-   // Param_Spec PSL_Identifier { , PSL_Identifier }
-
-   BEGIN("PSL Formal parameter");
-
-   psl_type_t psl_type = PSL_TYPE_NUMERIC;
-   class_t class;
-   type_t type = p_psl_param_spec(node, &psl_type, &class);
-
-   do {
-      tree_t p = tree_new(T_PARAM_DECL);
-      tree_set_ident(p, p_identifier());
-      tree_set_loc(p, CURRENT_LOC);
-      tree_set_class(p, class);
-      tree_set_subkind(p, psl_type);
-      tree_set_type(p, type);
-      psl_add_port(node, p);
-      insert_name(nametab, p, NULL);
-   } while (optional(tCOMMA));
-}
-
-static void p_psl_formal_parameter_list(psl_node_t node)
-{
-   // Formal_Parameter { ; Formal_Parameter }
-
-   BEGIN("PSL Formal parameter list");
-
-   p_psl_formal_parameter(node);
-
-   while (optional(tSEMI))
-      p_psl_formal_parameter(node);
-}
-
-static psl_node_t p_psl_clock_declaration(tree_t parent)
-{
-   // default clock is Clock_Expression ;
-
-   assert(tree_kind(parent) == T_PSL);
-
-   BEGIN("PSL clock declaration");
-
-   scan_as_psl();
-
-   consume(tDEFAULT);
-   consume(tCLOCK);
-
-   consume(tIS);
-
-   scan_as_vhdl();
-
-   tree_t expr = p_expression();
-   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
-
-   psl_node_t p = psl_new(P_CLOCK_DECL);
-   psl_set_tree(p, expr);
-
-   tree_set_ident(parent, well_known(W_DEFAULT_CLOCK));
-   consume(tSEMI);
-
-   psl_set_loc(p, CURRENT_LOC);
-   psl_check(p);
-
-   return p;
 }
 
 static psl_node_t p_psl_property_declaration(tree_t t)
@@ -10598,6 +10854,9 @@ static psl_node_t p_psl_sequence_declaration(tree_t t)
    tree_set_ident(t, ident);
    insert_name(nametab, t, NULL);
 
+   push_scope(nametab);
+   scope_set_container(nametab, t);
+
    if (optional(tLPAREN)) {
       p_psl_formal_parameter_list(decl);
       consume(tRPAREN);
@@ -10612,6 +10871,8 @@ static psl_node_t p_psl_sequence_declaration(tree_t t)
 
    psl_set_loc(decl, CURRENT_LOC);
    psl_check(decl);
+
+   pop_scope(nametab);
 
    scan_as_vhdl();
 

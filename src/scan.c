@@ -209,7 +209,7 @@ const char *token_str(token_t tok)
          "initial", "wire", "unsigned", "assume", "assume_guarantee", "restrict",
          "restrict_guarantee", "strong", "fairness", "cover", "property",
          "sequence", "const", "mutable", "hdltype", "boolean", "bit",
-         "bitvector", "numeric", "string"
+         "bitvector", "numeric", "string", "[*", "[+]", "[=", "[->"
       };
 
       if (tok > 0 && tok - 200 < ARRAY_LEN(token_strs))

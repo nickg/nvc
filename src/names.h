@@ -51,6 +51,7 @@ typedef enum {
    N_FUNC   = (1 << 3),
    N_PROC   = (1 << 4),
    N_LABEL  = (1 << 5),
+   N_PSL    = (1 << 6)
 } name_mask_t;
 
 #define N_OVERLOADS(mask) (((mask) >> 16) & 0xffff)
