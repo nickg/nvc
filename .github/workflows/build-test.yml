@@ -266,8 +266,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: VUnit/vunit
-          ref: master
+          repository: nickg/vunit
+          ref: fix-nvc-version
           path: vunit
           submodules: recursive
           fetch-depth: 1
