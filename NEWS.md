@@ -1,5 +1,18 @@
 ## Unreleased changes
+
+## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
+- Fix build failure due to missing `SHT_X86_64_UNWIND` on Alpine and
+  Ubuntu 18.04 (#666).
+- Elaboration now works correctly when the `--with-system-cc=` configure
+  argument is given a non-absolute path (#667).
+- Fixed a crash when a subprogram declared in a for-generate block is
+  called during elaboration (#668).
+- Real to physical or 64-bit integer conversion now produces the correct
+  result when evaluated during elaboration (#669).
+- Matching `case?` statements are now handled correctly in inside
+  `process (all)` (#670).
+- Pass `-no_fixup_chains` to linker on macOS to avoid warning.
 - `;` can now be used as a separator in the `--work` and `--map`
   arguments on Windows in addition to `:` (#671).
 
