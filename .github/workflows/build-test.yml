@@ -243,7 +243,7 @@ jobs:
       - name: Test J-Core
         run: ./vhdl-projects/jcore/test.sh
       - name: Test Dummy_Plug
-        run: ./vhdl-projects/dummyplug/test.sh
+        run: ./vhdl-projects/ikwzm/dummyplug/test.sh
       - name: Test OpenRIO
         run: ./vhdl-projects/openrio/test.sh
       - name: Test SPI-FPGA
