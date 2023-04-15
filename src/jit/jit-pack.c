@@ -41,7 +41,8 @@ typedef struct {
 } pack_func_t;
 
 struct _jit_pack {
-   chash_t *funcs;
+   chash_t   *funcs;
+   ZSTD_DCtx *zstd;
 };
 
 typedef struct _pack_writer {
@@ -49,6 +50,7 @@ typedef struct _pack_writer {
    size_t      bufsz;
    uint8_t    *wptr;
    uint8_t    *buf;
+   ZSTD_CCtx  *zstd;
 } pack_writer_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +231,9 @@ pack_writer_t *pack_writer_new(void)
    pw->buf    = xmalloc(pw->bufsz);
    pw->wptr   = pw->buf;
 
+   if ((pw->zstd = ZSTD_createCCtx()) == NULL)
+      fatal_trace("ZSTD_createCCtx failed");
+
    tb_append(pw->strtab, '\0');    // Null string is index zero
 
    return pw;
@@ -275,8 +280,8 @@ void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
       zbuf[start++] = byte;
    } while (encsz);
 
-   const size_t csize = ZSTD_compress(zbuf + start, zbufsz - start,
-                                      pw->buf, ubufsz, 3);
+   const size_t csize = ZSTD_compressCCtx(pw->zstd, zbuf + start,
+                                          zbufsz - start, pw->buf, ubufsz, 3);
    if (ZSTD_isError(csize))
       fatal("ZSTD compress failed: %s: %s", istr(f->name),
             ZSTD_getErrorName(csize));
@@ -295,6 +300,7 @@ void pack_writer_string_table(pack_writer_t *pw, const char **tab, size_t *size)
 
 void pack_writer_free(pack_writer_t *pw)
 {
+   ZSTD_freeCCtx(pw->zstd);
    free(pw->buf);
    tb_free(pw->strtab);
    free(pw);
@@ -308,6 +314,9 @@ jit_pack_t *jit_pack_new(void)
    jit_pack_t *jp = xcalloc(sizeof(struct _jit_pack));
    jp->funcs = chash_new(256);
 
+   if ((jp->zstd = ZSTD_createDCtx()) == NULL)
+      fatal_trace("ZSTD_createDCtx failed");
+
    return jp;
 }
 
@@ -319,6 +328,7 @@ static void pack_func_free(const void *key, void *value)
 
 void jit_pack_free(jit_pack_t *jp)
 {
+   ZSTD_freeDCtx(jp->zstd);
    chash_iter(jp->funcs, pack_func_free);
    chash_free(jp->funcs);
    free(jp);
@@ -494,7 +504,8 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       fatal("cannot get ZSTD compressed frame size: %s: %s", istr(f->name),
             ZSTD_getErrorName(framesz));
 
-   size_t dsize = ZSTD_decompress(ubuf, ubufsz, pf->buf + start, framesz);
+   size_t dsize = ZSTD_decompressDCtx(jp->zstd, ubuf, ubufsz,
+                                      pf->buf + start, framesz);
    if (ZSTD_isError(dsize))
       fatal("ZSTD decompress failed: %s: %s", istr(f->name),
             ZSTD_getErrorName(dsize));
