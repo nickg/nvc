@@ -10502,13 +10502,14 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
    vcode_var_t var = VCODE_INVALID_VAR;
    if (field != -1) var = lower_search_vcode_obj(port, lu, &hops);
 
+   type_t type = tree_type(value);
+   type_t port_type = tree_type(port);
+
    if (var == VCODE_INVALID_VAR || hops > 0) {
-      vcode_type_t vtype = lower_signal_type(tree_type(port));
+      vcode_type_t vtype = lower_signal_type(port_type);
       var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
       lower_put_vcode_obj(port, var, lu);
    }
-
-   type_t type = tree_type(value);
 
    if (!type_is_homogeneous(type)) {
       vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
@@ -10534,7 +10535,7 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
       vcode_reg_t data_reg = lower_array_data(src_reg);
       emit_alias_signal(data_reg, lower_debug_locus(port));
       if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY) {
-         vcode_reg_t wrap_reg = lower_wrap(lu, type, data_reg);
+         vcode_reg_t wrap_reg = lower_wrap(lu, port_type, data_reg);
          emit_store(wrap_reg, var);
       }
       else
