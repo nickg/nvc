@@ -146,6 +146,8 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("$%s", istr(ffi_get_sym(value.foreign)));
    case JIT_VALUE_TREE:
       return printf("%s@%p", tree_kind_str(tree_kind(value.tree)), value.tree);
+   case JIT_VALUE_VPOS:
+      return printf("%u:%u", value.vpos.block, value.vpos.op);
    case JIT_VALUE_INVALID:
       return printf("???");
    }

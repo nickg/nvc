@@ -916,10 +916,12 @@ static jit_value_t irgen_dedup_cpool(jit_irgen_t *g)
 
 static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
 {
-   const int64_t enc = ((int64_t)vcode_active_block() << 32) | op;
-
    jit_value_t arg1 = jit_value_from_loc(vcode_get_loc(op));
-   jit_value_t arg2 = jit_value_from_int64(enc);
+
+   jit_value_t arg2 = {
+      .kind = JIT_VALUE_VPOS,
+      .vpos = { .block = vcode_active_block(), .op = op }
+   };
 
    if (g->func->nirs > 0 && g->func->irbuf[g->func->nirs - 1].op == J_DEBUG) {
       jit_ir_t *prev = &(g->func->irbuf[g->func->nirs - 1]);

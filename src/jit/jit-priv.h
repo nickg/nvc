@@ -180,10 +180,16 @@ typedef enum {
    JIT_VALUE_LOC,
    JIT_VALUE_FOREIGN,
    JIT_VALUE_TREE,
+   JIT_VALUE_VPOS,
 } jit_value_kind_t;
 
 typedef uint32_t jit_label_t;
 #define JIT_LABEL_INVALID UINT32_MAX
+
+typedef struct {
+   uint32_t block;
+   uint32_t op;
+} jit_vpos_t;
 
 typedef struct {
    jit_value_kind_t kind : 8;
@@ -198,6 +204,7 @@ typedef struct {
       loc_t          loc;
       jit_foreign_t *foreign;
       tree_t         tree;
+      jit_vpos_t     vpos;
    };
 } jit_value_t;
 
