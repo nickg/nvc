@@ -83,6 +83,7 @@ EXTRA_DIST += \
 	test/elab/issue514.vhd \
 	test/elab/issue518.vhd \
 	test/elab/issue539.vhd \
+	test/elab/issue669.vhd \
 	test/elab/issue93.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/libbind2.vhd \
@@ -876,6 +877,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue615.txt \
 	test/regress/gold/issue616.txt \
 	test/regress/gold/issue617.txt \
+	test/regress/gold/issue668.txt \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1077,6 +1079,8 @@ EXTRA_DIST += \
 	test/regress/issue643.vhd \
 	test/regress/issue646.vhd \
 	test/regress/issue655.vhd \
+	test/regress/issue668.vhd \
+	test/regress/issue670.vhd \
 	test/regress/issue69.vhd \
 	test/regress/issue70.vhd \
 	test/regress/issue72.vhd \
