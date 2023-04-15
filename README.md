@@ -122,7 +122,7 @@ required dependencies:
 Only the MSYS2 environment on Windows is supported.  The required
 dependencies can be installed with:
 
-    pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config}
+    pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config,zstd}
 
 [GtkWave](http://gtkwave.sourceforge.net/) can be used to view
 simulation waveforms.  Version 3.3.79 or later is required for the

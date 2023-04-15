@@ -180,10 +180,7 @@ PKG_CHECK_MODULES([capstone], [capstone >= 4.0],
 
 PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
 
-PKG_CHECK_MODULES([libzstd], [libzstd >= 1.5],
-                  [AC_DEFINE_UNQUOTED([HAVE_LIBZSTD], [1],
-                                      [Have libzstd compression library])],
-                  [true])
+PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
 
 AC_ARG_ENABLE([tcl],
   [AS_HELP_STRING([--enable-tcl], [Build TCL interface])],

@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
+#include <zstd.h>
 
 typedef A(const char *) string_list_t;
 
@@ -262,37 +262,29 @@ void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
 
    pack_func(pw, j, f);
 
-   z_stream strm;
-   strm.zalloc = Z_NULL;
-   strm.zfree  = Z_NULL;
-   strm.opaque = Z_NULL;
-
-   if (deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK)
-      fatal_trace("deflateInit failed");
-
    const size_t ubufsz = pw->wptr - pw->buf;
-   const size_t zbufsz = deflateBound(&strm, ubufsz) + 4;
+   const size_t zbufsz = ZSTD_compressBound(ubufsz) + 10;
    uint8_t *zbuf = xmalloc(zbufsz);
 
-   zbuf[0] = ubufsz & 0xff;
-   zbuf[1] = (ubufsz >> 8) & 0xff;
-   zbuf[2] = (ubufsz >> 16) & 0xff;
-   zbuf[3] = (ubufsz >> 24) & 0xff;
+   int start = 0;
+   size_t encsz = ubufsz;
+   do {
+      uint8_t byte = encsz & 0x7f;
+      encsz >>= 7;
+      if (encsz) byte |= 0x80;
+      zbuf[start++] = byte;
+   } while (encsz);
 
-   strm.next_in   = pw->buf;
-   strm.avail_in  = pw->wptr - pw->buf;
-   strm.avail_out = zbufsz - 4;
-   strm.next_out  = zbuf + 4;
-
-   if (deflate(&strm, Z_FINISH) != Z_STREAM_END)
-      fatal_trace("deflate failed");
-
-   deflateEnd(&strm);
+   const size_t csize = ZSTD_compress(zbuf + start, zbufsz - start,
+                                      pw->buf, ubufsz, 3);
+   if (ZSTD_isError(csize))
+      fatal("ZSTD compress failed: %s: %s", istr(f->name),
+            ZSTD_getErrorName(csize));
 
    pw->wptr = pw->buf;
 
    *buf = zbuf;
-   *size = zbufsz - strm.avail_out;
+   *size = csize + 4;
 }
 
 void pack_writer_string_table(pack_writer_t *pw, const char **tab, size_t *size)
@@ -347,20 +339,19 @@ void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
 
 static uint64_t unpack_uint(pack_func_t *pf)
 {
-   uint8_t dec[10];
-   int nbytes = 0;
+   const uint8_t b0 = *pf->rptr++;
+   if (!(b0 & 0x80))
+      return b0;
+
+   uint64_t val = b0 & 0x7f;
+   int shift = 7;
 
    uint8_t byte;
    do {
       byte = *pf->rptr++;
-      dec[nbytes++] = byte & 0x7f;
+      val |= (uint64_t)(byte & 0x7f) << shift;
+      shift += 7;
    } while (byte & 0x80);
-
-   uint64_t val = 0;
-   for (int i = nbytes - 1; i >= 0; i--) {
-      val <<= 7;
-      val |= dec[i];
-   }
 
    return val;
 }
@@ -487,26 +478,28 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
 
    assert(load_acquire(&f->state) == JIT_FUNC_COMPILING);
 
-   const size_t ubufsz = pf->buf[0] | (pf->buf[1] << 8)
-      | (pf->buf[2] << 16) | (pf->buf[3] << 24);
+   size_t ubufsz = 0;
+   int shift = 0, start = 0;
+   uint8_t byte;
+   do {
+      byte = pf->buf[start++];
+      ubufsz |= (uint64_t)(byte & 0x7f) << shift;
+      shift += 7;
+   } while (byte & 0x80);
 
    uint8_t *ubuf LOCAL = xmalloc(ubufsz);
 
-   z_stream strm;
-   strm.zalloc = Z_NULL;
-   strm.zfree  = Z_NULL;
-   strm.opaque = Z_NULL;
+   size_t framesz = ZSTD_findFrameCompressedSize(pf->buf + start, SIZE_MAX);
+   if (ZSTD_isError(framesz))
+      fatal("cannot get ZSTD compressed frame size: %s: %s", istr(f->name),
+            ZSTD_getErrorName(framesz));
 
-   if (inflateInit(&strm) != Z_OK)
-      fatal_trace("inflateInit failed");
+   size_t dsize = ZSTD_decompress(ubuf, ubufsz, pf->buf + start, framesz);
+   if (ZSTD_isError(dsize))
+      fatal("ZSTD decompress failed: %s: %s", istr(f->name),
+            ZSTD_getErrorName(dsize));
 
-   strm.next_in   = pf->buf + 4;
-   strm.avail_in  = INT_MAX;
-   strm.avail_out = ubufsz;
-   strm.next_out  = ubuf;
-
-   if (inflate(&strm, Z_FINISH) != Z_STREAM_END)
-      fatal_trace("inflate failed");
+   assert(dsize == ubufsz);
 
    pf->rptr = ubuf;
 

@@ -26,18 +26,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <zstd.h>
 
 #ifdef HAVE_AVX2
 #include <x86intrin.h>
 #endif
 
-#ifdef HAVE_LIBZSTD
-#include <zstd.h>
 #define DEFAULT_ZIP FBUF_ZIP_ZSTD
-#else
-#define DEFAULT_ZIP FBUF_ZIP_FASTLZ
-#endif
-
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
@@ -93,11 +88,9 @@ struct _fbuf {
    fbuf_t      *prev;
    cs_state_t   checksum;
    fbuf_zip_t   zip;
-#ifdef HAVE_LIBZSTD
    ZSTD_CCtx   *zstd;
    uint8_t     *zbuf;
    size_t       zbufsz;
-#endif
 };
 
 static fbuf_t *open_list = NULL;
@@ -354,7 +347,6 @@ static void fbuf_decompress_fastlz(fbuf_t *f, uint8_t *rmap, size_t bufsz)
    }
 }
 
-#ifdef HAVE_LIBZSTD
 static void fbuf_decompress_zstd(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 {
    size_t dsize = ZSTD_decompress(f->rbuf, f->origsz, rmap, bufsz);
@@ -367,7 +359,6 @@ static void fbuf_decompress_zstd(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 
    checksum_update(&(f->checksum), f->rbuf, f->origsz);
 }
-#endif
 
 static void fbuf_decompress(fbuf_t *f)
 {
@@ -418,11 +409,9 @@ static void fbuf_decompress(fbuf_t *f)
       memcpy(f->rbuf, rmap + header_sz, f->origsz);
       checksum_update(&(f->checksum), f->rbuf, f->origsz);
       break;
-#ifdef HAVE_LIBZSTD
    case FBUF_ZIP_ZSTD:
       fbuf_decompress_zstd(f, rmap + header_sz, filesz - header_sz);
       break;
-#endif
    default:
       fatal("%s was created with unexpected compression algorithm %c",
             f->fname, header[4]);
@@ -446,7 +435,6 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
 
    checksum_init(&(f->checksum), csum);
 
-#ifdef HAVE_LIBZSTD
    if (f->zip == FBUF_ZIP_ZSTD && mode == FBUF_OUT) {
       if ((f->zstd = ZSTD_createCCtx()) == NULL)
          fatal_trace("ZSTD_createCCtx() failed");
@@ -459,7 +447,6 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
       f->zbufsz = ZSTD_CStreamOutSize();
       f->zbuf = xmalloc(f->zbufsz);
    }
-#endif
 
    if (mode == FBUF_OUT) {
       f->wbuf = xmalloc(SPILL_SIZE);
@@ -492,7 +479,6 @@ static void fbuf_compress_fastlz(fbuf_t *f)
    fbuf_write_raw(f, out, ret);
 }
 
-#ifdef HAVE_LIBZSTD
 static void fbuf_compress_zstd(fbuf_t *f, bool end)
 {
    ZSTD_EndDirective mode = end ? ZSTD_e_end : ZSTD_e_continue;
@@ -512,7 +498,6 @@ static void fbuf_compress_zstd(fbuf_t *f, bool end)
 
    assert(input.pos == input.size);
 }
-#endif
 
 static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool end)
 {
@@ -533,11 +518,9 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool end)
       case FBUF_ZIP_NONE:
          fbuf_write_raw(f, f->wbuf, f->wpend);
          break;
-#ifdef HAVE_LIBZSTD
       case FBUF_ZIP_ZSTD:
          fbuf_compress_zstd(f, end);
          break;
-#endif
       default:
          fatal_trace("unsupported compression algorithm %c", f->zip);
       }
@@ -586,12 +569,10 @@ void fbuf_close(fbuf_t *f, uint32_t *checksum)
    if (checksum != NULL)
       *checksum = checksum_finish(&(f->checksum));
 
-#ifdef HAVE_LIBZSTD
    if (f->zstd != NULL)
       ZSTD_freeCCtx(f->zstd);
 
    free(f->zbuf);
-#endif
 
    free(f->fname);
    free(f);
