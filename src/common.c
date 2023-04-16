@@ -2261,8 +2261,6 @@ void analyse_verilog(bool verbose)
       if (error_count() == 0) {
          vlog_check(module);
 
-         vlog_dump(module);
-
          if (error_count() == 0)
             lib_put_vlog(work, module);
       }

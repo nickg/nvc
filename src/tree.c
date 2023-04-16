@@ -335,6 +335,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PSL
    (I_IDENT | I_FOREIGN),
+
+   // T_VERILOG
+   (I_IDENT | I_FOREIGN | I_PARAMS | I_GENMAPS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -372,6 +375,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
    "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
    "T_CASE_GENERATE",   "T_ALTERNATIVE",     "T_PSL",
+   "T_VERILOG",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -405,15 +409,8 @@ struct _psl_node {
    object_t object;
 };
 
-static const tree_kind_t stmt_kinds[] = {
-   T_PROCESS,     T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
-   T_ASSERT,      T_INSTANCE,        T_IF,           T_NULL,
-   T_RETURN,      T_COND_ASSIGN,     T_WHILE,        T_FOR,
-   T_EXIT,        T_PCALL,           T_CASE,         T_BLOCK,
-   T_SELECT,      T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
-   T_PROT_PCALL,  T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
-   T_RELEASE,     T_MATCH_CASE,      T_SEQUENCE,     T_CASE_GENERATE,
-   T_ALTERNATIVE, T_PSL,
+struct _vlog_node {
+   object_t object;
 };
 
 static tree_kind_t expr_kinds[] = {
@@ -460,11 +457,6 @@ static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
 
    fatal_trace("tree kind %s is not %s", tree_kind_str(t->object.kind), what);
 #endif
-}
-
-static inline void tree_assert_stmt(tree_t t)
-{
-   tree_assert_kind(t, stmt_kinds, ARRAY_LEN(stmt_kinds), "a statement");
 }
 
 static inline void tree_assert_expr(tree_t t)
@@ -732,6 +724,20 @@ void tree_set_psl(tree_t t, psl_node_t p)
    object_write_barrier(&(t->object), &(p->object));
 }
 
+vlog_node_t tree_vlog(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_FOREIGN);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _vlog_node, object);
+}
+
+void tree_set_vlog(tree_t t, vlog_node_t v)
+{
+   assert(v != NULL);
+   lookup_item(&tree_object, t, I_FOREIGN)->object = &(v->object);
+   object_write_barrier(&(t->object), &(v->object));
+}
+
 unsigned tree_chars(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_CHARS);
@@ -820,7 +826,7 @@ tree_t tree_stmt(tree_t t, unsigned n)
 
 void tree_add_stmt(tree_t t, tree_t s)
 {
-   tree_assert_stmt(s);
+   assert(s != NULL);
    tree_array_add(lookup_item(&tree_object, t, I_STMTS), s);
    object_write_barrier(&(t->object), &(s->object));
 }
@@ -1322,8 +1328,7 @@ object_t *tree_to_object(tree_t t)
 
 tree_t tree_from_object(object_t *obj)
 {
-   assert(obj != NULL);
-   if (obj->tag == OBJECT_TAG_TREE)
+   if (obj != NULL && obj->tag == OBJECT_TAG_TREE)
       return container_of(obj, struct _tree, object);
    else
       return NULL;

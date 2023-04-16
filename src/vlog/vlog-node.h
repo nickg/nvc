@@ -58,6 +58,7 @@ typedef enum {
    V_NUMBER,
    V_NET_DECL,
    V_ASSIGN,
+   V_ROOT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -110,6 +111,8 @@ typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context);
 void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
                      vlog_kind_t kind);
+
+void vlog_locus(vlog_node_t v, ident_t *unit, ptrdiff_t *offset);
 
 object_t *vlog_to_object(vlog_node_t v);
 vlog_node_t vlog_from_object(object_t *obj);

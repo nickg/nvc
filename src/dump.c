@@ -23,6 +23,7 @@
 #include "psl/psl-phase.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-phase.h"
 
 #include <assert.h>
 #include <string.h>
@@ -1267,6 +1268,17 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_PSL:
       dump_psl(t, 0);
+      break;
+
+   case T_VERILOG:
+      print_syntax("#block #is\n");
+      dump_generic_map(t, indent + 2, ";\n");
+      dump_port_map(t, indent + 2, ";\n");
+      tab(indent);
+      print_syntax("#begin\n");
+      vlog_dump(tree_vlog(t), indent + 2);
+      tab(indent);
+      print_syntax("#end #block");
       break;
 
    default:

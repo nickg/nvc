@@ -25,6 +25,7 @@ typedef int32_t vcode_reg_t;
 lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
                              cover_tagging_t *cover, tree_t container);
 void lower_unit_free(lower_unit_t *lu);
+void lower_finished(lower_unit_t *lu);
 
 vcode_unit_t get_vcode(lower_unit_t *lu);
 
@@ -37,5 +38,8 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
 void lower_process(lower_unit_t *parent, tree_t proc);
 vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t fcall);
 vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t);
+
+int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops);
+void lower_put_vcode_obj(void *key, int obj, lower_unit_t *scope);
 
 #endif  // _LOWER_H

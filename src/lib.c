@@ -282,7 +282,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
       kind = tree_kind(tree);
    }
    else if ((vlog = vlog_from_object(object)))
-      name = vlog_ident2(vlog);
+      name = vlog_ident(vlog);
    else
       fatal_trace("unexpected object class in lib_put_aux");
 
@@ -954,23 +954,31 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
       return false;
 }
 
-tree_t lib_get(lib_t lib, ident_t ident)
+object_t *lib_get_generic(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       if (lu->error)
          fatal_at(&lu->object->loc, "design unit %s was analysed with errors",
                   istr(lu->name));
-      else {
-         tree_t tree = tree_from_object(lu->object);
-         if (tree == NULL)
-            fatal_at(&lu->object->loc, "%s is not a VHDL design unit",
-                     istr(lu->name));
-         return tree;
-      }
+      else
+         return lu->object;
    }
    else
       return NULL;
+}
+
+tree_t lib_get(lib_t lib, ident_t ident)
+{
+   object_t *obj = lib_get_generic(lib, ident);
+   if (obj == NULL)
+      return NULL;
+
+   tree_t tree = tree_from_object(obj);
+   if (tree == NULL)
+      fatal_at(&obj->loc, "%s is not a VHDL design unit", istr(ident));
+
+   return tree;
 }
 
 tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error)
@@ -1002,11 +1010,7 @@ object_t *lib_load_handler(ident_t qual)
    if (lib == NULL)
       return NULL;
 
-   tree_t unit = lib_get(lib, qual);
-   if (unit == NULL)
-      return NULL;
-
-   return tree_to_object(unit);
+   return lib_get_generic(lib, qual);
 }
 
 tree_t lib_get_qualified(ident_t qual)

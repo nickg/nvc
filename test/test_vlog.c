@@ -154,7 +154,7 @@ START_TEST(test_dump)
 
    LOCAL_TEXT_BUF tb = tb_new();
    capture_syntax(tb);
-   vlog_dump(m);
+   vlog_dump(m, 0);
 
    ck_assert_str_eq(tb_get(tb),
                     "module dff (d, clk, rstb, q);\n"

@@ -128,6 +128,8 @@ void input_from_file(const char *file)
       reset_vhdl_parser();
    }
 
+   yylloc = LOC_INVALID;
+
    read_ptr  = file_start;
    file_ref  = loc_file_ref(file, file_start);
    lineno    = 1;
