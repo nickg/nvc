@@ -104,7 +104,6 @@ static void pack_str(pack_writer_t *pw, const char *str)
 static void pack_loc(pack_writer_t *pw, const loc_t *loc)
 {
    if (loc_invalid_p(&pw->last_loc) || loc->file_ref != pw->last_loc.file_ref) {
-      pack_u8(pw, 4);
       pack_str(pw, loc_file_str(loc));
       pack_uint(pw, loc->first_line);
       pack_uint(pw, loc->first_column);
@@ -113,17 +112,9 @@ static void pack_loc(pack_writer_t *pw, const loc_t *loc)
       const int line_delta = loc->first_line - pw->last_loc.first_line;
       const int column_delta = loc->first_column - pw->last_loc.first_column;
 
-      uint8_t mask = 0;
-      if (line_delta != 0) mask |= 1;
-      if (column_delta != 0) mask |= 2;
-
-      pack_u8(pw, mask);
-
-      if (line_delta != 0)
-         pack_int(pw, line_delta);
-
-      if (column_delta != 0)
-         pack_int(pw, column_delta);
+      pack_u8(pw, 0);
+      pack_int(pw, line_delta);
+      pack_int(pw, column_delta);
    }
 
    pw->last_loc = *loc;
@@ -428,20 +419,19 @@ static const char *unpack_str(pack_func_t *pf)
 
 static loc_t unpack_loc(pack_func_t *pf)
 {
-   uint8_t mask = *pf->rptr++;
-
    loc_t loc = pf->last_loc;
 
-   if (mask == 4) {
-      loc.file_ref = loc_file_ref(unpack_str(pf), NULL);
+   const char *file = unpack_str(pf);
+   if (*file != '\0') {
+      loc.file_ref = loc_file_ref(file, NULL);
       loc.first_line = unpack_uint(pf);
       loc.first_column = unpack_uint(pf);
       loc.column_delta = 0;
       loc.line_delta = 0;
    }
    else {
-      if (mask & 1) loc.first_line += unpack_int(pf);
-      if (mask & 2) loc.first_column += unpack_int(pf);
+      loc.first_line += unpack_int(pf);
+      loc.first_column += unpack_int(pf);
    }
 
    return (pf->last_loc = loc);
