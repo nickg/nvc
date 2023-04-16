@@ -114,10 +114,7 @@ static void shell_update_now(tcl_shell_t *sh)
 
 static int count_signals(rt_scope_t *scope)
 {
-   int total = list_size(scope->signals);
-
-   for (rt_alias_t *a = scope->aliases; a; a = a->chain)
-      total++;
+   int total = list_size(scope->signals) + list_size(scope->aliases);
 
    for (rt_scope_t *child = scope->child; child; child = child->chain)
       total += count_signals(child);
@@ -140,7 +137,7 @@ static void recurse_signals(rt_scope_t *scope, text_buf_t *path,
       tb_trim(path, base);
    }
 
-   for (rt_alias_t *a = scope->aliases; a; a = a->chain) {
+   list_foreach(rt_alias_t *, a, scope->aliases) {
       shell_signal_t *ss = (*wptr)++;
       ss->signal = a->signal;
       ss->name = ident_downcase(tree_ident(a->where));
