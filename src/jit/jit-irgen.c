@@ -2071,26 +2071,39 @@ static void irgen_op_range_length(jit_irgen_t *g, int op)
    jit_value_t left  = irgen_get_arg(g, op, 0);
    jit_value_t right = irgen_get_arg(g, op, 1);
 
-   irgen_label_t *l_downto = irgen_alloc_label(g);
-   irgen_label_t *l_after  = irgen_alloc_label(g);
+   vcode_reg_t arg2 = vcode_get_arg(op, 2);
 
-   if (vcode_get_arg(op, 2) != g->flags) {
-      jit_value_t dir = irgen_get_arg(g, op, 2);
-      j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+   jit_value_t diff;
+   int64_t dconst;
+   if (vcode_reg_const(arg2, &dconst)) {
+      jit_value_t high = dconst == RANGE_TO ? right : left;
+      jit_value_t low = dconst == RANGE_TO ? left : right;
+
+      diff = j_sub(g, high, low);
+   }
+   else {
+      irgen_label_t *l_downto = irgen_alloc_label(g);
+      irgen_label_t *l_after  = irgen_alloc_label(g);
+
+      if (arg2 != g->flags) {
+         jit_value_t dir = irgen_get_value(g, arg2);
+         j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+      }
+
+      j_jump(g, JIT_CC_T, l_downto);
+
+      jit_value_t diff_up = j_sub(g, right, left);
+      j_jump(g, JIT_CC_NONE, l_after);
+
+      irgen_bind_label(g, l_downto);
+
+      jit_value_t diff_down = j_sub(g, left, right);
+
+      irgen_bind_label(g, l_after);
+
+      diff = j_csel(g, diff_down, diff_up);
    }
 
-   j_jump(g, JIT_CC_T, l_downto);
-
-   jit_value_t diff_up = j_sub(g, right, left);
-   j_jump(g, JIT_CC_NONE, l_after);
-
-   irgen_bind_label(g, l_downto);
-
-   jit_value_t diff_down = j_sub(g, left, right);
-
-   irgen_bind_label(g, l_after);
-
-   jit_value_t diff = j_csel(g, diff_down, diff_up);
    jit_value_t length = j_add(g, diff, jit_value_from_int64(1));
    jit_value_t clamped = j_clamp(g, length);
 
