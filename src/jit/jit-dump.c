@@ -304,14 +304,14 @@ static int jit_interleaved_cb(vcode_dump_reason_t reason, int op, void *ctx)
 
    jit_dump_t *d = ctx;
 
-   const int64_t enc = ((int64_t)vcode_active_block() << 32) | op;
+   const vcode_block_t block = vcode_active_block();
 
    for (; d->next_ir < d->func->nirs; d->next_ir++) {
       jit_ir_t *ir = &(d->func->irbuf[d->next_ir]);
       if (ir->op == J_DEBUG) {
          if (ir->target)
             d->lpend = d->next_ir;
-         if (ir->arg2.int64 != enc)
+         if (ir->arg2.vpos.block != block || ir->arg2.vpos.op != op)
             break;
       }
       else {
