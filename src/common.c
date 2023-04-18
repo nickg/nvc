@@ -1902,6 +1902,11 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
          (*fn)(expr, ctx);
       break;
 
+   case T_EXTERNAL_NAME:
+      if (tree_class(expr) == C_SIGNAL)
+         (*fn)(expr, ctx);
+      break;
+
    case T_WAVEFORM:
    case T_QUALIFIED:
    case T_TYPE_CONV:
