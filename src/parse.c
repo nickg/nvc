@@ -10016,7 +10016,7 @@ static psl_node_t p_psl_braced_or_clocked_sere(void)
    return p;
 }
 
-static tree_t p_psl_count(psl_node_t p)
+static tree_t p_psl_count(void)
 {
    //   Number
    // | Range
@@ -10045,7 +10045,7 @@ static tree_t p_psl_count(psl_node_t p)
 }
 
 
-static void p_psl_repeat_scheme(psl_node_t p)
+static psl_node_t p_psl_repeat_scheme(void)
 {
    //   [* [ Count ] ]
    // | [+]
@@ -10054,13 +10054,15 @@ static void p_psl_repeat_scheme(psl_node_t p)
 
    BEGIN("PSL Repeat Scheme");
 
+   psl_node_t rpt = psl_new(P_REPEAT);
+
    const token_t tok = one_of(tPLUSRPT, tTIMESRPT, tGOTORPT, tARROWRPT);
    switch (tok) {
    case tPLUSRPT:
    case tTIMESRPT:
-      psl_set_subkind(p, PSL_CONSEC_REPEAT);
+      psl_set_subkind(rpt, PSL_CONSEC_REPEAT);
       if (tok == tTIMESRPT) {
-         psl_add_range(p, p_psl_count(p));
+         psl_set_tree(rpt, p_psl_count());
          consume(tRSQUARE);
       }
       else {
@@ -10079,17 +10081,19 @@ static void p_psl_repeat_scheme(psl_node_t p)
          tree_set_left(range, l);
          tree_set_right(range, r);
 
-         psl_add_range(p, range);
+         psl_set_tree(rpt, range);
       }
       break;
 
    case tGOTORPT:
    case tARROWRPT:
-      psl_set_subkind(p, PSL_NON_CONSEC_REPEAT);
-      p_psl_count(p);
+      psl_set_subkind(rpt, PSL_NON_CONSEC_REPEAT);
+      psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
       break;
    }
+
+   return rpt;
 }
 
 static tree_t p_psl_proc_block(void)
@@ -10349,7 +10353,7 @@ static psl_node_t p_psl_sequence(void)
 
       // [= and [-> are only allowed after boolean -> no need to recurse
       if (scan(tGOTORPT, tARROWRPT))
-         p_psl_repeat_scheme(p);
+         psl_set_repeat(p, p_psl_repeat_scheme());
 
       psl_add_operand(p, op);
       break;
@@ -10369,7 +10373,7 @@ static psl_node_t p_psl_sequence(void)
       }
 
       if (scan(tPLUSRPT, tTIMESRPT))
-         p_psl_repeat_scheme(p);
+         psl_set_repeat(p, p_psl_repeat_scheme());
       else
          psl_add_decl(p, p_psl_proc_block());
       i++;
