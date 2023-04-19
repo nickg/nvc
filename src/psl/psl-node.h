@@ -73,8 +73,10 @@ typedef enum {
 } psl_guarantee_t;
 
 typedef enum {
-   PSL_CONSEC_REPEAT,
-   PSL_NON_CONSEC_REPEAT
+   PSL_PLUS_REPEAT,
+   PSL_TIMES_REPEAT,
+   PSL_GOTO_REPEAT,
+   PSL_ARROW_REPEAT
 } psl_repeat_t;
 
 psl_node_t psl_new(psl_kind_t kind);

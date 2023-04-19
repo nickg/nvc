@@ -10059,35 +10059,23 @@ static psl_node_t p_psl_repeat_scheme(void)
    const token_t tok = one_of(tPLUSRPT, tTIMESRPT, tGOTORPT, tARROWRPT);
    switch (tok) {
    case tPLUSRPT:
+      psl_set_subkind(rpt, PSL_PLUS_REPEAT);
+      break;
+
    case tTIMESRPT:
-      psl_set_subkind(rpt, PSL_CONSEC_REPEAT);
-      if (tok == tTIMESRPT) {
-         psl_set_tree(rpt, p_psl_count());
-         consume(tRSQUARE);
-      }
-      else {
-         // TODO: Left and right does not need to be created "per-instance",
-         //       but it is enough to have one global pair.
-         tree_t l = tree_new(T_LITERAL);
-         tree_set_subkind(l, L_INT);
-         tree_set_ival(l, 1);
-
-         tree_t r = tree_new(T_LITERAL);
-         tree_set_subkind(r, L_INT);
-         tree_set_ival(r, INT_MAX);
-
-         tree_t range = tree_new(T_RANGE);
-         tree_set_subkind(range, RANGE_TO);
-         tree_set_left(range, l);
-         tree_set_right(range, r);
-
-         psl_set_tree(rpt, range);
-      }
+      psl_set_subkind(rpt, PSL_TIMES_REPEAT);
+      psl_set_tree(rpt, p_psl_count());
+      consume(tRSQUARE);
       break;
 
    case tGOTORPT:
+      psl_set_subkind(rpt, PSL_GOTO_REPEAT);
+      psl_set_tree(rpt, p_psl_count());
+      consume(tRSQUARE);
+      break;
+
    case tARROWRPT:
-      psl_set_subkind(rpt, PSL_NON_CONSEC_REPEAT);
+      psl_set_subkind(rpt, PSL_ARROW_REPEAT);
       psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
       break;
