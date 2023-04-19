@@ -216,8 +216,8 @@ static inline jit_scalar_t interp_get_scalar(jit_interp_t *state,
       return (jit_scalar_t){ .integer = value.handle };
    case JIT_VALUE_FOREIGN:
       return (jit_scalar_t){ .pointer = value.foreign };
-   case JIT_VALUE_TREE:
-      return (jit_scalar_t){ .pointer = value.tree };
+   case JIT_VALUE_LOCUS:
+      return (jit_scalar_t){ .pointer = jit_get_locus(value) };
    case JIT_ADDR_CPOOL:
       JIT_ASSERT(value.int64 >= 0 && value.int64 <= state->func->cpoolsz);
       return (jit_scalar_t){ .pointer = state->func->cpool + value.int64 };

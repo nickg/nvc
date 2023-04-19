@@ -1071,14 +1071,13 @@ static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
    return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 }
 
-static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
+static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, ident_t unit,
+                                              ptrdiff_t offset)
 {
-   ident_t unit;
-   ptrdiff_t offset;
-   object_locus(ptr, &unit, &offset);
-
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, unit);
+
+   object_fixup_locus(unit, &offset);
 
    LLVMValueRef args[] = {
       llvm_const_string(obj, tb_get(tb)),
@@ -1178,11 +1177,11 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
                                      (uintptr_t)value.foreign);
       else
          return llvm_ptr(obj, value.foreign);
-   case JIT_VALUE_TREE:
+   case JIT_VALUE_LOCUS:
       if (cgb->func->mode == CGEN_AOT)
-         return cgen_rematerialise_object(obj, tree_to_object(value.tree));
+         return cgen_rematerialise_object(obj, value.ident, value.disp);
       else
-         return llvm_ptr(obj, value.tree);
+         return llvm_ptr(obj, jit_get_locus(value));
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
    }

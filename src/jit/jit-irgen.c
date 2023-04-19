@@ -98,12 +98,6 @@ static inline jit_value_t jit_value_from_loc(const loc_t *loc)
    return value;
 }
 
-static inline jit_value_t jit_value_from_tree(tree_t t)
-{
-   jit_value_t value = { .kind = JIT_VALUE_TREE, .tree = t };
-   return value;
-}
-
 static inline jit_value_t jit_null_ptr(void)
 {
    jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
@@ -1749,8 +1743,11 @@ static void irgen_op_debug_locus(jit_irgen_t *g, int op)
    ident_t unit = vcode_get_ident(op);
    const ptrdiff_t offset = vcode_get_value(op);
 
-   tree_t tree = tree_from_locus(unit, offset, lib_get_qualified);
-   g->map[vcode_get_result(op)] = jit_value_from_tree(tree);
+   g->map[vcode_get_result(op)] = (jit_value_t){
+      .kind  = JIT_VALUE_LOCUS,
+      .disp  = offset,
+      .ident = unit
+   };
 }
 
 static void irgen_op_wrap(jit_irgen_t *g, int op)

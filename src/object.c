@@ -1275,18 +1275,22 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
    }
 }
 
-object_t *object_from_locus(ident_t module, ptrdiff_t offset,
-                            object_load_fn_t loader)
+static object_arena_t *arena_by_name(ident_t module)
 {
    // Search backwards to ensure we find the most recent arena with the
    // given name
-   object_arena_t *arena = NULL;
    for (int j = all_arenas.count - 1; j > 0; j--) {
-      if (module == object_arena_name(all_arenas.items[j])) {
-         arena = all_arenas.items[j];
-         break;
-      }
+      if (module == object_arena_name(all_arenas.items[j]))
+         return all_arenas.items[j];
    }
+
+   return NULL;
+}
+
+object_t *object_from_locus(ident_t module, ptrdiff_t offset,
+                            object_load_fn_t loader)
+{
+   object_arena_t *arena = arena_by_name(module);
 
    if (arena == NULL) {
       object_t *droot = NULL;
@@ -1320,6 +1324,18 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                   obj->arena, arena->key, istr(module), offset);
 
    return obj;
+}
+
+void object_fixup_locus(ident_t module, ptrdiff_t *offset)
+{
+   if (*offset < 0) {
+      object_arena_t *arena = arena_by_name(module);
+      if (!arena->frozen)
+         fatal_trace("cannot fixup locus %s%+"PRIiPTR" as arena not yet frozen",
+                     istr(module), *offset);
+
+      *offset = arena->forward[-*offset] >> OBJECT_ALIGN_BITS;
+   }
 }
 
 void freeze_global_arena(void)

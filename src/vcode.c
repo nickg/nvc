@@ -2929,8 +2929,7 @@ vcode_unit_t vcode_unit_context(void)
 object_t *vcode_unit_object(vcode_unit_t vu)
 {
    assert(vu != NULL);
-   return object_from_locus(vu->module, vu->offset,
-                            (object_load_fn_t)lib_get_qualified);
+   return object_from_locus(vu->module, vu->offset, lib_load_handler);
 }
 
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
@@ -5844,10 +5843,8 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       for (unsigned j = 0; j < b->ops.count; j++) {
          op_t *op = &(b->ops.items[j]);
 
-         if (op->kind == VCODE_OP_DEBUG_LOCUS && op->value < 0) {
-            object_t *obj = object_from_locus(op->ident, op->value, NULL);
-            object_locus(obj, &op->ident, (ptrdiff_t *)&op->value);
-         }
+         if (op->kind == VCODE_OP_DEBUG_LOCUS)
+            object_fixup_locus(op->ident, &op->value);
 
          fbuf_put_uint(f, op->kind);
          fbuf_put_uint(f, op->result);

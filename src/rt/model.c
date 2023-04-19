@@ -320,11 +320,15 @@ static void scope_deps_cb(ident_t unit_name, void *__ctx)
 
    rt_model_t *m = __ctx;
 
-   tree_t unit = lib_get_qualified(unit_name);
-   if (unit == NULL) {
+   object_t *obj = lib_load_handler(unit_name);
+   if (obj == NULL) {
       warnf("missing dependency %s", istr(unit_name));
       return;
    }
+
+   tree_t unit = tree_from_object(obj);
+   if (unit == NULL)
+      return;
 
    if (hash_get(m->scopes, unit) != NULL)
       return;

@@ -1472,6 +1472,12 @@ int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
    return base + (addr.int64 >> 2);
 }
 
+object_t *jit_get_locus(jit_value_t value)
+{
+   assert(value.kind == JIT_VALUE_LOCUS);
+   return object_from_locus(value.ident, value.disp, lib_load_handler);
+}
+
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)
 {
    relaxed_store(&j->interrupt_ctx, ctx);

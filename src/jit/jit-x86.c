@@ -854,8 +854,8 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
       MOV(__EAX, IMM(src.int64), __QWORD);
       MOV(dst, __EAX, __QWORD);
       break;
-   case JIT_VALUE_TREE:
-      MOV(dst, IMM((intptr_t)src.tree), __QWORD);
+   case JIT_VALUE_LOCUS:
+      MOV(dst, PTR(jit_get_locus(src)), __QWORD);
       break;
    case JIT_ADDR_REG:
       MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
@@ -863,7 +863,7 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
          LEA(dst, ADDR(dst, src.disp));
       break;
    case JIT_ADDR_CPOOL:
-      MOV(dst, IMM((intptr_t)blob->func->cpool + src.int64), __QWORD);
+      MOV(dst, PTR(blob->func->cpool + src.int64), __QWORD);
       break;
    case JIT_ADDR_COVER:
       MOV(dst, PTR(jit_get_cover_ptr(blob->func->jit, src)), __QWORD);

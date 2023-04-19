@@ -19,7 +19,10 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-priv.h"
+#include "object.h"
+#include "psl/psl-node.h"
 #include "vcode.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -144,8 +147,20 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
    case JIT_VALUE_FOREIGN:
       return printf("$%s", istr(ffi_get_sym(value.foreign)));
-   case JIT_VALUE_TREE:
-      return printf("%s@%p", tree_kind_str(tree_kind(value.tree)), value.tree);
+   case JIT_VALUE_LOCUS:
+      {
+         object_t *obj = jit_get_locus(value);
+         switch (obj->tag) {
+         case OBJECT_TAG_TREE:
+            return printf("%s@%p", tree_kind_str(obj->kind), obj);
+         case OBJECT_TAG_VLOG:
+            return printf("%s@%p", vlog_kind_str(obj->kind), obj);
+         case OBJECT_TAG_PSL:
+            return printf("%s@%p", psl_kind_str(obj->kind), obj);
+         default:
+            return printf("%d@%p", obj->kind, obj);
+         }
+      }
    case JIT_VALUE_VPOS:
       return printf("%u:%u", value.vpos.block, value.vpos.op);
    case JIT_VALUE_INVALID:

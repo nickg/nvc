@@ -131,22 +131,20 @@ static inline void pack_double(pack_writer_t *pw, double value)
    pack_uint(pw, u.integer);
 }
 
-static void pack_tree(pack_writer_t *pw, tree_t tree)
-{
-   ident_t unit;
-   ptrdiff_t offset;
-   tree_locus(tree, &unit, &offset);
-
-   pack_str(pw, istr(unit));
-   pack_uint(pw, offset);
-}
-
 static void pack_handle(pack_writer_t *pw, jit_t *j, jit_handle_t handle)
 {
    if (handle == JIT_HANDLE_INVALID)
       pack_str(pw, NULL);
    else
       pack_str(pw, istr(jit_get_func(j, handle)->name));
+}
+
+static void pack_locus(pack_writer_t *pw, ident_t unit, ptrdiff_t offset)
+{
+   object_fixup_locus(unit, &offset);
+
+   pack_str(pw, istr(unit));
+   pack_uint(pw, offset);
 }
 
 static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
@@ -194,8 +192,8 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
    case JIT_VALUE_LOC:
       pack_loc(pw, &(value.loc));
       break;
-   case JIT_VALUE_TREE:
-      pack_tree(pw, value.tree);
+   case JIT_VALUE_LOCUS:
+      pack_locus(pw, value.ident, value.disp);
       break;
    case JIT_VALUE_FOREIGN:
       pack_str(pw, istr(ffi_get_sym(value.foreign)));
@@ -437,14 +435,6 @@ static loc_t unpack_loc(pack_func_t *pf)
    return (pf->last_loc = loc);
 }
 
-static tree_t unpack_tree(pack_func_t *pf)
-{
-   ident_t unit = ident_new(unpack_str(pf));
-   ptrdiff_t offset = unpack_uint(pf);
-
-   return tree_from_locus(unit, offset, lib_get_qualified);
-}
-
 static jit_handle_t unpack_handle(pack_func_t *pf, jit_t *j)
 {
    const char *str = unpack_str(pf);
@@ -494,8 +484,9 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
    case JIT_VALUE_LOC:
       value.loc = unpack_loc(pf);
       break;
-   case JIT_VALUE_TREE:
-      value.tree = unpack_tree(pf);
+   case JIT_VALUE_LOCUS:
+      value.ident = ident_new(unpack_str(pf));
+      value.disp = unpack_uint(pf);
       break;
    case JIT_VALUE_FOREIGN:
       value.foreign = jit_ffi_get(ident_new(unpack_str(pf)));
@@ -564,8 +555,7 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
    ident_t unit = ident_new(unpack_str(pf));
    ptrdiff_t offset = unpack_uint(pf);
 
-   f->object = object_from_locus(unit, offset,
-                                 (object_load_fn_t)lib_get_qualified);
+   f->object = object_from_locus(unit, offset, lib_load_handler);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);

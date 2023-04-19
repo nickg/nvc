@@ -1199,6 +1199,5 @@ void __nvc_putpriv(jit_handle_t handle, void *data)
 DLLEXPORT
 object_t *__nvc_get_object(const char *unit, ptrdiff_t offset)
 {
-   return object_from_locus(ident_new(unit), offset,
-                            (object_load_fn_t)lib_get_qualified);
+   return object_from_locus(ident_new(unit), offset, lib_load_handler);
 }
