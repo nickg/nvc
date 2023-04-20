@@ -724,6 +724,11 @@ void tree_set_psl(tree_t t, psl_node_t p)
    object_write_barrier(&(t->object), &(p->object));
 }
 
+bool tree_has_psl(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_FOREIGN)->object != NULL;
+}
+
 vlog_node_t tree_vlog(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_FOREIGN);

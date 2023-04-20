@@ -477,6 +477,10 @@ STRING_K      ?i:string
 <PSL>{NEXT_E}!           { TOKEN(tNEXTE1); }
 <PSL>{NEXT_EVENT}        { TOKEN(tNEXTEVENT); }
 <PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
+<PSL>"[*"                { TOKEN(tTIMESRPT); }
+<PSL>"[+]"               { TOKEN(tPLUSRPT); }
+<PSL>"[="                { TOKEN(tGOTORPT); }
+<PSL>"[->"               { TOKEN(tARROWRPT); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
@@ -509,6 +513,10 @@ STRING_K      ?i:string
 % /* These PSL tokens must be scanned in VHDL mode for look-ahead */
 "->"                     { TOKEN(tIFIMPL); }
 "<->"                    { TOKEN(tIFFIMPL); }
+"[*"                     { TOKEN(tTIMESRPT); }
+"[+]"                    { TOKEN(tPLUSRPT); }
+"[="                     { TOKEN(tGOTORPT); }
+"[->"                    { TOKEN(tARROWRPT); }
 
 % /* These VHDL tokens must be scanned in PSL mode for look-ahead */
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }

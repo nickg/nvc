@@ -39,6 +39,9 @@ typedef enum {
    P_NEXT_EVENT,
    P_SERE,
    P_IMPLICATION,
+   P_REPEAT,
+   P_PROPERTY_INST,
+   P_SEQUENCE_INST,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -68,6 +71,13 @@ typedef enum {
    PSL_GUARANTEE,
    PSL_NO_GUARANTEE,
 } psl_guarantee_t;
+
+typedef enum {
+   PSL_PLUS_REPEAT,
+   PSL_TIMES_REPEAT,
+   PSL_GOTO_REPEAT,
+   PSL_ARROW_REPEAT
+} psl_repeat_t;
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
@@ -107,6 +117,16 @@ void psl_add_port(psl_node_t p, tree_t o);
 ident_t psl_ident(psl_node_t p);
 bool psl_has_ident(psl_node_t p);
 void psl_set_ident(psl_node_t p, ident_t i);
+
+unsigned psl_decls(psl_node_t p);
+void psl_add_decl(psl_node_t p, tree_t r);
+tree_t psl_decl(psl_node_t p, unsigned n);
+
+void psl_set_ref(psl_node_t p, psl_node_t r);
+psl_node_t psl_ref(psl_node_t p);
+
+void psl_set_repeat(psl_node_t p, psl_node_t r);
+psl_node_t psl_repeat(psl_node_t p);
 
 object_t *psl_to_object(psl_node_t p);
 psl_node_t psl_from_object(object_t *obj);

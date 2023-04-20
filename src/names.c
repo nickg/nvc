@@ -651,6 +651,8 @@ static name_mask_t name_mask_for(tree_t t)
 
          return 0;
       }
+   case T_PSL:
+      return N_PSL;
    default:
       return 0;
    }

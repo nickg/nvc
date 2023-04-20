@@ -262,5 +262,9 @@ void reset_verilog_parser(void);
 #define tBITVECTOR     374
 #define tNUMERIC       375
 #define tSTRINGK       376
+#define tTIMESRPT      377
+#define tPLUSRPT       378
+#define tGOTORPT       379
+#define tARROWRPT      380
 
 #endif  // _SCAN_H
