@@ -56,7 +56,7 @@ const char *jit_op_name(jit_op_t op)
          "CSET", "SUB", "MOV", "FADD", "MUL", "FMUL", "CALL", "NEG", "LOAD",
          "CSEL", "LEA", "NOT", "DIV", "FDIV", "SCVTF", "FNEG", "FCVTNS",
          "FCMP", "AND", "OR", "XOR", "FSUB", "REM", "DEBUG", "NOP", "ASR",
-         "SHL", "CLAMP",
+         "SHL", "CLAMP", "CCMP", "FCCMP",
       };
       assert(op < ARRAY_LEN(names));
       return names[op];

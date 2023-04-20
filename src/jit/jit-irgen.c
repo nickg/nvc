@@ -491,10 +491,23 @@ static void j_cmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs, jit_value_t rhs)
    g->flags = VCODE_INVALID_REG;
 }
 
+static void j_ccmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs, jit_value_t rhs)
+{
+   irgen_emit_binary(g, J_CCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
+}
+
 static void j_fcmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs,
                    jit_value_t rhs)
 {
    irgen_emit_binary(g, J_FCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
+}
+
+static void j_fccmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs,
+                    jit_value_t rhs)
+{
+   irgen_emit_binary(g, J_FCCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
    g->flags = VCODE_INVALID_REG;
 }
 
@@ -1540,30 +1553,23 @@ static void irgen_op_mod(jit_irgen_t *g, int op)
 
    irgen_label_t *l1 = irgen_alloc_label(g);
    irgen_label_t *l2 = irgen_alloc_label(g);
-   irgen_label_t *l3 = irgen_alloc_label(g);
 
    jit_value_t zero = jit_value_from_int64(0);
 
-   // TODO: this could be optimised a bit
-
-   j_cmp(g, JIT_CC_LE, r, zero);
+   j_cmp(g, JIT_CC_GT, r, zero);
+   j_ccmp(g, JIT_CC_LT, denom, zero);
    j_jump(g, JIT_CC_T, l1);
-   j_cmp(g, JIT_CC_LT, denom, zero);
-   j_jump(g, JIT_CC_T, l2);
+
+   j_cmp(g, JIT_CC_LT, r, zero);
+   j_ccmp(g, JIT_CC_GT, denom, zero);
+   j_jump(g, JIT_CC_F, l2);
 
    irgen_bind_label(g, l1);
-
-   j_cmp(g, JIT_CC_GE, r, zero);
-   j_jump(g, JIT_CC_T, l3);
-   j_cmp(g, JIT_CC_LE, denom, zero);
-   j_jump(g, JIT_CC_T, l3);
-
-   irgen_bind_label(g, l2);
 
    jit_value_t r2 = j_add(g, r, denom);
    j_mov(g, jit_value_as_reg(r), r2);
 
-   irgen_bind_label(g, l3);
+   irgen_bind_label(g, l2);
 
    g->map[vcode_get_result(op)] = r;
 }
@@ -2350,15 +2356,12 @@ static void irgen_op_index_check(jit_irgen_t *g, int op)
    jit_value_t low = j_csel(g, right, left);
    jit_value_t high = j_csel(g, left, right);
 
-   irgen_label_t *l_fail = irgen_alloc_label(g);
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_cmp(g, JIT_CC_GT, value, high);
-   j_jump(g, JIT_CC_T, l_fail);
    j_cmp(g, JIT_CC_GE, value, low);
+   j_ccmp(g, JIT_CC_LE, value, high);
    j_jump(g, JIT_CC_T, l_pass);
 
-   irgen_bind_label(g, l_fail);
    j_send(g, 0, value);
    j_send(g, 1, left);
    j_send(g, 2, right);
@@ -2389,15 +2392,13 @@ static void irgen_op_range_check(jit_irgen_t *g, int op)
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
    if (vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_REAL) {
-      j_fcmp(g, JIT_CC_GT, value, high);
-      j_jump(g, JIT_CC_T, l_fail);
       j_fcmp(g, JIT_CC_GE, value, low);
+      j_fccmp(g, JIT_CC_LE, value, high);
       j_jump(g, JIT_CC_T, l_pass);
    }
    else {
-      j_cmp(g, JIT_CC_GT, value, high);
-      j_jump(g, JIT_CC_T, l_fail);
       j_cmp(g, JIT_CC_GE, value, low);
+      j_ccmp(g, JIT_CC_LE, value, high);
       j_jump(g, JIT_CC_T, l_pass);
    }
 

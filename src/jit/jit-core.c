@@ -1102,6 +1102,7 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
 bool jit_writes_flags(jit_ir_t *ir)
 {
    return ir->op == J_CMP || ir->op == J_FCMP
+      || ir->op == J_CCMP || ir->op == J_FCCMP
       || (ir->op == J_ADD && ir->cc != JIT_CC_NONE)
       || (ir->op == J_SUB && ir->cc != JIT_CC_NONE)
       || (ir->op == J_MUL && ir->cc != JIT_CC_NONE)
@@ -1111,7 +1112,8 @@ bool jit_writes_flags(jit_ir_t *ir)
 bool jit_reads_flags(jit_ir_t *ir)
 {
    return (ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
-      || ir->op == J_CSET || ir->op == J_CSEL;
+      || ir->op == J_CSET || ir->op == J_CSEL || ir->op == J_CCMP
+      || ir->op == J_FCCMP;
 }
 
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)

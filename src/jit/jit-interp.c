@@ -119,18 +119,7 @@ static void interp_dump(jit_interp_t *state)
       interp_dump_reg(state, state->regs[i].integer);
    }
 
-   printf("\nFlags:\t");
-   if (state->flags & (1 << JIT_CC_EQ)) printf("EQ ");
-   if (state->flags & (1 << JIT_CC_NE)) printf("NE ");
-   if (state->flags & (1 << JIT_CC_LT)) printf("LT ");
-   if (state->flags & (1 << JIT_CC_GE)) printf("GE ");
-   if (state->flags & (1 << JIT_CC_GT)) printf("GT ");
-   if (state->flags & (1 << JIT_CC_LE)) printf("LE ");
-   if (state->flags & (1 << JIT_CC_O))  printf("O ");
-   if (state->flags & (1 << JIT_CC_NO)) printf("NO ");
-   if (state->flags & (1 << JIT_CC_C))  printf("C ");
-   if (state->flags & (1 << JIT_CC_NC)) printf("NC ");
-   printf("\n");
+   printf("\nFlags: %c\n", state->flags ? 'T' : 'F');
 
    if (state->func->framesz > 0) {
       printf("\nFrame:\n");
@@ -297,7 +286,7 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, MUL_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_O);
+      state->flags = overflow;
    }
    else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
@@ -310,7 +299,7 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, UMUL_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_C);
+      state->flags = overflow;
    }
    else
       state->regs[ir->result].integer = arg1 * arg2;
@@ -356,7 +345,7 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, SUB_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_O);
+      state->flags = overflow;
    }
    else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
@@ -369,7 +358,7 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, USUB_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_C);
+      state->flags = overflow;
    }
    else
       state->regs[ir->result].integer = arg1 - arg2;
@@ -399,7 +388,7 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, ADD_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_O);
+      state->flags = overflow;
    }
    else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
@@ -412,7 +401,7 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, UADD_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_C);
+      state->flags = overflow;
    }
    else
       state->regs[ir->result].integer = arg1 + arg2;
@@ -527,27 +516,29 @@ static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
    const int64_t arg2 = interp_get_int(state, ir->arg2);
 
    switch (ir->cc) {
-   case JIT_CC_EQ:
-      state->flags = (arg1 == arg2) << JIT_CC_EQ;
-      break;
-   case JIT_CC_NE:
-      state->flags = (arg1 != arg2) << JIT_CC_NE;
-      break;
-   case JIT_CC_LT:
-      state->flags = (arg1 < arg2) << JIT_CC_LT;
-      break;
-   case JIT_CC_GT:
-      state->flags = (arg1 > arg2) << JIT_CC_GT;
-      break;
-   case JIT_CC_LE:
-      state->flags = (arg1 <= arg2) << JIT_CC_LE;
-      break;
-   case JIT_CC_GE:
-      state->flags = (arg1 >= arg2) << JIT_CC_GE;
-      break;
-   default:
-      state->flags = 0;
-      break;
+   case JIT_CC_EQ: state->flags = (arg1 == arg2); break;
+   case JIT_CC_NE: state->flags = (arg1 != arg2); break;
+   case JIT_CC_LT: state->flags = (arg1 < arg2); break;
+   case JIT_CC_GT: state->flags = (arg1 > arg2); break;
+   case JIT_CC_LE: state->flags = (arg1 <= arg2); break;
+   case JIT_CC_GE: state->flags = (arg1 >= arg2); break;
+   default: state->flags = 0; break;
+   }
+}
+
+static void interp_ccmp(jit_interp_t *state, jit_ir_t *ir)
+{
+   const int64_t arg1 = interp_get_int(state, ir->arg1);
+   const int64_t arg2 = interp_get_int(state, ir->arg2);
+
+   switch (ir->cc) {
+   case JIT_CC_EQ: state->flags &= (arg1 == arg2); break;
+   case JIT_CC_NE: state->flags &= (arg1 != arg2); break;
+   case JIT_CC_LT: state->flags &= (arg1 < arg2); break;
+   case JIT_CC_GT: state->flags &= (arg1 > arg2); break;
+   case JIT_CC_LE: state->flags &= (arg1 <= arg2); break;
+   case JIT_CC_GE: state->flags &= (arg1 >= arg2); break;
+   default: state->flags = 0; break;
    }
 }
 
@@ -557,26 +548,29 @@ static void interp_fcmp(jit_interp_t *state, jit_ir_t *ir)
    const double arg2 = interp_get_real(state, ir->arg2);
 
    switch (ir->cc) {
-   case JIT_CC_EQ:
-      state->flags = (arg1 == arg2) << JIT_CC_EQ;
-      break;
-   case JIT_CC_NE:
-      state->flags = (arg1 != arg2) << JIT_CC_NE;
-      break;
-   case JIT_CC_LT:
-      state->flags = (arg1 < arg2) << JIT_CC_LT;
-      break;
-   case JIT_CC_GT:
-      state->flags = (arg1 > arg2) << JIT_CC_GT;
-      break;
-   case JIT_CC_LE:
-      state->flags = (arg1 <= arg2) << JIT_CC_LE;
-      break;
-   case JIT_CC_GE:
-      state->flags = (arg1 >= arg2) << JIT_CC_GE;
-      break;
-   default:
-      state->flags = 0;
+   case JIT_CC_EQ: state->flags = (arg1 == arg2); break;
+   case JIT_CC_NE: state->flags = (arg1 != arg2); break;
+   case JIT_CC_LT: state->flags = (arg1 < arg2); break;
+   case JIT_CC_GT: state->flags = (arg1 > arg2); break;
+   case JIT_CC_LE: state->flags = (arg1 <= arg2); break;
+   case JIT_CC_GE: state->flags = (arg1 >= arg2); break;
+   default: state->flags = 0; break;
+   }
+}
+
+static void interp_fccmp(jit_interp_t *state, jit_ir_t *ir)
+{
+   const double arg1 = interp_get_real(state, ir->arg1);
+   const double arg2 = interp_get_real(state, ir->arg2);
+
+   switch (ir->cc) {
+   case JIT_CC_EQ: state->flags &= (arg1 == arg2); break;
+   case JIT_CC_NE: state->flags &= (arg1 != arg2); break;
+   case JIT_CC_LT: state->flags &= (arg1 < arg2); break;
+   case JIT_CC_GT: state->flags &= (arg1 > arg2); break;
+   case JIT_CC_LE: state->flags &= (arg1 <= arg2); break;
+   case JIT_CC_GE: state->flags &= (arg1 >= arg2); break;
+   default: state->flags = 0; break;
    }
 }
 
@@ -740,7 +734,7 @@ static void interp_exp(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, EXP_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_O);
+      state->flags = overflow;
    }
    else if (ir->cc == JIT_CC_C) {
       int overflow = 0, xo = 0;
@@ -758,7 +752,7 @@ static void interp_exp(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, UEXP_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_C);
+      state->flags = overflow;
    }
    else
       state->regs[ir->result].integer = ipow(x, y);
@@ -961,8 +955,14 @@ static void interp_loop(jit_interp_t *state)
       case J_CMP:
          interp_cmp(state, ir);
          break;
+      case J_CCMP:
+         interp_ccmp(state, ir);
+         break;
       case J_FCMP:
          interp_fcmp(state, ir);
+         break;
+      case J_FCCMP:
+         interp_fccmp(state, ir);
          break;
       case J_CSET:
          interp_cset(state, ir);
