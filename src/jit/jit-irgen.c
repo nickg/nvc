@@ -98,12 +98,6 @@ static inline jit_value_t jit_value_from_loc(const loc_t *loc)
    return value;
 }
 
-static inline jit_value_t jit_value_from_tree(tree_t t)
-{
-   jit_value_t value = { .kind = JIT_VALUE_TREE, .tree = t };
-   return value;
-}
-
 static inline jit_value_t jit_null_ptr(void)
 {
    jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
@@ -497,10 +491,23 @@ static void j_cmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs, jit_value_t rhs)
    g->flags = VCODE_INVALID_REG;
 }
 
+static void j_ccmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs, jit_value_t rhs)
+{
+   irgen_emit_binary(g, J_CCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
+}
+
 static void j_fcmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs,
                    jit_value_t rhs)
 {
    irgen_emit_binary(g, J_FCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
+   g->flags = VCODE_INVALID_REG;
+}
+
+static void j_fccmp(jit_irgen_t *g, jit_cc_t cc, jit_value_t lhs,
+                    jit_value_t rhs)
+{
+   irgen_emit_binary(g, J_FCCMP, JIT_SZ_UNSPEC, cc, JIT_REG_INVALID, lhs, rhs);
    g->flags = VCODE_INVALID_REG;
 }
 
@@ -916,10 +923,12 @@ static jit_value_t irgen_dedup_cpool(jit_irgen_t *g)
 
 static void irgen_emit_debuginfo(jit_irgen_t *g, int op)
 {
-   const int64_t enc = ((int64_t)vcode_active_block() << 32) | op;
-
    jit_value_t arg1 = jit_value_from_loc(vcode_get_loc(op));
-   jit_value_t arg2 = jit_value_from_int64(enc);
+
+   jit_value_t arg2 = {
+      .kind = JIT_VALUE_VPOS,
+      .vpos = { .block = vcode_active_block(), .op = op }
+   };
 
    if (g->func->nirs > 0 && g->func->irbuf[g->func->nirs - 1].op == J_DEBUG) {
       jit_ir_t *prev = &(g->func->irbuf[g->func->nirs - 1]);
@@ -1544,30 +1553,23 @@ static void irgen_op_mod(jit_irgen_t *g, int op)
 
    irgen_label_t *l1 = irgen_alloc_label(g);
    irgen_label_t *l2 = irgen_alloc_label(g);
-   irgen_label_t *l3 = irgen_alloc_label(g);
 
    jit_value_t zero = jit_value_from_int64(0);
 
-   // TODO: this could be optimised a bit
-
-   j_cmp(g, JIT_CC_LE, r, zero);
+   j_cmp(g, JIT_CC_GT, r, zero);
+   j_ccmp(g, JIT_CC_LT, denom, zero);
    j_jump(g, JIT_CC_T, l1);
-   j_cmp(g, JIT_CC_LT, denom, zero);
-   j_jump(g, JIT_CC_T, l2);
+
+   j_cmp(g, JIT_CC_LT, r, zero);
+   j_ccmp(g, JIT_CC_GT, denom, zero);
+   j_jump(g, JIT_CC_F, l2);
 
    irgen_bind_label(g, l1);
-
-   j_cmp(g, JIT_CC_GE, r, zero);
-   j_jump(g, JIT_CC_T, l3);
-   j_cmp(g, JIT_CC_LE, denom, zero);
-   j_jump(g, JIT_CC_T, l3);
-
-   irgen_bind_label(g, l2);
 
    jit_value_t r2 = j_add(g, r, denom);
    j_mov(g, jit_value_as_reg(r), r2);
 
-   irgen_bind_label(g, l3);
+   irgen_bind_label(g, l2);
 
    g->map[vcode_get_result(op)] = r;
 }
@@ -1747,8 +1749,11 @@ static void irgen_op_debug_locus(jit_irgen_t *g, int op)
    ident_t unit = vcode_get_ident(op);
    const ptrdiff_t offset = vcode_get_value(op);
 
-   tree_t tree = tree_from_locus(unit, offset, lib_get_qualified);
-   g->map[vcode_get_result(op)] = jit_value_from_tree(tree);
+   g->map[vcode_get_result(op)] = (jit_value_t){
+      .kind  = JIT_VALUE_LOCUS,
+      .disp  = offset,
+      .ident = unit
+   };
 }
 
 static void irgen_op_wrap(jit_irgen_t *g, int op)
@@ -1874,12 +1879,15 @@ static void irgen_op_array_ref(jit_irgen_t *g, int op)
          jit_value_t arg0 = irgen_get_arg(g, op, 0);
          jit_value_t arg1 = irgen_get_arg(g, op, 1);
 
-         // TODO: merge this into an address somehow
-         jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
-
-         jit_value_t addr = irgen_lea(g, arg0);
-
-         g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+         if (arg1.kind == JIT_VALUE_INT64) {
+            jit_value_t addr = jit_addr_from_value(arg0, arg1.int64 * scale);
+            g->map[vcode_get_result(op)] = addr;
+         }
+         else {
+            jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
+            jit_value_t addr = irgen_lea(g, arg0);
+            g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+         }
       }
       break;
 
@@ -1888,12 +1896,18 @@ static void irgen_op_array_ref(jit_irgen_t *g, int op)
          jit_value_t shared = irgen_get_arg(g, op, 0);
          jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
 
-         jit_reg_t new = irgen_alloc_reg(g);
-         j_mov(g, new, shared);
-         g->map[vcode_get_result(op)] = jit_value_from_reg(new);
+         jit_value_t arg1 = irgen_get_arg(g, op, 1);
 
-         // Offset must be next sequential register
-         j_add(g, offset, irgen_get_arg(g, op, 1));
+         if (arg1.kind == JIT_VALUE_INT64 && arg1.int64 == 0)
+            g->map[vcode_get_result(op)] = shared;
+         else {
+            jit_reg_t new = irgen_alloc_reg(g);
+            j_mov(g, new, shared);
+            g->map[vcode_get_result(op)] = jit_value_from_reg(new);
+
+            // Offset must be next sequential register
+            j_add(g, offset, arg1);
+         }
       }
       break;
 
@@ -2060,26 +2074,39 @@ static void irgen_op_range_length(jit_irgen_t *g, int op)
    jit_value_t left  = irgen_get_arg(g, op, 0);
    jit_value_t right = irgen_get_arg(g, op, 1);
 
-   irgen_label_t *l_downto = irgen_alloc_label(g);
-   irgen_label_t *l_after  = irgen_alloc_label(g);
+   vcode_reg_t arg2 = vcode_get_arg(op, 2);
 
-   if (vcode_get_arg(op, 2) != g->flags) {
-      jit_value_t dir = irgen_get_arg(g, op, 2);
-      j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+   jit_value_t diff;
+   int64_t dconst;
+   if (vcode_reg_const(arg2, &dconst)) {
+      jit_value_t high = dconst == RANGE_TO ? right : left;
+      jit_value_t low = dconst == RANGE_TO ? left : right;
+
+      diff = j_sub(g, high, low);
+   }
+   else {
+      irgen_label_t *l_downto = irgen_alloc_label(g);
+      irgen_label_t *l_after  = irgen_alloc_label(g);
+
+      if (arg2 != g->flags) {
+         jit_value_t dir = irgen_get_value(g, arg2);
+         j_cmp(g, JIT_CC_EQ, dir, jit_value_from_int64(RANGE_DOWNTO));
+      }
+
+      j_jump(g, JIT_CC_T, l_downto);
+
+      jit_value_t diff_up = j_sub(g, right, left);
+      j_jump(g, JIT_CC_NONE, l_after);
+
+      irgen_bind_label(g, l_downto);
+
+      jit_value_t diff_down = j_sub(g, left, right);
+
+      irgen_bind_label(g, l_after);
+
+      diff = j_csel(g, diff_down, diff_up);
    }
 
-   j_jump(g, JIT_CC_T, l_downto);
-
-   jit_value_t diff_up = j_sub(g, right, left);
-   j_jump(g, JIT_CC_NONE, l_after);
-
-   irgen_bind_label(g, l_downto);
-
-   jit_value_t diff_down = j_sub(g, left, right);
-
-   irgen_bind_label(g, l_after);
-
-   jit_value_t diff = j_csel(g, diff_down, diff_up);
    jit_value_t length = j_add(g, diff, jit_value_from_int64(1));
    jit_value_t clamped = j_clamp(g, length);
 
@@ -2329,15 +2356,12 @@ static void irgen_op_index_check(jit_irgen_t *g, int op)
    jit_value_t low = j_csel(g, right, left);
    jit_value_t high = j_csel(g, left, right);
 
-   irgen_label_t *l_fail = irgen_alloc_label(g);
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_cmp(g, JIT_CC_GT, value, high);
-   j_jump(g, JIT_CC_T, l_fail);
    j_cmp(g, JIT_CC_GE, value, low);
+   j_ccmp(g, JIT_CC_LE, value, high);
    j_jump(g, JIT_CC_T, l_pass);
 
-   irgen_bind_label(g, l_fail);
    j_send(g, 0, value);
    j_send(g, 1, left);
    j_send(g, 2, right);
@@ -2368,15 +2392,13 @@ static void irgen_op_range_check(jit_irgen_t *g, int op)
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
    if (vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_REAL) {
-      j_fcmp(g, JIT_CC_GT, value, high);
-      j_jump(g, JIT_CC_T, l_fail);
       j_fcmp(g, JIT_CC_GE, value, low);
+      j_fccmp(g, JIT_CC_LE, value, high);
       j_jump(g, JIT_CC_T, l_pass);
    }
    else {
-      j_cmp(g, JIT_CC_GT, value, high);
-      j_jump(g, JIT_CC_T, l_fail);
       j_cmp(g, JIT_CC_GE, value, low);
+      j_ccmp(g, JIT_CC_LE, value, high);
       j_jump(g, JIT_CC_T, l_pass);
    }
 

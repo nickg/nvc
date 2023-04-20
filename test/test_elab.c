@@ -1415,6 +1415,32 @@ START_TEST(test_issue669)
 }
 END_TEST
 
+START_TEST(test_mixed1)
+{
+#ifdef ENABLE_VERILOG
+   input_from_file(TESTDIR "/elab/mixed1.v");
+
+   analyse_verilog(false);
+
+   input_from_file(TESTDIR "/elab/mixed1.vhd");
+
+   const error_t expect[] = {
+      { 22, "missing matching VHDL port declaration for Verilog port two "
+        "in component MOD1" },
+      { 34, "port FOUR not found in Verilog module mod1" },
+      { 44, "Verilog module ports must have type STD_LOGIC or STD_LOGIC_VEC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+#endif
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1494,6 +1520,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_generic1);
    tcase_add_test(tc, test_generic2);
    tcase_add_test(tc, test_issue669);
+   tcase_add_test(tc, test_mixed1);
    suite_add_tcase(s, tc);
 
    return s;

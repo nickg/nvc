@@ -47,7 +47,6 @@ typedef struct _rt_proc {
    jit_handle_t   handle;
    tlab_t         tlab;
    rt_scope_t    *scope;
-   rt_proc_t     *chain;
    mptr_t         privdata;
 } rt_proc_t;
 
@@ -191,8 +190,8 @@ typedef enum {
 
 typedef struct _rt_scope {
    ptr_list_t       signals;
-   rt_proc_t       *procs;
-   rt_alias_t      *aliases;
+   ptr_list_t       procs;
+   ptr_list_t       aliases;
    rt_scope_kind_t  kind;
    rt_scope_flags_t flags;
    unsigned         size;   // For signal scopes

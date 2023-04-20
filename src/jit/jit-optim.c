@@ -410,6 +410,11 @@ static inline bool lvn_is_commutative(jit_op_t op)
    return op == J_ADD || op == J_MUL || op == J_AND || op == J_OR;
 }
 
+static inline void lvn_kill_flags(lvn_state_t *state)
+{
+   state->regvn[state->func->nregs] = VN_INVALID;
+}
+
 static void lvn_commute_const(jit_ir_t *ir, lvn_state_t *state)
 {
    assert(lvn_is_commutative(ir->op));
@@ -495,6 +500,9 @@ static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state, valnum_t vn)
 
 static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
 {
+   if (ir->cc != JIT_CC_NONE)
+      lvn_kill_flags(state);
+
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs)) {
 #define FOLD_MUL(type) do {                                             \
@@ -533,6 +541,9 @@ static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_div(jit_ir_t *ir, lvn_state_t *state)
 {
+   if (ir->cc != JIT_CC_NONE)
+      lvn_kill_flags(state);
+
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs != 0) {
       // XXX: potential bug here with INT_MIN/-1
@@ -555,6 +566,9 @@ static void jit_lvn_div(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_add(jit_ir_t *ir, lvn_state_t *state)
 {
+   if (ir->cc != JIT_CC_NONE)
+      lvn_kill_flags(state);
+
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs)) {
 #define FOLD_ADD(type) do {                                             \
@@ -581,6 +595,9 @@ static void jit_lvn_add(jit_ir_t *ir, lvn_state_t *state)
 
 static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
 {
+   if (ir->cc != JIT_CC_NONE)
+      lvn_kill_flags(state);
+
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs)) {
 #define FOLD_SUB(type) do {                                             \
@@ -625,6 +642,10 @@ static void jit_lvn_xor(jit_ir_t *ir, lvn_state_t *state)
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs))
       lvn_convert_mov(ir, state, LVN_CONST(lhs ^ rhs));
+   else if (lvn_is_const(ir->arg1, state, &lhs) && lhs == 0)
+      lvn_convert_mov(ir, state, ir->arg2);
+   else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0)
+      lvn_convert_mov(ir, state, ir->arg1);
    else
       jit_lvn_generic(ir, state, VN_INVALID);
 }
@@ -672,6 +693,21 @@ static void jit_lvn_cmp(jit_ir_t *ir, lvn_state_t *state)
       }
 
       state->regvn[state->func->nregs] = result;
+   }
+   else
+      state->regvn[state->func->nregs] = VN_INVALID;
+}
+
+static void jit_lvn_ccmp(jit_ir_t *ir, lvn_state_t *state)
+{
+   const int fconst = state->regvn[state->func->nregs];
+   lvn_kill_flags(state);
+
+   if (fconst == 0)
+      lvn_convert_nop(ir);
+   else if (fconst != VN_INVALID) {
+      ir->op = J_CMP;
+      jit_lvn_cmp(ir, state);
    }
 }
 
@@ -844,8 +880,10 @@ static void jit_lvn_memset(jit_ir_t *ir, lvn_state_t *state)
 static void jit_lvn_exp(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t base, exp;
-   if (ir->cc != JIT_CC_NONE)
+   if (ir->cc != JIT_CC_NONE) {
+      lvn_kill_flags(state);
       jit_lvn_generic(ir, state, VN_INVALID);
+   }
    else if (lvn_can_fold(ir, state, &base, &exp))
       lvn_convert_mov(ir, state, LVN_CONST(ipow(base, exp)));
    else if (lvn_is_const(ir->arg1, state, &base) && base == 2) {
@@ -877,9 +915,6 @@ void jit_do_lvn(jit_func_t *f)
             state.regvn[j] = VN_INVALID;
       }
 
-      if (jit_writes_flags(ir))
-         state.regvn[f->nregs] = VN_INVALID;
-
       switch (ir->op) {
       case J_MUL: jit_lvn_mul(ir, &state); break;
       case J_DIV: jit_lvn_div(ir, &state); break;
@@ -890,6 +925,7 @@ void jit_do_lvn(jit_func_t *f)
       case J_ASR: jit_lvn_asr(ir, &state); break;
       case J_MOV: jit_lvn_mov(ir, &state); break;
       case J_CMP: jit_lvn_cmp(ir, &state); break;
+      case J_CCMP: jit_lvn_ccmp(ir, &state); break;
       case J_CSEL: jit_lvn_csel(ir, &state); break;
       case J_CSET: jit_lvn_cset(ir, &state); break;
       case J_JUMP: jit_lvn_jump(ir, &state); break;
@@ -899,7 +935,11 @@ void jit_do_lvn(jit_func_t *f)
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
       case MACRO_MEMSET: jit_lvn_memset(ir, &state); break;
       case MACRO_EXP: jit_lvn_exp(ir, &state); break;
-      default: break;
+      default:
+         if (jit_writes_flags(ir))
+            state.regvn[f->nregs] = VN_INVALID;
+         if (ir->result != JIT_REG_INVALID)
+            state.regvn[ir->result] = VN_INVALID;
       }
    }
 
@@ -994,7 +1034,9 @@ void jit_do_dce(jit_func_t *f)
       dce_renumber(&ir->arg1, &state);
       dce_renumber(&ir->arg2, &state);
 
-      if (jit_writes_flags(ir)) {
+      if (jit_reads_flags(ir) || cfg_is_terminator(f, ir))
+         cmp = NULL;   // Consumed flags
+      else if (jit_writes_flags(ir)) {
          if (cmp != NULL)
             lvn_convert_nop(cmp);   // Flags are never read
          if (ir->op == J_CMP || ir->op == J_FCMP)
@@ -1002,8 +1044,6 @@ void jit_do_dce(jit_func_t *f)
          else
             cmp = NULL;
       }
-      else if (jit_reads_flags(ir) || cfg_is_terminator(f, ir))
-         cmp = NULL;   // Consumed flags
 
       if (ir->result == JIT_REG_INVALID)
          continue;

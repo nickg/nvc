@@ -760,3 +760,5 @@ issue668        normal,gold
 issue670        normal,2008
 elab37          normal
 elab38          normal
+vital1          normal
+issue674        normal,2008

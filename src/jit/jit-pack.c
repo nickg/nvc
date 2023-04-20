@@ -30,18 +30,18 @@
 #include <string.h>
 #include <zstd.h>
 
-typedef A(const char *) string_list_t;
-
 typedef struct {
    ident_t      name;
    const char  *strtab;
    uint8_t     *buf;
    uint8_t     *rptr;
    uint8_t     *cpool;
+   loc_t        last_loc;
 } pack_func_t;
 
 struct _jit_pack {
-   chash_t *funcs;
+   chash_t   *funcs;
+   ZSTD_DCtx *zstd;
 };
 
 typedef struct _pack_writer {
@@ -49,6 +49,8 @@ typedef struct _pack_writer {
    size_t      bufsz;
    uint8_t    *wptr;
    uint8_t    *buf;
+   ZSTD_CCtx  *zstd;
+   loc_t       last_loc;
 } pack_writer_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,11 +103,21 @@ static void pack_str(pack_writer_t *pw, const char *str)
 
 static void pack_loc(pack_writer_t *pw, const loc_t *loc)
 {
-   pack_str(pw, loc_file_str(loc));
-   pack_uint(pw, loc->first_line);
-   pack_uint(pw, loc->first_column);
-   pack_uint(pw, loc->line_delta);
-   pack_uint(pw, loc->column_delta);
+   if (loc_invalid_p(&pw->last_loc) || loc->file_ref != pw->last_loc.file_ref) {
+      pack_str(pw, loc_file_str(loc));
+      pack_uint(pw, loc->first_line);
+      pack_uint(pw, loc->first_column);
+   }
+   else {
+      const int line_delta = loc->first_line - pw->last_loc.first_line;
+      const int column_delta = loc->first_column - pw->last_loc.first_column;
+
+      pack_u8(pw, 0);
+      pack_int(pw, line_delta);
+      pack_int(pw, column_delta);
+   }
+
+   pw->last_loc = *loc;
 }
 
 static inline void pack_reg(pack_writer_t *pw, jit_reg_t reg)
@@ -119,16 +131,6 @@ static inline void pack_double(pack_writer_t *pw, double value)
    pack_uint(pw, u.integer);
 }
 
-static void pack_tree(pack_writer_t *pw, tree_t tree)
-{
-   ident_t unit;
-   ptrdiff_t offset;
-   tree_locus(tree, &unit, &offset);
-
-   pack_str(pw, istr(unit));
-   pack_uint(pw, offset);
-}
-
 static void pack_handle(pack_writer_t *pw, jit_t *j, jit_handle_t handle)
 {
    if (handle == JIT_HANDLE_INVALID)
@@ -137,8 +139,22 @@ static void pack_handle(pack_writer_t *pw, jit_t *j, jit_handle_t handle)
       pack_str(pw, istr(jit_get_func(j, handle)->name));
 }
 
+static void pack_locus(pack_writer_t *pw, ident_t unit, ptrdiff_t offset)
+{
+   object_fixup_locus(unit, &offset);
+
+   pack_str(pw, istr(unit));
+   pack_uint(pw, offset);
+}
+
 static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
 {
+   if (value.kind == JIT_VALUE_VPOS) {
+      // Not needed anymore
+      pack_u8(pw, JIT_VALUE_INVALID);
+      return;
+   }
+
    pack_u8(pw, value.kind);
 
    switch (value.kind) {
@@ -176,8 +192,8 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
    case JIT_VALUE_LOC:
       pack_loc(pw, &(value.loc));
       break;
-   case JIT_VALUE_TREE:
-      pack_tree(pw, value.tree);
+   case JIT_VALUE_LOCUS:
+      pack_locus(pw, value.ident, value.disp);
       break;
    case JIT_VALUE_FOREIGN:
       pack_str(pw, istr(ffi_get_sym(value.foreign)));
@@ -189,6 +205,8 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
 
 static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
 {
+   pw->last_loc = LOC_INVALID;
+
    pack_uint(pw, f->nirs);
    pack_uint(pw, f->nregs);
    pack_uint(pw, f->nvars);
@@ -228,6 +246,9 @@ pack_writer_t *pack_writer_new(void)
    pw->bufsz  = 512;
    pw->buf    = xmalloc(pw->bufsz);
    pw->wptr   = pw->buf;
+
+   if ((pw->zstd = ZSTD_createCCtx()) == NULL)
+      fatal_trace("ZSTD_createCCtx failed");
 
    tb_append(pw->strtab, '\0');    // Null string is index zero
 
@@ -275,8 +296,8 @@ void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
       zbuf[start++] = byte;
    } while (encsz);
 
-   const size_t csize = ZSTD_compress(zbuf + start, zbufsz - start,
-                                      pw->buf, ubufsz, 3);
+   const size_t csize = ZSTD_compressCCtx(pw->zstd, zbuf + start,
+                                          zbufsz - start, pw->buf, ubufsz, 3);
    if (ZSTD_isError(csize))
       fatal("ZSTD compress failed: %s: %s", istr(f->name),
             ZSTD_getErrorName(csize));
@@ -284,7 +305,7 @@ void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
    pw->wptr = pw->buf;
 
    *buf = zbuf;
-   *size = csize + 4;
+   *size = csize + start;
 }
 
 void pack_writer_string_table(pack_writer_t *pw, const char **tab, size_t *size)
@@ -295,6 +316,7 @@ void pack_writer_string_table(pack_writer_t *pw, const char **tab, size_t *size)
 
 void pack_writer_free(pack_writer_t *pw)
 {
+   ZSTD_freeCCtx(pw->zstd);
    free(pw->buf);
    tb_free(pw->strtab);
    free(pw);
@@ -308,6 +330,9 @@ jit_pack_t *jit_pack_new(void)
    jit_pack_t *jp = xcalloc(sizeof(struct _jit_pack));
    jp->funcs = chash_new(256);
 
+   if ((jp->zstd = ZSTD_createDCtx()) == NULL)
+      fatal_trace("ZSTD_createDCtx failed");
+
    return jp;
 }
 
@@ -319,6 +344,7 @@ static void pack_func_free(const void *key, void *value)
 
 void jit_pack_free(jit_pack_t *jp)
 {
+   ZSTD_freeDCtx(jp->zstd);
    chash_iter(jp->funcs, pack_func_free);
    chash_free(jp->funcs);
    free(jp);
@@ -391,21 +417,22 @@ static const char *unpack_str(pack_func_t *pf)
 
 static loc_t unpack_loc(pack_func_t *pf)
 {
-   loc_t loc;
-   loc.file_ref = loc_file_ref(unpack_str(pf), NULL);
-   loc.first_line = unpack_uint(pf);
-   loc.first_column = unpack_uint(pf);
-   loc.line_delta = unpack_uint(pf);
-   loc.column_delta = unpack_uint(pf);
-   return loc;
-}
+   loc_t loc = pf->last_loc;
 
-static tree_t unpack_tree(pack_func_t *pf)
-{
-   ident_t unit = ident_new(unpack_str(pf));
-   ptrdiff_t offset = unpack_uint(pf);
+   const char *file = unpack_str(pf);
+   if (*file != '\0') {
+      loc.file_ref = loc_file_ref(file, NULL);
+      loc.first_line = unpack_uint(pf);
+      loc.first_column = unpack_uint(pf);
+      loc.column_delta = 0;
+      loc.line_delta = 0;
+   }
+   else {
+      loc.first_line += unpack_int(pf);
+      loc.first_column += unpack_int(pf);
+   }
 
-   return tree_from_locus(unit, offset, lib_get_qualified);
+   return (pf->last_loc = loc);
 }
 
 static jit_handle_t unpack_handle(pack_func_t *pf, jit_t *j)
@@ -457,8 +484,9 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
    case JIT_VALUE_LOC:
       value.loc = unpack_loc(pf);
       break;
-   case JIT_VALUE_TREE:
-      value.tree = unpack_tree(pf);
+   case JIT_VALUE_LOCUS:
+      value.ident = ident_new(unpack_str(pf));
+      value.disp = unpack_uint(pf);
       break;
    case JIT_VALUE_FOREIGN:
       value.foreign = jit_ffi_get(ident_new(unpack_str(pf)));
@@ -494,7 +522,8 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       fatal("cannot get ZSTD compressed frame size: %s: %s", istr(f->name),
             ZSTD_getErrorName(framesz));
 
-   size_t dsize = ZSTD_decompress(ubuf, ubufsz, pf->buf + start, framesz);
+   size_t dsize = ZSTD_decompressDCtx(jp->zstd, ubuf, ubufsz,
+                                      pf->buf + start, framesz);
    if (ZSTD_isError(dsize))
       fatal("ZSTD decompress failed: %s: %s", istr(f->name),
             ZSTD_getErrorName(dsize));
@@ -502,6 +531,7 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
    assert(dsize == ubufsz);
 
    pf->rptr = ubuf;
+   pf->last_loc = LOC_INVALID;
 
    f->nirs      = unpack_uint(pf);
    f->nregs     = unpack_uint(pf);
@@ -525,8 +555,7 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
    ident_t unit = ident_new(unpack_str(pf));
    ptrdiff_t offset = unpack_uint(pf);
 
-   f->object = object_from_locus(unit, offset,
-                                 (object_load_fn_t)lib_get_qualified);
+   f->object = object_from_locus(unit, offset, lib_load_handler);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);

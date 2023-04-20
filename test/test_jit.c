@@ -1659,7 +1659,9 @@ START_TEST(test_lvn6)
       "    NEG         R37, #1        \n"
       "    XOR         R38, R37, R36  \n"
       "    ASR         R39, R38, #63  \n"
-      "    XOR         R40, R39, R38  \n";
+      "    XOR         R40, R39, R38  \n"
+      "    XOR         R50, #0, R49   \n"
+      "    XOR         R52, R51, #0   \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc"), text1);
 
@@ -1673,6 +1675,8 @@ START_TEST(test_lvn6)
    check_unary(f, 8, J_MOV, CONST(-1));
    check_unary(f, 9, J_MOV, CONST(-1));
    check_unary(f, 10, J_MOV, CONST(0));
+   ck_assert_int_eq(f->irbuf[11].op, J_MOV);
+   ck_assert_int_eq(f->irbuf[12].op, J_MOV);
 
    jit_free(j);
 }

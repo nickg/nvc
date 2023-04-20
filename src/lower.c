@@ -139,9 +139,7 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     vcode_reg_t rval, vcode_reg_t locus);
 static vcode_type_t lower_alias_type(tree_t alias);
 static bool lower_const_bounds(type_t type);
-static int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops);
 static type_t lower_elem_recur(type_t type);
-static void lower_finished(lower_unit_t *lu);
 static void lower_predef(lower_unit_t *parent, tree_t decl);
 static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_generics(lower_unit_t *lu, tree_t block);
@@ -2669,7 +2667,7 @@ static vcode_reg_t lower_literal(tree_t lit)
    }
 }
 
-static int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops)
+int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops)
 {
    *hops = 0;
    for (; scope != NULL; scope = scope->parent) {
@@ -2684,7 +2682,7 @@ static int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops)
    return VCODE_INVALID_REG;
 }
 
-static void lower_put_vcode_obj(void *key, int obj, lower_unit_t *scope)
+void lower_put_vcode_obj(void *key, int obj, lower_unit_t *scope)
 {
    hash_put(scope->objects, key, (void *)(uintptr_t)(obj + 1));
 }
@@ -8577,10 +8575,11 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    }
 }
 
-static void lower_finished(lower_unit_t *lu)
+void lower_finished(lower_unit_t *lu)
 {
    assert(!lu->finished);
 
+   vcode_select_unit(lu->vunit);
    vcode_opt();
 
    if (opt_get_verbose(OPT_DUMP_VCODE, istr(vcode_unit_name())))

@@ -320,11 +320,15 @@ static void scope_deps_cb(ident_t unit_name, void *__ctx)
 
    rt_model_t *m = __ctx;
 
-   tree_t unit = lib_get_qualified(unit_name);
-   if (unit == NULL) {
+   object_t *obj = lib_load_handler(unit_name);
+   if (obj == NULL) {
       warnf("missing dependency %s", istr(unit_name));
       return;
    }
+
+   tree_t unit = tree_from_object(obj);
+   if (unit == NULL)
+      return;
 
    if (hash_get(m->scopes, unit) != NULL)
       return;
@@ -367,7 +371,6 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
    hash_put(m->scopes, block, s);
 
    rt_scope_t **childp = &(s->child);
-   rt_proc_t **procp = &(s->procs);
 
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
@@ -428,8 +431,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
             p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
             p->wakeable.delayed   = false;
 
-            *procp = p;
-            procp = &(p->chain);
+            list_add(&s->procs, p);
          }
          break;
 
@@ -557,22 +559,22 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
 
 static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
 {
-   for (rt_proc_t *it = scope->procs, *tmp; it; it = tmp) {
-      tmp = it->chain;
+   list_foreach(rt_proc_t *, it, scope->procs) {
       mptr_free(m->mspace, &(it->privdata));
       tlab_release(&(it->tlab));
       free(it);
    }
+   list_free(&scope->procs);
 
    list_foreach(rt_signal_t *, it, scope->signals) {
       cleanup_signal(m, it);
    }
    list_free(&scope->signals);
 
-   for (rt_alias_t *it = scope->aliases, *tmp; it; it = tmp) {
-      tmp = it->chain;
+   list_foreach(rt_alias_t *, it, scope->aliases) {
       free(it);
    }
+   list_free(&scope->aliases);
 
    for (rt_scope_t *it = scope->child, *tmp; it; it = tmp) {
       tmp = it->chain;
@@ -655,7 +657,7 @@ rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
          return s;
    }
 
-   for (rt_alias_t *a = scope->aliases; a; a = a->chain) {
+   list_foreach(rt_alias_t *, a, scope->aliases) {
       if (a->where == decl)
          return a->signal;
    }
@@ -665,7 +667,7 @@ rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
 
 rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc)
 {
-   for (rt_proc_t *p = scope->procs; p; p = p->chain) {
+   list_foreach(rt_proc_t *, p, scope->procs) {
       if (p->where == proc)
          return p;
    }
@@ -900,7 +902,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
    for (rt_scope_t *c = s->child; c != NULL; c = c->chain)
       reset_scope(m, c);
 
-   for (rt_proc_t *p = s->procs; p != NULL; p = p->chain)
+   list_foreach(rt_proc_t *, p, s->procs)
       reset_process(m, p);
 }
 
@@ -1945,7 +1947,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
    list_foreach(rt_signal_t *, s, scope->signals)
       dump_one_signal(m, scope, s, NULL);
 
-   for (rt_alias_t *a = scope->aliases; a != NULL; a = a->chain)
+   list_foreach(rt_alias_t *, a, scope->aliases)
       dump_one_signal(m, scope, a->signal, a->where);
 
    for (rt_scope_t *c = scope->child; c != NULL; c = c->chain)
@@ -3301,9 +3303,8 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
    rt_alias_t *a = xcalloc(sizeof(rt_alias_t));
    a->where  = where;
    a->signal = s;
-   a->chain  = active_scope->aliases;
 
-   active_scope->aliases = a;
+   list_add(&active_scope->aliases, a);
 }
 
 void x_claim_tlab(tlab_t *tlab)
@@ -3734,12 +3735,11 @@ void x_process_init(jit_handle_t handle, tree_t where)
    p->handle    = handle;
    p->scope     = s;
    p->privdata  = mptr_new(m->mspace, "process privdata");
-   p->chain     = s->procs;
 
    p->wakeable.kind      = W_PROC;
    p->wakeable.pending   = false;
    p->wakeable.postponed = false;
    p->wakeable.delayed   = false;
 
-   s->procs = p;
+   list_add(&s->procs, p);
 }

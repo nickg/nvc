@@ -1102,6 +1102,7 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
 bool jit_writes_flags(jit_ir_t *ir)
 {
    return ir->op == J_CMP || ir->op == J_FCMP
+      || ir->op == J_CCMP || ir->op == J_FCCMP
       || (ir->op == J_ADD && ir->cc != JIT_CC_NONE)
       || (ir->op == J_SUB && ir->cc != JIT_CC_NONE)
       || (ir->op == J_MUL && ir->cc != JIT_CC_NONE)
@@ -1111,7 +1112,8 @@ bool jit_writes_flags(jit_ir_t *ir)
 bool jit_reads_flags(jit_ir_t *ir)
 {
    return (ir->op == J_JUMP && ir->cc != JIT_CC_NONE)
-      || ir->op == J_CSET || ir->op == J_CSEL;
+      || ir->op == J_CSET || ir->op == J_CSEL || ir->op == J_CCMP
+      || ir->op == J_FCCMP;
 }
 
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
@@ -1470,6 +1472,12 @@ int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
    int32_t *base = jit_get_cover_mem(j, addr.int64 & 3);
    assert(base != NULL);
    return base + (addr.int64 >> 2);
+}
+
+object_t *jit_get_locus(jit_value_t value)
+{
+   assert(value.kind == JIT_VALUE_LOCUS);
+   return object_from_locus(value.ident, value.disp, lib_load_handler);
 }
 
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)

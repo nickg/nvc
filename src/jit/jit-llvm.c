@@ -1035,6 +1035,34 @@ static void cgen_abort(cgen_block_t *cgb, jit_ir_t *ir, const char *fmt, ...)
    va_end(ap);
 }
 
+static LLVMRealPredicate cgen_real_pred(cgen_block_t *cgb, jit_ir_t *ir)
+{
+   switch (ir->cc) {
+   case JIT_CC_EQ: return LLVMRealUEQ;
+   case JIT_CC_NE: return LLVMRealUNE;
+   case JIT_CC_GT: return LLVMRealUGT;
+   case JIT_CC_LT: return LLVMRealULT;
+   case JIT_CC_LE: return LLVMRealULE;
+   case JIT_CC_GE: return LLVMRealUGE;
+   default:
+      cgen_abort(cgb, ir, "unhandled fcmp condition code");
+   }
+}
+
+static LLVMIntPredicate cgen_int_pred(cgen_block_t *cgb, jit_ir_t *ir)
+{
+   switch (ir->cc) {
+   case JIT_CC_EQ: return LLVMIntEQ;
+   case JIT_CC_NE: return LLVMIntNE;
+   case JIT_CC_GT: return LLVMIntSGT;
+   case JIT_CC_LT: return LLVMIntSLT;
+   case JIT_CC_LE: return LLVMIntSLE;
+   case JIT_CC_GE: return LLVMIntSGE;
+   default:
+      cgen_abort(cgb, ir, "unhandled cmp condition code");
+   }
+}
+
 static cgen_reloc_t *cgen_find_reloc(cgen_reloc_t *list, reloc_kind_t kind,
                                      int limit, uintptr_t key)
 {
@@ -1071,14 +1099,13 @@ static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
    return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 }
 
-static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, object_t *ptr)
+static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, ident_t unit,
+                                              ptrdiff_t offset)
 {
-   ident_t unit;
-   ptrdiff_t offset;
-   object_locus(ptr, &unit, &offset);
-
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, unit);
+
+   object_fixup_locus(unit, &offset);
 
    LLVMValueRef args[] = {
       llvm_const_string(obj, tb_get(tb)),
@@ -1178,11 +1205,11 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
                                      (uintptr_t)value.foreign);
       else
          return llvm_ptr(obj, value.foreign);
-   case JIT_VALUE_TREE:
+   case JIT_VALUE_LOCUS:
       if (cgb->func->mode == CGEN_AOT)
-         return cgen_rematerialise_object(obj, tree_to_object(value.tree));
+         return cgen_rematerialise_object(obj, value.ident, value.disp);
       else
-         return llvm_ptr(obj, value.tree);
+         return llvm_ptr(obj, jit_get_locus(value));
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
    }
@@ -1743,19 +1770,27 @@ static void cgen_op_cmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    else if (!arg1_ptr && arg2_ptr)
       arg1 = LLVMBuildIntToPtr(obj->builder, arg1, obj->types[LLVM_PTR], "");
 
-   LLVMIntPredicate pred;
-   switch (ir->cc) {
-   case JIT_CC_EQ: pred = LLVMIntEQ; break;
-   case JIT_CC_NE: pred = LLVMIntNE; break;
-   case JIT_CC_GT: pred = LLVMIntSGT; break;
-   case JIT_CC_LT: pred = LLVMIntSLT; break;
-   case JIT_CC_LE: pred = LLVMIntSLE; break;
-   case JIT_CC_GE: pred = LLVMIntSGE; break;
-   default:
-      cgen_abort(cgb, ir, "unhandled cmp condition code");
-   }
-
+   LLVMIntPredicate pred = cgen_int_pred(cgb, ir);
    cgb->outflags = LLVMBuildICmp(obj->builder, pred, arg1, arg2, "FLAGS");
+}
+
+static void cgen_op_ccmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
+
+   const bool arg1_ptr = llvm_is_ptr(arg1);
+   const bool arg2_ptr = llvm_is_ptr(arg2);
+
+   if (arg1_ptr && !arg2_ptr)
+      arg2 = LLVMBuildIntToPtr(obj->builder, arg2, obj->types[LLVM_PTR], "");
+   else if (!arg1_ptr && arg2_ptr)
+      arg1 = LLVMBuildIntToPtr(obj->builder, arg1, obj->types[LLVM_PTR], "");
+
+   LLVMIntPredicate pred = cgen_int_pred(cgb, ir);
+   LLVMValueRef cmp = LLVMBuildICmp(obj->builder, pred, arg1, arg2, "");
+
+   cgb->outflags = LLVMBuildAnd(obj->builder, cgb->outflags, cmp, "FLAGS");
 }
 
 static void cgen_op_fcmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1763,19 +1798,19 @@ static void cgen_op_fcmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_DOUBLE);
    LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_DOUBLE);
 
-   LLVMRealPredicate pred;
-   switch (ir->cc) {
-   case JIT_CC_EQ: pred = LLVMRealUEQ; break;
-   case JIT_CC_NE: pred = LLVMRealUNE; break;
-   case JIT_CC_GT: pred = LLVMRealUGT; break;
-   case JIT_CC_LT: pred = LLVMRealULT; break;
-   case JIT_CC_LE: pred = LLVMRealULE; break;
-   case JIT_CC_GE: pred = LLVMRealUGE; break;
-   default:
-      cgen_abort(cgb, ir, "unhandled fcmp condition code");
-   }
-
+   LLVMRealPredicate pred = cgen_real_pred(cgb, ir);
    cgb->outflags = LLVMBuildFCmp(obj->builder, pred, arg1, arg2, "FLAGS");
+}
+
+static void cgen_op_fccmp(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_DOUBLE);
+   LLVMValueRef arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_DOUBLE);
+
+   LLVMRealPredicate pred = cgen_real_pred(cgb, ir);
+   LLVMValueRef cmp = LLVMBuildFCmp(obj->builder, pred, arg1, arg2, "");
+
+   cgb->outflags = LLVMBuildAnd(obj->builder, cgb->outflags, cmp, "FLAGS");
 }
 
 static void cgen_op_cset(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -2282,8 +2317,14 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case J_CMP:
       cgen_op_cmp(obj, cgb, ir);
       break;
+   case J_CCMP:
+      cgen_op_ccmp(obj, cgb, ir);
+      break;
    case J_FCMP:
       cgen_op_fcmp(obj, cgb, ir);
+      break;
+   case J_FCCMP:
+      cgen_op_fccmp(obj, cgb, ir);
       break;
    case J_CSET:
       cgen_op_cset(obj, cgb, ir);

@@ -171,8 +171,8 @@ module_declaration:
                                                $2.right, '.');
 
                    $$ = root;
-                   vlog_set_ident($$, $2.left);
-                   vlog_set_ident2($$, qual);
+                   vlog_set_ident($$, qual);
+                   vlog_set_ident2($$, $2.left);
                    vlog_set_loc($$, &@$);
 
                    for (node_list_t *it = $3; it; it = it->next)
@@ -551,7 +551,7 @@ external_identifier:
                 {
                    $$.left = ident_new($1);
                    for (char *p = $1; *p; p++)
-                      *p = toupper((int)*p);
+                      *p = toupper_iso88591(*p);
                    $$.right = ident_new($1);
                    free($1);
                 }

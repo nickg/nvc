@@ -23,11 +23,14 @@
 #include "hash.h"
 #include "lib.h"
 #include "lower.h"
+#include "mask.h"
 #include "object.h"
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
+#include "vlog/vlog-phase.h"
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
 #include "vcode.h"
@@ -488,7 +491,21 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       full_i = ident_prefix(lib_i, ident_rfrom(full_i, '.'), '.');
    }
 
-   tree_t entity = lib_get(lib, full_i);
+   object_t *obj = lib_get_generic(lib, full_i);
+
+   vlog_node_t module = vlog_from_object(obj);
+   if (module != NULL) {
+      assert(vlog_kind(module) == V_MODULE);
+
+      tree_t wrap = tree_new(T_VERILOG);
+      tree_set_loc(wrap, tree_loc(inst));
+      tree_set_ident(wrap, tree_ident(inst));
+      tree_set_vlog(wrap, module);
+
+      return wrap;
+   }
+
+   tree_t entity = tree_from_object(obj);
 
    if (entity == NULL && synth_binding) {
       // This is not correct according to the LRM but matches the
@@ -1089,6 +1106,107 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
+static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
+{
+   tree_t comp = tree_ref(inst);
+   assert(tree_kind(comp) == T_COMPONENT);
+
+   const int nports = tree_ports(comp);
+   const int ndecls = vlog_decls(mod);
+
+   bit_mask_t have;
+   mask_init(&have, nports);
+
+   type_t std_logic = ieee_type(IEEE_STD_LOGIC);
+
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t mport = vlog_decl(mod, i);
+      if (vlog_kind(mport) != V_PORT_DECL)
+         continue;
+
+      ident_t name = vlog_ident2(mport);
+
+      int cpos = 0;
+      tree_t cport = NULL;
+      for (; cpos < nports; cpos++) {
+         tree_t pj = tree_port(comp, cpos);
+         if (tree_ident(pj) == name) {
+            cport = pj;
+            mask_set(&have, cpos);
+            break;
+         }
+      }
+
+      if (cport == NULL) {
+         error_at(tree_loc(comp), "missing matching VHDL port declaration for "
+                  "Verilog port %s in component %s", istr(vlog_ident(mport)),
+                  istr(tree_ident(comp)));
+         return;
+      }
+
+      if (vlog_ident2(mport) != tree_ident(cport)) {
+         error_at(tree_loc(cport), "expected VHDL port name %s to match "
+                  "Verilog port name %s in component %s",
+                  istr(tree_ident(cport)), istr(vlog_ident(mport)),
+                  istr(tree_ident(comp)));
+         return;
+      }
+
+      type_t type = tree_type(cport);
+      if (!type_eq(type, std_logic)) {
+         error_at(tree_loc(cport), "Verilog module ports must have "
+                  "type STD_LOGIC or STD_LOGIC_VECTOR");
+         return;
+      }
+
+      tree_t map = tree_param(inst, cpos);
+      if (tree_subkind(map) != P_POS) {
+         error_at(tree_loc(map), "this form of port map is not supported when "
+                  "instantiating a Verilog module");
+         return;
+      }
+
+      tree_add_param(wrap, map);
+      cpos++;
+   }
+
+   for (int i = 0; i < nports; i++) {
+      if (!mask_test(&have, i)) {
+         tree_t p = tree_port(comp, i);
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
+         diag_printf(d, "port %s not found in Verilog module %s",
+                     istr(tree_ident(p)), istr(vlog_ident2(mod)));
+         diag_emit(d);
+      }
+   }
+
+   mask_free(&have);
+}
+
+static void elab_verilog(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
+{
+   vlog_node_t mod = tree_vlog(wrap);
+
+   vlog_node_t root = vlog_new(V_ROOT);
+   vlog_set_loc(root, tree_loc(wrap));
+   vlog_set_ident(root, tree_ident(wrap));
+
+   const int ndecls = vlog_decls(mod);
+   for (int i = 0; i < ndecls; i++)
+      vlog_add_decl(root, vlog_decl(mod, i));
+
+   elab_mixed_port_map(wrap, inst, mod);
+
+   const int nstmts = vlog_stmts(mod);
+   for (int i = 0; i < nstmts; i++)
+      vlog_add_stmt(root, vlog_stmt(mod, i));
+
+   tree_set_vlog(wrap, root);
+   tree_add_stmt(ctx->out, wrap);
+
+   vlog_lower(wrap, ctx->parent->lowered);
+}
+
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    tree_t arch = NULL, config = NULL;
@@ -1138,6 +1256,10 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    if (arch == NULL)
       return;
+   else if (tree_kind(arch) == T_VERILOG) {
+      elab_verilog(arch, t, &new_ctx);
+      return;
+   }
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
@@ -1665,13 +1787,15 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
+   const int base_errors = error_count();
+
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, t, &new_ctx);
    elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
    elab_external_names(b, &new_ctx);
 
-   if (error_count() == 0) {
+   if (error_count() == base_errors) {
       elab_lower(b, &new_ctx);
       elab_stmts(t, &new_ctx);
    }

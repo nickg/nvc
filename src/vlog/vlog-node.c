@@ -65,13 +65,16 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_ASSIGN
    (I_TARGET | I_VALUE),
+
+   // V_ROOT
+   (I_IDENT | I_STMTS | I_DECLS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MODULE",    "V_PORT_DECL",      "V_REF",    "V_ALWAYS",
    "V_TIMING",    "V_NBASSIGN",       "V_EVENT",  "V_INITIAL",
    "V_SEQ_BLOCK", "V_SYSTASK_ENABLE", "V_STRING", "V_NUMBER",
-   "V_NET_DECL", "V_ASSIGN",
+   "V_NET_DECL",  "V_ASSIGN",         "V_ROOT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -314,9 +317,14 @@ object_t *vlog_to_object(vlog_node_t v)
 
 vlog_node_t vlog_from_object(object_t *obj)
 {
-   assert(obj != NULL);
-   if (obj->tag == OBJECT_TAG_VLOG)
+   if (obj != NULL && obj->tag == OBJECT_TAG_VLOG)
       return container_of(obj, struct _vlog_node, object);
    else
       return NULL;
+}
+
+void vlog_locus(vlog_node_t v, ident_t *unit, ptrdiff_t *offset)
+{
+   assert(v != NULL);
+   object_locus(&(v->object), unit, offset);
 }

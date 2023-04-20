@@ -66,6 +66,8 @@ typedef enum {
    J_ASR,
    J_SHL,
    J_CLAMP,
+   J_CCMP,
+   J_FCCMP,
 
    __MACRO_BASE = 0x80,
    MACRO_COPY = __MACRO_BASE,
@@ -179,11 +181,17 @@ typedef enum {
    JIT_VALUE_EXIT,
    JIT_VALUE_LOC,
    JIT_VALUE_FOREIGN,
-   JIT_VALUE_TREE,
+   JIT_VALUE_VPOS,
+   JIT_VALUE_LOCUS,
 } jit_value_kind_t;
 
 typedef uint32_t jit_label_t;
 #define JIT_LABEL_INVALID UINT32_MAX
+
+typedef struct {
+   uint32_t block;
+   uint32_t op;
+} jit_vpos_t;
 
 typedef struct {
    jit_value_kind_t kind : 8;
@@ -197,7 +205,8 @@ typedef struct {
       jit_exit_t     exit;
       loc_t          loc;
       jit_foreign_t *foreign;
-      tree_t         tree;
+      jit_vpos_t     vpos;
+      ident_t        ident;
    };
 } jit_value_t;
 
@@ -351,6 +360,7 @@ void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr);
+object_t *jit_get_locus(jit_value_t value);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

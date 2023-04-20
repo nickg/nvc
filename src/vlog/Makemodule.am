@@ -2,7 +2,8 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-node.h \
 	src/vlog/vlog-node.c \
 	src/vlog/vlog-phase.h \
-	src/vlog/vlog-dump.c
+	src/vlog/vlog-dump.c \
+	src/vlog/vlog-lower.c
 
 if ENABLE_VERILOG
 lib_libnvc_a_SOURCES += \
