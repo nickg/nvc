@@ -208,7 +208,7 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      30
+#define VCODE_VERSION      31
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -316,6 +316,23 @@ static op_t *vcode_find_definition(vcode_reg_t reg)
 
    return NULL;
 }
+
+#ifdef DEBUG
+static void vcode_assert_const(vcode_reg_t reg, const char *what)
+{
+   op_t *defn = vcode_find_definition(reg);
+   VCODE_ASSERT(defn != NULL, "constant %s uses parameter r%d",
+                what, reg);
+   VCODE_ASSERT(defn->kind == VCODE_OP_CONST
+                || defn->kind == VCODE_OP_CONST_REAL
+                || defn->kind == VCODE_OP_CONST_RECORD
+                || defn->kind == VCODE_OP_CONST_ARRAY
+                || defn->kind == VCODE_OP_CONST_REP
+                || defn->kind == VCODE_OP_NULL
+                || defn->kind == VCODE_OP_UNDEFINED,
+                "constant %s argument r%d is not constant", what, reg);
+}
+#endif
 
 static reg_t *vcode_reg_data(vcode_reg_t reg)
 {
@@ -3407,11 +3424,13 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    VCODE_ASSERT(vtype_size(type) == num, "expected %d elements but have %d",
                 vtype_size(type), num);
 
-#ifndef NDEBUG
+#ifdef DEBUG
    vcode_type_t elem = vtype_elem(type);
-   for (int i = 0; i < num; i++)
+   for (int i = 0; i < num; i++) {
       VCODE_ASSERT(vtype_eq(vcode_reg_type(values[i]), elem),
                    "wrong element type for item %d", i);
+      vcode_assert_const(values[i], "array");
+   }
 #endif
 
    reg_t *r = vcode_reg_data(op->result);
@@ -3432,13 +3451,12 @@ vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
    op->value = rep;
    vcode_add_arg(op, value);
 
-   VCODE_ASSERT(vcode_reg_const(value, NULL)
-                || vcode_reg_kind(value) == VCODE_TYPE_REAL,
-                "constant array must have constant values");
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CARRAY,
                 "constant array must have constrained array type");
 
-   op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
+   DEBUG_ONLY(vcode_assert_const(value, "repeat"));
+
+   op->result = vcode_add_reg(type);
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = vtype_bounds(type);
@@ -3473,21 +3491,13 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
    VCODE_ASSERT(vtype_fields(type) == num, "expected %d fields but have %d",
                 vtype_fields(type), num);
 
+#ifdef DEBUG
    for (int i = 0; i < num; i++) {
       VCODE_ASSERT(vtype_eq(vtype_field(type, i), vcode_reg_type(values[i])),
                    "wrong type for field %d", i);
-
-      op_t *defn = vcode_find_definition(values[i]);
-      VCODE_ASSERT(defn != NULL, "constant record uses parameter r%d",
-                   values[i]);
-      VCODE_ASSERT(defn->kind == VCODE_OP_CONST
-                   || defn->kind == VCODE_OP_CONST_REAL
-                   || defn->kind == VCODE_OP_CONST_RECORD
-                   || defn->kind == VCODE_OP_CONST_ARRAY
-                   || defn->kind == VCODE_OP_NULL
-                   || defn->kind == VCODE_OP_UNDEFINED,
-                   "constant record field r%d is not constant", values[i]);
+      vcode_assert_const(values[i], "record");
    }
+#endif
 
    return op->result;
 }

@@ -701,14 +701,14 @@ static void jit_lvn_cmp(jit_ir_t *ir, lvn_state_t *state)
 static void jit_lvn_ccmp(jit_ir_t *ir, lvn_state_t *state)
 {
    const int fconst = state->regvn[state->func->nregs];
-   lvn_kill_flags(state);
-
    if (fconst == 0)
       lvn_convert_nop(ir);
    else if (fconst != VN_INVALID) {
       ir->op = J_CMP;
       jit_lvn_cmp(ir, state);
    }
+   else
+      lvn_kill_flags(state);
 }
 
 static void jit_lvn_csel(jit_ir_t *ir, lvn_state_t *state)

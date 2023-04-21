@@ -1838,7 +1838,7 @@ START_TEST(test_record6)
    EXPECT_BB(0) = {
       { VCODE_OP_INDEX, .name = "R" },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_CONST_REP, .value = 3 },
       { VCODE_OP_CONST, .value = INT32_MIN },
       { VCODE_OP_CONST_RECORD },
       { VCODE_OP_ADDRESS_OF },

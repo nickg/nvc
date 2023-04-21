@@ -1100,7 +1100,7 @@ static void irgen_op_const_array(jit_irgen_t *g, int op)
 static void irgen_op_const_rep(jit_irgen_t *g, int op)
 {
    vcode_reg_t result = vcode_get_result(op);
-   vcode_type_t velem = vtype_pointed(vcode_reg_type(result));
+   vcode_type_t velem = vtype_elem(vcode_reg_type(result));
 
    const int count = vcode_get_value(op);
    jit_value_t arg0 = irgen_get_arg(g, op, 0);

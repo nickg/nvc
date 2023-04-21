@@ -3847,8 +3847,11 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             emit_memset(hint, elem_reg, emit_const(vtype_offset(), rep_size));
             return hint;
          }
-         else
-            return emit_const_rep(lower_type(type), elem_reg, rep_size);
+         else {
+            vcode_type_t vtype = lower_type(type);
+            vcode_reg_t array = emit_const_rep(vtype, elem_reg, rep_size);
+            return emit_address_of(array);
+         }
       }
       else {
          int nvals;
@@ -4859,10 +4862,15 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
       type_t elem = lower_elem_recur(type);
       vcode_reg_t elem_reg = lower_nested_default_value(lu, elem);
       const int size = lower_array_const_size(type);
-      vcode_reg_t *values LOCAL = xmalloc_array(size, sizeof(vcode_reg_t));
-      for (int i = 0; i < size; i++)
-         values[i] = elem_reg;
-      return emit_const_array(lower_type(type), values, size);
+
+      if (vtype_is_scalar(vcode_reg_type(elem_reg)))
+         return emit_const_rep(lower_type(type), elem_reg, size);
+      else {
+         vcode_reg_t *values LOCAL = xmalloc_array(size, sizeof(vcode_reg_t));
+         for (int i = 0; i < size; i++)
+            values[i] = elem_reg;
+         return emit_const_array(lower_type(type), values, size);
+      }
    }
    else if (type_is_record(type)) {
       assert(lower_const_bounds(type));
@@ -4914,8 +4922,10 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
          if (type_is_scalar(elem_type)) {
             vcode_reg_t elem_reg = lower_nested_default_value(lu, elem_type);
             const int size = lower_array_const_size(type);
-            if (hint_reg == VCODE_INVALID_REG)
-               return emit_const_rep(lower_type(type), elem_reg, size);
+            if (hint_reg == VCODE_INVALID_REG) {
+               vcode_type_t vtype = lower_type(type);
+               return emit_address_of(emit_const_rep(vtype, elem_reg, size));
+            }
             else {
                vcode_reg_t count_reg = emit_const(vtype_offset(), size);
                emit_memset(hint_reg, elem_reg, count_reg);
