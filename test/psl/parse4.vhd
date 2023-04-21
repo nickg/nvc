@@ -54,4 +54,8 @@ begin
 
     -- psl cover {a;b;c} @ rising_edge(clk);
 
+    -- psl cover {a:b}[*4 to 5];
+
+    -- psl cover a;
+
 end architecture;

@@ -9987,20 +9987,99 @@ static psl_node_t p_psl_clock_declaration(tree_t parent)
    return p;
 }
 
+static psl_node_t p_psl_parametrized_sere(void)
+{
+   // for Parameters_Definition : And_Or_SERE_OP { SERE }
+
+   BEGIN("PSL Parametrized SERE");
+
+   fatal_trace("parametrized_SERE not yet supported!");
+
+   return NULL;
+}
+
+static psl_node_t p_psl_compound_sere(void)
+{
+   //       Repeated_SERE
+   //     | Braced_SERE
+   //     | Clocked_SERE
+   //     | Compound_SERE | Compound_SERE
+   //     | Compound_SERE & Compound_SERE
+   //     | Compound_SERE && Compound_SERE
+   //     | Compound_SERE within Compound_SERE
+   //     | Parameterized_SERE
+
+   BEGIN("PSL Compound SERE");
+
+   psl_node_t p;
+   if (peek() == tFOR)
+      p = p_psl_parametrized_sere();
+   else
+      p = p_psl_sequence();
+
+   token_t prev = 0;
+   while (scan(tBAR, tAMP, tDBLAMP, tWITHIN)) {
+      token_t tok = one_of(tBAR, tAMP, tDBLAMP, tWITHIN);
+
+      // Recurse to new SERE
+      if (tok != prev) {
+         psl_node_t new = psl_new(P_SERE);
+         psl_add_operand(new, p);
+         p = new;
+      }
+
+      switch (tok) {
+      case tBAR:
+         psl_set_subkind(p, PSL_SERE_OR);
+         break;
+      case tAMP:
+         psl_set_subkind(p, PSL_SERE_NEQ_AND);
+         break;
+      case tDBLAMP:
+         psl_set_subkind(p, PSL_SERE_EQU_AND);
+         break;
+      case tWITHIN:
+         psl_set_subkind(p, PSL_SERE_WITHIN);
+         break;
+      }
+
+      psl_add_operand(p, p_psl_compound_sere());
+   }
+
+   return p;
+}
 
 static psl_node_t p_psl_sere(void)
 {
    // Boolean | Boolean Proc_Block | Sequence | SERE ; SERE | SERE : SERE
    //  | Compound_SERE
 
-   psl_node_t p = psl_new(P_SERE);
+   BEGIN("PSL SERE");
 
-   psl_add_operand(p, p_psl_or_hdl_expression());
-
-   while (optional(tSEMI))
-      psl_add_operand(p, p_psl_or_hdl_expression());
-
+   psl_node_t p = p_psl_compound_sere();
    psl_set_loc(p, CURRENT_LOC);
+
+   token_t prev = 0;
+   while (scan(tSEMI, tCOLON)) {
+      token_t tok = one_of(tSEMI, tCOLON);
+
+      // Recurse to new SERE
+      if (tok != prev) {
+         psl_node_t new = psl_new(P_SERE);
+         psl_add_operand(new, p);
+         p = new;
+      }
+
+      if (tok == tSEMI)
+         psl_set_subkind(p, PSL_SERE_CONCAT);
+      else
+         psl_set_subkind(p, PSL_SERE_FUSION);
+
+      psl_add_operand(p, p_psl_compound_sere());
+
+      prev = tok;
+   };
+
    return p;
 }
 
@@ -10008,6 +10087,8 @@ static psl_node_t p_psl_braced_or_clocked_sere(void)
 {
    // { SERE }
    // { SERE } @ Clock_Expression
+
+   BEGIN("PSL Braced or Clocked SERE");
 
    consume(tLBRACE);
    psl_node_t p = p_psl_sere();
@@ -10343,8 +10424,12 @@ static psl_node_t p_psl_sequence(void)
       psl_node_t op = p_psl_or_hdl_expression();
 
       // [= and [-> are only allowed after boolean -> no need to recurse
-      if (scan(tGOTORPT, tARROWRPT))
+      if (scan(tGOTORPT, tARROWRPT)) {
+         psl_node_t new = psl_new(P_SERE);
          psl_set_repeat(p, p_psl_repeat_scheme());
+         psl_add_operand(new, p);
+         p = new;
+      }
 
       psl_add_operand(p, op);
       break;
@@ -10532,12 +10617,8 @@ static psl_node_t p_psl_fl_property(void)
       }
       break;
 
-   case tLBRACE:
-      p = p_psl_sequence();
-      break;
-
    default:
-      p = p_psl_or_hdl_expression();
+      p = p_psl_sequence();
       break;
    }
 
