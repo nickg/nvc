@@ -308,6 +308,7 @@ static void irgen_patch_label(jit_irgen_t *g, jit_ir_t *ir, irgen_label_t *l)
 
 static jit_value_t j_recv(jit_irgen_t *g, int pos)
 {
+   assert(pos < JIT_MAX_ARGS);
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_unary(g, J_RECV, JIT_SZ_UNSPEC, JIT_CC_NONE, r,
                     jit_value_from_int64(pos));
@@ -316,6 +317,7 @@ static jit_value_t j_recv(jit_irgen_t *g, int pos)
 
 static void j_send(jit_irgen_t *g, int pos, jit_value_t value)
 {
+   assert(pos < JIT_MAX_ARGS);
    irgen_emit_binary(g, J_SEND, JIT_SZ_UNSPEC, JIT_CC_NONE, JIT_REG_INVALID,
                      jit_value_from_int64(pos), value);
 }
@@ -1204,7 +1206,10 @@ static void irgen_send_args(jit_irgen_t *g, int op, int first)
    for (int i = 0, pslot = first; i < nargs; i++) {
       vcode_reg_t vreg = vcode_get_arg(op, i);
       int slots = irgen_slots_for_type(vcode_reg_type(vreg));
-      if (slots > 1) {
+      if (unlikely(pslot + slots >= JIT_MAX_ARGS))
+         fatal("call to %s requires more than the maximum supported "
+               "%d arguments", istr(vcode_get_func(op)), JIT_MAX_ARGS);
+      else if (slots > 1) {
          jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
          for (int j = 0; j < slots; j++)
             j_send(g, pslot++, jit_value_from_reg(base + j));
@@ -3830,6 +3835,11 @@ static void irgen_params(jit_irgen_t *g, int first)
       vcode_reg_t preg = vcode_param_reg(i);
       vcode_type_t vtype = vcode_param_type(i);
       int slots = irgen_slots_for_type(vtype);
+
+      if (unlikely(pslot + slots >= JIT_MAX_ARGS))
+         fatal("%s requires more than the maximum supported %d arguments",
+               istr(g->func->name), JIT_MAX_ARGS);
+
       g->map[preg] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers
