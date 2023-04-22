@@ -4,10 +4,10 @@
 # Note: tcllib is required for OSVVM
 
 # known good snapshot
-set OsvvmLibraries_tag "2022.11"
+set OsvvmLibraries_tag "2023.04"
+set OsvvmDir [file join $::env(HOME) .cache nvc "OsvvmLibraries-${OsvvmLibraries_tag}"]
 
-exec git clone --branch $OsvvmLibraries_tag --recurse-submodules -j8 https://github.com/OSVVM/OsvvmLibraries.git >@ stdout 2>@ stdout
-source OsvvmLibraries/Scripts/StartNVC.tcl
-build OsvvmLibraries/OsvvmLibraries
-build OsvvmLibraries/RunAllTests
-build OsvvmLibraries/RunAllTestsVti
+source $OsvvmDir/Scripts/StartNVC.tcl
+#build $OsvvmDir/OsvvmLibraries
+build $OsvvmDir/RunAllTests
+build $OsvvmDir/RunAllTestsVti
