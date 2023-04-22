@@ -1,5 +1,5 @@
 #!/bin/sh
-std=${STD:-93}
+std=${STD:-02}
 export NVC_LIBPATH=./lib/
 export NVC_IMP_LIB=./lib/
 if [ -e lib/$1.so ]; then

@@ -764,3 +764,4 @@ vital1          normal
 issue674        normal,2008
 integer1        normal
 integer2        normal,2019
+issue675        normal,2000

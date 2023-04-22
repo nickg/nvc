@@ -9945,6 +9945,7 @@ static void lower_driver_cb(tree_t t, void *__ctx)
       break;
 
    case T_PCALL:
+   case T_PROT_PCALL:
       // LRM 08 section 4.2.2.3: a process statement contains a driver
       // for each actual signal associated with a formal signal
       // parameter of mode out or inout in a subprogram call.
