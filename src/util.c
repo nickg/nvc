@@ -727,9 +727,8 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
    DWORD ip = ExceptionInfo->ContextRecord->Eip;
 #endif
 
-   if (code == EXCEPTION_ACCESS_VIOLATION) {
+   if (code == EXCEPTION_ACCESS_VIOLATION)
       addr = (PVOID)ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
-   }
 
    color_fprintf(stderr, "\n$red$$bold$*** Caught exception %x (%s)",
                  (int)code, exception_name(code));
@@ -800,7 +799,7 @@ static void print_fatal_signal(int sig, siginfo_t *info, struct cpu_state *cpu)
    case SIGILL:
    case SIGFPE:
    case SIGBUS:
-      p += checked_sprintf(p, end -p, " [address=%p, ip=%p]",
+      p += checked_sprintf(p, end - p, " [address=%p, ip=%p]",
                            info->si_addr, (void*)cpu->pc);
       break;
    }

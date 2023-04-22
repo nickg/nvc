@@ -2563,9 +2563,9 @@ vcode_type_t vtype_offset(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_OFFSET;
-   n->low  = INT32_MIN;
-   n->high = INT32_MAX;
-   n->repr = VCODE_REPR_I32;
+   n->low  = INT64_MIN;
+   n->high = INT64_MAX;
+   n->repr = VCODE_REPR_I64;
 
    return vtype_new(n);
 }

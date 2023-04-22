@@ -1073,7 +1073,7 @@ static void bounds_check_conv_integer(tree_t value, type_t from, type_t to)
    bool folded = false;
    if (type_is_real(from)) {
       folded = folded_real(value, &rval);
-         ival = (int64_t)rval;
+      ival = (int64_t)(rval + 0.5);
    }
    else if (type_is_integer(from))
       folded = folded_int(value, &ival);

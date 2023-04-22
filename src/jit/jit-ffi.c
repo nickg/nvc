@@ -121,8 +121,8 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
       const ffi_type_t type = ffi_spec_get(spec, i);
       if (type == FFI_UARRAY) {
          ff->args[wptr++] = &ffi_type_pointer;
-         ff->args[wptr++] = &ffi_type_sint32;   // Left
-         ff->args[wptr++] = &ffi_type_sint32;   // Length
+         ff->args[wptr++] = &ffi_type_sint64;   // Left
+         ff->args[wptr++] = &ffi_type_sint64;   // Length
       }
       else
          ff->args[wptr++] = libffi_type_for(type);

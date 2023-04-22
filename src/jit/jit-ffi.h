@@ -54,8 +54,8 @@ typedef struct _jit_foreign jit_foreign_t;
 typedef struct _ffi_uarray {
    void *ptr;
    struct {
-      int32_t left;
-      int32_t length;
+      int64_t left;
+      int64_t length;
    } dims[1];
 } ffi_uarray_t;
 

@@ -2697,14 +2697,13 @@ static tree_t p_constrained_discrete_range(type_t index_type)
    if (tree_has_type(r))
       return r;   // Already constrained e.g. from INTEGER range X to Y
 
+   type_t type = solve_types(nametab, r, index_type);
+
    // LRM 08 section 5.3.2.2: an implicit conversion to the predefined
    // type INTEGER is assumed if the type of both bounds is the type
    // universal_integer
-
-   type_t type = solve_types(nametab, r, index_type);
-
    if (type_eq(type, std_type(NULL, STD_UNIVERSAL_INTEGER)))
-      tree_set_type(r, std_type(NULL, STD_INTEGER));
+      tree_set_type(r, index_type ?: std_type(NULL, STD_INTEGER));
 
    return r;
 }

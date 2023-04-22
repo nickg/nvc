@@ -310,7 +310,7 @@ void x_div_zero(tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
-int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
+int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int64_t *used)
 {
    const char *p = (const char *)raw_str;
    const char *endp = p + str_len;
@@ -926,7 +926,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          uint8_t *ptr  = args[0].pointer;
          int32_t  len  = args[1].integer;
-         int32_t *used = args[2].pointer;
+         int64_t *used = args[2].pointer;
 
          args[0].integer = x_string_to_int(ptr, len, used);
       }

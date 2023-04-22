@@ -800,9 +800,9 @@ static int irgen_size_bytes(vcode_type_t vtype)
 
    case VCODE_TYPE_UARRAY:
       if (vtype_kind(vtype_elem(vtype)) == VCODE_TYPE_SIGNAL)
-         return 2*sizeof(void *) + 2 * 4 * vtype_dims(vtype);
+         return 2*sizeof(void *) + 2 * sizeof(int64_t) * vtype_dims(vtype);
       else
-         return sizeof(void *) + 2 * 4 * vtype_dims(vtype);
+         return sizeof(void *) + 2 * sizeof(int64_t) * vtype_dims(vtype);
 
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_POINTER:
@@ -1647,8 +1647,8 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
 
          const int ndims = vtype_dims(vtype);
          for (int i = 0; i < 2*ndims; i++) {
-            j_load(g, JIT_SZ_32, addr);
-            addr = jit_addr_from_value(addr, 4);
+            j_load(g, JIT_SZ_64, addr);
+            addr = jit_addr_from_value(addr, sizeof(int64_t));
          }
 
          return base;
@@ -1704,8 +1704,8 @@ static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
 
          const int ndims = vtype_dims(vtype);
          for (int i = 0; i < 2*ndims; i++) {
-            j_store(g, JIT_SZ_32, jit_value_from_reg(base + slots + i), addr);
-            addr = jit_addr_from_value(addr, 4);
+            j_store(g, JIT_SZ_64, jit_value_from_reg(base + slots + i), addr);
+            addr = jit_addr_from_value(addr, sizeof(int64_t));
          }
       }
       break;
