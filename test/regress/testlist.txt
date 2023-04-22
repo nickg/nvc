@@ -760,3 +760,4 @@ issue670        normal,2008
 elab37          normal
 elab38          normal
 issue674        normal,2008
+issue675        normal,2000

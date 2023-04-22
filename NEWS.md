@@ -3,6 +3,8 @@
 - Updated to latest GtkWave FST writer library.
 - Fix crash when an external name is used in a wait expression (#674).
 - Fix stack corruption when passing large numbers of arguments (#665).
+- Protected procedure calls with `out` or `inout` or signal arguments
+  now create drivers (#675).
 
 ## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
