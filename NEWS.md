@@ -1,5 +1,6 @@
 ## Unreleased changes
 - ZSTD is now a build dependency. Install `libzstd-dev` or similar.
+- The `integer` type is now 64-bit in VHDL-2019 mode.
 
 ## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.

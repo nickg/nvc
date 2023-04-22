@@ -34,15 +34,15 @@
 #include <unistd.h>
 
 typedef struct {
-   int32_t microsecond;
-   int32_t second;
-   int32_t minute;
-   int32_t hour;
-   int32_t day;
-   int32_t month;
-   int32_t year;
+   int64_t microsecond;
+   int64_t second;
+   int64_t minute;
+   int64_t hour;
+   int64_t day;
+   int64_t month;
+   int64_t year;
    int8_t  weekday;
-   int32_t dayofyear;
+   int64_t dayofyear;
 } time_record_t;
 
 typedef enum {
@@ -64,7 +64,7 @@ typedef struct {
    ffi_uarray_t *name;
    ffi_uarray_t *file_name;
    ffi_uarray_t *file_path;
-   int32_t       file_line;
+   int64_t       file_line;
 } call_path_element_t;
 
 static void copy_str(const char *str, ffi_uarray_t *u)

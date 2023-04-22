@@ -763,3 +763,4 @@ elab38          normal
 vital1          normal
 issue674        normal,2008
 integer1        normal
+integer2        normal,2019

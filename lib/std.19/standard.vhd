@@ -69,7 +69,7 @@ package STANDARD is
 
     -- type universal_integer is range implementation_defined;
 
-    type INTEGER is range -2147483648 to 2147483647;
+    type INTEGER is range -9223372036854775807 - 1 to 9223372036854775807;
 
     -- type universal_real is range implementation_defined;
 
