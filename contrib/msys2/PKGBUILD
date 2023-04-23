@@ -4,7 +4,8 @@ pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
 repo_root_dir=$(git rev-parse --show-toplevel)
 _pkgver() {
   (cd "${repo_root_dir}";\
-  git describe --long | sed 's/^r\(.*\)/\1/; s/\([^-]*-g\)/r\1/;s/-/./g')
+   vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac);\
+   git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
 }
 pkgver="$(_pkgver)"
 pkgrel=1
