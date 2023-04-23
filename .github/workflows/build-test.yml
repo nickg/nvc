@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0   # Needed for PKGBUILD
+          fetch-depth: 1
       - uses: msys2/setup-msys2@v2
         with:
           update: true
