@@ -4,7 +4,7 @@
 - The [VUnit](https://vunit.github.io/) VHDL libraries can now be
   installed with `nvc --install vunit` but please note this does not
   install the Python infrastructure.
-- Updated to OSVVM 2023.04 for `nvc --install osvvm`.
+- Updated to OSVVM 2023.04 and UVVM 2023.03.21 for `nvc --install`.
 
 ## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.

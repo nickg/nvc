@@ -8,7 +8,7 @@
 . $(dirname $BASH_SOURCE)/functions.sh
 
 if [ -z "$1" ]; then
-    branch="v2022.05.25"
+  branch="v2023.03.21"
 fi
 
 git_wrapper https://github.com/UVVM/UVVM $branch
