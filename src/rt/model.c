@@ -64,9 +64,10 @@ typedef struct _memblock {
 } memblock_t;
 
 typedef struct {
-   waveform_t *free_waveforms;
-   tlab_t      tlab;
-   tlab_t      spare_tlab;
+   waveform_t    *free_waveforms;
+   tlab_t         tlab;
+   tlab_t         spare_tlab;
+   rt_wakeable_t *active_obj;
 } __attribute__((aligned(64))) model_thread_t;
 
 typedef struct _rt_model {
@@ -131,7 +132,6 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
-static __thread rt_proc_t    *active_proc = NULL;
 static __thread rt_scope_t   *active_scope = NULL;
 static __thread rt_scope_t  **scopes_tail = NULL;
 static __thread rt_model_t   *__model = NULL;
@@ -144,6 +144,7 @@ static void free_value(rt_nexus_t *n, rt_value_t v);
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static void async_run_process(void *context, void *arg);
+static void async_update_property(void *context, void *arg);
 static void async_update_driver(void *context, void *arg);
 static void async_fast_driver(void *context, void *arg);
 static void async_fast_all_drivers(void *context, void *arg);
@@ -205,6 +206,25 @@ static const char *trace_time(uint64_t value)
    which ^= 1;
    fmt_time_r(buf[which], 32, value, "");
    return buf[which];
+}
+
+static const char *trace_states(bit_mask_t *mask)
+{
+   static __thread text_buf_t *tb = NULL;
+
+   if (tb == NULL)
+      tb = tb_new();
+
+   tb_rewind(tb);
+   tb_append(tb, '{');
+
+   int bit = -1;
+   while (mask_iter(mask, &bit))
+      tb_printf(tb, "%s%d", tb_len(tb) > 1 ? "," : "", bit);
+
+   tb_append(tb, '}');
+
+   return tb_get(tb);
 }
 
 static void model_diag_cb(diag_t *d, void *arg)
@@ -435,6 +455,26 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
          }
          break;
 
+      case T_PSL:
+         {
+            ident_t name = tree_ident(t);
+            ident_t sym = ident_prefix(s->name, name, '.');
+
+            rt_prop_t *p = xcalloc(sizeof(rt_prop_t));
+            p->where  = tree_psl(t);
+            p->handle = jit_lazy_compile(m->jit, sym);
+            p->scope  = s;
+            p->name   = sym;
+
+            p->wakeable.kind      = W_PROPERTY;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = false;
+            p->wakeable.delayed   = false;
+
+            list_add(&s->properties, p);
+         }
+         break;
+
       default:
          break;
       }
@@ -502,9 +542,19 @@ rt_model_t *get_model_or_null(void)
    return __model;
 }
 
+static rt_wakeable_t *get_active_wakeable(void)
+{
+   return __model ? model_thread(__model)->active_obj : NULL;
+}
+
 rt_proc_t *get_active_proc(void)
 {
-   return active_proc;
+   rt_wakeable_t *obj = get_active_wakeable();
+   if (obj == NULL)
+      return NULL;
+
+   assert(obj->kind == W_PROC);
+   return container_of(obj, rt_proc_t, wakeable);
 }
 
 static void free_waveform(rt_model_t *m, waveform_t *w)
@@ -575,6 +625,13 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
       free(it);
    }
    list_free(&scope->aliases);
+
+   list_foreach(rt_prop_t *, it, scope->properties) {
+      mask_free(&it->state);
+      mask_free(&it->newstate);
+      free(it);
+   }
+   list_free(&scope->properties);
 
    for (rt_scope_t *it = scope->child, *tmp; it; it = tmp) {
       tmp = it->chain;
@@ -796,7 +853,10 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    assert(!tlab_valid(proc->tlab));
    assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
 
-   active_proc = proc;
+   model_thread_t *thread = model_thread(m);
+   assert(thread->active_obj == NULL);
+   thread->active_obj = &(proc->wakeable);
+
    active_scope = proc->scope;
 
    jit_scalar_t context = {
@@ -811,6 +871,41 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
       *mptr_get(proc->privdata) = result.pointer;
    else
       m->force_stop = true;
+
+   thread->active_obj = NULL;
+}
+
+static void reset_property(rt_model_t *m, rt_prop_t *prop)
+{
+   TRACE("reset property %s", istr(prop->name));
+
+   assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
+
+   model_thread_t *thread = model_thread(m);
+   assert(thread->active_obj == NULL);
+   thread->active_obj = &(prop->wakeable);
+
+   active_scope = prop->scope;
+
+   jit_scalar_t context = {
+      .pointer = *mptr_get(prop->scope->privdata)
+   };
+   jit_scalar_t state = { .integer = -1 };
+   jit_scalar_t result;
+
+   tlab_t tlab = jit_null_tlab(m->jit);
+
+   if (!jit_fastcall(m->jit, prop->handle, &result, context, state, &tlab))
+      m->force_stop = true;
+
+   TRACE("needs %"PRIi64" state bits", result.integer);
+
+   mask_init(&prop->state, result.integer);
+   mask_init(&prop->newstate, result.integer);
+
+   mask_set(&prop->state, 0);
+
+   thread->active_obj = NULL;
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
@@ -833,7 +928,9 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
    tlab_t *tlab = &thread->tlab;
 
-   active_proc = proc;
+   assert(thread->active_obj == NULL);
+   thread->active_obj = &(proc->wakeable);
+
    active_scope = proc->scope;
 
    // Stateless processes have NULL privdata so pass a dummy pointer
@@ -850,7 +947,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    if (!jit_fastcall(m->jit, proc->handle, &result, state, context, tlab))
       m->force_stop = true;
 
-   active_proc = NULL;
+   thread->active_obj = NULL;
 
    if (tlab_valid(thread->tlab)) {
       // The TLAB is still valid which means the process finished
@@ -904,6 +1001,9 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
 
    list_foreach(rt_proc_t *, p, s->procs)
       reset_process(m, p);
+
+   list_foreach(rt_prop_t *, p, s->properties)
+      reset_property(m, p);
 }
 
 static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
@@ -2105,6 +2205,43 @@ void model_reset(rt_model_t *m)
    }
 }
 
+static void update_property(rt_model_t *m, rt_prop_t *prop)
+{
+   TRACE("update property %s state %s", istr(prop->name),
+         trace_states(&prop->state));
+
+   model_thread_t *thread = model_thread(m);
+
+   if (!tlab_valid(thread->tlab))
+      tlab_acquire(m->mspace, &thread->tlab);
+
+   tlab_t *tlab = &thread->tlab;
+
+   assert(thread->active_obj == NULL);
+   thread->active_obj = &(prop->wakeable);
+
+   active_scope = prop->scope;
+
+   jit_scalar_t context = {
+      .pointer = *mptr_get(prop->scope->privdata)
+   };
+
+   mask_clearall(&prop->newstate);
+
+   int bit = -1;
+   while (mask_iter(&prop->state, &bit)) {
+      jit_scalar_t state = { .integer = bit }, result;
+      if (!jit_fastcall(m->jit, prop->handle, &result, context, state, tlab))
+         m->force_stop = true;
+   }
+
+   thread->active_obj = NULL;
+
+   TRACE("new state %s", trace_states(&prop->newstate));
+
+   mask_copy(&prop->state, &prop->newstate);
+}
+
 static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
 {
    if (n->pending == NULL)
@@ -2158,11 +2295,11 @@ static void clear_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
    }
 }
 
-static rt_source_t *find_driver(rt_nexus_t *nexus)
+static rt_source_t *find_driver(rt_nexus_t *nexus, rt_proc_t *proc)
 {
    // Try to find this process in the list of existing drivers
    for (rt_source_t *d = &(nexus->sources); d; d = d->chain_input) {
-      if (d->tag == SOURCE_DRIVER && d->u.driver.proc == active_proc)
+      if (d->tag == SOURCE_DRIVER && d->u.driver.proc == proc)
          return d;
    }
 
@@ -2211,7 +2348,7 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
 }
 
 static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
-                         uint64_t reject, const void *value)
+                         uint64_t reject, const void *value, rt_proc_t *proc)
 {
    if (after == 0 && (nexus->flags & NET_F_FAST_DRIVER)) {
       rt_source_t *d = &(nexus->sources);
@@ -2245,7 +2382,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       copy_value_ptr(nexus, &w->value, value);
    }
    else {
-      rt_source_t *d = find_driver(nexus);
+      rt_source_t *d = find_driver(nexus, proc);
       assert(d != NULL);
 
       if ((nexus->flags & NET_F_FAST_DRIVER) && d->fastqueued) {
@@ -2277,9 +2414,9 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
 }
 
 static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
-                             uint64_t reject)
+                             uint64_t reject, rt_proc_t *proc)
 {
-   rt_source_t *d = find_driver(nexus);
+   rt_source_t *d = find_driver(nexus, proc);
    assert(d != NULL);
 
    const uint64_t when = m->now + after;
@@ -2334,6 +2471,18 @@ static void async_run_process(void *context, void *arg)
    run_process(m, proc);
 }
 
+static void async_update_property(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_prop_t *prop = arg;
+
+   assert(prop->wakeable.pending);
+   prop->wakeable.pending = false;
+
+   MODEL_ENTRY(m);
+   update_property(m, prop);
+}
+
 static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
 {
    if (pointer_tag(value) != EVENT_PROCESS)
@@ -2363,6 +2512,14 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
             heap_delete(m->eventq_heap, heap_delete_proc_cb, proc);
             proc->wakeable.delayed = false;
          }
+      }
+      break;
+
+   case W_PROPERTY:
+      {
+         rt_prop_t *prop = container_of(obj, rt_prop_t, wakeable);
+         TRACE("wakeup property %s", istr(prop->name));
+         workq_do(wq, async_update_property, prop);
       }
       break;
 
@@ -2829,11 +2986,11 @@ bool model_step(rt_model_t *m)
    return should_stop_now(m, TIME_HIGH);
 }
 
-static inline void check_postponed(int64_t after)
+static inline void check_postponed(int64_t after, rt_proc_t *proc)
 {
-   if (unlikely(active_proc->wakeable.postponed && (after == 0)))
+   if (unlikely(proc->wakeable.postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
-            istr(active_proc->name));
+            istr(proc->name));
 }
 
 static inline void check_reject_limit(rt_signal_t *s, uint64_t after,
@@ -2971,9 +3128,10 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)
 {
-   if (active_proc != NULL)
-      jit_msg(NULL, DIAG_FATAL, "interrupted in process %s",
-              istr(active_proc->name));
+   rt_proc_t *proc = get_active_proc();
+
+   if (proc != NULL)
+      jit_msg(NULL, DIAG_FATAL, "interrupted in process %s", istr(proc->name));
    else {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
       diag_printf(d, "interrupted");
@@ -3098,18 +3256,19 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
          offset, count);
 
    rt_model_t *m = get_model();
+   rt_proc_t *proc = get_active_proc();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       rt_source_t *s;
       for (s = &(n->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_DRIVER && s->u.driver.proc == active_proc)
+         if (s->tag == SOURCE_DRIVER && s->u.driver.proc == proc)
             break;
       }
 
       if (s == NULL) {
          s = add_source(m, n, SOURCE_DRIVER);
          s->u.driver.waveforms.value = alloc_value(m, n);
-         s->u.driver.proc = active_proc;
+         s->u.driver.proc = proc;
       }
 
       count -= n->width;
@@ -3129,11 +3288,12 @@ int x_current_delta(void)
 
 void x_sched_process(int64_t delay)
 {
-   TRACE("schedule process %s delay=%s", istr(active_proc->name),
-         trace_time(delay));
+   rt_proc_t *proc = get_active_proc();
+
+   TRACE("schedule process %s delay=%s", istr(proc->name), trace_time(delay));
 
    check_delay(delay);
-   deltaq_insert_proc(get_model(), delay, active_proc);
+   deltaq_insert_proc(get_model(), delay, proc);
 }
 
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
@@ -3146,14 +3306,16 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
          istr(tree_ident(s->where)), offset, scalar, trace_time(after),
          trace_time(reject));
 
+   rt_proc_t *proc = get_active_proc();
+
    check_delay(after);
-   check_postponed(after);
+   check_postponed(after, proc);
    check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
 
-   sched_driver(m, n, after, reject, &scalar);
+   sched_driver(m, n, after, reject, &scalar, proc);
 }
 
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
@@ -3166,8 +3328,10 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
          istr(tree_ident(s->where)), offset, fmt_values(values, count),
          count, trace_time(after), trace_time(reject));
 
+   rt_proc_t *proc = get_active_proc();
+
    check_delay(after);
-   check_postponed(after);
+   check_postponed(after, proc);
    check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
@@ -3177,7 +3341,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       count -= n->width;
       assert(count >= 0);
 
-      sched_driver(m, n, after, reject, vptr);
+      sched_driver(m, n, after, reject, vptr, proc);
       vptr += n->width * n->size;
    }
 }
@@ -3238,13 +3402,15 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("_sched_event %s+%d count=%d proc %s",
-         istr(tree_ident(s->where)), offset, count, istr(active_proc->name));
+   TRACE("_sched_event %s+%d count=%d", istr(tree_ident(s->where)),
+         offset, count);
+
+   rt_wakeable_t *obj = get_active_wakeable();
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      sched_event(m, n, &(active_proc->wakeable));
+      sched_event(m, n, obj);
 
       count -= n->width;
       assert(count >= 0);
@@ -3283,13 +3449,23 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
          istr(tree_ident(s->where)), offset, count);
 
    rt_model_t *m = get_model();
+   rt_proc_t *proc = get_active_proc();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      clear_event(m, n, &(active_proc->wakeable));
+      clear_event(m, n, &(proc->wakeable));
 
       count -= n->width;
       assert(count >= 0);
    }
+}
+
+void x_enter_state(int32_t state)
+{
+   rt_wakeable_t *obj = get_active_wakeable();
+   assert(obj->kind == W_PROPERTY);
+
+   rt_prop_t *prop = container_of(obj, rt_prop_t, wakeable);
+   mask_set(&prop->newstate, state);
 }
 
 void x_alias_signal(sig_shared_t *ss, tree_t where)
@@ -3314,7 +3490,7 @@ void x_claim_tlab(tlab_t *tlab)
 
    if (tlab_valid(*tlab)) {
       assert(tlab->alloc <= tlab->limit);
-      tlab_move(*tlab, active_proc->tlab);
+      tlab_move(*tlab, get_active_proc()->tlab);
    }
 }
 
@@ -3515,10 +3691,11 @@ bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    int ntotal = 0, ndriving = 0;
    bool found = false;
    rt_model_t *m = get_model();
+   rt_proc_t *proc = get_active_proc();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       if (n->n_sources > 0) {
-         rt_source_t *src = find_driver(n);
+         rt_source_t *src = find_driver(n, proc);
          if (src != NULL) {
             if (!src->disconnected) ndriving++;
             found = true;
@@ -3532,7 +3709,7 @@ bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    if (!found)
       jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
-              istr(active_proc->name), istr(tree_ident(s->where)));
+              istr(proc->name), istr(tree_ident(s->where)));
 
    return ntotal == ndriving;
 }
@@ -3549,12 +3726,13 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    uint8_t *p = result;
    rt_model_t *m = get_model();
+   rt_proc_t *proc = get_active_proc();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_source_t *src = find_driver(n);
+      rt_source_t *src = find_driver(n, proc);
       if (src == NULL)
          jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver "
-                 "for %s", istr(active_proc->name), istr(tree_ident(s->where)));
+                 "for %s", istr(proc->name), istr(tree_ident(s->where)));
 
       const uint8_t *driving;
       if (n->flags & NET_F_FAST_DRIVER)
@@ -3627,7 +3805,9 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
          istr(tree_ident(s->where)), offset, count, trace_time(after),
          trace_time(reject));
 
-   check_postponed(after);
+   rt_proc_t *proc = get_active_proc();
+
+   check_postponed(after, proc);
    check_reject_limit(s, after, reject);
 
    rt_model_t *m = get_model();
@@ -3636,7 +3816,7 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
       count -= n->width;
       assert(count >= 0);
 
-      sched_disconnect(m, n, after, reject);
+      sched_disconnect(m, n, after, reject, proc);
    }
 }
 
@@ -3648,7 +3828,9 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
    TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count), count);
 
-   check_postponed(0);
+   rt_proc_t *proc = get_active_proc();
+
+   check_postponed(0, proc);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -3674,7 +3856,9 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("release signal %s+%d count=%d", istr(tree_ident(s->where)),
          offset, count);
 
-   check_postponed(0);
+   rt_proc_t *proc = get_active_proc();
+
+   check_postponed(0, proc);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);

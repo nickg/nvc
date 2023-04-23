@@ -20,10 +20,38 @@
 
 #include "prim.h"
 
-typedef struct _psl_fsm psl_fsm_t;
+typedef struct _fsm_edge fsm_edge_t;
+typedef struct _fsm_state fsm_state_t;
+
+typedef enum {
+   EDGE_NEXT, EDGE_EPSILON
+} edge_kind_t;
+
+typedef struct _fsm_edge {
+   fsm_edge_t  *next;
+   fsm_state_t *dest;
+   edge_kind_t  kind;
+   psl_node_t   guard;
+} fsm_edge_t;
+
+typedef struct _fsm_state {
+   unsigned     id;
+   fsm_state_t *next;
+   fsm_edge_t  *edges;
+   psl_node_t   test;
+   bool         initial;
+   bool         accept;
+} fsm_state_t;
+
+typedef struct {
+   fsm_state_t  *states;
+   fsm_state_t **tail;
+   unsigned      next_id;
+} psl_fsm_t;
 
 psl_fsm_t *psl_fsm_new(psl_node_t p);
 void psl_fsm_free(psl_fsm_t *fsm);
 void psl_fsm_dump(psl_fsm_t *fsm, const char *fname);
+unsigned psl_fsm_size(psl_fsm_t *fsm);
 
 #endif  // _PSL_FSM_H

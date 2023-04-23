@@ -522,6 +522,51 @@ START_TEST(test_empty_mask)
 }
 END_TEST
 
+START_TEST(test_mask_iter)
+{
+   bit_mask_t m;
+   mask_init(&m, 32);
+
+   mask_set(&m, 1);
+   mask_set(&m, 6);
+   mask_set(&m, 17);
+
+   int bit = -1;
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 1);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 6);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 17);
+   fail_if(mask_iter(&m, &bit));
+
+   mask_free(&m);
+
+   mask_init(&m, 600);
+
+   mask_set(&m, 0);
+   mask_set(&m, 6);
+   mask_set(&m, 93);
+   mask_set(&m, 422);
+   mask_set(&m, 599);
+
+   bit = -1;
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 0);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 6);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 93);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 422);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 599);
+   fail_if(mask_iter(&m, &bit));
+
+   mask_free(&m);
+}
+END_TEST
+
 static volatile int counter = 0;
 static nvc_lock_t   lock = 0;
 
@@ -636,6 +681,7 @@ Suite *get_misc_tests(void)
    tcase_add_loop_test(tc_mask, test_scan_backwards, 0, ARRAY_LEN(mask_size));
    tcase_add_loop_test(tc_mask, test_subtract, 0, ARRAY_LEN(mask_size));
    tcase_add_test(tc_mask, test_empty_mask);
+   tcase_add_test(tc_mask, test_mask_iter);
    suite_add_tcase(s, tc_mask);
 
    TCase *tc_thread = tcase_create("thread");

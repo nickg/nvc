@@ -1124,6 +1124,14 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_ENTER_STATE:
+      {
+         int32_t state = args[0].integer;
+
+         x_enter_state(state);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }

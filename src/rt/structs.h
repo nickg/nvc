@@ -19,6 +19,7 @@
 #define _RT_STRUCTS_H
 
 #include "prim.h"
+#include "mask.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
 #include "rt/mspace.h"
@@ -28,7 +29,7 @@
 typedef void *(*value_fn_t)(rt_nexus_t *);
 
 typedef enum {
-   W_PROC, W_WATCH, W_IMPLICIT
+   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY,
 } wakeable_kind_t;
 
 typedef uint32_t wakeup_gen_t;
@@ -49,6 +50,16 @@ typedef struct _rt_proc {
    rt_scope_t    *scope;
    mptr_t         privdata;
 } rt_proc_t;
+
+typedef struct {
+   rt_wakeable_t  wakeable;
+   psl_node_t     where;
+   ident_t        name;
+   jit_handle_t   handle;
+   rt_scope_t    *scope;
+   bit_mask_t     state;
+   bit_mask_t     newstate;
+} rt_prop_t;
 
 typedef union {
    uint8_t   bytes[8];
@@ -192,6 +203,7 @@ typedef struct _rt_scope {
    ptr_list_t       signals;
    ptr_list_t       procs;
    ptr_list_t       aliases;
+   ptr_list_t       properties;
    rt_scope_kind_t  kind;
    rt_scope_flags_t flags;
    unsigned         size;   // For signal scopes

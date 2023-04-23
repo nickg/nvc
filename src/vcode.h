@@ -158,6 +158,7 @@ typedef enum {
    VCODE_OP_CLEAR_EVENT,
    VCODE_OP_TRAP_EXP,
    VCODE_OP_IMPLICIT_EVENT,
+   VCODE_OP_ENTER_STATE,
 } vcode_op_t;
 
 typedef enum {
@@ -513,5 +514,6 @@ vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
                          vcode_type_t type);
 vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len);
 vcode_reg_t emit_convstr(vcode_reg_t value);
+void emit_enter_state(vcode_reg_t state);
 
 #endif  // _VCODE_H

@@ -1241,8 +1241,12 @@ static void irgen_op_return(jit_irgen_t *g, int op)
    case VCODE_UNIT_INSTANCE:
    case VCODE_UNIT_PROTECTED:
    case VCODE_UNIT_PACKAGE:
-   case VCODE_UNIT_PROPERTY:
       j_send(g, 0, g->statereg);
+      break;
+
+   case VCODE_UNIT_PROPERTY:
+      if (vcode_count_args(op) > 0)
+         irgen_send_args(g, op, 0);
       break;
 
    case VCODE_UNIT_FUNCTION:
@@ -3387,6 +3391,14 @@ static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_COVER_TOGGLE);
 }
 
+static void irgen_op_enter_state(jit_irgen_t *g, int op)
+{
+   jit_value_t state = irgen_get_arg(g, op, 0);
+
+   j_send(g, 0, state);
+   macro_exit(g, JIT_EXIT_ENTER_STATE);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3758,6 +3770,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_COVER_TOGGLE:
          irgen_op_cover_toggle(g, i);
          break;
+      case VCODE_OP_ENTER_STATE:
+         irgen_op_enter_state(g, i);
+         break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
       }
@@ -3771,7 +3786,8 @@ static void irgen_locals(jit_irgen_t *g, bool force_stack)
 
    bool on_stack = true;
    const vunit_kind_t kind = vcode_unit_kind();
-   if (kind != VCODE_UNIT_THUNK && kind != VCODE_UNIT_FUNCTION)
+   if (kind != VCODE_UNIT_THUNK && kind != VCODE_UNIT_FUNCTION
+       && kind != VCODE_UNIT_PROPERTY)
       on_stack = false;
    else if (vcode_unit_child(vcode_active_unit()) != NULL)
       on_stack = false;
@@ -3982,7 +3998,7 @@ void jit_irgen(jit_func_t *f)
       kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
    const bool has_params =
       kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
-      || kind == VCODE_UNIT_THUNK;
+      || kind == VCODE_UNIT_THUNK || kind == VCODE_UNIT_PROPERTY;
    const bool has_jump_table =
       (kind == VCODE_UNIT_PROCESS && !is_stateless)
       || kind == VCODE_UNIT_PROCEDURE;

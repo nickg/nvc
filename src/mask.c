@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -256,4 +256,35 @@ bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2)
    }
    else
       return m1->bits == m2->bits;
+}
+
+bool mask_iter(bit_mask_t *m, int *bit)
+{
+   if (*bit + 1 < 0 || *bit + 1 >= m->size)
+      return false;
+   else if (m->size > 64) {
+      const int first = (*bit + 1) / 64;
+      const uint64_t remain = m->ptr[first] & ~mask_for_range(0, *bit % 64);
+      const int fs = __builtin_ffsll(remain);
+      if (fs > 0) {
+         *bit = fs - 1;
+         return true;
+      }
+
+      for (int i = first + 1; i < (m->size + 63) / 64; i++) {
+         const int fs = __builtin_ffsll(m->ptr[i]);
+         if (fs > 0) {
+            *bit = i*64 + fs - 1;
+            return true;
+         }
+      }
+
+      return false;
+   }
+   else {
+      const uint64_t remain = m->bits & ~mask_for_range(0, *bit);
+      const int fs = __builtin_ffsll(remain);
+      *bit = fs - 1;
+      return fs > 0;
+   }
 }

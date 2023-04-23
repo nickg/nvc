@@ -960,7 +960,8 @@ const char *vcode_op_string(vcode_op_t op)
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
-      "trap neg", "process init", "clear event", "trap exp", "implicit event"
+      "trap neg", "process init", "clear event", "trap exp", "implicit event",
+      "enter state",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1227,6 +1228,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    if (vu->kind == VCODE_UNIT_FUNCTION
        || vu->kind == VCODE_UNIT_PROCEDURE
+       || vu->kind == VCODE_UNIT_PROPERTY
        || (vu->kind == VCODE_UNIT_THUNK && vu->params.count > 0)) {
 
       printf("Parameters %d\n", vu->params.count);
@@ -2233,6 +2235,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_result_type(col, op);
             }
             break;
+
+         case VCODE_OP_ENTER_STATE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
          }
 
          if (j == mark_op && i == old_block)
@@ -2817,7 +2826,8 @@ int vcode_count_params(void)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK);
+          || active_unit->kind == VCODE_UNIT_THUNK
+          || active_unit->kind == VCODE_UNIT_PROPERTY);
 
    return active_unit->params.count;
 }
@@ -2827,7 +2837,8 @@ vcode_type_t vcode_param_type(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK);
+          || active_unit->kind == VCODE_UNIT_THUNK
+          || active_unit->kind == VCODE_UNIT_PROPERTY);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
@@ -2838,7 +2849,8 @@ vcode_reg_t vcode_param_reg(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK);
+          || active_unit->kind == VCODE_UNIT_THUNK
+          || active_unit->kind == VCODE_UNIT_PROPERTY);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].reg;
@@ -4130,9 +4142,12 @@ void emit_return(vcode_reg_t reg)
       }
 
       VCODE_ASSERT(active_unit->kind == VCODE_UNIT_FUNCTION
-                   || active_unit->kind == VCODE_UNIT_THUNK,
+                   || active_unit->kind == VCODE_UNIT_THUNK
+                   || active_unit->kind == VCODE_UNIT_PROPERTY,
                    "returning value fron non-function unit");
-      VCODE_ASSERT(vtype_eq(active_unit->result, vcode_reg_type(reg))
+      VCODE_ASSERT((active_unit->kind == VCODE_UNIT_PROPERTY
+                    && rkind == VCODE_TYPE_INT)
+                   || vtype_eq(active_unit->result, vcode_reg_type(reg))
                    || (vtype_kind(active_unit->result) == VCODE_TYPE_ACCESS
                        && rkind == VCODE_TYPE_ACCESS),
                    "return value incorrect type");
@@ -5816,6 +5831,20 @@ vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus)
                 "locus argument to link instnance must be a debug locus");
 
    return (op->result = vcode_add_reg(vtype_context(name)));
+}
+
+void emit_enter_state(vcode_reg_t state)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ENTER_STATE) {
+      if (other->args.items[0] == state)
+         return;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_ENTER_STATE);
+   vcode_add_arg(op, state);
+
+   VCODE_ASSERT(vcode_reg_kind(state) == VCODE_TYPE_INT,
+                "state must have integer type");
 }
 
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,

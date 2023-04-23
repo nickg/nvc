@@ -26,35 +26,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct _fsm_edge fsm_edge_t;
-typedef struct _fsm_state fsm_state_t;
-
-typedef enum {
-   EDGE_NEXT, EDGE_EPSILON
-} edge_kind_t;
-
-typedef struct _fsm_edge {
-   fsm_edge_t  *next;
-   fsm_state_t *dest;
-   edge_kind_t  kind;
-   psl_node_t   guard;
-} fsm_edge_t;
-
-typedef struct _fsm_state {
-   unsigned     id;
-   fsm_state_t *next;
-   fsm_edge_t  *edges;
-   psl_node_t   test;
-   bool         initial;
-   bool         accept;
-} fsm_state_t;
-
-typedef struct _psl_fsm {
-   fsm_state_t  *states;
-   fsm_state_t **tail;
-   unsigned      next_id;
-} psl_fsm_t;
-
 #define CANNOT_HANDLE(p) do {                                   \
       psl_dump(p);                                              \
       printf("\n");                                             \

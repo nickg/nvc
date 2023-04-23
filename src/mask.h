@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 #include <stdbool.h>
 
-typedef struct {
+typedef struct _bit_mask {
    size_t size;
    union {
       uint64_t bits;
@@ -69,5 +69,6 @@ void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);
 void mask_union(bit_mask_t *m, const bit_mask_t *m2);
 void mask_copy(bit_mask_t *m, const bit_mask_t *m2);
 bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2);
+bool mask_iter(bit_mask_t *m, int *bit);
 
 #endif  // _MASK_H

@@ -96,5 +96,6 @@ void x_unreachable(tree_t where);
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask);
 void x_process_init(jit_handle_t handle, tree_t where);
 void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_enter_state(int32_t state);
 
 #endif  // _JIT_EXITS_H
