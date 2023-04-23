@@ -2052,6 +2052,12 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       }
       break;
 
+   case T_NEXT:
+   case T_EXIT:
+      if (tree_has_value(expr))
+         build_wait(tree_value(expr), fn, ctx);
+      break;
+
    case T_RANGE:
       if (tree_subkind(expr) == RANGE_EXPR)
          build_wait(tree_value(expr), fn, ctx);
