@@ -44,6 +44,7 @@ bin/
 .gtags.files
 compile_commands.json
 www/*.html
+/debian
 
 # VI test suite also cannot be distributed
 test/vi_suite*

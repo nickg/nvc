@@ -12,7 +12,10 @@ jobs:
           fetch-depth: 1
       - name: Get version
         id: version
-        run: echo "VERSION=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
+        run: |
+          vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
+          full=$(git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
+          echo "VERSION=$full" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
           sudo apt-get install automake flex llvm-dev check lcov \
@@ -57,27 +60,18 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ./build/coverage/nvc.info
-      - name: Dist clean
-        run: make -C build distclean
-      - name: Configure for release
+      - name: Build Debian package
         run: |
-          cd build
-          ../configure --with-llvm=/usr/bin/llvm-config \
-             --prefix=/opt/nvc-${{ env.VERSION }} \
-             --disable-debug
-      - name: Build release
-        run: make -C build
-      - name: Install release
-        run: sudo make -C build install
-      - name: Archive
-        run: >-
-          tar -czf nvc-${{ env.VERSION }}.tar.gz \
-            /opt/nvc-${{ env.VERSION }}
+          ln -s contrib/debian debian
+          sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
+          sudo apt-get build-dep .
+          dpkg-buildpackage -uc -us -b
+          mv ../*.deb .
       - name: 'Upload artifact'
         uses: actions/upload-artifact@v3
         with:
-          name: 'Ubuntu binaries'
-          path: nvc-${{ env.VERSION }}.tar.gz
+          name: 'Ubuntu package'
+          path: nvc_${{ env.VERSION }}-1_amd64.deb
 
   build-mac:
     name: Mac OS
@@ -187,13 +181,13 @@ jobs:
           path: vests
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install ruby ruby-colorize llvm libdw1
+        run: sudo apt-get install ruby ruby-colorize
       - uses: actions/download-artifact@v3
         with:
-          name: 'Ubuntu binaries'
-      - name: Extract pre-built binary
+          name: 'Ubuntu package'
+      - name: Install pre-built package
         run: >-
-          sudo tar -C / -zxvf nvc-*.tar.gz
+          sudo apt-get install ./nvc_*.deb
       - name: Add to PATH
         run: >-
           echo /opt/nvc-*/bin >> $GITHUB_PATH
@@ -217,14 +211,12 @@ jobs:
           repository: nickg/vhdl-projects
           path: vhdl-projects
           fetch-depth: 1
-      - name: Install dependencies
-        run: sudo apt-get install llvm libdw1 tcl
       - uses: actions/download-artifact@v3
         with:
-          name: 'Ubuntu binaries'
-      - name: Extract pre-built binary
+          name: 'Ubuntu package'
+      - name: Install pre-built package
         run: >-
-          sudo tar -C / -zxvf nvc-*.tar.gz
+          sudo apt-get install ./nvc_*.deb
       - name: Add to PATH
         run: >-
           echo /opt/nvc-*/bin >> $GITHUB_PATH
@@ -283,10 +275,10 @@ jobs:
         run: sudo apt-get install python3 python3-colorama make
       - uses: actions/download-artifact@v3
         with:
-          name: 'Ubuntu binaries'
-      - name: Extract pre-built binary
+          name: 'Ubuntu package'
+      - name: Install pre-built package
         run: >-
-          sudo tar -C / -zxvf nvc-*.tar.gz
+          sudo apt-get install ./nvc_*.deb
       - name: Add to PATH
         run: >-
           echo /opt/nvc-*/bin >> $GITHUB_PATH
@@ -343,10 +335,10 @@ jobs:
         run: sudo apt-get install tcl tcllib git
       - uses: actions/download-artifact@v3
         with:
-          name: 'Ubuntu binaries'
-      - name: Extract pre-built binary
+          name: 'Ubuntu package'
+      - name: Install pre-built package
         run: >-
-          sudo tar -C / -zxvf nvc-*.tar.gz
+          sudo apt-get install ./nvc_*.deb
       - name: Add to PATH
         run: >-
           echo /opt/nvc-*/bin >> $GITHUB_PATH

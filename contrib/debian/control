@@ -1,0 +1,12 @@
+Source: nvc
+Maintainer: Nick Gasson <nick@nickg.me.uk>
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Build-Depends: debhelper (>= 9), tcl-dev, llvm-dev, libreadline-dev, bison,
+  check, libzstd-dev, libdw-dev
+
+Package: nvc
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: VHDL compiler and simulator
