@@ -767,9 +767,11 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
       // Inertial delay with same value as waveform
       // LRM 93 section 8.4 the rejection limit in this case is
       // specified by the time expression of the first waveform
-      tree_t w = (tree_kind(t) == T_COND_ASSIGN
-                  ? tree_waveform(tree_cond(t, 0), 0)
-                  : tree_waveform(t, 0));
+      tree_t assign = (tree_kind(t) == T_COND_ASSIGN ? tree_cond(t, 0) : t);
+      if (tree_waveforms(assign) == 0)
+         return;
+
+      tree_t w = tree_waveform(assign, 0);
       if (tree_has_delay(w))
          tree_set_reject(t, tree_delay(w));
    }
@@ -8494,8 +8496,10 @@ static void p_waveform(tree_t stmt, tree_t target)
 
    BEGIN("waveform");
 
-   if (optional(tUNAFFECTED))
+   if (optional(tUNAFFECTED)) {
+      solve_types(nametab, target, NULL);
       return;
+   }
 
    tree_add_waveform(stmt, p_waveform_element(target));
 
