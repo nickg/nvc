@@ -762,4 +762,5 @@ elab38          normal
 issue674        normal,2008
 issue675        normal,2000
 issue676        normal,2008
+issue677        normal
 issue681        normal,2008
