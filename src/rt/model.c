@@ -68,6 +68,7 @@ typedef struct {
    tlab_t         tlab;
    tlab_t         spare_tlab;
    rt_wakeable_t *active_obj;
+   rt_scope_t    *active_scope;
 } __attribute__((aligned(64))) model_thread_t;
 
 typedef struct _rt_model {
@@ -132,7 +133,6 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
-static __thread rt_scope_t *active_scope = NULL;
 static __thread rt_model_t *__model = NULL;
 
 static bool __trace_on = false;
@@ -847,10 +847,8 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
 
    model_thread_t *thread = model_thread(m);
-   assert(thread->active_obj == NULL);
    thread->active_obj = &(proc->wakeable);
-
-   active_scope = proc->scope;
+   thread->active_scope = proc->scope;
 
    jit_scalar_t context = {
       .pointer = *mptr_get(proc->scope->privdata)
@@ -866,6 +864,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
       m->force_stop = true;
 
    thread->active_obj = NULL;
+   thread->active_scope = NULL;
 }
 
 static void reset_property(rt_model_t *m, rt_prop_t *prop)
@@ -875,10 +874,8 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
    assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
 
    model_thread_t *thread = model_thread(m);
-   assert(thread->active_obj == NULL);
    thread->active_obj = &(prop->wakeable);
-
-   active_scope = prop->scope;
+   thread->active_scope = prop->scope;
 
    jit_scalar_t context = {
       .pointer = *mptr_get(prop->scope->privdata)
@@ -899,6 +896,7 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
    mask_set(&prop->state, 0);
 
    thread->active_obj = NULL;
+   thread->active_scope = NULL;
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
@@ -921,10 +919,8 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
    tlab_t *tlab = &thread->tlab;
 
-   assert(thread->active_obj == NULL);
    thread->active_obj = &(proc->wakeable);
-
-   active_scope = proc->scope;
+   thread->active_scope = proc->scope;
 
    // Stateless processes have NULL privdata so pass a dummy pointer
    // value in so it can be distinguished from a reset
@@ -941,6 +937,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       m->force_stop = true;
 
    thread->active_obj = NULL;
+   thread->active_scope = NULL;
 
    if (tlab_valid(thread->tlab)) {
       // The TLAB is still valid which means the process finished
@@ -965,7 +962,8 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
    if (s->kind == SCOPE_INSTANCE || s->kind == SCOPE_PACKAGE) {
       TRACE("reset scope %s", istr(s->name));
 
-      active_scope = s;
+      model_thread_t *thread = model_thread(m);
+      thread->active_scope = s;
 
       jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
       if (handle == JIT_HANDLE_INVALID)
@@ -986,7 +984,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
          return;
       }
 
-      active_scope = NULL;
+      thread->active_scope = NULL;
    }
 
    list_foreach(rt_scope_t *, c, s->children)
@@ -1570,15 +1568,17 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
                          unsigned count, unsigned size, sig_flags_t flags,
                          unsigned offset)
 {
+   rt_scope_t *parent = model_thread(m)->active_scope;
+
    s->where   = where;
    s->n_nexus = 1;
    s->offset  = offset;
-   s->parent  = active_scope;
+   s->parent  = parent;
 
    s->shared.flags = flags;
    s->shared.size  = count * size;
 
-   list_add(&active_scope->signals, s);
+   list_add(&parent->signals, s);
 
    s->nexus.width        = count;
    s->nexus.size         = size;
@@ -2210,10 +2210,8 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
 
    tlab_t *tlab = &thread->tlab;
 
-   assert(thread->active_obj == NULL);
    thread->active_obj = &(prop->wakeable);
-
-   active_scope = prop->scope;
+   thread->active_scope = prop->scope;
 
    jit_scalar_t context = {
       .pointer = *mptr_get(prop->scope->privdata)
@@ -2229,6 +2227,7 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    }
 
    thread->active_obj = NULL;
+   thread->active_scope = NULL;
 
    TRACE("new state %s", trace_states(&prop->newstate));
 
@@ -3473,7 +3472,8 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
    a->where  = where;
    a->signal = s;
 
-   list_add(&active_scope->aliases, a);
+   model_thread_t *thread = model_thread(get_model());
+   list_add(&thread->active_scope->aliases, a);
 }
 
 void x_claim_tlab(tlab_t *tlab)
@@ -3635,41 +3635,47 @@ void x_push_scope(tree_t where, int32_t size)
 {
    TRACE("push scope %s size=%d", istr(tree_ident(where)), size);
 
+   rt_model_t *m = get_model();
+   model_thread_t *thread = model_thread(m);
+
    ident_t name = tree_ident(where);
-   if (active_scope->kind == SCOPE_SIGNAL)
-      name = ident_prefix(active_scope->name, name, '.');
+   if (thread->active_scope->kind == SCOPE_SIGNAL)
+      name = ident_prefix(thread->active_scope->name, name, '.');
 
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
    s->where    = where;
    s->name     = name;
    s->kind     = SCOPE_SIGNAL;
-   s->parent   = active_scope;
+   s->parent   = thread->active_scope;
    s->size     = size;
-   s->privdata = mptr_new(get_model()->mspace, "push scope privdata");
+   s->privdata = mptr_new(m->mspace, "push scope privdata");
 
    type_t type = tree_type(where);
    if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
       s->flags |= SCOPE_F_RESOLVED;
 
-   list_add(&active_scope->children, s);
-   active_scope = s;
+   list_add(&thread->active_scope->children, s);
+   thread->active_scope = s;
 }
 
 void x_pop_scope(void)
 {
-   TRACE("pop scope %s", istr(tree_ident(active_scope->where)));
+   rt_model_t *m = get_model();
+   model_thread_t *thread = model_thread(m);
 
-   if (unlikely(active_scope->kind != SCOPE_SIGNAL))
+   TRACE("pop scope %s", istr(tree_ident(thread->active_scope->where)));
+
+   if (unlikely(thread->active_scope->kind != SCOPE_SIGNAL))
       fatal_trace("cannot pop non-signal scope");
 
    int offset = INT_MAX;
-   list_foreach(rt_scope_t *, s, active_scope->children)
+   list_foreach(rt_scope_t *, s, thread->active_scope->children)
       offset = MIN(offset, s->offset);
-   list_foreach(rt_signal_t *, s, active_scope->signals)
+   list_foreach(rt_signal_t *, s, thread->active_scope->signals)
       offset = MIN(offset, s->offset);
-   active_scope->offset = offset;
+   thread->active_scope->offset = offset;
 
-   active_scope = active_scope->parent;
+   thread->active_scope = thread->active_scope->parent;
 }
 
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)
@@ -3901,7 +3907,7 @@ void x_process_init(jit_handle_t handle, tree_t where)
 
    TRACE("init process %s", istr(name));
 
-   rt_scope_t *s = active_scope;
+   rt_scope_t *s = model_thread(m)->active_scope;
    assert(s != NULL);
    assert(s->kind == SCOPE_INSTANCE);
 
