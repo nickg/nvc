@@ -212,8 +212,7 @@ typedef struct _rt_scope {
    tree_t           where;
    mptr_t           privdata;
    rt_scope_t      *parent;
-   rt_scope_t      *child;
-   rt_scope_t      *chain;
+   ptr_list_t       children;
 } rt_scope_t;
 
 typedef struct _rt_watch {

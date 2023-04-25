@@ -116,7 +116,7 @@ static int count_signals(rt_scope_t *scope)
 {
    int total = list_size(scope->signals) + list_size(scope->aliases);
 
-   for (rt_scope_t *child = scope->child; child; child = child->chain)
+   list_foreach(rt_scope_t *, child, scope->children)
       total += count_signals(child);
 
    return total;
@@ -147,7 +147,7 @@ static void recurse_signals(rt_scope_t *scope, text_buf_t *path,
       tb_trim(path, base);
    }
 
-   for (rt_scope_t *child = scope->child; child; child = child->chain) {
+   list_foreach(rt_scope_t *, child, scope->children) {
       ident_t name = ident_downcase(tree_ident(child->where));
 
       tb_istr(path, name);

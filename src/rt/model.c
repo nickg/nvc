@@ -132,9 +132,8 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
-static __thread rt_scope_t   *active_scope = NULL;
-static __thread rt_scope_t  **scopes_tail = NULL;
-static __thread rt_model_t   *__model = NULL;
+static __thread rt_scope_t *active_scope = NULL;
+static __thread rt_model_t *__model = NULL;
 
 static bool __trace_on = false;
 
@@ -366,6 +365,8 @@ static void scope_deps_cb(ident_t unit_name, void *__ctx)
    s->kind     = SCOPE_PACKAGE;
    s->privdata = mptr_new(m->mspace, "package privdata");
 
+   list_add(&m->root->children, s);
+
    hash_put(m->scopes, unit, s);
 
    tree_walk_deps(unit, scope_deps_cb, m);
@@ -375,9 +376,6 @@ static void scope_deps_cb(ident_t unit_name, void *__ctx)
       if (body != NULL)
          tree_walk_deps(body, scope_deps_cb, m);
    }
-
-   *scopes_tail = s;
-   scopes_tail = &(s->chain);
 }
 
 static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
@@ -389,8 +387,6 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
    s->privdata = mptr_new(m->mspace, "block privdata");
 
    hash_put(m->scopes, block, s);
-
-   rt_scope_t **childp = &(s->child);
 
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
@@ -411,8 +407,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 
             hash_put(m->scopes, d, p);
 
-            *childp = p;
-            childp = &(p->chain);
+            list_add(&s->children, p);
          }
 
       default:
@@ -428,9 +423,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
          {
             rt_scope_t *c = scope_for_block(m, t, s->name);
             c->parent = s;
-
-            *childp = c;
-            childp = &(c->chain);
+            list_add(&s->children, c);
          }
          break;
 
@@ -519,10 +512,10 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    workq_not_thread_safe(m->delta_driverq);
    workq_not_thread_safe(m->effq);
 
-   scopes_tail = &(m->root->child);
    tree_walk_deps(top, scope_deps_cb, m);
 
-   *scopes_tail = scope_for_block(m, tree_stmt(top, 0), lib_name(lib_work()));
+   rt_scope_t *s = scope_for_block(m, tree_stmt(top, 0), lib_name(lib_work()));
+   list_add(&m->root->children, s);
 
    __trace_on = opt_get_int(OPT_RT_TRACE);
 
@@ -633,10 +626,10 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    }
    list_free(&scope->properties);
 
-   for (rt_scope_t *it = scope->child, *tmp; it; it = tmp) {
-      tmp = it->chain;
+   list_foreach(rt_scope_t *, it, scope->children) {
       cleanup_scope(m, it);
    }
+   list_free(&scope->children);
 
    mptr_free(m->mspace, &(scope->privdata));
    free(scope);
@@ -739,7 +732,7 @@ rt_scope_t *find_scope(rt_model_t *m, tree_t container)
 
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl)
 {
-   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain) {
+   list_foreach(rt_scope_t *, s, scope->children) {
       if (s->where == decl)
          return s;
    }
@@ -996,7 +989,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       active_scope = NULL;
    }
 
-   for (rt_scope_t *c = s->child; c != NULL; c = c->chain)
+   list_foreach(rt_scope_t *, c, s->children)
       reset_scope(m, c);
 
    list_foreach(rt_proc_t *, p, s->procs)
@@ -1613,7 +1606,7 @@ static void copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
          memcpy(buf + s->offset + n->offset, (*fn)(n), n->size * n->width);
    }
 
-   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
+   list_foreach(rt_scope_t *, s, scope->children)
       copy_sub_signals(s, buf, fn);
 }
 
@@ -1635,7 +1628,7 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
       }
    }
 
-   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
+   list_foreach(rt_scope_t *, s, scope->children)
       copy_sub_signal_sources(s, buf, stride);
 }
 
@@ -2030,7 +2023,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
 
 static void dump_signals(rt_model_t *m, rt_scope_t *scope)
 {
-   if (scope->signals == NULL && scope->child == NULL)
+   if (scope->signals == NULL && list_size(scope->children) == 0)
       return;
 
    if (scope->kind != SCOPE_SIGNAL && scope->kind != SCOPE_ROOT) {
@@ -2050,7 +2043,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
    list_foreach(rt_alias_t *, a, scope->aliases)
       dump_one_signal(m, scope, a->signal, a->where);
 
-   for (rt_scope_t *c = scope->child; c != NULL; c = c->chain)
+   list_foreach(rt_scope_t *, c, scope->children)
       dump_signals(m, c);
 }
 
@@ -3651,7 +3644,6 @@ void x_push_scope(tree_t where, int32_t size)
    s->name     = name;
    s->kind     = SCOPE_SIGNAL;
    s->parent   = active_scope;
-   s->chain    = active_scope->child;
    s->size     = size;
    s->privdata = mptr_new(get_model()->mspace, "push scope privdata");
 
@@ -3659,7 +3651,7 @@ void x_push_scope(tree_t where, int32_t size)
    if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
       s->flags |= SCOPE_F_RESOLVED;
 
-   active_scope->child = s;
+   list_add(&active_scope->children, s);
    active_scope = s;
 }
 
@@ -3671,7 +3663,7 @@ void x_pop_scope(void)
       fatal_trace("cannot pop non-signal scope");
 
    int offset = INT_MAX;
-   for (rt_scope_t *s = active_scope->child; s; s = s->chain)
+   list_foreach(rt_scope_t *, s, active_scope->children)
       offset = MIN(offset, s->offset);
    list_foreach(rt_signal_t *, s, active_scope->signals)
       offset = MIN(offset, s->offset);
