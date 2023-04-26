@@ -229,11 +229,11 @@ START_TEST(test_dump)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 1)));
-   ck_assert_str_eq(tb_get(tb), "assert never B");
+   ck_assert_str_eq(tb_get(tb), "assert never {B}");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 6)));
-   ck_assert_str_eq(tb_get(tb), "assert {A; \"and\"(B, C)}");
+   ck_assert_str_eq(tb_get(tb), "assert {{A}; {\"and\"(B, C)}}");
    tb_rewind(tb);
 
    fail_if_errors();
