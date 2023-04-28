@@ -1867,10 +1867,12 @@ static void *driving_value(rt_nexus_t *nexus)
       // If S is a resolved signal and has one or more sources, then the
       // driving values of the sources of S are examined.
 
-      int nonnull = 0;
+      int nonnull = 0, released = 0;
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
          if (!s->disconnected)
             nonnull++;
+         else if (s->tag == SOURCE_FORCING)
+            released++;
       }
 
       // If S is of signal kind register and all the sources of S have
@@ -1878,6 +1880,8 @@ static void *driving_value(rt_nexus_t *nexus)
       // value of S is unchanged from its previous value.
       if (nonnull == 0 && (nexus->flags & NET_F_REGISTER))
          return nexus_effective(nexus);
+      else if (nonnull == 0 && released == nexus->n_sources)
+         return nexus_driving(nexus);
 
       // Otherwise, the driving value of S is obtained by executing the
       // resolution function associated with S

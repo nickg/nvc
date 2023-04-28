@@ -767,3 +767,4 @@ integer2        normal,2019
 issue675        normal,2000
 issue676        normal,2008
 issue677        normal
+issue681        normal,2008
