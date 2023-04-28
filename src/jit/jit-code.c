@@ -38,6 +38,7 @@
 #include <mach-o/nlist.h>
 #include <mach-o/stab.h>
 #include <mach-o/arm64/reloc.h>
+#include <mach-o/x86_64/reloc.h>
 #else
 #include <elf.h>
 #endif
@@ -297,7 +298,7 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
                "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15"
             };
             for (int i = 0; i < ARRAY_LEN(names); i++)
-               printf("\t%s\t%"PRIx64"\n", names[i], cpu->regs[i]);
+               printf("\t%s\t%"PRIxPTR"\n", names[i], cpu->regs[i]);
 #else
             for (int i = 0; i < 32; i++)
                printf("\tR%d\t%"PRIxPTR"\n", i, cpu->regs[i]);
@@ -672,12 +673,13 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
          symtab = rptr;
          assert(symtab->cmdsize == sizeof(struct symtab_command));
          break;
+      case LC_DATA_IN_CODE:
       case LC_LINKER_OPTIMIZATION_HINT:
       case LC_BUILD_VERSION:
       case LC_DYSYMTAB:
          break;
       default:
-         warnf("unrecognised load command 0x%0x", seg->cmd);
+         warnf("unrecognised load command 0x%0x", load->cmd);
       }
 
       rptr += load->cmdsize;
@@ -727,6 +729,7 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
          assert((uint8_t *)patch < blob->span->base + blob->span->size);
 
          switch (rel->r_type) {
+#ifdef ARCH_ARM64
          case ARM64_RELOC_UNSIGNED:
             assert(rel->r_length == 3);
             *(void **)patch = ptr;
@@ -772,6 +775,14 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
          case ARM64_RELOC_ADDEND:
             addend = rel->r_symbolnum;
             break;
+#elif defined ARCH_X86_64
+         case X86_64_RELOC_UNSIGNED:
+            *(uint64_t *)patch += (uint64_t)ptr;
+            break;
+         case X86_64_RELOC_BRANCH:
+            *(uint32_t *)patch += (uint32_t)(ptr - patch - 4);
+            break;
+#endif
          default:
             blob->span->size = blob->wptr - blob->span->base;
             code_disassemble(blob->span, (uintptr_t)patch, NULL);

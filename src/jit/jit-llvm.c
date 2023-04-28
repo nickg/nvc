@@ -143,7 +143,7 @@ typedef struct _cgen_block cgen_block_t;
 #define ARGCACHE_SIZE          6
 #define ENABLE_DWARF           0
 
-#ifdef __APPLE__
+#if defined __APPLE__ && defined ARCH_ARM64
 #define JIT_CODE_MODEL LLVMCodeModelDefault
 #else
 #define JIT_CODE_MODEL LLVMCodeModelJITDefault
