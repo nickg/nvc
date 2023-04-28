@@ -92,11 +92,19 @@ jobs:
         run: |
           mkdir build && cd build
           ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
-               --enable-debug
+               --enable-debug --disable-lto
       - name: Build
         run: make -C build
       - name: Test
         run: make -C build check
+      - name: Test in JIT mode
+        run: |
+          export NVC_JIT_ASYNC=0
+          export NVC_JIT_THRESHOLD=1
+          export FORCE_JIT=1
+          cd build
+          rm -rf logs
+          ./bin/run_regr
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -139,7 +147,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          bash ../configure --enable-debug
+          bash ../configure --enable-debug --disable-lto
       - name: Build
         run: make -C build
       - name: Test

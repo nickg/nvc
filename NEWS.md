@@ -7,6 +7,7 @@
   now create drivers (#675).
 - Fixed a crash when a `next` or `exit` statement appears inside
   `process (all)` (#676).
+- The `--jit` elaboration options now works on Intel Macs (#680).
 
 ## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
