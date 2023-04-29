@@ -39,16 +39,11 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #undef DLLEXPORT
 #include <tcl.h>
-
-#ifdef HAVE_LIBREADLINE
-#include <readline/readline.h>
-#endif
-
-#ifdef HAVE_READLINE_HISTORY
-#include <readline/history.h>
-#endif
 
 #define TIME_BUFSZ 32
 
@@ -474,12 +469,10 @@ static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
 static char *shell_get_line(tcl_shell_t *sh)
 {
    if (isatty(fileno(stdin))) {
-#ifdef HAVE_LIBREADLINE
       char *buf = readline(sh->prompt);
       if ((buf != NULL) && (*buf != '\0'))
          add_history(buf);
       return buf;
-#endif  // HAVE_LIBREADLINE
    }
 
    fputs(sh->prompt, stdout);
@@ -523,7 +516,7 @@ static int compare_shell_cmd(const void *a, const void *b)
 tcl_shell_t *shell_new(jit_t *jit)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
-   sh->prompt = color_asprintf("$+cyan$%%$$ ");
+   sh->prompt = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
    sh->interp = Tcl_CreateInterp();
    sh->eval   = eval_new();
    sh->jit    = jit;
