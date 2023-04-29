@@ -15,7 +15,9 @@ lib_libnvc_a_SOURCES += \
 	src/rt/structs.h \
 	src/rt/model.h \
 	src/rt/model.c \
-	src/rt/fileio.c
+	src/rt/fileio.c \
+	src/rt/printer.h \
+	src/rt/printer.c
 
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \

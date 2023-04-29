@@ -15,16 +15,23 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_SHELL_H
-#define _RT_SHELL_H
+#ifndef _RT_PRINTER_H
+#define _RT_PRINTER_H
 
 #include "prim.h"
 
-tcl_shell_t *shell_new(jit_t *jit);
-void shell_free(tcl_shell_t *sh);
-bool shell_eval(tcl_shell_t *sh, const char *script, const char **result);
-bool shell_do(tcl_shell_t *sh, const char *file);
-void shell_interact(tcl_shell_t *sh);
-void shell_reset(tcl_shell_t *sh, tree_t top);
+typedef struct _print_func print_func_t;
 
-#endif  // _RT_SHELL_H
+#define PRINT_F_RADIX 0x3
+#define PRINT_F_BIN 1
+#define PRINT_F_HEX 2
+#define PRINT_F_DEC 3
+typedef uint32_t print_flags_t;
+
+printer_t *printer_new(void);
+void printer_free(printer_t *p);
+print_func_t *printer_for(printer_t *p, type_t type);
+
+const char *print_signal(print_func_t *fn, rt_signal_t *s, print_flags_t flags);
+
+#endif  // _RT_PRINTER_H

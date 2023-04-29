@@ -22,6 +22,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "phase.h"
+#include "printer.h"
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "scan.h"
@@ -54,9 +55,10 @@ typedef struct {
 } shell_cmd_t;
 
 typedef struct {
-   rt_signal_t *signal;
-   ident_t      name;
-   ident_t      path;
+   rt_signal_t  *signal;
+   ident_t       name;
+   ident_t       path;
+   print_func_t *printer;
 } shell_signal_t;
 
 typedef struct _tcl_shell {
@@ -70,10 +72,12 @@ typedef struct _tcl_shell {
    rt_scope_t     *root;
    shell_signal_t *signals;
    unsigned        nsignals;
+   hash_t         *namemap;
    eval_t         *eval;
    jit_t          *jit;
    int64_t         now_var;
    unsigned        deltas_var;
+   printer_t      *printer;
 } tcl_shell_t;
 
 __attribute__((format(printf, 2, 3)))
@@ -105,51 +109,6 @@ static void shell_update_now(tcl_shell_t *sh)
 
    Tcl_UpdateLinkedVar(sh->interp, "now");
    Tcl_UpdateLinkedVar(sh->interp, "deltas");
-}
-
-static int count_signals(rt_scope_t *scope)
-{
-   int total = list_size(scope->signals) + list_size(scope->aliases);
-
-   list_foreach(rt_scope_t *, child, scope->children)
-      total += count_signals(child);
-
-   return total;
-}
-
-static void recurse_signals(rt_scope_t *scope, text_buf_t *path,
-                            shell_signal_t **wptr)
-{
-   const int base = tb_len(path);
-
-   list_foreach(rt_signal_t *, s, scope->signals) {
-      shell_signal_t *ss = (*wptr)++;
-      ss->signal = s;
-      ss->name = ident_downcase(tree_ident(s->where));
-
-      tb_istr(path, ss->name);
-      ss->path = ident_new(tb_get(path));
-      tb_trim(path, base);
-   }
-
-   list_foreach(rt_alias_t *, a, scope->aliases) {
-      shell_signal_t *ss = (*wptr)++;
-      ss->signal = a->signal;
-      ss->name = ident_downcase(tree_ident(a->where));
-
-      tb_istr(path, ss->name);
-      ss->path = ident_new(tb_get(path));
-      tb_trim(path, base);
-   }
-
-   list_foreach(rt_scope_t *, child, scope->children) {
-      ident_t name = ident_downcase(tree_ident(child->where));
-
-      tb_istr(path, name);
-      tb_append(path, '/');
-      recurse_signals(child, path, wptr);
-      tb_trim(path, base);
-   }
 }
 
 static void shell_cmd_add(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
@@ -365,11 +324,6 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
    if (pos + 1 != objc)
       goto usage;
 
-   if (sh->model != NULL) {
-      model_free(sh->model);
-      sh->model = NULL;
-   }
-
    lib_t work = lib_work();
 
    tb_istr(tb, lib_name(work));
@@ -388,24 +342,116 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
    if (top == NULL)
       return TCL_ERROR;
 
-   sh->top = top;
-   sh->model = model_new(top, sh->jit);
-   model_reset(sh->model);
+   shell_reset(sh, top);
+   return TCL_OK;
 
-   if ((sh->root = find_scope(sh->model, tree_stmt(top, 0))) == NULL)
-      fatal_trace("cannot find root scope");
+ usage:
+   return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
+                    Tcl_GetString(objv[0]));
+}
 
-   sh->nsignals = count_signals(sh->root);
-   sh->signals = xcalloc_array(sh->nsignals, sizeof(shell_signal_t));
+static const char examine_help[] =
+   "Display current value of one of more signals\n"
+   "\n"
+   "Syntax:\n"
+   "  examine [options] <name>...\n"
+   "\n"
+   "Note \"exa\" is an alias of this command.\n"
+   "\n"
+   "Options:\n"
+   "  -radix <type>\tFormat as hexadecimal, decimal, or binary.\n"
+   "  -<radix>\tAlias of \"-radix <radix>\".\n"
+   "\n"
+   "Examples:\n"
+   "  examine /uut/foo\n"
+   "  exa -hex sig\n";
 
-   text_buf_t *path = tb_new();
-   shell_signal_t *wptr = sh->signals;
-   tb_cat(path, "/");
-   recurse_signals(sh->root, path, &wptr);
-   assert(wptr == sh->signals + sh->nsignals);
-   tb_free(path);
+static bool parse_radix(const char *str, print_flags_t *flags)
+{
+   if (strcmp(str, "binary") == 0 || strcmp(str, "bin") == 0
+       || strcmp(str, "b") == 0) {
+      *flags &= ~PRINT_F_RADIX;
+      *flags |= PRINT_F_BIN;
+      return true;
+   }
+   else if (strcmp(str, "-hexadecimal") == 0 || strcmp(str, "hex") == 0
+            || strcmp(str, "h") == 0) {
+      *flags &= ~PRINT_F_RADIX;
+      *flags |= PRINT_F_HEX;
+      return true;
+   }
+   else
+      return false;
+}
 
-   shell_update_now(sh);
+const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
+{
+   if (*pos >= objc)
+      return NULL;
+
+   const char *opt = Tcl_GetString(objv[*pos]);
+   if (opt[0] != '-')
+      return NULL;
+
+   (*pos)++;
+   return opt;
+}
+
+static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
+                             int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   print_flags_t flags = 0;
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (parse_radix(opt + 1, &flags))
+         continue;
+      else if (strcmp(opt, "-radix") == 0 && pos + 1 < objc) {
+         const char *arg = Tcl_GetString(objv[pos++]);
+         if (!parse_radix(arg, &flags))
+            goto usage;
+      }
+      else
+         goto usage;
+   }
+
+   if (pos == objc)
+      goto usage;
+
+   const int count = objc - pos;
+   Tcl_Obj *single[1], **result = single;
+
+   if (count > 1)
+      result = xmalloc_array(count, sizeof(Tcl_Obj *));
+
+   for (int i = 0; pos < objc; pos++, i++) {
+      const char *name = Tcl_GetString(objv[pos]);
+      shell_signal_t *ss = hash_get(sh->namemap, ident_new(name));
+      if (ss == NULL)
+         return tcl_error(sh, "cannot find name '%s'", name);
+
+      if (ss->printer == NULL)
+         ss->printer = printer_for(sh->printer, tree_type(ss->signal->where));
+
+      if (ss->printer == NULL)
+         return tcl_error(sh, "cannot display type %s",
+                          type_pp(tree_type(ss->signal->where)));
+
+      const char *str = print_signal(ss->printer, ss->signal, flags);
+      result[i] = Tcl_NewStringObj(str, -1);
+   }
+
+   if (count > 1) {
+      Tcl_Obj *list = Tcl_NewListObj(count, result);
+      Tcl_SetObjResult(interp, list);
+      free(result);
+   }
+   else
+      Tcl_SetObjResult(interp, result[0]);
 
    return TCL_OK;
 
@@ -516,10 +562,11 @@ static int compare_shell_cmd(const void *a, const void *b)
 tcl_shell_t *shell_new(jit_t *jit)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
-   sh->prompt = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
-   sh->interp = Tcl_CreateInterp();
-   sh->eval   = eval_new();
-   sh->jit    = jit;
+   sh->prompt  = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
+   sh->interp  = Tcl_CreateInterp();
+   sh->eval    = eval_new();
+   sh->jit     = jit;
+   sh->printer = printer_new();
 
    Tcl_LinkVar(sh->interp, "now", (char *)&sh->now_var,
                TCL_LINK_WIDE_INT | TCL_LINK_READ_ONLY);
@@ -538,6 +585,8 @@ tcl_shell_t *shell_new(jit_t *jit)
    shell_cmd_add(sh, "vcom", shell_cmd_analyse, analyse_help);
    shell_cmd_add(sh, "elaborate", shell_cmd_elaborate, elaborate_help);
    shell_cmd_add(sh, "vsim", shell_cmd_elaborate, elaborate_help);
+   shell_cmd_add(sh, "examine", shell_cmd_examine, examine_help);
+   shell_cmd_add(sh, "exa", shell_cmd_examine, examine_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
@@ -549,6 +598,7 @@ void shell_free(tcl_shell_t *sh)
    if (sh->model != NULL)
       model_free(sh->model);
 
+   printer_free(sh->printer);
    eval_free(sh->eval);
    Tcl_DeleteInterp(sh->interp);
    free(sh);
@@ -572,6 +622,86 @@ bool shell_eval(tcl_shell_t *sh, const char *script, const char **result)
       warnf("Tcl_Eval returned unknown code %d", code);
       return false;
    }
+}
+
+static int count_signals(rt_scope_t *scope)
+{
+   int total = list_size(scope->signals) + list_size(scope->aliases);
+
+   list_foreach(rt_scope_t *, child, scope->children)
+      total += count_signals(child);
+
+   return total;
+}
+
+static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
+                            text_buf_t *path, shell_signal_t **wptr)
+{
+   const int base = tb_len(path);
+
+   list_foreach(rt_signal_t *, s, scope->signals) {
+      shell_signal_t *ss = (*wptr)++;
+      ss->signal = s;
+      ss->name = ident_downcase(tree_ident(s->where));
+
+      tb_istr(path, ss->name);
+      ss->path = ident_new(tb_get(path));
+      tb_trim(path, base);
+
+      hash_put(sh->namemap, ss->path, ss);
+   }
+
+   list_foreach(rt_alias_t *, a, scope->aliases) {
+      shell_signal_t *ss = (*wptr)++;
+      ss->signal = a->signal;
+      ss->name = ident_downcase(tree_ident(a->where));
+
+      tb_istr(path, ss->name);
+      ss->path = ident_new(tb_get(path));
+      tb_trim(path, base);
+
+      hash_put(sh->namemap, ss->path, ss);
+   }
+
+   list_foreach(rt_scope_t *, child, scope->children) {
+      ident_t name = ident_downcase(tree_ident(child->where));
+
+      tb_istr(path, name);
+      tb_append(path, '/');
+      recurse_signals(sh, child, path, wptr);
+      tb_trim(path, base);
+   }
+}
+
+void shell_reset(tcl_shell_t *sh, tree_t top)
+{
+   if (sh->model != NULL) {
+      model_free(sh->model);
+      hash_free(sh->namemap);
+
+      sh->model = NULL;
+      sh->namemap = NULL;
+   }
+
+   sh->top = top;
+   sh->model = model_new(top, sh->jit);
+   model_reset(sh->model);
+
+   if ((sh->root = find_scope(sh->model, tree_stmt(top, 0))) == NULL)
+      fatal_trace("cannot find root scope");
+
+   sh->nsignals = count_signals(sh->root);
+   sh->signals = xcalloc_array(sh->nsignals, sizeof(shell_signal_t));
+   sh->namemap = hash_new(sh->nsignals * 2);
+
+   text_buf_t *path = tb_new();
+   shell_signal_t *wptr = sh->signals;
+   tb_cat(path, "/");
+   recurse_signals(sh, sh->root, path, &wptr);
+   assert(wptr == sh->signals + sh->nsignals);
+   tb_free(path);
+
+   shell_update_now(sh);
 }
 
 void shell_interact(tcl_shell_t *sh)

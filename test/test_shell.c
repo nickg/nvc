@@ -59,6 +59,54 @@ START_TEST(test_analyse)
 }
 END_TEST
 
+START_TEST(test_examine1)
+{
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   jit_t *j = jit_new();
+   jit_enable_runtime(j, true);
+
+   tcl_shell_t *sh = shell_new(j);
+
+   const char *result = NULL;
+
+   shell_eval(sh, "analyse " TESTDIR "/shell/examine1.vhd", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "elaborate examine1", &result);
+   ck_assert_str_eq(result, "");
+
+   const char *tests[][2] = {
+      { "/x", "5" },
+      { "-binary /x", "00000000000000000000000000000101" },
+      { "-hex /x", "0x5" },
+      { "/x /y", "5 -2147483648" },
+      { "-radix hex /y", "0x80000000" },
+      { "/a", "'1'" },
+      { "/b", "\"01XU\"" },
+      { "-hex /b", "\"01XU\"" },   // TODO
+   };
+
+   for (int i = 0; i < ARRAY_LEN(tests); i++) {
+      char script[128];
+      checked_sprintf(script, ARRAY_LEN(script), "examine %s", tests[i][0]);
+
+      shell_eval(sh, script, &result);
+      ck_assert_msg(strcmp(result, tests[i][1]) == 0,
+                    "'%s' ==> '%s' (expected '%s')", script, result,
+                    tests[i][1]);
+   }
+
+   shell_free(sh);
+   jit_free(j);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -66,6 +114,7 @@ Suite *get_shell_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_sanity);
    tcase_add_test(tc, test_analyse);
+   tcase_add_test(tc, test_examine1);
    suite_add_tcase(s, tc);
 
    return s;

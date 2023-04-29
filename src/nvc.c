@@ -1147,6 +1147,14 @@ static int interact_cmd(int argc, char **argv)
    jit_t *jit = get_jit();
    tcl_shell_t *sh = shell_new(jit);
 
+   if (top_level != NULL) {
+      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
+      tree_t top = lib_get(lib_work(), ename);
+      assert(top != NULL);
+
+      shell_reset(sh, top);
+   }
+
    shell_interact(sh);
 
    shell_free(sh);
