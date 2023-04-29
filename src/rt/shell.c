@@ -61,6 +61,8 @@ typedef struct {
    print_func_t *printer;
 } shell_signal_t;
 
+typedef char *(*get_line_fn_t)(tcl_shell_t *);
+
 typedef struct _tcl_shell {
    char           *prompt;
    Tcl_Interp     *interp;
@@ -78,7 +80,10 @@ typedef struct _tcl_shell {
    int64_t         now_var;
    unsigned        deltas_var;
    printer_t      *printer;
+   get_line_fn_t   getline;
 } tcl_shell_t;
+
+static __thread tcl_shell_t *rl_shell = NULL;
 
 __attribute__((format(printf, 2, 3)))
 static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
@@ -512,15 +517,94 @@ static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
-static char *shell_get_line(tcl_shell_t *sh)
+static char *shell_list_generator(const char *script, const char *text,
+                                  int state, int prefix)
 {
-   if (isatty(fileno(stdin))) {
-      char *buf = readline(sh->prompt);
-      if ((buf != NULL) && (*buf != '\0'))
-         add_history(buf);
-      return buf;
+   static Tcl_Obj *list = NULL;
+   static int index, len, max;
+
+   if (!state) {
+      if (Tcl_Eval(rl_shell->interp, script) != TCL_OK)
+         return NULL;
+
+      list = Tcl_GetObjResult(rl_shell->interp);
+
+      if (Tcl_ListObjLength(rl_shell->interp, list, &max) != TCL_OK)
+         return NULL;
+
+      index = 0;
+      len = strlen(text);
    }
 
+   while (index < max) {
+      Tcl_Obj *obj;
+      if (Tcl_ListObjIndex(rl_shell->interp, list, index++, &obj) != TCL_OK)
+         return NULL;
+
+      const char *str = Tcl_GetString(obj);
+      if (strncmp(str, text + prefix, len - prefix) == 0) {
+         if (prefix == 0)
+            return xstrdup(str);
+         else {
+            assert(len >= prefix);
+            const size_t complen = strlen(str);
+            char *buf = xmalloc(prefix + complen + 1);
+            memcpy(buf, text, prefix);
+            memcpy(buf + prefix, str, complen + 1);
+            return buf;
+         }
+      }
+   }
+
+   return NULL;
+}
+
+static char *shell_command_generator(const char *text, int state)
+{
+   return shell_list_generator("info commands", text, state, 0);
+}
+
+static char *shell_variable_generator(const char *text, int state)
+{
+   return shell_list_generator("info vars", text, state, 1);
+}
+
+static char **shell_tab_completion(const char *text, int start, int end)
+{
+   rl_attempted_completion_over = 0;
+
+   if (text[0] == '$')
+      return rl_completion_matches(text, shell_variable_generator);
+
+   // Determine if we are completing a TCL command or not
+   int pos = start - 1;
+   for (; pos >= 0 && isspace_iso88591(rl_line_buffer[pos]); pos--);
+
+   if (pos == -1 || rl_line_buffer[pos] == '[')
+      return rl_completion_matches(text, shell_command_generator);
+
+   return NULL;
+}
+
+static char *shell_completing_get_line(tcl_shell_t *sh)
+{
+   rl_attempted_completion_function = shell_tab_completion;
+   rl_completer_quote_characters = "\"'";
+   rl_completer_word_break_characters = " \t\r\n[]{}";
+   rl_special_prefixes = "$";
+   rl_shell = sh;
+
+   char *buf = readline(sh->prompt);
+   if ((buf != NULL) && (*buf != '\0'))
+      add_history(buf);
+
+   rl_shell = NULL;
+   return buf;
+}
+
+
+static char *shell_raw_get_line(tcl_shell_t *sh)
+{
    fputs(sh->prompt, stdout);
    fflush(stdout);
 
@@ -567,6 +651,11 @@ tcl_shell_t *shell_new(jit_t *jit)
    sh->eval    = eval_new();
    sh->jit     = jit;
    sh->printer = printer_new();
+
+   if (isatty(fileno(stdin)))
+      sh->getline = shell_completing_get_line;
+   else
+      sh->getline = shell_raw_get_line;
 
    Tcl_LinkVar(sh->interp, "now", (char *)&sh->now_var,
                TCL_LINK_WIDE_INT | TCL_LINK_READ_ONLY);
@@ -709,7 +798,7 @@ void shell_interact(tcl_shell_t *sh)
    show_banner();
 
    char *line;
-   while ((line = shell_get_line(sh))) {
+   while ((line = (*sh->getline)(sh))) {
       const char *result = NULL;
       if (shell_eval(sh, line, &result) && *result != '\0')
          color_printf("$+black$%s$$\n", result);
