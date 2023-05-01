@@ -89,6 +89,19 @@ release: update-test-dist
 	  gpg -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
 	)
 
+sync-branch:
+	last=$$(awk '/## Version/ { print($$3); exit }' $(top_srcdir)/NEWS.md); \
+	branch=origin/v$$(echo $$last | sed 's/.[0-9]$$//')-branch; \
+	echo "last version was $$last, branch $$branch"; \
+	git show $$branch:NEWS.md >/tmp/NEWS.md; \
+	awk '/Version '$$last'/ { exit; } /Version/ { x=1 } x==1,/./ { print($$0); }' \
+	  /tmp/NEWS.md > /tmp/trimmed.md; \
+	sed -i -e '/Version/,$$ b;' -e '/^$$/ r /tmp/trimmed.md' $(top_srcdir)/NEWS.md; \
+	git checkout $$branch $(top_srcdir)/www/defs.m4; \
+	sed -i 's/1.9.1/1.9.2/g' $(top_srcdir)/README.md
+
 clean-local: clean-test clean-libs
 
-.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands release
+.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands
+.PHONY: release sync-branch
+

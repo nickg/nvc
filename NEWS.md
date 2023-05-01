@@ -6,6 +6,21 @@
   install the Python infrastructure.
 - Updated to OSVVM 2023.04 and UVVM 2023.03.21 for `nvc --install`.
 
+## Version 1.9.2 - 2023-05-01
+- Fix elaboration errors with recursive entity instantiation (#668).
+- Updated to latest GtkWave FST writer library.
+- Fix crash when an external name is used in a wait expression (#674).
+- Fix stack corruption when passing large numbers of arguments (#665).
+- Protected procedure calls with `out` or `inout` signal arguments now
+  create drivers (#675).
+- Fixed a crash when a `next` or `exit` statement appears inside
+  `process (all)` (#676).
+- The `--jit` elaboration options now works on Intel Macs (#680).
+- Fixed a corner case where a forced signal with no drivers had the
+  wrong effective value after `release` (#681).
+- Fixed a crash when a signal assignment statement contains only
+  `unaffected` (#677).
+
 ## Version 1.9.1 - 2023-04-15
 - Fix build errors and warnings on MSYS2 Clang x64 environment.
 - Fix build failure due to missing `SHT_X86_64_UNWIND` on Alpine and
