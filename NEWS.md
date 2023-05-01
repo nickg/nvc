@@ -1,10 +1,12 @@
 ## Unreleased changes
+
+## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).
 - Updated to latest GtkWave FST writer library.
 - Fix crash when an external name is used in a wait expression (#674).
 - Fix stack corruption when passing large numbers of arguments (#665).
-- Protected procedure calls with `out` or `inout` or signal arguments
-  now create drivers (#675).
+- Protected procedure calls with `out` or `inout` signal arguments now
+  create drivers (#675).
 - Fixed a crash when a `next` or `exit` statement appears inside
   `process (all)` (#676).
 - The `--jit` elaboration options now works on Intel Macs (#680).

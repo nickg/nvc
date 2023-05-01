@@ -676,6 +676,8 @@ EXTRA_DIST += \
 	test/regress/elab34.vhd \
 	test/regress/elab35.vhd \
 	test/regress/elab36.vhd \
+	test/regress/elab37.vhd \
+	test/regress/elab38.vhd \
 	test/regress/elab3.vhd \
 	test/regress/elab4.vhd \
 	test/regress/elab5.vhd \
@@ -1081,6 +1083,11 @@ EXTRA_DIST += \
 	test/regress/issue655.vhd \
 	test/regress/issue668.vhd \
 	test/regress/issue670.vhd \
+	test/regress/issue674.vhd \
+	test/regress/issue675.vhd \
+	test/regress/issue676.vhd \
+	test/regress/issue677.vhd \
+	test/regress/issue681.vhd \
 	test/regress/issue69.vhd \
 	test/regress/issue70.vhd \
 	test/regress/issue72.vhd \
