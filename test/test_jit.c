@@ -2011,6 +2011,47 @@ START_TEST(test_dce2)
 }
 END_TEST
 
+START_TEST(test_code1)
+{
+   const error_t expect[] = {
+      { LINE_INVALID, "JIT code buffer for test too small" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   code_cache_t *code = code_cache_new();
+
+   code_blob_t *blob = code_blob_new(code, ident_new("test"), 100);
+   ck_assert_ptr_nonnull(blob);
+
+   void *mem LOCAL = xcalloc(1024 * 1024);
+
+   code_blob_emit(blob, mem, 128);
+   fail_if(blob->overflow);
+
+   code_blob_emit(blob, mem, 1024 * 1024);
+   fail_unless(blob->overflow);
+
+   jit_entry_fn_t entry = NULL;
+   code_blob_finalise(blob, &entry);
+   ck_assert_ptr_null(entry);
+
+   for (int i = 0; i < 200; i++) {
+      blob = code_blob_new(code, ident_new("loop"), 32 * 1024);
+      ck_assert_ptr_nonnull(blob);
+
+      code_blob_emit(blob, mem, 32 * 1024);
+      fail_if(blob->overflow);
+
+      code_blob_finalise(blob, &entry);
+   }
+
+   code_cache_free(code);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2065,6 +2106,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn9);
    tcase_add_test(tc, test_cfg3);
    tcase_add_test(tc, test_dce2);
+   tcase_add_test(tc, test_code1);
    suite_add_tcase(s, tc);
 
    return s;

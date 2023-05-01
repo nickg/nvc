@@ -67,8 +67,8 @@
 #define SHT_X86_64_UNWIND 0x70000001
 #endif
 
-#define CODECACHE_ALIGN   4096
-#define CODECACHE_SIZE    0x400000
+#define CODE_PAGE_ALIGN   4096
+#define CODE_PAGE_SIZE    0x400000
 #define THREAD_CACHE_SIZE 0x10000
 #define CODE_BLOB_ALIGN   256
 #define MIN_BLOB_SIZE     0x4000
@@ -79,7 +79,9 @@
 
 STATIC_ASSERT(MIN_BLOB_SIZE <= THREAD_CACHE_SIZE);
 STATIC_ASSERT(MIN_BLOB_SIZE % CODE_BLOB_ALIGN == 0);
-STATIC_ASSERT(CODECACHE_SIZE % THREAD_CACHE_SIZE == 0);
+STATIC_ASSERT(CODE_PAGE_SIZE % THREAD_CACHE_SIZE == 0);
+
+typedef struct _code_page code_page_t;
 
 typedef struct _code_span {
    code_cache_t *owner;
@@ -96,9 +98,15 @@ typedef struct _patch_list {
    code_patch_fn_t  fn;
 } patch_list_t;
 
+typedef struct _code_page {
+   code_cache_t *owner;
+   code_page_t  *next;
+   uint8_t      *mem;
+} code_page_t;
+
 typedef struct _code_cache {
    nvc_lock_t   lock;
-   uint8_t     *mem;
+   code_page_t *pages;
    code_span_t *spans;
    code_span_t *freelist[MAX_THREADS];
    code_span_t *globalfree;
@@ -132,10 +140,10 @@ static void code_cache_unwinder(uintptr_t addr, debug_frame_t *frame,
 static void code_fault_handler(int sig, void *addr, struct cpu_state *cpu,
                                void *context)
 {
-   code_cache_t *code = context;
+   code_page_t *page = context;
 
    const uint8_t *pc = (uint8_t *)cpu->pc;
-   if (pc < code->mem || pc > code->mem + CODECACHE_SIZE)
+   if (pc < page->mem || pc > page->mem + CODE_PAGE_SIZE)
       return;
 
    uintptr_t mark = cpu->pc;
@@ -144,19 +152,32 @@ static void code_fault_handler(int sig, void *addr, struct cpu_state *cpu,
       mark--;   // Point to faulting instruction
 #endif
 
-   for (code_span_t *span = code->spans; span; span = span->next) {
+   for (code_span_t *span = page->owner->spans; span; span = span->next) {
       if (pc >= span->base && pc < span->base + span->size && span->name)
          code_disassemble(span, mark, cpu);
    }
 }
 
+#ifdef DEBUG
+static bool code_cache_contains(code_cache_t *code, uint8_t *base, size_t size)
+{
+   assert_lock_held(&code->lock);
+
+   for (code_page_t *p = code->pages; p; p = p->next) {
+      if (base >= p->mem && base + size <= p->mem + CODE_PAGE_SIZE)
+         return true;
+   }
+
+   return false;
+}
+#endif
+
 static code_span_t *code_span_new(code_cache_t *code, ident_t name,
                                   uint8_t *base, size_t size)
 {
-   assert(base >= code->mem);
-   assert(base + size <= code->mem + CODECACHE_SIZE);
-
    SCOPED_LOCK(code->lock);
+
+   assert(code_cache_contains(code, base, size));
 
    code_span_t *span = xcalloc(sizeof(code_span_t));
    span->name  = name;
@@ -169,10 +190,37 @@ static code_span_t *code_span_new(code_cache_t *code, ident_t name,
    return span;
 }
 
+static void code_page_new(code_cache_t *code)
+{
+   assert_lock_held(&code->lock);
+
+   code_page_t *page = xcalloc(sizeof(code_page_t));
+   page->owner = code;
+   page->next  = code->pages;
+   page->mem   = map_jit_pages(CODE_PAGE_ALIGN, CODE_PAGE_SIZE);
+
+   add_fault_handler(code_fault_handler, page);
+   debug_add_unwinder(page->mem, CODE_PAGE_SIZE, code_cache_unwinder, code);
+
+   code->pages = page;
+
+   code_span_t *span = xcalloc(sizeof(code_span_t));
+   span->next  = code->spans;
+   span->base  = page->mem;
+   span->size  = CODE_PAGE_SIZE;
+   span->owner = code;
+
+   code->globalfree = code->spans = span;
+}
+
 code_cache_t *code_cache_new(void)
 {
    code_cache_t *code = xcalloc(sizeof(code_cache_t));
-   code->mem = map_jit_pages(CODECACHE_ALIGN, CODECACHE_SIZE);
+
+   {
+      SCOPED_LOCK(code->lock);
+      code_page_new(code);
+   }
 
 #ifdef HAVE_CAPSTONE
 #if defined ARCH_X86_64
@@ -189,20 +237,20 @@ code_cache_t *code_cache_new(void)
       fatal_trace("failed to set capstone detailed mode");
 #endif
 
-   add_fault_handler(code_fault_handler, code);
-   debug_add_unwinder(code->mem, CODECACHE_SIZE, code_cache_unwinder, code);
-
-   code->globalfree = code_span_new(code, NULL, code->mem, CODECACHE_SIZE);
-
    return code;
 }
 
 void code_cache_free(code_cache_t *code)
 {
-   debug_remove_unwinder(code->mem);
-   remove_fault_handler(code_fault_handler, code);
+   for (code_page_t *it = code->pages, *tmp; it; it = tmp) {
+      debug_remove_unwinder(it->mem);
+      remove_fault_handler(code_fault_handler, it);
 
-   nvc_munmap(code->mem, CODECACHE_SIZE);
+      nvc_munmap(it->mem, CODE_PAGE_SIZE);
+
+      tmp = it->next;
+      free(it);
+   }
 
    for (code_span_t *it = code->spans, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -214,8 +262,7 @@ void code_cache_free(code_cache_t *code)
 #endif
 
 #ifdef DEBUG
-   if (!opt_get_int(OPT_UNIT_TEST))
-      debugf("JIT code footprint: %zu bytes", code->used);
+   debugf("JIT code footprint: %zu bytes", code->used);
 #endif
 
    free(code);
@@ -345,7 +392,7 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
 
    code_span_t *free = relaxed_load(freeptr);
    if (free == NULL) {
-      free = code_span_new(code, NULL, code->mem, 0);
+      free = code_span_new(code, NULL, code->pages->mem, 0);
       relaxed_store(freeptr, free);
    }
 
@@ -374,8 +421,11 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
       code->globalfree->base += take;
       code->globalfree->size -= take;
 
-      if (code->globalfree->size == 0)
-         warnf("global JIT code buffer exhausted");
+      if (code->globalfree->size == 0) {
+         DEBUG_ONLY(debugf("requesting new %d byte code page", CODE_PAGE_SIZE));
+         code_page_new(code);
+         assert(code->globalfree->size == CODE_PAGE_SIZE);
+      }
    }
 
    assert(reqsz <= free->size);
@@ -445,7 +495,7 @@ void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
 {
    if (unlikely(blob->overflow))
       return;
-   else if (unlikely(blob->wptr + len >= blob->span->base + blob->span->size)) {
+   else if (unlikely(blob->wptr + len > blob->span->base + blob->span->size)) {
       warnf("JIT code buffer for %s too small", istr(blob->span->name));
       for (patch_list_t *it = blob->patches, *tmp; it; it = tmp) {
          tmp = it->next;

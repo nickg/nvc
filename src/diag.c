@@ -915,6 +915,8 @@ void diag_femit(diag_t *d, FILE *f)
       return;
    else if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
+   else if (d->level == DIAG_DEBUG && opt_get_int(OPT_UNIT_TEST))
+      return;
    else {
       SCOPED_LOCK(diag_lock);
 
