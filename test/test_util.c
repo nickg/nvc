@@ -130,9 +130,10 @@ tree_t run_elab(void)
          last_ent = t;
    }
 
-   jit_free(j);
+   tree_t top = elab(last_ent, j, NULL);
 
-   return elab(last_ent, NULL);
+   jit_free(j);
+   return top;
 }
 
 tree_t _parse_and_check(const tree_kind_t *array, int num,

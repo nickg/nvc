@@ -1502,3 +1502,14 @@ void jit_check_interrupt(jit_t *j)
    if (unlikely(relaxed_load(&j->interrupt) != NULL))
       jit_handle_interrupt(j);
 }
+
+void jit_reset(jit_t *j)
+{
+   SCOPED_LOCK(j->lock);
+
+   for (int i = 0; i < j->next_handle; i++) {
+      jit_func_t *f = j->funcs->items[i];
+      if (f->privdata != MPTR_INVALID)
+         *mptr_get(f->privdata) = NULL;
+   }
+}

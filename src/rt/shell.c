@@ -80,6 +80,7 @@ typedef struct _tcl_shell {
    unsigned        deltas_var;
    printer_t      *printer;
    get_line_fn_t   getline;
+   jit_factory_t   make_jit;
 } tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
@@ -340,9 +341,23 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
       return tcl_error(sh, "cannot find unit %s in library %s",
                        Tcl_GetString(objv[pos]), istr(lib_name(work)));
 
+   if (sh->model != NULL) {
+      model_free(sh->model);
+      hash_free(sh->namemap);
+
+      sh->model = NULL;
+      sh->namemap = NULL;
+   }
+
    reset_error_count();
 
-   tree_t top = elab(unit, NULL);
+   // Recreate the JIT instance as it may have references to stale code
+   jit_free(sh->jit);
+   sh->jit = (*sh->make_jit)();
+
+   jit_enable_runtime(sh->jit, false);
+
+   tree_t top = elab(unit, sh->jit, NULL);
    if (top == NULL)
       return TCL_ERROR;
 
@@ -642,13 +657,14 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-tcl_shell_t *shell_new(jit_t *jit)
+tcl_shell_t *shell_new(jit_factory_t make_jit)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
-   sh->prompt  = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
-   sh->interp  = Tcl_CreateInterp();
-   sh->jit     = jit;
-   sh->printer = printer_new();
+   sh->prompt   = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
+   sh->interp   = Tcl_CreateInterp();
+   sh->make_jit = make_jit;
+   sh->jit      = make_jit ? (*make_jit)() : NULL;
+   sh->printer  = printer_new();
 
    if (isatty(fileno(stdin)))
       sh->getline = shell_completing_get_line;
@@ -684,6 +700,9 @@ void shell_free(tcl_shell_t *sh)
 {
    if (sh->model != NULL)
       model_free(sh->model);
+
+   if (sh->jit != NULL)
+      jit_free(sh->jit);
 
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
@@ -761,13 +780,10 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
 
 void shell_reset(tcl_shell_t *sh, tree_t top)
 {
-   if (sh->model != NULL) {
-      model_free(sh->model);
-      hash_free(sh->namemap);
+   assert(sh->model == NULL);
 
-      sh->model = NULL;
-      sh->namemap = NULL;
-   }
+   jit_reset(sh->jit);
+   jit_enable_runtime(sh->jit, true);
 
    sh->top = top;
    sh->model = model_new(top, sh->jit);

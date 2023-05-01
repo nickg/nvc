@@ -92,6 +92,7 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle);
 void jit_register_native_plugin(jit_t *j);
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx);
 void jit_check_interrupt(jit_t *j);
+void jit_reset(jit_t *j);
 
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
 jit_stack_trace_t *jit_stack_trace(void);

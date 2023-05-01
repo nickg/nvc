@@ -2021,7 +2021,7 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(tree_t top, cover_tagging_t *cover)
+tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
 {
    make_new_arena();
 
@@ -2036,7 +2036,7 @@ tree_t elab(tree_t top, cover_tagging_t *cover)
       .inst_name = NULL,
       .cover     = cover,
       .library   = lib_work(),
-      .jit       = jit_new(),
+      .jit       = jit,
    };
 
    switch (tree_kind(top)) {
@@ -2058,8 +2058,6 @@ tree_t elab(tree_t top, cover_tagging_t *cover)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
-
-   jit_free(ctx.jit);
 
    if (error_count() > 0)
       return NULL;

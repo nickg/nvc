@@ -41,8 +41,7 @@ START_TEST(test_analyse)
    };
    expect_errors(expect);
 
-   jit_t *j = jit_new();
-   tcl_shell_t *sh = shell_new(j);
+   tcl_shell_t *sh = shell_new(jit_new);
 
    const char *result = NULL;
    fail_if(shell_eval(sh, "analyse " TESTDIR "/parse/entity.vhd", &result));
@@ -53,7 +52,6 @@ START_TEST(test_analyse)
    fail_unless(tree_kind(one) == T_ENTITY);
 
    shell_free(sh);
-   jit_free(j);
 
    check_expected_errors();
 }
@@ -66,10 +64,7 @@ START_TEST(test_examine1)
    };
    expect_errors(expect);
 
-   jit_t *j = jit_new();
-   jit_enable_runtime(j, true);
-
-   tcl_shell_t *sh = shell_new(j);
+   tcl_shell_t *sh = shell_new(jit_new);
 
    const char *result = NULL;
 
@@ -101,7 +96,6 @@ START_TEST(test_examine1)
    }
 
    shell_free(sh);
-   jit_free(j);
 
    check_expected_errors();
 }

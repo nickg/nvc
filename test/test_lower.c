@@ -1971,8 +1971,9 @@ START_TEST(test_cover)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
+   jit_t *jit = jit_new();
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, tagging);
+   elab(a, jit, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");
    vcode_select_unit(v0);
@@ -2038,6 +2039,8 @@ START_TEST(test_cover)
    };
 
    CHECK_BB(3);
+
+   jit_free(jit);
 }
 END_TEST
 
@@ -2458,8 +2461,9 @@ START_TEST(test_choice1)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
+   jit_t *jit = jit_new();
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_BRANCH, 0);
-   elab(a, tagging);
+   elab(a, jit, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -2534,6 +2538,8 @@ START_TEST(test_choice1)
    };
 
    CHECK_BB(7);
+
+   jit_free(jit);
 }
 END_TEST
 
@@ -4855,9 +4861,11 @@ START_TEST(test_issue582)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
+   jit_t *jit = jit_new();
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, tagging);
+   elab(a, jit, tagging);
 
+   jit_free(jit);
    fail_if_errors();
 }
 END_TEST

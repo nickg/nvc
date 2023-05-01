@@ -66,6 +66,7 @@ static char *top_level_orig = NULL;
 
 static int process_command(int argc, char **argv);
 static int parse_int(const char *str);
+static jit_t *get_jit(void);
 
 static ident_t to_unit_name(const char *str)
 {
@@ -379,7 +380,10 @@ static int elaborate(int argc, char **argv)
          cover_load_spec_file(cover, cover_spec_file);
    }
 
-   tree_t top = elab(unit, cover);
+   jit_t *jit = get_jit();
+   jit_enable_runtime(jit, false);
+
+   tree_t top = elab(unit, jit, cover);
    if (top == NULL)
       return EXIT_FAILURE;
 
@@ -402,6 +406,8 @@ static int elaborate(int argc, char **argv)
 
    if (!use_jit)
       AOT_ONLY(cgen(top, cover));
+
+   jit_free(jit);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1098,8 +1104,7 @@ static int do_cmd(int argc, char **argv)
       fatal("no script file specified");
 
 #ifdef ENABLE_TCL
-   jit_t *jit = get_jit();
-   tcl_shell_t *sh = shell_new(jit);
+   tcl_shell_t *sh = shell_new(get_jit);
 
    for (int i = optind; i < next_cmd; i++) {
       if (!shell_do(sh, argv[i]))
@@ -1107,7 +1112,6 @@ static int do_cmd(int argc, char **argv)
    }
 
    shell_free(sh);
-   jit_free(jit);
 #else
    fatal("compiled without TCL support");
 #endif
@@ -1140,8 +1144,7 @@ static int interact_cmd(int argc, char **argv)
       fatal("unexpected argument \"%s\"", argv[optind]);
 
 #ifdef ENABLE_TCL
-   jit_t *jit = get_jit();
-   tcl_shell_t *sh = shell_new(jit);
+   tcl_shell_t *sh = shell_new(get_jit);
 
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
@@ -1154,7 +1157,6 @@ static int interact_cmd(int argc, char **argv)
    shell_interact(sh);
 
    shell_free(sh);
-   jit_free(jit);
 #else
    fatal("compiled without TCL support");
 #endif

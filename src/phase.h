@@ -37,7 +37,7 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit);
 void bounds_check(tree_t top);
 
 // Elaborate a top level entity
-tree_t elab(tree_t top, cover_tagging_t *cover);
+tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover);
 
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);

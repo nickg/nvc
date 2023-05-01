@@ -20,7 +20,9 @@
 
 #include "prim.h"
 
-tcl_shell_t *shell_new(jit_t *jit);
+typedef jit_t *(*jit_factory_t)(void);
+
+tcl_shell_t *shell_new(jit_factory_t make_jit);
 void shell_free(tcl_shell_t *sh);
 bool shell_eval(tcl_shell_t *sh, const char *script, const char **result);
 bool shell_do(tcl_shell_t *sh, const char *file);
