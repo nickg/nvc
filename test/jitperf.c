@@ -196,7 +196,7 @@ int main(int argc, char **argv)
    lib_t work = lib_tmp("PERF");
    lib_set_work(work);
 
-   eval_t *eval = eval_new();
+   jit_t *jit = jit_new();
 
    for (int i = optind; i < argc; i++) {
       color_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
@@ -210,7 +210,7 @@ int main(int argc, char **argv)
 
          lib_put(work, unit);
 
-         simplify_local(unit, eval);
+         simplify_local(unit, jit);
          bounds_check(unit);
 
          if (error_count() > 0)
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
       find_benchmarks(pack, filter);
    }
 
-   eval_free(eval);
+   jit_free(jit);
 
    return 0;
 }

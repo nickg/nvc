@@ -18,7 +18,7 @@
 #include "test_util.h"
 #include "common.h"
 #include "diag.h"
-#include "eval.h"
+#include "jit/jit.h"
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
@@ -2265,11 +2265,11 @@ START_TEST(test_issue158)
 {
    input_from_file(TESTDIR "/lower/issue158.vhd");
 
-   eval_t *eval = eval_new();
+   jit_t *jit = jit_new();
    tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
-   simplify_local(p, eval);
+   simplify_local(p, jit);
    lower_standalone_unit(p);
-   eval_free(eval);
+   jit_free(jit);
 }
 END_TEST
 

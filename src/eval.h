@@ -21,17 +21,13 @@
 #include "prim.h"
 #include "phase.h"
 
-typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
-
-eval_t *eval_new(void);
-void eval_free(eval_t *ex);
-tree_t eval_try_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+tree_t eval_try_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                      void *context);
-tree_t eval_must_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
-                     void *context);
-bool eval_possible(eval_t *e, tree_t t);
-tree_t eval_case(eval_t *ex, tree_t stmt, lower_unit_t *parent, void *context);
-void *eval_instance(eval_t *ex, ident_t name, void *context);
-void eval_alloc_cover_mem(eval_t *ex, cover_tagging_t *cover);
+tree_t eval_must_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
+                      void *context);
+bool eval_possible(tree_t t);
+tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context);
+void *eval_instance(jit_t *jit, ident_t name, void *context);
+void eval_alloc_cover_mem(jit_t *jit, cover_tagging_t *cover);
 
 #endif  // _EVAL_H

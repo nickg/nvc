@@ -75,7 +75,6 @@ typedef struct _tcl_shell {
    shell_signal_t *signals;
    unsigned        nsignals;
    hash_t         *namemap;
-   eval_t         *eval;
    jit_t          *jit;
    int64_t         now_var;
    unsigned        deltas_var;
@@ -290,7 +289,7 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
          break;
 
       case SOURCE_VHDL:
-         analyse_vhdl(sh->eval, verbose);
+         analyse_vhdl(sh->jit, verbose);
          break;
       }
    }
@@ -648,7 +647,6 @@ tcl_shell_t *shell_new(jit_t *jit)
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
    sh->prompt  = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
    sh->interp  = Tcl_CreateInterp();
-   sh->eval    = eval_new();
    sh->jit     = jit;
    sh->printer = printer_new();
 
@@ -688,7 +686,6 @@ void shell_free(tcl_shell_t *sh)
       model_free(sh->model);
 
    printer_free(sh->printer);
-   eval_free(sh->eval);
    Tcl_DeleteInterp(sh->interp);
    free(sh);
 }

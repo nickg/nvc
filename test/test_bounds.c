@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #include "test_util.h"
 #include "common.h"
 #include "diag.h"
-#include "eval.h"
+#include "jit/jit.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"
@@ -87,9 +87,9 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *ex = eval_new();
-   simplify_global(a, NULL, ex);   // Global to fold TIME expressions
-   eval_free(ex);
+   jit_t *jit = jit_new();
+   simplify_global(a, NULL, jit);   // Global to fold TIME expressions
+   jit_free(jit);
    bounds_check(a);
 
    check_expected_errors();
@@ -132,9 +132,9 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *ex = eval_new();
-   simplify_global(a, NULL, ex);   // Global to fold TIME expressions
-   eval_free(ex);
+   jit_t *jit = jit_new();
+   simplify_global(a, NULL, jit);   // Global to fold TIME expressions
+   jit_free(jit);
    bounds_check(a);
 
    check_expected_errors();
@@ -172,10 +172,10 @@ START_TEST(test_case)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }
@@ -187,10 +187,10 @@ START_TEST(test_issue36)
 
    tree_t e = parse_and_check(T_ENTITY);
 
-   eval_t *eval = eval_new();
-   simplify_local(e, eval);
+   jit_t *jit = jit_new();
+   simplify_local(e, jit);
    bounds_check(e);
-   eval_free(eval);
+   jit_free(jit);
 
    fail_if_errors();
 }
@@ -214,10 +214,10 @@ START_TEST(test_issue54)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }
@@ -237,8 +237,8 @@ START_TEST(test_issue99)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
 
    check_expected_errors();
@@ -259,10 +259,10 @@ START_TEST(test_issue150)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }
@@ -275,10 +275,10 @@ START_TEST(test_issue200)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    fail_if_errors();
 }
@@ -297,10 +297,10 @@ START_TEST(test_issue208)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }
@@ -318,10 +318,10 @@ START_TEST(test_issue247)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }
@@ -339,10 +339,10 @@ START_TEST(test_issue269)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
    bounds_check(a);
-   eval_free(eval);
+   jit_free(jit);
 
    check_expected_errors();
 }

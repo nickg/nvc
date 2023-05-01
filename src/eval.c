@@ -46,7 +46,6 @@ typedef enum {
 } eval_flags_t;
 
 struct _eval {
-   eval_flags_t  flags;
    jit_t        *jit;
 };
 
@@ -102,43 +101,23 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
    return tree;
 }
 
-eval_t *eval_new(void)
-{
-   eval_flags_t flags = 0;
-   if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))
-      flags |= EVAL_VERBOSE | EVAL_WARN;
-
-   eval_t *ex = xcalloc(sizeof(eval_t));
-   ex->flags = flags;
-
-   ex->jit = jit_new();
-   jit_set_silent(ex->jit, !(flags & EVAL_WARN));
-   jit_limit_backedges(ex->jit, ITER_LIMIT);
-
-   return ex;
-}
-
-void eval_free(eval_t *ex)
-{
-   jit_free(ex->jit);
-   free(ex);
-}
-
-static tree_t eval_do_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                            void *context)
 {
    vcode_unit_t thunk = lower_thunk(parent, expr);
    if (thunk == NULL)
       return expr;
 
+   const bool verbose = opt_get_verbose(OPT_EVAL_VERBOSE, NULL);
+
    jit_scalar_t result;
-   const bool finished = jit_call_thunk(ex->jit, thunk, &result, context);
+   const bool finished = jit_call_thunk(jit, thunk, &result, context);
 
    vcode_unit_unref(thunk);
    thunk = NULL;
 
    if (finished) {
-      if (ex->flags & EVAL_VERBOSE) {
+      if (verbose) {
          diag_t *d = diag_new(DIAG_DEBUG, tree_loc(expr));
          diag_printf(d, "evaluating %s returned ", eval_expr_name(expr));
          if (llabs(result.integer) < 1024)
@@ -150,7 +129,7 @@ static tree_t eval_do_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
 
       return eval_value_to_tree(result, tree_type(expr), tree_loc(expr));
    }
-   else if (ex->flags & (EVAL_WARN | EVAL_VERBOSE)) {
+   else if (verbose) {
       diag_t *d = diag_new(DIAG_DEBUG, tree_loc(expr));
       diag_printf(d, "failed to evaluate %s", eval_expr_name(expr));
       diag_emit(d);
@@ -159,57 +138,61 @@ static tree_t eval_do_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
    return expr;
 }
 
-tree_t eval_try_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+tree_t eval_try_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                      void *context)
 {
-   jit_set_silent(ex->jit, true);
-   jit_limit_backedges(ex->jit, ITER_LIMIT);
+   const bool verbose = opt_get_verbose(OPT_EVAL_VERBOSE, NULL);
 
-   return eval_do_fold(ex, expr, parent, context);
+   jit_set_silent(jit, !verbose);
+   jit_limit_backedges(jit, ITER_LIMIT);
+
+   tree_t result = eval_do_fold(jit, expr, parent, context);
+
+   jit_set_silent(jit, false);
+   jit_limit_backedges(jit, 0);
+
+   return result;
 }
 
-tree_t eval_must_fold(eval_t *ex, tree_t expr, lower_unit_t *parent,
+tree_t eval_must_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                       void *context)
 {
-   jit_set_silent(ex->jit, false);
-   jit_limit_backedges(ex->jit, 0);
-
-   return eval_do_fold(ex, expr, parent, context);
+   return eval_do_fold(jit, expr, parent, context);
 }
 
-static bool eval_not_possible(eval_t *e, tree_t t, const char *why)
+static bool eval_not_possible(tree_t t, const char *why)
 {
-   if (e->flags & EVAL_WARN)
+   if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))
       warn_at(tree_loc(t), "%s prevents constant folding", why);
 
    return false;
 }
 
-bool eval_possible(eval_t *e, tree_t t)
+bool eval_possible(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
       {
          const tree_flags_t flags = tree_flags(t);
          if (!(flags & (TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC)))
-            return eval_not_possible(e, t, "non-static expression");
+            return eval_not_possible(t, "non-static expression");
 
          tree_t decl = tree_ref(t);
          const subprogram_kind_t kind = tree_subkind(decl);
          if (kind == S_FOREIGN)
-            return eval_not_possible(e, t, "call to foreign function");
+            return eval_not_possible(t, "call to foreign function");
          else if (tree_flags(decl) & TREE_F_IMPURE)
-            return eval_not_possible(e, t, "call to impure function");
+            return eval_not_possible(t, "call to impure function");
          else if (kind != S_USER && !is_open_coded_builtin(kind)
                   && vcode_find_unit(tree_ident2(decl)) == NULL)
-            return eval_not_possible(e, t, "not yet lowered predef");
+            return eval_not_possible(t, "not yet lowered predef");
          else if (kind == S_USER && !is_package(tree_container(decl)))
-            return eval_not_possible(e, t, "subprogram not in package");
+            return eval_not_possible(t, "subprogram not in package");
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
             tree_t p = tree_value(tree_param(t, i));
-            if (!eval_possible(e, p))
+            if (!eval_possible(p))
                return false;
             else if (tree_kind(p) == T_FCALL && type_is_scalar(tree_type(p)))
                return false;  // Would have been folded already if possible
@@ -223,10 +206,10 @@ bool eval_possible(eval_t *e, tree_t t)
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(e, tree_value(t));
+      return eval_possible(tree_value(t));
 
    case T_QUALIFIED:
-      return eval_possible(e, tree_value(t));
+      return eval_possible(tree_value(t));
 
    case T_REF:
       {
@@ -238,34 +221,34 @@ bool eval_possible(eval_t *e, tree_t t)
 
          case T_CONST_DECL:
             if (tree_has_value(decl))
-               return eval_possible(e, tree_value(decl));
+               return eval_possible(tree_value(decl));
             else
                return true;
 
          default:
-            return eval_not_possible(e, t, "reference");
+            return eval_not_possible(t, "reference");
          }
       }
 
    case T_RECORD_REF:
-      return eval_possible(e, tree_value(t));
+      return eval_possible(tree_value(t));
 
    case T_ARRAY_REF:
       {
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            if (!eval_possible(e, tree_value(tree_param(t, i))))
+            if (!eval_possible(tree_value(tree_param(t, i))))
                return false;
          }
 
-         return eval_possible(e, tree_value(t));
+         return eval_possible(tree_value(t));
       }
 
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++) {
-            if (!eval_possible(e, tree_value(tree_assoc(t, i))))
+            if (!eval_possible(tree_value(tree_assoc(t, i))))
                return false;
          }
 
@@ -275,14 +258,14 @@ bool eval_possible(eval_t *e, tree_t t)
    case T_ATTR_REF:
       {
          if (tree_subkind(t) == ATTR_USER)
-            return eval_not_possible(e, t, "user defined attribute");
+            return eval_not_possible(t, "user defined attribute");
 
-         if (!eval_possible(e, tree_name(t)))
+         if (!eval_possible(tree_name(t)))
             return false;
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            if (!eval_possible(e, tree_value(tree_param(t, i))))
+            if (!eval_possible(tree_value(tree_param(t, i))))
                return false;
          }
 
@@ -290,21 +273,18 @@ bool eval_possible(eval_t *e, tree_t t)
       }
 
    default:
-      return eval_not_possible(e, t, tree_kind_str(tree_kind(t)));
+      return eval_not_possible(t, tree_kind_str(tree_kind(t)));
    }
 }
 
-tree_t eval_case(eval_t *ex, tree_t stmt, lower_unit_t *parent, void *context)
+tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context)
 {
    assert(tree_kind(stmt) == T_CASE_GENERATE);
 
    vcode_unit_t thunk = lower_case_generate_thunk(parent, stmt);
 
-   jit_set_silent(ex->jit, false);
-   jit_limit_backedges(ex->jit, 0);
-
    jit_scalar_t result = { .integer = -1 };
-   if (!jit_call_thunk(ex->jit, thunk, &result, context))
+   if (!jit_call_thunk(jit, thunk, &result, context))
       error_at(tree_loc(tree_value(stmt)), "generate expression is not static");
 
    if (result.integer == -1)
@@ -313,27 +293,24 @@ tree_t eval_case(eval_t *ex, tree_t stmt, lower_unit_t *parent, void *context)
       return tree_stmt(stmt, result.integer);
 }
 
-void *eval_instance(eval_t *ex, ident_t name, void *context)
+void *eval_instance(jit_t *jit, ident_t name, void *context)
 {
-   jit_handle_t h = jit_lazy_compile(ex->jit, name);
+   jit_handle_t h = jit_lazy_compile(jit, name);
    if (h == JIT_HANDLE_INVALID)
       fatal_trace("failed to compile instance %s", istr(name));
 
-   jit_set_silent(ex->jit, false);
-   jit_limit_backedges(ex->jit, 0);
-
    jit_scalar_t result;
-   if (!jit_try_call(ex->jit, h, &result, context, context))
+   if (!jit_try_call(jit, h, &result, context, context))
       return NULL;
 
    return result.pointer;
 }
 
-void eval_alloc_cover_mem(eval_t *ex, cover_tagging_t *cover)
+void eval_alloc_cover_mem(jit_t *jit, cover_tagging_t *cover)
 {
    int32_t n_stmts, n_branches, n_toggles, n_expressions;
    cover_count_tags(cover, &n_stmts, &n_branches, &n_toggles,
                     &n_expressions);
 
-   jit_alloc_cover_mem(ex->jit, n_stmts, n_branches, n_toggles, n_expressions);
+   jit_alloc_cover_mem(jit, n_stmts, n_branches, n_toggles, n_expressions);
 }

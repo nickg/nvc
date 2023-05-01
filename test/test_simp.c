@@ -17,8 +17,8 @@
 
 #include "test_util.h"
 #include "common.h"
-#include "eval.h"
 #include "hash.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "phase.h"
 #include "scan.h"
@@ -81,9 +81,9 @@ START_TEST(test_cfold)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
-   eval_free(eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
+   jit_free(jit);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
@@ -194,9 +194,9 @@ START_TEST(test_proc)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
-   eval_free(eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
+   jit_free(jit);
 
    ////////
 
@@ -275,9 +275,9 @@ START_TEST(test_args)
 
    fail_if_errors();
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
-   eval_free(eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
+   jit_free(jit);
 
    ////////
 
@@ -317,9 +317,9 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   eval_t *ex = eval_new();
-   simplify_global(b, NULL, ex);
-   eval_free(ex);
+   jit_t *jit = jit_new();
+   simplify_global(b, NULL, jit);
+   jit_free(jit);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
@@ -365,9 +365,9 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   eval_t *ex = eval_new();
-   simplify_global(b, NULL, ex);
-   eval_free(ex);
+   jit_t *jit = jit_new();
+   simplify_global(b, NULL, jit);
+   jit_free(jit);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
@@ -381,9 +381,9 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_if_errors();
 
-   eval_t *eval = eval_new();
-   simplify_local(a, eval);
-   eval_free(eval);
+   jit_t *jit = jit_new();
+   simplify_local(a, jit);
+   jit_free(jit);
 }
 END_TEST
 
@@ -394,9 +394,9 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   eval_t *ex = eval_new();
-   simplify_global(p, NULL, ex);
-   eval_free(ex);
+   jit_t *jit = jit_new();
+   simplify_global(p, NULL, jit);
+   jit_free(jit);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(tree_left(ar), 7));
@@ -434,9 +434,9 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 5);
 
-   eval_t *eval = eval_new();
-   simplify_local(e, eval);
-   eval_free(eval);
+   jit_t *jit = jit_new();
+   simplify_local(e, jit);
+   jit_free(jit);
 
    fail_unless(tree_contexts(e) == 7);
    fail_unless(tree_kind(tree_context(e, 5)) == T_LIBRARY);

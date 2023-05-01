@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "diag.h"
 #include "eval.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
 #include "option.h"
@@ -110,14 +111,14 @@ TCase *nvc_unit_test(void)
 
 tree_t run_elab(void)
 {
-   eval_t *eval = eval_new();
+   jit_t *j = jit_new();
 
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
       fail_if(error_count() > 0);
 
       lib_put(lib_work(), t);
-      simplify_local(t, eval);
+      simplify_local(t, j);
       bounds_check(t);
       fail_if(error_count() > 0);
 
@@ -129,7 +130,7 @@ tree_t run_elab(void)
          last_ent = t;
    }
 
-   eval_free(eval);
+   jit_free(j);
 
    return elab(last_ent, NULL);
 }
@@ -137,7 +138,7 @@ tree_t run_elab(void)
 tree_t _parse_and_check(const tree_kind_t *array, int num,
                         bool simp, bool lower)
 {
-   eval_t *eval = simp ? eval_new() : NULL;
+   jit_t *j = simp ? jit_new() : NULL;
 
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {
@@ -158,7 +159,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       lib_put(lib_work(), last);
 
       if (simp && error_count() == 0)
-         simplify_local(last, eval);
+         simplify_local(last, j);
 
       if (lower && error_count() == 0) {
          bounds_check(last);
@@ -171,8 +172,8 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
    fail_unless(parse() == NULL);
 
  out:
-   if (eval != NULL)
-      eval_free(eval);
+   if (j != NULL)
+      jit_free(j);
 
    return last;
 }

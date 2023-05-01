@@ -2234,7 +2234,7 @@ void copy_constraints(type_t sub, int index, type_t from)
    }
 }
 
-void analyse_vhdl(eval_t *eval, bool verbose)
+void analyse_vhdl(jit_t *jit, bool verbose)
 {
    lib_t work = lib_work();
    int base_errors = 0;
@@ -2243,7 +2243,7 @@ void analyse_vhdl(eval_t *eval, bool verbose)
       if (error_count() == base_errors) {
          lib_put(work, unit);
 
-         simplify_local(unit, eval);
+         simplify_local(unit, jit);
          bounds_check(unit);
 
          if (error_count() == base_errors && unit_needs_cgen(unit))

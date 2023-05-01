@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
 #include "mask.h"
@@ -58,7 +59,7 @@ typedef struct _elab_ctx {
    ident_t           prefix[2];
    lib_t             library;
    hash_t           *generics;
-   eval_t           *eval;
+   jit_t            *jit;
    lower_unit_t     *lowered;
    bool              external_names;
    cover_tagging_t  *cover;
@@ -990,7 +991,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(bind_expr, ctx->generics, ctx->eval);
+            simplify_global(bind_expr, ctx->generics, ctx->jit);
             cg = eg;
          }
 
@@ -1014,7 +1015,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       case T_RECORD_REF:
       case T_FCALL:
          if (type_is_scalar(tree_type(value))) {
-            tree_t folded = eval_try_fold(ctx->eval, value,
+            tree_t folded = eval_try_fold(ctx->jit, value,
                                           ctx->parent->lowered,
                                           ctx->parent->context);
 
@@ -1079,7 +1080,7 @@ static void elab_context(tree_t t)
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
    ctx->parent    = parent;
-   ctx->eval      = parent->eval;
+   ctx->jit       = parent->jit;
    ctx->root      = parent->root;
    ctx->dotted    = ctx->dotted ?: parent->dotted;
    ctx->path_name = ctx->path_name ?: parent->path_name;
@@ -1095,12 +1096,12 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    ctx->lowered = lower_instance(ctx->parent->lowered, ctx->cover, b);
 
    if (ctx->cover != NULL)
-      eval_alloc_cover_mem(ctx->eval, ctx->cover);
+      eval_alloc_cover_mem(ctx->jit, ctx->cover);
 
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
 
-   ctx->context = eval_instance(ctx->eval, ctx->dotted, ctx->parent->context);
+   ctx->context = eval_instance(ctx->jit, ctx->dotted, ctx->parent->context);
 
    if (ctx->inst != NULL)
       diag_remove_hint_fn(elab_hint_fn);
@@ -1288,14 +1289,14 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_context(entity);
    elab_context(arch_copy);
    elab_generics(entity, comp, t, &new_ctx);
-   simplify_global(entity, new_ctx.generics, ctx->eval);
+   simplify_global(entity, new_ctx.generics, ctx->jit);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
 
    if (error_count() == 0) {
       bounds_check(b);
       diag_add_hint_fn(elab_hint_fn, t);
-      simplify_global(arch_copy, new_ctx.generics, ctx->eval);
+      simplify_global(arch_copy, new_ctx.generics, ctx->jit);
       bounds_check(arch_copy);
       diag_remove_hint_fn(elab_hint_fn);
    }
@@ -1512,11 +1513,11 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       tree_set_type(tmp, tree_type(r));
       tree_set_subkind(tmp, ATTR_LOW);
 
-      tree_t tlow = eval_must_fold(ctx->eval, tmp, ctx->lowered, ctx->context);
+      tree_t tlow = eval_must_fold(ctx->jit, tmp, ctx->lowered, ctx->context);
       if (folded_int(tlow, low)) {
          tree_set_subkind(tmp, ATTR_HIGH);
 
-         tree_t thigh = eval_must_fold(ctx->eval, tmp, ctx->lowered,
+         tree_t thigh = eval_must_fold(ctx->jit, tmp, ctx->lowered,
                                        ctx->context);
          if (folded_int(thigh, high))
             return;
@@ -1526,9 +1527,9 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       *low = *high = 0;
    }
    else if (!folded_bounds(r, low, high)) {
-      tree_t left  = eval_must_fold(ctx->eval, tree_left(r),
+      tree_t left  = eval_must_fold(ctx->jit, tree_left(r),
                                     ctx->lowered, ctx->context);
-      tree_t right = eval_must_fold(ctx->eval, tree_right(r),
+      tree_t right = eval_must_fold(ctx->jit, tree_right(r),
                                     ctx->lowered, ctx->context);
 
       int64_t ileft, iright;
@@ -1601,7 +1602,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
 
-      simplify_global(copy, new_ctx.generics, new_ctx.eval);
+      simplify_global(copy, new_ctx.generics, new_ctx.jit);
 
       if (error_count() == 0) {
          elab_decls(copy, &new_ctx);
@@ -1623,7 +1624,7 @@ static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
    if (folded_bool(value, &test))
       return test;
 
-   tree_t folded = eval_must_fold(ctx->eval, value, ctx->lowered, ctx->context);
+   tree_t folded = eval_must_fold(ctx->jit, value, ctx->lowered, ctx->context);
 
    if (folded_bool(folded, &test))
       return test;
@@ -1673,7 +1674,7 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 {
-   tree_t chosen = eval_case(ctx->eval, t, ctx->lowered, ctx->context);
+   tree_t chosen = eval_case(ctx->jit, t, ctx->lowered, ctx->context);
    if (chosen == NULL)
       return;
 
@@ -1985,7 +1986,7 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   simplify_global(arch_copy, new_ctx.generics, ctx->eval);
+   simplify_global(arch_copy, new_ctx.generics, ctx->jit);
    bounds_check(arch_copy);
 
    if (error_count() == 0) {
@@ -2035,7 +2036,7 @@ tree_t elab(tree_t top, cover_tagging_t *cover)
       .inst_name = NULL,
       .cover     = cover,
       .library   = lib_work(),
-      .eval      = eval_new(),
+      .jit       = jit_new(),
    };
 
    switch (tree_kind(top)) {
@@ -2058,7 +2059,7 @@ tree_t elab(tree_t top, cover_tagging_t *cover)
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
-   eval_free(ctx.eval);
+   jit_free(ctx.jit);
 
    if (error_count() > 0)
       return NULL;
