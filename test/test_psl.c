@@ -213,6 +213,75 @@ START_TEST(test_parse4)
 }
 END_TEST
 
+START_TEST(test_parse5)
+{
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/psl/parse5.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   psl_node_t p0 = tree_psl(tree_stmt(a, 1));
+   psl_node_t p0_v = psl_value(p0);
+   fail_unless(psl_kind(p0) == P_COVER);
+   fail_unless(psl_kind(p0_v) == P_SERE);
+   fail_unless(psl_subkind(p0_v) == PSL_SERE_FUSION);
+   fail_unless(psl_operands(p0_v) == 4);
+
+   psl_node_t p1 = tree_psl(tree_stmt(a, 2));
+   psl_node_t p1_v = psl_value(p1);
+   psl_node_t p1_v0 = psl_operand(p1_v, 0);
+   psl_node_t p1_v1 = psl_operand(p1_v, 1);
+   fail_unless(psl_kind(p1_v) == P_SERE);
+   // Check right-most tree
+   fail_unless(psl_subkind(p0_v) == PSL_SERE_FUSION);
+   fail_unless(psl_kind(p1_v0) == P_SERE);
+   fail_unless(psl_subkind(p1_v0) == PSL_SERE_CONCAT);
+   fail_unless(psl_kind(p1_v1) == P_SERE);
+
+   psl_node_t p2 = tree_psl(tree_stmt(a, 3));
+   psl_node_t p2_v = psl_value(p2);
+   fail_unless(psl_kind(p2_v) == P_SERE);
+   fail_unless(psl_subkind(p2_v) == PSL_SERE_OR);
+
+   psl_node_t p3 = tree_psl(tree_stmt(a, 4));
+   psl_node_t p3_v = psl_value(p3);
+   psl_node_t p3_v0 = psl_operand(p3_v, 0);
+   psl_node_t p3_v1 = psl_operand(p3_v, 1);
+   psl_node_t p3_v0_r = psl_repeat(p3_v0);
+   fail_unless(psl_kind(p3_v) == P_SERE);
+   fail_unless(psl_subkind(p3_v) == PSL_SERE_OR);
+   fail_unless(psl_kind(p3_v0) == P_SERE);
+   fail_unless(psl_kind(p3_v1) == P_SERE);
+   fail_unless(psl_subkind(p3_v0_r) == PSL_TIMES_REPEAT);
+
+   psl_node_t p4 = tree_psl(tree_stmt(a, 5));
+   psl_node_t p4_v = psl_value(p4);
+   psl_node_t p4_v0 = psl_operand(p4_v, 0);
+   fail_unless(psl_kind(p4_v) == P_SERE);
+   fail_unless(psl_subkind(p4_v) == PSL_SERE_OR);
+   fail_unless(psl_subkind(p4_v0) == PSL_SERE_CONCAT);
+
+   psl_node_t p5 = tree_psl(tree_stmt(a, 6));
+   psl_node_t p5_v = psl_value(p5);
+   fail_unless(psl_kind(p5_v) == P_SERE);
+   fail_unless(psl_subkind(p5_v) == PSL_SERE_WITHIN);
+
+   psl_node_t p6 = tree_psl(tree_stmt(a, 7));
+   psl_node_t p6_v = psl_value(p6);
+   fail_unless(psl_kind(p6_v) == P_SERE);
+   fail_unless(psl_subkind(p6_v) == PSL_SERE_EQU_AND);
+
+   psl_node_t p7 = tree_psl(tree_stmt(a, 8));
+   psl_node_t p7_v = psl_value(p7);
+   fail_unless(psl_kind(p7_v) == P_SERE);
+   fail_unless(psl_subkind(p7_v) == PSL_SERE_NEQ_AND);
+
+   fail_if_errors();
+}
+END_TEST
+
+
 START_TEST(test_dump)
 {
    opt_set_int(OPT_PSL_COMMENTS, 1);
@@ -250,6 +319,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_sem1);
    tcase_add_test(tc_core, test_parse3);
    tcase_add_test(tc_core, test_parse4);
+   tcase_add_test(tc_core, test_parse5);
    tcase_add_test(tc_core, test_dump);
    suite_add_tcase(s, tc_core);
 

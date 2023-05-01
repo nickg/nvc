@@ -2,10 +2,10 @@ Library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity parse3 is
+entity parse4 is
 end entity;
 
-architecture test of parse3 is
+architecture test of parse4 is
 
     signal a, b, c, clk : bit;
 
@@ -53,9 +53,5 @@ begin
     -- psl cover {a;b} [[signal sig : unsigned(3 downto 0); sig <= "0000";]];
 
     -- psl cover {a;b;c} @ rising_edge(clk);
-
-    -- psl cover {a:b}[*4 to 5];
-
-    -- psl cover a;
 
 end architecture;
