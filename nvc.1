@@ -54,27 +54,27 @@ Process code coverage data from
 .Ar file
 and generate coverage report.
 .\" --dump
-.It Fl -dump Ar unit
+.It Fl \-dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
 usually only useful for debugging the compiler.
 .\" --init
-.It Fl -init
+.It Fl \-init
 Initialise the working library directory.  This is not normally
 necessary as the library will be automatically created when using other
 commands such as
 .Fl a .
 .\" --install
-.It Fl -install Ar package
+.It Fl \-install Ar package
 Execute scripts to compile common verification frameworks and FPGA
 vendor libraries.
 .\" --list
-.It Fl -list
+.It Fl \-list
 Print all analysed and elaborated units in the work library.
 .\"
-.It Fl -make Ar unit ...
+.It Fl \-make Ar unit ...
 Generate a makefile for already analysed units.
 .\"
-.It Fl -syntax Ar
+.It Fl \-syntax Ar
 Check input files for syntax errors only.
 .El
 .\"
@@ -114,7 +114,7 @@ parameter takes an optional k, m, or g suffix to indicate kilobytes,
 megabytes, and gigabytes respectively.  The default size is 16
 megabytes.
 .\" --ignore-time
-.It Fl -ignore-time
+.It Fl \-ignore-time
 Do not check the timestamps of source files when the corresponding
 design unit is loaded from a library.
 .\" -L
@@ -135,17 +135,17 @@ megabytes, and gigabytes respectively.  For example
 .Fl M64m
 for 64 megabytes.
 .\" --map
-.It Fl -map Ns = Ns Ar name Ns : Ns Ar path
+.It Fl \-map Ns = Ns Ar name Ns : Ns Ar path
 Specify exactly the location of the logical library
 .Ar name .
 Libraries mapped in this way will not use the normal search path.
 .\" --messages
-.It Fl -messages Ns = Ns Bo Cm full Ns | Ns Cm compact Bc
+.It Fl \-messages Ns = Ns Bo Cm full Ns | Ns Cm compact Bc
 Select the format used for printing error and informational messages.
 The default full message format is designed for readability whereas the
 compact messages can be easily parsed by tools.
 .\" --std
-.It Fl -std Ns = Ns Ar rev
+.It Fl \-std Ns = Ns Ar rev
 Select the VHDL standard revision to use.  VHDL standard revisions are
 commonly referred to by the year they were published.  For example IEEE
 1076-1993 is known as VHDL-93.  Specify either the full year such as
@@ -154,7 +154,7 @@ commonly referred to by the year they were published.  For example IEEE
 VHDL-2019 at present and VHDL-87 is not supported.  The default standard
 revision is VHDL-2002.
 .\" --stderr
-.It Fl -stderr Ns = Ns Ar level
+.It Fl \-stderr Ns = Ns Ar level
 Print error messages with the given severity or higher to
 .Ql stderr
 instead of
@@ -171,7 +171,7 @@ and
 .It Fl v , -version
 Display version and copyright information.
 .\"
-.It Fl -work Ns = Ns Ar name , Fl -work Ns = Ns Ar name Ns : Ns Ar path
+.It Fl \-work Ns = Ns Ar name , Fl \-work Ns = Ns Ar name Ns : Ns Ar path
 Use
 .Ar name
 as the work library.  The second variant explicitly specifies the
@@ -185,26 +185,26 @@ section below for details.
 .\" ------------------------------------------------------------
 .Ss Analysis options
 .Bl -tag -width Ds
-.It Fl -bootstrap
+.It Fl \-bootstrap
 Allow compilation of the
 .Ql STANDARD
 package.  Not useful in any other circumstances.
 .\"
-.It Fl -error-limit Ns = Ns Ar num
+.It Fl \-error-limit Ns = Ns Ar num
 Stop after reporting
 .Ar num
 errors.  The default is 20.  Zero allows unlimited errors.
 .\" --psl
-.It Fl -psl
+.It Fl \-psl
 Enable parsing of PSL directives in comments.
 .\" --relaxed
-.It Fl -relaxed
+.It Fl \-relaxed
 Disable certain pedantic LRM conformance checks or rules that were
 relaxed by later standards.  See the
 .Sx RELAXED RULES
 section below for details.
 .\" -D, --define
-.It Fl D Ar name Ns = Ns Ar value , Fl -define Ns = Ns Ar name Ns = Ns Ar value
+.It Fl D Ar name Ns = Ns Ar value , Fl \-define Ns = Ns Ar name Ns = Ns Ar value
 Define a conditional analysis identifier (VHDL-2019).  Option can be
 used multiple times to define multiple identifiers.
 .El
@@ -213,12 +213,12 @@ used multiple times to define multiple identifiers.
 .\" ------------------------------------------------------------
 .Ss Elaboration options
 .Bl -tag -width Ds
-.It Fl -cover
+.It Fl \-cover
 Enable code coverage reporting (see the
 .Sx CODE COVERAGE
 section below).
 .\"
-.It Fl -cover-spec= Ns Ar sfile
+.It Fl \-cover-spec= Ns Ar sfile
 Specify design part where code coverage is collected by
 .Ar sfile
 coverage specification file
@@ -226,11 +226,11 @@ coverage specification file
 .Sx CODE COVERAGE
 section below).
 .\"
-.It Fl -dump-llvm
+.It Fl \-dump-llvm
 Write generated LLVM IR to the work library directory before and after
 optimisation.
 .\"
-.It Fl -dump-vcode
+.It Fl \-dump-vcode
 Print generated intermediate code.  This is only useful for debugging
 the compiler.
 .\"
@@ -246,12 +246,12 @@ example
 and
 .Fl gSTR="hello" .
 .\" --jit
-.It Fl j , Fl -jit
+.It Fl j , Fl \-jit
 Normally
 .Nm
 compiles all code ahead-of-time during elaboration.
 The
-.Fl -jit
+.Fl \-jit
 option defers native code generation until run-time where each function
 will be compiled separately on a background thread once it has been has
 been executed often enough in the interpreter to be deemed worthwhile.
@@ -259,10 +259,10 @@ This dramatically reduces elaboration time at the cost of increased
 memory and CPU usage while the simulation is executing.  This option is
 beneficial for short-running simulations where the performance gain from
 ahead-of-time compilation is not so significant.  The
-.Fl -no-save
+.Fl \-no-save
 option must also be specified.
 .\" --no-save
-.It Fl -no-save
+.It Fl \-no-save
 Do not save the elaborated design and other generated files to the
 working library.  This is only really useful in combination with the
 .Fl r
@@ -275,7 +275,7 @@ $ nvc -e --no-save tb -r
 Set LLVM optimisation level.  Default is
 .Fl O2 .
 .\"
-.It Fl V , Fl -verbose
+.It Fl V , Fl \-verbose
 Prints resource usage information after each elaboration step.
 .El
 .\" ------------------------------------------------------------
@@ -284,12 +284,12 @@ Prints resource usage information after each elaboration step.
 .Ss Runtime options
 .Bl -tag -width Ds
 .\" --dump-arrays
-.It Fl -dump-arrays
+.It Fl \-dump-arrays
 Include memories and nested arrays in the waveform data.  This is
 disabled by default as it can have significant performance, memory, and
 disk space overhead.
 .\" --exit-severity
-.It Fl -exit-severity Ns = Ns Ar level
+.It Fl \-exit-severity Ns = Ns Ar level
 Terminate the simulation after an assertion failures of severity greater
 than or equal to
 .Ar level .
@@ -302,7 +302,7 @@ and
 The default is
 .Cm error .
 .\" --format
-.It Fl -format= Ns Ar fmt
+.It Fl \-format= Ns Ar fmt
 Generate waveform data in format
 .Ar fmt .
 Currently supported formats are:
@@ -318,20 +318,20 @@ not support FST.  The default format is FST if this option is not
 provided.  Note that GtkWave 3.3.79 or later is required to view the FST
 output.
 .\" --gtkw
-.It Fl g , Fl -gtkw Ns Bo = Ns Ar file Bc
+.It Fl g , Fl \-gtkw Ns Op = Ns Ar file
 Write a
 .Xr gtkwave 1
 save file containing every signal in the design hierarchy in declaration
 order with separators for each scope.
 This only makes sense in combination with the
-.Fl -wave
+.Fl \-wave
 option.
 .\" --ieee-warnings
-.It Fl -ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Bc
+.It Fl \-ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Bc
 Enable or disable warning messages from the standard IEEE packages.  The
 default is warnings enabled.
 .\" --include, --exclude
-.It Fl -include= Ns Ar glob , Fl -exclude= Ns Ar glob
+.It Fl \-include= Ns Ar glob , Fl \-exclude= Ns Ar glob
 Signals that match
 .Ar glob
 are included in or excluded from the waveform dump.  See section
@@ -339,28 +339,24 @@ are included in or excluded from the waveform dump.  See section
 for details on how to select particular signals.  These options can be
 given multiple times.
 .\" --load
-.It Fl -load= Ns Ar plugin
+.It Fl \-load= Ns Ar plugin
 Loads a VHPI plugin from the shared library
 .Ar plugin .
 See section
 .Sx VHPI
 for details on the VHPI implementation.
-.\" --profile
-.It Fl -profile
-Print various internal statistics about the simulation at the end of the
-run.  This is mostly useful for tuning the runtime itself.
 .\" --stats
-.It Fl -stats
+.It Fl \-stats
 Print a summary of the time taken and memory used at the end of the run.
 .\" --stop-delta
-.It Fl -stop-delta Ns = Ns Ar N
+.It Fl \-stop-delta Ns = Ns Ar N
 Stop after
 .Ar N
 delta cycles.  This can be used to detect zero-time loops in your model.
 The default is 10000 if not specified.  Setting this to zero disables
 the delta cycle limit.
 .\" --stop-time
-.It Fl -stop-time Ns = Ns Ar T
+.It Fl \-stop-time Ns = Ns Ar T
 Stop the simulation after the given time has elapsed.  Format of
 .Ar T
 is an integer followed by a time unit in lower case.  For example
@@ -368,21 +364,21 @@ is an integer followed by a time unit in lower case.  For example
 or
 .Cm 20ms .
 .\" --trace
-.It Fl -trace
+.It Fl \-trace
 Trace simulation events.  This is usually only useful for debugging the
 simulator.
 .\" --vhpi-trace
-.It Fl -vhpi-trace
+.It Fl \-vhpi-trace
 Trace VHPI calls and events.  This can be useful for debugging VHPI
 plugins.
 .\" --wave
-.It Fl w , Fl -wave Ns Bo = Ns Ar file Bc
+.It Fl w , Fl \-wave Ns Op = Ns Ar file
 Write waveform data to
 .Ar file .
 The file name is optional and if not specified will default to the name
 of the top-level unit with the appropriate extension for the waveform
 format.  The waveform format can be specified with the
-.Fl -format
+.Fl \-format
 option.  By default all signals in the design will be dumped: see the
 .Sx SELECTING SIGNALS
 section below for how to control this.
@@ -392,21 +388,21 @@ section below for how to control this.
 .\" ------------------------------------------------------------
 .Ss Coverage processing options
 .Bl -tag -width Ds
-.It Fl -merge= Ns Ar output
+.It Fl \-merge= Ns Ar output
 Merge multiple
 .Ar file
 code coverage databases into
 .Ar output
 code coverage database.
-.It Fl -report= Ns Ar dir
+.It Fl \-report= Ns Ar dir
 Generate HTML code coverage report to
 .Ar dir
 directory.
-.It Fl -exclude-file= Ns Ar efile
+.It Fl \-exclude-file= Ns Ar efile
 Apply commands in
 .Ar efile
 exclude file when generating code coverage report.
-.It Fl -dont-print= Ns Ar options
+.It Fl \-dont-print= Ns Ar options
 When set, NVC does not place code coverage details specified by <options> to
 code coverage report.
 .Ar options
@@ -419,7 +415,7 @@ Does not include uncovered items.
 .It Cm excluded
 Does not include excluded items.
 .El
-.It Fl -item-limit= Ns Ar limit
+.It Fl \-item-limit= Ns Ar limit
 NVC displays maximum
 .Ar limit
 items of single type (covered, uncovered, excluded) in
@@ -427,7 +423,7 @@ a single hierarchy in the code coverage report. Default
 value of
 .Ar limit
 is 5000.
-.It Fl V , Fl -verbose
+.It Fl V , Fl \-verbose
 Prints detailed hierarchy coverage when generating code coverage report.
 .El
 .\" ------------------------------------------------------------
@@ -436,11 +432,11 @@ Prints detailed hierarchy coverage when generating code coverage report.
 .Ss Make options
 .Bl -tag -width Ds
 .\" --deps-only
-.It Fl -deps-only
+.It Fl \-deps-only
 Generate rules that only contain dependencies without actions.  These
 can be useful for inclusion in a hand written makefile.
 .\" --posix
-.It Fl -posix
+.It Fl \-posix
 The generated makefile will work with any POSIX compliant make.
 Otherwise the output may use extensions specific to GNU make.
 .El
@@ -450,11 +446,11 @@ Otherwise the output may use extensions specific to GNU make.
 .Ss Install options
 .Bl -tag -width Ds
 .\" --dest
-.It Fl -dest Ar dir
+.It Fl \-dest= Ns Ar dir
 Compile libraries into directory
 .Ar dir
 instead of the default
-.Ql $HOME/.nvc/lib .
+.Pa $HOME/.nvc/lib .
 .\" --posix
 .El
 .\" ------------------------------------------------------------
@@ -475,16 +471,16 @@ tools the author used prior to writing
 .Nm .
 .Pp
 The name and physical location of the work library is controlled by the
-.Fl -work
+.Fl \-work
 global option.  In the simple case of
-.Fl -work Ns = Ns Ar name
+.Fl \-work Ns = Ns Ar name
 the library name is
 .Ql name
 and the physical location is a directory
 .Pa name
 relative to the current working directory.  The physical location can be
 specified explicitly using
-.Fl -work Ns = Ns Ar name Ns : Ns Ar path
+.Fl \-work Ns = Ns Ar name Ns : Ns Ar path
 where
 .Ar path
 is the directory name.
@@ -589,7 +585,7 @@ $ nvc -e --cover=statement,branch,toggle,expression <top>
 .Ed
 .Pp
 If no coverage type is specified as argument of
-.Fl -cover
+.Fl \-cover
 ,all coverage types are collected. After
 simulation is executed, NVC dumps coverage data into coverage database file
 (*.covdb). To merge coverage databases from multiple simulations, and generate
@@ -656,7 +652,7 @@ Toggle coverage on instance ports driven by constant value.
 .El
 .Pp
 All additional coverage options are passed comma separated to
-.Fl -cover
+.Fl \-cover
 elaboration option, e.g.:
 .Bd -literal -offset indent
 $ nvc -e --cover=all,include-mems,count-from-undefined <top>
@@ -820,7 +816,7 @@ a "Get Exclude Command" button.
 .\" ------------------------------------------------------------
 .Sh RELAXED RULES
 The
-.Fl -relaxed
+.Fl \-relaxed
 analysis flag enables
 .Dq relaxed rules
 mode which downgrades the following errors to warnings:
@@ -887,11 +883,11 @@ all select both of the previous signals.
 .Ss Restricting waveform dumps
 Path names and globs can be used to exclude or explicitly include
 signals in a waveform dump.  For simple cases this can be done using the
-.Fl -include
+.Fl \-include
 and
-.Fl -exclude
+.Fl \-exclude
 arguments.  For example
-.Fl -exclude= Ns Qq Ar :top:sub:*
+.Fl \-exclude= Ns Qq Ar :top:sub:*
 will exclude all matching signals from the waveform dump.  Multiple
 inclusion and exclusion patterns can be provided.
 .Pp
