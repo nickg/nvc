@@ -3952,7 +3952,7 @@ static void p_choice(tree_t parent, type_t constraint)
 
       if (scan(tDOWNTO, tTO, tRANGE, tREVRANGE))
          is_range = true;
-      else if (name_kind == T_REF && tree_has_ref(name))
+      else if (constraint != NULL && name_kind == T_REF && tree_has_ref(name))
          is_range = is_type_decl(tree_ref(name));
       else if (name_kind == T_ATTR_REF) {
          const attr_kind_t attr = tree_subkind(name);
@@ -3969,7 +3969,7 @@ static void p_choice(tree_t parent, type_t constraint)
          tree_set_name(t, (choice = name));
       }
 
-      if (tree_kind(parent) != T_AGGREGATE)
+      if (constraint != NULL)
          solve_types(nametab, choice, constraint);
    }
 
@@ -4032,7 +4032,7 @@ static void p_element_association(tree_t agg)
    }
 }
 
-static tree_t p_aggregate(bool is_target)
+static tree_t p_aggregate(void)
 {
    // ( element_association { , element_association } )
 
@@ -4092,7 +4092,7 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    tree_t value;
    if (look_for(&lookp))
-      value = p_aggregate(false);
+      value = p_aggregate();
    else {
       consume(tLPAREN);
       value = p_expression();
@@ -4153,7 +4153,7 @@ static tree_t p_primary(void)
          };
 
          if (look_for(&lookp))
-            return p_aggregate(false);
+            return p_aggregate();
          else {
             consume(tLPAREN);
             tree_t sub = p_expression();
@@ -8354,7 +8354,7 @@ static tree_t p_target(tree_t name)
 
    if (name == NULL) {
       if (peek() == tLPAREN)
-         return p_aggregate(true);
+         return p_aggregate();
       else
          return p_name(0);
    }
@@ -9199,7 +9199,7 @@ static tree_t p_sequential_statement(void)
 
    case tLPAREN:
       {
-         tree_t agg = p_aggregate(true);
+         tree_t agg = p_aggregate();
 
          switch (peek()) {
          case tASSIGN:

@@ -3783,7 +3783,32 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          case A_OTHERS:
             break;
          case A_NAMED:
-            solve_types(tab, tree_name(a), index_type);
+            {
+               tree_t name = tree_name(a);
+               type_t ntype = solve_types(tab, name, index_type);
+
+               if (tree_kind(name) == T_REF && tree_has_ref(name)) {
+                  tree_t type_decl = aliased_type_decl(tree_ref(name));
+                  if (type_decl != NULL) {
+                     // This should have been parsed as a range association
+                     tree_t tmp = tree_new(T_ATTR_REF);
+                     tree_set_name(tmp, name);
+                     tree_set_ident(tmp, ident_new("RANGE"));
+                     tree_set_loc(tmp, tree_loc(name));
+                     tree_set_subkind(tmp, ATTR_RANGE);
+                     tree_set_type(tmp, ntype);
+
+                     tree_t r = tree_new(T_RANGE);
+                     tree_set_subkind(r, RANGE_EXPR);
+                     tree_set_value(r, tmp);
+                     tree_set_loc(r, tree_loc(name));
+                     tree_set_type(r, ntype);
+
+                     tree_set_subkind(a, A_RANGE);
+                     tree_add_range(a, r);
+                  }
+               }
+            }
             break;
          case A_RANGE:
             solve_types(tab, tree_range(a, 0), index_type);

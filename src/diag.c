@@ -879,9 +879,14 @@ static void diag_format_compact(diag_t *d, FILE *f)
    fputc('\n', f);
 }
 
+static inline bool diag_has_message(diag_t *d)
+{
+   return tb_len(d->msg) > 0;
+}
+
 static void diag_format_full(diag_t *d, FILE *f)
 {
-   if (tb_len(d->msg) > 0) {
+   if (diag_has_message(d)) {
       int col = 0;
       switch (d->level) {
       case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
@@ -915,7 +920,8 @@ void diag_femit(diag_t *d, FILE *f)
       return;
    else if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
-   else if (d->level == DIAG_DEBUG && opt_get_int(OPT_UNIT_TEST))
+   else if (d->level == DIAG_DEBUG && opt_get_int(OPT_UNIT_TEST)
+            && diag_has_message(d))
       return;
    else {
       SCOPED_LOCK(diag_lock);
