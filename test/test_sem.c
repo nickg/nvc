@@ -507,6 +507,7 @@ START_TEST(test_array)
       { 436, "type mismatch in range: left is universal_real, right is" },
       { 446, "no visible declaration for FOO" },
       { 464, "declaration of variable A hides signal A" },
+      { 480, "cannot index non-array type MY_RECORD" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -796,8 +797,8 @@ START_TEST(test_record)
       { 111, "record field A cannot be of file type" },
       { 124, "record type R8 has no field named ACK" },
       { 153, "cannot index non-array type UNIT_SPEC_T" },
-      { 157, "cannot index non-array type UNIT_SPEC_T" },
       { 155, "cannot index non-array type UNIT_SPEC_T" },
+      { 157, "cannot index non-array type UNIT_SPEC_T" },
       { 166, "association choice must be a field name" },
       { 167, "3 positional associations given but record type R1 only has 2" },
       { 168, "others association must represent at least one element" },
@@ -2042,6 +2043,7 @@ START_TEST(test_issue359)
    const error_t expect[] = {
       {  8, "FOO already declared in this region" },
       {  8, "declaration of signal FOO hides signal FOO" },
+      { 16, "cannot index non-array type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

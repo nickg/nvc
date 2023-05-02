@@ -468,4 +468,16 @@ begin
     begin
     end process;
 
+    issue685: process is
+        subtype byte is bit_vector(7 downto 0);
+        type byte_vector is array (natural range <>) of byte;
+        type my_record is record
+            a : byte_vector(0 to 4);
+        end record my_record;
+        constant MY_CONST : my_record := (a => (others => x"00"));
+        function to_hstring(x : bit_vector) return string;
+    begin
+        report to_hstring(MY_CONST(0));  -- Error
+    end process;
+
 end architecture;

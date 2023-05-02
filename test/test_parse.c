@@ -1462,6 +1462,7 @@ START_TEST(test_array)
    const error_t expect[] = {
       { 26, "named and positional associations cannot be mixed in array" },
       { 39, "cannot index non-array type INTEGER" },
+      { 39, "cannot index non-array type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -3389,8 +3389,13 @@ static type_t solve_array_ref(nametab_t *tab, tree_t ref)
    type_t elem_type;
    if (type_is_array(base_type))
       elem_type = type_elem(base_type);
-   else
+   else if (type_is_none(base_type))
+      elem_type = base_type;
+   else {
+      error_at(tree_loc(ref), "cannot index non-array type %s",
+               type_pp(base_type));
       elem_type = type_new(T_NONE);
+   }
 
    if (standard() >= STD_08 && type_kind(base_type) == T_SUBTYPE) {
       tree_t cons[MAX_CONSTRAINTS];

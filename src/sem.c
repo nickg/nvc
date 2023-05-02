@@ -3286,10 +3286,8 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 
    type_t type = tree_type(tree_value(t));
 
-   if (type_is_none(type))
-      return false;
-   else if (!type_is_array(type))
-      sem_error(t, "cannot index non-array type %s", type_pp(type));
+   if (!type_is_array(type))
+      return false;  // Checked earlier
 
    const int nindex  = dimension_of(type);
    const int nparams = tree_params(t);
@@ -3301,8 +3299,7 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
    bool ok = true;
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
-      if (tree_subkind(p) != P_POS)
-         sem_error(t, "only scalar references supported");
+      assert(tree_subkind(p) == P_POS);
 
       type_t expect = index_type_of(type, i);
       tree_t value = tree_value(p);
