@@ -66,7 +66,7 @@ static void build_implication(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    case P_NEXT:
       {
          fsm_state_t *new = add_state(fsm);
-         add_edge(state, new, EDGE_NEXT, psl_operand(psl_operand(p, 0), 0));
+         add_edge(state, new, EDGE_NEXT, psl_operand(p, 0));
          build_node(fsm, new, psl_value(rhs));
       }
       break;

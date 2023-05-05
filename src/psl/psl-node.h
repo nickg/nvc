@@ -139,6 +139,7 @@ psl_node_t psl_ref(psl_node_t p);
 
 void psl_set_repeat(psl_node_t p, psl_node_t r);
 psl_node_t psl_repeat(psl_node_t p);
+bool psl_has_repeat(psl_node_t p);
 
 void psl_locus(psl_node_t p, ident_t *unit, ptrdiff_t *offset);
 

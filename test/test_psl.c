@@ -153,10 +153,8 @@ START_TEST(test_parse4)
 
    psl_node_t p3 = tree_psl(tree_stmt(a, 3));
    psl_node_t p3_v = psl_value(p3);
-   psl_node_t p3_v_op = psl_operand(p3_v, 0);
    fail_unless(psl_kind(p3) == P_COVER);
-   fail_unless(psl_kind(p3_v) == P_SERE);
-   fail_unless(psl_kind(p3_v_op) == P_SEQUENCE_INST);
+   fail_unless(psl_kind(p3_v) == P_SEQUENCE_INST);
 
 
    psl_node_t p6 = tree_psl(tree_stmt(a, 6));
@@ -237,7 +235,7 @@ START_TEST(test_parse5)
    fail_unless(psl_subkind(p0_v) == PSL_SERE_FUSION);
    fail_unless(psl_kind(p1_v0) == P_SERE);
    fail_unless(psl_subkind(p1_v0) == PSL_SERE_CONCAT);
-   fail_unless(psl_kind(p1_v1) == P_SERE);
+   fail_unless(psl_kind(p1_v1) == P_HDL_EXPR);
 
    psl_node_t p2 = tree_psl(tree_stmt(a, 3));
    psl_node_t p2_v = psl_value(p2);
@@ -298,11 +296,11 @@ START_TEST(test_dump)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 1)));
-   ck_assert_str_eq(tb_get(tb), "assert never {B}");
+   ck_assert_str_eq(tb_get(tb), "assert never B");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 6)));
-   ck_assert_str_eq(tb_get(tb), "assert {{A}; {\"and\"(B, C)}}");
+   ck_assert_str_eq(tb_get(tb), "assert {A; \"and\"(B, C)}");
    tb_rewind(tb);
 
    fail_if_errors();

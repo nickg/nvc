@@ -10393,8 +10393,6 @@ static psl_node_t p_psl_sequence(void)
    default:
       name = peek_ident();
 
-      p = psl_new(P_SERE);
-
       // Check for Sequence_Instance
       if (name && (query_name(nametab, name, &decl) & N_PSL)) {
          tree_t t_psl = tree_ref(p_name(N_PSL));
@@ -10408,30 +10406,29 @@ static psl_node_t p_psl_sequence(void)
                                        istr(name));
 
          // Here we are surely parsing Sequence_Instance
-         psl_node_t i = psl_new(P_SEQUENCE_INST);
-         psl_set_ref(i, s_decl);
+         p = psl_new(P_SEQUENCE_INST);
+         psl_set_ref(p, s_decl);
 
          if (optional(tLPAREN)) {
-            p_psl_actual_parameter_list(i, true);
+            p_psl_actual_parameter_list(p, true);
             consume(tRPAREN);
          }
 
-         psl_check(i);
-         psl_add_operand(p, i);
+         psl_check(p);
          break;
       }
 
-      psl_node_t op = p_psl_or_hdl_expression();
+      p = p_psl_or_hdl_expression();
 
       // [= and [-> are only allowed after boolean -> no need to recurse
+      // or create new SERE
       if (scan(tGOTORPT, tARROWRPT)) {
          psl_node_t new = psl_new(P_SERE);
-         psl_set_repeat(p, p_psl_repeat_scheme());
          psl_add_operand(new, p);
          p = new;
+         psl_set_repeat(p, p_psl_repeat_scheme());
       }
 
-      psl_add_operand(p, op);
       break;
    }
 
@@ -10439,10 +10436,12 @@ static psl_node_t p_psl_sequence(void)
    // repeatitions shall be treated as if braces were present. Recurse
    // and place the so-far parsed SERE as operand of new SERE. Similarly,
    // this is valid also for Proc_Block
-   int i = 0;
    while (scan(tPLUSRPT, tTIMESRPT) ||
           (peek() == tLSQUARE && peek_nth(2) == tLSQUARE)) {
-      if (i > 0) {
+
+      if (psl_kind(p) == P_HDL_EXPR ||
+          psl_has_repeat(p) ||
+          (peek() == tLSQUARE && peek_nth(2) == tLSQUARE)) {
          psl_node_t new = psl_new(P_SERE);
          psl_add_operand(new, p);
          p = new;
@@ -10452,7 +10451,6 @@ static psl_node_t p_psl_sequence(void)
          psl_set_repeat(p, p_psl_repeat_scheme());
       else
          psl_add_decl(p, p_psl_proc_block());
-      i++;
    }
 
    return p;
