@@ -154,6 +154,8 @@ static void finish_resizing(ident_tab_t *old, ident_tab_t *new)
 
    if (!atomic_cas(&table, old, new))
       fatal_trace("bug in concurrent resize protocol");
+
+   async_free(old);
 }
 
 static ident_tab_t *get_table(void)

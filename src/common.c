@@ -2315,7 +2315,7 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
          }
       }
    }
-   list_clear(&copy_ctx.copied_types);
+   list_free(&copy_ctx.copied_types);
 
    // Change the mangled name of copied subprograms so that copies in
    // different instances do not collide
@@ -2358,5 +2358,5 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
          }
       }
    }
-   list_clear(&copy_ctx.copied_subs);
+   list_free(&copy_ctx.copied_subs);
 }

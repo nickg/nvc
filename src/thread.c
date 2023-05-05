@@ -1116,7 +1116,11 @@ void async_barrier(void)
 
 void async_free(void *ptr)
 {
-   // TODO: free when all threads in quiescent state
+   if (relaxed_load(&running_threads) == 1)
+      free(ptr);
+   else if (ptr != NULL) {
+      // TODO: free when all threads in quiescent state
+   }
 }
 
 #ifdef POSIX_SUSPEND
