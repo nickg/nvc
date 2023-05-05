@@ -3164,7 +3164,7 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       else if (kind == T_GENERIC_DECL && tree_class(decl) == C_PACKAGE)
          return select_decl(tree_value(decl), suffix, mask);
       else if (is_container(decl))
-         return select_decl(decl, suffix, mask);
+         return select_decl(prefix, suffix, mask);
    }
 
    if (scope_formal_kind(nametab) == F_SUBPROGRAM) {
