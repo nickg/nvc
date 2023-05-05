@@ -81,7 +81,7 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_REF | I_PARAMS),
 
    // P_SEQUENCE_INST
-   (I_REF | I_PARAMS),
+   (I_REF | I_PARAMS | I_CLOCK | I_REPEAT),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -349,6 +349,11 @@ psl_node_t psl_repeat(psl_node_t p)
    item_t *item = lookup_item(&psl_object, p, I_REPEAT);
    assert(item->object != NULL);
    return container_of(item->object, struct _psl_node, object);
+}
+
+bool psl_has_repeat(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_REPEAT)->object != NULL;
 }
 
 object_t *psl_to_object(psl_node_t p)

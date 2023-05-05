@@ -247,6 +247,7 @@ BIT           ?i:bit
 BITVECTOR     ?i:bitvector
 NUMERIC       ?i:numeric
 STRING_K      ?i:string
+WITHIN        ?i:within
 
 %%
 
@@ -481,6 +482,8 @@ STRING_K      ?i:string
 <PSL>"[+]"               { TOKEN(tPLUSRPT); }
 <PSL>"[="                { TOKEN(tGOTORPT); }
 <PSL>"[->"               { TOKEN(tARROWRPT); }
+<PSL>"&&"                { TOKEN(tDBLAMP); }
+<PSL>{WITHIN}            { TOKEN(tWITHIN); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }

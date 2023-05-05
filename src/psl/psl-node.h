@@ -79,6 +79,18 @@ typedef enum {
    PSL_ARROW_REPEAT
 } psl_repeat_t;
 
+typedef enum {
+   PSL_SERE_CONCAT,
+   PSL_SERE_FUSION,
+   PSL_SERE_OR,
+   PSL_SERE_EQU_AND,
+   PSL_SERE_NEQ_AND,
+   PSL_SERE_WITHIN,
+   PSL_SERE_PARAM_NEQ_AND,
+   PSL_SERE_PARAM_EQU_AND,
+   PSL_SERE_PARAM_OR
+} psl_sere_kind_t;
+
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
 const char *psl_kind_str(psl_kind_t kind);
@@ -127,6 +139,7 @@ psl_node_t psl_ref(psl_node_t p);
 
 void psl_set_repeat(psl_node_t p, psl_node_t r);
 psl_node_t psl_repeat(psl_node_t p);
+bool psl_has_repeat(psl_node_t p);
 
 void psl_locus(psl_node_t p, ident_t *unit, ptrdiff_t *offset);
 

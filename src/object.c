@@ -64,7 +64,7 @@ typedef struct _object_arena {
                           | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
-                          | I_GUARD | I_FOREIGN | I_CLOCK)
+                          | I_GUARD | I_FOREIGN | I_CLOCK | I_REPEAT)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
