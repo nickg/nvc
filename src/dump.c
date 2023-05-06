@@ -1188,15 +1188,22 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_IF_GENERATE:
-      print_syntax("#if ");
-      dump_expr(tree_value(t));
-      print_syntax(" #generate\n");
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
-      tab(indent);
-      print_syntax("#begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      for (unsigned i = 0; i < tree_conds(t); i++) {
+         tree_t c = tree_cond(t, i);
+         if (tree_has_value(c)) {
+            if (i > 0)
+               tab(indent);
+            print_syntax(i > 0 ? "#elsif " : "#if ");
+            dump_expr(tree_value(c));
+            print_syntax(" #generate\n");
+         }
+         else {
+            tab(indent);
+            print_syntax("#else\n");
+         }
+         for (unsigned i = 0; i < tree_stmts(c); i++)
+            dump_stmt(tree_stmt(c, i), indent + 2);
+      }
       tab(indent);
       print_syntax("#end #generate");
       break;
