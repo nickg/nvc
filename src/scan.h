@@ -60,6 +60,8 @@ int get_next_char(char *b, int max_buffer);
 void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
 
+bool is_scanned_as_psl(void);
+
 #define tEOF           0
 
 #define tLPAREN        '('
@@ -272,5 +274,13 @@ void reset_verilog_parser(void);
 #define tSYSTASK       383
 #define tVIEW          384
 #define tPRIVATE       385
+#define tPREV          386
+#define tSTABLE        387
+#define tROSE          388
+#define tFELL          389
+#define tENDED         390
+#define tNONDET        391
+#define tNONDETV       392
+#define tUNION         393
 
 #endif  // _SCAN_H

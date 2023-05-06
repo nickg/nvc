@@ -42,6 +42,10 @@ typedef enum {
    P_REPEAT,
    P_PROPERTY_INST,
    P_SEQUENCE_INST,
+   P_UNION,
+   P_BUILTIN_FUNC,
+   P_VALUE_SET,
+   P_PARAM,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -90,6 +94,26 @@ typedef enum {
    PSL_SERE_PARAM_EQU_AND,
    PSL_SERE_PARAM_OR
 } psl_sere_kind_t;
+
+typedef enum {
+   PSL_BUILTIN_NEXT,
+   PSL_BUILTIN_PREV,
+   PSL_BUILTIN_STABLE,
+   PSL_BUILTIN_ROSE,
+   PSL_BUILTIN_FELL,
+   PSL_BUILTIN_ENDED,
+   PSL_BUILTIN_ISUKNOWN,
+   PSL_BUILTIN_COUNTONES,
+   PSL_BUILTIN_ONEHOT,
+   PSL_BUILTIN_ONEHOT0,
+   PSL_BUILTIN_NONDET,
+   PSL_BUILTIN_NONDET_VECTOR
+} psl_builtin_kind_t;
+
+typedef enum {
+   PSL_VALUE_SET_BOOLEAN,
+   PSL_VALUE_SET_EXPLICIT
+} psl_value_set_kind_t;
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
