@@ -1299,6 +1299,10 @@ static void dump_port(tree_t t, int indent)
 {
    tab(indent);
    dump_address(t);
+
+   if (tree_flags(t) & TREE_F_PREDEFINED)
+      print_syntax("-- predefined ");
+
    const char *class = NULL, *dir = NULL;
    switch (tree_class(t)) {
    case C_SIGNAL:    class = "signal";    break;

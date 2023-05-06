@@ -2789,6 +2789,82 @@ static void overload_restrict_argument_type(overload_t *o, tree_t p,
    }
 }
 
+static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
+{
+   ident_t type_id = type_ident(type);
+   if (ident_starts_with(type_id, tab->top_scope->prefix))
+      type_id = ident_rfrom(type_id, '.');
+
+   const symbol_t *type_sym = iterate_symbol_for(tab, type_id);
+   if (type_sym == NULL)
+      return NULL;
+
+   const symbol_t *op_sym = symbol_for(type_sym->owner, op);
+   if (op_sym == NULL)
+      return NULL;
+
+   for (int i = 0; i < op_sym->ndecls; i++) {
+      const decl_t *dd = get_decl(op_sym, i);
+      if (!(dd->mask & N_SUBPROGRAM) || tree_ports(dd->tree) == 0)
+         continue;
+
+      // TODO: according to the standard we should only allow
+      // TREE_F_PREDEFINED here
+
+      type_t arg0 = tree_type(tree_port(dd->tree, 0));
+      if (type_eq(arg0, type))
+         return dd->tree;
+   }
+
+   return NULL;
+}
+
+void map_generic_predef(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
+{
+   assert(tree_kind(g) == T_GENERIC_DECL);
+   assert(tree_flags(g) & TREE_F_PREDEFINED);
+
+   if (tab->top_scope->gmap == NULL) {
+      // Suppress further errors about missing predefined operators
+      assert(error_count() > 0);
+      return;
+   }
+
+   type_t type = tree_type(g);
+
+   tree_t ref = tree_new(T_REF);
+   tree_set_loc(ref, tree_loc(inst));
+   tree_set_ident(ref, type_ident(type));
+
+   type_t p0type = type_param(type, 0);
+   type_t mapped = hash_get(tab->top_scope->gmap, p0type) ?: p0type;
+
+   type_t base = type_base_recur(mapped);
+
+   if (type_is_none(base))
+      return;    // Was earlier error
+
+   tree_t d = resolve_predef(tab, base, type_ident(type));
+   if (d == NULL) {
+      error_at(tree_loc(inst), "cannot find predefined %s operator for type %s",
+               istr(tree_ident(g)), type_pp(mapped));
+      return;
+   }
+
+   tree_set_ref(ref, d);
+   tree_set_type(ref, tree_type(d));
+
+   tree_t map = tree_new(T_PARAM);
+   tree_set_loc(ref, tree_loc(inst));
+   tree_set_subkind(map,  P_POS);
+   tree_set_pos(map, pos);
+   tree_set_value(map, ref);
+
+   tree_add_genmap(inst, map);
+
+   map_generic_subprogram(tab, g, d);
+}
+
 void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 {
    // Find the actual for the <> "box" default generic subprogram
@@ -2799,7 +2875,8 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    tree_t ref = tree_new(T_REF);
    tree_set_loc(ref, tree_loc(inst));
    tree_set_ident(ref, type_ident(type));
-   tree_set_type(ref, solve_types(tab, ref, type));
+
+   solve_types(tab, ref, type);
 
    tree_t map = tree_new(T_PARAM);
    tree_set_loc(ref, tree_loc(inst));

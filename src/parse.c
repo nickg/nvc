@@ -4729,6 +4729,7 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
       tree_set_ident(p, id);
       tree_set_type(p, ftype);
       tree_set_subkind(p, PORT_IN);
+      tree_set_flag(p, TREE_F_PREDEFINED);
       tree_set_loc(p, CURRENT_LOC);
 
       for (int j = 0; j < 2; j++) {
@@ -4741,12 +4742,6 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
 
          tree_add_port(p, arg);
       }
-
-      tree_t box = tree_new(T_BOX);
-      tree_set_loc(box, CURRENT_LOC);
-      tree_set_type(box, ftype);
-
-      tree_set_value(p, box);
 
       add_interface(parent, p, kind);
       insert_name(nametab, p, NULL);

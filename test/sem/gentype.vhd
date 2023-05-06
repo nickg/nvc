@@ -50,6 +50,8 @@ architecture test of top is
     function my_func (a : real) return real;
 
     function some_other_func (a, b : integer) return integer;
+
+    type incomplete;
 begin
 
     u1: entity work.sub
@@ -64,7 +66,7 @@ begin
         generic map ( t => integer, init => 1.2 );  -- Error
 
     u5: entity work.sub
-        generic map ( real, "=", "/=", 5.2 );  -- OK (but weird?)
+        generic map ( real, "=", "/=", 5.2 );  -- Not sure: GHDL gives an error
 
     u6: entity work.sub
         generic map ( t => 5, init => 2 );  -- Error
@@ -89,5 +91,8 @@ begin
 
     u13: component comp1
         generic map ( t => u12, init => 5 );  -- Error
+
+    u14: component comp1
+        generic map ( t => incomplete, init => 1 );  -- Error
 
 end architecture;

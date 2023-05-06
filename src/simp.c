@@ -981,7 +981,7 @@ static tree_t simp_range(tree_t t)
       return range_of(type, dim);
 }
 
-static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
+static tree_t simp_hidden_decl(tree_t decl, simp_ctx_t *ctx)
 {
    // Remove predefined operators which are hidden by explicitly defined
    // operators in the same region
@@ -1164,7 +1164,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_range(t);
    case T_FUNC_DECL:
    case T_PROC_DECL:
-      return simp_subprogram_decl(t, ctx);
+   case T_GENERIC_DECL:
+      return simp_hidden_decl(t, ctx);
    case T_INSTANCE:
    case T_BINDING:
       simp_generic_map(t, tree_ref(t));
