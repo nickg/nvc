@@ -25,6 +25,13 @@
 
 #include <assert.h>
 
+#define CANNOT_HANDLE(v) do {                                           \
+      fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
+               vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \
+   } while (0)
+
+static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
+
 static inline vcode_type_t vlog_logic_type(void)
 {
    return vtype_int(0, 3);
@@ -54,7 +61,9 @@ static void vlog_lower_port_decl(lower_unit_t *lu, vlog_node_t port)
    vcode_reg_t flags = emit_const(voffset, 0);
    vcode_reg_t locus = vlog_debug_locus(port);
 
-   emit_init_signal(vlogic, size, count, init, flags, locus, VCODE_INVALID_REG);
+   vcode_reg_t nets_reg = emit_init_signal(vlogic, size, count, init, flags,
+                                           locus, VCODE_INVALID_REG);
+   emit_store(nets_reg, var);
 }
 
 static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
@@ -67,8 +76,7 @@ static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
          vlog_lower_port_decl(lu, d);
          break;
       default:
-         fatal_trace("cannot lower Verilog decl kind %s",
-                     vlog_kind_str(vlog_kind(d)));
+         CANNOT_HANDLE(d);
       }
    }
 }
@@ -106,13 +114,165 @@ static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
    }
 }
 
+static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v);
+
+         int hops;
+         vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
+         assert(var != VCODE_INVALID_VAR);
+
+         if (hops == 0)
+            return emit_load(var);
+         else
+            return emit_load_indirect(emit_var_upref(hops, var));
+      }
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v);
+
+         int hops;
+         vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
+         assert(var != VCODE_INVALID_VAR);
+
+         vcode_reg_t nets_reg;
+         if (hops == 0)
+            nets_reg = emit_load(var);
+         else
+            nets_reg = emit_load_indirect(emit_var_upref(hops, var));
+
+         return emit_load_indirect(emit_resolved(nets_reg));
+      }
+   case V_EVENT:
+      {
+         vlog_node_t value = vlog_value(v);
+         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, value);
+
+         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
+
+         const v_event_kind_t ekind = vlog_subkind(v);
+         if (ekind == V_EVENT_LEVEL)
+            return event_reg;
+
+         vcode_type_t vlogic = vlog_logic_type();
+
+         vcode_reg_t const_reg = emit_const(vlogic, ekind == V_EVENT_POSEDGE);
+         vcode_reg_t value_reg = vlog_lower_rvalue(lu, value);
+         vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, value_reg, const_reg);
+
+         return emit_and(event_reg, cmp_reg);
+      }
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, v);
+         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         emit_sched_event(nets_reg, count_reg);
+      }
+      break;
+   case V_EVENT:
+      vlog_lower_sensitivity(lu, vlog_value(v));
+      break;
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
+{
+   vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(v));
+
+   vcode_block_t true_bb = emit_block();
+   vcode_block_t false_bb = emit_block();
+
+   emit_cond(test_reg, true_bb, false_bb);
+
+   vcode_select_block(true_bb);
+
+   vlog_lower_stmts(lu, v);
+
+   if (!vcode_block_finished())
+      emit_jump(false_bb);
+
+   vcode_select_block(false_bb);
+}
+
+static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
+{
+   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, vlog_target(v));
+   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+   vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
+
+   vcode_type_t vtime = vtype_time();
+   vcode_reg_t reject_reg = emit_const(vtime, 0);
+   vcode_reg_t after_reg = emit_const(vtime, 0);
+
+   emit_sched_waveform(nets_reg, count_reg, value_reg, reject_reg, after_reg);
+}
+
+static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
+{
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(v, i);
+      switch (vlog_kind(s)) {
+      case V_TIMING:
+         vlog_lower_timing(lu, s, false);
+         break;
+      case V_NBASSIGN:
+         vlog_lower_nbassign(lu, s);
+         break;
+      default:
+         CANNOT_HANDLE(s);
+      }
+   }
+}
+
+static void vlog_lower_driver(lower_unit_t *lu, vlog_node_t v)
+{
+   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, v);
+   emit_drive_signal(nets_reg, emit_const(vtype_offset(), 1));
+}
+
+static void vlog_driver_cb(vlog_node_t v, void *context)
+{
+   lower_unit_t *lu = context;
+
+   switch (vlog_kind(v)) {
+   case V_NBASSIGN:
+   case V_ASSIGN:
+      vlog_lower_driver(lu, vlog_target(v));
+      break;
+   default:
+      break;
+   }
+}
+
 static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
    vcode_select_unit(context);
 
-   ident_t label = ident_uniq("always");
-   ident_t name = ident_prefix(vcode_unit_name(), label, '.');
+   ident_t name = ident_prefix(vcode_unit_name(), vlog_ident(stmt), '.');
    vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
 
    vcode_block_t start_bb = emit_block();
@@ -120,9 +280,22 @@ static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
 
    lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
 
+   vlog_visit(stmt, vlog_driver_cb, lu);
+
+   vlog_node_t timing = NULL, s0 = vlog_stmt(stmt, 0);
+   if (vlog_kind(s0) == V_TIMING) {
+      timing = s0;
+      vlog_lower_sensitivity(lu, vlog_value(timing));
+   }
+
    emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(start_bb);
+
+   if (timing != NULL)
+      vlog_lower_timing(lu, timing, true);
+   else
+      vlog_lower_stmts(lu, stmt);
 
    emit_wait(start_bb, VCODE_INVALID_REG);
 
@@ -139,8 +312,7 @@ static void vlog_lower_concurrent(lower_unit_t *parent, vlog_node_t scope)
          vlog_lower_always(parent, s);
          break;
       default:
-         fatal_trace("cannot handle concurrent statement kind %s",
-                     vlog_kind_str(vlog_kind(s)));
+         CANNOT_HANDLE(s);
       }
    }
 }

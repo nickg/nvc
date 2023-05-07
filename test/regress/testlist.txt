@@ -769,3 +769,4 @@ issue676        normal,2008
 issue677        normal
 issue681        normal,2008
 issue658        normal,2008
+vlog1           mixed

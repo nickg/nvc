@@ -21,8 +21,8 @@
 #include "cover.h"
 #include "debug.h"
 #include "hash.h"
-#include "jit/jit.h"
 #include "jit/jit-exits.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
 #include "rt/heap.h"
@@ -31,6 +31,7 @@
 #include "thread.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -378,6 +379,50 @@ static void scope_deps_cb(ident_t unit_name, void *__ctx)
    }
 }
 
+static rt_scope_t *scope_for_verilog(rt_model_t *m, vlog_node_t scope,
+                                     ident_t prefix)
+{
+   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
+   s->where    = NULL;
+   s->name     = ident_prefix(prefix, vlog_ident(scope), '.');
+   s->kind     = SCOPE_INSTANCE;
+   s->privdata = mptr_new(m->mspace, "block privdata");
+
+   hash_put(m->scopes, scope, s);
+
+   const int nstmts = vlog_stmts(scope);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t v = vlog_stmt(scope, i);
+      switch (vlog_kind(v)) {
+      case V_ALWAYS:
+         {
+            ident_t name = vlog_ident(v);
+            ident_t sym = ident_prefix(s->name, name, '.');
+
+            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+            p->where     = NULL;
+            p->name      = ident_prefix(NULL, ident_downcase(name), ':');
+            p->handle    = jit_lazy_compile(m->jit, sym);
+            p->scope     = s;
+            p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = false;
+            p->wakeable.delayed   = false;
+
+            list_add(&s->procs, p);
+         }
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   return s;
+}
+
 static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 {
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
@@ -422,6 +467,14 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
       case T_BLOCK:
          {
             rt_scope_t *c = scope_for_block(m, t, s->name);
+            c->parent = s;
+            list_add(&s->children, c);
+         }
+         break;
+
+      case T_VERILOG:
+         {
+            rt_scope_t *c = scope_for_verilog(m, tree_vlog(t), s->name);
             c->parent = s;
             list_add(&s->children, c);
          }

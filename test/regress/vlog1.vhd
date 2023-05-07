@@ -26,7 +26,6 @@ begin
         wait for 1 ns;
         rstb <= '1';
         wait for 1 ns;
-        --assert q = '0';
         d <= '1';
         wait for 1 ns;
         clk <= '1';

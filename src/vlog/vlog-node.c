@@ -34,7 +34,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_REF),
 
    // V_ALWAYS
-   (I_STMTS),
+   (I_IDENT | I_STMTS),
 
    // V_TIMING
    (I_VALUE | I_STMTS),
@@ -49,7 +49,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_STMTS),
 
    // V_SEQ_BLOCK
-   (I_STMTS),
+   (I_IDENT | I_STMTS),
 
    // V_SYSTASK_ENABLE
    (I_IDENT | I_SUBKIND | I_PARAMS),

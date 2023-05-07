@@ -359,6 +359,10 @@ always_construct:
                    $$ = vlog_new(V_ALWAYS);
                    vlog_set_loc($$, &@$);
                    vlog_add_stmt($$, $2);
+
+                   char *name LOCAL =
+                      xasprintf("__always#line%d", @$.first_line);
+                   vlog_set_ident($$, ident_uniq(name));
                 }
         ;
 
