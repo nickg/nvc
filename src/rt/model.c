@@ -395,6 +395,7 @@ static rt_scope_t *scope_for_verilog(rt_model_t *m, vlog_node_t scope,
       vlog_node_t v = vlog_stmt(scope, i);
       switch (vlog_kind(v)) {
       case V_ALWAYS:
+      case V_INITIAL:
          {
             ident_t name = vlog_ident(v);
             ident_t sym = ident_prefix(s->name, name, '.');
@@ -567,7 +568,13 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
 
    tree_walk_deps(top, scope_deps_cb, m);
 
-   rt_scope_t *s = scope_for_block(m, tree_stmt(top, 0), lib_name(lib_work()));
+   rt_scope_t *s = NULL;
+   tree_t s0 = tree_stmt(top, 0);
+   if (tree_kind(s0) == T_VERILOG)
+      s = scope_for_verilog(m, tree_vlog(s0), lib_name(lib_work()));
+   else
+      s = scope_for_block(m, s0, lib_name(lib_work()));
+
    list_add(&m->root->children, s);
 
    __trace_on = opt_get_int(OPT_RT_TRACE);

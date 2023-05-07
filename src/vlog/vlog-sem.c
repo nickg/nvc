@@ -139,7 +139,7 @@ static void vlog_check_seq_block(vlog_node_t block)
       vlog_check(vlog_stmt(block, i));
 }
 
-static void vlog_check_systask_enable(vlog_node_t call)
+static void vlog_check_systask(vlog_node_t call)
 {
    const well_known_t name = is_well_known(vlog_ident(call));
 
@@ -222,8 +222,8 @@ void vlog_check(vlog_node_t v)
    case V_SEQ_BLOCK:
       vlog_check_seq_block(v);
       break;
-   case V_SYSTASK_ENABLE:
-      vlog_check_systask_enable(v);
+   case V_SYSTASK:
+      vlog_check_systask(v);
       break;
    default:
       fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));

@@ -17,7 +17,8 @@ lib_libnvc_a_SOURCES += \
 	src/rt/model.c \
 	src/rt/fileio.c \
 	src/rt/printer.h \
-	src/rt/printer.c
+	src/rt/printer.c \
+	src/rt/verilog.c
 
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \

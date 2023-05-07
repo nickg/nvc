@@ -95,6 +95,7 @@ EXID            \\([^\\]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
+VLOG_STRING     "\""[^\n]*"\""
 BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
@@ -499,8 +500,10 @@ WITHIN        ?i:within
 <VLOG>"wire"             { return tWIRE; }
 <VLOG>"assign"           { return tASSIGN; }
 
+<VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
+<VLOG>{VLOG_STRING}      { yylval.str = xstrdup(yytext); return tSTRING; }
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }

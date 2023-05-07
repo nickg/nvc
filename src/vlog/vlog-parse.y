@@ -125,7 +125,7 @@ static bool is_decl(vlog_node_t v)
 %type   <kind>          net_type
 
 %token  <str>           tID 200 "identifier"
-%token  <str>           tSYSTASK "system task identifier"
+%token  <str>           tSYSTASK 383 "system task identifier"
 %token  <str>           tSTRING 229 "string"
 %token  <str>           tUNSIGNED 359 "unsigned number"
 %token                  tMODULE 350 "module"
@@ -372,6 +372,10 @@ initial_construct:
                    $$ = vlog_new(V_INITIAL);
                    vlog_set_loc($$, &@$);
                    vlog_add_stmt($$, $2);
+
+                   char *name LOCAL =
+                      xasprintf("__initial#line%d", @$.first_line);
+                   vlog_set_ident($$, ident_uniq(name));
                 }
         ;
 
@@ -402,7 +406,7 @@ list_of_statements:
 system_task_enable:
                 tSYSTASK ';'
                 {
-                   $$ = vlog_new(V_SYSTASK_ENABLE);
+                   $$ = vlog_new(V_SYSTASK);
                    vlog_set_loc($$, &@$);
                    vlog_set_ident($$, ident_new($1));
 
@@ -410,7 +414,7 @@ system_task_enable:
                 }
         |       tSYSTASK '(' list_of_expressions ')' ';'
                 {
-                   $$ = vlog_new(V_SYSTASK_ENABLE);
+                   $$ = vlog_new(V_SYSTASK);
                    vlog_set_loc($$, &@$);
                    vlog_set_ident($$, ident_new($1));
 
@@ -430,6 +434,16 @@ seq_block:      tBEGIN list_of_statements tEND
                    for (node_list_t *it = $2; it; it = it->next)
                       vlog_add_stmt($$, it->value);
                    node_list_free($2);
+                }
+        |       tBEGIN ':' identifier list_of_statements tEND
+                {
+                   $$ = vlog_new(V_SEQ_BLOCK);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, $3);
+
+                   for (node_list_t *it = $4; it; it = it->next)
+                      vlog_add_stmt($$, it->value);
+                   node_list_free($4);
                 }
         ;
 
@@ -513,8 +527,8 @@ string:         tSTRING
                 {
                    $$ = vlog_new(V_STRING);
                    vlog_set_loc($$, &@$);
-                   //$1[strlen($1) - 1] = '\0';
-                   //vlog_set_text($$, $1 + 1);
+                   $1[strlen($1) - 1] = '\0';
+                   vlog_set_text($$, $1 + 1);
                    free($1);
                 }
         ;

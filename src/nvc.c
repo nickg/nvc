@@ -33,6 +33,7 @@
 #include "scan.h"
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
+#include "vlog/vlog-node.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -365,8 +366,8 @@ static int elaborate(int argc, char **argv)
 
    progress("initialising");
 
-   tree_t unit = lib_get(lib_work(), top_level);
-   if (unit == NULL)
+   object_t *obj = lib_get_generic(lib_work(), top_level);
+   if (obj == NULL)
       fatal("cannot find unit %s in library %s",
             istr(top_level), istr(lib_name(lib_work())));
 
@@ -383,7 +384,15 @@ static int elaborate(int argc, char **argv)
    jit_t *jit = get_jit();
    jit_enable_runtime(jit, false);
 
-   tree_t top = elab(unit, jit, cover);
+   tree_t unit, top;
+   vlog_node_t module;
+   if ((unit = tree_from_object(obj)))
+      top = elab(unit, jit, cover);
+   else if ((module = vlog_from_object(obj)))
+      top = elab_verilog(module, jit, cover);
+   else
+      fatal("%s is not a VHDL design unit or Verilog module", istr(top_level));
+
    if (top == NULL)
       return EXIT_FAILURE;
 
@@ -491,6 +500,7 @@ static jit_t *get_jit(void)
    _std_env_init();
    _file_io_init();
    _nvc_sim_pkg_init();
+   _verilog_init();
 
    return jit;
 }

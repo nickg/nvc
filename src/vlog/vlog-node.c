@@ -46,7 +46,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_SUBKIND | I_VALUE),
 
    // V_INITIAL
-   (I_STMTS),
+   (I_IDENT | I_STMTS),
 
    // V_SEQ_BLOCK
    (I_IDENT | I_STMTS),
@@ -55,7 +55,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_SUBKIND | I_PARAMS),
 
    // V_STRING
-   (0),
+   (I_TEXT),
 
    // V_NUMBER
    (0),
@@ -71,10 +71,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",    "V_PORT_DECL",      "V_REF",    "V_ALWAYS",
-   "V_TIMING",    "V_NBASSIGN",       "V_EVENT",  "V_INITIAL",
-   "V_SEQ_BLOCK", "V_SYSTASK_ENABLE", "V_STRING", "V_NUMBER",
-   "V_NET_DECL",  "V_ASSIGN",         "V_ROOT",
+   "V_MODULE",    "V_PORT_DECL",   "V_REF",    "V_ALWAYS",
+   "V_TIMING",    "V_NBASSIGN",    "V_EVENT",  "V_INITIAL",
+   "V_SEQ_BLOCK", "V_SYSTASK",     "V_STRING", "V_NUMBER",
+   "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -284,6 +284,18 @@ void vlog_set_target(vlog_node_t v, vlog_node_t e)
 {
    lookup_item(&vlog_object, v, I_TARGET)->object = &(e->object);
    object_write_barrier(&(v->object), &(e->object));
+}
+
+const char *vlog_text(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_TEXT);
+   assert(item->text != NULL);
+   return item->text;
+}
+
+void vlog_set_text(vlog_node_t v, const char *text)
+{
+   lookup_item(&vlog_object, v, I_TEXT)->text = xstrdup(text);
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

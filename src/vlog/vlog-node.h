@@ -53,7 +53,7 @@ typedef enum {
    V_EVENT,
    V_INITIAL,
    V_SEQ_BLOCK,
-   V_SYSTASK_ENABLE,
+   V_SYSTASK,
    V_STRING,
    V_NUMBER,
    V_NET_DECL,
@@ -105,6 +105,9 @@ void vlog_set_value(vlog_node_t v, vlog_node_t e);
 
 vlog_node_t vlog_target(vlog_node_t v);
 void vlog_set_target(vlog_node_t v, vlog_node_t e);
+
+const char *vlog_text(vlog_node_t v);
+void vlog_set_text(vlog_node_t v, const char *text);
 
 typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 

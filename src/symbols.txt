@@ -46,6 +46,9 @@
   __nvc_seek;
   __nvc_truncate;
 
+  # Exported from src/rt/verilog.c
+  __nvc_vfinish;
+
   # Exported from src/jit/jit-exits.c
   __nvc_do_exit;
   __nvc_do_fficall;

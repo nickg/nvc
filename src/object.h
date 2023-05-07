@@ -84,7 +84,7 @@ typedef uint64_t imask_t;
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
-// Unused            ONE_HOT(50)
+#define I_TEXT       ONE_HOT(50)
 #define I_LEFT       ONE_HOT(51)
 #define I_RIGHT      ONE_HOT(52)
 // Unused            ONE_HOT(53)
@@ -155,6 +155,7 @@ typedef union {
    obj_array_t  *obj_array;
    int64_t       ival;
    double        dval;
+   char         *text;
 } item_t;
 
 STATIC_ASSERT(sizeof(item_t) == 8);

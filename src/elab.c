@@ -1184,7 +1184,7 @@ static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
    mask_free(&have);
 }
 
-static void elab_verilog(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
+static void elab_verilog_module(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
 {
    vlog_node_t mod = tree_vlog(wrap);
 
@@ -1196,7 +1196,8 @@ static void elab_verilog(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
    for (int i = 0; i < ndecls; i++)
       vlog_add_decl(root, vlog_decl(mod, i));
 
-   elab_mixed_port_map(wrap, inst, mod);
+   if (inst != NULL)
+      elab_mixed_port_map(wrap, inst, mod);
 
    const int nstmts = vlog_stmts(mod);
    for (int i = 0; i < nstmts; i++)
@@ -1205,7 +1206,7 @@ static void elab_verilog(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
    tree_set_vlog(wrap, root);
    tree_add_stmt(ctx->out, wrap);
 
-   vlog_lower(wrap, ctx->parent->lowered);
+   vlog_lower(wrap, ctx->parent ? ctx->parent->lowered : NULL);
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1258,7 +1259,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    if (arch == NULL)
       return;
    else if (tree_kind(arch) == T_VERILOG) {
-      elab_verilog(arch, t, &new_ctx);
+      elab_verilog_module(arch, t, &new_ctx);
       return;
    }
 
@@ -2058,6 +2059,61 @@ tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+
+   if (error_count() > 0)
+      return NULL;
+
+   if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
+      dump(e);
+
+   for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
+      if (!it->used)
+         warnf("generic value for %s not used", istr(it->name));
+   }
+
+   freeze_global_arena();
+
+   if (error_count() == 0) {
+      lib_t work = lib_work();
+      lib_put(work, e);
+
+#if !defined ENABLE_LLVM || defined ENABLE_JIT
+      ident_t b0_name = tree_ident(tree_stmt(e, 0));
+      ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
+      vcode_unit_t vu = vcode_find_unit(vu_name);
+      lib_put_vcode(work, e, vu);
+#endif
+
+      return e;
+   }
+   else
+      return NULL;
+}
+
+tree_t elab_verilog(vlog_node_t top, jit_t *jit, cover_tagging_t *cover)
+{
+   make_new_arena();
+
+   tree_t e = tree_new(T_ELAB);
+   tree_set_ident(e, ident_prefix(vlog_ident(top), well_known(W_ELAB), '.'));
+   tree_set_loc(e, vlog_loc(top));
+
+   elab_ctx_t ctx = {
+      .out       = e,
+      .root      = e,
+      .path_name = NULL,
+      .inst_name = NULL,
+      .cover     = cover,
+      .library   = lib_work(),
+      .jit       = jit,
+   };
+
+   tree_t wrap = tree_new(T_VERILOG);
+   tree_set_loc(wrap, vlog_loc(top));
+   tree_set_ident(wrap, vlog_ident(top));
+   tree_set_vlog(wrap, top);
+
+   elab_verilog_module(wrap, NULL, &ctx);
 
    if (error_count() > 0)
       return NULL;

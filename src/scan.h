@@ -268,5 +268,6 @@ void reset_verilog_parser(void);
 #define tARROWRPT      380
 #define tDBLAMP        381
 #define tWITHIN        382
+#define tSYSTASK       383
 
 #endif  // _SCAN_H
