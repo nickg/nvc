@@ -31,6 +31,7 @@ typedef char ffi_type_t;
 #define FFI_POINTER 'p'
 #define FFI_UARRAY 'u'
 #define FFI_SIGNAL 's'
+#define FFI_VARIADIC '.'
 
 typedef union {
    struct {

@@ -978,6 +978,7 @@ void intern_strings(void)
    id_cache[W_DEFAULT_CLOCK]  = ident_new("default clock");
    id_cache[W_DOLLAR_DISPLAY] = ident_new("$display");
    id_cache[W_DOLLAR_FINISH]  = ident_new("$finish");
+   id_cache[W_DOLLAR_WRITE]   = ident_new("$write");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");

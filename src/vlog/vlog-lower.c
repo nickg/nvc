@@ -254,23 +254,35 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
 
 static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
 {
-   switch (vlog_subkind(v)) {
+   const v_systask_kind_t kind = vlog_subkind(v);
+   const char *fns[] = {
+      "__nvc_sys_display",
+      "__nvc_sys_write",
+      "__nvc_sys_finish"
+   };
+   assert(kind < ARRAY_LEN(fns));
+
+   switch (kind) {
    case V_SYS_DISPLAY:
+   case V_SYS_WRITE:
       {
          const int nparams = vlog_params(v);
          vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
          for (int i = 0; i < nparams; i++)
             args[i] = vlog_lower_rvalue(lu, vlog_param(v, i));
 
-         emit_fcall(ident_new("__nvc_sys_display"), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, VCODE_CC_FOREIGN, args, nparams);
+         emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
+                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams);
       }
       break;
 
    case V_SYS_FINISH:
-      emit_fcall(ident_new("__nvc_sys_finish"), VCODE_INVALID_TYPE,
+      emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
                  VCODE_INVALID_TYPE, VCODE_CC_FOREIGN, NULL, 0);
       break;
+
+   default:
+      CANNOT_HANDLE(v);
    }
 }
 

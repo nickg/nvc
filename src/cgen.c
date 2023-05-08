@@ -171,8 +171,11 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
          case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
          case VCODE_OP_PACKAGE_INIT:
-            if (vcode_get_subkind(op) != VCODE_CC_FOREIGN)
-               cgen_add_dependency(vcode_get_func(op), list);
+            {
+               const vcode_cc_t cc = vcode_get_subkind(op);
+               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
+                  cgen_add_dependency(vcode_get_func(op), list);
+            }
             break;
          default:
             break;

@@ -77,6 +77,7 @@ static ffi_type *libffi_type_for(ffi_type_t type)
    case FFI_INT32:   return &ffi_type_sint32;
    case FFI_INT64:   return &ffi_type_sint64;
    case FFI_FLOAT:   return &ffi_type_double;
+   case FFI_VARIADIC:
    case FFI_POINTER: return &ffi_type_pointer;
    case FFI_UARRAY:
    case FFI_VOID:
@@ -146,6 +147,9 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
    void *aptrs[ff->nargs + 1];
    for (int i = 0; i < ff->nargs; i++)
       aptrs[i] = &(args[i].integer);
+
+   if (ffi_spec_get(ff->spec, ff->nargs) == FFI_VARIADIC)
+      aptrs[ff->nargs - 1] = &args;
 
    const ffi_type_t rtype = ffi_spec_get(ff->spec, 0);
 
@@ -354,7 +358,7 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
 
 #ifdef DEBUG
    for (int i = 0; i < count; i++)
-      assert(islower(types[i]));
+      assert(islower(types[i]) || types[i] == FFI_VARIADIC);
 #endif
 
    ffi_spec_t spec = {};

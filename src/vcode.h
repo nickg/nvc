@@ -206,6 +206,7 @@ typedef enum {
    VCODE_CC_VHDL,
    VCODE_CC_PREDEF,
    VCODE_CC_FOREIGN,
+   VCODE_CC_VARIADIC,
 } vcode_cc_t;
 
 typedef struct {

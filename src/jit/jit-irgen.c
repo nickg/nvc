@@ -983,7 +983,7 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
    }
 }
 
-static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
+static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op, bool variadic)
 {
    ident_t func = vcode_get_func(op);
    jit_foreign_t *ff = jit_ffi_get(func);
@@ -998,10 +998,14 @@ static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op)
    else
       tb_append(tb, FFI_VOID);
 
-   const int nargs = vcode_count_args(op);
-   for (int i = 0; i < nargs; i++) {
-      vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, i));
-      tb_append(tb, irgen_ffi_type(vtype));
+   if (variadic)
+      tb_append(tb, FFI_VARIADIC);
+   else {
+      const int nargs = vcode_count_args(op);
+      for (int i = 0; i < nargs; i++) {
+         vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, i));
+         tb_append(tb, irgen_ffi_type(vtype));
+      }
    }
 
    ffi_spec_t spec = ffi_spec_new(tb_get(tb), tb_len(tb));
@@ -2191,10 +2195,11 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 {
    irgen_emit_debuginfo(g, op);   // For stack traces
 
-   if (vcode_get_subkind(op) == VCODE_CC_FOREIGN) {
+   const vcode_cc_t cc = vcode_get_subkind(op);
+   if (cc == VCODE_CC_FOREIGN || cc == VCODE_CC_VARIADIC) {
       irgen_send_args(g, op, 0);
 
-      jit_foreign_t *ff = irgen_ffi_for_call(g, op);
+      jit_foreign_t *ff = irgen_ffi_for_call(g, op, cc == VCODE_CC_VARIADIC);
       macro_fficall(g, jit_value_from_foreign(ff));
 
       vcode_reg_t result = vcode_get_result(op);

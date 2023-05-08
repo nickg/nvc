@@ -80,6 +80,7 @@ static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
 static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
+static int escape_verilog_string(const char *str);
 
 static int last_token = -1;
 static int comment_caller = 0;
@@ -95,7 +96,7 @@ EXID            \\([^\\]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
-VLOG_STRING     "\""[^\n]*"\""
+VLOG_STRING     "\""[^\n\"]*"\""
 BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
@@ -503,7 +504,7 @@ WITHIN        ?i:within
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
-<VLOG>{VLOG_STRING}      { yylval.str = xstrdup(yytext); return tSTRING; }
+<VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
@@ -748,6 +749,29 @@ static int parse_bit_string(const char *str)
    }
 
    TOKEN(tBITSTRING);
+}
+
+static int escape_verilog_string(const char *str)
+{
+   char *s = (yylval.str = xstrdup(str));
+   for (char *p = s; *p; p++) {
+      if (*p == '\\') {
+         switch (*++p) {
+         case 'n': *s++ = '\n'; break;
+         case 'r': *s++ = '\r'; break;
+         case 't': *s++ = '\t'; break;
+         case 'b': *s++ = '\b'; break;
+         default:
+            warn_at(&yylloc, "unrecognised escaped character '%c'", *p);
+            *s++ = *p;
+         }
+      }
+      else
+         *s++ = *p;
+   }
+   *s = '\0';
+
+   return tSTRING;
 }
 
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)

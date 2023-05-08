@@ -22,6 +22,31 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static void verilog_printf(jit_scalar_t *args)
+{
+   const char *fmt = (*args++).pointer, *start = fmt, *p = fmt;
+
+   for (; *p; p++) {
+      if (*p == '%') {
+         if (start < p)
+            fwrite(start, 1, p - start, stdout);
+
+         switch (*++p) {
+         case 's':
+            fputs((*args++).pointer, stdout);
+            break;
+         default:
+            jit_msg(NULL, DIAG_FATAL, "unknown format specifier '%c'", *p);
+         }
+
+         start = p + 1;
+      }
+   }
+
+   if (start < p)
+      fwrite(start, 1, p - start, stdout);
+}
+
 DLLEXPORT
 void __nvc_sys_finish(void)
 {
@@ -30,9 +55,17 @@ void __nvc_sys_finish(void)
 }
 
 DLLEXPORT
-void __nvc_sys_display(const char *fmt)
+void __nvc_sys_display(jit_scalar_t *args)
 {
-   printf("%s\n", fmt);
+   verilog_printf(args);
+   fputc('\n', stdout);
+   fflush(stdout);
+}
+
+DLLEXPORT
+void __nvc_sys_write(jit_scalar_t *args)
+{
+   verilog_printf(args);
    fflush(stdout);
 }
 

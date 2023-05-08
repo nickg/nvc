@@ -1312,6 +1312,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                }
                if (op->subkind == VCODE_CC_FOREIGN)
                   col += printf("foreign ");
+               else if (op->subkind == VCODE_CC_VARIADIC)
+                  col += printf("variadic ");
                col += color_printf("%s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
@@ -3308,7 +3310,7 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
       VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
                    "invalid argument to function");
 
-   if (cc != VCODE_CC_FOREIGN)
+   if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
       VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
                    "first argument to VHDL function must be context pointer");
 

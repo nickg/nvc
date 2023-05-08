@@ -147,6 +147,7 @@ static void vlog_check_systask(vlog_node_t call)
    switch (name) {
    case W_DOLLAR_DISPLAY: kind = V_SYS_DISPLAY; break;
    case W_DOLLAR_FINISH:  kind = V_SYS_FINISH; break;
+   case W_DOLLAR_WRITE:   kind = V_SYS_WRITE; break;
    default:
       error_at(vlog_loc(call), "system task %s not recognised",
                istr(vlog_ident(call)));
