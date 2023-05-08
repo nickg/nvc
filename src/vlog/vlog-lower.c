@@ -25,6 +25,7 @@
 #include "vlog/vlog-phase.h"
 
 #include <assert.h>
+#include <string.h>
 
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
@@ -182,6 +183,20 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 
          return emit_and(event_reg, cmp_reg);
       }
+   case V_STRING:
+      {
+         const char *text = vlog_text(v);
+         size_t len = strlen(text) + 1;
+         vcode_reg_t *chars LOCAL = xmalloc_array(len, sizeof(vcode_reg_t));
+         vcode_type_t vchar = vtype_char();
+
+         for (int i = 0; i < len; i++)
+            chars[i] = emit_const(vchar, text[i]);
+
+         vcode_type_t vtype = vtype_carray(len, vchar, vchar);
+         vcode_reg_t array = emit_const_array(vtype, chars, len);
+         return emit_address_of(array);
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -241,10 +256,19 @@ static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
 {
    switch (vlog_subkind(v)) {
    case V_SYS_DISPLAY:
+      {
+         const int nparams = vlog_params(v);
+         vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+         for (int i = 0; i < nparams; i++)
+            args[i] = vlog_lower_rvalue(lu, vlog_param(v, i));
+
+         emit_fcall(ident_new("__nvc_sys_display"), VCODE_INVALID_TYPE,
+                    VCODE_INVALID_TYPE, VCODE_CC_FOREIGN, args, nparams);
+      }
       break;
 
    case V_SYS_FINISH:
-      emit_fcall(ident_new("__nvc_vfinish"), VCODE_INVALID_TYPE,
+      emit_fcall(ident_new("__nvc_sys_finish"), VCODE_INVALID_TYPE,
                  VCODE_INVALID_TYPE, VCODE_CC_FOREIGN, NULL, 0);
       break;
    }

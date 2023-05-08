@@ -20,12 +20,20 @@
 #include "rt/model.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 DLLEXPORT
-void __nvc_vfinish(void)
+void __nvc_sys_finish(void)
 {
    notef("$finish called");
    jit_abort(0);
+}
+
+DLLEXPORT
+void __nvc_sys_display(const char *fmt)
+{
+   printf("%s\n", fmt);
+   fflush(stdout);
 }
 
 void _verilog_init(void)
