@@ -138,6 +138,10 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #define fseeko(f, o, w) (off_t)fseek(f, o, w)
 #endif
 
+#ifndef HAVE_STRCHRNUL
+char *strchrnul(const char *s, int c_in);
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })

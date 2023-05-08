@@ -660,7 +660,11 @@ static int compare_shell_cmd(const void *a, const void *b)
 tcl_shell_t *shell_new(jit_factory_t make_jit)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
+#ifdef RL_VERSION_MAJOR
    sh->prompt   = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
+#else
+   sh->prompt   = color_asprintf("$+cyan$%%$$ ");
+#endif
    sh->interp   = Tcl_CreateInterp();
    sh->make_jit = make_jit;
    sh->jit      = make_jit ? (*make_jit)() : NULL;

@@ -50,7 +50,7 @@ AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
 AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr getline fseeko])
-AC_CHECK_FUNCS([ftello fpurge __fpurge])
+AC_CHECK_FUNCS([ftello fpurge __fpurge strchrnul])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -75,6 +75,7 @@ esac
 AM_CONDITIONAL([GNULIB_MEMMEM], [test "x$ac_cv_func_memmem" != xyes])
 AM_CONDITIONAL([GNULIB_STRCASESTR], [test "x$ac_cv_func_strcasestr" != xyes])
 AM_CONDITIONAL([GNULIB_GETLINE], [test "x$ac_cv_func_getline" != xyes])
+AM_CONDITIONAL([GNULIB_STRCHRNUL], [test "x$ac_cv_func_strchrnul" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
@@ -191,7 +192,7 @@ AS_IF([test x$enable_tcl = xyes],
       [AC_DEFINE_UNQUOTED([ENABLE_TCL], [1], [TCL shell enabled])
 
        found_tcl=no
-       for pkg in tcl8.6 tcl86; do
+       for pkg in tcl8.6 tcl86 tcl; do
          PKG_CHECK_MODULES([TCL], [$pkg >= 8.6.0],
                            [found_tcl=yes], [true])
        done

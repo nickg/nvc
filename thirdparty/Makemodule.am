@@ -24,3 +24,7 @@ endif
 if GNULIB_GETLINE
 lib_libgnulib_a_SOURCES += thirdparty/getline.c thirdparty/getdelim.c
 endif
+
+if GNULIB_STRCHRNUL
+lib_libgnulib_a_SOURCES += thirdparty/strchrnul.c thirdparty/rawmemchr.c
+endif
