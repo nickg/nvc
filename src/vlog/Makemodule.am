@@ -8,7 +8,9 @@ lib_libnvc_a_SOURCES += \
 if ENABLE_VERILOG
 lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-parse.y \
-	src/vlog/vlog-sem.c
+	src/vlog/vlog-sem.c \
+	src/vlog/vlog-number.h \
+	src/vlog/vlog-number.c
 endif
 
 AM_YFLAGS = --locations # -Wcounterexamples

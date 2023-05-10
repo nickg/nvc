@@ -22,6 +22,7 @@
 #include "scan.h"
 #include "test_util.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 
 START_TEST(test_dff)
@@ -210,6 +211,57 @@ START_TEST(test_parse1)
 }
 END_TEST
 
+START_TEST(test_number1)
+{
+   number_t x = number_new("1'b1");
+   fail_unless(number_is_defined(x));
+   ck_assert_int_eq(number_width(x), 1);
+   ck_assert_int_eq(number_to_integer(x), 1);
+   number_free(x);
+
+   number_t y = number_new("5'b101");
+   fail_unless(number_is_defined(y));
+   ck_assert_int_eq(number_width(y), 5);
+   ck_assert_int_eq(number_to_integer(y), 5);
+   number_free(y);
+
+   number_t z = number_new("5'b1xx");
+   fail_if(number_is_defined(z));
+   ck_assert_int_eq(number_width(z), 5);
+   number_free(z);
+}
+END_TEST
+
+START_TEST(test_number2)
+{
+   struct {
+      const char *input;
+      unsigned    width;
+      int64_t     ival;
+      const char *string;
+   } cases[] = {
+      { "1'b1",   1, 1,  "1'b1"      },
+      { "5'b100", 5, 4,  "5'b100"    },
+      { "1",      5, 1,  "5'b1"      },
+      { "42",     8, 42, "8'b101010" },
+   };
+
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   for (int i = 0; i < ARRAY_LEN(cases); i++) {
+      number_t n = number_new(cases[i].input);
+      ck_assert_int_eq(number_width(n), cases[i].width);
+      ck_assert_int_eq(number_to_integer(n), cases[i].ival);
+
+      tb_rewind(tb);
+      number_print(n, tb);
+      ck_assert_str_eq(tb_get(tb), cases[i].string);
+
+      number_free(n);
+   }
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -220,6 +272,8 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_ports);
    tcase_add_test(tc, test_dump);
    tcase_add_test(tc, test_parse1);
+   tcase_add_test(tc, test_number1);
+   tcase_add_test(tc, test_number2);
    suite_add_tcase(s, tc);
 
    return s;
