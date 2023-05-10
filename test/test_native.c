@@ -915,6 +915,114 @@ START_TEST(test_float)
 }
 END_TEST
 
+START_TEST(test_ccmp)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV     R0, #0          \n"
+      "    CMP.GE   R0, #0          \n"
+      "    CCMP.LE  R0, #10         \n"
+      "    CSET     R1              \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = assemble(j, text1, "ccmp1", "i");
+   ck_assert_int_eq(jit_call(j, h1, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h1, 5).integer, 1);
+   ck_assert_int_eq(jit_call(j, h1, 15).integer, 0);
+   ck_assert_int_eq(jit_call(j, h1, -6).integer, 0);
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_memset)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV        R0, #0        \n"
+      "    RECV        R1, #1        \n"
+      "    RECV        R2, #2        \n"
+      "    $MEMSET.8   R2, [R0], R1  \n"
+      "    RET                       \n";
+
+   char mem8[16];
+   memset(mem8, 'x', sizeof(mem8));
+
+   jit_handle_t h1 = assemble(j, text1, "memset1", "pII");
+   jit_call(j, h1, mem8, 42, sizeof(mem8));
+   for (int i = 0; i < sizeof(mem8); i++)
+      ck_assert_int_eq(mem8[i], 42);
+   jit_call(j, h1, mem8, 55, sizeof(mem8));
+   for (int i = 0; i < sizeof(mem8); i++)
+      ck_assert_int_eq(mem8[i], 55);
+
+   const char *text2 =
+      "    RECV        R0, #0        \n"
+      "    RECV        R1, #1        \n"
+      "    RECV        R2, #2        \n"
+      "    $MEMSET.16  R2, [R0], R1  \n"
+      "    RET                       \n";
+
+   uint16_t mem16[16];
+
+   jit_handle_t h2 = assemble(j, text2, "memset2", "pII");
+   jit_call(j, h2, mem16, 42, sizeof(mem16));
+   for (int i = 0; i < ARRAY_LEN(mem16); i++)
+      ck_assert_int_eq(mem16[i], 42);
+   jit_call(j, h2, mem16, 0xaabb, sizeof(mem16));
+   for (int i = 0; i < ARRAY_LEN(mem16); i++)
+      ck_assert_int_eq(mem16[i], 0xaabb);
+   jit_call(j, h2, mem16, 0x1234, 4);
+   for (int i = 0; i < ARRAY_LEN(mem16); i++)
+      ck_assert_int_eq(mem16[i], i < 2 ? 0x1234 : 0xaabb);
+
+   const char *text3 =
+      "    RECV        R0, #0        \n"
+      "    RECV        R1, #1        \n"
+      "    RECV        R2, #2        \n"
+      "    $MEMSET.32  R2, [R0], R1  \n"
+      "    RET                       \n";
+
+   uint32_t mem32[16];
+
+   jit_handle_t h3 = assemble(j, text3, "memset3", "pII");
+   jit_call(j, h3, mem32, 42, sizeof(mem32));
+   for (int i = 0; i < ARRAY_LEN(mem32); i++)
+      ck_assert_int_eq(mem32[i], 42);
+   jit_call(j, h3, mem32, 0xaabbccdd, sizeof(mem32));
+   for (int i = 0; i < ARRAY_LEN(mem32); i++)
+      ck_assert_int_eq(mem32[i], 0xaabbccdd);
+   jit_call(j, h3, mem32, 0x12345678, 4);
+   for (int i = 0; i < ARRAY_LEN(mem32); i++)
+      ck_assert_int_eq(mem32[i], i == 0 ? 0x12345678 : 0xaabbccdd);
+
+   const char *text4 =
+      "    RECV        R0, #0        \n"
+      "    RECV        R1, #1        \n"
+      "    RECV        R2, #2        \n"
+      "    $MEMSET.64  R2, [R0], R1  \n"
+      "    RET                       \n";
+
+   uint64_t mem64[16];
+
+   jit_handle_t h4 = assemble(j, text4, "memset4", "pII");
+   jit_call(j, h4, mem64, 42, sizeof(mem64));
+   for (int i = 0; i < ARRAY_LEN(mem64); i++)
+      ck_assert_int_eq(mem64[i], 42);
+   jit_call(j, h4, mem64, 0xaabbccdd, sizeof(mem64));
+   for (int i = 0; i < ARRAY_LEN(mem64); i++)
+      ck_assert_int_eq(mem64[i], 0xaabbccdd);
+   jit_call(j, h4, mem64, 0x12345678, 8);
+   for (int i = 0; i < ARRAY_LEN(mem64); i++)
+      ck_assert_int_eq(mem64[i], i == 0 ? 0x12345678 : 0xaabbccdd);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -939,6 +1047,8 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_case);
    tcase_add_test(tc, test_exp);
    tcase_add_test(tc, test_float);
+   tcase_add_test(tc, test_ccmp);
+   tcase_add_test(tc, test_memset);
    suite_add_tcase(s, tc);
 
    return s;

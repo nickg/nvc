@@ -1154,6 +1154,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "SEND",    J_SEND,       0, 2 },
       { "RET",     J_RET,        0, 0 },
       { "CMP",     J_CMP,        0, 2 },
+      { "CCMP",    J_CCMP,       0, 2 },
       { "JUMP",    J_JUMP,       0, 1 },
       { "CSEL",    J_CSEL,       1, 2 },
       { "CSET",    J_CSET,       1, 0 },
@@ -1201,6 +1202,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "O",  JIT_CC_O },
       { "C",  JIT_CC_C },
       { "LT", JIT_CC_LT },
+      { "LE", JIT_CC_LE },
       { "GT", JIT_CC_GT },
       { "GE", JIT_CC_GE },
    };

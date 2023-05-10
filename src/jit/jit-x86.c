@@ -622,9 +622,11 @@ static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_operand_t count,
       break;
 
    case REG_IMM:
-      assert(count.imm == 1);
       asm_rex(blob, size, src.reg, 0, 0);
-      __(0xd1, __MODRM(3, 7, src.reg));
+      if (count.imm == 1)
+         __(0xd1, __MODRM(3, 7, src.reg));
+      else
+         __(0xc1, __MODRM(3, 7, src.reg), count.imm);
       break;
 
    default:
@@ -1208,6 +1210,19 @@ static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_set_flags(blob, ir);
 }
 
+static void jit_x86_ccmp(code_blob_t *blob, jit_ir_t *ir)
+{
+   TEST(FLAGS_REG, IMM(1), __BYTE);
+   JZ(IMM(15));
+
+   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get(blob, __ECX, ir->arg2);
+
+   CMP(__EAX, __ECX, __QWORD);
+
+   jit_x86_set_flags(blob, ir);
+}
+
 static void jit_x86_cset(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_put(blob, ir->result, FLAGS_REG);
@@ -1426,6 +1441,32 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
    POP(__ESI);
 }
 
+static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir)
+{
+   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __EAX, ir->arg2);
+
+   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+
+   switch (ir->size) {
+   case JIT_SZ_64:
+      SAR(__ECX, IMM(3), __DWORD);
+      __(0xf3, 0x48, 0xab);   // REP STOSQ
+      break;
+   case JIT_SZ_32:
+      SAR(__ECX, IMM(2), __DWORD);
+      __(0xf3, 0xab);   // REP STOSD
+      break;
+   case JIT_SZ_16:
+      SAR(__ECX, IMM(1), __DWORD);
+      __(0xf3, 0x66, 0xab);   // REP STOSW
+      break;
+   default:
+      __(0xf3, 0xaa);   // REP STOSB
+      break;
+   }
+}
+
 static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
@@ -1578,6 +1619,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
    case J_CMP:
       jit_x86_cmp(blob, ir);
       break;
+   case J_CCMP:
+      jit_x86_ccmp(blob, ir);
+      break;
    case J_CSET:
       jit_x86_cset(blob, ir);
       break;
@@ -1640,6 +1684,9 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_MOVE:
       jit_x86_macro_move(blob, ir);
+      break;
+   case MACRO_MEMSET:
+      jit_x86_macro_memset(blob, ir);
       break;
    case MACRO_GETPRIV:
       jit_x86_macro_getpriv(blob, ir);
