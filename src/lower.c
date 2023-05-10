@@ -7374,10 +7374,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
                                  init_reg, locus);
       }
 
-      const int ndims = dimension_of(type);
-      vcode_reg_t len_reg = lower_array_len(lu, type, 0, bounds_reg);
-      for (int i = 1; i < ndims; i++)
-         len_reg = emit_mul(lower_array_len(lu, type, i, bounds_reg), len_reg);
+      vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
 
       if (lower_have_uarray_ptr(sig_ptr)) {
          // Need to allocate separate memory for the array
