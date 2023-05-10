@@ -5512,6 +5512,29 @@ START_TEST(test_issue686)
 }
 END_TEST
 
+START_TEST(test_interface)
+{
+   const error_t expect[] = {
+      { 10, "sorry, mode view declarations are not yet supported" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/parse/interface.vhd");
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5625,6 +5648,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue687);
    tcase_add_test(tc_core, test_issue688);
    tcase_add_test(tc_core, test_issue686);
+   tcase_add_test(tc_core, test_interface);
    suite_add_tcase(s, tc_core);
 
    return s;

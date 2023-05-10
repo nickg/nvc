@@ -69,6 +69,7 @@
 
 #define TOKEN_00(t) TOKEN_LRM(t, STD_00)
 #define TOKEN_08(t) TOKEN_LRM(t, STD_08)
+#define TOKEN_19(t) TOKEN_LRM(t, STD_19)
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
@@ -250,6 +251,7 @@ BITVECTOR     ?i:bitvector
 NUMERIC       ?i:numeric
 STRING_K      ?i:string
 WITHIN        ?i:within
+VIEW          ?i:view
 
 %%
 
@@ -369,6 +371,7 @@ WITHIN        ?i:within
 {RELEASE}                { TOKEN_08(tRELEASE); }
 {PARAMETER}              { TOKEN_08(tPARAMETER); }
 {DEFAULT}                { TOKEN_08(tDEFAULT); }
+{VIEW}                   { TOKEN_19(tVIEW); }
 
 `{IF}                    { TOKEN(tCONDIF); }
 `{ELSE}                  { TOKEN(tCONDELSE); }

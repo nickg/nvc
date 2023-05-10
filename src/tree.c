@@ -338,6 +338,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_VERILOG
    (I_IDENT | I_FOREIGN | I_PARAMS | I_GENMAPS),
+
+   // T_VIEW_DECL
+   (I_IDENT | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -375,7 +378,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
    "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
    "T_CASE_GENERATE",   "T_ALTERNATIVE",     "T_PSL",
-   "T_VERILOG",
+   "T_VERILOG",         "T_VIEW_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -430,7 +433,7 @@ static tree_kind_t decl_kinds[] = {
    T_PROT_BODY,      T_BLOCK_CONFIG,   T_IMPLICIT_SIGNAL, T_DISCONNECT,
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
-   T_PROC_INST,      T_FUNC_INST,      T_PSL,
+   T_PROC_INST,      T_FUNC_INST,      T_PSL,             T_VIEW_DECL,
 };
 
 object_class_t tree_object = {

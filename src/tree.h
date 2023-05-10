@@ -217,6 +217,7 @@ typedef enum {
    ATTR_SIMPLE_NAME,
    ATTR_SUBTYPE,
    ATTR_ELEMENT,
+   ATTR_CONVERSE,
 } attr_kind_t;
 
 typedef enum {
@@ -336,6 +337,7 @@ typedef enum tree_kind {
    T_ALTERNATIVE,
    T_PSL,
    T_VERILOG,
+   T_VIEW_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

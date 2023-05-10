@@ -150,6 +150,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
 static void p_generic_map_aspect(tree_t inst, tree_t unit);
 static ident_t p_designator(void);
 static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
+static void p_trailing_label(ident_t label);
 static type_t p_subtype_indication(void);
 static tree_t p_record_constraint(type_t base);
 static tree_t p_qualified_expression(tree_t prefix);
@@ -6887,6 +6888,58 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    return new;
 }
 
+static void p_mode_view_element_declaration(tree_t view)
+{
+   // record_element_list : element_mode_indication ;
+
+   BEGIN("mode view element declaration");
+
+   (void)p_identifier();
+
+   consume(tCOLON);
+
+   (void)p_mode();
+
+   consume(tSEMI);
+}
+
+static tree_t p_mode_view_declaration(void)
+{
+   // view identifier of subtype_indication is
+   //   { mode_view_element_definition } end view [ mode_view_simple_name ] ;
+
+   BEGIN("mode view declaration");
+
+   consume(tVIEW);
+
+   tree_t view = tree_new(T_VIEW_DECL);
+
+   ident_t id = p_identifier();
+   tree_set_ident(view, id);
+
+   consume(tOF);
+
+   type_t type = p_subtype_indication();
+   tree_set_type(view, type);
+
+   consume(tIS);
+
+   while (not_at_token(tEND))
+      p_mode_view_element_declaration(view);
+
+   consume(tEND);
+   consume(tVIEW);
+
+   p_trailing_label(id);
+
+   consume(tSEMI);
+
+   tree_set_loc(view, CURRENT_LOC);
+   insert_name(nametab, view, NULL);
+   sem_check(view, nametab);
+   return view;
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -6895,6 +6948,7 @@ static void p_entity_declarative_item(tree_t entity)
    //   | attribute_declaration | attribute_specification
    //   | disconnection_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
+   //   | 2019: mode_view_declaration
 
    BEGIN("entity declarative item");
 
@@ -6960,10 +7014,14 @@ static void p_entity_declarative_item(tree_t entity)
       p_signal_declaration(entity);
       break;
 
+   case tVIEW:
+      tree_add_decl(entity, p_mode_view_declaration());
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
              tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED,
-             tSIGNAL);
+             tSIGNAL, tVIEW);
    }
 }
 
@@ -7494,7 +7552,7 @@ static void p_package_declarative_item(tree_t pack)
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
    //   | 2008: package_instantiation_declaration
-   //   | 2008: package_declaration
+   //   | 2008: package_declaration | 2009: mode_view_declaration
    //
 
    BEGIN("package declarative item");
@@ -7578,10 +7636,14 @@ static void p_package_declarative_item(tree_t pack)
       }
       break;
 
+   case tVIEW:
+      tree_add_decl(pack, p_mode_view_declaration());
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
              tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE,
-             tDISCONNECT, tGROUP, tPACKAGE);
+             tDISCONNECT, tGROUP, tPACKAGE, tVIEW);
    }
 }
 
@@ -8233,6 +8295,7 @@ static void p_block_declarative_item(tree_t parent)
    //   | disconnection_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
    //   | 2008: psl_clock_declaration | 2008: package_declaration
+   //   | 2019: mode_view_declaration
 
    BEGIN("block declarative item");
 
@@ -8334,10 +8397,14 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_psl_declaration());
       break;
 
+   case tVIEW:
+      tree_add_decl(parent, p_mode_view_declaration());
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED, tDISCONNECT, tGROUP, tPACKAGE);
+             tSHARED, tDISCONNECT, tGROUP, tPACKAGE, tVIEW);
    }
 }
 

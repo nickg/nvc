@@ -5495,6 +5495,11 @@ static bool sem_check_prot_ref(tree_t t, nametab_t *tab)
    return false;
 }
 
+static bool sem_check_view_decl(tree_t t, nametab_t *tab)
+{
+   sem_error(t, "sorry, mode view declarations are not yet supported");
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -5661,6 +5666,8 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_FUNC_INST:
    case T_PROC_INST:
       return sem_check_subprogram_inst(t, tab);
+   case T_VIEW_DECL:
+      return sem_check_view_decl(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
