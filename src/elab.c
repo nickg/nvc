@@ -1010,6 +1010,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       case T_REF:
          if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
             break;
+         else if (tree_class(eg) == C_PACKAGE)
+            break;
          // Fall-through
       case T_ARRAY_REF:
       case T_RECORD_REF:

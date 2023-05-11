@@ -772,3 +772,4 @@ issue658        normal,2008
 vlog1           mixed
 vlog2           verilog,gold
 issue690        normal
+issue644        normal,2008
