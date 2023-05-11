@@ -59,4 +59,17 @@ begin
         MUX_IN   => MUX_IN,
         MUX_OUT  => MUX_OUT
       ) ;
+
+    check: process is
+    begin
+        mux_ctrl <= "10";
+        mux_in <= ("00", "01", "10", "11");
+        wait for 1 ns;
+        assert mux_out = "10";
+        mux_ctrl <= "00";
+        wait for 1 ns;
+        assert mux_out = "00";
+        wait;
+    end process;
+
 end architecture ;
