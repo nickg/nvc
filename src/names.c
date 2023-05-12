@@ -1717,10 +1717,10 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    if (tree_kind(unit) == T_GENERIC_DECL) {
       assert(tree_class(unit) == C_PACKAGE);
 
-      tree_t ref = tree_value(unit);
-      assert(tree_kind(ref) == T_REF);
+      tree_t map = tree_value(unit);
+      assert(tree_kind(map) == T_PACKAGE_MAP);
 
-      unit = tree_ref(ref);
+      unit = tree_ref(map);
       assert(is_uninstantiated_package(unit));
    }
 

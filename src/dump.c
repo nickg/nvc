@@ -372,6 +372,21 @@ static void dump_expr(tree_t t)
       dump_waveform(t);
       break;
 
+   case T_PACKAGE_MAP:
+      print_syntax("%s ", istr(tree_ident(t)));
+      switch (tree_subkind(t)) {
+      case PACKAGE_MAP_BOX:
+         print_syntax("#generic #map (<>)");
+         break;
+      case PACKAGE_MAP_DEFAULT:
+         print_syntax("#generic map (#default)");
+         break;
+      case PACKAGE_MAP_MATCHING:
+         dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
+         break;
+      }
+      break;
+
    default:
       cannot_dump(t, "expr");
    }
@@ -1322,7 +1337,6 @@ static void dump_port(tree_t t, int indent)
    if (tree_class(t) == C_PACKAGE) {
       print_syntax(" #is #new ");
       dump_expr(tree_value(t));
-      print_syntax(" #generic #map (<>)");
    }
    else {
       switch (tree_subkind(t)) {
@@ -1510,6 +1524,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_QUALIFIED:
    case T_EXTERNAL_NAME:
    case T_STRING:
+   case T_PACKAGE_MAP:
       dump_expr(t);
       break;
    case T_INSTANCE:

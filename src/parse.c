@@ -4889,19 +4889,36 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
    insert_name(nametab, d, NULL);
 }
 
-static void p_interface_package_generic_map_aspect(void)
+static void p_interface_package_generic_map_aspect(tree_t map, tree_t pack)
 {
    // generic_map_aspect | generic map ( <> ) | generic map ( default )
 
-   BEGIN("interface generic map aspect");
-
-   // TODO: only the second form is supported
+   BEGIN("interface package generic map aspect");
 
    consume(tGENERIC);
    consume(tMAP);
    consume(tLPAREN);
-   consume(tBOX);
+
+   switch (peek()) {
+   case tBOX:
+      consume(tBOX);
+      tree_set_subkind(map, PACKAGE_MAP_BOX);
+      break;
+
+   case tDEFAULT:
+      consume(tDEFAULT);
+      tree_set_subkind(map, PACKAGE_MAP_DEFAULT);
+      break;
+
+   default:
+      tree_set_subkind(map, PACKAGE_MAP_MATCHING);
+      p_association_list(map, pack, F_GENERIC_MAP);
+      break;
+   }
+
    consume(tRPAREN);
+
+   tree_set_loc(map, CURRENT_LOC);
 }
 
 static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
@@ -4932,14 +4949,14 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
       pack = NULL;
    }
 
-   tree_t ref = tree_new(T_REF);
-   tree_set_ident(ref, unit_name);
-   tree_set_loc(ref, CURRENT_LOC);
-   tree_set_ref(ref, pack);
+   tree_t map = tree_new(T_PACKAGE_MAP);
+   tree_set_ident(map, unit_name);
+   tree_set_loc(map, CURRENT_LOC);
+   tree_set_ref(map, pack);
 
-   tree_set_value(d, ref);
+   tree_set_value(d, map);
 
-   p_interface_package_generic_map_aspect();
+   p_interface_package_generic_map_aspect(map, pack);
 
    tree_set_loc(d, CURRENT_LOC);
 

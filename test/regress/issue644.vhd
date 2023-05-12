@@ -17,8 +17,7 @@ entity multiplexer is
   generic (
     MUX_DATA_SIZE : natural;
     MUX_CTRL_SIZE : natural;
-    --package mux_g is new work.mux generic map(MUX_DATA_SIZE => MUX_DATA_SIZE)
-    package mux_g is new work.mux generic map(<>)
+    package mux_g is new work.mux generic map(MUX_DATA_SIZE => MUX_DATA_SIZE)
   );
   port (
     MUX_CTRL : in  std_logic_vector(MUX_CTRL_SIZE-1 downto 0);

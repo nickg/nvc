@@ -10705,7 +10705,50 @@ static void lower_ports(lower_unit_t *lu, tree_t block)
       hset_free(poison);
 }
 
-static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst)
+static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
+                                           tree_t generic, vcode_reg_t locus)
+{
+   vcode_reg_t expect_reg = lower_rvalue(lu, expect);
+
+   int hops;
+   vcode_var_t actual_var = lower_get_var(lu, generic, &hops);
+   assert(hops == 0);
+
+   type_t type = tree_type(expect);
+
+   vcode_reg_t test_reg;
+   if (type_is_scalar(type)) {
+      vcode_reg_t actual_reg = emit_load(actual_var);
+      test_reg = emit_cmp(VCODE_CMP_EQ, expect_reg, actual_reg);
+   }
+   else {
+      vcode_reg_t actual_reg;
+      if (vtype_kind(vcode_var_type(actual_var)) == VCODE_TYPE_UARRAY)
+         actual_reg = emit_load(actual_var);
+      else
+         actual_reg = emit_index(actual_var, VCODE_INVALID_REG);
+
+      vcode_reg_t left_reg = actual_reg, right_reg = expect_reg;
+      if (type_is_array(type)) {
+         left_reg = lower_wrap(lu, type, actual_reg);
+         right_reg = lower_wrap(lu, type, expect_reg);
+      }
+
+      ident_t func = lower_predef_func_name(type, "=");
+      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t args[] = { context_reg, left_reg, right_reg };
+      vcode_type_t vbool = vtype_bool();
+      test_reg = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
+   }
+
+   vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
+   vcode_reg_t error_reg = emit_const(vseverity, SEVERITY_ERROR);
+
+   emit_assert(test_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, error_reg,
+               locus, VCODE_INVALID_REG, VCODE_INVALID_REG);
+}
+
+static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
 {
    ident_t iname = tree_ident(inst);
    if (ident_runtil(iname, '.') == iname) {
@@ -10733,12 +10776,56 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst)
       vcode_var_t var = emit_var(vtype, vbounds, name, VAR_CONST);
 
       vcode_reg_t ptr_reg = emit_link_var(context, name, vtype);
-      emit_store(emit_load_indirect(ptr_reg), var);
+
+      if (type_is_scalar(type))
+         emit_store(emit_load_indirect(ptr_reg), var);
+      else if (type_is_array(type)) {
+         if (lower_const_bounds(type)) {
+            vcode_reg_t count_reg = lower_array_total_len(lu, type, ptr_reg);
+            vcode_reg_t dest_reg = emit_index(var, VCODE_INVALID_REG);
+            vcode_reg_t src_reg = lower_array_data(ptr_reg);
+            emit_copy(dest_reg, src_reg, count_reg);
+         }
+      }
+      else {
+         vcode_reg_t dest_reg = emit_index(var, VCODE_INVALID_REG);
+         emit_copy(dest_reg, ptr_reg, VCODE_INVALID_REG);
+      }
 
       lower_put_vcode_obj(g, var, lu);
 
       tree_t g0 = tree_generic(tree_ref(inst), i);
       lower_put_vcode_obj(g0, var, lu);
+   }
+
+   switch (tree_subkind(map)) {
+   case PACKAGE_MAP_MATCHING:
+      {
+         const int count = tree_genmaps(map);
+         for (int i = 0; i < count; i++) {
+            tree_t m = tree_genmap(map, i);
+            assert(tree_subkind(m) == P_POS);
+
+            tree_t g = tree_generic(inst, i);
+
+            vcode_reg_t locus = lower_debug_locus(m);
+            lower_check_generic_constraint(lu, tree_value(m), g, locus);
+         }
+      }
+      break;
+
+   case PACKAGE_MAP_DEFAULT:
+      for (int i = 0; i < ngenerics; i++) {
+         tree_t g = tree_generic(inst, i);
+         tree_t g0 = tree_generic(tree_ref(map), i);
+
+         vcode_reg_t locus = lower_debug_locus(map);
+         lower_check_generic_constraint(lu, tree_value(g0), g, locus);
+      }
+      break;
+
+   case PACKAGE_MAP_BOX:
+      break;
    }
 }
 
@@ -10756,10 +10843,13 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
       if (class == C_PACKAGE) {
          // Make generics in a package instance passed via a package
          // interface generic available
+         tree_t map = tree_value(g);
+         assert(tree_kind(map) == T_PACKAGE_MAP);
+
          tree_t inst = tree_ref(tree_value(m));
          assert(tree_kind(inst) == T_PACK_INST);
 
-         lower_pack_inst_generics(lu, inst);
+         lower_pack_inst_generics(lu, inst, map);
       }
 
       if (class != C_CONSTANT)

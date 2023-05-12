@@ -351,6 +351,7 @@ static const struct {
    { "Process statement", { [STD_93] = "9.2", [STD_08] = "11.3" } },
    { "Entity statement part", { [STD_93] = "1.1.3", [STD_08] = "3.2.4" } },
    { "Qualified expressions", { [STD_08] = "9.3.5" } },
+   { "Interface package declarations", { [STD_08] = "6.5.5" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
@@ -756,13 +757,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       if (hint->loc.first_line == i) {
          color_fprintf(f, "%*s " GUTTER_STYLE " |$$ ", fwidth, "");
 
-         const bool red =
-            same_file > 1 && hint->priority == 0 && d->level >= DIAG_ERROR;
-
-         if (red)
-            color_fprintf(f, CARET_STYLE "$red$");
-         else
-            color_fprintf(f, CARET_STYLE "$green$");
+         color_fprintf(f, CARET_STYLE "$green$");
          color_fprintf(f, "%*s", first_col, "");
 
          int ncarets = 1;
@@ -773,15 +768,16 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 
          while (ncarets--) fputc('^', f);
 
-         if (hint->text != NULL) {
-            if (hintcol + strlen(hint->text) >= MAX(terminal_width(), 80))
+         const char *text = hint->text;
+         if (text == NULL && same_file > 1 && hint->priority == 0)
+            text = "error occurred here";
+
+         if (text != NULL) {
+            if (hintcol + strlen(text) >= MAX(terminal_width(), 80))
                color_fprintf(f, "$$\n%*s " GUTTER_STYLE " |$$%*s", fwidth, "",
                              hint->loc.first_column, "");
 
-            if (red)
-               color_fprintf(f, "$$$red$ %s$$\n", hint->text);
-            else
-               color_fprintf(f, "$$$green$ %s$$\n", hint->text);
+            color_fprintf(f, "$$$green$ %s$$\n", text);
          }
          else
             color_fprintf(f, "$$\n");

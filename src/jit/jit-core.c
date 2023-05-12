@@ -512,6 +512,11 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
    case T_BLOCK:
       diag_trace(d, loc, "Process$$ (init)");
       break;
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_PACK_INST:
+      diag_trace(d, loc, "Package$$ %s", istr(tree_ident(enclosing)));
+      break;
    default:
       diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
       break;

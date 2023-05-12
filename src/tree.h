@@ -233,6 +233,12 @@ typedef enum {
    PRAGMA_SYNTHESIS_OFF,
 } pragma_kind_t;
 
+typedef enum {
+   PACKAGE_MAP_BOX,
+   PACKAGE_MAP_MATCHING,
+   PACKAGE_MAP_DEFAULT,
+} package_map_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -338,6 +344,7 @@ typedef enum tree_kind {
    T_PSL,
    T_VERILOG,
    T_VIEW_DECL,
+   T_PACKAGE_MAP,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

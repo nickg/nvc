@@ -2958,6 +2958,25 @@ START_TEST(test_issue659)
 }
 END_TEST
 
+START_TEST(test_genpack3)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/genpack3.vhd");
+
+   const error_t expect[] = {
+      { 21, "WORK.PACK1 has no generic named Z" },
+      { 31, "generic X in package WORK.PACK2 does not have a default value" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3100,6 +3119,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack2);
    tcase_add_test(tc_core, test_issue655);
    tcase_add_test(tc_core, test_issue659);
+   tcase_add_test(tc_core, test_genpack3);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -1441,6 +1441,82 @@ START_TEST(test_mixed1)
 }
 END_TEST
 
+START_TEST(test_genpack1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/genpack1.vhd");
+
+   const error_t expect[] = {
+      {  8, "Assertion violation." },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_genpack2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/genpack2.vhd");
+
+   const error_t expect[] = {
+      { 14, "Assertion violation." },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_genpack3)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/genpack3.vhd");
+
+   const error_t expect[] = {
+      {  8, "Assertion violation." },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_genpack4)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/genpack4.vhd");
+
+   const error_t expect[] = {
+      { 19, "Assertion violation." },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1521,6 +1597,10 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_generic2);
    tcase_add_test(tc, test_issue669);
    tcase_add_test(tc, test_mixed1);
+   tcase_add_test(tc, test_genpack1);
+   tcase_add_test(tc, test_genpack2);
+   tcase_add_test(tc, test_genpack3);
+   tcase_add_test(tc, test_genpack4);
    suite_add_tcase(s, tc);
 
    return s;

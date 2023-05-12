@@ -1105,7 +1105,50 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
       break;
 
    case C_PACKAGE:
-      return true;   // No further checking required
+      {
+         tree_t map = tree_value(t);
+         if (!tree_has_ref(map))
+            return false;   // Was earlier error
+
+         assert(tree_kind(map) == T_PACKAGE_MAP);
+
+         tree_t pack = tree_ref(map);
+         assert(is_uninstantiated_package(pack));
+
+         switch (tree_subkind(map)) {
+         case PACKAGE_MAP_DEFAULT:
+            {
+               // Check each generic in the uninstantiated package has a
+               // default value
+               const int ngenerics = tree_generics(pack);
+               for (int i = 0; i < ngenerics; i++) {
+                  tree_t g = tree_generic(pack, i);
+                  if (!tree_has_value(g)) {
+                     diag_t *d = diag_new(DIAG_ERROR, tree_loc(map));
+                     diag_printf(d, "generic %s in package %s does not have a "
+                                 "default value", istr(tree_ident(g)),
+                                 istr(tree_ident(pack)));
+                     diag_hint(d, tree_loc(g), "%s declared here",
+                               istr(tree_ident(g)));
+                     diag_lrm(d, STD_08, "6.5.5");
+
+                     diag_emit(d);
+                     return false;
+                  }
+               }
+            }
+            break;
+
+         case PACKAGE_MAP_MATCHING:
+            sem_check_generic_map(map, pack, tab);
+            break;
+
+         case PACKAGE_MAP_BOX:
+            break;
+         }
+
+         return true;
+      }
    default:
       sem_error(t, "invalid object class %s for generic %s",
                 class_str(tree_class(t)), istr(tree_ident(t)));
@@ -4077,12 +4120,14 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          else if (!tree_has_ref(pack))
             return false;   // Was parse error
 
-         tree_t ref = tree_value(decl);
-         if (!tree_has_ref(ref))
+         tree_t map = tree_value(decl);
+         if (!tree_has_ref(map))
             return false;   // Was earlier error
 
+         assert(tree_kind(map) == T_PACKAGE_MAP);
+
          tree_t base = tree_ref(pack);
-         tree_t expect = tree_ref(ref);
+         tree_t expect = tree_ref(map);
 
          if (tree_ident(base) != tree_ident(expect))
             sem_error(value, "expected an instance of package %s but have "

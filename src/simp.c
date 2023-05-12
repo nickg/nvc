@@ -1168,6 +1168,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_hidden_decl(t, ctx);
    case T_INSTANCE:
    case T_BINDING:
+   case T_PACKAGE_MAP:
       simp_generic_map(t, tree_ref(t));
       return t;
    case T_BLOCK:
