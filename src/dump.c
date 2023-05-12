@@ -387,6 +387,21 @@ static void dump_expr(tree_t t)
       }
       break;
 
+   case T_COND_VALUE:
+      for (int i = 0; i < tree_conds(t); i++) {
+         tree_t c = tree_cond(t, i);
+         if (tree_has_value(c)) {
+            dump_expr(tree_result(c));
+            print_syntax(" #when ");
+            dump_expr(tree_value(c));
+         }
+         else {
+            print_syntax(" #else ");
+            dump_expr(tree_result(c));
+         }
+      }
+      break;
+
    default:
       cannot_dump(t, "expr");
    }

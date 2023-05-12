@@ -157,7 +157,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_BLOCK
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_PARAMS | I_GENMAPS),
 
-   // T_COND
+   // T_COND_STMT
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_TYPE_CONV
@@ -344,6 +344,12 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PACKAGE_MAP
    (I_IDENT | I_SUBKIND | I_GENMAPS | I_REF),
+
+   // T_COND_EXPR
+   (I_VALUE | I_RESULT),
+
+   // T_COND_VALUE
+   (I_CONDS | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -361,7 +367,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ALIAS",           "T_FOR",             "T_ATTR_DECL",
    "T_ATTR_SPEC",       "T_PROC_DECL",       "T_PROC_BODY",
    "T_EXIT",            "T_PCALL",           "T_CASE",
-   "T_BLOCK",           "T_COND",            "T_TYPE_CONV",
+   "T_BLOCK",           "T_COND_STMT",       "T_TYPE_CONV",
    "T_SELECT",          "T_COMPONENT",       "T_IF_GENERATE",
    "T_FOR_GENERATE",    "T_FILE_DECL",       "T_OPEN",
    "T_FIELD_DECL",      "T_RECORD_REF",      "T_ALL",
@@ -382,6 +388,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
    "T_CASE_GENERATE",   "T_ALTERNATIVE",     "T_PSL",
    "T_VERILOG",         "T_VIEW_DECL",       "T_PACKAGE_MAP",
+   "T_COND_EXPR",       "T_COND_VALUE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -804,6 +811,20 @@ void tree_set_value(tree_t t, tree_t v)
    object_write_barrier(&(t->object), obj);
 }
 
+tree_t tree_result(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_RESULT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
+}
+
+void tree_set_result(tree_t t, tree_t v)
+{
+   object_t *obj = v ? &(v->object) : NULL;
+   lookup_item(&tree_object, t, I_RESULT)->object = obj;
+   object_write_barrier(&(t->object), obj);
+}
+
 unsigned tree_decls(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_DECLS);
@@ -875,7 +896,7 @@ tree_t tree_cond(tree_t t, unsigned n)
 
 void tree_add_cond(tree_t t, tree_t c)
 {
-   assert(c->object.kind == T_COND);
+   assert(c->object.kind == T_COND_STMT || c->object.kind == T_COND_EXPR);
    tree_array_add(lookup_item(&tree_object, t, I_CONDS), c);
    object_write_barrier(&(t->object), &(c->object));
 }

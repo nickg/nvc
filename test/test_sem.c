@@ -2977,6 +2977,26 @@ START_TEST(test_genpack3)
 }
 END_TEST
 
+START_TEST(test_condexpr)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/condexpr.vhd");
+
+   const error_t expect[] = {
+      {  7, "type of condition must be BOOLEAN but is universal_integer" },
+      {  8, "expected type of conditional expression to be universal_integer "
+         "but is universal_real" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3120,6 +3140,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue655);
    tcase_add_test(tc_core, test_issue659);
    tcase_add_test(tc_core, test_genpack3);
+   tcase_add_test(tc_core, test_condexpr);
    suite_add_tcase(s, tc_core);
 
    return s;

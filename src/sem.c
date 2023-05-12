@@ -5545,6 +5545,43 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
    sem_error(t, "sorry, mode view declarations are not yet supported");
 }
 
+static bool sem_check_cond_value(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+   if (type_is_none(type))
+      return false;
+
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
+      tree_t cond = tree_cond(t, i);
+      assert(tree_kind(cond) == T_COND_EXPR);
+
+      if (tree_has_value(cond)) {
+         tree_t value = tree_value(cond);
+         if (!sem_check(value, tab))
+            return false;
+
+         if (!sem_check_type(value, std_bool))
+            sem_error(value, "type of condition must be %s but is %s",
+                      type_pp(std_bool), type_pp(tree_type(value)));
+      }
+      else
+         assert(i == nconds - 1);
+
+      tree_t result = tree_result(cond);
+      if (!sem_check(result, tab))
+         return false;
+
+      if (!sem_check_type(result, type))
+         sem_error(result, "expected type of conditional expression to be "
+                   "%s but is %s", type_pp(type), type_pp(tree_type(result)));
+   }
+
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -5713,6 +5750,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_subprogram_inst(t, tab);
    case T_VIEW_DECL:
       return sem_check_view_decl(t, tab);
+   case T_COND_VALUE:
+      return sem_check_cond_value(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

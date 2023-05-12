@@ -1807,7 +1807,7 @@ START_TEST(test_conc)
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 1);
    c = tree_cond(s, 0);
-   fail_unless(tree_kind(c) == T_COND);
+   fail_unless(tree_kind(c) == T_COND_STMT);
    fail_unless(tree_stmts(c) == 1);
    s0 = tree_stmt(c, 0);
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
@@ -1822,7 +1822,7 @@ START_TEST(test_conc)
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 3);
    c = tree_cond(s, 0);
-   fail_unless(tree_kind(c) == T_COND);
+   fail_unless(tree_kind(c) == T_COND_STMT);
    s0 = tree_stmt(c, 0);
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
    fail_unless(tree_waveforms(s0) == 1);

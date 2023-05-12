@@ -241,7 +241,7 @@ bool cover_is_stmt(tree_t t)
 
 static bool cover_is_branch(tree_t branch)
 {
-   return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND;
+   return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
 }
 
 static bool cover_is_toggle_first(tree_t decl)

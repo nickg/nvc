@@ -1983,7 +1983,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       }
       break;
 
-   case T_COND:
+   case T_COND_STMT:
       {
          if (tree_has_value(expr))
             build_wait(tree_value(expr), fn, ctx);

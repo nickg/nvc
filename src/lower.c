@@ -4781,6 +4781,75 @@ static vcode_reg_t lower_qualified(lower_unit_t *lu, tree_t expr)
    return value_reg;
 }
 
+static vcode_reg_t lower_cond_value(lower_unit_t *lu, tree_t expr)
+{
+   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
+
+   // TODO: vcode really needs phi nodes...
+   type_t type = tree_type(expr);
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t temp_var = lower_temp_var(lu, "cond", vtype, vbounds);
+
+   const int nconds = tree_conds(expr);
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(expr, i);
+      assert(tree_kind(c) == T_COND_EXPR);
+
+      vcode_block_t next_bb = VCODE_INVALID_BLOCK;
+
+      if (tree_has_value(c)) {
+         vcode_reg_t test = lower_rvalue(lu, tree_value(c));
+
+         vcode_block_t btrue = emit_block();
+
+         if (i == nconds - 1) {
+            if (exit_bb == VCODE_INVALID_BLOCK)
+               exit_bb = emit_block();
+            next_bb = exit_bb;
+         }
+         else
+            next_bb = emit_block();
+
+         emit_cond(test, btrue, next_bb);
+         vcode_select_block(btrue);
+      }
+
+      vcode_reg_t result_reg = lower_rvalue(lu, tree_result(c));
+
+      if (type_is_array(type) && lower_const_bounds(type)) {
+         vcode_reg_t count_reg =
+            lower_array_total_len(lu, type, VCODE_INVALID_REG);
+         vcode_reg_t dest_reg = emit_index(temp_var, VCODE_INVALID_REG);
+         vcode_reg_t src_reg = lower_array_data(result_reg);
+         emit_copy(dest_reg, src_reg, count_reg);
+      }
+      else if (type_is_record(type)) {
+         vcode_reg_t dest_reg = emit_index(temp_var, VCODE_INVALID_REG);
+         emit_copy(dest_reg, result_reg, VCODE_INVALID_REG);
+      }
+      else
+         emit_store(result_reg, temp_var);
+
+      if (exit_bb == VCODE_INVALID_BLOCK)
+         exit_bb = emit_block();
+      emit_jump(exit_bb);
+
+      if (next_bb == VCODE_INVALID_BLOCK)
+         break;
+      else
+         vcode_select_block(next_bb);
+   }
+
+   if (exit_bb != VCODE_INVALID_BLOCK)
+      vcode_select_block(exit_bb);
+
+   if (type_is_scalar(type))
+      return emit_load(temp_var);
+   else
+      return emit_index(temp_var, VCODE_INVALID_REG);
+}
+
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
 {
    PUSH_DEBUG_INFO(expr);
@@ -4817,6 +4886,8 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
       return lower_qualified(lu, expr);
    case T_OPEN:
       return VCODE_INVALID_REG;
+   case T_COND_VALUE:
+      return lower_cond_value(lu, expr);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));

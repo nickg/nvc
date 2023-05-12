@@ -151,6 +151,7 @@ static void p_generic_map_aspect(tree_t inst, tree_t unit);
 static ident_t p_designator(void);
 static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
 static void p_trailing_label(ident_t label);
+static tree_t p_condition(void);
 static type_t p_subtype_indication(void);
 static tree_t p_record_constraint(type_t base);
 static tree_t p_qualified_expression(tree_t prefix);
@@ -5968,6 +5969,46 @@ static tree_t p_subtype_declaration(void)
    return t;
 }
 
+static tree_t p_conditional_expression(void)
+{
+   // expression { when condition else expression }
+
+   BEGIN("conditional expression");
+
+   tree_t expr0 = p_expression();
+
+   if (optional(tWHEN)) {
+      require_std(STD_19, "conditional expressions");
+
+      tree_t value = tree_new(T_COND_VALUE);
+
+      do {
+         tree_t cond = tree_new(T_COND_EXPR);
+         tree_set_result(cond, expr0);
+         tree_set_value(cond, p_condition());
+
+         tree_set_loc(cond, CURRENT_LOC);
+
+         tree_add_cond(value, cond);
+
+         consume(tELSE);
+
+         expr0 = p_expression();
+      } while (optional(tWHEN));
+
+      tree_t last = tree_new(T_COND_EXPR);
+      tree_set_result(last, expr0);
+      tree_set_loc(last, CURRENT_LOC);
+
+      tree_add_cond(value, last);
+
+      tree_set_loc(value, CURRENT_LOC);
+      return value;
+   }
+   else
+      return expr0;
+}
+
 static void p_constant_declaration(tree_t parent)
 {
    // constant identifier_list : subtype_indication [ := expression ] ;
@@ -5984,7 +6025,7 @@ static void p_constant_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
-      init = p_expression();
+      init = p_conditional_expression();
       solve_types(nametab, init, type);
    }
 
@@ -6337,7 +6378,7 @@ static void p_variable_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
-      init = p_expression();
+      init = p_conditional_expression();
       solve_types(nametab, init, type);
    }
 
@@ -6395,7 +6436,7 @@ static void p_signal_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
-      init = p_expression();
+      init = p_conditional_expression();
       solve_types(nametab, init, type);
    }
 
@@ -8462,7 +8503,7 @@ static void p_conditional_expressions(tree_t stmt, tree_t value0)
       tree_set_value(a, value);
       tree_set_loc(a, CURRENT_LOC);
 
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
       tree_set_loc(c, CURRENT_LOC);
 
       tree_add_stmt(c, a);
@@ -8867,7 +8908,7 @@ static tree_t p_if_statement(ident_t label)
    tree_t t = tree_new(T_IF);
    consume(tIF);
 
-   tree_t c0 = tree_new(T_COND);
+   tree_t c0 = tree_new(T_COND_STMT);
    tree_set_value(c0, p_condition());
    tree_add_cond(t, c0);
 
@@ -8878,7 +8919,7 @@ static tree_t p_if_statement(ident_t label)
    tree_set_loc(c0, CURRENT_LOC);
 
    while (optional(tELSIF)) {
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
       tree_set_value(c, p_condition());
       tree_add_cond(t, c);
 
@@ -8890,7 +8931,7 @@ static tree_t p_if_statement(ident_t label)
    }
 
    if (optional(tELSE)) {
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
       tree_add_cond(t, c);
 
       p_sequence_of_statements(c);
@@ -9444,7 +9485,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
    BEGIN("conditional waveforms");
 
    for (;;) {
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
 
       tree_t a = s0;
       if (a == NULL) {
@@ -9842,7 +9883,7 @@ static tree_t p_if_generate_statement(ident_t label)
    scope_set_container(nametab, g);
    scope_set_prefix(nametab, alt_label ?: label);
 
-   tree_t c0 = tree_new(T_COND);
+   tree_t c0 = tree_new(T_COND_STMT);
    tree_set_ident(c0, alt_label ?: label);
    tree_set_value(c0, p_condition());
 
@@ -9868,7 +9909,7 @@ static tree_t p_if_generate_statement(ident_t label)
       push_scope(nametab);
       scope_set_prefix(nametab, alt_label ?: label);
 
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
       tree_set_ident(c, alt_label ?: label);
       tree_set_value(c, p_condition());
 
@@ -9894,7 +9935,7 @@ static tree_t p_if_generate_statement(ident_t label)
       push_scope(nametab);
       scope_set_prefix(nametab, alt_label ?: label);
 
-      tree_t c = tree_new(T_COND);
+      tree_t c = tree_new(T_COND_STMT);
       tree_set_ident(c, alt_label ?: label);
 
       consume(tGENERATE);

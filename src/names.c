@@ -4072,6 +4072,27 @@ static type_t solve_external_name(nametab_t *tab, tree_t name)
    return none;
 }
 
+static type_t solve_cond_value(nametab_t *tab, tree_t value)
+{
+   type_t type0 = NULL;
+
+   const int nconds = tree_conds(value);
+   for (int i = 0; i < nconds; i++) {
+      type_t type = _solve_types(tab, tree_cond(value, i));
+      if (type0 == NULL)
+         type0 = type;
+   }
+
+   tree_set_type(value, type0);
+   return type0;
+}
+
+static type_t solve_cond_expr(nametab_t *tab, tree_t value)
+{
+   // The condition should have already been checked by solve_condition
+   return _solve_types(tab, tree_result(value));
+}
+
 static type_t solve_range(nametab_t *tab, tree_t r)
 {
    type_t type = NULL;
@@ -4179,6 +4200,10 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_external_name(tab, expr);
    case T_PROT_REF:
       return solve_prot_ref(tab, expr);
+   case T_COND_VALUE:
+      return solve_cond_value(tab, expr);
+   case T_COND_EXPR:
+      return solve_cond_expr(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

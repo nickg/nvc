@@ -734,7 +734,7 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
    tree_set_ident(g_if, ident_new("guard_if"));
    tree_set_loc(g_if, tree_loc(t));
 
-   tree_t c0 = tree_new(T_COND);
+   tree_t c0 = tree_new(T_COND_STMT);
    tree_add_cond(g_if, c0);
 
    tree_t guard_ref = tree_guard(t);
@@ -758,7 +758,7 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
 
          tree_add_waveform(d, w0);
 
-         tree_t c1 = tree_new(T_COND);
+         tree_t c1 = tree_new(T_COND_STMT);
          tree_add_cond(g_if, c1);
 
          tree_add_stmt(c1, d);
@@ -981,6 +981,37 @@ static tree_t simp_range(tree_t t)
       return range_of(type, dim);
 }
 
+static tree_t simp_cond_expr(tree_t t)
+{
+   if (tree_has_value(t)) {
+      bool value_b;
+      if (folded_bool(tree_value(t), &value_b)) {
+         if (value_b) {
+            // Always true, remove the test
+            tree_set_value(t, NULL);
+            return t;
+         }
+         else {
+            // Always false, delete the condition
+            return NULL;
+         }
+      }
+   }
+
+   return t;
+}
+
+static tree_t simp_cond_value(tree_t t)
+{
+   tree_t c0 = tree_cond(t, 0);
+   if (!tree_has_value(c0)) {
+      // Always evaluates to "else" condition
+      return tree_result(c0);
+   }
+
+   return t;
+}
+
 static tree_t simp_hidden_decl(tree_t decl, simp_ctx_t *ctx)
 {
    // Remove predefined operators which are hidden by explicitly defined
@@ -1174,8 +1205,12 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_BLOCK:
       simp_generic_map(t, t);
       return t;
-   case T_COND:
+   case T_COND_STMT:
       return simp_cond(t);
+   case T_COND_EXPR:
+      return simp_cond_expr(t);
+   case T_COND_VALUE:
+      return simp_cond_value(t);
    case T_PACK_INST:
    case T_FUNC_INST:
    case T_PROC_INST:

@@ -5,6 +5,8 @@
   installed with `nvc --install vunit` but please note this does not
   install the Python infrastructure.
 - Updated to OSVVM 2023.04 and UVVM 2023.03.21 for `nvc --install`.
+- Conditional expressions are now allowed in constant, signal, and
+  variable declarations in VHDL-2019 mode.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

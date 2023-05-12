@@ -283,7 +283,7 @@ typedef enum tree_kind {
    T_PCALL,
    T_CASE,
    T_BLOCK,
-   T_COND,
+   T_COND_STMT,
    T_TYPE_CONV,
    T_SELECT,
    T_COMPONENT,
@@ -345,6 +345,8 @@ typedef enum tree_kind {
    T_VERILOG,
    T_VIEW_DECL,
    T_PACKAGE_MAP,
+   T_COND_EXPR,
+   T_COND_VALUE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -429,6 +431,9 @@ void tree_set_dval(tree_t t, double d);
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
+
+tree_t tree_result(tree_t t);
+void tree_set_result(tree_t t, tree_t v);
 
 unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
