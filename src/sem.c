@@ -4945,6 +4945,29 @@ static bool sem_check_return(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_cond_return(tree_t t, nametab_t *tab)
+{
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub == NULL)
+      sem_error(t, "return statement not allowed outside subprogram");
+
+   if (tree_kind(sub) != T_PROC_BODY)
+      sem_error(t, "conditional return statement without value is only "
+                "valid inside a procedure");
+
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
+      return false;
+
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+
+   if (!sem_check_type(value, std_bool))
+      sem_error(value, "type of condition must be %s but have %s",
+                type_pp(std_bool), type_pp(tree_type(value)));
+
+   return true;
+}
+
 static bool sem_check_while(tree_t t, nametab_t *tab)
 {
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
@@ -5603,6 +5626,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_func_body(t, tab);
    case T_RETURN:
       return sem_check_return(t, tab);
+   case T_COND_RETURN:
+      return sem_check_cond_return(t, tab);
    case T_COND_ASSIGN:
       return sem_check_cond_assign(t, tab);
    case T_WHILE:

@@ -5,7 +5,8 @@ architecture test of cond6 is
 begin
 
     p1: process is
-        variable v : integer := 5;
+        type small_int is range 0 to 1000;
+        variable v : small_int := 5;
     begin
         v := 1 when now = 5 ns else unaffected;
         assert v = 5;

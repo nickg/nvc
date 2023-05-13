@@ -948,6 +948,75 @@ static tree_t simp_var_assign(tree_t t)
    return t;
 }
 
+static tree_t simp_return(tree_t t)
+{
+   if (!tree_has_value(t))
+      return t;
+
+   tree_t value = tree_value(t);
+   if (tree_kind(value) == T_COND_VALUE) {
+      // Replace with an if statement
+      tree_t new = tree_new(T_IF);
+      tree_set_loc(new, tree_loc(t));
+
+      const int nconds = tree_conds(value);
+      for (int i = 0; i < nconds; i++) {
+         tree_t e = tree_cond(value, i);
+
+         tree_t c = tree_new(T_COND_STMT);
+         tree_set_loc(c, tree_loc(e));
+
+         if (tree_has_value(e))
+            tree_set_value(c, tree_value(e));
+         else
+            assert(i == nconds - 1);
+
+         tree_t s = tree_new(T_RETURN);
+         tree_set_loc(s, tree_loc(t));
+         tree_set_value(s, tree_result(e));
+
+         tree_add_stmt(c, s);
+         tree_add_cond(new, c);
+      }
+
+      return new;
+   }
+
+   return t;
+}
+
+static tree_t simp_cond_return(tree_t t)
+{
+   tree_t value = tree_value(t);
+
+   bool folded;
+   if (folded_bool(tree_value(t), &folded)) {
+      if (folded) {
+         tree_t new = tree_new(T_RETURN);
+         tree_set_loc(new, tree_loc(t));
+         return new;
+      }
+      else
+         return NULL;
+   }
+
+   // Replace with an if statement
+   tree_t new = tree_new(T_IF);
+   tree_set_loc(new, tree_loc(t));
+
+   tree_t c = tree_new(T_COND_STMT);
+   tree_set_loc(c, tree_loc(t));
+   tree_set_value(c, value);
+
+   tree_t s = tree_new(T_RETURN);
+   tree_set_loc(s, tree_loc(t));
+
+   tree_add_stmt(c, s);
+   tree_add_cond(new, c);
+
+   return new;
+}
+
 static tree_t simp_literal(tree_t t)
 {
    switch (tree_subkind(t)) {
@@ -1225,6 +1294,10 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_signal_assign(t);
    case T_VAR_ASSIGN:
       return simp_var_assign(t);
+   case T_RETURN:
+      return simp_return(t);
+   case T_COND_RETURN:
+      return simp_cond_return(t);
    case T_TYPE_CONV:
       return simp_type_conv(t, ctx);
    case T_LITERAL:

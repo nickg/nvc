@@ -1449,6 +1449,32 @@ START_TEST(test_condexpr)
    fail_unless(tree_kind(c1) == T_CONST_DECL);
    fail_unless(tree_kind(tree_value(c1)) == T_LITERAL);
 
+   tree_t foo = tree_decl(a, 1);
+   fail_unless(tree_stmts(foo) == 2);
+
+   tree_t s0 = tree_stmt(foo, 0);
+   fail_unless(tree_kind(s0) == T_IF);
+   fail_unless(tree_conds(s0) == 1);
+
+   tree_t s0c0s0 = tree_stmt(tree_cond(s0, 0), 0);
+   fail_unless(tree_kind(s0c0s0) == T_RETURN);
+
+   tree_t s1 = tree_stmt(foo, 1);
+   fail_unless(tree_kind(s1) == T_IF);
+   fail_unless(tree_conds(s1) == 2);
+
+   tree_t s1c0s0 = tree_stmt(tree_cond(s1, 0), 0);
+   fail_unless(tree_kind(s1c0s0) == T_RETURN);
+
+   tree_t s1c1s0 = tree_stmt(tree_cond(s1, 1), 0);
+   fail_unless(tree_kind(s1c1s0) == T_RETURN);
+
+   tree_t bar = tree_decl(a, 2);
+   fail_unless(tree_stmts(bar) == 2);
+
+   fail_unless(tree_kind(tree_stmt(bar, 0)) == T_IF);
+   fail_unless(tree_kind(tree_stmt(bar, 1)) == T_RETURN);
+
    fail_if_errors();
 }
 END_TEST

@@ -17,4 +17,21 @@ begin
         wait;
     end process;
 
+    process is
+        function foo (x : in integer) return integer is
+        begin
+            return 5 when x > 2 else 3;  -- OK
+            return 5.0 when x > 2 else 3.4;  -- Error
+            return when x < 2;          -- Error
+        end function;
+
+        procedure bar (x : out integer) is
+        begin
+            return when c0 > 2;         -- OK
+            return when c0;             -- Error
+        end procedure;
+    begin
+        return when s1 = '1';           -- Error
+    end process;
+
 end architecture;

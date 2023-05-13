@@ -346,6 +346,7 @@ typedef enum tree_kind {
    T_PACKAGE_MAP,
    T_COND_EXPR,
    T_COND_VALUE,
+   T_COND_RETURN,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

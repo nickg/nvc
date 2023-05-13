@@ -9050,29 +9050,41 @@ static tree_t p_loop_statement(ident_t label)
 static tree_t p_return_statement(ident_t label)
 {
    // [ label : ] return [ expression ] ;
+   // 2019: [ label : ] return [ when condition ] ;
+   // 2019: [ label : ] return conditional_or_unaffected_expression ;
 
    EXTEND("return statement");
 
    consume(tRETURN);
 
-   tree_t t = tree_new(T_RETURN);
+   tree_t stmt = NULL;
 
-   if (peek() != tSEMI) {
-      type_t return_type = NULL;
-      tree_t subprog = find_enclosing(nametab, S_SUBPROGRAM);
-      if (subprog != NULL && tree_kind(subprog) == T_FUNC_BODY)
-         return_type = type_result(tree_type(subprog));
+   if (optional(tWHEN)) {
+      require_std(STD_19, "conditional return statement");
 
-      tree_t value = p_expression();
-      solve_types(nametab, value, return_type);
-      tree_set_value(t, value);
+      stmt = tree_new(T_COND_RETURN);
+      tree_set_value(stmt, p_condition());
+   }
+   else {
+      stmt = tree_new(T_RETURN);
+
+      if (peek() != tSEMI) {
+         type_t return_type = NULL;
+         tree_t subprog = find_enclosing(nametab, S_SUBPROGRAM);
+         if (subprog != NULL && tree_kind(subprog) == T_FUNC_BODY)
+            return_type = type_result(tree_type(subprog));
+
+         tree_t value = p_conditional_or_unaffected_expression(STD_19);
+         solve_types(nametab, value, return_type);
+         tree_set_value(stmt, value);
+      }
    }
 
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
-   sem_check(t, nametab);
-   return t;
+   set_label_and_loc(stmt, label, CURRENT_LOC);
+   sem_check(stmt, nametab);
+   return stmt;
 }
 
 static tree_t p_exit_statement(ident_t label)

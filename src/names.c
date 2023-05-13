@@ -4083,7 +4083,12 @@ static type_t solve_cond_value(nametab_t *tab, tree_t value)
          type0 = type;
    }
 
-   tree_set_type(value, type0);
+   type_t cons;
+   if (type_set_uniq(tab, &cons) && type_is_convertible(type0, cons))
+      tree_set_type(value, cons);
+   else
+      tree_set_type(value, type0);
+
    return type0;
 }
 

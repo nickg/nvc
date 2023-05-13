@@ -327,7 +327,7 @@ table below.
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_055a">
         LCS2016-055a</td>
-    <td>Syntax regulatization - component declarations</td>
+    <td>Syntax regularisation - component declarations</td>
     <td class="feature-done">1.9</td>
   </tr>
   <tr>
@@ -382,7 +382,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_094a">
         LCS2016_094a</td>
     <td>Conditional return statement</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_099">

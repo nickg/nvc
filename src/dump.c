@@ -1170,6 +1170,11 @@ static void dump_stmt(tree_t t, int indent)
       }
       break;
 
+   case T_COND_RETURN:
+      print_syntax("#return #when ");
+      dump_expr(tree_value(t));
+      break;
+
    case T_FOR:
       print_syntax("#for %s #in ", istr(tree_ident(tree_decl(t, 0))));
       dump_range(tree_range(t, 0));

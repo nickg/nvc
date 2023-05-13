@@ -2551,7 +2551,7 @@ START_TEST(test_vhdl2008)
 
    const error_t expect[] = {
       { 13, "type of condition must be BOOLEAN but have INTEGER" },
-      { 14, "expected type of conditional expression to be universal_integer "
+      { 14, "expected type of conditional expression to be INTEGER "
         "but is BOOLEAN" },
       { 31, "case choice must be locally static" },
       { 40, "no visible declaration for BAZ" },
@@ -2986,8 +2986,13 @@ START_TEST(test_condexpr)
 
    const error_t expect[] = {
       {  7, "type of condition must be BOOLEAN but have universal_integer" },
-      {  8, "expected type of conditional expression to be universal_integer "
+      {  8, "expected type of conditional expression to be INTEGER "
          "but is universal_real" },
+      { 24, "expected return type INTEGER but have universal_real" },
+      { 25, "conditional return statement without value is only valid "
+        "inside a procedure" },
+      { 31, "type of condition must be BOOLEAN but have INTEGER" },
+      { 34, "return statement not allowed outside subprogram" },
       { -1, NULL }
    };
    expect_errors(expect);
