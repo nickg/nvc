@@ -775,3 +775,4 @@ issue690        normal
 issue644        normal,2008
 cond5           normal,2019
 cond6           normal,2019
+cover15         cover,shell
