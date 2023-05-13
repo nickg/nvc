@@ -216,19 +216,19 @@ START_TEST(test_number1)
    number_t x = number_new("1'b1");
    fail_unless(number_is_defined(x));
    ck_assert_int_eq(number_width(x), 1);
-   ck_assert_int_eq(number_to_integer(x), 1);
-   number_free(x);
+   ck_assert_int_eq(number_integer(x), 1);
+   number_free(&x);
 
    number_t y = number_new("5'b101");
    fail_unless(number_is_defined(y));
    ck_assert_int_eq(number_width(y), 5);
-   ck_assert_int_eq(number_to_integer(y), 5);
-   number_free(y);
+   ck_assert_int_eq(number_integer(y), 5);
+   number_free(&y);
 
    number_t z = number_new("5'b1xx");
    fail_if(number_is_defined(z));
    ck_assert_int_eq(number_width(z), 5);
-   number_free(z);
+   number_free(&z);
 }
 END_TEST
 
@@ -251,13 +251,13 @@ START_TEST(test_number2)
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
       number_t n = number_new(cases[i].input);
       ck_assert_int_eq(number_width(n), cases[i].width);
-      ck_assert_int_eq(number_to_integer(n), cases[i].ival);
+      ck_assert_int_eq(number_integer(n), cases[i].ival);
 
       tb_rewind(tb);
       number_print(n, tb);
       ck_assert_str_eq(tb_get(tb), cases[i].string);
 
-      number_free(n);
+      number_free(&n);
    }
 }
 END_TEST

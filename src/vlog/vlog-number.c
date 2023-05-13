@@ -127,10 +127,12 @@ number_t number_new(const char *str)
       abort();
 }
 
-void number_free(number_t val)
+void number_free(number_t *val)
 {
-   if (!val.tag)
+   if (!val->tag)
       abort();
+
+   val->bits = 0;
 }
 
 void number_print(number_t val, text_buf_t *tb)
@@ -153,7 +155,7 @@ bool number_is_defined(number_t val)
    return !(val.packed & UINT64_C(0xaaaaaaaaaaaaaa));
 }
 
-int64_t number_to_integer(number_t val)
+int64_t number_integer(number_t val)
 {
    assert(number_width(val) <= 64);
    assert(number_is_defined(val));
@@ -180,4 +182,40 @@ int64_t number_to_integer(number_t val)
 unsigned number_width(number_t val)
 {
    return val.tag ? val.width : 0;
+}
+
+vlog_logic_t number_bit(number_t val, unsigned n)
+{
+   assert(val.tag);
+   assert(n < val.width);
+   return (val.packed >> (n * 2)) & 3;
+}
+
+number_t number_pack(const uint8_t *bits, unsigned width)
+{
+   assert(width <= EMBED_WIDTH);
+
+   uint64_t packed = 0;
+   for (int i = 0; i < width; i++) {
+      assert(bits[i] <= LOGIC_X);
+      packed <<= 2;
+      packed |= bits[i];
+   }
+
+   return (number_t){
+      .tag      = 1,
+      .width    = width,
+      .issigned = 0,
+      .packed   = packed,
+   };
+}
+
+void number_write(number_t val, fbuf_t *f)
+{
+
+}
+
+number_t number_read(fbuf_t *f)
+{
+   return (number_t){ .bits = 0 };
 }

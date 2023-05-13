@@ -75,6 +75,7 @@ typedef struct _object_arena {
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)
 #define ITEM_TEXT        (I_TEXT)
+#define ITEM_NUMBER      (I_NUMBER)
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
@@ -87,7 +88,7 @@ static const char *item_text_map[] = {
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_CLOCK",
    "I_GUARD",    "????",        "I_CHARS",    "I_CONSTR",     "I_FLAGS",
-   "I_TEXT",     "I_LEFT",      "I_RIGHT",    "????",         "????",
+   "I_TEXT",     "I_LEFT",      "I_RIGHT",    "I_NUMBER",     "????",
    "????",       "????",        "????",       "????",         "I_PRIMARY",
 };
 
@@ -496,6 +497,8 @@ static void gc_free_external(object_t *object)
             obj_array_free(&(object->items[i].obj_array));
          else if (ITEM_TEXT & mask)
             free(&(object->items[i].text));
+         else if (ITEM_NUMBER & mask)
+            number_free(&(object->items[i].number));
          i++;
       }
    }
@@ -646,6 +649,8 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_TEXT & mask)
+            ;
+         else if (ITEM_NUMBER & mask)
             ;
          else
             item_without_type(mask);
@@ -873,6 +878,8 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                fbuf_put_uint(f, len);
                write_raw(item->text, len, f);
             }
+            else if (ITEM_NUMBER & mask)
+               number_write(item->number, f);
             else
                item_without_type(mask);
             n++;
@@ -1042,6 +1049,8 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
                read_raw(item->text, len, f);
                item->text[len] = '\0';
             }
+            else if (ITEM_NUMBER & mask)
+               item->number = number_read(f);
             else
                item_without_type(mask);
             n++;

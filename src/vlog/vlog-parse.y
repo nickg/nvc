@@ -549,7 +549,7 @@ decimal_number: tUNSIGNED
                 {
                    $$ = vlog_new(V_NUMBER);
                    vlog_set_loc($$, &@$);
-                   //v_set_text($$, buf);
+                   vlog_set_number($$, number_new($1));
                 }
         ;
 

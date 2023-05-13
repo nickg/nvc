@@ -22,10 +22,12 @@
 #include "tree.h"
 #include "vcode.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
@@ -51,6 +53,20 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
    vlog_locus(v, &unit, &offset);
 
    return emit_debug_locus(unit, offset);
+}
+
+static vcode_reg_t vlog_lower_width(vlog_node_t v)
+{
+   vcode_type_t voffset = vtype_offset();
+
+   switch (vlog_kind(v)) {
+   case V_STRING:
+      return emit_const(voffset, strlen(vlog_text(v)));
+   case V_NUMBER:
+      return emit_const(voffset, number_width(vlog_number(v)));
+   default:
+      CANNOT_HANDLE(v);
+   }
 }
 
 static void vlog_lower_port_decl(lower_unit_t *lu, vlog_node_t port)
@@ -197,6 +213,25 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_reg_t array = emit_const_array(vtype, chars, len);
          return emit_address_of(array);
       }
+   case V_NUMBER:
+      {
+         vcode_type_t vlogic = vlog_logic_type();
+
+         number_t num = vlog_number(v);
+         const int width = number_width(num);
+
+         if (width == 1) {
+            abort();
+         }
+         else {
+            vcode_reg_t *bits LOCAL = xmalloc_array(width, sizeof(vcode_reg_t));
+            for (int i = 0; i < width; i++)
+               bits[i] = emit_const(vlogic, number_bit(num, width - i - 1 ));
+
+            vcode_type_t varray = vtype_carray(width, vlogic, vlogic);
+            return emit_const_array(varray, bits, width);
+         }
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -267,12 +302,16 @@ static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
    case V_SYS_WRITE:
       {
          const int nparams = vlog_params(v);
-         vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
-         for (int i = 0; i < nparams; i++)
-            args[i] = vlog_lower_rvalue(lu, vlog_param(v, i));
+         vcode_reg_t *args LOCAL =
+            xmalloc_array(nparams * 2, sizeof(vcode_reg_t));
+         for (int i = 0; i < nparams; i++) {
+            vlog_node_t p = vlog_param(v, i);
+            args[i*2] = vlog_lower_width(p);
+            args[i*2 + 1] = vlog_lower_rvalue(lu, p);
+         }
 
          emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams);
+                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams * 2);
       }
       break;
 

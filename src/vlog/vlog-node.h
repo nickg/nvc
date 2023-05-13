@@ -109,6 +109,9 @@ void vlog_set_target(vlog_node_t v, vlog_node_t e);
 const char *vlog_text(vlog_node_t v);
 void vlog_set_text(vlog_node_t v, const char *text);
 
+number_t vlog_number(vlog_node_t v);
+void vlog_set_number(vlog_node_t v, number_t n);
+
 typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context);

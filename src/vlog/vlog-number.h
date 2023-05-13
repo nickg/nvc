@@ -37,9 +37,9 @@ typedef union _number {
    bignum_t *ext;
    uint64_t  bits;
    struct {
-      unsigned tag : 1;
-      unsigned width : 6;
-      unsigned issigned : 1;
+      uint64_t tag : 1;
+      uint64_t width : 6;
+      uint64_t issigned : 1;
       uint64_t packed : 56;
    };
 } number_t;
@@ -47,10 +47,15 @@ typedef union _number {
 STATIC_ASSERT(sizeof(number_t) == 8);
 
 number_t number_new(const char *str);
-void number_free(number_t val);
+void number_free(number_t *val);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);
-int64_t number_to_integer(number_t val);
+int64_t number_integer(number_t val);
 unsigned number_width(number_t val);
+vlog_logic_t number_bit(number_t val, unsigned n);
+number_t number_pack(const uint8_t *bits, unsigned width);
+
+void number_write(number_t val, fbuf_t *f);
+number_t number_read(fbuf_t *f);
 
 #endif  // _VLOG_NUMBER_H

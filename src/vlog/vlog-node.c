@@ -15,7 +15,9 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "util.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "common.h"
 #include "object.h"
 
@@ -58,7 +60,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TEXT),
 
    // V_NUMBER
-   (0),
+   (I_NUMBER),
 
    // V_NET_DECL
    (I_IDENT | I_SUBKIND),
@@ -296,6 +298,16 @@ const char *vlog_text(vlog_node_t v)
 void vlog_set_text(vlog_node_t v, const char *text)
 {
    lookup_item(&vlog_object, v, I_TEXT)->text = xstrdup(text);
+}
+
+number_t vlog_number(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_NUMBER)->number;
+}
+
+void vlog_set_number(vlog_node_t v, number_t n)
+{
+   lookup_item(&vlog_object, v, I_NUMBER)->number = n;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

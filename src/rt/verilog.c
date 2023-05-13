@@ -18,22 +18,49 @@
 #include "util.h"
 #include "jit/jit.h"
 #include "rt/model.h"
+#include "vlog/vlog-number.h"
 
+#include <assert.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 static void verilog_printf(jit_scalar_t *args)
 {
+   const int fmtlen = (*args++).integer;
+   assert(fmtlen >= 0);
+
    const char *fmt = (*args++).pointer, *start = fmt, *p = fmt;
 
-   for (; *p; p++) {
+   for (; *p && p < fmt + fmtlen; p++) {
       if (*p == '%') {
          if (start < p)
             fwrite(start, 1, p - start, stdout);
 
          switch (*++p) {
          case 's':
-            fputs((*args++).pointer, stdout);
+            {
+               const int len = (*args++).integer;
+               const char *str = (*args++).pointer;
+               fwrite(str, 1, len, stdout);
+            }
+            break;
+         case 'd':
+         case 'x':
+            {
+               const int width = (*args++).integer;
+               const uint8_t *bits = (*args++).pointer;
+               number_t num = number_pack(bits, width);
+
+               switch (*p) {
+               case 'd':
+                  printf("%*"PRIi64, width, number_integer(num));
+                  break;
+               case 'x':
+                  printf("%0*"PRIx64, width, number_integer(num));
+                  break;
+               }
+            }
             break;
          default:
             jit_msg(NULL, DIAG_FATAL, "unknown format specifier '%c'", *p);

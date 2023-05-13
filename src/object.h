@@ -22,7 +22,7 @@
 #include "array.h"
 #include "diag.h"
 #include "prim.h"
-#include "tree.h"
+#include "vlog/vlog-number.h"
 
 #include <stdint.h>
 
@@ -87,7 +87,7 @@ typedef uint64_t imask_t;
 #define I_TEXT       ONE_HOT(50)
 #define I_LEFT       ONE_HOT(51)
 #define I_RIGHT      ONE_HOT(52)
-// Unused            ONE_HOT(53)
+#define I_NUMBER     ONE_HOT(53)
 // Unused            ONE_HOT(54)
 // Unused            ONE_HOT(55)
 // Unused            ONE_HOT(56)
@@ -156,6 +156,7 @@ typedef union {
    int64_t       ival;
    double        dval;
    char         *text;
+   number_t      number;
 } item_t;
 
 STATIC_ASSERT(sizeof(item_t) == 8);
