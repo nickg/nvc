@@ -972,7 +972,7 @@ static tree_t simp_return(tree_t t)
             assert(i == nconds - 1);
 
          tree_t s = tree_new(T_RETURN);
-         tree_set_loc(s, tree_loc(t));
+         tree_set_loc(s, tree_loc(tree_result(e)));
          tree_set_value(s, tree_result(e));
 
          tree_add_stmt(c, s);
