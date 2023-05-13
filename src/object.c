@@ -670,9 +670,8 @@ static object_t *object_rewrite_iter(object_t *object,
    // iterate rewriting until we reach a fixed point
    for (;;) {
       object_t *new = (*ctx->post_fn[object->tag])(object, ctx->context);
-      if (new == object || new == NULL)
+      if (new == object || (object = object_rewrite(new, ctx)) == NULL)
          return new;
-      object = object_rewrite(new, ctx);
    }
 }
 

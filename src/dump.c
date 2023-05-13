@@ -390,14 +390,15 @@ static void dump_expr(tree_t t)
    case T_COND_VALUE:
       for (int i = 0; i < tree_conds(t); i++) {
          tree_t c = tree_cond(t, i);
-         if (tree_has_value(c)) {
+         if (i > 0)
+            print_syntax(" #else ");
+         if (tree_has_result(c))
             dump_expr(tree_result(c));
+         else
+            print_syntax("#unaffected");
+         if (tree_has_value(c)) {
             print_syntax(" #when ");
             dump_expr(tree_value(c));
-         }
-         else {
-            print_syntax(" #else ");
-            dump_expr(tree_result(c));
          }
       }
       break;
@@ -1553,6 +1554,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_IF:
    case T_WAIT:
    case T_PSL:
+   case T_VAR_ASSIGN:
       dump_stmt(t, indent);
       break;
    case T_CONST_DECL:

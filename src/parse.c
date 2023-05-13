@@ -6009,6 +6009,62 @@ static tree_t p_conditional_expression(void)
       return expr0;
 }
 
+static tree_t p_expression_or_unaffected(void)
+{
+   // expression | unaffected
+
+   BEGIN("expression or unaffected");
+
+   if (optional(tUNAFFECTED)) {
+      require_std(STD_19, "unaffected in conditional expression");
+      return NULL;
+   }
+   else
+      return p_expression();
+}
+
+static tree_t p_conditional_or_unaffected_expression(vhdl_standard_t minstd)
+{
+   // expression_or_unaffected { when condition else expression_or_unaffected }
+   //   [ when condition ]
+
+   BEGIN("conditional expression");
+
+   tree_t expr0 = p_expression_or_unaffected();
+
+   if (optional(tWHEN)) {
+      require_std(minstd, "conditional expressions");
+
+      tree_t value = tree_new(T_COND_VALUE);
+
+      do {
+         tree_t cond = tree_new(T_COND_EXPR);
+         tree_set_result(cond, expr0);
+         tree_set_value(cond, p_condition());
+
+         tree_set_loc(cond, CURRENT_LOC);
+
+         tree_add_cond(value, cond);
+
+         if (!optional(tELSE))
+            break;
+
+         expr0 = p_expression_or_unaffected();
+      } while (optional(tWHEN));
+
+      tree_t last = tree_new(T_COND_EXPR);
+      tree_set_result(last, expr0);
+      tree_set_loc(last, CURRENT_LOC);
+
+      tree_add_cond(value, last);
+
+      tree_set_loc(value, CURRENT_LOC);
+      return value;
+   }
+   else
+      return expr0;
+}
+
 static void p_constant_declaration(tree_t parent)
 {
    // constant identifier_list : subtype_indication [ := expression ] ;
@@ -8482,58 +8538,25 @@ static tree_t p_target(tree_t name)
       return name;
 }
 
-static void p_conditional_expressions(tree_t stmt, tree_t value0)
+static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
 {
-   // 2008: expression when condition { else expression when condition }
-   //       [ else expression ]
+   // [ label : ] target := expression ;
+   // 2019: target := conditional_or_unaffected_expression ;
 
-   BEGIN("conditional expressions");
+   EXTEND("variable assignment statement");
 
-   tree_t target = tree_target(stmt);
-   type_t constraint = tree_has_type(target) ? tree_type(target) : NULL;
+   tree_t target = p_target(name);
 
-   for (;;) {
-      tree_t value = value0 ?: p_expression();
-      value0 = NULL;
+   consume(tASSIGN);
 
-      solve_types(nametab, value, constraint);
+   tree_t value = p_conditional_or_unaffected_expression(STD_08);
 
-      tree_t a = tree_new(T_VAR_ASSIGN);
-      tree_set_target(a, target);
-      tree_set_value(a, value);
-      tree_set_loc(a, CURRENT_LOC);
+   type_t target_type = solve_target(nametab, target, value);
+   solve_types(nametab, value, target_type);
 
-      tree_t c = tree_new(T_COND_STMT);
-      tree_set_loc(c, CURRENT_LOC);
-
-      tree_add_stmt(c, a);
-      tree_add_cond(stmt, c);
-
-      if (optional(tWHEN)) {
-         tree_t when = p_condition();
-         tree_set_value(c, when);
-         solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
-
-         if (!optional(tELSE))
-            break;
-      }
-      else
-         break;
-   }
-
-}
-
-static tree_t p_conditional_variable_assignment(ident_t label, tree_t target,
-                                                tree_t value)
-{
-   // 2008: target := conditional_expressions ;
-
-   EXTEND("conditional variable assignment");
-
-   tree_t t = tree_new(T_COND_VAR_ASSIGN);
+   tree_t t = tree_new(T_VAR_ASSIGN);
    tree_set_target(t, target);
-
-   p_conditional_expressions(t, value);
+   tree_set_value(t, value);
 
    consume(tSEMI);
 
@@ -8542,38 +8565,6 @@ static tree_t p_conditional_variable_assignment(ident_t label, tree_t target,
 
    sem_check(t, nametab);
    return t;
-}
-
-static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
-{
-   // [ label : ] target := expression ;
-
-   EXTEND("variable assignment statement");
-
-   tree_t target = p_target(name);
-
-   consume(tASSIGN);
-
-   tree_t value = p_expression();
-
-   type_t target_type = solve_target(nametab, target, value);
-   solve_types(nametab, value, target_type);
-
-   if (standard() >= STD_08 && peek() == tWHEN)
-      return p_conditional_variable_assignment(label, target, value);
-   else {
-      tree_t t = tree_new(T_VAR_ASSIGN);
-      tree_set_target(t, target);
-      tree_set_value(t, value);
-
-      consume(tSEMI);
-
-      tree_set_loc(t, CURRENT_LOC);
-      ensure_labelled(t, label);
-
-      sem_check(t, nametab);
-      return t;
-   }
 }
 
 static tree_t p_waveform_element(tree_t target)

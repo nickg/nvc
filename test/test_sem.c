@@ -758,7 +758,7 @@ START_TEST(test_generate)
    input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
-      { 15, "type of condition must be BOOLEAN but is INTEGER" },
+      { 15, "type of condition must be BOOLEAN but have INTEGER" },
       { 26, "no visible declaration for Y" },
       { 33, "declaration of constant X hides signal X" },
       { 39, "declaration of constant X hides signal X" },
@@ -2551,7 +2551,8 @@ START_TEST(test_vhdl2008)
 
    const error_t expect[] = {
       { 13, "type of condition must be BOOLEAN but have INTEGER" },
-      { 14, "type of value BOOLEAN does not match type of target INTEGER" },
+      { 14, "expected type of conditional expression to be universal_integer "
+        "but is BOOLEAN" },
       { 31, "case choice must be locally static" },
       { 40, "no visible declaration for BAZ" },
       { 41, "SUBTYPE attribute is only allowed in a type mark" },
@@ -2984,7 +2985,7 @@ START_TEST(test_condexpr)
    input_from_file(TESTDIR "/sem/condexpr.vhd");
 
    const error_t expect[] = {
-      {  7, "type of condition must be BOOLEAN but is universal_integer" },
+      {  7, "type of condition must be BOOLEAN but have universal_integer" },
       {  8, "expected type of conditional expression to be universal_integer "
          "but is universal_real" },
       { -1, NULL }

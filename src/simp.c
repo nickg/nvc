@@ -913,6 +913,41 @@ static tree_t simp_signal_assign(tree_t t)
    return t;
 }
 
+static tree_t simp_var_assign(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (tree_kind(value) == T_COND_VALUE) {
+      // Replace with an if statement
+      tree_t new = tree_new(T_IF);
+      tree_set_loc(new, tree_loc(t));
+
+      const int nconds = tree_conds(value);
+      for (int i = 0; i < nconds; i++) {
+         tree_t e = tree_cond(value, i);
+
+         tree_t c = tree_new(T_COND_STMT);
+         tree_set_loc(c, tree_loc(e));
+
+         if (tree_has_value(e))
+            tree_set_value(c, tree_value(e));
+         else
+            assert(i == nconds - 1);
+
+         tree_t s = tree_new(T_VAR_ASSIGN);
+         tree_set_loc(s, tree_loc(t));
+         tree_set_target(s, tree_target(t));
+         tree_set_value(s, tree_result(e));
+
+         tree_add_stmt(c, s);
+         tree_add_cond(new, c);
+      }
+
+      return new;
+   }
+
+   return t;
+}
+
 static tree_t simp_literal(tree_t t)
 {
    switch (tree_subkind(t)) {
@@ -983,7 +1018,9 @@ static tree_t simp_range(tree_t t)
 
 static tree_t simp_cond_expr(tree_t t)
 {
-   if (tree_has_value(t)) {
+   if (!tree_has_result(t))
+      return NULL;   // "unaffected" expression is redundant
+   else if (tree_has_value(t)) {
       bool value_b;
       if (folded_bool(tree_value(t), &value_b)) {
          if (value_b) {
@@ -1167,7 +1204,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_CONCURRENT:
       return simp_concurrent(t);
    case T_COND_ASSIGN:
-   case T_COND_VAR_ASSIGN:
       return simp_cond_assign(t);
    case T_SELECT:
       return simp_select(t);
@@ -1187,6 +1223,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_if_generate(t);
    case T_SIGNAL_ASSIGN:
       return simp_signal_assign(t);
+   case T_VAR_ASSIGN:
+      return simp_var_assign(t);
    case T_TYPE_CONV:
       return simp_type_conv(t, ctx);
    case T_LITERAL:

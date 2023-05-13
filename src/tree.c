@@ -265,9 +265,6 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_SUBTYPE_DECL
    (I_IDENT | I_TYPE),
 
-   // T_COND_VAR_ASSIGN
-   (I_IDENT | I_TARGET | I_CONDS),
-
    // T_CONV_FUNC
    (I_IDENT | I_REF | I_VALUE | I_TYPE),
 
@@ -379,16 +376,16 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CONSTRAINT",      "T_BLOCK_CONFIG",    "T_PROT_FCALL",
    "T_PROT_PCALL",      "T_RANGE",           "T_IMPLICIT_SIGNAL",
    "T_DISCONNECT",      "T_GROUP_TEMPLATE",  "T_GROUP",
-   "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN", "T_CONV_FUNC",
-   "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
-   "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
-   "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
-   "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
-   "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
-   "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
-   "T_CASE_GENERATE",   "T_ALTERNATIVE",     "T_PSL",
-   "T_VERILOG",         "T_VIEW_DECL",       "T_PACKAGE_MAP",
-   "T_COND_EXPR",       "T_COND_VALUE",
+   "T_SUBTYPE_DECL",    "T_CONV_FUNC",       "T_CONCURRENT",
+   "T_SEQUENCE",        "T_PACK_INST",       "T_GENERIC_DECL",
+   "T_TYPE_REF",        "T_BOX",             "T_PARAM_DECL",
+   "T_EXTERNAL_NAME",   "T_FORCE",           "T_RELEASE",
+   "T_PROT_REF",        "T_MATCH_CASE",      "T_FUNC_INST",
+   "T_PROC_INST",       "T_ELEM_CONSTRAINT", "T_STRING",
+   "T_PATH_ELT",        "T_PRAGMA",          "T_CASE_GENERATE",
+   "T_ALTERNATIVE",     "T_PSL",             "T_VERILOG",
+   "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
+   "T_COND_VALUE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -809,6 +806,11 @@ void tree_set_value(tree_t t, tree_t v)
    object_t *obj = v ? &(v->object) : NULL;
    lookup_item(&tree_object, t, I_VALUE)->object = obj;
    object_write_barrier(&(t->object), obj);
+}
+
+bool tree_has_result(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_RESULT)->object != NULL;
 }
 
 tree_t tree_result(tree_t t)

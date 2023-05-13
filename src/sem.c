@@ -2086,55 +2086,6 @@ static bool sem_check_variable_target(tree_t target)
    return true;
 }
 
-static bool sem_check_cond_var_assign(tree_t t, nametab_t *tab)
-{
-   tree_t target = tree_target(t);
-
-   if (!sem_check(target, tab))
-      return false;
-
-   if (!sem_check_variable_target(target))
-      return false;
-
-   type_t target_type = tree_type(target);
-   type_t std_bool = std_type(NULL, STD_BOOLEAN);
-
-   const int nconds = tree_conds(t);
-   for (int i = 0; i < nconds; i++) {
-      tree_t c = tree_cond(t, i);
-
-      if (tree_has_value(c)) {
-         tree_t test = tree_value(c);
-
-         if (!sem_check(test, tab))
-            return false;
-
-         if (!type_eq(tree_type(test), std_bool))
-            sem_error(test, "type of condition must be BOOLEAN but have %s",
-                      type_pp(tree_type(test)));
-      }
-
-      tree_t a = tree_stmt(c, 0);
-      assert(tree_kind(a) == T_VAR_ASSIGN);
-
-      tree_t value = tree_value(a);
-
-      if (!sem_check(value, tab))
-         return false;
-
-      if (!sem_readable(value))
-         return false;
-
-      type_t value_type = tree_type(value);
-      if (!sem_check_same_type(value, target))
-         sem_error(t, "type of value %s does not match type of target %s",
-                   type_pp2(value_type, target_type),
-                   type_pp2(target_type, value_type));
-   }
-
-   return true;
-}
-
 static bool sem_check_var_assign(tree_t t, nametab_t *tab)
 {
    tree_t target = tree_target(t);
@@ -4296,7 +4247,7 @@ static bool sem_check_cond(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, std_bool))
-         sem_error(value, "type of condition must be %s but is %s",
+         sem_error(value, "type of condition must be %s but have %s",
                    type_pp(std_bool), type_pp(tree_type(value)));
 
       if (!sem_readable(value))
@@ -5564,19 +5515,22 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
             return false;
 
          if (!sem_check_type(value, std_bool))
-            sem_error(value, "type of condition must be %s but is %s",
+            sem_error(value, "type of condition must be %s but have %s",
                       type_pp(std_bool), type_pp(tree_type(value)));
       }
       else
          assert(i == nconds - 1);
 
-      tree_t result = tree_result(cond);
-      if (!sem_check(result, tab))
-         return false;
+      if (tree_has_result(cond)) {
+         tree_t result = tree_result(cond);
+         if (!sem_check(result, tab))
+            return false;
 
-      if (!sem_check_type(result, type))
-         sem_error(result, "expected type of conditional expression to be "
-                   "%s but is %s", type_pp(type), type_pp(tree_type(result)));
+         if (!sem_check_type(result, type))
+            sem_error(result, "expected type of conditional expression to be "
+                      "%s but is %s", type_pp(type),
+                      type_pp(tree_type(result)));
+      }
    }
 
    return true;
@@ -5727,8 +5681,6 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_BOX:
    case T_PSL:
       return true;
-   case T_COND_VAR_ASSIGN:
-      return sem_check_cond_var_assign(t, tab);
    case T_CONV_FUNC:
       return sem_check_conv_func(t, tab);
    case T_CONCURRENT:

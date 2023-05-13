@@ -1138,28 +1138,37 @@ END_TEST
 
 START_TEST(test_condvar)
 {
-   set_standard(STD_08);
+   set_standard(STD_19);
    input_from_file(TESTDIR "/simp/condvar.vhd");
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    tree_t p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_stmts(p) == 2);
 
    tree_t s0 = tree_stmt(p, 0);
    fail_unless(tree_kind(s0) == T_IF);
    fail_unless(tree_conds(s0) == 2);
 
-   tree_t c0 = tree_cond(s0, 0);
-   fail_unless(tree_has_value(c0));
-   fail_unless(tree_stmts(c0) == 1);
-   fail_unless(tree_kind(tree_stmt(c0, 0)) == T_VAR_ASSIGN);
+   tree_t s0c0 = tree_cond(s0, 0);
+   fail_unless(tree_has_value(s0c0));
+   fail_unless(tree_stmts(s0c0) == 1);
+   fail_unless(tree_kind(tree_stmt(s0c0, 0)) == T_VAR_ASSIGN);
 
-   tree_t c1 = tree_cond(s0, 1);
-   fail_if(tree_has_value(c1));
-   fail_unless(tree_stmts(c1) == 1);
-   fail_unless(tree_kind(tree_stmt(c1, 0)) == T_VAR_ASSIGN);
+   tree_t s0c1 = tree_cond(s0, 1);
+   fail_if(tree_has_value(s0c1));
+   fail_unless(tree_stmts(s0c1) == 1);
+   fail_unless(tree_kind(tree_stmt(s0c1, 0)) == T_VAR_ASSIGN);
+
+   tree_t s1 = tree_stmt(p, 0);
+   fail_unless(tree_kind(s1) == T_IF);
+   fail_unless(tree_conds(s1) == 2);
+
+   tree_t s1c0 = tree_cond(s1, 0);
+   fail_unless(tree_has_value(s1c0));
+   fail_unless(tree_stmts(s1c0) == 1);
+   fail_unless(tree_kind(tree_stmt(s1c0, 0)) == T_VAR_ASSIGN);
 }
 END_TEST
 

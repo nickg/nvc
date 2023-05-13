@@ -12,6 +12,8 @@ begin
     process is
         variable v1 : real := 1.0 when c0 = 2 else 5.15;  -- OK
     begin
+        v1 := 1.0 when c2 > 2 else unaffected when c2 < 10
+              else unaffected;          -- OK
         wait;
     end process;
 

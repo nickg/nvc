@@ -4090,7 +4090,10 @@ static type_t solve_cond_value(nametab_t *tab, tree_t value)
 static type_t solve_cond_expr(nametab_t *tab, tree_t value)
 {
    // The condition should have already been checked by solve_condition
-   return _solve_types(tab, tree_result(value));
+   if (tree_has_result(value))
+      return _solve_types(tab, tree_result(value));
+   else
+      return NULL;
 }
 
 static type_t solve_range(nametab_t *tab, tree_t r)

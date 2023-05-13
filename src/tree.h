@@ -319,7 +319,6 @@ typedef enum tree_kind {
    T_GROUP_TEMPLATE,
    T_GROUP,
    T_SUBTYPE_DECL,
-   T_COND_VAR_ASSIGN,
    T_CONV_FUNC,
    T_CONCURRENT,
    T_SEQUENCE,
@@ -432,6 +431,7 @@ bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
 
+bool tree_has_result(tree_t t);
 tree_t tree_result(tree_t t);
 void tree_set_result(tree_t t, tree_t v);
 
