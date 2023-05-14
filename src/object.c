@@ -119,10 +119,7 @@ static ident_t object_arena_name(object_arena_t *arena)
       const imask_t has = class->has_map[root->kind];
 
       if (has & I_IDENT) {
-         const int tzc = __builtin_ctzll(I_IDENT);
-         const int off = (root->kind * 64) + tzc;
-         const int n   = class->item_lookup[off];
-
+         const int n = __builtin_popcountll(has & (I_IDENT - 1));
          return root->items[n].ident;
       }
    }
@@ -269,8 +266,8 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
    const imask_t old_has = class->has_map[object->kind];
    const imask_t new_has = class->has_map[kind];
 
-   const int old_nitems = class->object_nitems[object->kind];
-   const int new_nitems = class->object_nitems[kind];
+   const int old_nitems = __builtin_popcountll(old_has);
+   const int new_nitems = __builtin_popcountll(new_has);
 
    const int max_items = MAX(old_nitems, new_nitems);
 
@@ -292,9 +289,7 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
 
 static void object_init(object_class_t *class)
 {
-   class->object_size   = xmalloc_array(class->last_kind, sizeof(size_t));
-   class->object_nitems = xmalloc_array(class->last_kind, sizeof(int));
-   class->item_lookup   = xmalloc_array(class->last_kind, sizeof(int) * 64);
+   class->object_size = xmalloc_array(class->last_kind, sizeof(size_t));
 
    assert(class->last_kind < (1 << (sizeof(uint8_t) * 8)));
 
@@ -303,22 +298,13 @@ static void object_init(object_class_t *class)
 
    for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
-      class->object_size[i]   = sizeof(object_t) + (nitems * sizeof(item_t));
-      class->object_nitems[i] = nitems;
+      class->object_size[i] = sizeof(object_t) + (nitems * sizeof(item_t));
 
       // Knuth's multiplicative hash
       format_digest +=
          (uint32_t)(class->has_map[i] >> 32) * UINT32_C(2654435761);
       format_digest +=
          (uint32_t)(class->has_map[i]) * UINT32_C(2654435761);
-
-      int n = 0;
-      for (int j = 0; j < 64; j++) {
-         if (class->has_map[i] & ONE_HOT(j))
-            class->item_lookup[(i * 64) + j] = n++;
-         else
-            class->item_lookup[(i * 64) + j] = -1;
-      }
    }
 
    bool changed = false;
@@ -452,7 +438,7 @@ static void gc_forward_pointers(object_t *object, object_arena_t *arena,
                                 const object_class_t *class, uint32_t *forward)
 {
    const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
+   const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
@@ -489,7 +475,7 @@ static void gc_free_external(object_t *object)
 {
    const object_class_t *class = classes[object->tag];
    const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
+   const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
@@ -627,7 +613,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    const imask_t deep_mask = I_TYPE | I_REF;
 
    const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
+   const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
@@ -729,7 +715,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    const object_class_t *class = classes[object->tag];
 
    const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
+   const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask & ~skip_mask) {
@@ -848,7 +834,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
          loc_write(&object->loc, loc_ctx);
 
       const imask_t has = class->has_map[object->kind];
-      const int nitems = class->object_nitems[object->kind];
+      const int nitems = __builtin_popcountll(has);
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {
@@ -1015,7 +1001,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
          loc_read(&(object->loc), loc_ctx);
 
       const imask_t has = class->has_map[object->kind];
-      const int nitems = class->object_nitems[object->kind];
+      const int nitems = __builtin_popcountll(has);
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {
@@ -1100,7 +1086,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    }
 
    const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
+   const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1165,7 +1151,7 @@ void object_copy(object_copy_ctx_t *ctx)
       const object_class_t *class = classes[object->tag];
 
       const imask_t has = class->has_map[object->kind];
-      const int nitems = class->object_nitems[object->kind];
+      const int nitems = __builtin_popcountll(has);
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {

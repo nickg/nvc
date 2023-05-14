@@ -120,9 +120,8 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
          if (unlikely((__has & (mask)) == 0))                           \
             object_lookup_failed((class), &(t)->object, mask);          \
                                                                         \
-         const int __tzc = __builtin_ctzll(mask);                       \
-         const int __off = ((t)->object.kind * 64) + __tzc;             \
-         const int __n   = (class)->item_lookup[__off];                 \
+         const imask_t __below = __has & ((mask) - 1);                  \
+         const int __n = __builtin_popcountll(__below);                 \
                                                                         \
          &((t)->object.items[__n]);                                     \
       })
@@ -223,14 +222,12 @@ typedef struct {
    const int               last_kind;
    const int               gc_roots[10];
    const int               gc_num_roots;
-   int                    *object_nitems;
    size_t                 *object_size;
-   int                    *item_lookup;
 } object_class_t;
 
 typedef object_t *(*object_load_fn_t)(ident_t);
 
-__attribute__((noreturn, cold))
+__attribute__((noreturn, cold, noinline))
 void object_lookup_failed(object_class_t *class, object_t *obj, imask_t mask);
 
 void object_change_kind(const object_class_t *class,
