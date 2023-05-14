@@ -3003,6 +3003,26 @@ START_TEST(test_condexpr)
 }
 END_TEST
 
+START_TEST(test_lcs2016_72b)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_72b.vhd");
+
+   const error_t expect[] = {
+      { 36, "type of value RESULT_T does not match type of target INTEGER" },
+      { 37, "function IOTA with return identifier RESULT_T cannot be called "
+        "in this context as the result subtype is not known" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3147,6 +3167,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue659);
    tcase_add_test(tc_core, test_genpack3);
    tcase_add_test(tc_core, test_condexpr);
+   tcase_add_test(tc_core, test_lcs2016_72b);
    suite_add_tcase(s, tc_core);
 
    return s;

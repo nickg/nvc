@@ -3723,12 +3723,6 @@ END_TEST
 
 START_TEST(test_vhdl2019)
 {
-   const error_t expect[] = {
-      { 50, "declaration of variable RV cannot have unconstrained type RV_T" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    set_standard(STD_19);
    input_from_file(TESTDIR "/parse/vhdl2019.vhd");
 
@@ -3770,7 +3764,7 @@ START_TEST(test_vhdl2019)
 
    fail_unless(parse() == NULL);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 

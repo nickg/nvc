@@ -154,6 +154,7 @@ struct type_set {
    type_set_t          *down;
    bool                 cconv;
    bool                 composite;
+   bool                 known_subtype;
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
@@ -3159,6 +3160,8 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
          type = type_result(ftype);
          tree_set_ref(fcall, decl);
 
+         const tree_flags_t flags = tree_flags(decl);
+
          // The expression A(X) can be parsed as a call to subprogram A
          // with no arguments, returning an array that is indexed by X,
          // or a call to subprogram A with argument X. We prefer the
@@ -3168,7 +3171,8 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
              && type_set_uniq(tab, &context)
              && !type_eq(context, type)
              && type_eq(context, type_elem(type))
-             && can_call_no_args(tab, decl)) {
+             && can_call_no_args(tab, decl)
+             && tree_params(fcall) > 0) {
 
             tree_t new = tree_new(T_FCALL);
             tree_set_ref(new, decl);
@@ -3181,8 +3185,15 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
 
             type = type_elem(type);
          }
-         else if ((tree_flags(decl) & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
+         else if ((flags & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
             tree_change_kind(fcall, T_PROT_FCALL);
+         else if ((flags & TREE_F_KNOWS_SUBTYPE)
+                  && !tab->top_type_set->known_subtype) {
+            error_at(tree_loc(fcall), "function %s with return identifier %s "
+                     "cannot be called in this context as the result subtype "
+                     "is not known", istr(tree_ident(decl)),
+                     istr(type_ident(type)));
+         }
       }
    }
 
@@ -4224,6 +4235,21 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    type_set_push(tab);
    type_set_add(tab, constraint, NULL);
    type_t type = _solve_types(tab, expr);
+   type_set_pop(tab);
+   return type;
+}
+
+type_t solve_known_subtype(nametab_t *tab, tree_t expr, type_t constraint)
+{
+   assert(constraint != NULL);
+
+   type_set_push(tab);
+   tab->top_type_set->known_subtype = true;
+
+   type_set_add(tab, constraint, NULL);
+
+   type_t type = _solve_types(tab, expr);
+
    type_set_pop(tab);
    return type;
 }

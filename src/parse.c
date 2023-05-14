@@ -6305,11 +6305,37 @@ static tree_t p_subprogram_specification(void)
          type_set_ident(sub, id);
          type_set_base(sub, of);
 
-         copy_constraints(sub, 0, of);
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_INDEX);
+
+         tree_t rref = tree_new(T_REF);
+         tree_set_loc(rref, CURRENT_LOC);
+         tree_set_ident(rref, ident_new("result"));
+         tree_set_ref(rref, t);
+         tree_set_type(rref, of);
+
+         type_t index = index_type_of(of, 0);
+
+         tree_t aref = tree_new(T_ATTR_REF);
+         tree_set_loc(aref, CURRENT_LOC);
+         tree_set_subkind(aref, ATTR_RANGE);
+         tree_set_name(aref, rref);
+         tree_set_ident(aref, ident_new("RANGE"));
+         tree_set_type(aref, index);
+
+         tree_t r = tree_new(T_RANGE);
+         tree_set_loc(r, CURRENT_LOC);
+         tree_set_subkind(r, RANGE_EXPR);
+         tree_set_value(r, aref);
+         tree_set_type(r, index);
+
+         tree_add_range(c, r);
+
+         type_add_constraint(sub, c);
 
          type_set_result(type, sub);
 
-         tree_set_flag(t, TREE_F_KNOWS_SIZE);
+         tree_set_flag(t, TREE_F_KNOWS_SUBTYPE);
       }
    }
 
@@ -7282,7 +7308,7 @@ static tree_t p_subprogram_body(tree_t spec)
 
    sem_check(spec, nametab);
 
-   if (tree_flags(spec) & TREE_F_KNOWS_SIZE) {
+   if (tree_flags(spec) & TREE_F_KNOWS_SUBTYPE) {
       // LRM 19 section 4.2.1: an implicit subtype declaration is
       // created as the first declarative item when the function
       // includes a return identifier
@@ -8552,7 +8578,7 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
    tree_t value = p_conditional_or_unaffected_expression(STD_08);
 
    type_t target_type = solve_target(nametab, target, value);
-   solve_types(nametab, value, target_type);
+   solve_known_subtype(nametab, value, target_type);
 
    tree_t t = tree_new(T_VAR_ASSIGN);
    tree_set_target(t, target);

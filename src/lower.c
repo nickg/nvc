@@ -2562,7 +2562,8 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
       return emit_null(vtype_context(scope_name));
 }
 
-static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall)
+static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
+                               vcode_reg_t bounds_reg)
 {
    tree_t decl = tree_ref(fcall);
 
@@ -2597,6 +2598,9 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall)
       else
          APUSH(args, arg_reg);
    }
+
+   if (bounds_reg != VCODE_INVALID_REG)
+      APUSH(args, bounds_reg);
 
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
@@ -3068,6 +3072,12 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
    case T_ALIAS:
       return lower_alias_ref(lu, decl, ctx);
+
+   case T_FUNC_BODY:
+      // Used to implement the "function knows result size" feature
+      assert(standard() >= STD_19);
+      assert(tree_flags(decl) & TREE_F_KNOWS_SUBTYPE);
+      return lower_param_ref(lu, decl);
 
    default:
       vcode_dump();
@@ -4857,7 +4867,7 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
    switch (tree_kind(expr)) {
    case T_FCALL:
    case T_PROT_FCALL:
-      return lower_fcall(lu, expr);
+      return lower_fcall(lu, expr, VCODE_INVALID_REG);
    case T_LITERAL:
       return lower_literal(expr);
    case T_STRING:
@@ -5727,6 +5737,14 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
          vcode_reg_t hint_reg = lower_array_data(target_reg);
          vcode_reg_t count_reg = lower_array_total_len(lu, type, target_reg);
          value_reg = lower_concat(lu, value, hint_reg, count_reg);
+      }
+      else if (tree_kind(value) == T_FCALL
+               && (tree_flags(tree_ref(value)) & TREE_F_KNOWS_SUBTYPE)) {
+         vcode_reg_t bounds_reg = target_reg;
+         if (vcode_reg_kind(target_reg) != VCODE_TYPE_UARRAY)
+            bounds_reg = lower_wrap(lu, type, target_reg);
+
+         value_reg = lower_fcall(lu, value, bounds_reg);
       }
       else
          value_reg = lower_rvalue(lu, value);
@@ -9932,9 +9950,10 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
       return;
 
    ident_t context_id = vcode_unit_name();
+   type_t result = type_result(tree_type(body));
 
    vu = emit_function(name, tree_to_object(body), parent->vunit);
-   vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
+   vcode_set_result(lower_func_result_type(result));
    emit_debug_info(tree_loc(body));
 
    vcode_type_t vcontext = vtype_context(context_id);
@@ -9947,6 +9966,15 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms);
+
+   if (tree_flags(body) & TREE_F_KNOWS_SUBTYPE) {
+      // Extra hidden parameter for result bounds
+      vcode_type_t vresult = lower_type(result);
+      vcode_reg_t bounds_reg =
+         emit_param(vresult, vresult, ident_new("result"));
+
+      lower_put_vcode_obj(body, bounds_reg, lu);
+   }
 
    lower_decls(lu, body);
 

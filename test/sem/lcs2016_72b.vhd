@@ -1,0 +1,42 @@
+entity lcs2016_72b is
+end entity;
+
+architecture test of lcs2016_72b is
+
+    function iota return result_t of integer_vector is  -- OK
+        variable result : result_t;
+        variable counter : natural;
+    begin
+        for i in result'range loop
+            result(i) := counter;
+            counter := counter + 1;
+        end loop;
+        return result;
+    end function;
+
+    function resize(x : integer_vector) return rv_t of integer_vector is
+        alias xa : integer_vector(x'length - 1 downto 0) is x ;
+        variable rv : rv_t  := (others => 0);
+        alias ra : integer_vector(rv'length - 1 downto 0) is rv ;
+        constant bound : integer := minimum(x'length, rv'length) - 2 ;
+    begin
+        if bound >= 0 then
+            rv(bound downto 0) := xa(bound downto 0);
+        end if;
+        return rv ;
+    end function ;
+
+begin
+
+    process is
+        variable v1 : integer_vector(1 to 3);
+        variable v2 : integer;
+    begin
+        v1 := iota;                     -- OK
+        v2 := iota;                     -- Error
+        assert iota = (1, 2, 3);        -- Error
+        wait;
+    end process;
+
+
+end architecture;

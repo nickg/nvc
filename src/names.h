@@ -108,6 +108,7 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl);
 psl_node_t find_default_clock(nametab_t *tab);
 
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint);
+type_t solve_known_subtype(nametab_t *tab, tree_t expr, type_t constraint);
 type_t solve_target(nametab_t *tab, tree_t target, tree_t value);
 type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint);
 type_t solve_psl_condition(nametab_t *tab, tree_t expr);
