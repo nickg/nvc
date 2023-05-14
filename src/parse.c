@@ -6082,7 +6082,11 @@ static void p_constant_declaration(tree_t parent)
    tree_t init = NULL;
    if (optional(tASSIGN)) {
       init = p_conditional_expression();
-      solve_types(nametab, init, type);
+
+      if (standard() < STD_19 || type_is_unconstrained(type))
+         solve_types(nametab, init, type);
+      else
+         solve_known_subtype(nametab, init, type);
    }
 
    consume(tSEMI);
@@ -6519,7 +6523,7 @@ static void p_signal_declaration(tree_t parent)
    tree_t init = NULL;
    if (optional(tASSIGN)) {
       init = p_conditional_expression();
-      solve_types(nametab, init, type);
+      solve_known_subtype(nametab, init, type);
    }
 
    consume(tSEMI);
@@ -8611,7 +8615,7 @@ static tree_t p_waveform_element(tree_t target)
       else
          constraint = solve_target(nametab, target, value);
 
-      solve_types(nametab, value, constraint);
+      solve_known_subtype(nametab, value, constraint);
    }
    else if (!tree_has_type(target))
       solve_types(nametab, target, NULL);

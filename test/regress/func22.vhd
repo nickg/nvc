@@ -14,6 +14,9 @@ architecture test of func22 is
         return result;
     end function;
 
+    signal s1 : integer_vector(1 to 5);
+    signal s2 : integer_vector(6 to 6) := iota;
+
 begin
 
     p1: process is
@@ -24,6 +27,25 @@ begin
         assert v1 = (0, 1, 2);
         v2 := iota;
         assert v2 = (0, 1, 2, 3, 4, 5);
+        wait;
+    end process;
+
+    p2: s2 <= iota;
+
+    p3: process is
+    begin
+        assert s2 = (0 => 0);
+        s1 <= iota;
+        wait for 1 ns;
+        assert s1 = (0, 1, 2, 3, 4);
+        assert s2 = (0 => 0);
+        wait;
+    end process;
+
+    p4: process is
+        constant c1 : integer_vector(4 to 5) := iota;
+    begin
+        assert c1 = (0, 1);
         wait;
     end process;
 

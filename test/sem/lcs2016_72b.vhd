@@ -26,17 +26,21 @@ architecture test of lcs2016_72b is
         return rv ;
     end function ;
 
+    signal s1 : integer_vector(1 to 2) := iota;  -- OK
+
 begin
 
     process is
         variable v1 : integer_vector(1 to 3);
         variable v2 : integer;
+        constant c1 : integer_vector(1 to 2) := iota;  -- OK
+        constant c2 : integer_vector := iota;  -- Error
     begin
         v1 := iota;                     -- OK
         v2 := iota;                     -- Error
         assert iota = (1, 2, 3);        -- Error
+        (v1, v2) := iota;               -- Error
         wait;
     end process;
-
 
 end architecture;

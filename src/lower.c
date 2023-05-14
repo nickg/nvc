@@ -2612,6 +2612,25 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 
+static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
+                                       type_t type, vcode_reg_t bounds_reg)
+{
+   if (tree_kind(value) == T_FCALL
+       && (tree_flags(tree_ref(value)) & TREE_F_KNOWS_SUBTYPE)) {
+
+      if (bounds_reg == VCODE_INVALID_REG
+          || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
+         vcode_type_t velem = lower_type(lower_elem_recur(type));
+         vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+         bounds_reg = lower_wrap(lu, type, null_reg);
+      }
+
+      return lower_fcall(lu, value, bounds_reg);
+   }
+   else
+      return lower_rvalue(lu, value);
+}
+
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
 {
    type_t ltype = tree_type(lit);
@@ -5738,16 +5757,8 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
          vcode_reg_t count_reg = lower_array_total_len(lu, type, target_reg);
          value_reg = lower_concat(lu, value, hint_reg, count_reg);
       }
-      else if (tree_kind(value) == T_FCALL
-               && (tree_flags(tree_ref(value)) & TREE_F_KNOWS_SUBTYPE)) {
-         vcode_reg_t bounds_reg = target_reg;
-         if (vcode_reg_kind(target_reg) != VCODE_TYPE_UARRAY)
-            bounds_reg = lower_wrap(lu, type, target_reg);
-
-         value_reg = lower_fcall(lu, value, bounds_reg);
-      }
       else
-         value_reg = lower_rvalue(lu, value);
+         value_reg = lower_known_subtype(lu, value, type, target_reg);
 
       vcode_reg_t locus = lower_debug_locus(target);
 
@@ -5995,6 +6006,10 @@ static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
                // a temporary resolved copy of the whole record by
                // resolving each field individually in the field callback.
                rhs = lower_lvalue(lu, wvalue);
+            }
+            else if (standard() >= STD_19) {
+               type_t ptype = tree_type(ptr->target);
+               rhs = lower_known_subtype(lu, wvalue, ptype, ptr->reg);
             }
          }
 
@@ -7247,7 +7262,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       if (tree_kind(value) == T_AGGREGATE)
          value_reg = lower_aggregate(lu, value, dest_reg);
       else
-         value_reg = lower_rvalue(lu, value);
+         value_reg = lower_known_subtype(lu, value, type, VCODE_INVALID_REG);
    }
    else {
       tree_t cons[MAX_CONSTRAINTS];
@@ -7588,7 +7603,7 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
    if (tree_has_value(decl)) {
       tree_t value = tree_value(decl);
       value_type = tree_type(value);
-      init_reg = lower_rvalue(lu, value);
+      init_reg = lower_known_subtype(lu, value, type, VCODE_INVALID_REG);
    }
 
    sig_flags_t flags = 0;

@@ -3010,9 +3010,11 @@ START_TEST(test_lcs2016_72b)
    input_from_file(TESTDIR "/sem/lcs2016_72b.vhd");
 
    const error_t expect[] = {
-      { 36, "type of value RESULT_T does not match type of target INTEGER" },
-      { 37, "function IOTA with return identifier RESULT_T cannot be called "
+      { 37, "function IOTA with return identifier RESULT_T cannot be called" },
+      { 40, "type of value RESULT_T does not match type of target INTEGER" },
+      { 41, "function IOTA with return identifier RESULT_T cannot be called "
         "in this context as the result subtype is not known" },
+      { 42, "function IOTA with return identifier RESULT_T cannot be "},
       { -1, NULL }
    };
    expect_errors(expect);
