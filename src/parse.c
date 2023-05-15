@@ -6303,40 +6303,26 @@ static tree_t p_subprogram_specification(void)
 
          consume(tOF);
 
-         type_t of = p_type_mark();
+         type_t of = p_type_mark(), sub;
 
-         type_t sub = type_new(T_SUBTYPE);
+         if (type_is_unconstrained(of)) {
+            tree_t rref = tree_new(T_REF);
+            tree_set_loc(rref, CURRENT_LOC);
+            tree_set_ident(rref, ident_new("result"));
+            tree_set_ref(rref, t);
+            tree_set_type(rref, of);
+
+            sub = get_subtype_for(rref);
+         }
+         else {
+            parse_error(CURRENT_LOC, "type mark of return identifier must "
+                        "denote an unconstrained type");
+
+            sub = type_new(T_SUBTYPE);
+            type_set_base(sub, of);
+         }
+
          type_set_ident(sub, id);
-         type_set_base(sub, of);
-
-         tree_t c = tree_new(T_CONSTRAINT);
-         tree_set_subkind(c, C_INDEX);
-
-         tree_t rref = tree_new(T_REF);
-         tree_set_loc(rref, CURRENT_LOC);
-         tree_set_ident(rref, ident_new("result"));
-         tree_set_ref(rref, t);
-         tree_set_type(rref, of);
-
-         type_t index = index_type_of(of, 0);
-
-         tree_t aref = tree_new(T_ATTR_REF);
-         tree_set_loc(aref, CURRENT_LOC);
-         tree_set_subkind(aref, ATTR_RANGE);
-         tree_set_name(aref, rref);
-         tree_set_ident(aref, ident_new("RANGE"));
-         tree_set_type(aref, index);
-
-         tree_t r = tree_new(T_RANGE);
-         tree_set_loc(r, CURRENT_LOC);
-         tree_set_subkind(r, RANGE_EXPR);
-         tree_set_value(r, aref);
-         tree_set_type(r, index);
-
-         tree_add_range(c, r);
-
-         type_add_constraint(sub, c);
-
          type_set_result(type, sub);
 
          tree_set_flag(t, TREE_F_KNOWS_SUBTYPE);

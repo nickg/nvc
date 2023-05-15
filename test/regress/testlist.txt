@@ -777,3 +777,4 @@ cond5           normal,2019
 cond6           normal,2019
 cover15         cover,shell
 func22          normal,2019
+func23          normal,2019

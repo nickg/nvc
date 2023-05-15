@@ -43,4 +43,21 @@ begin
         wait;
     end process;
 
+    process is
+        function return_int return rv_t of integer is  -- Error
+            variable r : rv_t;
+        begin
+            return r;
+        end function;
+
+        subtype bv3_t is bit_vector(1 to 3);
+
+        function return_carray return rv_t of bv3_t is  -- Error
+            variable r : rv_t;
+        begin
+            return r;
+        end function;
+    begin
+    end process;
+
 end architecture;

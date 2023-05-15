@@ -462,6 +462,8 @@ static void dump_type(type_t type)
             dump_constraint(type_constraint(type, i));
       }
    }
+   else if (type_is_none(type))
+      print_syntax("/* error */");
    else
       print_syntax("%s", type_pp(type));
 }

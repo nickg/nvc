@@ -2618,11 +2618,25 @@ static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
    if (tree_kind(value) == T_FCALL
        && (tree_flags(tree_ref(value)) & TREE_F_KNOWS_SUBTYPE)) {
 
-      if (bounds_reg == VCODE_INVALID_REG
-          || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
-         vcode_type_t velem = lower_type(lower_elem_recur(type));
-         vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-         bounds_reg = lower_wrap(lu, type, null_reg);
+      if (type_is_array(type)) {
+         if (bounds_reg == VCODE_INVALID_REG
+             || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
+            vcode_type_t velem = lower_type(lower_elem_recur(type));
+            vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+            bounds_reg = lower_wrap(lu, type, null_reg);
+         }
+      }
+      else if (type_is_record(type)) {
+         if (bounds_reg == VCODE_INVALID_REG) {
+            tree_t cons[MAX_CONSTRAINTS];
+            const int ncons = pack_constraints(type, cons);
+
+            // This is inefficient but should only occur in declarations
+            bounds_reg = lower_default_value(lu, type, VCODE_INVALID_REG,
+                                             cons, ncons);
+         }
+         else if (vtype_is_signal(vcode_reg_type(bounds_reg)))
+            bounds_reg = lower_resolved(lu, type, bounds_reg);
       }
 
       return lower_fcall(lu, value, bounds_reg);
@@ -5772,7 +5786,7 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
       if (lower_can_hint_aggregate(target, value))
          value_reg = lower_aggregate(lu, value, target_reg);
       else
-         value_reg = lower_rvalue(lu, value);
+         value_reg = lower_known_subtype(lu, value, type, target_reg);
 
       vcode_reg_t locus = lower_debug_locus(value);
       lower_copy_record(lu, type, target_reg, value_reg, locus);
@@ -9984,7 +9998,7 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
 
    if (tree_flags(body) & TREE_F_KNOWS_SUBTYPE) {
       // Extra hidden parameter for result bounds
-      vcode_type_t vresult = lower_type(result);
+      vcode_type_t vresult = lower_param_type(result, C_CONSTANT, PORT_IN);
       vcode_reg_t bounds_reg =
          emit_param(vresult, vresult, ident_new("result"));
 

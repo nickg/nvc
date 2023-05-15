@@ -3015,6 +3015,8 @@ START_TEST(test_lcs2016_72b)
       { 41, "function IOTA with return identifier RESULT_T cannot be called "
         "in this context as the result subtype is not known" },
       { 42, "function IOTA with return identifier RESULT_T cannot be "},
+      { 47, "type mark of return identifier must denote an unconstrained " },
+      { 55, "type mark of return identifier must denote an unconstrained " },
       { -1, NULL }
    };
    expect_errors(expect);
