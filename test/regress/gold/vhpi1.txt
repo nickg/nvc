@@ -3,7 +3,9 @@ VHPI printf hello, world!
 VHPI printf tool is nvc
 VHPI printf root handle
 VHPI printf x handle
+VHPI printf x name X
 VHPI printf y handle
+VHPI printf y name Y
 VHPI printf start of sim callback! user data is 'some user data'
 0ms+0: Report Note: x=5
 VHPI printf after_5ns callback!
