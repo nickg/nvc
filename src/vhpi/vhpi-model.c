@@ -847,15 +847,49 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       if (handle == NULL)
          return (vhpiCharT *)PACKAGE_NAME;
 
-      return NULL;
+      break;
 
    case vhpiFullNameP:
    case vhpiFullCaseNameP:
    case vhpiKindStrP:
+      break;
+
    default:
-      fatal_trace("unsupported property %s in vhpi_get_str",
-                  vhpi_property_str(property));
+      goto unsupported;
    }
+
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return NULL;
+
+   if (property == vhpiKindStrP)
+      return (vhpiCharT *)vhpi_class_str(obj->kind);
+
+   c_abstractRegion *region = is_abstractRegion(obj);
+   if (region != NULL) {
+         switch (property) {
+         case vhpiNameP: return region->Name;
+         case vhpiCaseNameP: return region->CaseName;
+         case vhpiFullNameP: return region->FullName;
+         case vhpiFullCaseNameP: return region->FullCaseName;
+         default: goto unsupported;
+         }
+   }
+
+   c_abstractDecl *d = is_abstractDecl(obj);
+   if (d != NULL) {
+      switch (property) {
+      case vhpiNameP: return d->Name;
+      case vhpiCaseNameP: return d->CaseName;
+      case vhpiFullNameP: return d->FullName;
+      case vhpiFullCaseNameP: return d->FullCaseName;
+      default: goto unsupported;
+      }
+   }
+
+unsupported:
+   fatal_trace("unsupported property %s in vhpi_get_str",
+               vhpi_property_str(property));
 }
 
 DLLEXPORT

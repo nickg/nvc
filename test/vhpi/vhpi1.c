@@ -216,11 +216,13 @@ static void startup()
    check_error();
    fail_if(handle_x == NULL);
    vhpi_printf("x handle %p", handle_x);
+   vhpi_printf("x name %s", vhpi_get_str(vhpiNameP, handle_x));
 
    handle_y = vhpi_handle_by_name("y", root);
    check_error();
    fail_if(handle_y == NULL);
    vhpi_printf("y handle %p", handle_y);
+   vhpi_printf("y name %s", vhpi_get_str(vhpiNameP, handle_y));
 
    vhpiHandleT handle_y2 = vhpi_handle_by_name(":y", NULL);
    check_error();
