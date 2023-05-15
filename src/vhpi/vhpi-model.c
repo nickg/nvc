@@ -234,6 +234,16 @@ static c_vhpiObject *from_handle(vhpiHandleT handle)
    return (c_vhpiObject *)handle;
 }
 
+static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiRootInstK:
+      return container_of(obj, c_abstractRegion, object);
+   default:
+      return NULL;
+   }
+}
+
 static c_abstractRegion *cast_abstractRegion(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -246,11 +256,32 @@ static c_abstractRegion *cast_abstractRegion(c_vhpiObject *obj)
    }
 }
 
+static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiSigDeclK:
+   case vhpiPortDeclK:
+   case vhpiIntTypeDeclK:
+   case vhpiEnumTypeDeclK:
+   case vhpiPhysTypeDeclK:
+   case vhpiArrayTypeDeclK:
+   case vhpiRecordTypeDeclK:
+      return container_of(obj, c_abstractDecl, object);
+   default:
+      return NULL;
+   }
+}
+
 static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiSigDeclK:
    case vhpiPortDeclK:
+   case vhpiIntTypeDeclK:
+   case vhpiEnumTypeDeclK:
+   case vhpiPhysTypeDeclK:
+   case vhpiArrayTypeDeclK:
+   case vhpiRecordTypeDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       vhpi_error(vhpiError, NULL, "class kind %s is not a declaration",
