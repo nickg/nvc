@@ -974,7 +974,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    void *key = unit;
    if (kind == T_LIBRARY)
       key = tree_ident(unit);   // Tree pointer is not stable
-   else if (kind == T_PARAM_DECL || kind == T_VAR_DECL) {
+   else if (kind == T_PARAM_DECL || kind == T_VAR_DECL || kind == T_PORT_DECL) {
       key = type = tree_type(unit);
       assert(type_is_protected(type));
       cacheable = type_frozen(type);
@@ -2103,6 +2103,7 @@ static tree_t get_container(tree_t t)
       return get_container(tree_ref(t));
    case T_VAR_DECL:
    case T_PARAM_DECL:
+   case T_PORT_DECL:
       return type_is_protected(tree_type(t)) ? t : NULL;
    default:
       return is_container(t) ? t : NULL;

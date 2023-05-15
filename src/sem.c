@@ -1064,6 +1064,97 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_param_decl(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+
+   if (!sem_check_subtype(t, type, tab))
+      return false;
+
+   // See LRM 93 section 3.3 for restrictions
+
+   const type_kind_t kind = type_base_kind(type);
+   const class_t class = tree_class(t);
+   const port_mode_t mode = tree_subkind(t);
+
+   switch (mode) {
+   case PORT_BUFFER:
+      sem_error(t, "subprogram formal parameters cannot have mode BUFFER");
+      break;
+   case PORT_LINKAGE:
+      sem_error(t, "subprogram formal parameters cannot have mode LINKAGE");
+      break;
+   default:
+      break;
+   }
+
+   if (kind == T_FILE && class != C_FILE)
+      sem_error(t, "formal parameter %s with file type must have class FILE",
+                istr(tree_ident(t)));
+
+   if (kind != T_FILE && class == C_FILE)
+      sem_error(t, "formal parameter %s with class FILE must have file type",
+                istr(tree_ident(t)));
+
+   if ((kind == T_ACCESS || kind == T_PROTECTED) && class != C_VARIABLE)
+      sem_error(t, "formal parameter %s with %s type must have class VARIABLE",
+                istr(tree_ident(t)),
+                kind == T_ACCESS ? "access" : "protected");
+
+   if (sem_has_access(type) && class != C_VARIABLE)
+      sem_error(t, "formal parameter %s with type containing an access type "
+                "must have class VARIABLE", istr(tree_ident(t)));
+
+   if (class == C_CONSTANT && mode != PORT_IN)
+      sem_error(t, "parameter of class CONSTANT must have mode IN");
+
+   // LRM 08 section 4.2.2.3
+   if (class == C_SIGNAL && tree_flags(t) & TREE_F_BUS)
+      sem_error(t, "formal signal parameter declaration may "
+                "not include the reserved word BUS");
+
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check(value, tab))
+         return false;
+
+      if (!sem_check_type(value, type))
+         sem_error(value, "type of default value %s does not match type "
+                   "of declaration %s", type_pp(tree_type(value)),
+                   type_pp(type));
+
+      switch (class) {
+      case C_SIGNAL:
+         sem_error(t, "parameter of class SIGNAL cannot have a "
+                   "default value");
+         break;
+
+      case C_VARIABLE:
+         if (mode == PORT_OUT || mode == PORT_INOUT)
+            sem_error(t, "parameter of class VARIABLE with mode OUT or "
+                      "INOUT cannot have a default value");
+         break;
+
+      default:
+         break;
+      }
+
+      if (!sem_globally_static(value)) {
+         diag_t *d = pedantic_diag(value);
+         if (d != NULL) {
+            diag_printf(d, "default value must be a static expression");
+            diag_emit(d);
+         }
+      }
+
+      if (kind == T_PROTECTED)
+         sem_error(t, "parameter with protected type cannot have "
+                   "a default value");
+   }
+
+   return true;
+}
+
 static bool sem_check_port_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
@@ -1076,6 +1167,50 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
       // during elaboration
       tree_set_flag(t, TREE_F_UNCONSTRAINED);
    }
+
+   const class_t class = tree_class(t);
+   if (class == C_VARIABLE) {
+      if (standard() < STD_19) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "ports may not have variable class in VHDL-%s",
+                     standard_text(standard()));
+         diag_hint(d, NULL, "pass $bold$--std=2019$$ to enable this "
+                   "feature");
+         diag_emit(d);
+         return false;
+      }
+
+      // TODO: check for protected and inout
+   }
+   else if (class != C_SIGNAL)
+      sem_error(t, "invalid object class %s for port %s",
+                class_str(class), istr(tree_ident(t)));
+
+   if (type_is_access(type))
+      sem_error(t, "port %s cannot be declared with access type %s",
+                istr(tree_ident(t)), type_pp(type));
+
+   if (sem_has_access(type))
+      sem_error(t, "port %s cannot be declared with type %s which has a "
+                "subelement of access type", istr(tree_ident(t)),
+                type_pp(type));
+
+   if (class != C_VARIABLE && type_is_protected(type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "port %s with class %s cannot be declared with "
+                  "protected type %s", istr(tree_ident(t)),
+                  class_str(class), type_pp(type));
+      diag_hint(d, NULL, "ports with variable class can be of protected "
+                "type in VHDL-2019");
+      diag_hint(d, NULL, "pass $bold$--std=2019$$ to enable this "
+                "feature");
+      diag_emit(d);
+      return false;
+   }
+
+   if (type_is_file(type))
+      sem_error(t, "port %s cannot be declared with file type %s",
+                istr(tree_ident(t)), type_pp(type));
 
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
@@ -1254,71 +1389,6 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_interface_class(tree_t port)
-{
-   // See LRM 93 section 3.3 for restrictions
-
-   const type_t type = tree_type(port);
-   const type_kind_t kind = type_base_kind(type);
-   const class_t class = tree_class(port);
-   const port_mode_t mode = tree_subkind(port);
-
-   if (tree_has_value(port)) {
-      if (class == C_SIGNAL)
-         sem_error(port, "parameter of class SIGNAL cannot have a "
-                   "default value");
-
-      if (class == C_VARIABLE) {
-         if (mode == PORT_OUT || mode == PORT_INOUT)
-            sem_error(port, "parameter of class VARIABLE with mode OUT or "
-                      "INOUT cannot have a default value");
-      }
-
-      tree_t value = tree_value(port);
-      if (type_is_none(tree_type(value)))
-         return false;
-
-      if (!sem_globally_static(value)) {
-         diag_t *d = pedantic_diag(value);
-         if (d != NULL) {
-            diag_printf(d, "default value must be a static expression");
-            diag_emit(d);
-         }
-      }
-
-      if (kind == T_PROTECTED)
-         sem_error(port, "parameter with protected type cannot have "
-                   "a default value");
-   }
-
-   if (kind == T_FILE && class != C_FILE)
-      sem_error(port, "object %s with file type must have class FILE",
-                istr(tree_ident(port)));
-
-   if (kind != T_FILE && class == C_FILE)
-      sem_error(port, "object %s with class FILE must have file type",
-                istr(tree_ident(port)));
-
-   if ((kind == T_ACCESS || kind == T_PROTECTED) && class != C_VARIABLE)
-      sem_error(port, "object %s with %s type must have class VARIABLE",
-                istr(tree_ident(port)),
-                kind == T_ACCESS ? "access" : "protected");
-
-   if (sem_has_access(type) && class != C_VARIABLE)
-      sem_error(port, "object %s with type containing an access type must "
-                "have class VARIABLE", istr(tree_ident(port)));
-
-   if (class == C_CONSTANT && mode != PORT_IN)
-      sem_error(port, "parameter of class CONSTANT must have mode IN");
-
-   // LRM 08 section 4.2.2.3
-   if (class == C_SIGNAL && tree_flags(port) & TREE_F_BUS)
-      sem_error(port, "formal signal parameter declaration may "
-                "not include the reserved word BUS");
-
-   return true;
-}
-
 static bool sem_check_func_ports(tree_t t, nametab_t *tab)
 {
    const int nports = tree_ports(t);
@@ -1332,9 +1402,6 @@ static bool sem_check_func_ports(tree_t t, nametab_t *tab)
          if (tree_class(p) == C_VARIABLE)
             sem_error(p, "function arguments may not have VARIABLE class");
       }
-
-      if (!sem_check_interface_class(p))
-         return false;
    }
 
    return true;
@@ -1572,46 +1639,13 @@ static bool sem_check_func_body(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_proc_ports(tree_t t, nametab_t *tab)
-{
-   const int nports = tree_ports(t);
-   for (unsigned i = 0; i < nports; i++) {
-      tree_t p = tree_port(t, i);
-
-      switch (tree_subkind(p)) {
-      case PORT_BUFFER:
-         sem_error(p, "procedure arguments may not have mode BUFFER");
-         break;
-      case PORT_LINKAGE:
-         sem_error(p, "procedure arguments may not have mode LINKAGE");
-         break;
-      default:
-         break;
-      }
-
-      if (!sem_check_interface_class(p))
-         return false;
-   }
-
-   return true;
-}
-
 static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
 {
-   if (tree_flags(t) & TREE_F_PREDEFINED)
-      return true;
-
-   if (!sem_check_proc_ports(t, tab))
-      return false;
-
    return true;
 }
 
 static bool sem_check_proc_body(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_proc_ports(t, tab))
-      return false;
-
    tree_t fwd = find_forward_decl(tab, t);
    if (fwd != NULL && !sem_check_conforming(fwd, t))
       return false;
@@ -1909,28 +1943,8 @@ static bool sem_check_pack_body(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_ports(tree_t t)
+static bool sem_check_component(tree_t t, nametab_t *tab)
 {
-   bool ok = true;
-
-   const int nports = tree_ports(t);
-   for (int n = 0; n < nports; n++) {
-      tree_t p = tree_port(t, n);
-
-      if (tree_class(p) != C_SIGNAL)
-         sem_error(p, "invalid object class for port");
-
-      ok &= sem_no_access_file_or_protected(p, tree_type(p), "ports");
-   }
-
-   return ok;
-}
-
-static bool sem_check_component(tree_t t)
-{
-   if (!sem_check_ports(t))
-      return false;
-
    return true;
 }
 
@@ -1953,9 +1967,6 @@ static void sem_passive_cb(tree_t t, void *context)
 static bool sem_check_entity(tree_t t, nametab_t *tab)
 {
    if (!sem_check_context_clause(t, tab))
-      return false;
-
-   if (!sem_check_ports(t))
       return false;
 
    // All processes in entity statement part must be passive
@@ -3873,18 +3884,11 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    // These only apply if the class of the formal is not constant
 
    tree_t actual = NULL;
+   const tree_kind_t kind = tree_kind(value);
+   if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) {
+      // Conversion functions are in LRM 93 section 4.3.2.2
+      actual = tree_value(value);
 
-   if (tree_class(decl) != C_CONSTANT) {
-      const tree_kind_t kind = tree_kind(value);
-      if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) {
-         // Conversion functions are in LRM 93 section 4.3.2.2
-         actual = tree_value(value);
-      }
-   }
-
-   if (actual == NULL)
-      actual = value;    // No conversion
-   else {
       // LRM 93 section 3.2.1.1 result of a type conversion in an
       // association list cannot be an unconstrained array type
       if (type_is_unconstrained(value_type)
@@ -3897,6 +3901,8 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          sem_error(value, "conversion not allowed for formal %s with "
                    "mode OUT", istr(tree_ident(decl)));
    }
+   else
+      actual = value;    // No conversion
 
    if (mode == PORT_IN && !sem_globally_static(actual)
        && !sem_static_name(actual, sem_globally_static)) {
@@ -3914,6 +3920,15 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          sem_error(value, "actual associated with port %s of mode IN must be "
                    "a globally static expression or static name",
                    istr(tree_ident(decl)));
+   }
+   else if (mode == PORT_INOUT && tree_class(decl) == C_VARIABLE) {
+      // VHDL-2019 additions for shared variable ports
+      // TODO: this seems to be unreachable
+      tree_t ref = name_to_ref(value);
+      if (ref == NULL || class_of(ref) != C_VARIABLE)
+         sem_error(value, "actual associated with formal variable port %s "
+                   "must either be a shared variable or a formal variable port "
+                   "of another design entity", istr(tree_ident(decl)));
    }
    else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
             && !sem_static_signal_name(actual)) {
@@ -4998,9 +5013,6 @@ static bool sem_check_for(tree_t t, nametab_t *tab)
 
 static bool sem_check_block(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_ports(t))
-      return false;
-
    if (!sem_check_generic_map(t, t, tab))
       return false;
 
@@ -5573,8 +5585,9 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_SUBTYPE_DECL:
       return sem_check_subtype_decl(t, tab);
    case T_PORT_DECL:
-   case T_PARAM_DECL:
       return sem_check_port_decl(t, tab);
+   case T_PARAM_DECL:
+      return sem_check_param_decl(t, tab);
    case T_GENERIC_DECL:
       return sem_check_generic_decl(t, tab);
    case T_SIGNAL_DECL:
@@ -5656,7 +5669,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_ATTR_DECL:
       return sem_check_attr_decl(t);
    case T_COMPONENT:
-      return sem_check_component(t);
+      return sem_check_component(t, tab);
    case T_IF_GENERATE:
       return sem_check_if_generate(t, tab);
    case T_FOR_GENERATE:

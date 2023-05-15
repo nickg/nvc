@@ -415,7 +415,7 @@ START_TEST(test_func)
       { 124, "function arguments may not have VARIABLE class" },
       { 146, "B with class VARIABLE must be a name denoting a variable" },
       { 161, "pure function TEST18 cannot call impure function" },
-      { 166, "object X with access type must have class VARIABLE" },
+      { 166, "formal parameter X with access type must have class VARIABLE" },
       { 180, "universal_real does not match formal X type INTEGER" },
       { 181, "missing actual for formal parameter Y without default value" },
       { 182, "type of actual universal_integer does not match formal Y" },
@@ -656,17 +656,17 @@ START_TEST(test_procedure)
       {  91, "implicit signal QUIET cannot be used in a subprogram body" },
       {  92, "implicit signal TRANSACTION cannot be used in a subprogram" },
       {  93, "implicit signal DELAYED cannot be used in a subprogram" },
-      {  98, "object X with access type must have class VARIABLE" },
-      {  99, "object X with access type must have class VARIABLE" },
-      { 100, "object X with access type must have class VARIABLE" },
+      {  98, "formal parameter X with access type must have class VARIABLE" },
+      {  99, "formal parameter X with access type must have class VARIABLE" },
+      { 100, "formal parameter X with access type must have class VARIABLE" },
       { 137, "ambiguous use of enumeration literal '0'" },
       { 137, "ambiguous use of enumeration literal '1'" },
       { 142, "cannot read OUT parameter X" },
       { 148, "X is not a valid target of signal assignment" },
-      { 157, "object ARG with type containing an access type must have class" },
-      { 162, "object ARG with type containing an access type must have class" },
-      { 167, "object ARG with type containing an access type must have class" },
-      { 172, "object ARG with type containing an access type must have class" },
+      { 157, "formal parameter ARG with type containing an access type " },
+      { 162, "formal parameter ARG with type containing an access type " },
+      { 167, "formal parameter ARG with type containing an access type " },
+      { 172, "formal parameter ARG with type containing an access type " },
       { 180, "expected procedure name" },
       { 183, "declaration may not include the reserved word BUS" },
       { 193, "signal parameter Y must be denoted by a static signal name" },
@@ -1169,8 +1169,8 @@ START_TEST(test_protected)
       {  64, "parameter with protected type cannot have a default value" },
       { 118, "invalid use of name COUNTER" },
       { 119, "too many positional parameters for subprogram DECREMENT [INTEG" },
+      { 124, "formal parameter X with protected type must have class VARIABLE" },
       { 124, "declaration of constant X hides variable X" },
-      { 124, "object X with protected type must have class VARIABLE" },
       { 126, "pure function GET_VALUE cannot call impure function VALUE" },
       { 135, "may not assign to variable of a protected type" },
       { 150, "missing body for protected type PROTECTED_T" },
@@ -1199,7 +1199,8 @@ START_TEST(test_protected2)
       { 30, "signals may not have protected type" },
       { 31, "attributes may not have protected type" },
       { 35, "generics may not have protected type" },
-      { 41, "ports may not have protected type" },
+      { 41, "port P1 with class signal cannot be declared with protected "
+        "type T_PROTECTED" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1774,18 +1775,18 @@ START_TEST(test_interfaces)
    input_from_file(TESTDIR "/sem/interfaces.vhd");
 
    const error_t expect[] = {
-      { 13,  "invalid object class for port" },
-      { 17,  "invalid object class for port" },
-      { 21,  "invalid object class for port" },
+      { 13,  "ports may not have variable class in VHDL-1993" },
+      { 17,  "invalid object class constant for port P" },
+      { 21,  "invalid object class file for port P" },
       { 30,  "invalid object class signal for generic P" },
       { 34,  "invalid object class variable for generic P" },
       { 38,  "invalid object class file for generic P" },
-      { 41,  "procedure arguments may not have mode BUFFER" },
-      { 42,  "procedure arguments may not have mode LINKAGE" },
+      { 41,  "subprogram formal parameters cannot have mode BUFFER" },
+      { 42,  "subprogram formal parameters cannot have mode LINKAGE" },
       { 44,  "parameter of class CONSTANT must have mode IN" },
       { 45,  "parameter of class CONSTANT must have mode IN" },
-      { 47,  "object C with class FILE must have file type" },
-      { 48,  "object C with file type must have class FILE" },
+      { 47,  "formal parameter C with class FILE must have file type" },
+      { 48,  "formal parameter C with file type must have class FILE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1817,10 +1818,12 @@ START_TEST(test_file_and_access)
       { 28, "generics may not have a type with a subelement of access type" },
       { 29, "generics may not have a type with a subelement of access type" },
       { 30, "generics may not have file type" },
-      { 36, "ports may not have access type" },
-      { 37, "ports may not have a type with a subelement of access type" },
-      { 38, "ports may not have a type with a subelement of access type" },
-      { 39, "ports may not have file type" },
+      { 36, "port P1 cannot be declared with access type T_INT_ACCESS" },
+      { 37, "port P2 cannot be declared with type T_ACCESS_ARRAY which has "
+        "a subelement of access type" },
+      { 38, "port P3 cannot be declared with type T_ACCESS_RECORD which has "
+        "a subelement of access type" },
+      { 39, "port P4 cannot be declared with file type T_INT_FILE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3027,6 +3030,23 @@ START_TEST(test_lcs2016_72b)
 }
 END_TEST
 
+START_TEST(test_lcs2016_47)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_47.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3172,6 +3192,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack3);
    tcase_add_test(tc_core, test_condexpr);
    tcase_add_test(tc_core, test_lcs2016_72b);
+   tcase_add_test(tc_core, test_lcs2016_47);
    suite_add_tcase(s, tc_core);
 
    return s;
