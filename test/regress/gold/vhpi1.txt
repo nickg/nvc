@@ -2,6 +2,13 @@ loading VHPI plugin
 VHPI printf hello, world!
 VHPI printf tool is nvc
 VHPI printf root handle
+VHPI printf root name is VHPI1
+VHPI printf arch handle
+VHPI printf arch name is VHPI1-TEST
+VHPI printf arch unit name is WORK.VHPI1-TEST
+VHPI printf entity handle
+VHPI printf entity name is VHPI1
+VHPI printf entity unit name is WORK.VHPI1
 VHPI printf x handle
 VHPI printf x name X
 VHPI printf y handle
