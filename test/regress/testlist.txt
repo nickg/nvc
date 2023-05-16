@@ -778,3 +778,4 @@ cond6           normal,2019
 cover15         cover,shell
 func22          normal,2019
 func23          normal,2019
+protected9      normal,2019

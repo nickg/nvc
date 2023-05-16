@@ -10612,13 +10612,32 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
       break;
    }
 
-   if (port == NULL || tree_subkind(port) != PORT_IN)
+   if (port == NULL)
       return false;
 
    assert(tree_kind(port) == T_PORT_DECL);
 
+   const class_t class = tree_class(port);
+   if (class == C_SIGNAL && tree_subkind(port) != PORT_IN)
+      return false;
+
    tree_t value = tree_value(map);
-   if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV) {
+
+   if (class == C_VARIABLE) {
+      // Variable ports are always directly aliased to the actual
+      // variable in the parent scope
+      vcode_type_t vtype = lower_type(tree_type(port));
+      vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), 0);
+      lower_put_vcode_obj(port, var, lu);
+
+      vcode_reg_t src_reg = lower_rvalue(lu, value);
+      emit_store(src_reg, var);
+
+      hset_insert(direct, map);
+      hset_insert(direct, port);
+      return true;
+   }
+   else if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV) {
       if (field != -1) {
          // We can't use direct mapping for this record element so make
          // sure we don't direct map any other elements of this signal

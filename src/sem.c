@@ -1180,7 +1180,13 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
          return false;
       }
 
-      // TODO: check for protected and inout
+      if (tree_subkind(t) != PORT_INOUT)
+         sem_error(t, "formal variable port %s must have mode INOUT",
+                   istr(tree_ident(t)));
+
+      if (!type_is_protected(type))
+         sem_error(t, "formal variable port %s must have protected type",
+                   istr(tree_ident(t)));
    }
    else if (class != C_SIGNAL)
       sem_error(t, "invalid object class %s for port %s",
@@ -3923,7 +3929,6 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    }
    else if (mode == PORT_INOUT && tree_class(decl) == C_VARIABLE) {
       // VHDL-2019 additions for shared variable ports
-      // TODO: this seems to be unreachable
       tree_t ref = name_to_ref(value);
       if (ref == NULL || class_of(ref) != C_VARIABLE)
          sem_error(value, "actual associated with formal variable port %s "

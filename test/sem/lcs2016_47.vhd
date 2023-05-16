@@ -30,8 +30,17 @@ use work.pack.all;
 
 architecture test of lcs2016_47 is
     shared variable sv : pt;
+
+    component c1 is
+        port ( variable x : out pt;   -- Error
+               variable y : inout integer );  -- Error
+    end component;
+
+    signal i : integer;
 begin
 
     u1: entity work.sub port map ( sv );  -- OK
+
+    u2: component c1 port map ( sv, i );  --Error
 
 end architecture;

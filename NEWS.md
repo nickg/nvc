@@ -10,6 +10,8 @@
 - Conditional return statements are now supported in VHDL-2019.
 - Added support for the "function knows vector size" feature in
   VHDL-2019.
+- Entity ports with variable class and protected type are now supported
+  in VHDL-2019 mode.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

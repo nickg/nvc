@@ -310,7 +310,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_047">
         LCS2016-047</td>
     <td>Protected type: shared variables on entity interface</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_049">

@@ -3037,6 +3037,11 @@ START_TEST(test_lcs2016_47)
    input_from_file(TESTDIR "/sem/lcs2016_47.vhd");
 
    const error_t expect[] = {
+      { 35, "formal variable port X must have mode INOUT" },
+      { 36, "formal variable port Y must have protected type" },
+      { 44, "actual associated with port X of mode OUT" },
+      { 44, "formal variable port Y must either be a shared variable "
+        "or a formal variable port of another design entity" },
       { -1, NULL }
    };
    expect_errors(expect);
