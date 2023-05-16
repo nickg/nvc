@@ -882,7 +882,10 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    }
 
    char *copy LOCAL = xstrdup(name), *saveptr;
-   char *elem = strtok_r(copy, ":", &saveptr);
+   char *elem = strtok_r(copy, ":.", &saveptr);
+
+   if (scope == NULL && strcasecmp((char *)region->Name, elem) == 0)
+      elem = strtok_r(NULL, ":.", &saveptr);
 
    for (int i = 0; i < region->decls.count; i++) {
       c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
