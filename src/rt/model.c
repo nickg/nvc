@@ -810,6 +810,11 @@ const void *signal_last_value(rt_signal_t *s)
    return s->shared.data + s->shared.size;
 }
 
+uint32_t signal_width(rt_signal_t *s)
+{
+   return s->shared.size / s->nexus.size;
+}
+
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
 {
    const size_t total = s->shared.size / s->nexus.size;
