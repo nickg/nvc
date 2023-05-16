@@ -93,6 +93,18 @@ static void y_value_change(const vhpiCbDataT *cb_data)
    }
 }
 
+static void after_after_5ns(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("after_after_5ns callback!");
+   fail_if(1);
+}
+
+static void next_timestep(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("next_timestep callback!");
+   fail_if(1);
+}
+
 static void after_5ns(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("after_5ns callback!");
@@ -125,6 +137,31 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    };
    vhpi_register_cb(&cb_data2, 0);
    check_error();
+
+   vhpiTimeT time_1fs = {
+      .low = 1
+   };
+
+   vhpiCbDataT cb_data3 = {
+      .reason = vhpiCbAfterDelay,
+      .cb_rtn = after_after_5ns,
+      .time   = &time_1fs
+   };
+   vhpiHandleT cb3 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   check_error();
+   fail_if(vhpi_disable_cb(cb3));
+
+   vhpiHandleT cb4 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   check_error();
+   fail_if(vhpi_remove_cb(cb4));
+
+   vhpiCbDataT cb_data5 = {
+      .reason = vhpiCbNextTimeStep,
+      .cb_rtn = next_timestep,
+   };
+   vhpiHandleT cb5 = vhpi_register_cb(&cb_data5, vhpiReturnCb);
+   check_error();
+   fail_if(vhpi_remove_cb(cb5));
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)

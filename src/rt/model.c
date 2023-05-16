@@ -3195,7 +3195,7 @@ void model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
    rt_callback_t **last = &m->global_cbs[event];
    for (rt_callback_t *it = *last; it; last = &(it->next), it = it->next) {
       if (it->fn == fn && it->user == user) {
-         last = &(it->next);
+         *last = it->next;
          free(it);
          return;
       }
