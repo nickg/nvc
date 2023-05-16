@@ -604,6 +604,56 @@ int vhpi_release_handle(vhpiHandleT handle)
    return 0;
 }
 
+static int enable_cb(c_callback *cb)
+{
+   switch (cb->Reason) {
+   case vhpiCbRepEndOfProcesses:
+   case vhpiCbRepLastKnownDeltaCycle:
+   case vhpiCbRepNextTimeStep:
+   case vhpiCbEndOfProcesses:
+   case vhpiCbStartOfSimulation:
+   case vhpiCbEndOfSimulation:
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbNextTimeStep:
+      model_set_global_cb(model, vhpi_get_rt_event(cb->Reason),
+                          vhpi_global_cb, cb);
+      return 0;
+
+   case vhpiCbAfterDelay:
+      {
+         if (cb->data.time == NULL) {
+            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+            return 1;
+         }
+
+         uint64_t when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
+         model_set_timeout_cb(model, when, vhpi_timeout_cb, cb);
+         return 0;
+      }
+
+   case vhpiCbValueChange:
+      {
+         c_vhpiObject *obj = from_handle(cb->data.obj);
+         if (obj == NULL)
+            return 1;
+
+         c_abstractDecl *decl = cast_abstractDecl(obj);
+         if (decl == NULL)
+            return 1;
+
+         rt_signal_t *signal = vhpi_get_signal(decl);
+         if (signal == NULL)
+            return 1;
+
+         model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
+         return 0;
+      }
+
+   default:
+      fatal("unsupported reason %d in vhpi_register_cb", cb->Reason);
+   }
+}
+
 DLLEXPORT
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
@@ -616,56 +666,12 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
    cb->data   = *cb_data_p;
 
-   switch (cb_data_p->reason) {
-   case vhpiCbRepEndOfProcesses:
-   case vhpiCbRepLastKnownDeltaCycle:
-   case vhpiCbRepNextTimeStep:
-   case vhpiCbEndOfProcesses:
-   case vhpiCbStartOfSimulation:
-   case vhpiCbEndOfSimulation:
-   case vhpiCbLastKnownDeltaCycle:
-   case vhpiCbNextTimeStep:
-      model_set_global_cb(model, vhpi_get_rt_event(cb_data_p->reason),
-                          vhpi_global_cb, cb);
-      break;
-
-   case vhpiCbAfterDelay:
-      if (cb_data_p->time == NULL) {
-         vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
-         goto failed;
-      }
-
-      uint64_t when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
-      model_set_timeout_cb(model, when, vhpi_timeout_cb, cb);
-      break;
-
-   case vhpiCbValueChange:
-      {
-         c_vhpiObject *obj = from_handle(cb_data_p->obj);
-         if (obj == NULL)
-            goto failed;
-
-         c_abstractDecl *decl = cast_abstractDecl(obj);
-         if (decl == NULL)
-            goto failed;
-
-         rt_signal_t *signal = vhpi_get_signal(decl);
-         if (signal == NULL)
-            goto failed;
-
-         model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
-      }
-      break;
-
-   default:
-      fatal("unsupported reason %d in vhpi_register_cb", cb_data_p->reason);
+   if (enable_cb(cb)) {
+      free(cb);
+      return NULL;
    }
 
    return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
-
- failed:
-   free(cb);
-   return NULL;
 }
 
 DLLEXPORT
