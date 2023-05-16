@@ -232,6 +232,7 @@ typedef struct {
    vhpiStateT   State;
    vhpiEnumT    Reason;
    vhpiCbDataT  data;
+   uint64_t     when;
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, object);
@@ -601,7 +602,17 @@ int vhpi_release_handle(vhpiHandleT handle)
 
    VHPI_TRACE("handle=%s", handle_pp(handle));
 
-   return 0;
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return 1;
+
+   switch (obj->kind) {
+   case vhpiCallbackK:
+      free(obj);
+      return 0;
+   default:
+      return 0;
+   }
 }
 
 static int enable_cb(c_callback *cb)
@@ -626,8 +637,8 @@ static int enable_cb(c_callback *cb)
             return 1;
          }
 
-         uint64_t when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
-         model_set_timeout_cb(model, when, vhpi_timeout_cb, cb);
+         cb->when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
+         model_set_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
          return 0;
       }
 
@@ -674,6 +685,34 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
 }
 
+static int disable_cb(c_callback *cb)
+{
+   switch (cb->Reason) {
+   case vhpiCbRepEndOfProcesses:
+   case vhpiCbRepLastKnownDeltaCycle:
+   case vhpiCbRepNextTimeStep:
+   case vhpiCbEndOfProcesses:
+   case vhpiCbStartOfSimulation:
+   case vhpiCbEndOfSimulation:
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbNextTimeStep:
+      model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
+                            vhpi_global_cb, cb);
+      return 0;
+
+   case vhpiCbAfterDelay:
+      model_clear_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
+      return 0;
+
+   case vhpiCbValueChange:
+      return 1;
+
+   default:
+      assert(false);
+      return 1;
+   }
+}
+
 DLLEXPORT
 int vhpi_remove_cb(vhpiHandleT handle)
 {
@@ -689,7 +728,10 @@ int vhpi_remove_cb(vhpiHandleT handle)
    if (cb == NULL)
       return 1;
 
-   VHPI_MISSING;
+   VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
+
+   int ret = disable_cb(cb);
+   return ret;
 }
 
 DLLEXPORT
@@ -707,7 +749,9 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
    if (cb == NULL)
       return 1;
 
-   VHPI_MISSING;
+   VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
+
+   return disable_cb(cb);
 }
 
 DLLEXPORT
@@ -725,7 +769,7 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
    if (cb == NULL)
       return 1;
 
-   VHPI_MISSING;
+   return enable_cb(cb);
 }
 
 DLLEXPORT
