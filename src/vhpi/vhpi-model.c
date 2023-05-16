@@ -749,6 +749,9 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
                  "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
       return NULL;
 
+   case vhpiPrefix:
+      return NULL;
+
    default:
       break;
    }
