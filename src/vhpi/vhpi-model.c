@@ -192,9 +192,28 @@ typedef struct {
 } c_physLiteral;
 
 typedef struct {
-   c_vhpiObject object;
-   vhpiStringT  UnitName;
+   c_vhpiObject    object;
+   vhpiStringT     CaseName;
+   vhpiStringT     Name;
+   vhpiStringT     UnitName;
+   vhpiStringT     FileName;
+   vhpiIntT        LineOffset;
+   vhpiIntT        LineNo;
+   vhpiObjectListT Decls;
+   vhpiObjectListT DepUnits;
 } c_designUnit;
+
+typedef struct {
+   c_designUnit    designUnit;
+   c_designUnit   *PrimaryUnit;
+} c_secondaryUnit;
+
+DEF_CLASS(secondaryUnit, vhpiArchBodyK, designUnit.object);
+
+typedef struct {
+   c_designUnit    designUnit;
+   vhpiObjectListT ports;
+} c_entityDecl;
 
 typedef struct {
    c_abstractRegion  region;
@@ -313,6 +332,30 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
    }
 }
 
+static c_designUnit *is_designUnit(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiArchBodyK:
+   case vhpiEntityDeclK:
+   case vhpiVerilogModuleK:
+      return container_of(obj, c_designUnit, object);
+   default:
+      return NULL;
+   }
+}
+
+static c_designInstUnit *cast_designInstUnit(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiRootInstK:
+      return container_of(obj, c_designInstUnit, region.object);
+   default:
+      vhpi_error(vhpiError, NULL, "class kind %s is not an instance of a design unit",
+                 vhpi_class_str(obj->kind));
+      return NULL;
+   }
+}
+
 static const char *handle_pp(vhpiHandleT handle)
 {
    static __thread text_buf_t *tb = NULL;
@@ -380,6 +423,13 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->tree = t;
 }
 
+static void init_designInstUnit(c_designInstUnit *iu, tree_t t, c_designUnit *u)
+{
+   init_abstractRegion(&(iu->region), t);
+
+   iu->DesignUnit = u;
+}
+
 static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
 {
    const loc_t *loc = tree_loc(t);
@@ -436,6 +486,30 @@ static void init_range(c_range *r, tree_t t)
 {
    const range_kind_t rkind = tree_subkind(t);
    r->IsUp = (rkind == RANGE_TO);
+}
+
+static void init_designUnit(c_designUnit *u, tree_t t)
+{
+   const loc_t *loc = tree_loc(t);
+   u->object.loc = *loc;
+
+   u->LineNo     = loc->first_line;
+   u->LineOffset = loc->line_delta;
+
+   ident_t uname = tree_ident(t);
+   u->UnitName = new_string(istr(uname));
+   u->Name = u->CaseName = new_string(istr(ident_rfrom(uname, '.')));
+}
+
+static void init_secondaryUnit(c_secondaryUnit *u, tree_t t, c_designUnit *p)
+{
+   init_designUnit(&(u->designUnit), t);
+   u->PrimaryUnit = p;
+}
+
+static void init_entityDecl(c_entityDecl *e, tree_t t)
+{
+   init_designUnit(&(e->designUnit), t);
 }
 
 static void vhpi_do_callback(c_callback *cb)
@@ -686,6 +760,16 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
             return handle_for(&(d->Type->decl.object));
       }
 
+   case vhpiDesignUnit:
+      {
+         c_designInstUnit *iu = cast_designInstUnit(obj);
+         if (iu == NULL)
+            return NULL;
+
+         return handle_for(&(iu->DesignUnit->object));
+      }
+   case vhpiPrimaryUnit:
+      return handle_for(&(cast_secondaryUnit(obj)->PrimaryUnit->object));
    default:
       fatal_trace("relationship %s not supported in vhpi_handle",
                   vhpi_one_to_one_str(type));
@@ -852,6 +936,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    case vhpiFullNameP:
    case vhpiFullCaseNameP:
    case vhpiKindStrP:
+   case vhpiUnitNameP:
       break;
 
    default:
@@ -883,6 +968,16 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       case vhpiCaseNameP: return d->CaseName;
       case vhpiFullNameP: return d->FullName;
       case vhpiFullCaseNameP: return d->FullCaseName;
+      default: goto unsupported;
+      }
+   }
+
+   c_designUnit *u = is_designUnit(obj);
+   if (u != NULL) {
+      switch (property) {
+      case vhpiNameP: return u->Name;
+      case vhpiCaseNameP: return u->CaseName;
+      case vhpiUnitNameP: return u->UnitName;
       default: goto unsupported;
       }
    }
@@ -1510,15 +1605,33 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m)
    assert(tree_kind(top) == T_ELAB);
 
    tree_t b0 = tree_stmt(top, 0);
+   if (tree_kind(b0) == T_VERILOG)
+      fatal_trace("verilog top-level modules are not supported by VHPI");
    assert(tree_kind(b0) == T_BLOCK);
+
+   tree_t h = tree_decl(b0, 0);
+   assert(tree_kind(h) == T_HIER);
+
+   tree_t s = tree_ref(h);
+   assert(tree_kind(s) == T_ARCH);
+
+   tree_t p = tree_primary(s);
+   assert(tree_kind(p) == T_ENTITY);
 
    assert(strtab == NULL);
    strtab = shash_new(1024);
 
    model = m;
 
+   c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
+   init_entityDecl(entity, p);
+
+   c_secondaryUnit *arch = new_object(sizeof(c_secondaryUnit), vhpiArchBodyK);
+   init_secondaryUnit(arch, s, &(entity->designUnit));
+
    rootInst = new_object(sizeof(c_rootInst), vhpiRootInstK);
-   init_abstractRegion(&(rootInst->designInstUnit.region), b0);
+   init_designInstUnit(&(rootInst->designInstUnit), b0, &(arch->designUnit));
+   APUSH(rootInst->regions, &(rootInst->designInstUnit.region.object));
 
    vhpi_build_decls(b0, &(rootInst->designInstUnit.region));
    vhpi_build_ports(b0, rootInst);

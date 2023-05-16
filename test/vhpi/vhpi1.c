@@ -212,6 +212,24 @@ static void startup()
    const vhpiCharT *root_name = vhpi_get_str(vhpiNameP, root);
    vhpi_printf("root name is %s", root_name);
 
+   vhpiHandleT arch = vhpi_handle(vhpiDesignUnit, root);
+   check_error();
+   fail_if(arch == NULL);
+   vhpi_printf("arch handle %p", arch);
+
+   vhpi_printf("arch name is %s", vhpi_get_str(vhpiNameP, arch));
+   vhpi_printf("arch unit name is %s", vhpi_get_str(vhpiUnitNameP, arch));
+   vhpi_release_handle(arch);
+
+   vhpiHandleT entity = vhpi_handle(vhpiPrimaryUnit, arch);
+   check_error();
+   fail_if(entity == NULL);
+   vhpi_printf("entity handle %p", entity);
+
+   vhpi_printf("entity name is %s", vhpi_get_str(vhpiNameP, entity));
+   vhpi_printf("entity unit name is %s", vhpi_get_str(vhpiUnitNameP, entity));
+   vhpi_release_handle(entity);
+
    handle_x = vhpi_handle_by_name("x", root);
    check_error();
    fail_if(handle_x == NULL);

@@ -265,6 +265,7 @@ const char *vhpi_class_str(vhpiClassKindT kind)
    case vhpiSeqProcCallStmtK: return "vhpiSeqProcCallStmtK";
    case vhpiSeqSigAssignStmtK: return "vhpiSeqSigAssignStmtK";
    case vhpiProtectedTypeInstK: return "vhpiProtectedTypeInstK";
+   case vhpiVerilogModuleK: return "vhpiVerilogModuleK";
    default:
       {
          static char buf[64];
