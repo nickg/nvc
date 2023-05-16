@@ -302,6 +302,11 @@ static void startup()
    fail_unless(handle_y == handle_y2);
    vhpi_release_handle(handle_y2);
 
+   vhpiHandleT handle_y3 = vhpi_handle_by_name("vhpi1.y", NULL);
+   check_error();
+   fail_unless(handle_y == handle_y3);
+   vhpi_release_handle(handle_y3);
+
    fail_unless(vhpi_get(vhpiKindP, handle_x) == vhpiPortDeclK);
 
    vhpi_release_handle(root);
