@@ -519,8 +519,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          goto failed;
       }
 
-      model_set_timeout_cb(model, vhpi_time_to_native(cb_data_p->time),
-                           vhpi_timeout_cb, cb);
+      uint64_t when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
+      model_set_timeout_cb(model, when, vhpi_timeout_cb, cb);
       break;
 
    case vhpiCbValueChange:
