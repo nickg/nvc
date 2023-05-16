@@ -223,6 +223,7 @@ typedef struct {
 typedef struct {
    c_designInstUnit designInstUnit;
    vhpiObjectListT  ports;
+   vhpiObjectListT  regions;
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
@@ -236,6 +237,14 @@ typedef struct {
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, object);
+
+typedef struct {
+   c_vhpiObject     object;
+   vhpiObjectListT *list;
+   uint32_t         pos;
+} c_iterator;
+
+DEF_CLASS(iterator, vhpiIteratorK, object);
 
 static c_rootInst *rootInst = NULL;
 static shash_t    *strtab = NULL;
@@ -608,6 +617,7 @@ int vhpi_release_handle(vhpiHandleT handle)
 
    switch (obj->kind) {
    case vhpiCallbackK:
+   case vhpiIteratorK:
       free(obj);
       return 0;
    default:
@@ -914,19 +924,61 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
    }
 }
 
+static vhpiHandleT new_iterator(vhpiObjectListT *list)
+{
+   c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
+   it->list = list;
+   it->pos = 0;
+   return handle_for(&(it->object));
+}
+
 DLLEXPORT
 vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
 {
    VHPI_TRACE("type=%s handle=%s", vhpi_one_to_many_str(type),
               handle_pp(handle));
 
-   VHPI_MISSING;
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return NULL;
+
+   c_rootInst *rootInst = is_rootInst(obj);
+   if (rootInst != NULL) {
+      switch (type) {
+      case vhpiPortDecls: return new_iterator(&(rootInst->ports));
+      case vhpiInternalRegions: return new_iterator(&(rootInst->regions));
+      default: break;
+      }
+   }
+
+   c_abstractRegion *region = is_abstractRegion(obj);
+   if (region != NULL) {
+      switch (type) {
+      case vhpiDecls: return new_iterator(&(region->decls));
+      case vhpiInternalRegions: return new_iterator(&(region->InternalRegions));
+      default: goto unsupported;
+      }
+   }
+
+unsupported:
+   fatal_trace("relation %s not supported in vhpi_iterator",
+               vhpi_one_to_many_str(type));
 }
 
 DLLEXPORT
 vhpiHandleT vhpi_scan(vhpiHandleT iterator)
 {
-   VHPI_MISSING;
+   c_vhpiObject *obj = from_handle(iterator);
+   if (obj == NULL)
+      return NULL;
+
+   c_iterator *it = cast_iterator(obj);
+   if (it->pos < it->list->count) {
+      vhpiHandleT handle = handle_for(it->list->items[it->pos++]);
+      return handle;
+   }
+
+   return NULL;
 }
 
 DLLEXPORT

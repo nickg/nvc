@@ -89,11 +89,13 @@
   vhpi_handle;
   vhpi_handle_by_index;
   vhpi_handle_by_name;
+  vhpi_iterator;
   vhpi_printf;
   vhpi_put_value;
   vhpi_register_cb;
   vhpi_release_handle;
   vhpi_remove_cb;
+  vhpi_scan;
   vhpi_vprintf;
 
   # Unit test

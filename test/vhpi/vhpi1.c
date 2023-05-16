@@ -250,6 +250,16 @@ static void startup()
    vhpi_printf("root name is %s", root_name);
    vhpi_printf("root full name is %s", vhpi_get_str(vhpiFullNameP, root));
 
+   vhpiHandleT root_ports = vhpi_iterator(vhpiPortDecls, root);
+   fail_if(root_ports == NULL);
+   for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports))
+      vhpi_printf("root port is %s", vhpi_get_str(vhpiNameP, port));
+
+   vhpiHandleT root_decls = vhpi_iterator(vhpiDecls, root);
+   fail_if(root_decls == NULL);
+   for (vhpiHandleT decl = vhpi_scan(root_decls); decl != NULL; decl = vhpi_scan(root_decls))
+      vhpi_printf("root decl is %s", vhpi_get_str(vhpiNameP, decl));
+
    vhpiHandleT arch = vhpi_handle(vhpiDesignUnit, root);
    check_error();
    fail_if(arch == NULL);
