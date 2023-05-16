@@ -419,6 +419,8 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->LineOffset = loc->line_delta;
 
    r->Name = r->CaseName = new_string(istr(tree_ident(t)));
+   char *full LOCAL = xasprintf(":%s", r->Name);
+   r->FullName = r->FullCaseName = new_string(full);
 
    r->tree = t;
 }
@@ -439,6 +441,10 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
    d->LineOffset = loc->line_delta;
 
    d->Name = d->CaseName = new_string(istr(tree_ident(t)));
+   if (r) {
+      char *full LOCAL = xasprintf("%s:%s", r->FullName, d->Name);
+      d->FullName = d->FullCaseName = new_string(full);
+   }
 
    d->ImmRegion = r;
 
@@ -465,20 +471,25 @@ static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
    d->Position = Position;
 }
 
-static void init_typeDecl(c_typeDecl *d, tree_t t)
+static void init_typeDecl(c_typeDecl *d, tree_t t, ident_t id)
 {
    init_abstractDecl(&(d->decl), t, NULL);
+   char *full LOCAL = xasprintf("@%s", istr(id));
+   char *pos = full;
+   while ((pos = strchr(pos, '.')))
+      *pos = ':';
+   d->decl.FullName = d->decl.FullCaseName = new_string(full);
 }
 
-static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t)
+static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, ident_t id)
 {
-   init_typeDecl(&(d->typeDecl), t);
+   init_typeDecl(&(d->typeDecl), t, id);
    d->typeDecl.IsScalar = true;
 }
 
-static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t)
+static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t, ident_t id)
 {
-   init_typeDecl(&(d->typeDecl), t);
+   init_typeDecl(&(d->typeDecl), t, id);
    d->typeDecl.IsComposite = true;
 }
 
@@ -1490,7 +1501,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       {
          c_intTypeDecl *td =
             new_object(sizeof(c_intTypeDecl), vhpiIntTypeDeclK);
-         init_scalarTypeDecl(&(td->scalar), decl);
+         init_scalarTypeDecl(&(td->scalar), decl, id);
          return &(td->scalar.typeDecl);
       }
 
@@ -1498,7 +1509,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       {
          c_enumTypeDecl *td =
             new_object(sizeof(c_enumTypeDecl), vhpiEnumTypeDeclK);
-         init_scalarTypeDecl(&(td->scalar), decl);
+         init_scalarTypeDecl(&(td->scalar), decl, id);
          td->NumLiterals = type_enum_literals(type);
          return &(td->scalar.typeDecl);
       }
@@ -1507,7 +1518,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       {
          c_physTypeDecl *td =
             new_object(sizeof(c_physTypeDecl), vhpiPhysTypeDeclK);
-         init_scalarTypeDecl(&(td->scalar), decl);
+         init_scalarTypeDecl(&(td->scalar), decl, id);
          td->constraint = &(build_phys_range(range_of(type, 0))->range);
          return &(td->scalar.typeDecl);
       }
@@ -1516,7 +1527,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       {
          c_arrayTypeDecl *td =
             new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
-         init_compositeTypeDecl(&(td->composite), decl);
+         init_compositeTypeDecl(&(td->composite), decl, id);
          td->NumDimensions = type_index_constrs(type);
          return &(td->composite.typeDecl);
       }
@@ -1525,7 +1536,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       {
          c_recordTypeDecl *td =
             new_object(sizeof(c_recordTypeDecl), vhpiRecordTypeDeclK);
-         init_compositeTypeDecl(&(td->composite), decl);
+         init_compositeTypeDecl(&(td->composite), decl, id);
          td->NumFields = type_fields(type);
          return &(td->composite.typeDecl);
       }
