@@ -917,6 +917,23 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
 
    case vhpiSizeP:
+      {
+         if (obj->kind != vhpiPortDeclK && obj->kind != vhpiSigDeclK) {
+            vhpi_error(vhpiInternal, &(obj->loc), "vhpiSizeP is only "
+                       "supported for signal and port objects");
+            return 0;
+         }
+
+         c_abstractDecl *decl = cast_abstractDecl(obj);
+         if (decl == NULL || decl->type == NULL)
+            return 0;
+
+         rt_signal_t *signal = vhpi_get_signal(decl);
+         if (signal == NULL)
+            return 0;
+
+         return signal_width(signal);
+      }
    case vhpiStaticnessP:
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
