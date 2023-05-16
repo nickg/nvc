@@ -278,8 +278,6 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
    case vhpiIntTypeDeclK:
       return container_of(obj, c_typeDecl, decl.object);
    default:
-      vhpi_error(vhpiError, NULL, "class kind %s is not an object declaration",
-                 vhpi_class_str(obj->kind));
       return NULL;
    }
 }
