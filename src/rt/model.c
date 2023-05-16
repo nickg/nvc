@@ -3187,6 +3187,58 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
    }
 }
 
+void model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
+                           void *user)
+{
+   assert(event < RT_LAST_EVENT);
+
+   rt_callback_t **last = &m->global_cbs[event];
+   for (rt_callback_t *it = *last; it; last = &(it->next), it = it->next) {
+      if (it->fn == fn && it->user == user) {
+         last = &(it->next);
+         free(it);
+         return;
+      }
+   }
+}
+
+typedef struct {
+   uint64_t       when;
+   rt_event_fn_t  fn;
+   void          *user;
+} timeout_params_t;
+
+static bool eventq_delete_fn(uint64_t key, void *e, void *context)
+{
+   timeout_params_t *params = context;
+
+   if (key != params->when)
+      return false;
+
+   if (pointer_tag(e) != EVENT_TIMEOUT)
+      return false;
+
+   rt_callback_t *cb = untag_pointer(e, rt_callback_t);
+   if (cb->fn == params->fn && cb->user == params->user) {
+      free(cb);
+      return true;
+   }
+
+   return false;
+}
+
+void model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
+                            void *user)
+{
+   timeout_params_t params = {
+      .when = when,
+      .fn = fn,
+      .user = user,
+   };
+
+   heap_delete(m->eventq_heap, eventq_delete_fn, &params);
+}
+
 static void handle_interrupt_cb(jit_t *j, void *ctx)
 {
    rt_proc_t *proc = get_active_proc();
