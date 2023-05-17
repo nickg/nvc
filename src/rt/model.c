@@ -3148,7 +3148,7 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
    assert(when > m->now);   // TODO: delta timeouts?
 
    void *e = tag_pointer(cb, EVENT_TIMEOUT);
-   heap_insert(m->eventq_heap, m->now + when, e);
+   heap_insert(m->eventq_heap, when, e);
 }
 
 rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
