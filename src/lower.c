@@ -4510,10 +4510,15 @@ static const int lower_get_attr_dimension(tree_t expr)
 
 static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix)
 {
-   if (class_of(prefix) == C_SIGNAL)
+   switch (class_of(prefix)) {
+   case C_SIGNAL:
       return lower_lvalue(lu, prefix);
-   else
+   case C_TYPE:
+   case C_SUBTYPE:
+      return VCODE_INVALID_REG;
+   default:
       return lower_rvalue(lu, prefix);
+   }
 }
 
 static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
