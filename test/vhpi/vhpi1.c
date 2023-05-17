@@ -239,7 +239,12 @@ static void startup()
    vhpi_register_cb(&cb_data2, 0);
    check_error();
 
-   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
+   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
+   check_error();
+   fail_if(tool == NULL);
+   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
+   vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
+   vhpi_release_handle(tool);
 
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
