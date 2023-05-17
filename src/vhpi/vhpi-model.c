@@ -235,12 +235,19 @@ typedef struct {
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
 
+typedef enum {
+   CB_INACTIVE,
+   CB_ACTIVE,
+   CB_FREE_LATER
+} callback_status_t;
+
 typedef struct {
-   c_vhpiObject object;
-   vhpiStateT   State;
-   vhpiEnumT    Reason;
-   vhpiCbDataT  data;
-   uint64_t     when;
+   c_vhpiObject      object;
+   vhpiStateT        State;
+   vhpiEnumT         Reason;
+   vhpiCbDataT       data;
+   uint64_t          when;
+   callback_status_t status;
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, object);
@@ -544,7 +551,15 @@ static void init_entityDecl(c_entityDecl *e, tree_t t)
 static void vhpi_do_callback(c_callback *cb)
 {
    if (cb->State == vhpiEnable) {
+      cb->status = CB_ACTIVE;
       (cb->data.cb_rtn)(&(cb->data));
+
+      if (cb->status == CB_FREE_LATER) {
+         free(cb);
+         return;
+      }
+      else
+         cb->status = CB_INACTIVE;
 
       if (!vhpi_is_repetitive(cb->Reason))
          cb->State = vhpiMature;
@@ -623,14 +638,20 @@ int vhpi_release_handle(vhpiHandleT handle)
    if (obj == NULL)
       return 1;
 
-   switch (obj->kind) {
-   case vhpiCallbackK:
-   case vhpiIteratorK:
-      free(obj);
-      return 0;
-   default:
+   c_callback *cb = is_callback(obj);
+   if (cb != NULL) {
+      if (cb->status != CB_INACTIVE)
+         cb->status = CB_FREE_LATER;
+      else
+         free(cb);
       return 0;
    }
+
+   c_iterator *it = is_iterator(obj);
+   if (it != NULL)
+      free(it);
+
+   return 0;
 }
 
 static int enable_cb(c_callback *cb)
@@ -749,6 +770,10 @@ int vhpi_remove_cb(vhpiHandleT handle)
    VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
 
    int ret = disable_cb(cb);
+   if (cb->status != CB_INACTIVE)
+      cb->status = CB_FREE_LATER;
+   else
+      free(cb);
    return ret;
 }
 
