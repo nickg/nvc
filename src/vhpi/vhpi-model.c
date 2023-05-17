@@ -716,7 +716,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
    cb->data   = *cb_data_p;
 
-   if (enable_cb(cb)) {
+   if (!(flags & vhpiDisableCb) && enable_cb(cb)) {
       free(cb);
       return NULL;
    }
@@ -794,7 +794,15 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
 
    VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
 
-   return disable_cb(cb);
+   if (cb->State != vhpiEnable) {
+      vhpi_error(vhpiWarning, &(obj->loc),
+                 "callback must be enabled in order to disable it");
+      return 1;
+   }
+
+   int ret = disable_cb(cb);
+   cb->State = vhpiDisable;
+   return ret;
 }
 
 DLLEXPORT
@@ -812,7 +820,16 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
    if (cb == NULL)
       return 1;
 
-   return enable_cb(cb);
+   if (cb->State != vhpiDisable) {
+      vhpi_error(vhpiWarning, &(obj->loc),
+                 "callback must be disabled in order to enable it");
+      return 1;
+   }
+
+   int ret = enable_cb(cb);
+   if (!ret)
+      cb->State = vhpiEnable;
+   return ret;
 }
 
 DLLEXPORT
