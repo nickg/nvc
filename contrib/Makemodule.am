@@ -8,7 +8,8 @@ pkglibexec_SCRIPTS += \
 	contrib/install-ise.sh \
 	contrib/install-icecube2.sh \
 	contrib/install-libero.sh \
-	contrib/install-vunit.sh
+	contrib/install-vunit.sh \
+	contrib/install-xpm_vhdl.sh
 
 EXTRA_DIST += $(pkglibexec_SCRIPTS)
 

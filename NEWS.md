@@ -12,6 +12,9 @@
   VHDL-2019.
 - Entity ports with variable class and protected type are now supported
   in VHDL-2019 mode.
+- The [xpm_vhdl](https://github.com/fransschreuder/xpm_vhdl) project
+  which provides VHDL models of the Xilinx XPM macros can now be
+  installed with `nvc --install xpm_vhdl`.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

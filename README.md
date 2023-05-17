@@ -192,7 +192,8 @@ simulation libraries of common FPGA vendors.
 * For [OSVVM](https://osvvm.org/) use `nvc --install osvvm`
 * For [UVVM](https://www.uvvm.org/) use `nvc --install uvvm`
 * For Xilinx ISE use `nvc --install ise`
-* For Xilinx Vivado use `nvc --install vivado`
+* For Xilinx Vivado use `nvc --install vivado` and additionally `nvc
+  --install xpm_vhdl` if you require simulation models of the XPM macros
 * For Altera Quartus use `nvc --install quartus`
 * For Lattice iCEcube2 use `nvc --install icecube2`
 
