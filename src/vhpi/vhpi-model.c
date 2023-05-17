@@ -1095,6 +1095,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
          switch (property) {
          case vhpiNameP: return region->Name;
          case vhpiCaseNameP: return region->CaseName;
+         case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
          case vhpiFullNameP: return region->FullName;
          case vhpiFullCaseNameP: return region->FullCaseName;
          default: goto unsupported;
@@ -1106,6 +1107,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       switch (property) {
       case vhpiNameP: return d->Name;
       case vhpiCaseNameP: return d->CaseName;
+      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
       case vhpiFullNameP: return d->FullName;
       case vhpiFullCaseNameP: return d->FullCaseName;
       default: goto unsupported;
@@ -1117,6 +1119,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       switch (property) {
       case vhpiNameP: return u->Name;
       case vhpiCaseNameP: return u->CaseName;
+      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(u->object.loc));
       case vhpiUnitNameP: return u->UnitName;
       default: goto unsupported;
       }
