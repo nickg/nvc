@@ -1,6 +1,7 @@
 loading VHPI plugin
 VHPI printf hello, world!
 VHPI printf tool is nvc
+VHPI printf tool version is
 VHPI printf root handle
 VHPI printf root name is VHPI1
 VHPI printf root full name is :VHPI1

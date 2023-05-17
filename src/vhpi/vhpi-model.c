@@ -44,6 +44,13 @@ typedef struct {
 
 typedef A(c_vhpiObject *) vhpiObjectListT;
 
+typedef struct {
+   c_vhpiObject      object;
+   vhpiObjectListT   argv;
+} c_tool;
+
+DEF_CLASS(tool, vhpiToolK, object);
+
 typedef struct tag_abstractRegion c_abstractRegion;
 typedef struct tag_expr c_expr;
 
@@ -246,6 +253,7 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
+static c_tool     *tool = NULL;
 static c_rootInst *rootInst = NULL;
 static shash_t    *strtab = NULL;
 static rt_model_t *model = NULL;
@@ -800,6 +808,9 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    case vhpiRootInst:
       return handle_for(&(rootInst->designInstUnit.region.object));
 
+   case vhpiTool:
+      return handle_for(&(tool->object));
+
    case DEPRECATED_vhpiSubtype:
    case DEPRECATED_vhpiReturnTypeMark:
    case DEPRECATED_vhpiName:
@@ -960,6 +971,14 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
       }
    }
 
+   c_tool *t = is_tool(obj);
+   if (t != NULL) {
+      if (type == vhpiArgvs)
+         return new_iterator(&(t->argv));
+      else
+         goto unsupported;
+   }
+
 unsupported:
    fatal_trace("relation %s not supported in vhpi_iterator",
                vhpi_one_to_many_str(type));
@@ -1039,6 +1058,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
          return signal_width(signal);
       }
+
+   case vhpiArgcP:
+      if (obj->kind != vhpiToolK)
+         vhpi_error(vhpiInternal, &(obj->loc), "vhpiArgcP is only supported for tool objects");
+      return 0;
+
    case vhpiStaticnessP:
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
@@ -1054,27 +1079,6 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 
    VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
               handle_pp(handle));
-
-   switch (property) {
-   case vhpiToolVersionP:
-      return (vhpiCharT *)PACKAGE_VERSION;
-
-   case vhpiNameP:
-   case vhpiCaseNameP:
-      if (handle == NULL)
-         return (vhpiCharT *)PACKAGE_NAME;
-
-      break;
-
-   case vhpiFullNameP:
-   case vhpiFullCaseNameP:
-   case vhpiKindStrP:
-   case vhpiUnitNameP:
-      break;
-
-   default:
-      goto unsupported;
-   }
 
    c_vhpiObject *obj = from_handle(handle);
    if (obj == NULL)
@@ -1111,6 +1115,17 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       case vhpiNameP: return u->Name;
       case vhpiCaseNameP: return u->CaseName;
       case vhpiUnitNameP: return u->UnitName;
+      default: goto unsupported;
+      }
+   }
+
+   c_tool *t = is_tool(obj);
+   if (t != NULL) {
+      switch (property) {
+      case vhpiToolVersionP:
+         return (vhpiCharT *)PACKAGE_VERSION;
+      case vhpiNameP:
+         return (vhpiCharT *)PACKAGE_NAME;
       default: goto unsupported;
       }
    }
@@ -1755,6 +1770,8 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m)
    strtab = shash_new(1024);
 
    model = m;
+
+   tool = new_object(sizeof(c_tool), vhpiToolK);
 
    c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
    init_entityDecl(entity, p);
