@@ -1449,68 +1449,68 @@ int vhpi_put_value(vhpiHandleT handle,
 
    switch (mode) {
    case vhpiForcePropagate:
+   case vhpiDepositPropagate:
       {
-         if (type_is_scalar(decl->type)) {
-            uint64_t expanded;
-            switch (value_p->format) {
-            case vhpiLogicVal:
-            case vhpiEnumVal:
-               expanded = value_p->value.enumv;
-               break;
+         void *ext LOCAL = NULL, *ptr = NULL;
+         uint8_t byte;
+         int64_t int64;
+         int num_elems = 0;
 
-            case vhpiSmallEnumVal:
-               expanded = value_p->value.smallenumv;
-               break;
-
-            case vhpiIntVal:
-               expanded = value_p->value.intg;
-               break;
-
-            default:
-               vhpi_error(vhpiFailure, &(obj->loc), "value format "
-                          "%d not supported in vhpi_put_value",
-                          value_p->format);
-               return 1;
-            }
-
-            if (model_can_create_delta(model))
-               force_signal(signal, &expanded, 1);
-            else {
-               vhpi_error(vhpiError, &(obj->loc), "cannot force "
-                          "propagate signal during current simulation phase");
-               return 1;
-            }
+         if (!model_can_create_delta(model)) {
+            vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
+                       "during current simulation phase");
+            return 1;
          }
-         else {
-            uint64_t *expanded = NULL;
-            int num_elems = 0;
 
-            switch (value_p->format) {
-            case vhpiLogicVecVal:
-            case vhpiEnumVecVal:
-               num_elems = value_p->bufSize / sizeof(vhpiEnumT);
-               expanded = xmalloc_array(num_elems, sizeof(uint64_t));
-               for (int i = 0; i < num_elems; i++)
-                  expanded[i] = value_p->value.enumvs[i];
-               break;
+         switch (value_p->format) {
+         case vhpiLogicVal:
+         case vhpiEnumVal:
+            num_elems = 1;
+            byte = value_p->value.enumv;
+            ptr = &byte;
+            break;
 
-            case vhpiSmallEnumVecVal:
-               num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
-               expanded = xmalloc_array(num_elems, sizeof(uint64_t));
-               for (int i = 0; i < num_elems; i++)
-                  expanded[i] = value_p->value.smallenumvs[i];
-               break;
+         case vhpiSmallEnumVal:
+            num_elems = 1;
+            byte = value_p->value.smallenumv;
+            ptr = &byte;
+            break;
 
-            default:
-               vhpi_error(vhpiFailure, &(obj->loc), " value format "
-                          "%d not supported in vhpi_put_value",
-                          value_p->format);
-               return 1;
-            }
+         case vhpiIntVal:
+            num_elems = 1;
+            int64 = value_p->value.intg;
+            ptr = &int64;   // Assume little endian
+            break;
 
-            force_signal(signal, expanded, num_elems);
-            free(expanded);
+         case vhpiLogicVecVal:
+         case vhpiEnumVecVal:
+            num_elems = value_p->bufSize / sizeof(vhpiEnumT);
+            ext = ptr = xmalloc(num_elems);
+            for (int i = 0; i < num_elems; i++)
+               ((uint8_t *)ext)[i] = value_p->value.enumvs[i];
+            break;
+
+         case vhpiSmallEnumVecVal:
+            num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
+            ext = ptr = xmalloc(num_elems);
+            for (int i = 0; i < num_elems; i++)
+               ((uint8_t *)ext)[i] = value_p->value.smallenumvs[i];
+            break;
+
+         default:
+            vhpi_error(vhpiFailure, &(obj->loc), "value format "
+                       "%d not supported in vhpi_put_value",
+                       value_p->format);
+            return 1;
          }
+
+         // TODO: check num_elems == signal_width(signal)
+
+         if (mode == vhpiForcePropagate)
+            force_signal(signal, ptr, num_elems);
+         else
+            deposit_signal(signal, ptr, num_elems);
+
          return 0;
       }
 

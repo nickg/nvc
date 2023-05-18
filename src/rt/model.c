@@ -65,6 +65,11 @@ typedef struct _memblock {
 } memblock_t;
 
 typedef struct {
+   rt_nexus_t *nexus;
+   uint8_t     data[0];
+} rt_deposit_t;
+
+typedef struct {
    waveform_t    *free_waveforms;
    tlab_t         tlab;
    tlab_t         spare_tlab;
@@ -150,6 +155,7 @@ static void async_fast_driver(void *context, void *arg);
 static void async_fast_all_drivers(void *context, void *arg);
 static void async_update_driving(void *context, void *arg);
 static void async_disconnect(void *context, void *arg);
+static void async_deposit(void *context, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
 {
@@ -888,6 +894,12 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
 static void deltaq_insert_force_release(rt_model_t *m, rt_nexus_t *nexus)
 {
    workq_do(m->delta_driverq, async_update_driving, nexus);
+   m->next_is_delta = true;
+}
+
+static void deltaq_insert_deposit(rt_model_t *m, rt_deposit_t *deposit)
+{
+   workq_do(m->delta_driverq, async_deposit, deposit);
    m->next_is_delta = true;
 }
 
@@ -2660,9 +2672,8 @@ static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
    }
 }
 
-static void update_driving(rt_model_t *m, rt_nexus_t *nexus)
+static void update_driving(rt_model_t *m, rt_nexus_t *nexus, const void *value)
 {
-   const void *value = driving_value(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
    TRACE("update %s driving value %s", istr(tree_ident(nexus->signal->where)),
@@ -2689,7 +2700,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *nexus)
    if (update_outputs) {
       for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
          assert(o->tag == SOURCE_PORT);
-         update_driving(m, o->u.port.output);
+         update_driving(m, o->u.port.output, driving_value(o->u.port.output));
       }
    }
 }
@@ -2711,13 +2722,13 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
          *w_now = *w_next;
          free_waveform(m, w_next);
          source->disconnected = 0;
-         update_driving(m, nexus);
+         update_driving(m, nexus, driving_value(nexus));
       }
       else
          assert(w_now != NULL);
    }
    else  // Update due to force/release
-      update_driving(m, nexus);
+      update_driving(m, nexus, driving_value(nexus));
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 }
@@ -2738,7 +2749,7 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
       assert(src->tag == SOURCE_DRIVER);
       assert(src->u.driver.waveforms.next == NULL);
 
-      update_driving(m, nexus);
+      update_driving(m, nexus, driving_value(nexus));
 
       tlab_reset(thread->tlab);   // No allocations can be live past here
    }
@@ -2815,6 +2826,20 @@ static void async_update_driving(void *context, void *arg)
 
    MODEL_ENTRY(m);
    update_driver(m, nexus, NULL);
+}
+
+static void async_deposit(void *context, void *arg)
+{
+   rt_model_t *m = context;
+   rt_deposit_t *deposit = arg;
+
+   MODEL_ENTRY(m);
+
+   // Force takes priority over deposit
+   if (!(deposit->nexus->flags & NET_F_FORCED))
+      update_driving(m, deposit->nexus, deposit->data);
+
+   free(deposit);
 }
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
@@ -3072,38 +3097,55 @@ static inline void check_delay(int64_t delay)
    }
 }
 
-bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
+void force_signal(rt_signal_t *s, const void *values, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("force signal %s to %"PRIu64"%s",
-         istr(tree_ident(s->where)), buf[0], count > 1 ? "..." : "");
+   TRACE("force signal %s to %s", istr(tree_ident(s->where)),
+         fmt_values(values, count));
 
    rt_model_t *m = get_model();
    assert(m->can_create_delta);
 
-   int offset = 0;
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   rt_nexus_t *n = split_nexus(m, s, 0, count);
+   const char *vptr = values;
    for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
       n->flags |= NET_F_FORCED;
 
       rt_source_t *src = get_forcing_source(m, n);
-
-#define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
-         type *dp = (type *)value_ptr(n, &(src->u.forcing));            \
-         for (int i = 0; (i < n->width) && (offset + i < count); i++)   \
-            dp[i] = buf[offset + i];                                    \
-      } while (0)
-
-      FOR_ALL_SIZES(n->size, SIGNAL_FORCE_EXPAND_U64);
+      copy_value_ptr(n, &(src->u.forcing), vptr);
 
       deltaq_insert_force_release(m, n);
-
-      offset += n->width;
-      count -= n->width;
+      vptr += n->width * n->size;
    }
+}
 
-   return (offset == count);
+void deposit_signal(rt_signal_t *s, const void *values, size_t count)
+{
+   RT_LOCK(s->lock);
+
+   TRACE("deposit signal %s to %s", istr(tree_ident(s->where)),
+         fmt_values(values, count));
+
+   rt_model_t *m = get_model();
+   assert(m->can_create_delta);
+
+   rt_nexus_t *n = split_nexus(m, s, 0, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_deposit_t *d = xmalloc_flex(sizeof(rt_deposit_t), n->width, n->size);
+      d->nexus = n;
+      memcpy(d->data, vptr, n->width * n->size);
+
+      deltaq_insert_deposit(m, d);
+      vptr += n->width * n->size;
+   }
 }
 
 bool model_can_create_delta(rt_model_t *m)
