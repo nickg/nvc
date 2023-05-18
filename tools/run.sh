@@ -2,10 +2,11 @@
 std=${STD:-02}
 export NVC_LIBPATH=./lib/
 export NVC_IMP_LIB=./lib/
-if [ -e lib/$1.so ]; then
-    vhpi="--load lib/$1.so --vhpi-trace"
-fi
 root=$(git rev-parse --show-toplevel)
+if [ -e $root/test/vhpi/$1.c ]; then
+  vhpi="--load lib/vhpi_test.so --vhpi-trace"
+  export TEST_NAME=$1
+fi
 regress=$root/test/regress
 if [ -f $regress/$1.v ]; then
   vlog=$regress/$1.v

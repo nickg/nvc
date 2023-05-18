@@ -761,6 +761,8 @@ static bool run_test(test_t *test)
       goto out_chdir;
    }
 
+   setenv("TEST_NAME", test->name, 1);
+
    arglist_t *args = NULL;
 
    if (test->flags & F_SHELL) {
@@ -860,8 +862,7 @@ static bool run_test(test_t *test)
          push_arg(&args, "--stop-time=%s", test->stop);
 
       if (test->flags & F_VHPI)
-         push_arg(&args, "--load=%s/../lib/%s.so%s", bin_dir,
-                  test->name, EXEEXT);
+         push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");

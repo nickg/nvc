@@ -1,0 +1,37 @@
+//
+//  Copyright (C) 2023  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
+#ifndef _VHPI_TEST_H
+#define _VHPI_TEST_H
+
+#include "vhpi_user.h"
+
+#define fail_if(x)                                                      \
+   if (x) vhpi_assert(vhpiFailure, "assertion '%s' failed at %s:%d",    \
+                      #x, __FILE__, __LINE__)
+#define fail_unless(x) fail_if(!(x))
+
+#define check_error() __check_error(__FILE__, __LINE__)
+
+void __check_error(const char *file, int lineno);
+
+void vhpi1_startup(void);
+void vhpi2_startup(void);
+void vhpi3_startup(void);
+void vhpi5_startup(void);
+
+#endif  // _VHPI_TEST_H

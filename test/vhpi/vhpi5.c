@@ -1,23 +1,11 @@
-#include "vhpi_user.h"
+#include "vhpi_test.h"
 
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define fail_if(x)                                                      \
-   if (x) vhpi_assert(vhpiFailure, "assertion '%s' failed at %s:%d",    \
-                      #x, __FILE__, __LINE__)
-#define fail_unless(x) fail_if(!(x))
-
-static void check_error(void)
-{
-   vhpiErrorInfoT info;
-   if (vhpi_check_error(&info))
-      vhpi_assert(vhpiFailure, "unexpected error '%s'", info.message);
-}
-
-static void startup()
+void vhpi5_startup(void)
 {
    vhpi_printf("hello, world!");
    vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
@@ -43,8 +31,3 @@ static void startup()
 
    vhpi_release_handle(root);
 }
-
-void (*vhpi_startup_routines[])() = {
-   startup,
-   NULL
-};

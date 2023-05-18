@@ -1,26 +1,14 @@
-#include "vhpi_user.h"
+#include "vhpi_test.h"
 
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define fail_if(x)                                                      \
-   if (x) vhpi_assert(vhpiFailure, "assertion '%s' failed at %s:%d",    \
-                      #x, __FILE__, __LINE__)
-#define fail_unless(x) fail_if(!(x))
-
 static vhpiHandleT handle_x;
 static vhpiHandleT handle_y;
 static vhpiHandleT handle_sos;
 static int         sequence = 0;
-
-static void check_error(void)
-{
-   vhpiErrorInfoT info;
-   if (vhpi_check_error(&info))
-      vhpi_assert(vhpiFailure, "unexpected error '%s'", info.message);
-}
 
 static void end_of_processes(const vhpiCbDataT *cb_data)
 {
@@ -81,7 +69,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
 }
 
-static void startup()
+void vhpi2_startup(void)
 {
    vhpi_printf("hello, world!");
 
@@ -121,8 +109,3 @@ static void startup()
 
    vhpi_release_handle(root);
 }
-
-void (*vhpi_startup_routines[])() = {
-   startup,
-   NULL
-};
