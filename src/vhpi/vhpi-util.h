@@ -44,7 +44,7 @@ void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins);
 
 void vhpi_clear_error(void);
 rt_event_t vhpi_get_rt_event(int reason);
-const char *vhpi_map_str_for_type(type_t type);
+vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str);
 uint64_t vhpi_time_to_native(const vhpiTimeT *time);
 bool vhpi_is_repetitive(vhpiEnumT reason);
 vhpiPhysT vhpi_phys_from_native(int64_t value);

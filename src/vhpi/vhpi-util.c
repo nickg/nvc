@@ -213,24 +213,67 @@ rt_event_t vhpi_get_rt_event(int reason)
    }
 }
 
-const char *vhpi_map_str_for_type(type_t type)
+vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
 {
-   ident_t type_name;
-   if (type_is_array(type))
-      type_name = type_ident(type_elem(type));
-   else
-      type_name = type_ident(type);
+   type_t base = type_base_recur(type);
 
-   switch (is_well_known(type_name)) {
-   case W_IEEE_LOGIC:
-   case W_IEEE_ULOGIC:
-      return "UX01ZWLH-";
-   case W_STD_BIT:
-      return "01";
+   *map_str = NULL;
+
+   switch (type_kind(base)) {
+   case T_ENUM:
+      switch (is_well_known(type_ident(base))) {
+      case W_IEEE_LOGIC:
+      case W_IEEE_ULOGIC:
+         *map_str = "UX01ZWLH-";
+         return vhpiLogicVal;
+      case W_STD_BIT:
+         *map_str = "01";
+         return vhpiLogicVal;
+      default:
+         if (type_enum_literals(base) <= 256)
+            return vhpiSmallEnumVal;
+         else
+            return vhpiEnumVal;
+      }
+      break;
+
+   case T_INTEGER:
+      return vhpiIntVal;
+
+   case T_ARRAY:
+      {
+         type_t elem = type_base_recur(type_elem(base));
+         switch (type_kind(elem)) {
+         case T_ENUM:
+            {
+               switch (is_well_known(type_ident(elem))) {
+               case W_IEEE_LOGIC:
+               case W_IEEE_ULOGIC:
+                  *map_str = "UX01ZWLH-";
+                  return vhpiLogicVecVal;
+               case W_STD_BIT:
+                  *map_str = "01";
+                  return vhpiLogicVecVal;
+               default:
+                  if (type_enum_literals(elem) <= 256)
+                     return vhpiSmallEnumVecVal;
+                  else
+                     return vhpiEnumVecVal;
+               }
+               break;
+            }
+
+         default:
+            break;
+         }
+      }
+      break;
+
    default:
-      fatal_trace("vhpi_map_type_for_str not supported for %s",
-                  type_pp(type));
+      break;
    }
+
+   return (vhpiFormatT)-1;   // Not supported
 }
 
 bool vhpi_is_repetitive(vhpiEnumT reason)

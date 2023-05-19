@@ -75,7 +75,6 @@ typedef struct {
    c_vhpiObject      object;
    type_t            type;
    tree_t            tree;
-   rt_signal_t      *signal;
    c_abstractRegion *ImmRegion;
    vhpiIntT          LineOffset;
    vhpiIntT          LineNo;
@@ -107,11 +106,14 @@ typedef struct {
 DEF_CLASS(physRange, vhpiPhysRangeK, range.object);
 
 typedef struct {
-   c_abstractDecl decl;
-   vhpiBooleanT   IsAnonymous;
-   vhpiBooleanT   IsComposite;
-   vhpiBooleanT   IsScalar;
-   vhpiBooleanT   IsUnconstrained;
+   c_abstractDecl  decl;
+   type_t          type;
+   vhpiFormatT     format;
+   const char     *map_str;
+   vhpiBooleanT    IsAnonymous;
+   vhpiBooleanT    IsComposite;
+   vhpiBooleanT    IsScalar;
+   vhpiBooleanT    IsUnconstrained;
 } c_typeDecl;
 
 typedef struct {
@@ -150,6 +152,7 @@ typedef struct {
 
 typedef struct {
    c_abstractDecl  decl;
+   rt_signal_t    *signal;
    c_typeDecl     *BaseType;
    c_typeDecl     *Type;
    vhpiIntT        Access;
@@ -499,11 +502,15 @@ static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
 static void init_typeDecl(c_typeDecl *d, tree_t t, ident_t id)
 {
    init_abstractDecl(&(d->decl), t, NULL);
+
    char *full LOCAL = xasprintf("@%s", istr(id));
    char *pos = full;
    while ((pos = strchr(pos, '.')))
       *pos = ':';
    d->decl.FullName = d->decl.FullCaseName = new_string(full);
+
+   d->type   = tree_type(t);
+   d->format = vhpi_format_for_type(d->type, &d->map_str);
 }
 
 static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, ident_t id)
@@ -604,19 +611,19 @@ static rt_scope_t *vhpi_get_scope(c_abstractRegion *region)
    return scope;
 }
 
-static rt_signal_t *vhpi_get_signal(c_abstractDecl *decl)
+static rt_signal_t *vhpi_get_signal(c_objDecl *decl)
 {
    if (decl->signal != NULL)
       return decl->signal;
 
-   rt_scope_t *scope = vhpi_get_scope(decl->ImmRegion);
+   rt_scope_t *scope = vhpi_get_scope(decl->decl.ImmRegion);
    if (scope == NULL)
       return NULL;
 
-   rt_signal_t *signal = find_signal(scope, decl->tree);
+   rt_signal_t *signal = find_signal(scope, decl->decl.tree);
    if (signal == NULL) {
-      vhpi_error(vhpiError, &(decl->object.loc),
-                 "cannot find signal object for %s", decl->Name);
+      vhpi_error(vhpiError, &(decl->decl.object.loc),
+                 "cannot find signal object for %s", decl->decl.Name);
       return NULL;
    }
 
@@ -687,7 +694,7 @@ static int enable_cb(c_callback *cb)
          if (obj == NULL)
             return 1;
 
-         c_abstractDecl *decl = cast_abstractDecl(obj);
+         c_objDecl *decl = cast_objDecl(obj);
          if (decl == NULL)
             return 1;
 
@@ -1093,8 +1100,8 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             return 0;
          }
 
-         c_abstractDecl *decl = cast_abstractDecl(obj);
-         if (decl == NULL || decl->type == NULL)
+         c_objDecl *decl = cast_objDecl(obj);
+         if (decl == NULL)
             return 0;
 
          rt_signal_t *signal = vhpi_get_signal(decl);
@@ -1219,7 +1226,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          if (td == NULL)
             return invalid;
 
-         rt_signal_t *signal = vhpi_get_signal(&(decl->decl));
+         rt_signal_t *signal = vhpi_get_signal(decl);
          if (signal == NULL)
             return invalid;
 
@@ -1267,83 +1274,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
    }
 
-   c_abstractDecl *decl = cast_abstractDecl(obj);
+   c_objDecl *decl = cast_objDecl(obj);
    if (decl == NULL)
       return -1;
 
-   type_t base = type_base_recur(decl->type);
-   ident_t type_name = type_ident(decl->type);
-
-   vhpiFormatT format;
-   switch (type_kind(base)) {
-   case T_ENUM:
-      switch (is_well_known(type_name)) {
-      case W_IEEE_LOGIC:
-      case W_IEEE_ULOGIC:
-      case W_STD_BIT:
-         if (value_p->format == vhpiBinStrVal)
-            format = value_p->format;
-         else
-            format = vhpiLogicVal;
-         break;
-      default:
-         if (type_enum_literals(base) <= 256)
-            format = vhpiSmallEnumVal;
-         else
-            format = vhpiEnumVal;
-         break;
-      }
-      break;
-
-   case T_INTEGER:
-      format = vhpiIntVal;
-      break;
-
-   case T_ARRAY:
-      {
-         type_t elem = type_elem(base);
-         switch (type_kind(elem)) {
-         case T_ENUM:
-            {
-               switch (is_well_known(type_ident(elem))) {
-               case W_IEEE_LOGIC:
-               case W_IEEE_ULOGIC:
-               case W_STD_BIT:
-                  if (value_p->format == vhpiBinStrVal)
-                     format = value_p->format;
-                  else
-                     format = vhpiLogicVecVal;
-                  break;
-               default:
-                  if (type_enum_literals(elem) <= 256)
-                     format = vhpiSmallEnumVecVal;
-                  else
-                     format = vhpiEnumVecVal;
-                  break;
-               }
-               break;
-            }
-
-         default:
-            vhpi_error(vhpiInternal, &(obj->loc), "arrays of type %s "
-                       "not supported in vhpi_get_value", type_pp(elem));
-            return -1;
-         }
-      }
-      break;
-
-   default:
+   if (decl->Type->format == (vhpiFormatT)-1) {
       vhpi_error(vhpiInternal, &(obj->loc), "type %s not supported in "
-                 "vhpi_get_value", type_pp(decl->type));
-      return -1;
-   }
-
-   if (value_p->format == vhpiObjTypeVal)
-      value_p->format = format;
-   else if (value_p->format != format) {
-      vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
-                 "object %s: expecting %d", value_p->format,
-                 decl->Name, format);
+                 "vhpi_get_value", type_pp(decl->Type->type));
       return -1;
    }
 
@@ -1351,9 +1288,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (signal == NULL)
       return -1;
 
-   if (format == vhpiBinStrVal) {
-      const char *map_str = vhpi_map_str_for_type(decl->type);
-      const size_t need = signal_string(signal, map_str,
+   if (value_p->format == vhpiObjTypeVal)
+      value_p->format = decl->Type->format;
+   else if (value_p->format == vhpiBinStrVal && decl->Type->map_str != NULL) {
+      const size_t need = signal_string(signal, decl->Type->map_str,
                                         (char *)value_p->value.str,
                                         value_p->bufSize);
       if (need > value_p->bufSize)
@@ -1361,65 +1299,40 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       else
          return 0;
    }
-   else if (type_is_scalar(decl->type)) {
-      uint64_t value;
-      signal_expand(signal, &value, 1);
-
-      switch (format) {
-      case vhpiLogicVal:
-      case vhpiEnumVal:
-         value_p->value.enumv = value;
-         return 0;
-
-      case vhpiSmallEnumVal:
-         value_p->value.smallenumv = value;
-         return 0;
-
-      case vhpiIntVal:
-         value_p->value.intg = value;
-         return 0;
-
-      default:
-         vhpi_error(vhpiError, &(obj->loc), "unsupported format %d",
-                    value_p->format);
-         return -1;
-      }
+   else if (value_p->format != decl->Type->format) {
+      vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
+                 "object %s: expecting %d", value_p->format,
+                 decl->decl.Name, decl->Type->format);
+      return -1;
    }
-   else {
-      size_t elemsz = 0;
-      switch (format) {
-      case vhpiLogicVecVal:
-      case vhpiEnumVecVal:
-         elemsz = sizeof(vhpiEnumT);
-         break;
-      case vhpiSmallEnumVal:
-         elemsz = sizeof(vhpiSmallEnumT);
-         break;
-      default:
-         assert(false);
-      }
 
-      const int max = value_p->bufSize / elemsz;
-      uint64_t *values LOCAL = xmalloc_array(max, sizeof(uint64_t));
-      value_p->numElems = signal_expand(signal, values, max);
-
-      const int copy = MIN(value_p->numElems, max);
-
-      for (int i = 0; i < copy; i++) {
-         switch (format) {
-         case vhpiLogicVecVal:
-         case vhpiEnumVecVal:
-            value_p->value.enumvs[i] = values[i];
-            break;
-         case vhpiSmallEnumVal:
-            value_p->value.smallenumvs[i] = values[i];
-            break;
-         default:
-            vhpi_error(vhpiError, &(obj->loc), "unsupported format %d", format);
-         }
-      }
-
+   switch (decl->Type->format) {
+   case vhpiLogicVal:
+   case vhpiEnumVal:
+   case vhpiSmallEnumVal:
+      value_p->value.enumv = *(const uint8_t *)signal_value(signal);
       return 0;
+
+   case vhpiIntVal:
+      value_p->value.intg = *(const int32_t *)signal_value(signal);
+      return 0;
+
+   case vhpiLogicVecVal:
+   case vhpiEnumVecVal:
+      {
+         const int max = value_p->bufSize / sizeof(vhpiEnumT);
+         const int copy = MIN(value_p->numElems, max);
+
+         value_p->numElems = signal_width(signal);
+
+         const vhpiEnumT *p = signal_value(signal);
+         for (int i = 0; i < copy; i++)
+            value_p->value.enumvs[i] = *p++;
+      }
+      return 0;
+
+   default:
+      fatal_trace("unsupported format %d", value_p->format);
    }
 }
 
@@ -1439,7 +1352,7 @@ int vhpi_put_value(vhpiHandleT handle,
    if (obj == NULL)
       return 1;
 
-   c_abstractDecl *decl = cast_abstractDecl(obj);
+   c_objDecl *decl = cast_objDecl(obj);
    if (decl == NULL)
       return 1;
 
