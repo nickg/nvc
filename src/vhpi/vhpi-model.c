@@ -1288,16 +1288,20 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (signal == NULL)
       return -1;
 
+   value_p->numElems = signal_width(signal);
+
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = decl->Type->format;
    else if (value_p->format == vhpiBinStrVal && decl->Type->map_str != NULL) {
-      const size_t need = signal_string(signal, decl->Type->map_str,
-                                        (char *)value_p->value.str,
-                                        value_p->bufSize);
-      if (need > value_p->bufSize)
-         return need;
-      else
-         return 0;
+      if (value_p->bufSize < value_p->numElems + 1)
+         return value_p->numElems + 1;
+
+      const uint8_t *p = signal_value(signal);
+      for (int i = 0; i < value_p->numElems; i++)
+         value_p->value.str[i] = decl->Type->map_str[*p++];
+      value_p->value.str[value_p->numElems] = '\0';
+
+      return 0;
    }
    else if (value_p->format != decl->Type->format) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
@@ -1321,15 +1325,15 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    case vhpiEnumVecVal:
       {
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
-         const int copy = MIN(value_p->numElems, max);
+         if (max < value_p->numElems)
+            return value_p->numElems * sizeof(vhpiEnumT);
 
-         value_p->numElems = signal_width(signal);
-
-         const vhpiEnumT *p = signal_value(signal);
-         for (int i = 0; i < copy; i++)
+         const uint8_t *p = signal_value(signal);
+         for (int i = 0; i < value_p->numElems; i++)
             value_p->value.enumvs[i] = *p++;
+
+         return 0;
       }
-      return 0;
 
    default:
       fatal_trace("unsupported format %d", value_p->format);

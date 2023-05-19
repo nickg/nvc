@@ -37,7 +37,7 @@ static void test_bin_str(void)
       .bufSize   = 0,
       .value.str = NULL
    };
-   const int need = vhpi_get_value(hv, &v_value);
+   int need = vhpi_get_value(hv, &v_value);
    check_error();
 
    vhpi_printf("need %d bytes for v string", need);
@@ -50,7 +50,28 @@ static void test_bin_str(void)
 
    vhpi_printf("v bit string '%s'", v_value.value.str);
    fail_unless(strcmp((char *)v_value.value.str, "0011") == 0);
+   fail_unless(v_value.numElems == 4);
    free(v_value.value.str);
+
+   v_value.bufSize = 0;
+   v_value.value.enumvs = NULL;
+   v_value.format = vhpiLogicVecVal;
+
+   need = vhpi_get_value(hv, &v_value);
+   check_error();
+
+   fail_unless(need = 4 * sizeof(vhpiEnumT));
+
+   v_value.bufSize = 4 * sizeof(vhpiEnumT);
+   v_value.value.enumvs = malloc(v_value.bufSize);
+   fail_unless(vhpi_get_value(hv, &v_value) == 0);
+
+   fail_unless(v_value.numElems == 4);
+
+   fail_unless(v_value.value.enumvs[0] == 0);
+   fail_unless(v_value.value.enumvs[1] == 0);
+   fail_unless(v_value.value.enumvs[2] == 1);
+   fail_unless(v_value.value.enumvs[3] == 1);
 
    vhpi_release_handle(root);
    vhpi_release_handle(hb);

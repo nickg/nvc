@@ -57,7 +57,6 @@ const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
 uint32_t signal_width(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
-size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 void force_signal(rt_signal_t *s, const void *values, size_t count);
 void deposit_signal(rt_signal_t *s, const void *values, size_t count);
 

@@ -836,25 +836,6 @@ size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
    return total;
 }
 
-size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
-{
-   char *endp = buf + max;
-
-   if (map != NULL) {
-      for (int j = 0; j < s->shared.size && buf + 1 < endp; j++)
-         *buf++ = map[(int)s->shared.data[j]];
-   }
-   else {
-      for (int j = 0; j < s->shared.size && buf + 1 < endp; j++)
-         *buf++ = s->shared.data[j];
-   }
-
-   if (buf < endp)
-      *buf = '\0';
-
-   return s->shared.size + 1;
-}
-
 static inline void set_pending(rt_wakeable_t *wake)
 {
    assert(!wake->pending);
