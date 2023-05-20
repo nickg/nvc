@@ -3252,7 +3252,7 @@ static bool eventq_delete_fn(uint64_t key, void *e, void *context)
    return false;
 }
 
-void model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
+bool model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                             void *user)
 {
    timeout_params_t params = {
@@ -3261,7 +3261,7 @@ void model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
       .user = user,
    };
 
-   heap_delete(m->eventq_heap, eventq_delete_fn, &params);
+   return heap_delete(m->eventq_heap, eventq_delete_fn, &params);
 }
 
 void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)

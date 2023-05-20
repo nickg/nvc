@@ -41,7 +41,7 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
 void model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
                            void *user);
 void model_clear_event_cb(rt_model_t *m, rt_watch_t *w);
-void model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
+bool model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                             void *user);
 
 rt_model_t *get_model(void);

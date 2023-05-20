@@ -564,16 +564,14 @@ static void vhpi_do_callback(c_callback *cb)
       cb->status = CB_ACTIVE;
       (cb->data.cb_rtn)(&(cb->data));
 
-      if (cb->status == CB_FREE_LATER) {
-         free(cb);
-         return;
-      }
-      else
-         cb->status = CB_INACTIVE;
-
       if (!vhpi_is_repetitive(cb->Reason))
          cb->State = vhpiMature;
    }
+
+   if (cb->status == CB_FREE_LATER)
+      free(cb);
+   else
+      cb->status = CB_INACTIVE;
 }
 
 static void vhpi_timeout_cb(rt_model_t *m, void *user)
@@ -734,7 +732,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
 }
 
-static int disable_cb(c_callback *cb)
+static bool disable_cb(c_callback *cb)
 {
    switch (cb->Reason) {
    case vhpiCbRepEndOfProcesses:
@@ -747,19 +745,18 @@ static int disable_cb(c_callback *cb)
    case vhpiCbNextTimeStep:
       model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
                             vhpi_global_cb, cb);
-      return 0;
+      return true;
 
    case vhpiCbAfterDelay:
-      model_clear_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
-      return 0;
+      return model_clear_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
 
    case vhpiCbValueChange:
       model_clear_event_cb(model, cb->w);
-      return 0;
+      return true;
 
    default:
       assert(false);
-      return 1;
+      return true;
    }
 }
 
@@ -780,12 +777,13 @@ int vhpi_remove_cb(vhpiHandleT handle)
 
    VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
 
-   int ret = disable_cb(cb);
-   if (cb->status != CB_INACTIVE)
-      cb->status = CB_FREE_LATER;
-   else
+   if (cb->State != vhpiEnable || (disable_cb(cb) && cb->status == CB_INACTIVE))
       free(cb);
-   return ret;
+   else {
+      cb->State = vhpiDisable;
+      cb->status = CB_FREE_LATER;
+   }
+   return 0;
 }
 
 DLLEXPORT
@@ -811,9 +809,9 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
       return 1;
    }
 
-   int ret = disable_cb(cb);
+   disable_cb(cb);
    cb->State = vhpiDisable;
-   return ret;
+   return 0;
 }
 
 DLLEXPORT
