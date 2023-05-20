@@ -584,9 +584,17 @@ static void vhpi_timeout_cb(rt_model_t *m, void *user)
 static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
                                  rt_watch_t *watch, void *user)
 {
+   vhpiTimeT time;
+
    c_callback *cb;
-   if ((cb = is_callback(user)))
+   if ((cb = is_callback(user))) {
+      if (cb->data.time) {
+         vhpi_get_time(&time, NULL);
+         cb->data.time = &time;
+      }
+
       vhpi_do_callback(cb);
+   }
 }
 
 static void vhpi_global_cb(rt_model_t *m, void *user)
