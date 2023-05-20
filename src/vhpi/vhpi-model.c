@@ -678,16 +678,8 @@ static int enable_cb(c_callback *cb)
       return 0;
 
    case vhpiCbAfterDelay:
-      {
-         if (cb->data.time == NULL) {
-            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
-            return 1;
-         }
-
-         cb->when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
-         model_set_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
-         return 0;
-      }
+      model_set_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
+      return 0;
 
    case vhpiCbValueChange:
       {
@@ -724,12 +716,23 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
    cb->data   = *cb_data_p;
 
-   if (!(flags & vhpiDisableCb) && enable_cb(cb)) {
-      free(cb);
-      return NULL;
+   if (cb->Reason == vhpiCbAfterDelay) {
+         if (cb->data.time == NULL) {
+            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+            goto err;
+         }
+
+         cb->when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
    }
 
+   if (!(flags & vhpiDisableCb) && enable_cb(cb))
+      goto err;
+
    return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
+
+err:
+   free(cb);
+   return NULL;
 }
 
 static bool disable_cb(c_callback *cb)
