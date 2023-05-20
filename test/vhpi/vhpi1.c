@@ -80,6 +80,12 @@ static void test_bin_str(void)
 
 static void y_value_change(const vhpiCbDataT *cb_data)
 {
+   vhpiTimeT now;
+   vhpi_get_time(&now, NULL);
+
+   fail_unless(now.low == cb_data->time->low);
+   fail_unless(now.high == cb_data->time->high);
+
    vhpiValueT value = {
       .format = vhpiObjTypeVal
    };
@@ -102,16 +108,40 @@ static void y_value_change(const vhpiCbDataT *cb_data)
    }
 }
 
-static void after_after_5ns(const vhpiCbDataT *cb_data)
+static vhpiHandleT defer_disable;
+static vhpiHandleT defer_enable;
+
+static void deferred_work(const vhpiCbDataT *cb_data)
 {
-   vhpi_printf("after_after_5ns callback!");
+   vhpi_printf("deferred work callback!");
+
+   vhpi_disable_cb(defer_disable);
+   vhpi_enable_cb(defer_enable);
+}
+
+static vhpiHandleT autoremoving_cb;
+
+static void autoremoving(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("autoremoving callback!");
+   vhpi_remove_cb(autoremoving_cb);
+}
+
+static void disabled_callback(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("disabled callback!");
    fail_if(1);
 }
 
-static void next_timestep(const vhpiCbDataT *cb_data)
+static void enabled_callback(const vhpiCbDataT *cb_data)
 {
-   vhpi_printf("next_timestep callback!");
-   fail_if(1);
+   vhpi_printf("enabled callback!");
+
+   vhpiTimeT now;
+   vhpi_get_time(&now, NULL);
+
+   fail_unless(now.low == 5000002);
+   fail_unless(now.high == 0);
 }
 
 static void after_5ns(const vhpiCbDataT *cb_data)
@@ -142,35 +172,71 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    vhpiCbDataT cb_data2 = {
       .reason = vhpiCbValueChange,
       .cb_rtn = y_value_change,
-      .obj    = handle_y
+      .obj    = handle_y,
+      .time   = (vhpiTimeT *)-1
    };
    vhpi_register_cb(&cb_data2, 0);
    check_error();
 
-   vhpiTimeT time_1fs = {
+   cb_data2.cb_rtn = disabled_callback;
+   vhpiHandleT cb = vhpi_register_cb(&cb_data2, vhpiReturnCb);
+   check_error();
+   fail_if(vhpi_disable_cb(cb));
+
+   vhpiTimeT time = {
       .low = 1
    };
 
    vhpiCbDataT cb_data3 = {
       .reason = vhpiCbAfterDelay,
-      .cb_rtn = after_after_5ns,
-      .time   = &time_1fs
+      .cb_rtn = disabled_callback,
+      .time   = &time
    };
-   vhpiHandleT cb3 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   cb = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();
-   fail_if(vhpi_disable_cb(cb3));
+   fail_if(vhpi_disable_cb(cb));
 
-   vhpiHandleT cb4 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   cb = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();
-   fail_if(vhpi_remove_cb(cb4));
+   fail_if(vhpi_remove_cb(cb));
+
+   cb = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   check_error();
+   fail_if(vhpi_disable_cb(cb));
+   fail_if(vhpi_remove_cb(cb));
+
+   vhpi_register_cb(&cb_data3, vhpiDisableCb);
+   check_error();
+
+   time.low = 2;
+   defer_disable = vhpi_register_cb(&cb_data3, vhpiReturnCb);
+   check_error();
+
+   cb_data3.cb_rtn = enabled_callback;
+   defer_enable = vhpi_register_cb(&cb_data3, vhpiReturnCb | vhpiDisableCb);
+   check_error();
+
+   vhpiCbDataT cb_data4 = {
+      .reason    = vhpiCbAfterDelay,
+      .cb_rtn    = deferred_work,
+      .time      = &time,
+   };
+
+   time.low = 1;
+   vhpi_register_cb(&cb_data4, 0);
+   check_error();
 
    vhpiCbDataT cb_data5 = {
       .reason = vhpiCbNextTimeStep,
-      .cb_rtn = next_timestep,
+      .cb_rtn = disabled_callback,
    };
-   vhpiHandleT cb5 = vhpi_register_cb(&cb_data5, vhpiReturnCb);
+   cb = vhpi_register_cb(&cb_data5, vhpiReturnCb);
    check_error();
-   fail_if(vhpi_remove_cb(cb5));
+   fail_if(vhpi_remove_cb(cb));
+
+   cb_data5.cb_rtn = autoremoving;
+   autoremoving_cb = vhpi_register_cb(&cb_data5, vhpiReturnCb);
+   check_error();
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
