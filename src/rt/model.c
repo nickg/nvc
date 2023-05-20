@@ -2996,9 +2996,11 @@ static void model_cycle(rt_model_t *m)
 
    global_event(m, RT_END_OF_PROCESSES);
 
+   if (!m->next_is_delta)
+      global_event(m, RT_LAST_KNOWN_DELTA_CYCLE);
+
    if (!m->next_is_delta) {
       m->can_create_delta = false;
-      global_event(m, RT_LAST_KNOWN_DELTA_CYCLE);
 
       // Run all postponed processes and event callbacks
       workq_start(m->postponedq);
