@@ -724,6 +724,11 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          cb->when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
    }
+   else if (cb->Reason == vhpiCbValueChange && cb->data.value) {
+      vhpi_error(vhpiInternal, NULL,
+                 "values are not supported for Object callbacks");
+      goto err;
+   }
 
    if (!(flags & vhpiDisableCb) && enable_cb(cb))
       goto err;
