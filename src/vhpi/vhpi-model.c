@@ -249,7 +249,10 @@ typedef struct {
    vhpiStateT        State;
    vhpiEnumT         Reason;
    vhpiCbDataT       data;
-   uint64_t          when;
+   union {
+      uint64_t       when;
+      rt_watch_t    *w;
+   };
    callback_status_t status;
 } c_callback;
 
@@ -702,7 +705,7 @@ static int enable_cb(c_callback *cb)
          if (signal == NULL)
             return 1;
 
-         model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
+         cb->w = model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
          return 0;
       }
 
@@ -751,7 +754,8 @@ static int disable_cb(c_callback *cb)
       return 0;
 
    case vhpiCbValueChange:
-      return 1;
+      model_clear_event_cb(model, cb->w);
+      return 0;
 
    default:
       assert(false);
