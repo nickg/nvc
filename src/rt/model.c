@@ -3264,6 +3264,23 @@ void model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
    heap_delete(m->eventq_heap, eventq_delete_fn, &params);
 }
 
+void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
+{
+   rt_nexus_t *n = &(w->signal->nexus);
+   for (int i = 0; i < w->signal->n_nexus; i++, n = n->chain)
+      clear_event(m, n, &(w->wakeable));
+
+   rt_watch_t **last = &m->watches;
+   for (rt_watch_t *it = *last; it; last = &(it->chain_all), it = it->chain_all) {
+      if (it == w) {
+         *last = it->chain_all;
+         break;
+      }
+   }
+
+   free(w);
+}
+
 static void handle_interrupt_cb(jit_t *j, void *ctx)
 {
    rt_proc_t *proc = get_active_proc();
