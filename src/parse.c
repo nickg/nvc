@@ -4611,10 +4611,65 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
    }
 }
 
+static type_t p_array_mode_view_indication(void)
+{
+   // view ( name ) of subtype_indication
+
+   BEGIN("array mode view indication");
+
+   consume(tVIEW);
+   consume(tLPAREN);
+
+   (void)p_name(0);
+
+   consume(tRPAREN);
+   consume(tOF);
+
+   (void)p_subtype_indication();
+
+   parse_error(CURRENT_LOC, "sorry, array mode view indications are not "
+               "yet supported");
+   return type_new(T_NONE);
+}
+
+static type_t p_record_mode_view_indication(void)
+{
+   // view name [ of subtype_indication ]
+
+   BEGIN("record mode view indication");
+
+   consume(tVIEW);
+
+   tree_t name = p_name(0);
+   type_t type = solve_types(nametab, name, NULL);
+
+   if (optional(tOF)) {
+      type_t sub = p_subtype_indication();
+      if (type_kind(type) == T_VIEW && !type_eq(sub, type_designated(type)))
+         parse_error(CURRENT_LOC, "subtype %s is not compatible with mode "
+                     "view %s", type_pp(sub), type_pp(type));
+   }
+
+   return type;
+}
+
+static type_t p_mode_view_indication(void)
+{
+   // record_mode_view_indication | array_mode_view_indication
+
+   BEGIN("mode view indication");
+
+   if (peek_nth(2) == tLPAREN)
+      return p_array_mode_view_indication();
+   else
+      return p_record_mode_view_indication();
+}
+
 static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
 {
    // [signal] identifier_list : [ mode ] subtype_indication [ bus ]
    //    [ := expression ]
+   // 2019: [ signal ] identifier_list : mode_indication
 
    BEGIN("interface signal declaration");
 
@@ -4622,20 +4677,29 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
 
-   port_mode_t mode = PORT_IN;
-   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
-      mode = p_mode();
-
-   type_t type = p_subtype_indication();
-
-   tree_flags_t flags = 0;
-   if (optional(tBUS))
-      flags |= TREE_F_BUS;
-
+   type_t type;
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
-      init = p_expression();
-      solve_types(nametab, init, type);
+   tree_flags_t flags = 0;
+   port_mode_t mode = PORT_IN;
+
+   if (peek() == tVIEW) {
+      require_std(STD_19, "mode view indication");
+      type = p_mode_view_indication();
+      mode = PORT_VIEW;
+   }
+   else {
+      if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+         mode = p_mode();
+
+      type = p_subtype_indication();
+
+      if (optional(tBUS))
+         flags |= TREE_F_BUS;
+
+      if (optional(tASSIGN)) {
+         init = p_expression();
+         solve_types(nametab, init, type);
+      }
    }
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {

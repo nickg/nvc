@@ -56,6 +56,16 @@ package lcs2016_45a is
 
     alias a3 is a2'converse;            -- OK
 
+    component comp1 is
+        port ( x : view master1 );      -- OK
+    end component;
+
+    component comp2 is
+        port ( x : view rec_t;          -- Error
+               y : view master1 of integer;  -- Error
+               z : view master1 of rec_t;  -- Ok
+            );
+    end component;
 end package ;
 
 -------------------------------------------------------------------------------
@@ -66,4 +76,19 @@ package pack is
         a, b : bit;
     end record;
 
+    view master_rec_t of rec_t is          -- OK
+        a : in;
+        b : out;
+    end view;
+
+    alias slave_rec_t is master_rec_t'converse;  -- OK
+
 end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack.all;
+
+entity sub is
+    port ( r : view slave_rec_t of rec_t );  -- OK
+end entity;

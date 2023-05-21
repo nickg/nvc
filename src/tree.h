@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@ typedef enum port_mode {
    PORT_OUT,
    PORT_INOUT,
    PORT_BUFFER,
-   PORT_LINKAGE
+   PORT_LINKAGE,
+   PORT_VIEW
 } port_mode_t;
 
 typedef enum {

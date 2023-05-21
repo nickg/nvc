@@ -1193,6 +1193,10 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
       sem_error(t, "invalid object class %s for port %s",
                 class_str(class), istr(tree_ident(t)));
 
+   if (tree_subkind(t) == PORT_VIEW && type_kind(type) != T_VIEW)
+      sem_error(t, "name %s in mode view indication does not denote a "
+                "mode view", type_pp(type));
+
    if (type_is_access(type))
       sem_error(t, "port %s cannot be declared with access type %s",
                 istr(tree_ident(t)), type_pp(type));

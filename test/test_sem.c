@@ -3069,11 +3069,13 @@ START_TEST(test_lcs2016_45a)
       { 48, "duplicate mode view element definition for field B" },
       { 51, "type mark MASTER1 does not denote a type or a subtype" },
       { 53, "prefix of 'CONVERSE attribute must be a named mode view or " },
+      { 64, "name REC_T in mode view indication does not denote a mode view" },
+      { 65, "subtype INTEGER is not compatible with mode view MASTER1" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE, T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY);
 
    check_expected_errors();
 }
