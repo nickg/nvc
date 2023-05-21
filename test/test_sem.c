@@ -3067,11 +3067,13 @@ START_TEST(test_lcs2016_45a)
         "unresolved record type" },
       { 42, "record type REC_T has no field named INTEGER" },
       { 48, "duplicate mode view element definition for field B" },
+      { 51, "type mark MASTER1 does not denote a type or a subtype" },
+      { 53, "prefix of 'CONVERSE attribute must be a named mode view or " },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE);
 
    check_expected_errors();
 }

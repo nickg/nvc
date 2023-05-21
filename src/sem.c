@@ -1341,56 +1341,64 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       // Alias of subprogram or enumeration literal
       // Rules for matching signatures are in LRM 93 section 2.3.2
       assert(tree_kind(value) == T_REF);
+      return true;
    }
-   else if (tree_kind(value) == T_REF
-            && tree_has_ref(value)
-            && aliased_type_decl(tree_ref(value)) != NULL) {
-      // Alias of type
+   else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
+      tree_t decl = tree_ref(value);
+      if (aliased_type_decl(decl) != NULL)
+         return true;   // Alias of type
+      else if (tree_kind(decl) == T_VIEW_DECL)
+         return true;   // Alias of view declaration
    }
-   else {
-      // Alias of object
-      if (!sem_check(value, tab))
+   else if (tree_kind(value) == T_ATTR_REF
+            && tree_subkind(value) == ATTR_CONVERSE) {
+      // Special case handling for
+      //   https://gitlab.com/IEEE-P1076/VHDL-Issues/-/issues/293
+      return true;
+   }
+
+   // Alias of object
+   if (!sem_check(value, tab))
+      return false;
+
+   if (!sem_static_name(value, sem_globally_static)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_printf(d, "aliased name is not static");
+      diag_lrm(d, STD_93, "6.1");
+      diag_emit(d);
+      return false;
+   }
+
+   if (type != NULL) {
+      // Alias declaration had optional subtype indication
+
+      if (!sem_check_subtype(t, type, tab))
          return false;
 
-      if (!sem_static_name(value, sem_globally_static)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-         diag_printf(d, "aliased name is not static");
-         diag_lrm(d, STD_93, "6.1");
-         diag_emit(d);
-         return false;
+      if (!sem_check_type(value, type))
+         sem_error(t, "type of aliased object %s does not match expected "
+                   "type %s", type_pp2(tree_type(value), type),
+                   type_pp2(type, tree_type(value)));
+
+      if (opt_get_int(OPT_RELAXED) && type_is_unconstrained(type)) {
+         // If the type of the aliased object is unconstrained then
+         // use its subtype instead of the subtype declared by the
+         // alias.  This is required for some UVVM sources.
+         type_t obj_type = tree_type(value);
+         if (!type_is_unconstrained(obj_type))
+            tree_set_type(t, obj_type);
       }
+   }
+   else
+      type = tree_type(value);
 
-      if (type != NULL) {
-         // Alias declaration had optional subtype indication
-
-         if (!sem_check_subtype(t, type, tab))
-            return false;
-
-         if (!sem_check_type(value, type))
-            sem_error(t, "type of aliased object %s does not match expected "
-                      "type %s", type_pp2(tree_type(value), type),
-                      type_pp2(type, tree_type(value)));
-
-         if (opt_get_int(OPT_RELAXED) && type_is_unconstrained(type)) {
-            // If the type of the aliased object is unconstrained then
-            // use its subtype instead of the subtype declared by the
-            // alias.  This is required for some UVVM sources.
-            type_t obj_type = tree_type(value);
-            if (!type_is_unconstrained(obj_type))
-               tree_set_type(t, obj_type);
-         }
-      }
-      else
-         type = tree_type(value);
-
-      if (standard() < STD_08 && dimension_of(type) > 1) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "object alias may not have multidimensional array type "
-                     "in VHDL-%s", standard_text(standard()));
-         diag_lrm(d, STD_93, "4.3.3.1");
-         diag_emit(d);
-         return false;
-      }
+   if (standard() < STD_08 && dimension_of(type) > 1) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "object alias may not have multidimensional array type "
+                  "in VHDL-%s", standard_text(standard()));
+      diag_lrm(d, STD_93, "4.3.3.1");
+      diag_emit(d);
+      return false;
    }
 
    return true;
@@ -3712,6 +3720,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_SUBTYPE:
       sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
+   case ATTR_CONVERSE:
+      return true;
+
    case ATTR_USER:
       if (!tree_has_value(t))
          return false;
@@ -4558,6 +4569,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_GENERIC_DECL:
          case T_PARAM_DECL:
          case T_CONCURRENT:
+         case T_VIEW_DECL:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);

@@ -477,6 +477,8 @@ class_t class_of(tree_t t)
    case T_FIELD_DECL:
    case T_ATTR_DECL:
       return C_DEFAULT;
+   case T_VIEW_DECL:
+      return C_VIEW;
    case T_UNIT_DECL:
       return C_UNITS;
    case T_ARCH:
@@ -563,7 +565,7 @@ const char *class_str(class_t c)
       "default", "signal", "variable", "constant", "file", "entity",
       "component", "configuration", "architecture", "function", "package",
       "type", "subtype", "label", "procedure", "literal", "units", "library",
-      "context"
+      "context", "view",
    };
    assert(c < ARRAY_LEN(strs));
    return strs[c];
@@ -1706,6 +1708,7 @@ bool is_type_attribute(attr_kind_t kind)
    case ATTR_SUBTYPE:
    case ATTR_BASE:
    case ATTR_ELEMENT:
+   case ATTR_CONVERSE:
       return true;
    default:
       return false;

@@ -2177,6 +2177,53 @@ static type_t apply_base_attribute(tree_t aref)
       return type;
 }
 
+static type_t apply_converse_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_CONVERSE);
+
+   tree_t name = tree_name(aref), decl = NULL;
+   while (tree_kind(name) == T_REF && tree_has_ref(name)) {
+      if (tree_kind((decl = tree_ref(name))) == T_ALIAS)
+         name = tree_value(decl);
+      else
+         break;
+   }
+
+   if (decl == NULL || tree_kind(decl) != T_VIEW_DECL) {
+      parse_error(tree_loc(aref), "prefix of 'CONVERSE attribute must be a "
+                  "named mode view or alias thereof");
+      return type_new(T_NONE);
+   }
+
+   type_t type = tree_type(decl);
+   assert(type_kind(type) == T_VIEW);
+
+   type_t new = type_new(T_VIEW);
+   type_set_designated(new, type_designated(type));
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t e1 = type_field(type, i);
+      assert(tree_kind(e1) == T_VIEW_ELEMENT);
+
+      tree_t e2 = tree_new(T_VIEW_ELEMENT);
+      tree_set_ident(e2, tree_ident(e1));
+      tree_set_ref(e2, tree_ref(e1));
+      tree_set_type(e2, tree_type(e1));
+
+      const port_mode_t mode = tree_subkind(e1);
+      switch (mode) {
+      case PORT_IN: tree_set_subkind(e2, PORT_OUT); break;
+      case PORT_OUT: tree_set_subkind(e2, PORT_IN); break;
+      default: tree_set_subkind(e2, mode); break;
+      }
+
+      type_add_field(new, e2);
+   }
+
+   return new;
+}
+
 static type_t apply_type_attribute(tree_t aref)
 {
    switch (tree_subkind(aref)) {
@@ -2186,6 +2233,8 @@ static type_t apply_type_attribute(tree_t aref)
       return apply_element_attribute(aref);
    case ATTR_BASE:
       return apply_base_attribute(aref);
+   case ATTR_CONVERSE:
+      return apply_converse_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -3019,6 +3068,8 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       return ATTR_BASE;
    else if (icmp(ident, "ELEMENT"))
       return ATTR_ELEMENT;
+   else if (icmp(ident, "CONVERSE"))
+      return ATTR_CONVERSE;
    else
       return ATTR_USER;
 }

@@ -48,5 +48,22 @@ package lcs2016_45a is
         b : out;                        -- Error
     end view;
 
+    constant k : master1;               -- Error
+
+    alias a1 is integer'converse;       -- Error
+
+    alias a2 is master1;                -- OK
+
+    alias a3 is a2'converse;            -- OK
 
 end package ;
+
+-------------------------------------------------------------------------------
+
+package pack is
+
+    type rec_t is record
+        a, b : bit;
+    end record;
+
+end package;

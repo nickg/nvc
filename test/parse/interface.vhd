@@ -14,6 +14,6 @@ package pack045c is
         d   :   inout ;
     end view ;
 
-    --alias slave is master'converse ;
+    alias slave is master'converse ;
 
 end package ;
