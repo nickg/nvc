@@ -4045,7 +4045,7 @@ static type_t solve_all(nametab_t *tab, tree_t all)
 
    type_t type = solve_types(tab, prefix, NULL);
    if (type_is_access(type)) {
-      type = type_access(type);
+      type = type_designated(type);
       if (type_is_incomplete(type)
           && (type = resolve_type(tab, type)) == NULL) {
          error_at(tree_loc(prefix), "object with incomplete type %s "

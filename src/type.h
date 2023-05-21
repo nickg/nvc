@@ -84,11 +84,8 @@ void type_add_param(type_t t, type_t p);
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
 
-type_t type_access(type_t t);
-void type_set_access(type_t t, type_t a);
-
-type_t type_file(type_t t);
-void type_set_file(type_t t, type_t f);
+type_t type_designated(type_t t);
+void type_set_designated(type_t t, type_t a);
 
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);

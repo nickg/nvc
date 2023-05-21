@@ -269,7 +269,7 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 {
    if (base != NULL && type_is_access(base))
-      base = type_access(base);
+      base = type_designated(base);
 
    const constraint_kind_t consk = tree_subkind(constraint);
    switch (consk) {
@@ -430,7 +430,8 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
          elem = type_elem(elem);
    }
 
-   if (sem_type_freedom(type_is_access(type) ? type_access(type) : type) < 0)
+   type_t designated = type_is_access(type) ? type_designated(type) : type;
+   if (sem_type_freedom(designated) < 0)
       sem_error(decl, "too many constraints for type %s", type_pp(base));
 
    if (type_has_resolution(type)) {
@@ -823,7 +824,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
    case T_FILE:
       // Rules for file types are in LRM 93 section 3.4
       {
-         type_t f = type_file(type);
+         type_t f = type_designated(type);
 
          switch (type_kind(f)) {
          case T_ACCESS:
@@ -853,7 +854,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
    case T_ACCESS:
       // Rules for access types are in LRM 93 section 3.3
       {
-         if (!sem_check_subtype(t, type_access(type), tab))
+         if (!sem_check_subtype(t, type_designated(type), tab))
             return false;
 
          return true;
@@ -5190,10 +5191,11 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
       sem_error(t, "incomplete type %s found in allocator expression",
                 type_pp(type));
 
-   if (!type_eq(type, type_access(access_type)))
+   type_t designated = type_designated(access_type);
+
+   if (!type_eq(type, designated))
       sem_error(value, "type of allocator expresion %s does not match "
-                "access type %s", type_pp(type),
-                type_pp(type_access(access_type)));
+                "access type %s", type_pp(type), type_pp(designated));
 
    return true;
 }

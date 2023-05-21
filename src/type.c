@@ -52,10 +52,10 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_FIELDS),
 
    // T_FILE
-   (I_IDENT | I_FILE),
+   (I_IDENT | I_DESIGNATED),
 
    // T_ACCESS
-   (I_IDENT | I_ACCESS),
+   (I_IDENT | I_DESIGNATED),
 
    // T_FUNC
    (I_IDENT | I_PARAMS | I_RESULT),
@@ -207,7 +207,7 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
       return _type_eq(type_elem(a), type_elem(b), strict, map);
 
    if (kind_a == T_ACCESS)
-      return _type_eq(type_access(a), type_access(b), strict, map);
+      return _type_eq(type_designated(a), type_designated(b), strict, map);
 
    if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
@@ -521,34 +521,21 @@ tree_t type_resolution(type_t t)
    return container_of(item->object, struct _tree, object);
 }
 
-type_t type_access(type_t t)
+type_t type_designated(type_t t)
 {
    if (t->object.kind == T_SUBTYPE)
-      return type_access(type_base(t));
+      return type_designated(type_base(t));
    else {
-      item_t *item = lookup_item(&type_object, t, I_ACCESS);
+      item_t *item = lookup_item(&type_object, t, I_DESIGNATED);
       assert(item->object != NULL);
       return container_of(item->object, struct _type, object);
    }
 }
 
-void type_set_access(type_t t, type_t a)
+void type_set_designated(type_t t, type_t d)
 {
-   lookup_item(&type_object, t, I_ACCESS)->object = &(a->object);
-   object_write_barrier(&(t->object), &(a->object));
-}
-
-type_t type_file(type_t t)
-{
-   item_t *item = lookup_item(&type_object, t, I_FILE);
-   assert(item->object != NULL);
-   return container_of(item->object, struct _type, object);
-}
-
-void type_set_file(type_t t, type_t f)
-{
-   lookup_item(&type_object, t, I_FILE)->object = &(f->object);
-   object_write_barrier(&(t->object), &(f->object));
+   lookup_item(&type_object, t, I_DESIGNATED)->object = &(d->object);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 void type_signature(type_t t, text_buf_t *tb)

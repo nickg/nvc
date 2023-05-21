@@ -788,16 +788,16 @@ START_TEST(test_types)
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ACCESS);
-   fail_unless(type_kind(type_access(t)) == T_INTEGER);
-   fail_unless(type_ident(type_access(t)) == ident_new("WORK.B-A.MY_INT"));
+   fail_unless(type_kind(type_designated(t)) == T_INTEGER);
+   fail_unless(type_ident(type_designated(t)) == ident_new("WORK.B-A.MY_INT"));
 
    d = search_decls(a, ident_new("F"), 0);
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_FILE);
-   fail_unless(type_kind(type_file(t)) == T_INTEGER);
-   fail_unless(type_ident(type_file(t)) == ident_new("WORK.B-A.MY_INT"));
+   fail_unless(type_kind(type_designated(t)) == T_INTEGER);
+   fail_unless(type_ident(type_designated(t)) == ident_new("WORK.B-A.MY_INT"));
 
    d = search_decls(a, ident_new("F1"), 0);
    fail_if(d == NULL);

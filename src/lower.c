@@ -718,11 +718,11 @@ static vcode_type_t lower_type(type_t type)
       return vtype_context(type_ident(type));
 
    case T_FILE:
-      return vtype_file(lower_type(type_file(type)));
+      return vtype_file(lower_type(type_designated(type)));
 
    case T_ACCESS:
       {
-         type_t access = type_access(type);
+         type_t access = type_designated(type);
          if (type_is_array(access) && lower_const_bounds(access))
             return vtype_access(lower_type(lower_elem_recur(access)));
          else
@@ -4365,7 +4365,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       vcode_reg_t raw_reg = emit_all(mem_reg);
       emit_copy(raw_reg, lower_array_data(init_reg), length_reg);
 
-      type_t result_type = type_access(tree_type(expr));
+      type_t result_type = type_designated(tree_type(expr));
       if (!lower_const_bounds(result_type)) {
           // Need to allocate memory for both the array and its metadata
          vcode_reg_t meta_reg =
@@ -5731,7 +5731,7 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
       if (is_scalar)
          lower_check_scalar_bounds(lu, value_reg, type, value, target);
       else
-         value_reg = lower_incomplete_access(value_reg, type_access(type));
+         value_reg = lower_incomplete_access(value_reg, type_designated(type));
 
       if (is_var_decl
           && (var = lower_get_var(lu, tree_ref(target),
@@ -6233,7 +6233,7 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
          emit_return(value_reg);
       }
       else if (type_is_access(type)) {
-         type_t access = type_access(type);
+         type_t access = type_designated(type);
          emit_return(lower_incomplete_access(value_reg, access));
       }
       else if (result_kind == VCODE_TYPE_UARRAY) {
@@ -7333,8 +7333,11 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       lower_check_scalar_bounds(lu, value_reg, type, decl, decl);
       emit_store(value_reg, var);
    }
-   else if (type_is_access(type))
-      emit_store(lower_incomplete_access(value_reg, type_access(type)), var);
+   else if (type_is_access(type)) {
+      type_t designated = type_designated(type);
+      vcode_reg_t src_reg = lower_incomplete_access(value_reg, designated);
+      emit_store(src_reg, var);
+   }
    else
       emit_store(value_reg, var);
 }

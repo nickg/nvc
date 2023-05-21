@@ -1329,7 +1329,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
             tree_add_decl(container, canseek);
          }
 
-         type_t of = type_file(t);
+         type_t of = type_designated(t);
 
          tree_t read = builtin_proc(read_i, S_FILE_READ);
          add_port(read, "F", t, PORT_INOUT, NULL);
@@ -1500,7 +1500,7 @@ static void binary_op(tree_t expr, tree_t left, tree_t (*right_fn)(void))
 
 static tree_t implicit_dereference(tree_t t)
 {
-   type_t access = type_access(tree_type(t));
+   type_t access = type_designated(tree_type(t));
 
    tree_t all = tree_new(T_ALL);
    tree_set_loc(all, tree_loc(t));
@@ -5509,7 +5509,7 @@ static type_t p_access_type_definition(ident_t id)
 
    type_t t = type_new(T_ACCESS);
    type_set_ident(t, id);
-   type_set_access(t, p_subtype_indication());
+   type_set_designated(t, p_subtype_indication());
    mangle_type(nametab, t);
 
    return t;
@@ -5526,7 +5526,7 @@ static type_t p_file_type_definition(ident_t id)
 
    type_t t = type_new(T_FILE);
    type_set_ident(t, id);
-   type_set_file(t, p_type_mark());
+   type_set_designated(t, p_type_mark());
    mangle_type(nametab, t);
 
    return t;
