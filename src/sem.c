@@ -3054,7 +3054,7 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
    const int nfields = type_fields(base_type);
    int pos = 0;
 
-   bit_mask_t have;
+   LOCAL_BIT_MASK have;
    mask_init(&have, nfields);
 
    const int nassocs = tree_assocs(t);
@@ -5535,7 +5535,57 @@ static bool sem_check_prot_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_view_decl(tree_t t, nametab_t *tab)
 {
-   sem_error(t, "sorry, mode view declarations are not yet supported");
+   type_t type = tree_type(t);
+   if (type_is_none(type))
+      return false;
+
+   assert(type_kind(type) == T_VIEW);
+
+   type_t rtype = type_designated(type);
+   if (!type_is_record(rtype)) {
+      assert(error_count() > 0);   // Checked by parser
+      return false;
+   }
+   else if (type_is_resolved(rtype))
+      sem_error(t, "subtype indication of a mode view declaration "
+                "must denote an unresolved record type");
+
+   const int nfields = type_fields(rtype);
+
+   LOCAL_BIT_MASK have;
+   mask_init(&have, nfields);
+
+   const int nelems = type_fields(type);
+   for (int i = 0; i < nelems; i++) {
+      tree_t e = type_field(type, i);
+      assert(tree_kind(e) == T_VIEW_ELEMENT);
+
+      if (!tree_has_ref(e))
+         return false;
+
+      tree_t f = tree_ref(e);
+      assert(tree_kind(f) == T_FIELD_DECL);
+
+      const int pos = tree_pos(f);
+      if (mask_test(&have, pos))
+         sem_error(e, "duplicate mode view element definition for field %s",
+                   istr(tree_ident(e)));
+
+      mask_set(&have, pos);
+   }
+
+   if (mask_popcount(&have) != nfields) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      for (int i = 0, missing = 0; i < nfields; i++) {
+         if (!mask_test(&have, i))
+            tb_printf(tb, "%s%s", missing++ > 0 ? ", " : "",
+                      istr(tree_ident(type_field(rtype, i))));
+      }
+
+      sem_error(t, "missing mode view element defintion for %s", tb_get(tb));
+   }
+
+   return true;
 }
 
 static bool sem_check_cond_value(tree_t t, nametab_t *tab)

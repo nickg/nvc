@@ -3052,6 +3052,31 @@ START_TEST(test_lcs2016_47)
 }
 END_TEST
 
+START_TEST(test_lcs2016_45a)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_45a.vhd");
+
+   const error_t expect[] = {
+      { 20, "record type REC_T has no field named X" },
+      { 23, "missing mode view element defintion for B, C" },
+      { 27, "subtype indication of a mode view declaration must denote "
+        "a record type" },
+      { 37, "subtype indication of a mode view declaration must denote an "
+        "unresolved record type" },
+      { 42, "record type REC_T has no field named INTEGER" },
+      { 48, "duplicate mode view element definition for field B" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3198,6 +3223,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_condexpr);
    tcase_add_test(tc_core, test_lcs2016_72b);
    tcase_add_test(tc_core, test_lcs2016_47);
+   tcase_add_test(tc_core, test_lcs2016_45a);
    suite_add_tcase(s, tc_core);
 
    return s;

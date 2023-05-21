@@ -4113,6 +4113,22 @@ static type_t solve_cond_expr(nametab_t *tab, tree_t value)
       return NULL;
 }
 
+static type_t solve_view_element(nametab_t *tab, tree_t elem)
+{
+   type_t type;
+   tree_t f = resolve_name(tab, tree_loc(elem), tree_ident(elem));
+   if (f == NULL)
+      type = type_new(T_NONE);
+   else {
+      assert(tree_kind(f) == T_FIELD_DECL);
+      tree_set_ref(elem, f);
+      type = tree_type(f);
+   }
+
+   tree_set_type(elem, type);
+   return type;
+}
+
 static type_t solve_range(nametab_t *tab, tree_t r)
 {
    type_t type = NULL;
@@ -4224,6 +4240,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_cond_value(tab, expr);
    case T_COND_EXPR:
       return solve_cond_expr(tab, expr);
+   case T_VIEW_ELEMENT:
+      return solve_view_element(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

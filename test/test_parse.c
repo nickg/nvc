@@ -5508,12 +5508,6 @@ END_TEST
 
 START_TEST(test_interface)
 {
-   const error_t expect[] = {
-      { 10, "sorry, mode view declarations are not yet supported" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    set_standard(STD_19);
 
    input_from_file(TESTDIR "/parse/interface.vhd");
@@ -5525,7 +5519,7 @@ START_TEST(test_interface)
 
    fail_unless(parse() == NULL);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 

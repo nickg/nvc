@@ -347,6 +347,7 @@ typedef enum tree_kind {
    T_COND_EXPR,
    T_COND_VALUE,
    T_COND_RETURN,
+   T_VIEW_ELEMENT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

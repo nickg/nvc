@@ -74,13 +74,16 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 
    // T_GENERIC
    (I_IDENT),
+
+   // T_VIEW
+   (I_IDENT | I_DESIGNATED | I_FIELDS),
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_SUBTYPE",    "T_INTEGER",   "T_REAL",       "T_ENUM",
    "T_PHYSICAL",   "T_ARRAY",     "T_RECORD",     "T_FILE",
    "T_ACCESS",     "T_FUNC",      "T_INCOMPLETE", "T_PROC",
-   "T_NONE",       "T_PROTECTED", "T_GENERIC",
+   "T_NONE",       "T_PROTECTED", "T_GENERIC",    "T_VIEW",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -430,7 +433,7 @@ tree_t type_field(type_t t, unsigned n)
 
 void type_add_field(type_t t, tree_t p)
 {
-   assert(p->object.kind == T_FIELD_DECL);
+   assert(p->object.kind == T_FIELD_DECL || p->object.kind == T_VIEW_ELEMENT);
    tree_array_add(lookup_item(&type_object, t, I_FIELDS), p);
    object_write_barrier(&(t->object), &(p->object));
 }

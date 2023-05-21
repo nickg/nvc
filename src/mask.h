@@ -56,6 +56,8 @@ typedef struct _bit_mask {
          (m)->bits &= ~(UINT64_C(1) << (_bit % 64));            \
    } while (0)
 
+#define LOCAL_BIT_MASK __attribute__((cleanup(mask_free))) bit_mask_t
+
 void mask_init(bit_mask_t *m, size_t size);
 void mask_free(bit_mask_t *m);
 void mask_clear_range(bit_mask_t *m, int start, int count);

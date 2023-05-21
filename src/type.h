@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ typedef enum type_kind {
    T_NONE,
    T_PROTECTED,
    T_GENERIC,
+   T_VIEW,
 
    T_LAST_TYPE_KIND
 } type_kind_t;

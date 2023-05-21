@@ -350,6 +350,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_COND_RETURN
    (I_IDENT | I_VALUE),
+
+   // T_VIEW_ELEMENT
+   (I_IDENT | I_REF | I_SUBKIND | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -388,7 +391,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PATH_ELT",        "T_PRAGMA",          "T_CASE_GENERATE",
    "T_ALTERNATIVE",     "T_PSL",             "T_VERILOG",
    "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
-   "T_COND_VALUE",      "T_COND_RETURN",
+   "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
 };
 
 static const change_allowed_t change_allowed[] = {

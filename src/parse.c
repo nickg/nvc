@@ -7020,17 +7020,28 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    return new;
 }
 
-static void p_mode_view_element_declaration(tree_t view)
+static void p_mode_view_element_declaration(type_t view)
 {
    // record_element_list : element_mode_indication ;
 
    BEGIN("mode view element declaration");
 
-   (void)p_identifier();
+   LOCAL_IDENT_LIST ids = p_identifier_list();
 
    consume(tCOLON);
 
-   (void)p_mode();
+   const port_mode_t mode = p_mode();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t f = tree_new(T_VIEW_ELEMENT);
+      tree_set_ident(f, it->ident);
+      tree_set_loc(f, &(it->loc));
+      tree_set_subkind(f, mode);
+
+      type_add_field(view, f);
+
+      solve_types(nametab, f, NULL);
+   }
 
    consume(tSEMI);
 }
@@ -7051,15 +7062,32 @@ static tree_t p_mode_view_declaration(void)
 
    consume(tOF);
 
-   type_t type = p_subtype_indication();
+   type_t of = p_subtype_indication();
+
+   type_t type = type_new(T_VIEW);
+   type_set_ident(type, id);
+   type_set_designated(type, of);
+
    tree_set_type(view, type);
 
    consume(tIS);
 
-   while (not_at_token(tEND))
-      p_mode_view_element_declaration(view);
+   if (type_is_record(of)) {
+      push_scope_for_fields(nametab, of);
 
-   consume(tEND);
+      while (not_at_token(tEND))
+         p_mode_view_element_declaration(type);
+
+      pop_scope(nametab);
+
+      consume(tEND);
+   }
+   else {
+      parse_error(CURRENT_LOC, "subtype indication of a mode view declaration "
+                  "must denote a record type");
+      drop_tokens_until(tEND);
+   }
+
    consume(tVIEW);
 
    p_trailing_label(id);
