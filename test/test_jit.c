@@ -210,7 +210,7 @@ START_TEST(test_context1)
    int32_t *c1 = jit_get_frame_var(j, handle, 1);
    ck_assert_int_eq(*c1, 42);
 
-   jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.GET_ELT(7NATURAL)I");
+   jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.GET_ELT(N)I");
    ck_assert_int_eq(jit_call(j, fn1, ctx, 1).integer, 10);
    ck_assert_int_eq(jit_call(j, fn1, ctx, 2).integer, 20);
 
@@ -219,13 +219,13 @@ START_TEST(test_context1)
    fail_if(jit_try_call(j, fn1, &result, NULL, -1));
 
    jit_handle_t fn2 =
-      compile_for_test(j, "WORK.PACK.NESTED_GET_ELT(7NATURAL)I");
+      compile_for_test(j, "WORK.PACK.NESTED_GET_ELT(N)I");
    ck_assert_int_eq(jit_call(j, fn2, ctx, 1).integer, 10);
    ck_assert_int_eq(jit_call(j, fn2, ctx, 5).integer, 50);
    fail_if(jit_try_call(j, fn2, &result, NULL, -1));
 
    int x;
-   jit_handle_t fn3 = compile_for_test(j, "WORK.PACK.READ_ELT(7NATURALI)");
+   jit_handle_t fn3 = compile_for_test(j, "WORK.PACK.READ_ELT(NI)");
    fail_unless(jit_try_call(j, fn3, &result, NULL, ctx, 1, &x));
    ck_assert_int_eq(x, 10);
    fail_unless(jit_try_call(j, fn3, &result, NULL, ctx, 5, &x));
@@ -970,13 +970,14 @@ START_TEST(test_range1)
    jit_scalar_t result;
 
    jit_handle_t fn1 =
-      compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(I)8POSITIVE");
+      compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(I)P");
    ck_assert_int_eq(jit_call(j, fn1, NULL, 1).integer, 1);
    ck_assert_int_eq(jit_call(j, fn1, NULL, 2).integer, 2);
    fail_if(jit_try_call(j, fn1, &result, NULL, 0));
    fail_if(jit_try_call(j, fn1, &result, NULL, -5));
 
-   jit_handle_t fn2 = compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(R)5PREAL");
+   jit_handle_t fn2 =
+      compile_for_test(j, "WORK.RANGE1.AS_POSITIVE(R)17WORK.RANGE1.PREAL");
    ck_assert_double_eq(jit_call(j, fn2, NULL, 1.0).real, 1.0);
    ck_assert_double_eq(jit_call(j, fn2, NULL, 1.001).real, 1.001);
    fail_if(jit_try_call(j, fn2, &result, NULL, 0.0));

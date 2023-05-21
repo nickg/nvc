@@ -3894,8 +3894,8 @@ START_TEST(test_protupref)
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit(
-      "WORK.ALERTLOGPKG.ALERTLOGSTRUCTPTYPE.ALERT"
-      "(14ALERTLOGIDTYPES26WORK.ALERTLOGPKG.ALERTTYPE)");
+      "WORK.ALERTLOGPKG.ALERTLOGSTRUCTPTYPE.ALERT("
+      "31WORK.ALERTLOGPKG.ALERTLOGIDTYPES26WORK.ALERTLOGPKG.ALERTTYPE)");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -4334,7 +4334,7 @@ START_TEST(test_osvvm2)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.OSVVM2.TEST(7NATURAL)");
+   vcode_unit_t vu = find_unit("WORK.OSVVM2.TEST(N)");
    vcode_select_unit(vu);
 
    EXPECT_BB(2) = {
@@ -4386,7 +4386,7 @@ START_TEST(test_vunit2)
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit(
-      "WORK.VUNIT2.GET_ONE(7NATURAL)19WORK.VUNIT2.INT_PTR");
+      "WORK.VUNIT2.GET_ONE(N)19WORK.VUNIT2.INT_PTR");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -4441,8 +4441,7 @@ START_TEST(test_vunit4)
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   vcode_unit_t vu = find_unit(
-      "WORK.VUNIT4.GET_REC(7NATURAL)15WORK.VUNIT4.REC");
+   vcode_unit_t vu = find_unit("WORK.VUNIT4.GET_REC(N)15WORK.VUNIT4.REC");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -4622,7 +4621,7 @@ START_TEST(test_issue462)
    run_elab();
 
    vcode_unit_t vu = find_unit(
-      "WORK.ISSUE462.GET(24WORK.ISSUE462-TEST.MEM_T7NATURAL7NATURAL)J");
+      "WORK.ISSUE462.GET(24WORK.ISSUE462-TEST.MEM_TNN)J");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -4915,7 +4914,7 @@ START_TEST(test_issue613)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
       { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_FCALL, .func = "WORK.PACK.GET_BITS(7NATURAL)Q" },
+      { VCODE_OP_FCALL, .func = "WORK.PACK.GET_BITS(N)Q" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 0 },

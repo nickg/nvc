@@ -9723,7 +9723,8 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
    if (invert && is_bit)
       emit_return(emit_not(result));
    else if (invert) {
-      ident_t func = ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01");
+      ident_t func = ident_new(
+         "IEEE.STD_LOGIC_1164.\"not\"(U)24IEEE.STD_LOGIC_1164.UX01");
       vcode_reg_t context_reg = lower_context_for_call(func);
       vcode_reg_t args[2] = { context_reg, result };
       vcode_type_t rtype = vcode_reg_type(result);

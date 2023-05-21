@@ -5959,6 +5959,8 @@ static tree_t p_subtype_declaration(void)
    }
    type_set_ident(sub, id);
 
+   mangle_type(nametab, sub);
+
    tree_t t = tree_new(T_SUBTYPE_DECL);
    tree_set_ident(t, id);
    tree_set_type(t, sub);
