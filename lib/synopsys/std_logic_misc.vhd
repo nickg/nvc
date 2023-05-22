@@ -18,7 +18,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 library SYNOPSYS;
-use SYNOPSYS.attributes.all;
+--use SYNOPSYS.attributes.all;
 
 
 package std_logic_misc is
@@ -53,7 +53,9 @@ package std_logic_misc is
 --synopsys synthesis_on
     function Drive (V: STD_ULOGIC_VECTOR) return STD_LOGIC_VECTOR;
 
+    `if VHDL_VERSION < "2008" then
     function Drive (V: STD_LOGIC_VECTOR) return STD_ULOGIC_VECTOR;
+    `end if
 --synopsys synthesis_off
 
     --attribute CLOSELY_RELATED_TCF of Drive: function is TRUE;
@@ -68,15 +70,17 @@ package std_logic_misc is
 
     function Sense (V: STD_ULOGIC; vZ, vU, vDC: STD_ULOGIC) return STD_LOGIC;
 
-    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC) 
+    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_LOGIC_VECTOR;
-    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC) 
+    `if VHDL_VERSION < "08" then
+    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_ULOGIC_VECTOR;
 
-    function Sense (V: STD_LOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC) 
+    function Sense (V: STD_LOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_LOGIC_VECTOR;
-    function Sense (V: STD_LOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC) 
+    function Sense (V: STD_LOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_ULOGIC_VECTOR;
+    `end if
 
 --synopsys synthesis_on
 
@@ -148,14 +152,16 @@ package std_logic_misc is
         function NOR_REDUCE(ARG: STD_LOGIC_VECTOR) return UX01;
         function XOR_REDUCE(ARG: STD_LOGIC_VECTOR) return UX01;
         function XNOR_REDUCE(ARG: STD_LOGIC_VECTOR) return UX01;
-    
+
+        `if VHDL_VERSION < "2008" then
         function AND_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
         function NAND_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
         function OR_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
         function NOR_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
         function XOR_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
         function XNOR_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01;
-    
+        `end if
+
 --synopsys synthesis_off
 	
         function fun_BUF3S(Input, Enable: UX01; Strn: STRENGTH) return STD_LOGIC;
@@ -248,6 +254,7 @@ package body std_logic_misc is
     --
     ---------------------------------------------------------------------
 
+    `if VHDL_VERSION < "2008" then
 --synopsys synthesis_on
     function Drive (V: STD_LOGIC_VECTOR) return STD_ULOGIC_VECTOR is
       -- pragma built_in SYN_FEED_THRU
@@ -260,6 +267,7 @@ package body std_logic_misc is
     	return STD_ULOGIC_VECTOR(Value);
 --synopsys synthesis_on
     end Drive;
+    `end if
 
 
     function Drive (V: STD_ULOGIC_VECTOR) return STD_LOGIC_VECTOR is
@@ -322,7 +330,8 @@ package body std_logic_misc is
     end Sense;
 
 
-    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC) 
+    `if VHDL_VERSION < "2008" then
+    function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					return STD_ULOGIC_VECTOR is
 	-- pragma subpgm_id 393
     	alias Value: STD_ULOGIC_VECTOR (V'length-1 downto 0) is V;
@@ -383,6 +392,7 @@ package body std_logic_misc is
     	end loop;
     	return Result;
     end Sense;
+    `end if
 
     ---------------------------------------------------------------------
     --
@@ -710,6 +720,7 @@ package body std_logic_misc is
         return not XOR_REDUCE(ARG);
     end;
 
+    `if VHDL_VERSION < "2008" then
     function AND_REDUCE(ARG: STD_ULOGIC_VECTOR) return UX01 is
 	-- pragma subpgm_id 405
 	variable result: STD_LOGIC;
@@ -760,6 +771,7 @@ package body std_logic_misc is
     begin
         return not XOR_REDUCE(ARG);
     end;
+    `end if
 
 --synopsys synthesis_off
 	

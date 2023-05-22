@@ -20,7 +20,9 @@ synopsys_ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_SIGNED \
 	lib/ieee.08/IEEE.STD_LOGIC_SIGNED-body \
 	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED \
-	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body
+	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body \
+	lib/ieee.08/IEEE.STD_LOGIC_MISC \
+	lib/ieee.08/IEEE.STD_LOGIC_MISC-body
 synopsys_DATA = \
 	lib/synopsys/_NVC_LIB \
 	lib/synopsys/_index \
@@ -62,6 +64,9 @@ lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/lib/synopsys/std_logic_unsigned.v
 
 lib/ieee.08/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
 
 lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd

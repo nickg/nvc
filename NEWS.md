@@ -17,6 +17,7 @@
   installed with `nvc --install xpm_vhdl`.
 - Many improvements to the VHPI implementation (from @Forty-Bot).
 - `vhpi_put_value` with `vhpiDepositPropagate` mode is now supported.
+- The Synopsys `std_logic_misc` package is now compiled for 2008 (#696).
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).
