@@ -1913,23 +1913,18 @@ static vcode_reg_t lower_logic_expr_coverage_for(tree_t fcall,
 static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
                                       tree_t decl, vcode_reg_t *args)
 {
-   fmt_loc(stdout, tree_loc(decl));
-
    unsigned flags = cover_get_std_log_expr_flags(decl);
    if (!flags)
       return;
 
    flags |= COV_FLAG_EXPR_STD_LOGIC;
 
-   assert(tree_params(fcall) == 2);
-
-   bool is_array[2] = {
-      type_is_array(type_param(tree_type(decl), 0)),
-      type_is_array(type_param(tree_type(decl), 1))
-   };
+   if (tree_params(fcall) != 2)
+      return;
 
    // Skip arrays -> Matches behavior of VCS and Modelsim
-   if (is_array[0] || is_array[1])
+   if (type_is_array(type_param(tree_type(decl), 0)) ||
+       type_is_array(type_param(tree_type(decl), 1)))
       return;
 
    vcode_reg_t mask =
