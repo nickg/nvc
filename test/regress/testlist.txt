@@ -781,3 +781,4 @@ func23          normal,2019
 protected9      normal,2019
 func24          normal,2019
 vhpi6           normal,vhpi
+cover16         cover,shell
