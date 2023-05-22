@@ -1,5 +1,6 @@
 package numeric_std_perf is
     procedure test_to_unsigned;
+    procedure test_add_unsigned;
 end package;
 
 library ieee;
@@ -18,6 +19,18 @@ package body numeric_std_perf is
                 s := to_unsigned(j, WIDTH);
             end loop;
         end loop;
+    end procedure;
+
+    procedure test_add_unsigned is
+        constant WIDTH : integer := 16;
+        constant ITERS : integer := 500;
+        variable accum : unsigned(WIDTH - 1 downto 0) := (others => '0');
+        constant one   : unsigned(WIDTH - 1 downto 0) := to_unsigned(1, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum + one;
+        end loop;
+        assert accum = to_unsigned(ITERS, WIDTH);
     end procedure;
 
 end package body;
