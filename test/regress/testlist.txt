@@ -860,3 +860,7 @@ genpack15       normal,2008
 issue548        shell
 alias15         normal,2002
 protected12     normal,2019
+ieee11          normal,gold
+ieee12          normal
+ieee13          normal,gold
+ieee14          normal,gold

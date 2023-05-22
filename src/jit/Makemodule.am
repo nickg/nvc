@@ -13,7 +13,8 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-code.c \
 	src/jit/jit-pack.c \
 	src/jit/jit-layout.h \
-	src/jit/jit-layout.c
+	src/jit/jit-layout.c \
+	src/jit/jit-intrin.c
 
 if ARCH_X86_64
 lib_libnvc_a_SOURCES += src/jit/jit-x86.c

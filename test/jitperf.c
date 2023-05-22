@@ -30,6 +30,7 @@
 #include "scan.h"
 #include "thread.h"
 
+#include <assert.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,7 +80,8 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
 
    double ops_sec[ITERATIONS + 1], usec_op[ITERATIONS + 1];
 
-   tlab_t tlab = jit_null_tlab(j);
+   tlab_t tlab = {};
+   tlab_acquire(jit_get_mspace(j), &tlab);
 
    for (int trial = 0; trial < ITERATIONS + 1; trial++) {
       if (trial == 0)
@@ -95,6 +97,8 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
          jit_scalar_t dummy = { .integer = 0 };
          if (!jit_fastcall(j, hproc, &result, dummy, context, &tlab))
             fatal("error in benchmark subprogram");
+
+         tlab_reset(tlab);
       }
 
       const double elapsed = (now - start) / 1e6;
@@ -104,6 +108,8 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
       print_result(ops_sec[trial], usec_op[trial]);
       fflush(stdout);
    }
+
+   tlab_release(&tlab);
 
    color_printf("\n$!green$--> ");
    print_result(mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));
@@ -128,6 +134,37 @@ static void find_benchmarks(tree_t pack, const char *filter,
           && (filter == NULL || strcasestr(istr(id), filter) != NULL))
          run_benchmark(pack, d, ur);
    }
+}
+
+static vhdl_standard_t parse_standard(const char *str)
+{
+   char *eptr = NULL;
+   const int year = strtol(str, &eptr, 10);
+   if ((eptr != NULL) && (*eptr == '\0')) {
+      switch (year) {
+      case 1987:
+      case 87:
+         fatal("VHDL standard 1076-1987 is not supported");
+      case 1993:
+      case 93:
+         return STD_93;
+      case 2000:
+      case 0:
+         return STD_00;
+      case 2002:
+      case 2:
+         return STD_02;
+      case 2008:
+      case 8:
+         return STD_08;
+      case 2019:
+      case 19:
+         return STD_19;
+      }
+   }
+
+   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, "
+         "2008, 2019)", str);
 }
 
 static void usage(void)
@@ -162,6 +199,7 @@ int main(int argc, char **argv)
    _nvc_sim_pkg_init();
 
    static struct option long_options[] = {
+      { "std", required_argument, 0, 's' },
       { 0, 0, 0, 0 }
    };
 
@@ -181,6 +219,9 @@ int main(int argc, char **argv)
       case 'h':
          usage();
          return 0;
+      case 's':
+         set_standard(parse_standard(optarg));
+         break;
       case 'f':
          filter = optarg;
          break;

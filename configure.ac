@@ -116,6 +116,12 @@ case $target_cpu in
       [], [-Werror])
 
     AX_CHECK_COMPILE_FLAG(
+      [-msse4.1],
+      [AC_DEFINE_UNQUOTED([HAVE_SSE41], [1],
+                          [Target supports SSE4.1 instructions])],
+      [], [-Werror])
+
+    AX_CHECK_COMPILE_FLAG(
       [-mpopcnt],
       [AX_APPEND_FLAG([-mpopcnt], [EXTRA_CFLAGS])
        AC_DEFINE_UNQUOTED([HAVE_POPCNT], [1],

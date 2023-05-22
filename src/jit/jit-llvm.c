@@ -1859,8 +1859,11 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       fptr = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 
 #if CLOSED_WORLD
-      LOCAL_TEXT_BUF symbol = safe_symbol(callee->name);
-      entry = llvm_add_fn(obj, tb_get(symbol), obj->types[LLVM_ENTRY_FN]);
+      // Do not generate direct calls for intrinsics
+      if (callee->entry == jit_interp) {
+         LOCAL_TEXT_BUF symbol = safe_symbol(callee->name);
+         entry = llvm_add_fn(obj, tb_get(symbol), obj->types[LLVM_ENTRY_FN]);
+      }
 #endif
    }
    else

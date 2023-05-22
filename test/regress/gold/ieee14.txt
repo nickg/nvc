@@ -1,0 +1,34 @@
+0ms+0: Assertion Warning: NUMERIC_STD."=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."=": metavalue detected, returning FALSE
+0ms+0: Assertion Note: C.29 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.1 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.2 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.3 tests done
+0ms+0: Assertion Note: C.4 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.5 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.6 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.7 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.8 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.11 tests done
+0ms+0: Assertion Note: C.12 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.9 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.10 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."=": metavalue detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."=": metavalue detected, returning FALSE
+0ms+0: Assertion Note: c.28, c.30 tests done
+0ms+0: Assertion Note: END OF test suite tb3

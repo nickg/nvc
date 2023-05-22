@@ -1,0 +1,40 @@
+0ms+0: Assertion Note: start of tests
+0ms+0: Assertion Note: A.15 test done
+0ms+0: Assertion Note: A.16 test done
+0ms+0: Assertion Note: A.17, A.18 tests done
+0ms+0: Assertion Note: A.19, A.20 tests done
+0ms+0: Assertion Note: A.21, A.23, A.24 tests done
+0ms+0: Assertion Note: A.22, A.25, A.26 tests done
+0ms+0: Assertion Note: A.27, A.29, A.30 tests done
+0ms+0: Assertion Note: A.28, A.31, A.32 tests done
+0ms+0: Assertion Note: A.33, A.35, A.36 tests done
+0ms+0: Assertion Note: A.34, A.37, A.38 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.13 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.14 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.17 tests done
+0ms+0: Assertion Note: C.18 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.15 tests done
+0ms+0: Assertion Warning: NUMERIC_STD."<=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.16 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.19 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.20 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.21 tests done
+0ms+0: Assertion Note: C.22 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.23 tests done
+0ms+0: Assertion Warning: NUMERIC_STD.">=": null argument detected, returning FALSE
+0ms+0: Assertion Note: C.24 tests done
+0ms+0: Assertion Note: R.1 tests done
+0ms+0: Assertion Note: R.2 tests done
+0ms+0: Assertion Note: END OF TESTS

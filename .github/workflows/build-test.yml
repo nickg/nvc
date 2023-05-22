@@ -48,6 +48,20 @@ jobs:
           export ASAN_OPTIONS=detect_leaks=0
           cd build
           ./bin/run_regr
+# ieee12 too slow
+#      - name: Test without intrinsics
+#        run: |
+#          export NVC_JIT_INTRINSICS=0
+#          cd build
+#          rm -rf logs
+#          ./bin/run_regr ieee
+      - name: Test without vector intrinsics
+        run: |
+          export NVC_JIT_INTRINSICS=1
+          export NVC_VECTOR_INTRINSICS=0
+          cd build
+          rm -rf logs
+          ./bin/run_regr ieee
       - name: JIT benchmarks
         run: |
           make -C build bin/jitperf

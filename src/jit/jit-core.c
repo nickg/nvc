@@ -259,15 +259,17 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       }
    }
 
-   f = xcalloc(sizeof(jit_func_t));
+   jit_entry_fn_t entry =
+      jit_bind_intrinsic(name) ?: (descr ? descr->entry : jit_interp);
 
+   f = xcalloc(sizeof(jit_func_t));
    f->name      = name;
    f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
-   f->entry     = descr ? descr->entry : jit_interp;
+   f->entry     = entry;
 
    // Install now to allow circular references in relocations
    jit_install(j, f);
