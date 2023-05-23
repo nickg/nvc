@@ -352,7 +352,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_VIEW_ELEMENT
-   (I_IDENT | I_REF | I_SUBKIND | I_TYPE),
+   (I_IDENT | I_REF | I_SUBKIND | I_TYPE | I_VALUE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {

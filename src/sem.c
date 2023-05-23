@@ -1160,7 +1160,9 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
 
-   if (!sem_check_subtype(t, type, tab))
+   if (type_is_none(type))
+      return false;
+   else if (!sem_check_subtype(t, type, tab))
       return false;
 
    if (type_is_unconstrained(type)) {
@@ -1170,6 +1172,8 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    }
 
    const class_t class = tree_class(t);
+   const port_mode_t mode = tree_subkind(t);
+
    if (class == C_VARIABLE) {
       if (standard() < STD_19) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
@@ -1181,7 +1185,7 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
          return false;
       }
 
-      if (tree_subkind(t) != PORT_INOUT)
+      if (mode != PORT_INOUT)
          sem_error(t, "formal variable port %s must have mode INOUT",
                    istr(tree_ident(t)));
 
@@ -1192,10 +1196,6 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    else if (class != C_SIGNAL)
       sem_error(t, "invalid object class %s for port %s",
                 class_str(class), istr(tree_ident(t)));
-
-   if (tree_subkind(t) == PORT_VIEW && type_kind(type) != T_VIEW)
-      sem_error(t, "name %s in mode view indication does not denote a "
-                "mode view", type_pp(type));
 
    if (type_is_access(type))
       sem_error(t, "port %s cannot be declared with access type %s",
@@ -1223,12 +1223,27 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
       sem_error(t, "port %s cannot be declared with file type %s",
                 istr(tree_ident(t)), type_pp(type));
 
-   if (tree_has_value(t)) {
+   if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
+      tree_t name = tree_value(t);
+      type_t view_type = tree_type(name);
+
+      if (type_is_none(view_type))
+         return false;
+
+      if (type_kind(view_type) != T_VIEW)
+         sem_error(name, "name in mode view indication of port %s does not "
+                   "denote a mode view", istr(tree_ident(t)));
+
+      if (!type_eq(type, type_designated(view_type)))
+         sem_error(t, "subtype %s is not compatible with mode "
+                   "view %s", type_pp(type), type_pp(view_type));
+   }
+   else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check(value, tab))
          return false;
 
-      if (tree_subkind(t) == PORT_LINKAGE)
+      if (mode == PORT_LINKAGE)
          sem_error(t, "port with mode LINKAGE cannot have a default value");
 
       if (!sem_check_type(value, type))
@@ -5588,6 +5603,32 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
                    istr(tree_ident(e)));
 
       mask_set(&have, pos);
+
+      switch (tree_subkind(e)) {
+      case PORT_LINKAGE:
+         sem_error(e, "element mode indication cannot have mode LINKAGE");
+
+      case PORT_RECORD_VIEW:
+      case PORT_ARRAY_VIEW:
+         {
+            tree_t name = tree_value(e);
+            type_t type = tree_type(e);
+            type_t view_type = tree_type(name);
+
+            if (type_is_none(view_type))
+               return false;
+
+            if (type_kind(view_type) != T_VIEW)
+               sem_error(name, "name in mode view indication of field %s does "
+                         "not denote a mode view", istr(tree_ident(f)));
+
+            if (!type_eq(type, type_designated(view_type)))
+               sem_error(e, "field %s subtype %s is not compatible with mode "
+                         "view %s", istr(tree_ident(f)), type_pp(type),
+                         type_pp(view_type));
+         }
+         break;
+      }
    }
 
    if (mask_popcount(&have) != nfields) {

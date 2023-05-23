@@ -30,7 +30,8 @@ typedef enum port_mode {
    PORT_INOUT,
    PORT_BUFFER,
    PORT_LINKAGE,
-   PORT_VIEW
+   PORT_RECORD_VIEW,
+   PORT_ARRAY_VIEW,
 } port_mode_t;
 
 typedef enum {

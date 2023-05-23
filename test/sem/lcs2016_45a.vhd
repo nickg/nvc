@@ -66,6 +66,30 @@ package lcs2016_45a is
                z : view master1 of rec_t;  -- Ok
             );
     end component;
+
+    view master6 of rec_t is
+        a   :   in ;
+        b   :   out ;
+        c   :   inout ;
+        d   :   linkage ;               -- Error
+    end view ;
+
+    type outer_rec_t is record
+        r : rec_t;
+    end record ;
+
+    view outer_master1 of outer_rec_t is
+        r : view master1;               -- OK
+    end view;
+
+    view outer_master2 of outer_rec_t is
+        r : view master1 of integer;    -- Error
+    end view;
+
+    view outer_master3 of outer_rec_t is
+        r : view integer of rec_t;    -- Error
+    end view;
+
 end package ;
 
 -------------------------------------------------------------------------------

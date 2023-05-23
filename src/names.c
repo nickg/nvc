@@ -4116,18 +4116,23 @@ static type_t solve_cond_expr(nametab_t *tab, tree_t value)
 
 static type_t solve_view_element(nametab_t *tab, tree_t elem)
 {
-   type_t type;
    tree_t f = resolve_name(tab, tree_loc(elem), tree_ident(elem));
-   if (f == NULL)
-      type = type_new(T_NONE);
-   else {
-      assert(tree_kind(f) == T_FIELD_DECL);
-      tree_set_ref(elem, f);
-      type = tree_type(f);
+   if (f == NULL) {
+      type_t none = type_new(T_NONE);
+      tree_set_type(elem, none);
+      return none;
    }
 
-   tree_set_type(elem, type);
-   return type;
+   assert(tree_kind(f) == T_FIELD_DECL);
+   tree_set_ref(elem, f);
+
+   if (tree_has_type(elem))
+      return tree_type(elem);   // Subtype from mode view
+   else {
+      type_t type = tree_type(f);
+      tree_set_type(elem, type);
+      return type;
+   }
 }
 
 static type_t solve_range(nametab_t *tab, tree_t r)
