@@ -8689,6 +8689,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_GROUP:
    case T_GROUP_TEMPLATE:
    case T_SUBTYPE_DECL:
+   case T_VIEW_DECL:
       break;
 
    case T_PACKAGE:
@@ -10284,6 +10285,39 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    return name;
 }
 
+static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
+                                    vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
+                                    void *__ctx)
+{
+   type_t view_type = __ctx;
+
+   tree_t elem = NULL;
+   const int nelems = type_fields(view_type);
+   for (int i = 0; i < nelems; i++) {
+      tree_t e = type_field(view_type, i);
+      if (tree_ref(e) == field) {
+         elem = e;
+         break;
+      }
+   }
+   assert(elem != NULL);
+
+   vcode_reg_t src_reg = lower_array_data(emit_load_indirect(src_ptr));
+   vcode_reg_t dst_reg = lower_array_data(emit_load_indirect(dst_ptr));
+
+   // TODO: test with unconstrained element type
+   vcode_reg_t count = lower_type_width(lu, tree_type(field), src_ptr);
+
+   switch (tree_subkind(elem)) {
+   case PORT_IN:
+      emit_map_signal(dst_reg, src_reg, count, count, VCODE_INVALID_REG);
+      break;
+   case PORT_OUT:
+      emit_map_signal(src_reg, dst_reg, count, count, VCODE_INVALID_REG);
+      break;
+   }
+}
+
 static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,
                                       vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
                                       void *__ctx)
@@ -10569,9 +10603,19 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       value = value_conv;
    }
 
-   if (lower_is_signal_ref(value)) {
+   const port_mode_t mode = tree_subkind(port);
+
+   if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+      type_t view_type = tree_type(tree_value(port));
+      assert(type_kind(view_type) == T_VIEW);
+
+      assert(lower_is_signal_ref(value));
+
+      lower_for_each_field(lu, name_type, port_reg, value_reg,
+                           lower_map_view_field_cb, view_type);
+   }
+   else if (lower_is_signal_ref(value)) {
       type_t value_type = tree_type(value);
-      const port_mode_t mode = tree_subkind(port);
 
       vcode_reg_t src_reg = mode == PORT_IN ? value_reg : port_reg;
       vcode_reg_t dst_reg = mode == PORT_IN ? port_reg : value_reg;
@@ -10722,6 +10766,8 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
    type_t type = tree_type(port);
    type_t value_type = type;
 
+   const port_mode_t mode = tree_subkind(port);
+
    vcode_type_t vtype = lower_signal_type(type);
    vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
    lower_put_vcode_obj(port, var, lu);
@@ -10730,7 +10776,10 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
    const int ncons = pack_constraints(type, cons);
 
    vcode_reg_t init_reg = VCODE_INVALID_REG;
-   if (tree_has_value(port)) {
+   if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
+      // No explicit initial value
+   }
+   else if (tree_has_value(port)) {
       tree_t value = tree_value(port);
       value_type = tree_type(value);
       init_reg = lower_rvalue(lu, value);
