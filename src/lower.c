@@ -10291,15 +10291,7 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
 {
    type_t view_type = __ctx;
 
-   tree_t elem = NULL;
-   const int nelems = type_fields(view_type);
-   for (int i = 0; i < nelems; i++) {
-      tree_t e = type_field(view_type, i);
-      if (tree_ref(e) == field) {
-         elem = e;
-         break;
-      }
-   }
+   tree_t elem = find_element_mode_indication(view_type, field);
    assert(elem != NULL);
 
    vcode_reg_t src_reg = lower_array_data(emit_load_indirect(src_ptr));

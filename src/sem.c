@@ -2203,6 +2203,53 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
    return true;
 }
 
+static type_t sem_check_view_target(tree_t target)
+{
+   switch (tree_kind(target)) {
+   case T_REF:
+      {
+         tree_t decl = tree_ref(target);
+         assert(tree_kind(decl) == T_PORT_DECL);
+
+         type_t view_type = tree_type(tree_value(decl));
+         assert(type_kind(view_type) == T_VIEW);
+
+         return view_type;
+      }
+
+   case T_RECORD_REF:
+      {
+         type_t view_type = sem_check_view_target(tree_value(target));
+         if (view_type == NULL)
+            return NULL;
+
+         tree_t f = tree_ref(target);
+         tree_t e = find_element_mode_indication(view_type, f);
+         if (e == NULL)
+            return NULL;
+
+         if (tree_subkind(e) == PORT_IN) {
+            tree_t port = tree_ref(name_to_ref(target));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+            diag_printf(d, "cannot assign to element %s of port %s which has "
+                        "mode IN from mode view indication",
+                        istr(tree_ident(e)), istr(tree_ident(port)));
+            diag_hint(d, tree_loc(target), "target of signal assignment");
+            diag_hint(d, tree_loc(port), "sub-element %s of %s declared with "
+                      "mode IN due to mode view indication",
+                      istr(tree_ident(e)), istr(tree_ident(port)));
+            diag_emit(d);
+            return NULL;
+         }
+
+         return NULL;
+      }
+
+   default:
+      return NULL;
+   }
+}
+
 static bool sem_check_signal_target(tree_t target, nametab_t *tab)
 {
    if (tree_kind(target) == T_AGGREGATE) {
@@ -2220,10 +2267,9 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          if (!sem_check_signal_target(value, tab))
             return false;
 
-         if (tree_kind(value) != T_AGGREGATE) {
-            if (!sem_static_name(value, sem_locally_static))
-               sem_error(value, "aggregate element must be locally static name");
-         }
+         if (tree_kind(value) != T_AGGREGATE
+             && !sem_static_name(value, sem_locally_static))
+            sem_error(value, "aggregate element must be locally static name");
 
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {
@@ -2281,6 +2327,41 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
                          istr(tree_ident(decl)));
                diag_emit(d);
                return false;
+            }
+            else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+               type_t view_type = sem_check_view_target(target);
+               if (view_type != NULL) {
+                  tree_t inport = NULL;
+                  const int nelems = type_fields(view_type);
+                  for (int i = 0; i < nelems; i++) {
+                     tree_t e = type_field(view_type, i);
+                     const port_mode_t mode = tree_subkind(e);
+                     if (mode == PORT_IN || mode == PORT_ARRAY_VIEW
+                         || mode == PORT_RECORD_VIEW) {
+                        // This is not correct for nested mode view
+                        // indications but seems like a very obscure
+                        // corner case
+                        inport = e;
+                        break;
+                     }
+                  }
+
+                  if (inport != NULL) {
+                     diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+                     diag_printf(d, "cannot assign to port %s with mode view "
+                                 "indication as one or more sub-elements have "
+                                 "mode IN", istr(tree_ident(decl)));
+                     diag_hint(d, tree_loc(target),
+                               "target of signal assignment");
+                     diag_hint(d, tree_loc(inport),
+                               "element %s declared with mode IN",
+                               istr(tree_ident(inport)));
+                     diag_emit(d);
+                     return false;
+                  }
+               }
+
+               return true;
             }
             else if (mode == PORT_LINKAGE)
                sem_error(target, "linkage port %s may not be updated except as "

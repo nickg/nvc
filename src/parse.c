@@ -2207,6 +2207,7 @@ static type_t apply_converse_attribute(tree_t aref)
       assert(tree_kind(e1) == T_VIEW_ELEMENT);
 
       tree_t e2 = tree_new(T_VIEW_ELEMENT);
+      tree_set_loc(e2, tree_loc(aref));
       tree_set_ident(e2, tree_ident(e1));
       tree_set_ref(e2, tree_ref(e1));
       tree_set_type(e2, tree_type(e1));

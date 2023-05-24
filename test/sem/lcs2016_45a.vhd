@@ -116,3 +116,17 @@ use work.pack.all;
 entity sub is
     port ( r : view slave_rec_t of rec_t );  -- OK
 end entity;
+
+architecture test of sub is
+begin
+
+    p1: process is
+    begin
+        assert r.a = '1';               -- OK
+        assert r = ('1', '0');          -- OK
+        r.a <= '1';                     -- OK
+        r.b <= '0';                     -- Error
+        r <= ('1', '1');                -- Error
+    end process;
+
+end architecture;

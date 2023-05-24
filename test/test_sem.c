@@ -3074,11 +3074,15 @@ START_TEST(test_lcs2016_45a)
       { 74, "element mode indication cannot have mode LINKAGE" },
       { 86, "R subtype INTEGER is not compatible with mode view MASTER1" },
       { 90, "name in mode view indication of field R does not denote a mode " },
+      { 128, "cannot assign to element B of port R which has mode IN from "
+        "mode view indication" },
+      { 129, "cannot assign to port R with mode view indication as one or "
+        "more sub-elements have mode IN" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }

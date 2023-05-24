@@ -455,6 +455,18 @@ tree_t find_record_field(tree_t rref)
    return NULL;
 }
 
+tree_t find_element_mode_indication(type_t view_type, tree_t field)
+{
+   const int nelems = type_fields(view_type);
+   for (int i = 0; i < nelems; i++) {
+      tree_t e = type_field(view_type, i);
+      if (tree_ref(e) == field)
+         return e;
+   }
+
+   return NULL;
+}
+
 class_t class_of(tree_t t)
 {
    switch (tree_kind(t)) {
