@@ -83,7 +83,6 @@ bool is_type_attribute(attr_kind_t kind);
 type_t get_type_or_null(tree_t t);
 type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);
-void copy_constraints(type_t sub, int index, type_t from);
 
 void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
                         type_copy_pred_t type_pred, void *context,

@@ -386,27 +386,6 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    return true;
 }
 
-static int sem_type_freedom(type_t t)
-{
-   assert(t != NULL);
-   switch (type_kind(t)) {
-   case T_ARRAY:
-      return 1 + sem_type_freedom(type_elem(t));
-   case T_SUBTYPE:
-      {
-         int base = sem_type_freedom(type_base(t));
-         const int ncon = type_constraints(t);
-         for (int i = 0; i < ncon; i++) {
-            if (tree_subkind(type_constraint(t, i)) == C_INDEX)
-               base--;
-         }
-         return base;
-      }
-   default:
-      return 0;
-   }
-}
-
 static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
 {
    // Shared code for checking subtype declarations and implicit subtypes
@@ -431,7 +410,7 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
    }
 
    type_t designated = type_is_access(type) ? type_designated(type) : type;
-   if (sem_type_freedom(designated) < 0)
+   if (type_missing_constraints(designated) < 0)
       sem_error(decl, "too many constraints for type %s", type_pp(base));
 
    if (type_has_resolution(type)) {

@@ -147,6 +147,8 @@ bool type_known_width(type_t type);
 // Helpers for element constraints
 tree_t type_constraint_for_field(type_t t, tree_t f);
 
+int type_missing_constraints(type_t t);
+
 bool type_frozen(type_t t);
 
 object_t *type_to_object(type_t t);

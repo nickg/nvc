@@ -1679,15 +1679,38 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
       return 0;
 
    const int ncon = type_constraints(type);
+   if (ncon > MAX_CONSTRAINTS)
+      goto too_many;
 
    int ptr = 0;
    type_t base = type_base(type);
    if (type_kind(base) == T_SUBTYPE) {
-      ptr = pack_constraints(base, out);
+      tree_t sub[MAX_CONSTRAINTS];
+      const int nsub = pack_constraints(base, sub);
+      int pos = 0;
 
-      for (int i = 0, pos = 0; i < ptr && pos < ncon; i++) {
-         if (tree_subkind(out[i]) == C_OPEN)
-            out[i] = type_constraint(type, pos++);
+      for (int i = 0; i < ncon; i++) {
+         tree_t next = type_constraint(type, i);
+         switch (tree_subkind(next)) {
+         case C_INDEX:
+         case C_RECORD:
+            out[ptr++] = next;
+            break;
+         case C_OPEN:
+            out[ptr++] = sub[pos++];
+            break;
+         }
+      }
+
+      for (; pos < nsub; pos++) {
+         switch (tree_subkind(sub[pos])) {
+         case C_INDEX:
+         case C_RECORD:
+            if (ptr >= MAX_CONSTRAINTS)
+               goto too_many;
+            out[ptr++] = sub[pos];
+            break;
+         }
       }
    }
    else {
@@ -1697,9 +1720,6 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
          case C_INDEX:
          case C_RECORD:
          case C_OPEN:
-            if (ptr == MAX_CONSTRAINTS)
-               fatal_at(tree_loc(c), "sorry, a maximum of %d nested "
-                        "constraints are supported", MAX_CONSTRAINTS);
             out[ptr++] = c;
             break;
          }
@@ -1707,6 +1727,10 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
    }
 
    return ptr;
+
+ too_many:
+   fatal("sorry, type %s requires more than the maximum supported %d nested "
+         "constraints", type_pp(type), MAX_CONSTRAINTS);
 }
 
 bool relaxed_rules(void)
@@ -2174,80 +2198,6 @@ void capture_syntax(text_buf_t *tb)
 {
    assert(tb == NULL || syntax_buf == NULL);
    syntax_buf = tb;
-}
-
-void copy_constraints(type_t sub, int index, type_t from)
-{
-   switch (type_kind(from)) {
-   case T_SUBTYPE:
-      {
-         const int ncon = type_constraints(from);
-         for (int i = 0, have = type_constraints(sub); i < ncon; i++) {
-            tree_t c = type_constraint(from, i);
-            if (tree_subkind(c) == C_OPEN && --have < index)
-               type_add_constraint(sub, c);
-         }
-      }
-      break;
-
-   case T_ARRAY:
-      {
-         if (index >= type_constraints(sub)) {
-            tree_t c = tree_new(T_CONSTRAINT);
-            tree_set_subkind(c, C_OPEN);
-
-            type_add_constraint(sub, c);
-         }
-
-         if (standard() >= STD_08)
-            copy_constraints(sub, index + 1, type_elem(from));
-      }
-      break;
-
-   case T_RECORD:
-      {
-         tree_t cons = NULL;
-         if (index < type_constraints(sub)) {
-            cons = type_constraint(sub, index);
-            if (tree_subkind(cons) != C_RECORD)
-               return;  // Will produce error later
-         }
-
-         const int nfields = type_fields(from);
-         for (int i = 0; i < nfields; i++) {
-            tree_t f = type_field(from, i), exist;
-            type_t ft = tree_type(f);
-            if (type_is_unconstrained(ft)) {
-               if (cons == NULL) {
-                  cons = tree_new(T_CONSTRAINT);
-                  tree_set_subkind(cons, C_RECORD);
-
-                  type_add_constraint(sub, cons);
-               }
-               else if ((exist = type_constraint_for_field(sub, f)) != NULL) {
-                  copy_constraints(tree_type(exist), 0, ft);
-                  continue;
-               }
-
-               type_t fsub = type_new(T_SUBTYPE);
-               type_set_base(fsub, ft);
-
-               copy_constraints(fsub, 0, ft);
-
-               tree_t elem = tree_new(T_ELEM_CONSTRAINT);
-               tree_set_ident(elem, tree_ident(f));
-               tree_set_ref(elem, f);
-               tree_set_type(elem, fsub);
-
-               tree_add_range(cons, elem);
-            }
-         }
-      }
-      break;
-
-   default:
-      break;
-   }
 }
 
 void analyse_vhdl(jit_t *jit, bool verbose)

@@ -5297,31 +5297,29 @@ START_TEST(test_subtype2008)
    fail_unless(tree_kind(p) == T_PACKAGE);
 
    type_t sub1 = tree_type(search_decls(p, ident_new("SUB1"), 0));
-   fail_unless(type_constraints(sub1) == 1);
-   fail_unless(tree_subkind(type_constraint(sub1, 0)) == C_OPEN);
-   fail_unless(type_is_unconstrained(sub1));
+   fail_unless(type_constraints(sub1) == 0);
+   ck_assert_int_eq(type_missing_constraints(sub1), 1);
 
    type_t sub2 = tree_type(search_decls(p, ident_new("SUB2"), 0));
    fail_unless(type_constraints(sub2) == 1);
    fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub2));
+   ck_assert_int_eq(type_missing_constraints(sub2), 1);
 
    type_t sub3 = tree_type(search_decls(p, ident_new("SUB3"), 0));
-   fail_unless(type_constraints(sub3) == 1);
-   fail_unless(tree_subkind(type_constraint(sub3, 0)) == C_OPEN);
-   fail_unless(type_is_unconstrained(sub3));
+   fail_unless(type_constraints(sub3) == 0);
+   ck_assert_int_eq(type_missing_constraints(sub3), 1);
 
    type_t sub4 = tree_type(search_decls(p, ident_new("SUB4"), 0));
-   fail_unless(type_constraints(sub4) == 2);
-   fail_unless(tree_subkind(type_constraint(sub4, 0)) == C_OPEN);
-   fail_unless(tree_subkind(type_constraint(sub4, 1)) == C_OPEN);
+   fail_unless(type_constraints(sub4) == 0);
+   ck_assert_int_eq(type_missing_constraints(sub4), 2);
    fail_unless(type_is_unconstrained(sub4));
 
    type_t sub5 = tree_type(search_decls(p, ident_new("SUB5"), 0));
-   fail_unless(type_constraints(sub5) == 2);
+   fail_unless(type_constraints(sub5) == 1);
    fail_unless(tree_subkind(type_constraint(sub5, 0)) == C_INDEX);
-   fail_unless(tree_subkind(type_constraint(sub5, 1)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub5));
+   ck_assert_int_eq(type_missing_constraints(sub5), 1);
 
    type_t sub6 = tree_type(search_decls(p, ident_new("SUB6"), 0));
    fail_unless(type_constraints(sub6) == 1);
@@ -5332,11 +5330,16 @@ START_TEST(test_subtype2008)
    fail_unless(type_constraints(sub7) == 0);
    fail_if(type_is_unconstrained(sub7));
 
+   type_t sub10 = tree_type(search_decls(p, ident_new("SUB10"), 0));
+   fail_unless(type_constraints(sub10) == 1);
+   fail_unless(type_is_unconstrained(sub10));
+   ck_assert_int_eq(type_missing_constraints(sub10), 1);
+
    type_t sub11 = tree_type(search_decls(p, ident_new("SUB11"), 0));
-   fail_unless(type_constraints(sub11) == 2);
+   fail_unless(type_constraints(sub11) == 1);
    fail_unless(tree_subkind(type_constraint(sub11, 0)) == C_INDEX);
-   fail_unless(tree_subkind(type_constraint(sub11, 1)) == C_RECORD);
    fail_unless(type_is_unconstrained(sub11));
+   ck_assert_int_eq(type_missing_constraints(sub11), 3);
 
    fail_unless(parse() == NULL);
 
@@ -5523,6 +5526,27 @@ START_TEST(test_interface)
 }
 END_TEST
 
+START_TEST(test_issue701)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue701.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5637,6 +5661,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue688);
    tcase_add_test(tc_core, test_issue686);
    tcase_add_test(tc_core, test_interface);
+   tcase_add_test(tc_core, test_issue701);
    suite_add_tcase(s, tc_core);
 
    return s;

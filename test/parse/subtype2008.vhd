@@ -17,7 +17,7 @@ package subtype2008 is
 
     subtype sub8 is rec;                -- rec(f(open), g(open)(open))
     subtype sub9 is rec(g(1 to 3));     -- rec(f(open), g(1 to 3)(open))
-    --subtype sub10 is sub9(g(1 to 5));   -- rec(f(open), g(1 to 3)(1 to 5))
+    subtype sub10 is sub9(g(1 to 5));   -- rec(f(open), g(1 to 3)(1 to 5))
 
     type rec_array is array (natural range <>) of rec;
 

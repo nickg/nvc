@@ -783,3 +783,4 @@ func24          normal,2019
 vhpi6           normal,vhpi
 cover16         cover,shell
 view1           normal,2019
+issue701        fail,gold,2008

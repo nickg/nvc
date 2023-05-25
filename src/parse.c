@@ -3854,11 +3854,7 @@ static type_t p_subtype_indication(void)
       }
 
       p_constraint(type);
-
-      copy_constraints(type, 0, base);
    }
-   else if (made_subtype)
-      copy_constraints(type, 0, base);
 
    return type;
 }
@@ -5765,6 +5761,7 @@ static type_t p_constrained_array_definition(ident_t id)
    type_set_ident(base, id);
 
    tree_t constraint = tree_new(T_CONSTRAINT);
+   tree_set_loc(constraint, CURRENT_LOC);
    tree_set_subkind(constraint, C_INDEX);
 
    type_t sub = type_new(T_SUBTYPE);
@@ -6073,8 +6070,6 @@ static tree_t p_subtype_declaration(void)
       // constraint so we must create the subtype object here
       type_t new = type_new(T_SUBTYPE);
       type_set_base(new, sub);
-
-      copy_constraints(new, 0, sub);
 
       sub = new;
    }
