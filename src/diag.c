@@ -407,6 +407,11 @@ void diag_printf(diag_t *d, const char *fmt, ...)
    va_end(ap);
 }
 
+void diag_write(diag_t *d, const char *str, size_t len)
+{
+   tb_catn(d->msg, str, len);
+}
+
 void diag_message(diag_t *d, text_buf_t *tb)
 {
    tb_move(d->msg, tb);
@@ -522,6 +527,19 @@ static void diag_putc_utf8(unsigned char ch, FILE *f)
       fputc(0xc2 + (ch > 0xbf), f);
       fputc((ch & 0x3f) + 0x80, f);
    }
+   else if ((ch < 0x20 || ch == 0x7f)
+            && ch != '\r' && ch != '\n' && ch != '\t') {
+      if (utf8_terminal()) {
+         // On unicode terminals emit the corresponding control picture
+         // code point otherwise silently drop it
+         fputc(0xe2, f);
+         fputc(0x90, f);
+         if (ch == 0x7f)  // DEL
+            fputc(0xa1, f);
+         else
+            fputc(0x80 + ch, f);
+      }
+   }
    else
       fputc(ch, f);
 }
@@ -532,7 +550,7 @@ static void diag_print_utf8(const char *str, size_t len, FILE *f)
 
    bool have_non_utf8 = false;
    for (const unsigned char *p = ustr; p < ustr + len; p++) {
-      if (*p >= 128 && !have_non_utf8) {
+      if ((*p >= 128 || *p < 0x20 || *p == 0x7f) && !have_non_utf8) {
          fwrite(str, 1, p - ustr, f);
          diag_putc_utf8(*p, f);
          have_non_utf8 = true;
@@ -545,11 +563,9 @@ static void diag_print_utf8(const char *str, size_t len, FILE *f)
       fwrite(str, 1, len, f);
 }
 
-static void diag_wrap_lines(const char *str, int left, FILE *f)
+static void diag_wrap_lines(const char *str, size_t len, int left, FILE *f)
 {
    const int right = terminal_width();
-   const size_t len = strlen(str);
-
    if (right == 0 || left + len < right) {
       diag_print_utf8(str, len, f);
       return;
@@ -813,7 +829,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          col += color_fprintf(f, HINT_STYLE "%s:$$ ",
                               hint->kind == HINT_HELP ? "Help" : "Note");
 
-      diag_wrap_lines(hint->text, col, f);
+      diag_wrap_lines(hint->text, strlen(hint->text), col, f);
       fputc('\n', f);
 
       if (!loc_invalid_p(&(hint->loc))) {
@@ -892,7 +908,7 @@ static void diag_format_full(diag_t *d, FILE *f)
       case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
       }
 
-      diag_wrap_lines(tb_get(d->msg), col, f);
+      diag_wrap_lines(tb_get(d->msg), tb_len(d->msg), col, f);
       fputc('\n', f);
    }
 
@@ -1107,7 +1123,7 @@ void wrapped_printf(const char *fmt, ...)
    else
       text = xvasprintf(fmt, ap);
 
-   diag_wrap_lines(text, 0, stdout);
+   diag_wrap_lines(text, strlen(text), 0, stdout);
 
    va_end(ap);
 }

@@ -432,7 +432,8 @@ void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
    const diag_level_t level = diag_severity(severity);
 
    diag_t *d = diag_new(level, tree_loc(where));
-   diag_printf(d, "Report %s: %.*s", levels[severity], msg_len, msg);
+   diag_printf(d, "Report %s: ", levels[severity]);
+   diag_write(d, (const char *)msg, msg_len);
    diag_show_source(d, false);
    diag_emit(d);
 
@@ -463,7 +464,8 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (msg == NULL)
       diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
    else {
-      diag_printf(d, "Assertion %s: %.*s", levels[severity], msg_len, msg);
+      diag_printf(d, "Assertion %s: ", levels[severity]);
+      diag_write(d, (const char *)msg, msg_len);
 
       // Assume we don't want to dump the source code if the user
       // provided their own message
