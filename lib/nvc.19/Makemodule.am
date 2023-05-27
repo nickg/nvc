@@ -33,6 +33,12 @@ lib/nvc.19/NVC.TEXTBUF: $(srcdir)/lib/nvc/textbuf.vhd @ifGNUmake@ | $(DRIVER)
 lib/nvc.19/NVC.TEXTBUF-body: $(srcdir)/lib/nvc/textbuf-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/textbuf-body.vhd
 
+lib/nvc.19/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc.08/psl_support.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/psl_support.vhd
+
+lib/nvc.19/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc.08/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/psl_support-body.vhd
+
 gen-deps-nvc-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/nvc.19/deps.mk
