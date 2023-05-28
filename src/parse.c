@@ -6693,7 +6693,7 @@ static tree_t p_alias_declaration(void)
 
    bool has_subtype_indication = false;
    consume(tALIAS);
-   tree_set_ident(t, p_identifier());
+   tree_set_ident(t, p_designator());
    if (optional(tCOLON)) {
       tree_set_type(t, p_subtype_indication());
       has_subtype_indication = true;

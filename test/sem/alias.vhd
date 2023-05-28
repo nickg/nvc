@@ -109,5 +109,9 @@ architecture test of e is
     begin
     end procedure;
 
+    function less (x, y : int_vector) return boolean;
+    alias "<=" is less[int_vector, int_vector return boolean];  -- OK
+    constant c5 : boolean := int_vector'(1, 2) <= (1, 3);  -- OK
+
 begin
 end architecture;

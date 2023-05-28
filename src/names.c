@@ -795,7 +795,6 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       else if (kind == POTENTIAL && denotes_same_object(dd->tree, decl))
          return sym;   // Same object visible through different aliases
       else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
-               && is_subprogram(decl) && is_subprogram(dd->tree)
                && type_eq(tree_type(dd->tree), type)
                && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
          // Allow pre-defined operators be to hidden by
