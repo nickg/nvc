@@ -528,7 +528,7 @@ static void diag_putc_utf8(unsigned char ch, FILE *f)
       fputc((ch & 0x3f) + 0x80, f);
    }
    else if ((ch < 0x20 || ch == 0x7f)
-            && ch != '\r' && ch != '\n' && ch != '\t') {
+            && ch != '\r' && ch != '\n' && ch != '\t' && ch != '\e') {
       if (utf8_terminal()) {
          // On unicode terminals emit the corresponding control picture
          // code point otherwise silently drop it
