@@ -3303,6 +3303,10 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    if (!tree_has_ref(t))
       return false;
 
+   type_t type = get_type_or_null(t);
+   if (type != NULL && type_is_none(type))
+      return false;
+
    tree_t decl = tree_ref(t);
    const tree_kind_t kind = tree_kind(decl);
 
@@ -3656,9 +3660,11 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          type_t type = get_type_or_null(name);
          if (type == NULL)
             sem_error(name, "prefix does not have LENGTH attribute");
-         else if (!type_is_array(tree_type(name)))
+         else if (type_is_none(type))
+            return false;
+         else if (!type_is_array(type))
             sem_error(name, "prefix of attribute LENGTH must be an array but "
-                      "have type %s", type_pp(tree_type(name)));
+                      "have type %s", type_pp(type));
 
          if (!sem_check_dimension_attr(t, tab))
             return false;

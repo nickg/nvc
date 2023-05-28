@@ -223,6 +223,12 @@ begin
         assert my_bool'base'pos(true) = 1;  -- OK
         report my_bool'base'image(true);  -- OK
     end process;
+
+    process is
+        variable x : not_here;          -- Errror
+    begin
+        assert x'length = 0;            -- Error (suppressed)
+    end process;
 end architecture;
 
 use work.pack.all;

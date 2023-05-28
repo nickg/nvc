@@ -265,4 +265,13 @@ begin
         end loop;
     end process;
 
+    -- Case statement with error in type
+    process is
+        variable x : bad_type;          -- Error
+    begin
+        case x is                       -- Error (suppressed)
+            when others => null;
+        end case;
+    end process;
+
 end architecture;

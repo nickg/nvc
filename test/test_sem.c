@@ -609,6 +609,7 @@ START_TEST(test_seq)
       { 255, "X with class SIGNAL must be a name denoting a signal" },
       { 263, "target of variable assignment must be a variable name or" },
       { 264, "actual for formal X with class VARIABLE must be a name" },
+      { 270, "no visible declaration for BAD_TYPE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -741,6 +742,7 @@ START_TEST(test_attr)
       { 212, "cannot use attribute IMAGE with non-scalar type INT2_VEC" },
       { 221, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 222, "BASE attribute is allowed only as the prefix of the name" },
+      { 228, "no visible declaration for NOT_HERE" },
       { -1, NULL }
    };
    expect_errors(expect);
