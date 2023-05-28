@@ -971,7 +971,6 @@ START_TEST(test_static)
    input_from_file(TESTDIR "/sem/static.vhd");
 
    const error_t expect[] = {
-      {  36, "case choice must be locally static" },
       {  42, "case choice must be locally static" },
       {  65, "with port X of mode IN must be a globally static" },
       {  74, "declaration of signal X hides signal X" },

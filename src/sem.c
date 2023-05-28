@@ -4007,21 +4007,27 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    else
       actual = value;    // No conversion
 
-   if (mode == PORT_IN && !sem_globally_static(actual)
-       && !sem_static_name(actual, sem_globally_static)) {
+   if (mode == PORT_IN) {
+      tree_t ref = name_to_ref(actual);
+      bool is_static = true;
+      if (ref != NULL && class_of(ref) == C_SIGNAL)
+         is_static = sem_static_name(actual, sem_globally_static);
+      else
+         is_static = sem_globally_static(actual);
+
       // LRM 08 section 6.5.6.3 the actual is converted to a concurrent
       // signal assignment to an anonymous signal that is then
       // associated with the formal
-      if (standard() >= STD_08) {
+      if (!is_static && standard() >= STD_08) {
          tree_t w = tree_new(T_WAVEFORM);
          tree_set_loc(w, tree_loc(value));
          tree_set_value(w, value);
 
          tree_set_value(param, w);
       }
-      else
+      else if (!is_static)
          sem_error(value, "actual associated with port %s of mode IN must be "
-                   "a globally static expression or static name",
+                   "a globally static expression or static signal name",
                    istr(tree_ident(decl)));
    }
    else if (mode == PORT_INOUT && tree_class(decl) == C_VARIABLE) {
@@ -4473,12 +4479,10 @@ static bool sem_locally_static(tree_t t)
       // A constant reference (other than a deferred constant) with a
       // locally static value
       if (dkind == T_CONST_DECL) {
-         if (!tree_has_value(decl))
+         if (tree_has_value(decl))
+            return sem_locally_static(tree_value(decl));
+         else
             return false;
-
-         tree_t value = tree_value(decl);
-         return sem_static_subtype(tree_type(decl), sem_locally_static)
-            && sem_locally_static(value);
       }
 
       // An alias of a locally static name
@@ -4571,10 +4575,11 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
+      if (type_is_unconstrained(type))
+         return false;
+
       if (type_is_array(type)) {
-         if (type_is_unconstrained(type))
-            return false;
-         else if (!sem_locally_static(range_of(type, 0)))
+         if (!sem_locally_static(range_of(type, 0)))
             return false;
       }
 
@@ -4782,8 +4787,6 @@ static bool sem_globally_static(tree_t t)
       return true;
    }
 
-   // TODO: clause h
-
    // A function call of a pure function with globally static actuals
    if (kind == T_FCALL) {
       tree_t decl = tree_ref(t);
@@ -4818,7 +4821,7 @@ static bool sem_globally_static(tree_t t)
 
       tree_t name = tree_name(t);
 
-      if (standard() >= STD_08) {
+      if (standard() >= STD_08 || relaxed_rules()) {
          // LRM 08 section 9.4.3: A prefix is appropriate for a globally
          // static attribute if it denotes a signal, a constant, a type
          // or subtype, a globally static function call, a variable that
@@ -4845,10 +4848,11 @@ static bool sem_globally_static(tree_t t)
          }
       }
 
-      if (tree_has_type(name))
-         return sem_static_subtype(tree_type(name), sem_globally_static);
+      type_t type = get_type_or_null(name);
+      if (type == NULL)
+         return false;
 
-      return false;
+      return sem_static_subtype(type, sem_globally_static);
    }
 
    // A qualified expression whose operand is globally static

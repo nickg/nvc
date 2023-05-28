@@ -33,7 +33,7 @@ begin
         constant d : bit_vector(G downto 0) := (others => '0');
     begin
         case v is
-            when c =>                   -- Error
+            when c =>                   -- OK
                 null;
             when others =>
                 null;
@@ -104,6 +104,15 @@ begin
         constant n : integer := bad_func(2);    -- Error
         subtype t is integer range 0 to n - 1;  -- Crash in sem_locally_static
     begin
+    end process;
+
+    p3: process is
+        constant STR : string := "abc";
+        variable v : string(1 to 3);
+    begin
+        case v is
+            when STR => null;           -- OK
+        end case;
     end process;
 
 end architecture;
