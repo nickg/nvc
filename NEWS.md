@@ -19,7 +19,7 @@
 - `vhpi_put_value` with `vhpiDepositPropagate` mode is now supported.
 - The Synopsys `std_logic_misc` package is now compiled for 2008 (#696).
 - Fixed an issue where leading `NUL` characters in a report message
-  would prevent the entire message being printed (#701).
+  would prevent the entire message being printed (#700).
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

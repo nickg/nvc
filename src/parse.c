@@ -7841,7 +7841,7 @@ static void p_package_declarative_item(tree_t pack)
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
    //   | 2008: package_instantiation_declaration
-   //   | 2008: package_declaration | 2009: mode_view_declaration
+   //   | 2008: package_declaration | 2019: mode_view_declaration
    //
 
    BEGIN("package declarative item");
