@@ -550,13 +550,15 @@ static void diag_print_utf8(const char *str, size_t len, FILE *f)
 
    bool have_non_utf8 = false;
    for (const unsigned char *p = ustr; p < ustr + len; p++) {
-      if ((*p >= 128 || *p < 0x20 || *p == 0x7f) && !have_non_utf8) {
+      if (have_non_utf8)
+         diag_putc_utf8(*p, f);
+      else if (*p == '\033')
+         continue;  // Do not replace ANSI escapes
+      else if (*p >= 128 || *p < 0x20 || *p == 0x7f) {
          fwrite(str, 1, p - ustr, f);
          diag_putc_utf8(*p, f);
          have_non_utf8 = true;
       }
-      else if (have_non_utf8)
-         diag_putc_utf8(*p, f);
    }
 
    if (!have_non_utf8)
