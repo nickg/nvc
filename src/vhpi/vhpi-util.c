@@ -24,6 +24,7 @@
 #include "vhpi/vhpi-util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -296,6 +297,14 @@ vhpiPhysT vhpi_phys_from_native(int64_t value)
       .high = value >> 32
    };
    return result;
+}
+
+vhpiIntT vhpi_int_from_native(int64_t value)
+{
+   if (value > INT32_MAX || value < INT32_MIN)
+      fatal_trace("value %" PRId64 "is too large for vhpiIntT", value);
+
+   return value;
 }
 
 uint64_t vhpi_time_to_native(const vhpiTimeT *time)
