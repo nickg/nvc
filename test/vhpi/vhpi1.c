@@ -406,5 +406,12 @@ void vhpi1_startup(void)
    vhpi_printf("v type name is %s", vhpi_get_str(vhpiNameP, v_type));
    vhpi_printf("v type full name is %s", vhpi_get_str(vhpiFullNameP, v_type));
 
+   vhpiHandleT v_elem = vhpi_handle(vhpiElemType, v_type);
+   check_error();
+   fail_if(v_elem == NULL);
+   vhpi_printf("v elem type handle %p", v_elem);
+   vhpi_printf("v elem type name is %s", vhpi_get_str(vhpiNameP, v_elem));
+   vhpi_printf("v elem type full name is %s", vhpi_get_str(vhpiFullNameP, v_elem));
+
    vhpi_release_handle(root);
 }
