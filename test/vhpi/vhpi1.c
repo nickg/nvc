@@ -330,6 +330,8 @@ void vhpi1_startup(void)
    vhpi_printf("root name is %s", root_name);
    vhpi_printf("root full name is %s", vhpi_get_str(vhpiFullNameP, root));
 
+   fail_unless(vhpi_scan(root) == NULL);
+
    vhpiHandleT root_ports = vhpi_iterator(vhpiPortDecls, root);
    fail_if(root_ports == NULL);
    for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports))
