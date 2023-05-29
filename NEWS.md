@@ -22,6 +22,7 @@
   would prevent the entire message being printed (#700).
 - Added support for interfaces in VHDL-2019 including mode view
   declarations, mode view indications, and the `'converse` attribute.
+- Added support for VHDL-2008 matching `select?` statements (#705).
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

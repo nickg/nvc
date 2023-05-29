@@ -351,6 +351,7 @@ typedef enum tree_kind {
    T_COND_VALUE,
    T_COND_RETURN,
    T_VIEW_ELEMENT,
+   T_MATCH_SELECT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

@@ -9758,16 +9758,24 @@ static tree_t p_selected_signal_assignment(void)
 
    consume(tWITH);
 
-   tree_t conc = tree_new(T_CONCURRENT);
-   tree_t stmt = tree_new(T_SELECT);
-
-   tree_add_stmt(conc, stmt);
-
    tree_t value = p_expression();
-   tree_set_value(stmt, value);
    solve_types(nametab, value, NULL);
 
    consume(tSELECT);
+
+   tree_t stmt;
+   if (optional(tQUESTION)) {
+      require_std(STD_08, "matching select statements");
+      stmt = tree_new(T_MATCH_SELECT);
+   }
+   else
+      stmt = tree_new(T_SELECT);
+
+   tree_set_value(stmt, value);
+
+   tree_t conc = tree_new(T_CONCURRENT);
+   tree_add_stmt(conc, stmt);
+
    tree_t target = p_target(NULL);
 
    consume(tLE);

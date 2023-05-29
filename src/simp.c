@@ -824,7 +824,10 @@ static tree_t simp_select(tree_t t)
 {
    // Replace a select statement with a case statement
 
-   tree_t c = tree_new(T_CASE);
+   const tree_kind_t kind =
+      tree_kind(t) == T_MATCH_SELECT ? T_MATCH_CASE : T_CASE;
+
+   tree_t c = tree_new(kind);
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
 
@@ -1275,6 +1278,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_COND_ASSIGN:
       return simp_cond_assign(t);
    case T_SELECT:
+   case T_MATCH_SELECT:
       return simp_select(t);
    case T_WAIT:
       return simp_wait(t);

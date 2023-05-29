@@ -6000,6 +6000,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_PROT_REF:
       return sem_check_prot_ref(t, tab);
    case T_MATCH_CASE:
+   case T_MATCH_SELECT:
       return sem_check_match_case(t, tab);
    case T_FUNC_INST:
    case T_PROC_INST:
