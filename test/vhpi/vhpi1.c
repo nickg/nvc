@@ -416,6 +416,8 @@ void vhpi1_startup(void)
    fail_if(v_range == NULL);
    fail_unless(vhpi_scan(v_constrs) == NULL);
    vhpi_printf("v type range handle %p", v_range);
+   vhpi_printf("v left bound %d", vhpi_get(vhpiLeftBoundP, v_range));
+   vhpi_printf("v right bound %d", vhpi_get(vhpiRightBoundP, v_range));
 
    vhpiHandleT v_elem = vhpi_handle(vhpiElemType, v_type);
    check_error();

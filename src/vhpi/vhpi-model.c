@@ -1238,6 +1238,20 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return vhpiUndefined;
       }
 
+   case vhpiLeftBoundP:
+   case vhpiRightBoundP:
+      {
+         c_intRange *ir = cast_intRange(obj);
+         if (ir == NULL)
+            return vhpiUndefined;
+
+         VHPI_TRACE("left=%d right=%d", ir->LeftBound, ir->RightBound);
+         if (property == vhpiLeftBoundP)
+            return ir->LeftBound;
+         else
+            return ir->RightBound;
+      }
+
    case vhpiStaticnessP:
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
