@@ -376,6 +376,16 @@ static c_objDecl *cast_objDecl(c_vhpiObject *obj)
       return NULL;
    }
 }
+static c_range *is_range(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiPhysRangeK:
+   case vhpiIntRangeK:
+      return container_of(obj, c_range, object);
+   default:
+      return NULL;
+   }
+}
 
 static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
 {
@@ -543,6 +553,7 @@ static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
 
    d->type   = type;
    d->format = vhpi_format_for_type(d->type, &d->map_str);
+   d->IsUnconstrained = type_is_unconstrained(d->type);
 }
 
 static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, type_t type)
@@ -1211,6 +1222,21 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       if (obj->kind != vhpiToolK)
          vhpi_error(vhpiInternal, &(obj->loc), "vhpiArgcP is only supported for tool objects");
       return 0;
+
+   case vhpiIsUnconstrainedP:
+      {
+         c_range *r = is_range(obj);
+         if (r != NULL)
+            return r->IsUnconstrained;
+
+         c_typeDecl *td = is_typeDecl(obj);
+         if (td != NULL)
+            return td->IsUnconstrained;
+
+         vhpi_error(vhpiFailure, NULL,
+                    "unsupported property vhpiIsUnconstrainedP in vhpi_get");
+         return vhpiUndefined;
+      }
 
    case vhpiStaticnessP:
    default:
