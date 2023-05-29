@@ -34,6 +34,10 @@ VHPI printf v right bound 0
 VHPI printf v elem type handle
 VHPI printf v elem type name is BIT
 VHPI printf v elem type full name is @STD:STANDARD:BIT
+VHPI printf v indexed name is V(3)
+VHPI printf v indexed name is V(2)
+VHPI printf v indexed name is V(1)
+VHPI printf v indexed name is V(0)
 VHPI printf start of sim callback! user data is 'some user data'
 0ms+0: Report Note: x=5
 VHPI printf after_5ns callback!

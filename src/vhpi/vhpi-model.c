@@ -175,11 +175,13 @@ typedef struct {
 } c_recordTypeDecl;
 
 typedef struct {
-   c_abstractDecl  decl;
-   rt_signal_t    *signal;
-   c_typeDecl     *Type;
-   vhpiIntT        Access;
-   vhpiBooleanT    IsDynamic;
+   c_abstractDecl   decl;
+   vhpiObjectListT  IndexedNames;
+   rt_signal_t     *signal;
+   c_typeDecl      *Type;
+   vhpiIntT         Access;
+   vhpiBooleanT     IsDynamic;
+   bool             IndexedNames_valid;
 } c_objDecl;
 
 typedef struct {
@@ -206,8 +208,9 @@ typedef struct {
 DEF_CLASS(portDecl, vhpiPortDeclK, interface.objDecl.decl.object);
 
 typedef struct tag_expr {
-   c_vhpiObject    object;
-   vhpiStaticnessT Staticness;
+   c_vhpiObject     object;
+   c_typeDecl      *Type;
+   vhpiStaticnessT  Staticness;
 } c_expr;
 
 typedef struct {
@@ -223,6 +226,31 @@ typedef struct {
    c_literal literal;
    vhpiPhysT PhysVal;
 } c_physLiteral;
+
+typedef struct {
+   c_expr          expr;
+   vhpiObjectListT IndexedNames;
+   vhpiStringT     FullCaseName;
+   vhpiStringT     CaseName;
+   vhpiStringT     FullName;
+   vhpiStringT     Name;
+   vhpiStringT     DefName;
+   vhpiAccessT     Access;
+   bool            IndexedNames_valid;
+} c_name;
+
+typedef struct {
+   c_name     name;
+   c_objDecl *simpleName;
+   c_name    *Prefix;
+} c_prefixedName;
+
+typedef struct {
+   c_prefixedName prefixedName;
+   vhpiIntT       BaseIndex;
+} c_indexedName;
+
+DEF_CLASS(indexedName, vhpiIndexedNameK, prefixedName.name.expr.object);
 
 typedef struct {
    c_vhpiObject    object;
@@ -365,18 +393,26 @@ static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
    }
 }
 
-static c_objDecl *cast_objDecl(c_vhpiObject *obj)
+static c_objDecl *is_objDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiSigDeclK:
    case vhpiPortDeclK:
       return container_of(obj, c_objDecl, decl.object);
    default:
-      vhpi_error(vhpiError, NULL, "class kind %s is not an object declaration",
-                 vhpi_class_str(obj->kind));
       return NULL;
    }
 }
+
+static c_objDecl *cast_objDecl(c_vhpiObject *obj)
+{
+   c_objDecl *od = is_objDecl(obj);
+   if (od == NULL)
+      vhpi_error(vhpiError, NULL, "class kind %s is not an object declaration",
+                 vhpi_class_str(obj->kind));
+   return od;
+}
+
 static c_range *is_range(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -398,6 +434,26 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
       return container_of(obj, c_typeDecl, decl.object);
+   default:
+      return NULL;
+   }
+}
+
+static c_expr *is_expr(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiIndexedNameK:
+      return container_of(obj, c_expr, object);
+   default:
+      return NULL;
+   }
+}
+
+static c_name *is_name(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiIndexedNameK:
+      return container_of(obj, c_name, expr.object);
    default:
       return NULL;
    }
@@ -576,6 +632,135 @@ static void init_range(c_range *r, tree_t t)
    r->IsUp = (rkind == RANGE_TO);
 }
 
+static void init_expr(c_expr *e, c_typeDecl *Type)
+{
+   e->Type = Type;
+}
+
+static void init_name(c_name *n, c_typeDecl *Type,
+                      vhpiStringT Name, vhpiStringT FullName)
+{
+   init_expr(&(n->expr), Type);
+   n->Name = n->CaseName = Name;
+   n->FullName = n->FullCaseName = FullName;
+}
+
+static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
+                              c_objDecl *simpleName, c_name *prefix,
+                              const char *suffix)
+{
+   vhpiStringT Name, FullName;
+
+   if (prefix != NULL) {
+      pn->Prefix = prefix;
+      Name = prefix->Name;
+      FullName = prefix->FullName;
+   }
+   else {
+      Name = simpleName->decl.Name;
+      FullName = simpleName->decl.FullName;
+   }
+
+   vhpiStringT name = (vhpiStringT)xasprintf("%s%s", Name, suffix);
+   vhpiStringT fullname = (vhpiStringT)xasprintf("%s%s", FullName, suffix);
+   init_name(&(pn->name), Type, name, fullname);
+   pn->simpleName = simpleName;
+}
+
+static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
+                             c_objDecl *simpleName, c_name *prefix,
+                             vhpiObjectListT *Constraints, vhpiIntT indices[])
+{
+   vhpiIntT BaseIndex = 0;
+
+   LOCAL_TEXT_BUF suffix = tb_new();
+   tb_append(suffix, '(');
+   for (int i = 0; i < Constraints->count; i++) {
+      if (i != 0)
+         tb_append(suffix, ',');
+
+      c_intRange *ir = is_intRange(Constraints->items[i]);
+      assert(ir != NULL);
+
+      int idx;
+      if (ir->LeftBound > ir->RightBound) {
+         idx = ir->LeftBound - indices[i];
+         BaseIndex *= ir->LeftBound - ir->RightBound + 1;
+      }
+      else {
+         idx = indices[i] - ir->LeftBound;
+         BaseIndex *= ir->RightBound - ir->LeftBound + 1;
+      }
+
+      BaseIndex += indices[i];
+      tb_printf(suffix, "%d", idx);
+   }
+   tb_append(suffix, ')');
+
+   init_prefixedName(&(in->prefixedName), Type, simpleName, prefix,
+                     tb_get(suffix));
+   in->BaseIndex = BaseIndex;
+}
+
+static vhpiIntT range_len(c_intRange *ir)
+{
+   if (ir->LeftBound > ir->RightBound)
+      return ir->LeftBound - ir->RightBound + 1;
+   else
+      return ir->RightBound - ir->LeftBound + 1;
+}
+
+static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *simpleName,
+                                    c_name *prefix, c_typeDecl *Type)
+{
+   int i;
+
+   if (Type == NULL)
+      Type = simpleName->Type;
+
+   vhpiObjectListT *Constraints;
+   c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
+   c_arrayTypeDecl *atd = is_arrayTypeDecl(&(Type->decl.object));
+   if (std != NULL) {
+      Constraints = &(std->Constraints);
+      atd = is_arrayTypeDecl(&(Type->BaseType->decl.object));
+      if (atd == NULL)
+         return;
+   }
+   else if (atd != NULL)
+      Constraints = &(atd->Constraints);
+   else
+      return;
+
+   if (Constraints->count == 0)
+      return;
+
+   vhpiIntT *lens LOCAL = xmalloc_array(Constraints->count, sizeof(vhpiIntT));
+   for (i = 0; i < Constraints->count; i++) {
+      c_intRange *ir = is_intRange(Constraints->items[i]);
+      assert(ir != NULL);
+      if (ir->range.IsUnconstrained)
+         return;
+
+      lens[i] = range_len(ir);
+   }
+
+   vhpiIntT *indices LOCAL = xcalloc_array(Constraints->count, sizeof(vhpiIntT));
+   do {
+      c_indexedName *in = new_object(sizeof(c_indexedName), vhpiIndexedNameK);
+      init_indexedName(in, atd->ElemType, simpleName, prefix, Constraints, indices);
+      APUSH(*IndexedNames, &(in->prefixedName.name.expr.object));
+
+      for (i = Constraints->count - 1; i >= 0; i--) {
+         indices[i]++;
+         if (indices[i] >= lens[i])
+            indices[i] = 0;
+         else
+            break;
+      }
+   } while (i > 0 || indices[0] != 0);
+}
+
 static void init_designUnit(c_designUnit *u, tree_t t)
 {
    const loc_t *loc = tree_loc(t);
@@ -648,7 +833,38 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
          it->single = &(ptd->constraint->object);
          return true;
       }
+      return false;
+   }
 
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL) {
+      if (type == vhpiIndexedNames) {
+         if (!od->IndexedNames_valid) {
+            vhpi_build_indexedNames(&(od->IndexedNames), od, NULL, NULL);
+            od->IndexedNames_valid = true;
+         }
+         it->list = &(od->IndexedNames);
+         return true;
+      }
+      return false;
+   }
+
+   c_name *n = is_name(obj);
+   if (n != NULL) {
+      if (type == vhpiIndexedNames) {
+         if (!n->IndexedNames_valid) {
+            c_indexedName *in = cast_indexedName(&(n->expr.object));
+            if (in == NULL)
+               return false;
+
+            vhpi_build_indexedNames(&(n->IndexedNames),
+                                    in->prefixedName.simpleName, n,
+                                    n->expr.Type);
+            n->IndexedNames_valid = true;
+         }
+         it->list = &(n->IndexedNames);
+         return true;
+      }
       return false;
    }
 
@@ -1010,6 +1226,12 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          c_typeDecl *td = is_typeDecl(obj);
          if (td != NULL)
             return handle_for(&(td->BaseType->decl.object));
+
+         c_expr *e = is_expr(obj);
+         if (e != NULL) {
+            td = e->Type->BaseType ?: e->Type;
+            return handle_for(&(td->decl.object));
+         }
       }
    case vhpiType:
       {
@@ -1203,12 +1425,20 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    case vhpiSizeP:
       {
-         c_objDecl *decl = cast_objDecl(obj);
-         if (decl == NULL)
-            return 0;
+         c_typeDecl *td;
+         c_name *n = is_name(obj);
+         if (n != NULL)
+            td = n->expr.Type;
+         else {
+            c_objDecl *decl = cast_objDecl(obj);
+            if (decl == NULL)
+               return 0;
 
-         assert(!decl->Type->IsUnconstrained);
-         return decl->Type->size;
+            td = decl->Type;
+         }
+
+         assert(!td->IsUnconstrained);
+         return td->size;
       }
 
    case vhpiArgcP:
@@ -1298,6 +1528,17 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
       case vhpiFullNameP: return d->FullName;
       case vhpiFullCaseNameP: return d->FullCaseName;
+      default: goto unsupported;
+      }
+   }
+
+   c_name *n = is_name(obj);
+   if (n != NULL) {
+      switch (property) {
+      case vhpiNameP: return n->Name;
+      case vhpiCaseNameP: return n->CaseName;
+      case vhpiFullNameP: return n->FullName;
+      case vhpiFullCaseNameP: return n->FullCaseName;
       default: goto unsupported;
       }
    }
@@ -1741,14 +1982,6 @@ static c_intRange *build_unconstrained()
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    ir->range.IsUnconstrained = vhpiTrue;
    return ir;
-}
-
-static vhpiIntT range_len(c_intRange *ir)
-{
-   if (ir->LeftBound > ir->RightBound)
-      return ir->LeftBound - ir->RightBound + 1;
-   else
-      return ir->RightBound - ir->LeftBound + 1;
 }
 
 static c_typeDecl *cached_typeDecl(type_t type);
