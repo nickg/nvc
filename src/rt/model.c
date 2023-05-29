@@ -122,19 +122,6 @@ typedef struct _rt_model {
          __model_trace(get_model(), __VA_ARGS__);       \
    } while (0)
 
-#define FOR_ALL_SIZES(size, macro) do {                 \
-      switch (size) {                                   \
-      case 1:                                           \
-         macro(uint8_t); break;                         \
-      case 2:                                           \
-         macro(uint16_t); break;                        \
-      case 4:                                           \
-         macro(uint32_t); break;                        \
-      case 8:                                           \
-         macro(uint64_t); break;                        \
-      }                                                 \
-   } while (0)
-
 #define MODEL_ENTRY(m)                                                  \
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
@@ -849,6 +836,11 @@ const void *signal_last_value(rt_signal_t *s)
 uint32_t signal_width(rt_signal_t *s)
 {
    return s->shared.size / s->nexus.size;
+}
+
+uint8_t signal_size(rt_signal_t *s)
+{
+   return s->nexus.size;
 }
 
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
