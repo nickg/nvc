@@ -235,7 +235,6 @@ typedef struct {
 typedef struct {
    c_designInstUnit designInstUnit;
    vhpiObjectListT  ports;
-   vhpiObjectListT  regions;
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
@@ -263,6 +262,7 @@ DEF_CLASS(callback, vhpiCallbackK, object);
 typedef struct {
    c_vhpiObject     object;
    vhpiObjectListT *list;
+   c_vhpiObject    *single;
    uint32_t         pos;
 } c_iterator;
 
@@ -570,7 +570,9 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    if (rootInst != NULL) {
       switch (type) {
       case vhpiPortDecls: it->list = &(rootInst->ports); return true;
-      case vhpiInternalRegions: it->list = &(rootInst->regions); return true;
+      case vhpiInternalRegions:
+         it->single = &(rootInst->designInstUnit.region.object);
+         return true;
       default: break;
       }
    }
@@ -1075,6 +1077,9 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
    c_iterator *it = cast_iterator(obj);
    if (it == NULL)
       return NULL;
+
+   if (it->single)
+      return it->pos++ ? NULL : handle_for(it->single);
 
    if (it->pos < it->list->count) {
       vhpiHandleT handle = handle_for(it->list->items[it->pos++]);
@@ -1779,7 +1784,6 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m)
 
    rootInst = new_object(sizeof(c_rootInst), vhpiRootInstK);
    init_designInstUnit(&(rootInst->designInstUnit), b0, &(arch->designUnit));
-   APUSH(rootInst->regions, &(rootInst->designInstUnit.region.object));
 
    vhpi_build_decls(b0, &(rootInst->designInstUnit.region));
    vhpi_build_ports(b0, rootInst);
