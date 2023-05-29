@@ -27,6 +27,9 @@ VHPI printf v full name is :VHPI1:V
 VHPI printf v type handle
 VHPI printf v type name is BIT_VECTOR
 VHPI printf v type full name is @STD:STANDARD:BIT_VECTOR
+VHPI printf v elem type handle
+VHPI printf v elem type name is BIT
+VHPI printf v elem type full name is @STD:STANDARD:BIT
 VHPI printf start of sim callback! user data is 'some user data'
 0ms+0: Report Note: x=5
 VHPI printf after_5ns callback!
