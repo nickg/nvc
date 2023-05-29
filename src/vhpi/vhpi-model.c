@@ -105,6 +105,14 @@ typedef struct {
 
 DEF_CLASS(physRange, vhpiPhysRangeK, range.object);
 
+typedef struct {
+   c_range  range;
+   vhpiIntT LeftBound;
+   vhpiIntT RightBound;
+} c_intRange;
+
+DEF_CLASS(intRange, vhpiIntRangeK, range.object);
+
 typedef struct tag_typeDecl c_typeDecl;
 
 typedef struct tag_typeDecl {
@@ -121,6 +129,7 @@ typedef struct tag_typeDecl {
 
 typedef struct {
    c_typeDecl      typeDecl;
+   vhpiObjectListT Constraints;
    vhpiBooleanT    isResolved;
 } c_subTypeDecl;
 
@@ -154,6 +163,7 @@ typedef struct {
    c_compositeTypeDecl composite;
    c_typeDecl         *ElemType;
    vhpiIntT            NumDimensions;
+   vhpiObjectListT     Constraints;
 } c_arrayTypeDecl;
 
 DEF_CLASS(arrayTypeDecl, vhpiArrayTypeDeclK, composite.typeDecl.decl.object);
@@ -599,6 +609,24 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
          return true;
       default: return false;
       }
+   }
+
+   c_arrayTypeDecl *array = is_arrayTypeDecl(obj);
+   if (array != NULL) {
+      if (type == vhpiConstraints) {
+         it->list = &(array->Constraints);
+         return true;
+      }
+      return false;
+   }
+
+   c_subTypeDecl *subtype = is_subTypeDecl(obj);
+   if (subtype != NULL) {
+      if (type == vhpiConstraints) {
+         it->list = &(subtype->Constraints);
+         return true;
+      }
+      return false;
    }
 
    c_physTypeDecl *ptd = is_physTypeDecl(obj);
@@ -1654,6 +1682,24 @@ static c_physRange *build_phys_range(tree_t t)
    return pr;
 }
 
+static c_intRange *build_int_range(tree_t t)
+{
+   c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
+   init_range(&(ir->range), t);
+
+   ir->LeftBound  = vhpi_int_from_native(assume_int(tree_left(t)));
+   ir->RightBound = vhpi_int_from_native(assume_int(tree_right(t)));
+
+   return ir;
+}
+
+static c_intRange *build_unconstrained()
+{
+   c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
+   ir->range.IsUnconstrained = vhpiTrue;
+   return ir;
+}
+
 static c_typeDecl *cached_typeDecl(type_t type);
 
 static c_typeDecl *build_typeDecl(type_t type)
@@ -1706,6 +1752,9 @@ static c_typeDecl *build_typeDecl(type_t type)
          init_compositeTypeDecl(&(td->composite), decl, type);
          td->NumDimensions = type_index_constrs(type);
          td->ElemType = cached_typeDecl(type_elem(type));
+
+         for (int i = 0; i < td->NumDimensions; i++)
+            APUSH(td->Constraints, &(build_unconstrained()->range.object));
          return &(td->composite.typeDecl);
       }
 
@@ -1729,6 +1778,10 @@ static c_typeDecl *build_typeDecl(type_t type)
             tree_t c = type_constraint(type, 0);
             assert(tree_subkind(c) == C_INDEX);
             td->NumDimensions = tree_ranges(c);
+            for (int i = 0; i < td->NumDimensions; i++) {
+               c_intRange *ir = build_int_range(tree_range(c, i));
+               APUSH(td->Constraints, &(ir->range.object));
+            }
 
             return &(td->composite.typeDecl);
          }
@@ -1738,6 +1791,18 @@ static c_typeDecl *build_typeDecl(type_t type)
          init_typeDecl(&(td->typeDecl), decl, type);
          td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type));
          td->isResolved = type_has_resolution(type);
+
+         unsigned nconstrs = type_constraints(type);
+         if (nconstrs != 0) {
+            assert(nconstrs == 1);
+
+            tree_t c = type_constraint(type, 0);
+            if (tree_subkind(c) != C_RANGE)
+               fatal_trace("unsupported constraint subkind %d\n", tree_subkind(c));
+
+            c_intRange *ir = build_int_range(tree_range(c, 0));
+            APUSH(td->Constraints, &(ir->range.object));
+         }
 
          return &(td->typeDecl);
       }

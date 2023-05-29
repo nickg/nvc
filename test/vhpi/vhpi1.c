@@ -406,6 +406,16 @@ void vhpi1_startup(void)
    vhpi_printf("v type name is %s", vhpi_get_str(vhpiNameP, v_type));
    vhpi_printf("v type full name is %s", vhpi_get_str(vhpiFullNameP, v_type));
 
+   vhpiHandleT v_constrs = vhpi_iterator(vhpiConstraints, v_type);
+   check_error();
+   fail_if(v_constrs == NULL);
+
+   vhpiHandleT v_range = vhpi_scan(v_constrs);
+   check_error();
+   fail_if(v_range == NULL);
+   fail_unless(vhpi_scan(v_constrs) == NULL);
+   vhpi_printf("v type range handle %p", v_range);
+
    vhpiHandleT v_elem = vhpi_handle(vhpiElemType, v_type);
    check_error();
    fail_if(v_elem == NULL);
