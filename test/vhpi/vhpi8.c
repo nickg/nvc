@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static vhpiHandleT lv, sv, ev;
+static vhpiHandleT lv, sv, ev, lv2, sv2, ev2;
 
 static void last_delta(const vhpiCbDataT *cb_data)
 {
@@ -21,6 +21,14 @@ static void last_delta(const vhpiCbDataT *cb_data)
    fail_unless(s[2] == 1);
    fail_unless(s[3] == 0);
 
+   vhpiValueT sval2 = {
+      .format = vhpiSmallEnumVal,
+   };
+
+   vhpi_get_value(sv2, &sval2);
+   check_error();
+   fail_unless(sval2.value.smallenumv == 1);
+
    vhpiEnumT l[4];
    vhpiValueT lval = {
       .format = vhpiEnumVecVal,
@@ -35,6 +43,14 @@ static void last_delta(const vhpiCbDataT *cb_data)
    fail_unless(l[2] == 297);
    fail_unless(l[3] == 296);
 
+   vhpiValueT lval2 = {
+      .format = vhpiEnumVal,
+   };
+
+   vhpi_get_value(ev2, &lval2);
+   check_error();
+   fail_unless(lval2.value.enumv == 297);
+
    lval.format = vhpiLogicVecVal;
    vhpi_get_value(lv, &lval);
    check_error();
@@ -42,6 +58,11 @@ static void last_delta(const vhpiCbDataT *cb_data)
    fail_unless(l[1] == 7);
    fail_unless(l[2] == 6);
    fail_unless(l[3] == 5);
+
+   lval2.format = vhpiLogicVal,
+   vhpi_get_value(lv2, &lval2);
+   check_error();
+   fail_unless(lval2.value.enumv == 6);
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
@@ -59,6 +80,14 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(s[1] == 1);
    fail_unless(s[2] == 2);
    fail_unless(s[3] == 3);
+
+   vhpiValueT sval2 = {
+      .format = vhpiSmallEnumVal,
+   };
+
+   vhpi_get_value(sv2, &sval2);
+   check_error();
+   fail_unless(sval2.value.smallenumv == 2);
 
    s[0] = 3;
    s[1] = 2;
@@ -81,6 +110,14 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(l[2] == 2);
    fail_unless(l[3] == 3);
 
+   vhpiValueT lval2 = {
+      .format = vhpiEnumVal,
+   };
+
+   vhpi_get_value(ev2, &lval2);
+   check_error();
+   fail_unless(lval2.value.enumv == 2);
+
    l[0] = 299;
    l[1] = 298;
    l[2] = 297;
@@ -95,6 +132,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(l[1] == 1);
    fail_unless(l[2] == 2);
    fail_unless(l[3] == 3);
+
+   lval2.format = vhpiLogicVal,
+   vhpi_get_value(lv2, &lval2);
+   check_error();
+   fail_unless(lval2.value.enumv == 2);
 
    l[0] = 8;
    l[1] = 7;
@@ -126,13 +168,25 @@ void vhpi8_startup(void)
    check_error();
    fail_if(lv == NULL);
 
+   lv2 = vhpi_handle_by_index(vhpiIndexedNames, lv, 2);
+   check_error();
+   fail_if(lv2 == NULL);
+
    sv = vhpi_handle_by_name("sv", root);
    check_error();
    fail_if(sv == NULL);
 
+   sv2 = vhpi_handle_by_index(vhpiIndexedNames, sv, 2);
+   check_error();
+   fail_if(sv2 == NULL);
+
    ev = vhpi_handle_by_name("ev", root);
    check_error();
    fail_if(ev == NULL);
+
+   ev2 = vhpi_handle_by_index(vhpiIndexedNames, ev, 2);
+   check_error();
+   fail_if(ev2 == NULL);
 
    vhpi_release_handle(root);
 }

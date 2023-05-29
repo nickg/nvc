@@ -833,11 +833,6 @@ const void *signal_last_value(rt_signal_t *s)
    return s->shared.data + s->shared.size;
 }
 
-uint32_t signal_width(rt_signal_t *s)
-{
-   return s->shared.size / s->nexus.size;
-}
-
 uint8_t signal_size(rt_signal_t *s)
 {
    return s->nexus.size;
@@ -3102,17 +3097,17 @@ static inline void check_delay(int64_t delay)
    }
 }
 
-void force_signal(rt_signal_t *s, const void *values, size_t count)
+void force_signal(rt_signal_t *s, const void *values, int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("force signal %s to %s", istr(tree_ident(s->where)),
+   TRACE("force signal %s (offset %d) to %s", istr(tree_ident(s->where)), offset,
          fmt_values(values, count));
 
    rt_model_t *m = get_model();
    assert(m->can_create_delta);
 
-   rt_nexus_t *n = split_nexus(m, s, 0, count);
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
    const char *vptr = values;
    for (; count > 0; n = n->chain) {
       count -= n->width;
@@ -3128,17 +3123,17 @@ void force_signal(rt_signal_t *s, const void *values, size_t count)
    }
 }
 
-void deposit_signal(rt_signal_t *s, const void *values, size_t count)
+void deposit_signal(rt_signal_t *s, const void *values, int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("deposit signal %s to %s", istr(tree_ident(s->where)),
-         fmt_values(values, count));
+   TRACE("deposit signal %s (offset %d) to %s", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count));
 
    rt_model_t *m = get_model();
    assert(m->can_create_delta);
 
-   rt_nexus_t *n = split_nexus(m, s, 0, count);
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
    const char *vptr = values;
    for (; count > 0; n = n->chain) {
       count -= n->width;
