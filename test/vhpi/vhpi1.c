@@ -427,5 +427,10 @@ void vhpi1_startup(void)
    vhpi_printf("v elem type name is %s", vhpi_get_str(vhpiNameP, v_elem));
    vhpi_printf("v elem type full name is %s", vhpi_get_str(vhpiFullNameP, v_elem));
 
+   vhpiHandleT v_names = vhpi_iterator(vhpiIndexedNames, handle_v);
+   fail_if(v_names == NULL);
+   for (vhpiHandleT name = vhpi_scan(v_names); name != NULL; name = vhpi_scan(v_names))
+      vhpi_printf("v indexed name is %s", vhpi_get_str(vhpiNameP, name));
+
    vhpi_release_handle(root);
 }

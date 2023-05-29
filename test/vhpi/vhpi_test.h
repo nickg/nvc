@@ -34,5 +34,6 @@ void vhpi2_startup(void);
 void vhpi3_startup(void);
 void vhpi5_startup(void);
 void vhpi6_startup(void);
+void vhpi7_startup(void);
 
 #endif  // _VHPI_TEST_H
