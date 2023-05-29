@@ -394,4 +394,17 @@ void list_clear(ptr_list_t *l);
       }                                         \
    } while (0)
 
+#define FOR_ALL_SIZES(size, macro) do {                 \
+      switch (size) {                                   \
+      case 1:                                           \
+         macro(uint8_t); break;                         \
+      case 2:                                           \
+         macro(uint16_t); break;                        \
+      case 4:                                           \
+         macro(uint32_t); break;                        \
+      case 8:                                           \
+         macro(uint64_t); break;                        \
+      }                                                 \
+   } while (0)
+
 #endif // _UTIL_H

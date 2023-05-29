@@ -1734,26 +1734,63 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    switch (decl->Type->format) {
    case vhpiLogicVal:
-   case vhpiEnumVal:
+      value_p->value.enumv = *signal_value_u8(signal);
+      return 0;
+
    case vhpiSmallEnumVal:
-      value_p->value.enumv = *(const uint8_t *)signal_value(signal);
+      value_p->value.smallenumv = *signal_value_u8(signal);
+      return 0;
+
+   case vhpiEnumVal:
+#define SIGNAL_READ_ENUM(type) \
+      value_p->value.enumv = *(const type *)signal_value(signal)
+
+      FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUM);
       return 0;
 
    case vhpiIntVal:
-      value_p->value.intg = *(const int32_t *)signal_value(signal);
+      value_p->value.intg = *(const uint32_t *)signal_value(signal);
       return 0;
 
    case vhpiLogicVecVal:
+      {
+         const int max = value_p->bufSize / sizeof(vhpiEnumT);
+         if (max < value_p->numElems)
+            return value_p->numElems * sizeof(vhpiEnumT);
+
+         const uint8_t *p = signal_value_u8(signal);
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.enumvs[i] = *p++;
+
+         return 0;
+      }
+
+   case vhpiSmallEnumVecVal:
+      {
+         const int max = value_p->bufSize / sizeof(vhpiSmallEnumT);
+         if (max < value_p->numElems)
+            return value_p->numElems * sizeof(vhpiSmallEnumT);
+
+         const uint8_t *p = signal_value_u8(signal);
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.smallenumvs[i] = *p++;
+
+         return 0;
+      }
+
    case vhpiEnumVecVal:
       {
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
 
-         const uint8_t *p = signal_value(signal);
-         for (int i = 0; i < value_p->numElems; i++)
-            value_p->value.enumvs[i] = *p++;
+#define SIGNAL_READ_ENUMV(type) do { \
+      const type *p = signal_value(signal); \
+      for (int i = 0; i < value_p->numElems; i++) \
+         value_p->value.enumvs[i] = *p++; \
+   } while (0)
 
+         FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUMV);
          return 0;
       }
 
@@ -1803,7 +1840,6 @@ int vhpi_put_value(vhpiHandleT handle,
 
          switch (value_p->format) {
          case vhpiLogicVal:
-         case vhpiEnumVal:
             num_elems = 1;
             byte = value_p->value.enumv;
             ptr = &byte;
@@ -1815,6 +1851,15 @@ int vhpi_put_value(vhpiHandleT handle,
             ptr = &byte;
             break;
 
+         case vhpiEnumVal:
+            num_elems = 1;
+#define SIGNAL_WRITE_ENUM(type) do { \
+      ptr = (type *)&int64; \
+      *((type *)&int64) = value_p->value.enumv; \
+   } while (0)
+
+            FOR_ALL_SIZES(signal_size(signal), SIGNAL_WRITE_ENUM);
+
          case vhpiIntVal:
             num_elems = 1;
             int64 = value_p->value.intg;
@@ -1822,7 +1867,6 @@ int vhpi_put_value(vhpiHandleT handle,
             break;
 
          case vhpiLogicVecVal:
-         case vhpiEnumVecVal:
             num_elems = value_p->bufSize / sizeof(vhpiEnumT);
             ext = ptr = xmalloc(num_elems);
             for (int i = 0; i < num_elems; i++)
@@ -1835,6 +1879,21 @@ int vhpi_put_value(vhpiHandleT handle,
             for (int i = 0; i < num_elems; i++)
                ((uint8_t *)ext)[i] = value_p->value.smallenumvs[i];
             break;
+
+         case vhpiEnumVecVal:
+            {
+               num_elems = value_p->bufSize / sizeof(vhpiEnumT);
+               uint8_t size = signal_size(signal);
+               ext = ptr = xmalloc_array(num_elems, size);
+
+#define SIGNAL_WRITE_ENUMV(type) do { \
+      for (int i = 0; i < num_elems; i++) \
+         ((type *)ext)[i] = value_p->value.enumvs[i]; \
+   } while (0)
+
+               FOR_ALL_SIZES(size, SIGNAL_WRITE_ENUMV);
+               break;
+            }
 
          default:
             vhpi_error(vhpiFailure, &(obj->loc), "value format "

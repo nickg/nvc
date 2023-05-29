@@ -268,7 +268,7 @@ int jit_get_edge(jit_edge_list_t *list, int nth)
 ////////////////////////////////////////////////////////////////////////////////
 // Local value numbering and simple peepholes
 
-#define FOR_ALL_SIZES(size, macro) do {                 \
+#define FOR_ALL_JIT_SIZES(size, macro) do {             \
       switch (size) {                                   \
       case JIT_SZ_8: macro(int8_t); break;              \
       case JIT_SZ_16: macro(int16_t); break;            \
@@ -513,7 +513,7 @@ static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
          }                                                              \
       } while (0)
 
-      FOR_ALL_SIZES(ir->size, FOLD_MUL);
+      FOR_ALL_JIT_SIZES(ir->size, FOLD_MUL);
 #undef FOLD_MUL
    }
 
@@ -553,7 +553,7 @@ static void jit_lvn_div(jit_ir_t *ir, lvn_state_t *state)
          return;                                                        \
       } while (0)
 
-      FOR_ALL_SIZES(ir->size, FOLD_DIV);
+      FOR_ALL_JIT_SIZES(ir->size, FOLD_DIV);
 #undef FOLD_DIV
    }
    else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 1) {
@@ -579,7 +579,7 @@ static void jit_lvn_add(jit_ir_t *ir, lvn_state_t *state)
          }                                                              \
       } while (0)
 
-      FOR_ALL_SIZES(ir->size, FOLD_ADD);
+      FOR_ALL_JIT_SIZES(ir->size, FOLD_ADD);
 #undef FOLD_ADD
    }
 
@@ -608,7 +608,7 @@ static void jit_lvn_sub(jit_ir_t *ir, lvn_state_t *state)
          }                                                              \
       } while (0)
 
-      FOR_ALL_SIZES(ir->size, FOLD_SUB);
+      FOR_ALL_JIT_SIZES(ir->size, FOLD_SUB);
 #undef FOLD_SUB
    }
 

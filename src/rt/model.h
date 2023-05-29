@@ -57,9 +57,15 @@ rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
 uint32_t signal_width(rt_signal_t *s);
+uint8_t signal_size(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
 void force_signal(rt_signal_t *s, const void *values, size_t count);
 void deposit_signal(rt_signal_t *s, const void *values, size_t count);
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
+
+static inline const uint8_t *signal_value_u8(rt_signal_t *s)
+{
+   return signal_value(s);
+}
 
 #endif  // _RT_MODEL_H
