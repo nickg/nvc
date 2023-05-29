@@ -511,13 +511,13 @@ static const char *handle_pp(vhpiHandleT handle)
    c_vhpiObject *obj = from_handle(handle);
    tb_cat(tb, vhpi_class_str(obj->kind));
 
-   switch (obj->kind) {
-   case vhpiPortDeclK:
-      tb_printf(tb, " Name=%s", cast_abstractDecl(obj)->Name);
-      break;
-   default:
-      break;
-   }
+   c_abstractDecl *decl = is_abstractDecl(obj);
+   if (decl != NULL)
+      tb_printf(tb, " Name=%s", decl->Name);
+
+   c_name *n = is_name(obj);
+   if (n != NULL)
+      tb_printf(tb, " Name=%s", n->Name);
 
    tb_append(tb, '}');
 
