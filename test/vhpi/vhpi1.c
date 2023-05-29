@@ -392,5 +392,19 @@ void vhpi1_startup(void)
 
    fail_unless(vhpi_get(vhpiKindP, handle_x) == vhpiPortDeclK);
 
+   vhpiHandleT handle_v = vhpi_handle_by_name("v", root);
+   check_error();
+   fail_if(handle_v == NULL);
+   vhpi_printf("v handle %p", handle_v);
+   vhpi_printf("v name is %s", vhpi_get_str(vhpiNameP, handle_v));
+   vhpi_printf("v full name is %s", vhpi_get_str(vhpiFullNameP, handle_v));
+
+   vhpiHandleT v_type = vhpi_handle(vhpiType, handle_v);
+   check_error();
+   fail_if(v_type == NULL);
+   vhpi_printf("v type handle %p", v_type);
+   vhpi_printf("v type name is %s", vhpi_get_str(vhpiNameP, v_type));
+   vhpi_printf("v type full name is %s", vhpi_get_str(vhpiFullNameP, v_type));
+
    vhpi_release_handle(root);
 }
