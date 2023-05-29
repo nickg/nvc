@@ -120,6 +120,13 @@ typedef struct tag_typeDecl {
 } c_typeDecl;
 
 typedef struct {
+   c_typeDecl      typeDecl;
+   vhpiBooleanT    isResolved;
+} c_subTypeDecl;
+
+DEF_CLASS(subTypeDecl, vhpiSubtypeDeclK, typeDecl.decl.object);
+
+typedef struct {
    c_typeDecl typeDecl;
 } c_scalarTypeDecl;
 
@@ -318,6 +325,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiPhysTypeDeclK:
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
+   case vhpiSubtypeDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -334,6 +342,7 @@ static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
    case vhpiPhysTypeDeclK:
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
+   case vhpiSubtypeDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       vhpi_error(vhpiError, NULL, "class kind %s is not a declaration",
@@ -358,6 +367,7 @@ static c_objDecl *cast_objDecl(c_vhpiObject *obj)
 static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
+   case vhpiSubtypeDeclK:
    case vhpiIntTypeDeclK:
    case vhpiEnumTypeDeclK:
    case vhpiPhysTypeDeclK:
@@ -952,6 +962,11 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
    switch (type) {
    case vhpiBaseType:
+      {
+         c_typeDecl *td = is_typeDecl(obj);
+         if (td != NULL)
+            return handle_for(&(td->BaseType->decl.object));
+      }
    case vhpiType:
       {
          c_objDecl *d = cast_objDecl(obj);
@@ -1628,6 +1643,8 @@ static c_physRange *build_phys_range(tree_t t)
    return pr;
 }
 
+static c_typeDecl *cached_typeDecl(type_t type);
+
 static c_typeDecl *build_typeDecl(type_t type)
 {
    ident_t id = type_ident(type);
@@ -1639,7 +1656,10 @@ static c_typeDecl *build_typeDecl(type_t type)
    if (decl == NULL)
       fatal_trace("cannot find type declaration for %s", istr(id));
 
-   assert(tree_kind(decl) == T_TYPE_DECL);
+   if (type_kind(type) == T_SUBTYPE)
+      assert(tree_kind(decl) == T_SUBTYPE_DECL || tree_kind(decl) == T_TYPE_DECL);
+   else
+      assert(tree_kind(decl) == T_TYPE_DECL);
 
    switch (type_kind(type)) {
    case T_INTEGER:
@@ -1686,6 +1706,29 @@ static c_typeDecl *build_typeDecl(type_t type)
          return &(td->composite.typeDecl);
       }
 
+   case T_SUBTYPE:
+      {
+         if (type_is_array(type)) {
+            c_arrayTypeDecl *td =
+               new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
+            init_compositeTypeDecl(&(td->composite), decl, type);
+
+            tree_t c = type_constraint(type, 0);
+            assert(tree_subkind(c) == C_INDEX);
+            td->NumDimensions = tree_ranges(c);
+
+            return &(td->composite.typeDecl);
+         }
+
+         c_subTypeDecl *td =
+            new_object(sizeof(c_subTypeDecl), vhpiSubtypeDeclK);
+         init_typeDecl(&(td->typeDecl), decl, type);
+         td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type));
+         td->isResolved = type_has_resolution(type);
+
+         return &(td->typeDecl);
+      }
+
    default:
       fatal_trace("cannot build VHPI typeDecl for %s %s",
                   type_kind_str(type_kind(type)), type_pp(type));
@@ -1710,7 +1753,7 @@ static c_typeDecl *cached_typeDecl(type_t type)
 static c_vhpiObject *vhpi_build_signal_decl(tree_t decl,
                                             c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(type_base_recur(tree_type(decl)));
+   c_typeDecl *td = cached_typeDecl(tree_type(decl));
 
    c_sigDecl *s = new_object(sizeof(c_sigDecl), vhpiSigDeclK);
    init_objDecl(&(s->objDecl), decl, region, td);
@@ -1736,7 +1779,7 @@ static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
 static c_vhpiObject *vhpi_build_port_decl(tree_t port, int pos,
                                           c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(type_base_recur(tree_type(port)));
+   c_typeDecl *td = cached_typeDecl(tree_type(port));
 
    c_portDecl *p = new_object(sizeof(c_portDecl), vhpiPortDeclK);
    init_interfaceDecl(&(p->interface), port, pos, region, td);

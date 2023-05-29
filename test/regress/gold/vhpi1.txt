@@ -21,6 +21,12 @@ VHPI printf x full name is :VHPI1:X
 VHPI printf y handle
 VHPI printf y name Y
 VHPI printf y full name is :VHPI1:Y
+VHPI printf v handle
+VHPI printf v name is V
+VHPI printf v full name is :VHPI1:V
+VHPI printf v type handle
+VHPI printf v type name is BIT_VECTOR
+VHPI printf v type full name is @STD:STANDARD:BIT_VECTOR
 VHPI printf start of sim callback! user data is 'some user data'
 0ms+0: Report Note: x=5
 VHPI printf after_5ns callback!
