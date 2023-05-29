@@ -10289,9 +10289,10 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
                                     vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
                                     void *__ctx)
 {
-   type_t view_type = __ctx;
+   tree_t view = untag_pointer(__ctx, void);
 
-   tree_t elem = find_element_mode_indication(view_type, field);
+   bool converse = false;
+   tree_t elem = find_element_mode_indication(view, field, &converse);
    assert(elem != NULL);
 
    vcode_reg_t src_reg = lower_array_data(emit_load_indirect(src_ptr));
@@ -10300,13 +10301,15 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
    // TODO: test with unconstrained element type
    vcode_reg_t count = lower_type_width(lu, tree_type(field), src_ptr);
 
-   switch (tree_subkind(elem)) {
+   switch (converse_mode(elem, converse)) {
    case PORT_IN:
       emit_map_signal(dst_reg, src_reg, count, count, VCODE_INVALID_REG);
       break;
    case PORT_OUT:
       emit_map_signal(src_reg, dst_reg, count, count, VCODE_INVALID_REG);
       break;
+   default:
+      fatal_trace("unhandled port mode in lower_map_view_field_cb");
    }
 }
 
@@ -10598,13 +10601,9 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    const port_mode_t mode = tree_subkind(port);
 
    if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
-      type_t view_type = tree_type(tree_value(port));
-      assert(type_kind(view_type) == T_VIEW);
-
       assert(lower_is_signal_ref(value));
-
       lower_for_each_field(lu, name_type, port_reg, value_reg,
-                           lower_map_view_field_cb, view_type);
+                           lower_map_view_field_cb, tree_value(port));
    }
    else if (lower_is_signal_ref(value)) {
       type_t value_type = tree_type(value);

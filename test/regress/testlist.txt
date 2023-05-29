@@ -786,3 +786,4 @@ view1           normal,2019
 issue701        fail,gold,2008
 issue700        normal,gold
 issue703        wave,gtkw
+view2           normal,2019

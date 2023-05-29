@@ -1333,7 +1333,9 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    // Rules for aliases are given in LRM 93 section 4.3.3
 
    tree_t value = tree_value(t);
-   type_t type = tree_has_type(t) ? tree_type(t) : NULL;
+   type_t type = get_type_or_null(t);
+
+   const tree_kind_t value_kind = tree_kind(value);
 
    if (type != NULL && type_is_subprogram(type)) {
       // Alias of subprogram or enumeration literal
@@ -1341,25 +1343,24 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       assert(tree_kind(value) == T_REF);
       return true;
    }
-   else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
+   else if (value_kind == T_REF && tree_has_ref(value)) {
       tree_t decl = tree_ref(value);
       if (aliased_type_decl(decl) != NULL)
          return true;   // Alias of type
       else if (tree_kind(decl) == T_VIEW_DECL)
          return true;   // Alias of view declaration
    }
-   else if (tree_kind(value) == T_ATTR_REF
-            && tree_subkind(value) == ATTR_CONVERSE) {
-      // Special case handling for
-      //   https://gitlab.com/IEEE-P1076/VHDL-Issues/-/issues/293
-      return true;
-   }
 
    // Alias of object
    if (!sem_check(value, tab))
       return false;
 
-   if (!sem_static_name(value, sem_globally_static)) {
+   if (value_kind == T_ATTR_REF && tree_subkind(value) == ATTR_CONVERSE) {
+      // Special case handling for
+      //   https://gitlab.com/IEEE-P1076/VHDL-Issues/-/issues/293
+      return true;
+   }
+   else if (!sem_static_name(value, sem_globally_static)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
       diag_printf(d, "aliased name is not static");
       diag_lrm(d, STD_93, "6.1");
@@ -2182,32 +2183,29 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
    return true;
 }
 
-static type_t sem_check_view_target(tree_t target)
+static tree_t sem_check_view_target(tree_t target)
 {
    switch (tree_kind(target)) {
    case T_REF:
       {
          tree_t decl = tree_ref(target);
          assert(tree_kind(decl) == T_PORT_DECL);
-
-         type_t view_type = tree_type(tree_value(decl));
-         assert(type_kind(view_type) == T_VIEW);
-
-         return view_type;
+         return tree_value(decl);
       }
 
    case T_RECORD_REF:
       {
-         type_t view_type = sem_check_view_target(tree_value(target));
-         if (view_type == NULL)
+         tree_t view = sem_check_view_target(tree_value(target));
+         if (view == NULL)
             return NULL;
 
+         bool converse = false;
          tree_t f = tree_ref(target);
-         tree_t e = find_element_mode_indication(view_type, f);
+         tree_t e = find_element_mode_indication(view, f, &converse);
          if (e == NULL)
             return NULL;
 
-         if (tree_subkind(e) == PORT_IN) {
+         if (converse_mode(e, converse) == PORT_IN) {
             tree_t port = tree_ref(name_to_ref(target));
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
             diag_printf(d, "cannot assign to element %s of port %s which has "
@@ -2308,9 +2306,10 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
                return false;
             }
             else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
-               type_t view_type = sem_check_view_target(target);
-               if (view_type != NULL) {
+               tree_t view = sem_check_view_target(target);
+               if (view != NULL) {
                   tree_t inport = NULL;
+                  type_t view_type = tree_type(view);
                   const int nelems = type_fields(view_type);
                   for (int i = 0; i < nelems; i++) {
                      tree_t e = type_field(view_type, i);
@@ -3806,6 +3805,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
    case ATTR_CONVERSE:
+      if (type_kind(tree_type(name)) != T_VIEW)
+         sem_error(t, "prefix of 'CONVERSE attribute must be a named mode "
+                   "view or alias thereof");
+
       return true;
 
    case ATTR_USER:

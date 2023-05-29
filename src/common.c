@@ -455,16 +455,49 @@ tree_t find_record_field(tree_t rref)
    return NULL;
 }
 
-tree_t find_element_mode_indication(type_t view_type, tree_t field)
+tree_t find_element_mode_indication(tree_t view, tree_t field, bool *converse)
 {
-   const int nelems = type_fields(view_type);
-   for (int i = 0; i < nelems; i++) {
-      tree_t e = type_field(view_type, i);
-      if (tree_ref(e) == field)
-         return e;
-   }
+   switch (tree_kind(view)) {
+   case T_REF:
+      return find_element_mode_indication(tree_ref(view), field, converse);
 
-   return NULL;
+   case T_ALIAS:
+      return find_element_mode_indication(tree_value(view), field, converse);
+
+   case T_ATTR_REF:
+      assert(tree_subkind(view) == ATTR_CONVERSE);
+      *converse = !*converse;
+      return find_element_mode_indication(tree_name(view), field, converse);
+
+   case T_VIEW_DECL:
+      {
+         type_t view_type = tree_type(view);
+         assert(type_kind(view_type) == T_VIEW);
+
+         const int nelems = type_fields(view_type);
+         for (int i = 0; i < nelems; i++) {
+            tree_t e = type_field(view_type, i);
+            if (tree_ref(e) == field)
+               return e;
+         }
+
+         return NULL;
+      }
+
+   default:
+      fatal_trace("unhandled tree kind %s in find_element_mode_indication",
+                  tree_kind_str(tree_kind(view)));
+   }
+}
+
+port_mode_t converse_mode(tree_t port, bool converse)
+{
+   const port_mode_t mode = tree_subkind(port);
+   switch (mode) {
+   case PORT_IN: return converse ? PORT_OUT : PORT_IN;
+   case PORT_OUT: return converse ? PORT_IN : PORT_OUT;
+   default: return mode;
+   }
 }
 
 class_t class_of(tree_t t)
@@ -1744,7 +1777,6 @@ bool is_type_attribute(attr_kind_t kind)
    case ATTR_SUBTYPE:
    case ATTR_BASE:
    case ATTR_ELEMENT:
-   case ATTR_CONVERSE:
       return true;
    default:
       return false;
