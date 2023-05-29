@@ -66,23 +66,13 @@ begin
         wait;
     end process;
 
-    p3: process (p) is
-    begin
-        q <= 0;
-        case? p is
-            when '0' to '1' => q <= 99;
-            when '-' => q <= 3;
-        end case?;
-    end process;
+    with p select? q <=
+        99 when '0' to '1',
+        3 when '-';
 
-    p4: process (r) is
-    begin
-        s <= 0;
-        case? r is
-            when "111" => s <= 1;
-            when "000" => s <= 2;
-            when others => s <= 6;
-        end case?;
-    end process;
+    with r select? s <=
+        1 when "111",
+        2 when "000",
+        6 when others;
 
 end architecture;
