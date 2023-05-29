@@ -1517,6 +1517,25 @@ START_TEST(test_genpack4)
 }
 END_TEST
 
+START_TEST(test_view1)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/elab/view1.vhd");
+
+   const error_t expect[] = {
+      { 21, "value length 3 does not match view IN_VIEW length 2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1601,6 +1620,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_genpack2);
    tcase_add_test(tc, test_genpack3);
    tcase_add_test(tc, test_genpack4);
+   tcase_add_test(tc, test_view1);
    suite_add_tcase(s, tc);
 
    return s;

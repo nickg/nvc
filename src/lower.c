@@ -7397,10 +7397,10 @@ static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
 
 static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
                               tree_t *cons, int ncons, type_t init_type,
-                              vcode_var_t sig_var, vcode_reg_t sig_ptr,
-                              vcode_reg_t init_reg, vcode_reg_t resolution,
-                              vcode_reg_t null_reg, sig_flags_t flags,
-                              vcode_reg_t bounds_reg)
+                              tree_t view, vcode_var_t sig_var,
+                              vcode_reg_t sig_ptr, vcode_reg_t init_reg,
+                              vcode_reg_t resolution, vcode_reg_t null_reg,
+                              sig_flags_t flags, vcode_reg_t bounds_reg)
 {
    bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
@@ -7541,9 +7541,9 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
       if (init_reg != VCODE_INVALID_REG)
          data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
 
-      lower_sub_signals(lu, elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
-                        ptr_reg, data_reg, resolution, null_off_reg, flags,
-                        VCODE_INVALID_REG);
+      lower_sub_signals(lu, elem, where, cons, ncons, elem, view,
+                        VCODE_INVALID_VAR, ptr_reg, data_reg, resolution,
+                        null_off_reg, flags, VCODE_INVALID_REG);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -7571,6 +7571,24 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
          tree_t f = type_field(type, i);
          type_t ft = tree_type(f);
 
+         sig_flags_t newflags = flags;
+         tree_t fview = NULL;
+         if (view != NULL) {
+            bool converse = false;
+            tree_t e = find_element_mode_indication(view, f, &converse);
+            assert(e != NULL);
+
+            switch (tree_subkind(e)) {
+            case PORT_INOUT:
+               newflags |= NET_F_EFFECTIVE | NET_F_INOUT;
+               break;
+            case PORT_ARRAY_VIEW:
+            case PORT_RECORD_VIEW:
+               fview = tree_value(e);
+               break;
+            }
+         }
+
          vcode_type_t fvtype = vtype_field(vtype, i);
 
          vcode_reg_t null_field_reg;
@@ -7593,9 +7611,9 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, tree_t where,
 
          tree_t fcons[MAX_CONSTRAINTS];
          const int nfcons = pack_field_constraints(type, f, rcons, fcons);
-         lower_sub_signals(lu, ft, f, fcons, nfcons, ft, VCODE_INVALID_VAR,
-                           ptr_reg, field_reg, resolution, null_field_reg,
-                           flags, VCODE_INVALID_REG);
+         lower_sub_signals(lu, ft, f, fcons, nfcons, ft, fview,
+                           VCODE_INVALID_VAR, ptr_reg, field_reg, resolution,
+                           null_field_reg, newflags, VCODE_INVALID_REG);
       }
 
       emit_pop_scope();
@@ -7627,7 +7645,7 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
    if (tree_flags(decl) & TREE_F_REGISTER)
       flags |= NET_F_REGISTER;
 
-   lower_sub_signals(lu, type, decl, cons, ncons, value_type, var,
+   lower_sub_signals(lu, type, decl, cons, ncons, value_type, NULL, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                      VCODE_INVALID_REG, flags, VCODE_INVALID_REG);
 
@@ -7711,7 +7729,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
          vcode_reg_t init_reg =
             lower_default_value(parent, type, VCODE_INVALID_REG, NULL, 0);
-         lower_sub_signals(parent, type, decl, NULL, 0, type, var,
+         lower_sub_signals(parent, type, decl, NULL, 0, type, NULL, var,
                            VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                            VCODE_INVALID_REG, 0, VCODE_INVALID_REG);
 
@@ -10290,26 +10308,48 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
                                     void *__ctx)
 {
    tree_t view = untag_pointer(__ctx, void);
+   bool converse = !!pointer_tag(__ctx);
 
-   bool converse = false;
    tree_t elem = find_element_mode_indication(view, field, &converse);
    assert(elem != NULL);
 
-   vcode_reg_t src_reg = lower_array_data(emit_load_indirect(src_ptr));
-   vcode_reg_t dst_reg = lower_array_data(emit_load_indirect(dst_ptr));
+   type_t ftype = tree_type(field);
+   if (type_is_array(ftype)) {
+      vcode_reg_t locus = lower_debug_locus(view);
+      lower_check_array_sizes(lu, ftype, ftype, src_ptr, dst_ptr, locus);
+   }
 
-   // TODO: test with unconstrained element type
-   vcode_reg_t count = lower_type_width(lu, tree_type(field), src_ptr);
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t src_reg = emit_load_indirect(src_ptr);
+      vcode_reg_t dst_reg = emit_load_indirect(dst_ptr);
 
-   switch (converse_mode(elem, converse)) {
-   case PORT_IN:
-      emit_map_signal(dst_reg, src_reg, count, count, VCODE_INVALID_REG);
-      break;
-   case PORT_OUT:
-      emit_map_signal(src_reg, dst_reg, count, count, VCODE_INVALID_REG);
-      break;
-   default:
-      fatal_trace("unhandled port mode in lower_map_view_field_cb");
+      vcode_reg_t src_count = lower_type_width(lu, ftype, src_reg);
+      vcode_reg_t dst_count = lower_type_width(lu, ftype, dst_reg);
+
+      vcode_reg_t src_nets = lower_array_data(src_reg);
+      vcode_reg_t dst_nets = lower_array_data(dst_reg);
+
+      vcode_reg_t conv_reg = VCODE_INVALID_REG;   // Not valid for interfaces
+
+      switch (converse_mode(elem, converse)) {
+      case PORT_IN:
+         emit_map_signal(dst_nets, src_nets, dst_count, src_count, conv_reg);
+         break;
+      case PORT_OUT:
+      case PORT_INOUT:
+      case PORT_BUFFER:
+         emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_reg);
+         break;
+      default:
+         fatal_trace("unhandled port mode in lower_map_view_field_cb");
+      }
+   }
+   else {
+      assert(tree_subkind(elem) == PORT_RECORD_VIEW);
+
+      void *new_ctx = tag_pointer(tree_value(elem), converse);
+      lower_for_each_field(lu, ftype, src_ptr, dst_ptr,
+                           lower_map_view_field_cb, new_ctx);
    }
 }
 
@@ -10766,9 +10806,11 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
    tree_t cons[MAX_CONSTRAINTS];
    const int ncons = pack_constraints(type, cons);
 
+   tree_t view = NULL;
    vcode_reg_t init_reg = VCODE_INVALID_REG;
    if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
       // No explicit initial value
+      view = tree_value(port);
    }
    else if (tree_has_value(port)) {
       tree_t value = tree_value(port);
@@ -10782,10 +10824,10 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
 
    // Port signals will need separate driving/effective values if they
    // are inout or have conversion functions.
-   if (tree_subkind(port) == PORT_INOUT)
+   if (mode == PORT_INOUT)
       flags |= NET_F_EFFECTIVE | NET_F_INOUT;
 
-   lower_sub_signals(lu, type, port, cons, ncons, value_type, var,
+   lower_sub_signals(lu, type, port, cons, ncons, value_type, view, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                      VCODE_INVALID_REG, flags, bounds_reg);
 }
