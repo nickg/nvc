@@ -88,6 +88,7 @@ typedef struct {
    FILE       *file;
    int         colour;
    text_buf_t *hier;
+   bool        end_of_record;
 } gtkw_writer_t;
 
 typedef struct _wave_dumper {
@@ -593,6 +594,33 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
 }
 
+static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
+                                     rt_scope_kind_t kind, text_buf_t *tb,
+                                     bool leaf)
+{
+   if (scope->parent != NULL && scope->parent->kind == kind) {
+      gtkw_print_scope_comment(gtkw, scope->parent, kind, tb, false);
+      fputc(kind == SCOPE_INSTANCE ? '/' : '.', gtkw->file);
+   }
+   else
+      fputc('-', gtkw->file);
+
+   if (scope->kind == SCOPE_INSTANCE && scope->parent == NULL) {
+      // Do not emit the root scope label
+   }
+   else if (scope->kind == kind) {
+      tb_rewind(tb);
+      tb_istr(tb, tree_ident(scope->where));
+      tb_downcase(tb);
+      fputs(tb_get(tb), gtkw->file);
+   }
+
+   if (leaf)
+      fprintf(gtkw->file, "%c\n", kind == SCOPE_INSTANCE ? '/' : ':');
+
+   gtkw->end_of_record = false;
+}
+
 static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
                                   rt_scope_t *scope, type_t type,
                                   text_buf_t *tb)
@@ -607,7 +635,7 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    if (wd->gtkw != NULL) {
       hlen = tb_len(wd->gtkw->hier);
       tb_printf(wd->gtkw->hier, ".%s", tb_get(tb));
-      fprintf(wd->gtkw->file, "-%s\n", tb_get(wd->gtkw->hier));
+      gtkw_print_scope_comment(wd->gtkw, scope, SCOPE_SIGNAL, tb, true);
    }
 
    const int nfields = type_fields(type);
@@ -619,8 +647,10 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
 
    fstWriterSetUpscope(wd->fst_ctx);
 
-   if (wd->gtkw != NULL)
+   if (wd->gtkw != NULL) {
       tb_trim(wd->gtkw->hier, hlen);
+      wd->gtkw->end_of_record = true;
+   }
 }
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
@@ -640,8 +670,13 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
          fst_create_record_var(wd, d, sub, type, tb);
    }
    else {
-      if (wd->gtkw != NULL)
+      if (wd->gtkw != NULL) {
+         if (wd->gtkw->end_of_record) {
+            fputs("-\n", wd->gtkw->file);  // Blank line after record
+            wd->gtkw->end_of_record = false;
+         }
          fprintf(wd->gtkw->file, "[color] %d\n", wd->gtkw->colour);
+      }
 
       rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
@@ -686,7 +721,9 @@ static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
          tb_append(wd->gtkw->hier, '.');
       tb_cat(wd->gtkw->hier, tb_get(tb));
 
-      fprintf(wd->gtkw->file, "-%s\n", tb_get(wd->gtkw->hier));
+      rt_scope_t *scope = find_scope(wd->model, block);
+      gtkw_print_scope_comment(wd->gtkw, scope, SCOPE_INSTANCE, tb, true);
+
       wd->gtkw->colour = (wd->gtkw->colour % 7) + 1;
    }
 }
@@ -812,7 +849,7 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
          fatal_errno("%s", gtkw_file);
 
       wd->gtkw->hier   = tb_new();
-      wd->gtkw->colour = 1;
+      wd->gtkw->colour = 3;
    }
 
    return wd;

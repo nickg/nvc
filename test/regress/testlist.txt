@@ -477,9 +477,9 @@ genpack1        normal,2008
 ieee7           normal,2008
 wave1           wave
 wave2           shell
-wave3           shell
+wave3           wave,gtkw,stop-time=1us
 wave4           shell
-wave5           shell
+wave5           wave,gtkw
 record20        normal
 attr14          normal
 vhpi4           normal,vhpi,!windows
@@ -785,3 +785,4 @@ cover16         cover,shell
 view1           normal,2019
 issue701        fail,gold,2008
 issue700        normal,gold
+issue703        wave,gtkw

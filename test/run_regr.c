@@ -91,6 +91,7 @@
 #define F_PSL     (1 << 18)
 #define F_DEFINE  (1 << 19)
 #define F_TCL     (1 << 20)
+#define F_GTKW    (1 << 21)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -391,6 +392,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_VERILOG;
          else if (strcmp(opt, "wave") == 0)
             test->flags |= F_WAVE;
+         else if (strcmp(opt, "gtkw") == 0)
+            test->flags |= F_GTKW;
          else if (strcmp(opt, "psl") == 0)
             test->flags |= F_PSL;
          else if (strcmp(opt, "tcl") == 0)
@@ -867,6 +870,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");
 
+      if (test->flags & F_GTKW)
+         push_arg(&args, "-g");
+
       push_arg(&args, "%s", test->name);
    }
 
@@ -931,6 +937,22 @@ static bool run_test(test_t *test)
 
       if (run_cmd(outf, &args) != RUN_OK) {
          failed("waveform mismatch");
+         result = false;
+         goto out_print;
+      }
+   }
+
+   if (test->flags & F_GTKW) {
+      push_arg(&args, "%s", DIFF_PATH);
+#if defined __MINGW32__ || defined __CYGWIN__
+      push_arg(&args, "--strip-trailing-cr");
+#endif
+      push_arg(&args, "-u");
+      push_arg(&args, "%s/regress/gold/%s.gtkw", test_dir, test->name);
+      push_arg(&args, "%s.gtkw", test->name);
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("gtkw file mismatch");
          result = false;
          goto out_print;
       }
