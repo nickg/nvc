@@ -14,7 +14,7 @@ package lcs2016_45a is
         d   :   inout ;
     end view ;
 
-    --alias slave is master'converse ;
+    alias slave is master1'converse ;   -- OK
 
     view master2 of rec_t is
         a, x : in;                      -- Error
@@ -76,20 +76,39 @@ package lcs2016_45a is
 
     type outer_rec_t is record
         r : rec_t;
+        s : rec_vec_t;
     end record ;
 
     view outer_master1 of outer_rec_t is
         r : view master1;               -- OK
+        s : in;
     end view;
 
     view outer_master2 of outer_rec_t is
-        r : view master1 of integer;    -- Error
+        r : view integer;    -- Error
+        s : in;
     end view;
 
-    view outer_master3 of outer_rec_t is
-        r : view integer of rec_t;    -- Error
+    component comp3 is
+        port ( x : view (master1) of rec_vec_t;    -- OK
+               y : view (master1) of rec_t;        -- Error
+               z : view (master1) of bit_vector);  -- Error
+    end component;
+
+    view outer_master4 of outer_rec_t is
+        r : in;
+        s : view (master1);    -- OK
     end view;
 
+    view outer_master5 of outer_rec_t is
+        s : in;
+        r : view (master1);    -- Error
+    end view;
+
+    view outer_master6 of outer_rec_t is
+        s : view master1;               -- Error
+        r : in;
+    end view;
 end package ;
 
 -------------------------------------------------------------------------------
@@ -99,6 +118,8 @@ package pack is
     type rec_t is record
         a, b : bit;
     end record;
+
+    type rec_array_t is array (natural range <>) of rec_t;
 
     view master_rec_t of rec_t is          -- OK
         a : in;
@@ -114,10 +135,18 @@ end package;
 use work.pack.all;
 
 entity sub is
-    port ( r : view slave_rec_t of rec_t );  -- OK
+    port ( r : view slave_rec_t of rec_t;    -- OK
+           a : view (slave_rec_t) of rec_array_t(1 to 3) );  -- OK
 end entity;
 
 architecture test of sub is
+    component comp1 is
+        port ( p : view slave_rec_t of rec_t );
+    end component;
+
+    component comp2 is
+        port ( p : view slave_rec_t'converse of rec_t );
+    end component;
 begin
 
     p1: process is
@@ -127,6 +156,14 @@ begin
         r.a <= '1';                     -- OK
         r.b <= '0';                     -- Error
         r <= ('1', '1');                -- Error
+        a(0).a <= '1';                  -- OK
+        a(0).b <= '0';                  -- Error
     end process;
+
+    u1: component comp1 port map ( r );  -- OK
+
+    u2: component comp2 port map ( r );  -- Error
+
+    u3: component comp1 port map ( ( '1', '0' ) );  -- Error
 
 end architecture;

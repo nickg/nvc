@@ -3073,12 +3073,21 @@ START_TEST(test_lcs2016_45a)
       { 64, "name in mode view indication does not denote a mode view" },
       { 65, "subtype INTEGER is not compatible with mode view MASTER1" },
       { 74, "element mode indication cannot have mode LINKAGE" },
-      { 86, "R subtype INTEGER is not compatible with mode view MASTER1" },
-      { 90, "name in mode view indication of field R does not denote a mode " },
-      { 128, "cannot assign to element B of port R which has mode IN from "
+      { 88, "name in element mode view indication of field R does not " },
+      { 94, "port Y with array mode view indication has non-array type REC_T" },
+      { 95, "subtype BIT is not compatible with mode view MASTER1" },
+      { 105, "R with array mode view indication has non-array type REC_T" },
+      { 109, "S subtype REC_VEC_T is not compatible with mode view MASTER1" },
+      { 157, "cannot assign to element B of port R which has mode IN from "
         "mode view indication" },
-      { 129, "cannot assign to port R with mode view indication as one or "
+      { 158, "cannot assign to port R with mode view indication as one or "
         "more sub-elements have mode IN" },
+      { 160, "cannot assign to element B of port A which has mode IN from "
+        "mode view indication" },
+      { 165, "mode view indication of formal port P element A is not "
+        "compatible with actual" },
+      { 167, "actual associated with port P with mode view indication must "
+        "be a static signal name" },
       { -1, NULL }
    };
    expect_errors(expect);

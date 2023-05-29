@@ -20,6 +20,8 @@
 - The Synopsys `std_logic_misc` package is now compiled for 2008 (#696).
 - Fixed an issue where leading `NUL` characters in a report message
   would prevent the entire message being printed (#700).
+- Added support for interfaces in VHDL-2019 including mode view
+  declarations, mode view indications, and the `'converse` attribute.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

@@ -4574,10 +4574,6 @@ static void p_array_mode_view_indication(type_t *type, tree_t *name)
    consume(tOF);
 
    *type = p_subtype_indication();
-
-   parse_error(CURRENT_LOC, "sorry, array mode view indications are not "
-               "yet supported");
-   *type = type_new(T_NONE);
 }
 
 static void p_record_mode_view_indication(type_t *type, tree_t *name)
@@ -7086,6 +7082,53 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    return new;
 }
 
+static tree_t p_element_array_mode_view_indication(void)
+{
+   // view ( name )
+
+   BEGIN("element array mode view indication");
+
+   consume(tVIEW);
+   consume(tLPAREN);
+
+   tree_t name = p_name(0);
+   solve_types(nametab, name, NULL);
+
+   consume(tRPAREN);
+
+   return name;
+}
+
+static tree_t p_element_record_mode_view_indication(void)
+{
+   // view name
+
+   BEGIN("element record mode view indication");
+
+   consume(tVIEW);
+
+   tree_t name = p_name(0);
+   solve_types(nametab, name, NULL);
+
+   return name;
+}
+
+static port_mode_t p_element_mode_view_indication(tree_t *name)
+{
+   // element_record_mode_view_indication | element_array_mode_view_indication
+
+   BEGIN("element mode view indication");
+
+   if (peek_nth(2) == tLPAREN) {
+      *name = p_element_array_mode_view_indication();
+      return PORT_ARRAY_VIEW;
+   }
+   else {
+      *name = p_element_record_mode_view_indication();
+      return PORT_RECORD_VIEW;
+   }
+}
+
 static void p_mode_view_element_declaration(type_t view, type_t of)
 {
    // record_element_list : element_mode_indication ;
@@ -7096,14 +7139,13 @@ static void p_mode_view_element_declaration(type_t view, type_t of)
 
    consume(tCOLON);
 
-   type_t type = NULL;
    tree_t name = NULL;
 
    port_mode_t mode;
    if (peek() == tVIEW) {
       // View name must be looked up in global scope
       pop_scope(nametab);
-      mode = p_mode_view_indication(&type, &name);
+      mode = p_element_mode_view_indication(&name);
       push_scope_for_fields(nametab, of);
    }
    else
@@ -7115,7 +7157,6 @@ static void p_mode_view_element_declaration(type_t view, type_t of)
       tree_set_loc(f, &(it->loc));
       tree_set_subkind(f, mode);
       tree_set_value(f, name);
-      tree_set_type(f, type);
 
       type_add_field(view, f);
 

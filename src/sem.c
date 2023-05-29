@@ -1213,9 +1213,18 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
          sem_error(name, "name in mode view indication of port %s does not "
                    "denote a mode view", istr(tree_ident(t)));
 
-      if (!type_eq(type, type_designated(view_type)))
+      type_t elem_type = type;
+      if (mode == PORT_ARRAY_VIEW) {
+         if (!type_is_array(type))
+            sem_error(t, "port %s with array mode view indication has "
+                      "non-array type %s", istr(tree_ident(t)), type_pp(type));
+
+         elem_type = type_elem(type);
+      }
+
+      if (!type_eq(elem_type, type_designated(view_type)))
          sem_error(t, "subtype %s is not compatible with mode "
-                   "view %s", type_pp(type), type_pp(view_type));
+                   "view %s", type_pp(elem_type), type_pp(view_type));
    }
    else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
@@ -2189,9 +2198,18 @@ static tree_t sem_check_view_target(tree_t target)
    case T_REF:
       {
          tree_t decl = tree_ref(target);
-         assert(tree_kind(decl) == T_PORT_DECL);
-         return tree_value(decl);
+         if (tree_kind(decl) == T_PORT_DECL) {
+            const port_mode_t mode = tree_subkind(decl);
+            if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
+               return tree_value(decl);
+         }
+
+         return NULL;
       }
+
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      return sem_check_view_target(tree_value(target));
 
    case T_RECORD_REF:
       {
@@ -4003,7 +4021,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                    "%s must be a constrained array type",
                    istr(tree_ident(decl)));
 
-      if (tree_subkind(decl) == PORT_OUT)
+      if (mode == PORT_OUT)
          sem_error(value, "conversion not allowed for formal %s with "
                    "mode OUT", istr(tree_ident(decl)));
    }
@@ -4040,6 +4058,57 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          sem_error(value, "actual associated with formal variable port %s "
                    "must either be a shared variable or a formal variable port "
                    "of another design entity", istr(tree_ident(decl)));
+   }
+   else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+      if (!sem_static_signal_name(actual))
+         sem_error(value, "actual associated with port %s with mode view "
+                   "indication must be a static signal name",
+                   istr(tree_ident(decl)));
+
+      type_t elem_type = type;
+      if (mode == PORT_ARRAY_VIEW)
+         elem_type = type_elem(type);
+
+      tree_t formal_view = tree_value(decl);
+
+      tree_t actual_view = sem_check_view_target(actual);
+      if (actual_view != NULL) {
+         // Associating an interface with another interface: check the
+         // mode of each element is compatible
+         const int nfields = type_fields(elem_type);
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(elem_type, i);
+
+            bool formal_converse = false;
+            tree_t formal_elem = find_element_mode_indication(formal_view, f,
+                                                              &formal_converse);
+
+            bool actual_converse = false;
+            tree_t actual_elem = find_element_mode_indication(actual_view, f,
+                                                              &actual_converse);
+
+            const port_mode_t formal_mode =
+               converse_mode(formal_elem, formal_converse);
+
+            const port_mode_t actual_mode =
+               converse_mode(actual_elem, actual_converse);
+
+            if (formal_mode != actual_mode) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+               diag_printf(d, "mode view indication of formal port %s "
+                           "element %s is not compatible with actual",
+                           istr(tree_ident(decl)), istr(tree_ident(f)));
+               diag_hint(d, tree_loc(actual_view), "actual has mode %s from "
+                         "mode view indication on port %s",
+                         port_mode_str(actual_mode),
+                         istr(tree_ident(name_to_ref(actual))));
+               diag_hint(d, tree_loc(formal_view), "formal has mode %s",
+                         port_mode_str(formal_mode));
+               diag_emit(d);
+               return false;
+            }
+         }
+      }
    }
    else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
             && !sem_static_signal_name(actual)) {
@@ -5692,12 +5761,22 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
                return false;
 
             if (type_kind(view_type) != T_VIEW)
-               sem_error(name, "name in mode view indication of field %s does "
-                         "not denote a mode view", istr(tree_ident(f)));
+               sem_error(name, "name in element mode view indication of field "
+                         "%s does not denote a mode view", istr(tree_ident(f)));
 
-            if (!type_eq(type, type_designated(view_type)))
+            type_t elem_type = type;
+            if (tree_subkind(e) == PORT_ARRAY_VIEW) {
+               if (!type_is_array(type))
+                  sem_error(e, "field %s with array mode view indication has "
+                            "non-array type %s", istr(tree_ident(f)),
+                            type_pp(type));
+
+               elem_type = type_elem(type);
+            }
+
+            if (!type_eq(elem_type, type_designated(view_type)))
                sem_error(e, "field %s subtype %s is not compatible with mode "
-                         "view %s", istr(tree_ident(f)), type_pp(type),
+                         "view %s", istr(tree_ident(f)), type_pp(elem_type),
                          type_pp(view_type));
          }
          break;

@@ -789,3 +789,4 @@ issue703        wave,gtkw
 view2           normal,2019
 view3           normal,2019
 view4           normal,2019
+view5           normal,2019

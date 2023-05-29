@@ -1358,8 +1358,6 @@ tree_t name_to_ref(tree_t name)
       case T_ALL:
          name = tree_value(name);
          break;
-      case T_ATTR_REF:
-
       default:
          return NULL;
       }
@@ -1371,7 +1369,7 @@ tree_t name_to_ref(tree_t name)
 const char *port_mode_str(port_mode_t mode)
 {
    const char *mode_str[] = {
-      "INVALID", "IN", "OUT", "INOUT", "BUFFER", "LINKAGE"
+      "INVALID", "IN", "OUT", "INOUT", "BUFFER", "LINKAGE", "VIEW", "VIEW"
    };
    assert(mode < ARRAY_LEN(mode_str));
    return mode_str[mode];

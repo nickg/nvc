@@ -688,91 +688,112 @@ static void bounds_check_aggregate(tree_t t)
    }
 }
 
-static void bounds_check_decl(tree_t t)
+static void bounds_check_subtype(type_t type)
 {
-   if (!tree_has_type(t))
-      return;   // Alias declaration without subtype indication
-
-   type_t type = tree_type(t);
-
-   if (tree_has_value(t))
-      bounds_check_assignment(t, tree_value(t));
-
    const bool is_constrained_array_subtype =
       type_is_array(type)
       && !type_is_unconstrained(type)
       && type_kind(type) == T_SUBTYPE;
 
-   if (is_constrained_array_subtype) {
-      // Check folded range does not violate index constraints of base type
+   if (!is_constrained_array_subtype)
+      return;
 
-      type_t base = type_base(type);
+   // Check folded range does not violate index constraints of base type
 
-      const int ndims = dimension_of(base);
-      for (int i = 0; i < ndims; i++) {
-         tree_t dim = range_of(type, i);
+   type_t base = type_base(type);
 
-         type_t cons = index_type_of(base, i);
-         type_t cons_base  = type_base_recur(cons);
+   const int ndims = dimension_of(base);
+   for (int i = 0; i < ndims; i++) {
+      tree_t dim = range_of(type, i);
 
-         const bool is_enum = (type_kind(cons_base) == T_ENUM);
+      type_t cons = index_type_of(base, i);
+      type_t cons_base  = type_base_recur(cons);
 
-         tree_t bounds = range_of(cons, 0);
+      const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
-         // Only check here if range can be determined to be non-null
+      tree_t bounds = range_of(cons, 0);
 
-         int64_t dim_low, bounds_low;
-         int64_t dim_high, bounds_high;
+      // Only check here if range can be determined to be non-null
 
-         const bool is_static =
-            folded_bounds(dim, &dim_low, &dim_high)
-            && folded_bounds(bounds, &bounds_low, &bounds_high);
+      int64_t dim_low, bounds_low;
+      int64_t dim_high, bounds_high;
 
-         if (!is_static)
-            continue;
+      const bool is_static =
+         folded_bounds(dim, &dim_low, &dim_high)
+         && folded_bounds(bounds, &bounds_low, &bounds_high);
 
-         const bool is_null =
-            dim_low > dim_high || bounds_low > bounds_high;
+      if (!is_static)
+         continue;
 
-         if (is_null)
-            continue;
+      const bool is_null =
+         dim_low > dim_high || bounds_low > bounds_high;
 
-         const range_kind_t dim_kind = tree_subkind(dim);
-         tree_t dim_left = tree_left(dim);
-         tree_t dim_right = tree_right(dim);
+      if (is_null)
+         continue;
 
-         if (dim_low < bounds_low) {
-            if (is_enum) {
-               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_low);
-               bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
-                            "%s index %s violates constraint %s",
-                            dim_kind == RANGE_TO ? "left" : "right",
-                            istr(tree_ident(lit)), type_pp(cons));
-            }
-            else
-               bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
-                            "%s index %"PRIi64" violates constraint %s",
-                            dim_kind == RANGE_TO ? "left" : "right",
-                            dim_low, type_pp(cons));
+      const range_kind_t dim_kind = tree_subkind(dim);
+      tree_t dim_left = tree_left(dim);
+      tree_t dim_right = tree_right(dim);
 
+      if (dim_low < bounds_low) {
+         if (is_enum) {
+            tree_t lit = type_enum_literal(cons_base, (unsigned)dim_low);
+            bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
+                         "%s index %s violates constraint %s",
+                         dim_kind == RANGE_TO ? "left" : "right",
+                         istr(tree_ident(lit)), type_pp(cons));
          }
+         else
+            bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
+                         "%s index %"PRIi64" violates constraint %s",
+                         dim_kind == RANGE_TO ? "left" : "right",
+                         dim_low, type_pp(cons));
 
-         if (dim_high > bounds_high) {
-            if (is_enum) {
-               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_high);
-               bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
-                            "%s index %s violates constraint %s",
-                            dim_kind == RANGE_TO ? "right" : "left",
-                            istr(tree_ident(lit)), type_pp(cons));
-            }
-            else
-               bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
-                            "%s index %"PRIi64" violates constraint %s",
-                            dim_kind == RANGE_TO ? "right" : "left",
-                            dim_high, type_pp(cons));
+      }
+
+      if (dim_high > bounds_high) {
+         if (is_enum) {
+            tree_t lit = type_enum_literal(cons_base, (unsigned)dim_high);
+            bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
+                         "%s index %s violates constraint %s",
+                         dim_kind == RANGE_TO ? "right" : "left",
+                         istr(tree_ident(lit)), type_pp(cons));
          }
+         else
+            bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
+                         "%s index %"PRIi64" violates constraint %s",
+                         dim_kind == RANGE_TO ? "right" : "left",
+                         dim_high, type_pp(cons));
       }
    }
+}
+
+static void bounds_check_decl(tree_t t)
+{
+   if (tree_has_value(t))
+      bounds_check_assignment(t, tree_value(t));
+
+   bounds_check_subtype(tree_type(t));
+}
+
+static void bounds_check_alias_decl(tree_t t)
+{
+   if (!tree_has_type(t))
+      return;   // Alias declaration without subtype indication
+
+   if (tree_has_value(t))
+      bounds_check_assignment(t, tree_value(t));
+
+   bounds_check_subtype(tree_type(t));
+}
+
+static void bounds_check_port_decl(tree_t t)
+{
+   const port_mode_t mode = tree_subkind(t);
+   if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW && tree_has_value(t))
+      bounds_check_assignment(t, tree_value(t));
+
+   bounds_check_subtype(tree_type(t));
 }
 
 static char *bounds_get_hint_str(tree_t where)
@@ -1293,10 +1314,14 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_CONST_DECL:
    case T_VAR_DECL:
-   case T_PORT_DECL:
    case T_PARAM_DECL:
-   case T_ALIAS:
       bounds_check_decl(t);
+      break;
+   case T_PORT_DECL:
+      bounds_check_port_decl(t);
+      break;
+   case T_ALIAS:
+      bounds_check_alias_decl(t);
       break;
    case T_GENERIC_DECL:
       if (tree_class(t) == C_CONSTANT)
