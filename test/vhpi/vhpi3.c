@@ -54,6 +54,13 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(handle_weight_cons == NULL);
 
+   vhpiHandleT handle_weight_cons_iter =
+      vhpi_iterator(vhpiConstraints, handle_weight_type);
+   check_error();
+   fail_unless(vhpi_scan(handle_weight_cons_iter) == handle_weight_cons);
+   check_error();
+   fail_unless(vhpi_scan(handle_weight_cons_iter) == NULL);
+
    vhpiPhysT weight_left = vhpi_get_phys(vhpiPhysLeftBoundP,
                                          handle_weight_cons);
    check_error();

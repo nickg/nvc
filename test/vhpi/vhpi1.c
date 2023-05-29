@@ -334,13 +334,19 @@ void vhpi1_startup(void)
 
    vhpiHandleT root_ports = vhpi_iterator(vhpiPortDecls, root);
    fail_if(root_ports == NULL);
-   for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports))
+   int i = 0;
+   for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports), i++) {
       vhpi_printf("root port is %s", vhpi_get_str(vhpiNameP, port));
+      fail_unless(vhpi_handle_by_index(vhpiPortDecls, root, i) == port);
+   }
 
    vhpiHandleT root_decls = vhpi_iterator(vhpiDecls, root);
    fail_if(root_decls == NULL);
-   for (vhpiHandleT decl = vhpi_scan(root_decls); decl != NULL; decl = vhpi_scan(root_decls))
+   i = 0;
+   for (vhpiHandleT decl = vhpi_scan(root_decls); decl != NULL; decl = vhpi_scan(root_decls), i++) {
       vhpi_printf("root decl is %s", vhpi_get_str(vhpiNameP, decl));
+      fail_unless(vhpi_handle_by_index(vhpiDecls, root, i) == decl);
+   }
 
    vhpiHandleT arch = vhpi_handle(vhpiDesignUnit, root);
    check_error();
