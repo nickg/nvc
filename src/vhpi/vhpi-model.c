@@ -121,6 +121,7 @@ typedef struct tag_typeDecl {
    c_typeDecl     *BaseType;
    vhpiFormatT     format;
    const char     *map_str;
+   vhpiIntT        size;
    vhpiBooleanT    IsAnonymous;
    vhpiBooleanT    IsComposite;
    vhpiBooleanT    IsScalar;
@@ -560,6 +561,7 @@ static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, type_t type)
 {
    init_typeDecl(&(d->typeDecl), t, type);
    d->typeDecl.IsScalar = true;
+   d->typeDecl.size = 1;
 }
 
 static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t, type_t type)
@@ -1201,21 +1203,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    case vhpiSizeP:
       {
-         if (obj->kind != vhpiPortDeclK && obj->kind != vhpiSigDeclK) {
-            vhpi_error(vhpiInternal, &(obj->loc), "vhpiSizeP is only "
-                       "supported for signal and port objects");
-            return 0;
-         }
-
          c_objDecl *decl = cast_objDecl(obj);
          if (decl == NULL)
             return 0;
 
-         rt_signal_t *signal = vhpi_get_signal(decl);
-         if (signal == NULL)
-            return 0;
-
-         return signal_width(signal);
+         assert(!decl->Type->IsUnconstrained);
+         return decl->Type->size;
       }
 
    case vhpiArgcP:
@@ -1750,6 +1743,14 @@ static c_intRange *build_unconstrained()
    return ir;
 }
 
+static vhpiIntT range_len(c_intRange *ir)
+{
+   if (ir->LeftBound > ir->RightBound)
+      return ir->LeftBound - ir->RightBound + 1;
+   else
+      return ir->RightBound - ir->LeftBound + 1;
+}
+
 static c_typeDecl *cached_typeDecl(type_t type);
 
 static c_typeDecl *build_typeDecl(type_t type)
@@ -1814,6 +1815,7 @@ static c_typeDecl *build_typeDecl(type_t type)
             new_object(sizeof(c_recordTypeDecl), vhpiRecordTypeDeclK);
          init_compositeTypeDecl(&(td->composite), decl, type);
          td->NumFields = type_fields(type);
+         td->composite.typeDecl.size = td->NumFields;
          return &(td->composite.typeDecl);
       }
 
@@ -1824,12 +1826,14 @@ static c_typeDecl *build_typeDecl(type_t type)
                new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
             init_compositeTypeDecl(&(td->composite), decl, type);
             td->ElemType = cached_typeDecl(type_elem(type));
+            td->composite.typeDecl.size = td->ElemType->size;
 
             tree_t c = type_constraint(type, 0);
             assert(tree_subkind(c) == C_INDEX);
             td->NumDimensions = tree_ranges(c);
             for (int i = 0; i < td->NumDimensions; i++) {
                c_intRange *ir = build_int_range(tree_range(c, i));
+               td->composite.typeDecl.size *= range_len(ir);
                APUSH(td->Constraints, &(ir->range.object));
             }
 
@@ -1851,8 +1855,11 @@ static c_typeDecl *build_typeDecl(type_t type)
                fatal_trace("unsupported constraint subkind %d\n", tree_subkind(c));
 
             c_intRange *ir = build_int_range(tree_range(c, 0));
+            td->typeDecl.size = range_len(ir);
             APUSH(td->Constraints, &(ir->range.object));
          }
+         else
+            td->typeDecl.size = cached_typeDecl(type_base(type))->size;
 
          return &(td->typeDecl);
       }
