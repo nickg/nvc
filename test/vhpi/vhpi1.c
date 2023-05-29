@@ -398,6 +398,7 @@ void vhpi1_startup(void)
    vhpi_printf("v handle %p", handle_v);
    vhpi_printf("v name is %s", vhpi_get_str(vhpiNameP, handle_v));
    vhpi_printf("v full name is %s", vhpi_get_str(vhpiFullNameP, handle_v));
+   fail_unless(vhpi_get(vhpiStaticnessP, handle_v) == vhpiDynamic);
 
    vhpiHandleT v_type = vhpi_handle(vhpiType, handle_v);
    check_error();
