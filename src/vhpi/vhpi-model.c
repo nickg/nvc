@@ -180,6 +180,7 @@ typedef struct {
    rt_signal_t     *signal;
    c_typeDecl      *Type;
    vhpiIntT         Access;
+   vhpiStaticnessT  Staticness;
    vhpiBooleanT     IsDynamic;
    bool             IndexedNames_valid;
 } c_objDecl;
@@ -449,6 +450,16 @@ static c_expr *is_expr(c_vhpiObject *obj)
    }
 }
 
+static c_expr *cast_expr(c_vhpiObject *obj)
+{
+   c_expr *e = is_expr(obj);
+   if (e == NULL)
+      vhpi_error(vhpiError, NULL, "class kind %s is not an expression",
+                 vhpi_class_str(obj->kind));
+
+   return e;
+}
+
 static c_name *is_name(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -586,6 +597,14 @@ static void init_objDecl(c_objDecl *d, tree_t t,
    init_abstractDecl(&(d->decl), t, ImmRegion);
 
    d->Type = Type;
+
+   tree_flags_t flags = tree_flags(t);
+   if (flags & TREE_F_LOCALLY_STATIC)
+      d->Staticness = vhpiLocallyStatic;
+   else if (flags & TREE_F_GLOBALLY_STATIC)
+      d->Staticness = vhpiGloballyStatic;
+   else
+      d->Staticness = vhpiDynamic;
 }
 
 static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
@@ -632,15 +651,16 @@ static void init_range(c_range *r, tree_t t)
    r->IsUp = (rkind == RANGE_TO);
 }
 
-static void init_expr(c_expr *e, c_typeDecl *Type)
+static void init_expr(c_expr *e, c_objDecl *obj, c_typeDecl *Type)
 {
    e->Type = Type;
+   e->Staticness = obj->Staticness;
 }
 
-static void init_name(c_name *n, c_typeDecl *Type,
+static void init_name(c_name *n, c_objDecl *obj, c_typeDecl *Type,
                       vhpiStringT Name, vhpiStringT FullName)
 {
-   init_expr(&(n->expr), Type);
+   init_expr(&(n->expr), obj, Type);
    n->Name = n->CaseName = Name;
    n->FullName = n->FullCaseName = FullName;
 }
@@ -663,7 +683,7 @@ static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
 
    vhpiStringT name = (vhpiStringT)xasprintf("%s%s", Name, suffix);
    vhpiStringT fullname = (vhpiStringT)xasprintf("%s%s", FullName, suffix);
-   init_name(&(pn->name), Type, name, fullname);
+   init_name(&(pn->name), simpleName, Type, name, fullname);
    pn->simpleName = simpleName;
 }
 
@@ -1486,6 +1506,18 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
 
    case vhpiStaticnessP:
+      {
+         c_objDecl *decl = is_objDecl(obj);
+         if (decl != NULL)
+            return decl->Staticness;
+
+         c_expr *e = cast_expr(obj);
+         if (e == NULL)
+            return vhpiUndefined;
+
+         return e->Staticness;
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));
