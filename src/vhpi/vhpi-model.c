@@ -1070,6 +1070,9 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
       return NULL;
 
    c_iterator *it = cast_iterator(obj);
+   if (it == NULL)
+      return NULL;
+
    if (it->pos < it->list->count) {
       vhpiHandleT handle = handle_for(it->list->items[it->pos++]);
       return handle;
