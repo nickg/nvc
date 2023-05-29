@@ -105,9 +105,12 @@ typedef struct {
 
 DEF_CLASS(physRange, vhpiPhysRangeK, range.object);
 
-typedef struct {
+typedef struct tag_typeDecl c_typeDecl;
+
+typedef struct tag_typeDecl {
    c_abstractDecl  decl;
    type_t          type;
+   c_typeDecl     *BaseType;
    vhpiFormatT     format;
    const char     *map_str;
    vhpiBooleanT    IsAnonymous;
@@ -153,7 +156,6 @@ typedef struct {
 typedef struct {
    c_abstractDecl  decl;
    rt_signal_t    *signal;
-   c_typeDecl     *BaseType;
    c_typeDecl     *Type;
    vhpiIntT        Access;
    vhpiBooleanT    IsDynamic;
@@ -489,19 +491,19 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
 
 static void init_objDecl(c_objDecl *d, tree_t t,
                          c_abstractRegion *ImmRegion,
-                         c_typeDecl *BaseType)
+                         c_typeDecl *Type)
 {
    init_abstractDecl(&(d->decl), t, ImmRegion);
 
-   d->BaseType = d->Type = BaseType;
+   d->Type = Type;
 }
 
 static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
                                int Position,
                                c_abstractRegion *ImmRegion,
-                               c_typeDecl *BaseType)
+                               c_typeDecl *Type)
 {
-   init_objDecl(&(d->objDecl), t, ImmRegion, BaseType);
+   init_objDecl(&(d->objDecl), t, ImmRegion, Type);
 
    d->Position = Position;
 }
@@ -910,8 +912,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          if (d == NULL)
             return NULL;
 
-         if (type == vhpiBaseType)
-            return handle_for(&(d->BaseType->decl.object));
+         if (type == vhpiBaseType) {
+            c_typeDecl *td = d->Type->BaseType ?: d->Type;
+            return handle_for(&(td->decl.object));
+         }
          else
             return handle_for(&(d->Type->decl.object));
       }
@@ -1244,7 +1248,8 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          if (decl == NULL)
             return invalid;
 
-         c_physTypeDecl *td = cast_physTypeDecl(&(decl->BaseType->decl.object));
+         c_typeDecl *t = decl->Type->BaseType ?: decl->Type;
+         c_physTypeDecl *td = cast_physTypeDecl(&(t->decl.object));
          if (td == NULL)
             return invalid;
 
