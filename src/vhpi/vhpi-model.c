@@ -588,6 +588,16 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       }
    }
 
+   c_physTypeDecl *ptd = is_physTypeDecl(obj);
+   if (ptd != NULL) {
+      if (type == vhpiConstraints) {
+         it->single = &(ptd->constraint->object);
+         return true;
+      }
+
+      return false;
+   }
+
    c_tool *t = is_tool(obj);
    if (t != NULL) {
       if (type == vhpiArgvs) {
@@ -1030,23 +1040,18 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
    if (obj == NULL)
       return NULL;
 
-   switch (itRel) {
-   case vhpiConstraints:
-      {
-         c_physTypeDecl *ptd = is_physTypeDecl(obj);
-         if (ptd != NULL && index == 0)
-            return handle_for(&(ptd->constraint->object));
-
-         vhpi_error(vhpiError, &(obj->loc), "invalid vhpiConstraints index %d",
-                    index);
-         return NULL;
-
-      }
-
-   default:
+   c_iterator it = {};
+   if (!init_iterator(&it, itRel, obj))
       fatal_trace("relation %s not supported in vhpi_handle_by_index",
                   vhpi_one_to_many_str(itRel));
+
+   if (it.single ? index : index > it.list->count) {
+      vhpi_error(vhpiError, &(obj->loc), "invalid %s index %d",
+                 vhpi_one_to_many_str(itRel), index);
+      return NULL;
    }
+
+   return handle_for(it.single ?: it.list->items[index]);
 }
 
 DLLEXPORT
