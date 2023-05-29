@@ -1679,6 +1679,18 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
    return invalid;
 }
 
+static int indexedName_offset(c_indexedName *in)
+{
+      int offset = in->BaseIndex * in->prefixedName.name.expr.Type->size;
+      while (in->prefixedName.Prefix) {
+         in = cast_indexedName(&(in->prefixedName.Prefix->expr.object));
+         assert(in != NULL);
+         offset += in->BaseIndex * in->prefixedName.name.expr.Type->size;
+      }
+
+      return offset;
+}
+
 DLLEXPORT
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
@@ -1690,19 +1702,26 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (obj == NULL)
       return -1;
 
-   if (obj->kind != vhpiPortDeclK && obj->kind != vhpiSigDeclK) {
-      vhpi_error(vhpiInternal, &(obj->loc), "vhpi_get_value is only "
-                 "supported for signal and port objects");
-      return -1;
+   int offset;
+   c_objDecl *decl;
+   c_typeDecl *td;
+   c_indexedName *in = is_indexedName(obj);
+   if (in != NULL) {
+      decl = in->prefixedName.simpleName;
+      td = in->prefixedName.name.expr.Type;
+      offset = indexedName_offset(in);
+   }
+   else {
+      decl = cast_objDecl(obj);
+      if (decl == NULL)
+         return 1;
+      td = decl->Type;
+      offset = 0;
    }
 
-   c_objDecl *decl = cast_objDecl(obj);
-   if (decl == NULL)
-      return -1;
-
-   if (decl->Type->format == (vhpiFormatT)-1) {
+   if (td->format == (vhpiFormatT)-1) {
       vhpi_error(vhpiInternal, &(obj->loc), "type %s not supported in "
-                 "vhpi_get_value", type_pp(decl->Type->type));
+                 "vhpi_get_value", type_pp(td->type));
       return -1;
    }
 
@@ -1710,46 +1729,47 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (signal == NULL)
       return -1;
 
-   value_p->numElems = signal_width(signal);
+   assert(!td->IsUnconstrained);
+   value_p->numElems = td->size;
 
    if (value_p->format == vhpiObjTypeVal)
-      value_p->format = decl->Type->format;
-   else if (value_p->format == vhpiBinStrVal && decl->Type->map_str != NULL) {
+      value_p->format = td->format;
+   else if (value_p->format == vhpiBinStrVal && td->map_str != NULL) {
       if (value_p->bufSize < value_p->numElems + 1)
          return value_p->numElems + 1;
 
-      const uint8_t *p = signal_value(signal);
+      const uint8_t *p = signal_value_u8(signal) + offset;
       for (int i = 0; i < value_p->numElems; i++)
-         value_p->value.str[i] = decl->Type->map_str[*p++];
+         value_p->value.str[i] = td->map_str[*p++];
       value_p->value.str[value_p->numElems] = '\0';
 
       return 0;
    }
-   else if (value_p->format != decl->Type->format) {
+   else if (value_p->format != td->format) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
                  "object %s: expecting %d", value_p->format,
-                 decl->decl.Name, decl->Type->format);
+                 decl->decl.Name, td->format);
       return -1;
    }
 
-   switch (decl->Type->format) {
+   switch (td->format) {
    case vhpiLogicVal:
-      value_p->value.enumv = *signal_value_u8(signal);
+      value_p->value.enumv = signal_value_u8(signal)[offset];
       return 0;
 
    case vhpiSmallEnumVal:
-      value_p->value.smallenumv = *signal_value_u8(signal);
+      value_p->value.smallenumv = signal_value_u8(signal)[offset];
       return 0;
 
    case vhpiEnumVal:
 #define SIGNAL_READ_ENUM(type) \
-      value_p->value.enumv = *(const type *)signal_value(signal)
+      value_p->value.enumv = ((const type *)signal_value(signal))[offset]
 
       FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUM);
       return 0;
 
    case vhpiIntVal:
-      value_p->value.intg = *(const uint32_t *)signal_value(signal);
+      value_p->value.intg = ((const uint32_t *)signal_value(signal))[offset];
       return 0;
 
    case vhpiLogicVecVal:
@@ -1758,7 +1778,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
 
-         const uint8_t *p = signal_value_u8(signal);
+         const uint8_t *p = signal_value_u8(signal) + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.enumvs[i] = *p++;
 
@@ -1771,7 +1791,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiSmallEnumT);
 
-         const uint8_t *p = signal_value_u8(signal);
+         const uint8_t *p = signal_value_u8(signal) + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.smallenumvs[i] = *p++;
 
@@ -1785,7 +1805,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             return value_p->numElems * sizeof(vhpiEnumT);
 
 #define SIGNAL_READ_ENUMV(type) do { \
-      const type *p = signal_value(signal); \
+      const type *p = ((const type *)signal_value(signal)) + offset; \
       for (int i = 0; i < value_p->numElems; i++) \
          value_p->value.enumvs[i] = *p++; \
    } while (0)
@@ -1815,9 +1835,19 @@ int vhpi_put_value(vhpiHandleT handle,
    if (obj == NULL)
       return 1;
 
-   c_objDecl *decl = cast_objDecl(obj);
-   if (decl == NULL)
-      return 1;
+   int offset;
+   c_objDecl *decl;
+   c_indexedName *in = is_indexedName(obj);
+   if (in != NULL) {
+      decl = in->prefixedName.simpleName;
+      offset = indexedName_offset(in);
+   }
+   else {
+      decl = cast_objDecl(obj);
+      if (decl == NULL)
+         return 1;
+      offset = 0;
+   }
 
    rt_signal_t *signal = vhpi_get_signal(decl);
    if (signal == NULL)
@@ -1905,9 +1935,9 @@ int vhpi_put_value(vhpiHandleT handle,
          // TODO: check num_elems == signal_width(signal)
 
          if (mode == vhpiForcePropagate)
-            force_signal(signal, ptr, num_elems);
+            force_signal(signal, ptr, offset, num_elems);
          else
-            deposit_signal(signal, ptr, num_elems);
+            deposit_signal(signal, ptr, offset, num_elems);
 
          return 0;
       }
