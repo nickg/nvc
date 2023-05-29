@@ -564,6 +564,40 @@ static void init_entityDecl(c_entityDecl *e, tree_t t)
    init_designUnit(&(e->designUnit), t);
 }
 
+static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj)
+{
+   c_rootInst *rootInst = is_rootInst(obj);
+   if (rootInst != NULL) {
+      switch (type) {
+      case vhpiPortDecls: it->list = &(rootInst->ports); return true;
+      case vhpiInternalRegions: it->list = &(rootInst->regions); return true;
+      default: break;
+      }
+   }
+
+   c_abstractRegion *region = is_abstractRegion(obj);
+   if (region != NULL) {
+      switch (type) {
+      case vhpiDecls: it->list = &(region->decls); return true;
+      case vhpiInternalRegions:
+         it->list = &(region->InternalRegions);
+         return true;
+      default: return false;
+      }
+   }
+
+   c_tool *t = is_tool(obj);
+   if (t != NULL) {
+      if (type == vhpiArgvs) {
+         it->list = &(t->argv);
+         return true;
+      }
+      return false;
+   }
+
+   return false;
+}
+
 static void vhpi_do_callback(c_callback *cb)
 {
    if (cb->State == vhpiEnable) {
@@ -1013,14 +1047,6 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
    }
 }
 
-static vhpiHandleT new_iterator(vhpiObjectListT *list)
-{
-   c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
-   it->list = list;
-   it->pos = 0;
-   return handle_for(&(it->object));
-}
-
 DLLEXPORT
 vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
 {
@@ -1031,35 +1057,12 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
    if (obj == NULL)
       return NULL;
 
-   c_rootInst *rootInst = is_rootInst(obj);
-   if (rootInst != NULL) {
-      switch (type) {
-      case vhpiPortDecls: return new_iterator(&(rootInst->ports));
-      case vhpiInternalRegions: return new_iterator(&(rootInst->regions));
-      default: break;
-      }
-   }
+   c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
+   if (!init_iterator(it, type, obj))
+      fatal_trace("relation %s not supported in vhpi_iterator",
+                  vhpi_one_to_many_str(type));
 
-   c_abstractRegion *region = is_abstractRegion(obj);
-   if (region != NULL) {
-      switch (type) {
-      case vhpiDecls: return new_iterator(&(region->decls));
-      case vhpiInternalRegions: return new_iterator(&(region->InternalRegions));
-      default: goto unsupported;
-      }
-   }
-
-   c_tool *t = is_tool(obj);
-   if (t != NULL) {
-      if (type == vhpiArgvs)
-         return new_iterator(&(t->argv));
-      else
-         goto unsupported;
-   }
-
-unsupported:
-   fatal_trace("relation %s not supported in vhpi_iterator",
-               vhpi_one_to_many_str(type));
+   return handle_for(&(it->object));
 }
 
 DLLEXPORT
