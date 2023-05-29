@@ -405,6 +405,7 @@ void vhpi1_startup(void)
    vhpi_printf("v type handle %p", v_type);
    vhpi_printf("v type name is %s", vhpi_get_str(vhpiNameP, v_type));
    vhpi_printf("v type full name is %s", vhpi_get_str(vhpiFullNameP, v_type));
+   fail_if(vhpi_get(vhpiIsUnconstrainedP, v_type));
 
    vhpiHandleT v_constrs = vhpi_iterator(vhpiConstraints, v_type);
    check_error();
