@@ -26,6 +26,10 @@ void vhpi5_startup(void)
    vhpiHandleT s1_type = vhpi_handle(vhpiType, s1);
    check_error();
    fail_if(s1_type == NULL);
+   fail_unless(vhpi_get(vhpiIsCompositeP, s1_type));
+   check_error();
+   fail_if(vhpi_get(vhpiIsScalarP, s1_type));
+   check_error();
 
    // TODO: check fields, etc.
 

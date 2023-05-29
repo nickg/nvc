@@ -357,6 +357,10 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiIntTypeDeclK:
+   case vhpiEnumTypeDeclK:
+   case vhpiPhysTypeDeclK:
+   case vhpiArrayTypeDeclK:
+   case vhpiRecordTypeDeclK:
       return container_of(obj, c_typeDecl, decl.object);
    default:
       return NULL;
