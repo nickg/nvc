@@ -19,6 +19,7 @@
 #include "common.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "scan.h"
 #include "rt/rt.h"
 
 #include <assert.h>
@@ -162,12 +163,20 @@ DLLEXPORT
 void _std_env_getenv(const uint8_t *name_ptr, int64_t name_len, ffi_uarray_t *u)
 {
    char *LOCAL cstr = to_cstring(name_ptr, name_len);
-   const char *env = getenv(cstr);
 
-   if (env == NULL)
-      *u = ffi_wrap(NULL, 1, 0);
-   else
-      copy_str(env, u);
+   // LRM19 section 16.5.6: conditional analysis identifiers are part of
+   // the queried environment and take precedence over possibly
+   // inherited environment variables of identical names.
+   const char *pp = pp_defines_get(cstr);
+   if (pp != NULL)
+      copy_str(pp, u);
+   else {
+      const char *env = getenv(cstr);
+      if (env == NULL)
+         *u = ffi_wrap(NULL, 1, 0);
+      else
+         copy_str(env, u);
+   }
 }
 
 DLLEXPORT

@@ -251,6 +251,12 @@ void pp_defines_add(const char *name, const char *value)
    shash_put(pp_defines, name, xstrdup(value));
 }
 
+const char *pp_defines_get(const char *name)
+{
+   pp_defines_init();
+   return shash_get(pp_defines, name);
+}
+
 static int pp_yylex(void)
 {
    const int tok = lookahead != -1 ? lookahead : yylex();

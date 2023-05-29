@@ -15,6 +15,11 @@ begin
         assert getenv("FOO") = "123";
         l := getenv("FOO");
         assert l.all = "123";
+        assert getenv("TOOL_TYPE") = TOOL_TYPE;
+        assert getenv("VHDL_VERSION") = VHDL_VERSION;
+        assert getenv("NOT_HERE") = "";
+        l := getenv("NOT_HERE");
+        assert l = null;
         wait;
     end process;
 

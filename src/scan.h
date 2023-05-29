@@ -45,7 +45,8 @@ hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);
 
-void pp_defines_add(const char *ident, const char *value);
+void pp_defines_add(const char *name, const char *value);
+const char *pp_defines_get(const char *name);
 
 void scan_as_psl(void);
 void scan_as_vhdl(void);

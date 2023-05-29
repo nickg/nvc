@@ -187,8 +187,13 @@ package body env is
     end function;
 
     impure function getenv (name : string) return line is
+        constant result : string := getenv(name);
     begin
-        return new string'(getenv(name));
+        if result'length = 0 then
+            return null;
+        else
+            return new string'(result);
+        end if;
     end function;
 
     impure function vhdl_version return STRING is
