@@ -1223,6 +1223,16 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          vhpi_error(vhpiInternal, &(obj->loc), "vhpiArgcP is only supported for tool objects");
       return 0;
 
+   case vhpiNumDimensionsP:
+      {
+         c_arrayTypeDecl *a = cast_arrayTypeDecl(obj);
+         if (a == NULL)
+            return vhpiUndefined;
+
+         VHPI_TRACE("dims=%d", a->NumDimensions);
+         return a->NumDimensions;
+      }
+
    case vhpiIsUnconstrainedP:
       {
          c_range *r = is_range(obj);

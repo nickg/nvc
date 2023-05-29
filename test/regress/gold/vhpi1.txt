@@ -27,6 +27,7 @@ VHPI printf v full name is :VHPI1:V
 VHPI printf v type handle
 VHPI printf v type name is BIT_VECTOR
 VHPI printf v type full name is @STD:STANDARD:BIT_VECTOR
+VHPI printf v dimensions 1
 VHPI printf v type range handle
 VHPI printf v left bound 3
 VHPI printf v right bound 0
