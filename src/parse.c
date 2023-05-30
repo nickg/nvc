@@ -2091,11 +2091,7 @@ static type_t get_subtype_for(tree_t expr)
          tree_set_subkind(aref, ATTR_ELEMENT);
          tree_set_type(aref, elem);
 
-         type_t esub = get_subtype_for(aref);
-
-         const int ncon = type_constraints(esub);
-         for (int i = 0; i < ncon; i++)
-            type_add_constraint(sub, type_constraint(esub, i));
+         type_set_elem(sub, get_subtype_for(aref));
       }
    }
 
@@ -3622,7 +3618,7 @@ static void p_array_constraint(type_t type, type_t base)
 
    BEGIN("array constraint");
 
-   do {
+   for (;;) {
       if (peek_nth(2) == tOPEN) {
          consume(tLPAREN);
          consume(tOPEN);
@@ -3641,11 +3637,20 @@ static void p_array_constraint(type_t type, type_t base)
       else
          type_add_constraint(type, p_index_constraint(base));
 
+      if (peek() != tLPAREN)
+         break;
+
       // Base type may not actually be an array due to earlier errors
-      if (base != NULL && type_is_array(base))
+      if (type_is_array(base))
          base = type_elem(base);
 
-   } while (peek() == tLPAREN);
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, base);
+
+      type_set_elem(type, sub);
+
+      type = sub;
+   }
 }
 
 static tree_t p_record_element_constraint(type_t base)
@@ -3662,7 +3667,9 @@ static tree_t p_record_element_constraint(type_t base)
    type_t ftype;
    if (decl != NULL) {
       assert(tree_kind(decl) == T_FIELD_DECL);
-      ftype = tree_type(decl);
+
+      tree_t cons = type_constraint_for_field(base, decl);
+      ftype = cons ? tree_type(cons) : tree_type(decl);
    }
    else
       ftype = type_new(T_NONE);

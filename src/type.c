@@ -31,7 +31,7 @@
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_SUBTYPE
-   (I_IDENT | I_BASE | I_RESOLUTION | I_CONSTR),
+   (I_IDENT | I_BASE | I_RESOLUTION | I_CONSTR | I_ELEM),
 
    // T_INTEGER
    (I_IDENT | I_DIMS),
@@ -206,7 +206,7 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    if (kind_a != kind_b)
       return false;
 
-   if (has & I_ELEM)
+   if (kind_a == T_ARRAY)
       return _type_eq(type_elem(a), type_elem(b), strict, map);
 
    if (kind_a == T_ACCESS)
@@ -325,14 +325,16 @@ type_t type_elem(type_t t)
 {
    assert(t != NULL);
 
-   if (t->object.kind == T_SUBTYPE)
-      return type_elem(type_base(t));
-   else if (t->object.kind == T_NONE)
+   if (t->object.kind == T_NONE)
       return t;
    else {
       item_t *item = lookup_item(&type_object, t, I_ELEM);
-      assert(item->object != NULL);
-      return container_of(item->object, struct _type, object);
+      if (t->object.kind == T_SUBTYPE && item->object == NULL)
+         return type_elem(type_base(t));
+      else {
+         assert(item->object != NULL);
+         return container_of(item->object, struct _type, object);
+      }
    }
 }
 
@@ -340,6 +342,11 @@ void type_set_elem(type_t t, type_t e)
 {
    lookup_item(&type_object, t, I_ELEM)->object = &(e->object);
    object_write_barrier(&(t->object), &(e->object));
+}
+
+bool type_has_elem(type_t t)
+{
+   return lookup_item(&type_object, t, I_ELEM)->object != NULL;
 }
 
 bool type_is_universal(type_t t)
@@ -502,6 +509,7 @@ void type_add_constraint(type_t t, tree_t c)
 
 tree_t type_constraint(type_t t, unsigned n)
 {
+   assert(n == 0);    // TODO: this list is largely redundant now
    item_t *item = lookup_item(&type_object, t, I_CONSTR);
    return tree_array_nth(item, n);
 }
@@ -677,68 +685,47 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
       return NULL;
 }
 
-static int count_index_constraints(type_t t)
-{
-   assert(type_kind(t) == T_SUBTYPE);
-
-   int sum = 0;
-   const int ncon = type_constraints(t);
-   for (int i = 0; i < ncon; i++) {
-      tree_t ci = type_constraint(t, i);
-      switch (tree_subkind(ci)) {
-      case C_RECORD:
-         {
-            const int nranges = tree_ranges(ci);
-            for (int j = 0; j < nranges; j++) {
-               tree_t ecj = tree_range(ci, j);
-               sum += count_index_constraints(tree_type(ecj));
-            }
-         }
-         break;
-      case C_INDEX:
-         sum++;
-         break;
-      }
-   }
-
-   return sum;
-}
-
-int type_missing_constraints(type_t t)
-{
-   switch (type_kind(t)) {
-   case T_ARRAY:
-      if (standard() < STD_08)
-         return 1;
-      else
-         return 1 + type_missing_constraints(type_elem(t));
-   case T_SUBTYPE:
-      {
-         const int base = type_missing_constraints(type_base(t));
-         return base - count_index_constraints(t);
-      }
-   case T_RECORD:
-      if (standard() < STD_08)
-         return 0;
-      else {
-         int sum = 0;
-         const int nfields = type_fields(t);
-         for (int i = 0; i < nfields; i++) {
-            type_t ftype = tree_type(type_field(t, i));
-            sum += type_missing_constraints(ftype);
-         }
-         return sum;
-      }
-   default:
-      return 0;
-   }
-}
-
 bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_missing_constraints(t) > 0;
+
+   if (t->object.kind == T_SUBTYPE) {
+      if (type_is_record(t)) {
+         if (standard() >= STD_08) {
+            const int nfields = type_fields(t);
+            for (int i = 0; i < nfields; i++) {
+               tree_t f = type_field(t, i);
+               if (type_is_unconstrained(tree_type(f))
+                   && type_constraint_for_field(t, f) == NULL)
+                  return true;
+            }
+         }
+
+         return false;
+      }
+      else if (type_is_array(t)) {
+         if (standard() >= STD_08) {
+            if (type_is_array(t)) {
+               type_t elem = type_elem(t);
+               if (type_is_unconstrained(elem))
+                  return true;
+            }
+         }
+
+         for (; t->object.kind == T_SUBTYPE; t = type_base(t)) {
+            if (type_constraints(t) > 0) {
+               tree_t c = type_constraint(t, 0);
+               if (tree_subkind(c) == C_INDEX)
+                  return false;
+            }
+         }
+
+         assert(t->object.kind == T_ARRAY);
+         return true;
+      }
+      else
+         return false;
+   }
    else if (t->object.kind == T_ARRAY)
       return true;
    else if (t->object.kind == T_RECORD && standard() >= STD_08) {

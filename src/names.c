@@ -3485,21 +3485,6 @@ static type_t solve_array_ref(nametab_t *tab, tree_t ref)
       elem_type = type_new(T_NONE);
    }
 
-   if (standard() >= STD_08 && type_kind(base_type) == T_SUBTYPE) {
-      tree_t cons[MAX_CONSTRAINTS];
-      const int ncon = pack_constraints(base_type, cons);
-      if (ncon > 1) {
-         assert(type_is_unconstrained(elem_type));
-
-         type_t sub = type_new(T_SUBTYPE);
-         type_set_base(sub, elem_type);
-         for (int i = 1; i < ncon; i++)
-            type_add_constraint(sub, cons[i]);
-
-         elem_type = sub;
-      }
-   }
-
    tree_set_type(ref, elem_type);
    return elem_type;
 }
@@ -3519,18 +3504,7 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
 
    type_t slice_type = type_new(T_SUBTYPE);
    type_add_constraint(slice_type, constraint);
-
-   if (type_kind(base_type) == T_SUBTYPE) {
-      type_set_base(slice_type, type_base(base_type));
-
-      const int ncon = type_constraints(base_type);
-      for (int i = 1; i < ncon; i++) {
-         tree_t c = type_constraint(base_type, i);
-         type_add_constraint(slice_type, c);
-      }
-   }
-   else
-      type_set_base(slice_type, base_type);
+   type_set_base(slice_type, base_type);
 
    tree_set_type(slice, slice_type);
    return slice_type;
@@ -3834,19 +3808,6 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       const int ndims = dimension_of(type);
       if (ndims == 1) {
          type_t elem = type_elem(type);
-         if (type_is_unconstrained(elem)) {
-            tree_t cons[MAX_CONSTRAINTS];
-            const int ncon = pack_constraints(type, cons);
-            if (ncon > 1) {
-               // Create a constrained subtype for the element
-               type_t sub = type_new(T_SUBTYPE);
-               type_set_base(sub, elem);
-               for (int i = 1; i < ncon; i++)
-                  type_add_constraint(sub, cons[i]);
-
-               elem = sub;
-            }
-         }
          type_set_add(tab, (t0 = elem), NULL);
 
          if (standard() >= STD_08 && !type_is_composite(elem))

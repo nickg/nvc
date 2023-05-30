@@ -3713,7 +3713,10 @@ START_TEST(test_vhdl2008)
    fail_unless(type_is_unconstrained(p6t0));
    type_t p6t1 = tree_type(search_decls(p6, ident_new("A"), 0));
    fail_if(type_is_unconstrained(p6t1));
-   fail_unless(type_constraints(p6t1) == 2);
+   fail_unless(type_constraints(p6t1) == 1);
+   type_t p6t1e = type_elem(p6t1);
+   fail_unless(type_kind(p6t1e) == T_SUBTYPE);
+   fail_unless(type_constraints(p6t1e) == 1);
 
    fail_unless(parse() == NULL);
 
@@ -5298,32 +5301,30 @@ START_TEST(test_subtype2008)
 
    type_t sub1 = tree_type(search_decls(p, ident_new("SUB1"), 0));
    fail_unless(type_constraints(sub1) == 0);
-   ck_assert_int_eq(type_missing_constraints(sub1), 1);
+   fail_unless(type_is_unconstrained(sub1));
 
    type_t sub2 = tree_type(search_decls(p, ident_new("SUB2"), 0));
-   fail_unless(type_constraints(sub2) == 1);
+   ck_assert_int_eq(type_constraints(sub2), 1);
    fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub2));
-   ck_assert_int_eq(type_missing_constraints(sub2), 1);
 
    type_t sub3 = tree_type(search_decls(p, ident_new("SUB3"), 0));
    fail_unless(type_constraints(sub3) == 0);
-   ck_assert_int_eq(type_missing_constraints(sub3), 1);
+   fail_unless(type_is_unconstrained(sub3));
 
    type_t sub4 = tree_type(search_decls(p, ident_new("SUB4"), 0));
    fail_unless(type_constraints(sub4) == 0);
-   ck_assert_int_eq(type_missing_constraints(sub4), 2);
    fail_unless(type_is_unconstrained(sub4));
 
    type_t sub5 = tree_type(search_decls(p, ident_new("SUB5"), 0));
    fail_unless(type_constraints(sub5) == 1);
    fail_unless(tree_subkind(type_constraint(sub5, 0)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub5));
-   ck_assert_int_eq(type_missing_constraints(sub5), 1);
+   ck_assert_ptr_eq(type_elem(sub5), type_elem(sub4));
 
    type_t sub6 = tree_type(search_decls(p, ident_new("SUB6"), 0));
-   fail_unless(type_constraints(sub6) == 1);
-   fail_unless(tree_subkind(type_constraint(sub6, 0)) == C_INDEX);
+   ck_assert_int_eq(type_constraints(sub6), 1);
+   fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
    fail_if(type_is_unconstrained(sub6));
 
    type_t sub7 = tree_type(search_decls(p, ident_new("SUB7"), 0));
@@ -5333,13 +5334,11 @@ START_TEST(test_subtype2008)
    type_t sub10 = tree_type(search_decls(p, ident_new("SUB10"), 0));
    fail_unless(type_constraints(sub10) == 1);
    fail_unless(type_is_unconstrained(sub10));
-   ck_assert_int_eq(type_missing_constraints(sub10), 1);
 
    type_t sub11 = tree_type(search_decls(p, ident_new("SUB11"), 0));
    fail_unless(type_constraints(sub11) == 1);
    fail_unless(tree_subkind(type_constraint(sub11, 0)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub11));
-   ck_assert_int_eq(type_missing_constraints(sub11), 3);
 
    fail_unless(parse() == NULL);
 

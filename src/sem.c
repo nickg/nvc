@@ -409,9 +409,16 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
          elem = type_elem(elem);
    }
 
-   type_t designated = type_is_access(type) ? type_designated(type) : type;
-   if (type_missing_constraints(designated) < 0)
-      sem_error(decl, "too many constraints for type %s", type_pp(base));
+   if (type_is_array(type) && type_has_elem(type)) {
+      type_t elem = type_elem(type);
+      if (type_kind(elem) == T_SUBTYPE && !type_has_ident(elem)) {
+         // Anonymous subtype created for array element constraint
+         assert(standard() >= STD_08);
+
+         if (!sem_check_subtype_helper(decl, elem, tab))
+            return false;
+      }
+   }
 
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))

@@ -2645,7 +2645,7 @@ START_TEST(test_record2008)
       { 24,  "field B in record element constraint is already constrained" },
       { 25,  "declaration of signal R8 cannot have unconstrained type REC2" },
       { 30,  "declaration of signal R10 cannot have unconstrained type T2" },
-      { 34,  "duplicate record element constraint for field X" },
+      { 34,  "cannot change constraints of constrained array type BIT_VECTOR" },
       { 41,  "declaration of signal R12 cannot have unconstrained type REC3" },
       { 43,  "declaration of signal R14 cannot have unconstrained type REC3" },
       { 68,  "declaration of constant C1 hides constant C1" },
@@ -2687,8 +2687,8 @@ START_TEST(test_agg2008)
         "specified by a sub-aggregate, string, or bit-string literal" },
       { 71, "variable V1 cannot have unconstrained type T_BYTE_ARRAY" },
       { 73, "array constraint cannot be used with non-array type INTEGER" },
-      { 74, "too many constraints for type T_BYTE_ARRAY" },
-      { 75, "too many constraints for type T_BYTE_ARRAY" },
+      { 74, "cannot change constraints of constrained array type BIT_VECTOR" },
+      { 75, "cannot change constraints of constrained array type BIT_VECTOR" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -1704,66 +1704,6 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g)
    return NULL;
 }
 
-int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
-{
-   if (type_kind(type) != T_SUBTYPE)
-      return 0;
-
-   const int ncon = type_constraints(type);
-   if (ncon > MAX_CONSTRAINTS)
-      goto too_many;
-
-   int ptr = 0;
-   type_t base = type_base(type);
-   if (type_kind(base) == T_SUBTYPE) {
-      tree_t sub[MAX_CONSTRAINTS];
-      const int nsub = pack_constraints(base, sub);
-      int pos = 0;
-
-      for (int i = 0; i < ncon; i++) {
-         tree_t next = type_constraint(type, i);
-         switch (tree_subkind(next)) {
-         case C_INDEX:
-         case C_RECORD:
-            out[ptr++] = next;
-            break;
-         case C_OPEN:
-            out[ptr++] = sub[pos++];
-            break;
-         }
-      }
-
-      for (; pos < nsub; pos++) {
-         switch (tree_subkind(sub[pos])) {
-         case C_INDEX:
-         case C_RECORD:
-            if (ptr >= MAX_CONSTRAINTS)
-               goto too_many;
-            out[ptr++] = sub[pos];
-            break;
-         }
-      }
-   }
-   else {
-      for (int i = 0; i < ncon; i++) {
-         tree_t c = type_constraint(type, i);
-         switch (tree_subkind(c)) {
-         case C_INDEX:
-         case C_RECORD:
-         case C_OPEN:
-            out[ptr++] = c;
-            break;
-         }
-      }
-   }
-
-   return ptr;
-
- too_many:
-   fatal("sorry, type %s requires more than the maximum supported %d nested "
-         "constraints", type_pp(type), MAX_CONSTRAINTS);
-}
-
 bool relaxed_rules(void)
 {
    return opt_get_int(OPT_RELAXED);

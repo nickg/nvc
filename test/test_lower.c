@@ -4724,15 +4724,6 @@ START_TEST(test_issue478)
 
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = -1 },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 15 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ALLOC },
-      { VCODE_OP_WRAP },
-      { VCODE_OP_STORE, .name = "C_NULL_DATA" },
       { VCODE_OP_RETURN },
    };
 

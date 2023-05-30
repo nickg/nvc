@@ -46,6 +46,7 @@ static void dump_type(type_t type);
 static void dump_package(tree_t t, int indent);
 static void dump_package_body(tree_t t, int indent);
 static void dump_constraint(tree_t t);
+static void dump_elem_constraints(type_t type);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -410,7 +411,7 @@ static void dump_expr(tree_t t)
    dump_type_hint(t);
 }
 
-static void dump_elem_constraint(tree_t t)
+static void dump_record_elem_constraint(tree_t t)
 {
    print_syntax("%s", istr(tree_ident(t)));
 
@@ -418,6 +419,8 @@ static void dump_elem_constraint(tree_t t)
    const int ncon = type_constraints(ftype);
    for (int i = 0; i < ncon; i++)
       dump_constraint(type_constraint(ftype, i));
+
+   dump_elem_constraints(ftype);
 }
 
 static void dump_constraint(tree_t t)
@@ -444,10 +447,23 @@ static void dump_constraint(tree_t t)
       print_syntax("(");
       for (int i = 0; i < nranges; i++) {
          if (i > 0) print_syntax(", ");
-         dump_elem_constraint(tree_range(t, i));
+         dump_record_elem_constraint(tree_range(t, i));
       }
       print_syntax(")");
       break;
+   }
+}
+
+static void dump_elem_constraints(type_t type)
+{
+   if (type_is_array(type) && type_has_elem(type)) {
+      type_t elem = type_elem(type);
+      if (type_kind(elem) == T_SUBTYPE && !type_has_ident(elem)) {
+         // Anonymous subtype created for element constraints
+         assert(type_constraints(elem) == 1);
+         dump_constraint(type_constraint(elem, 0));
+         dump_elem_constraints(elem);
+      }
    }
 }
 
@@ -461,6 +477,7 @@ static void dump_type(type_t type)
          for (int i = 0; i < ncon; i++)
             dump_constraint(type_constraint(type, i));
       }
+      dump_elem_constraints(type);
    }
    else if (type_is_none(type))
       print_syntax("/* error */");
@@ -697,6 +714,8 @@ static void dump_subtype_decl(tree_t t, int indent)
    const int ncon = type_constraints(type);
    for (int i = 0; i < ncon; i++)
       dump_constraint(type_constraint(type, i));
+
+   dump_elem_constraints(type);
 
    print_syntax(";\n");
 }
@@ -1602,7 +1621,7 @@ void vhdl_dump(tree_t t, int indent)
       dump_constraint(t);
       break;
    case T_ELEM_CONSTRAINT:
-      dump_elem_constraint(t);
+      dump_record_elem_constraint(t);
       break;
    case T_ALTERNATIVE:
       dump_alternative(t, indent);

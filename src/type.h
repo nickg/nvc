@@ -65,6 +65,7 @@ void type_set_base(type_t t, type_t b);
 
 type_t type_elem(type_t t);
 void type_set_elem(type_t t, type_t e);
+bool type_has_elem(type_t t);
 
 unsigned type_dims(type_t t);
 tree_t type_dim(type_t t, unsigned n);
@@ -146,8 +147,6 @@ bool type_known_width(type_t type);
 
 // Helpers for element constraints
 tree_t type_constraint_for_field(type_t t, tree_t f);
-
-int type_missing_constraints(type_t t);
 
 bool type_frozen(type_t t);
 
