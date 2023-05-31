@@ -35,8 +35,6 @@
 #define DUMP_STATICNESS 0
 #define DUMP_GEN_NAMES  0
 
-LCOV_EXCL_START
-
 static void dump_expr(tree_t t);
 static void dump_stmt(tree_t t, int indent);
 static void dump_port(tree_t t, int indent);
@@ -52,8 +50,7 @@ typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
 static void tab(int indent)
 {
-   while (indent--)
-      fputc(' ', stdout);
+   print_syntax("%*s", indent, "");
 }
 
 static void cannot_dump(tree_t t, const char *hint)
@@ -1489,7 +1486,7 @@ static void dump_arch(tree_t t)
    dump_context(t, 0);
    dump_address(t);
    print_syntax("#architecture %s #of %s #is\n",
-          istr(tree_ident(t)), istr(tree_ident2(t)));
+                istr(tree_ident(t)), istr(tree_ident2(t)));
    dump_decls(t, 2);
    print_syntax("#begin\n");
    dump_stmts(t, 2);
@@ -1636,5 +1633,3 @@ void dump(tree_t t)
    vhdl_dump(t, 0);
    print_syntax("\r");
 }
-
-LCOV_EXCL_STOP

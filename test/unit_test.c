@@ -117,6 +117,7 @@ int main(int argc, char **argv)
 #ifdef ENABLE_TCL
    nfail += RUN_TESTS(shell);
 #endif
+   nfail += RUN_TESTS(dump);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
