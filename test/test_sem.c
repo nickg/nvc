@@ -3098,6 +3098,28 @@ START_TEST(test_lcs2016_45a)
 }
 END_TEST
 
+START_TEST(test_lcs2016_18)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_18.vhd");
+
+   const error_t expect[] = {
+      {  7, "prefix of 'DESIGNATED_SUBTYPE attribute does not have a type" },
+      {  8, "prefix of 'DESIGNATED_SUBTYPE attribute must be an access "
+         "or file type" },
+      { 15, "type of initial value BOOLEAN does not match type of "
+        "declaration INTEGER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3245,6 +3267,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_72b);
    tcase_add_test(tc_core, test_lcs2016_47);
    tcase_add_test(tc_core, test_lcs2016_45a);
+   tcase_add_test(tc_core, test_lcs2016_18);
    suite_add_tcase(s, tc_core);
 
    return s;

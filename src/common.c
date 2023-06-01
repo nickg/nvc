@@ -1715,6 +1715,7 @@ bool is_type_attribute(attr_kind_t kind)
    case ATTR_SUBTYPE:
    case ATTR_BASE:
    case ATTR_ELEMENT:
+   case ATTR_DESIGNATED_SUBTYPE:
       return true;
    default:
       return false;

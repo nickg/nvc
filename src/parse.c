@@ -2135,18 +2135,27 @@ static type_t apply_element_attribute(tree_t aref)
       return type_new(T_NONE);
    }
 
-   if (type_kind(type) == T_SUBTYPE) {
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, type_elem(type));
+   return type_elem(type);
+}
 
-      const int ncon = type_constraints(type);
-      for (int i = 1; i < ncon; i++)
-         type_add_constraint(sub, type_constraint(type, i));
+static type_t apply_designated_subtype_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_DESIGNATED_SUBTYPE);
 
-      return sub;
+   type_t type = get_type_or_null(tree_name(aref));
+
+   if (type == NULL) {
+      parse_error(tree_loc(aref), "prefix of 'DESIGNATED_SUBTYPE attribute "
+                  "does not have a type");
+      return type_new(T_NONE);
    }
-   else
-      return type_elem(type);
+   else if (!type_is_file(type) && !type_is_access(type)) {
+      parse_error(tree_loc(aref), "prefix of 'DESIGNATED_SUBTYPE attribute "
+                  "must be an access or file type");
+      return type_new(T_NONE);
+   }
+
+   return type_designated(type);
 }
 
 static type_t apply_base_attribute(tree_t aref)
@@ -2182,6 +2191,8 @@ static type_t apply_type_attribute(tree_t aref)
       return apply_element_attribute(aref);
    case ATTR_BASE:
       return apply_base_attribute(aref);
+   case ATTR_DESIGNATED_SUBTYPE:
+      return apply_designated_subtype_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -3017,6 +3028,8 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       return ATTR_ELEMENT;
    else if (icmp(ident, "CONVERSE"))
       return ATTR_CONVERSE;
+   else if (icmp(ident, "DESIGNATED_SUBTYPE"))
+      return ATTR_DESIGNATED_SUBTYPE;
    else
       return ATTR_USER;
 }
@@ -3027,19 +3040,7 @@ static tree_t p_attribute_name(tree_t prefix)
 
    EXTEND("attribute name");
 
-   type_t type = prefix_type(prefix);
-
-   if (type != NULL && type_is_access(type)) {
-      prefix = implicit_dereference(prefix);
-      type   = tree_type(prefix);
-   }
-
-   prefix = external_reference(prefix);
-
    consume(tTICK);
-
-   tree_t t = tree_new(T_ATTR_REF);
-   tree_set_name(t, prefix);
 
    attr_kind_t kind;
    ident_t id;
@@ -3069,6 +3070,18 @@ static tree_t p_attribute_name(tree_t prefix)
       kind = ATTR_USER;
       id = error_marker();
    }
+
+   type_t type = prefix_type(prefix);
+
+   if (!is_type_attribute(kind) && type != NULL && type_is_access(type)) {
+      prefix = implicit_dereference(prefix);
+      type   = tree_type(prefix);
+   }
+
+   prefix = external_reference(prefix);
+
+   tree_t t = tree_new(T_ATTR_REF);
+   tree_set_name(t, prefix);
 
    tree_set_ident(t, id);
    tree_set_subkind(t, kind);
