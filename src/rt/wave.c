@@ -414,8 +414,9 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    return NULL;
 }
 
-static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
-                                 type_t type, tree_t cons, text_buf_t *tb)
+static void fst_get_array_range(type_t type, tree_t cons, rt_signal_t *s,
+                                int64_t *msb, int64_t *lsb, int64_t *length,
+                                range_kind_t *dir)
 {
    tree_t r;
    if (cons != NULL && tree_kind(cons) == T_ELEM_CONSTRAINT)
@@ -445,8 +446,16 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       }
    }
 
-   enum fstVarDir dir = FST_VD_IMPLICIT;
+   *msb = rkind == RANGE_TO ? low : high;
+   *lsb = rkind == RANGE_TO ? high : low;
+   *length = MAX(high - low + 1, 0);
+   *dir = rkind;
+}
 
+static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
+                                 type_t type, tree_t cons, text_buf_t *tb)
+{
+   enum fstVarDir dir = FST_VD_IMPLICIT;
    if (tree_kind(d) == T_PORT_DECL) {
       switch (tree_subkind(d)) {
       case PORT_IN:     dir = FST_VD_INPUT; break;
@@ -456,12 +465,13 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       }
    }
 
-   const int msb = rkind == RANGE_TO ? low : high;
-   const int lsb = rkind == RANGE_TO ? high : low;
+   range_kind_t rkind;
+   int64_t lsb, msb, length;
+   fst_get_array_range(type, cons, s, &msb, &lsb, &length, &rkind);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
-   tb_printf(tb, "[%d:%d]", msb, lsb);
+   tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
    tb_downcase(tb);
 
    fst_data_t *data;
@@ -479,16 +489,15 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       const bool is_memory = type_is_array(elem);
 
       int64_t e_low = 1, e_high = 1;
-      int msb = 0, lsb = 0;
+      int e_msb = 0, e_lsb = 0;
       if (is_memory) {
          tree_t elem_r = range_of(elem, 0);
          range_bounds(elem_r, &e_low, &e_high);
 
-         msb = assume_int(tree_left(elem_r));
-         lsb = assume_int(tree_right(elem_r));
+         e_msb = assume_int(tree_left(elem_r));
+         e_lsb = assume_int(tree_right(elem_r));
       }
 
-      const int length = MAX(high - low + 1, 0);
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
       data->count = length;
       data->size  = (e_high - e_low + 1) * ft->size;
@@ -497,9 +506,9 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       for (int i = 0; i < length; i++) {
          tb_rewind(tb);
          tb_istr(tb, tree_ident(d));
-         tb_printf(tb, "[%"PRIi64"]", low + i);
+         tb_printf(tb, "[%"PRIi64"]", MIN(msb, lsb) + i);
          if (is_memory)
-            tb_printf(tb, "[%d:%d]", msb, lsb);
+            tb_printf(tb, "[%d:%d]", e_msb, e_lsb);
          tb_downcase(tb);
 
          data->handle[i] = fstWriterCreateVar2(
@@ -523,7 +532,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;
-      data->size  = (high - low + 1) * ft->size;
+      data->size  = length * ft->size;
       data->count = 1;
 
       data->handle[0] = fstWriterCreateVar2(
@@ -541,9 +550,11 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
    }
 
+   assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
+
    data->decl   = d;
    data->signal = s;
-   data->dir    = tree_subkind(r);
+   data->dir    = rkind;
    data->dumper = wd;
    data->watch  = model_set_event_cb(wd->model, data->signal,
                                      fst_event_cb, data, true);
@@ -582,6 +593,8 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->handle[0] = fstWriterCreateVar2(wd->fst_ctx, ft->vartype, dir,
                                          ft->size, tb_get(tb), 0, type_pp(type),
                                          FST_SVT_VHDL_SIGNAL, ft->sdt);
+
+   assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
 
    data->decl   = d;
    data->signal = s;
@@ -653,6 +666,39 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    }
 }
 
+static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
+                          text_buf_t *tb)
+{
+   rt_watch_t *w = find_watch(&(s->nexus), fst_event_cb);
+   if (w == NULL)
+      return;   // Did not dump the primary signal
+
+   fst_data_t *data = w->user_data;
+   if (data->count != 1)
+      return;   // Cannot handle for now
+
+   type_t type = tree_type(d);
+
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(d));
+   if (type_is_array(type)) {
+      range_kind_t rkind;
+      int64_t lsb, msb, length;
+      fst_get_array_range(type, NULL, s, &msb, &lsb, &length, &rkind);
+
+      tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
+   }
+   tb_downcase(tb);
+
+   fstWriterCreateVar2(wd->fst_ctx, data->type->vartype, FST_VD_INPUT,
+                       data->size, tb_get(tb), data->handle[0],
+                       type_pp(type), FST_SVT_VHDL_SIGNAL,
+                       data->type->sdt);
+
+   if (wd->gtkw != NULL)
+      fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
+}
+
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
                                tree_t cons, text_buf_t *tb)
 {
@@ -680,7 +726,9 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
 
       rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
-         ;    // Signal was optimised out
+         assert(type_is_array(type) && type_is_record(type_elem(type)));
+      else if (s->where != d)
+         fst_alias_var(wd, d, s, tb);  // Collapsed with another signal
       else if (type_is_array(type))
          fst_create_array_var(wd, d, s, type, cons, tb);
       else

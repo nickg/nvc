@@ -60,5 +60,6 @@ uint32_t signal_width(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
 void force_signal(rt_signal_t *s, const void *values, size_t count);
 void deposit_signal(rt_signal_t *s, const void *values, size_t count);
+rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 
 #endif  // _RT_MODEL_H

@@ -791,6 +791,36 @@ rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc)
    return NULL;
 }
 
+rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn)
+{
+   if (n->pending == NULL)
+      return NULL;
+   else if (pointer_tag(n->pending) == 1) {
+      rt_wakeable_t *obj = untag_pointer(n->pending, rt_wakeable_t);
+      if (obj->kind == W_WATCH) {
+         rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
+         if (w->fn == fn)
+            return w;
+      }
+
+      return NULL;
+   }
+   else {
+      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
+
+      for (int i = 0; i < p->count; i++) {
+         rt_wakeable_t *obj = untag_pointer(p->wake[i], rt_wakeable_t);
+         if (obj->kind == W_WATCH) {
+            rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
+            if (w->fn == fn)
+               return w;
+         }
+      }
+
+      return NULL;
+   }
+}
+
 rt_scope_t *find_scope(rt_model_t *m, tree_t container)
 {
    return hash_get(m->scopes, container);
@@ -3179,37 +3209,24 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
 rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
                                void *user, bool postponed)
 {
-   if (fn == NULL) {
-      // Find the first entry in the watch list and disable it
-      for (rt_watch_t *it = m->watches; it != NULL; it = it->chain_all) {
-         if ((it->signal == s) && (it->user_data == user)) {
-            it->wakeable.pending = true;   // TODO: not a good way of doing this
-            break;
-         }
-      }
+   rt_watch_t *w = xcalloc(sizeof(rt_watch_t));
+   w->signal    = s;
+   w->fn        = fn;
+   w->chain_all = m->watches;
+   w->user_data = user;
 
-      return NULL;
-   }
-   else {
-      rt_watch_t *w = xcalloc(sizeof(rt_watch_t));
-      w->signal    = s;
-      w->fn        = fn;
-      w->chain_all = m->watches;
-      w->user_data = user;
+   w->wakeable.kind      = W_WATCH;
+   w->wakeable.postponed = postponed;
+   w->wakeable.pending   = false;
+   w->wakeable.delayed   = false;
 
-      w->wakeable.kind      = W_WATCH;
-      w->wakeable.postponed = postponed;
-      w->wakeable.pending   = false;
-      w->wakeable.delayed   = false;
+   m->watches = w;
 
-      m->watches = w;
+   rt_nexus_t *n = &(w->signal->nexus);
+   for (int i = 0; i < s->n_nexus; i++, n = n->chain)
+      sched_event(m, n, &(w->wakeable));
 
-      rt_nexus_t *n = &(w->signal->nexus);
-      for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-         sched_event(m, n, &(w->wakeable));
-
-      return w;
-   }
+   return w;
 }
 
 void model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,

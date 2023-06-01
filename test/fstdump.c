@@ -94,6 +94,10 @@ static void extractVarNames(void *xc)
             memcpy(s, h->u.var.name, h->u.var.name_length);
             s[h->u.var.name_length] = '\0';
          }
+         else
+            fprintf(outf, "$comment %s.%.*s is aliased to %s $end\n",
+                    scope_names[snum], h->u.var.name_length, h->u.var.name,
+                    fac_names[h->u.var.handle]);
       }
    }
 }
