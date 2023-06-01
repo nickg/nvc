@@ -717,6 +717,14 @@ static void dump_subtype_decl(tree_t t, int indent)
    print_syntax(";\n");
 }
 
+static void dump_component(tree_t t, int indent)
+{
+   print_syntax("#component %s #is\n", istr(tree_ident(t)));
+   dump_generics(t, indent + 2, ";\n");
+   dump_ports(t, indent + 2);
+   print_syntax("#end #component;\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -885,19 +893,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_COMPONENT:
-      print_syntax("#component %s #is\n", istr(tree_ident(t)));
-      dump_generics(t, indent + 2, ";\n");
-      if (tree_ports(t) > 0) {
-         print_syntax("    #port (\n");
-         for (unsigned i = 0; i < tree_ports(t); i++) {
-            if (i > 0)
-               print_syntax(";\n");
-            tab(4);
-            dump_port(tree_port(t, i), 2);
-         }
-         print_syntax(" );\n");
-      }
-      print_syntax("  #end #component;\n");
+      dump_component(t, indent);
       return;
 
    case T_PROT_BODY:
