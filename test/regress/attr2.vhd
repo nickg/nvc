@@ -22,6 +22,9 @@ begin
         assert v'length(1) = 2;
         assert v'length(2) = 2;
         assert v'length(3) = 10;
+        assert v'ascending(1);
+        assert not v'ascending(2);
+        assert v'ascending(3);
         foo(v);
         wait;
     end process;

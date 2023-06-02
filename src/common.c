@@ -1745,6 +1745,7 @@ bool attribute_has_param(attr_kind_t attr)
    case ATTR_QUIET:
    case ATTR_STABLE:
    case ATTR_INDEX:
+   case ATTR_ASCENDING:
       return true;
    default:
       return false;
