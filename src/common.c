@@ -1716,6 +1716,35 @@ bool is_type_attribute(attr_kind_t kind)
    case ATTR_BASE:
    case ATTR_ELEMENT:
    case ATTR_DESIGNATED_SUBTYPE:
+   case ATTR_INDEX:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool attribute_has_param(attr_kind_t attr)
+{
+   switch (attr) {
+   case ATTR_IMAGE:
+   case ATTR_SUCC:
+   case ATTR_PRED:
+   case ATTR_DELAYED:
+   case ATTR_LEFTOF:
+   case ATTR_RIGHTOF:
+   case ATTR_VALUE:
+   case ATTR_POS:
+   case ATTR_LOW:
+   case ATTR_HIGH:
+   case ATTR_LEFT:
+   case ATTR_RIGHT:
+   case ATTR_LENGTH:
+   case ATTR_RANGE:
+   case ATTR_REVERSE_RANGE:
+   case ATTR_VAL:
+   case ATTR_QUIET:
+   case ATTR_STABLE:
+   case ATTR_INDEX:
       return true;
    default:
       return false;

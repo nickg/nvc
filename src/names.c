@@ -3635,6 +3635,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_SUBTYPE:
    case ATTR_ELEMENT:
    case ATTR_DESIGNATED_SUBTYPE:
+   case ATTR_INDEX:
       // These should have been expanded by the parser so can only be
       // erroneous
       type = prefix_type;

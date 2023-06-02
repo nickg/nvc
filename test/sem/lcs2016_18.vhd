@@ -16,4 +16,18 @@ begin
     begin
     end process;
 
+    p2: process is
+        type int_map is array (integer range <>, boolean range <>) of integer;
+        constant c7 : int_map'index := 23;  -- OK
+        constant c8 : int_map'index(2) := true;  -- OK
+        constant c9 : int_map'index(2) := 12;  -- Error
+        constant c10 : int_map'index(0) := 55;  -- Error
+        constant c11 : int_map'index(3) := false;  -- Error
+        constant c12 : integer'index := 1;   -- Error
+        variable v2 : int_map(1 to 3, true to false);
+        constant c13 : v2'index(1) := 5;  -- OK
+        constant c14 : int_map'index(1 + 0) := 3;  -- OK (but not supported)
+    begin
+    end process;
+
 end architecture;

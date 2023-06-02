@@ -222,6 +222,7 @@ typedef enum {
    ATTR_ELEMENT,
    ATTR_CONVERSE,
    ATTR_DESIGNATED_SUBTYPE,
+   ATTR_INDEX,
 } attr_kind_t;
 
 typedef enum {

@@ -23,7 +23,8 @@
 - Added support for interfaces in VHDL-2019 including mode view
   declarations, mode view indications, and the `'converse` attribute.
 - Added support for VHDL-2008 matching `select?` statements (#705).
-- Added support for `'designated_subtype` attribute in VHDL-2019.
+- Added support for the new `'designated_subtype` and `'index`
+  attributes in VHDL-2019.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

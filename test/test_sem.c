@@ -3110,6 +3110,12 @@ START_TEST(test_lcs2016_18)
          "or file type" },
       { 15, "type of initial value BOOLEAN does not match type of "
         "declaration INTEGER" },
+      { 23, "type of initial value universal_integer does not match type of "
+        "declaration BOOLEAN" },
+      { 24, "'INDEX parameter for type INT_MAP must be between 1 and 2" },
+      { 25, "'INDEX parameter for type INT_MAP must be between 1 and 2" },
+      { 26, "prefix of 'INDEX attribute must be an array type" },
+      { 29, "only integer literals are supported for 'INDEX parameter" },
       { -1, NULL }
    };
    expect_errors(expect);

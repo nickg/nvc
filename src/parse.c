@@ -2182,6 +2182,45 @@ static type_t apply_base_attribute(tree_t aref)
       return type;
 }
 
+static type_t apply_index_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_INDEX);
+
+   type_t type = get_type_or_null(tree_name(aref));
+
+   if (!type_is_array(type)) {
+      parse_error(tree_loc(aref), "prefix of 'INDEX attribute must be an "
+                  "array type");
+      return type_new(T_NONE);
+   }
+
+   const int ndims = dimension_of(type);
+   const int nparams = tree_params(aref);
+
+   int index = 0;
+   if (nparams == 1) {
+      // The LRM allows any locally static expression here but that is
+      // difficult to implement and doesn't seem useful
+      tree_t p = tree_value(tree_param(aref, 0));
+      if (tree_kind(p) != T_LITERAL) {
+         parse_error(tree_loc(p), "only integer literals are supported "
+                     "for 'INDEX parameter");
+         return type_new(T_NONE);
+      }
+
+      const int64_t ival = tree_ival(p);
+      if (ival < 1 || ival > ndims) {
+         parse_error(tree_loc(p), "'INDEX parameter for type %s must be "
+                     "between 1 and %d", type_pp(type), ndims);
+         return type_new(T_NONE);
+      }
+
+      index = ival - 1;
+   }
+
+   return index_type_of(type, index);
+}
+
 static type_t apply_type_attribute(tree_t aref)
 {
    switch (tree_subkind(aref)) {
@@ -2193,6 +2232,8 @@ static type_t apply_type_attribute(tree_t aref)
       return apply_base_attribute(aref);
    case ATTR_DESIGNATED_SUBTYPE:
       return apply_designated_subtype_attribute(aref);
+   case ATTR_INDEX:
+      return apply_index_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -3026,10 +3067,12 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       return ATTR_BASE;
    else if (icmp(ident, "ELEMENT"))
       return ATTR_ELEMENT;
-   else if (icmp(ident, "CONVERSE"))
+   else if (icmp(ident, "CONVERSE") && standard() >= STD_19)
       return ATTR_CONVERSE;
-   else if (icmp(ident, "DESIGNATED_SUBTYPE"))
+   else if (icmp(ident, "DESIGNATED_SUBTYPE") && standard() >= STD_19)
       return ATTR_DESIGNATED_SUBTYPE;
+   else if (icmp(ident, "INDEX") && standard() >= STD_19)
+      return ATTR_INDEX;
    else
       return ATTR_USER;
 }
@@ -3087,14 +3130,14 @@ static tree_t p_attribute_name(tree_t prefix)
    tree_set_subkind(t, kind);
    tree_set_loc(t, CURRENT_LOC);
 
-   if (is_type_attribute(kind))
-      tree_set_type(t, apply_type_attribute(t));
-   else if (kind != ATTR_USER && optional(tLPAREN)) {
+   if (attribute_has_param(kind) && optional(tLPAREN)) {
       add_param(t, p_expression(), P_POS, NULL);
       consume(tRPAREN);
       tree_set_loc(t, CURRENT_LOC);
-      solve_types(nametab, t, NULL);
    }
+
+   if (is_type_attribute(kind))
+      tree_set_type(t, apply_type_attribute(t));
    else
       solve_types(nametab, t, NULL);
 

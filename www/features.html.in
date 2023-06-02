@@ -226,13 +226,13 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018a">
         LCS2016-018a</td>
     <td>New attributes - <code>'INDEX</code></td>
-    <td class="feature-missing"></td>
+    <td class="feature-done"></td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018d">
         LCS2016-018d</td>
     <td>New attributes - <code>'DESIGNATED_TYPE</code></td>
-    <td class="feature-missing"></td>
+    <td class="feature-done"></td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_019">

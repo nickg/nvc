@@ -229,6 +229,22 @@ begin
     begin
         assert x'length = 0;            -- Error (suppressed)
     end process;
+
+    process is
+        -- Test for VHDL-2019 attributes used in -93
+        attribute index : integer;
+        attribute designated_type : integer;
+        attribute converse : integer;
+        variable a : integer;
+        attribute index of a : variable is 4;  -- OK
+        attribute designated_type of a : variable is 4;  -- OK
+        attribute converse of a : variable is 4;  -- OK
+    begin
+        assert a'index = 4;             -- OK
+        assert a'designated_type = 4;   -- OK
+        assert a'converse = 4;          -- OK
+    end process;
+
 end architecture;
 
 use work.pack.all;
