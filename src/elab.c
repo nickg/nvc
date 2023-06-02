@@ -1297,10 +1297,9 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_decls(entity, &new_ctx);
 
    if (error_count() == 0) {
-      bounds_check(b);
       diag_add_hint_fn(elab_hint_fn, t);
+      bounds_check(b);   // Catch port size mismatches
       simplify_global(arch_copy, new_ctx.generics, ctx->jit);
-      bounds_check(arch_copy);
       diag_remove_hint_fn(elab_hint_fn);
    }
 
@@ -1990,7 +1989,6 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    elab_decls(entity, &new_ctx);
 
    simplify_global(arch_copy, new_ctx.generics, ctx->jit);
-   bounds_check(arch_copy);
 
    if (error_count() == 0) {
       elab_decls(arch_copy, &new_ctx);

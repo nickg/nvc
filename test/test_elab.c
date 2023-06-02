@@ -1403,15 +1403,25 @@ START_TEST(test_issue669)
    input_from_file(TESTDIR "/elab/issue669.vhd");
 
    const error_t expect[] = {
-      { 14, "wait timeout may not be negative" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    tree_t e = run_elab();
-   fail_unless(e == NULL);
+   fail_if(e == NULL);
 
-   check_expected_errors();
+   tree_t f = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(f) == T_BLOCK);
+   fail_unless(tree_ident(f) == ident_new("F"));
+
+   tree_t p = tree_stmt(f, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+
+   tree_t w = tree_stmt(p, 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   ck_assert_int_eq(tree_ival(tree_delay(w)), INT64_C(-1000000000000));
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1536,6 +1546,19 @@ START_TEST(test_view1)
 }
 END_TEST
 
+START_TEST(test_issue707)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue707.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1621,6 +1644,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_genpack3);
    tcase_add_test(tc, test_genpack4);
    tcase_add_test(tc, test_view1);
+   tcase_add_test(tc, test_issue707);
    suite_add_tcase(s, tc);
 
    return s;
