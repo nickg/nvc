@@ -1518,6 +1518,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return e->Staticness;
       }
 
+   case vhpiBaseIndexP:
+      {
+         c_indexedName *in = cast_indexedName(obj);
+         if (in == NULL)
+            return vhpiUndefined;
+
+         return in->BaseIndex;
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));
