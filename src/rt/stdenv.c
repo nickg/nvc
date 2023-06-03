@@ -34,6 +34,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef __MINGW32__
+#include <timezoneapi.h>
+
+#define gmtime_r(t, tm) gmtime_s(tm, t);
+#define localtime_r(t, tm) localtime_s(tm, t);
+#endif
+
 typedef struct {
    int64_t microsecond;
    int64_t second;
@@ -148,6 +155,30 @@ static ffi_uarray_t *to_absolute_path(const char *input, size_t len)
       return to_line(buf);
 }
 
+static void to_time_record(const struct tm *tm, int us, time_record_t *tr)
+{
+   assert(us >= 0);
+   assert(us < 1000000);
+
+   tr->microsecond = us;
+   tr->second      = tm->tm_sec;
+   tr->minute      = tm->tm_min;
+   tr->hour        = tm->tm_hour;
+   tr->day         = tm->tm_mday;
+   tr->month       = tm->tm_mon;
+   tr->year        = 1900 + tm->tm_year;
+   tr->weekday     = tm->tm_wday;
+   tr->dayofyear   = tm->tm_yday;
+}
+
+static time_t to_time_t(const time_record_t *tr)
+{
+   const int adj_year = tr->year - 1900;
+   return tr->second + tr->minute*60 + tr->hour*3600 + tr->dayofyear*86400
+      + (adj_year - 70) * 31536000 + ((adj_year - 69) / 4) * 86400
+      - ((adj_year - 1) / 100)*86400 + ((adj_year + 299) / 400) * 86400;
+}
+
 DLLEXPORT
 void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 {
@@ -203,33 +234,34 @@ double _std_env_epoch(void)
    return (double)tz.tv_sec + (double)tz.tv_usec / 1e6;
 }
 
-static void to_time_record(const struct tm *tm, int us, time_record_t *tr)
+DLLEXPORT
+double _std_env_epoch_trec(const time_record_t *tr)
 {
-   tr->microsecond = us;
-   tr->second      = tm->tm_sec;
-   tr->minute      = tm->tm_min;
-   tr->hour        = tm->tm_hour;
-   tr->day         = tm->tm_mday;
-   tr->month       = tm->tm_mon;
-   tr->year        = 1900 + tm->tm_year;
-   tr->weekday     = tm->tm_wday;
-   tr->dayofyear   = tm->tm_yday;
+   const time_t secs = to_time_t(tr);
+   return (double)secs + (double)tr->microsecond / 1e6;
 }
 
 DLLEXPORT
 void _std_env_localtime(double time, time_record_t *tr)
 {
    double fsecs = floor(time);
-   time_t secs = (int)fsecs;
+   time_t secs = (time_t)fsecs;
 
    struct tm tm;
-#ifdef __MINGW32__
-   localtime_s(&tm, &secs);
-#else
    localtime_r(&secs, &tm);
-#endif
 
    to_time_record(&tm, (int)(1e6 * (time - fsecs)), tr);
+}
+
+DLLEXPORT
+void _std_env_localtime_trec(const time_record_t *tr, time_record_t *result)
+{
+   time_t time = to_time_t(tr);
+
+   struct tm tm = {};
+   localtime_r(&time, &tm);
+
+   to_time_record(&tm, tr->microsecond, result);
 }
 
 DLLEXPORT
@@ -239,13 +271,77 @@ void _std_env_gmtime(double time, time_record_t *tr)
    time_t secs = (int)fsecs;
 
    struct tm tm;
-#ifdef __MINGW32__
-   gmtime_s(&tm, &secs);
-#else
    gmtime_r(&secs, &tm);
-#endif
 
    to_time_record(&tm, (int)(1e6 * (time - fsecs)), tr);
+}
+
+DLLEXPORT
+void _std_env_gmtime_trec(const time_record_t *tr, time_record_t *result)
+{
+   struct tm tm = {};
+   time_t gmtoff = 0;
+
+#ifdef __MINGW32__
+   TIME_ZONE_INFORMATION tz;
+   switch (GetTimeZoneInformation(&tz)) {
+   case TIME_ZONE_ID_UNKNOWN:
+      gmtoff = tz.Bias * -60;
+      break;
+   case TIME_ZONE_ID_STANDARD:
+      gmtoff = (tz.Bias + tz.StandardBias) * -60;
+      break;
+   case TIME_ZONE_ID_DAYLIGHT:
+      gmtoff = (tz.Bias + tz.DaylightBias) * -60;
+      break;
+   }
+#else
+   // Call localtime to get GMT offset
+   const time_t zero = 0;
+   localtime_r(&zero, &tm);
+
+   gmtoff = tm.tm_gmtoff;
+#endif
+
+   const time_t time = to_time_t(tr) - gmtoff;
+
+   gmtime_r(&time, &tm);
+
+   to_time_record(&tm, tr->microsecond, result);
+}
+
+DLLEXPORT
+void _std_env_add_trec_real(const time_record_t *tr, double delta,
+                            time_record_t *result)
+{
+   const int micro = (int)(fmod(delta, 1.0) * 1e6);
+   const time_t secs = (time_t)trunc(delta);
+
+   time_t newsecs = to_time_t(tr) + secs;
+   int newmicro = tr->microsecond + micro;
+
+   if (newmicro >= 1000000) {
+      newmicro %= 1000000;
+      newsecs++;
+   }
+   else if (newmicro < 0) {
+      newmicro = 1000000 + newmicro % 100000;
+      newsecs--;
+   }
+
+   struct tm tm = {};
+   gmtime_r(&newsecs, &tm);
+
+   to_time_record(&tm, newmicro, result);
+}
+
+DLLEXPORT
+double _std_env_diff_trec(const time_record_t *tr1, const time_record_t *tr2)
+{
+   const time_t diff = to_time_t(tr1) - to_time_t(tr2);
+   const int microdiff = tr1->microsecond - tr2->microsecond;
+
+   return (double)diff + (double)microdiff / 1e6;
 }
 
 DLLEXPORT

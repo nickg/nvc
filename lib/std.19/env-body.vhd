@@ -87,44 +87,62 @@ package body env is
     end function;
 
     function epoch (trec : time_record) return real is
+        function impl (trec : in time_record) return real;
+        attribute foreign of impl : function is "_std_env_epoch_trec";
     begin
-        report "not implemented" severity failure;
+        return impl(trec);
     end function;
 
     function localtime (trec : time_record) return time_record is
+        procedure impl (trec : in time_record; result : out time_record);
+        attribute foreign of impl : procedure is "_std_env_localtime_trec";
+        variable result : time_record;
     begin
-        report "not implemented" severity failure;
+        impl(trec, result);
+        return result;
     end function;
 
     function gmtime (trec : time_record) return time_record is
+        procedure impl (trec : in time_record; result : out time_record);
+        attribute foreign of impl : procedure is "_std_env_gmtime_trec";
+        variable result : time_record;
     begin
-        report "not implemented" severity failure;
+        impl(trec, result);
+        return result;
     end function;
 
-    function "+" (trec  : time_record; delta : real) return time_record is
+    function "+" (trec : time_record; delta : real) return time_record is
+        procedure impl (trec   : in time_record;
+                        delta  : in real;
+                        result : out time_record);
+        attribute foreign of impl : procedure is "_std_env_add_trec_real";
+        variable result : time_record;
     begin
-        report "not implemented" severity failure;
+        impl(trec, delta, result);
+        return result;
     end function;
 
     function "+" (delta : real; trec : time_record) return time_record is
     begin
-        report "not implemented" severity failure;
+        return trec + delta;
     end function;
 
     function "-" (trec  : time_record; delta : real) return time_record is
     begin
-        report "not implemented" severity failure;
+        return trec + (-delta);
     end function;
 
     function "-" (delta : real; trec : time_record) return time_record is
     begin
+        -- It's not really clear what this is for
         report "not implemented" severity failure;
     end function;
 
     function "-" (tr1, tr2 : time_record) return real is
+        function impl (tr1, tr2 : in time_record) return real;
+        attribute foreign of impl : function is "_std_env_diff_trec";
     begin
-        report "not implemented" severity warning;
-        return 0.0;
+        return impl(tr1, tr2);
     end function;
 
     function time_to_seconds (time_val : in time) return real is

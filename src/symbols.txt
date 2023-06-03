@@ -11,8 +11,11 @@
   _std_to_string_time;
 
   # Exported from src/rt/stdenv.c
+  _std_env_add_trec_real;
   _std_env_createdir;
+  _std_env_diff_trec;
   _std_env_epoch;
+  _std_env_epoch_trec;
   _std_env_file_line;
   _std_env_file_name;
   _std_env_file_path;
@@ -20,10 +23,12 @@
   _std_env_get_workingdir;
   _std_env_getenv;
   _std_env_gmtime;
+  _std_env_gmtime_trec;
   _std_env_itemexists;
   _std_env_itemisdir;
   _std_env_itemisfile;
   _std_env_localtime;
+  _std_env_localtime_trec;
   _std_env_seconds_to_time;
   _std_env_set_workingdir;
   _std_env_stop;
