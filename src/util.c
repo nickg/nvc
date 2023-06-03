@@ -486,6 +486,8 @@ void print_centred(const char *text)
 
 void fatal_exit(int status)
 {
+   async_barrier();
+
    if (atomic_load(&crashing) != SIG_ATOMIC_MAX)
       _exit(status);   // Exit during crash
    else if (!thread_attached() || thread_id() != 0)
