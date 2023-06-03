@@ -220,7 +220,7 @@ package body env is
 
     function tool_edition return string is
     begin
-        return "";
+        return "GPL";
     end function;
 
     function tool_version return string is

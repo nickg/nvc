@@ -233,7 +233,7 @@ static void pp_defines_init(void)
    pp_defines_add("TOOL_TYPE",    "SIMULATION");
    pp_defines_add("TOOL_VENDOR",  PACKAGE_URL);
    pp_defines_add("TOOL_NAME",    PACKAGE_NAME);
-   pp_defines_add("TOOL_EDITION", PACKAGE_VERSION);
+   pp_defines_add("TOOL_EDITION", "GPL");
    pp_defines_add("TOOL_VERSION", PACKAGE_VERSION);
 }
 
