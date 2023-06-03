@@ -25,6 +25,8 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
       check_error();
       fail_if(outer[i] == NULL);
 
+      fail_unless(vhpi_get(vhpiBaseIndexP, outer[i]) == i);
+
       snprintf(name, sizeof(name), "%s(%d)", sig, i);
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, outer[i])));
 
@@ -32,6 +34,8 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
          inner[i][j] = vhpi_handle_by_index(vhpiIndexedNames, outer[i], j);
          check_error();
          fail_if(inner[i][j] == NULL);
+
+         fail_unless(vhpi_get(vhpiBaseIndexP, inner[i][j]) == j);
 
          snprintf(name, sizeof(name), "%s(%d)(%d)", sig, i, j);
          fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, inner[i][j])));
@@ -60,6 +64,8 @@ void vhpi7_startup(void)
          check_error();
          fail_if(n_outer[i][j] == NULL);
 
+         fail_unless(vhpi_get(vhpiBaseIndexP, n_outer[i][j]) == i * 5 + j);
+
          snprintf(name, sizeof(name), "N(%d,%d)", i, j);
          fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_outer[i][j])));
 
@@ -69,6 +75,8 @@ void vhpi7_startup(void)
                   vhpi_handle_by_index(vhpiIndexedNames, n_outer[i][j], k * 2 + l);
                check_error();
                fail_if(n_inner[i][j][k][l] == NULL);
+
+               fail_unless(vhpi_get(vhpiBaseIndexP, n_inner[i][j][k][l]) == k * 2 + l);
 
                snprintf(name, sizeof(name), "N(%d,%d)(%d,%d)", i, j, k, l);
                fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_inner[i][j][k][l])));
