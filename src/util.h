@@ -375,10 +375,23 @@ void list_clear(ptr_list_t *l);
 #define list_start(l) ((l) == NULL ? NULL : (l)->items)
 #define list_end(l) ((l) == NULL ? NULL : (l)->items + (l)->count)
 
-#define list_foreach(type, it, list)                   \
-   for (typeof(type) it,                               \
-           *__p = (typeof(__p))list_start(list),       \
-           *__end = (typeof(__end))list_end(list);     \
-        __p != __end && (it = *__p, 1); __p++)         \
+#define list_iter(type, it, list)                      \
+   typeof(type) it,                                   \
+      *__p = (typeof(__p))list_start(list),            \
+      *__end = (typeof(__end))list_end(list);          \
+   __p != __end && (it = *__p, 1); __p++               \
+
+#define list_foreach(type, it, list) \
+   for (list_iter(type, it, list))
+
+#define INIT_ONCE(body) do {                    \
+      static volatile int __done = 0;           \
+      if (!load_acquire(&__done)) {             \
+         static nvc_lock_t __lock;              \
+         SCOPED_LOCK(__lock);                   \
+         body;                                  \
+         store_release(&__done, 1);             \
+      }                                         \
+   } while (0)
 
 #endif // _UTIL_H

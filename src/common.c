@@ -2269,7 +2269,7 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
              tree_copy_cb, type_copy_cb, &copy_ctx);
 
    // Change the name of any copied types to reflect the new hiearchy
-   list_foreach(type_t, type, copy_ctx.copied_types) {
+   for (list_iter(type_t, type, copy_ctx.copied_types)) {
       ident_t orig = type_ident(type);
       for (int j = 0; j < nprefix; j++) {
          if (ident_starts_with(orig, prefixes[j])) {
@@ -2286,7 +2286,7 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
 
    // Change the mangled name of copied subprograms so that copies in
    // different instances do not collide
-   list_foreach(tree_t, decl, copy_ctx.copied_subs) {
+   for (list_iter(tree_t, decl, copy_ctx.copied_subs)) {
       if (tree_kind(decl) == T_GENERIC_DECL)
          continue;   // Does not yet have mangled name
 

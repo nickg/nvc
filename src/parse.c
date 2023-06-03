@@ -28,6 +28,7 @@
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
 #include "scan.h"
+#include "thread.h"
 #include "tree.h"
 #include "type.h"
 
@@ -2334,6 +2335,65 @@ static void implicit_signal_attribute(tree_t aref)
    tree_set_value(aref, make_ref(imp));
 }
 
+static attr_kind_t parse_predefined_attr(ident_t ident)
+{
+   static struct {
+      const char      *str;
+      attr_kind_t      attr;
+      vhdl_standard_t  std;
+      ident_t          ident;
+   } predef[] = {
+      { "RANGE", ATTR_RANGE },
+      { "REVERSE_RANGE", ATTR_REVERSE_RANGE },
+      { "LENGTH", ATTR_LENGTH },
+      { "LEFT", ATTR_LEFT },
+      { "RIGHT", ATTR_RIGHT },
+      { "LOW", ATTR_LOW },
+      { "HIGH", ATTR_HIGH },
+      { "EVENT", ATTR_EVENT },
+      { "ACTIVE", ATTR_ACTIVE },
+      { "IMAGE", ATTR_IMAGE },
+      { "ASCENDING", ATTR_ASCENDING },
+      { "LAST_VALUE", ATTR_LAST_VALUE },
+      { "LAST_EVENT", ATTR_LAST_EVENT },
+      { "LAST_ACTIVE", ATTR_LAST_ACTIVE },
+      { "PATH_NAME", ATTR_PATH_NAME },
+      { "INSTANCE_NAME", ATTR_INSTANCE_NAME },
+      { "SIMPLE_NAME", ATTR_SIMPLE_NAME },
+      { "DELAYED", ATTR_DELAYED },
+      { "STABLE", ATTR_STABLE },
+      { "QUIET", ATTR_QUIET },
+      { "TRANSACTION", ATTR_TRANSACTION },
+      { "DRIVING_VALUE", ATTR_DRIVING_VALUE },
+      { "DRIVING", ATTR_DRIVING },
+      { "VALUE", ATTR_VALUE },
+      { "SUCC", ATTR_SUCC },
+      { "PRED", ATTR_PRED },
+      { "LEFTOF", ATTR_LEFTOF },
+      { "RIGHTOF", ATTR_RIGHTOF },
+      { "POS", ATTR_POS },
+      { "VAL", ATTR_VAL },
+      { "BASE", ATTR_BASE },
+      { "ELEMENT", ATTR_ELEMENT, STD_08 },
+      { "CONVERSE", ATTR_CONVERSE, STD_19 },
+      { "DESIGNATED_SUBTYPE", ATTR_DESIGNATED_SUBTYPE, STD_19 },
+      { "INDEX", ATTR_INDEX, STD_19 },
+   };
+
+   INIT_ONCE({
+         for (int i = 0; i < ARRAY_LEN(predef); i++)
+            predef[i].ident = ident_new(predef[i].str);
+      });
+
+   for (int i = 0; i < ARRAY_LEN(predef); i++) {
+      if (predef[i].ident == ident
+          && (predef[i].std <= STD_93 || standard() >= predef[i].std))
+         return predef[i].attr;
+   }
+
+   return ATTR_USER;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -2999,82 +3059,6 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
 
    tree_set_loc(call, CURRENT_LOC);
    return could_be_slice_name(call);
-}
-
-static attr_kind_t parse_predefined_attr(ident_t ident)
-{
-   if (icmp(ident, "RANGE"))
-      return ATTR_RANGE;
-   else if (icmp(ident, "REVERSE_RANGE"))
-      return ATTR_REVERSE_RANGE;
-   else if (icmp(ident, "LENGTH"))
-      return ATTR_LENGTH;
-   else if (icmp(ident, "LEFT"))
-      return ATTR_LEFT;
-   else if (icmp(ident, "RIGHT"))
-      return ATTR_RIGHT;
-   else if (icmp(ident, "LOW"))
-      return ATTR_LOW;
-   else if (icmp(ident, "HIGH"))
-      return ATTR_HIGH;
-   else if (icmp(ident, "EVENT"))
-      return ATTR_EVENT;
-   else if (icmp(ident, "ACTIVE"))
-      return ATTR_ACTIVE;
-   else if (icmp(ident, "IMAGE"))
-      return ATTR_IMAGE;
-   else if (icmp(ident, "ASCENDING"))
-      return ATTR_ASCENDING;
-   else if (icmp(ident, "LAST_VALUE"))
-      return ATTR_LAST_VALUE;
-   else if (icmp(ident, "LAST_EVENT"))
-      return ATTR_LAST_EVENT;
-   else if (icmp(ident, "PATH_NAME"))
-      return ATTR_PATH_NAME;
-   else if (icmp(ident, "INSTANCE_NAME"))
-      return ATTR_INSTANCE_NAME;
-   else if (icmp(ident, "SIMPLE_NAME"))
-      return ATTR_SIMPLE_NAME;
-   else if (icmp(ident, "DELAYED"))
-      return ATTR_DELAYED;
-   else if (icmp(ident, "STABLE"))
-      return ATTR_STABLE;
-   else if (icmp(ident, "QUIET"))
-      return ATTR_QUIET;
-   else if (icmp(ident, "TRANSACTION"))
-      return ATTR_TRANSACTION;
-   else if (icmp(ident, "DRIVING_VALUE"))
-      return ATTR_DRIVING_VALUE;
-   else if (icmp(ident, "LAST_ACTIVE"))
-      return ATTR_LAST_ACTIVE;
-   else if (icmp(ident, "DRIVING"))
-      return ATTR_DRIVING;
-   else if (icmp(ident, "VALUE"))
-      return ATTR_VALUE;
-   else if (icmp(ident, "SUCC"))
-      return ATTR_SUCC;
-   else if (icmp(ident, "PRED"))
-      return ATTR_PRED;
-   else if (icmp(ident, "LEFTOF"))
-      return ATTR_LEFTOF;
-   else if (icmp(ident, "RIGHTOF"))
-      return ATTR_RIGHTOF;
-   else if (icmp(ident, "POS"))
-      return ATTR_POS;
-   else if (icmp(ident, "VAL"))
-      return ATTR_VAL;
-   else if (icmp(ident, "BASE"))
-      return ATTR_BASE;
-   else if (icmp(ident, "ELEMENT"))
-      return ATTR_ELEMENT;
-   else if (icmp(ident, "CONVERSE") && standard() >= STD_19)
-      return ATTR_CONVERSE;
-   else if (icmp(ident, "DESIGNATED_SUBTYPE") && standard() >= STD_19)
-      return ATTR_DESIGNATED_SUBTYPE;
-   else if (icmp(ident, "INDEX") && standard() >= STD_19)
-      return ATTR_INDEX;
-   else
-      return ATTR_USER;
 }
 
 static tree_t p_attribute_name(tree_t prefix)
