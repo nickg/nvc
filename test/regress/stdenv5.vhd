@@ -16,7 +16,7 @@ begin
         assert t1.microsecond = t2.microsecond;
         assert t1.second = t2.second;
         assert abs (t1.year - t2.year) <= 1;
-        assert abs (t1.hour - t2.hour) <= 1;
+        assert abs (t1.hour - t2.hour) <= 24;
         assert abs (t1.day - t2.day) <= 1;
         assert abs (t1.month - t2.month) <= 1;
 

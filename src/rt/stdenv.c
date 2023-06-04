@@ -282,30 +282,26 @@ DLLEXPORT
 void _std_env_gmtime_trec(const time_record_t *tr, time_record_t *result)
 {
    struct tm tm = {};
-   time_t gmtoff = 0;
+   time_t time = to_time_t(tr);
 
 #ifdef __MINGW32__
    TIME_ZONE_INFORMATION tz;
    switch (GetTimeZoneInformation(&tz)) {
    case TIME_ZONE_ID_UNKNOWN:
-      gmtoff = tz.Bias * -60;
+      time += tz.Bias * 60;
       break;
    case TIME_ZONE_ID_STANDARD:
-      gmtoff = (tz.Bias + tz.StandardBias) * -60;
+      time += (tz.Bias + tz.StandardBias) * 60;
       break;
    case TIME_ZONE_ID_DAYLIGHT:
-      gmtoff = (tz.Bias + tz.DaylightBias) * -60;
+      time += (tz.Bias + tz.DaylightBias) * 60;
       break;
    }
 #else
    // Call localtime to get GMT offset
-   const time_t zero = 0;
-   localtime_r(&zero, &tm);
-
-   gmtoff = tm.tm_gmtoff;
+   localtime_r(&time, &tm);
+   time -= tm.tm_gmtoff;
 #endif
-
-   const time_t time = to_time_t(tr) - gmtoff;
 
    gmtime_r(&time, &tm);
 
