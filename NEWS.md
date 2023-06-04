@@ -26,6 +26,10 @@
 - Added support for the new `'designated_subtype` and `'index`
   attributes in VHDL-2019.
 - Implemented the date/time functions from `std.env` in VHDL-2019.
+- The default exit severity was changed from `error` to `failure`.  This
+  means a failing assertion no longer immediately terminates the
+  simulation.  The old behaviour can be restored with
+  `--exit-severity=error`.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

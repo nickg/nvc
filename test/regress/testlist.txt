@@ -793,3 +793,4 @@ view5           normal,2019
 issue705        normal,2008
 array17         normal,2008
 stdenv5         normal,2019
+assert7         fail,2008

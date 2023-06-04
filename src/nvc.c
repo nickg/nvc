@@ -135,7 +135,7 @@ static int analyse(int argc, char **argv)
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
-   int c, index = 0;
+   int c, index = 0, error_limit = 20;
    const char *spec = ":D:";
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
@@ -159,7 +159,7 @@ static int analyse(int argc, char **argv)
          opt_set_int(OPT_RELAXED, 1);
          break;
       case 'l':
-         opt_set_int(OPT_ERROR_LIMIT, parse_int(optarg));
+         error_limit = parse_int(optarg);
          break;
       case 'P':
          opt_set_int(OPT_PSL_COMMENTS, 1);
@@ -174,6 +174,8 @@ static int analyse(int argc, char **argv)
          abort();
       }
    }
+
+   set_error_limit(error_limit);
 
    lib_t work = lib_work();
    jit_t *jit = jit_new();
@@ -193,6 +195,7 @@ static int analyse(int argc, char **argv)
    }
 
    jit_free(jit);
+   set_error_limit(0);
 
    if (error_count() > 0)
       return EXIT_FAILURE;

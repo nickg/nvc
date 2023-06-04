@@ -1105,8 +1105,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    if (nlits == 0 || nlits > 16)
       return memo;
 
-   const vhdl_severity_t old_severity = get_exit_severity();
-   set_exit_severity(SEVERITY_NOTE);
+   const vhdl_severity_t old_severity = set_exit_severity(SEVERITY_NOTE);
 
    jit_set_silent(m->jit, true);
 
@@ -1149,7 +1148,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          type_pp(tree_type(signal->where)));
 
    jit_set_silent(m->jit, false);
-   jit_reset_exit_status(m->jit);
+   jit_reset_exit_status(m->jit, 0);
 
    set_exit_severity(old_severity);
 
@@ -2908,7 +2907,8 @@ static void reached_iteration_limit(rt_model_t *m)
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
    diag_emit(d);
 
-   jit_abort(EXIT_FAILURE);
+   jit_reset_exit_status(m->jit, EXIT_FAILURE);
+   m->force_stop = true;
 }
 
 static void sync_event_cache(rt_model_t *m)

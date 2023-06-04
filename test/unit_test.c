@@ -82,7 +82,6 @@ int main(int argc, char **argv)
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
 
    opt_set_int(OPT_UNIT_TEST, 1);
-   opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_size(OPT_ARENA_SIZE, 1 << 20);
    opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
    opt_set_size(OPT_HEAP_SIZE, 128 * 1024);

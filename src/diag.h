@@ -105,6 +105,7 @@ void diag_stacktrace(diag_t *d, bool stacktrace);
 
 unsigned error_count(void);
 void reset_error_count(void);
+unsigned set_error_limit(unsigned limit);
 
 void wrapped_printf(const char *fmt, ...);
 
@@ -124,9 +125,8 @@ typedef enum {
 } vhdl_severity_t;
 
 // Conversion from VHDL severity
-void set_exit_severity(vhdl_severity_t severity);
+vhdl_severity_t set_exit_severity(vhdl_severity_t severity);
 void set_stderr_severity(vhdl_severity_t severity);
 diag_level_t diag_severity(vhdl_severity_t severity);
-vhdl_severity_t get_exit_severity(void);
 
 #endif  // _DIAG_H

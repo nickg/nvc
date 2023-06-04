@@ -149,7 +149,6 @@ void set_default_options(void)
    opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
    opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
    opt_set_size(OPT_HEAP_SIZE, 16 * 1024 * 1024);
-   opt_set_int(OPT_ERROR_LIMIT, 20);
    opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| get_int_env("NVC_GC_STRESS", 0)));
    opt_set_int(OPT_RELAXED, 0);
    opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));

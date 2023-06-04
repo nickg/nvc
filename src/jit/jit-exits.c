@@ -438,7 +438,9 @@ void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      jit_abort(EXIT_FAILURE);
+      jit_abort_with_status(EXIT_FAILURE);
+   else if (level >= DIAG_ERROR)
+      jit_set_exit_status(jit_thread_local()->jit, EXIT_FAILURE);
 }
 
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
@@ -497,7 +499,9 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      jit_abort(EXIT_FAILURE);
+      jit_abort_with_status(EXIT_FAILURE);
+   else if (level >= DIAG_ERROR)
+      jit_set_exit_status(jit_thread_local()->jit, EXIT_FAILURE);
 }
 
 void x_elab_order_fail(tree_t where)

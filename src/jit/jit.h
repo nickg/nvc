@@ -86,7 +86,7 @@ mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
 void jit_preload(jit_t *j);
 int jit_exit_status(jit_t *j);
-void jit_reset_exit_status(jit_t *j);
+void jit_reset_exit_status(jit_t *j, int status);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 ident_t jit_get_name(jit_t *j, jit_handle_t handle);
 void jit_register_native_plugin(jit_t *j);
@@ -123,6 +123,9 @@ __attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);
 
 __attribute__((noreturn))
-void jit_abort(int code);
+void jit_abort(void);
+
+__attribute__((noreturn))
+void jit_abort_with_status(int code);
 
 #endif   // _JIT_H

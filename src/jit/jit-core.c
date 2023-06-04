@@ -121,7 +121,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
              heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
 
    diag_emit(d);
-   jit_abort(EXIT_FAILURE);
+   jit_abort_with_status(EXIT_FAILURE);
 }
 
 jit_thread_local_t *jit_thread_local(void)
@@ -640,7 +640,6 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
       jit_transition(j, JIT_RUNNING, JIT_IDLE);
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
-      atomic_cas(&(j->exit_status), 0, rc - 1);
       return false;
    }
 }
@@ -662,10 +661,8 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
 
       *result = args[0];
    }
-   else {
-      atomic_cas(&(j->exit_status), 0, rc - 1);
+   else
       failed = true;
-   }
 
    jit_transition(j, JIT_RUNNING, oldstate);
    thread->jmp_buf_valid = 0;
@@ -1030,21 +1027,22 @@ void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      jit_abort(EXIT_FAILURE);
+      jit_abort_with_status(EXIT_FAILURE);
 }
 
-void jit_abort(int code)
+void jit_abort(void)
 {
    jit_thread_local_t *thread = jit_thread_local();
+
+   const int code = atomic_load(&thread->jit->exit_status);
 
    switch (thread->state) {
    case JIT_IDLE:
       fatal_exit(code);
       break;
    case JIT_RUNNING:
-      assert(code >= 0);
       if (thread->jmp_buf_valid)
-         siglongjmp(thread->abort_env, code + 1);
+         siglongjmp(thread->abort_env, 1);
       else
          fatal_exit(code);
       break;
@@ -1053,9 +1051,22 @@ void jit_abort(int code)
    __builtin_unreachable();
 }
 
-void jit_reset_exit_status(jit_t *j)
+void jit_abort_with_status(int code)
 {
-   atomic_store(&(j->exit_status), 0);
+   jit_thread_local_t *thread = jit_thread_local();
+   atomic_store(&(thread->jit->exit_status), code);
+
+   jit_abort();
+}
+
+void jit_set_exit_status(jit_t *j, int status)
+{
+   atomic_cas(&(j->exit_status), 0, status);
+}
+
+void jit_reset_exit_status(jit_t *j, int status)
+{
+   atomic_store(&(j->exit_status), status);
 }
 
 int jit_exit_status(jit_t *j)

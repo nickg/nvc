@@ -78,7 +78,7 @@ DLLEXPORT
 void __nvc_sys_finish(void)
 {
    notef("$finish called");
-   jit_abort(0);
+   jit_abort();
 }
 
 DLLEXPORT

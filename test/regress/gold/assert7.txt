@@ -1,5 +1,30 @@
-(init): Assertion Error: Assertion violation.
-assert7.vhd
-   |
- 8 |         assert x > 0;
-   |                ^^^^^ -1 > 0 is false
+0ms+0: Assertion Error: this is error 1
+0ms+0: Assertion Error: this is error 2
+0ms+0: Assertion Error: this is error 3
+0ms+0: Assertion Error: this is error 4
+0ms+0: Assertion Error: this is error 5
+0ms+0: Assertion Error: this is error 6
+0ms+0: Assertion Error: this is error 7
+0ms+0: Assertion Error: this is error 8
+0ms+0: Assertion Error: this is error 9
+0ms+0: Assertion Error: this is error 10
+0ms+0: Assertion Error: this is error 11
+0ms+0: Assertion Error: this is error 12
+0ms+0: Assertion Error: this is error 13
+0ms+0: Assertion Error: this is error 14
+0ms+0: Assertion Error: this is error 15
+0ms+0: Assertion Error: this is error 16
+0ms+0: Assertion Error: this is error 17
+0ms+0: Assertion Error: this is error 18
+0ms+0: Assertion Error: this is error 19
+0ms+0: Assertion Error: this is error 20
+0ms+0: Assertion Error: this is error 21
+0ms+0: Assertion Error: this is error 22
+0ms+0: Assertion Error: this is error 23
+0ms+0: Assertion Error: this is error 24
+0ms+0: Assertion Error: this is error 25
+0ms+0: Assertion Error: this is error 26
+0ms+0: Assertion Error: this is error 27
+0ms+0: Assertion Error: this is error 28
+0ms+0: Assertion Error: this is error 29
+0ms+0: Assertion Error: this is error 30

@@ -182,12 +182,14 @@ static time_t to_time_t(const time_record_t *tr)
 DLLEXPORT
 void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 {
-   if (have_status)
+   if (have_status) {
       notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
-   else
+      jit_abort_with_status(status);
+   }
+   else {
       notef("%s called", finish ? "FINISH" : "STOP");
-
-   jit_abort(status);
+      jit_abort();
+   }
 }
 
 DLLEXPORT

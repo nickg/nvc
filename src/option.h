@@ -23,7 +23,6 @@
 #include <stdbool.h>
 
 typedef enum {
-   OPT_ERROR_LIMIT,
    OPT_RT_STATS,
    OPT_VHPI_TRACE,
    OPT_DUMP_LLVM,

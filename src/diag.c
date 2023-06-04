@@ -89,8 +89,9 @@ typedef struct _hint_rec {
 } hint_rec_t;
 
 static unsigned         n_errors = 0;
+static unsigned         error_limit = 0;
 static file_list_t      loc_files;
-static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
+static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
 static diag_level_t     stderr_level = DIAG_DEBUG;
 static nvc_lock_t       diag_lock = 0;
 
@@ -952,7 +953,7 @@ void diag_femit(diag_t *d, FILE *f)
    const bool is_error = d->level >= DIAG_ERROR
       || (opt_get_int(OPT_UNIT_TEST) && d->level > DIAG_DEBUG);
 
-   if (is_error && relaxed_add(&n_errors, 1) == opt_get_int(OPT_ERROR_LIMIT))
+   if (is_error && relaxed_add(&n_errors, 1) == error_limit)
       fatal("too many errors, giving up");
 
    for (int i = 0; i < d->hints.count; i++)
@@ -1069,6 +1070,13 @@ void reset_error_count(void)
    n_errors = 0;
 }
 
+unsigned set_error_limit(unsigned limit)
+{
+   const unsigned old = error_limit;
+   error_limit = limit;
+   return old;
+}
+
 void fmt_loc(FILE *f, const loc_t *loc)
 {
    // Legacy interface for debugging only
@@ -1094,14 +1102,11 @@ diag_level_t diag_severity(vhdl_severity_t severity)
    return DIAG_ERROR;
 }
 
-void set_exit_severity(vhdl_severity_t severity)
+vhdl_severity_t set_exit_severity(vhdl_severity_t severity)
 {
+   const vhdl_severity_t old = exit_severity;
    exit_severity = severity;
-}
-
-vhdl_severity_t get_exit_severity(void)
-{
-   return exit_severity;
+   return old;
 }
 
 void set_stderr_severity(vhdl_severity_t severity)
