@@ -4337,12 +4337,10 @@ static vcode_reg_t lower_incomplete_access(vcode_reg_t in_reg, type_t type)
 
    vcode_type_t pointed = vtype_pointed(vcode_reg_type(in_reg));
 
-   const bool need_cast =
-      (type_is_incomplete(type) && vtype_kind(pointed) != VCODE_TYPE_OPAQUE)
-      || (!type_is_incomplete(type)
-          && vtype_kind(pointed) == VCODE_TYPE_OPAQUE);
+   const bool have_opaque = vtype_kind(pointed) == VCODE_TYPE_OPAQUE;
+   const bool have_incomplete = type_is_incomplete(type);
 
-   if (need_cast) {
+   if (have_incomplete ^ have_opaque) {
       vcode_type_t ptr_type = vtype_access(lower_type(type));
       return emit_cast(ptr_type, ptr_type, in_reg);
    }
