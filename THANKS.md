@@ -18,8 +18,10 @@ following people:
   collection and reporting.
 - Olaf Kraigher (@kraigher) made several improvements to the parser and
   `std.textio` implementation.
+- Sean Anderson (@Forty-Bot) contributed a large part of the VHPI
+  implementation.
 - Sebastien Van Cauwenbergh (@svancau) contributed the JSON output
   module.
 
-Special thank you to @bpadalino, @tmeissner, @Blebowski, and @amb5l for
-sponsoring me!
+Special thank you to @bpadalino, @tmeissner, @Blebowski, @amb5l,
+@m42uko, and @a-panella for sponsoring me!
