@@ -59,6 +59,7 @@ typedef enum {
    OPT_LIB_VERBOSE,
    OPT_PSL_VERBOSE,
    OPT_PSL_COMMENTS,
+   OPT_NO_COLLAPSE,
 
    OPT_LAST_NAME
 } opt_name_t;

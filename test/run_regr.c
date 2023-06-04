@@ -92,6 +92,7 @@
 #define F_DEFINE  (1 << 19)
 #define F_TCL     (1 << 20)
 #define F_GTKW    (1 << 21)
+#define F_NOCOLL  (1 << 22)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -398,6 +399,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_PSL;
          else if (strcmp(opt, "tcl") == 0)
             test->flags |= F_TCL;
+         else if (strcmp(opt, "no-collapse") == 0)
+            test->flags |= F_NOCOLL;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -822,6 +825,9 @@ static bool run_test(test_t *test)
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);
       push_arg(&args, "-O%u", test->olevel);
+
+      if (test->flags & F_NOCOLL)
+         push_arg(&args, "--no-collapse");
 
       if (test->flags & F_COVER) {
          if (test->cover)

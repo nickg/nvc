@@ -2115,14 +2115,21 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
               "Signal", "Width", "Size", "Sources", "Outputs", "Value");
    }
 
-   list_foreach(rt_signal_t *, s, scope->signals)
+   for (list_iter(rt_signal_t *, s, scope->signals))
       dump_one_signal(m, scope, s, NULL);
 
-   list_foreach(rt_alias_t *, a, scope->aliases)
+   for (list_iter(rt_alias_t *, a, scope->aliases))
       dump_one_signal(m, scope, a->signal, a->where);
 
-   list_foreach(rt_scope_t *, c, scope->children)
-      dump_signals(m, c);
+   for (list_iter(rt_scope_t *, c, scope->children)) {
+      if (c->kind == SCOPE_SIGNAL)
+         dump_signals(m, c);
+   }
+
+   for (list_iter(rt_scope_t *, c, scope->children)) {
+      if (c->kind != SCOPE_SIGNAL)
+         dump_signals(m, c);
+   }
 }
 
 static text_buf_t *signal_full_name(rt_signal_t *s)

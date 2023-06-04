@@ -261,6 +261,16 @@ beneficial for short-running simulations where the performance gain from
 ahead-of-time compilation is not so significant.  The
 .Fl \-no-save
 option must also be specified.
+.\" --no-collapse
+.It Fl \-no-collapse
+Do not collapse ports into a single signal.  Normally if a signal at one
+level in the hierarchy is directly connected to another signal in a
+lower level via a port map, the signals are
+.Dq collapsed
+and only the signal in the upper level is preserved.  The
+.Fl \-no-collapse
+option disables this optimisation and preserves both signals.  This
+improves debuggability at the cost of some performance.
 .\" --no-save
 .It Fl \-no-save
 Do not save the elaborated design and other generated files to the

@@ -10715,12 +10715,14 @@ static void lower_ports(lower_unit_t *lu, tree_t block)
    hset_t *direct = hset_new(nports * 2), *poison = NULL;
    vcode_reg_t *map_regs LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
 
+   const bool collapse = !opt_get_int(OPT_NO_COLLAPSE);
+
    // Filter out "direct mapped" inputs which can be aliased to signals
    // in the scope above
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(block, i);
 
-      if (lower_direct_mapped_port(lu, block, p, direct, &poison))
+      if (collapse && lower_direct_mapped_port(lu, block, p, direct, &poison))
          map_regs[i] = VCODE_INVALID_REG;
       else {
          tree_t value = tree_value(p);

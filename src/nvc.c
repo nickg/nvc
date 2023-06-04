@@ -308,6 +308,7 @@ static int elaborate(int argc, char **argv)
       { "verbose",         no_argument,       0, 'V' },
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
+      { "no-collapse",     no_argument,       0, 'C' },
       { 0, 0, 0, 0 }
    };
 
@@ -340,6 +341,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'N':
          opt_set_int(OPT_NO_SAVE, 1);
+         break;
+      case 'C':
+         opt_set_int(OPT_NO_COLLAPSE, 1);
          break;
       case 'j':
          use_jit = true;
@@ -1346,6 +1350,7 @@ static void usage(void)
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           " -j, --jit\t\tEnable just-in-time compilation during simulation\n"
+          "     --no-collapse\tDo not collapse multiple signals into one\n"
           "     --no-save\t\tDo not save the elaborated design to disk\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
@@ -1395,7 +1400,8 @@ static void usage(void)
    lib_print_search_paths(tb);
    printf("Library search paths:%s\n", tb_get(tb));
 
-   printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
+   printf("\nThe full manual can be read with `man 1 %s'\n", PACKAGE_NAME);
+   printf("\nReport bugs at <%s>\n", PACKAGE_BUGREPORT);
 }
 
 static vhdl_standard_t parse_standard(const char *str)
