@@ -1194,6 +1194,8 @@ void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor)
               size, UINT32_MAX);
       __builtin_unreachable();
    }
+   else if (size == 0)
+      size = 1;   // Never return a NULL pointer
 
    void *ptr = jit_mspace_alloc(size);
 

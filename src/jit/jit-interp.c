@@ -815,12 +815,14 @@ static void interp_galloc(jit_interp_t *state, jit_ir_t *ir)
 
    state->anchor->irpos = ir - state->func->irbuf;
 
-   const uint64_t bytes = interp_get_int(state, ir->arg1);
+   uint64_t bytes = interp_get_int(state, ir->arg1);
 
    if (bytes > UINT32_MAX)
       jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
               "which is larger than the maximum supported %u bytes",
               bytes, UINT32_MAX);
+   else if (bytes == 0)
+      bytes = 1;   // Never return a NULL pointer
 
    state->regs[ir->result].pointer = mspace_alloc(state->mspace, bytes);
 
