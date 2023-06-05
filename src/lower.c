@@ -4252,50 +4252,47 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
    type_t type = tree_type(qual);
 
    if (type_is_array(type)) {
-      type_t elem_type = lower_elem_recur(type), value_type;
+      type_t value_type = type, result_type = type_designated(tree_type(expr));
 
-      vcode_reg_t init_reg, mem_reg, length_reg;
-      if (!tree_has_value(qual)) {
-         length_reg = lower_array_total_len(lu, type, VCODE_INVALID_REG);
-         mem_reg = emit_new(lower_type(elem_type), length_reg);
-         init_reg = lower_default_value(lu, type, emit_all(mem_reg));
-         value_type = type;
-      }
-      else {
-         tree_t value = tree_value(qual);
+      const bool need_wrap = !lower_const_bounds(result_type);
+      type_t alloc_type = need_wrap ? result_type : lower_elem_recur(type);
+
+      vcode_reg_t init_reg = VCODE_INVALID_REG;
+      tree_t value = NULL;
+      if (tree_has_value(qual)) {
+         value = tree_value(qual);
          value_type = tree_type(value);
 
          const bool in_place_aggregate =
             tree_kind(value) == T_AGGREGATE && lower_const_bounds(value_type);
 
-         if (in_place_aggregate) {
-            length_reg = lower_array_total_len(lu, value_type,
-                                               VCODE_INVALID_REG);
-            mem_reg = emit_new(lower_type(elem_type), length_reg);
-            init_reg = lower_aggregate(lu, value, emit_all(mem_reg));
-         }
-         else {
+         if (!in_place_aggregate)
             init_reg = lower_rvalue(lu, qual);
-            length_reg = lower_array_total_len(lu, value_type, init_reg);
-            mem_reg = emit_new(lower_type(elem_type), length_reg);
-         }
       }
 
-      vcode_reg_t raw_reg = emit_all(mem_reg);
+      vcode_reg_t length_reg = lower_array_total_len(lu, value_type, init_reg);
+      vcode_reg_t mem_reg = emit_new(lower_type(alloc_type), length_reg);
+      vcode_reg_t all_reg = emit_all(mem_reg);
+
+      vcode_reg_t raw_reg = all_reg;
+      if (need_wrap)
+         raw_reg = emit_unwrap(emit_load_indirect(all_reg));
+
+      if (value == NULL)
+         init_reg = lower_default_value(lu, type, raw_reg);
+      else if (init_reg == VCODE_INVALID_REG)
+         init_reg = lower_aggregate(lu, value, raw_reg);
+
       emit_copy(raw_reg, lower_array_data(init_reg), length_reg);
 
-      type_t result_type = type_designated(tree_type(expr));
-      if (!lower_const_bounds(result_type)) {
-          // Need to allocate memory for both the array and its metadata
+      if (need_wrap) {
+         // Need to initialise the array bounds
          vcode_reg_t meta_reg =
             lower_wrap_with_new_bounds(lu, value_type, init_reg, raw_reg);
-         vcode_reg_t result_reg =
-            emit_new(lower_type(result_type), VCODE_INVALID_REG);
-         emit_store_indirect(meta_reg, emit_all(result_reg));
-         return result_reg;
+         emit_store_indirect(meta_reg, all_reg);
       }
-      else
-         return mem_reg;
+
+      return mem_reg;
    }
    else if (type_is_record(type)) {
       vcode_reg_t result_reg =

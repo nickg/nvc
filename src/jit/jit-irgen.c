@@ -2576,6 +2576,12 @@ static void irgen_op_new(jit_irgen_t *g, int op)
    vcode_reg_t result = vcode_get_result(op);
    vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
 
+   int headersz = 0;
+   if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
+      headersz = irgen_size_bytes(vtype);
+      vtype = vtype_elem(vtype);
+   }
+
    jit_value_t bytes = jit_value_from_int64(irgen_size_bytes(vtype));
 
    irgen_emit_debuginfo(g, op);   // For out-of-memory stack traces
@@ -2583,7 +2589,18 @@ static void irgen_op_new(jit_irgen_t *g, int op)
    if (vcode_count_args(op) > 0)
       bytes = j_mul(g, bytes, irgen_get_arg(g, op, 0));
 
-   g->map[vcode_get_result(op)] = macro_galloc(g, bytes);
+   if (headersz > 0)
+      bytes = j_add(g, bytes, jit_value_from_int64(headersz));
+
+   jit_value_t mem = macro_galloc(g, bytes);
+   g->map[vcode_get_result(op)] = mem;
+
+   if (headersz > 0) {
+      // Initialise the header to point at the body
+      jit_value_t ptr = jit_addr_from_value(mem, 0);
+      jit_value_t body = j_add(g, mem, jit_value_from_int64(headersz));
+      j_store(g, JIT_SZ_PTR, body, ptr);
+   }
 }
 
 static void irgen_op_alloc(jit_irgen_t *g, int op)
