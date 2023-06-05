@@ -4886,12 +4886,16 @@ static tree_t p_interface_function_specification(void)
    tree_set_subkind(d, PORT_IN);
 
    if (optional(tLPAREN)) {
+      push_scope(nametab);
+
       p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
       for (int i = 0; i < nports; i++)
          type_add_param(type, tree_type(tree_port(d, i)));
+
+      pop_scope(nametab);
    }
 
    consume(tRETURN);
@@ -4935,12 +4939,16 @@ static tree_t p_interface_procedure_specification(void)
    tree_set_subkind(d, PORT_IN);
 
    if (optional(tLPAREN)) {
+      push_scope(nametab);
+
       p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
       for (int i = 0; i < nports; i++)
          type_add_param(type, tree_type(tree_port(d, i)));
+
+      pop_scope(nametab);
    }
 
    tree_set_loc(d, CURRENT_LOC);
