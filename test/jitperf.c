@@ -151,6 +151,7 @@ int main(int argc, char **argv)
    intern_strings();
 
    opt_set_str(OPT_GC_VERBOSE, NULL);
+   opt_set_int(OPT_RELAXED, 1);
 
    _std_standard_init();
    _std_env_init();
