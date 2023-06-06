@@ -102,7 +102,7 @@ many of the new features, please consult the table below.
   </tr>
   <tr>
     <td>Conditional and selected sequential statements</td>
-    <td class="feature-partial">1.6</td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>Extensions to generate statement</td>

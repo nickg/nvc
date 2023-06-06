@@ -32,6 +32,7 @@
   `--exit-severity=error`.
 - Comparison operators as well as `minimum`/`maximum` functions are now
   defined for all scalar array types in VHDL-2019.
+- Added support for selected sequential statements in VHDL-2008.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

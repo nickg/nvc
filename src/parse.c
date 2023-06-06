@@ -159,6 +159,7 @@ static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
+static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject);
 static tree_t p_psl_declaration(void);
 static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
@@ -8766,12 +8767,12 @@ static tree_t p_target(tree_t name)
       return name;
 }
 
-static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
+static tree_t p_simple_variable_assignment(ident_t label, tree_t name)
 {
    // [ label : ] target := expression ;
-   // 2019: target := conditional_or_unaffected_expression ;
+   // 2019: [ label : ] target := conditional_or_unaffected_expression ;
 
-   EXTEND("variable assignment statement");
+   EXTEND("simple variable assignment");
 
    tree_t target = p_target(name);
 
@@ -8793,6 +8794,103 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
 
    sem_check(t, nametab);
    return t;
+}
+
+static void p_selected_expressions(tree_t stmt, tree_t target)
+{
+   // { expression when choices , } expression when choices
+
+   BEGIN("selected waveforms");
+
+   type_t with_type = tree_type(tree_value(stmt));
+
+   do {
+      tree_t expr = p_expression();
+
+      type_t constraint;
+      if (tree_has_type(target))
+         constraint = tree_type(target);
+      else
+         constraint = solve_target(nametab, target, expr);
+
+      solve_known_subtype(nametab, expr, constraint);
+
+      tree_t a = tree_new(T_VAR_ASSIGN);
+      tree_set_target(a, target);
+      tree_set_value(a, expr);
+
+      sem_check(a, nametab);
+
+      consume(tWHEN);
+
+      tree_t alt = tree_new(T_ALTERNATIVE);
+      tree_add_stmt(alt, a);
+
+      p_choices(alt, with_type);
+
+      tree_set_loc(alt, CURRENT_LOC);
+      tree_add_stmt(stmt, alt);
+   } while (optional(tCOMMA));
+}
+
+static tree_t p_selected_variable_assignment(ident_t label)
+{
+   // with expression select [ ? ] target := selected_expressions ;
+
+   BEGIN("selected variable assignment");
+
+   require_std(STD_08, "selected variable assignment");
+
+   consume(tWITH);
+
+   tree_t value = p_expression();
+   solve_types(nametab, value, NULL);
+
+   consume(tSELECT);
+
+   tree_kind_t kind = T_SELECT;
+   if (optional(tQUESTION))
+      kind = T_MATCH_SELECT;
+
+   tree_t t = tree_new(kind);
+   tree_set_value(t, value);
+
+   tree_t target = p_target(NULL);
+
+   // This is the easiest place to disambiguate variable and signal
+   // assignment without a deep lookahead
+   switch (one_of(tASSIGN, tLE)) {
+   case tLE:
+      p_selected_waveforms(t, target, NULL);
+      break;
+
+   case tASSIGN:
+   default:
+      p_selected_expressions(t, target);
+      break;
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   ensure_labelled(t, label);
+
+   sem_check(t, nametab);
+   return t;
+}
+
+static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
+{
+   // [ label : ] simple_variable_assignment
+   //   | 2008: [ label : ] conditional_variable_assignment
+   //   | 2008: [ label : ] selected_variable_assignment
+
+   EXTEND("variable assignment statement");
+
+   if (name == NULL && peek() == tWITH)
+      return p_selected_variable_assignment(label);
+   else
+      return p_simple_variable_assignment(label, name);
 }
 
 static tree_t p_waveform_element(tree_t target)
@@ -9543,6 +9641,9 @@ static tree_t p_sequential_statement(void)
 
    case tNEXT:
       return p_next_statement(label);
+
+   case tWITH:
+      return p_variable_assignment_statement(label, NULL);
 
    case tID:
    case tLTLT:
