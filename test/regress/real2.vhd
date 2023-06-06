@@ -15,7 +15,7 @@ begin
     begin
         a := (1.0, 1.2, 3.4);
         b := (0.9, 0.2, 4.1);
-        assert b < a;
+        assert a /= b;
         r.x := 2.0;
         r.y := 3.0;
         assert r = (2.0, 3.0);

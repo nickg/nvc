@@ -482,6 +482,8 @@ START_TEST(test_array)
       { 234, "type of aliased object INT_ARRAY does not match" },
       { 241, "cannot index non-array type INTEGER" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
+      { 269, "no matching operator \"<\" [TEN_TEN_INTS, TEN_TEN_INTS " },
+      { 270, "no matching operator \">\" [TEN_TEN_INTS, TEN_TEN_INTS " },
       { 272, "no matching operator \"<\" [INT2D, INT2D" },
       { 277, "no visible declaration for NOT_HERE" },
       { 279, "variable A2 cannot have unconstrained type NUM_ARRAY" },

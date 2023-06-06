@@ -266,8 +266,8 @@ begin
     begin
         assert t1 = t2;                 -- OK
         assert t1 /= t2;                -- OK
-        assert t1 < t2;                 -- OK
-        assert t1 > t2;                 -- OK
+        assert t1 < t2;                 -- Error
+        assert t1 > t2;                 -- Error
         assert m1 = m2;                 -- OK
         assert m1 < m2;                 -- Error
     end process;

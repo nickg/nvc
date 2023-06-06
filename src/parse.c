@@ -936,12 +936,17 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, eq, t, t, std_bool, S_ARRAY_EQ);
       declare_binary(container, neq, t, t, std_bool, S_ARRAY_NEQ);
       if (dimension_of(t) == 1) {
-         declare_binary(container, cmp_lt, t, t, std_bool, S_ARRAY_LT);
-         declare_binary(container, cmp_le, t, t, std_bool, S_ARRAY_LE);
-         declare_binary(container, cmp_gt, t, t, std_bool, S_ARRAY_GT);
-         declare_binary(container, cmp_ge, t, t, std_bool, S_ARRAY_GE);
-
          type_t elem = type_elem(t);
+         const bool ordered = (standard() >= STD_19)
+            ? type_is_scalar(elem) : type_is_discrete(elem);
+
+         if (ordered) {
+            declare_binary(container, cmp_lt, t, t, std_bool, S_ARRAY_LT);
+            declare_binary(container, cmp_le, t, t, std_bool, S_ARRAY_LE);
+            declare_binary(container, cmp_gt, t, t, std_bool, S_ARRAY_GT);
+            declare_binary(container, cmp_ge, t, t, std_bool, S_ARRAY_GE);
+         }
+
          ident_t concat = ident_new("\"&\"");
          declare_binary(container, concat, t, t, t, S_CONCAT);
          declare_binary(container, concat, t, elem, t, S_CONCAT);
@@ -949,8 +954,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
          declare_binary(container, concat, elem, elem, t, S_CONCAT);
 
          if (standard() >= STD_08) {
-            declare_binary(container, min_i, t, t, t, S_MINIMUM);
-            declare_binary(container, max_i, t, t, t, S_MAXIMUM);
+            if (ordered) {
+               declare_binary(container, min_i, t, t, t, S_MINIMUM);
+               declare_binary(container, max_i, t, t, t, S_MAXIMUM);
+            }
 
             if (type_is_scalar(elem)) {
                declare_unary(container, min_i, t, elem, S_MINIMUM);

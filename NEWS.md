@@ -30,6 +30,8 @@
   means a failing assertion no longer immediately terminates the
   simulation.  The old behaviour can be restored with
   `--exit-severity=error`.
+- Comparison operators as well as `minimum`/`maximum` functions are now
+  defined for all scalar array types in VHDL-2019.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).
