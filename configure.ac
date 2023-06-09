@@ -197,10 +197,21 @@ PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
 
 PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
 
+AC_ARG_ENABLE([server],
+  [AS_HELP_STRING([--enable-server], [Build WebSocket interface])],
+  [enable_server=$enableval],
+  [enable_server=no])
+
+AS_IF([test x$enable_server = xyes],
+      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])
+       PKG_CHECK_MODULES([libmicrohttpd], [libmicrohttpd >= 0.9])])
+
+AM_CONDITIONAL([ENABLE_SERVER], [test x$enable_server = xyes])
+
 AC_ARG_ENABLE([tcl],
   [AS_HELP_STRING([--enable-tcl], [Build TCL interface])],
   [enable_tcl=$enableval],
-  [enable_tcl=no])
+  [enable_tcl=$enable_server])
 
 AS_IF([test x$enable_tcl = xyes],
       [AC_DEFINE_UNQUOTED([ENABLE_TCL], [1], [TCL shell enabled])
@@ -219,6 +230,9 @@ AS_IF([test x$enable_tcl = xyes],
        fi])
 
 AM_CONDITIONAL([ENABLE_TCL], [test x$enable_tcl = xyes])
+
+AS_IF([test x$enable_server$enable_tcl = xyesno],
+      [AC_MSG_ERROR([WebSocket server requires --enable-tcl])])
 
 AC_CHECK_HEADER([unwind.h], [],
   [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])
@@ -258,6 +272,7 @@ esac
 AX_DEFINE_DIR([PREFIX], [prefix], [Installation prefix])
 AX_DEFINE_DIR([LIBDIR], [libdir/nvc], [Installation library directory])
 AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
+AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Location of data files])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
 case $host_cpu in
@@ -366,7 +381,7 @@ if test x$preserve_frame_pointer = xyes ; then
 fi
 
 AC_ARG_ENABLE([asan],
-  [AS_HELP_STRING([--enable-sasn], [Enable address sanitiser])],
+  [AS_HELP_STRING([--enable-asan], [Enable address sanitiser])],
   [if test x$enableval = xyes; then
      EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=address -fno-omit-frame-pointer"
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=address -fno-omit-frame-pointer"
@@ -409,7 +424,7 @@ if test x$enable_default_paths != xno ; then
 fi
 
 AC_ARG_ENABLE([lto],
-  [AS_HELP_STRING([--enable-lto], [Enable link time optimisation])],
+  [AS_HELP_STRING([--disable-lto], [Disable link time optimisation])],
   [enable_lto=$enableval],
   [AS_IF([test x$enable_debug = xyes],
          [enable_lto=no],   # LTO off by default in debug builds

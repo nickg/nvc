@@ -344,7 +344,7 @@ START_TEST(test_rem)
 }
 END_TEST
 
-static void test_call_diag_fn(diag_t *d)
+static void test_call_diag_fn(diag_t *d, void *context)
 {
    ck_assert_str_eq(diag_get_text(d), "invalid integer value \"foo\"");
    ck_assert_int_eq(diag_traces(d), 2);
@@ -394,7 +394,7 @@ START_TEST(test_call)
    ck_assert_int_eq(jit_call(j, h_atest, "4", 1).integer, 4);
    ck_assert_int_eq(jit_call(j, h_atest, "5", 1).integer, 5);
 
-   diag_set_consumer(test_call_diag_fn);
+   diag_set_consumer(test_call_diag_fn, NULL);
 
    jit_scalar_t result;
    fail_if(jit_try_call(j, h_atest, &result, "foo", 4));

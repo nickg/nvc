@@ -36,7 +36,7 @@ static lib_t            test_lib    = NULL;
 static unsigned         errors_seen = 0;
 static unit_registry_t *registry    = NULL;
 
-static void test_error_fn(diag_t *d)
+static void test_error_fn(diag_t *d, void *context)
 {
    fail_if(error_lines == NULL);
 
@@ -49,7 +49,7 @@ static void test_error_fn(diag_t *d)
       || strstr(msg, error_lines->snippet) == NULL;
 
    if (unexpected) {
-      diag_set_consumer(NULL);
+      diag_set_consumer(NULL, NULL);
       diag_emit(d);
       printf("expected line %d '%s'\n",
              error_lines->line, error_lines->snippet);
@@ -74,7 +74,7 @@ static void setup_per_test(void)
 
    error_lines = NULL;
    errors_seen = 0;
-   diag_set_consumer(NULL);
+   diag_set_consumer(NULL, NULL);
 }
 
 static void teardown_per_test(void)
@@ -91,7 +91,7 @@ static void teardown_per_test(void)
 
 void expect_errors(const error_t *lines)
 {
-   diag_set_consumer(test_error_fn);
+   diag_set_consumer(test_error_fn, NULL);
 
    error_lines = lines;
    errors_seen = 0;

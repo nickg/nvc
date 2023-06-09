@@ -96,7 +96,8 @@ static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
 static diag_level_t     stderr_level = DIAG_DEBUG;
 static nvc_lock_t       diag_lock = 0;
 
-static __thread diag_consumer_t consumer = NULL;
+static __thread diag_consumer_t  consumer_fn = NULL;
+static __thread void            *consumer_ctx = NULL;
 
 #define MAX_HINT_RECS 4
 static __thread hint_rec_t hint_recs[MAX_HINT_RECS];
@@ -417,7 +418,7 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
    diag_t *d = xcalloc(sizeof(diag_t));
    d->msg      = tb_new();
    d->level    = level;
-   d->color    = color_terminal() && consumer == NULL;
+   d->color    = color_terminal() && consumer_fn == NULL;
    d->source   = true;
    d->suppress = false;
 
@@ -948,8 +949,8 @@ void diag_femit(diag_t *d, FILE *f)
 {
    if (d->suppress)
       goto cleanup;
-   else if (consumer != NULL && d->level > DIAG_DEBUG)
-      (*consumer)(d);
+   else if (consumer_fn != NULL && d->level > DIAG_DEBUG)
+      (*consumer_fn)(d, consumer_ctx);
    else if (d->level == DIAG_DEBUG && opt_get_int(OPT_UNIT_TEST)
             && diag_has_message(d))
       goto cleanup;
@@ -1011,9 +1012,10 @@ void diag_stacktrace(diag_t *d, bool stacktrace)
    d->stacktrace = stacktrace;
 }
 
-void diag_set_consumer(diag_consumer_t fn)
+void diag_set_consumer(diag_consumer_t fn, void *context)
 {
-   consumer = fn;
+   consumer_fn = fn;
+   consumer_ctx = context;
 }
 
 const char *diag_get_text(diag_t *d)
@@ -1104,10 +1106,10 @@ void fmt_loc(FILE *f, const loc_t *loc)
 {
    // Legacy interface for debugging only
    diag_t *d = diag_new(DIAG_DEBUG, loc);
-   diag_consumer_t old = consumer;
-   consumer = NULL;
+   diag_consumer_t old = consumer_fn;
+   consumer_fn = NULL;
    diag_femit(d, f);
-   consumer = old;
+   consumer_fn = old;
 }
 
 diag_level_t diag_severity(vhdl_severity_t severity)

@@ -40,16 +40,22 @@ if ENABLE_TCL
 bin_unit_test_SOURCES += test/test_shell.c
 endif
 
+if ENABLE_SERVER
+bin_unit_test_SOURCES += test/test_server.c
+endif
+
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
 	lib/libgnulib.a \
+	lib/libsha1.a \
 	$(check_LIBS) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
 	$(libzstd_LIBS) \
+	$(libmicrohttpd_LIBS) \
 	$(TCL_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)

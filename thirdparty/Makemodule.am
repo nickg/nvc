@@ -2,7 +2,8 @@ noinst_LIBRARIES += \
 	lib/libfst.a \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
-	lib/libgnulib.a
+	lib/libgnulib.a \
+	lib/libsha1.a
 
 lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c thirdparty/fstapi.h \
 	thirdparty/lz4.h
@@ -10,6 +11,8 @@ lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c thirdparty/fstapi.h 
 lib_libfastlz_a_SOURCES = thirdparty/fastlz.c thirdparty/fastlz.h
 
 lib_libcpustate_a_SOURCES = thirdparty/cpustate.c thirdparty/cpustate.h
+
+lib_libsha1_a_SOURCES = thirdparty/sha1.c thirdparty/sha1.h
 
 lib_libgnulib_a_SOURCES =
 

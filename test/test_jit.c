@@ -988,7 +988,7 @@ START_TEST(test_range1)
 }
 END_TEST
 
-static void trace1_diag_fn(diag_t *d)
+static void trace1_diag_fn(diag_t *d, void *context)
 {
    ck_assert_str_eq(diag_get_text(d), "division by zero");
    ck_assert_int_eq(diag_traces(d), 3);
@@ -1001,7 +1001,7 @@ START_TEST(test_trace1)
 {
    input_from_file(TESTDIR "/jit/trace1.vhd");
 
-   diag_set_consumer(trace1_diag_fn);
+   diag_set_consumer(trace1_diag_fn, NULL);
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 

@@ -32,6 +32,7 @@
 #include "rt/shell.h"
 #include "rt/wave.h"
 #include "scan.h"
+#include "server.h"
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
 #include "vlog/vlog-node.h"
@@ -86,7 +87,7 @@ static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
-      "--init", "--install", "--print-deps", "--aotgen", "--do", "-i"
+      "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
    };
 
    for (int i = start; i < argc; i++) {

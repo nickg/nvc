@@ -361,6 +361,7 @@ void make_dir(const char *path);
 char *search_path(const char *name);
 void get_libexec_dir(text_buf_t *tb);
 void get_lib_dir(text_buf_t *tb);
+void get_data_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
 void open_pipe(int *rfd, int *wfd);
 
@@ -432,10 +433,17 @@ void list_clear(ptr_list_t *l);
       }                                                 \
    } while (0)
 
+#define UNPACK_BE16(b) ((b)[0] << 8 | (b)[1])
 #define UNPACK_BE32(b) \
-   ((unsigned)(b)[0] << 24 | (b)[1] << 16 | (b)[2] << 8 | (b)[3])
+   ((uint32_t)UNPACK_BE16(b) << 16 | UNPACK_BE16(b + 2))
+#define UNPACK_BE64(b) \
+   ((uint64_t)UNPACK_BE32(b) << 32 | UNPACK_BE32(b + 4))
 
+#define PACK_BE16(u) \
+   ((u) >> 8) & 0xff, (u) & 0xff
 #define PACK_BE32(u) \
-   ((u) >> 24) & 0xff, ((u) >> 16) & 0xff, ((u) >> 8) & 0xff, (u) & 0xff
+   PACK_BE16(u >> 16), PACK_BE16(u)
+#define PACK_BE64(u) \
+   PACK_BE32(u >> 32), PACK_BE32(u)
 
 #endif // _UTIL_H

@@ -4909,7 +4909,7 @@ START_TEST(test_issue479)
 }
 END_TEST
 
-static void typo_diag_fn(diag_t *d)
+static void typo_diag_fn(diag_t *d, void *context)
 {
    static int state = 0;
    switch (state++) {
@@ -4952,7 +4952,7 @@ START_TEST(test_typo)
 
    input_from_file(TESTDIR "/parse/typo.vhd");
 
-   diag_set_consumer(typo_diag_fn);
+   diag_set_consumer(typo_diag_fn, NULL);
 
    tree_t e = parse();
    fail_if(e == NULL);

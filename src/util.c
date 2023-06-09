@@ -577,7 +577,7 @@ void fatal_trace(const char *fmt, ...)
    diag_vprintf(d, fmt, ap);
    va_end(ap);
 
-   diag_set_consumer(NULL);
+   diag_set_consumer(NULL, NULL);
    diag_suppress(d, false);
    diag_stacktrace(d, true);
    diag_emit(d);
@@ -2070,6 +2070,16 @@ void get_lib_dir(text_buf_t *tb)
    tb_cat(tb, DIR_SEP "lib" DIR_SEP "nvc");
 #else
    tb_cat(tb, LIBDIR);
+#endif
+}
+
+void get_data_dir(text_buf_t *tb)
+{
+#if defined __MINGW32__
+   get_relative_prefix(tb);
+   tb_cat(tb, DIR_SEP "share" DIR_SEP "nvc");
+#else
+   tb_cat(tb, DATADIR);
 #endif
 }
 

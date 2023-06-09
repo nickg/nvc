@@ -893,7 +893,10 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
 
 void shell_reset(tcl_shell_t *sh, tree_t top)
 {
-   assert(sh->model == NULL);
+   if (sh->model != NULL) {
+      model_free(sh->model);
+      hash_free(sh->namemap);
+   }
 
    jit_reset(sh->jit);
    jit_enable_runtime(sh->jit, true);

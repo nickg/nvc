@@ -117,6 +117,9 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(shell);
 #endif
    nfail += RUN_TESTS(dump);
+#ifdef ENABLE_SERVER
+   nfail += RUN_TESTS(server);
+#endif
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

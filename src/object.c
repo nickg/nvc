@@ -207,7 +207,7 @@ void object_lookup_failed(object_class_t *class, object_t *object, imask_t mask)
    diag_t *d = diag_new(DIAG_FATAL, &(object->loc));
    diag_printf(d, "%s kind %s does not have item %s", class->name,
                class->kind_text_map[object->kind], item_text_map[item]);
-   diag_set_consumer(NULL);
+   diag_set_consumer(NULL, NULL);
    diag_suppress(d, false);
    diag_emit(d);
    show_stacktrace();

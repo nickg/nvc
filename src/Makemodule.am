@@ -52,6 +52,10 @@ lib_libnvc_a_SOURCES = \
 	src/thread.h \
 	src/thread.c
 
+if ENABLE_SERVER
+lib_libnvc_a_SOURCES += src/server.c src/server.h
+endif
+
 if ENABLE_LLVM
 lib_libnvc_a_SOURCES += src/cgen.c
 endif
@@ -66,10 +70,12 @@ bin_nvc_LDADD = \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
 	lib/libgnulib.a \
+	lib/libsha1.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
 	$(libzstd_LIBS) \
+	$(libmicrohttpd_LIBS) \
 	$(LLVM_LIBS) \
 	$(TCL_LIBS)
 
