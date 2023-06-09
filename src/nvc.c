@@ -121,6 +121,42 @@ static void parse_pp_define(char *optarg)
    pp_defines_add(optarg, eq + 1);
 }
 
+static void do_file_list(const char *file, jit_t *jit)
+{
+   FILE *f = fopen(file, "r");
+   if (f == NULL)
+      fatal_errno("failed to open %s", file);
+
+   char *line = NULL;
+   size_t nchars, bufsz = 0;
+   while ((nchars = getline(&line, &bufsz, f)) != -1) {
+      char *stop = strpbrk(line, "\r\n#") ?: line + nchars;
+      *stop = '\0';
+
+      // Trim trailing whitespace
+      while (stop > line && isspace((int)*--stop))
+         *stop = '\0';
+
+      if (strlen(line) == 0)
+         continue;
+
+      input_from_file(line);
+
+      switch (source_kind()) {
+      case SOURCE_VERILOG:
+         analyse_verilog(false);
+         break;
+
+      case SOURCE_VHDL:
+         analyse_vhdl(jit, false);
+         break;
+      }
+   }
+
+   free(line);
+   fclose(f);
+}
+
 static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -131,12 +167,14 @@ static int analyse(int argc, char **argv)
       { "relax",           required_argument, 0, 'X' },
       { "relaxed",         no_argument,       0, 'R' },
       { "define",          required_argument, 0, 'D' },
+      { "files",           required_argument, 0, 'f' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0, error_limit = 20;
-   const char *spec = ":D:";
+   const char *file_list = NULL;
+   const char *spec = ":D:f:";
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -170,6 +208,9 @@ static int analyse(int argc, char **argv)
       case 'D':
          parse_pp_define(optarg);
          break;
+      case 'f':
+         file_list = optarg;
+         break;
       default:
          abort();
       }
@@ -180,17 +221,24 @@ static int analyse(int argc, char **argv)
    lib_t work = lib_work();
    jit_t *jit = jit_new();
 
+   if (file_list != NULL)
+      do_file_list(file_list, jit);
+
    for (int i = optind; i < next_cmd; i++) {
-      input_from_file(argv[i]);
+      if (argv[i][0] == '@')
+         do_file_list(argv[i] + 1, jit);
+      else {
+         input_from_file(argv[i]);
 
-      switch (source_kind()) {
-      case SOURCE_VERILOG:
-         analyse_verilog(false);
-         break;
+         switch (source_kind()) {
+         case SOURCE_VERILOG:
+            analyse_verilog(false);
+            break;
 
-      case SOURCE_VHDL:
-         analyse_vhdl(jit, false);
-         break;
+         case SOURCE_VHDL:
+            analyse_vhdl(jit, false);
+            break;
+         }
       }
    }
 
@@ -1330,14 +1378,15 @@ static void usage(void)
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
-          "Analyse options:\n"
+          "Analysis options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
+          " -f, --files=LIST\t\tRead files to analyse from LIST\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
-          "Elaborate options:\n"
+          "Elaboration options:\n"
           "     --cover[=TYPES]\tEnable code coverage collection. TYPES is a\n"
           "                    \tcomma separated list of coverage types to "
           "collect:\n"

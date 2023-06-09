@@ -799,3 +799,4 @@ vhpi8           normal,vhpi
 issue704        wave,no-collapse
 real5           normal,2019
 assign9         normal,2008
+cmdline7        shell

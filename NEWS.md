@@ -33,6 +33,9 @@
 - Comparison operators as well as `minimum`/`maximum` functions are now
   defined for all scalar array types in VHDL-2019.
 - Added support for selected sequential statements in VHDL-2008.
+- The `-a` analysis command now accepts an `-f list` option where `list`
+  is a text file containing a list of files to analyse.  Alternatively
+  this may be written `@list`.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

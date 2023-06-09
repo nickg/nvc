@@ -189,11 +189,21 @@ section below for details.
 Allow compilation of the
 .Ql STANDARD
 package.  Not useful in any other circumstances.
-.\"
+.\" --error-limit
 .It Fl \-error-limit Ns = Ns Ar num
 Stop after reporting
 .Ar num
 errors.  The default is 20.  Zero allows unlimited errors.
+.\" -f, --files
+.It Fl f Ar list , Fl \-files Ns = Ns Ar list
+Read the list of source files to analyse from
+.Ar list
+which is a text file containing one file name per line.
+Comments starting with
+.Ql #
+are ignored.  Alternatively this argument may be passed as
+.Ar @list
+for compatibility with other tools.
 .\" --psl
 .It Fl \-psl
 Enable parsing of PSL directives in comments.

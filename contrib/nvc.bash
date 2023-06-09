@@ -30,12 +30,17 @@ _nvc () {
       COMPREPLY+=( $( compgen -W 'full compact' -- $cur ) )
       return
       ;;
+    -f|--files)
+      _filedir
+      return
+      ;;
   esac
 
   local global_opts='-L -h --help --messages= --std= -v --version --init --list
                      --install --work= -a -e -r -i --dump --print-deps
                      --syntax --map= --do'
-  local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit='
+  local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit=
+                      -f --files'
   local elab_opts='--cover --disable-opt --dump-llvm --dump-vcode --jit --no-save
                    --native -V --verbose'
   local run_opts='--trace --stop-time= --ieee-warnings= --stats= --stop-delta=
