@@ -1,0 +1,180 @@
+/*
+ *  Copyright (C) 2023  Nick Gasson
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+.wave-container {
+    background: #000000;
+}
+
+.wave-hsplit {
+    padding: 0px 0px 0px 0px;
+    display: flex;
+    flex-direction: row;
+}
+
+.wave-ruler-split {
+    padding: 0px 0px 0px 0px;
+    display: flex;
+    flex-direction: row;
+}
+
+.wave-container svg text {
+   -webkit-user-select: none;
+   -moz-user-select: none;
+   -ms-user-select: none;
+   user-select: none;
+}
+
+.wave-ruler-left {
+    background: #707070;
+    position: sticky;
+    top: 0;
+    left: 0;
+    border-bottom: 2px solid;
+    border-color: #e0e0e0;
+    margin-bottom: 3px;
+}
+
+.wave-ruler-right {
+    background: #000000;
+    position: sticky;
+    top: 0;
+    left: 0;
+    border-bottom: 2px solid;
+    border-color: #e0e0e0;
+    margin-bottom: 3px;
+}
+
+.wave-signals-list {
+    background: #707070;
+}
+
+.wave-list-name {
+    font-size: 11pt;
+    color: #eee;
+    padding: 0px 0px 0px 5px;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.wave-bus-line {
+    stroke: limegreen;
+    stroke-width: 1.00001;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-1 {
+    stroke: chartreuse;
+    stroke-width: 1.0001;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-0 {
+    stroke: turquoise;
+    stroke-width: 1.00001;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-U {
+    stroke: yellow;
+    fill: yellow;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-Z {
+    stroke: blue;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-X {
+    stroke: red;
+    fill: red;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-H {
+    stroke: white;
+    stroke-width: 1;
+    stroke-dasharray: 6 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-L {
+    stroke: white;
+    stroke-width: 1;
+    stroke-dasharray: 6 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-logic-- {
+    stroke: violet;
+    stroke-width: 1;
+    stroke-dasharray: 6 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-wide {
+    stroke-width: 2;
+}
+
+.wave-box {
+    opacity: 0.5;
+    stroke-width: 0;
+}
+
+.wave-cursor {
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-value-text {
+    fill: #fff;
+    text-rendering: optimizeLegibility;
+    font-size: 12px;
+    font-family: 'Noto Sans', sans-serif;
+    text-shadow: #eee 0px 0px 0px;
+    text-overflow: clip;
+    overflow: hidden;
+}
+
+.wave-ruler-line {
+    stroke: white;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.wave-ruler-text {
+    fill: #fff;
+    text-shadow: #eee 0px 0px 0px;
+    text-rendering: optimizeLegibility;
+    font-size: 11px;
+    font-family: 'Noto Sans', sans-serif;
+    text-overflow: clip;
+    text-anchor: middle;
+    overflow: hidden;
+}
+
+.wave-cursor-1 {
+    stroke: moccasin;
+}
+
+.wave-cursor-1-text {
+    fill: moccasin;
+    text-shadow: moccasin 0px 0px 0px;
+}

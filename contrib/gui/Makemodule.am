@@ -1,0 +1,58 @@
+NPM = $(AM_V_GEN)npm --prefix $(top_srcdir)/contrib/gui
+
+BUNDLE_ASSETS = \
+	gui/assets/index.css \
+	gui/assets/allPaths.js \
+	gui/assets/allPathsLoader.js \
+	gui/assets/splitPathsBySizeLoader.js \
+	gui/assets/index2.js \
+	gui/assets/index3.js \
+	gui/assets/index.js
+
+if ENABLE_GUI
+guidir = $(pkgdatadir)/gui
+assetsdir = $(guidir)/assets
+
+gui_DATA = gui/index.html
+assets_DATA = $(BUNDLE_ASSETS)
+
+CLEANFILES += gui/index.html $(BUNDLE_ASSETS) .stamp-npm
+
+gui/index.html: $(GUI_FILES) .stamp-npm
+	$(AM_V_GEN)( \
+	  cd $(top_srcdir)/contrib/gui; \
+	  npx tsc -noEmit && \
+	  npm run lint && \
+	  npx vite build --outDir $(abs_builddir)/gui --emptyOutDir; \
+	)
+
+gui/assets/index.css: gui/index.html
+gui/assets/allPaths.js: gui/index.html
+gui/assets/allPathsLoader.js: gui/index.html
+gui/assets/splitPathsBySizeLoader.js: gui/index.html
+gui/assets/index2.js: gui/index.html
+gui/assets/index3.js: gui/index.html
+gui/assets/index.js: gui/index.html
+
+.stamp-npm: $(srcdir)/contrib/gui/package-lock.json
+	$(NPM) ci
+	$(AM_V_AT)touch .stamp-npm
+endif
+
+EXTRA_DIST += $(GUI_FILES)
+
+if MAINTAINER_MODE
+update-js-dist:
+	$(AM_V_GEN)( \
+	  echo "# Generated automatically, do not edit." ; \
+	  echo "GUI_FILES = \\" ; \
+	  cd $(top_srcdir) ; \
+	  git ls-files -- 'contrib/gui/*.ts' 'contrib/gui/*.tsx' 'contrib/gui/*.json' \
+	     'contrib/gui/*.css' 'contrib/gui/*.html' \
+	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
+	) > $(top_srcdir)/contrib/gui/dist.mk
+endif
+
+.PHONY: update-js-dist
+
+include contrib/gui/dist.mk

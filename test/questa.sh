@@ -4,7 +4,7 @@ vlib work
 
 root=$(git rev-parse --show-toplevel)
 regress=$root/test/regress
-plusopt=
+plusopt=+acc
 vsimopt=
 
 if false; then

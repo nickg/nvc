@@ -714,6 +714,9 @@ static const char add_help[] =
    "Syntax:\n"
    "  add wave <name>...\n"
    "\n"
+   "Options:\n"
+   "  -recursive\tInclude subregions in wildcard search.\n"
+   "\n"
    "Examples:\n"
    "  add wave /*\tAdd all signals to waveform\n";
 
@@ -728,10 +731,19 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
    else if (!shell_has_model(sh))
       return TCL_ERROR;
 
-   const int nglobs = objc - 2;
+   int pos = 2;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-recursive") == 0 || strcmp(opt, "-r") == 0) {
+         // Always recursive for now...
+      }
+      else
+         goto usage;
+   }
+
+   const int nglobs = objc - pos;
    globs = xmalloc_array(nglobs, sizeof(char *));
    for (int i = 0; i < nglobs; i++)
-      globs[i] = Tcl_GetString(objv[i + 2]);
+      globs[i] = Tcl_GetString(objv[pos++]);
 
    for (int i = 0; i < sh->nsignals; i++) {
       shell_signal_t *ss = &(sh->signals[i]);
@@ -740,10 +752,8 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
       for (int j = 0; j < nglobs; j++)
          match |= ident_glob(ss->path, globs[j], -1);
 
-      if (!match)
+      if (!match || !shell_get_printer(sh, ss))
          continue;
-      else if (!shell_get_printer(sh, ss))
-         return TCL_ERROR;
 
       if (sh->handler.add_wave != NULL) {
          const char *enc =
@@ -1198,8 +1208,11 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
    sh->top = top;
 
    vcode_unit_t vu = lib_get_vcode(lib_work(), top);
-   if (vu != NULL)
-      unit_registry_put_all(sh->registry, vu);
+   if (vu != NULL) {
+      ident_t unit_name = ident_runtil(tree_ident(top), '.');
+      if (!unit_registry_query(sh->registry, unit_name))
+         unit_registry_put_all(sh->registry, vu);
+   }
 
    shell_create_model(sh);
 

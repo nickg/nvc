@@ -40,12 +40,10 @@
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
-#include <ws2tcpip.h>
 #else
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #endif
 
 #define WS_UPGRADE_VALUE     "websocket"
@@ -66,8 +64,8 @@
 #define WS_OPCODE_TEXT_FRAME   0x1
 #define WS_OPCODE_BINARY_FRAME 0x2
 #define WS_OPCODE_CLOSE_FRAME  0x8
-#define WS_OPCODE_PING_FRAME   0xa
-#define WS_OPCODE_PONG_FRAME   0xb
+#define WS_OPCODE_PING_FRAME   0x9
+#define WS_OPCODE_PONG_FRAME   0xa
 
 #define PORT             8888
 #define MAX_HTTP_REQUEST 1024
@@ -202,7 +200,9 @@ void ws_flush(web_socket_t *ws)
 {
    while (ws->tx_wptr != ws->tx_rptr) {
       const size_t chunksz = ws->tx_wptr - ws->tx_rptr;
-      const ssize_t nbytes = write(ws->sock, ws->tx_buf + ws->tx_rptr, chunksz);
+      const ssize_t nbytes =
+         send(ws->sock, ws->tx_buf + ws->tx_rptr, chunksz, 0);
+
       if (nbytes == 0)
          break;
       else if (nbytes < 0) {
@@ -450,6 +450,7 @@ static void server_log(log_level_t level, const char *fmt, ...)
 
    vprintf(fmt, ap);
    color_printf("$$\n");
+   fflush(stdout);
 
    va_end(ap);
 }
@@ -457,7 +458,7 @@ static void server_log(log_level_t level, const char *fmt, ...)
 static void write_fully(int fd, const void *data, size_t len)
 {
    while (len > 0) {
-      ssize_t nbytes = write(fd, data, len);
+      ssize_t nbytes = send(fd, data, len, 0);
       if (nbytes <= 0) {
          server_log(LOG_ERROR, "write: %s", strerror(errno));
          return;
@@ -820,7 +821,7 @@ static void serve_gui_static_files(int fd, const char *url)
       static const char *mime_map[][2] = {
          { ".js",  "text/javascript" },
          { ".css", "text/css" },
-         {" .map", "application/json" },
+         { ".map", "application/json" },
       };
 
       for (int i = 0; i < ARRAY_LEN(mime_map); i++) {
@@ -885,7 +886,7 @@ static void handle_new_connection(web_server_t *server)
    char buf[MAX_HTTP_REQUEST + 1];
    size_t reqlen = 0;
    do {
-      ssize_t n = read(fd, buf + reqlen, MAX_HTTP_REQUEST - reqlen);
+      ssize_t n = recv(fd, buf + reqlen, MAX_HTTP_REQUEST - reqlen, 0);
 
 #ifdef __MINGW32__
       const bool would_block =
@@ -1007,10 +1008,7 @@ static int open_server_socket(void)
    if (listen(sock, 10) < 0)
       fatal_errno("listen");
 
-   char host[64];
-   inet_ntop(AF_INET, &addr.sin_addr, host, sizeof(host));
-
-   server_log(LOG_INFO, "listening on %s:%d", host, PORT);
+   server_log(LOG_INFO, "listening on 127.0.0.1:%d", PORT);
 
    return sock;
 }

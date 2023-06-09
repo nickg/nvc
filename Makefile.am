@@ -65,6 +65,7 @@ include lib/ieee.19/Makemodule.am
 include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
 include contrib/Makemodule.am
+include contrib/gui/Makemodule.am
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean

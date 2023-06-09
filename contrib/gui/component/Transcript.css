@@ -1,0 +1,99 @@
+/*
+ *  Copyright (C) 2023  Nick Gasson
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+.transcript * {
+  font-family: 'Consolas', 'Inconsolata', monospace;
+  font-size: 10pt;
+}
+
+.transcript {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+
+.transcript-history {
+  flex-grow: 1;
+  box-sizing: border-box;
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.transcript-input-log, .transcript-output-log {
+  box-sizing: border-box;
+  padding: 2px 4px;
+}
+
+.transcript-input-log:hover {
+  background: rgba(200, 200, 200, 0.2);
+}
+
+.transcript-input-log {
+  font-weight: bold;
+  display: flex;
+}
+
+.transcript-output-log {
+}
+
+.transcript-bottom {
+  flex-shrink: 0;
+  padding: 4px;
+  outline: none;
+  border: none;
+  border-top: 1px solid #cccccc;
+  width: 100%;
+  display: flex;
+}
+
+.transcript-prompt {
+  font-weight: bold;
+  padding: 0px 4px 0px 2px;
+  display: flex;
+  align-items: center;
+}
+
+.transcript-input {
+  padding: 2px 4px 2px 4px;
+  outline: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.transcript-input:hover, .transcript-input:focus {
+  outline-width: 0;
+}
+
+.transcript-icon {
+  font-weight: bold;
+  padding: 0px 4px 0px 0px;
+  display: flex;
+  align-items: center;
+}
+
+.transcript-text {
+  padding: 2px 4px 2px 4px;
+  outline: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}

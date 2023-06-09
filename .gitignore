@@ -46,6 +46,11 @@ compile_commands.json
 www/*.html
 /debian
 
+# Generated GUI files
+contrib/gui/node_modules
+contrib/gui/dist/
+contrib/gui/.vite
+
 # VI test suite also cannot be distributed
 test/vi_suite*
 

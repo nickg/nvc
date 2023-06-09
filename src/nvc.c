@@ -93,7 +93,7 @@ static int scan_cmd(int start, int argc, char **argv)
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
       "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
-      "--cover-export", "--preprocess",
+      "--cover-export", "--preprocess", "--gui"
    };
 
    for (int i = start; i < argc; i++) {
@@ -1473,6 +1473,50 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    return 0;
 }
 
+#ifdef ENABLE_GUI
+static int gui_cmd(int argc, char **argv, cmd_state_t *state)
+{
+   static struct option long_options[] = {
+      { "init", required_argument, 0, 'i' },
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = ":", *init_cmd = NULL;
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0: break;  // Set a flag
+      case 'i': init_cmd = optarg; break;
+      case '?': bad_option("gui", argv);
+      case ':': missing_argument("gui", argv);
+      default: abort();
+      }
+   }
+
+   if (argc != optind)
+      fatal("$bold$--gui$$ command takes no positional arguments");
+
+   tree_t top = NULL;
+   if (top_level != NULL) {
+      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
+      if ((top = lib_get(lib_work(), ename)) == NULL)
+         fatal("%s not elaborated", istr(top_level));
+
+      // XXX: temporary hack
+      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
+      lib_put_vcode(lib_work(), top, vu);
+   }
+
+   start_server(get_jit, top, NULL, NULL, init_cmd);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
+}
+#endif
+
 static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -1602,6 +1646,9 @@ static void usage(void)
           " --cover-export TOP\t\tExport code coverage statistics for TOP\n"
           " --do SCRIPT\t\t\tEvaluate TCL script\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
+#ifdef ENABLE_GUI
+          "  --gui\t\t\t\tLaunch browser-based GUI\n"
+#endif
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
           " --list\t\t\t\tPrint all units in the library\n"
@@ -1802,6 +1849,9 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       { "do",           no_argument, 0, 'D' },
       { "cover-export", no_argument, 0, 'E' },
       { "preprocess",   no_argument, 0, 'R' },
+#ifdef ENABLE_GUI
+      { "gui",          no_argument, 0, 'g' },
+#endif
       { 0, 0, 0, 0 }
    };
 
@@ -1843,6 +1893,10 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return cover_export_cmd(argc, argv, state);
    case 'R':
       return preprocess_cmd(argc, argv, state);
+#ifdef ENABLE_GUI
+   case 'g':
+      return gui_cmd(argc, argv, state);
+#endif
    default:
       fatal("missing command, try $bold$%s --help$$ for usage", PACKAGE);
       return EXIT_FAILURE;
