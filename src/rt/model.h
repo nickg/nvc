@@ -57,6 +57,7 @@ rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
 uint8_t signal_size(rt_signal_t *s);
+uint32_t signal_width(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
 void force_signal(rt_signal_t *s, const void *values, int offset, size_t count);
 void deposit_signal(rt_signal_t *s, const void *values, int offset, size_t count);

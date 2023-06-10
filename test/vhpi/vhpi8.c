@@ -96,10 +96,10 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_put_value(sv, &sval, vhpiDepositPropagate);
    check_error();
 
-   vhpiEnumT l[4];
+   vhpiEnumT l[5];
    vhpiValueT lval = {
       .format     = vhpiEnumVecVal,
-      .bufSize    = sizeof(l),
+      .bufSize    = sizeof(vhpiEnumT) * 4,
       .value.enumvs = l,
    };
 
@@ -138,10 +138,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_unless(lval.numElems == 0);
 
+   fail_unless(vhpi_put_value(bv, &lval, vhpiDepositPropagate));
+
    lval.bufSize = 0;
    vhpi_put_value(bv, &lval, vhpiDepositPropagate);
    check_error();
-   lval.bufSize = sizeof(l);
+   lval.bufSize = sizeof(vhpiEnumT) * 4;
 
    lval2.format = vhpiLogicVal,
    vhpi_get_value(lv2, &lval2);
@@ -154,6 +156,9 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    l[3] = 5;
    vhpi_put_value(lv, &lval, vhpiDepositPropagate);
    check_error();
+
+   lval.bufSize = sizeof(l);
+   fail_unless(vhpi_put_value(lv, &lval, vhpiDepositPropagate));
 }
 
 void vhpi8_startup(void)

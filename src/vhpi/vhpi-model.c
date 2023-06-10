@@ -1937,7 +1937,12 @@ int vhpi_put_value(vhpiHandleT handle,
             return 1;
          }
 
-         // TODO: check num_elems == signal_width(signal)
+         if (offset + num_elems > signal_width(signal)) {
+            vhpi_error(vhpiError, &(obj->loc),
+                       "too many values (%d) for signal with width %"PRIu32,
+                       num_elems, signal_width(signal));
+            return 1;
+         }
 
          if (mode == vhpiForcePropagate)
             force_signal(signal, ptr, offset, num_elems);
