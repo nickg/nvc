@@ -348,14 +348,11 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
 
 static c_abstractRegion *cast_abstractRegion(c_vhpiObject *obj)
 {
-   switch (obj->kind) {
-   case vhpiRootInstK:
-      return container_of(obj, c_abstractRegion, object);
-   default:
+   c_abstractRegion *r = is_abstractRegion(obj);
+   if (r == NULL)
       vhpi_error(vhpiError, NULL, "class kind %s is not a region",
                  vhpi_class_str(obj->kind));
-      return NULL;
-   }
+   return r;
 }
 
 static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
@@ -377,21 +374,11 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
 
 static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
 {
-   switch (obj->kind) {
-   case vhpiSigDeclK:
-   case vhpiPortDeclK:
-   case vhpiIntTypeDeclK:
-   case vhpiEnumTypeDeclK:
-   case vhpiPhysTypeDeclK:
-   case vhpiArrayTypeDeclK:
-   case vhpiRecordTypeDeclK:
-   case vhpiSubtypeDeclK:
-      return container_of(obj, c_abstractDecl, object);
-   default:
+   c_abstractDecl *decl = is_abstractDecl(obj);
+   if (decl == NULL)
       vhpi_error(vhpiError, NULL, "class kind %s is not a declaration",
                  vhpi_class_str(obj->kind));
-      return NULL;
-   }
+   return decl;
 }
 
 static c_objDecl *is_objDecl(c_vhpiObject *obj)
