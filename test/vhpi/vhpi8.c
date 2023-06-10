@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static vhpiHandleT lv, sv, ev, lv2, sv2, ev2;
+static vhpiHandleT lv, sv, ev, bv, lv2, sv2, ev2;
 
 static void last_delta(const vhpiCbDataT *cb_data)
 {
@@ -133,6 +133,16 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(l[2] == 2);
    fail_unless(l[3] == 3);
 
+   lval.format = vhpiLogicVecVal;
+   vhpi_get_value(bv, &lval);
+   check_error();
+   fail_unless(lval.numElems == 0);
+
+   lval.bufSize = 0;
+   vhpi_put_value(bv, &lval, vhpiDepositPropagate);
+   check_error();
+   lval.bufSize = sizeof(l);
+
    lval2.format = vhpiLogicVal,
    vhpi_get_value(lv2, &lval2);
    check_error();
@@ -187,6 +197,16 @@ void vhpi8_startup(void)
    ev2 = vhpi_handle_by_index(vhpiIndexedNames, ev, 2);
    check_error();
    fail_if(ev2 == NULL);
+
+   bv = vhpi_handle_by_name("bv", root);
+   check_error();
+   fail_if(bv == NULL);
+
+   fail_unless(vhpi_get(vhpiSizeP, bv) == 0);
+   vhpiHandleT bv_names = vhpi_iterator(vhpiIndexedNames, bv);
+   check_error();
+   fail_if(bv_names == NULL);
+   fail_unless(vhpi_scan(bv_names) == NULL);
 
    vhpi_release_handle(root);
 }

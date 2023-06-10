@@ -43,5 +43,6 @@ architecture test of vhpi8 is
    signal lv: std_logic_vector(0 to 3) := "UX01";
    signal sv: severity_vector(0 to 3) := (note, warning, error, failure);
    signal ev: enum_vector(0 to 3) := (e000, e001, e002, e003);
+   signal bv: bit_vector(3 to 0);
 begin
 end architecture;
