@@ -1317,6 +1317,9 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (scope == NULL && strcasecmp((char *)region->Name, elem) == 0)
       elem = strtok_r(NULL, ":.", &saveptr);
 
+   if (elem == NULL)
+      return handle_for(&(region->object));
+
    for (int i = 0; i < region->decls.count; i++) {
       c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
       if (strcasecmp((char *)d->Name, elem) == 0)
