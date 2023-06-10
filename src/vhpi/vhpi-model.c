@@ -724,10 +724,10 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
 
 static vhpiIntT range_len(c_intRange *ir)
 {
-   if (ir->LeftBound > ir->RightBound)
-      return ir->LeftBound - ir->RightBound + 1;
+   if (ir->range.IsUp)
+      return MAX(ir->RightBound - ir->LeftBound + 1, 0);
    else
-      return ir->RightBound - ir->LeftBound + 1;
+      return MAX(ir->LeftBound - ir->RightBound + 1, 0);
 }
 
 static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *simpleName,
@@ -763,6 +763,8 @@ static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *si
          return;
 
       lens[i] = range_len(ir);
+      if (lens[i] == 0)
+         return;
    }
 
    vhpiIntT *indices LOCAL = xcalloc_array(Constraints->count, sizeof(vhpiIntT));
