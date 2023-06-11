@@ -1771,6 +1771,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       value_p->value.intg = ((const uint32_t *)signal_value(signal))[offset];
       return 0;
 
+   case vhpiRealVal:
+      value_p->value.real = ((const double *)signal_value(signal))[offset];
+      return 0;
+
    case vhpiLogicVecVal:
       {
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
@@ -1826,6 +1830,19 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
       }
 
+   case vhpiRealVecVal:
+      {
+         const int max = value_p->bufSize / sizeof(vhpiRealT);
+         if (max < value_p->numElems)
+            return value_p->numElems * sizeof(vhpiRealT);
+
+         const double *p = ((const double *)signal_value(signal)) + offset;
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.reals[i] = *p++;
+
+         return 0;
+      }
+
    default:
       fatal_trace("unsupported format %d", value_p->format);
    }
@@ -1878,6 +1895,7 @@ int vhpi_put_value(vhpiHandleT handle,
             uint64_t uint64_t_val;
             vhpiIntT vhpiIntT_val;
          } scalar;
+         double real;
          int num_elems = 0;
 
          if (!model_can_create_delta(model)) {
@@ -1922,6 +1940,12 @@ int vhpi_put_value(vhpiHandleT handle,
             ptr = &scalar;   // Assume little endian
             break;
 
+         case vhpiRealVal:
+            num_elems = 1;
+            real = value_p->value.real;
+            ptr = &real;
+            break;
+
          case vhpiLogicVecVal:
             num_elems = value_p->bufSize / sizeof(vhpiEnumT);
             ext = ptr = xmalloc(num_elems);
@@ -1957,6 +1981,15 @@ int vhpi_put_value(vhpiHandleT handle,
             for (int i = 0; i < num_elems; i++)
                ((vhpiCharT *)ext)[i] = value_p->value.str[i];
             break;
+
+         case vhpiRealVecVal:
+            {
+               num_elems = value_p->bufSize / sizeof(vhpiRealT);
+               ext = ptr = xmalloc_array(num_elems, sizeof(double));
+               for (int i = 0; i < num_elems; i++)
+                  ((double *)ext)[i] = value_p->value.reals[i];
+               break;
+            }
 
          default:
             vhpi_error(vhpiFailure, &(obj->loc), "value format "
