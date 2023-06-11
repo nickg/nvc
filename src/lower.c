@@ -3040,6 +3040,10 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 {
+   if (!tree_has_ref(ref))
+      fatal_at(tree_loc(ref), "sorry, external names in packages are not "
+               "yet supported");
+
    ident_t path = NULL;
    const int nparts = tree_parts(ref);
    for (int i = 0; i < nparts - 1; i++) {
