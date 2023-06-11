@@ -119,12 +119,15 @@ static void deferred_work(const vhpiCbDataT *cb_data)
    vhpi_enable_cb(defer_enable);
 }
 
-static vhpiHandleT autoremoving_cb;
+static vhpiHandleT mutual_cb1[2], mutual_cb2[2], mutual_cb3[2];
 
-static void autoremoving(const vhpiCbDataT *cb_data)
+static void mutual(const vhpiCbDataT *cb_data)
 {
-   vhpi_printf("autoremoving callback!");
-   vhpi_remove_cb(autoremoving_cb);
+   vhpi_printf("mutual callback!");
+
+   vhpiHandleT *cb = cb_data->user_data;
+   vhpi_remove_cb(cb[0]);
+   vhpi_remove_cb(cb[1]);
 }
 
 static void disabled_callback(const vhpiCbDataT *cb_data)
@@ -183,6 +186,13 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(vhpi_disable_cb(cb));
 
+   cb_data2.cb_rtn = mutual;
+   cb_data2.user_data = mutual_cb1;
+   mutual_cb1[0] = vhpi_register_cb(&cb_data2, vhpiReturnCb);
+   check_error();
+   mutual_cb1[1] = vhpi_register_cb(&cb_data2, vhpiReturnCb);
+   check_error();
+
    vhpiTimeT time = {
       .low = 1
    };
@@ -226,6 +236,13 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    vhpi_register_cb(&cb_data4, 0);
    check_error();
 
+   cb_data4.cb_rtn = mutual;
+   cb_data4.user_data = mutual_cb2;
+   mutual_cb2[0] = vhpi_register_cb(&cb_data4, vhpiReturnCb);
+   check_error();
+   mutual_cb2[1] = vhpi_register_cb(&cb_data4, vhpiReturnCb);
+   check_error();
+
    vhpiCbDataT cb_data5 = {
       .reason = vhpiCbNextTimeStep,
       .cb_rtn = disabled_callback,
@@ -234,8 +251,11 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(vhpi_remove_cb(cb));
 
-   cb_data5.cb_rtn = autoremoving;
-   autoremoving_cb = vhpi_register_cb(&cb_data5, vhpiReturnCb);
+   cb_data5.cb_rtn = mutual;
+   cb_data5.user_data = mutual_cb3;
+   mutual_cb3[0] = vhpi_register_cb(&cb_data5, vhpiReturnCb);
+   check_error();
+   mutual_cb3[1] = vhpi_register_cb(&cb_data5, vhpiReturnCb);
    check_error();
 }
 
