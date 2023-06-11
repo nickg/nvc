@@ -7,8 +7,12 @@ VHPI printf root name is VHPI1
 VHPI printf root full name is :VHPI1
 VHPI printf root port is X
 VHPI printf root port is Y
+VHPI printf root signal is V
+VHPI printf root signal is B
+VHPI printf root signal is R
 VHPI printf root decl is V
 VHPI printf root decl is B
+VHPI printf root decl is R
 VHPI printf arch handle
 VHPI printf arch name is VHPI1-TEST
 VHPI printf arch unit name is WORK.VHPI1-TEST
