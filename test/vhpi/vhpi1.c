@@ -466,6 +466,18 @@ void vhpi1_startup(void)
    vhpi_printf("v elem type name is %s", vhpi_get_str(vhpiNameP, v_elem));
    vhpi_printf("v elem type full name is %s", vhpi_get_str(vhpiFullNameP, v_elem));
 
+   vhpiIntT nlits = vhpi_get(vhpiNumLiteralsP, v_elem);
+   check_error();
+   vhpiHandleT v_lits = vhpi_iterator(vhpiEnumLiterals, v_elem);
+   i = 0;
+   for (vhpiHandleT lit = vhpi_scan(v_lits);
+        lit != NULL;
+        lit = vhpi_scan(v_lits), i++) {
+      vhpi_printf("v elem literal %d is %s", i, vhpi_get_str(vhpiStrValP, lit));
+      fail_unless(vhpi_get(vhpiPositionP, lit) == i);
+   }
+   fail_unless(i == nlits);
+
    vhpiHandleT v_names = vhpi_iterator(vhpiIndexedNames, handle_v);
    fail_if(v_names == NULL);
    for (vhpiHandleT name = vhpi_scan(v_names); name != NULL; name = vhpi_scan(v_names))

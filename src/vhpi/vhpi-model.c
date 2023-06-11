@@ -150,8 +150,10 @@ typedef struct {
 
 typedef struct {
    c_scalarTypeDecl scalar;
-   vhpiIntT         NumLiterals;
+   vhpiObjectListT  EnumLiterals;
 } c_enumTypeDecl;
+
+DEF_CLASS(enumTypeDecl, vhpiEnumTypeDeclK, scalar.typeDecl.decl.object);
 
 typedef struct {
    c_scalarTypeDecl scalar;
@@ -211,6 +213,16 @@ typedef struct {
 } c_portDecl;
 
 DEF_CLASS(portDecl, vhpiPortDeclK, interface.objDecl.decl.object);
+
+typedef struct {
+   c_abstractDecl  decl;
+   vhpiStringT     StrVal;
+   vhpiStringT     SignatureName;
+   c_enumTypeDecl *Type;
+   vhpiIntT        Position;
+} c_enumLiteral;
+
+DEF_CLASS(enumLiteral, vhpiEnumLiteralK, decl.object);
 
 typedef struct tag_expr {
    c_vhpiObject     object;
@@ -365,6 +377,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    switch (obj->kind) {
    case vhpiSigDeclK:
    case vhpiPortDeclK:
+   case vhpiEnumLiteralK:
    case vhpiIntTypeDeclK:
    case vhpiEnumTypeDeclK:
    case vhpiPhysTypeDeclK:
@@ -638,6 +651,13 @@ static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t, type_t type
    d->typeDecl.IsComposite = true;
 }
 
+static void init_enumLiteral(c_enumLiteral *el, tree_t t, c_enumTypeDecl *Type)
+{
+   init_abstractDecl(&(el->decl), t, NULL);
+   el->Type = Type;
+   el->Position = tree_pos(t);
+}
+
 static void init_range(c_range *r, tree_t t)
 {
    const range_kind_t rkind = tree_subkind(t);
@@ -826,6 +846,15 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    if (array != NULL) {
       if (type == vhpiConstraints) {
          it->list = &(array->Constraints);
+         return true;
+      }
+      return false;
+   }
+
+   c_enumTypeDecl *etd = is_enumTypeDecl(obj);
+   if (etd != NULL) {
+      if (type == vhpiEnumLiterals) {
+         it->list = &(etd->EnumLiterals);
          return true;
       }
       return false;
@@ -1244,6 +1273,13 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
             td = e->Type->BaseType ?: e->Type;
             return handle_for(&(td->decl.object));
          }
+
+         c_enumLiteral *el = is_enumLiteral(obj);
+         if (el != NULL) {
+            td = el->Type->scalar.typeDecl.BaseType ?:
+               &(el->Type->scalar.typeDecl);
+            return handle_for(&(td->decl.object));
+         }
       }
    case vhpiType:
       {
@@ -1506,6 +1542,10 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (decl != NULL)
             return decl->Staticness;
 
+         c_enumLiteral *el = is_enumLiteral(obj);
+         if (el != NULL)
+            return vhpiGloballyStatic;
+
          c_expr *e = cast_expr(obj);
          if (e == NULL)
             return vhpiUndefined;
@@ -1520,6 +1560,24 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             return vhpiUndefined;
 
          return in->BaseIndex;
+      }
+
+   case vhpiNumLiteralsP:
+      {
+         c_enumTypeDecl *etd = cast_enumTypeDecl(obj);
+         if (etd == NULL)
+            return vhpiUndefined;
+
+         return etd->EnumLiterals.count;
+      }
+
+   case vhpiPositionP:
+      {
+         c_enumLiteral *el = cast_enumLiteral(obj);
+         if (el == NULL)
+            return vhpiUndefined;
+
+         return el->Position;
       }
 
    default:
@@ -1554,6 +1612,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
          case vhpiFullCaseNameP: return region->FullCaseName;
          default: goto unsupported;
          }
+   }
+
+   c_enumLiteral *el = is_enumLiteral(obj);
+   if (el != NULL) {
+      switch (property) {
+      case vhpiStrValP: return el->decl.Name;
+      default: goto unsupported;
+      }
    }
 
    c_abstractDecl *d = is_abstractDecl(obj);
@@ -2217,7 +2283,14 @@ static c_typeDecl *build_typeDecl(type_t type)
          c_enumTypeDecl *td =
             new_object(sizeof(c_enumTypeDecl), vhpiEnumTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
-         td->NumLiterals = type_enum_literals(type);
+
+         int nlits = type_enum_literals(type);
+         for (int i = 0; i < nlits; i++) {
+            c_enumLiteral *el =
+               new_object(sizeof(c_enumLiteral), vhpiEnumLiteralK);
+            init_enumLiteral(el, type_enum_literal(type, i), td);
+            APUSH(td->EnumLiterals, &(el->decl.object));
+         }
          return &(td->scalar.typeDecl);
       }
 
