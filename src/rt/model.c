@@ -2514,9 +2514,13 @@ static void async_watch_callback(void *context, void *arg)
 
    assert(w->wakeable.pending);
    w->wakeable.pending = false;
+   bool free_later = w->wakeable.free_later;
 
    MODEL_ENTRY(m);
    (*w->fn)(m->now, w->signal, w, w->user_data);
+
+   if (free_later)
+      free(w);
 }
 
 static void async_timeout_callback(void *context, void *arg)
@@ -3228,19 +3232,24 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
    return w;
 }
 
-void model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
+bool model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
                            void *user)
 {
    assert(event < RT_LAST_EVENT);
 
    rt_callback_t **last = &m->global_cbs[event];
+   if (!*last)
+      return false;
+
    for (rt_callback_t *it = *last; it; last = &(it->next), it = it->next) {
       if (it->fn == fn && it->user == user) {
          *last = it->next;
          free(it);
-         return;
+         return true;
       }
    }
+
+   return false;
 }
 
 typedef struct {
@@ -3280,7 +3289,7 @@ bool model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
    return heap_delete(m->eventq_heap, eventq_delete_fn, &params);
 }
 
-void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
+bool model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
 {
    rt_nexus_t *n = &(w->signal->nexus);
    for (int i = 0; i < w->signal->n_nexus; i++, n = n->chain)
@@ -3294,7 +3303,13 @@ void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
       }
    }
 
+   if (w->wakeable.pending) {
+      w->wakeable.free_later = true;
+      return false;
+   }
+
    free(w);
+   return true;
 }
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)

@@ -39,6 +39,7 @@ typedef struct {
    unsigned        pending : 1;
    unsigned        postponed : 1;
    unsigned        delayed : 1;
+   unsigned        free_later : 1;
 } rt_wakeable_t;
 
 typedef struct _rt_proc {

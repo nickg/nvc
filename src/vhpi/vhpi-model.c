@@ -1103,16 +1103,15 @@ static bool disable_cb(c_callback *cb)
    case vhpiCbEndOfSimulation:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
-      model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
-                            vhpi_global_cb, cb);
+      return model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
+                                   vhpi_global_cb, cb);
       return true;
 
    case vhpiCbAfterDelay:
       return model_clear_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
 
    case vhpiCbValueChange:
-      model_clear_event_cb(model, cb->w);
-      return true;
+      return model_clear_event_cb(model, cb->w);
 
    default:
       assert(false);
