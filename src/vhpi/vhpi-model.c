@@ -805,9 +805,6 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    if (rootInst != NULL) {
       switch (type) {
       case vhpiPortDecls: it->list = &(rootInst->ports); return true;
-      case vhpiInternalRegions:
-         it->single = &(rootInst->designInstUnit.region.object);
-         return true;
       default: break;
       }
    }
