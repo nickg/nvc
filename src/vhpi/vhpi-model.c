@@ -161,6 +161,10 @@ typedef struct {
 DEF_CLASS(physTypeDecl, vhpiPhysTypeDeclK, scalar.typeDecl.decl.object);
 
 typedef struct {
+   c_scalarTypeDecl scalar;
+} c_floatTypeDecl;
+
+typedef struct {
    c_compositeTypeDecl composite;
    c_typeDecl         *ElemType;
    vhpiIntT            NumDimensions;
@@ -363,6 +367,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiIntTypeDeclK:
    case vhpiEnumTypeDeclK:
    case vhpiPhysTypeDeclK:
+   case vhpiFloatTypeDeclK:
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
    case vhpiSubtypeDeclK:
@@ -2152,6 +2157,14 @@ static c_typeDecl *build_typeDecl(type_t type)
             new_object(sizeof(c_physTypeDecl), vhpiPhysTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
          td->constraint = &(build_phys_range(range_of(type, 0))->range);
+         return &(td->scalar.typeDecl);
+      }
+
+   case T_REAL:
+      {
+         c_floatTypeDecl *td =
+            new_object(sizeof(c_intTypeDecl), vhpiFloatTypeDeclK);
+         init_scalarTypeDecl(&(td->scalar), decl, type);
          return &(td->scalar.typeDecl);
       }
 

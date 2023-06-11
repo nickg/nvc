@@ -21,6 +21,10 @@ VHPI printf x full name is :VHPI1:X
 VHPI printf y handle
 VHPI printf y name Y
 VHPI printf y full name is :VHPI1:Y
+VHPI printf r handle
+VHPI printf r type handle
+VHPI printf r type name is REAL
+VHPI printf r type full name is @STD:STANDARD:REAL
 VHPI printf v handle
 VHPI printf v name is V
 VHPI printf v full name is :VHPI1:V
