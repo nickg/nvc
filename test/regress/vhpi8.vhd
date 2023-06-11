@@ -45,5 +45,6 @@ architecture test of vhpi8 is
    signal ev: enum_vector(0 to 3) := (e000, e001, e002, e003);
    signal bv: bit_vector(3 to 0);
    signal cv: string(1 to 4) := "NVC!";
+   signal rv: real_vector(0 to 3) := (0.0, 0.5, 1.0, -1.0);
 begin
 end architecture;

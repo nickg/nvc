@@ -795,7 +795,7 @@ array17         normal,2008
 stdenv5         normal,2019
 assert7         fail,2008
 vhpi7           normal,2008,vhpi
-vhpi8           normal,vhpi
+vhpi8           normal,2008,vhpi
 issue704        wave,no-collapse
 real5           normal,2019
 assign9         normal,2008

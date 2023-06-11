@@ -1,9 +1,11 @@
 #include "vhpi_test.h"
 
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-static vhpiHandleT lv, sv, ev, bv, cv, lv2, sv2, ev2, cv2;
+static vhpiHandleT lv, sv, ev, bv, cv, rv, lv2, sv2, ev2, cv2, rv2;
 
 static void last_delta(const vhpiCbDataT *cb_data)
 {
@@ -86,6 +88,28 @@ static void last_delta(const vhpiCbDataT *cb_data)
    vhpi_get_value(cv2, &cval2);
    check_error();
    fail_unless(cval2.value.ch == 254);
+
+   vhpiRealT r[4];
+   vhpiValueT rval = {
+      .format = vhpiRealVecVal,
+      .bufSize = sizeof(r),
+      .value.reals = r,
+   };
+
+   vhpi_get_value(rv, &rval);
+   check_error();
+   fail_unless(isnan(r[0]));
+   fail_unless(r[1] == DBL_TRUE_MIN);
+   fail_unless(r[2] == DBL_MAX);
+   fail_unless(r[3] == HUGE_VAL);
+
+   vhpiValueT rval2 = {
+      .format = vhpiRealVal,
+   };
+
+   vhpi_get_value(rv2, &rval2);
+   check_error();
+   fail_unless(rval2.value.real == DBL_MAX);
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
@@ -212,6 +236,35 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    c[3] = 255;
    vhpi_put_value(cv, &cval, vhpiDepositPropagate);
    check_error();
+
+   vhpiRealT r[4];
+   vhpiValueT rval = {
+      .format      = vhpiRealVecVal,
+      .bufSize     = sizeof(r),
+      .value.reals = r,
+   };
+
+   vhpi_get_value(rv, &rval);
+   check_error();
+   fail_unless(r[0] == 0.0);
+   fail_unless(r[1] == 0.5);
+   fail_unless(r[2] == 1.0);
+   fail_unless(r[3] == -1.0);
+
+   vhpiValueT rval2 = {
+      .format = vhpiRealVal,
+   };
+
+   vhpi_get_value(rv2, &rval2);
+   check_error();
+   fail_unless(rval2.value.real == 1.0);
+
+   r[0] = NAN;
+   r[1] = DBL_TRUE_MIN;
+   r[2] = DBL_MAX;
+   r[3] = HUGE_VAL;
+   vhpi_put_value(rv, &rval, vhpiDepositPropagate);
+   check_error();
 }
 
 void vhpi8_startup(void)
@@ -273,6 +326,14 @@ void vhpi8_startup(void)
    cv2 = vhpi_handle_by_index(vhpiIndexedNames, cv, 2);
    check_error();
    fail_if(cv2 == NULL);
+
+   rv = vhpi_handle_by_name("rv", root);
+   check_error();
+   fail_if(rv == NULL);
+
+   rv2 = vhpi_handle_by_index(vhpiIndexedNames, rv, 2);
+   check_error();
+   fail_if(rv2 == NULL);
 
    vhpi_release_handle(root);
 }
