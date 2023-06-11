@@ -230,6 +230,8 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
       case W_STD_BIT:
          *map_str = "01";
          return vhpiLogicVal;
+      case W_STD_CHAR:
+         return vhpiCharVal;
       default:
          if (type_enum_literals(base) <= 256)
             return vhpiSmallEnumVal;
@@ -255,6 +257,8 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
                case W_STD_BIT:
                   *map_str = "01";
                   return vhpiLogicVecVal;
+               case W_STD_CHAR:
+                  return vhpiStrVal;
                default:
                   if (type_enum_literals(elem) <= 256)
                      return vhpiSmallEnumVecVal;

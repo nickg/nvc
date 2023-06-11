@@ -1763,6 +1763,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUM);
       return 0;
 
+   case vhpiCharVal:
+      value_p->value.ch = signal_value_u8(signal)[offset];
+      return 0;
+
    case vhpiIntVal:
       value_p->value.intg = ((const uint32_t *)signal_value(signal))[offset];
       return 0;
@@ -1806,6 +1810,19 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    } while (0)
 
          FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUMV);
+         return 0;
+      }
+
+   case vhpiStrVal:
+      {
+         if (value_p->bufSize + 1 < value_p->numElems)
+            return value_p->numElems + 1;
+
+         const vhpiCharT *p = signal_value_u8(signal) + offset;
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.str[i] = *p++;
+
+         value_p->value.str[value_p->numElems] = '\0';
          return 0;
       }
 
@@ -1893,6 +1910,12 @@ int vhpi_put_value(vhpiHandleT handle,
             FOR_ALL_SIZES(signal_size(signal), SIGNAL_WRITE_ENUM);
             break;
 
+         case vhpiCharVal:
+            num_elems = 1;
+            byte = value_p->value.ch;
+            ptr = &byte;
+            break;
+
          case vhpiIntVal:
             num_elems = 1;
             scalar.vhpiIntT_val = value_p->value.intg;
@@ -1927,6 +1950,13 @@ int vhpi_put_value(vhpiHandleT handle,
                FOR_ALL_SIZES(size, SIGNAL_WRITE_ENUMV);
                break;
             }
+
+         case vhpiStrVal:
+            num_elems = value_p->bufSize - 1;
+            ext = ptr = xmalloc(num_elems);
+            for (int i = 0; i < num_elems; i++)
+               ((vhpiCharT *)ext)[i] = value_p->value.str[i];
+            break;
 
          default:
             vhpi_error(vhpiFailure, &(obj->loc), "value format "

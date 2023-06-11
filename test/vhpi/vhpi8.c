@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static vhpiHandleT lv, sv, ev, bv, lv2, sv2, ev2;
+static vhpiHandleT lv, sv, ev, bv, cv, lv2, sv2, ev2, cv2;
 
 static void last_delta(const vhpiCbDataT *cb_data)
 {
@@ -63,6 +63,29 @@ static void last_delta(const vhpiCbDataT *cb_data)
    vhpi_get_value(lv2, &lval2);
    check_error();
    fail_unless(lval2.value.enumv == 6);
+
+   vhpiCharT c[5];
+   vhpiValueT cval = {
+      .format = vhpiStrVal,
+      .bufSize = sizeof(c),
+      .value.str = c,
+   };
+
+   vhpi_get_value(cv, &cval);
+   check_error();
+   fail_unless(c[0] == 0);
+   fail_unless(c[1] == 1);
+   fail_unless(c[2] == 254);
+   fail_unless(c[3] == 255);
+   fail_unless(c[4] == 0);
+
+   vhpiValueT cval2 = {
+      .format = vhpiCharVal,
+   };
+
+   vhpi_get_value(cv2, &cval2);
+   check_error();
+   fail_unless(cval2.value.ch == 254);
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
@@ -159,6 +182,36 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    lval.bufSize = sizeof(l);
    fail_unless(vhpi_put_value(lv, &lval, vhpiDepositPropagate));
+
+   vhpiCharT c[5];
+   vhpiValueT cval = {
+      .format     = vhpiStrVal,
+      .bufSize    = sizeof(c),
+      .value.str  = c,
+   };
+
+   vhpi_get_value(cv, &cval);
+   check_error();
+   fail_unless(c[0] == 'N');
+   fail_unless(c[1] == 'V');
+   fail_unless(c[2] == 'C');
+   fail_unless(c[3] == '!');
+   fail_unless(c[4] == '\0');
+
+   vhpiValueT cval2 = {
+      .format = vhpiCharVal,
+   };
+
+   vhpi_get_value(cv2, &cval2);
+   check_error();
+   fail_unless(cval2.value.ch == 'C');
+
+   c[0] = 0;
+   c[1] = 1;
+   c[2] = 254;
+   c[3] = 255;
+   vhpi_put_value(cv, &cval, vhpiDepositPropagate);
+   check_error();
 }
 
 void vhpi8_startup(void)
@@ -212,6 +265,14 @@ void vhpi8_startup(void)
    check_error();
    fail_if(bv_names == NULL);
    fail_unless(vhpi_scan(bv_names) == NULL);
+
+   cv = vhpi_handle_by_name("cv", root);
+   check_error();
+   fail_if(cv == NULL);
+
+   cv2 = vhpi_handle_by_index(vhpiIndexedNames, cv, 2);
+   check_error();
+   fail_if(cv2 == NULL);
 
    vhpi_release_handle(root);
 }
