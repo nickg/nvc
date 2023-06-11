@@ -289,6 +289,7 @@ typedef struct {
 typedef struct {
    c_designInstUnit designInstUnit;
    vhpiObjectListT  ports;
+   vhpiObjectListT  signals;
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
@@ -805,6 +806,7 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    if (rootInst != NULL) {
       switch (type) {
       case vhpiPortDecls: it->list = &(rootInst->ports); return true;
+      case vhpiSigDecls: it->list = &(rootInst->signals); return true;
       default: break;
       }
    }
@@ -2273,15 +2275,21 @@ static c_vhpiObject *vhpi_build_signal_decl(tree_t decl,
    return &(s->objDecl.decl.object);
 }
 
-static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
+static void vhpi_build_decls(tree_t container, c_abstractRegion *region,
+                             c_rootInst *where)
 {
    const int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(container, i);
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-         APUSH(region->decls, vhpi_build_signal_decl(d, region));
-         break;
+         {
+            c_vhpiObject *signal = vhpi_build_signal_decl(d, region);
+            APUSH(region->decls, signal);
+            if (where)
+               APUSH(where->signals, signal);
+            break;
+         }
       default:
          break;
       }
@@ -2345,7 +2353,7 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m)
    rootInst = new_object(sizeof(c_rootInst), vhpiRootInstK);
    init_designInstUnit(&(rootInst->designInstUnit), b0, &(arch->designUnit));
 
-   vhpi_build_decls(b0, &(rootInst->designInstUnit.region));
+   vhpi_build_decls(b0, &(rootInst->designInstUnit.region), rootInst);
    vhpi_build_ports(b0, rootInst);
 
    VHPI_TRACE("building model for %s took %"PRIu64" ms",

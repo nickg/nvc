@@ -360,6 +360,12 @@ void vhpi1_startup(void)
       fail_unless(vhpi_handle_by_index(vhpiPortDecls, root, i) == port);
    }
 
+   vhpiHandleT root_signals = vhpi_iterator(vhpiSigDecls, root);
+   fail_if(root_signals == NULL);
+   i = 0;
+   for (vhpiHandleT decl = vhpi_scan(root_signals); decl != NULL; decl = vhpi_scan(root_signals))
+      vhpi_printf("root signal is %s", vhpi_get_str(vhpiNameP, decl));
+
    vhpiHandleT root_decls = vhpi_iterator(vhpiDecls, root);
    fail_if(root_decls == NULL);
    i = 0;
