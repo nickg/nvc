@@ -42,6 +42,8 @@ VHPI printf v right bound 0
 VHPI printf v elem type handle
 VHPI printf v elem type name is BIT
 VHPI printf v elem type full name is @STD:STANDARD:BIT
+VHPI printf v elem literal 0 is '0'
+VHPI printf v elem literal 1 is '1'
 VHPI printf v indexed name is V(3)
 VHPI printf v indexed name is V(2)
 VHPI printf v indexed name is V(1)
