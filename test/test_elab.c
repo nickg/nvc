@@ -1559,6 +1559,44 @@ START_TEST(test_issue707)
 }
 END_TEST
 
+START_TEST(test_bounds40)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/bounds40.vhd");
+
+   const error_t expect[] = {
+      { 12, "actual length 3 does not match port P length 8" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_bounds41)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/bounds41.vhd");
+
+   const error_t expect[] = {
+      { 18, "actual length 1 does not match port P length 2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1645,6 +1683,8 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_genpack4);
    tcase_add_test(tc, test_view1);
    tcase_add_test(tc, test_issue707);
+   tcase_add_test(tc, test_bounds40);
+   tcase_add_test(tc, test_bounds41);
    suite_add_tcase(s, tc);
 
    return s;
