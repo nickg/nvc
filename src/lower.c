@@ -510,25 +510,37 @@ static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
    if (!type_is_array(elem))
       return stride;
 
-   if (standard() >= STD_08 && type_is_unconstrained(elem)) {
-      // Handle VHDL-2008 element constraints
-      assert(have_array_metadata(type, reg));
+   int udims = 0, dim = 0;
+   if (have_array_metadata(type, reg)) {
+      udims = lower_dims_for_type(type);
+      dim = dimension_of(type);   // Skip to element dimensions
 
-      vcode_reg_t bounds_reg = reg;
-      if (lower_have_uarray_ptr(bounds_reg))
-         bounds_reg = emit_load_indirect(bounds_reg);
+      assert(vtype_dims(vcode_reg_type(reg)) == udims);
+   }
 
-      const int ndims = lower_dims_for_type(type);
-      const int skip = dimension_of(type);
-      for (int i = skip; i < ndims; i++) {
-         vcode_reg_t len_reg = emit_uarray_len(bounds_reg, i);
+   do {
+      const int edims = dimension_of(elem);
+      for (int i = 0; i < edims; i++, dim++) {
+         vcode_reg_t len_reg;
+         if (dim < udims)
+            len_reg = emit_uarray_len(reg, dim);
+         else {
+            tree_t r = range_of(elem, i);
+
+            int64_t low, high;
+            if (folded_bounds(r, &low, &high))
+               len_reg = emit_const(vtype_offset(), MAX(high - low + 1, 0));
+
+            vcode_reg_t left_reg  = lower_range_left(lu, r);
+            vcode_reg_t right_reg = lower_range_right(lu, r);
+            vcode_reg_t dir_reg   = lower_range_dir(lu, r);
+
+            len_reg = emit_range_length(left_reg, right_reg, dir_reg);
+         }
+
          stride = emit_mul(stride, len_reg);
       }
-   }
-   else {
-      vcode_reg_t sub_reg = lower_array_total_len(lu, elem, VCODE_INVALID_REG);
-      stride = emit_mul(stride, sub_reg);
-   }
+   } while (type_is_array((elem = type_elem(elem))));
 
    emit_comment("Array of array stride is r%d", stride);
    return stride;
