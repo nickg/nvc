@@ -5099,6 +5099,31 @@ START_TEST(test_issue662)
 }
 END_TEST
 
+START_TEST(test_event1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/event1.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.EVENT1.DO_WAIT(s20WORK.EVENT1-TEST.REC)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_STORE, .name = "S" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_SCHED_EVENT },
+      { VCODE_OP_WAIT, .target = 1 },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5223,6 +5248,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_attr2);
    tcase_add_test(tc, test_copy1);
    tcase_add_test(tc, test_issue662);
+   tcase_add_test(tc, test_event1);
    suite_add_tcase(s, tc);
 
    return s;

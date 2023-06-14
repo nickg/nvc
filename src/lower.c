@@ -567,25 +567,11 @@ static vcode_reg_t lower_array_total_len(lower_unit_t *lu, type_t type,
       return total;
 }
 
-static vcode_reg_t lower_scalar_sub_elements(lower_unit_t *lu, type_t type,
-                                             vcode_reg_t reg)
-{
-   assert(type_is_array(type));
-
-   vcode_reg_t count_reg = lower_array_total_len(lu, type, reg);
-
-   type_t elem = lower_elem_recur(type);
-   if (type_is_record(elem))
-      return emit_mul(count_reg, emit_const(vtype_offset(), type_width(elem)));
-   else
-      return count_reg;
-}
-
 static vcode_reg_t lower_type_width(lower_unit_t *lu, type_t type,
                                     vcode_reg_t reg)
 {
    if (type_is_array(type))
-      return lower_scalar_sub_elements(lu, type, reg);
+      return lower_array_total_len(lu, type, reg);
    else
       return emit_const(vtype_offset(), type_width(type));
 }
@@ -5150,19 +5136,14 @@ static void lower_sched_event_field_cb(lower_unit_t *lu, tree_t field,
                            lower_sched_event_field_cb, ctx);
    else {
       vcode_reg_t nets_reg = emit_load_indirect(ptr);
-      vcode_reg_t count_reg;
-      if (type_is_array(type)) {
-         count_reg = lower_scalar_sub_elements(lu, type, nets_reg);
-         nets_reg = lower_array_data(nets_reg);
-      }
-      else
-         count_reg = emit_const(vtype_offset(), 1);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
 
       const bool clear = (uintptr_t)ctx;
       if (clear)
-         emit_clear_event(nets_reg, count_reg);
+         emit_clear_event(data_reg, count_reg);
       else
-         emit_sched_event(nets_reg, count_reg);
+         emit_sched_event(data_reg, count_reg);
    }
 }
 
@@ -5177,18 +5158,13 @@ static void lower_sched_event(lower_unit_t *lu, tree_t on, vcode_reg_t wake)
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
                            VCODE_INVALID_REG, lower_sched_event_field_cb, NULL);
    else {
-      vcode_reg_t count_reg;
-      if (type_is_array(type)) {
-         count_reg = lower_scalar_sub_elements(lu, type, nets_reg);
-         nets_reg = lower_array_data(nets_reg);
-      }
-      else
-         count_reg = emit_const(vtype_offset(), type_width(type));
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
 
       if (wake != VCODE_INVALID_REG)
-         emit_implicit_event(nets_reg, count_reg, wake);
+         emit_implicit_event(data_reg, count_reg, wake);
       else
-         emit_sched_event(nets_reg, count_reg);
+         emit_sched_event(data_reg, count_reg);
    }
 }
 
@@ -5683,7 +5659,7 @@ static void lower_signal_target_field_cb(lower_unit_t *lu, tree_t field,
 
       lower_check_array_sizes(lu, type, type, dst_array, src_array, locus);
 
-      vcode_reg_t count_reg = lower_scalar_sub_elements(lu, type, array_reg);
+      vcode_reg_t count_reg = lower_array_total_len(lu, type, array_reg);
       vcode_reg_t data_reg  = lower_array_data(array_reg);
       emit_sched_waveform(nets_reg, count_reg, data_reg,
                           args[0], args[1]);
@@ -5745,7 +5721,7 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
       else if (type_is_array(type)) {
          vcode_reg_t resolved_reg = lower_resolved(lu, type, src_reg);
          vcode_reg_t data_reg = lower_array_data(resolved_reg);
-         vcode_reg_t count_reg = lower_scalar_sub_elements(lu, type, p->reg);
+         vcode_reg_t count_reg = lower_array_total_len(lu, type, p->reg);
          vcode_reg_t nets_raw = lower_array_data(p->reg);
 
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
@@ -5774,22 +5750,19 @@ static void lower_disconnect_target(lower_unit_t *lu, target_part_t **ptr,
       else if (p->reg == VCODE_INVALID_REG)
          continue;
 
-      vcode_reg_t nets_raw = lower_array_data(p->reg);
+      vcode_reg_t nets_reg = lower_array_data(p->reg);
 
       type_t type = tree_type(p->target);
 
-      if (type_is_array(type)) {
-         vcode_reg_t count_reg = lower_scalar_sub_elements(lu, type, p->reg);
-         emit_disconnect(nets_raw, count_reg, reject, after);
-      }
-      else if (type_is_record(type)) {
+      if (type_is_record(type)) {
+         // XXX: this seems wrong
          const int width = type_width(type);
-         emit_disconnect(nets_raw, emit_const(vtype_offset(), width),
+         emit_disconnect(nets_reg, emit_const(vtype_offset(), width),
                          reject, after);
       }
       else {
-         emit_disconnect(nets_raw, emit_const(vtype_offset(), 1),
-                         reject, after);
+         vcode_reg_t count_reg = lower_type_width(lu, type, p->reg);
+         emit_disconnect(nets_reg, count_reg, reject, after);
       }
    }
 }
@@ -5925,7 +5898,7 @@ static void lower_force(lower_unit_t *lu, tree_t stmt)
    vcode_reg_t value_reg = lower_rvalue(lu, value);
 
    if (type_is_array(type)) {
-      vcode_reg_t count_reg = lower_scalar_sub_elements(lu, type, nets);
+      vcode_reg_t count_reg = lower_array_total_len(lu, type, nets);
       vcode_reg_t data_reg = lower_array_data(value_reg);
       emit_force(lower_array_data(nets), count_reg, data_reg);
    }
@@ -5946,7 +5919,7 @@ static void lower_release(lower_unit_t *lu, tree_t stmt)
    vcode_reg_t nets = lower_lvalue(lu, target);
 
    if (type_is_array(type)) {
-      vcode_reg_t count_reg = lower_scalar_sub_elements(lu, type, nets);
+      vcode_reg_t count_reg = lower_array_total_len(lu, type, nets);
       emit_release(lower_array_data(nets), count_reg);
    }
    else if (type_is_record(type)) {
