@@ -23,8 +23,7 @@ lib/std.19/_NVC_LIB: lib/std.19/STD.STANDARD
 lib/std.19/_index: lib/std.19/STD.STANDARD
 
 lib/std.19/STD.STANDARD: $(srcdir)/lib/std.19/standard.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2019 --work=lib/std.19 -a --bootstrap \
-		$(srcdir)/lib/std.19/standard.vhd
+	$(nvc) --std=2019 --work=lib/std.19 -a --bootstrap $(srcdir)/lib/std.19/standard.vhd
 
 lib/std.19/STD.TEXTIO: $(srcdir)/lib/std.19/textio.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/textio.vhdl

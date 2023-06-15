@@ -80,6 +80,13 @@ AM_CONDITIONAL([GNULIB_STRCHRNUL], [test "x$ac_cv_func_strchrnul" != xyes])
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
 
+# Prefer linking with Mold if available
+AX_CHECK_LINK_FLAG(
+  [-fuse-ld=mold],
+  [AS_VAR_APPEND([EXTRA_CFLAGS], [-fuse-ld=mold])
+   AX_CHECK_LINK_FLAG([-Wl,--undefined-version],
+                      [AS_VAR_APPEND([EXTRA_LDFLAGS], [-Wl,--undefined-version])])])
+
 CHECK_DYNAMIC_LIST(
   [EXPORT_LDFLAGS="-Wl,--dynamic-list=$srcdir/src/symbols.txt"],
   [AX_CHECK_LINK_FLAG([-rdynamic], [EXPORT_LDFLAGS="-rdynamic"])])
@@ -324,7 +331,7 @@ case $host_os in
       [-Wl,-no_fixup_chains],
       [AC_DEFINE([HAVE_NO_FIXUP_CHAINS], [1],
                  [Defined if linker supports -no_fixup_chains])
-       VHPI_LDFLAGS="$VHPI_LDFLAGS -Wl,-no_fixup_chains"])
+       AX_APPEND_FLAG([-Wl,-no_fixup_chains], [VHPI_LDFLAGS])])
     ;;
 esac
 AC_SUBST(VHPI_LDFLAGS)
@@ -343,7 +350,7 @@ AC_ARG_ENABLE([werror],
 AC_ARG_ENABLE([frame-pointer],
   [AS_HELP_STRING([--enable-frame-pointer],
                   [Preserve frame pointer for profiling])],
-  [EXTRA_CFLAGS="$EXTRA_CFLAGS -fno-omit-frame-pointer"
+  [AX_APPEND_FLAG([-fno-omit-frame-pointer], [EXTRA_CFLAGS])
    preserve_frame_pointer=$enableval],
   [preserve_frame_pointer=no])
 
@@ -351,13 +358,6 @@ if test x$preserve_frame_pointer = xyes ; then
   AC_DEFINE_UNQUOTED([PRESERVE_FRAME_POINTER], [1],
                      [Preserve frame pointer for profiling])
 fi
-
-AC_ARG_ENABLE([ubsan],
-  [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
-  [if test x$enableval = xyes; then
-     EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=undefined"
-     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=undefined"
-   fi])
 
 AC_ARG_ENABLE([asan],
   [AS_HELP_STRING([--enable-sasn], [Enable address sanitiser])],
