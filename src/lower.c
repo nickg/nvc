@@ -155,13 +155,12 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
 static void lower_copy_record(lower_unit_t *lu, type_t type,
                               vcode_reg_t dst_ptr, vcode_reg_t src_ptr,
                               vcode_reg_t locus);
-static int lower_dims_for_type(type_t type);
 static bool lower_is_signal_ref(tree_t expr);
 static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds);
 static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t r0, vcode_reg_t r1,
                                      vcode_reg_t locus, void *context);
-static void lower_check_indexes(lower_unit_t *lu, type_t type,
+static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
                                 vcode_reg_t array, tree_t where);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -268,6 +267,18 @@ static bool lower_const_bounds(type_t type)
       type_t elem = type_elem(type);
       return type_is_composite(elem) ? lower_const_bounds(elem) : true;
    }
+}
+
+static int dims_for_type(type_t type)
+{
+   int ndims = dimension_of(type);
+
+   for (type_t e = type_elem(type);
+        type_is_array(e) && !lower_const_bounds(e);
+        e = type_elem(e))
+      ndims += dimension_of(e);
+
+   return ndims;
 }
 
 static bool lower_trivially_copyable(type_t type)
@@ -512,7 +523,7 @@ static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
 
    int udims = 0, dim = 0;
    if (have_array_metadata(type, reg)) {
-      udims = lower_dims_for_type(type);
+      udims = dims_for_type(type);
       dim = dimension_of(type);   // Skip to element dimensions
 
       assert(vtype_dims(vcode_reg_type(reg)) == udims);
@@ -599,21 +610,6 @@ static type_t lower_elem_recur(type_t type)
    return type;
 }
 
-static int lower_dims_for_type(type_t type)
-{
-   if (standard() >= STD_08) {
-      type_t base = type_base_recur(type);
-      int ndims = dimension_of(base);
-      for (type_t e = type_elem(base);
-           type_is_array(e) && type_is_unconstrained(e);
-           e = type_elem(e))
-         ndims += dimension_of(e);
-      return ndims;
-   }
-   else
-      return dimension_of(type);
-}
-
 static vcode_type_t lower_array_type(type_t type)
 {
    type_t elem = lower_elem_recur(type);
@@ -624,7 +620,7 @@ static vcode_type_t lower_array_type(type_t type)
    if (lower_const_bounds(type))
       return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
    else
-      return vtype_uarray(lower_dims_for_type(type), elem_type, elem_bounds);
+      return vtype_uarray(dims_for_type(type), elem_type, elem_bounds);
 }
 
 static vcode_type_t lower_type(type_t type)
@@ -737,14 +733,14 @@ static vcode_type_t lower_signal_type(type_t type)
          if (lower_const_bounds(type))
             return base;
          else
-            return vtype_uarray(lower_dims_for_type(type), base, base);
+            return vtype_uarray(dims_for_type(type), base, base);
       }
       else {
          vcode_type_t base = lower_signal_type(lower_elem_recur(type));
          if (lower_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base, base);
          else
-            return vtype_uarray(lower_dims_for_type(type), base, base);
+            return vtype_uarray(dims_for_type(type), base, base);
       }
    }
    else if (type_is_record(type)) {
@@ -777,25 +773,39 @@ static vcode_reg_t lower_debug_locus(tree_t t)
    return emit_debug_locus(unit, offset);
 }
 
-static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu, type_t type,
+static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu,
+                                              type_t from_type,
+                                              type_t to_type,
                                               vcode_reg_t array,
                                               vcode_reg_t data)
 {
-   assert(type_is_array(type));
+   assert(type_is_array(from_type));
+   assert(type_is_array(to_type));
 
-   if (type_is_unconstrained(type))
-      return lower_rewrap(lower_array_data(data), array);
-
-   const int ncons = lower_dims_for_type(type);
+   const int ncons = dims_for_type(to_type);
    vcode_dim_t dims[ncons];
    int dptr = 0;
 
-   for (; dptr < ncons; type = type_elem(type)) {
-      const int ndims = dimension_of(type);
+   int udims = 0;
+   if (have_array_metadata(from_type, array)) {
+      udims = dims_for_type(from_type);
+      assert(vtype_dims(vcode_reg_type(array)) == udims);
+   }
+
+   for (; dptr < ncons; from_type = type_elem(from_type)) {
+      const int ndims = dimension_of(from_type);
       for (int i = 0; i < ndims; i++, dptr++) {
-         dims[dptr].left  = lower_array_left(lu, type, i, array);
-         dims[dptr].right = lower_array_right(lu, type, i, array);
-         dims[dptr].dir   = lower_array_dir(lu, type, i, array);
+         if (dptr < udims) {
+            dims[dptr].left  = emit_uarray_left(array, dptr);
+            dims[dptr].right = emit_uarray_right(array, dptr);
+            dims[dptr].dir   = emit_uarray_dir(array, dptr);
+         }
+         else {
+            tree_t r = range_of(from_type, i);
+            dims[dptr].left  = lower_range_left(lu, r);
+            dims[dptr].right = lower_range_right(lu, r);
+            dims[dptr].dir   = lower_range_dir(lu, r);
+         }
       }
    }
 
@@ -806,7 +816,7 @@ static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu, type_t type,
 
 static vcode_reg_t lower_wrap(lower_unit_t *lu, type_t type, vcode_reg_t data)
 {
-   return lower_wrap_with_new_bounds(lu, type, data, data);
+   return lower_wrap_with_new_bounds(lu, type, type, data, data);
 }
 
 static vcode_reg_t lower_wrap_element(lower_unit_t *lu, type_t type,
@@ -953,14 +963,15 @@ static bool lower_have_signal(vcode_reg_t reg)
 static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
                                        vcode_reg_t reg)
 {
-   const bool have_uarray = vcode_reg_kind(reg) == VCODE_TYPE_UARRAY;
+   vcode_type_t reg_vtype = vcode_reg_type(reg);
+   const bool have_uarray = vtype_kind(reg_vtype) == VCODE_TYPE_UARRAY;
    const bool need_uarray = !lower_const_bounds(to);
 
-   if (have_uarray && need_uarray)
+   if (have_uarray && need_uarray && vtype_dims(reg_vtype) == dims_for_type(to))
       return reg;
-   else if (!have_uarray && need_uarray) {
+   else if (need_uarray) {
       // Need to wrap array with metadata
-      return lower_wrap(lu, from, reg);
+      return lower_wrap_with_new_bounds(lu, from, to, reg, reg);
    }
    else if (have_uarray && !need_uarray) {
       // Need to unwrap array to get raw pointer
@@ -990,7 +1001,7 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
          vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
          vcode_reg_t wrap_reg =
-            lower_wrap_with_new_bounds(lu, ftype, field_reg, mem_reg);
+            lower_wrap_with_new_bounds(lu, ftype, ftype, field_reg, mem_reg);
          emit_store_indirect(wrap_reg, dst_ptr);
       }
 
@@ -1246,7 +1257,7 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
    if (type_is_array(type) && !lower_const_bounds(type)) {
       assert(vcode_reg_kind(nets) == VCODE_TYPE_UARRAY);
       vcode_reg_t last_reg = emit_last_value(emit_unwrap(nets));
-      return lower_wrap_with_new_bounds(lu, type, nets, last_reg);
+      return lower_wrap_with_new_bounds(lu, type, type, nets, last_reg);
    }
    else
       return emit_last_value(nets);
@@ -3274,7 +3285,7 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
       .dir   = kind_reg
    };
 
-   const int ndims = lower_dims_for_type(type);
+   const int ndims = dims_for_type(type);
    if (ndims > 1) {
       assert(vcode_reg_kind(array_reg) == VCODE_TYPE_UARRAY);
 
@@ -3749,7 +3760,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       || (type_is_array(elem) && !lower_const_bounds(elem));
 
    if (expand_a0) {
-      const int ndims = lower_dims_for_type(type);
+      const int ndims = dims_for_type(type);
       vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
 
       dims[0].left  = left_reg;
@@ -4280,7 +4291,8 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       if (need_wrap) {
          // Need to initialise the array bounds
          vcode_reg_t meta_reg =
-            lower_wrap_with_new_bounds(lu, value_type, init_reg, raw_reg);
+            lower_wrap_with_new_bounds(lu, value_type, value_type,
+                                       init_reg, raw_reg);
          emit_store_indirect(meta_reg, all_reg);
       }
 
@@ -4369,7 +4381,7 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
       // Need to wrap in metadata
       vcode_reg_t wrap_reg = lower_wrap(lu, from, value_reg);
       if (type_is_unconstrained(to))
-         lower_check_indexes(lu, to, wrap_reg, where);
+         lower_check_indexes(lu, from, to, wrap_reg, where);
       else {
          vcode_reg_t locus = lower_debug_locus(where);
          lower_check_array_sizes(lu, to, from, VCODE_INVALID_REG,
@@ -6045,7 +6057,6 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
       tree_t value = tree_value(stmt);
       type_t type = tree_type(value);
 
-      vtype_kind_t result_kind = vtype_kind(vcode_unit_result());
       vcode_reg_t value_reg = lower_rvalue(lu, value);
 
       if (type_is_scalar(type)) {
@@ -6056,14 +6067,10 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
          type_t access = type_designated(type);
          emit_return(lower_incomplete_access(value_reg, access));
       }
-      else if (result_kind == VCODE_TYPE_UARRAY) {
-         if (vtype_kind(vcode_reg_type(value_reg)) == VCODE_TYPE_UARRAY)
-            emit_return(value_reg);
-         else
-            emit_return(lower_wrap(lu, type, lower_array_data(value_reg)));
+      else if (type_is_array(type)) {
+         type_t rtype = type_result(tree_type(lu->container));
+         emit_return(lower_coerce_arrays(lu, type, rtype, value_reg));
       }
-      else if (result_kind == VCODE_TYPE_POINTER)
-         emit_return(lower_array_data(value_reg));
       else
          emit_return(value_reg);
    }
@@ -6988,21 +6995,21 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    cover_pop_scope(lu->cover);
 }
 
-static void lower_check_indexes(lower_unit_t *lu, type_t type,
+static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
                                 vcode_reg_t array, tree_t where)
 {
-   const int ndims = dimension_of(type);
+   const int ndims = dimension_of(to);
    for (int i = 0; i < ndims; i++) {
-      type_t index = index_type_of(type, i);
+      type_t index = index_type_of(to, i);
       tree_t r = range_of(index, 0);
 
       vcode_reg_t ileft_reg  = lower_range_left(lu, r);
       vcode_reg_t iright_reg = lower_range_right(lu, r);
       vcode_reg_t idir_reg   = lower_range_dir(lu, r);
 
-      vcode_reg_t aleft_reg  = lower_array_left(lu, type, i, array);
-      vcode_reg_t aright_reg = lower_array_right(lu, type, i, array);
-      vcode_reg_t adir_reg   = lower_array_dir(lu, type, i, array);
+      vcode_reg_t aleft_reg  = lower_array_left(lu, from, i, array);
+      vcode_reg_t aright_reg = lower_array_right(lu, from, i, array);
+      vcode_reg_t adir_reg   = lower_array_dir(lu, from, i, array);
 
       vcode_reg_t null_reg = emit_range_null(aleft_reg, aright_reg, adir_reg);
 
@@ -7021,10 +7028,10 @@ static void lower_check_indexes(lower_unit_t *lu, type_t type,
       }
 
       vcode_reg_t hint_reg;
-      if (type_is_unconstrained(type))
+      if (type_is_unconstrained(to))
          hint_reg = lower_debug_locus(r);
       else
-         hint_reg = lower_debug_locus(range_of(type, i));
+         hint_reg = lower_debug_locus(range_of(to, i));
 
       vcode_reg_t locus = where ? lower_debug_locus(where) : hint_reg;
 
@@ -7138,7 +7145,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       }
       else {
          vcode_reg_t locus = lower_debug_locus(decl);
-         lower_check_indexes(lu, type, value_reg, NULL);
+         lower_check_indexes(lu, value_type, type, value_reg, NULL);
          lower_check_array_sizes(lu, type, value_type,
                                  VCODE_INVALID_REG, value_reg, locus);
          emit_copy(dest_reg, data_reg, count_reg);
@@ -7693,7 +7700,7 @@ static vcode_type_t lower_alias_type(tree_t alias)
    }
 
    vcode_type_t vbounds = lower_bounds(type);
-   return vtype_uarray(lower_dims_for_type(type), velem, vbounds);
+   return vtype_uarray(dims_for_type(type), velem, vbounds);
 }
 
 static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
@@ -7726,8 +7733,8 @@ static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
       wrap_reg = lower_wrap(lu, type, data_reg);
    }
    else
-      wrap_reg = lower_wrap_with_new_bounds(lu, value_type, value_reg,
-                                            data_reg);
+      wrap_reg = lower_wrap_with_new_bounds(lu, value_type, value_type,
+                                            value_reg, data_reg);
 
    emit_store(wrap_reg, var);
 }

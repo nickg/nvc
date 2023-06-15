@@ -3853,15 +3853,12 @@ START_TEST(test_sig2var)
          { VCODE_OP_UARRAY_LEFT },
          { VCODE_OP_UARRAY_RIGHT },
          { VCODE_OP_UARRAY_DIR },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST, .value = 8 },
-         { VCODE_OP_RANGE_LENGTH },
-         { VCODE_OP_LENGTH_CHECK },
-         { VCODE_OP_COPY },
          { VCODE_OP_WRAP },
-         { VCODE_OP_RETURN },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CAST },
+         { VCODE_OP_RANGE_NULL },
+         { VCODE_OP_COND, .target = 2, .target_else = 1 },
       };
 
       CHECK_BB(0);
