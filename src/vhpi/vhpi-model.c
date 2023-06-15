@@ -1855,7 +1855,13 @@ int vhpi_put_value(vhpiHandleT handle,
       {
          void *ext LOCAL = NULL, *ptr = NULL;
          uint8_t byte;
-         int64_t int64;
+         union {
+            uint8_t  uint8_t_val;
+            uint8_t  uint16_t_val;
+            uint32_t uint32_t_val;
+            uint32_t uint64_t_val;
+            vhpiIntT vhpiIntT_val;
+         } scalar;
          int num_elems = 0;
 
          if (!model_can_create_delta(model)) {
@@ -1879,17 +1885,19 @@ int vhpi_put_value(vhpiHandleT handle,
 
          case vhpiEnumVal:
             num_elems = 1;
-#define SIGNAL_WRITE_ENUM(type) do { \
-      ptr = (type *)&int64; \
-      *((type *)&int64) = value_p->value.enumv; \
-   } while (0)
+            ptr = &scalar;
+
+#define SIGNAL_WRITE_ENUM(type) do {                     \
+               scalar.type##_val = value_p->value.enumv; \
+            } while (0)
 
             FOR_ALL_SIZES(signal_size(signal), SIGNAL_WRITE_ENUM);
+            break;
 
          case vhpiIntVal:
             num_elems = 1;
-            int64 = value_p->value.intg;
-            ptr = &int64;   // Assume little endian
+            scalar.vhpiIntT_val = value_p->value.intg;
+            ptr = &scalar;   // Assume little endian
             break;
 
          case vhpiLogicVecVal:
