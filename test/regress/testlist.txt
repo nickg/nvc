@@ -702,7 +702,7 @@ issue589        normal,2000
 issue590        normal
 issue595        normal,2008
 cover9          cover,shell
-issue592        normal
+issue592        fail,gold
 cover10         cover,shell
 cmdline5        shell
 cmdline6        shell

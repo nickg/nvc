@@ -1462,7 +1462,7 @@ static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
 
    vcode_type_t vtype = lower_type(result);
    if (!vtype_eq(vtype, vcode_reg_type(reg)))
-      return emit_cast(vtype, lower_bounds(result), reg);
+      return emit_cast(vtype, vcode_reg_bounds(reg), reg);
    else
       return reg;
 }
