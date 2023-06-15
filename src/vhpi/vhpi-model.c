@@ -1857,9 +1857,9 @@ int vhpi_put_value(vhpiHandleT handle,
          uint8_t byte;
          union {
             uint8_t  uint8_t_val;
-            uint8_t  uint16_t_val;
+            uint16_t uint16_t_val;
             uint32_t uint32_t_val;
-            uint32_t uint64_t_val;
+            uint64_t uint64_t_val;
             vhpiIntT vhpiIntT_val;
          } scalar;
          int num_elems = 0;
