@@ -26,9 +26,9 @@ clean-libs:
 	done
 
 bootstrap: $(DRIVER)
-	$(MAKE) clean-libs
-	$(MAKE) libs-std libs-std-08 libs-ieee libs-ieee-08 libs-synopsys \
-	  libs-vital libs-nvc libs-nvc-08 libs-std-19 libs-nvc-19 \
+	$(MAKE) $(AM_MAKEFLAGS) clean-libs
+	$(MAKE) $(AM_MAKEFLAGS) libs-std libs-std-08 libs-ieee libs-ieee-08 \
+	  libs-synopsys libs-vital libs-nvc libs-nvc-08 libs-std-19 libs-nvc-19 \
 	  libs-ieee-19 $(preload_SCRIPTS)
 
 if ENABLE_LLVM
