@@ -4,7 +4,7 @@
 - The [VUnit](https://vunit.github.io/) VHDL libraries can now be
   installed with `nvc --install vunit` but please note this does not
   install the Python infrastructure.
-- Updated to OSVVM 2023.04 and UVVM 2023.03.21 for `nvc --install`.
+- Updated to OSVVM 2023.05 and UVVM 2023.03.21 for `nvc --install`.
 - Conditional expressions are now allowed in constant, signal, and
   variable declarations in VHDL-2019 mode.
 - Conditional return statements are now supported in VHDL-2019.

@@ -802,3 +802,4 @@ assign9         normal,2008
 cmdline7        shell
 array18         normal,2002
 signal31        normal,2008
+range2          normal,2008

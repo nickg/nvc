@@ -1073,16 +1073,18 @@ static tree_t simp_range(tree_t t)
    if (attr == ATTR_REVERSE_RANGE) {
       tree_t base_r = range_of(type, dim);
       const range_kind_t base_kind = tree_subkind(base_r);
-      assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
+      if (base_kind == RANGE_EXPR)
+         return t;
+      else {
+         tree_t rev = tree_new(T_RANGE);
+         tree_set_subkind(rev, base_kind ^ 1);
+         tree_set_loc(rev, tree_loc(t));
+         tree_set_type(rev, tree_type(t));
+         tree_set_left(rev, tree_right(base_r));
+         tree_set_right(rev, tree_left(base_r));
 
-      tree_t rev = tree_new(T_RANGE);
-      tree_set_subkind(rev, base_kind ^ 1);
-      tree_set_loc(rev, tree_loc(t));
-      tree_set_type(rev, tree_type(t));
-      tree_set_left(rev, tree_right(base_r));
-      tree_set_right(rev, tree_left(base_r));
-
-      return rev;
+         return rev;
+      }
    }
    else
       return range_of(type, dim);
