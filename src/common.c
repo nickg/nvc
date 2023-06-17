@@ -46,33 +46,9 @@ static text_buf_t      *syntax_buf = NULL;
 
 int64_t assume_int(tree_t t)
 {
-   switch (tree_kind(t)) {
-   case T_LITERAL:
-      switch (tree_subkind(t)) {
-      case L_INT:
-      case L_PHYSICAL:
-         return tree_ival(t);
-      }
-      break;
-
-   case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         switch (tree_kind(decl)) {
-         case T_CONST_DECL:
-            if (tree_has_value(decl))
-               return assume_int(tree_value(decl));
-            break;
-         case T_ENUM_LIT:
-            return tree_pos(decl);
-         default:
-            break;
-         }
-      }
-
-   default:
-      break;
-   }
+   int64_t value;
+   if (folded_int(t, &value))
+      return value;
 
    fatal_at(tree_loc(t), "expression cannot be folded to "
             "an integer constant");
@@ -111,8 +87,10 @@ bool folded_int(tree_t t, int64_t *l)
          tree_t decl = tree_ref(t);
          switch (tree_kind(decl)) {
          case T_CONST_DECL:
-            // TODO: check if has value
-            return false;
+            if (tree_has_value(decl))
+               return folded_int(tree_value(decl), l);
+            else
+               return false;
          case T_ENUM_LIT:
             *l = tree_pos(decl);
             return true;
