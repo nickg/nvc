@@ -2110,8 +2110,8 @@ static c_intRange *build_int_range(tree_t t)
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    init_range(&(ir->range), t);
 
-   ir->LeftBound  = vhpi_int_from_native(assume_int(tree_left(t)));
-   ir->RightBound = vhpi_int_from_native(assume_int(tree_right(t)));
+   ir->LeftBound  = vhpi_int_from_native(get_static_expr(model, tree_left(t)));
+   ir->RightBound = vhpi_int_from_native(get_static_expr(model, tree_right(t)));
 
    return ir;
 }

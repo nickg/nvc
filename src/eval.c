@@ -160,6 +160,22 @@ tree_t eval_must_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
    return eval_do_fold(jit, expr, parent, context);
 }
 
+int64_t eval_static_expr(jit_t *jit, tree_t expr)
+{
+   vcode_unit_t thunk = lower_thunk(NULL, expr);
+   if (thunk == NULL)
+      goto failed;
+
+   jit_scalar_t result;
+   if (jit_call_thunk(jit, thunk, &result, NULL)) {
+      vcode_unit_unref(thunk);
+      return result.integer;
+   }
+
+ failed:
+   fatal_at(tree_loc(expr), "cannot evaluate static expression");
+}
+
 static bool eval_not_possible(tree_t t, const char *why)
 {
    if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))

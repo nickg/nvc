@@ -58,27 +58,15 @@ int64_t assume_int(tree_t t)
    case T_REF:
       {
          tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_CONST_DECL) {
+         switch (tree_kind(decl)) {
+         case T_CONST_DECL:
             if (tree_has_value(decl))
                return assume_int(tree_value(decl));
-            else {
-               // Deferred constant
-               tree_t pack = tree_container(decl);
-               assert(tree_kind(pack) == T_PACKAGE);
-
-               tree_t body = body_of(pack);
-               ident_t id = tree_ident(decl);
-
-               if (body != NULL && (decl = search_decls(body, id, 0))) {
-                  assert(tree_kind(decl) == T_CONST_DECL);
-                  assert(tree_has_value(decl));
-                  return assume_int(tree_value(decl));
-               }
-            }
-         }
-         else {
-            assert(tree_kind(decl) == T_ENUM_LIT);
+            break;
+         case T_ENUM_LIT:
             return tree_pos(decl);
+         default:
+            break;
          }
       }
 

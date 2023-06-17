@@ -63,6 +63,8 @@ void force_signal(rt_signal_t *s, const void *values, int offset, size_t count);
 void deposit_signal(rt_signal_t *s, const void *values, int offset, size_t count);
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 
+int64_t get_static_expr(rt_model_t *m, tree_t expr);
+
 static inline const uint8_t *signal_value_u8(rt_signal_t *s)
 {
    return signal_value(s);
