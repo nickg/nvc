@@ -701,16 +701,42 @@ static void elab_constrain_port(tree_t orig, tree_t port, tree_t map)
          {
             // The name is of the form X(I) so use this to derive
             // the bounds of a single-element array
-            tree_t left = tree_value(tree_param(name, 0));
-
-            tree_t r = tree_new(T_RANGE);
-            tree_set_subkind(r, RANGE_TO);
-            tree_set_left(r, left);
-            tree_set_right(r, left);
+            tree_t value = tree_value(tree_param(name, 0));
 
             tree_t cons = type_constraint(type, 0);
-            assert(tree_ranges(cons) == 0);
-            tree_add_range(cons, r);
+            if (tree_ranges(cons) == 0) {
+               tree_t r = tree_new(T_RANGE);
+               tree_set_subkind(r, RANGE_TO);
+               tree_set_left(r, value);
+               tree_set_right(r, value);
+               tree_set_type(r, tree_type(value));
+
+               tree_add_range(cons, r);
+            }
+            else {
+               // Already encountered at least one association
+               tree_t r = tree_range(cons, 0);
+
+               tree_t left = tree_left(r);
+               tree_t right = tree_right(r);
+
+               int64_t ileft, iright, ivalue;
+               const bool folded = folded_int(left, &ileft)
+                  && folded_int(right, &iright)
+                  && folded_int(value, &ivalue);
+
+               if (!folded) {
+                  error_at(tree_loc(name), "cannot determine bounds of "
+                           "unconstrained port %s", istr(tree_ident(port)));
+                  return;
+               }
+
+               assert(tree_subkind(r) == RANGE_TO);   // Set above
+               if (ivalue < ileft)
+                  tree_set_left(r, value);
+               else if (ivalue > iright)
+                  tree_set_right(r, value);
+            }
          }
          break;
       case T_RECORD_REF:
