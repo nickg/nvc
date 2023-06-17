@@ -67,11 +67,15 @@ typedef struct _elab_ctx {
 } elab_ctx_t;
 
 typedef struct {
-   lib_t    lib;
-   ident_t  name;
-   tree_t   comp;
-   tree_t  *tree;
+   ident_t   search;
+   ident_t   chosen;
+   lib_seq_t sequence;
 } lib_search_params_t;
+
+typedef struct {
+   tree_t  comp;
+   tree_t *result;
+} synth_binding_params_t;
 
 typedef struct generic_list generic_list_t;
 
@@ -139,32 +143,23 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
 
    ident_t prefix = ident_until(name, '-');
 
-   if ((kind == T_ARCH) && (prefix == params->name)) {
-      tree_t t = lib_get(params->lib, name);
-      assert(t != NULL);
+   if (kind != T_ARCH || prefix != params->search)
+      return;
 
-      if (*(params->tree) == NULL)
-         *(params->tree) = t;
-      else {
-         lib_mtime_t old_mtime = lib_mtime(params->lib,
-                                           tree_ident(*(params->tree)));
-         lib_mtime_t new_mtime = lib_mtime(params->lib, tree_ident(t));
+   lib_seq_t new_seq = lib_peek_sequence(lib, name);
+   if (new_seq == LIB_SEQUENCE_INVALID)
+      warnf("architecture %s has invalid sequence number", istr(name));
 
-         if (new_mtime == old_mtime) {
-            // Analysed at the same time: compare line number
-            // Note this assumes both architectures are from the same
-            // file but this shouldn't be a problem with high-resolution
-            // timestamps
-            const unsigned new_line = tree_loc(t)->first_line;
-            const unsigned old_line = tree_loc(*(params->tree))->first_line;
-
-            if (new_line > old_line)
-               *(params->tree) = t;
-         }
-         else if (new_mtime > old_mtime)
-            *(params->tree) = t;
-      }
+   if (params->chosen == NULL) {
+      params->chosen = name;
+      params->sequence = new_seq;
    }
+   else if (new_seq > params->sequence) {
+      params->chosen = name;
+      params->sequence = new_seq;
+   }
+   else
+      assert(new_seq != params->sequence);
 }
 
 static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
@@ -178,14 +173,16 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    ident_t search_name =
       ident_prefix(lib_name(lib), ident_rfrom(name, '.'), '.');
 
-   tree_t arch = NULL;
-   lib_search_params_t params = { lib, search_name, NULL, &arch };
+   lib_search_params_t params = {
+      .search   = search_name,
+      .sequence = LIB_SEQUENCE_INVALID,
+   };
    lib_walk_index(lib, elab_find_arch_cb, &params);
 
-   if (arch == NULL)
+   if (params.chosen == NULL)
       fatal_at(loc, "no suitable architecture for %s", istr(search_name));
 
-   return arch;
+   return lib_get(lib, params.chosen);
 }
 
 static bool elab_should_copy_tree(tree_t t, void *__ctx)
@@ -461,12 +458,12 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
 {
-   lib_search_params_t *params = __ctx;
+   synth_binding_params_t *params = __ctx;
 
    ident_t name = ident_prefix(lib_name(lib), tree_ident(params->comp), '.');
-   *(params->tree) = lib_get(lib, name);
+   *(params->result) = lib_get(lib, name);
 
-   return *(params->tree) == NULL;
+   return *(params->result) == NULL;
 }
 
 static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
@@ -511,7 +508,10 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
    if (entity == NULL && synth_binding) {
       // This is not correct according to the LRM but matches the
       // behaviour of many synthesis tools
-      lib_search_params_t params = { lib, full_i, comp, &entity };
+      synth_binding_params_t params = {
+         .comp     = comp,
+         .result   = &entity
+      };
       lib_for_all(elab_synth_binding_cb, &params);
    }
 

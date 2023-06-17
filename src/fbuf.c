@@ -36,15 +36,7 @@
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
-#define FBUF_HEADER_SZ 20
-
-#define UNPACK_BE32(b)                                  \
-   ((uint32_t)(b)[0] << 24 | (uint32_t)(b)[1] << 16     \
-    | (uint32_t)(b)[2] << 8 | (uint32_t)(b)[3])
-
-#define PACK_BE32(u)                            \
-   ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,      \
-      ((u) >> 8) & 0xff, (u) & 0xff
+#define FBUF_HEADER_SZ 24
 
 #if DEBUG
 #define ASSERT_AVAIL(f, n) do {                                 \
@@ -86,6 +78,7 @@ struct _fbuf {
    size_t       origsz;
    fbuf_t      *next;
    fbuf_t      *prev;
+   size_t       userheader;
    cs_state_t   checksum;
    fbuf_zip_t   zip;
    ZSTD_CCtx   *zstd;
@@ -303,6 +296,7 @@ static void fbuf_write_header(fbuf_t *f)
       0, 0, 0, 0,             // Decompressed length
       0, 0, 0, 0,             // Checksum
       0, 0, 0, 0,             // Compressed length
+      0, 0, 0, 0,             // User header length
    };
    fbuf_write_raw(f, header, sizeof(header));
 }
@@ -316,10 +310,11 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
-   const uint8_t bytes[12] = {
+   const uint8_t bytes[16] = {
       PACK_BE32(f->wtotal),
       PACK_BE32(checksum),
       PACK_BE32(len),
+      PACK_BE32(f->userheader),
    };
    fbuf_write_raw(f, bytes, ARRAY_LEN(bytes));
 }
@@ -384,11 +379,18 @@ static void fbuf_decompress(fbuf_t *f)
       header_sz = 16;   // Compatibility with 1.8 and earlier
 
    uint32_t filesz = buf.st_size;
-   if (header_sz > 16) {
+   if (header_sz > 16) {   // XXX: added in 1.10
       uint8_t header2[4];
       fbuf_read_raw(f, header2, sizeof(header2));
 
       filesz = UNPACK_BE32(header2);
+   }
+
+   if (header_sz > 20) {   // XXX: added in 1.10
+      uint8_t header3[4];
+      fbuf_read_raw(f, header3, sizeof(header3));
+
+      f->userheader = UNPACK_BE32(header3);
    }
 
    if (filesz > buf.st_size)
@@ -401,16 +403,19 @@ static void fbuf_decompress(fbuf_t *f)
    f->checksum.expect = checksum;
    f->rbuf = xmalloc(f->origsz);
 
+   uint8_t *payload = rmap + header_sz + f->userheader;
+   const size_t payloadsz = filesz - header_sz - f->userheader;
+
    switch (header[4]) {
    case FBUF_ZIP_FASTLZ:
-      fbuf_decompress_fastlz(f, rmap + header_sz, filesz - header_sz);
+      fbuf_decompress_fastlz(f, payload, payloadsz);
       break;
    case FBUF_ZIP_NONE:
-      memcpy(f->rbuf, rmap + header_sz, f->origsz);
+      memcpy(f->rbuf, payload, f->origsz);
       checksum_update(&(f->checksum), f->rbuf, f->origsz);
       break;
    case FBUF_ZIP_ZSTD:
-      fbuf_decompress_zstd(f, rmap + header_sz, filesz - header_sz);
+      fbuf_decompress_zstd(f, payload, payloadsz);
       break;
    default:
       fatal("%s was created with unexpected compression algorithm %c",
@@ -728,4 +733,36 @@ double read_double(fbuf_t *f)
    union { uint64_t i; double d; } u;
    u.i = read_u64(f);
    return u.d;
+}
+
+void fbuf_write_user_header(fbuf_t *f, const void *data, size_t size)
+{
+   assert(f->mode == FBUF_OUT);
+   assert(f->wtotal == 0);
+
+   f->userheader = size;
+   fbuf_write_raw(f, data, size);
+}
+
+size_t fbuf_peek_user_header(const char *file, uint8_t *buf, size_t size)
+{
+   FILE *f = fopen(file, "r");
+   if (f == NULL)
+      fatal_errno("%s", file);
+
+   uint8_t header[FBUF_HEADER_SZ];
+   if (fread(header, sizeof(header), 1, f) != 1)
+      fatal_errno("%s: fread", file);
+
+   if (memcmp(header, "FBUF", 4))
+      fatal("%s: file created with an older version of NVC", file);
+
+   const size_t usersz = UNPACK_BE32(header + 20);
+
+   if (fread(buf, MIN(size, usersz), 1, f) != 1)
+      fatal_errno("%s: fread", file);
+
+   fclose(f);
+
+   return usersz;
 }

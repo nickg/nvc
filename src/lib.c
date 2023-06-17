@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
@@ -47,6 +48,8 @@ typedef struct _lib_unit    lib_unit_t;
 
 #define INDEX_FILE_MAGIC 0x55225511
 
+typedef uint64_t lib_mtime_t;
+
 struct _lib_unit {
    object_t     *object;
    ident_t       name;
@@ -55,7 +58,7 @@ struct _lib_unit {
    bool          error;
    lib_mtime_t   mtime;
    vcode_unit_t  vcode;
-   jit_pack_t   *jitpack;
+   lib_seq_t     sequence;
    lib_unit_t   *next;
 };
 
@@ -75,6 +78,8 @@ struct _lib {
    off_t         index_size;
    int           lock_fd;
    bool          readonly;
+   lib_seq_t     sequence;
+   lib_seq_t     base_seq;
 };
 
 struct _lib_list {
@@ -210,6 +215,8 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    l->lock_fd  = lock_fd;
    l->readonly = false;
    l->lookup   = hash_new(128);
+   l->sequence = LIB_SEQUENCE_INVALID;
+   l->base_seq = LIB_SEQUENCE_INVALID;
 
    char abspath[PATH_MAX];
    if (rpath == NULL)
@@ -268,8 +275,29 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
+static lib_seq_t lib_next_sequence(lib_t lib)
+{
+   if (lib->path == NULL)
+      return ++(lib->sequence);   // Unit test
+   else if (lib->sequence == LIB_SEQUENCE_INVALID) {
+      FILE *f = lib_fopen(lib, "_sequence", "r");
+      if (f != NULL) {
+         if (fscanf(f, "%d", &(lib->base_seq)) != 1)
+            warnf("_sequence file in library %s is corrupt",
+                  istr(lib->name));
+
+         fclose(f);
+      }
+
+      lib->sequence = lib->base_seq;
+   }
+
+   return ++(lib->sequence);
+}
+
 static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
-                               bool error, lib_mtime_t mtime, vcode_unit_t vu)
+                               bool error, lib_mtime_t mtime, vcode_unit_t vu,
+                               lib_seq_t sequence)
 {
    assert(lib != NULL);
 
@@ -303,13 +331,14 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
       }
    }
 
-   where->object = object;
-   where->name   = name;
-   where->dirty  = dirty;
-   where->error  = error;
-   where->mtime  = mtime;
-   where->kind   = kind;
-   where->vcode  = vu;
+   where->object   = object;
+   where->name     = name;
+   where->dirty    = dirty;
+   where->error    = error;
+   where->mtime    = mtime;
+   where->kind     = kind;
+   where->vcode    = vu;
+   where->sequence = sequence;
 
    if (fresh) {
       lib_unit_t **it;
@@ -739,28 +768,29 @@ static lib_mtime_t lib_mtime_now(void)
    return ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
 }
 
-void lib_put_generic(lib_t lib, object_t *obj)
-{
-   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL);
-}
-
 void lib_put(lib_t lib, tree_t unit)
 {
+   lib_seq_t seq = LIB_SEQUENCE_INVALID;
+   if (tree_kind(unit) == T_ARCH)
+      seq = lib_next_sequence(lib);
+
    object_t *obj = tree_to_object(unit);
-   lib_put_generic(lib, obj);
+   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL, seq);
 }
 
 void lib_put_vlog(lib_t lib, vlog_node_t module)
 {
    assert(vlog_kind(module) == V_MODULE);
    object_t *obj = vlog_to_object(module);
-   lib_put_generic(lib, obj);
+   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL,
+               LIB_SEQUENCE_INVALID);
 }
 
 void lib_put_error(lib_t lib, tree_t unit)
 {
    object_t *obj = tree_to_object(unit);
-   lib_put_aux(lib, obj, true, true, lib_mtime_now(), NULL);
+   lib_put_aux(lib, obj, true, true, lib_mtime_now(), NULL,
+               LIB_SEQUENCE_INVALID);
 }
 
 static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
@@ -771,22 +801,6 @@ static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
                   istr(lib->name));
 
    return lu;
-}
-
-bool lib_contains(lib_t lib, tree_t unit)
-{
-   return hash_get(lib->lookup, unit) != NULL;
-}
-
-void lib_put_jit(lib_t lib, tree_t unit, jit_pack_t *jp)
-{
-   lib_unit_t *where = lib_find_unit(lib, unit);
-
-   if (where->jitpack != NULL)
-      fatal_trace("bytecode already stored for %s", istr(tree_ident(unit)));
-
-   where->jitpack = jp;
-   where->dirty = true;
 }
 
 void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
@@ -830,10 +844,14 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    vcode_unit_t vu = NULL;
    object_t *obj = NULL;
+   lib_seq_t seq = LIB_SEQUENCE_INVALID;
 
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
+      case 'S':
+         seq = fbuf_get_uint(f);
+         break;
       case 'T':
          obj = object_read(f, lib_load_handler, ident_ctx, loc_ctx);
          break;
@@ -863,7 +881,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
       fatal_errno("%s", fname);
 
    lib_mtime_t mt = lib_stat_mtime(&st);
-   return lib_put_aux(lib, obj, false, false, mt, vu);
+   return lib_put_aux(lib, obj, false, false, mt, vu, seq);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -932,26 +950,6 @@ static void lib_ensure_writable(lib_t lib)
 {
    if (lib->readonly)
       fatal("cannot write to read-only library %s", istr(lib->name));
-}
-
-lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
-{
-   lib_unit_t *lu = lib_get_aux(lib, ident);
-   assert(lu != NULL);
-   return lu->mtime;
-}
-
-bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
-{
-   struct stat buf;
-   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
-   if (stat(tb_get(path), &buf) == 0) {
-      if (mt != NULL)
-         *mt = lib_stat_mtime(&buf);
-      return true;
-   }
-   else
-      return false;
 }
 
 object_t *lib_get_generic(lib_t lib, ident_t ident)
@@ -1035,6 +1033,21 @@ bool lib_had_errors(lib_t lib, ident_t ident)
    return false;
 }
 
+lib_seq_t lib_peek_sequence(lib_t lib, ident_t ident)
+{
+   lib_unit_t *lu = hash_get(lib->lookup, ident);
+   if (lu != NULL)
+      return lu->sequence;
+
+   LOCAL_TEXT_BUF path = lib_file_path(lib, istr(ident));
+
+   uint8_t header[4];
+   if (fbuf_peek_user_header(tb_get(path), header, sizeof(header)))
+      return UNPACK_BE32(header);
+
+   return LIB_SEQUENCE_INVALID;
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);
@@ -1047,6 +1060,14 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
    if (f == NULL)
       fatal("failed to create %s in library %s", istr(unit->name),
             istr(lib->name));
+
+   if (unit->sequence != LIB_SEQUENCE_INVALID) {
+      const uint8_t header[4] = { PACK_BE32(unit->sequence) };
+      fbuf_write_user_header(f, header, sizeof(header));
+
+      write_u8('S', f);
+      fbuf_put_uint(f, unit->sequence);
+   }
 
    write_u8('T', f);
 
@@ -1085,6 +1106,38 @@ void lib_save(lib_t lib)
    file_write_lock(lib->lock_fd);
 
    freeze_global_arena();
+
+   if (lib->sequence != LIB_SEQUENCE_INVALID) {
+      // Check for concurrent modification of the _sequence file with
+      // the lock held
+      FILE *seqf = lib_fopen(lib, "_sequence", "r");
+      if (seqf != NULL) {
+         lib_seq_t cur_seq = LIB_SEQUENCE_INVALID;
+         if (fscanf(seqf, "%d", &cur_seq) != 1)
+            warnf("_sequence file in library %s is corrupt", istr(lib->name));
+         else if (cur_seq != lib->base_seq) {
+            // Another process updated the sequence number so we must
+            // adjust ours to match
+            // TODO: this is untested
+            assert(cur_seq > lib->base_seq);
+            const lib_seq_t delta = cur_seq - lib->base_seq;
+
+            for (lib_unit_t *lu = lib->units; lu; lu = lu->next) {
+               if (lu->dirty && lu->sequence != LIB_SEQUENCE_INVALID)
+                  lu->sequence += delta;
+            }
+
+            lib->sequence += delta;
+         }
+      }
+
+      if ((seqf = lib_fopen(lib, "_sequence", "w")) == NULL)
+         fatal_errno("failed to open _sequence file in library %s for writing",
+                     istr(lib->name));
+
+      fprintf(seqf, "%d", lib->sequence);
+      fclose(seqf);
+   }
 
    for (lib_unit_t *lu = lib->units; lu; lu = lu->next) {
       if (lu->dirty) {
@@ -1178,12 +1231,6 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
       checked_sprintf(buf, buflen, "%s" DIR_SEP "%s", lib->path, name);
    else
       checked_sprintf(buf, buflen, "%s", lib->path);
-}
-
-void lib_mkdir(lib_t lib, const char *name)
-{
-   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
-   make_dir(tb_get(path));
 }
 
 void lib_delete(lib_t lib, const char *name)
