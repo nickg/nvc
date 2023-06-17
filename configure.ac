@@ -447,8 +447,15 @@ AM_CONDITIONAL([ENABLE_BASH_COMPLETION],
 AX_CHECK_GNU_MAKE
 if test x$_cv_have_gnu_make = xyes ; then
   MAKEFLAGS='$(if $(V),,-s)'
+
+  AC_MSG_CHECKING([whether to enable parallel make by default])
+  AX_COMPARE_VERSION([$ax_check_gnu_make_version], [ge], [4,0],
+                     [AC_MSG_RESULT([yes])
+                      PARALLEL_MAKEFLAGS="-j"],
+                     [AC_MSG_RESULT([no])])
 fi
 AC_SUBST(MAKEFLAGS)
+AC_SUBST(PARALLEL_MAKEFLAGS)
 
 # Optional code coverage statistics
 AC_ARG_ENABLE([gcov],
