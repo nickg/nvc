@@ -30,7 +30,6 @@ bool folded_int(tree_t t, int64_t *i);
 bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
 bool folded_length(tree_t r, int64_t *l);
-bool folded_enum(tree_t t, unsigned *pos);
 bool folded_bounds(tree_t r, int64_t *low, int64_t *high);
 bool folded_bounds_real(tree_t r, double *low, double *high);
 tree_t get_int_lit(tree_t t, type_t type, int64_t i);

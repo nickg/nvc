@@ -3889,15 +3889,16 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             left = tree_left(index_r);
             dir = tree_subkind(index_r);
 
-            unsigned uleft;
             int64_t ileft;
-            if (folded_int(left, &ileft))
-               right = get_int_lit(agg, index_type, ileft + nassocs - 1);
-            else if (folded_enum(left, &uleft)) {
-               type_t base = type_base_recur(index_type);
-               const int maxlit = type_enum_literals(base);
-               if (uleft + nassocs - 1 < maxlit)
-                  right = get_enum_lit(agg, index_type, uleft + nassocs - 1);
+            if (folded_int(left, &ileft)) {
+               if (type_is_enum(tree_type(left))) {
+                  type_t base = type_base_recur(index_type);
+                  const int maxlit = type_enum_literals(base);
+                  if (ileft + nassocs - 1 < maxlit)
+                     right = get_enum_lit(agg, index_type, ileft + nassocs - 1);
+               }
+               else
+                  right = get_int_lit(agg, index_type, ileft + nassocs - 1);
             }
          }
          else if (nassocs == 1) {

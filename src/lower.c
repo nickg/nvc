@@ -3652,12 +3652,9 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       switch (tree_subkind(a)) {
       case A_NAMED:
          {
-            unsigned uval;
             tree_t name = tree_name(a);
             if (folded_int(name, &ilow))
                ihigh = ilow;
-            else if (folded_enum(name, &uval))
-               ihigh = ilow = uval;
             else
                known_elem_count = false;
          }
@@ -3671,15 +3668,9 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
                tree_t left = tree_left(r), right = tree_right(r);
 
                int64_t ileft, iright;
-               unsigned pleft, pright;
                if (folded_int(left, &ileft) && folded_int(right, &iright)) {
                   ilow = (rkind == RANGE_TO ? ileft : iright);
                   ihigh = (rkind == RANGE_TO ? iright : ileft);
-               }
-               else if (folded_enum(left, &pleft)
-                        && folded_enum(right, &pright)) {
-                  ilow = (rkind == RANGE_TO ? pleft : pright);
-                  ihigh = (rkind == RANGE_TO ? pright : pleft);
                }
                else
                   known_elem_count = false;

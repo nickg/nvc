@@ -4879,7 +4879,13 @@ START_TEST(test_case2)
    vcode_select_unit(vu);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_JUMP, .target = 6 },
+      { VCODE_OP_VAR_UPREF, .name = "O", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 99 },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);

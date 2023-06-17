@@ -106,6 +106,20 @@ bool folded_int(tree_t t, int64_t *l)
       }
    case T_QUALIFIED:
       return folded_int(tree_value(t), l);
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         switch (tree_kind(decl)) {
+         case T_CONST_DECL:
+            // TODO: check if has value
+            return false;
+         case T_ENUM_LIT:
+            *l = tree_pos(decl);
+            return true;
+         default:
+            return false;
+         }
+      }
    default:
       return false;
    }
@@ -149,15 +163,9 @@ bool folded_bounds(tree_t r, int64_t *low, int64_t *high)
       return false;
 
    int64_t left, right;
-   unsigned leftu, rightu;
-   if (folded_int(tree_left(r), &left) && folded_int(tree_right(r), &right))
-       ;
-   else if (folded_enum(tree_left(r), &leftu)
-            && folded_enum(tree_right(r), &rightu)) {
-      left  = leftu;
-      right = rightu;
-   }
-   else
+   if (!folded_int(tree_left(r), &left))
+      return false;
+   else if (!folded_int(tree_right(r), &right))
       return false;
 
    switch (rkind) {
@@ -200,19 +208,6 @@ bool folded_bounds_real(tree_t r, double *low, double *high)
    }
    else
       return false;
-}
-
-bool folded_enum(tree_t t, unsigned *pos)
-{
-   if (tree_kind(t) == T_REF) {
-      tree_t decl = tree_ref(t);
-      if (tree_kind(decl) == T_ENUM_LIT) {
-         *pos = tree_pos(decl);
-         return true;
-      }
-   }
-
-   return false;
 }
 
 bool folded_bool(tree_t t, bool *b)

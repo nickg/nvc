@@ -294,14 +294,11 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          tree_t value = tree_value(decl);
          switch (tree_kind(value)) {
          case T_LITERAL:
-         case T_STRING:
             return value;
-
          case T_REF:
             if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
                return value;
             // Fall-through
-
          default:
             return t;
          }
@@ -396,14 +393,11 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
       {
          tree_t value = tree_value(tree_param(t, 0));
 
-         unsigned upos;
          int64_t ipos;
          if (folded_int(value, &ipos))
             return get_int_lit(t, NULL, ipos);
-         else if (folded_enum(value, &upos))
-            return get_int_lit(t, NULL, upos);
-         else
-            return t;
+
+         return t;
       }
 
    case ATTR_LENGTH:

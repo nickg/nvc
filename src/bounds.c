@@ -74,13 +74,8 @@ static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
    int64_t low, high, folded;
    double rlow, rhigh;
    if (folded_bounds(r, &low, &high)) {
-      unsigned folded_u;
       if (folded_int(value, &folded))
          error = (folded < low || folded > high);
-      else if (folded_enum(value, &folded_u)) {
-         error  = (folded_u < low || folded_u > high);
-         folded = folded_u;
-      }
    }
    else if (folded_bounds_real(r, &rlow, &rhigh)) {
       double folded_f;
@@ -188,14 +183,9 @@ static bool index_in_range(tree_t index, int64_t low, int64_t high,
       return true;   // Null range allows any index
 
    int64_t folded;
-   unsigned folded_u;
    if (folded_int(index, &folded)) {
       *value = folded;
       return folded >= low && folded <= high;
-   }
-   else if (folded_enum(index, &folded_u)) {
-      *value = folded_u;
-      return folded_u >= low && folded_u <= high;
    }
 
    return true;
@@ -544,7 +534,6 @@ static void bounds_check_aggregate(tree_t t)
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
       int64_t ilow = 0, ihigh = 0, count = 1;
-      unsigned uval;
 
       if (ndims == 1 && standard() >= STD_08) {
          // Element type may also have the same type as the aggregate
@@ -566,8 +555,6 @@ static void bounds_check_aggregate(tree_t t)
                known_elem_count = false;
             if (folded_int(name, &ilow))
                ihigh = ilow;
-            else if (folded_enum(name, &uval))
-               ihigh = ilow = uval;
             else
                known_elem_count = false;
          }
@@ -588,15 +575,9 @@ static void bounds_check_aggregate(tree_t t)
                   known_elem_count = false;
 
                int64_t ileft, iright;
-               unsigned pleft, pright;
                if (folded_int(left, &ileft) && folded_int(right, &iright)) {
                   ilow = (rkind == RANGE_TO ? ileft : iright);
                   ihigh = (rkind == RANGE_TO ? iright : ileft);
-               }
-               else if (folded_enum(left, &pleft)
-                        && folded_enum(right, &pright)) {
-                  ilow = (rkind == RANGE_TO ? pleft : pright);
-                  ihigh = (rkind == RANGE_TO ? pright : pleft);
                }
                else
                   known_elem_count = false;
