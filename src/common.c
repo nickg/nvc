@@ -2162,46 +2162,55 @@ void capture_syntax(text_buf_t *tb)
    syntax_buf = tb;
 }
 
-void analyse_vhdl(jit_t *jit, bool verbose)
+void analyse_file(const char *file, jit_t *jit, bool verbose)
 {
-   lib_t work = lib_work();
-   int base_errors = 0;
-   tree_t unit;
-   while (base_errors = error_count(), (unit = parse())) {
-      if (error_count() == base_errors) {
-         lib_put(work, unit);
+   input_from_file(file);
 
-         simplify_local(unit, jit);
-         bounds_check(unit);
+   switch (source_kind()) {
+   case SOURCE_VHDL:
+      {
+         lib_t work = lib_work();
+         int base_errors = 0;
+         tree_t unit;
+         while (base_errors = error_count(), (unit = parse())) {
+            if (error_count() == base_errors) {
+               lib_put(work, unit);
 
-         if (error_count() == base_errors && unit_needs_cgen(unit))
-            lower_standalone_unit(unit);
+               simplify_local(unit, jit);
+               bounds_check(unit);
 
-         if (verbose)
-            notef("analysed %s %s", class_str(class_of(unit)),
-                  istr(tree_ident(unit)));
+               if (error_count() == base_errors && unit_needs_cgen(unit))
+                  lower_standalone_unit(unit);
+
+               if (verbose)
+                  notef("analysed %s %s", class_str(class_of(unit)),
+                        istr(tree_ident(unit)));
+            }
+            else
+               lib_put_error(work, unit);
+         }
       }
-      else
-         lib_put_error(work, unit);
-   }
-}
+      break;
 
-void analyse_verilog(bool verbose)
-{
+   case SOURCE_VERILOG:
 #ifdef ENABLE_VERILOG
-   lib_t work = lib_work();
-   vlog_node_t module;
-   while ((module = vlog_parse())) {
-      if (error_count() == 0) {
-         vlog_check(module);
+      {
+         lib_t work = lib_work();
+         vlog_node_t module;
+         while ((module = vlog_parse())) {
+            if (error_count() == 0) {
+               vlog_check(module);
 
-         if (error_count() == 0)
-            lib_put_vlog(work, module);
+               if (error_count() == 0)
+                  lib_put_vlog(work, module);
+            }
+         }
       }
-   }
 #else
-   fatal("Verilog is not currently supported");
+      fatal("Verilog is not currently supported");
 #endif
+      break;
+   }
 }
 
 static void tree_copy_cb(tree_t t, void *__ctx)

@@ -282,17 +282,7 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
       else if (!S_ISREG(st.st_mode))
          return tcl_error(sh, "%s is not a regular file", fname);
 
-      input_from_file(fname);
-
-      switch (source_kind()) {
-      case SOURCE_VERILOG:
-         analyse_verilog(verbose);
-         break;
-
-      case SOURCE_VHDL:
-         analyse_vhdl(sh->jit, verbose);
-         break;
-      }
+      analyse_file(fname, sh->jit, verbose);
    }
 
    return error_count() > 0 ? TCL_ERROR : TCL_OK;

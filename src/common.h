@@ -89,8 +89,7 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
                         type_copy_pred_t type_pred, void *context,
                         ident_t dotted, ident_t *prefixes, int nprefix);
 
-void analyse_vhdl(jit_t *jit, bool verbose);
-void analyse_verilog(bool verbose);
+void analyse_file(const char *file, jit_t *jit, bool verbose);
 
 void print_syntax(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));

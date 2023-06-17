@@ -1128,6 +1128,7 @@ void lib_save(lib_t lib)
             }
 
             lib->sequence += delta;
+            lib->base_seq = cur_seq;
          }
       }
 

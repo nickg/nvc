@@ -1428,9 +1428,7 @@ END_TEST
 START_TEST(test_mixed1)
 {
 #ifdef ENABLE_VERILOG
-   input_from_file(TESTDIR "/elab/mixed1.v");
-
-   analyse_verilog(false);
+   analyse_file(TESTDIR "/elab/mixed1.v", NULL, false);
 
    input_from_file(TESTDIR "/elab/mixed1.vhd");
 

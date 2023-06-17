@@ -140,17 +140,7 @@ static void do_file_list(const char *file, jit_t *jit)
       if (strlen(line) == 0)
          continue;
 
-      input_from_file(line);
-
-      switch (source_kind()) {
-      case SOURCE_VERILOG:
-         analyse_verilog(false);
-         break;
-
-      case SOURCE_VHDL:
-         analyse_vhdl(jit, false);
-         break;
-      }
+      analyse_file(line, jit, false);
    }
 
    free(line);
@@ -227,19 +217,8 @@ static int analyse(int argc, char **argv)
    for (int i = optind; i < next_cmd; i++) {
       if (argv[i][0] == '@')
          do_file_list(argv[i] + 1, jit);
-      else {
-         input_from_file(argv[i]);
-
-         switch (source_kind()) {
-         case SOURCE_VERILOG:
-            analyse_verilog(false);
-            break;
-
-         case SOURCE_VHDL:
-            analyse_vhdl(jit, false);
-            break;
-         }
-      }
+      else
+         analyse_file(argv[i], jit, false);
    }
 
    jit_free(jit);
