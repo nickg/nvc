@@ -1671,7 +1671,7 @@ START_TEST(test_instance)
    input_from_file(TESTDIR "/parse/instance.vhd");
 
    const error_t expect[] = {
-      { 55, "WORK.FOO has no generic named X" },
+      { 55, "X is not a formal generic of WORK.FOO" },
       { 61, "found at least 1 positional actuals but FOO has only 0" },
       { 65, "invalid instantiated unit name" },
       { 69, "design unit SOMETHING is not a component declaration" },

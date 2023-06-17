@@ -3349,7 +3349,6 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PROC_BODY:
    case T_PROC_INST:
    case T_IMPLICIT_SIGNAL:
-   case T_GENERIC_DECL:
    case T_PARAM_DECL:
       break;
 
@@ -3371,9 +3370,21 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
       }
       break;
 
+   case T_GENERIC_DECL:
+      if (tree_class(decl) == C_CONSTANT)
+         break;
+      // Fall-through
+
    default:
-      sem_error(t, "invalid use of %s %s", class_str(class_of(decl)),
-                istr(tree_ident(t)));
+      {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "invalid use of %s %s", class_str(class_of(decl)),
+                     istr(tree_ident(t)));
+         diag_hint(d, tree_loc(decl), "%s declared here",
+                   istr(tree_ident(decl)));
+         diag_emit(d);
+         return false;
+      }
    }
 
    tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
@@ -4228,26 +4239,36 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
 
          if (ref == NULL)
             sem_error(name, "invalid name in generic map");
+         else if (!tree_has_ref(ref))
+            return false;
 
+         tree_t d = tree_ref(ref);
          for (int i = 0; i < nformals; i++) {
-            if (tree_ident(formals[i].decl) == tree_ident(ref)) {
+            if (formals[i].decl == d) {
                if (formals[i].have && !formals[i].partial)
                   sem_error(value, "generic %s already has an actual",
                             istr(tree_ident(formals[i].decl)));
                formals[i].have    = true;
                formals[i].partial = (tree_kind(name) != T_REF);
-               decl = formals[i].decl;
+               decl = d;
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
             }
          }
 
          if (decl == NULL)
-            sem_error(value, "%s has no generic named %s",
-                      istr(tree_ident(unit)), istr(tree_ident(ref)));
+            sem_error(name, "%s is not a formal generic of %s",
+                      istr(tree_ident(ref)), istr(tree_ident(unit)));
 
-         if (!sem_static_name(name, sem_locally_static))
-            sem_error(name, "formal name must be locally static");
+         if (tree_class(decl) == C_CONSTANT || tree_kind(name) != T_REF) {
+            // Do not check package or type for names here as that will
+            // throw an error
+            if (!sem_check(name, tab))
+               return false;
+
+            if (!sem_static_name(name, sem_locally_static))
+               sem_error(name, "formal name must be locally static");
+         }
 
          type = get_type_or_null(name);
          break;
@@ -4340,8 +4361,6 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
    const int nformals = tree_generics(unit);
    const int nactuals = tree_genmaps(t);
 
-   bool ok = true;
-
    formal_map_t *formals LOCAL = xmalloc_array(nformals, sizeof(formal_map_t));
 
    for (int i = 0; i < nformals; i++) {
@@ -4350,16 +4369,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
       formals[i].partial = false;
    }
 
-   for (int i = 0; i < nactuals; i++) {
-      tree_t p = tree_genmap(t, i);
-      if (tree_subkind(p) != P_NAMED)
-         continue;
-
-      ok &= sem_check(tree_name(p), tab);
-   }
-
-   if (!ok)
-      return false;
+   bool ok = true;
 
    for (int i = 0; i < nactuals; i++) {
       tree_t actual = tree_genmap(t, i);

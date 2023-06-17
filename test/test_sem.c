@@ -554,6 +554,7 @@ START_TEST(test_generics)
       {  90, "declaration of constant X hides constant X" },
       { 109, "with generic X must be a globally static expression" },
       { 115, "unexpected integer while parsing name" },
+      { 114, "missing actual for generic X without a default expression" },
       { 118, "invalid name in generic map" },
       { 117, "missing actual for generic X without a default expression" },
       { 121, "invalid use of label I6" },
@@ -3128,6 +3129,24 @@ START_TEST(test_lcs2016_18)
 }
 END_TEST
 
+START_TEST(test_issue713)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue713.vhd");
+
+   const error_t expect[] = {
+      { 17, "invalid use of type A" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACK_INST);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3276,6 +3295,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_47);
    tcase_add_test(tc_core, test_lcs2016_45a);
    tcase_add_test(tc_core, test_lcs2016_18);
+   tcase_add_test(tc_core, test_issue713);
    suite_add_tcase(s, tc_core);
 
    return s;
