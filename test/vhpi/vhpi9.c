@@ -43,8 +43,10 @@ void vhpi9_startup(void)
    fail_if(s_elem == NULL);
    vhpi_printf("s elem type handle %p", s_elem);
    vhpi_printf("s elem type name is %s", vhpi_get_str(vhpiNameP, s_elem));
-   vhpi_printf("s elem type full name is %s", vhpi_get_str(vhpiFullNameP, s_elem));
-   fail_unless(strcmp(vhpi_get_str(vhpiFullNameP, s_elem), "@STD:STANDARD:BIT_VECTOR") == 0);
+
+   const char *s_elem_name = (char *)vhpi_get_str(vhpiFullNameP, s_elem);
+   vhpi_printf("s elem type full name is %s", s_elem_name);
+   fail_unless(strcmp(s_elem_name, "@STD:STANDARD:BIT_VECTOR") == 0);
 
    vhpiHandleT s_elem_constrs = vhpi_iterator(vhpiConstraints, s_elem);
    check_error();
