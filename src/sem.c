@@ -4267,7 +4267,8 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                return false;
 
             if (!sem_static_name(name, sem_locally_static))
-               sem_error(name, "formal name must be locally static");
+               sem_error(name, "formal generic name must be a locally "
+                         "static name");
          }
 
          type = get_type_or_null(name);
