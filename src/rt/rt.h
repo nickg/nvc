@@ -81,6 +81,7 @@ typedef enum {
    RT_END_OF_PROCESSES,
    RT_LAST_KNOWN_DELTA_CYCLE,
    RT_NEXT_TIME_STEP,
+   RT_END_TIME_STEP,
 
    RT_LAST_EVENT
 } rt_event_t;

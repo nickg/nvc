@@ -8,6 +8,7 @@
 static vhpiHandleT handle_x;
 static vhpiHandleT handle_y;
 static vhpiHandleT handle_sos;
+static vhpiHandleT end_of_timestep_cb;
 static int         sequence = 0;
 
 static void end_of_processes(const vhpiCbDataT *cb_data)
@@ -33,6 +34,22 @@ static void last_known_delta_cycle(const vhpiCbDataT *cb_data)
 
    value.value.intg = 1;
    vhpi_put_value(handle_x, &value, vhpiForcePropagate);
+   check_error();
+}
+
+static void end_of_timestep(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("end_of_timestep");
+
+   fail_unless(sequence++ == 2);
+
+   vhpiValueT value = {
+      .format = vhpiIntVal,
+      .value.intg = 0
+   };
+   fail_unless(vhpi_put_value(handle_x, &value, vhpiForcePropagate));
+
+   vhpi_remove_cb(end_of_timestep_cb);
    check_error();
 }
 
@@ -64,6 +81,13 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
       .cb_rtn = last_known_delta_cycle,
    };
    vhpi_register_cb(&cb_data2, 0);
+   check_error();
+
+   vhpiCbDataT cb_data3 = {
+      .reason = vhpiCbRepEndOfTimeStep,
+      .cb_rtn = end_of_timestep,
+   };
+   end_of_timestep_cb = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();
 }
 

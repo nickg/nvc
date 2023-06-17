@@ -3040,6 +3040,8 @@ static void model_cycle(rt_model_t *m)
       workq_start(m->postponedq);
       workq_drain(m->postponedq);
 
+      global_event(m, RT_END_TIME_STEP);
+
       m->can_create_delta = true;
    }
    else if (m->stop_delta > 0 && m->iteration == m->stop_delta)

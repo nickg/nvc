@@ -1045,6 +1045,8 @@ static int enable_cb(c_callback *cb)
    case vhpiCbEndOfSimulation:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbRepEndOfTimeStep:
       model_set_global_cb(model, vhpi_get_rt_event(cb->Reason),
                           vhpi_global_cb, cb);
       return 0;
@@ -1123,6 +1125,8 @@ static bool disable_cb(c_callback *cb)
    case vhpiCbEndOfSimulation:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbRepEndOfTimeStep:
       return model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
                                    vhpi_global_cb, cb);
       return true;
