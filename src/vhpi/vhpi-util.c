@@ -199,6 +199,9 @@ rt_event_t vhpi_get_rt_event(int reason)
    case vhpiCbNextTimeStep:
    case vhpiCbRepNextTimeStep:
       return RT_NEXT_TIME_STEP;
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbRepEndOfTimeStep:
+      return RT_END_TIME_STEP;
    case vhpiCbRepEndOfProcesses:
    case vhpiCbEndOfProcesses:
       return RT_END_OF_PROCESSES;
@@ -294,6 +297,7 @@ bool vhpi_is_repetitive(vhpiEnumT reason)
    case vhpiCbRepEndOfProcesses:
    case vhpiCbRepLastKnownDeltaCycle:
    case vhpiCbRepNextTimeStep:
+   case vhpiCbRepEndOfTimeStep:
       return true;
    default:
       return false;
