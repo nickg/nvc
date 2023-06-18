@@ -89,7 +89,11 @@ static int scan_cmd(int start, int argc, char **argv)
 
    for (int i = start; i < argc; i++) {
       for (size_t j = 0; j < ARRAY_LEN(commands); j++) {
-         if (strcmp(argv[i], commands[j]) == 0)
+         if (commands[j][1] == '-') {
+            if (strcmp(argv[i], commands[j]) == 0)
+               return i;
+         }
+         else if (argv[i][0] == '-' && commands[j][1] == argv[i][1])
             return i;
       }
    }
@@ -171,9 +175,9 @@ static int analyse(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         bad_option("analyse", argv);
+         bad_option("analysis", argv);
       case ':':
-         missing_argument("analyse", argv);
+         missing_argument("analysis", argv);
       case 'b':
          opt_set_int(OPT_BOOTSTRAP, 1);
          break;
@@ -384,9 +388,9 @@ static int elaborate(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         bad_option("elaborate", argv);
+         bad_option("elaboration", argv);
       case ':':
-         missing_argument("elaborate", argv);
+         missing_argument("elaboration", argv);
       default:
          abort();
       }
@@ -1597,7 +1601,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = ":aehrcivL:M:P:G:H:";
+   const char *spec = ":hivL:M:P:G:H:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
