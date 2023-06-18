@@ -4268,10 +4268,6 @@ static tree_t p_primary(void)
    case tROSE:
    case tFELL:
    case tENDED:
-   case tISUNKNOWN:
-   case tCOUNTONES:
-   case tONEHOT:
-   case tONEHOT0:
    case tNONDET:
    case tNONDETV:
       assert(is_scanned_as_psl());
@@ -10810,8 +10806,8 @@ static tree_t p_psl_builtin_function_call(void)
 
    BEGIN("PSL Built-in Function call");
 
-   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE, tFELL, tENDED, tISUNKNOWN,
-                        tCOUNTONES, tONEHOT, tONEHOT0, tNONDET, tNONDETV);
+   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE,
+                        tFELL, tENDED, tNONDET, tNONDETV);
 
    psl_node_t p = psl_new(P_BUILTIN_FUNC);
 
@@ -10841,16 +10837,6 @@ static tree_t p_psl_builtin_function_call(void)
       if (optional(tCOMMA))
          psl_set_clock(p, p_psl_clock_expression());
 
-      break;
-   }
-   case tISUNKNOWN:
-   case tCOUNTONES:
-   case tONEHOT:
-   case tONEHOT0:
-   {
-      psl_node_t p1 = p_psl_or_hdl_expression();
-      // TODO: Enforce "bitvector" on p1
-      psl_add_operand(p, p1);
       break;
    }
 
@@ -10900,27 +10886,11 @@ static tree_t p_psl_builtin_function_call(void)
       rvt = std_type(NULL, STD_BOOLEAN);
       break;
    case tFELL:
-      kind = PSL_BUILTIN_ISUKNOWN;
+      kind = PSL_BUILTIN_FELL;
       rvt = std_type(NULL, STD_BOOLEAN);
       break;
    case tENDED:
       kind = PSL_BUILTIN_ENDED;
-      rvt = std_type(NULL, STD_BOOLEAN);
-      break;
-   case tISUNKNOWN:
-      kind = PSL_BUILTIN_ISUKNOWN;
-      rvt = std_type(NULL, STD_BOOLEAN);
-      break;
-   case tCOUNTONES:
-      kind = PSL_BUILTIN_COUNTONES;
-      rvt = std_type(NULL, STD_INTEGER);
-      break;
-   case tONEHOT:
-      kind = PSL_BUILTIN_ONEHOT;
-      rvt = std_type(NULL, STD_BOOLEAN);
-      break;
-   case tONEHOT0:
-      kind = PSL_BUILTIN_ONEHOT0;
       rvt = std_type(NULL, STD_BOOLEAN);
       break;
    case tNONDET:
