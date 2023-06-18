@@ -265,6 +265,7 @@ typedef struct {
 typedef struct {
    c_prefixedName prefixedName;
    vhpiIntT       BaseIndex;
+   int            offset;
 } c_indexedName;
 
 DEF_CLASS(indexedName, vhpiIndexedNameK, prefixedName.name.expr.object);
@@ -733,6 +734,13 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
    init_prefixedName(&(in->prefixedName), Type, simpleName, prefix,
                      tb_get(suffix));
    in->BaseIndex = BaseIndex;
+
+   in->offset = BaseIndex * Type->size;
+   if (prefix) {
+      c_indexedName *pin = is_indexedName(&(prefix->expr.object));
+      if (pin)
+         in->offset += pin->offset;
+   }
 }
 
 static vhpiIntT range_len(c_intRange *ir)
@@ -1744,18 +1752,6 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
    return invalid;
 }
 
-static int indexedName_offset(c_indexedName *in)
-{
-      int offset = in->BaseIndex * in->prefixedName.name.expr.Type->size;
-      while (in->prefixedName.Prefix) {
-         in = cast_indexedName(&(in->prefixedName.Prefix->expr.object));
-         assert(in != NULL);
-         offset += in->BaseIndex * in->prefixedName.name.expr.Type->size;
-      }
-
-      return offset;
-}
-
 DLLEXPORT
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
@@ -1774,7 +1770,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (in != NULL) {
       decl = in->prefixedName.simpleName;
       td = in->prefixedName.name.expr.Type;
-      offset = indexedName_offset(in);
+      offset = in->offset;
    }
    else {
       decl = cast_objDecl(obj);
@@ -1939,7 +1935,7 @@ int vhpi_put_value(vhpiHandleT handle,
    c_indexedName *in = is_indexedName(obj);
    if (in != NULL) {
       decl = in->prefixedName.simpleName;
-      offset = indexedName_offset(in);
+      offset = in->offset;
    }
    else {
       decl = cast_objDecl(obj);
