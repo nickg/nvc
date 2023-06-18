@@ -2967,6 +2967,23 @@ START_TEST(test_issue659)
 }
 END_TEST
 
+START_TEST(test_issue660)
+{
+   input_from_file(TESTDIR "/sem/issue660.vhd");
+
+   const error_t expect[] = {
+      {  11, "class (constant) of parameter X of subprogram BLAH not defined equally in subprogram specification and subprogram body" },
+      {  16, "mode (IN) of parameter X of subprogram DOSOMETHING not defined equally in subprogram specification and subprogram body" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_genpack3)
 {
    set_standard(STD_08);
@@ -3290,6 +3307,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack2);
    tcase_add_test(tc_core, test_issue655);
    tcase_add_test(tc_core, test_issue659);
+   tcase_add_test(tc_core, test_issue660);
    tcase_add_test(tc_core, test_genpack3);
    tcase_add_test(tc_core, test_condexpr);
    tcase_add_test(tc_core, test_lcs2016_72b);
