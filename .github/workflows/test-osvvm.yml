@@ -1,6 +1,9 @@
-name: Test OSVVM
+name: Test OSVVM on Windows
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 21 * * 0'
 
 jobs:
   test-osvvm:
@@ -41,6 +44,9 @@ jobs:
           rm -rf lib/*
           : # install OSVVM, run test, diff results with verified results
           mkdir tmp && cd tmp
+          git clone --branch dev --recurse-submodules --depth=1 -j8 https://github.com/OSVVM/OsvvmLibraries.git
+          export OSVVM_DIR=$(realpath OsvvmLibraries)
+          export OSVVM_MUST_BUILD=1
           tclsh ../test/test-osvvm.tcl
           failures=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTests.xml)
           failuresVti=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTestsVti.xml)
