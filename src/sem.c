@@ -1466,6 +1466,9 @@ static bool sem_check_func_decl(tree_t t, nametab_t *tab)
 static bool sem_compare_interfaces(tree_t dport, tree_t bport,
                                    int nth, tree_t body, const char *what)
 {
+   tree_flags_t dflags = tree_flags(dport);
+   tree_flags_t bflags = tree_flags(bport);
+
    ident_t dname = tree_ident(dport);
    ident_t bname = tree_ident(bport);
 
@@ -1515,6 +1518,24 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
      return false;
    }
 
+   bool bmode_explicit = !!(bflags & TREE_F_EXPLICIT_MODE);
+   bool dmode_explicit = !!(dflags & TREE_F_EXPLICIT_MODE);
+
+   if (bmode_explicit != dmode_explicit) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_printf(d, "mode (%s) of %s %s of subprogram %s not defined "
+                     "equally in subprogram specification and "
+                     "subprogram body", port_mode_str(dmode), what,
+                     istr(dname), istr(tree_ident(body)));
+
+      diag_hint(d, tree_loc(dport), "%s mode %sdeclared explicitly",
+                what, (bmode_explicit) ? "" : "not ");
+      diag_hint(d, tree_loc(bport), "%s mode %sdeclared explicitly",
+                what, (dmode_explicit) ? "" : "not ");
+      diag_emit(d);
+      return false;
+   }
+
    const class_t dclass = tree_class(dport);
    const class_t bclass = tree_class(bport);
 
@@ -1529,6 +1550,24 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
                what, istr(bname), class_str(bclass));
      diag_emit(d);
      return false;
+   }
+
+   bool bclass_explicit = !!(bflags & TREE_F_EXPLICIT_CLASS);
+   bool dclass_explicit = !!(dflags & TREE_F_EXPLICIT_CLASS);
+
+   if (bclass_explicit != dclass_explicit) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_printf(d, "class (%s) of %s %s of subprogram %s not defined "
+                     "equally in subprogram specification and "
+                     "subprogram body", class_str(dclass), what,
+                     istr(dname), istr(tree_ident(body)));
+
+      diag_hint(d, tree_loc(dport), "%s class %sdeclared explicitly",
+                what, (bclass_explicit) ? "" : "not ");
+      diag_hint(d, tree_loc(bport), "%s class %sdeclared explicitly",
+                what, (dclass_explicit) ? "" : "not ");
+      diag_emit(d);
+      return false;
    }
 
    tree_t bdef = tree_has_value(bport) ? tree_value(bport) : NULL;

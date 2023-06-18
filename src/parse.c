@@ -4564,6 +4564,7 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
    BEGIN("interface constant declaration");
 
    const bool explicit_constant = optional(tCONSTANT);
+   tree_flags_t flags = (explicit_constant) ? TREE_F_EXPLICIT_CLASS : 0;
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
 
@@ -4573,8 +4574,10 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
    // having disambiguate constant and variable interface declarations
    // See LRM 93 section 2.1.1 for default class
    port_mode_t mode = PORT_IN;
-   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE)) {
+      flags |= TREE_F_EXPLICIT_MODE;
       mode = p_mode();
+   }
 
    class_t class = C_CONSTANT;
    if ((mode == PORT_OUT || mode == PORT_INOUT) && !explicit_constant)
@@ -4595,6 +4598,7 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
       tree_set_class(d, class);
+      tree_set_flag(d, flags);
 
       if (init != NULL)
          tree_set_value(d, init);
@@ -4677,13 +4681,13 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
 
    BEGIN("interface signal declaration");
 
-   optional(tSIGNAL);
+   tree_flags_t flags = optional(tSIGNAL) ? TREE_F_EXPLICIT_CLASS : 0;
+
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
 
    type_t type = NULL;
    tree_t init = NULL;
-   tree_flags_t flags = 0;
    port_mode_t mode = PORT_IN;
 
    if (peek() == tVIEW) {
@@ -4691,8 +4695,10 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
       mode = p_mode_view_indication(&type, &init);
    }
    else {
-      if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+      if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE)) {
          mode = p_mode();
+         flags |= TREE_F_EXPLICIT_MODE;
+      }
 
       type = p_subtype_indication();
 
@@ -4732,14 +4738,16 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
 
    BEGIN("interface variable declaration");
 
-   optional(tVARIABLE);
+   tree_flags_t flags = optional(tVARIABLE) ? TREE_F_EXPLICIT_CLASS : 0;
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
 
    port_mode_t mode = PORT_IN;
-   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE)) {
       mode = p_mode();
+      flags |= TREE_F_EXPLICIT_MODE;
+   }
 
    type_t type = p_subtype_indication();
 
@@ -4756,6 +4764,7 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
       tree_set_type(d, type);
       tree_set_class(d, C_VARIABLE);
       tree_set_subkind(d, mode);
+      tree_set_flag(d, flags);
 
       if (init != NULL)
          tree_set_value(d, init);
