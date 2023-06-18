@@ -824,33 +824,20 @@ static vcode_reg_t lower_wrap_element(lower_unit_t *lu, type_t type,
 {
    assert(type_is_array(type));
    assert(!lower_const_bounds(type_elem(type)));
+   assert(array != VCODE_INVALID_REG);
 
-   if (array != VCODE_INVALID_REG) {
-      const int ndims = dimension_of(type);
-      const int ncons = vtype_dims(vcode_reg_type(array)) - ndims;
-      assert(ncons > 0);
+   const int ndims = dimension_of(type);
+   const int ncons = vtype_dims(vcode_reg_type(array)) - ndims;
+   assert(ncons > 0);
 
-      vcode_dim_t dims[ncons];
-      for (int i = 0; i < ncons; i++) {
-         dims[i].left  = emit_uarray_left(array, ndims + i);
-         dims[i].right = emit_uarray_right(array, ndims + i);
-         dims[i].dir   = emit_uarray_dir(array, ndims + i);
-      }
-
-      return emit_wrap(lower_array_data(data), dims, ncons);
+   vcode_dim_t dims[ncons];
+   for (int i = 0; i < ncons; i++) {
+      dims[i].left  = emit_uarray_left(array, ndims + i);
+      dims[i].right = emit_uarray_right(array, ndims + i);
+      dims[i].dir   = emit_uarray_dir(array, ndims + i);
    }
-   else {
-      const int ncons = type_constraints(type) - 1;
-      vcode_dim_t dims[ncons];
-      for (int i = 0; i < ncons; i++) {
-         tree_t r = tree_range(type_constraint(type, i + 1), 0);
-         dims[i].left  = lower_range_left(lu, r);
-         dims[i].right = lower_range_right(lu, r);
-         dims[i].dir   = lower_range_dir(lu, r);
-      }
 
-      return emit_wrap(lower_array_data(data), dims, ncons);
-   }
+   return emit_wrap(lower_array_data(data), dims, ncons);
 }
 
 static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds)
