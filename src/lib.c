@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "fbuf.h"
 #include "hash.h"
 #include "lib.h"
 #include "object.h"
@@ -37,7 +38,6 @@
 #include <errno.h>
 #include <time.h>
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -48,15 +48,13 @@ typedef struct _lib_unit    lib_unit_t;
 
 #define INDEX_FILE_MAGIC 0x55225511
 
-typedef uint64_t lib_mtime_t;
-
 struct _lib_unit {
    object_t     *object;
    ident_t       name;
    tree_kind_t   kind;
    bool          dirty;
    bool          error;
-   lib_mtime_t   mtime;
+   uint64_t      mtime;
    vcode_unit_t  vcode;
    lib_seq_t     sequence;
    lib_unit_t   *next;
@@ -74,7 +72,7 @@ struct _lib {
    hash_t       *lookup;
    lib_unit_t   *units;
    lib_index_t  *index;
-   lib_mtime_t   index_mtime;
+   uint64_t      index_mtime;
    off_t         index_size;
    int           lock_fd;
    bool          readonly;
@@ -98,7 +96,6 @@ static lib_list_t    *loaded = NULL;
 static search_path_t *search_paths = NULL;
 
 static text_buf_t *lib_file_path(lib_t lib, const char *name);
-static lib_mtime_t lib_stat_mtime(struct stat *st);
 
 static const char *standard_suffix(vhdl_standard_t std)
 {
@@ -161,8 +158,8 @@ static void lib_read_index(lib_t lib)
 {
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN, FBUF_CS_NONE);
    if (f != NULL) {
-      struct stat st;
-      if (stat(fbuf_file_name(f), &st) < 0)
+      file_info_t info;
+      if (!get_handle_info(fbuf_file_handle(f), &info))
          fatal_errno("%s", fbuf_file_name(f));
 
       const uint32_t magic = read_u32(f);
@@ -172,8 +169,8 @@ static void lib_read_index(lib_t lib)
          return;
       }
 
-      lib->index_mtime = lib_stat_mtime(&st);
-      lib->index_size  = st.st_size;
+      lib->index_mtime = info.mtime;
+      lib->index_size  = info.size;
 
       ident_rd_ctx_t ictx = ident_read_begin(f);
       lib_index_t **insert = &(lib->index);
@@ -296,7 +293,7 @@ static lib_seq_t lib_next_sequence(lib_t lib)
 }
 
 static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
-                               bool error, lib_mtime_t mtime, vcode_unit_t vu,
+                               bool error, uint64_t mtime, vcode_unit_t vu,
                                lib_seq_t sequence)
 {
    assert(lib != NULL);
@@ -503,11 +500,11 @@ lib_t lib_new(const char *spec)
 
    char *lockf LOCAL = xasprintf("%s" DIR_SEP "%s", path, "_NVC_LIB");
 
-   struct stat buf;
-   if (stat(path, &buf) == 0) {
-      if (S_ISDIR(buf.st_mode)) {
-         struct stat sb;
-         if (stat(lockf, &sb) != 0)
+   file_info_t dir_info;
+   if (get_file_info(path, &dir_info)) {
+      if (dir_info.type == FILE_DIR) {
+         file_info_t lockf_info;
+         if (!get_file_info(lockf, &lockf_info))
             fatal("directory %s already exists and is not an NVC library",
                   path);
       }
@@ -727,14 +724,14 @@ void lib_destroy(lib_t lib)
          checked_sprintf(buf, sizeof(buf), "%s" DIR_SEP "%s",
                          lib->path, e->d_name);
          if (unlink(buf) < 0)
-            perror("unlink");
+            fatal_errno("unlink");
       }
    }
 
    closedir(d);
 
    if (rmdir(lib->path) < 0)
-      perror("rmdir");
+      fatal_errno("rmdir");
 }
 
 lib_t lib_work(void)
@@ -754,20 +751,6 @@ const char *lib_path(lib_t lib)
    return lib->path;
 }
 
-static lib_mtime_t lib_time_to_usecs(time_t t)
-{
-   return (lib_mtime_t)t * 1000 * 1000;
-}
-
-static lib_mtime_t lib_mtime_now(void)
-{
-   struct timeval tv;
-   if (gettimeofday(&tv, NULL) != 0)
-      fatal_errno("gettimeofday");
-
-   return ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
-}
-
 void lib_put(lib_t lib, tree_t unit)
 {
    lib_seq_t seq = LIB_SEQUENCE_INVALID;
@@ -775,21 +758,21 @@ void lib_put(lib_t lib, tree_t unit)
       seq = lib_next_sequence(lib);
 
    object_t *obj = tree_to_object(unit);
-   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL, seq);
+   lib_put_aux(lib, obj, true, false, get_real_time(), NULL, seq);
 }
 
 void lib_put_vlog(lib_t lib, vlog_node_t module)
 {
    assert(vlog_kind(module) == V_MODULE);
    object_t *obj = vlog_to_object(module);
-   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL,
+   lib_put_aux(lib, obj, true, false, get_real_time(), NULL,
                LIB_SEQUENCE_INVALID);
 }
 
 void lib_put_error(lib_t lib, tree_t unit)
 {
    object_t *obj = tree_to_object(unit);
-   lib_put_aux(lib, obj, true, true, lib_mtime_now(), NULL,
+   lib_put_aux(lib, obj, true, true, get_real_time(), NULL,
                LIB_SEQUENCE_INVALID);
 }
 
@@ -824,20 +807,13 @@ vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
    return where->vcode;
 }
 
-static lib_mtime_t lib_stat_mtime(struct stat *st)
-{
-   lib_mtime_t mt = lib_time_to_usecs(st->st_mtime);
-#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-   mt += st->st_mtimespec.tv_nsec / 1000;
-#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-   mt += st->st_mtim.tv_nsec / 1000;
-#endif
-   return mt;
-}
-
 static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 {
    fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN, FBUF_CS_ADLER32);
+
+   file_info_t info;
+   if (!get_handle_info(fbuf_file_handle(f), &info))
+      fatal_errno("%s", fname);
 
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
@@ -874,14 +850,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    arena_set_checksum(object_arena(obj), checksum);
 
-   LOCAL_TEXT_BUF path = lib_file_path(lib, fname);
-
-   struct stat st;
-   if (stat(tb_get(path), &st) < 0)
-      fatal_errno("%s", fname);
-
-   lib_mtime_t mt = lib_stat_mtime(&st);
-   return lib_put_aux(lib, obj, false, false, mt, vu, seq);
+   return lib_put_aux(lib, obj, false, false, info.mtime, vu, seq);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -928,10 +897,10 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 
    if (lu != NULL && !opt_get_int(OPT_IGNORE_TIME)) {
       bool stale = false;
+      file_info_t info;
       const char *file = loc_file_str(&(lu->object->loc));
-      struct stat st;
-      if (stat(file, &st) == 0)
-         stale = (lu->mtime < lib_stat_mtime(&st));
+      if (get_file_info(file, &info))
+         stale = (lu->mtime < info.mtime);
 
       if (stale) {
          diag_t *d = diag_new(DIAG_WARN, NULL);
@@ -1151,13 +1120,15 @@ void lib_save(lib_t lib)
    }
 
    LOCAL_TEXT_BUF index_path = lib_file_path(lib, "_index");
-   struct stat st;
-   if (stat(tb_get(index_path), &st) == 0
-       && (lib_stat_mtime(&st) != lib->index_mtime
-           || st.st_size != lib->index_size)) {
-      // Library was updated concurrently: re-read the index while we
-      // have the lock
-      lib_read_index(lib);
+   file_info_t info;
+   if (get_file_info(tb_get(index_path), &info)) {
+      if (info.mtime != lib->index_mtime || info.size != lib->index_size) {
+         // Library was updated concurrently: re-read the index while we
+         // have the lock
+         DEBUG_ONLY(debugf("detected concurrent modification of library %s",
+                           istr(lib->name)));
+         lib_read_index(lib);
+      }
    }
 
    int index_sz = lib_index_size(lib);
@@ -1179,11 +1150,11 @@ void lib_save(lib_t lib)
    ident_write_end(ictx);
    fbuf_close(f, NULL);
 
-   if (stat(tb_get(index_path), &st) != 0)
-      fatal_errno("stat: %s", tb_get(index_path));
+   if (!get_file_info(tb_get(index_path), &info))
+      fatal_errno("%s", tb_get(index_path));
 
-   lib->index_mtime = lib_stat_mtime(&st);
-   lib->index_size  = st.st_size;
+   lib->index_mtime = info.mtime;
+   lib->index_size  = info.size;
 
    file_unlock(lib->lock_fd);
 }

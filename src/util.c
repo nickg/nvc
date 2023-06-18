@@ -1544,6 +1544,110 @@ void nvc_rusage(nvc_rusage_t *ru)
    last_ts = ts;
 }
 
+#ifdef __MINGW32__
+static uint64_t file_time_to_nanos(LPFILETIME ft)
+{
+   uint64_t nanos = (uint64_t)ft->dwHighDateTime << 32;
+   nanos |= ft->dwLowDateTime;
+
+   // Windows file timestamps are in units of 100 nanoseconds since
+   // 1601-01-01T00:00:00Z: convert that to nanoseconds since the Unix
+   // epoch 1970-01-01T00:00:00Z
+   nanos -= UINT64_C(116444736000000000);
+   nanos *= 100;
+
+   return nanos;
+}
+
+static bool fill_file_info(file_info_t *info, HANDLE handle)
+{
+   memset(info, '\0', sizeof(file_info_t));
+
+   BY_HANDLE_FILE_INFORMATION hinfo;
+   if (!GetFileInformationByHandle(handle, &hinfo))
+      fatal_errno("GetFileInformationByHandle");
+
+   info->size = (uint64_t)hinfo.nFileSizeHigh << 32;
+   info->size |= hinfo.nFileSizeLow;
+
+   if (hinfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+      info->type = FILE_DIR;
+   else
+      info->type = FILE_REGULAR;
+
+   info->mtime = file_time_to_nanos(&(hinfo.ftLastWriteTime));
+
+   return true;
+}
+#else  // !__MINGW32__
+static void fill_file_info(file_info_t *info, const struct stat *st)
+{
+   memset(info, '\0', sizeof(file_info_t));
+
+   info->size = st->st_size;
+
+   if (S_ISDIR(st->st_mode))
+      info->type = FILE_DIR;
+   else if (!S_ISREG(st->st_mode))
+      info->type = FILE_FIFO;
+   else
+      info->type = FILE_REGULAR;
+
+   info->mtime = st->st_mtime * UINT64_C(1000000000);
+
+#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+   info->mtime += st->st_mtimespec.tv_nsec;
+#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+   info->mtime += st->st_mtim.tv_nsec;
+#endif
+}
+#endif  // !__MINGW32__
+
+bool get_file_info(const char *path, file_info_t *info)
+{
+#ifdef __MINGW32__
+   HANDLE handle = CreateFile(
+        path, FILE_READ_ATTRIBUTES,
+        FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+
+   if (handle == INVALID_HANDLE_VALUE)
+      return false;
+
+   fill_file_info(info, handle);
+
+   if (!CloseHandle(handle))
+      fatal_errno("CloseHandle");
+
+   return true;
+#else
+   struct stat st;
+   if (stat(path, &st) == 0) {
+      fill_file_info(info, &st);
+      return true;
+   }
+   else
+      return false;
+#endif
+}
+
+bool get_handle_info(int fd, file_info_t *info)
+{
+#ifdef __MINGW32__
+   HANDLE handle = (HANDLE)_get_osfhandle(fd);
+   fill_file_info(info, handle);
+   return true;
+#else
+   struct stat st;
+   if (fstat(fd, &st) == 0) {
+      fill_file_info(info, &st);
+      return true;
+   }
+   else
+      return false;
+#endif
+}
+
 void run_program(const char *const *args)
 {
 #if defined __CYGWIN__ || defined __MINGW32__
@@ -1689,7 +1793,7 @@ void make_dir(const char *path)
 #endif
 }
 
-uint64_t get_timestamp_us()
+uint64_t get_timestamp_us(void)
 {
 #if defined __MINGW32__
    static volatile uint64_t freq;
@@ -1709,6 +1813,22 @@ uint64_t get_timestamp_us()
    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
       fatal_errno("clock_gettime");
    return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
+#endif
+}
+
+uint64_t get_real_time(void)
+{
+#if defined __MINGW32__
+   FILETIME ft;
+   GetSystemTimeAsFileTime(&ft);
+
+   return file_time_to_nanos(&ft);
+#else
+   struct timespec ts;
+   if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
+      fatal_errno("clock_gettime");
+
+   return (uint64_t)ts.tv_nsec + ((uint64_t)ts.tv_sec * UINT64_C(1000000000));
 #endif
 }
 

@@ -367,9 +367,9 @@ static void fbuf_decompress(fbuf_t *f)
       fatal("%s has was created with unexpected checksum algorithm %c",
             f->fname, header[5]);
 
-   struct stat buf;
-   if (fstat(fileno(f->file), &buf) != 0)
-      fatal_errno("fstat");
+   file_info_t info;
+   if (!get_handle_info(fileno(f->file), &info))
+      fatal_errno("%s: cannot get file info", f->fname);
 
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
@@ -378,7 +378,7 @@ static void fbuf_decompress(fbuf_t *f)
    if (header_sz == 0)
       header_sz = 16;   // Compatibility with 1.8 and earlier
 
-   uint32_t filesz = buf.st_size;
+   uint32_t filesz = info.size;
    if (header_sz > 16) {   // XXX: added in 1.10
       uint8_t header2[4];
       fbuf_read_raw(f, header2, sizeof(header2));
@@ -393,9 +393,9 @@ static void fbuf_decompress(fbuf_t *f)
       f->userheader = UNPACK_BE32(header3);
    }
 
-   if (filesz > buf.st_size)
+   if (filesz > info.size)
       fatal("%s has inconsistent compressed size %u vs file size %zu",
-            f->fname, filesz, buf.st_size);
+            f->fname, filesz, info.size);
 
    uint8_t *rmap = map_file(fileno(f->file), filesz);
 
@@ -469,6 +469,11 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
 const char *fbuf_file_name(fbuf_t *f)
 {
    return f->fname;
+}
+
+int fbuf_file_handle(fbuf_t *f)
+{
+   return fileno(f->file);
 }
 
 static void fbuf_compress_fastlz(fbuf_t *f)

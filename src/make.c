@@ -414,8 +414,8 @@ void make(tree_t *targets, int count, FILE *out)
    if (!opt_get_int(OPT_MAKE_DEPS_ONLY))
       fprintf(out, "\n-include local.mk\n");
    else {
-      struct stat dummy;
-      if (stat("local.mk", &dummy) == 0)
+      file_info_t info;
+      if (get_file_info("local.mk", &info))
          fprintf(out, "\ninclude local.mk\n");
    }
 

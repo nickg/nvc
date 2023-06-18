@@ -229,11 +229,13 @@ void _std_env_tool_version(ffi_uarray_t *u)
 DLLEXPORT
 double _std_env_epoch(void)
 {
-   struct timeval tz = {};
-   if (gettimeofday(&tz, NULL) == -1)
-      warnf("gettimeofday: %s", last_os_error());
+   const uint64_t nanos = get_real_time();
 
-   return (double)tz.tv_sec + (double)tz.tv_usec / 1e6;
+   // Be careful to avoid loss of precision here
+   double real = nanos / UINT64_C(1000000000);
+   real += 1.0e9 / (nanos % UINT64_C(1000000000));
+
+   return real;
 }
 
 DLLEXPORT
@@ -385,8 +387,8 @@ bool _std_env_itemexists(const uint8_t *path_ptr, int64_t path_len)
 {
    char *path LOCAL = to_cstring(path_ptr, path_len);
 
-   struct stat sb;
-   return stat(path, &sb) == 0;
+   file_info_t info;
+   return get_file_info(path, &info);
 }
 
 DLLEXPORT
@@ -394,11 +396,11 @@ bool _std_env_itemisfile(const uint8_t *path_ptr, int64_t path_len)
 {
    char *path LOCAL = to_cstring(path_ptr, path_len);
 
-   struct stat sb;
-   if (stat(path, &sb) != 0)
+   file_info_t info;
+   if (!get_file_info(path, &info))
       return false;
 
-   return (sb.st_mode & S_IFMT) == S_IFREG;
+   return info.type == FILE_REGULAR;
 }
 
 DLLEXPORT
@@ -406,11 +408,11 @@ bool _std_env_itemisdir(const uint8_t *path_ptr, int64_t path_len)
 {
    char *path LOCAL = to_cstring(path_ptr, path_len);
 
-   struct stat sb;
-   if (stat(path, &sb) != 0)
+   file_info_t info;
+   if (!get_file_info(path, &info))
       return false;
 
-   return (sb.st_mode & S_IFMT) == S_IFDIR;
+   return info.type == FILE_DIR;
 }
 
 DLLEXPORT

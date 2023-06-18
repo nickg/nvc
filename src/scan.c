@@ -23,8 +23,6 @@
 #include "hash.h"
 
 #include <assert.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -78,11 +76,11 @@ void input_from_file(const char *file)
          fatal_errno("opening %s", file);
    }
 
-   struct stat buf;
-   if (fstat(fd, &buf) != 0)
-      fatal_errno("fstat");
+   file_info_t info;
+   if (!get_handle_info(fd, &info))
+      fatal_errno("%s: cannot get file info", file);
 
-   if (S_ISFIFO(buf.st_mode)) {
+   if (info.type == FILE_FIFO) {
       // Read all the data from the pipe into a buffer
       size_t bufsz = 16384;
       char *buf = xmalloc(bufsz);
@@ -101,8 +99,8 @@ void input_from_file(const char *file)
 
       file_start = buf;
    }
-   else if (S_ISREG(buf.st_mode)) {
-      file_sz = buf.st_size;
+   else if (info.type == FILE_REGULAR) {
+      file_sz = info.size;
 
       if (file_sz > 0)
          file_start = map_file(fd, file_sz);

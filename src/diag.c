@@ -28,7 +28,6 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -620,15 +619,15 @@ static const char *diag_get_source(const loc_t *loc)
       if (fd < 0)
          return NULL;
 
-      struct stat buf;
-      if (fstat(fd, &buf) != 0)
+      file_info_t info;
+      if (!get_handle_info(fd, &info))
          goto close_file;
 
-      if (!S_ISREG(buf.st_mode))
+      if (info.type != FILE_REGULAR)
          goto close_file;
 
-      if (buf.st_size > 0)
-         file->linebuf = map_file(fd, buf.st_size);
+      if (info.size > 0)
+         file->linebuf = map_file(fd, info.size);
 
    close_file:
       close(fd);

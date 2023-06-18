@@ -13,6 +13,10 @@ begin
         file f : text;
     begin
         report dir_workingdir;
+
+        assert not dir_itemisdir("tmp")
+            report "remove tmp directory first" severity failure;
+
         dir_createdir("tmp", false, create_status);
         assert create_status = STATUS_OK;
         assert dir_createdir("tmp") = STATUS_ITEM_EXISTS;

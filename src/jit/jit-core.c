@@ -40,8 +40,6 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #ifdef __MINGW32__
@@ -985,8 +983,8 @@ void jit_preload(jit_t *j)
    tb_printf(tb, DIR_SEP "preload%s." DLL_EXT, preload_vers[standard()]);
 
    const char *path = tb_get(tb);
-   struct stat st;
-   if (stat(path, &st) != 0 || !S_ISREG(st.st_mode))
+   file_info_t info;
+   if (!get_file_info(path, &info) || info.type != FILE_REGULAR)
       fatal("missing preload library at %s", path);
 
    j->preloadlib = load_dll_internal(j, path);

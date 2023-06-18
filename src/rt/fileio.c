@@ -219,11 +219,11 @@ int64_t __nvc_file_size(FILE **fp, int8_t origin)
 
    fflush(*fp);
 
-   struct stat st;
-   if (fstat(fileno(*fp), &st) < 0)
+   file_info_t info;
+   if (!get_handle_info(fileno(*fp), &info))
       jit_msg(NULL, DIAG_FATAL, "FILE_SIZE failed: %s", strerror(errno));
 
-   return st.st_size;
+   return info.size;
 }
 
 DLLEXPORT

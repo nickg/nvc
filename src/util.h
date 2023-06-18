@@ -320,8 +320,24 @@ typedef struct {
 
 void nvc_rusage(nvc_rusage_t *ru);
 
-uint64_t get_timestamp_us();
+uint64_t get_timestamp_us(void);
+uint64_t get_real_time(void);
 unsigned nvc_nprocs(void);
+
+typedef enum {
+   FILE_REGULAR,
+   FILE_DIR,
+   FILE_FIFO,
+} file_type_t;
+
+typedef struct {
+   file_type_t type;
+   size_t      size;
+   uint64_t    mtime;
+} file_info_t;
+
+bool get_file_info(const char *path, file_info_t *info);
+bool get_handle_info(int fd, file_info_t *info);
 
 void progress(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));

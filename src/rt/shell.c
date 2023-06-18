@@ -38,7 +38,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -274,12 +273,12 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
    for (; pos < objc; pos++) {
       const char *fname = Tcl_GetString(objv[pos]);
 
-      struct stat st;
-      if (access(fname, R_OK) != 0 || stat(fname, &st) != 0)
+      file_info_t info;
+      if (access(fname, R_OK) != 0 || !get_file_info(fname, &info))
          return tcl_error(sh, "cannot open %s: %s", fname, strerror(errno));
-      else if (S_ISDIR(st.st_mode))
+      else if (info.type == FILE_DIR)
          return tcl_error(sh, "%s is a directory", fname);
-      else if (!S_ISREG(st.st_mode))
+      else if (info.type != FILE_REGULAR)
          return tcl_error(sh, "%s is not a regular file", fname);
 
       analyse_file(fname, sh->jit, verbose);

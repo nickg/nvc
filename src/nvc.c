@@ -42,7 +42,6 @@
 #include <ctype.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
 
@@ -961,8 +960,8 @@ static int install_cmd(int argc, char **argv)
       get_libexec_dir(tb);
       tb_printf(tb, DIR_SEP "install-%s.sh", argv[i]);
 
-      struct stat sb;
-      if (stat(tb_get(tb), &sb) != 0) {
+      file_info_t info;
+      if (!get_file_info(tb_get(tb), &info) || info.type != FILE_REGULAR) {
          errorf("%s is not an executable script", tb_get(tb));
          list_packages();
          return EXIT_FAILURE;
