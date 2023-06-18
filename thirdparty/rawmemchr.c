@@ -28,7 +28,9 @@
 
 #define alignof(x) __alignof__(x)
 #define static_assert(x) _Static_assert((x), "Static assertion failed");
+#undef UINTPTR_WIDTH
 #define UINTPTR_WIDTH sizeof(uintptr_t)
+#undef UCHAR_WIDTH
 #define UCHAR_WIDTH sizeof(unsigned char)
 
 /* Find the first occurrence of C in S.  */
