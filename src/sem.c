@@ -1469,6 +1469,9 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    tree_flags_t dflags = tree_flags(dport);
    tree_flags_t bflags = tree_flags(bport);
 
+   diag_level_t nexp_match_elevel = opt_get_int(OPT_RELAXED) ?
+                                       DIAG_WARN : DIAG_ERROR;
+
    ident_t dname = tree_ident(dport);
    ident_t bname = tree_ident(bport);
 
@@ -1522,7 +1525,7 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    bool dmode_explicit = !!(dflags & TREE_F_EXPLICIT_MODE);
 
    if (bmode_explicit != dmode_explicit) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_t *d = diag_new(nexp_match_elevel, tree_loc(bport));
       diag_printf(d, "mode (%s) of %s %s of subprogram %s not defined "
                      "equally in subprogram specification and "
                      "subprogram body", port_mode_str(dmode), what,
@@ -1540,7 +1543,7 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    const class_t bclass = tree_class(bport);
 
    if (dclass != bclass) {
-     diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+     diag_t *d = diag_new(nexp_match_elevel, tree_loc(bport));
      diag_printf(d, "class %s of subprogram body %s %s %s does not "
                  "match class %s in specification", class_str(bclass),
                  istr(tree_ident(body)), what, istr(dname), class_str(dclass));
@@ -1556,7 +1559,7 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    bool dclass_explicit = !!(dflags & TREE_F_EXPLICIT_CLASS);
 
    if (bclass_explicit != dclass_explicit) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_t *d = diag_new(nexp_match_elevel, tree_loc(bport));
       diag_printf(d, "class (%s) of %s %s of subprogram %s not defined "
                      "equally in subprogram specification and "
                      "subprogram body", class_str(dclass), what,
