@@ -504,10 +504,6 @@ UNION         ?i:union
 <PSL>{ROSE}              { TOKEN(tROSE); }
 <PSL>{FELL}              { TOKEN(tFELL); }
 <PSL>{ENDED}             { TOKEN(tENDED); }
-<PSL>{ISUNKNOWN}         { TOKEN(tISUNKNOWN); }
-<PSL>{COUNTONES}         { TOKEN(tCOUNTONES); }
-<PSL>{ONEHOT}            { TOKEN(tONEHOT); }
-<PSL>{ONEHOT0}           { TOKEN(tONEHOT0); }
 <PSL>{NONDET}            { TOKEN(tNONDET); }
 <PSL>{NONDET_V}          { TOKEN(tNONDETV); }
 <PSL>{UNION}             { TOKEN(tUNION); }

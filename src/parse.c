@@ -4774,7 +4774,7 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
 
    BEGIN("interface variable declaration");
 
-   tree_flags_t flags = optional(tVARIABLE) ? TREE_F_EXPLICIT_CLASS : 0;
+   tree_flags_t flags = (optional(tVARIABLE)) ? TREE_F_EXPLICIT_CLASS : 0;
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
