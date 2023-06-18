@@ -114,7 +114,7 @@ static const char *make_product(tree_t t, make_product_t product)
    case MAKE_FINAL_SO:
       {
          ident_t final = ident_runtil(name, '.');
-         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.so", path, istr(final));
+         checked_sprintf(buf, PATH_MAX, "%s/_%s.elab.so", path, istr(final));
       }
       break;
 
