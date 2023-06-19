@@ -22,8 +22,6 @@ AM_CFLAGS += \
 	$(libzstd_CFLAGS) \
 	$(TCL_CFLAGS)
 
-AM_MAKEFLAGS = $(PARALLEL_MAKEFLAGS)
-
 bin_PROGRAMS =
 noinst_LIBRARIES =
 include_HEADERS =

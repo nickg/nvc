@@ -448,7 +448,6 @@ AX_CHECK_GNU_MAKE
 if test x$_cv_have_gnu_make = xyes ; then
   MAKEFLAGS='$(if $(V),,-s)'
 fi
-AC_SUBST(MAKEFLAGS)
 
 AC_ARG_ENABLE([parallel_make],
               [AS_HELP_STRING([--enable-parallel-make],
@@ -457,15 +456,15 @@ AC_ARG_ENABLE([parallel_make],
               [parallel_make=no])
 
 # Build with make -j by default but only if requested
-PARALLEL_MAKEFLAGS=
 if test x$parallel_make = xyes; then
   AC_MSG_CHECKING([whether to enable parallel make by default])
   AX_COMPARE_VERSION([$ax_check_gnu_make_version], [ge], [4,0],
                      [AC_MSG_RESULT([yes])
-                      PARALLEL_MAKEFLAGS="-j"],
+                      AX_APPEND_FLAG([-j], [MAKEFLAGS])],
                      [AC_MSG_RESULT([no])])
 fi
-AC_SUBST(PARALLEL_MAKEFLAGS)
+
+AC_SUBST(MAKEFLAGS)
 
 # Optional code coverage statistics
 AC_ARG_ENABLE([gcov],
