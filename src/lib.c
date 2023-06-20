@@ -777,6 +777,8 @@ vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
 static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 {
    fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN, FBUF_CS_ADLER32);
+   if (f == NULL)
+      return NULL;
 
    file_info_t info;
    if (!get_handle_info(fbuf_file_handle(f), &info))
@@ -840,21 +842,9 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    assert(lib->lock_fd != -1);   // Should not be called in unit tests
    file_read_lock(lib->lock_fd);
 
-   // Otherwise search in the filesystem
-   DIR *d = opendir(lib->path);
-   if (d == NULL)
-      fatal("%s: %s", lib->path, strerror(errno));
+   // Otherwise search in the filesystem if not in the cache
+   lu = lib_read_unit(lib, istr(ident));
 
-   const char *search = istr(ident);
-   struct dirent *e;
-   while ((e = readdir(d))) {
-      if (strcmp(e->d_name, search) == 0) {
-         lu = lib_read_unit(lib, e->d_name);
-         break;
-      }
-   }
-
-   closedir(d);
    file_unlock(lib->lock_fd);
 
    if (lu == NULL && lib_find_in_index(lib, ident) != NULL)
