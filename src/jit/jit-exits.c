@@ -107,17 +107,14 @@ void x_file_write(void **_fp, uint8_t *data, int32_t len)
    fwrite(data, 1, len, *fp);
 }
 
-void x_file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
-                 int32_t *out)
+int64_t x_file_read(void **_fp, uint8_t *data, int64_t size, int64_t count)
 {
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "read from closed file");
 
-   size_t n = fread(data, size, count, *fp);
-   if (out != NULL)
-      *out = n;
+   return fread(data, size, count, *fp);
 }
 
 void x_file_close(void **_fp)
@@ -1004,11 +1001,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          void    **_fp   = args[0].pointer;
          uint8_t  *data  = args[1].pointer;
-         int32_t   size  = args[2].integer;
-         int32_t   count = args[3].integer;
-         int32_t  *out   = args[4].pointer;
+         int64_t   size  = args[2].integer;
+         int64_t   count = args[3].integer;
 
-         x_file_read(_fp, data, size, count, out);
+         args[0].integer = x_file_read(_fp, data, size, count);
       }
       break;
 

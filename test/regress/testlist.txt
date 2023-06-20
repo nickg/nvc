@@ -808,3 +808,4 @@ issue714        normal
 elab39          shell
 issue718        normal,gold,2008
 issue726        normal,2008
+issue724        normal,2019

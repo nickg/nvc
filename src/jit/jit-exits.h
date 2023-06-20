@@ -47,8 +47,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
 void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
                  int32_t name_len, int8_t mode);
 void x_file_write(void **_fp, uint8_t *data, int32_t len);
-void x_file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
-                 int32_t *out);
+int64_t x_file_read(void **_fp, uint8_t *data, int64_t size, int64_t count);
 void x_file_close(void **_fp);
 int8_t x_endfile(void *_f);
 void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,

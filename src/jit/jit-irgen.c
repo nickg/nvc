@@ -2926,17 +2926,22 @@ static void irgen_op_file_read(jit_irgen_t *g, int op)
 
    jit_value_t size = jit_value_from_int64(irgen_size_bytes(elem_type));
 
-   jit_value_t outlen = jit_null_ptr();
-   if (vcode_count_args(op) >= 4)
-      outlen = irgen_get_arg(g, op, 3);
-
    j_send(g, 0, file);
    j_send(g, 1, ptr);
    j_send(g, 2, size);
    j_send(g, 3, count);
-   j_send(g, 4, outlen);
 
    macro_exit(g, JIT_EXIT_FILE_READ);
+
+   if (vcode_count_args(op) >= 4) {
+      vcode_type_t out_type = vcode_reg_type(vcode_get_arg(op, 3));
+      jit_size_t out_size = irgen_jit_size(vtype_pointed(out_type));
+
+      jit_value_t outarg = irgen_get_arg(g, op, 3);
+      jit_value_t outptr = jit_addr_from_value(outarg, 0);
+      jit_value_t len = j_recv(g, 0);
+      j_store(g, out_size, len, outptr);
+   }
 }
 
 static void irgen_op_file_write(jit_irgen_t *g, int op)
