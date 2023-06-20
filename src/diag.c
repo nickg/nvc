@@ -938,6 +938,13 @@ void diag_femit(diag_t *d, FILE *f)
             && diag_has_message(d))
       return;
    else {
+      // The stderr and stdout streams are often redirected to the same
+      // file so ensure that the output appears in a logical order
+      if (f == stdout)
+         fflush(stderr);
+      else if (f == stderr)
+         fflush(stdout);
+
       SCOPED_LOCK(diag_lock);
 
       if (get_message_style() == MESSAGE_COMPACT)
