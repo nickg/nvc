@@ -5135,6 +5135,18 @@ START_TEST(test_event1)
 }
 END_TEST
 
+START_TEST(test_issue725)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue725.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5260,6 +5272,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_copy1);
    tcase_add_test(tc, test_issue662);
    tcase_add_test(tc, test_event1);
+   tcase_add_test(tc, test_issue725);
    suite_add_tcase(s, tc);
 
    return s;
