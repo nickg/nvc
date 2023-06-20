@@ -97,7 +97,7 @@ void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
    }
 }
 
-void x_file_write(void **_fp, uint8_t *data, int32_t len)
+void x_file_write(void **_fp, uint8_t *data, int64_t len)
 {
    FILE **fp = (FILE **)_fp;
 
@@ -143,7 +143,7 @@ int8_t x_endfile(void *_f)
    }
 }
 
-void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
+void x_index_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                   tree_t where, tree_t hint)
 {
    type_t type = tree_type(hint);
@@ -159,7 +159,7 @@ void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
    jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
-void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where)
+void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
 {
    const tree_kind_t kind = tree_kind(where);
 
@@ -172,7 +172,7 @@ void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where)
       tb_cat(tb, "choice");
    else
       tb_cat(tb, "value");
-   tb_printf(tb, " length %d", right);
+   tb_printf(tb, " length %"PRIi64, right);
    if (dim > 0)
       tb_printf(tb, " for dimension %d", dim);
    tb_cat(tb, " does not match ");
@@ -218,7 +218,7 @@ void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where)
       break;
    }
 
-   tb_printf(tb, " length %d", left);
+   tb_printf(tb, " length %"PRIi64, left);
 
    jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
@@ -263,10 +263,10 @@ void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
    jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
-void x_exponent_fail(int32_t value, tree_t where)
+void x_exponent_fail(int64_t value, tree_t where)
 {
-   jit_msg(tree_loc(where), DIAG_FATAL, "negative exponent %d only "
-           "allowed for floating-point types", value);
+   jit_msg(tree_loc(where), DIAG_FATAL, "negative exponent %"PRIi64
+           " only allowed for floating-point types", value);
 }
 
 void x_overflow(int64_t lhs, int64_t rhs, tree_t where)
@@ -835,9 +835,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_INDEX_FAIL:
       {
-         int32_t      value = args[0].integer;
-         int32_t      left  = args[1].integer;
-         int32_t      right = args[2].integer;
+         int64_t      value = args[0].integer;
+         int64_t      left  = args[1].integer;
+         int64_t      right = args[2].integer;
          range_kind_t dir   = args[3].integer;
          tree_t       where = args[4].pointer;
          tree_t       hint  = args[5].pointer;

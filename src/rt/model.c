@@ -1079,7 +1079,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
 }
 
 static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
-                                      ffi_closure_t closure, int32_t ileft,
+                                      ffi_closure_t closure, int64_t ileft,
                                       int32_t nlits, res_flags_t flags)
 {
    // Optimise some common resolution functions by memoising them
@@ -4107,7 +4107,7 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
-                      int32_t ileft, int32_t nlits, int32_t flags)
+                      int64_t ileft, int32_t nlits, int32_t flags)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 

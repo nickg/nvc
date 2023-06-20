@@ -128,7 +128,7 @@ STATIC_ASSERT(sizeof(rt_source_t) <= 64);
 typedef struct {
    ffi_closure_t closure;
    res_flags_t   flags;
-   int32_t       ileft;
+   int64_t       ileft;
    int8_t        tab2[16][16];
    int8_t        tab1[16];
 } res_memo_t;
