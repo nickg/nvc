@@ -67,9 +67,9 @@ typedef struct _elab_ctx {
 } elab_ctx_t;
 
 typedef struct {
-   ident_t   search;
-   ident_t   chosen;
-   lib_seq_t sequence;
+   ident_t     search;
+   ident_t     chosen;
+   timestamp_t mtime;
 } lib_search_params_t;
 
 typedef struct {
@@ -146,20 +146,34 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
    if (kind != T_ARCH || prefix != params->search)
       return;
 
-   lib_seq_t new_seq = lib_peek_sequence(lib, name);
-   if (new_seq == LIB_SEQUENCE_INVALID)
-      warnf("architecture %s has invalid sequence number", istr(name));
+   const timestamp_t new_mtime = lib_get_mtime(lib, name);
 
    if (params->chosen == NULL) {
       params->chosen = name;
-      params->sequence = new_seq;
+      params->mtime  = new_mtime;
    }
-   else if (new_seq > params->sequence) {
+   else if (new_mtime > params->mtime) {
       params->chosen = name;
-      params->sequence = new_seq;
+      params->mtime  = new_mtime;
    }
-   else
-      assert(new_seq != params->sequence);
+   else if (new_mtime == params->mtime) {
+      // Use source file line numbers to break the tie
+      tree_t old_unit = lib_get(lib, params->chosen);
+      tree_t new_unit = lib_get(lib, name);
+
+      if (old_unit == NULL)
+         params->chosen = name;
+      else if (new_unit != NULL) {
+         const loc_t *old_loc = tree_loc(old_unit);
+         const loc_t *new_loc = tree_loc(new_unit);
+
+         if (old_loc->file_ref != new_loc->file_ref)
+            warnf("cannot determine which of %s and %s is most recently "
+                  "modified", istr(params->chosen), istr(name));
+         else if (new_loc->first_line >= old_loc->first_line)
+            params->chosen = name;
+      }
+   }
 }
 
 static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
@@ -174,8 +188,7 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
       ident_prefix(lib_name(lib), ident_rfrom(name, '.'), '.');
 
    lib_search_params_t params = {
-      .search   = search_name,
-      .sequence = LIB_SEQUENCE_INVALID,
+      .search = search_name
    };
    lib_walk_index(lib, elab_find_arch_cb, &params);
 

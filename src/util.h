@@ -320,8 +320,10 @@ typedef struct {
 
 void nvc_rusage(nvc_rusage_t *ru);
 
+typedef uint64_t timestamp_t;   // Nanoseconds
+
 uint64_t get_timestamp_us(void);
-uint64_t get_real_time(void);
+timestamp_t get_real_time(void);
 unsigned nvc_nprocs(void);
 
 typedef enum {
@@ -333,7 +335,7 @@ typedef enum {
 typedef struct {
    file_type_t type;
    size_t      size;
-   uint64_t    mtime;
+   timestamp_t mtime;
 } file_info_t;
 
 bool get_file_info(const char *path, file_info_t *info);

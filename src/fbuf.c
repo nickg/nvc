@@ -36,7 +36,7 @@
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
-#define FBUF_HEADER_SZ 24
+#define FBUF_HEADER_SZ 20
 
 #if DEBUG
 #define ASSERT_AVAIL(f, n) do {                                 \
@@ -78,7 +78,6 @@ struct _fbuf {
    size_t       origsz;
    fbuf_t      *next;
    fbuf_t      *prev;
-   size_t       userheader;
    cs_state_t   checksum;
    fbuf_zip_t   zip;
    ZSTD_CCtx   *zstd;
@@ -296,7 +295,6 @@ static void fbuf_write_header(fbuf_t *f)
       0, 0, 0, 0,             // Decompressed length
       0, 0, 0, 0,             // Checksum
       0, 0, 0, 0,             // Compressed length
-      0, 0, 0, 0,             // User header length
    };
    fbuf_write_raw(f, header, sizeof(header));
 }
@@ -310,11 +308,10 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
-   const uint8_t bytes[16] = {
+   const uint8_t bytes[12] = {
       PACK_BE32(f->wtotal),
       PACK_BE32(checksum),
       PACK_BE32(len),
-      PACK_BE32(f->userheader),
    };
    fbuf_write_raw(f, bytes, ARRAY_LEN(bytes));
 }
@@ -386,11 +383,12 @@ static void fbuf_decompress(fbuf_t *f)
       filesz = UNPACK_BE32(header2);
    }
 
-   if (header_sz > 20) {   // XXX: added in 1.10
+   size_t userheader = 0;
+   if (header_sz > 20) {   // XXX: added (and removed!) in 1.10
       uint8_t header3[4];
       fbuf_read_raw(f, header3, sizeof(header3));
 
-      f->userheader = UNPACK_BE32(header3);
+      userheader = UNPACK_BE32(header3);
    }
 
    if (filesz > info.size)
@@ -403,8 +401,8 @@ static void fbuf_decompress(fbuf_t *f)
    f->checksum.expect = checksum;
    f->rbuf = xmalloc(f->origsz);
 
-   uint8_t *payload = rmap + header_sz + f->userheader;
-   const size_t payloadsz = filesz - header_sz - f->userheader;
+   uint8_t *payload = rmap + header_sz + userheader;
+   const size_t payloadsz = filesz - header_sz - userheader;
 
    switch (header[4]) {
    case FBUF_ZIP_FASTLZ:
@@ -738,36 +736,4 @@ double read_double(fbuf_t *f)
    union { uint64_t i; double d; } u;
    u.i = read_u64(f);
    return u.d;
-}
-
-void fbuf_write_user_header(fbuf_t *f, const void *data, size_t size)
-{
-   assert(f->mode == FBUF_OUT);
-   assert(f->wtotal == 0);
-
-   f->userheader = size;
-   fbuf_write_raw(f, data, size);
-}
-
-size_t fbuf_peek_user_header(const char *file, uint8_t *buf, size_t size)
-{
-   FILE *f = fopen(file, "r");
-   if (f == NULL)
-      fatal_errno("%s", file);
-
-   uint8_t header[FBUF_HEADER_SZ];
-   if (fread(header, sizeof(header), 1, f) != 1)
-      fatal_errno("%s: fread", file);
-
-   if (memcmp(header, "FBUF", 4))
-      fatal("%s: file created with an older version of NVC", file);
-
-   const size_t usersz = UNPACK_BE32(header + 20);
-
-   if (fread(buf, MIN(size, usersz), 1, f) != 1)
-      fatal_errno("%s: fread", file);
-
-   fclose(f);
-
-   return usersz;
 }

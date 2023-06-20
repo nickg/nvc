@@ -4,18 +4,13 @@ pwd
 which nvc
 
 cat >test.vhd <<EOF
+EOF
+
+nvc -a - <<EOF
 entity test is end;
 architecture test of test is
 begin
 assert false report "wrong arch" severity failure;
-end;
-EOF
-
-nvc -a test.vhd
-
-cat >test.vhd <<EOF
-entity test is
-generic (g : integer := 0);  -- Changes the checksum
 end;
 architecture test2 of test is
 begin
@@ -23,6 +18,6 @@ assert false report "using test2" severity note;
 end;
 EOF
 
-nvc -a test.vhd
+touch -t 199401181205.09 work/WORK.TEST-*
 
 nvc -e test -r

@@ -805,3 +805,4 @@ signal31        normal,2008
 range2          normal,2008
 issue715        shell
 issue714        normal
+elab39          shell

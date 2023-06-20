@@ -46,9 +46,6 @@ void fbuf_cleanup(void);
 const char *fbuf_file_name(fbuf_t *f);
 int fbuf_file_handle(fbuf_t *f);
 
-void fbuf_write_user_header(fbuf_t *f, const void *data, size_t size);
-size_t fbuf_peek_user_header(const char *file, uint8_t *buf, size_t size);
-
 int64_t fbuf_get_int(fbuf_t *f);
 uint64_t fbuf_get_uint(fbuf_t *f);
 

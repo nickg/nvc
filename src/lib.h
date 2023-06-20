@@ -25,9 +25,6 @@
 #include "fbuf.h"
 #include "prim.h"
 
-#define LIB_SEQUENCE_INVALID -1
-typedef int32_t lib_seq_t;
-
 lib_t lib_find(ident_t name);
 lib_t lib_require(ident_t name) RETURNS_NONNULL;
 lib_t lib_loaded(ident_t name);
@@ -61,11 +58,11 @@ object_t *lib_get_generic(lib_t lib, ident_t ident);
 tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error);
 tree_t lib_get_qualified(ident_t qual);
+timestamp_t lib_get_mtime(lib_t lib, ident_t ident);
 object_t *lib_load_handler(ident_t qual);
 bool lib_had_errors(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);
 int lib_index_kind(lib_t lib, ident_t ident);
-lib_seq_t lib_peek_sequence(lib_t lib, ident_t ident);
 
 typedef void (*lib_index_fn_t)(lib_t lib, ident_t ident, int kind, void *ctx);
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);

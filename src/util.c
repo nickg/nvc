@@ -1816,7 +1816,7 @@ uint64_t get_timestamp_us(void)
 #endif
 }
 
-uint64_t get_real_time(void)
+timestamp_t get_real_time(void)
 {
 #if defined __MINGW32__
    FILETIME ft;
