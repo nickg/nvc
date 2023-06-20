@@ -3174,11 +3174,14 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
              && can_call_no_args(tab, decl)
              && tree_params(fcall) > 0) {
 
-            tree_t new = tree_new(T_FCALL);
+            tree_t new = tree_new(kind);
             tree_set_ref(new, decl);
             tree_set_ident(new, tree_ident(fcall));
             tree_set_loc(new, tree_loc(fcall));
             tree_set_type(new, type);
+
+            if (kind == T_PROT_FCALL)
+               tree_set_name(new, tree_name(fcall));
 
             tree_change_kind(fcall, T_ARRAY_REF);
             tree_set_value(fcall, new);

@@ -403,6 +403,7 @@ static const change_allowed_t change_allowed[] = {
    { T_REF,         T_PCALL         },
    { T_ARRAY_REF,   T_FCALL         },
    { T_FCALL,       T_ARRAY_REF     },
+   { T_PROT_FCALL,  T_ARRAY_REF     },
    { T_DESIGN_UNIT, T_ENTITY        },
    { T_DESIGN_UNIT, T_PACKAGE       },
    { T_DESIGN_UNIT, T_PACK_BODY     },
