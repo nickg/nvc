@@ -477,6 +477,25 @@ static c_name *is_name(c_vhpiObject *obj)
    }
 }
 
+static c_prefixedName *is_prefixedName(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiIndexedNameK:
+      return container_of(obj, c_prefixedName, name.expr.object);
+   default:
+      return NULL;
+   }
+}
+
+static c_prefixedName *cast_prefixedName(c_vhpiObject *obj)
+{
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn == NULL)
+      vhpi_error(vhpiError, NULL, "class kind %s is not a prefixed name",
+                 vhpi_class_str(obj->kind));
+   return pn;
+}
+
 static c_designUnit *is_designUnit(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -1262,9 +1281,6 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
                  "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
       return NULL;
 
-   case vhpiPrefix:
-      return NULL;
-
    default:
       break;
    }
@@ -1325,6 +1341,17 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
       }
    case vhpiPrimaryUnit:
       return handle_for(&(cast_secondaryUnit(obj)->PrimaryUnit->object));
+   case vhpiPrefix:
+      {
+         c_prefixedName *pn = cast_prefixedName(obj);
+         if (pn == NULL)
+            return NULL;
+
+         if (pn->Prefix)
+            return handle_for(&(pn->Prefix->expr.object));
+         else
+            return handle_for(&(pn->simpleName->decl.object));
+      }
    default:
       fatal_trace("relationship %s not supported in vhpi_handle",
                   vhpi_one_to_one_str(type));
