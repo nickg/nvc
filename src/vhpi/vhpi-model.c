@@ -177,8 +177,18 @@ DEF_CLASS(arrayTypeDecl, vhpiArrayTypeDeclK, composite.typeDecl.decl.object);
 
 typedef struct {
    c_compositeTypeDecl composite;
-   vhpiIntT            NumFields;
+   vhpiObjectListT     RecordElems;
 } c_recordTypeDecl;
+
+DEF_CLASS(recordTypeDecl, vhpiRecordTypeDeclK, composite.typeDecl.decl.object);
+
+typedef struct {
+   c_abstractDecl  decl;
+   c_typeDecl     *Type;
+   vhpiIntT        Position;
+} c_elemDecl;
+
+DEF_CLASS(elemDecl, vhpiElemDeclK, decl.object);
 
 typedef struct {
    c_abstractDecl   decl;
@@ -386,6 +396,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
    case vhpiSubtypeDeclK:
+   case vhpiElemDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -643,6 +654,13 @@ static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
    d->Position = Position;
 }
 
+static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type)
+{
+   init_abstractDecl(&(ed->decl), t, Type->decl.ImmRegion);
+   ed->Type = Type;
+   ed->Position = tree_pos(t);
+}
+
 static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
 {
    init_abstractDecl(&(d->decl), t, NULL);
@@ -882,6 +900,15 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    if (etd != NULL) {
       if (type == vhpiEnumLiterals) {
          it->list = &(etd->EnumLiterals);
+         return true;
+      }
+      return false;
+   }
+
+   c_recordTypeDecl *record = is_recordTypeDecl(obj);
+   if (record != NULL) {
+      if (type == vhpiRecordElems) {
+         it->list = &(record->RecordElems);
          return true;
       }
       return false;
@@ -1612,6 +1639,10 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    case vhpiPositionP:
       {
+         c_elemDecl *ed = is_elemDecl(obj);
+         if (ed != NULL)
+            return ed->Position;
+
          c_enumLiteral *el = cast_enumLiteral(obj);
          if (el == NULL)
             return vhpiUndefined;
@@ -2356,8 +2387,17 @@ static c_typeDecl *build_typeDecl(type_t type)
          c_recordTypeDecl *td =
             new_object(sizeof(c_recordTypeDecl), vhpiRecordTypeDeclK);
          init_compositeTypeDecl(&(td->composite), decl, type);
-         td->NumFields = type_fields(type);
-         td->composite.typeDecl.size = td->NumFields;
+
+         int nfields = type_fields(type);
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(type, i);
+            c_typeDecl *ftd = cached_typeDecl(tree_type(f));
+            c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
+            init_elemDecl(ed, f, ftd);
+            td->composite.typeDecl.size += ftd->size;
+            APUSH(td->RecordElems, &(ed->decl.object));
+         }
+
          return &(td->composite.typeDecl);
       }
 

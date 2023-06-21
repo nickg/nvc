@@ -1,0 +1,9 @@
+VHPI printf test name is vhpi5
+VHPI printf hello, world!
+VHPI printf tool is (null)
+VHPI printf root handle
+VHPI printf root name is VHPI5
+VHPI printf m handle
+VHPI printf m elem 0 is A
+VHPI printf m elem 1 is B
+VHPI printf m elem 2 is C

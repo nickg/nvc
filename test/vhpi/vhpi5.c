@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static vhpiHandleT m;
+
 void vhpi5_startup(void)
 {
    vhpi_printf("hello, world!");
@@ -18,20 +20,25 @@ void vhpi5_startup(void)
    const vhpiCharT *root_name = vhpi_get_str(vhpiNameP, root);
    vhpi_printf("root name is %s", root_name);
 
-   vhpiHandleT s1 = vhpi_handle_by_name("s1", root);
+   m = vhpi_handle_by_name("m", root);
    check_error();
-   fail_if(s1 == NULL);
-   vhpi_printf("s1 handle %p", s1);
+   fail_if(m == NULL);
+   vhpi_printf("m handle %p", m);
 
-   vhpiHandleT s1_type = vhpi_handle(vhpiType, s1);
+   vhpiHandleT m_type = vhpi_handle(vhpiType, m);
    check_error();
-   fail_if(s1_type == NULL);
-   fail_unless(vhpi_get(vhpiIsCompositeP, s1_type));
+   fail_if(m_type == NULL);
+   fail_unless(vhpi_get(vhpiIsCompositeP, m_type));
    check_error();
-   fail_if(vhpi_get(vhpiIsScalarP, s1_type));
+   fail_if(vhpi_get(vhpiIsScalarP, m_type));
    check_error();
 
-   // TODO: check fields, etc.
+   int i = 0;
+   vhpiHandleT elems = vhpi_iterator(vhpiRecordElems, m_type);
+   for (vhpiHandleT elem = vhpi_scan(elems); elem; elem = vhpi_scan(elems), i++) {
+      vhpi_printf("m elem %d is %s", i, vhpi_get_str(vhpiNameP, elem));
+      fail_unless(vhpi_get(vhpiPositionP, elem) == i);
+   }
 
    vhpi_release_handle(root);
 }
