@@ -3123,6 +3123,55 @@ static bool can_call_no_args(nametab_t *tab, tree_t decl)
    return false;
 }
 
+static type_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, type_t ftype,
+                                     tree_t decl)
+{
+   // The expression A(X) can be parsed as a call to subprogram A with
+   // no arguments, returning an array that is indexed by X, or a call
+   // to subprogram A with argument X. We prefer the later and then
+   // fix-up here based on the context.
+
+   type_t rtype = type_result(ftype);
+   if (!type_is_array(rtype))
+      return rtype;
+
+   if (tree_params(fcall) == 0)
+      return rtype;
+
+   if (!can_call_no_args(tab, decl))
+      return rtype;
+
+   type_t etype = type_elem(rtype);
+
+   bool match_elem = false;
+   for (int i = 0; i < tab->top_type_set->members.count; i++) {
+      type_t itype = tab->top_type_set->members.items[i].type;
+      if (type_eq(itype, rtype))
+         return rtype;
+      else if (type_eq(itype, etype))
+         match_elem = true;
+   }
+
+   if (!match_elem)
+      return rtype;
+
+   const tree_kind_t kind = tree_kind(fcall);
+
+   tree_t new = tree_new(kind);
+   tree_set_ref(new, decl);
+   tree_set_ident(new, tree_ident(fcall));
+   tree_set_loc(new, tree_loc(fcall));
+   tree_set_type(new, rtype);
+
+   if (kind == T_PROT_FCALL)
+      tree_set_name(new, tree_name(fcall));
+
+   tree_change_kind(fcall, T_ARRAY_REF);
+   tree_set_value(fcall, new);
+
+   return type_elem(rtype);
+}
+
 static type_t solve_fcall(nametab_t *tab, tree_t fcall)
 {
    if (tree_has_type(fcall))
@@ -3157,46 +3206,20 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
       }
       else {
          assert(typek == T_FUNC);
-         type = type_result(ftype);
          tree_set_ref(fcall, decl);
 
          const tree_flags_t flags = tree_flags(decl);
-
-         // The expression A(X) can be parsed as a call to subprogram A
-         // with no arguments, returning an array that is indexed by X,
-         // or a call to subprogram A with argument X. We prefer the
-         // later and then fix-up here based on the context.
-         type_t context;
-         if (type_is_array(type)
-             && type_set_uniq(tab, &context)
-             && !type_eq(context, type)
-             && type_eq(context, type_elem(type))
-             && can_call_no_args(tab, decl)
-             && tree_params(fcall) > 0) {
-
-            tree_t new = tree_new(kind);
-            tree_set_ref(new, decl);
-            tree_set_ident(new, tree_ident(fcall));
-            tree_set_loc(new, tree_loc(fcall));
-            tree_set_type(new, type);
-
-            if (kind == T_PROT_FCALL)
-               tree_set_name(new, tree_name(fcall));
-
-            tree_change_kind(fcall, T_ARRAY_REF);
-            tree_set_value(fcall, new);
-
-            type = type_elem(type);
-         }
-         else if ((flags & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
+         if ((flags & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
             tree_change_kind(fcall, T_PROT_FCALL);
          else if ((flags & TREE_F_KNOWS_SUBTYPE)
                   && !tab->top_type_set->known_subtype) {
             error_at(tree_loc(fcall), "function %s with return identifier %s "
                      "cannot be called in this context as the result subtype "
                      "is not known", istr(tree_ident(decl)),
-                     istr(type_ident(type)));
+                     istr(type_ident(type_result(ftype))));
          }
+
+         type = resolve_fcall_or_index(tab, fcall, ftype, decl);
       }
    }
 
