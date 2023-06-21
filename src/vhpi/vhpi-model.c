@@ -1650,6 +1650,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return el->Position;
       }
 
+   case vhpiNumFieldsP:
+      {
+         c_recordTypeDecl *rtd = cast_recordTypeDecl(obj);
+         if (rtd == NULL)
+            return vhpiUndefined;
+
+         return rtd->RecordElems.count;
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));

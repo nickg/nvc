@@ -39,6 +39,7 @@ void vhpi5_startup(void)
       vhpi_printf("m elem %d is %s", i, vhpi_get_str(vhpiNameP, elem));
       fail_unless(vhpi_get(vhpiPositionP, elem) == i);
    }
+   fail_unless(vhpi_get(vhpiNumFieldsP, m_type) == i);
 
    vhpi_release_handle(root);
 }
