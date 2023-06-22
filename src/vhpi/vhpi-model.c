@@ -2082,7 +2082,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    else if (value_p->format != td->format) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
                  "object %s: expecting %d", value_p->format,
-                 decl->decl.Name, td->format);
+                 pn ? pn->name.Name : decl->decl.Name, td->format);
       return -1;
    }
 
