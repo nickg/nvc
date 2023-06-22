@@ -193,12 +193,14 @@ DEF_CLASS(elemDecl, vhpiElemDeclK, decl.object);
 typedef struct {
    c_abstractDecl   decl;
    vhpiObjectListT  IndexedNames;
+   vhpiObjectListT  SelectedNames;
    rt_signal_t     *signal;
    c_typeDecl      *Type;
    vhpiIntT         Access;
    vhpiStaticnessT  Staticness;
    vhpiBooleanT     IsDynamic;
    bool             IndexedNames_valid;
+   bool             SelectedNames_valid;
 } c_objDecl;
 
 typedef struct {
@@ -257,6 +259,7 @@ typedef struct {
 typedef struct {
    c_expr          expr;
    vhpiObjectListT IndexedNames;
+   vhpiObjectListT SelectedNames;
    vhpiStringT     FullCaseName;
    vhpiStringT     CaseName;
    vhpiStringT     FullName;
@@ -264,6 +267,7 @@ typedef struct {
    vhpiStringT     DefName;
    vhpiAccessT     Access;
    bool            IndexedNames_valid;
+   bool            SelectedNames_valid;
 } c_name;
 
 typedef struct {
@@ -279,6 +283,13 @@ typedef struct {
 } c_indexedName;
 
 DEF_CLASS(indexedName, vhpiIndexedNameK, prefixedName.name.expr.object);
+
+typedef struct {
+   c_prefixedName  prefixedName;
+   c_elemDecl     *Suffix;
+} c_selectedName;
+
+DEF_CLASS(selectedName, vhpiSelectedNameK, prefixedName.name.expr.object);
 
 typedef struct {
    c_vhpiObject    object;
@@ -462,6 +473,7 @@ static c_expr *is_expr(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiIndexedNameK:
+   case vhpiSelectedNameK:
       return container_of(obj, c_expr, object);
    default:
       return NULL;
@@ -482,6 +494,7 @@ static c_name *is_name(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiIndexedNameK:
+   case vhpiSelectedNameK:
       return container_of(obj, c_name, expr.object);
    default:
       return NULL;
@@ -492,6 +505,7 @@ static c_prefixedName *is_prefixedName(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiIndexedNameK:
+   case vhpiSelectedNameK:
       return container_of(obj, c_prefixedName, name.expr.object);
    default:
       return NULL;
@@ -841,6 +855,45 @@ static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *si
    } while (i > 0 || indices[0] != 0);
 }
 
+static void init_selectedName(c_selectedName *sn, c_objDecl *simpleName,
+                              c_name *prefix, c_elemDecl *Suffix)
+{
+   LOCAL_TEXT_BUF suffix = tb_new();
+   tb_append(suffix, '.');
+   tb_cat(suffix, (const char *)Suffix->decl.Name);
+
+   init_prefixedName(&(sn->prefixedName), Suffix->Type,
+                     simpleName, prefix, tb_get(suffix));
+   sn->Suffix = Suffix;
+}
+
+static void vhpi_build_selectedNames(vhpiObjectListT *SelectedNames,
+                                     c_objDecl *simpleName, c_name *prefix,
+                                     c_typeDecl *Type)
+{
+   if (Type == NULL)
+      Type = simpleName->Type;
+
+   c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
+   c_recordTypeDecl *rtd = is_recordTypeDecl(&(Type->decl.object));
+   if (std != NULL) {
+      rtd = is_recordTypeDecl(&(Type->BaseType->decl.object));
+      if (rtd == NULL)
+         return;
+   }
+   else if (rtd == NULL)
+      return;
+
+  for (int i = 0; i < rtd->RecordElems.count; i++) {
+      c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+      assert(ed != NULL);
+
+      c_selectedName *sn = new_object(sizeof(c_selectedName), vhpiSelectedNameK);
+      init_selectedName(sn, simpleName, prefix, ed);
+      APUSH(*SelectedNames, &(sn->prefixedName.name.expr.object));
+   }
+}
+
 static void init_designUnit(c_designUnit *u, tree_t t)
 {
    const loc_t *loc = tree_loc(t);
@@ -934,34 +987,56 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
 
    c_objDecl *od = is_objDecl(obj);
    if (od != NULL) {
-      if (type == vhpiIndexedNames) {
-         if (!od->IndexedNames_valid) {
-            vhpi_build_indexedNames(&(od->IndexedNames), od, NULL, NULL);
-            od->IndexedNames_valid = true;
-         }
-         it->list = &(od->IndexedNames);
-         return true;
+      switch(type) {
+         case vhpiIndexedNames:
+            if (!od->IndexedNames_valid) {
+               vhpi_build_indexedNames(&(od->IndexedNames), od, NULL, NULL);
+               od->IndexedNames_valid = true;
+            }
+            it->list = &(od->IndexedNames);
+            return true;
+         case vhpiSelectedNames:
+            if (!od->SelectedNames_valid) {
+               vhpi_build_selectedNames(&(od->SelectedNames), od, NULL, NULL);
+               od->SelectedNames_valid = true;
+            }
+            it->list = &(od->SelectedNames);
+            return true;
+         default:
+            return false;
       }
-      return false;
    }
 
    c_name *n = is_name(obj);
    if (n != NULL) {
-      if (type == vhpiIndexedNames) {
+      switch (type) {
+      case vhpiIndexedNames:
          if (!n->IndexedNames_valid) {
-            c_indexedName *in = cast_indexedName(&(n->expr.object));
-            if (in == NULL)
+            c_prefixedName *pn = cast_prefixedName(&(n->expr.object));
+            if (pn == NULL)
                return false;
 
-            vhpi_build_indexedNames(&(n->IndexedNames),
-                                    in->prefixedName.simpleName, n,
+            vhpi_build_indexedNames(&(n->IndexedNames), pn->simpleName, n,
                                     n->expr.Type);
             n->IndexedNames_valid = true;
          }
          it->list = &(n->IndexedNames);
          return true;
+      case vhpiSelectedNames:
+         if (!n->SelectedNames_valid) {
+            c_prefixedName *pn = cast_prefixedName(&(n->expr.object));
+            if (pn == NULL)
+               return false;
+
+            vhpi_build_selectedNames(&(n->SelectedNames), pn->simpleName, n,
+                                     n->expr.Type);
+            n->SelectedNames_valid = true;
+         }
+         it->list = &(n->SelectedNames);
+         return true;
+      default:
+         return false;
       }
-      return false;
    }
 
    c_tool *t = is_tool(obj);
@@ -1378,6 +1453,14 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
             return handle_for(&(pn->Prefix->expr.object));
          else
             return handle_for(&(pn->simpleName->decl.object));
+      }
+   case vhpiSuffix:
+      {
+         c_selectedName *sn = cast_selectedName(obj);
+         if (sn == NULL)
+            return NULL;
+
+         return handle_for(&(sn->Suffix->decl.object));
       }
    default:
       fatal_trace("relationship %s not supported in vhpi_handle",

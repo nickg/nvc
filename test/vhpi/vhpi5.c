@@ -5,7 +5,38 @@
 #include <stdlib.h>
 #include <string.h>
 
-static vhpiHandleT m;
+static vhpiHandleT m, n, o;
+
+void check_recursive(vhpiHandleT parent)
+{
+   int i = 0;
+   char name[64];
+   const vhpiCharT *parent_name = vhpi_get_str(vhpiNameP, parent);
+
+   vhpi_printf("checking %s", parent_name);
+
+   vhpiHandleT children = vhpi_iterator(vhpiSelectedNames, parent);
+   for (vhpiHandleT child = vhpi_scan(children);
+        child;
+        child = vhpi_scan(children), i++) {
+      vhpiHandleT prefix = vhpi_handle(vhpiPrefix, child);
+      fail_unless(parent == prefix);
+
+      vhpiHandleT suffix = vhpi_handle(vhpiSuffix, child);
+      fail_unless(vhpi_get(vhpiPositionP, suffix) == i);
+      snprintf(name, sizeof(name), "%s.%s", parent_name,
+               vhpi_get_str(vhpiNameP, suffix));
+      fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, child)));
+
+      check_recursive(child);
+   }
+
+   children = vhpi_iterator(vhpiIndexedNames, parent);
+   for (vhpiHandleT child = vhpi_scan(children);
+        child;
+        child = vhpi_scan(children))
+      check_recursive(child);
+}
 
 void vhpi5_startup(void)
 {
@@ -40,6 +71,18 @@ void vhpi5_startup(void)
       fail_unless(vhpi_get(vhpiPositionP, elem) == i);
    }
    fail_unless(vhpi_get(vhpiNumFieldsP, m_type) == i);
+
+   n = vhpi_handle_by_name("n", root);
+   check_error();
+   fail_if(n == NULL);
+
+   o = vhpi_handle_by_name("o", root);
+   check_error();
+   fail_if(n == NULL);
+
+   check_recursive(m);
+   check_recursive(n);
+   check_recursive(o);
 
    vhpi_release_handle(root);
 }
