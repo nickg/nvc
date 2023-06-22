@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -56,7 +57,7 @@ static void last_delta(const vhpiCbDataT *cb_data)
    delta_recursive(o, 0, 4096);
 }
 
-void start_recursive(vhpiHandleT parent, int base, int scale)
+void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
 {
    int i = 0;
    char name[64];
@@ -74,8 +75,10 @@ void start_recursive(vhpiHandleT parent, int base, int scale)
       snprintf(name, sizeof(name), "%s.%s", parent_name,
                vhpi_get_str(vhpiNameP, suffix));
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, child)));
+      if (by_name)
+         fail_unless(vhpi_handle_by_name(name, NULL) == child);
 
-      start_recursive(child, base + i * scale, scale / 16);
+      start_recursive(child, base + i * scale, scale / 16, by_name);
    }
 
    children = vhpi_iterator(vhpiIndexedNames, parent);
@@ -84,9 +87,9 @@ void start_recursive(vhpiHandleT parent, int base, int scale)
         child = vhpi_scan(children), i++) {
       if (parent == n)
          start_recursive(child, base + i / 5 * scale + i % 5 * scale / 16,
-                         scale / 256);
+                         scale / 256, false);
       else
-         start_recursive(child, base + i * scale, scale / 16);
+         start_recursive(child, base + i * scale, scale / 16, false);
    }
 
    if (!i) {
@@ -107,9 +110,9 @@ void start_recursive(vhpiHandleT parent, int base, int scale)
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
 {
-   start_recursive(m, 0, 16);
-   start_recursive(n, 0, 4096);
-   start_recursive(o, 0, 4096);
+   start_recursive(m, 0, 16, true);
+   start_recursive(n, 0, 4096, true);
+   start_recursive(o, 0, 4096, true);
 }
 
 void vhpi5_startup(void)
