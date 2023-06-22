@@ -7,328 +7,435 @@ VHPI printf m handle
 VHPI printf m elem 0 is A
 VHPI printf m elem 1 is B
 VHPI printf m elem 2 is C
-VHPI printf checking M
-VHPI printf checking M.A
-VHPI printf checking M.B
-VHPI printf checking M.C
-VHPI printf checking M.C(0)
-VHPI printf checking M.C(1)
-VHPI printf checking N
-VHPI printf checking N(0,0)
-VHPI printf checking N(0,0).A
-VHPI printf checking N(0,0).B
-VHPI printf checking N(0,0).C
-VHPI printf checking N(0,0).C(0)
-VHPI printf checking N(0,0).C(1)
-VHPI printf checking N(0,1)
-VHPI printf checking N(0,1).A
-VHPI printf checking N(0,1).B
-VHPI printf checking N(0,1).C
-VHPI printf checking N(0,1).C(0)
-VHPI printf checking N(0,1).C(1)
-VHPI printf checking N(0,2)
-VHPI printf checking N(0,2).A
-VHPI printf checking N(0,2).B
-VHPI printf checking N(0,2).C
-VHPI printf checking N(0,2).C(0)
-VHPI printf checking N(0,2).C(1)
-VHPI printf checking N(0,3)
-VHPI printf checking N(0,3).A
-VHPI printf checking N(0,3).B
-VHPI printf checking N(0,3).C
-VHPI printf checking N(0,3).C(0)
-VHPI printf checking N(0,3).C(1)
-VHPI printf checking N(0,4)
-VHPI printf checking N(0,4).A
-VHPI printf checking N(0,4).B
-VHPI printf checking N(0,4).C
-VHPI printf checking N(0,4).C(0)
-VHPI printf checking N(0,4).C(1)
-VHPI printf checking N(1,0)
-VHPI printf checking N(1,0).A
-VHPI printf checking N(1,0).B
-VHPI printf checking N(1,0).C
-VHPI printf checking N(1,0).C(0)
-VHPI printf checking N(1,0).C(1)
-VHPI printf checking N(1,1)
-VHPI printf checking N(1,1).A
-VHPI printf checking N(1,1).B
-VHPI printf checking N(1,1).C
-VHPI printf checking N(1,1).C(0)
-VHPI printf checking N(1,1).C(1)
-VHPI printf checking N(1,2)
-VHPI printf checking N(1,2).A
-VHPI printf checking N(1,2).B
-VHPI printf checking N(1,2).C
-VHPI printf checking N(1,2).C(0)
-VHPI printf checking N(1,2).C(1)
-VHPI printf checking N(1,3)
-VHPI printf checking N(1,3).A
-VHPI printf checking N(1,3).B
-VHPI printf checking N(1,3).C
-VHPI printf checking N(1,3).C(0)
-VHPI printf checking N(1,3).C(1)
-VHPI printf checking N(1,4)
-VHPI printf checking N(1,4).A
-VHPI printf checking N(1,4).B
-VHPI printf checking N(1,4).C
-VHPI printf checking N(1,4).C(0)
-VHPI printf checking N(1,4).C(1)
-VHPI printf checking N(2,0)
-VHPI printf checking N(2,0).A
-VHPI printf checking N(2,0).B
-VHPI printf checking N(2,0).C
-VHPI printf checking N(2,0).C(0)
-VHPI printf checking N(2,0).C(1)
-VHPI printf checking N(2,1)
-VHPI printf checking N(2,1).A
-VHPI printf checking N(2,1).B
-VHPI printf checking N(2,1).C
-VHPI printf checking N(2,1).C(0)
-VHPI printf checking N(2,1).C(1)
-VHPI printf checking N(2,2)
-VHPI printf checking N(2,2).A
-VHPI printf checking N(2,2).B
-VHPI printf checking N(2,2).C
-VHPI printf checking N(2,2).C(0)
-VHPI printf checking N(2,2).C(1)
-VHPI printf checking N(2,3)
-VHPI printf checking N(2,3).A
-VHPI printf checking N(2,3).B
-VHPI printf checking N(2,3).C
-VHPI printf checking N(2,3).C(0)
-VHPI printf checking N(2,3).C(1)
-VHPI printf checking N(2,4)
-VHPI printf checking N(2,4).A
-VHPI printf checking N(2,4).B
-VHPI printf checking N(2,4).C
-VHPI printf checking N(2,4).C(0)
-VHPI printf checking N(2,4).C(1)
-VHPI printf checking N(3,0)
-VHPI printf checking N(3,0).A
-VHPI printf checking N(3,0).B
-VHPI printf checking N(3,0).C
-VHPI printf checking N(3,0).C(0)
-VHPI printf checking N(3,0).C(1)
-VHPI printf checking N(3,1)
-VHPI printf checking N(3,1).A
-VHPI printf checking N(3,1).B
-VHPI printf checking N(3,1).C
-VHPI printf checking N(3,1).C(0)
-VHPI printf checking N(3,1).C(1)
-VHPI printf checking N(3,2)
-VHPI printf checking N(3,2).A
-VHPI printf checking N(3,2).B
-VHPI printf checking N(3,2).C
-VHPI printf checking N(3,2).C(0)
-VHPI printf checking N(3,2).C(1)
-VHPI printf checking N(3,3)
-VHPI printf checking N(3,3).A
-VHPI printf checking N(3,3).B
-VHPI printf checking N(3,3).C
-VHPI printf checking N(3,3).C(0)
-VHPI printf checking N(3,3).C(1)
-VHPI printf checking N(3,4)
-VHPI printf checking N(3,4).A
-VHPI printf checking N(3,4).B
-VHPI printf checking N(3,4).C
-VHPI printf checking N(3,4).C(0)
-VHPI printf checking N(3,4).C(1)
-VHPI printf checking N(4,0)
-VHPI printf checking N(4,0).A
-VHPI printf checking N(4,0).B
-VHPI printf checking N(4,0).C
-VHPI printf checking N(4,0).C(0)
-VHPI printf checking N(4,0).C(1)
-VHPI printf checking N(4,1)
-VHPI printf checking N(4,1).A
-VHPI printf checking N(4,1).B
-VHPI printf checking N(4,1).C
-VHPI printf checking N(4,1).C(0)
-VHPI printf checking N(4,1).C(1)
-VHPI printf checking N(4,2)
-VHPI printf checking N(4,2).A
-VHPI printf checking N(4,2).B
-VHPI printf checking N(4,2).C
-VHPI printf checking N(4,2).C(0)
-VHPI printf checking N(4,2).C(1)
-VHPI printf checking N(4,3)
-VHPI printf checking N(4,3).A
-VHPI printf checking N(4,3).B
-VHPI printf checking N(4,3).C
-VHPI printf checking N(4,3).C(0)
-VHPI printf checking N(4,3).C(1)
-VHPI printf checking N(4,4)
-VHPI printf checking N(4,4).A
-VHPI printf checking N(4,4).B
-VHPI printf checking N(4,4).C
-VHPI printf checking N(4,4).C(0)
-VHPI printf checking N(4,4).C(1)
-VHPI printf checking N(5,0)
-VHPI printf checking N(5,0).A
-VHPI printf checking N(5,0).B
-VHPI printf checking N(5,0).C
-VHPI printf checking N(5,0).C(0)
-VHPI printf checking N(5,0).C(1)
-VHPI printf checking N(5,1)
-VHPI printf checking N(5,1).A
-VHPI printf checking N(5,1).B
-VHPI printf checking N(5,1).C
-VHPI printf checking N(5,1).C(0)
-VHPI printf checking N(5,1).C(1)
-VHPI printf checking N(5,2)
-VHPI printf checking N(5,2).A
-VHPI printf checking N(5,2).B
-VHPI printf checking N(5,2).C
-VHPI printf checking N(5,2).C(0)
-VHPI printf checking N(5,2).C(1)
-VHPI printf checking N(5,3)
-VHPI printf checking N(5,3).A
-VHPI printf checking N(5,3).B
-VHPI printf checking N(5,3).C
-VHPI printf checking N(5,3).C(0)
-VHPI printf checking N(5,3).C(1)
-VHPI printf checking N(5,4)
-VHPI printf checking N(5,4).A
-VHPI printf checking N(5,4).B
-VHPI printf checking N(5,4).C
-VHPI printf checking N(5,4).C(0)
-VHPI printf checking N(5,4).C(1)
-VHPI printf checking N(6,0)
-VHPI printf checking N(6,0).A
-VHPI printf checking N(6,0).B
-VHPI printf checking N(6,0).C
-VHPI printf checking N(6,0).C(0)
-VHPI printf checking N(6,0).C(1)
-VHPI printf checking N(6,1)
-VHPI printf checking N(6,1).A
-VHPI printf checking N(6,1).B
-VHPI printf checking N(6,1).C
-VHPI printf checking N(6,1).C(0)
-VHPI printf checking N(6,1).C(1)
-VHPI printf checking N(6,2)
-VHPI printf checking N(6,2).A
-VHPI printf checking N(6,2).B
-VHPI printf checking N(6,2).C
-VHPI printf checking N(6,2).C(0)
-VHPI printf checking N(6,2).C(1)
-VHPI printf checking N(6,3)
-VHPI printf checking N(6,3).A
-VHPI printf checking N(6,3).B
-VHPI printf checking N(6,3).C
-VHPI printf checking N(6,3).C(0)
-VHPI printf checking N(6,3).C(1)
-VHPI printf checking N(6,4)
-VHPI printf checking N(6,4).A
-VHPI printf checking N(6,4).B
-VHPI printf checking N(6,4).C
-VHPI printf checking N(6,4).C(0)
-VHPI printf checking N(6,4).C(1)
-VHPI printf checking O
-VHPI printf checking O.A
-VHPI printf checking O.B
-VHPI printf checking O.C
-VHPI printf checking O.C(0)
-VHPI printf checking O.C(1)
-VHPI printf checking O.C(2)
-VHPI printf checking O.C(3)
-VHPI printf checking O.C(4)
-VHPI printf checking O.D
-VHPI printf checking O.D(0)
-VHPI printf checking O.D(1)
-VHPI printf checking O.D(2)
-VHPI printf checking O.D(3)
-VHPI printf checking O.D(4)
-VHPI printf checking O.E
-VHPI printf checking O.E(0)
-VHPI printf checking O.E(0).A
-VHPI printf checking O.E(0).B
-VHPI printf checking O.E(0).C
-VHPI printf checking O.E(0).C(0)
-VHPI printf checking O.E(0).C(1)
-VHPI printf checking O.E(1)
-VHPI printf checking O.E(1).A
-VHPI printf checking O.E(1).B
-VHPI printf checking O.E(1).C
-VHPI printf checking O.E(1).C(0)
-VHPI printf checking O.E(1).C(1)
-VHPI printf checking O.E(2)
-VHPI printf checking O.E(2).A
-VHPI printf checking O.E(2).B
-VHPI printf checking O.E(2).C
-VHPI printf checking O.E(2).C(0)
-VHPI printf checking O.E(2).C(1)
-VHPI printf checking O.E(3)
-VHPI printf checking O.E(3).A
-VHPI printf checking O.E(3).B
-VHPI printf checking O.E(3).C
-VHPI printf checking O.E(3).C(0)
-VHPI printf checking O.E(3).C(1)
-VHPI printf checking O.E(4)
-VHPI printf checking O.E(4).A
-VHPI printf checking O.E(4).B
-VHPI printf checking O.E(4).C
-VHPI printf checking O.E(4).C(0)
-VHPI printf checking O.E(4).C(1)
-VHPI printf checking O.F
-VHPI printf checking O.F(0)
-VHPI printf checking O.F(0).A
-VHPI printf checking O.F(0).B
-VHPI printf checking O.F(0).C
-VHPI printf checking O.F(0).C(0)
-VHPI printf checking O.F(0).C(1)
-VHPI printf checking O.F(1)
-VHPI printf checking O.F(1).A
-VHPI printf checking O.F(1).B
-VHPI printf checking O.F(1).C
-VHPI printf checking O.F(1).C(0)
-VHPI printf checking O.F(1).C(1)
-VHPI printf checking O.F(2)
-VHPI printf checking O.F(2).A
-VHPI printf checking O.F(2).B
-VHPI printf checking O.F(2).C
-VHPI printf checking O.F(2).C(0)
-VHPI printf checking O.F(2).C(1)
-VHPI printf checking O.F(3)
-VHPI printf checking O.F(3).A
-VHPI printf checking O.F(3).B
-VHPI printf checking O.F(3).C
-VHPI printf checking O.F(3).C(0)
-VHPI printf checking O.F(3).C(1)
-VHPI printf checking O.F(4)
-VHPI printf checking O.F(4).A
-VHPI printf checking O.F(4).B
-VHPI printf checking O.F(4).C
-VHPI printf checking O.F(4).C(0)
-VHPI printf checking O.F(4).C(1)
-VHPI printf checking O.G
-VHPI printf checking O.G(0)
-VHPI printf checking O.G(0).A
-VHPI printf checking O.G(0).B
-VHPI printf checking O.G(0).C
-VHPI printf checking O.G(0).C(0)
-VHPI printf checking O.G(0).C(1)
-VHPI printf checking O.G(1)
-VHPI printf checking O.G(1).A
-VHPI printf checking O.G(1).B
-VHPI printf checking O.G(1).C
-VHPI printf checking O.G(1).C(0)
-VHPI printf checking O.G(1).C(1)
-VHPI printf checking O.G(2)
-VHPI printf checking O.G(2).A
-VHPI printf checking O.G(2).B
-VHPI printf checking O.G(2).C
-VHPI printf checking O.G(2).C(0)
-VHPI printf checking O.G(2).C(1)
-VHPI printf checking O.G(3)
-VHPI printf checking O.G(3).A
-VHPI printf checking O.G(3).B
-VHPI printf checking O.G(3).C
-VHPI printf checking O.G(3).C(0)
-VHPI printf checking O.G(3).C(1)
-VHPI printf checking O.G(4)
-VHPI printf checking O.G(4).A
-VHPI printf checking O.G(4).B
-VHPI printf checking O.G(4).C
-VHPI printf checking O.G(4).C(0)
-VHPI printf checking O.G(4).C(1)
+VHPI printf M.A            = 0000
+VHPI printf M.B            = 0010
+VHPI printf M.C(0)         = 0020
+VHPI printf M.C(1)         = 0021
+VHPI printf N(0,0).A       = 0000
+VHPI printf N(0,0).B       = 0010
+VHPI printf N(0,0).C(0)    = 0020
+VHPI printf N(0,0).C(1)    = 0021
+VHPI printf N(0,1).A       = 0100
+VHPI printf N(0,1).B       = 0110
+VHPI printf N(0,1).C(0)    = 0120
+VHPI printf N(0,1).C(1)    = 0121
+VHPI printf N(0,2).A       = 0200
+VHPI printf N(0,2).B       = 0210
+VHPI printf N(0,2).C(0)    = 0220
+VHPI printf N(0,2).C(1)    = 0221
+VHPI printf N(0,3).A       = 0300
+VHPI printf N(0,3).B       = 0310
+VHPI printf N(0,3).C(0)    = 0320
+VHPI printf N(0,3).C(1)    = 0321
+VHPI printf N(0,4).A       = 0400
+VHPI printf N(0,4).B       = 0410
+VHPI printf N(0,4).C(0)    = 0420
+VHPI printf N(0,4).C(1)    = 0421
+VHPI printf N(1,0).A       = 1000
+VHPI printf N(1,0).B       = 1010
+VHPI printf N(1,0).C(0)    = 1020
+VHPI printf N(1,0).C(1)    = 1021
+VHPI printf N(1,1).A       = 1100
+VHPI printf N(1,1).B       = 1110
+VHPI printf N(1,1).C(0)    = 1120
+VHPI printf N(1,1).C(1)    = 1121
+VHPI printf N(1,2).A       = 1200
+VHPI printf N(1,2).B       = 1210
+VHPI printf N(1,2).C(0)    = 1220
+VHPI printf N(1,2).C(1)    = 1221
+VHPI printf N(1,3).A       = 1300
+VHPI printf N(1,3).B       = 1310
+VHPI printf N(1,3).C(0)    = 1320
+VHPI printf N(1,3).C(1)    = 1321
+VHPI printf N(1,4).A       = 1400
+VHPI printf N(1,4).B       = 1410
+VHPI printf N(1,4).C(0)    = 1420
+VHPI printf N(1,4).C(1)    = 1421
+VHPI printf N(2,0).A       = 2000
+VHPI printf N(2,0).B       = 2010
+VHPI printf N(2,0).C(0)    = 2020
+VHPI printf N(2,0).C(1)    = 2021
+VHPI printf N(2,1).A       = 2100
+VHPI printf N(2,1).B       = 2110
+VHPI printf N(2,1).C(0)    = 2120
+VHPI printf N(2,1).C(1)    = 2121
+VHPI printf N(2,2).A       = 2200
+VHPI printf N(2,2).B       = 2210
+VHPI printf N(2,2).C(0)    = 2220
+VHPI printf N(2,2).C(1)    = 2221
+VHPI printf N(2,3).A       = 2300
+VHPI printf N(2,3).B       = 2310
+VHPI printf N(2,3).C(0)    = 2320
+VHPI printf N(2,3).C(1)    = 2321
+VHPI printf N(2,4).A       = 2400
+VHPI printf N(2,4).B       = 2410
+VHPI printf N(2,4).C(0)    = 2420
+VHPI printf N(2,4).C(1)    = 2421
+VHPI printf N(3,0).A       = 3000
+VHPI printf N(3,0).B       = 3010
+VHPI printf N(3,0).C(0)    = 3020
+VHPI printf N(3,0).C(1)    = 3021
+VHPI printf N(3,1).A       = 3100
+VHPI printf N(3,1).B       = 3110
+VHPI printf N(3,1).C(0)    = 3120
+VHPI printf N(3,1).C(1)    = 3121
+VHPI printf N(3,2).A       = 3200
+VHPI printf N(3,2).B       = 3210
+VHPI printf N(3,2).C(0)    = 3220
+VHPI printf N(3,2).C(1)    = 3221
+VHPI printf N(3,3).A       = 3300
+VHPI printf N(3,3).B       = 3310
+VHPI printf N(3,3).C(0)    = 3320
+VHPI printf N(3,3).C(1)    = 3321
+VHPI printf N(3,4).A       = 3400
+VHPI printf N(3,4).B       = 3410
+VHPI printf N(3,4).C(0)    = 3420
+VHPI printf N(3,4).C(1)    = 3421
+VHPI printf N(4,0).A       = 4000
+VHPI printf N(4,0).B       = 4010
+VHPI printf N(4,0).C(0)    = 4020
+VHPI printf N(4,0).C(1)    = 4021
+VHPI printf N(4,1).A       = 4100
+VHPI printf N(4,1).B       = 4110
+VHPI printf N(4,1).C(0)    = 4120
+VHPI printf N(4,1).C(1)    = 4121
+VHPI printf N(4,2).A       = 4200
+VHPI printf N(4,2).B       = 4210
+VHPI printf N(4,2).C(0)    = 4220
+VHPI printf N(4,2).C(1)    = 4221
+VHPI printf N(4,3).A       = 4300
+VHPI printf N(4,3).B       = 4310
+VHPI printf N(4,3).C(0)    = 4320
+VHPI printf N(4,3).C(1)    = 4321
+VHPI printf N(4,4).A       = 4400
+VHPI printf N(4,4).B       = 4410
+VHPI printf N(4,4).C(0)    = 4420
+VHPI printf N(4,4).C(1)    = 4421
+VHPI printf N(5,0).A       = 5000
+VHPI printf N(5,0).B       = 5010
+VHPI printf N(5,0).C(0)    = 5020
+VHPI printf N(5,0).C(1)    = 5021
+VHPI printf N(5,1).A       = 5100
+VHPI printf N(5,1).B       = 5110
+VHPI printf N(5,1).C(0)    = 5120
+VHPI printf N(5,1).C(1)    = 5121
+VHPI printf N(5,2).A       = 5200
+VHPI printf N(5,2).B       = 5210
+VHPI printf N(5,2).C(0)    = 5220
+VHPI printf N(5,2).C(1)    = 5221
+VHPI printf N(5,3).A       = 5300
+VHPI printf N(5,3).B       = 5310
+VHPI printf N(5,3).C(0)    = 5320
+VHPI printf N(5,3).C(1)    = 5321
+VHPI printf N(5,4).A       = 5400
+VHPI printf N(5,4).B       = 5410
+VHPI printf N(5,4).C(0)    = 5420
+VHPI printf N(5,4).C(1)    = 5421
+VHPI printf N(6,0).A       = 6000
+VHPI printf N(6,0).B       = 6010
+VHPI printf N(6,0).C(0)    = 6020
+VHPI printf N(6,0).C(1)    = 6021
+VHPI printf N(6,1).A       = 6100
+VHPI printf N(6,1).B       = 6110
+VHPI printf N(6,1).C(0)    = 6120
+VHPI printf N(6,1).C(1)    = 6121
+VHPI printf N(6,2).A       = 6200
+VHPI printf N(6,2).B       = 6210
+VHPI printf N(6,2).C(0)    = 6220
+VHPI printf N(6,2).C(1)    = 6221
+VHPI printf N(6,3).A       = 6300
+VHPI printf N(6,3).B       = 6310
+VHPI printf N(6,3).C(0)    = 6320
+VHPI printf N(6,3).C(1)    = 6321
+VHPI printf N(6,4).A       = 6400
+VHPI printf N(6,4).B       = 6410
+VHPI printf N(6,4).C(0)    = 6420
+VHPI printf N(6,4).C(1)    = 6421
+VHPI printf O.A            = 0000
+VHPI printf O.B            = 1000
+VHPI printf O.C(0)         = 2000
+VHPI printf O.C(1)         = 2100
+VHPI printf O.C(2)         = 2200
+VHPI printf O.C(3)         = 2300
+VHPI printf O.C(4)         = 2400
+VHPI printf O.D(0)         = 3000
+VHPI printf O.D(1)         = 3100
+VHPI printf O.D(2)         = 3200
+VHPI printf O.D(3)         = 3300
+VHPI printf O.D(4)         = 3400
+VHPI printf O.E(0).A       = 4000
+VHPI printf O.E(0).B       = 4010
+VHPI printf O.E(0).C(0)    = 4020
+VHPI printf O.E(0).C(1)    = 4021
+VHPI printf O.E(1).A       = 4100
+VHPI printf O.E(1).B       = 4110
+VHPI printf O.E(1).C(0)    = 4120
+VHPI printf O.E(1).C(1)    = 4121
+VHPI printf O.E(2).A       = 4200
+VHPI printf O.E(2).B       = 4210
+VHPI printf O.E(2).C(0)    = 4220
+VHPI printf O.E(2).C(1)    = 4221
+VHPI printf O.E(3).A       = 4300
+VHPI printf O.E(3).B       = 4310
+VHPI printf O.E(3).C(0)    = 4320
+VHPI printf O.E(3).C(1)    = 4321
+VHPI printf O.E(4).A       = 4400
+VHPI printf O.E(4).B       = 4410
+VHPI printf O.E(4).C(0)    = 4420
+VHPI printf O.E(4).C(1)    = 4421
+VHPI printf O.F(0).A       = 5000
+VHPI printf O.F(0).B       = 5010
+VHPI printf O.F(0).C(0)    = 5020
+VHPI printf O.F(0).C(1)    = 5021
+VHPI printf O.F(1).A       = 5100
+VHPI printf O.F(1).B       = 5110
+VHPI printf O.F(1).C(0)    = 5120
+VHPI printf O.F(1).C(1)    = 5121
+VHPI printf O.F(2).A       = 5200
+VHPI printf O.F(2).B       = 5210
+VHPI printf O.F(2).C(0)    = 5220
+VHPI printf O.F(2).C(1)    = 5221
+VHPI printf O.F(3).A       = 5300
+VHPI printf O.F(3).B       = 5310
+VHPI printf O.F(3).C(0)    = 5320
+VHPI printf O.F(3).C(1)    = 5321
+VHPI printf O.F(4).A       = 5400
+VHPI printf O.F(4).B       = 5410
+VHPI printf O.F(4).C(0)    = 5420
+VHPI printf O.F(4).C(1)    = 5421
+VHPI printf O.G(0).A       = 6000
+VHPI printf O.G(0).B       = 6010
+VHPI printf O.G(0).C(0)    = 6020
+VHPI printf O.G(0).C(1)    = 6021
+VHPI printf O.G(1).A       = 6100
+VHPI printf O.G(1).B       = 6110
+VHPI printf O.G(1).C(0)    = 6120
+VHPI printf O.G(1).C(1)    = 6121
+VHPI printf O.G(2).A       = 6200
+VHPI printf O.G(2).B       = 6210
+VHPI printf O.G(2).C(0)    = 6220
+VHPI printf O.G(2).C(1)    = 6221
+VHPI printf O.G(3).A       = 6300
+VHPI printf O.G(3).B       = 6310
+VHPI printf O.G(3).C(0)    = 6320
+VHPI printf O.G(3).C(1)    = 6321
+VHPI printf O.G(4).A       = 6400
+VHPI printf O.G(4).B       = 6410
+VHPI printf O.G(4).C(0)    = 6420
+VHPI printf O.G(4).C(1)    = 6421
+VHPI printf M.A            = 0000
+VHPI printf M.B            = 0100
+VHPI printf M.C(0)         = 0200
+VHPI printf M.C(1)         = 1200
+VHPI printf N(0,0).A       = 0000
+VHPI printf N(0,0).B       = 0100
+VHPI printf N(0,0).C(0)    = 0200
+VHPI printf N(0,0).C(1)    = 1200
+VHPI printf N(0,1).A       = 0010
+VHPI printf N(0,1).B       = 0110
+VHPI printf N(0,1).C(0)    = 0210
+VHPI printf N(0,1).C(1)    = 1210
+VHPI printf N(0,2).A       = 0020
+VHPI printf N(0,2).B       = 0120
+VHPI printf N(0,2).C(0)    = 0220
+VHPI printf N(0,2).C(1)    = 1220
+VHPI printf N(0,3).A       = 0030
+VHPI printf N(0,3).B       = 0130
+VHPI printf N(0,3).C(0)    = 0230
+VHPI printf N(0,3).C(1)    = 1230
+VHPI printf N(0,4).A       = 0040
+VHPI printf N(0,4).B       = 0140
+VHPI printf N(0,4).C(0)    = 0240
+VHPI printf N(0,4).C(1)    = 1240
+VHPI printf N(1,0).A       = 0001
+VHPI printf N(1,0).B       = 0101
+VHPI printf N(1,0).C(0)    = 0201
+VHPI printf N(1,0).C(1)    = 1201
+VHPI printf N(1,1).A       = 0011
+VHPI printf N(1,1).B       = 0111
+VHPI printf N(1,1).C(0)    = 0211
+VHPI printf N(1,1).C(1)    = 1211
+VHPI printf N(1,2).A       = 0021
+VHPI printf N(1,2).B       = 0121
+VHPI printf N(1,2).C(0)    = 0221
+VHPI printf N(1,2).C(1)    = 1221
+VHPI printf N(1,3).A       = 0031
+VHPI printf N(1,3).B       = 0131
+VHPI printf N(1,3).C(0)    = 0231
+VHPI printf N(1,3).C(1)    = 1231
+VHPI printf N(1,4).A       = 0041
+VHPI printf N(1,4).B       = 0141
+VHPI printf N(1,4).C(0)    = 0241
+VHPI printf N(1,4).C(1)    = 1241
+VHPI printf N(2,0).A       = 0002
+VHPI printf N(2,0).B       = 0102
+VHPI printf N(2,0).C(0)    = 0202
+VHPI printf N(2,0).C(1)    = 1202
+VHPI printf N(2,1).A       = 0012
+VHPI printf N(2,1).B       = 0112
+VHPI printf N(2,1).C(0)    = 0212
+VHPI printf N(2,1).C(1)    = 1212
+VHPI printf N(2,2).A       = 0022
+VHPI printf N(2,2).B       = 0122
+VHPI printf N(2,2).C(0)    = 0222
+VHPI printf N(2,2).C(1)    = 1222
+VHPI printf N(2,3).A       = 0032
+VHPI printf N(2,3).B       = 0132
+VHPI printf N(2,3).C(0)    = 0232
+VHPI printf N(2,3).C(1)    = 1232
+VHPI printf N(2,4).A       = 0042
+VHPI printf N(2,4).B       = 0142
+VHPI printf N(2,4).C(0)    = 0242
+VHPI printf N(2,4).C(1)    = 1242
+VHPI printf N(3,0).A       = 0003
+VHPI printf N(3,0).B       = 0103
+VHPI printf N(3,0).C(0)    = 0203
+VHPI printf N(3,0).C(1)    = 1203
+VHPI printf N(3,1).A       = 0013
+VHPI printf N(3,1).B       = 0113
+VHPI printf N(3,1).C(0)    = 0213
+VHPI printf N(3,1).C(1)    = 1213
+VHPI printf N(3,2).A       = 0023
+VHPI printf N(3,2).B       = 0123
+VHPI printf N(3,2).C(0)    = 0223
+VHPI printf N(3,2).C(1)    = 1223
+VHPI printf N(3,3).A       = 0033
+VHPI printf N(3,3).B       = 0133
+VHPI printf N(3,3).C(0)    = 0233
+VHPI printf N(3,3).C(1)    = 1233
+VHPI printf N(3,4).A       = 0043
+VHPI printf N(3,4).B       = 0143
+VHPI printf N(3,4).C(0)    = 0243
+VHPI printf N(3,4).C(1)    = 1243
+VHPI printf N(4,0).A       = 0004
+VHPI printf N(4,0).B       = 0104
+VHPI printf N(4,0).C(0)    = 0204
+VHPI printf N(4,0).C(1)    = 1204
+VHPI printf N(4,1).A       = 0014
+VHPI printf N(4,1).B       = 0114
+VHPI printf N(4,1).C(0)    = 0214
+VHPI printf N(4,1).C(1)    = 1214
+VHPI printf N(4,2).A       = 0024
+VHPI printf N(4,2).B       = 0124
+VHPI printf N(4,2).C(0)    = 0224
+VHPI printf N(4,2).C(1)    = 1224
+VHPI printf N(4,3).A       = 0034
+VHPI printf N(4,3).B       = 0134
+VHPI printf N(4,3).C(0)    = 0234
+VHPI printf N(4,3).C(1)    = 1234
+VHPI printf N(4,4).A       = 0044
+VHPI printf N(4,4).B       = 0144
+VHPI printf N(4,4).C(0)    = 0244
+VHPI printf N(4,4).C(1)    = 1244
+VHPI printf N(5,0).A       = 0005
+VHPI printf N(5,0).B       = 0105
+VHPI printf N(5,0).C(0)    = 0205
+VHPI printf N(5,0).C(1)    = 1205
+VHPI printf N(5,1).A       = 0015
+VHPI printf N(5,1).B       = 0115
+VHPI printf N(5,1).C(0)    = 0215
+VHPI printf N(5,1).C(1)    = 1215
+VHPI printf N(5,2).A       = 0025
+VHPI printf N(5,2).B       = 0125
+VHPI printf N(5,2).C(0)    = 0225
+VHPI printf N(5,2).C(1)    = 1225
+VHPI printf N(5,3).A       = 0035
+VHPI printf N(5,3).B       = 0135
+VHPI printf N(5,3).C(0)    = 0235
+VHPI printf N(5,3).C(1)    = 1235
+VHPI printf N(5,4).A       = 0045
+VHPI printf N(5,4).B       = 0145
+VHPI printf N(5,4).C(0)    = 0245
+VHPI printf N(5,4).C(1)    = 1245
+VHPI printf N(6,0).A       = 0006
+VHPI printf N(6,0).B       = 0106
+VHPI printf N(6,0).C(0)    = 0206
+VHPI printf N(6,0).C(1)    = 1206
+VHPI printf N(6,1).A       = 0016
+VHPI printf N(6,1).B       = 0116
+VHPI printf N(6,1).C(0)    = 0216
+VHPI printf N(6,1).C(1)    = 1216
+VHPI printf N(6,2).A       = 0026
+VHPI printf N(6,2).B       = 0126
+VHPI printf N(6,2).C(0)    = 0226
+VHPI printf N(6,2).C(1)    = 1226
+VHPI printf N(6,3).A       = 0036
+VHPI printf N(6,3).B       = 0136
+VHPI printf N(6,3).C(0)    = 0236
+VHPI printf N(6,3).C(1)    = 1236
+VHPI printf N(6,4).A       = 0046
+VHPI printf N(6,4).B       = 0146
+VHPI printf N(6,4).C(0)    = 0246
+VHPI printf N(6,4).C(1)    = 1246
+VHPI printf O.A            = 0000
+VHPI printf O.B            = 0001
+VHPI printf O.C(0)         = 0002
+VHPI printf O.C(1)         = 0012
+VHPI printf O.C(2)         = 0022
+VHPI printf O.C(3)         = 0032
+VHPI printf O.C(4)         = 0042
+VHPI printf O.D(0)         = 0003
+VHPI printf O.D(1)         = 0013
+VHPI printf O.D(2)         = 0023
+VHPI printf O.D(3)         = 0033
+VHPI printf O.D(4)         = 0043
+VHPI printf O.E(0).A       = 0004
+VHPI printf O.E(0).B       = 0104
+VHPI printf O.E(0).C(0)    = 0204
+VHPI printf O.E(0).C(1)    = 1204
+VHPI printf O.E(1).A       = 0014
+VHPI printf O.E(1).B       = 0114
+VHPI printf O.E(1).C(0)    = 0214
+VHPI printf O.E(1).C(1)    = 1214
+VHPI printf O.E(2).A       = 0024
+VHPI printf O.E(2).B       = 0124
+VHPI printf O.E(2).C(0)    = 0224
+VHPI printf O.E(2).C(1)    = 1224
+VHPI printf O.E(3).A       = 0034
+VHPI printf O.E(3).B       = 0134
+VHPI printf O.E(3).C(0)    = 0234
+VHPI printf O.E(3).C(1)    = 1234
+VHPI printf O.E(4).A       = 0044
+VHPI printf O.E(4).B       = 0144
+VHPI printf O.E(4).C(0)    = 0244
+VHPI printf O.E(4).C(1)    = 1244
+VHPI printf O.F(0).A       = 0005
+VHPI printf O.F(0).B       = 0105
+VHPI printf O.F(0).C(0)    = 0205
+VHPI printf O.F(0).C(1)    = 1205
+VHPI printf O.F(1).A       = 0015
+VHPI printf O.F(1).B       = 0115
+VHPI printf O.F(1).C(0)    = 0215
+VHPI printf O.F(1).C(1)    = 1215
+VHPI printf O.F(2).A       = 0025
+VHPI printf O.F(2).B       = 0125
+VHPI printf O.F(2).C(0)    = 0225
+VHPI printf O.F(2).C(1)    = 1225
+VHPI printf O.F(3).A       = 0035
+VHPI printf O.F(3).B       = 0135
+VHPI printf O.F(3).C(0)    = 0235
+VHPI printf O.F(3).C(1)    = 1235
+VHPI printf O.F(4).A       = 0045
+VHPI printf O.F(4).B       = 0145
+VHPI printf O.F(4).C(0)    = 0245
+VHPI printf O.F(4).C(1)    = 1245
+VHPI printf O.G(0).A       = 0006
+VHPI printf O.G(0).B       = 0106
+VHPI printf O.G(0).C(0)    = 0206
+VHPI printf O.G(0).C(1)    = 1206
+VHPI printf O.G(1).A       = 0016
+VHPI printf O.G(1).B       = 0116
+VHPI printf O.G(1).C(0)    = 0216
+VHPI printf O.G(1).C(1)    = 1216
+VHPI printf O.G(2).A       = 0026
+VHPI printf O.G(2).B       = 0126
+VHPI printf O.G(2).C(0)    = 0226
+VHPI printf O.G(2).C(1)    = 1226
+VHPI printf O.G(3).A       = 0036
+VHPI printf O.G(3).B       = 0136
+VHPI printf O.G(3).C(0)    = 0236
+VHPI printf O.G(3).C(1)    = 1236
+VHPI printf O.G(4).A       = 0046
+VHPI printf O.G(4).B       = 0146
+VHPI printf O.G(4).C(0)    = 0246
+VHPI printf O.G(4).C(1)    = 1246

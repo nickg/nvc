@@ -824,6 +824,11 @@ rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl)
    return NULL;
 }
 
+rt_scope_t *child_scope_at(rt_scope_t *scope, int index)
+{
+   return (rt_scope_t *)scope->children->items[index];
+}
+
 const void *signal_value(rt_signal_t *s)
 {
    return s->shared.data;
