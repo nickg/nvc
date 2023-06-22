@@ -126,6 +126,7 @@ typedef struct tag_typeDecl {
    vhpiBooleanT    IsComposite;
    vhpiBooleanT    IsScalar;
    vhpiBooleanT    IsUnconstrained;
+   bool            homogeneous;
 } c_typeDecl;
 
 typedef struct {
@@ -195,6 +196,7 @@ typedef struct {
    vhpiObjectListT  IndexedNames;
    vhpiObjectListT  SelectedNames;
    rt_signal_t     *signal;
+   rt_scope_t      *scope;
    c_typeDecl      *Type;
    vhpiIntT         Access;
    vhpiStaticnessT  Staticness;
@@ -271,9 +273,11 @@ typedef struct {
 } c_name;
 
 typedef struct {
-   c_name     name;
-   c_objDecl *simpleName;
-   c_name    *Prefix;
+   c_name       name;
+   c_objDecl   *simpleName;
+   c_name      *Prefix;
+   rt_signal_t *signal;
+   rt_scope_t  *scope;
 } c_prefixedName;
 
 typedef struct {
@@ -688,6 +692,7 @@ static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
    d->type   = type;
    d->format = vhpi_format_for_type(d->type, &d->map_str);
    d->IsUnconstrained = type_is_unconstrained(d->type);
+   d->homogeneous = type_is_homogeneous(d->type);
 }
 
 static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, type_t type)
@@ -1097,7 +1102,7 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
       vhpi_do_callback(cb);
 }
 
-static rt_scope_t *vhpi_get_scope(c_abstractRegion *region)
+static rt_scope_t *vhpi_get_scope_abstractRegion(c_abstractRegion *region)
 {
    if (region->scope)
       return region->scope;
@@ -1113,12 +1118,63 @@ static rt_scope_t *vhpi_get_scope(c_abstractRegion *region)
    return scope;
 }
 
-static rt_signal_t *vhpi_get_signal(c_objDecl *decl)
+static rt_scope_t *vhpi_get_scope_objDecl(c_objDecl *decl)
+{
+   if (decl->scope)
+      return decl->scope;
+
+   rt_scope_t *parent = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
+   if (parent == NULL)
+      return NULL;
+
+   decl->scope = child_scope(parent, decl->decl.tree);
+   if (decl->scope == NULL)
+      vhpi_error(vhpiError, &(decl->decl.object.loc),
+                 "cannot find scope object for %s", decl->decl.Name);
+   return decl->scope;
+}
+
+static rt_scope_t *vhpi_get_scope_prefixedName(c_prefixedName *pn)
+{
+   if (pn->scope)
+      return pn->scope;
+
+   rt_scope_t *parent;
+   if (pn->Prefix) {
+      c_prefixedName *ppn = is_prefixedName(&(pn->Prefix->expr.object));
+      assert(ppn != NULL);
+
+      parent = vhpi_get_scope_prefixedName(ppn);
+   }
+   else
+      parent = vhpi_get_scope_objDecl(pn->simpleName);
+
+   if (parent == NULL)
+      return NULL;
+
+   c_vhpiObject *obj = &(pn->name.expr.object);
+   c_indexedName *in = is_indexedName(obj);
+   c_selectedName *sn = is_selectedName(obj);
+   if (in != NULL)
+      pn->scope = child_scope_at(parent, in->BaseIndex);
+   else if (sn != NULL)
+      pn->scope = child_scope(parent, sn->Suffix->decl.tree);
+   else
+      fatal_trace("class kind %s not supported in %s",
+                  vhpi_class_str(obj->kind), __func__);
+
+   if (pn->scope == NULL)
+      vhpi_error(vhpiError, &(obj->loc), "cannot find scope object for %s",
+                 pn->name.Name);
+   return pn->scope;
+}
+
+static rt_signal_t *vhpi_get_signal_objDecl(c_objDecl *decl)
 {
    if (decl->signal != NULL)
       return decl->signal;
 
-   rt_scope_t *scope = vhpi_get_scope(decl->decl.ImmRegion);
+   rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
    if (scope == NULL)
       return NULL;
 
@@ -1131,6 +1187,42 @@ static rt_signal_t *vhpi_get_signal(c_objDecl *decl)
 
    decl->signal = signal;
    return signal;
+}
+
+static rt_signal_t *vhpi_get_signal_prefixedName(c_prefixedName *pn)
+{
+   if (pn->signal)
+      return pn->signal;
+
+   rt_scope_t *scope = NULL;
+   if (pn->Prefix) {
+      c_prefixedName *ppn = is_prefixedName(&(pn->Prefix->expr.object));
+      assert(ppn != NULL);
+
+      if (pn->Prefix->expr.Type->homogeneous)
+         pn->signal = vhpi_get_signal_prefixedName(ppn);
+      else
+         scope = vhpi_get_scope_prefixedName(ppn);
+   }
+   else {
+      if (pn->simpleName->Type->homogeneous)
+         pn->signal = vhpi_get_signal_objDecl(pn->simpleName);
+      else
+         scope = vhpi_get_scope_objDecl(pn->simpleName);
+   }
+
+   c_vhpiObject *obj = &(pn->name.expr.object);
+   if (scope) {
+      c_selectedName *sn = is_selectedName(obj);
+      assert(sn != NULL);
+
+      pn->signal = find_signal(scope, sn->Suffix->decl.tree);
+   }
+
+   if (pn->signal == NULL)
+      vhpi_error(vhpiError, &(obj->loc), "cannot find signal object for %s",
+                 pn->name.Name);
+   return pn->signal;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1194,7 +1286,7 @@ static int enable_cb(c_callback *cb)
          if (decl == NULL)
             return 1;
 
-         rt_signal_t *signal = vhpi_get_signal(decl);
+         rt_signal_t *signal = vhpi_get_signal_objDecl(decl);
          if (signal == NULL)
             return 1;
 
@@ -1871,7 +1963,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          if (td == NULL)
             return invalid;
 
-         rt_signal_t *signal = vhpi_get_signal(decl);
+         rt_signal_t *signal = vhpi_get_signal_objDecl(decl);
          if (signal == NULL)
             return invalid;
 
@@ -1913,21 +2005,21 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (obj == NULL)
       return -1;
 
-   int offset;
+   int offset = 0;
    c_objDecl *decl;
    c_typeDecl *td;
-   c_indexedName *in = is_indexedName(obj);
-   if (in != NULL) {
-      decl = in->prefixedName.simpleName;
-      td = in->prefixedName.name.expr.Type;
-      offset = in->offset;
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn != NULL) {
+      td = pn->name.expr.Type;
+      c_indexedName *in = is_indexedName(obj);
+      if (in)
+         offset = in->offset;
    }
    else {
       decl = cast_objDecl(obj);
       if (decl == NULL)
          return 1;
       td = decl->Type;
-      offset = 0;
    }
 
    if (td->format == (vhpiFormatT)-1) {
@@ -1936,7 +2028,12 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
    }
 
-   rt_signal_t *signal = vhpi_get_signal(decl);
+   rt_signal_t *signal;
+   if (pn != NULL)
+      signal = vhpi_get_signal_prefixedName(pn);
+   else
+      signal = vhpi_get_signal_objDecl(decl);
+
    if (signal == NULL)
       return -1;
 
@@ -2080,21 +2177,23 @@ int vhpi_put_value(vhpiHandleT handle,
    if (obj == NULL)
       return 1;
 
-   int offset;
-   c_objDecl *decl;
-   c_indexedName *in = is_indexedName(obj);
-   if (in != NULL) {
-      decl = in->prefixedName.simpleName;
-      offset = in->offset;
+   int offset = 0;
+   rt_signal_t *signal;
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn != NULL) {
+      signal = vhpi_get_signal_prefixedName(pn);
+      c_indexedName *in = is_indexedName(obj);
+      if (in)
+         offset = in->offset;
    }
    else {
-      decl = cast_objDecl(obj);
+      c_objDecl *decl = cast_objDecl(obj);
       if (decl == NULL)
          return 1;
-      offset = 0;
+
+      signal = vhpi_get_signal_objDecl(decl);
    }
 
-   rt_signal_t *signal = vhpi_get_signal(decl);
    if (signal == NULL)
       return 1;
 

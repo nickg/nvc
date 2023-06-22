@@ -51,6 +51,7 @@ cover_tagging_t *get_coverage(rt_model_t *m);
 
 rt_scope_t *find_scope(rt_model_t *m, tree_t container);
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl);
+rt_scope_t *child_scope_at(rt_scope_t *scope, int index);
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl);
 rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 

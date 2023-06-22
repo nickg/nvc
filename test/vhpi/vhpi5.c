@@ -7,13 +7,60 @@
 
 static vhpiHandleT m, n, o;
 
-void check_recursive(vhpiHandleT parent)
+static vhpiIntT swan(vhpiIntT x)
+{
+   return (x & 0xf000) >> 12 |
+          (x & 0x0f00) >> 4 |
+          (x & 0x00f0) << 4 |
+          (x & 0x000f) << 12;
+}
+
+void delta_recursive(vhpiHandleT parent, int base, int scale)
+{
+   int i = 0;
+
+   vhpiHandleT children = vhpi_iterator(vhpiSelectedNames, parent);
+   for (vhpiHandleT child = vhpi_scan(children);
+        child;
+        child = vhpi_scan(children), i++)
+      delta_recursive(child, base + i * scale, scale / 16);
+
+   children = vhpi_iterator(vhpiIndexedNames, parent);
+   for (vhpiHandleT child = vhpi_scan(children);
+        child;
+        child = vhpi_scan(children), i++) {
+      if (parent == n)
+         delta_recursive(child, base + i / 5 * scale + i % 5 * scale / 16,
+                         scale / 256);
+      else
+         delta_recursive(child, base + i * scale, scale / 16);
+   }
+
+   if (!i) {
+      vhpiValueT val = {
+         .format = vhpiIntVal,
+      };
+
+      vhpi_get_value(parent, &val);
+      check_error();
+      vhpi_printf("%-14s = %.04x", vhpi_get_str(vhpiNameP, parent),
+                  val.value.intg);
+      fail_unless(val.value.intg == swan(base));
+   }
+}
+
+static void last_delta(const vhpiCbDataT *cb_data)
+{
+   delta_recursive(m, 0, 16);
+   delta_recursive(n, 0, 4096);
+   delta_recursive(o, 0, 4096);
+}
+
+void start_recursive(vhpiHandleT parent, int base, int scale)
 {
    int i = 0;
    char name[64];
    const vhpiCharT *parent_name = vhpi_get_str(vhpiNameP, parent);
-
-   vhpi_printf("checking %s", parent_name);
 
    vhpiHandleT children = vhpi_iterator(vhpiSelectedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
@@ -28,14 +75,41 @@ void check_recursive(vhpiHandleT parent)
                vhpi_get_str(vhpiNameP, suffix));
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, child)));
 
-      check_recursive(child);
+      start_recursive(child, base + i * scale, scale / 16);
    }
 
    children = vhpi_iterator(vhpiIndexedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
         child;
-        child = vhpi_scan(children))
-      check_recursive(child);
+        child = vhpi_scan(children), i++) {
+      if (parent == n)
+         start_recursive(child, base + i / 5 * scale + i % 5 * scale / 16,
+                         scale / 256);
+      else
+         start_recursive(child, base + i * scale, scale / 16);
+   }
+
+   if (!i) {
+      vhpiValueT val = {
+         .format = vhpiIntVal,
+      };
+
+      vhpi_get_value(parent, &val);
+      check_error();
+      vhpi_printf("%-14s = %.04x", parent_name, val.value.intg);
+      fail_unless(val.value.intg == base);
+
+      val.value.intg = swan(val.value.intg);
+      vhpi_put_value(parent, &val, vhpiDepositPropagate);
+      check_error();
+   }
+}
+
+static void start_of_sim(const vhpiCbDataT *cb_data)
+{
+   start_recursive(m, 0, 16);
+   start_recursive(n, 0, 4096);
+   start_recursive(o, 0, 4096);
 }
 
 void vhpi5_startup(void)
@@ -80,9 +154,17 @@ void vhpi5_startup(void)
    check_error();
    fail_if(n == NULL);
 
-   check_recursive(m);
-   check_recursive(n);
-   check_recursive(o);
+   vhpiCbDataT cb_data = {
+      .reason = vhpiCbStartOfSimulation,
+      .cb_rtn = start_of_sim,
+   };
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
+
+   cb_data.reason = vhpiCbLastKnownDeltaCycle;
+   cb_data.cb_rtn = last_delta;
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
 
    vhpi_release_handle(root);
 }
