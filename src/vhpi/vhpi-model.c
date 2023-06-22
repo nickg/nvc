@@ -1589,22 +1589,48 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (elem == NULL)
       return handle_for(&(region->object));
 
+   c_abstractDecl *d;
    for (int i = 0; i < region->decls.count; i++) {
-      c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
+      d = cast_abstractDecl(region->decls.items[i]);
       if (strcasecmp((char *)d->Name, elem) == 0)
-         return handle_for(&(d->object));
+         goto found_decl;
    }
 
    c_rootInst *rootInst;
    if ((rootInst = is_rootInst(&(region->object)))) {
       for (int i = 0; i < rootInst->ports.count; i++) {
-         c_abstractDecl *d = cast_abstractDecl(rootInst->ports.items[i]);
+         d = cast_abstractDecl(rootInst->ports.items[i]);
          if (strcasecmp((char *)d->Name, elem) == 0)
-            return handle_for(&(d->object));
+            goto found_decl;
       }
    }
 
    return NULL;
+
+found_decl: ;
+
+   char *suffix;
+   c_vhpiObject *obj = &(d->object);
+   while ((suffix = strtok_r(NULL, ".", &saveptr)) != NULL) {
+      c_iterator it = { };
+      if (!init_iterator(&it, vhpiSelectedNames, &(d->object)))
+         return NULL;
+
+      for (int i = 0; i < it.list->count; i++) {
+         c_selectedName *sn = is_selectedName(it.list->items[i]);
+         assert(sn != NULL);
+
+         obj = &(sn->prefixedName.name.expr.object);
+         if (strcasecmp((char *)sn->Suffix->decl.Name, suffix) == 0)
+            goto found_suffix;
+      }
+
+      return NULL;
+
+found_suffix: ;
+   }
+
+   return handle_for(obj);
 }
 
 DLLEXPORT
