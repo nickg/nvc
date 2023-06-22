@@ -8,7 +8,7 @@ architecture test of vhdl2 is
 
     function f1 (x, y : integer) return bit;
 
-    procedure p1 is
+    procedure proc1 is
         variable v1 : integer := 5;
     begin
         v1 := v1 + 1;
@@ -23,5 +23,36 @@ architecture test of vhdl2 is
         x, y : integer;
     end record;
 
+    function fact (n : natural) return natural is
+    begin
+        if n > 1 then
+            return n * fact(n - 1);
+        else
+            return 1;
+        end if;
+    end function;
+
 begin
+
+    b1: block is
+    begin
+    end block;
+
+    u1: component c1
+        generic map ( t => integer )
+        port map ( open, y => s1(0) );
+
+    p1: process (s1) is
+    begin
+        s1 <= "101010" after 1 ns, (others => '1') after 2 ns;
+    end process;
+
+    g1: for i in 5 downto 2 generate
+        attribute a : integer;
+        signal r : real := 1.2345;
+        attribute a of r : signal is 5;
+    begin
+        assert r > 0.0;
+    end generate;
+
 end architecture;

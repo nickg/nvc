@@ -113,9 +113,9 @@ START_TEST(test_vhdl2)
         "    constant X : in INTEGER;\n"
         "    constant Y : in INTEGER ) return BIT;\n"
         "  -- WORK.VHDL2-TEST.F1(II)J\n" },
-      { "P1",
-        "procedure P1 is   -- Never waits\n"
-        "  -- WORK.VHDL2-TEST.P1\n"
+      { "PROC1",
+        "procedure PROC1 is   -- Never waits\n"
+        "  -- WORK.VHDL2-TEST.PROC1\n"
         "  variable V1 : INTEGER := 5;\n"
         "begin\n"
         "  V1 := \"+\"(V1, 1);\n"
@@ -136,6 +136,16 @@ START_TEST(test_vhdl2)
         "  X : INTEGER;\n"
         "  Y : INTEGER;\n"
         "end record;\n" },
+      { "FACT",
+        "function FACT ( constant N : in NATURAL ) return NATURAL is\n"
+        "  -- WORK.VHDL2-TEST.FACT(N)N\n"
+        "begin\n"
+        "  if \">\"(N, 1) then\n"
+        "    return \"*\"(N, FACT(\"-\"(N, 1)));\n"
+        "  else\n"
+        "    return 1;\n"
+        "  end if;\n"
+        "end function;\n" },
    };
 
    for (int i = 0; i < ARRAY_LEN(decl_cases); i++) {
@@ -146,6 +156,86 @@ START_TEST(test_vhdl2)
       diff_dump(tb_get(tb), decl_cases[i][1]);
       tb_rewind(tb);
    }
+
+   const char *stmt_cases[][2] = {
+      { "B1",
+        "B1: block is\n"
+        "begin\n"
+        "end block;\n" },
+      { "U1",
+        "U1: component C1\n"
+        "  generic map (T => INTEGER, \"=\", \"/=\")\n"
+        "  port map (open, Y => S1(0));\n" },
+      { "P1",
+        "P1: process (S1) is\n"
+        "begin\n"
+        "  S1 <= reject 1 NS inertial \"101010\" after 1 NS, (others => '1') after 2 NS;\n"
+        "end process;\n" },
+      { "G1",
+        "G1: for I in 5 downto 2 generate\n"
+        "  /* loop variable */ I : INTEGER range 5 downto 2;\n"
+        "  attribute A : INTEGER;\n"
+        "  signal R : REAL := 1.234500;\n"
+        "  attribute A of R : signal is 5;\n"
+        "begin\n"
+        "  assert \">\"(R, 0.000000) severity ERROR;\n"
+        "end generate;\n" },
+   };
+
+   const int nstmts = tree_stmts(a);
+   for (int i = 0; i < ARRAY_LEN(stmt_cases); i++) {
+      tree_t s = NULL;
+      for (int j = 0; j < nstmts; j++) {
+         tree_t sj = tree_stmt(a, j);
+         if (icmp(tree_ident(sj), stmt_cases[i][0])) {
+            s = sj;
+            break;
+         }
+      }
+
+      ck_assert_msg(s != NULL, "cannot find statemnt %s", stmt_cases[i][0]);
+
+      dump(s);
+      diff_dump(tb_get(tb), stmt_cases[i][1]);
+      tb_rewind(tb);
+   }
+
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_vhdl3)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/dump/vhdl3.vhd");
+
+   tree_t b = parse_and_check(T_PACKAGE, T_PACK_BODY, -1);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   dump(tree_primary(b));
+   diff_dump(tb_get(tb),
+             "use STD.STANDARD.all;\n"
+             "\n"
+             "package WORK.VHDL3 is\n"
+             "  generic ( constant G : in INTEGER );\n"
+             "  constant C1 : BIT_VECTOR(1 to G);\n"
+             "end package;\n"
+             "\n");
+   tb_rewind(tb);
+
+   dump(b);
+   diff_dump(tb_get(tb),
+             "use STD.STANDARD.all;\n"
+             "\n"
+             "package body WORK.VHDL3-body is\n"
+             "  constant C1 : BIT_VECTOR(1 to G) := (others => '1');\n"
+             "end package body;\n"
+             "\n");
+   tb_rewind(tb);
 
    fail_if_errors();
 }
@@ -158,6 +248,7 @@ Suite *get_dump_tests(void)
    TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_vhdl1);
    tcase_add_test(tc_core, test_vhdl2);
+   tcase_add_test(tc_core, test_vhdl3);
    suite_add_tcase(s, tc_core);
 
    return s;

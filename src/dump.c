@@ -544,7 +544,7 @@ static void dump_port_map(tree_t t, int indent, const char *trailer)
    if (nparams > 0) {
       tab(indent);
       dump_params(t, tree_param, nparams, "#port #map");
-      fputs(trailer, stdout);
+      print_syntax("%s", trailer);
    }
 }
 
@@ -554,7 +554,7 @@ static void dump_generic_map(tree_t t, int indent, const char *trailer)
    if (ngenmaps > 0) {
       tab(indent);
       dump_params(t, tree_genmap, ngenmaps, "#generic #map");
-      fputs(trailer, stdout);
+      print_syntax("%s", trailer);
    }
 }
 
@@ -744,6 +744,11 @@ static void dump_decl(tree_t t, int indent)
 
    case T_CONST_DECL:
       print_syntax("#constant %s : ", istr(tree_ident(t)));
+      break;
+
+   case T_GENERIC_DECL:
+      // Loop variable in for-generate statement
+      print_syntax("/* loop variable */ %s : ", istr(tree_ident(t)));
       break;
 
    case T_FIELD_DECL:
@@ -979,15 +984,12 @@ static void dump_alternative(tree_t t, int indent)
       dump_decls(t, indent + 4);
       tab(indent + 2);
       print_syntax("#begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 4);
+      dump_stmts(t, indent + 4);
       tab(indent + 2);
       print_syntax("#end;\n");
    }
-   else {
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
-   }
+   else
+      dump_stmts(t, indent + 2);
 }
 
 static void dump_psl(tree_t t, int indent)
@@ -995,6 +997,39 @@ static void dump_psl(tree_t t, int indent)
    if (standard() < STD_08)
       print_syntax("-- psl ");
    psl_dump(tree_psl(t));
+}
+
+static void dump_instance(tree_t t, int indent)
+{
+   switch (tree_class(t)) {
+   case C_ENTITY:        print_syntax("#entity "); break;
+   case C_COMPONENT:     print_syntax("#component "); break;
+   case C_CONFIGURATION: print_syntax("#configuration "); break;
+   default: break;
+   }
+
+   print_syntax("%s", istr(tree_ident2(t)));
+
+   const int nparams = tree_params(t);
+   const int ngenmaps = tree_genmaps(t);
+
+   if (tree_has_spec(t)) {
+      tree_t spec = tree_spec(t);
+      if (tree_has_value(spec)) {
+         tree_t bind = tree_value(spec);
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_cat(tb, istr(tree_ident(bind)));
+         if (tree_has_ident2(bind))
+            tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
+         print_syntax("  -- bound to %s\n", tb_get(tb));
+      }
+   }
+   else if (nparams > 0 || ngenmaps > 0)
+      print_syntax("\n");
+
+   dump_generic_map(t, indent + 2, nparams > 0 ? "\n" : "");
+   dump_port_map(t, indent + 2, "");
+   print_syntax(";\n");
 }
 
 static void dump_stmt(tree_t t, int indent)
@@ -1126,8 +1161,7 @@ static void dump_stmt(tree_t t, int indent)
          print_syntax(" ");
       }
       print_syntax("#loop\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      dump_stmts(t, indent + 2);
       tab(indent);
       print_syntax("#end #loop");
       break;
@@ -1146,8 +1180,7 @@ static void dump_stmt(tree_t t, int indent)
             tab(indent);
             print_syntax("#else\n");
          }
-         for (unsigned i = 0; i < tree_stmts(c); i++)
-            dump_stmt(tree_stmt(c, i), indent + 2);
+         dump_stmts(c, indent + 2);
       }
       tab(indent);
       print_syntax("#end #if");
@@ -1193,8 +1226,7 @@ static void dump_stmt(tree_t t, int indent)
       print_syntax("#for %s #in ", istr(tree_ident(tree_decl(t, 0))));
       dump_range(tree_range(t, 0));
       print_syntax(" #loop\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      dump_stmts(t, indent + 2);
       tab(indent);
       print_syntax("#end #for");
       break;
@@ -1218,12 +1250,10 @@ static void dump_stmt(tree_t t, int indent)
       print_syntax("#for %s #in ", istr(tree_ident(tree_decl(t, 0))));
       dump_range(tree_range(t, 0));
       print_syntax(" #generate\n");
-      for (unsigned i = 1; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
+      dump_decls(t, indent + 2);
       tab(indent);
       print_syntax("#begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      dump_stmts(t, indent + 2);
       tab(indent);
       print_syntax("#end #generate");
       break;
@@ -1232,8 +1262,7 @@ static void dump_stmt(tree_t t, int indent)
       print_syntax("#case ");
       dump_expr(tree_value(t));
       print_syntax(" #generate\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_alternative(tree_stmt(t, i), indent + 2);
+      dump_stmts(t, indent + 2);
       print_syntax("#end #generate");
       break;
 
@@ -1259,29 +1288,7 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_INSTANCE:
-      switch (tree_class(t)) {
-      case C_ENTITY:    print_syntax("#entity "); break;
-      case C_COMPONENT: print_syntax("#component "); break;
-      default:
-         assert(false);
-      }
-      print_syntax("%s", istr(tree_ident2(t)));
-      if (tree_has_spec(t)) {
-         tree_t spec = tree_spec(t);
-         if (tree_has_value(spec)) {
-            tree_t bind = tree_value(spec);
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_cat(tb, istr(tree_ident(bind)));
-            if (tree_has_ident2(bind))
-               tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
-            print_syntax("  -- bound to %s\n", tb_get(tb));
-         }
-      }
-      else if (tree_params(t) > 0 || tree_genmaps(t) > 0)
-         print_syntax("\n");
-      dump_generic_map(t, indent + 4, tree_params(t) > 0 ? "\n" : "");
-      dump_port_map(t, indent + 4, "");
-      print_syntax(";\n\n");
+      dump_instance(t, indent);
       return;
 
    case T_NEXT:
@@ -1307,7 +1314,7 @@ static void dump_stmt(tree_t t, int indent)
             dump_expr(tree_value(c));
          }
       }
-      return;
+      break;
 
    case T_SELECT:
       print_syntax(" <= ");
@@ -1321,7 +1328,7 @@ static void dump_stmt(tree_t t, int indent)
       if (tree_has_guard(t))
          print_syntax("#guarded ");
       dump_stmt(tree_stmt(t, 0), 0);
-      break;
+      return;
 
    case T_PSL:
       dump_psl(t, 0);
