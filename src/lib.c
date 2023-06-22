@@ -1040,8 +1040,6 @@ void lib_save(lib_t lib)
       if (info.mtime != lib->index_mtime || info.size != lib->index_size) {
          // Library was updated concurrently: re-read the index while we
          // have the lock
-         DEBUG_ONLY(debugf("detected concurrent modification of library %s",
-                           istr(lib->name)));
          lib_read_index(lib);
       }
    }
