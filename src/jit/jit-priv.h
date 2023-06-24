@@ -163,6 +163,8 @@ typedef enum {
    JIT_EXIT_CLEAR_EVENT,
    JIT_EXIT_IMPLICIT_EVENT,
    JIT_EXIT_ENTER_STATE,
+   JIT_EXIT_REFLECT_VALUE,
+   JIT_EXIT_REFLECT_SUBTYPE,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

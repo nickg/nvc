@@ -2343,6 +2343,20 @@ static void irgen_op_protected_free(jit_irgen_t *g, int op)
    // TODO: files allowed in protected types
 }
 
+static void irgen_op_reflect_value(jit_irgen_t *g, int op)
+{
+   jit_value_t value = irgen_get_arg(g, op, 0);
+   jit_value_t context = irgen_get_arg(g, op, 1);
+   jit_value_t locus = irgen_get_arg(g, op, 2);
+
+   j_send(g, 0, context);
+   j_send(g, 1, value);
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_REFLECT_VALUE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
 static void irgen_op_process_init(jit_irgen_t *g, int op)
 {
    jit_value_t locus = irgen_get_arg(g, op, 0);
@@ -3701,6 +3715,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_PROTECTED_FREE:
          irgen_op_protected_free(g, i);
          break;
+      case VCODE_OP_REFLECT_VALUE:
+         irgen_op_reflect_value(g, i);
+         break;
       case VCODE_OP_PROCESS_INIT:
          irgen_op_process_init(g, i);
          break;
@@ -3834,8 +3851,10 @@ static void irgen_locals(jit_irgen_t *g, bool force_stack)
       // Local variables on heap
       size_t sz = 0;
       sz += sizeof(void *);   // Context parameter
-      sz += sizeof(void *);   // Suspended procedure state
-      sz += sizeof(int32_t);  // State number
+      if (kind != VCODE_UNIT_PROTECTED) {
+         sz += sizeof(void *);   // Suspended procedure state
+         sz += sizeof(int32_t);  // State number
+      }
 
       link_tab_t *linktab = xmalloc_array(nvars, sizeof(link_tab_t));
 

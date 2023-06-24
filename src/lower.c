@@ -4705,6 +4705,25 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          return emit_and(cmp_reg, emit_not(flag_reg));
       }
 
+   case ATTR_REFLECT:
+      {
+         type_t type = tree_type(expr), pt = type_designated(type);
+         assert(type_is_protected(pt));
+
+         ident_t init_func = type_ident(pt);
+         vcode_reg_t context_reg = lower_context_for_call(init_func);
+
+         type_t value_mirror = reflection_type(REFLECT_VALUE_MIRROR);
+         if (type_eq(type, value_mirror)) {
+            vcode_reg_t name_reg = lower_attr_prefix(lu, name);
+            vcode_reg_t locus = lower_debug_locus(name);
+            return emit_reflect_value(init_func, name_reg, context_reg, locus);
+         }
+         else
+            fatal_at(tree_loc(expr), "sorry, subtype mirrors not yet supported");
+      }
+      break;
+
    default:
       fatal_at(tree_loc(expr), "cannot lower attribute %s (%d)",
                istr(tree_ident(expr)), predef);

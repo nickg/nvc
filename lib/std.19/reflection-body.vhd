@@ -97,6 +97,9 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type integer_value_mirror_pt is protected body
+        variable f_value : integer;
+        variable f_owner : value_mirror;
+
         impure function get_subtype_mirror return integer_subtype_mirror is
         begin
             report "unimplemented" severity failure;
@@ -104,17 +107,17 @@ package body reflection is
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function value return integer is
         begin
-            report "unimplemented" severity failure;
+            return f_value;
         end function;
 
         impure function image return string is
         begin
-            report "unimplemented" severity failure;
+            return integer'image(f_value);
         end function;
     end protected body;
 
@@ -655,9 +658,12 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type value_mirror_pt is protected body
+        variable f_class   : value_class;
+        variable f_integer : integer_value_mirror;
+
         impure function get_value_class return value_class is
         begin
-            report "unimplemented" severity failure;
+            return f_class;
         end function;
 
         impure function get_subtype_mirror return subtype_mirror is
@@ -672,7 +678,8 @@ package body reflection is
 
         impure function to_integer return integer_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_INTEGER;
+            return f_integer;
         end function;
 
         impure function to_floating return floating_value_mirror is

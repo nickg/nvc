@@ -961,7 +961,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
       "trap neg", "process init", "clear event", "trap exp", "implicit event",
-      "enter state",
+      "enter state", "reflect value"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2242,6 +2242,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_REFLECT_VALUE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               col += printf(" context ");
+               vcode_dump_reg(op->args.items[1]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[2]);
+               vcode_dump_result_type(col, op);
             }
             break;
          }
@@ -5830,7 +5843,7 @@ vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus)
 
    VCODE_ASSERT(name != active_unit->name, "cannot link the current unit");
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to link instnance must be a debug locus");
+                "locus argument to link instance must be a debug locus");
 
    return (op->result = vcode_add_reg(vtype_context(name)));
 }
@@ -5847,6 +5860,22 @@ void emit_enter_state(vcode_reg_t state)
 
    VCODE_ASSERT(vcode_reg_kind(state) == VCODE_TYPE_INT,
                 "state must have integer type");
+}
+
+vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
+                               vcode_reg_t context, vcode_reg_t locus)
+{
+   op_t *op = vcode_add_op(VCODE_OP_REFLECT_VALUE);
+   vcode_add_arg(op, value);
+   vcode_add_arg(op, context);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "invalid reflect value context argument");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to reflect value must be a debug locus");
+
+   return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
 }
 
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,

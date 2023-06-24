@@ -535,6 +535,7 @@ static jit_t *get_jit(void)
 
    _std_standard_init();
    _std_env_init();
+   _std_reflection_init();
    _file_io_init();
    _nvc_sim_pkg_init();
    _verilog_init();

@@ -77,7 +77,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "DISCONNECT", "ELAB_ORDER_FAIL", "FORCE", "RELEASE", "PUSH_SCOPE",
       "POP_SCOPE", "IMPLICIT_SIGNAL", "DRIVING", "DRIVING_VALUE",
       "CLAIM_TLAB", "COVER_TOGGLE", "PROCESS_INIT", "CLEAR_EVENT",
-      "IMPLICIT_EVENT", "ENTER_STATE",
+      "IMPLICIT_EVENT", "ENTER_STATE", "REFLECT_VALUE", "REFLECT_SUBTYPE",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
