@@ -987,6 +987,7 @@ void intern_strings(void)
    id_cache[W_DOLLAR_DISPLAY] = ident_new("$display");
    id_cache[W_DOLLAR_FINISH]  = ident_new("$finish");
    id_cache[W_DOLLAR_WRITE]   = ident_new("$write");
+   id_cache[W_STD_REFLECTION] = ident_new("STD.REFLECTION");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
@@ -1206,12 +1207,6 @@ type_t std_type(tree_t std, std_type_t which)
       return cache[which];
 }
 
-static tree_t cached_ieee(tree_t hint)
-{
-   static tree_t ieee_cache[STD_19 + 1] = {};
-   return cached_unit(hint, ieee_cache, W_IEEE, W_IEEE_1164);
-}
-
 type_t ieee_type(ieee_type_t which)
 {
    static type_t cache[IEEE_STD_LOGIC + 1] = {};
@@ -1223,11 +1218,41 @@ type_t ieee_type(ieee_type_t which)
          "STD_LOGIC",
       };
 
-      tree_t d = search_decls(cached_ieee(NULL), ident_new(names[which]), 0);
+      static tree_t ieee_cache[STD_19 + 1] = {};
+      tree_t unit = cached_unit(NULL, ieee_cache, W_IEEE, W_IEEE_1164);
+
+      tree_t d = search_decls(unit, ident_new(names[which]), 0);
       if (d == NULL)
          fatal_trace("cannot find IEEE type %s", names[which]);
 
       // STD.STANDARD cannot depend on IEEE
+      assert(!opt_get_int(OPT_BOOTSTRAP));
+
+      return (cache[which] = tree_type(d));
+   }
+   else
+      return cache[which];
+}
+
+type_t reflection_type(reflect_type_t which)
+{
+   static type_t cache[REFLECT_SUBTYPE_MIRROR + 1] = {};
+   assert(which < ARRAY_LEN(cache));
+
+   if (cache[which] == NULL) {
+      const char *names[] = {
+         "VALUE_MIRROR",
+         "SUBTYPE_MIRROR",
+      };
+
+      static tree_t reflect_cache[STD_19 + 1] = {};
+      tree_t unit = cached_unit(NULL, reflect_cache, W_STD, W_STD_REFLECTION);
+
+      tree_t d = search_decls(unit, ident_new(names[which]), 0);
+      if (d == NULL)
+         fatal_trace("cannot find REFLECTION type %s", names[which]);
+
+      // STD.STANDARD cannot depend on REFLECTION
       assert(!opt_get_int(OPT_BOOTSTRAP));
 
       return (cache[which] = tree_type(d));

@@ -164,6 +164,13 @@ typedef enum {
 
 type_t ieee_type(ieee_type_t which);
 
+typedef enum {
+   REFLECT_VALUE_MIRROR,
+   REFLECT_SUBTYPE_MIRROR,
+} reflect_type_t;
+
+type_t reflection_type(reflect_type_t which);
+
 //
 // Shared interned strings
 //
@@ -213,12 +220,13 @@ typedef enum {
    W_DOLLAR_DISPLAY,
    W_DOLLAR_FINISH,
    W_DOLLAR_WRITE,
+   W_STD_REFLECTION,
 
    NUM_WELL_KNOWN
 } well_known_t;
 
 ident_t well_known(well_known_t id);
 well_known_t is_well_known(ident_t ident);
-void intern_strings();
+void intern_strings(void);
 
 #endif  // _COMMON_H

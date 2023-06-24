@@ -3165,6 +3165,27 @@ START_TEST(test_issue713)
 }
 END_TEST
 
+START_TEST(test_lcs2016_41)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_41.vhd");
+
+   const error_t expect[] = {
+      { 18, "value SUBTYPE_MIRROR does not match type of target INTEGER" },
+      { 19, "value VALUE_MIRROR does not match type of target INTEGER" },
+      { 23, "prefix of attribute REFLECT is not a type mark or an object "
+        "with a type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3315,6 +3336,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_45a);
    tcase_add_test(tc_core, test_lcs2016_18);
    tcase_add_test(tc_core, test_issue713);
+   tcase_add_test(tc_core, test_lcs2016_41);
    suite_add_tcase(s, tc_core);
 
    return s;

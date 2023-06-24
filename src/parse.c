@@ -2386,6 +2386,7 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       { "CONVERSE", ATTR_CONVERSE, STD_19 },
       { "DESIGNATED_SUBTYPE", ATTR_DESIGNATED_SUBTYPE, STD_19 },
       { "INDEX", ATTR_INDEX, STD_19 },
+      { "REFLECT", ATTR_REFLECT, STD_19 },
    };
 
    INIT_ONCE({

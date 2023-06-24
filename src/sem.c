@@ -3886,6 +3886,13 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
       return true;
 
+   case ATTR_REFLECT:
+      if (get_type_or_null(name) == NULL)
+         sem_error(t, "prefix of attribute REFLECT is not a type mark or "
+                   "an object with a type");
+
+      return true;
+
    case ATTR_USER:
       if (!tree_has_value(t))
          return false;

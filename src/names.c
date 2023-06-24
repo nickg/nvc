@@ -3667,6 +3667,28 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
       type = prefix_type;
       break;
 
+   case ATTR_REFLECT:
+      {
+         bool prefix_is_type = false;
+         switch (tree_kind(prefix)) {
+         case T_REF:
+            if (tree_has_ref(prefix))
+               prefix_is_type = (aliased_type_decl(tree_ref(prefix)) != NULL);
+            break;
+         case T_ATTR_REF:
+            prefix_is_type = is_type_attribute(tree_subkind(prefix));
+            break;
+         default:
+            break;
+         }
+
+         if (prefix_is_type)
+            type = reflection_type(REFLECT_SUBTYPE_MIRROR);
+         else
+            type = reflection_type(REFLECT_VALUE_MIRROR);
+      }
+      break;
+
    case ATTR_USER:
       {
          if (tree_kind(prefix) == T_REF) {
