@@ -810,3 +810,4 @@ issue718        normal,gold,2008
 issue726        normal,2008
 issue724        normal,2019
 issue653        normal,2008
+protected10     normal,2019

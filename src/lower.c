@@ -4294,6 +4294,15 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       lower_new_record(lu, type, all_reg, init_reg);
       return result_reg;
    }
+   else if (type_is_protected(type)) {
+      vcode_type_t vtype = lower_type(type);
+      vcode_reg_t context_reg = lower_context_for_call(type_ident(type));
+      vcode_reg_t obj_reg = emit_protected_init(vtype, context_reg);
+      vcode_reg_t result_reg = emit_new(vtype, VCODE_INVALID_REG);
+      vcode_reg_t all_reg = emit_all(result_reg);
+      emit_store_indirect(obj_reg, all_reg);
+      return result_reg;
+   }
    else {
       vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);

@@ -3848,7 +3848,15 @@ static void irgen_locals(jit_irgen_t *g, bool force_stack)
          sz += irgen_size_bytes(vtype);
       }
 
-      jit_value_t mem = macro_lalloc(g, jit_value_from_int64(sz));
+      jit_value_t mem;
+      if (kind == VCODE_UNIT_PROTECTED) {
+         // Protected types must always be allocated on the global heap
+         // as the result may be stored in an access
+         mem = macro_galloc(g, jit_value_from_int64(sz));
+      }
+      else
+         mem = macro_lalloc(g, jit_value_from_int64(sz));
+
       if (g->statereg.kind != JIT_VALUE_INVALID) {
          // A null state was passed in by the caller
          j_mov(g, jit_value_as_reg(g->statereg), mem);

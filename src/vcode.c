@@ -5279,7 +5279,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_INT || kind == VCODE_TYPE_RECORD
                 || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_ACCESS
-                || kind == VCODE_TYPE_REAL,
+                || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_CONTEXT,
                 "new type must be int, real, record, access, or uarray");
    VCODE_ASSERT(length == VCODE_INVALID_REG
                 || vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,

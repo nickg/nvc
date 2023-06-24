@@ -36,6 +36,7 @@
 - The `-a` analysis command now accepts an `-f list` option where `list`
   is a text file containing a list of files to analyse.  Alternatively
   this may be written `@list`.
+- Accesses to protected types and files are now allowed in VHDL-2019.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).
