@@ -40,6 +40,8 @@ typedef struct {
    char           *name_str;
    const char     *linebuf;
    bool            tried_open;
+   unsigned        last_line;
+   const char     *last_ptr;
 } loc_file_t;
 
 typedef A(loc_file_t) file_list_t;
@@ -174,6 +176,60 @@ loc_t get_loc(unsigned first_line, unsigned first_column, unsigned last_line,
       .file_ref     = file_ref
    };
    return result;
+}
+
+const char *loc_get_source(const loc_t *loc)
+{
+   if (loc->file_ref == FILE_INVALID
+       || loc->first_line == LINE_INVALID
+       || loc->first_column == COLUMN_INVALID)
+      return NULL;
+
+   loc_file_t *file = loc_file_data(loc);
+
+   if (file->linebuf == NULL && !file->tried_open) {
+      file->tried_open = true;
+
+      int fd = open(file->name_str, O_RDONLY);
+      if (fd < 0)
+         return NULL;
+
+      file_info_t info;
+      if (!get_handle_info(fd, &info))
+         goto close_file;
+
+      if (info.type != FILE_REGULAR)
+         goto close_file;
+
+      if (info.size > 0)
+         file->linebuf = map_file(fd, info.size);
+
+   close_file:
+      close(fd);
+   }
+
+   if (file->linebuf == NULL)
+      return NULL;
+
+   unsigned line = 1;
+   const char *ptr = file->linebuf;
+
+   if (file->last_line > 0 && loc->first_line >= file->last_line) {
+      line = file->last_line;
+      ptr  = file->last_ptr;
+   }
+
+   for (; line < loc->first_line; line++) {
+      if ((ptr = strchr(ptr, '\n')))
+         ptr++;
+      else
+         return NULL;
+   }
+
+   file->last_line = loc->first_line;
+   file->last_ptr  = ptr;
+
+   return ptr;
 }
 
 bool loc_eq(const loc_t *a, const loc_t *b)
@@ -603,48 +659,6 @@ static void diag_wrap_lines(const char *str, size_t len, int left, FILE *f)
       diag_print_utf8(begin, p - begin, f);
 }
 
-static const char *diag_get_source(const loc_t *loc)
-{
-   if (loc->file_ref == FILE_INVALID
-       || loc->first_line == LINE_INVALID
-       || loc->first_column == COLUMN_INVALID)
-      return NULL;
-
-   loc_file_t *file = loc_file_data(loc);
-
-   if (file->linebuf == NULL && !file->tried_open) {
-      file->tried_open = true;
-
-      int fd = open(file->name_str, O_RDONLY);
-      if (fd < 0)
-         return NULL;
-
-      file_info_t info;
-      if (!get_handle_info(fd, &info))
-         goto close_file;
-
-      if (info.type != FILE_REGULAR)
-         goto close_file;
-
-      if (info.size > 0)
-         file->linebuf = map_file(fd, info.size);
-
-   close_file:
-      close(fd);
-   }
-
-   if (file->linebuf == NULL)
-      return NULL;
-
-   const char *start = file->linebuf;
-   for (unsigned i = 1; i < loc->first_line; i++) {
-      if ((start = strchr(start, '\n')))
-         start++;
-   }
-
-   return start;
-}
-
 static int diag_compar(const void *_a, const void *_b)
 {
    const diag_hint_t *a = _a, *b = _b;
@@ -702,7 +716,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
    qsort(d->hints.items, same_file, sizeof(diag_hint_t), diag_compar);
 
    if (d->source)
-      linebuf = diag_get_source(&(d->hints.items[0].loc));
+      linebuf = loc_get_source(&(d->hints.items[0].loc));
 
    if (linebuf == NULL)
       fwidth = 1;

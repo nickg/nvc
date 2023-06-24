@@ -61,6 +61,7 @@ loc_t get_loc(unsigned first_line, unsigned first_column,
 bool loc_invalid_p(const loc_t *loc);
 loc_file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
+const char *loc_get_source(const loc_t *loc);
 
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f);
 void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx);
