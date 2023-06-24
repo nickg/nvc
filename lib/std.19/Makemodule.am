@@ -6,13 +6,17 @@ std_19_DATA = \
 	lib/std.19/STD.TEXTIO \
 	lib/std.19/STD.TEXTIO-body \
 	lib/std.19/STD.ENV \
-	lib/std.19/STD.ENV-body
+	lib/std.19/STD.ENV-body \
+	lib/std.19/STD.REFLECTION \
+	lib/std.19/STD.REFLECTION-body
 
 EXTRA_DIST += \
 	lib/std.19/env.vhdl \
 	lib/std.19/env-body.vhd \
 	lib/std.19/textio.vhdl \
-	lib/std.19/standard.vhd
+	lib/std.19/standard.vhd \
+	lib/std.19/reflection.vhdl \
+	lib/std.19/reflection-body.vhd
 
 BOOTSTRAPLIBS += $(std_19_DATA)
 
@@ -36,6 +40,12 @@ lib/std.19/STD.ENV: $(srcdir)/lib/std.19/env.vhdl @ifGNUmake@ | $(DRIVER)
 
 lib/std.19/STD.ENV-body: $(srcdir)/lib/std.19/env-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/env-body.vhd
+
+lib/std.19/STD.REFLECTION: $(srcdir)/lib/std.19/reflection.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/reflection.vhdl
+
+lib/std.19/STD.REFLECTION-body: $(srcdir)/lib/std.19/reflection-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/reflection-body.vhd
 
 gen-deps-std-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 --print-deps | \
