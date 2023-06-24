@@ -25,6 +25,7 @@
 #include "names.h"
 #include "option.h"
 #include "phase.h"
+#include "thread.h"
 #include "type.h"
 
 #include <assert.h>
@@ -129,6 +130,7 @@ struct scope {
    void          *formal_arg;
    ident_t        prefix;
    tree_t         container;
+   type_t         type;
    bool           suppress;
    lazy_sym_t    *lazy;
    tree_list_t    imported;
@@ -960,24 +962,60 @@ static ident_t unit_bare_name(tree_t unit)
    return ident_rfrom(unit_name, '.') ?: unit_name;
 }
 
+static scope_t *scope_for_type(nametab_t *tab, type_t type)
+{
+   static hash_t *cache = NULL;
+   INIT_ONCE(cache = hash_new(128));
+
+   assert(type_is_protected(type));
+
+   const bool cacheable = type_frozen(type);
+   void *key = type;
+
+   scope_t *s = NULL;
+   if (cacheable && (s = hash_get(cache, key)))
+      return s;
+   else {
+      for (scope_t *ss = tab->top_scope; ss; ss = ss->parent) {
+         for (s = ss->chain; s; s = s->chain) {
+            if (s->type == type)
+               return s;
+         }
+      }
+   }
+
+   s = xcalloc(sizeof(scope_t));
+   s->lookup   = hash_new(128);
+   s->sym_tail = &(s->symbols);
+   s->type     = type;
+
+   const int ndecls = type_decls(type);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = type_decl(type, i);
+      make_visible_fast(s, tree_ident(d), d);
+   }
+
+   if (cacheable)
+      hash_put(cache, key, s);
+   else {
+      s->chain = tab->top_scope->chain;
+      tab->top_scope->chain = s;
+   }
+
+   return s;
+}
+
 static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 {
    static hash_t *cache = NULL;
-   if (cache == NULL)
-      cache = hash_new(128);
+   INIT_ONCE(cache = hash_new(128));
 
    const tree_kind_t kind = tree_kind(unit);
 
-   type_t type = NULL;
    bool cacheable = true;
    void *key = unit;
    if (kind == T_LIBRARY)
       key = tree_ident(unit);   // Tree pointer is not stable
-   else if (kind == T_PARAM_DECL || kind == T_VAR_DECL || kind == T_PORT_DECL) {
-      key = type = tree_type(unit);
-      assert(type_is_protected(type));
-      cacheable = type_frozen(type);
-   }
    else {
       assert(is_container(unit));
       cacheable = tree_frozen(unit);
@@ -1002,13 +1040,6 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 
    if (kind == T_LIBRARY)
       make_library_visible(s, lib_require(tree_ident(unit)));
-   else if (type != NULL) {
-      const int ndecls = type_decls(type);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = type_decl(type, i);
-         make_visible_fast(s, tree_ident(d), d);
-      }
-   }
    else {
       // For package instances do not export the names declared only in
       // the body
@@ -2093,19 +2124,30 @@ static void overload_add_candidate(overload_t *o, tree_t d)
    APUSH(o->candidates, d);
 }
 
-static tree_t get_container(tree_t t)
+static type_t get_protected_type(tree_t t)
 {
    switch (tree_kind(t)) {
+   case T_ALL:
    case T_ALIAS:
-      return get_container(tree_value(t));
+      return get_protected_type(tree_value(t));
    case T_REF:
-      return get_container(tree_ref(t));
+      return get_protected_type(tree_ref(t));
    case T_VAR_DECL:
    case T_PARAM_DECL:
    case T_PORT_DECL:
-      return type_is_protected(tree_type(t)) ? t : NULL;
+      {
+         type_t type = tree_type(t);
+         for (;;) {
+            if (type_is_access(type))
+               type = type_designated(type);
+            else if (type_is_protected(type))
+               return type;
+            else
+               return NULL;
+         }
+      }
    default:
-      return is_container(t) ? t : NULL;
+      return NULL;
    }
 }
 
@@ -2113,9 +2155,9 @@ static void begin_overload_resolution(overload_t *o)
 {
    const symbol_t *sym = NULL;
    if (o->prefix != NULL) {
-      tree_t container = get_container(o->prefix);
-      if (container != NULL) {
-         scope_t *scope = private_scope_for(o->nametab, container);
+      type_t type = get_protected_type(o->prefix);
+      if (type != NULL) {
+         scope_t *scope = scope_for_type(o->nametab, type);
          sym = symbol_for(scope, o->name);
       }
    }

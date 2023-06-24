@@ -845,13 +845,15 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          if (!sem_check_subtype(t, designated, tab))
             return false;
 
-         if (type_is_file(designated))
-            sem_error(t, "access type %s cannot designate file type",
-                      istr(tree_ident(t)));
+         if (standard() < STD_19) {
+            if (type_is_file(designated))
+               sem_error(t, "access type %s cannot designate file type",
+                         istr(tree_ident(t)));
 
-         if (type_is_protected(designated))
-            sem_error(t, "access type %s cannot designate protected type",
-                      istr(tree_ident(t)));
+            if (type_is_protected(designated))
+               sem_error(t, "access type %s cannot designate protected type",
+                         istr(tree_ident(t)));
+         }
 
          return true;
       }
@@ -5431,11 +5433,16 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    if (!sem_check_subtype(value, type, tab))
       return false;
 
-   if (!tree_has_value(value) && type_is_unconstrained(type))
+   const bool has_initial = tree_has_value(value);
+
+   if (!has_initial && type_is_unconstrained(type))
       sem_error(t, "unconstrained array type %s not allowed in allocator "
                 "expression", type_pp(type));
    else if (type_is_incomplete(type))
       sem_error(t, "incomplete type %s found in allocator expression",
+                type_pp(type));
+   else if (has_initial && type_is_protected(type))
+      sem_error(t, "protected type %s cannot have initial value",
                 type_pp(type));
 
    type_t designated = type_designated(access_type);
@@ -5458,8 +5465,15 @@ static bool sem_check_all(tree_t t, nametab_t *tab)
    if (type_is_none(value_type))
       return false;
 
-   if (!type_is_access(value_type))
-      sem_error(value, "expression type %s is not access", type_pp(value_type));
+   if (!type_is_access(value_type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_printf(d, "prefix of a selected name with suffix ALL must "
+                  "have access type");
+      diag_hint(d, tree_loc(value), "prefix has type %s", type_pp(value_type));
+      diag_lrm(d, STD_08, "8.3");
+      diag_emit(d);
+      return false;
+   }
 
    return true;
 }

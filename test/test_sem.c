@@ -880,7 +880,7 @@ START_TEST(test_access)
       { 103, "declaration of variable P hides package P" },
       { 105, "incomplete type A found in allocator expression" },
       { 109, "declaration of variable P hides package P" },
-      { 111, "expression type INT_VEC is not access" },
+      { 111, "prefix of a selected name with suffix ALL must have access " },
       { 125, "access type PTP cannot designate protected type" },
       { 127, "access type FTP cannot designate file type" },
       { -1, NULL }
@@ -3190,6 +3190,25 @@ START_TEST(test_lcs2016_41)
 }
 END_TEST
 
+START_TEST(test_lcs2016_14a)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_14a.vhd");
+
+   const error_t expect[] = {
+      { 35, "prefix of a selected name with suffix ALL must have access type" },
+      { 38, "protected type PT cannot have initial value" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3341,6 +3360,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_18);
    tcase_add_test(tc_core, test_issue713);
    tcase_add_test(tc_core, test_lcs2016_41);
+   tcase_add_test(tc_core, test_lcs2016_14a);
    suite_add_tcase(s, tc_core);
 
    return s;
