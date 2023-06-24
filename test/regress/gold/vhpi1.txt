@@ -48,6 +48,9 @@ VHPI printf v indexed name is V(3)
 VHPI printf v indexed name is V(2)
 VHPI printf v indexed name is V(1)
 VHPI printf v indexed name is V(0)
+VHPI printf name is A_NAME_WITH_MIXED_CASE
+VHPI printf case name is A_name_with_MIXED_case
+VHPI printf full case name is :VHPI1:A_name_with_MIXED_case
 VHPI printf start of sim callback! user data is 'some user data'
 0ms+0: Report Note: x=5
 VHPI printf after_5ns callback!

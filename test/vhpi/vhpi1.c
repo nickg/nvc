@@ -483,5 +483,13 @@ void vhpi1_startup(void)
    for (vhpiHandleT name = vhpi_scan(v_names); name != NULL; name = vhpi_scan(v_names))
       vhpi_printf("v indexed name is %s", vhpi_get_str(vhpiNameP, name));
 
+   vhpiHandleT handle_case = vhpi_handle_by_name("a_name_with_mixed_case", root);
+   check_error();
+   fail_if(handle_case == NULL);
+   vhpi_printf("handle %p", handle_case);
+   vhpi_printf("name is %s", vhpi_get_str(vhpiNameP, handle_case));
+   vhpi_printf("case name is %s", vhpi_get_str(vhpiCaseNameP, handle_case));
+   vhpi_printf("full case name is %s", vhpi_get_str(vhpiFullCaseNameP, handle_case));
+
    vhpi_release_handle(root);
 }

@@ -244,6 +244,14 @@ char *xstrdup(const char *str)
    return copy;
 }
 
+char *xstrndup(const char *str, size_t n)
+{
+   char *copy = strndup(str, n);
+   if (copy == NULL)
+      fatal("memory exhausted (strndup)");
+   return copy;
+}
+
 char *xvasprintf(const char *fmt, va_list ap)
 {
    char *strp = NULL;

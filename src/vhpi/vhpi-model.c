@@ -603,6 +603,14 @@ static vhpiCharT *new_string(const char *s)
    return p;
 }
 
+static vhpiCharT *new_string_n(const char *s, size_t n)
+{
+   vhpiCharT *p = shash_get(strtab, s);
+   if (p == NULL)
+      shash_put(strtab, s, (p = (vhpiCharT *)xstrndup(s, n)));
+   return p;
+}
+
 static void init_abstractRegion(c_abstractRegion *r, tree_t t)
 {
    const loc_t *loc = tree_loc(t);
@@ -633,10 +641,10 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
    d->LineNo     = loc->first_line;
    d->LineOffset = loc->line_delta;
 
-   d->Name = d->CaseName = new_string(istr(tree_ident(t)));
+   d->Name = new_string(istr(tree_ident(t)));
    if (r) {
       char *full LOCAL = xasprintf("%s:%s", r->FullName, d->Name);
-      d->FullName = d->FullCaseName = new_string(full);
+      d->FullName = new_string(full);
    }
 
    d->ImmRegion = r;
@@ -1867,6 +1875,50 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    }
 }
 
+static vhpiCharT *cached_caseName(c_abstractDecl *decl)
+{
+   if (decl->CaseName != NULL)
+      return decl->CaseName;
+
+   // We do not save the orignal case of identifiers as it does not seem
+   // to be required except for this property. Instead try to recover
+   // the original identifier text using the source location.
+
+   const loc_t *loc = tree_loc(decl->tree);
+   if (loc->line_delta != 0)
+      goto failed;
+
+   const char *src = loc_get_source(loc);
+   if (src == NULL)
+      goto failed;
+
+   // Do some basic sanity checks to make sure we found the right
+   // identifier
+
+   const char *start = src + loc->first_column;
+   if (decl->Name[0] != toupper_iso88591(*start))
+      goto failed;
+
+   return (decl->CaseName = new_string_n(start, loc->column_delta + 1));
+
+ failed:
+   return (decl->CaseName = decl->Name);
+}
+
+static vhpiCharT *cached_fullCaseName(c_abstractDecl *decl)
+{
+   if (decl->FullCaseName != NULL)
+      return decl->FullCaseName;
+
+   vhpiCharT *cn = cached_caseName(decl);
+
+   if (decl->ImmRegion == NULL)
+      return (decl->FullCaseName = cn);
+
+   char *full LOCAL = xasprintf("%s:%s", decl->ImmRegion->FullCaseName, cn);
+   return (decl->FullCaseName = new_string(full));
+}
+
 DLLEXPORT
 const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 {
@@ -1906,10 +1958,10 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (d != NULL) {
       switch (property) {
       case vhpiNameP: return d->Name;
-      case vhpiCaseNameP: return d->CaseName;
+      case vhpiCaseNameP: return cached_caseName(d);
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
       case vhpiFullNameP: return d->FullName;
-      case vhpiFullCaseNameP: return d->FullCaseName;
+      case vhpiFullCaseNameP: return cached_fullCaseName(d);
       default: goto unsupported;
       }
    }

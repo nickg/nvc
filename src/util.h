@@ -187,6 +187,7 @@ void *xrealloc_array(void *ptr, size_t nelems, size_t size) RETURNS_NONNULL;
 void *xrealloc_flex(void *ptr, size_t fixed, size_t nelems, size_t size)
    RETURNS_NONNULL;
 char *xstrdup(const char *str) RETURNS_NONNULL;
+char *xstrndup(const char *str, size_t n) RETURNS_NONNULL;
 
 char *xvasprintf(const char *fmt, va_list ap) RETURNS_NONNULL;
 char *xasprintf(const char *fmt, ...)
