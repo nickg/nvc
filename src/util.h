@@ -142,6 +142,10 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 char *strchrnul(const char *s, int c_in);
 #endif
 
+#ifndef HAVE_STRNDUP
+char *strndup(char const *s, size_t n);
+#endif
+
 #define container_of(ptr, type, member) ({               \
    const typeof(((type *)0)->member) * __mptr = (ptr);   \
    (type *)((char *)__mptr - offsetof(type, member)); })

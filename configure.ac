@@ -50,7 +50,7 @@ AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
 AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr getline fseeko])
-AC_CHECK_FUNCS([ftello fpurge __fpurge strchrnul])
+AC_CHECK_FUNCS([ftello fpurge __fpurge strchrnul strndup])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -76,9 +76,16 @@ AM_CONDITIONAL([GNULIB_MEMMEM], [test "x$ac_cv_func_memmem" != xyes])
 AM_CONDITIONAL([GNULIB_STRCASESTR], [test "x$ac_cv_func_strcasestr" != xyes])
 AM_CONDITIONAL([GNULIB_GETLINE], [test "x$ac_cv_func_getline" != xyes])
 AM_CONDITIONAL([GNULIB_STRCHRNUL], [test "x$ac_cv_func_strchrnul" != xyes])
+AM_CONDITIONAL([GNULIB_STRNDUP], [test "x$ac_cv_func_strndup" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
+
+# Need to prevent GCC calling strndup builtin if using gnulib version
+if test "x$ac_cv_func_strndup" != xyes; then
+  AX_CHECK_COMPILE_FLAG([-fno-builtin-strndup],
+                        [AS_VAR_APPEND([EXTRA_CFLAGS], [-fno-builtin-strndup])])
+fi
 
 # Prefer linking with Mold if available
 AX_CHECK_LINK_FLAG(

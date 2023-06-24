@@ -28,3 +28,7 @@ endif
 if GNULIB_STRCHRNUL
 lib_libgnulib_a_SOURCES += thirdparty/strchrnul.c thirdparty/rawmemchr.c
 endif
+
+if GNULIB_STRNDUP
+lib_libgnulib_a_SOURCES += thirdparty/strndup.c
+endif
