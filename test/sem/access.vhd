@@ -112,4 +112,20 @@ package body p is
         end loop;
     end procedure;
 
+    procedure test9 is
+        type pt is protected
+            procedure dummy;
+        end protected;
+        type pt is protected body
+            procedure dummy is
+            begin
+            end procedure;
+        end protected body;
+
+        type ptp is access pt;          -- Error
+        type ft is file of natural;     -- OK
+        type ftp is access ft;          -- Error
+    begin
+    end procedure;
+
 end package body;

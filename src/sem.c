@@ -840,8 +840,18 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
    case T_ACCESS:
       // Rules for access types are in LRM 93 section 3.3
       {
-         if (!sem_check_subtype(t, type_designated(type), tab))
+         type_t designated = type_designated(type);
+
+         if (!sem_check_subtype(t, designated, tab))
             return false;
+
+         if (type_is_file(designated))
+            sem_error(t, "access type %s cannot designate file type",
+                      istr(tree_ident(t)));
+
+         if (type_is_protected(designated))
+            sem_error(t, "access type %s cannot designate protected type",
+                      istr(tree_ident(t)));
 
          return true;
       }

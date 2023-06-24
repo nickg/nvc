@@ -859,6 +859,8 @@ END_TEST
 
 START_TEST(test_access)
 {
+   set_standard(STD_00);
+
    opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/access.vhd");
 
@@ -879,6 +881,8 @@ START_TEST(test_access)
       { 105, "incomplete type A found in allocator expression" },
       { 109, "declaration of variable P hides package P" },
       { 111, "expression type INT_VEC is not access" },
+      { 125, "access type PTP cannot designate protected type" },
+      { 127, "access type FTP cannot designate file type" },
       { -1, NULL }
    };
    expect_errors(expect);
