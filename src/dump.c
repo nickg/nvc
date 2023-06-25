@@ -1555,6 +1555,7 @@ void vhdl_dump(tree_t t, int indent)
       break;
    case T_REF:
    case T_FCALL:
+   case T_PROT_FCALL:
    case T_LITERAL:
    case T_AGGREGATE:
    case T_ARRAY_REF:

@@ -2511,7 +2511,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    if (bounds_reg != VCODE_INVALID_REG)
       APUSH(args, bounds_reg);
 
-   type_t result = type_result(tree_type(decl));
+   type_t result = tree_type(fcall);
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
 

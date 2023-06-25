@@ -2135,6 +2135,9 @@ static type_t get_protected_type(tree_t t)
    case T_VAR_DECL:
    case T_PARAM_DECL:
    case T_PORT_DECL:
+   case T_ATTR_REF:
+   case T_FCALL:
+   case T_PROT_FCALL:
       {
          type_t type = tree_type(t);
          for (;;) {
@@ -3174,6 +3177,10 @@ static type_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, type_t ftype,
    // fix-up here based on the context.
 
    type_t rtype = type_result(ftype);
+
+   if (type_kind(rtype) == T_INCOMPLETE)
+      rtype = resolve_type(tab, rtype);
+
    if (!type_is_array(rtype))
       return rtype;
 

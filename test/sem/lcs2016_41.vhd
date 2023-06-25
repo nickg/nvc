@@ -18,9 +18,10 @@ begin
         i := integer'reflect;           -- Error
         i := i'reflect;                 -- Error
         stm := v'subtype'reflect;       -- OK
---        assert stm.get_type_class = CLASS_ARRAY;  -- OK
---        astm := stm.to_array;           -- OK
+        assert stm.get_type_class = CLASS_ARRAY;  -- OK
+        astm := stm.to_array;           -- OK
         vm := p1'reflect;               -- Error
+        assert v'subtype'reflect.get_type_class = CLASS_ARRAY;  -- OK
         wait;
     end process;
 

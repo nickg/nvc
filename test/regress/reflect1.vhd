@@ -20,8 +20,8 @@ begin
         wait for 1 ns;
         assert ivm.value = 42;
         assert ivm.image = "42";
---        assert v1'reflect.all.to_integer.value = 100;  (is this ok?)
-        --assert ivm.to_value_mirror = vm;  -- Crashes
+        assert v1'reflect.all.to_integer.value = 100;
+        assert ivm.to_value_mirror = vm;
         wait;
     end process;
 
