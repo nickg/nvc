@@ -16,6 +16,10 @@
 
 package body reflection is
 
+    type string_ptr is access string;
+
+    ---------------------------------------------------------------------------
+
     type enumeration_value_mirror_pt is protected body
         impure function get_subtype_mirror return enumeration_subtype_mirror is
         begin
@@ -97,8 +101,9 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type integer_value_mirror_pt is protected body
-        variable f_value : integer;
-        variable f_owner : value_mirror;
+        variable f_owner   : value_mirror;
+        variable f_subtype : integer_subtype_mirror;
+        variable f_value   : integer;
 
         impure function get_subtype_mirror return integer_subtype_mirror is
         begin
@@ -124,14 +129,16 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type integer_subtype_mirror_pt is protected body
+        variable f_owner : subtype_mirror;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function left return integer_value_mirror is
@@ -599,9 +606,13 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type subtype_mirror_pt is protected body
+        variable f_class   : type_class;
+        variable f_name    : string_ptr;
+        variable f_integer : integer_subtype_mirror;
+
         impure function get_type_class return type_class is
         begin
-            report "unimplemented" severity failure;
+            return f_class;
         end function;
 
         impure function to_enumeration return enumeration_subtype_mirror is
@@ -611,7 +622,8 @@ package body reflection is
 
         impure function to_integer return integer_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_INTEGER;
+            return f_integer;
         end function;
 
         impure function to_floating return floating_subtype_mirror is
@@ -651,7 +663,7 @@ package body reflection is
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_name.all;
         end function;
     end protected body;
 
@@ -659,6 +671,7 @@ package body reflection is
 
     type value_mirror_pt is protected body
         variable f_class   : value_class;
+        variable f_subtype : subtype_mirror;
         variable f_integer : integer_value_mirror;
 
         impure function get_value_class return value_class is
@@ -668,7 +681,7 @@ package body reflection is
 
         impure function get_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_enumeration return enumeration_value_mirror is
