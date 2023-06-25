@@ -2254,6 +2254,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[1]);
                col += printf(" locus ");
                col += vcode_dump_reg(op->args.items[2]);
+               if (op->args.count > 3) {
+                  col += printf(" bounds ");
+                  col += vcode_dump_reg(op->args.items[3]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5863,12 +5867,15 @@ void emit_enter_state(vcode_reg_t state)
 }
 
 vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
-                               vcode_reg_t context, vcode_reg_t locus)
+                               vcode_reg_t context, vcode_reg_t locus,
+                               vcode_reg_t bounds)
 {
    op_t *op = vcode_add_op(VCODE_OP_REFLECT_VALUE);
    vcode_add_arg(op, value);
    vcode_add_arg(op, context);
    vcode_add_arg(op, locus);
+   if (bounds != VCODE_INVALID_REG)
+      vcode_add_arg(op, bounds);
 
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid reflect value context argument");

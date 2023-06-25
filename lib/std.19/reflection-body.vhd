@@ -107,7 +107,7 @@ package body reflection is
 
         impure function get_subtype_mirror return integer_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
@@ -399,14 +399,17 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type array_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : array_subtype_mirror;
+
         impure function get_subtype_mirror return array_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function get (idx : index) return value_mirror is
@@ -433,14 +436,17 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type array_subtype_mirror_pt is protected body
+        variable f_owner      : subtype_mirror;
+        variable f_dimensions : dimension;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function dimensions return dimension is
         begin
-            report "unimplemented" severity failure;
+            return f_dimensions;
         end function;
 
         impure function index_subtype(idx : dimension := 1) return subtype_mirror is
@@ -609,6 +615,7 @@ package body reflection is
         variable f_class   : type_class;
         variable f_name    : string_ptr;
         variable f_integer : integer_subtype_mirror;
+        variable f_array   : array_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -673,6 +680,7 @@ package body reflection is
         variable f_class   : value_class;
         variable f_subtype : subtype_mirror;
         variable f_integer : integer_value_mirror;
+        variable f_array   : array_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -712,7 +720,8 @@ package body reflection is
 
         impure function to_array return array_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_ARRAY;
+            return f_array;
         end function;
 
         impure function to_access return access_value_mirror is

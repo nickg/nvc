@@ -4425,6 +4425,39 @@ static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix)
    }
 }
 
+static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
+{
+   tree_t name = tree_name(expr);
+
+   type_t type = tree_type(expr), pt = type_designated(type);
+   assert(type_is_protected(pt));
+
+   ident_t init_func = type_ident(pt);
+   vcode_reg_t context_reg = lower_context_for_call(init_func);
+
+   type_t value_mirror = reflection_type(REFLECT_VALUE_MIRROR);
+   const bool is_value_mirror = type_eq(type, value_mirror);
+
+   vcode_reg_t value_reg = VCODE_INVALID_REG, bounds_reg = VCODE_INVALID_REG;
+   if (is_value_mirror)
+      value_reg = lower_attr_prefix(lu, name);
+
+   type_t value_type = tree_type(name);
+   if (type_is_array(value_type))
+      bounds_reg = lower_wrap(lu, value_type, value_reg);
+
+   vcode_reg_t result_reg;
+   if (is_value_mirror) {
+      vcode_reg_t locus = lower_debug_locus(name);
+      result_reg = emit_reflect_value(init_func, value_reg, context_reg,
+                                      locus, bounds_reg);
+   }
+   else
+      fatal_at(tree_loc(expr), "sorry, subtype mirrors not yet supported");
+
+   return result_reg;
+}
+
 static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 {
    tree_t name = tree_name(expr);
@@ -4706,23 +4739,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       }
 
    case ATTR_REFLECT:
-      {
-         type_t type = tree_type(expr), pt = type_designated(type);
-         assert(type_is_protected(pt));
-
-         ident_t init_func = type_ident(pt);
-         vcode_reg_t context_reg = lower_context_for_call(init_func);
-
-         type_t value_mirror = reflection_type(REFLECT_VALUE_MIRROR);
-         if (type_eq(type, value_mirror)) {
-            vcode_reg_t name_reg = lower_attr_prefix(lu, name);
-            vcode_reg_t locus = lower_debug_locus(name);
-            return emit_reflect_value(init_func, name_reg, context_reg, locus);
-         }
-         else
-            fatal_at(tree_loc(expr), "sorry, subtype mirrors not yet supported");
-      }
-      break;
+      return lower_reflect_attr(lu, expr);
 
    default:
       fatal_at(tree_loc(expr), "cannot lower attribute %s (%d)",

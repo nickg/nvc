@@ -518,6 +518,7 @@ vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len);
 vcode_reg_t emit_convstr(vcode_reg_t value);
 void emit_enter_state(vcode_reg_t state);
 vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
-                               vcode_reg_t context, vcode_reg_t locus);
+                               vcode_reg_t context, vcode_reg_t locus,
+                               vcode_reg_t bounds);
 
 #endif  // _VCODE_H

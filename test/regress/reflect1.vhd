@@ -8,10 +8,13 @@ begin
 
     p1: process is
         variable v1   : integer := 42;
+        variable v2   : integer_vector(1 to 3) := (1, 2, 3);
         variable vm   : value_mirror;
         variable ivm  : integer_value_mirror;
+        variable avm  : array_value_mirror;
         variable stm  : subtype_mirror;
         variable istm : integer_subtype_mirror;
+        variable astm : array_subtype_mirror;
     begin
         vm := v1'reflect;
         assert vm.get_value_class = CLASS_INTEGER;
@@ -29,6 +32,13 @@ begin
         istm := stm.to_integer;
         assert istm.simple_name = "INTEGER";
         assert istm.to_subtype_mirror = stm;
+        assert ivm.get_subtype_mirror = istm;
+
+        vm := v2'reflect;
+        assert vm.get_value_class = CLASS_ARRAY;
+        avm := vm.to_array;
+        astm := avm.get_subtype_mirror;
+        assert astm.dimensions = 1;
 
         wait;
     end process;

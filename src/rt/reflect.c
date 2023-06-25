@@ -50,6 +50,17 @@ typedef struct {
 } integer_subtype_mirror;
 
 typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+   uint64_t        f_dimensions;
+} array_subtype_mirror_pt;
+
+typedef struct {
+   void                    *access;
+   array_subtype_mirror_pt  pt;
+} array_subtype_mirror;
+
+typedef struct {
    void                   *context;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
@@ -63,9 +74,21 @@ typedef struct {
 
 typedef struct {
    void                 *context;
+   value_mirror         *f_owner;
+   array_subtype_mirror *f_subtype;
+} array_value_mirror_pt;
+
+typedef struct {
+   void                  *access;
+   array_value_mirror_pt  pt;
+} array_value_mirror;
+
+typedef struct {
+   void                 *context;
    uint8_t               f_class;
    subtype_mirror       *f_subtype;
    integer_value_mirror *f_integer;
+   array_value_mirror   *f_array;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -78,6 +101,7 @@ typedef struct {
    uint8_t                 f_class;
    ffi_uarray_t           *f_name;
    integer_subtype_mirror *f_integer;
+   array_subtype_mirror   *f_array;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -85,7 +109,8 @@ typedef struct _subtype_mirror {
    subtype_mirror_pt  pt;
 } subtype_mirror;
 
-static subtype_mirror *get_subtype_mirror(void *context, type_t type);
+static subtype_mirror *get_subtype_mirror(void *context, type_t type,
+                                          const jit_scalar_t *bounds);
 
 static void *zero_alloc(size_t size)
 {
@@ -109,13 +134,13 @@ static ffi_uarray_t *get_string(const char *str)
 }
 
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
-                                      type_t type)
+                                      type_t type, const jit_scalar_t *bounds)
 {
    value_mirror *vm = zero_alloc(sizeof(value_mirror));
 
    vm->access = &(vm->pt);
    vm->pt.context = context;
-   vm->pt.f_subtype = get_subtype_mirror(context, type);
+   vm->pt.f_subtype = get_subtype_mirror(context, type, bounds);
 
    if (type_is_integer(type)) {
       integer_value_mirror *ivm = zero_alloc(sizeof(integer_value_mirror));
@@ -124,9 +149,21 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       ivm->pt.context = context;
       ivm->pt.f_value = value.integer;
       ivm->pt.f_owner = vm;
+      ivm->pt.f_subtype = vm->pt.f_subtype->pt.f_integer;
 
       vm->pt.f_class = CLASS_INTEGER;
       vm->pt.f_integer = ivm;
+   }
+   else if (type_is_array(type)) {
+      array_value_mirror *avm = zero_alloc(sizeof(array_value_mirror));
+      avm->access = &(avm->pt);
+
+      avm->pt.context = context;
+      avm->pt.f_owner = vm;
+      avm->pt.f_subtype = vm->pt.f_subtype->pt.f_array;
+
+      vm->pt.f_class = CLASS_ARRAY;
+      vm->pt.f_array = avm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
@@ -135,7 +172,8 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
    return vm;
 }
 
-static subtype_mirror *get_subtype_mirror(void *context, type_t type)
+static subtype_mirror *get_subtype_mirror(void *context, type_t type,
+                                          const jit_scalar_t *bounds)
 {
    // TODO: cache this (safely)
 
@@ -156,6 +194,17 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type)
       sm->pt.f_class = CLASS_INTEGER;
       sm->pt.f_integer = ism;
    }
+   else if (type_is_array(type)) {
+      array_subtype_mirror *astm = zero_alloc(sizeof(array_subtype_mirror));
+      astm->access = &(astm->pt);
+
+      astm->pt.context = context;
+      astm->pt.f_owner = sm;
+      astm->pt.f_dimensions = dimension_of(type);
+
+      sm->pt.f_class = CLASS_ARRAY;
+      sm->pt.f_array = astm;
+   }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
               "attribute", type_pp(type));
@@ -163,9 +212,10 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type)
    return sm;
 }
 
-void *x_reflect_value(void *context, jit_scalar_t value, tree_t where)
+void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
+                      const jit_scalar_t *bounds)
 {
-   return get_value_mirror(context, value, tree_type(where));
+   return get_value_mirror(context, value, tree_type(where), bounds);
 }
 
 void _std_reflection_init(void)

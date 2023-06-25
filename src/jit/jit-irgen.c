@@ -2352,6 +2352,19 @@ static void irgen_op_reflect_value(jit_irgen_t *g, int op)
    j_send(g, 0, context);
    j_send(g, 1, value);
    j_send(g, 2, locus);
+
+   if (vcode_count_args(op) > 3) {
+      vcode_reg_t vreg = vcode_get_arg(op, 3);
+      const int slots = irgen_slots_for_type(vcode_reg_type(vreg));
+      if (slots > 1) {
+         jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
+         for (int j = 0; j < slots; j++)
+            j_send(g, j + 3, jit_value_from_reg(base + j));
+      }
+      else
+         j_send(g, 3, irgen_get_value(g, vreg));
+   }
+
    macro_exit(g, JIT_EXIT_REFLECT_VALUE);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
