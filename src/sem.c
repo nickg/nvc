@@ -3651,6 +3651,7 @@ static bool sem_is_named_entity(tree_t t)
    case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
    case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
    case T_PROCESS:      case T_GENERIC_DECL: case T_PARAM_DECL:
+   case T_INSTANCE:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
@@ -4951,11 +4952,18 @@ static bool sem_globally_static(tree_t t)
    }
 
    if (kind == T_ATTR_REF) {
+      const attr_kind_t predef = tree_subkind(t);
+
+      // A predefined attribute that is one of 'SIMPLE_NAME,
+      // 'INSTANCE_NAME, or 'PATH_NAME
+      if (predef == ATTR_SIMPLE_NAME || predef == ATTR_INSTANCE_NAME
+          || predef == ATTR_PATH_NAME)
+         return true;   // Clause j
+
       // A predefined attribute other than those listed below whose
       // prefix is either a globally static subtype or is an object or
       // function call that is of a globally static subtype, or in 2008,
       // a prefix which is a appropriate for a globally static attribute
-      const attr_kind_t predef = tree_subkind(t);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING

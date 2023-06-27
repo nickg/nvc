@@ -9772,6 +9772,9 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    if (spec != NULL)
       tree_set_spec(t, spec);
 
+   if (label != NULL)
+      insert_name(nametab, t, NULL);
+
    push_scope(nametab);
 
    if (peek() == tGENERIC)
@@ -9792,9 +9795,6 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    sem_check(t, nametab);
    pop_scope(nametab);
-
-   if (label)
-      insert_name(nametab, t, NULL);
 
    return t;
 }

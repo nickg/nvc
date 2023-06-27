@@ -1310,6 +1310,32 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
          return lower_wrap_string(tb_get(tb));
       }
 
+   case T_INSTANCE:
+      {
+         ident_t dname = tree_ident(decl);
+         lower_unit_t *it;
+         for (it = lu; it != NULL; it = it->parent) {
+            if (tree_ident(it->container) == dname)
+               break;
+         }
+
+         if (it == NULL)
+            fatal_trace("cannot find instance %s", istr(tree_ident(decl)));
+
+         LOCAL_TEXT_BUF tb = tb_new();
+
+         tree_t hier = tree_decl(it->container, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         if (which == ATTR_PATH_NAME)
+            tb_istr(tb, tree_ident(hier));
+         else
+            tb_istr(tb, tree_ident2(hier));
+
+         tb_append(tb, ':');
+         return lower_wrap_string(tb_get(tb));
+      }
+
    case T_BLOCK:
    case T_ENTITY:
    case T_ARCH:
