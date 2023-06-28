@@ -946,12 +946,12 @@ static void diag_format_full(diag_t *d, FILE *f)
 void diag_femit(diag_t *d, FILE *f)
 {
    if (d->suppress)
-      return;
+      goto cleanup;
    else if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
    else if (d->level == DIAG_DEBUG && opt_get_int(OPT_UNIT_TEST)
             && diag_has_message(d))
-      return;
+      goto cleanup;
    else {
       // The stderr and stdout streams are often redirected to the same
       // file so ensure that the output appears in a logical order
@@ -977,6 +977,7 @@ void diag_femit(diag_t *d, FILE *f)
    if (is_error && relaxed_add(&n_errors, 1) == error_limit)
       fatal("too many errors, giving up");
 
+ cleanup:
    for (int i = 0; i < d->hints.count; i++)
       free(d->hints.items[i].text);
    ACLEAR(d->hints);

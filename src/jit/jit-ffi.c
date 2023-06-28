@@ -158,11 +158,9 @@ void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
       aptrs[ff->nargs] = &up;
 
    if (ff->ptr == NULL) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, ff->sym);
-
-      if ((ff->ptr = ffi_find_symbol(NULL, tb_get(tb))) == NULL)
-         jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", tb_get(tb));
+      const char *sym = istr(ff->sym);
+      if ((ff->ptr = ffi_find_symbol(NULL, sym)) == NULL)
+         jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", sym);
    }
 
    intmax_t result;
