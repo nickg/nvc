@@ -9565,7 +9565,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
       if (is_bit)
          tmp = emit_cmp(cmp, r0_src_reg, r1_src_reg);
       else {
-         ident_t func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
+         ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
          vcode_reg_t context_reg = lower_context_for_call(func);
          vcode_reg_t args[] = { context_reg, r0_src_reg, r1_src_reg };
          tmp = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 3);
@@ -9598,23 +9598,23 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
    else if (is_bit)
       result = emit_cmp(cmp, r0, r1);
    else {
-      vcode_reg_t context_reg =
-         emit_link_package(ident_new("IEEE.STD_LOGIC_1164"));
-      vcode_reg_t args[3] = { context_reg, r0, r1 };
       ident_t func = NULL;
       switch (cmp) {
       case VCODE_CMP_LT:
-         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LT(UU)U");
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LT(UU)U");
          break;
       case VCODE_CMP_LEQ:
-         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LEQ(UU)U");
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LEQ(UU)U");
          break;
       case VCODE_CMP_EQ:
-         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
          break;
       default:
          fatal_trace("unexpected comparison operator %d", cmp);
       }
+
+      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t args[3] = { context_reg, r0, r1 };
 
       vcode_type_t rtype = lower_type(r0_type);
       result = emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 3);
@@ -11029,14 +11029,23 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
 {
    lib_t lib = lib_require(ident_until(unit_name, '.'));
 
+   ident_t this_unit = vcode_unit_name();
+
    const tree_kind_t kind = lib_index_kind(lib, unit_name);
-   if (kind != T_ENTITY && unit_name == vcode_unit_name())
+   if (kind != T_ENTITY && unit_name == this_unit)
       return;   // Package body depends on package
 
    if (kind == T_PACKAGE && standard() >= STD_08) {
       tree_t unit = lib_get(lib, unit_name);
       if (is_uninstantiated_package(unit))
          return;   // No code generated for uninstantiated packages
+      else if (is_well_known(unit_name) == W_IEEE_1164) {
+         // VHDL-2008 and later matching operators on STD_LOGIC are
+         // implemented in the support package
+         ident_t ieee_support = ident_new("NVC.IEEE_SUPPORT");
+         if (this_unit != ieee_support)  // Avoid circular dependency
+            emit_package_init(ieee_support, VCODE_INVALID_REG);
+      }
    }
 
    if (kind == T_PACKAGE || kind == T_PACK_INST)
