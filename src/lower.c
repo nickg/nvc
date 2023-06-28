@@ -6843,8 +6843,8 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    // Call support function to check argument does not contain '-'
    {
       ident_t func = ident_new(
-         is_array ? "IEEE.STD_LOGIC_1164.CHECK_MATCH_EXPRESSION(Y)"
-         : "IEEE.STD_LOGIC_1164.CHECK_MATCH_EXPRESSION(U)");
+         is_array ? "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(Y)"
+         : "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(U)");
       vcode_reg_t context_reg = lower_context_for_call(func);
 
       vcode_reg_t args[] = { context_reg, value_reg };

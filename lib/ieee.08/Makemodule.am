@@ -137,3 +137,6 @@ include lib/ieee.08/deps.mk
 
 # Empty package does not depend on STD.STANDARD
 lib/nvc.08/NVC.POLYFILL: lib/std.08/STD.STANDARD
+
+# Code generation dependency for predefined operators
+lib/ieee.08/IEEE.STD_LOGIC_1164-body: lib/nvc.08/NVC.IEEE_SUPPORT

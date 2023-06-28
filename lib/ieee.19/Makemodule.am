@@ -115,3 +115,6 @@ include lib/ieee.19/deps.mk
 
 # Empty package does not depend on STD.STANDARD
 lib/nvc.19/NVC.POLYFILL: lib/std.19/STD.STANDARD
+
+# Code generation dependency for predefined operators
+lib/ieee.19/IEEE.STD_LOGIC_1164-body: lib/nvc.19/NVC.IEEE_SUPPORT
