@@ -35,8 +35,6 @@ EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 
 BOOTSTRAPLIBS += $(synopsys_DATA) $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
 
-libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA) $(synopsys_DATA)
-
 lib/synopsys/_NVC_LIB:
 
 lib/synopsys/_index:

@@ -14,8 +14,6 @@ EXTRA_DIST += \
 
 BOOTSTRAPLIBS += $(nvc_08_DATA)
 
-libs-nvc-08: $(nvc_08_DATA)
-
 lib/nvc.08/_NVC_LIB:
 
 lib/nvc.08/_index:

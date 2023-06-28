@@ -33,8 +33,6 @@ lib/ieee.19/_NVC_LIB:
 
 lib/ieee.19/_index:
 
-libs-ieee-19: $(ieee_19_DATA) $(ieee_19_SCRIPTS)
-
 lib/ieee.19/IEEE.STD_LOGIC_1164: $(srcdir)/lib/ieee.08/std_logic_1164.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/ieee.08/std_logic_1164.vhdl
 

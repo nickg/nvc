@@ -19,7 +19,7 @@ m4_define([serial_tests], [
 
 m4_include([m4/autoconf-2.63_compat.m4])
 
-AM_INIT_AUTOMAKE([1.11 -Wall -Wno-extra-portability color-tests
+AM_INIT_AUTOMAKE([1.11 -Wall -Wno-portability color-tests
                   foreign subdir-objects] serial_tests)
 AM_SILENT_RULES([yes])
 

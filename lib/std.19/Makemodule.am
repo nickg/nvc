@@ -20,8 +20,6 @@ EXTRA_DIST += \
 
 BOOTSTRAPLIBS += $(std_19_DATA)
 
-libs-std-19: $(std_19_DATA)
-
 lib/std.19/_NVC_LIB: lib/std.19/STD.STANDARD
 
 lib/std.19/_index: lib/std.19/STD.STANDARD

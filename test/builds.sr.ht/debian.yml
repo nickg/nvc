@@ -10,6 +10,9 @@ packages:
   - zlib1g-dev
   - pkg-config
   - libdw-dev
+  - libzstd-dev
+  - tcl-dev
+  - bison
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:

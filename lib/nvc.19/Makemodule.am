@@ -11,8 +11,6 @@ nvc_19_DATA = \
 
 BOOTSTRAPLIBS += $(nvc_19_DATA)
 
-libs-nvc-19: $(nvc_19_DATA)
-
 lib/nvc.19/_NVC_LIB:
 
 lib/nvc.19/_index:
@@ -38,5 +36,7 @@ lib/nvc.19/NVC.TEXTBUF-body: $(srcdir)/lib/nvc/textbuf-body.vhd @ifGNUmake@ | $(
 gen-deps-nvc-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --print-deps | \
 		$(deps_pp) > $(srcdir)/lib/nvc.19/deps.mk
+
+.PHONY: gen-deps-nvc-19
 
 include lib/nvc.19/deps.mk

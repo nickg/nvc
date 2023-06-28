@@ -12,9 +12,9 @@ DRIVER = bin/nvc$(EXEEXT)
 
 gen-deps: $(DRIVER)
 	$(MAKE) gen-deps-std gen-deps-std-08 gen-deps-ieee \
-	  gen-deps-synopsys gen-deps-vital gen-deps-ieee-08 \
-	  gen-deps-nvc gen-deps-nvc-08 gen-deps-std-19 \
-	  gen-deps-nvc-19 gen-deps-ieee-19
+	  gen-deps-synopsys gen-deps-ieee-08 gen-deps-nvc \
+	  gen-deps-nvc-08 gen-deps-std-19 gen-deps-nvc-19 \
+	  gen-deps-ieee-19
 
 clean-libs:
 	rm -f $(BOOTSTRAPLIBS)
@@ -23,11 +23,16 @@ clean-libs:
 	  if test -d lib/$$d; then rmdir lib/$$d; fi; \
 	done
 
+all-libs: $(BOOTSTRAPLIBS)
+
 bootstrap: $(DRIVER)
 	$(MAKE) $(AM_MAKEFLAGS) clean-libs
-	$(MAKE) $(AM_MAKEFLAGS) libs-std libs-std-08 libs-ieee libs-ieee-08 \
-	  libs-synopsys libs-vital libs-nvc libs-nvc-08 libs-std-19 libs-nvc-19 \
-	  libs-ieee-19 $(preload_SCRIPTS)
+	$(MAKE) $(AM_MAKEFLAGS) all-libs
+
+# Cannot bootstrap in parallel with other targets due to cleaning race
+@ifGNUmake@ifneq ($(filter bootstrap,$(MAKECMDGOALS)),)
+@ifGNUmake@.NOTPARALLEL:
+@ifGNUmake@endif
 
 if ENABLE_LLVM
 preloaddir = $(pkglibdir)
@@ -74,6 +79,8 @@ lib/preload08.@DLL_EXT@: $(PRELOAD08_DEPS) @ifGNUmake@ | $(DRIVER)
 lib/preload19.@DLL_EXT@: $(PRELOAD19_DEPS) @ifGNUmake@ | $(DRIVER)
 	$(aotgen) --work=lib/std.19 -L lib/ --std=2019 --aotgen -O2 -o $@ std nvc ieee
 endif
+
+.PHONY: bootstrap clean-libs all-libs gen-deps preload
 
 # For compatibility with BSD make
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD

@@ -42,12 +42,6 @@ lib/ieee.08/_NVC_LIB:
 
 lib/ieee.08/_index:
 
-if ENABLE_VITAL
-libs-vital: $(vital_DATA) $(vital_08_DATA)
-else
-libs-vital:
-endif
-
 lib/ieee/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_p.vhdl
 
@@ -83,11 +77,6 @@ lib/ieee.08/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $
 
 lib/ieee.08/IEEE.VITAL_MEMORY-body: $(srcdir)/lib/vital/memory_b.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/vital/memory_b.vhdl
-
-gen-deps-vital:
-	true
-
-include lib/vital/deps.mk
 
 lib/ieee/IEEE.VITAL_MEMORY: lib/ieee/IEEE.VITAL_PRIMITIVES
 

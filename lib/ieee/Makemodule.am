@@ -31,8 +31,6 @@ lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:
 
-libs-ieee: $(ieee_DATA) $(ieee_SCRIPTS)
-
 lib/ieee/IEEE.STD_LOGIC_1164: $(srcdir)/lib/ieee/std_logic_1164.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/std_logic_1164.vhdl
 

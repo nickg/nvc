@@ -9,8 +9,6 @@ std_DATA = \
 EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/textio-body.vhd
 BOOTSTRAPLIBS += $(std_DATA)
 
-libs-std: $(std_DATA)
-
 lib/std/_NVC_LIB:
 
 lib/std/_index:

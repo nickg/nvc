@@ -102,5 +102,5 @@ sync-branch:
 
 clean-local: clean-test clean-libs
 
-.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands
+.PHONY: cov-reset cov-report clean-test compile-commands
 .PHONY: release sync-branch

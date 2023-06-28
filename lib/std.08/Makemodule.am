@@ -16,8 +16,6 @@ EXTRA_DIST += \
 
 BOOTSTRAPLIBS += $(std_08_DATA)
 
-libs-std-08: $(std_08_DATA)
-
 lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
 
 lib/std.08/_index: lib/std.08/STD.STANDARD
