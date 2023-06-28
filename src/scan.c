@@ -506,7 +506,12 @@ token_t processed_yylex(void)
       default:
          if (cond_stack.count == 0 || ATOP(cond_stack).result)
             return token;
-         break;
+         else if (token == tSTRING || token == tID) {
+            free(yylval.str);
+            break;
+         }
+         else
+            break;
       }
    }
 }
