@@ -3209,6 +3209,27 @@ START_TEST(test_lcs2016_14a)
 }
 END_TEST
 
+START_TEST(test_lcs2016_19)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_19.vhd");
+
+   const error_t expect[] = {
+      {  6, "declaration of signal S2 without an initial value cannot "
+         "have unconstrained type INTEGER_VECTOR" },
+      { 11, "declaration of variable V2 without an initial value cannot "
+        "have unconstrained type INTEGER_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3361,6 +3382,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue713);
    tcase_add_test(tc_core, test_lcs2016_41);
    tcase_add_test(tc_core, test_lcs2016_14a);
+   tcase_add_test(tc_core, test_lcs2016_19);
    suite_add_tcase(s, tc_core);
 
    return s;

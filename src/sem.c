@@ -981,12 +981,23 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
       return false;
 
    if (type_is_unconstrained(type)) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "declaration of signal %s cannot have unconstrained "
-                  "type %s", istr(tree_ident(t)), type_pp(type));
-      sem_unconstrained_decl_hint(d, type);
-      diag_emit(d);
-      return false;
+      if (standard() < STD_19) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "declaration of signal %s cannot have unconstrained "
+                     "type %s", istr(tree_ident(t)), type_pp(type));
+         sem_unconstrained_decl_hint(d, type);
+         diag_emit(d);
+         return false;
+      }
+      else if (!tree_has_value(t)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "declaration of signal %s without an initial value "
+                     "cannot have unconstrained type %s",
+                     istr(tree_ident(t)), type_pp(type));
+         sem_unconstrained_decl_hint(d, type);
+         diag_emit(d);
+         return false;
+      }
    }
    else if (type_is_incomplete(type))
       sem_error(t, "declaration of signal %s cannot have incomplete type %s",
@@ -1022,12 +1033,23 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       return false;
 
    if (type_is_unconstrained(type)) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "declaration of variable %s cannot have unconstrained "
-                  "type %s", istr(tree_ident(t)), type_pp(type));
-      sem_unconstrained_decl_hint(d, type);
-      diag_emit(d);
-      return false;
+      if (standard() < STD_19) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "declaration of variable %s cannot have unconstrained "
+                     "type %s", istr(tree_ident(t)), type_pp(type));
+         sem_unconstrained_decl_hint(d, type);
+         diag_emit(d);
+         return false;
+      }
+      else if (!tree_has_value(t)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "declaration of variable %s without an initial value "
+                     "cannot have unconstrained type %s", istr(tree_ident(t)),
+                     type_pp(type));
+         sem_unconstrained_decl_hint(d, type);
+         diag_emit(d);
+         return false;
+      }
    }
    else if (type_is_incomplete(type))
       sem_error(t, "declaration of variable %s cannot have incomplete type %s",

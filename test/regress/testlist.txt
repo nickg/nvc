@@ -812,3 +812,4 @@ issue724        normal,2019
 issue653        normal,2008
 protected10     normal,2019
 reflect1        normal,2019
+signal32        normal,2019

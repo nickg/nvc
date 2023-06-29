@@ -7497,11 +7497,19 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
                field_reg = emit_load_indirect(field_reg);
          }
 
+         vcode_reg_t fbounds_reg = VCODE_INVALID_REG;
+         if (bounds_reg != VCODE_INVALID_REG) {
+            fbounds_reg = emit_record_ref(bounds_reg, i);
+
+            if (have_uarray_ptr(fbounds_reg))
+               fbounds_reg = emit_load_indirect(fbounds_reg);
+         }
+
          vcode_reg_t ptr_reg = emit_record_ref(sig_ptr, i);
 
          lower_sub_signals(lu, et, ft, ft, f, fview, VCODE_INVALID_VAR, ptr_reg,
                            field_reg, resolution, null_field_reg, newflags,
-                           VCODE_INVALID_REG);
+                           fbounds_reg);
       }
 
       emit_pop_scope();
@@ -7526,13 +7534,19 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
       init_reg = lower_known_subtype(lu, value, type, VCODE_INVALID_REG);
    }
 
+   vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+   if (standard() >= STD_19 && type_is_unconstrained(type)) {
+      type = value_type;
+      bounds_reg = init_reg;
+   }
+
    sig_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
       flags |= NET_F_REGISTER;
 
    lower_sub_signals(lu, type, type, value_type, decl, NULL, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags, VCODE_INVALID_REG);
+                     VCODE_INVALID_REG, flags, bounds_reg);
 
    if (cover_enabled(lu->cover, COVER_MASK_TOGGLE))
       lower_toggle_coverage(lu, decl);
