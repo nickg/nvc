@@ -103,7 +103,7 @@ typedef struct _jit {
    func_array_t   *funcs;
    unsigned        next_handle;
    nvc_lock_t      lock;
-   int32_t        *cover_mem[4];
+   int32_t        *cover_mem;
    jit_irq_fn_t    interrupt;
    void           *interrupt_ctx;
 } jit_t;
@@ -180,8 +180,7 @@ void jit_free(jit_t *j)
       jit_free_func(j->funcs->items[i]);
    free(j->funcs);
 
-   for (int i = 0; i < ARRAY_LEN(j->cover_mem); i++)
-      free(j->cover_mem[i]);
+   free(j->cover_mem);
 
    if (j->layouts != NULL) {
       hash_iter_t it = HASH_BEGIN;
@@ -301,16 +300,7 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
          else if (r->kind == RELOC_COVER) {
             // TODO: get rid of the double indirection here by
             //       allocating coverage memory earlier
-            if (strcmp(str, "stmt") == 0)
-               r->ptr = &(j->cover_mem[JIT_COVER_STMT]);
-            else if (strcmp(str, "branch") == 0)
-               r->ptr = &(j->cover_mem[JIT_COVER_BRANCH]);
-            else if (strcmp(str, "expr") == 0)
-               r->ptr = &(j->cover_mem[JIT_COVER_EXPRESSION]);
-            else if (strcmp(str, "toggle") == 0)
-               r->ptr = &(j->cover_mem[JIT_COVER_TOGGLE]);
-            else
-               fatal_trace("relocation against invalid coverage kind %s", str);
+            r->ptr = &(j->cover_mem);
          }
          else {
             jit_handle_t h = jit_lazy_compile_locked(j, ident_new(str));
@@ -1461,33 +1451,27 @@ bool jit_will_abort(jit_ir_t *ir)
       return ir->op == J_TRAP;
 }
 
-void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
-                         int n_expressions)
+void jit_alloc_cover_mem(jit_t *j, int n_tags)
 {
-   const int counts[4] = { n_stmts, n_branches, n_toggles, n_expressions };
-   for (int i = 0; i < 4; i++) {
-      if (counts[i] == 0)
-         continue;
-      else if (j->cover_mem[i] == NULL)
-         j->cover_mem[i] = xcalloc_array(counts[i], sizeof(int32_t));
-      else
-         j->cover_mem[i] = xrealloc_array(j->cover_mem[i],
-                                          counts[i], sizeof(int32_t));
-   }
+   if (n_tags == 0)
+      return;
+   else if (j->cover_mem == NULL)
+      j->cover_mem = xcalloc_array(n_tags, sizeof(int32_t));
+   else
+      j->cover_mem= xrealloc_array(j->cover_mem, n_tags, sizeof(int32_t));
 }
 
-int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind)
+int32_t *jit_get_cover_mem(jit_t *j)
 {
-   assert(kind < ARRAY_LEN(j->cover_mem));
-   return j->cover_mem[kind];
+   return j->cover_mem;
 }
 
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
 {
    assert(addr.kind == JIT_ADDR_COVER);
-   int32_t *base = jit_get_cover_mem(j, addr.int64 & 3);
+   int32_t *base = jit_get_cover_mem(j);
    assert(base != NULL);
-   return base + (addr.int64 >> 2);
+   return base + addr.int64;
 }
 
 object_t *jit_get_locus(jit_value_t value)

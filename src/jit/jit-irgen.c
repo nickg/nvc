@@ -155,11 +155,11 @@ static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
    }
 }
 
-static jit_value_t jit_addr_from_cover_tag(jit_cover_mem_t kind, uint32_t tag)
+static jit_value_t jit_addr_from_cover_tag(uint32_t tag)
 {
    return (jit_value_t){
       .kind = JIT_ADDR_COVER,
-      .int64 = kind | ((int64_t)tag << 2)
+      .int64 = tag,
    };
 }
 
@@ -3382,7 +3382,7 @@ static void irgen_op_driving_value(jit_irgen_t *g, int op)
 static void irgen_op_cover_stmt(jit_irgen_t *g, int op)
 {
    uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_STMT, tag);
+   jit_value_t mem = jit_addr_from_cover_tag(tag);
 
    // XXX: this should be atomic
    jit_value_t cur = j_load(g, JIT_SZ_32, mem);
@@ -3399,7 +3399,7 @@ static void irgen_op_cover_branch(jit_irgen_t *g, int op)
    }
 
    uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_BRANCH, tag);
+   jit_value_t mem = jit_addr_from_cover_tag(tag);
 
    jit_value_t tval, fval;
    if (vcode_get_subkind(op) & COV_FLAG_CHOICE) {
@@ -3425,7 +3425,7 @@ static void irgen_op_cover_expr(jit_irgen_t *g, int op)
    jit_value_t mask = irgen_get_arg(g, op, 0);
 
    uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_EXPRESSION, tag);
+   jit_value_t mem = jit_addr_from_cover_tag(tag);
 
    // XXX: this should be atomic
    jit_value_t cur = j_load(g, JIT_SZ_32, mem);
@@ -3438,7 +3438,7 @@ static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
    jit_value_t shared = irgen_get_arg(g, op, 0);
 
    uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(JIT_COVER_TOGGLE, tag);
+   jit_value_t mem = jit_addr_from_cover_tag(tag);
 
    j_send(g, 0, shared);
    j_send(g, 1, mem);

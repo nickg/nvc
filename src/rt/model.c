@@ -2040,11 +2040,10 @@ static void reset_coverage(rt_model_t *m)
 
    m->cover = cover_read_tags(f, 0);
 
-   int32_t n_stmts, n_branches, n_toggles, n_expressions;
-   cover_count_tags(m->cover, &n_stmts, &n_branches, &n_toggles,
-                    &n_expressions);
+   int32_t n_tags;
+   cover_count_tags(m->cover, &n_tags);
 
-   jit_alloc_cover_mem(m->jit, n_stmts, n_branches, n_toggles, n_expressions);
+   jit_alloc_cover_mem(m->jit, n_tags);
 
    fbuf_close(f, NULL);
 }
@@ -2052,18 +2051,9 @@ static void reset_coverage(rt_model_t *m)
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      const int32_t *cover_stmts =
-         jit_get_cover_mem(m->jit, JIT_COVER_STMT);
-      const int32_t *cover_branches =
-         jit_get_cover_mem(m->jit, JIT_COVER_BRANCH);
-      const int32_t *cover_toggles =
-         jit_get_cover_mem(m->jit, JIT_COVER_TOGGLE);
-      const int32_t *cover_expressions =
-         jit_get_cover_mem(m->jit, JIT_COVER_EXPRESSION);
-
+      const int32_t *counts = jit_get_cover_mem(m->jit);
       fbuf_t *covdb =  cover_open_lib_file(m->top, FBUF_OUT, true);
-      cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, cover_stmts,
-                      cover_branches, cover_toggles, cover_expressions);
+      cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, counts);
       fbuf_close(covdb, NULL);
    }
 }

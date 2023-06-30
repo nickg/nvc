@@ -87,11 +87,7 @@ struct _cover_spec {
 };
 
 struct _cover_tagging {
-   int               next_stmt_tag;
-   int               next_branch_tag;
-   int               next_toggle_tag;
-   int               next_expression_tag;
-   int               next_hier_tag;
+   int               next_tag;
    ident_t           hier;
    tag_array_t       tags;
    cover_mask_t      mask;
@@ -309,8 +305,7 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
                            tag_kind_t kind, uint32_t flags)
 {
-   int *cnt;
-   assert (ctx != NULL);
+   assert(ctx != NULL);
 
    if (!ctx->top_scope->emit && kind != TAG_HIER)
       return NULL;
@@ -327,17 +322,6 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       if (loc->first_line > lr->start && loc->first_line <= lr->end)
          return NULL;
    }
-
-   switch (kind) {
-      case TAG_STMT:       cnt = &(ctx->next_stmt_tag);        break;
-      case TAG_BRANCH:     cnt = &(ctx->next_branch_tag);      break;
-      case TAG_TOGGLE:     cnt = &(ctx->next_toggle_tag);      break;
-      case TAG_EXPRESSION: cnt = &(ctx->next_expression_tag);  break;
-      case TAG_HIER:       cnt = &(ctx->next_hier_tag);        break;
-      default:
-         fatal("unknown coverage type: %d", kind);
-   }
-   assert (cnt != NULL);
 
    // Everything creates scope, so name of current tag is already given
    // by scope in hierarchy.
@@ -364,7 +348,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 
    cover_tag_t new = {
       .kind       = kind,
-      .tag        = *cnt,
+      .tag        = ctx->next_tag++,
       .data       = 0,
       .flags      = flags,
       .excl_msk   = 0,
@@ -375,33 +359,23 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    };
 
    APUSH(ctx->tags, new);
-   (*cnt)++;
 
    return AREF(ctx->tags, ctx->tags.count - 1);
 }
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
-                     const int32_t *stmts, const int32_t *branches,
-                     const int32_t *toggles, const int32_t *expressions)
+                     const int32_t *counts)
 {
 
 #ifdef COVER_DEBUG_DUMP
    printf("Dumping coverage entries:\n");
-   printf("Number of statement tags: %d\n", ctx->next_stmt_tag);
-   printf("Number of branch tags: %d\n", ctx->next_branch_tag);
-   printf("Number of toggle tags: %d\n", ctx->next_toggle_tag);
-   printf("Number of expression tags: %d\n", ctx->next_expression_tag);
-   printf("Number of hierarchy tags: %d\n", ctx->next_hier_tag);
+   printf("Number of tags: %d\n", ctx->next_tag);
    printf("Total tag count: %d\n", ctx->tags.count);
 #endif
 
    write_u32(ctx->mask, f);
    write_u32(ctx->array_limit, f);
-   write_u32(ctx->next_stmt_tag, f);
-   write_u32(ctx->next_branch_tag, f);
-   write_u32(ctx->next_toggle_tag, f);
-   write_u32(ctx->next_expression_tag, f);
-   write_u32(ctx->next_hier_tag, f);
+   write_u32(ctx->next_tag, f);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
@@ -413,17 +387,7 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
       write_u32(tag->tag, f);
 
       if (dt == COV_DUMP_RUNTIME) {
-         const int32_t *cnts = NULL;
-         if (tag->kind == TAG_STMT)
-            cnts = stmts;
-         else if (tag->kind == TAG_BRANCH)
-            cnts = branches;
-         else if (tag->kind == TAG_TOGGLE)
-            cnts = toggles;
-         else if (tag->kind == TAG_EXPRESSION)
-            cnts = expressions;
-
-         int32_t data = (cnts) ? cnts[tag->tag] : 0;
+         const int32_t data = counts ? counts[tag->tag] : 0;
          write_u32(data, f);
 
 #ifdef COVER_DEBUG_DUMP
@@ -678,11 +642,7 @@ static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
 
    tagging->mask = read_u32(f);
    tagging->array_limit = read_u32(f);
-   tagging->next_stmt_tag = read_u32(f);
-   tagging->next_branch_tag = read_u32(f);
-   tagging->next_toggle_tag = read_u32(f);
-   tagging->next_expression_tag = read_u32(f);
-   tagging->next_hier_tag = read_u32(f);
+   tagging->next_tag = read_u32(f);
 }
 
 void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
@@ -781,22 +741,12 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
    }
 }
 
-void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
-                      int32_t *n_branches, int32_t *n_toggles,
-                      int32_t *n_expressions)
+void cover_count_tags(cover_tagging_t *tagging, int32_t *n_tags)
 {
-   if (tagging == NULL) {
-      *n_stmts = 0;
-      *n_branches = 0;
-      *n_toggles = 0;
-      *n_expressions = 0;
-   }
-   else {
-      *n_stmts = tagging->next_stmt_tag;
-      *n_branches = tagging->next_branch_tag;
-      *n_toggles = tagging->next_toggle_tag;
-      *n_expressions = tagging->next_expression_tag;
-   }
+   if (tagging == NULL)
+      *n_tags = 0;
+   else
+      *n_tags = tagging->next_tag;
 }
 
 void cover_load_spec_file(cover_tagging_t *tagging, const char *path)

@@ -437,7 +437,7 @@ static int elaborate(int argc, char **argv)
 
    if (cover != NULL) {
       fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
-      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL, NULL, NULL, NULL);
+      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL);
       fbuf_close(covdb, NULL);
       progress("dumping coverage data");
    }
@@ -1312,7 +1312,7 @@ static int coverage(int argc, char **argv)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL, NULL, NULL, NULL);
+      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL);
       fbuf_close(f, NULL);
    }
 

@@ -190,13 +190,10 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
 void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);
 
-void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
-                      int32_t *n_branches, int32_t *n_toggles,
-                      int32_t *n_expressions);
+void cover_count_tags(cover_tagging_t *tagging, int32_t *n_tags);
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
-                     const int32_t *stmts, const int32_t *branches,
-                     const int32_t *toggles, const int32_t *expressions);
+                     const int32_t *counts);
 
 cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask);
 

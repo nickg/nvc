@@ -324,9 +324,8 @@ void *eval_instance(jit_t *jit, ident_t name, void *context)
 
 void eval_alloc_cover_mem(jit_t *jit, cover_tagging_t *cover)
 {
-   int32_t n_stmts, n_branches, n_toggles, n_expressions;
-   cover_count_tags(cover, &n_stmts, &n_branches, &n_toggles,
-                    &n_expressions);
+   int32_t n_tags;
+   cover_count_tags(cover, &n_tags);
 
-   jit_alloc_cover_mem(jit, n_stmts, n_branches, n_toggles, n_expressions);
+   jit_alloc_cover_mem(jit, n_tags);
 }

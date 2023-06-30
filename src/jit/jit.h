@@ -51,13 +51,6 @@ typedef struct {
    void (*cleanup)(void *);
 } jit_plugin_t;
 
-typedef enum {
-   JIT_COVER_STMT,
-   JIT_COVER_BRANCH,
-   JIT_COVER_TOGGLE,
-   JIT_COVER_EXPRESSION,
-} jit_cover_mem_t;
-
 typedef struct {
    loc_t   loc;
    tree_t  decl;
@@ -97,9 +90,8 @@ void jit_reset(jit_t *j);
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
 jit_stack_trace_t *jit_stack_trace(void);
 
-void jit_alloc_cover_mem(jit_t *j, int n_stmts, int n_branches, int n_toggles,
-                         int n_expressions);
-int32_t *jit_get_cover_mem(jit_t *j, jit_cover_mem_t kind);
+void jit_alloc_cover_mem(jit_t *j, int n_tags);
+int32_t *jit_get_cover_mem(jit_t *j);
 
 bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...);
 bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,

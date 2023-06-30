@@ -1187,12 +1187,12 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
    case JIT_ADDR_COVER:
       if (cgb->func->mode == CGEN_AOT) {
-         LLVMValueRef ptr = cgen_load_from_reloc(obj, cgb->func,
-                                                 RELOC_COVER, value.int64 & 3);
+         LLVMValueRef ptr =
+            cgen_load_from_reloc(obj, cgb->func, RELOC_COVER, 0);
          LLVMValueRef base = LLVMBuildLoad2(obj->builder,
                                             obj->types[LLVM_PTR], ptr, "");
          LLVMValueRef indexes[] = {
-            llvm_intptr(obj, value.int64 >> 2)
+            llvm_intptr(obj, value.int64)
          };
          return LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT32],
                               base, indexes, 1, "");
@@ -2585,14 +2585,10 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                }
             }
             else if (args[j].kind == JIT_ADDR_COVER) {
-               const jit_cover_mem_t kind = args[j].int64 & 3;
-               if (cgen_find_reloc(relocs.items, RELOC_COVER, relocs.count,
-                                   kind) == NULL) {
-                  const char *map[] = { "stmt", "branch", "toggle", "expr" };
+               if (cgen_find_reloc(relocs.items, RELOC_COVER,
+                                   relocs.count, 0) == NULL) {
                   const cgen_reloc_t r = {
                      .kind = RELOC_COVER,
-                     .str  = cgen_reloc_str(obj, map[kind]),
-                     .key  = kind,
                      .nth  = relocs.count,
                   };
                   APUSH(relocs, r);
