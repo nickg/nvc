@@ -252,7 +252,12 @@ static bool cover_is_toggle_first(tree_t decl)
 
 unsigned cover_get_std_log_expr_flags(tree_t decl)
 {
-   assert(tree_kind(decl) == T_FUNC_DECL);
+   if (tree_kind(decl) != T_FUNC_DECL)
+      return 0;
+
+   tree_t container = tree_container(decl);
+   if (is_well_known(tree_ident(container)) != W_IEEE_1164)
+      return 0;
 
    struct {
       well_known_t op;
