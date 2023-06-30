@@ -22,6 +22,7 @@
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
@@ -61,12 +62,13 @@ const char version_string[] =
    PACKAGE_STRING GIT_SHA_ONLY(" (" GIT_SHA ")")
    LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")") DEBUG_ONLY(" [debug]");
 
-static ident_t top_level = NULL;
-static char *top_level_orig = NULL;
+static ident_t          top_level = NULL;
+static char            *top_level_orig = NULL;
+static unit_registry_t *registry = NULL;
 
 static int process_command(int argc, char **argv);
 static int parse_int(const char *str);
-static jit_t *get_jit(void);
+static jit_t *get_jit(unit_registry_t *ur);
 
 static ident_t to_unit_name(const char *str)
 {
@@ -143,7 +145,7 @@ static void do_file_list(const char *file, jit_t *jit)
       if (strlen(line) == 0)
          continue;
 
-      analyse_file(line, jit, false);
+      analyse_file(line, jit, registry);
    }
 
    free(line);
@@ -211,8 +213,11 @@ static int analyse(int argc, char **argv)
 
    set_error_limit(error_limit);
 
+   if (registry == NULL)
+      registry = unit_registry_new();
+
    lib_t work = lib_work();
-   jit_t *jit = jit_new();
+   jit_t *jit = jit_new(registry);
 
    if (file_list != NULL)
       do_file_list(file_list, jit);
@@ -221,7 +226,7 @@ static int analyse(int argc, char **argv)
       if (argv[i][0] == '@')
          do_file_list(argv[i] + 1, jit);
       else
-         analyse_file(argv[i], jit, false);
+         analyse_file(argv[i], jit, registry);
    }
 
    jit_free(jit);
@@ -418,15 +423,20 @@ static int elaborate(int argc, char **argv)
          cover_load_spec_file(cover, cover_spec_file);
    }
 
-   jit_t *jit = get_jit();
+   if (registry != NULL)
+      unit_registry_free(registry);
+
+   registry = unit_registry_new();
+
+   jit_t *jit = get_jit(registry);
    jit_enable_runtime(jit, false);
 
    tree_t unit, top;
    vlog_node_t module;
    if ((unit = tree_from_object(obj)))
-      top = elab(unit, jit, cover);
+      top = elab(unit, jit, registry, cover);
    else if ((module = vlog_from_object(obj)))
-      top = elab_verilog(module, jit, cover);
+      top = elab_verilog(module, jit, registry, cover);
    else
       fatal("%s is not a VHDL design unit or Verilog module", istr(top_level));
 
@@ -451,7 +461,7 @@ static int elaborate(int argc, char **argv)
    }
 
    if (!use_jit)
-      AOT_ONLY(cgen(top, cover));
+      AOT_ONLY(cgen(top, registry));
 
    jit_free(jit);
 
@@ -521,11 +531,14 @@ static void ctrl_c_handler(void *arg)
    model_interrupt(model);
 }
 
-static jit_t *get_jit(void)
+static jit_t *get_jit(unit_registry_t *ur)
 {
-   jit_t *jit = jit_new();
+   jit_t *jit = jit_new(ur);
    jit_enable_runtime(jit, true);
+
+#if HAVE_LLVM
    jit_preload(jit);
+#endif
 
 #if defined LLVM_HAS_LLJIT && 1
    jit_register_llvm_plugin(jit);
@@ -683,7 +696,10 @@ static int run(int argc, char **argv)
    if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
-   jit_t *jit = get_jit();
+   if (registry == NULL)
+      registry = unit_registry_new();
+
+   jit_t *jit = get_jit(registry);
    AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
 
    rt_model_t *model = model_new(top, jit);

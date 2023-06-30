@@ -283,7 +283,6 @@ vtype_repr_t vtype_repr(vcode_type_t type);
 int vtype_repr_bits(vtype_repr_t repr);
 bool vtype_repr_signed(vtype_repr_t repr);
 
-vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
 vcode_unit_t vcode_unit_child(vcode_unit_t unit);
 void vcode_unit_unref(vcode_unit_t unit);

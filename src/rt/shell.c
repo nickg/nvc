@@ -21,6 +21,7 @@
 #include "eval.h"
 #include "hash.h"
 #include "lib.h"
+#include "lower.h"
 #include "phase.h"
 #include "printer.h"
 #include "rt/model.h"
@@ -63,23 +64,24 @@ typedef struct {
 typedef char *(*get_line_fn_t)(tcl_shell_t *);
 
 typedef struct _tcl_shell {
-   char           *prompt;
-   Tcl_Interp     *interp;
-   shell_cmd_t    *cmds;
-   size_t          ncmds;
-   size_t          cmdalloc;
-   rt_model_t     *model;
-   tree_t          top;
-   rt_scope_t     *root;
-   shell_signal_t *signals;
-   unsigned        nsignals;
-   hash_t         *namemap;
-   jit_t          *jit;
-   int64_t         now_var;
-   unsigned        deltas_var;
-   printer_t      *printer;
-   get_line_fn_t   getline;
-   jit_factory_t   make_jit;
+   char            *prompt;
+   Tcl_Interp      *interp;
+   shell_cmd_t     *cmds;
+   size_t           ncmds;
+   size_t           cmdalloc;
+   rt_model_t      *model;
+   tree_t           top;
+   rt_scope_t      *root;
+   shell_signal_t  *signals;
+   unsigned         nsignals;
+   hash_t          *namemap;
+   jit_t           *jit;
+   int64_t          now_var;
+   unsigned         deltas_var;
+   printer_t       *printer;
+   get_line_fn_t    getline;
+   jit_factory_t    make_jit;
+   unit_registry_t *registry;
 } tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
@@ -244,9 +246,6 @@ static const char analyse_help[] =
    "\n"
    "Note \"vcom\" is an alias of this command.\n"
    "\n"
-   "Options:\n"
-   "  -verbose\tPrint name of each analysed design unit.\n"
-   "\n"
    "Examples:\n"
    "  analyse file.vhd\n"
    "  vcom file1.vhd file2.vhd\n";
@@ -256,14 +255,9 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
 {
    tcl_shell_t *sh = cd;
 
-   bool verbose = false;
    int pos = 1;
-   for (const char *opt; (opt = Tcl_GetString(objv[pos]))[0] == '-'; pos++) {
-      if (strcmp(opt, "-verbose") == 0)
-         verbose = true;
-      else
-         goto usage;
-   }
+   for (const char *opt; (opt = Tcl_GetString(objv[pos]))[0] == '-'; pos++)
+      goto usage;
 
    if (pos == objc)
       goto usage;
@@ -281,7 +275,7 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
       else if (info.type != FILE_REGULAR)
          return tcl_error(sh, "%s is not a regular file", fname);
 
-      analyse_file(fname, sh->jit, verbose);
+      analyse_file(fname, sh->jit, sh->registry);
    }
 
    return error_count() > 0 ? TCL_ERROR : TCL_OK;
@@ -340,13 +334,16 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
 
    reset_error_count();
 
-   // Recreate the JIT instance as it may have references to stale code
+   // Recreate the JIT instance and unit registry as it may have
+   // references to stale code
    jit_free(sh->jit);
-   sh->jit = (*sh->make_jit)();
+   unit_registry_free(sh->registry);
+   sh->registry = unit_registry_new();
+   sh->jit = (*sh->make_jit)(sh->registry);
 
    jit_enable_runtime(sh->jit, false);
 
-   tree_t top = elab(unit, sh->jit, NULL);
+   tree_t top = elab(unit, sh->jit, sh->registry, NULL);
    if (top == NULL)
       return TCL_ERROR;
 
@@ -656,7 +653,8 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
 #endif
    sh->interp   = Tcl_CreateInterp();
    sh->make_jit = make_jit;
-   sh->jit      = make_jit ? (*make_jit)() : NULL;
+   sh->registry = unit_registry_new();
+   sh->jit      = make_jit ? (*make_jit)(sh->registry) : NULL;
    sh->printer  = printer_new();
 
    if (isatty(fileno(stdin)))
@@ -697,6 +695,7 @@ void shell_free(tcl_shell_t *sh)
    if (sh->jit != NULL)
       jit_free(sh->jit);
 
+   unit_registry_free(sh->registry);
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
    free(sh);

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -77,6 +77,7 @@ void check_expected_errors(void);
 void fail_if_errors(void);
 TCase *nvc_unit_test(void);
 int nvc_run_test(Suite *s);
+unit_registry_t *get_registry(void);
 tree_t run_elab(void);
 tree_t _parse_and_check(const tree_kind_t *array, int num,
                         bool simp, bool lower);

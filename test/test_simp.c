@@ -81,8 +81,9 @@ START_TEST(test_cfold)
 
    fail_if_errors();
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    jit_free(jit);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
@@ -194,8 +195,9 @@ START_TEST(test_proc)
 
    fail_if_errors();
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    jit_free(jit);
 
    ////////
@@ -275,8 +277,9 @@ START_TEST(test_args)
 
    fail_if_errors();
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    jit_free(jit);
 
    ////////
@@ -317,8 +320,9 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   jit_t *jit = jit_new();
-   simplify_global(b, NULL, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_global(b, NULL, jit, ur);
    jit_free(jit);
    fail_if_errors();
 
@@ -365,8 +369,9 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   jit_t *jit = jit_new();
-   simplify_global(b, NULL, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_global(b, NULL, jit, ur);
    jit_free(jit);
    fail_if_errors();
 
@@ -381,8 +386,9 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_if_errors();
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    jit_free(jit);
 }
 END_TEST
@@ -394,8 +400,9 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   jit_t *jit = jit_new();
-   simplify_global(p, NULL, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_global(p, NULL, jit, ur);
    jit_free(jit);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
@@ -434,8 +441,9 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 5);
 
-   jit_t *jit = jit_new();
-   simplify_local(e, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(e, jit, ur);
    jit_free(jit);
 
    fail_unless(tree_contexts(e) == 7);

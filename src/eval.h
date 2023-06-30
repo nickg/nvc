@@ -26,7 +26,7 @@ tree_t eval_try_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
 tree_t eval_must_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                       void *context);
 int64_t eval_static_expr(jit_t *jit, tree_t expr);
-bool eval_possible(tree_t t);
+bool eval_possible(tree_t t, unit_registry_t *ur);
 tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context);
 void *eval_instance(jit_t *jit, ident_t name, void *context);
 void eval_alloc_cover_mem(jit_t *jit, cover_tagging_t *cover);

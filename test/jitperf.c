@@ -52,14 +52,17 @@ static void print_result(double ops_sec, double usec_op)
       printf("%.1f ops/s; %.1f us/op\n", ops_sec, usec_op);
 }
 
-static void run_benchmark(tree_t pack, tree_t proc)
+static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
 {
    color_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
 
    ident_t name = tree_ident2(proc);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(ur);
+
+#if HAVE_LLVM
    jit_preload(j);
+#endif
 
 #if defined LLVM_HAS_LLJIT && 1
    jit_register_llvm_plugin(j);
@@ -109,7 +112,8 @@ static void run_benchmark(tree_t pack, tree_t proc)
    jit_free(j);
 }
 
-static void find_benchmarks(tree_t pack, const char *filter)
+static void find_benchmarks(tree_t pack, const char *filter,
+                            unit_registry_t *ur)
 {
    ident_t test_i = ident_new("TEST_");
 
@@ -122,7 +126,7 @@ static void find_benchmarks(tree_t pack, const char *filter)
       ident_t id = tree_ident(d);
       if (ident_starts_with(id, test_i)
           && (filter == NULL || strcasestr(istr(id), filter) != NULL))
-         run_benchmark(pack, d);
+         run_benchmark(pack, d, ur);
    }
 }
 
@@ -197,7 +201,8 @@ int main(int argc, char **argv)
    lib_t work = lib_tmp("PERF");
    lib_set_work(work);
 
-   jit_t *jit = jit_new();
+   unit_registry_t *ur = unit_registry_new();
+   jit_t *jit = jit_new(ur);
 
    for (int i = optind; i < argc; i++) {
       color_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
@@ -211,14 +216,14 @@ int main(int argc, char **argv)
 
          lib_put(work, unit);
 
-         simplify_local(unit, jit);
+         simplify_local(unit, jit, ur);
          bounds_check(unit);
 
          if (error_count() > 0)
             return EXIT_FAILURE;
 
          if (unit_needs_cgen(unit))
-            lower_standalone_unit(unit);
+            lower_standalone_unit(ur, unit);
 
          if (pack == NULL && tree_kind(unit) == T_PACKAGE)
             pack = unit;
@@ -227,10 +232,11 @@ int main(int argc, char **argv)
       if (pack == NULL)
          fatal("no package found in %s", argv[i]);
 
-      find_benchmarks(pack, filter);
+      find_benchmarks(pack, filter, ur);
    }
 
    jit_free(jit);
+   unit_registry_free(ur);
 
    return 0;
 }

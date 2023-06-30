@@ -53,7 +53,7 @@ static jit_t *get_native_jit(void)
    opt_set_int(OPT_JIT_THRESHOLD, 1);
    opt_set_int(OPT_JIT_ASYNC, 0);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(NULL);
    jit_register_native_plugin(j);
 
    return j;

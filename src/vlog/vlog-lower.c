@@ -382,7 +382,7 @@ static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
 
    vlog_visit(stmt, vlog_driver_cb, lu);
 
@@ -417,7 +417,7 @@ static void vlog_lower_initial(lower_unit_t *parent, vlog_node_t stmt)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
 
    emit_return(VCODE_INVALID_REG);
 
@@ -448,7 +448,7 @@ static void vlog_lower_concurrent(lower_unit_t *parent, vlog_node_t scope)
    }
 }
 
-void vlog_lower(tree_t wrap, lower_unit_t *parent)
+void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent)
 {
    assert(tree_kind(wrap) == T_VERILOG);
 
@@ -464,7 +464,7 @@ void vlog_lower(tree_t wrap, lower_unit_t *parent)
 
    vcode_unit_t vu = emit_instance(name, tree_to_object(wrap), context);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
 
    vlog_lower_decls(lu, root);
    vlog_lower_port_map(lu, root, wrap);

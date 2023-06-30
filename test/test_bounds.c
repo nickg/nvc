@@ -87,8 +87,9 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_global(a, NULL, jit);   // Global to fold TIME expressions
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_global(a, NULL, jit, ur);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
 
@@ -132,8 +133,9 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_global(a, NULL, jit);   // Global to fold TIME expressions
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_global(a, NULL, jit, ur);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
 
@@ -172,8 +174,9 @@ START_TEST(test_case)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -187,8 +190,9 @@ START_TEST(test_issue36)
 
    tree_t e = parse_and_check(T_ENTITY);
 
-   jit_t *jit = jit_new();
-   simplify_local(e, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(e, jit, ur);
    bounds_check(e);
    jit_free(jit);
 
@@ -214,8 +218,9 @@ START_TEST(test_issue54)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -237,8 +242,9 @@ START_TEST(test_issue99)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
 
    check_expected_errors();
@@ -259,8 +265,9 @@ START_TEST(test_issue150)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -275,8 +282,9 @@ START_TEST(test_issue200)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -297,8 +305,9 @@ START_TEST(test_issue208)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -318,8 +327,9 @@ START_TEST(test_issue247)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 
@@ -339,8 +349,9 @@ START_TEST(test_issue269)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   jit_t *jit = jit_new();
-   simplify_local(a, jit);
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
 

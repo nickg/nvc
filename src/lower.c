@@ -67,8 +67,10 @@ typedef enum {
 typedef A(vcode_var_t) var_list_t;
 
 typedef struct _lower_unit {
+   unit_registry_t *registry;
    hash_t          *objects;
    lower_unit_t    *parent;
+   ident_t          name;
    scope_flags_t    flags;
    tree_t           hier;
    tree_t           container;
@@ -2413,15 +2415,16 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
       return VCODE_CC_VHDL;
 }
 
-static vcode_reg_t lower_context_for_call(ident_t unit_name)
+static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
    vcode_unit_t caller = vcode_active_unit();
 
    vcode_state_t state;
    vcode_state_save(&state);
 
-   vcode_unit_t vu = vcode_find_unit(unit_name);
-   if (vu != NULL) {
+   if (lu->registry != NULL && unit_registry_query(lu->registry, unit_name)) {
+      vcode_unit_t vu = unit_registry_get(lu->registry, unit_name);
+
       vcode_select_unit(vu);
       vcode_unit_t context = vcode_unit_context();
 
@@ -2515,7 +2518,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    if (tree_kind(fcall) == T_PROT_FCALL && tree_has_name(fcall))
       APUSH(args, lower_rvalue(lu, tree_name(fcall)));
    else if (cc != VCODE_CC_FOREIGN)
-      APUSH(args, lower_context_for_call(name));
+      APUSH(args, lower_context_for_call(lu, name));
 
    for (int i = 0; i < nparams; i++) {
       vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i);
@@ -3129,7 +3132,7 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
 
       vcode_type_t vrtype = lower_func_result_type(base);
 
-      vcode_reg_t args[] = { lower_context_for_call(helper_func), arg_reg };
+      vcode_reg_t args[] = { lower_context_for_call(lu, helper_func), arg_reg };
       return emit_fcall(helper_func, vrtype, vrtype, VCODE_CC_VHDL, args, 2);
    }
 }
@@ -4241,7 +4244,7 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
          ident_prefix(type_ident(base), ident_new("new"), '$');
 
       vcode_reg_t args[] = {
-         lower_context_for_call(helper_func),
+         lower_context_for_call(lu, helper_func),
          dst_ptr,
          src_ptr,
       };
@@ -4322,7 +4325,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
    }
    else if (type_is_protected(type)) {
       vcode_type_t vtype = lower_type(type);
-      vcode_reg_t context_reg = lower_context_for_call(type_ident(type));
+      vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
       vcode_reg_t obj_reg = emit_protected_init(vtype, context_reg);
       vcode_reg_t result_reg = emit_new(vtype, VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
@@ -4459,7 +4462,7 @@ static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
    assert(type_is_protected(pt));
 
    ident_t init_func = type_ident(pt);
-   vcode_reg_t context_reg = lower_context_for_call(init_func);
+   vcode_reg_t context_reg = lower_context_for_call(lu, init_func);
 
    type_t value_mirror = reflection_type(REFLECT_VALUE_MIRROR);
    const bool is_value_mirror = type_eq(type, value_mirror);
@@ -4645,7 +4648,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          vcode_type_t ctype = vtype_char();
          vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
          vcode_reg_t args[] = {
-            lower_context_for_call(func),
+            lower_context_for_call(lu, func),
             lower_param(lu, value, NULL, PORT_IN)
          };
          return emit_fcall(func, strtype, strtype, VCODE_CC_PREDEF, args, 2);
@@ -4668,7 +4671,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          type_t base = type_base_recur(name_type);
          ident_t func = ident_prefix(type_ident(base), ident_new("value"), '$');
          vcode_reg_t args[] = {
-            lower_context_for_call(func),
+            lower_context_for_call(lu, func),
             value_reg
          };
          vcode_reg_t reg = emit_fcall(func, lower_type(base),
@@ -5489,7 +5492,7 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
          ident_prefix(type_ident(base), ident_new("copy"), '$');
 
       vcode_reg_t args[] = {
-         lower_context_for_call(helper_func),
+         lower_context_for_call(lu, helper_func),
          dst_ptr,
          src_ptr,
          locus
@@ -5524,7 +5527,7 @@ static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
       assert(vcode_reg_kind(src_array) == VCODE_TYPE_UARRAY);
 
       vcode_reg_t args[] = {
-         lower_context_for_call(helper_func),
+         lower_context_for_call(lu, helper_func),
          dst_array,
          src_array,
          locus
@@ -6154,7 +6157,7 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    if (tree_kind(pcall) == T_PROT_PCALL && tree_has_name(pcall))
       APUSH(args, lower_rvalue(lu, tree_name(pcall)));
    else if (cc != VCODE_CC_FOREIGN)
-      APUSH(args, lower_context_for_call(name));
+      APUSH(args, lower_context_for_call(lu, name));
 
    const int arg0 = args.count;
    for (int i = 0; i < nparams; i++) {
@@ -6756,7 +6759,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
                   name_reg = lower_wrap(lu, type, name_reg);
 
-               vcode_reg_t context_reg = lower_context_for_call(cmp_func);
+               vcode_reg_t context_reg = lower_context_for_call(lu, cmp_func);
                vcode_reg_t args[] = { context_reg, name_reg, val_reg };
                vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
                                                VCODE_CC_PREDEF, args, 3);
@@ -6843,7 +6846,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       ident_t func = ident_new(
          is_array ? "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(Y)"
          : "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(U)");
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
 
       vcode_reg_t args[] = { context_reg, value_reg };
       emit_fcall(func, VCODE_INVALID_REG, VCODE_INVALID_REG,
@@ -6852,7 +6855,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U"
                             : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
-   vcode_reg_t context_reg = lower_context_for_call(func);
+   vcode_reg_t context_reg = lower_context_for_call(lu, func);
 
    vcode_type_t vscalar = lower_type(scalar);
    vcode_reg_t true_reg = emit_const(vscalar, 3);  // STD_LOGIC'POS('1')
@@ -7118,7 +7121,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
    lower_put_vcode_obj(decl, var, lu);
 
    if (type_is_protected(type)) {
-      vcode_reg_t context_reg = lower_context_for_call(type_ident(type));
+      vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
       vcode_reg_t obj_reg = emit_protected_init(lower_type(type), context_reg);
       emit_store(obj_reg, var);
       lu->flags |= SCOPE_HAS_PROTECTED;
@@ -7212,7 +7215,8 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       emit_store(value_reg, var);
 }
 
-static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
+static vcode_reg_t lower_resolution_func(lower_unit_t *lu, type_t type,
+                                         bool *is_array)
 {
    tree_t rname = NULL;
    for (type_t t = type; type_kind(t) == T_SUBTYPE; t = type_base(t)) {
@@ -7223,7 +7227,7 @@ static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
    }
 
    if (rname == NULL && type_is_array(type))
-      return lower_resolution_func(type_elem(type), is_array);
+      return lower_resolution_func(lu, type_elem(type), is_array);
    else if (rname == NULL)
       return VCODE_INVALID_REG;
 
@@ -7265,7 +7269,7 @@ static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
    vcode_type_t rtype = lower_func_result_type(type);
    vcode_type_t atype = vtype_uarray(1, elem, vtype_int(0, INT32_MAX));
 
-   vcode_reg_t context_reg = lower_context_for_call(rfunc);
+   vcode_reg_t context_reg = lower_context_for_call(lu, rfunc);
    vcode_reg_t closure_reg = emit_closure(rfunc, context_reg, atype, rtype);
    return emit_resolution_wrapper(rtype, closure_reg, ileft_reg, nlits_reg);
 }
@@ -7279,7 +7283,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
 {
    bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
-      resolution = lower_resolution_func(type, &has_scope);
+      resolution = lower_resolution_func(lu, type, &has_scope);
 
    if (type_is_scalar(type)) {
       vcode_type_t voffset = vtype_offset();
@@ -7595,7 +7599,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_type_t vcontext = vtype_context(context_id);
          emit_param(vcontext, vcontext, ident_new("context"));
 
-         lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+         lower_unit_t *lu = lower_unit_new(parent->registry, parent,
+                                           vu, NULL, NULL);
 
          emit_return(lower_rvalue(lu, expr));
 
@@ -7604,7 +7609,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
-         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t context_reg = lower_context_for_call(parent, func);
          vcode_reg_t closure =
             emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
          vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
@@ -7638,7 +7643,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
          vcode_unit_t vu = emit_process(name, obj, parent->vunit);
 
-         lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+         lower_unit_t *lu = lower_unit_new(parent->registry, parent,
+                                           vu, NULL, NULL);
 
          vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
          vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
@@ -7699,7 +7705,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_type_t vcontext = vtype_context(context_id);
          emit_param(vcontext, vcontext, ident_new("context"));
 
-         lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+         lower_unit_t *lu = lower_unit_new(parent->registry, parent,
+                                           vu, NULL, NULL);
 
          emit_return(lower_rvalue(lu, expr));
 
@@ -7708,7 +7715,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
-         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t context_reg = lower_context_for_call(parent, func);
          vcode_reg_t closure =
             emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
          vcode_reg_t kind_reg =
@@ -7891,8 +7898,7 @@ static void lower_image_helper(lower_unit_t *parent, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(type), ident_new("image"), '$');
 
-   vcode_unit_t exist = vcode_find_unit(func);
-   if (exist != NULL)
+   if (unit_registry_query(parent->registry, func))
       return;
 
    vcode_state_t state;
@@ -7902,7 +7908,7 @@ static void lower_image_helper(lower_unit_t *parent, tree_t decl)
 
    vcode_unit_t vu = emit_function(func, tree_to_object(decl), parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
@@ -8015,7 +8021,7 @@ static vcode_reg_t lower_enum_value_helper(lower_unit_t *lu, type_t type,
    type_t std_string = std_type(NULL, STD_STRING);
    ident_t func = lower_predef_func_name(std_string, "=");
 
-   vcode_reg_t context_reg = lower_context_for_call(func);
+   vcode_reg_t context_reg = lower_context_for_call(lu, func);
    vcode_reg_t str_cmp_args[] = { context_reg, str_reg, canon_reg };
    vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
                                    VCODE_CC_PREDEF, str_cmp_args, 3);
@@ -8232,8 +8238,7 @@ static void lower_value_helper(lower_unit_t *parent, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(type), ident_new("value"), '$');
 
-   vcode_unit_t exist = vcode_find_unit(func);
-   if (exist != NULL)
+   if (unit_registry_query(parent->registry, func))
       return;
 
    vcode_state_t state;
@@ -8244,7 +8249,7 @@ static void lower_value_helper(lower_unit_t *parent, tree_t decl)
    vcode_unit_t vu = emit_function(func, tree_to_object(decl), parent->vunit);
    vcode_set_result(lower_type(type));
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -8284,8 +8289,7 @@ static void lower_resolved_helper(lower_unit_t *parent, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(type), ident_new("resolved"), '$');
 
-   vcode_unit_t exist = vcode_find_unit(func);
-   if (exist != NULL)
+   if (unit_registry_query(parent->registry, func))
       return;
 
    vcode_state_t state;
@@ -8296,7 +8300,7 @@ static void lower_resolved_helper(lower_unit_t *parent, tree_t decl)
    vcode_unit_t vu = emit_function(func, tree_to_object(decl), parent->vunit);
    vcode_set_result(lower_func_result_type(type));
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
@@ -8341,15 +8345,14 @@ static void lower_copy_helper(lower_unit_t *parent, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(type), ident_new("copy"), '$');
 
-   vcode_unit_t exist = vcode_find_unit(func);
-   if (exist != NULL)
+   if (unit_registry_query(parent->registry, func))
       return;
 
    ident_t context_id = vcode_unit_name();
 
    vcode_unit_t vu = emit_function(func, tree_to_object(decl), parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
@@ -8453,15 +8456,14 @@ static void lower_new_helper(lower_unit_t *parent, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(type), ident_new("new"), '$');
 
-   vcode_unit_t exist = vcode_find_unit(func);
-   if (exist != NULL)
+   if (unit_registry_query(parent->registry, func))
       return;
 
    ident_t context_id = vcode_unit_name();
 
    vcode_unit_t vu = emit_function(func, tree_to_object(decl), parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
@@ -8528,7 +8530,9 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
    ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
 
    vcode_unit_t vu = emit_package(name, tree_to_object(decl), parent->vunit);
-   lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, decl);
+
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent,
+                                     vu, parent->cover, decl);
 
    cover_push_scope(lu->cover, decl);
 
@@ -8645,7 +8649,8 @@ static void lower_protected_body(lower_unit_t *parent, tree_t body)
    type_t type = tree_type(body);
    vcode_unit_t vu = emit_protected(type_ident(type), obj, parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu,
+                                     parent->cover, body);
 
    cover_push_scope(lu->cover, body);
 
@@ -9586,7 +9591,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          tmp = emit_cmp(cmp, r0_src_reg, r1_src_reg);
       else {
          ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
-         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t context_reg = lower_context_for_call(lu, func);
          vcode_reg_t args[] = { context_reg, r0_src_reg, r1_src_reg };
          tmp = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 3);
       }
@@ -9611,7 +9616,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
       ident_t func = is_bit
          ? ident_new("STD.STANDARD.\"and\"(Q)J")
          : ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, wrap_reg };
       result = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 2);
    }
@@ -9633,7 +9638,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          fatal_trace("unexpected comparison operator %d", cmp);
       }
 
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[3] = { context_reg, r0, r1 };
 
       vcode_type_t rtype = lower_type(r0_type);
@@ -9645,7 +9650,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
    else if (invert) {
       ident_t func = ident_new(
          "IEEE.STD_LOGIC_1164.\"not\"(U)24IEEE.STD_LOGIC_1164.UX01");
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[2] = { context_reg, result };
       vcode_type_t rtype = vcode_reg_type(result);
       emit_return(emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 2));
@@ -9750,7 +9755,7 @@ static void lower_predef(lower_unit_t *parent, tree_t decl)
       return;
 
    ident_t name = tree_ident2(decl);
-   if (vcode_find_unit(name) != NULL)
+   if (unit_registry_query(parent->registry, name))
       return;
 
    type_t type = tree_type(decl);
@@ -9761,7 +9766,7 @@ static void lower_predef(lower_unit_t *parent, tree_t decl)
    vcode_unit_t vu = emit_function(name, tree_to_object(decl), parent->vunit);
    vcode_set_result(lower_func_result_type(type_result(type)));
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -9854,8 +9859,7 @@ static void lower_proc_body(lower_unit_t *parent, tree_t body)
    vcode_select_unit(parent->vunit);
 
    ident_t name = tree_ident2(body);
-   vcode_unit_t vu = vcode_find_unit(name);
-   if (vu != NULL)
+   if (unit_registry_query(parent->registry, name))
       return;
 
    if (is_uninstantiated_subprogram(body))
@@ -9863,13 +9867,15 @@ static void lower_proc_body(lower_unit_t *parent, tree_t body)
 
    ident_t context_id = vcode_unit_name();
 
+   vcode_unit_t vu;
    object_t *obj = tree_to_object(body);
    if (never_waits)
       vu = emit_function(name, obj, parent->vunit);
    else
       vu = emit_procedure(name, obj, parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu,
+                                     parent->cover, body);
 
    cover_push_scope(lu->cover, body);
 
@@ -9904,8 +9910,7 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
    vcode_select_unit(parent->vunit);
 
    ident_t name = tree_ident2(body);
-   vcode_unit_t vu = vcode_find_unit(name);
-   if (vu != NULL)
+   if (unit_registry_query(parent->registry, name))
       return;
 
    if (is_uninstantiated_subprogram(body))
@@ -9914,14 +9919,15 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
    ident_t context_id = vcode_unit_name();
    type_t result = type_result(tree_type(body));
 
-   vu = emit_function(name, tree_to_object(body), parent->vunit);
+   vcode_unit_t vu = emit_function(name, tree_to_object(body), parent->vunit);
    vcode_set_result(lower_func_result_type(result));
    emit_debug_info(tree_loc(body));
 
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu,
+                                     parent->cover, body);
 
    cover_push_scope(lu->cover, body);
 
@@ -10051,7 +10057,8 @@ void lower_process(lower_unit_t *parent, tree_t proc)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, proc);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu,
+                                     parent->cover, proc);
 
    cover_push_scope(lu->cover, proc);
 
@@ -10133,8 +10140,11 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       }
    }
 
+   vcode_unit_t context = vcode_active_unit();
+   ident_t context_id = vcode_unit_name();
+
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%s.", istr(vcode_unit_name()));
+   tb_printf(tb, "%s.", istr(context_id));
    if (kind == T_TYPE_CONV)
       tb_printf(tb, "convert_%s_%s", type_pp(atype), type_pp(rtype));
    else {
@@ -10142,10 +10152,9 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       ident_t signame = tree_ident(name_to_ref(p0));
       tb_printf(tb, "wrap_%s.%s", istr(tree_ident2(fdecl)), istr(signame));
    }
-   ident_t name = ident_new(tb_get(tb));
 
-   vcode_unit_t vu = vcode_find_unit(name);
-   if (vu != NULL)
+   ident_t name = ident_new(tb_get(tb));
+   if (unit_registry_query(parent->registry, name))
       return name;
 
    vcode_state_t state;
@@ -10180,13 +10189,11 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       }
    }
 
-   ident_t context_id = vcode_unit_name();
-
-   vu = emit_function(name, tree_to_object(expr), vcode_active_unit());
+   vcode_unit_t vu = emit_function(name, tree_to_object(expr), context);
    vcode_set_result(*vrtype);
    emit_debug_info(tree_loc(expr));
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -10201,7 +10208,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
          arg_reg = lower_wrap(lu, atype, p0);
 
       ident_t func = tree_ident2(fdecl);
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, arg_reg };
       vcode_reg_t result_reg = emit_fcall(func, lower_type(rtype), vrbounds,
                                           VCODE_CC_VHDL, args, 2);
@@ -10407,7 +10414,7 @@ static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
    ident_t pname = ident_prefix(vcode_unit_name(), name, '.');
    vcode_unit_t vu = emit_process(pname, tree_to_object(wave), parent->vunit);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
 
    {
       vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
@@ -10505,7 +10512,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
             ident_t func = lower_converter(lu, name, atype, rtype,
                                            tree_type(value_conv ?: value),
                                            &vatype, &vrtype);
-            vcode_reg_t context_reg = lower_context_for_call(func);
+            vcode_reg_t context_reg = lower_context_for_call(lu, func);
             out_conv = emit_closure(func, context_reg, vatype, vrtype);
             name = p0;
          }
@@ -10519,7 +10526,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                                            tree_type(value_conv ?: value),
                                            &vatype, &vrtype);
             if (func != NULL) {
-               vcode_reg_t context_reg = lower_context_for_call(func);
+               vcode_reg_t context_reg = lower_context_for_call(lu, func);
                out_conv = emit_closure(func, context_reg, vatype, vrtype);
             }
             name = value;
@@ -10558,7 +10565,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       }
 
       if (func != NULL) {
-         vcode_reg_t context_reg = lower_context_for_call(func);
+         vcode_reg_t context_reg = lower_context_for_call(lu, func);
          in_conv = emit_closure(func, context_reg, vatype, vrtype);
       }
       value = value_conv;
@@ -10887,7 +10894,7 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
       }
 
       ident_t func = lower_predef_func_name(type, "=");
-      vcode_reg_t context_reg = lower_context_for_call(func);
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, left_reg, right_reg };
       vcode_type_t vbool = vtype_bool();
       test_reg = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
@@ -11092,14 +11099,16 @@ static void lower_dependencies(tree_t primary, tree_t secondary)
       tree_walk_deps(secondary, lower_deps_cb, NULL);
 }
 
-static vcode_unit_t lower_pack_body(tree_t unit)
+static vcode_unit_t lower_pack_body(unit_registry_t *ur, tree_t unit)
 {
    tree_t pack = tree_primary(unit);
    assert(!is_uninstantiated_package(pack));
 
+   ident_t name = tree_ident(pack);
    object_t *obj = tree_to_object(unit);
-   vcode_unit_t context = emit_package(tree_ident(pack), obj, NULL);
-   lower_unit_t *lu = lower_unit_new(NULL, context, NULL, unit);
+   vcode_unit_t context = emit_package(name, obj, NULL);
+
+   lower_unit_t *lu = lower_unit_new(ur, NULL, context, NULL, unit);
 
    lower_dependencies(pack, unit);
    lower_decls(lu, pack);
@@ -11111,13 +11120,15 @@ static vcode_unit_t lower_pack_body(tree_t unit)
    return context;
 }
 
-static vcode_unit_t lower_package(tree_t unit)
+static vcode_unit_t lower_package(unit_registry_t *ur, tree_t unit)
 {
    assert(!is_uninstantiated_package(unit));
 
+   ident_t name = tree_ident(unit);
    object_t *obj = tree_to_object(unit);
-   vcode_unit_t context = emit_package(tree_ident(unit), obj, NULL);
-   lower_unit_t *lu = lower_unit_new(NULL, context, NULL, unit);
+   vcode_unit_t context = emit_package(name, obj, NULL);
+
+   lower_unit_t *lu = lower_unit_new(ur, NULL, context, NULL, unit);
 
    lower_dependencies(unit, NULL);
    lower_generics(lu, unit);
@@ -11182,7 +11193,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 
    vcode_unit_t context = parent ? parent->vunit : NULL;
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
-   lower_unit_t *lu = lower_unit_new(parent, thunk, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent->registry, parent, thunk, NULL, NULL);
 
    vcode_type_t vbool = vtype_bool();
    vcode_type_t vint = vtype_int(INT32_MIN, INT32_MAX);
@@ -11224,7 +11235,8 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
                   if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
                      name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
-                  vcode_reg_t context_reg = lower_context_for_call(cmp_func);
+                  vcode_reg_t context_reg =
+                     lower_context_for_call(lu, cmp_func);
                   vcode_reg_t args[] = { context_reg, name_reg, value_reg };
                   vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
                                                   VCODE_CC_PREDEF, args, 3);
@@ -11274,7 +11286,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 
    vcode_unit_t context = parent ? parent->vunit : NULL;
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
-   lower_unit_t *lu = lower_unit_new(parent, thunk, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(parent ? parent->registry : NULL, parent, thunk, NULL, NULL);
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
    switch (tree_kind(t)) {
@@ -11321,8 +11333,8 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    return thunk;
 }
 
-lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
-                             tree_t block)
+lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
+                             cover_tagging_t *cover, tree_t block)
 {
    mode = LOWER_NORMAL;
 
@@ -11337,7 +11349,7 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
    vcode_unit_t vu = emit_instance(name, tree_to_object(block),
                                    parent ? parent->vunit : NULL);
 
-   lower_unit_t *lu = lower_unit_new(parent, vu, cover, block);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
 
    cover_push_scope(cover, block);
 
@@ -11355,7 +11367,7 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
    return lu;
 }
 
-void lower_standalone_unit(tree_t unit)
+void lower_standalone_unit(unit_registry_t *ur, tree_t unit)
 {
    freeze_global_arena();
 
@@ -11364,13 +11376,13 @@ void lower_standalone_unit(tree_t unit)
    vcode_unit_t root = NULL;
    switch (tree_kind(unit)) {
    case T_PACK_BODY:
-      root = lower_pack_body(unit);
+      root = lower_pack_body(ur, unit);
       break;
    case T_PACKAGE:
       assert(!package_needs_body(unit));
       // Fall-through
    case T_PACK_INST:
-      root = lower_package(unit);
+      root = lower_package(ur, unit);
       break;
    default:
       fatal("cannot lower unit kind %s to vcode",
@@ -11380,8 +11392,9 @@ void lower_standalone_unit(tree_t unit)
    lib_put_vcode(lib_work(), unit, root);
 }
 
-lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
-                             cover_tagging_t *cover, tree_t container)
+lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
+                             vcode_unit_t vunit, cover_tagging_t *cover,
+                             tree_t container)
 {
    lower_unit_t *new = xcalloc(sizeof(lower_unit_t));
    new->parent    = parent;
@@ -11389,6 +11402,7 @@ lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
    new->container = container;
    new->vunit     = vunit;
    new->cover     = cover;
+   new->registry  = ur ?: (parent ? parent->registry : NULL);
 
    vcode_state_t state;
    vcode_state_save(&state);
@@ -11396,11 +11410,16 @@ lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
    vcode_select_unit(vunit);
    const vunit_kind_t kind = vcode_unit_kind();
 
+   new->name = vcode_unit_name();
+
    vcode_state_restore(&state);
 
    // Prevent access to resolved signals during static elaboration
    new->elaborating = kind == VCODE_UNIT_INSTANCE
       || kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_PACKAGE;
+
+   if (kind != VCODE_UNIT_THUNK)
+      unit_registry_put(new->registry, new->name, vunit);
 
    return new;
 }
@@ -11421,4 +11440,177 @@ void lower_unit_free(lower_unit_t *lu)
 vcode_unit_t get_vcode(lower_unit_t *lu)
 {
    return lu->vunit;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef enum {
+  UNIT_DEFERRED = 1,
+  UNIT_GENERATED = 2,
+  UNIT_FINALISED = 3,
+} unit_kind_t;
+
+typedef struct _unit_registry {
+   hash_t *map;
+} unit_registry_t;
+
+typedef struct {
+   lower_unit_t *parent;
+   emit_fn_t     emit_fn;
+   lower_fn_t    fn;
+   object_t     *object;
+} deferred_unit_t;
+
+unit_registry_t *unit_registry_new(void)
+{
+   unit_registry_t *ur = xcalloc(sizeof(unit_registry_t));
+   ur->map = hash_new(128);
+
+   return ur;
+}
+
+void unit_registry_free(unit_registry_t *ur)
+{
+   const void *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN; hash_iter(ur->map, &it, &key, &value); ) {
+
+      switch (pointer_tag(value)) {
+      case UNIT_FINALISED:
+         // Let this leak for now as it may be referenced from the library
+         break;
+
+      case UNIT_GENERATED:
+      case UNIT_DEFERRED:
+         fatal_trace("cannot free this unit kind");
+
+      default:
+         fatal_trace("invalid tagged pointer %p", value);
+      }
+   }
+
+   hash_free(ur->map);
+   free(ur);
+}
+
+void unit_registry_put(unit_registry_t *ur, ident_t ident, vcode_unit_t vu)
+{
+   assert(hash_get(ur->map, ident) == NULL);
+   hash_put(ur->map, ident, tag_pointer(vu, UNIT_FINALISED));
+}
+
+bool unit_registry_query(unit_registry_t *ur, ident_t ident)
+{
+   return hash_get(ur->map, ident) != NULL;
+}
+
+void unit_registry_purge(unit_registry_t *ur, ident_t prefix)
+{
+   if (hash_get(ur->map, prefix) == NULL)
+      return;   // Fail fast if root not registered
+
+   const void *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN; hash_iter(ur->map, &it, &key, &value); ) {
+      if (ident_starts_with((ident_t)key, prefix)) {
+         switch (pointer_tag(value)) {
+         case UNIT_FINALISED:
+            // TODO: unref vcode unit?
+            hash_delete(ur->map, key);
+            break;
+
+         case UNIT_GENERATED:
+         case UNIT_DEFERRED:
+            fatal_trace("cannot purge this unit kind");
+
+         default:
+            fatal_trace("invalid tagged pointer %p", value);
+         }
+      }
+   }
+}
+
+static void unit_registry_put_all(unit_registry_t *ur, vcode_unit_t vu)
+{
+   vcode_select_unit(vu);
+   unit_registry_put(ur, vcode_unit_name(), vu);
+
+   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
+      unit_registry_put_all(ur, it);
+}
+
+vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
+{
+   void *ptr = hash_get(ur->map, ident);
+   if (ptr == NULL) {
+      ident_t it = ident;
+      ident_t lname = ident_walk_selected(&it);
+      ident_t uname = ident_walk_selected(&it);
+
+      lib_t lib = lib_require(lname);
+
+      tree_t unit = lib_get(lib, ident_prefix(lname, uname, '.'));
+      if (unit == NULL || !is_package(unit))
+         return NULL;
+      else if (tree_kind(unit) == T_PACKAGE && package_needs_body(unit)) {
+         if ((unit = body_of(unit)) == NULL)
+            return NULL;
+      }
+
+      vcode_unit_t root = lib_get_vcode(lib, unit);
+      if (root == NULL)
+         return NULL;
+
+      unit_registry_put_all(ur, root);
+
+      if ((ptr = hash_get(ur->map, ident)) == NULL)
+         return NULL;
+   }
+
+   switch (pointer_tag(ptr)) {
+   case UNIT_DEFERRED:
+      {
+         deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+
+         vcode_select_unit(du->parent->vunit);
+
+         vcode_unit_t vu = (*du->emit_fn)(ident, du->object, du->parent->vunit);
+         tree_t container = tree_from_object(du->object);
+         lower_unit_t *lu = lower_unit_new(ur, du->parent, vu, NULL, container);
+
+         (*du->fn)(lu, du->object);
+
+         hash_put(ur->map, ident, tag_pointer(lu, UNIT_GENERATED));
+         free(du);
+
+         return lu->vunit;
+      }
+
+   case UNIT_GENERATED:
+      {
+         lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
+         return lu->vunit;
+      }
+
+   case UNIT_FINALISED:
+      return untag_pointer(ptr, struct _vcode_unit);
+
+   default:
+      fatal_trace("invalid tagged pointer %p", ptr);
+   }
+}
+
+void unit_registry_defer(unit_registry_t *ur, ident_t ident,
+                         lower_unit_t *parent, emit_fn_t emit_fn,
+                         lower_fn_t fn, object_t *object)
+{
+   assert(hash_get(ur->map, ident) == NULL);
+
+   deferred_unit_t *du = xcalloc(sizeof(deferred_unit_t));
+   du->emit_fn = emit_fn;
+   du->fn      = fn;
+   du->object  = object;
+   du->parent  = parent;
+
+   hash_put(ur->map, ident, tag_pointer(du, UNIT_DEFERRED));
 }

@@ -184,7 +184,7 @@ static bool eval_not_possible(tree_t t, const char *why)
    return false;
 }
 
-bool eval_possible(tree_t t)
+bool eval_possible(tree_t t, unit_registry_t *ur)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
@@ -200,7 +200,7 @@ bool eval_possible(tree_t t)
          else if (tree_flags(decl) & TREE_F_IMPURE)
             return eval_not_possible(t, "call to impure function");
          else if (kind != S_USER && !is_open_coded_builtin(kind)
-                  && vcode_find_unit(tree_ident2(decl)) == NULL)
+                  && unit_registry_get(ur, tree_ident2(decl)) == NULL)
             return eval_not_possible(t, "not yet lowered predef");
          else if (kind == S_USER && !is_package(tree_container(decl)))
             return eval_not_possible(t, "subprogram not in package");
@@ -208,7 +208,7 @@ bool eval_possible(tree_t t)
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
             tree_t p = tree_value(tree_param(t, i));
-            if (!eval_possible(p))
+            if (!eval_possible(p, ur))
                return false;
             else if (tree_kind(p) == T_FCALL && type_is_scalar(tree_type(p)))
                return false;  // Would have been folded already if possible
@@ -222,10 +222,10 @@ bool eval_possible(tree_t t)
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(tree_value(t));
+      return eval_possible(tree_value(t), ur);
 
    case T_QUALIFIED:
-      return eval_possible(tree_value(t));
+      return eval_possible(tree_value(t), ur);
 
    case T_REF:
       {
@@ -237,7 +237,7 @@ bool eval_possible(tree_t t)
 
          case T_CONST_DECL:
             if (tree_has_value(decl))
-               return eval_possible(tree_value(decl));
+               return eval_possible(tree_value(decl), ur);
             else
                return true;
 
@@ -247,24 +247,24 @@ bool eval_possible(tree_t t)
       }
 
    case T_RECORD_REF:
-      return eval_possible(tree_value(t));
+      return eval_possible(tree_value(t), ur);
 
    case T_ARRAY_REF:
       {
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            if (!eval_possible(tree_value(tree_param(t, i))))
+            if (!eval_possible(tree_value(tree_param(t, i)), ur))
                return false;
          }
 
-         return eval_possible(tree_value(t));
+         return eval_possible(tree_value(t), ur);
       }
 
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++) {
-            if (!eval_possible(tree_value(tree_assoc(t, i))))
+            if (!eval_possible(tree_value(tree_assoc(t, i)), ur))
                return false;
          }
 
@@ -276,12 +276,12 @@ bool eval_possible(tree_t t)
          if (tree_subkind(t) == ATTR_USER)
             return eval_not_possible(t, "user defined attribute");
 
-         if (!eval_possible(tree_name(t)))
+         if (!eval_possible(tree_name(t), ur))
             return false;
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            if (!eval_possible(tree_value(tree_param(t, i))))
+            if (!eval_possible(tree_value(tree_param(t, i)), ur))
                return false;
          }
 

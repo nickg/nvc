@@ -31,10 +31,11 @@
 #include <stdlib.h>
 
 typedef struct {
-   tree_t        top;
-   jit_t        *jit;
-   tree_flags_t  eval_mask;
-   hash_t       *generics;
+   tree_t           top;
+   jit_t           *jit;
+   unit_registry_t *registry;
+   tree_flags_t     eval_mask;
+   hash_t          *generics;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -151,7 +152,7 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    type_t type = tree_type(t);
    if (!type_is_scalar(type))
       return t;
-   else if (!eval_possible(t))
+   else if (!eval_possible(t, ctx->registry))
       return t;
 
    return eval_try_fold(ctx->jit, t, NULL, NULL);
@@ -1390,11 +1391,12 @@ static void simp_pre_cb(tree_t t, void *__ctx)
    }
 }
 
-void simplify_local(tree_t top, jit_t *jit)
+void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur)
 {
    simp_ctx_t ctx = {
       .top       = top,
       .jit       = jit,
+      .registry  = ur,
       .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
@@ -1404,11 +1406,13 @@ void simplify_local(tree_t top, jit_t *jit)
       hash_free(ctx.generics);
 }
 
-void simplify_global(tree_t top, hash_t *generics, jit_t *jit)
+void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
+                     unit_registry_t *ur)
 {
    simp_ctx_t ctx = {
       .top       = top,
       .jit       = jit,
+      .registry  = ur,
       .eval_mask = TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC,
       .generics  = generics,
    };

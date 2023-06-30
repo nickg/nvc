@@ -31,9 +31,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-static const error_t *error_lines = NULL;
-static lib_t          test_lib = NULL;
-static unsigned       errors_seen = 0;
+static const error_t   *error_lines = NULL;
+static lib_t            test_lib    = NULL;
+static unsigned         errors_seen = 0;
+static unit_registry_t *registry    = NULL;
 
 static void test_error_fn(diag_t *d)
 {
@@ -78,6 +79,11 @@ static void setup_per_test(void)
 
 static void teardown_per_test(void)
 {
+   if (registry != NULL) {
+      unit_registry_free(registry);
+      registry = NULL;
+   }
+
    lib_set_work(NULL);
    lib_free(test_lib);
    test_lib = NULL;
@@ -109,38 +115,47 @@ TCase *nvc_unit_test(void)
    return tc_core;
 }
 
+unit_registry_t *get_registry(void)
+{
+   if (registry == NULL)
+      registry = unit_registry_new();
+
+   return registry;
+}
+
 tree_t run_elab(void)
 {
-   jit_t *j = jit_new();
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
 
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
       fail_if(error_count() > 0);
 
       lib_put(lib_work(), t);
-      simplify_local(t, j);
+      simplify_local(t, j, ur);
       bounds_check(t);
       fail_if(error_count() > 0);
 
       if (unit_needs_cgen(t))
-         lower_standalone_unit(t);
+         lower_standalone_unit(ur, t);
 
       const tree_kind_t kind = tree_kind(t);
       if (kind == T_ENTITY || kind == T_CONFIGURATION)
          last_ent = t;
    }
 
-   tree_t top = elab(last_ent, j, NULL);
+   tree_t top = elab(last_ent, j, ur, NULL);
 
    jit_free(j);
+
    return top;
 }
 
 tree_t _parse_and_check(const tree_kind_t *array, int num,
                         bool simp, bool lower)
 {
-   jit_t *j = simp ? jit_new() : NULL;
-
+   jit_t *jit = NULL;
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {
       if (array[i] == (tree_kind_t)-1)
@@ -159,22 +174,29 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
 
       lib_put(lib_work(), last);
 
-      if (simp && error_count() == 0)
-         simplify_local(last, j);
+      if (simp && error_count() == 0) {
+         unit_registry_t *ur = get_registry();
+         if (jit == NULL)
+            jit = jit_new(ur);
+         else
+            unit_registry_purge(ur, tree_ident(last));
+
+         simplify_local(last, jit, ur);
+      }
 
       if (lower && error_count() == 0) {
          bounds_check(last);
 
          if (unit_needs_cgen(last))
-            lower_standalone_unit(last);
+            lower_standalone_unit(get_registry(), last);
       }
    }
 
    fail_unless(parse() == NULL);
 
  out:
-   if (j != NULL)
-      jit_free(j);
+   if (jit != NULL)
+      jit_free(jit);
 
    return last;
 }

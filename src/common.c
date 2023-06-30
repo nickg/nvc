@@ -2187,7 +2187,7 @@ void capture_syntax(text_buf_t *tb)
    syntax_buf = tb;
 }
 
-void analyse_file(const char *file, jit_t *jit, bool verbose)
+void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
 {
    input_from_file(file);
 
@@ -2200,16 +2200,13 @@ void analyse_file(const char *file, jit_t *jit, bool verbose)
          while (base_errors = error_count(), (unit = parse())) {
             if (error_count() == base_errors) {
                lib_put(work, unit);
+               unit_registry_purge(ur, tree_ident(unit));
 
-               simplify_local(unit, jit);
+               simplify_local(unit, jit, ur);
                bounds_check(unit);
 
                if (error_count() == base_errors && unit_needs_cgen(unit))
-                  lower_standalone_unit(unit);
-
-               if (verbose)
-                  notef("analysed %s %s", class_str(class_of(unit)),
-                        istr(tree_ident(unit)));
+                  lower_standalone_unit(ur, unit);
             }
             else
                lib_put_error(work, unit);

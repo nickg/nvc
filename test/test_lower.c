@@ -351,7 +351,8 @@ static vcode_unit_t find_unit_for(tree_t decl)
 {
    fail_unless(is_subprogram(decl));
 
-   vcode_unit_t vu = vcode_find_unit(tree_ident2(decl));
+   unit_registry_t *ur = get_registry();
+   vcode_unit_t vu = unit_registry_get(ur, tree_ident2(decl));
    if (vu == NULL)
       fail("missing vcode unit for %s", istr(tree_ident2(decl)));
    return vu;
@@ -359,9 +360,12 @@ static vcode_unit_t find_unit_for(tree_t decl)
 
 static vcode_unit_t find_unit(const char *name)
 {
-   vcode_unit_t vu = vcode_find_unit(ident_new(name));
+   unit_registry_t *ur = get_registry();
+
+   vcode_unit_t vu = unit_registry_get(ur, ident_new(name));
    if (vu == NULL)
       fail("missing vcode unit for %s", name);
+
    return vu;
 }
 
@@ -1966,9 +1970,10 @@ START_TEST(test_cover)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   jit_t *jit = jit_new();
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, jit, tagging);
+   elab(a, jit, ur, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");
    vcode_select_unit(v0);
@@ -2265,10 +2270,11 @@ START_TEST(test_issue158)
 {
    input_from_file(TESTDIR "/lower/issue158.vhd");
 
-   jit_t *jit = jit_new();
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
    tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
-   simplify_local(p, jit);
-   lower_standalone_unit(p);
+   simplify_local(p, jit, ur);
+   lower_standalone_unit(get_registry(), p);
    jit_free(jit);
 }
 END_TEST
@@ -2301,7 +2307,7 @@ START_TEST(test_issue164)
    input_from_file(TESTDIR "/lower/issue164.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    vcode_select_unit(find_unit_for(tree_decl(p, 0)));
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME(I)"));
@@ -2458,9 +2464,10 @@ START_TEST(test_choice1)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   jit_t *jit = jit_new();
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_BRANCH, 0);
-   elab(a, jit, tagging);
+   elab(a, jit, ur, tagging);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -2745,7 +2752,7 @@ START_TEST(test_dealloc)
    input_from_file(TESTDIR "/lower/dealloc.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v1 = find_unit_for(tree_decl(p, 1));
    vcode_select_unit(v1);
@@ -3090,7 +3097,7 @@ START_TEST(test_tounsigned)
    input_from_file(TESTDIR "/lower/tounsigned.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit_for(tree_decl(p, 0));
    vcode_select_unit(v0);
@@ -3232,7 +3239,7 @@ START_TEST(test_signal11)
 
    run_elab();
 
-   vcode_unit_t vpack = vcode_find_unit(ident_new("WORK.PACK"));
+   vcode_unit_t vpack = find_unit("WORK.PACK");
    fail_if(vpack == NULL);
 
    vcode_select_unit(vpack);
@@ -3287,7 +3294,7 @@ START_TEST(test_sum)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = tree_decl(p, 11);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
@@ -3342,7 +3349,7 @@ START_TEST(test_extern1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = tree_decl(p, 0);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
@@ -3366,7 +3373,7 @@ START_TEST(test_synopsys1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("WRITE"), 0);
    fail_if(f == NULL);
@@ -3431,7 +3438,7 @@ START_TEST(test_access2)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("GET_FRESH"), 0);
    fail_if(f == NULL);
@@ -3468,7 +3475,7 @@ START_TEST(test_vital1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
@@ -3552,7 +3559,7 @@ START_TEST(test_incomplete)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit("WORK.P");
    vcode_select_unit(v0);
@@ -3578,7 +3585,7 @@ START_TEST(test_issue389)
    tree_t p = parse_check_and_simplify(T_PACKAGE);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit("WORK.COMMON");
    vcode_select_unit(v0);
@@ -3606,7 +3613,7 @@ START_TEST(test_const1)
    tree_t b = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(b);
    fail_if(error_count() > 0);
-   lower_standalone_unit(b);
+   lower_standalone_unit(get_registry(), b);
 
    {
       vcode_unit_t v1 = find_unit("WORK.ISSUEH");
@@ -3658,7 +3665,7 @@ START_TEST(test_vital2)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
@@ -3712,7 +3719,7 @@ START_TEST(test_conv1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("GET"), 0);
    fail_if(f == NULL);
@@ -4845,11 +4852,14 @@ START_TEST(test_issue582)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   jit_t *jit = jit_new();
+   unit_registry_t *ur = unit_registry_new();
+   jit_t *jit = jit_new(ur);
    cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, jit, tagging);
+   elab(a, jit, ur, tagging);
 
    jit_free(jit);
+   unit_registry_free(ur);
+
    fail_if_errors();
 }
 END_TEST
@@ -5067,7 +5077,7 @@ START_TEST(test_copy1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(p);
+   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("TEST_COPY"), 0);
    fail_if(f == NULL);

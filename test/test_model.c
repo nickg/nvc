@@ -32,7 +32,7 @@ START_TEST(test_basic1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -78,7 +78,7 @@ START_TEST(test_index1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -132,7 +132,7 @@ START_TEST(test_alias1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -159,7 +159,7 @@ START_TEST(test_fast1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -213,7 +213,7 @@ START_TEST(test_stateless1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -249,7 +249,7 @@ START_TEST(test_pending1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -304,7 +304,7 @@ START_TEST(test_fast2)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);
@@ -393,7 +393,7 @@ START_TEST(test_event1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new();
+   jit_t *j = jit_new(get_registry());
    jit_enable_runtime(j, true);
 
    rt_model_t *m = model_new(top, j);

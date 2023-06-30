@@ -20,7 +20,7 @@
 
 #include "prim.h"
 
-typedef jit_t *(*jit_factory_t)(void);
+typedef jit_t *(*jit_factory_t)(unit_registry_t *);
 
 tcl_shell_t *shell_new(jit_factory_t make_jit);
 void shell_free(tcl_shell_t *sh);

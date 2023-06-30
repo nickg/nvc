@@ -767,9 +767,8 @@ void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
 vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
 {
    lib_unit_t *where = lib_find_unit(lib, unit);
-
-   if (where->vcode == NULL)
-      fatal_trace("vcode not stored for %s", istr(tree_ident(unit)));
+   if (where == NULL)
+      return NULL;
 
    return where->vcode;
 }

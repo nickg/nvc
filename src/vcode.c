@@ -211,12 +211,10 @@ struct _vcode_unit {
 #define VCODE_VERSION      31
 #define VCODE_CHECK_UNIONS 0
 
-static __thread vcode_unit_t  active_unit = NULL;
-static __thread vcode_block_t active_block = VCODE_INVALID_BLOCK;
-
-static hash_t         *registry = NULL;
-static vcode_dump_fn_t dump_callback = NULL;
-static void           *dump_arg = NULL;
+static __thread vcode_unit_t     active_unit   = NULL;
+static __thread vcode_block_t    active_block  = VCODE_INVALID_BLOCK;
+static __thread vcode_dump_fn_t  dump_callback = NULL;
+static __thread void            *dump_arg      = NULL;
 
 static inline int64_t sadd64(int64_t a, int64_t b)
 {
@@ -544,9 +542,6 @@ void vcode_unit_unref(vcode_unit_t unit)
       assert(*it != NULL);
       *it = (*it)->next;
    }
-
-   if (unit->name != NULL)
-      hash_delete(registry, unit->name);
 
    for (unsigned i = 0; i < unit->blocks.count; i++) {
       block_t *b = &(unit->blocks.items[i]);
@@ -2582,6 +2577,7 @@ vcode_type_t vtype_closure(vcode_type_t result)
 vcode_type_t vtype_context(ident_t name)
 {
    assert(active_unit != NULL);
+   assert(name != NULL);
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_CONTEXT;
@@ -3004,22 +3000,6 @@ static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
    return hops;
 }
 
-static void vcode_registry_add(vcode_unit_t vu)
-{
-   if (registry == NULL)
-      registry = hash_new(512);
-
-   hash_put(registry, vu->name, vu);
-}
-
-vcode_unit_t vcode_find_unit(ident_t name)
-{
-   if (registry == NULL)
-      return NULL;
-   else
-      return hash_get(registry, name);
-}
-
 static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
 {
    if (context->kind == VCODE_UNIT_THUNK && child->kind != VCODE_UNIT_THUNK)
@@ -3053,8 +3033,6 @@ vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
 
-   vcode_registry_add(vu);
-
    return vu;
 }
 
@@ -3074,8 +3052,6 @@ vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
-
-   vcode_registry_add(vu);
 
    return vu;
 }
@@ -3098,8 +3074,6 @@ vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
-
-   vcode_registry_add(vu);
 
    return vu;
 }
@@ -3124,8 +3098,6 @@ vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
 
-   vcode_registry_add(vu);
-
    return vu;
 }
 
@@ -3146,8 +3118,6 @@ vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
-
-   vcode_registry_add(vu);
 
    return vu;
 }
@@ -3170,8 +3140,6 @@ vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
 
-   vcode_registry_add(vu);
-
    return vu;
 }
 
@@ -3193,8 +3161,6 @@ vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context)
    vcode_select_block(emit_block());
    emit_debug_info(&(obj->loc));
 
-   vcode_registry_add(vu);
-
    return vu;
 }
 
@@ -3215,9 +3181,6 @@ vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context)
 
    vcode_select_unit(vu);
    vcode_select_block(emit_block());
-
-   if (name != NULL)
-      vcode_registry_add(vu);
 
    return vu;
 }
@@ -6095,7 +6058,7 @@ void vcode_write(vcode_unit_t unit, fbuf_t *f, ident_wr_ctx_t ident_ctx,
 }
 
 static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
-                                    loc_rd_ctx_t *loc_rd_ctx)
+                                    loc_rd_ctx_t *loc_rd_ctx, hash_t *seen)
 {
    const uint8_t marker = read_u8(f);
    if (marker == 0xff)
@@ -6110,9 +6073,11 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    unit->module = ident_read(ident_rd_ctx);
    unit->offset = fbuf_get_uint(f);
 
+   hash_put(seen, unit->name, unit);
+
    ident_t context_name = ident_read(ident_rd_ctx);
    if (context_name != NULL) {
-      unit->context = vcode_find_unit(context_name);
+      unit->context = hash_get(seen, context_name);
       if (unit->context == NULL)
          fatal("%s references nonexistent context %s", fbuf_file_name(f),
                istr(context_name));
@@ -6251,8 +6216,6 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       p->reg = fbuf_get_uint(f);
    }
 
-   vcode_registry_add(unit);
-
    return unit;
 }
 
@@ -6270,12 +6233,15 @@ vcode_unit_t vcode_read(fbuf_t *f, ident_rd_ctx_t ident_ctx,
       fatal_exit(EXIT_FAILURE);
    }
 
+   hash_t *seen = hash_new(128);
+
    vcode_unit_t vu, root = NULL;
-   while ((vu = vcode_read_unit(f, ident_ctx, loc_ctx))) {
+   while ((vu = vcode_read_unit(f, ident_ctx, loc_ctx, seen))) {
       if (root == NULL)
          root = vu;
    }
 
+   hash_free(seen);
    return root;
 }
 

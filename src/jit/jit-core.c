@@ -24,6 +24,7 @@
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "object.h"
 #include "option.h"
 #include "rt/model.h"
@@ -88,24 +89,25 @@ typedef struct {
 } aot_descr_t;
 
 typedef struct _jit {
-   chash_t        *index;
-   mspace_t       *mspace;
-   void           *lower_ctx;
-   hash_t         *layouts;
-   bool            silent;
-   bool            runtime;
-   bool            shutdown;
-   unsigned        backedge;
-   int             exit_status;
-   jit_tier_t     *tiers;
-   aot_dll_t      *aotlib;
-   aot_dll_t      *preloadlib;
-   func_array_t   *funcs;
-   unsigned        next_handle;
-   nvc_lock_t      lock;
-   int32_t        *cover_mem;
-   jit_irq_fn_t    interrupt;
-   void           *interrupt_ctx;
+   chash_t         *index;
+   mspace_t        *mspace;
+   void            *lower_ctx;
+   hash_t          *layouts;
+   bool             silent;
+   bool             runtime;
+   bool             shutdown;
+   unsigned         backedge;
+   int              exit_status;
+   jit_tier_t      *tiers;
+   aot_dll_t       *aotlib;
+   aot_dll_t       *preloadlib;
+   func_array_t    *funcs;
+   unsigned         next_handle;
+   nvc_lock_t       lock;
+   int32_t         *cover_mem;
+   jit_irq_fn_t     interrupt;
+   void            *interrupt_ctx;
+   unit_registry_t *registry;
 } jit_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
@@ -134,11 +136,12 @@ jit_thread_local_t *jit_thread_local(void)
    return local;
 }
 
-jit_t *jit_new(void)
+jit_t *jit_new(unit_registry_t *ur)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
-   j->index = chash_new(FUNC_HASH_SZ);
-   j->mspace = mspace_new(opt_get_size(OPT_HEAP_SIZE));
+   j->registry = ur;
+   j->index    = chash_new(FUNC_HASH_SZ);
+   j->mspace   = mspace_new(opt_get_size(OPT_HEAP_SIZE));
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -266,20 +269,15 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       }
    }
 
-   vcode_unit_t vu = vcode_find_unit(name);
-   assert(vu == NULL || chash_get(j->index, vu) == NULL);
-
    f = xcalloc(sizeof(jit_func_t));
 
    f->name      = name;
    f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
-   f->unit      = vu;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
    f->entry     = descr ? descr->entry : jit_interp;
-   f->object    = vu ? vcode_unit_object(vu) : NULL;
 
    // Install now to allow circular references in relocations
    jit_install(j, f);
@@ -383,26 +381,17 @@ void jit_fill_irbuf(jit_func_t *f)
    }
 
    assert(f->irbuf == NULL);
+   assert(f->unit == NULL);
 
    if (jit_fill_from_aot(f, f->jit->aotlib))
       return;
    else if (jit_fill_from_aot(f, f->jit->preloadlib))
       return;
-   else if (f->unit || (f->unit = vcode_find_unit(f->name)))
+   else if (f->jit->registry != NULL
+            && (f->unit = unit_registry_get(f->jit->registry, f->name)))
       jit_irgen(f);
-   else {
-      if (opt_get_int(OPT_JIT_LOG))
-         debugf("loading vcode for %s", istr(f->name));
-
-      tree_t unit = lib_get_qualified(f->name);
-      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
-         (void)body_of(unit);  // Make sure body is loaded
-
-      if ((f->unit = vcode_find_unit(f->name)) == NULL)
-         fatal_trace("cannot generate JIT IR for %s", istr(f->name));
-
-      jit_irgen(f);
-   }
+   else
+      fatal_trace("cannot generate JIT IR for %s", istr(f->name));
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)
@@ -427,6 +416,8 @@ void *jit_link(jit_t *j, jit_handle_t handle)
       return *mptr_get(f->privdata);
 
    f->privdata = mptr_new(j->mspace, "privdata");
+
+   jit_fill_irbuf(f);
 
    vcode_state_t state;
    vcode_state_save(&state);

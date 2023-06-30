@@ -61,6 +61,7 @@ typedef struct _elab_ctx {
    lib_t             library;
    hash_t           *generics;
    jit_t            *jit;
+   unit_registry_t  *registry;
    lower_unit_t     *lowered;
    bool              external_names;
    cover_tagging_t  *cover;
@@ -1031,7 +1032,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(bind_expr, ctx->generics, ctx->jit);
+            simplify_global(bind_expr, ctx->generics, ctx->jit, ctx->registry);
             cg = eg;
          }
 
@@ -1123,6 +1124,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
    ctx->parent    = parent;
    ctx->jit       = parent->jit;
+   ctx->registry  = parent->registry;
    ctx->root      = parent->root;
    ctx->dotted    = ctx->dotted ?: parent->dotted;
    ctx->path_name = ctx->path_name ?: parent->path_name;
@@ -1135,7 +1137,8 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 
 static void elab_lower(tree_t b, elab_ctx_t *ctx)
 {
-   ctx->lowered = lower_instance(ctx->parent->lowered, ctx->cover, b);
+   ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
+                                 ctx->cover, b);
 
    if (ctx->cover != NULL)
       eval_alloc_cover_mem(ctx->jit, ctx->cover);
@@ -1248,7 +1251,7 @@ static void elab_verilog_module(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
    tree_set_vlog(wrap, root);
    tree_add_stmt(ctx->out, wrap);
 
-   vlog_lower(wrap, ctx->parent ? ctx->parent->lowered : NULL);
+   vlog_lower(ctx->registry, wrap, ctx->parent ? ctx->parent->lowered : NULL);
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1332,14 +1335,14 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_context(entity);
    elab_context(arch_copy);
    elab_generics(entity, comp, t, &new_ctx);
-   simplify_global(entity, new_ctx.generics, ctx->jit);
+   simplify_global(entity, new_ctx.generics, ctx->jit, ctx->registry);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
 
    if (error_count() == 0) {
       diag_add_hint_fn(elab_hint_fn, t);
       bounds_check(b);   // Catch port size mismatches
-      simplify_global(arch_copy, new_ctx.generics, ctx->jit);
+      simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
       diag_remove_hint_fn(elab_hint_fn);
    }
 
@@ -1646,7 +1649,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
 
-      simplify_global(copy, new_ctx.generics, new_ctx.jit);
+      simplify_global(copy, new_ctx.generics, new_ctx.jit, new_ctx.registry);
 
       if (error_count() == 0) {
          elab_decls(copy, &new_ctx);
@@ -2030,7 +2033,7 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   simplify_global(arch_copy, new_ctx.generics, ctx->jit);
+   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
 
    if (error_count() == 0) {
       elab_decls(arch_copy, &new_ctx);
@@ -2064,7 +2067,7 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
+tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
 {
    make_new_arena();
 
@@ -2080,6 +2083,7 @@ tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
       .cover     = cover,
       .library   = lib_work(),
       .jit       = jit,
+      .registry  = ur,
    };
 
    switch (tree_kind(top)) {
@@ -2122,7 +2126,7 @@ tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
       ident_t b0_name = tree_ident(tree_stmt(e, 0));
       ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
-      vcode_unit_t vu = vcode_find_unit(vu_name);
+      vcode_unit_t vu = unit_registry_get(ur, vu_name);
       lib_put_vcode(work, e, vu);
 #endif
 
@@ -2132,7 +2136,8 @@ tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover)
       return NULL;
 }
 
-tree_t elab_verilog(vlog_node_t top, jit_t *jit, cover_tagging_t *cover)
+tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
+                    cover_tagging_t *cover)
 {
    make_new_arena();
 
@@ -2148,6 +2153,7 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, cover_tagging_t *cover)
       .cover     = cover,
       .library   = lib_work(),
       .jit       = jit,
+      .registry  = ur,
    };
 
    tree_t wrap = tree_new(T_VERILOG);
@@ -2177,7 +2183,7 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, cover_tagging_t *cover)
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
       ident_t b0_name = tree_ident(tree_stmt(e, 0));
       ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
-      vcode_unit_t vu = vcode_find_unit(vu_name);
+      vcode_unit_t vu = unit_registry_get(ur, vu_name);
       lib_put_vcode(work, e, vu);
 #endif
 

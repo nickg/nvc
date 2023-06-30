@@ -28,25 +28,28 @@
 bool sem_check(tree_t t, nametab_t *tab);
 
 // Rewrite to simpler forms folding locally static expressions
-void simplify_local(tree_t top, jit_t *jit);
+void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur);
 
 // Rewrite to simpler forms folding globally static expressions
-void simplify_global(tree_t top, hash_t *generics, jit_t *jit);
+void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
+                     unit_registry_t *ur);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);
 
 // Elaborate a top level entity
-tree_t elab(tree_t top, jit_t *jit, cover_tagging_t *cover);
+tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur,
+            cover_tagging_t *cover);
 
 // Elaborate a Verilog top level
-tree_t elab_verilog(vlog_node_t top, jit_t *jit, cover_tagging_t *cover);
+tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
+                    cover_tagging_t *cover);
 
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for a design unit
-void cgen(tree_t top, cover_tagging_t *cover);
+void cgen(tree_t top, unit_registry_t *ur);
 
 // Generate ahead-of-time preload library
 void aotgen(const char *outfile, char **argv, int argc);

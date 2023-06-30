@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "lower.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
@@ -61,6 +62,11 @@ typedef struct {
    cover_tagging_t *cover;
    llvm_obj_t      *obj;
 } cgen_job_t;
+
+typedef struct {
+   unit_list_t      units;
+   unit_registry_t *registry;
+} preload_job_t;
 
 static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
@@ -106,7 +112,8 @@ static bool cgen_is_preload(ident_t name)
    return false;
 }
 
-static void cgen_add_dependency(ident_t name, unit_list_t *list)
+static void cgen_add_dependency(ident_t name, unit_registry_t *ur,
+                                unit_list_t *list)
 {
    if (cgen_is_preload(name))
       return;
@@ -114,19 +121,9 @@ static void cgen_add_dependency(ident_t name, unit_list_t *list)
    vcode_state_t state;
    vcode_state_save(&state);
 
-   vcode_unit_t vu = vcode_find_unit(name);
-   if (vu == NULL) {
-      ident_t it = name;
-      ident_t lname = ident_walk_selected(&it);
-      ident_t uname = ident_walk_selected(&it);
-
-      tree_t unit = lib_get_qualified(ident_prefix(lname, uname, '.'));
-      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
-         (void)body_of(unit);
-
-      if ((vu = vcode_find_unit(name)) == NULL)
-         fatal("missing vcode unit %s", istr(name));
-   }
+   vcode_unit_t vu = unit_registry_get(ur, name);
+   if (vu == NULL)
+      fatal("missing vcode unit %s", istr(name));
 
    unsigned pos = 0;
    for (; pos < list->count; pos++) {
@@ -148,7 +145,8 @@ static void cgen_load_package(ident_t name)
       (void)body_of(unit);
 }
 
-static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
+static void cgen_find_dependencies(vcode_unit_t unit, unit_registry_t *ur,
+                                   unit_list_t *list)
 {
    vcode_select_unit(unit);
 
@@ -163,7 +161,7 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
             {
                ident_t name = vcode_get_ident(op);
                cgen_load_package(name);
-               cgen_add_dependency(name, list);
+               cgen_add_dependency(name, ur, list);
             }
             break;
          case VCODE_OP_FCALL:
@@ -174,7 +172,7 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
             {
                const vcode_cc_t cc = vcode_get_subkind(op);
                if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
-                  cgen_add_dependency(vcode_get_func(op), list);
+                  cgen_add_dependency(vcode_get_func(op), ur, list);
             }
             break;
          default:
@@ -184,12 +182,13 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
    }
 }
 
-static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
+static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
+                            unit_list_t *units)
 {
    cgen_find_children(root, units);
 
    for (unsigned i = 0; i < units->count; i++)
-      cgen_find_dependencies(units->items[i], units);
+      cgen_find_dependencies(units->items[i], ur, units);
 }
 
 static void cleanup_temp_dll(void)
@@ -364,40 +363,19 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
    }
 }
 
-void cgen(tree_t top, cover_tagging_t *cover)
+void cgen(tree_t top, unit_registry_t *ur)
 {
-   ident_t name = NULL;
-   vcode_unit_t vu = NULL;
+   assert(tree_kind(top) == T_ELAB);
 
-   switch (tree_kind(top)) {
-   case T_PACKAGE:
-      name = tree_ident(top);
-      vu = vcode_find_unit(name);
-      break;
-
-   case T_PACK_BODY:
-      name = tree_ident(tree_primary(top));
-      vu = vcode_find_unit(name);
-      break;
-
-   case T_ELAB:
-      {
-         ident_t b0_name = tree_ident(tree_stmt(top, 0));
-         ident_t work_name = lib_name(lib_work());
-         name = tree_ident(top);
-         vu = vcode_find_unit(ident_prefix(work_name, b0_name, '.'));
-      }
-      break;
-
-   default:
-      fatal_trace("cannot generate code for %s", tree_kind_str(tree_kind(top)));
-   }
-
+   ident_t b0_name = tree_ident(tree_stmt(top, 0));
+   ident_t work_name = lib_name(lib_work());
+   ident_t unit_name = ident_prefix(work_name, b0_name, '.');
+   vcode_unit_t vu = unit_registry_get(ur, unit_name);
    if (vu == NULL)
-      fatal_trace("missing vcode for %s", istr(name));
+      fatal_trace("missing vcode for %s", istr(unit_name));
 
    unit_list_t units = AINIT;
-   cgen_find_units(vu, &units);
+   cgen_find_units(vu, ur, &units);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
@@ -405,8 +383,10 @@ void cgen(tree_t top, cover_tagging_t *cover)
    if (!LLVMIsMultithreaded())
       fatal("LLVM was built without multithreaded support");
 
-   jit_t *jit = jit_new();
+   jit_t *jit = jit_new(ur);
    workq_t *wq = workq_new(jit);
+
+   ident_t name = tree_ident(top);
 
    obj_list_t objs = AINIT;
    cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB, top, &objs);
@@ -440,23 +420,23 @@ static void preload_add_children(vcode_unit_t vu, unit_list_t *list)
 
 static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 {
+   preload_job_t *job = ctx;
+
+   if (kind != T_PACKAGE && kind != T_PACK_INST)
+      return;
+   else if (!cgen_is_preload(ident))
+      return;
+
    tree_t unit = lib_get(lib, ident);
 
-   if (!unit_needs_cgen(unit))
-      return;
-   else if (tree_kind(unit) == T_PACK_BODY)
-      unit = tree_primary(unit);
-
-   ident_t name = tree_ident(unit);
-   if (!cgen_is_preload(name))
+   if (is_uninstantiated_package(unit))
       return;
 
-   vcode_unit_t vu = vcode_find_unit(name);
+   vcode_unit_t vu = unit_registry_get(job->registry, ident);
    if (vu == NULL)
-      fatal("missing code for %s", istr(name));
+      fatal("missing code for %s", istr(ident));
 
-   unit_list_t *list = ctx;
-   preload_add_children(vu, list);
+   preload_add_children(vu, &job->units);
 }
 
 static void preload_do_link(const char *so_name, const char *obj_file)
@@ -500,31 +480,34 @@ static void preload_do_link(const char *so_name, const char *obj_file)
 
 void aotgen(const char *outfile, char **argv, int argc)
 {
-   unit_list_t units = AINIT;
+   preload_job_t job = {
+      .registry = unit_registry_new(),
+      .units    = AINIT
+   };
 
    for (int i = 0; i < argc; i++) {
       for (char *p = argv[i]; *p; p++)
          *p = toupper((int)*p);
 
       lib_t lib = lib_require(ident_new(argv[i]));
-      lib_walk_index(lib, preload_walk_index, &units);
+      lib_walk_index(lib, preload_walk_index, &job);
    }
 
-   for (unsigned i = 0; i < units.count; i++)
-      cgen_find_dependencies(units.items[i], &units);
+   for (unsigned i = 0; i < job.units.count; i++)
+      cgen_find_dependencies(job.units.items[i], job.registry, &job.units);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
 
-   jit_t *jit = jit_new();
+   jit_t *jit = jit_new(job.registry);
 
    progress("initialising");
 
    llvm_obj_t *obj = llvm_obj_new("preload");
    llvm_add_abi_version(obj);
 
-   for (int i = 0; i < units.count; i++) {
-      vcode_unit_t vu = units.items[i];
+   for (int i = 0; i < job.units.count; i++) {
+      vcode_unit_t vu = job.units.items[i];
       vcode_select_unit(vu);
 
       jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
@@ -533,7 +516,7 @@ void aotgen(const char *outfile, char **argv, int argc)
       llvm_aot_compile(obj, jit, handle);
    }
 
-   progress("code generation for %d units", units.count);
+   progress("code generation for %d units", job.units.count);
 
    llvm_opt_level_t olevel = opt_get_int(OPT_OPTIMISE);
    llvm_obj_finalise(obj, olevel);
@@ -552,8 +535,7 @@ void aotgen(const char *outfile, char **argv, int argc)
 
    LLVMShutdown();
 
-   ACLEAR(units);
+   ACLEAR(job.units);
    jit_free(jit);
-
-   ACLEAR(units);
+   unit_registry_free(job.registry);
 }

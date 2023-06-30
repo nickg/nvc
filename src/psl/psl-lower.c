@@ -117,7 +117,7 @@ void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
    ident_t name = ident_prefix(prefix, label, '.');
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
-   lower_unit_t *lu = lower_unit_new(parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, vcontext, ident_new("context"));
