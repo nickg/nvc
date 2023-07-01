@@ -2370,6 +2370,31 @@ static void irgen_op_reflect_value(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
+static void irgen_op_reflect_subtype(jit_irgen_t *g, int op)
+{
+   jit_value_t context = irgen_get_arg(g, op, 0);
+   jit_value_t locus = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, context);
+   j_send(g, 1, locus);
+
+   if (vcode_count_args(op) > 2) {
+      vcode_reg_t vreg = vcode_get_arg(op, 2);
+      const int slots = irgen_slots_for_type(vcode_reg_type(vreg));
+      if (slots > 1) {
+         jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
+         for (int j = 0; j < slots; j++)
+            j_send(g, j + 2, jit_value_from_reg(base + j));
+      }
+      else
+         j_send(g, 2, irgen_get_value(g, vreg));
+   }
+
+   macro_exit(g, JIT_EXIT_REFLECT_SUBTYPE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
 static void irgen_op_process_init(jit_irgen_t *g, int op)
 {
    jit_value_t locus = irgen_get_arg(g, op, 0);
@@ -3731,6 +3756,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_REFLECT_VALUE:
          irgen_op_reflect_value(g, i);
          break;
+      case VCODE_OP_REFLECT_SUBTYPE:
+         irgen_op_reflect_subtype(g, i);
+         break;
       case VCODE_OP_PROCESS_INIT:
          irgen_op_process_init(g, i);
          break;
@@ -3864,7 +3892,7 @@ static void irgen_locals(jit_irgen_t *g, bool force_stack)
       // Local variables on heap
       size_t sz = 0;
       sz += sizeof(void *);   // Context parameter
-      if (kind != VCODE_UNIT_PROTECTED) {
+      if (kind == VCODE_UNIT_PROCESS || kind == VCODE_UNIT_PROCEDURE) {
          sz += sizeof(void *);   // Suspended procedure state
          sz += sizeof(int32_t);  // State number
       }

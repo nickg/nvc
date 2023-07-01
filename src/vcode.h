@@ -160,6 +160,7 @@ typedef enum {
    VCODE_OP_IMPLICIT_EVENT,
    VCODE_OP_ENTER_STATE,
    VCODE_OP_REFLECT_VALUE,
+   VCODE_OP_REFLECT_SUBTYPE,
 } vcode_op_t;
 
 typedef enum {
@@ -520,5 +521,7 @@ void emit_enter_state(vcode_reg_t state);
 vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
                                vcode_reg_t context, vcode_reg_t locus,
                                vcode_reg_t bounds);
+vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
+                                 vcode_reg_t locus, vcode_reg_t bounds);
 
 #endif  // _VCODE_H

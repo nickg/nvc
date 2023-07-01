@@ -33,6 +33,14 @@ begin
         assert istm.simple_name = "INTEGER";
         assert istm.to_subtype_mirror = stm;
         assert ivm.get_subtype_mirror = istm;
+        assert istm.ascending;
+        assert istm.length = 0;         -- XXX: should be an error
+        assert istm.low.value = integer'left;
+        assert istm.high.value = integer'right;
+        assert istm.left = istm.low;
+        assert istm.right = istm.high;
+
+        assert integer'reflect = stm;
 
         vm := v2'reflect;
         assert vm.get_value_class = CLASS_ARRAY;

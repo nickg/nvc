@@ -961,7 +961,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
       "trap neg", "process init", "clear event", "trap exp", "implicit event",
-      "enter state", "reflect value"
+      "enter state", "reflect value", "reflect subtype",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2257,6 +2257,22 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                if (op->args.count > 3) {
                   col += printf(" bounds ");
                   col += vcode_dump_reg(op->args.items[3]);
+               }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_REFLECT_SUBTYPE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += printf(" context ");
+               vcode_dump_reg(op->args.items[0]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 2) {
+                  col += printf(" bounds ");
+                  col += vcode_dump_reg(op->args.items[2]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -5872,6 +5888,23 @@ vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
 {
    op_t *op = vcode_add_op(VCODE_OP_REFLECT_VALUE);
    vcode_add_arg(op, value);
+   vcode_add_arg(op, context);
+   vcode_add_arg(op, locus);
+   if (bounds != VCODE_INVALID_REG)
+      vcode_add_arg(op, bounds);
+
+   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "invalid reflect value context argument");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to reflect value must be a debug locus");
+
+   return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
+}
+
+vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
+                                 vcode_reg_t locus, vcode_reg_t bounds)
+{
+   op_t *op = vcode_add_op(VCODE_OP_REFLECT_SUBTYPE);
    vcode_add_arg(op, context);
    vcode_add_arg(op, locus);
    if (bounds != VCODE_INVALID_REG)

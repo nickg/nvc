@@ -18,6 +18,30 @@ package body reflection is
 
     type string_ptr is access string;
 
+    type internal_type;
+    type type_ptr is access internal_type;
+
+    type cache_elem_t is record
+        f_type    : type_ptr;
+        f_subtype : subtype_mirror;
+    end record;
+
+    type cache_ptr is access cache_elem_t;
+
+    type internal_cache_pt is protected
+        -- No methods, used internally
+    end protected;
+
+    type internal_cache_pt is protected body
+        variable f_canary1       : integer := 16#deadbeef#;
+        variable f_subtype_cache : cache_ptr;
+        variable f_num_subtypes  : natural;
+        variable f_max_subtypes  : natural;
+        variable f_canary2       : integer := 16#cafebabe#;
+    end protected body;
+
+    shared variable cache : internal_cache_pt;
+
     ---------------------------------------------------------------------------
 
     type enumeration_value_mirror_pt is protected body
@@ -129,7 +153,13 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type integer_subtype_mirror_pt is protected body
-        variable f_owner : subtype_mirror;
+        variable f_owner     : subtype_mirror;
+        variable f_left      : integer_value_mirror;
+        variable f_right     : integer_value_mirror;
+        variable f_low       : integer_value_mirror;
+        variable f_high      : integer_value_mirror;
+        variable f_length    : index;
+        variable f_ascending : boolean;
 
         impure function to_subtype_mirror return subtype_mirror is
         begin
@@ -143,32 +173,32 @@ package body reflection is
 
         impure function left return integer_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_left;
         end function;
 
         impure function right return integer_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_right;
         end function;
 
         impure function low return integer_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_low;
         end function;
 
         impure function high return integer_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_high;
         end function;
 
         impure function length return index is
         begin
-            report "unimplemented" severity failure;
+            return f_length;
         end function;
 
         impure function ascending return boolean is
         begin
-            report "unimplemented" severity failure;
+            return f_ascending;
         end function;
     end protected body;
 

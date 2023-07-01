@@ -4472,16 +4472,14 @@ static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
    if (type_is_array(value_type))
       bounds_reg = lower_wrap(lu, value_type, value_reg);
 
-   vcode_reg_t result_reg;
-   if (is_value_mirror) {
-      vcode_reg_t locus = lower_debug_locus(name);
-      result_reg = emit_reflect_value(init_func, value_reg, context_reg,
-                                      locus, bounds_reg);
-   }
-   else
-      fatal_at(tree_loc(expr), "sorry, subtype mirrors not yet supported");
+   vcode_reg_t locus = lower_debug_locus(name);
 
-   return result_reg;
+   if (is_value_mirror)
+      return emit_reflect_value(init_func, value_reg, context_reg,
+                                locus, bounds_reg);
+   else
+      return emit_reflect_subtype(init_func, context_reg,
+                                  locus, bounds_reg);
 }
 
 static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)

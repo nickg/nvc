@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 typedef enum {
    CLASS_ENUMERATION,
@@ -38,10 +39,31 @@ typedef enum {
 
 typedef struct _value_mirror value_mirror;
 typedef struct _subtype_mirror subtype_mirror;
+typedef struct _integer_value_mirror integer_value_mirror;
 
 typedef struct {
-   void           *context;
-   subtype_mirror *f_owner;
+   type_t          f_type;
+   subtype_mirror *f_mirror;
+} cache_elem_t;
+
+typedef struct {
+   void         *context;
+   int64_t       f_canary1;
+   cache_elem_t *f_subtype_cache;
+   int64_t       f_num_subtypes;
+   int64_t       f_max_subtypes;
+   int64_t       f_canary2;
+} internal_cache_pt;
+
+typedef struct {
+   void                 *context;
+   subtype_mirror       *f_owner;
+   integer_value_mirror *f_left;
+   integer_value_mirror *f_right;
+   integer_value_mirror *f_low;
+   integer_value_mirror *f_high;
+   int64_t               f_length;
+   uint8_t               f_ascending;
 } integer_subtype_mirror_pt;
 
 typedef struct {
@@ -67,7 +89,7 @@ typedef struct {
    int64_t                 f_value;
 } integer_value_mirror_pt;
 
-typedef struct {
+typedef struct _integer_value_mirror {
    void                    *access;
    integer_value_mirror_pt  pt;
 } integer_value_mirror;
@@ -133,6 +155,16 @@ static ffi_uarray_t *get_string(const char *str)
    return u;
 }
 
+static internal_cache_pt *get_cache(void *context)
+{
+   // This will break if the package layout ever changes
+   internal_cache_pt *pt = *(internal_cache_pt **)(context + sizeof(void *));
+   assert(pt->f_canary1 == 0xdeadbeef);
+   assert(pt->f_canary2 == 0xcafebabe);
+   assert(pt->context == context);
+   return pt;
+}
+
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
                                       type_t type, const jit_scalar_t *bounds)
 {
@@ -172,14 +204,41 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
    return vm;
 }
 
+static integer_value_mirror *get_integer_mirror(void *context, type_t type,
+                                                int64_t value)
+{
+   jit_scalar_t scalar = { .integer = value };
+   return get_value_mirror(context, scalar, type, NULL)->pt.f_integer;
+}
+
 static subtype_mirror *get_subtype_mirror(void *context, type_t type,
                                           const jit_scalar_t *bounds)
 {
-   // TODO: cache this (safely)
+   internal_cache_pt *cache = get_cache(context);
+
+   for (int i = 0; i < cache->f_num_subtypes; i++) {
+      cache_elem_t *e = &(cache->f_subtype_cache[i]);
+      if (e->f_type == type)
+         return e->f_mirror;
+   }
 
    subtype_mirror *sm = zero_alloc(sizeof(subtype_mirror));
    sm->access = &(sm->pt);
    sm->pt.context = context;
+
+   if (cache->f_num_subtypes == cache->f_max_subtypes) {
+      const size_t new_max = MAX(cache->f_max_subtypes * 2, 128);
+      cache_elem_t *tmp = zero_alloc(new_max * sizeof(cache_elem_t));
+      memcpy(tmp, cache->f_subtype_cache,
+             cache->f_max_subtypes * sizeof(cache_elem_t));
+
+      cache->f_subtype_cache = tmp;
+      cache->f_max_subtypes = new_max;
+   }
+
+   cache_elem_t *e = &(cache->f_subtype_cache[cache->f_num_subtypes++]);
+   e->f_type = type;
+   e->f_mirror = sm;
 
    const char *simple = strrchr(istr(type_ident(type)), '.') + 1;
    sm->pt.f_name = get_string(simple);
@@ -188,8 +247,26 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       integer_subtype_mirror *ism = zero_alloc(sizeof(integer_subtype_mirror));
       ism->access = &(ism->pt);
 
+      tree_t r = range_of(type, 0);
+      const range_kind_t rkind = tree_subkind(r);
+      if (rkind == RANGE_EXPR)
+         abort();  // TODO
+
+      int64_t low, high;
+      if (!folded_bounds(r, &low, &high))
+         abort();  // TODO
+
       ism->pt.context = context;
       ism->pt.f_owner = sm;
+      ism->pt.f_ascending = (rkind == RANGE_TO);
+      ism->pt.f_length = MAX(high - low + 1, 0);   // TODO: this can overflow
+
+      type_t index = index_type_of(type, 0);
+      ism->pt.f_low = get_integer_mirror(context, index, low);
+      ism->pt.f_high = get_integer_mirror(context, index, high);
+
+      ism->pt.f_left = (rkind == RANGE_TO) ? ism->pt.f_low : ism->pt.f_high;
+      ism->pt.f_right = (rkind == RANGE_TO) ? ism->pt.f_high : ism->pt.f_low;
 
       sm->pt.f_class = CLASS_INTEGER;
       sm->pt.f_integer = ism;
@@ -216,6 +293,11 @@ void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
                       const jit_scalar_t *bounds)
 {
    return get_value_mirror(context, value, tree_type(where), bounds);
+}
+
+void *x_reflect_subtype(void *context, tree_t where, const jit_scalar_t *bounds)
+{
+   return get_subtype_mirror(context, tree_type(where), bounds);
 }
 
 void _std_reflection_init(void)

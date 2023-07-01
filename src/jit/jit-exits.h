@@ -98,5 +98,7 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_enter_state(int32_t state);
 void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
                       const jit_scalar_t *bounds);
+void *x_reflect_subtype(void *context, tree_t where,
+                        const jit_scalar_t *bounds);
 
 #endif  // _JIT_EXITS_H
