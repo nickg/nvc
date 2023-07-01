@@ -1534,10 +1534,6 @@ static void elab_pop_scope(elab_ctx_t *ctx)
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
 
-   if (cover_enabled(ctx->cover, COVER_MASK_ALL))
-      cover_add_tag(ctx->out, NULL, ctx->cover, TAG_HIER,
-                    COV_FLAG_HIER_UP);
-
    cover_pop_scope(ctx->cover);
 
    lower_unit_free(ctx->lowered);

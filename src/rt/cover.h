@@ -61,10 +61,6 @@ typedef enum {
    //    XOR   - Flags for operand values: 01, 10, 11, 00
    //    XNOR  - Flags for operand values: 01, 10, 11, 00
    TAG_EXPRESSION,
-
-   // Tag used to represent hierarchy break in the linear sequence of tags.
-   // Does not hold any coverage information
-   TAG_HIER,
 } tag_kind_t;
 
 typedef struct _cover_tag {
@@ -119,8 +115,6 @@ typedef enum {
    COV_FLAG_01             = (1 << 4),
    COV_FLAG_10             = (1 << 5),
    COV_FLAG_11             = (1 << 6),
-   COV_FLAG_HIER_UP        = (1 << 8),
-   COV_FLAG_HIER_DOWN      = (1 << 9),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),

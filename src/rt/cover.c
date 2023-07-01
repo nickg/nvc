@@ -71,6 +71,8 @@ typedef enum {
 typedef struct _cover_scope {
    scope_type_t   type;
    ident_t        name;
+   ident_t        hier;
+   loc_t          loc;
    int            branch_label;
    int            stmt_label;
    int            expression_label;
@@ -97,7 +99,6 @@ struct _cover_spec {
 
 struct _cover_tagging {
    int               next_tag;
-   ident_t           hier;
    cover_mask_t      mask;
    int               array_limit;
    int               array_depth;
@@ -176,8 +177,6 @@ static const char* tag_kind_str[] = {
    "branch",
    "toggle",
    "expression",
-   "hierarchy",
-   "last"
 };
 
 static const struct {
@@ -325,12 +324,11 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 {
    assert(ctx != NULL);
 
-   if (!ctx->top_scope->emit && kind != TAG_HIER)
+   if (!ctx->top_scope->emit)
       return NULL;
 
-   // TODO: need a better way to determine if a scope comes from an instance
    cover_scope_t *ignore_scope = ctx->top_scope;
-   for (; ignore_scope->ignore_lines.count == 0 && ignore_scope->parent;
+   for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
         ignore_scope = ignore_scope->parent)
       ;
 
@@ -343,7 +341,7 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
 
    // Everything creates scope, so name of current tag is already given
    // by scope in hierarchy.
-   ident_t hier = ctx->hier;
+   ident_t hier = ctx->top_scope->hier;
    if (suffix)
       hier = ident_prefix(hier, suffix, '\0');
 
@@ -363,9 +361,6 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
    printf("    Column delta: %d\n", tree_loc(t)->column_delta);
    printf("\n\n");
 #endif
-
-   if (kind == TAG_HIER)
-      ctx->top_scope->type = CSCOPE_INSTANCE;   // TODO: temporary hack
 
    cover_tag_t new = {
       .kind       = kind,
@@ -444,6 +439,8 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 
    fbuf_put_uint(f, s->type);
    ident_write(s->name, ident_ctx);
+   ident_write(s->hier, ident_ctx);
+   loc_write(&s->loc, loc_ctx);
 
    fbuf_put_uint(f, s->tags.count);
    for (int i = 0; i < s->tags.count; i++) {
@@ -534,19 +531,19 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 
    // Hierarchy
    for (int i = 0; i < spc->hier_exclude.count; i++)
-      if (ident_glob(tagging->hier, AGET(spc->hier_exclude, i), -1)) {
+      if (ident_glob(ts->hier, AGET(spc->hier_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                   istr(tagging->hier), AGET(spc->hier_exclude, i));
+                istr(ts->hier), AGET(spc->hier_exclude, i));
 #endif
          return false;
       }
 
    for (int i = 0; i < spc->hier_include.count; i++)
-      if (ident_glob(tagging->hier, AGET(spc->hier_include, i), -1)) {
+      if (ident_glob(ts->hier, AGET(spc->hier_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                   istr(tagging->hier), AGET(spc->hier_include, i));
+                istr(ts->hier), AGET(spc->hier_include, i));
 #endif
          return true;
       }
@@ -560,10 +557,9 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       return;
    else if (tagging->root_scope == NULL) {
       cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-      s->name = lib_name(lib_work());
+      s->name = s->hier = lib_name(lib_work());
 
       tagging->top_scope = tagging->root_scope = s;
-      tagging->hier = s->name;
    }
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
@@ -586,7 +582,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    else if (cover_is_toggle_first(t)) {
       assert(tree_has_ident(t));
       name = tree_ident(t);
-      s->sig_pos = ident_len(tagging->hier) + 1;
+      s->sig_pos = ident_len(tagging->top_scope->hier) + 1;
    }
    // Consider everything else as statement
    // Expressions do not get scope pushed, so if scope for e.g.
@@ -608,12 +604,18 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    if (name == NULL)
       name = ident_new(prefix);
 
-   s->name = name;
-   s->parent = tagging->top_scope;
+   s->name       = name;
+   s->parent     = tagging->top_scope;
    s->block_name = s->parent->block_name;
+   s->loc        = *tree_loc(t);
+   s->hier       = ident_prefix(s->parent->hier, name, '.');
 
    if (s->sig_pos == 0)
       s->sig_pos = tagging->top_scope->sig_pos;
+
+   list_add(&tagging->top_scope->children, s);
+
+   tagging->top_scope = s;
 
    if (tree_kind(t) == T_BLOCK) {
       tree_t hier = tree_decl(t, 0);
@@ -622,19 +624,14 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       tree_t unit = tree_ref(hier);
       if (tree_kind(unit) == T_ARCH) {
          s->block_name = ident_rfrom(tree_ident(tree_primary(unit)), '.');
-         cover_add_tag(t, NULL, tagging, TAG_HIER, COV_FLAG_HIER_DOWN);
+         s->type = CSCOPE_INSTANCE;
       }
    }
-
-   list_add(&tagging->top_scope->children, s);
-
-   tagging->top_scope = s;
-   tagging->hier = ident_prefix(tagging->hier, name, '.');
 
    s->emit = (tagging->spec == NULL) ? true : cover_should_emit_scope(tagging, t);
 
 #ifdef COVER_DEBUG_SCOPE
-   printf("Pushing cover scope: %s\n", istr(tagging->hier));
+   printf("Pushing cover scope: %s\n", istr(s->hier));
    printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
    printf("Coverage emit: %d\n\n", s->emit);
 #endif
@@ -649,14 +646,12 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    ACLEAR(tagging->top_scope->ignore_lines);
 
-   tagging->top_scope = tagging->top_scope->parent;
-
 #ifdef COVER_DEBUG_SCOPE
-   printf("Popping cover scope: %s\n", istr(tagging->hier));
+   printf("Popping cover scope: %s\n", istr(tagging->top_scope->hier));
 #endif
 
-   tagging->hier = ident_runtil(tagging->hier, '.');
-   assert(tagging->hier != NULL);
+   tagging->top_scope = tagging->top_scope->parent;
+
 }
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
@@ -739,6 +734,9 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
    s->type = fbuf_get_uint(f);
    s->name = ident_read(ident_ctx);
+   s->hier = ident_read(ident_ctx);
+
+   loc_read(&s->loc, loc_ctx);
 
    const int ntags = fbuf_get_uint(f);
    for (int i = 0; i < ntags; i++) {
@@ -1163,9 +1161,6 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
    for (int i = 0; i < s->tags.count; i++) {
       cover_tag_t *tag = AREF(s->tags, i);
 
-      if (tag->kind == TAG_HIER)
-         continue;
-
       if (ident_glob(tag->hier, excl_hier, len)) {
          match = true;
 
@@ -1437,15 +1432,12 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "  </head>\n"
               "  <section>\n");
 
-   cover_tag_t *tag0 = AREF(s->tags, 0);
-   assert(tag0->kind == TAG_HIER);
-
    if (!top) {
       fprintf(f, "<nav>");
       fprintf(f, "   <b>Hierarchy:</b><br>\n");
       int offset = 0;
 
-      ident_t full_hier = tag0->hier;
+      ident_t full_hier = s->hier;
       ident_t curr_id;
       ident_t curr_hier = NULL;
       const char *link = "../index";
@@ -1470,12 +1462,12 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    if (!top)
-      fprintf(f, "     Instance:&nbsp;%s\n", istr(tag0->hier));
+      fprintf(f, "     Instance:&nbsp;%s\n", istr(s->hier));
    else
       fprintf(f, "     Instance:");
    fprintf(f, "  </h2>\n");
 
-   cover_file_t *src = cover_file(&(tag0->loc));
+   cover_file_t *src = cover_file(&(s->loc));
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    if (!top)
       fprintf(f, "     File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
@@ -2080,9 +2072,6 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
    for (int i = 0; i < s->tags.count; i++) {
       cover_tag_t *tag = &(s->tags.items[i]);
 
-      if (tag->kind == TAG_HIER)
-         continue;
-
       cover_file_t *f_src = cover_file(&(tag->loc));
       if (f_src == NULL)
          continue;
@@ -2175,10 +2164,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
 static void cover_report_hierarchy(cover_report_ctx_t *ctx,
                                    cover_scope_t *s, const char *dir)
 {
-   cover_tag_t *tag0 = AREF(s->tags, 0);
-   assert(tag0->kind == TAG_HIER);
-
-   char *hier LOCAL = xasprintf("%s/%s.html", dir, istr(tag0->hier));
+   char *hier LOCAL = xasprintf("%s/%s.html", dir, istr(s->hier));
 
    // TODO: Handle escaped identifiers in hierarchy path!
    FILE *f = fopen(hier, "w");
@@ -2225,7 +2211,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h2>\n");
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, ctx, tag0->hier, false, true, true);
+   cover_print_hierarchy_summary(f, ctx, s->hier, false, true, true);
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
@@ -2253,9 +2239,8 @@ static void cover_report_children(cover_report_ctx_t *ctx,
 
          cover_report_hierarchy(&sub_ctx, it, dir);
 
-         cover_tag_t *tag0 = AREF(it->tags, 0);
          cover_print_hierarchy_summary(summf, &sub_ctx,
-                                       tag0->hier, false, false, false);
+                                       it->hier, false, false, false);
 
          // Add coverage from sub-hierarchies
          ctx->nested_stats.hit_stmts += sub_ctx.nested_stats.hit_stmts;
@@ -2316,8 +2301,7 @@ void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
 
    cover_print_html_header(f, &top_ctx, true, child0, "NVC code coverage report");
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, &top_ctx, child0->tags.items[0].hier,
-                                 true, true, false);
+   cover_print_hierarchy_summary(f, &top_ctx, child0->hier, true, true, false);
    cover_print_hierarchy_footer(f);
    cover_print_timestamp(f);
 
