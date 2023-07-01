@@ -8532,10 +8532,14 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
    vcode_unit_t vu = emit_package(name, tree_to_object(decl), parent->vunit);
    lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, decl);
 
+   cover_push_scope(lu->cover, decl);
+
    lower_generics(lu, decl);
    lower_decls(lu, decl);
 
    emit_return(VCODE_INVALID_REG);
+
+   cover_pop_scope(lu->cover);
 
    lower_unit_free(lu);
    vcode_state_restore(&state);
@@ -8645,8 +8649,12 @@ static void lower_protected_body(lower_unit_t *parent, tree_t body)
 
    lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
 
+   cover_push_scope(lu->cover, body);
+
    lower_decls(lu, body);
    emit_return(VCODE_INVALID_REG);
+
+   cover_pop_scope(lu->cover);
 
    lower_unit_free(lu);
 }
@@ -9865,6 +9873,8 @@ static void lower_proc_body(lower_unit_t *parent, tree_t body)
 
    lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
 
+   cover_push_scope(lu->cover, body);
+
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
 
@@ -9882,6 +9892,8 @@ static void lower_proc_body(lower_unit_t *parent, tree_t body)
       lower_leave_subprogram(lu);
       emit_return(VCODE_INVALID_REG);
    }
+
+   cover_pop_scope(lu->cover);
 
    lower_unit_free(lu);
 
@@ -9913,6 +9925,8 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
 
    lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, body);
 
+   cover_push_scope(lu->cover, body);
+
    if (tree_kind(body) == T_FUNC_INST)
       lower_generics(lu, body);
 
@@ -9934,6 +9948,8 @@ static void lower_func_body(lower_unit_t *parent, tree_t body)
 
    if (!vcode_block_finished())
       emit_unreachable(lower_debug_locus(body));
+
+   cover_pop_scope(lu->cover);
 
    lower_unit_free(lu);
 }
@@ -10038,6 +10054,9 @@ void lower_process(lower_unit_t *parent, tree_t proc)
    assert(start_bb == 1);
 
    lower_unit_t *lu = lower_unit_new(parent, vu, parent->cover, proc);
+
+   cover_push_scope(lu->cover, proc);
+
    lower_decls(lu, proc);
 
    tree_visit(proc, lower_driver_cb, lu);
@@ -10064,6 +10083,8 @@ void lower_process(lower_unit_t *parent, tree_t proc)
 
    if (!vcode_block_finished())
       emit_jump(start_bb);
+
+   cover_pop_scope(lu->cover);
 
    lower_unit_free(lu);
 }
@@ -11318,23 +11339,9 @@ lower_unit_t *lower_instance(lower_unit_t *parent, cover_tagging_t *cover,
    vcode_unit_t vu = emit_instance(name, tree_to_object(block),
                                    parent ? parent->vunit : NULL);
 
-   if (parent == NULL)
-      cover_reset_scope(cover, prefix);
-
    lower_unit_t *lu = lower_unit_new(parent, vu, cover, block);
 
-   if (cover_enabled(lu->cover, COVER_MASK_ALL)) {
-      tree_t hier = tree_decl(block, 0);
-      assert(tree_kind(hier) == T_HIER);
-
-      tree_t unit = tree_ref(hier);
-      if (tree_kind(unit) == T_ARCH) {
-         ident_t ename = ident_rfrom(tree_ident(tree_primary(unit)), '.');
-         cover_set_block_name(lu->cover, ename);
-      }
-
-      cover_add_tag(block, NULL, lu->cover, TAG_HIER, COV_FLAG_HIER_DOWN);
-   }
+   cover_push_scope(cover, block);
 
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
@@ -11397,8 +11404,6 @@ lower_unit_t *lower_unit_new(lower_unit_t *parent, vcode_unit_t vunit,
    new->elaborating = kind == VCODE_UNIT_INSTANCE
       || kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_PACKAGE;
 
-   cover_push_scope(new->cover, container);
-
    return new;
 }
 
@@ -11406,15 +11411,6 @@ void lower_unit_free(lower_unit_t *lu)
 {
    if (lu == NULL)
       return;
-
-   if (lu->container != NULL && tree_kind(lu->container) == T_BLOCK) {
-      // TODO: can this move elsewhere?
-      if (cover_enabled(lu->cover, COVER_MASK_ALL))
-         cover_add_tag(lu->container, NULL, lu->cover, TAG_HIER,
-                       COV_FLAG_HIER_UP);
-   }
-
-   cover_pop_scope(lu->cover);
 
    if (lu->vunit && !lu->finished)
       lower_finished(lu);

@@ -29,6 +29,7 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
+#include "rt/cover.h"
 #include "type.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
@@ -1532,6 +1533,12 @@ static void elab_pop_scope(elab_ctx_t *ctx)
 {
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
+
+   if (cover_enabled(ctx->cover, COVER_MASK_ALL))
+      cover_add_tag(ctx->out, NULL, ctx->cover, TAG_HIER,
+                    COV_FLAG_HIER_UP);
+
+   cover_pop_scope(ctx->cover);
 
    lower_unit_free(ctx->lowered);
 }

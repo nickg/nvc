@@ -162,10 +162,8 @@ typedef enum {
 cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
 
-void cover_reset_scope(cover_tagging_t *tagging, ident_t hier);
 void cover_push_scope(cover_tagging_t *tagging, tree_t t);
 void cover_pop_scope(cover_tagging_t *tagging);
-void cover_set_block_name(cover_tagging_t *tagging, ident_t name);
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit);
 void cover_load_spec_file(cover_tagging_t *tagging, const char *path);

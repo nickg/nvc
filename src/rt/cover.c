@@ -505,20 +505,6 @@ bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask)
    return tagging != NULL && (tagging->mask & mask);
 }
 
-void cover_reset_scope(cover_tagging_t *tagging, ident_t hier)
-{
-   if (tagging == NULL)
-      return;
-
-   assert(tagging->top_scope == NULL);
-
-   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   s->name = hier;
-
-   tagging->top_scope = tagging->root_scope = s;
-   tagging->hier = hier;
-}
-
 static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 {
    cover_scope_t *ts = tagging->top_scope;
@@ -570,8 +556,15 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
 
 void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 {
-   if (tagging == NULL || t == NULL)
+   if (tagging == NULL)
       return;
+   else if (tagging->root_scope == NULL) {
+      cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+      s->name = lib_name(lib_work());
+
+      tagging->top_scope = tagging->root_scope = s;
+      tagging->hier = s->name;
+   }
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
    ident_t name = NULL;
@@ -616,10 +609,22 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       name = ident_new(prefix);
 
    s->name = name;
-   s->block_name = tagging->top_scope->block_name;
    s->parent = tagging->top_scope;
+   s->block_name = s->parent->block_name;
+
    if (s->sig_pos == 0)
       s->sig_pos = tagging->top_scope->sig_pos;
+
+   if (tree_kind(t) == T_BLOCK) {
+      tree_t hier = tree_decl(t, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      tree_t unit = tree_ref(hier);
+      if (tree_kind(unit) == T_ARCH) {
+         s->block_name = ident_rfrom(tree_ident(tree_primary(unit)), '.');
+         cover_add_tag(t, NULL, tagging, TAG_HIER, COV_FLAG_HIER_DOWN);
+      }
+   }
 
    list_add(&tagging->top_scope->children, s);
 
@@ -652,12 +657,6 @@ void cover_pop_scope(cover_tagging_t *tagging)
 
    tagging->hier = ident_runtil(tagging->hier, '.');
    assert(tagging->hier != NULL);
-}
-
-void cover_set_block_name(cover_tagging_t *tagging, ident_t name)
-{
-   assert(tagging != NULL);
-   tagging->top_scope->block_name = name;
 }
 
 void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
