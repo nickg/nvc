@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -65,10 +65,6 @@ typedef enum {
    // Tag used to represent hierarchy break in the linear sequence of tags.
    // Does not hold any coverage information
    TAG_HIER,
-
-   // Last tag out of all tags, used to indicate no more tags are present in
-   // coverage database.
-   TAG_LAST
 } tag_kind_t;
 
 typedef struct _cover_tag {
