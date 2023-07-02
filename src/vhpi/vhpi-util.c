@@ -326,11 +326,12 @@ uint64_t vhpi_time_to_native(const vhpiTimeT *time)
    return ((uint64_t)time->high << 32) | (uint64_t)time->low;
 }
 
-void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins)
+void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins,
+                       int argc, char **argv)
 {
    vhpi_clear_error();
 
-   vhpi_build_design_model(top, model);
+   vhpi_build_design_model(top, model, argc, argv);
 
    char *plugins_copy LOCAL = xstrdup(plugins);
 

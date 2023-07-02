@@ -45,6 +45,13 @@ typedef struct {
 typedef A(c_vhpiObject *) vhpiObjectListT;
 
 typedef struct {
+   c_vhpiObject object;
+   vhpiStringT  StrVal;
+} c_argv;
+
+DEF_CLASS(argv, vhpiArgvK, object);
+
+typedef struct {
    c_vhpiObject      object;
    vhpiObjectListT   argv;
 } c_tool;
@@ -609,6 +616,19 @@ static vhpiCharT *new_string_n(const char *s, size_t n)
    if (p == NULL)
       shash_put(strtab, s, (p = (vhpiCharT *)xstrndup(s, n)));
    return p;
+}
+
+static c_tool *build_tool(int argc, char **argv)
+{
+   c_tool *t = new_object(sizeof(c_tool), vhpiToolK);
+
+   for (int i = 0; i < argc; i++) {
+      c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
+      arg->StrVal = new_string(argv[i]);
+      APUSH(t->argv, &(arg->object));
+   }
+
+   return t;
 }
 
 static void init_abstractRegion(c_abstractRegion *r, tree_t t)
@@ -1768,9 +1788,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
 
    case vhpiArgcP:
-      if (obj->kind != vhpiToolK)
-         vhpi_error(vhpiInternal, &(obj->loc), "vhpiArgcP is only supported for tool objects");
-      return 0;
+      {
+         c_tool *t = cast_tool(obj);
+         if (t == NULL)
+            return vhpiUndefined;
+         return t->argv.count;
+      }
 
    case vhpiNumDimensionsP:
       {
@@ -1995,6 +2018,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
          return (vhpiCharT *)PACKAGE_VERSION;
       case vhpiNameP:
          return (vhpiCharT *)PACKAGE_NAME;
+      default: goto unsupported;
+      }
+   }
+
+   c_argv *arg = is_argv(obj);
+   if (arg != NULL) {
+      switch(property) {
+      case vhpiStrValP: return arg->StrVal;
       default: goto unsupported;
       }
    }
@@ -2789,7 +2820,7 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    }
 }
 
-void vhpi_build_design_model(tree_t top, rt_model_t *m)
+void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
 {
    const uint64_t start_us = get_timestamp_us();
 
@@ -2814,7 +2845,7 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m)
 
    model = m;
 
-   tool = new_object(sizeof(c_tool), vhpiToolK);
+   tool = build_tool(argc, argv);
 
    c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
    init_entityDecl(entity, p);
