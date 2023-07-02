@@ -9,12 +9,15 @@ begin
     p1: process is
         variable v1   : integer := 42;
         variable v2   : integer_vector(1 to 3) := (1, 2, 3);
+        variable v3   : real := 1.234;
         variable vm   : value_mirror;
         variable ivm  : integer_value_mirror;
         variable avm  : array_value_mirror;
+        variable fvm  : floating_value_mirror;
         variable stm  : subtype_mirror;
         variable istm : integer_subtype_mirror;
         variable astm : array_subtype_mirror;
+        variable fstm : floating_subtype_mirror;
     begin
         vm := v1'reflect;
         assert vm.get_value_class = CLASS_INTEGER;
@@ -47,6 +50,10 @@ begin
         avm := vm.to_array;
         astm := avm.get_subtype_mirror;
         assert astm.dimensions = 1;
+
+        fvm := v3'reflect.to_floating;
+        assert fvm.value = 1.234;
+        assert fvm.get_subtype_mirror.to_subtype_mirror = real'reflect;
 
         wait;
     end process;

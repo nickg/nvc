@@ -158,7 +158,6 @@ package body reflection is
         variable f_right     : integer_value_mirror;
         variable f_low       : integer_value_mirror;
         variable f_high      : integer_value_mirror;
-        variable f_length    : index;
         variable f_ascending : boolean;
 
         impure function to_subtype_mirror return subtype_mirror is
@@ -193,7 +192,7 @@ package body reflection is
 
         impure function length return index is
         begin
-            return f_length;
+            return maximum(index(f_high.value - f_low.value + 1), 0);
         end function;
 
         impure function ascending return boolean is
@@ -205,63 +204,74 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type floating_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : floating_subtype_mirror;
+        variable f_value   : real;
+
         impure function get_subtype_mirror return floating_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function value return real is
         begin
-            report "unimplemented" severity failure;
+            return f_value;
         end function;
 
         impure function image return string is
         begin
-            report "unimplemented" severity failure;
+            return real'image(f_value);
         end function;
     end protected body;
 
     ---------------------------------------------------------------------------
 
     type floating_subtype_mirror_pt is protected body
+        variable f_owner     : subtype_mirror;
+        variable f_left      : floating_value_mirror;
+        variable f_right     : floating_value_mirror;
+        variable f_low       : floating_value_mirror;
+        variable f_high      : floating_value_mirror;
+        variable f_ascending : boolean;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function left return floating_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_left;
         end function;
 
         impure function right return floating_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_right;
         end function;
 
         impure function low return floating_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_low;
         end function;
 
         impure function high return floating_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_high;
         end function;
 
         impure function ascending return boolean is
         begin
-            report "unimplemented" severity failure;
+            return f_ascending;
         end function;
     end protected body;
 
@@ -642,10 +652,11 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type subtype_mirror_pt is protected body
-        variable f_class   : type_class;
-        variable f_name    : string_ptr;
-        variable f_integer : integer_subtype_mirror;
-        variable f_array   : array_subtype_mirror;
+        variable f_class    : type_class;
+        variable f_name     : string_ptr;
+        variable f_integer  : integer_subtype_mirror;
+        variable f_floating : floating_subtype_mirror;
+        variable f_array    : array_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -665,7 +676,8 @@ package body reflection is
 
         impure function to_floating return floating_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_FLOATING;
+            return f_floating;
         end function;
 
         impure function to_physical return physical_subtype_mirror is
@@ -707,10 +719,11 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type value_mirror_pt is protected body
-        variable f_class   : value_class;
-        variable f_subtype : subtype_mirror;
-        variable f_integer : integer_value_mirror;
-        variable f_array   : array_value_mirror;
+        variable f_class    : value_class;
+        variable f_subtype  : subtype_mirror;
+        variable f_integer  : integer_value_mirror;
+        variable f_floating : floating_value_mirror;
+        variable f_array    : array_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -735,7 +748,8 @@ package body reflection is
 
         impure function to_floating return floating_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_FLOATING;
+            return f_floating;
         end function;
 
         impure function to_physical return physical_value_mirror is
