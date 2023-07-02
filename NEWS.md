@@ -9,6 +9,8 @@
   `to_string` function was changed to match other simulators.
 - Fixed a crash when constant folding a locally static expression in a
   package body (#742).
+- Added support for reading command line arguments in VHPI (from
+  @Forty-Bot).
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install

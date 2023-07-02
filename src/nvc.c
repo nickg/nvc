@@ -719,7 +719,7 @@ static int run(int argc, char **argv)
    rt_model_t *model = model_new(top, jit);
 
    if (vhpi_plugins != NULL)
-      vhpi_load_plugins(top, model, vhpi_plugins);
+      vhpi_load_plugins(top, model, vhpi_plugins, next_cmd - 1, argv + 1);
 
    set_ctrl_c_handler(ctrl_c_handler, model);
 
