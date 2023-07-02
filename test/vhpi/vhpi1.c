@@ -346,7 +346,6 @@ void vhpi1_startup(void)
    for (vhpiHandleT arg = vhpi_scan(args); arg != NULL; arg = vhpi_scan(args), i++)
       vhpi_printf("arg is %s", vhpi_get_str(vhpiStrValP, arg));
    fail_unless(vhpi_get(vhpiArgcP, tool) == i);
-   fail_if(1);
 
    vhpi_release_handle(tool);
 

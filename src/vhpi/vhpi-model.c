@@ -1676,9 +1676,12 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
       return NULL;
 
    c_iterator it = {};
-   if (!init_iterator(&it, itRel, obj))
-      fatal_trace("relation %s not supported in vhpi_handle_by_index",
-                  vhpi_one_to_many_str(itRel));
+   if (!init_iterator(&it, itRel, obj)) {
+      vhpi_error(vhpiError, &(obj->loc),
+                 "relation %s not supported in vhpi_handle_by_index",
+                 vhpi_one_to_many_str(itRel));
+      return NULL;
+   }
 
    if (it.single ? index : index > it.list->count) {
       vhpi_error(vhpiError, &(obj->loc), "invalid %s index %d",
@@ -1700,9 +1703,12 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
       return NULL;
 
    c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
-   if (!init_iterator(it, type, obj))
-      fatal_trace("relation %s not supported in vhpi_iterator",
-                  vhpi_one_to_many_str(type));
+   if (!init_iterator(it, type, obj)) {
+      vhpi_error(vhpiError, &(obj->loc),
+                 "relation %s not supported in vhpi_iterator",
+                 vhpi_one_to_many_str(type));
+      return NULL;
+   }
 
    return handle_for(&(it->object));
 }
