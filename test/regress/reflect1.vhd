@@ -50,6 +50,14 @@ begin
         avm := vm.to_array;
         astm := avm.get_subtype_mirror;
         assert astm.dimensions = 1;
+        assert astm.index_subtype = natural'reflect;
+        assert astm.element_subtype = integer'reflect;
+        assert astm.length = 3;
+        assert astm.left = 1;
+        assert astm.right = 3;
+        assert astm.ascending;
+        assert astm.low = 1;
+        assert astm.high = 3;
 
         fvm := v3'reflect.to_floating;
         assert fvm.value = 1.234;

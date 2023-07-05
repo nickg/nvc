@@ -88,9 +88,19 @@ typedef struct {
 } floating_subtype_mirror;
 
 typedef struct {
+   subtype_mirror *f_index_subtype;
+   int64_t         f_left;
+   int64_t         f_right;
+   int64_t         f_length;
+   uint8_t         f_ascending;
+} dimension_rec;
+
+typedef struct {
    void           *context;
    subtype_mirror *f_owner;
    uint64_t        f_dimensions;
+   subtype_mirror *f_element_subtype;
+   ffi_uarray_t   *f_dimension_data;
 } array_subtype_mirror_pt;
 
 typedef struct {
@@ -298,9 +308,8 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       range_kind_t rkind;
       int64_t low = INT64_MIN, high = INT64_MAX;
-      tree_t r;
       for (;; type = type_base(type)) {
-         r = range_of(type, 0);
+         tree_t r = range_of(type, 0);
          rkind = tree_subkind(r);
          if (rkind != RANGE_EXPR && folded_bounds(r, &low, &high))
             break;
@@ -357,9 +366,37 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       array_subtype_mirror *astm = zero_alloc(sizeof(array_subtype_mirror));
       astm->access = &(astm->pt);
 
+      const int ndims = dimension_of(type);
+      type_t elem = type_elem(type);
+
       astm->pt.context = context;
       astm->pt.f_owner = sm;
-      astm->pt.f_dimensions = dimension_of(type);
+      astm->pt.f_dimensions = ndims;
+      astm->pt.f_element_subtype = get_subtype_mirror(context, elem, NULL);
+
+      astm->pt.f_dimension_data =
+         zero_alloc(sizeof(ffi_uarray_t) + ndims * sizeof(dimension_rec));
+      astm->pt.f_dimension_data->dims[0].left = 1;
+      astm->pt.f_dimension_data->dims[0].length = ndims;
+      astm->pt.f_dimension_data->ptr = astm->pt.f_dimension_data + 1;
+
+      dimension_rec *dims = astm->pt.f_dimension_data->ptr;
+      for (int i = 0; i < ndims; i++) {
+         type_t itype = index_type_of(type, i);
+         dims[i].f_index_subtype = get_subtype_mirror(context, itype, NULL);
+
+         const int64_t left = bounds[i*2 + 1].integer;
+         const int64_t length = bounds[i*2 + 2].integer;
+
+         dims[i].f_ascending = length >= 0;
+         dims[i].f_left = left;
+         dims[i].f_length = length ^ (length >> 63);
+
+         if (length < 0)
+            dims[i].f_right = left + length + 2;
+         else
+            dims[i].f_right = left + length - 1;
+      }
 
       sm->pt.f_class = CLASS_ARRAY;
       sm->pt.f_array = astm;

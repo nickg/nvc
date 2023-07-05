@@ -476,8 +476,22 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type array_subtype_mirror_pt is protected body
-        variable f_owner      : subtype_mirror;
-        variable f_dimensions : dimension;
+        variable f_owner           : subtype_mirror;
+        variable f_dimensions      : dimension;
+        variable f_element_subtype : subtype_mirror;
+
+        type dimension_rec is record
+            f_index_subtype : subtype_mirror;
+            f_left          : index;
+            f_right         : index;
+            f_length        : index;
+            f_ascending     : boolean;
+        end record;
+
+        type dimension_array is array (dimension range <>) of dimension_rec;
+        type dimension_array_ptr is access dimension_array;
+
+        variable f_dimension_data : dimension_array_ptr;
 
         impure function to_subtype_mirror return subtype_mirror is
         begin
@@ -491,47 +505,47 @@ package body reflection is
 
         impure function index_subtype(idx : dimension := 1) return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_dimension_data.all(idx).f_index_subtype;
         end function;
 
         impure function element_subtype return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_element_subtype;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function left (idx : dimension := 1) return index is
         begin
-            report "unimplemented" severity failure;
+            return f_dimension_data.all(idx).f_left;
         end function;
 
         impure function right (idx : dimension := 1) return index is
         begin
-            report "unimplemented" severity failure;
+            return f_dimension_data.all(idx).f_right;
         end function;
 
         impure function low (idx : dimension := 1) return index is
         begin
-            report "unimplemented" severity failure;
+            return left when ascending else right;
         end function;
 
         impure function high (idx : dimension := 1) return index is
         begin
-            report "unimplemented" severity failure;
+            return right when ascending else left;
         end function;
 
         impure function length (idx : dimension := 1) return index is
         begin
-            report "unimplemented" severity failure;
+            return f_dimension_data.all(idx).f_length;
         end function;
 
         impure function ascending (idx : dimension := 1) return boolean is
         begin
-            report "unimplemented" severity failure;
+            return f_dimension_data.all(idx).f_ascending;
         end function;
     end protected body;
 
