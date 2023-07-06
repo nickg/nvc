@@ -11079,13 +11079,6 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
       tree_t unit = lib_get(lib, unit_name);
       if (is_uninstantiated_package(unit))
          return;   // No code generated for uninstantiated packages
-      else if (is_well_known(unit_name) == W_IEEE_1164) {
-         // VHDL-2008 and later matching operators on STD_LOGIC are
-         // implemented in the support package
-         ident_t ieee_support = ident_new("NVC.IEEE_SUPPORT");
-         if (this_unit != ieee_support)  // Avoid circular dependency
-            emit_package_init(ieee_support, VCODE_INVALID_REG);
-      }
    }
 
    if (kind == T_PACKAGE || kind == T_PACK_INST)
@@ -11109,6 +11102,13 @@ static vcode_unit_t lower_pack_body(unit_registry_t *ur, tree_t unit)
    vcode_unit_t context = emit_package(name, obj, NULL);
 
    lower_unit_t *lu = lower_unit_new(ur, NULL, context, NULL, unit);
+
+   if (standard() >= STD_08 && is_well_known(name) == W_IEEE_1164) {
+      // VHDL-2008 and later matching operators on STD_LOGIC are
+      // implemented in the support package
+      ident_t ieee_support = ident_new("NVC.IEEE_SUPPORT");
+      emit_package_init(ieee_support, VCODE_INVALID_REG);
+   }
 
    lower_dependencies(pack, unit);
    lower_decls(lu, pack);

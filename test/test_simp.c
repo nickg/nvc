@@ -1487,6 +1487,27 @@ START_TEST(test_condexpr)
 }
 END_TEST
 
+START_TEST(test_ieee1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/ieee1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+
+   tree_t b1 = tree_decl(p, 0);
+   fail_unless(tree_ident(tree_value(b1)) == ident_new("'1'"));
+
+   tree_t b2 = tree_decl(p, 1);
+   fail_unless(tree_ident(tree_value(b2)) == ident_new("'0'"));
+
+   tree_t b3 = tree_decl(p, 2);
+   fail_unless(tree_ident(tree_value(b3)) == ident_new("'1'"));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1544,6 +1565,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue574);
    tcase_add_test(tc_core, test_casegen);
    tcase_add_test(tc_core, test_condexpr);
+   tcase_add_test(tc_core, test_ieee1);
    suite_add_tcase(s, tc_core);
 
    return s;
