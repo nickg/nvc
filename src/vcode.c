@@ -5537,11 +5537,6 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
                               vcode_reg_t dir, vcode_reg_t locus,
                               vcode_reg_t hint)
 {
-   if (reg == left || reg == right) {
-      emit_comment("Elided trivial bounds check for r%d", reg);
-      return;
-   }
-
    VCODE_FOR_EACH_MATCHING_OP(other, kind) {
       if (other->args.items[0] == reg && other->args.items[1] == left
           && other->args.items[2] == right && other->args.items[3] == dir)
@@ -5555,18 +5550,14 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
          const bool is_null = (dconst == RANGE_TO && lconst > rconst)
             || (dconst == RANGE_DOWNTO && rconst > lconst);
 
-         if (is_null) {
-            emit_comment("Elided bounds check for null range");
-            return;
-         }
-
          vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
 
          const bool ok_static =
             (dconst == RANGE_TO
              && bounds->low >= lconst && bounds->high <= rconst)
             || (dconst == RANGE_DOWNTO
-                && bounds->low >= rconst && bounds->high <= lconst);
+                && bounds->low >= rconst && bounds->high <= lconst)
+            || (!is_null && (reg == left || reg == right));
 
          if (ok_static) {
             emit_comment("Elided bounds check for r%d", reg);

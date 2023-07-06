@@ -612,6 +612,25 @@ START_TEST(test_issue617)
 }
 END_TEST
 
+START_TEST(test_issue734)
+{
+   input_from_file(TESTDIR "/bounds/issue734.vhd");
+
+   const error_t expect[] = {
+      { 10, "array VAL index 0 outside of NATURAL range 0 downto 1" },
+      { 11, "VAL slice left index 1 outside of NATURAL range 0 downto 1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -642,6 +661,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_driver1);
    tcase_add_test(tc_core, test_nullrange);
    tcase_add_test(tc_core, test_issue617);
+   tcase_add_test(tc_core, test_issue734);
    suite_add_tcase(s, tc_core);
 
    return s;

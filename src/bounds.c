@@ -179,9 +179,6 @@ static tree_t bounds_check_call_args(tree_t t)
 static bool index_in_range(tree_t index, int64_t low, int64_t high,
                            int64_t *value)
 {
-   if (low > high)
-      return true;   // Null range allows any index
-
    int64_t folded;
    if (folded_int(index, &folded)) {
       *value = folded;
@@ -195,7 +192,7 @@ static bool bounds_check_index(tree_t index, type_t type, range_kind_t kind,
                                const char *what, int64_t low, int64_t high)
 {
    int64_t folded;
-   if (!index_in_range(index, low, high, &folded)) {
+   if (!index_in_range(index, low, high, &folded) && low <= high) {
       LOCAL_TEXT_BUF tb = tb_new();
       tb_cat(tb, what);
       tb_printf(tb, " index ");

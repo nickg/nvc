@@ -793,7 +793,7 @@ view5           normal,2019
 issue705        normal,2008
 array17         normal,2008
 stdenv5         normal,2019
-assert7         fail,2008
+assert7         fail,gold,2008
 vhpi7           normal,2008,vhpi
 vhpi8           normal,2008,vhpi
 issue704        wave,no-collapse
@@ -814,3 +814,4 @@ protected10     normal,2019
 reflect1        normal,2019
 signal32        normal,2019
 reflect2        normal,2019
+issue734        fail,gold,2008

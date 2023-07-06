@@ -2254,6 +2254,8 @@ START_TEST(test_issue149)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_TRAP_SUB },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_DEBUG_LOCUS },
