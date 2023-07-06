@@ -124,9 +124,10 @@ START_TEST(test_vhdl2)
         "component C1 is\n"
         "  generic (\n"
         "    constant G1 : in INTEGER := 2;\n"
-        "    type T : in T;\n"
+        "    type T is private;\n"
         "    -- predefined function \"=\" : in \"=\" [T, T return BOOLEAN];\n"
-        "    -- predefined function \"/=\" : in \"/=\" [T, T return BOOLEAN] );\n"
+        "    -- predefined function \"/=\" : in \"/=\" [T, T return BOOLEAN];\n"
+        "  );\n"
         "  port (\n"
         "    signal X : out BIT;\n"
         "    signal Y : out BIT );\n"
@@ -241,6 +242,59 @@ START_TEST(test_vhdl3)
 }
 END_TEST
 
+START_TEST(test_vhdl4)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/dump/vhdl4.vhd");
+
+   tree_t e = parse_and_check(T_ENTITY);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   dump(e);
+   diff_dump(tb_get(tb),
+             "use STD.STANDARD.all;\n"
+             "\n"
+             "entity WORK.E is\n"
+             "  generic (\n"
+             "    type T1 is private;\n"
+             "    -- predefined function \"=\" : in \"=\" [T1, T1 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T1, T1 return BOOLEAN];\n"
+             "    type T2 is <>;\n"
+             "    -- predefined function \"=\" : in \"=\" [T2, T2 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T2, T2 return BOOLEAN];\n"
+             "    type T3 is (<>);\n"
+             "    -- predefined function \"=\" : in \"=\" [T3, T3 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T3, T3 return BOOLEAN];\n"
+             "    type T4 is range <>;\n"
+             "    -- predefined function \"=\" : in \"=\" [T4, T4 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T4, T4 return BOOLEAN];\n"
+             "    type T5 is units <>;\n"
+             "    -- predefined function \"=\" : in \"=\" [T5, T5 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T5, T5 return BOOLEAN];\n"
+             "    type T6 is range <> . <>;\n"
+             "    -- predefined function \"=\" : in \"=\" [T6, T6 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T6, T6 return BOOLEAN];\n"
+             "    type T7 is array (..) of ..;\n"
+             "    -- predefined function \"=\" : in \"=\" [T7, T7 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T7, T7 return BOOLEAN];\n"
+             "    type T8 is access ..;\n"
+             "    -- predefined function \"=\" : in \"=\" [T8, T8 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T8, T8 return BOOLEAN];\n"
+             "    type T9 is file of ..;\n"
+             "    -- predefined function \"=\" : in \"=\" [T9, T9 return BOOLEAN];\n"
+             "    -- predefined function \"/=\" : in \"/=\" [T9, T9 return BOOLEAN];\n"
+             "  );\n"
+             "end entity;\n"
+             "\n");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_dump_tests(void)
 {
    Suite *s = suite_create("dump");
@@ -249,6 +303,7 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_vhdl1);
    tcase_add_test(tc_core, test_vhdl2);
    tcase_add_test(tc_core, test_vhdl3);
+   tcase_add_test(tc_core, test_vhdl4);
    suite_add_tcase(s, tc_core);
 
    return s;

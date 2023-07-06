@@ -160,6 +160,8 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
 static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject);
+static type_t p_index_subtype_definition(void);
+static type_t p_anonymous_type_indication(void);
 static tree_t p_psl_declaration(void);
 static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
@@ -4808,9 +4810,220 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
    }
 }
 
+static void p_private_incomplete_type_definition(type_t type)
+{
+   // 2019: private
+
+   BEGIN("private incomplete type definition");
+
+   consume(tPRIVATE);
+
+   type_set_subkind(type, GTYPE_PRIVATE);
+}
+
+static void p_scalar_incomplete_type_definition(type_t type)
+{
+   // 2019: <>
+
+   BEGIN("scalar incomplete type definition");
+
+   consume(tBOX);
+
+   type_set_subkind(type, GTYPE_SCALAR);
+}
+
+static void p_discrete_incomplete_type_definition(type_t type)
+{
+   // 2019: ( <> )
+
+   BEGIN("discrete incomplete type definition");
+
+   consume(tLPAREN);
+   consume(tBOX);
+   consume(tRPAREN);
+
+   type_set_subkind(type, GTYPE_DISCRETE);
+}
+
+static void p_integer_incomplete_type_definition(type_t type)
+{
+   // 2019: range <>
+
+   BEGIN("integer incomplete type definition");
+
+   consume(tRANGE);
+   consume(tBOX);
+
+   type_set_subkind(type, GTYPE_INTEGER);
+}
+
+static void p_physical_incomplete_type_definition(type_t type)
+{
+   // 2019: units <>
+
+   BEGIN("physical incomplete type definition");
+
+   consume(tUNITS);
+   consume(tBOX);
+
+   type_set_subkind(type, GTYPE_PHYSICAL);
+}
+
+static void p_floating_incomplete_type_definition(type_t type)
+{
+   // 2019: range <> . <>
+
+   BEGIN("floating incomplete type definition");
+
+   consume(tRANGE);
+   consume(tBOX);
+   consume(tDOT);
+   consume(tBOX);
+
+   type_set_subkind(type, GTYPE_FLOATING);
+}
+
+static type_t p_array_index_incomplete_type(void)
+{
+   // index_subtype_definition | index_constraint | anonymous_type_indication
+
+   return p_index_subtype_definition();
+}
+
+static void p_array_index_incomplete_type_list(type_t type)
+{
+   // array_index_incomplete_type { , array_index_incomplete_type }
+
+   do {
+      (void)p_array_index_incomplete_type();
+   } while (optional(tCOMMA));
+}
+
+static type_t p_incomplete_subtype_indication(void)
+{
+   // subtype_indication | anonymous_type_indication
+
+   if (peek() == tTYPE)
+      return p_anonymous_type_indication();
+   else
+      return p_subtype_indication();
+}
+
+static void p_array_incomplete_type_definition(type_t type)
+{
+   // 2019: array ( array_index_incomplete_type_list )
+   //   of element_incomplete_subtype_indication
+
+   BEGIN("array incomplete type definition");
+
+   consume(tARRAY);
+   consume(tLPAREN);
+
+   p_array_index_incomplete_type_list(type);
+
+   consume(tRPAREN);
+   consume(tOF);
+
+   (void)p_incomplete_subtype_indication();
+
+   type_set_subkind(type, GTYPE_ARRAY);
+}
+
+static void p_access_incomplete_type_definition(type_t type)
+{
+   // 2019: access incomplete_subtype_indication
+
+   BEGIN("access incomplete type definition");
+
+   consume(tACCESS);
+
+   (void)p_incomplete_subtype_indication();
+
+   type_set_subkind(type, GTYPE_ACCESS);
+}
+
+static void p_file_incomplete_type_definition(type_t type)
+{
+   // 2019: file of incomplete_subtype_indication
+
+   BEGIN("file incomplete type definition");
+
+   consume(tFILE);
+   consume(tOF);
+
+   (void)p_incomplete_subtype_indication();
+
+   type_set_subkind(type, GTYPE_FILE);
+}
+
+static void p_incomplete_type_definition(type_t type)
+{
+   // private_incomplete_type_definition
+   //   | scalar_incomplete_type_definition
+   //   | discrete_incomplete_type_definition
+   //   | integer_incomplete_type_definition
+   //   | physical_incomplete_type_definition
+   //   | floating_incomplete_type_definition
+   //   | array_incomplete_type_definition
+   //   | access_incomplete_type_definition
+   //   | file_incomplete_type_definition
+
+   BEGIN("incomplete type definition");
+
+   require_std(STD_19, "incomplete type definition");
+
+   switch (peek()) {
+   case tPRIVATE:
+      p_private_incomplete_type_definition(type);
+      break;
+   case tBOX:
+      p_scalar_incomplete_type_definition(type);
+      break;
+   case tLPAREN:
+      p_discrete_incomplete_type_definition(type);
+      break;
+   case tRANGE:
+      if (peek_nth(3) == tDOT)
+         p_floating_incomplete_type_definition(type);
+      else
+         p_integer_incomplete_type_definition(type);
+      break;
+   case tUNITS:
+      p_physical_incomplete_type_definition(type);
+      break;
+   case tARRAY:
+      p_array_incomplete_type_definition(type);
+      break;
+   case tACCESS:
+      p_access_incomplete_type_definition(type);
+      break;
+   case tFILE:
+      p_file_incomplete_type_definition(type);
+      break;
+   default:
+      one_of(tPRIVATE, tBOX, tLPAREN, tRANGE, tUNITS, tARRAY, tACCESS, tFILE);
+   }
+}
+
+static type_t p_anonymous_type_indication(void)
+{
+   // type is incomplete_type_definition
+
+   BEGIN("anonymous type indication");
+
+   consume(tTYPE);
+   consume(tIS);
+
+   type_t type = type_new(T_GENERIC);
+   p_incomplete_type_definition(type);
+
+   return type;
+}
+
 static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
 {
    // 2008: type identifier
+   // 2019: type identifier [ is incomplete_type_definition ]
 
    BEGIN("interface type declaration");
 
@@ -4822,6 +5035,11 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
 
    type_t type = type_new(T_GENERIC);
    type_set_ident(type, id);
+
+   if (optional(tIS))
+      p_incomplete_type_definition(type);
+   else
+      type_set_subkind(type, GTYPE_PRIVATE);
 
    tree_t d = tree_new(kind);
    tree_set_ident(d, id);

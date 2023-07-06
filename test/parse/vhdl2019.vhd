@@ -76,3 +76,18 @@ entity E is
     port (P1: STRING(G3 to G4); P2: STRING(P1'RANGE); P3: P1'SUBTYPE);
     procedure X (Y1, Y2: INTEGER; Y3: INTEGER range Y1 to Y2; Y4: Y1'SUBTYPE);
 end E;
+
+-- LCS-2016-059
+entity E is
+    generic (
+        type t1 is private;
+        type t2 is <>;
+        type t3 is (<>);
+        type t4 is range <>;
+        type t5 is units <>;
+        type t6 is range <> . <>;
+        type t7 is array (t3 range <>) of t1;
+        type t8 is access type is private;
+        type t9 is file of t1;
+        );
+end E;

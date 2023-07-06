@@ -252,6 +252,7 @@ NUMERIC       ?i:numeric
 STRING_K      ?i:string
 WITHIN        ?i:within
 VIEW          ?i:view
+PRIVATE       ?i:private
 
 %%
 
@@ -372,6 +373,7 @@ VIEW          ?i:view
 {PARAMETER}              { TOKEN_08(tPARAMETER); }
 {DEFAULT}                { TOKEN_08(tDEFAULT); }
 {VIEW}                   { TOKEN_19(tVIEW); }
+{PRIVATE}                { TOKEN_19(tPRIVATE); }
 
 `{IF}                    { TOKEN(tCONDIF); }
 `{ELSE}                  { TOKEN(tCONDELSE); }

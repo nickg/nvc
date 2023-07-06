@@ -3765,6 +3765,38 @@ START_TEST(test_vhdl2019)
    fail_if(e086 == NULL);
    fail_unless(tree_kind(e086) == T_ENTITY);
 
+   tree_t e059 = parse();
+   fail_if(e059 == NULL);
+   fail_unless(tree_kind(e059) == T_ENTITY);
+
+   tree_t e059g0 = tree_generic(e059, 0);
+   fail_unless(tree_class(e059g0) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g0)) == GTYPE_PRIVATE);
+
+   tree_t e059g3 = tree_generic(e059, 3);
+   fail_unless(tree_class(e059g3) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g3)) == GTYPE_SCALAR);
+
+   tree_t e059g6 = tree_generic(e059, 6);
+   fail_unless(tree_class(e059g6) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g6)) == GTYPE_DISCRETE);
+
+   tree_t e059g9 = tree_generic(e059, 9);
+   fail_unless(tree_class(e059g9) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g9)) == GTYPE_INTEGER);
+
+   tree_t e059g12 = tree_generic(e059, 12);
+   fail_unless(tree_class(e059g12) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g12)) == GTYPE_PHYSICAL);
+
+   tree_t e059g15 = tree_generic(e059, 15);
+   fail_unless(tree_class(e059g15) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g15)) == GTYPE_FLOATING);
+
+   tree_t e059g18 = tree_generic(e059, 18);
+   fail_unless(tree_class(e059g18) == C_TYPE);
+   fail_unless(type_subkind(tree_type(e059g18)) == GTYPE_ARRAY);
+
    fail_unless(parse() == NULL);
 
    fail_if_errors();

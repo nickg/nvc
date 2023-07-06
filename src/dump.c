@@ -528,8 +528,14 @@ static void dump_generics(tree_t t, int indent, const char *trailer)
       if (ngenerics > 1) {
          print_syntax("\n");
          for (int i = 0; i < ngenerics; i++) {
-            if (i > 0) print_syntax(";\n");
-            dump_port(tree_generic(t, i), indent + 2);
+            tree_t g = tree_generic(t, i);
+            dump_port(g, indent + 2);
+            if (i + 1 == ngenerics && (tree_flags(g) & TREE_F_PREDEFINED)) {
+               print_syntax(";\n");
+               tab(indent - 1);
+            }
+            else if (i + 1 < ngenerics)
+               print_syntax(";\n");
          }
       }
       else
@@ -1360,27 +1366,49 @@ static void dump_port(tree_t t, int indent)
    if (tree_flags(t) & TREE_F_PREDEFINED)
       print_syntax("-- predefined ");
 
-   const char *class = NULL, *dir = NULL;
-   switch (tree_class(t)) {
-   case C_SIGNAL:    class = "signal";    break;
-   case C_VARIABLE:  class = "variable";  break;
-   case C_DEFAULT:   class = "";          break;
-   case C_CONSTANT:  class = "constant";  break;
-   case C_FILE:      class = "file";      break;
-   case C_TYPE:      class = "type";      break;
-   case C_FUNCTION:  class = "function";  break;
-   case C_PROCEDURE: class = "procedure"; break;
-   case C_PACKAGE:   class = "package";   break;
-   default:
-      assert(false);
-   }
-   print_syntax("#%s %s", class, istr(tree_ident(t)));
+   const class_t class = tree_class(t);
+   print_syntax("#%s %s", class_str(class), istr(tree_ident(t)));
 
-   if (tree_class(t) == C_PACKAGE) {
+   if (class == C_PACKAGE) {
       print_syntax(" #is #new ");
       dump_expr(tree_value(t));
    }
+   else if (class == C_TYPE) {
+      print_syntax(" #is ");
+
+      type_t type = tree_type(t);
+      switch (type_subkind(type)) {
+      case GTYPE_PRIVATE:
+         print_syntax("#private");
+         break;
+      case GTYPE_SCALAR:
+         print_syntax("<>");
+         break;
+      case GTYPE_DISCRETE:
+         print_syntax("(<>)");
+         break;
+      case GTYPE_INTEGER:
+         print_syntax("#range <>");
+         break;
+      case GTYPE_PHYSICAL:
+         print_syntax("#units <>");
+         break;
+      case GTYPE_FLOATING:
+         print_syntax("#range <> . <>");
+         break;
+      case GTYPE_ARRAY:
+         print_syntax("#array (..) #of ..");
+         break;
+      case GTYPE_ACCESS:
+         print_syntax("#access ..");
+         break;
+      case GTYPE_FILE:
+         print_syntax("#file #of ..");
+         break;
+      }
+   }
    else {
+      const char *dir = NULL;
       switch (tree_subkind(t)) {
       case PORT_IN:      dir = "in";     break;
       case PORT_OUT:     dir = "out";    break;

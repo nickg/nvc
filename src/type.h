@@ -23,7 +23,7 @@
 #include "ident.h"
 #include "prim.h"
 
-typedef enum type_kind {
+typedef enum {
    T_SUBTYPE,
    T_INTEGER,
    T_REAL,
@@ -43,6 +43,18 @@ typedef enum type_kind {
 
    T_LAST_TYPE_KIND
 } type_kind_t;
+
+typedef enum {
+   GTYPE_PRIVATE,
+   GTYPE_SCALAR,
+   GTYPE_DISCRETE,
+   GTYPE_INTEGER,
+   GTYPE_PHYSICAL,
+   GTYPE_FLOATING,
+   GTYPE_ARRAY,
+   GTYPE_ACCESS,
+   GTYPE_FILE,
+} gtype_class_t;
 
 type_t type_new(type_kind_t kind);
 
@@ -66,6 +78,9 @@ void type_set_base(type_t t, type_t b);
 type_t type_elem(type_t t);
 void type_set_elem(type_t t, type_t e);
 bool type_has_elem(type_t t);
+
+unsigned type_subkind(type_t t);
+void type_set_subkind(type_t t, unsigned subkind);
 
 unsigned type_dims(type_t t);
 tree_t type_dim(type_t t, unsigned n);

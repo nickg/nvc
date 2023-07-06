@@ -73,7 +73,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_DECLS),
 
    // T_GENERIC
-   (I_IDENT),
+   (I_IDENT | I_SUBKIND),
 
    // T_VIEW
    (I_IDENT | I_DESIGNATED | I_FIELDS),
@@ -347,6 +347,17 @@ void type_set_elem(type_t t, type_t e)
 bool type_has_elem(type_t t)
 {
    return lookup_item(&type_object, t, I_ELEM)->object != NULL;
+}
+
+unsigned type_subkind(type_t t)
+{
+   item_t *item = lookup_item(&type_object, t, I_SUBKIND);
+   return item->ival;
+}
+
+void type_set_subkind(type_t t, unsigned sub)
+{
+   lookup_item(&type_object, t, I_SUBKIND)->ival = sub;
 }
 
 bool type_is_universal(type_t t)
