@@ -14,10 +14,12 @@ begin
         variable ivm  : integer_value_mirror;
         variable avm  : array_value_mirror;
         variable fvm  : floating_value_mirror;
+        variable evm  : enumeration_value_mirror;
         variable stm  : subtype_mirror;
         variable istm : integer_subtype_mirror;
         variable astm : array_subtype_mirror;
         variable fstm : floating_subtype_mirror;
+        variable estm : enumeration_subtype_mirror;
     begin
         vm := v1'reflect;
         assert vm.get_value_class = CLASS_INTEGER;
@@ -62,6 +64,17 @@ begin
         fvm := v3'reflect.to_floating;
         assert fvm.value = 1.234;
         assert fvm.get_subtype_mirror.to_subtype_mirror = real'reflect;
+
+        evm := true'reflect.to_enumeration;
+        assert evm.pos = 1;
+        assert evm.image = "true";
+        estm := evm.get_subtype_mirror;
+        assert estm.length = 2;
+        assert estm.ascending;
+        assert estm.left.image = "false";
+        assert estm.right.pos = 1;
+        assert character'reflect.to_enumeration.enumeration_literal(72).image = "'H'";
+        assert estm.enumeration_literal("true").pos = 1;
 
         wait;
     end process;

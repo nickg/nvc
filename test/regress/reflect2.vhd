@@ -5,7 +5,7 @@ use std.reflection.all;
 
 architecture test of reflect2 is
 
-    procedure test (constant l, r : in integer) is
+    procedure test_int (constant l, r : in integer) is
         type my_int is range l to r;
         variable v1   : my_int := 7;
         variable vm   : value_mirror;
@@ -35,6 +35,20 @@ architecture test of reflect2 is
         assert istm.right.value = integer'right;
     end procedure;
 
+    procedure test_array (constant l, r : in integer) is
+        variable a : integer_vector(l to r);
+        variable vm   : value_mirror;
+        variable stm  : subtype_mirror;
+        variable astm : array_subtype_mirror;
+    begin
+        vm := a'reflect;
+        stm := vm.get_subtype_mirror;
+        astm := stm.to_array;
+        assert astm.left = index(l);
+        assert astm.right = index(r);
+        assert astm.length = index(maximum(r - l + 1, 0));
+    end procedure;
+
 begin
 
     p1: process is
@@ -43,7 +57,9 @@ begin
     begin
         assert small_int'reflect.to_integer.right.value = 10;
         assert small_real'reflect.to_floating.left.value = 0.0;
-        test(-10, 10);
+        test_int(-10, 10);
+        test_array(1, 10);
+        test_array(2, 3);
         wait;
     end process;
 

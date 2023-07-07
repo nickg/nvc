@@ -45,80 +45,106 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type enumeration_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : enumeration_subtype_mirror;
+        variable f_pos     : natural;
+        variable f_image   : string_ptr;
+
         impure function get_subtype_mirror return enumeration_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function pos return integer is
         begin
-            report "unimplemented" severity failure;
+            return f_pos;
         end function;
 
         impure function image return string is
         begin
-            report "unimplemented" severity failure;
+            return f_image.all;
         end function;
     end protected body;
 
     ---------------------------------------------------------------------------
 
     type enumeration_subtype_mirror_pt is protected body
+        variable f_owner : subtype_mirror;
+
+        type evm_array is array (natural_index range <>) of enumeration_value_mirror;
+        type evm_array_ptr is access evm_array;
+
+        variable f_literals : evm_array_ptr;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function enumeration_literal (literal_idx : natural_index)
             return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_literals.all(literal_idx);
         end function;
 
         impure function enumeration_literal (literal_name : string)
-            return enumeration_value_mirror is
+            return enumeration_value_mirror
+        is
+            variable tmp : enumeration_value_mirror;
         begin
-            report "unimplemented" severity failure;
+            for i in f_literals.all'range loop
+                tmp := f_literals.all(i);
+                --return tmp when tmp.image = literal_name;
+                if tmp.image = literal_name then
+                    return tmp;
+                end if;
+            end loop;
+
+            report literal_name
+                & " does not denote an enumeration literal of type "
+                & simple_name
+                severity error;
+            return null;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function left return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_literals.all(f_literals.all'left);
         end function;
 
         impure function right return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_literals.all(f_literals.all'right);
         end function;
 
         impure function low return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return left;
         end function;
 
         impure function high return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return right;
         end function;
 
         impure function length return positive_index is
         begin
-            report "unimplemented" severity failure;
+            return positive_index(f_literals.all'length);
         end function;
 
         impure function ascending return boolean is
         begin
-            report "unimplemented" severity failure;
+            return true;
         end function;
     end protected body;
 
@@ -666,11 +692,12 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type subtype_mirror_pt is protected body
-        variable f_class    : type_class;
-        variable f_name     : string_ptr;
-        variable f_integer  : integer_subtype_mirror;
-        variable f_floating : floating_subtype_mirror;
-        variable f_array    : array_subtype_mirror;
+        variable f_class       : type_class;
+        variable f_name        : string_ptr;
+        variable f_integer     : integer_subtype_mirror;
+        variable f_enumeration : enumeration_subtype_mirror;
+        variable f_floating    : floating_subtype_mirror;
+        variable f_array       : array_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -679,7 +706,8 @@ package body reflection is
 
         impure function to_enumeration return enumeration_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_ENUMERATION;
+            return f_enumeration;
         end function;
 
         impure function to_integer return integer_subtype_mirror is
@@ -706,7 +734,8 @@ package body reflection is
 
         impure function to_array return array_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_ARRAY;
+            return f_array;
         end function;
 
         impure function to_access return access_subtype_mirror is
@@ -733,11 +762,12 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type value_mirror_pt is protected body
-        variable f_class    : value_class;
-        variable f_subtype  : subtype_mirror;
-        variable f_integer  : integer_value_mirror;
-        variable f_floating : floating_value_mirror;
-        variable f_array    : array_value_mirror;
+        variable f_class       : value_class;
+        variable f_subtype     : subtype_mirror;
+        variable f_integer     : integer_value_mirror;
+        variable f_enumeration : enumeration_value_mirror;
+        variable f_floating    : floating_value_mirror;
+        variable f_array       : array_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -751,7 +781,8 @@ package body reflection is
 
         impure function to_enumeration return enumeration_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_ENUMERATION;
+            return f_enumeration;
         end function;
 
         impure function to_integer return integer_value_mirror is

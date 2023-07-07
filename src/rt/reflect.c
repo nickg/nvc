@@ -42,6 +42,7 @@ typedef struct _value_mirror value_mirror;
 typedef struct _subtype_mirror subtype_mirror;
 typedef struct _integer_value_mirror integer_value_mirror;
 typedef struct _floating_value_mirror floating_value_mirror;
+typedef struct _enumeration_value_mirror enumeration_value_mirror;
 
 typedef struct {
    type_t          f_type;
@@ -71,6 +72,17 @@ typedef struct {
    void                      *access;
    integer_subtype_mirror_pt  pt;
 } integer_subtype_mirror;
+
+typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+   ffi_uarray_t   *f_literals;
+} enumeration_subtype_mirror_pt;
+
+typedef struct {
+   void                          *access;
+   enumeration_subtype_mirror_pt  pt;
+} enumeration_subtype_mirror;
 
 typedef struct {
    void                  *context;
@@ -121,6 +133,19 @@ typedef struct _integer_value_mirror {
 } integer_value_mirror;
 
 typedef struct {
+   void                       *context;
+   value_mirror               *f_owner;
+   enumeration_subtype_mirror *f_subtype;
+   int64_t                     f_pos;
+   ffi_uarray_t               *f_image;
+} enumeration_value_mirror_pt;
+
+typedef struct _enumeration_value_mirror {
+   void                        *access;
+   enumeration_value_mirror_pt  pt;
+} enumeration_value_mirror;
+
+typedef struct {
    void                    *context;
    value_mirror            *f_owner;
    floating_subtype_mirror *f_subtype;
@@ -144,12 +169,13 @@ typedef struct {
 } array_value_mirror;
 
 typedef struct {
-   void                  *context;
-   uint8_t                f_class;
-   subtype_mirror        *f_subtype;
-   integer_value_mirror  *f_integer;
-   floating_value_mirror *f_floating;
-   array_value_mirror    *f_array;
+   void                     *context;
+   uint8_t                   f_class;
+   subtype_mirror           *f_subtype;
+   integer_value_mirror     *f_integer;
+   enumeration_value_mirror *f_enumeration;
+   floating_value_mirror    *f_floating;
+   array_value_mirror       *f_array;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -158,12 +184,13 @@ typedef struct _value_mirror {
 } value_mirror;
 
 typedef struct {
-   void                    *context;
-   uint8_t                  f_class;
-   ffi_uarray_t            *f_name;
-   integer_subtype_mirror  *f_integer;
-   floating_subtype_mirror *f_floating;
-   array_subtype_mirror    *f_array;
+   void                       *context;
+   uint8_t                     f_class;
+   ffi_uarray_t               *f_name;
+   integer_subtype_mirror     *f_integer;
+   enumeration_subtype_mirror *f_enumeration;
+   floating_subtype_mirror    *f_floating;
+   array_subtype_mirror       *f_array;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -226,6 +253,27 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       vm->pt.f_class = CLASS_INTEGER;
       vm->pt.f_integer = ivm;
    }
+   else if (type_is_enum(type)) {
+      enumeration_value_mirror *evm =
+         zero_alloc(sizeof(enumeration_value_mirror));
+      evm->access = &(evm->pt);
+
+      evm->pt.context = context;
+      evm->pt.f_pos = value.integer;
+      evm->pt.f_owner = vm;
+      evm->pt.f_subtype = vm->pt.f_subtype->pt.f_enumeration;
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      type_t base = type_base_recur(type);
+      tb_istr(tb, tree_ident(type_enum_literal(base, value.integer)));
+      if (tb_get(tb)[0] != '\'')
+         tb_downcase(tb);
+
+      evm->pt.f_image = get_string(tb_get(tb));
+
+      vm->pt.f_class = CLASS_ENUMERATION;
+      vm->pt.f_enumeration = evm;
+   }
    else if (type_is_real(type)) {
       floating_value_mirror *fvm = zero_alloc(sizeof(floating_value_mirror));
       fvm->access = &(fvm->pt);
@@ -263,6 +311,14 @@ static integer_value_mirror *get_integer_mirror(void *context, type_t type,
    return get_value_mirror(context, scalar, type, NULL)->pt.f_integer;
 }
 
+static enumeration_value_mirror *get_enumeration_mirror(void *context,
+                                                        type_t type,
+                                                        int64_t value)
+{
+   jit_scalar_t scalar = { .integer = value };
+   return get_value_mirror(context, scalar, type, NULL)->pt.f_enumeration;
+}
+
 static floating_value_mirror *get_floating_mirror(void *context, type_t type,
                                                   double value)
 {
@@ -273,31 +329,36 @@ static floating_value_mirror *get_floating_mirror(void *context, type_t type,
 static subtype_mirror *get_subtype_mirror(void *context, type_t type,
                                           const jit_scalar_t *bounds)
 {
+   const bool can_cache = type_is_scalar(type);
    internal_cache_pt *cache = get_cache(context);
 
-   for (int i = 0; i < cache->f_num_subtypes; i++) {
-      cache_elem_t *e = &(cache->f_subtype_cache[i]);
-      if (e->f_type == type)
-         return e->f_mirror;
+   if (can_cache) {
+      for (int i = 0; i < cache->f_num_subtypes; i++) {
+         cache_elem_t *e = &(cache->f_subtype_cache[i]);
+         if (e->f_type == type)
+            return e->f_mirror;
+      }
    }
 
    subtype_mirror *sm = zero_alloc(sizeof(subtype_mirror));
    sm->access = &(sm->pt);
    sm->pt.context = context;
 
-   if (cache->f_num_subtypes == cache->f_max_subtypes) {
-      const size_t new_max = MAX(cache->f_max_subtypes * 2, 128);
-      cache_elem_t *tmp = zero_alloc(new_max * sizeof(cache_elem_t));
-      memcpy(tmp, cache->f_subtype_cache,
-             cache->f_max_subtypes * sizeof(cache_elem_t));
+   if (can_cache) {
+      if (cache->f_num_subtypes == cache->f_max_subtypes) {
+         const size_t new_max = MAX(cache->f_max_subtypes * 2, 128);
+         cache_elem_t *tmp = zero_alloc(new_max * sizeof(cache_elem_t));
+         memcpy(tmp, cache->f_subtype_cache,
+                cache->f_max_subtypes * sizeof(cache_elem_t));
 
-      cache->f_subtype_cache = tmp;
-      cache->f_max_subtypes = new_max;
+         cache->f_subtype_cache = tmp;
+         cache->f_max_subtypes = new_max;
+      }
+
+      cache_elem_t *e = &(cache->f_subtype_cache[cache->f_num_subtypes++]);
+      e->f_type = type;
+      e->f_mirror = sm;
    }
-
-   cache_elem_t *e = &(cache->f_subtype_cache[cache->f_num_subtypes++]);
-   e->f_type = type;
-   e->f_mirror = sm;
 
    const char *simple = strrchr(istr(type_ident(type)), '.') + 1;
    sm->pt.f_name = get_string(simple);
@@ -330,6 +391,43 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       sm->pt.f_class = CLASS_INTEGER;
       sm->pt.f_integer = ism;
+   }
+   else if (type_is_enum(type)) {
+      enumeration_subtype_mirror *esm =
+         zero_alloc(sizeof(enumeration_subtype_mirror));
+      esm->access = &(esm->pt);
+
+      range_kind_t rkind;
+      int64_t low = INT64_MIN, high = INT64_MAX;
+      for (;; type = type_base(type)) {
+         tree_t r = range_of(type, 0);
+         rkind = tree_subkind(r);
+         if (rkind != RANGE_EXPR && folded_bounds(r, &low, &high))
+            break;
+         else if (type_kind(type) != T_SUBTYPE)
+            break;
+      }
+
+      esm->pt.context = context;
+      esm->pt.f_owner = sm;
+
+      type_t base = type_base_recur(type);
+      const int nlits = type_enum_literals(base);
+
+      const size_t size =
+         sizeof(ffi_uarray_t) + nlits * sizeof(enumeration_value_mirror *);
+      esm->pt.f_literals = zero_alloc(size);
+
+      esm->pt.f_literals->dims[0].left = 0;
+      esm->pt.f_literals->dims[0].length = nlits;
+      esm->pt.f_literals->ptr = esm->pt.f_literals + 1;
+
+      enumeration_value_mirror **lits = esm->pt.f_literals->ptr;
+      for (int i = 0; i < nlits; i++)
+         lits[i] = get_enumeration_mirror(context, base, i);
+
+      sm->pt.f_class = CLASS_ENUMERATION;
+      sm->pt.f_enumeration = esm;
    }
    else if (type_is_real(type)) {
       floating_subtype_mirror *fsm =
