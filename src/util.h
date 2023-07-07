@@ -392,7 +392,7 @@ void list_clear(ptr_list_t *l);
          typeof (nth) __nth = (nth);         \
          typeof (l) __l = (l);               \
          assert(__nth < list_size(__l));     \
-         (__l)->items[(nth)];                \
+         (__l)->items[(__nth)];              \
       })
 
 #define list_start(l) ((l) == NULL ? NULL : (l)->items)
