@@ -1417,6 +1417,23 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "     padding: 14px 16px;\n"
               "     font-size: 17px;\n"
               "   }\n"
+              "   .cbg {\n"
+              "     background-color: #bbbbbb;\n"
+              "   }\n"
+              "   .cbt {\n"
+              "     margin-top: 8px;\n"
+              "   }\n"
+              "   .cbt th {\n"
+              "     background-color: #bbbbbb;\n"
+              "     text-align: center;\n"
+              "    }\n"
+              "   .cbt td, .cbt th {\n"
+              "     width:50px;\n"
+              "     text-align: center;\n"
+              "    }\n"
+              "   .cbt td + td, .cbt th + th { width:150px; }\n"
+              "   .cbt td + td + td, .cbt th + th + th { width:150px; }\n"
+              "   .cbt td + td + td + td, .cbt th + th + th + th { width:150px; }\n"
               "  </style>\n"
               "  </head>\n"
               "  <section>\n\n");
@@ -1492,12 +1509,12 @@ static void cover_print_hierarchy_header(FILE *f)
 {
    fprintf(f, "<table style=\"width:70%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
               "  <tr>\n"
-              "    <th bgcolor=#999999 style=\"width:30%%\">Instance</th>\n"
-              "    <th bgcolor=#999999 style=\"width:10%%\">Statement</th>\n"
-              "    <th bgcolor=#999999 style=\"width:10%%\">Branch</th>\n"
-              "    <th bgcolor=#999999 style=\"width:10%%\">Toggle</th>\n"
-              "    <th bgcolor=#999999 style=\"width:10%%\">Expression</th>\n"
-              "    <th bgcolor=#999999 style=\"width:10%%\">Average</th>\n"
+              "    <th class=\"cbg\" style=\"width:30%%\">Instance</th>\n"
+              "    <th class=\"cbg\" style=\"width:10%%\">Statement</th>\n"
+              "    <th class=\"cbg\" style=\"width:10%%\">Branch</th>\n"
+              "    <th class=\"cbg\" style=\"width:10%%\">Toggle</th>\n"
+              "    <th class=\"cbg\" style=\"width:10%%\">Expression</th>\n"
+              "    <th class=\"cbg\" style=\"width:10%%\">Average</th>\n"
               "  </tr>\n");
 }
 
@@ -1615,7 +1632,7 @@ static void cover_print_code_line(FILE *f, loc_t loc, cover_line_t *line)
 
       // Highlight code location
       if (curr == loc.first_column)
-         fprintf(f, "<code style=\"background-color:#bbbbbb;\">");
+         fprintf(f, "<code class=\"cbg\">");
 
       char c = line->text[curr];
       if (c != '\n')
@@ -1689,19 +1706,18 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
    va_list argp;
    va_start(argp, cols);
 
-   fprintf(f, "<tr style=\"background-color:#999999;\">");
-   fprintf(f, "<th style=\"width:40px;\"></th>");
+   fprintf(f, "<tr><th></th>");
 
    for (int i = 0; i < cols; i++) {
       const char *val = va_arg(argp, const char *);
-      fprintf(f, "<th style=\"width:100px;\">%s</th>", val);
+      fprintf(f, "<th>%s</th>", val);
    }
 
    if (pkind == PAIR_UNCOVERED)
-      fprintf(f, "<th style=\"width:150px;\">Exclude Command</th>");
+      fprintf(f, "<th>Exclude Command</th>");
 
    if (pkind == PAIR_EXCLUDED)
-      fprintf(f, "<th style=\"width:150px;\">Excluded due to</th>");
+      fprintf(f, "<th>Excluded due to</th>");
 
    fprintf(f, "</tr>");
 }
@@ -1710,7 +1726,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
    loc_t loc = pair->tag->loc;
 
-   fprintf(f, "<br><table style=\"border:2px;text-align:center;margin-top:8px;\">");
+   fprintf(f, "<br><table class=\"cbt\">");
 
    switch (pair->tag->kind) {
    case TAG_BRANCH:
@@ -1871,7 +1887,7 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
       else
          fprintf(f, "#ccffcc;\">\n");
 
-      fprintf(f, "  <h2>");
+      fprintf(f, " <h2>");
       if (pkind == PAIR_UNCOVERED)
          fprintf(f, "Uncovered ");
       else if (pkind == PAIR_EXCLUDED)
