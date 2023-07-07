@@ -34,18 +34,14 @@ START_TEST(test_integer)
    tree_t a, d, p, s, e;
    type_t t;
 
-   opt_set_int(OPT_WARN_HIDDEN, 1);
-
    const error_t expect[] = {
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "no visible declaration for NOTHING" },
       { 48, "no matching operator \"+\" [ANOTHER_ONE, universal_integer " },
       { 48, "no matching operator \"+\" [MY_INT1, universal_integer return "},
-      { 52, "declaration of variable B hides entity B" },
       { 57, "MY_INT2 has no attribute CAKE" },
       { 61, "right bound must be of some integer type but have universal" },
-      { 62, "declaration of type X hides signal X" },
       { 63, "range bounds must be of some integer type but have BOOLEAN" },
       { -1, NULL }
    };
@@ -97,7 +93,6 @@ END_TEST
 START_TEST(test_ports)
 {
    opt_set_int(OPT_MISSING_BODY, 1);
-   opt_set_int(OPT_WARN_HIDDEN, 1);
 
    input_from_file(TESTDIR "/sem/ports.vhd");
 
@@ -111,8 +106,6 @@ START_TEST(test_ports)
       { 94,  "design unit BAD not found in library WORK" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
-      { 122, "declaration of signal X hides signal X" },
-      { 123, "declaration of signal Y hides signal Y" },
       { 148, "port O of mode OUT must be a static signal name or OPEN" },
       { 155, "BAR has no port named Q" },
       { 163, "BAR has no port named U" },
@@ -155,29 +148,22 @@ END_TEST
 
 START_TEST(test_scope)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/scope.vhd");
 
    const error_t expect[] = {
-      {  18, "declaration of signal A hides architecture A" },
       {  31, "WORK.PACK1.MY_INT1 does not match type"
          " of target WORK.PACK2.MY_INT1" },
       {  44, "WORK.PACK1.MY_INT1 does not match type of target "
          "WORK.NO_USE_CLAUSE-A.MY_INT1" },
       {  63, "G already declared in this region" },
       {  71, "P already declared in this region" },
-      {  82, "declaration of variable P hides signal P" },
-      {  83, "declaration of variable G hides constant G" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
       { 160, "no visible subprogram declaration for FUNC2" },
       { 167, "object NOT_HERE not found in unit WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
       { 236, "no visible declaration for FOO" },
-      { 302, "declaration of constant I hides constant I" },
       { 306, "name X not found in L1" },
-      { 321, "declaration of constant X hides variable X" },
-      { 330, "declaration of variable X hides constant X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -198,21 +184,15 @@ START_TEST(test_ambiguous)
    tree_t a, e, p, s;
    type_t lhs, rhs;
 
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/ambiguous.vhd");
 
    const error_t expect[] = {
       {  35, "type of value BAR does not match type of target FOO" },
-      {  49, "declaration of variable X hides signal X" },
       {  56, "type of aggregate cannot be determined" },
       {  56, "type of aggregate cannot be determined" },
-      {  75, "declaration of variable X hides signal X" },
-      {  76, "declaration of variable Y hides signal Y" },
       {  86, "ambiguous use of enumeration literal FALSE" },
       {  93, "ambiguous use of name NOW" },
       { 103, "ambiguous use of name FALSE" },
-      { 113, "declaration of variable X hides signal X" },
-      { 113, "declaration of variable Y hides signal Y" },
       { 141, "ambiguous use of operator \"<\"" },
       { 222, "type of aggregate cannot be determined" },
       { 222, "type of aggregate cannot be determined" },
@@ -328,20 +308,11 @@ END_TEST
 
 START_TEST(test_std)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/std.vhd");
-
-   const error_t expect[] = {
-      { 22, "declaration of variable A hides entity A" },
-      { 23, "declaration of variable B hides architecture B" },
-      { 28, "declaration of variable T hides signal T" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -445,16 +416,13 @@ END_TEST
 
 START_TEST(test_array)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/array.vhd");
 
    const error_t expect[] = {
       { 27,  "positional associations must appear first in aggregate" },
       { 33,  "named association must not follow others" },
       { 39,  "only a single others association allowed" },
-      { 45,  "declaration of variable A hides signal A" },
       { 46,  "type of initial value universal_integer does not match" },
-      { 51,  "declaration of variable A hides signal A" },
       { 55,  "type of value universal_integer does not match type of" },
       { 57,  "type of value INT_ARRAY does not match type" },
       { 65,  "operator \"=\" [INT_ARRAY, TEN_INTS return BOOLEAN]" },
@@ -462,19 +430,13 @@ START_TEST(test_array)
       { 89,  "array W has 2 dimensions but 3 indices given" },
       { 98,  "type of index universal_integer does not match type" },
       { 102, "named and positional associations cannot be mixed in" },
-      { 107, "declaration of variable X hides signal X" },
-      { 109, "declaration of variable Y hides signal Y" },
       { 111, "a choice that is not locally static is allowed" },
-      { 116, "declaration of variable X hides signal X" },
-      { 117, "declaration of variable Y hides signal Y" },
       { 119, "type of aggregate cannot be determined from the surrounding" },
       { 119, "type of slice prefix INTEGER is not an array" },
       { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "index range of array aggregate with others choice cannot" },
-      { 126, "declaration of variable X hides signal X" },
       { 130, "ambiguous use of enumeration literal '0'" },
       { 130, "range direction of slice DOWNTO does not match prefix TO" },
-      { 146, "declaration of constant A hides signal A" },
       { 207, "array BAD cannot have unconstrained element type" },
       { 215, "array aggregate with others choice cannot be determined" },
       { 232, "aliased name is not static" },
@@ -488,13 +450,8 @@ START_TEST(test_array)
       { 277, "no visible declaration for NOT_HERE" },
       { 279, "variable A2 cannot have unconstrained type NUM_ARRAY" },
       { 285, "name K in discrete range does not refer to a type" },
-      { 285, "declaration of type A hides signal A" },
-      { 292, "declaration of variable A hides signal A" },
       { 295, "type of index universal_integer does not match" },
-      { 308, "declaration of constant X hides signal X" },
-      { 335, "declaration of variable X hides signal X" },
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
-      { 352, "declaration of constant A hides signal A" },
       { 365, "cannot change constraints of constrained array type TEN_INTS" },
       { 366, "cannot change constraints of constrained array type TEN_INTS" },
       { 379, "array T_FILE_ARRAY cannot have element of file type" },
@@ -508,7 +465,6 @@ START_TEST(test_array)
       { 424, "ambiguous call to function F" },
       { 436, "type mismatch in range: left is universal_real, right is" },
       { 446, "no visible declaration for FOO" },
-      { 464, "declaration of variable A hides signal A" },
       { 480, "cannot index non-array type MY_RECORD" },
       { -1, NULL }
    };
@@ -540,7 +496,6 @@ END_TEST
 
 START_TEST(test_generics)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    opt_set_int(OPT_MISSING_BODY, 1);
    input_from_file(TESTDIR "/sem/generics.vhd");
 
@@ -550,8 +505,6 @@ START_TEST(test_generics)
       {  48, "no visible declaration for X" },
       {  58, "invalid object class signal for generic Y" },
       {  68, "no visible declaration for Y" },
-      {  67, "declaration of signal P hides package P" },
-      {  91, "declaration of constant X hides constant X" },
       { 110, "with generic X must be a globally static expression" },
       { 116, "unexpected integer while parsing name" },
       { 115, "missing actual for generic X without a default expression" },
@@ -760,14 +713,11 @@ END_TEST
 
 START_TEST(test_generate)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
       { 15, "type of condition must be BOOLEAN but have INTEGER" },
       { 26, "no visible declaration for Y" },
-      { 33, "declaration of constant X hides signal X" },
-      { 39, "declaration of constant X hides signal X" },
       { 45, "condition of generate statement must be static" },
       { 48, "range of generate statement must be static" },
       { -1, NULL }
@@ -861,7 +811,6 @@ START_TEST(test_access)
 {
    set_standard(STD_00);
 
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
@@ -877,9 +826,7 @@ START_TEST(test_access)
       {  84, "index constraint cannot be used with non-array type INTEGER" },
       {  90, "variable F cannot have incomplete type FOO" },
       {  97, "cannot determine type of allocator expression from the surro" },
-      { 103, "declaration of variable P hides package P" },
       { 105, "incomplete type A found in allocator expression" },
-      { 109, "declaration of variable P hides package P" },
       { 111, "prefix of a selected name with suffix ALL must have access " },
       { 125, "access type PTP cannot designate protected type" },
       { 127, "access type FTP cannot designate file type" },
@@ -895,13 +842,11 @@ END_TEST
 
 START_TEST(test_real)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/real.vhd");
 
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
-      { 29, "declaration of variable X hides signal X" },
       { 38, "type of right bound must be of some real type but have INTEGER" },
       { 39, "type of right bound must be of some integer type but have REAL" },
       { -1, NULL }
@@ -975,16 +920,13 @@ END_TEST
 
 START_TEST(test_static)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/static.vhd");
 
    const error_t expect[] = {
       {  42, "case choice must be locally static" },
       {  65, "with port X of mode IN must be a globally static" },
-      {  74, "declaration of signal X hides signal X" },
       {  85, "formal name must be locally static" },
       { 104, "no visible subprogram declaration for BAD_FUNC" },
-      { 104, "declaration of constant N hides constant N" },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -1159,7 +1101,6 @@ END_TEST
 
 START_TEST(test_protected)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    opt_set_int(OPT_MISSING_BODY, 1);
    set_standard(STD_00);
 
@@ -1179,7 +1120,6 @@ START_TEST(test_protected)
       { 118, "invalid use of name COUNTER" },
       { 119, "too many positional parameters for subprogram DECREMENT [INTEG" },
       { 124, "formal parameter X with protected type must have class VARIABLE" },
-      { 124, "declaration of constant X hides variable X" },
       { 126, "pure function GET_VALUE cannot call impure function VALUE" },
       { 135, "may not assign to variable of a protected type" },
       { 150, "missing body for protected type PROTECTED_T" },
@@ -1222,7 +1162,6 @@ END_TEST
 
 START_TEST(test_alias)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/alias.vhd");
 
    const error_t expect[] = {
@@ -1238,7 +1177,6 @@ START_TEST(test_alias)
       { 41, "no visible subprogram declaration for FOO_INT" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
-      { 48, "declaration of variable X hides signal X" },
       { 50, "aliased name is not static" },
       { 68, "unexpected identifier while parsing subtype declaration" },
       { 81, "object alias may not have multidimensional array type" },
@@ -1524,14 +1462,7 @@ END_TEST
 
 START_TEST(test_afunc)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/afunc.vhd");
-
-   const error_t expect[] = {
-      { 34, "declaration of constant A hides type A" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
 
@@ -1546,7 +1477,7 @@ START_TEST(test_afunc)
    fail_unless(icmp(tree_ident(c), "GET"));
    fail_unless(tree_params(c) == 0);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -2049,12 +1980,10 @@ END_TEST
 
 START_TEST(test_issue359)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/issue359.vhd");
 
    const error_t expect[] = {
       {  8, "FOO already declared in this region" },
-      {  8, "declaration of signal FOO hides signal FOO" },
       { 16, "cannot index non-array type INTEGER" },
       { -1, NULL }
    };
@@ -2116,22 +2045,14 @@ END_TEST
 
 START_TEST(test_vests1)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/vests1.vhd");
 
    lib_t foo = lib_tmp("foo");
    lib_set_work(foo);
 
-   const error_t expect[] = {
-      { 32, "declaration of type C10S03B00X00P07N01I00914PKG hides package "
-        "C10S03B00X00P07N01I00914PKG" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -2640,7 +2561,6 @@ END_TEST
 
 START_TEST(test_record2008)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    set_standard(STD_08);
    input_from_file(TESTDIR "/sem/record2008.vhd");
 
@@ -2656,7 +2576,6 @@ START_TEST(test_record2008)
       { 34,  "cannot change constraints of constrained array type BIT_VECTOR" },
       { 41,  "declaration of signal R12 cannot have unconstrained type REC3" },
       { 43,  "declaration of signal R14 cannot have unconstrained type REC3" },
-      { 68,  "declaration of constant C1 hides constant C1" },
       { 110, "variable A1 cannot have unconstrained type REC1_ARRAY" },
       { -1, NULL }
    };
@@ -2780,7 +2699,6 @@ END_TEST
 
 START_TEST(test_generics2008)
 {
-   opt_set_int(OPT_WARN_HIDDEN, 1);
    set_standard(STD_08);
    input_from_file(TESTDIR "/sem/generics2008.vhd");
 

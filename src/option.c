@@ -153,7 +153,6 @@ void set_default_options(void)
    opt_set_int(OPT_RELAXED, 0);
    opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
    opt_set_int(OPT_JIT_LOG, get_int_env("NVC_JIT_LOG", 0));
-   opt_set_int(OPT_WARN_HIDDEN, 0);
    opt_set_int(OPT_NO_SAVE, 0);
    opt_set_str(OPT_LLVM_VERBOSE, getenv("NVC_LLVM_VERBOSE"));
    opt_set_int(OPT_JIT_THRESHOLD, get_int_env("NVC_JIT_THRESHOLD", 100));

@@ -779,17 +779,6 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          }
          else if (is_design_unit(decl))
             ;   // Design unit is top level so cannot hide anything
-         else if (!overload && dd->visibility == DIRECT
-                  && opt_get_int(OPT_WARN_HIDDEN)) {
-            diag_t *d = diag_new(DIAG_WARN, tree_loc(decl));
-            diag_printf(d, "declaration of %s %s hides %s %s",
-                        class_str(class_of(decl)), istr(name),
-                        class_str(class_of(dd->tree)), istr(name));
-            diag_hint(d, tree_loc(dd->tree), "earlier declaration of %s is "
-                      "hidden", istr(name));
-            diag_hint(d, tree_loc(decl), "hidden by this declaration");
-            diag_emit(d);
-         }
          dd->visibility = HIDDEN;
       }
       else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)
