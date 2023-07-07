@@ -1344,22 +1344,20 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
    fprintf(f, "<!DOCTYPE html>\n"
               "<html>\n"
               "  <head>\n"
-              "  <title>\n");
+              "  <title>");
 
    va_list ap;
    va_start(ap, title);
    vfprintf(f, title, ap);
    va_end(ap);
 
-   fprintf(f, "  </title>\n"
+   fprintf(f, "</title>\n"
               "  <style>\n"
-              "\n"
               "   header {\n"
               "      padding: 30px;\n"
               "      text-align: center;\n"
               "      font-size: 35px;\n"
               "   }\n"
-              "\n"
               "   h2 {\n"
               "      word-wrap: break-word;\n"
               "      width:70%%\n"
@@ -1368,7 +1366,6 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "      word-wrap: break-word;\n"
               "      margin-bottom: 0px;\n"
               "   }\n"
-              "\n"
               "   hr {\n"
               "      border:none;\n"
               "      height: 2px;\n"
@@ -1383,58 +1380,50 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "      margin-top: 100px;\n"
               "      word-wrap: break-word;\n"
               "     }\n"
-              "\n"
-              "     table {\n"
-              "        table-layout: fixed;"
-              "     }\n"
-              "\n"
-              "     table, th, td {\n"
-              "        border: 2px solid black;\n"
-              "        border-collapse: collapse;\n"
-              "        word-wrap: break-word;\n"
-              "     }\n"
-              "\n"
-              "     .tabcontent {\n"
-              "         display: none;\n"
-              "         padding: 0px 0px;\n"
-              "         border: 2px solid #ccc;\n"
-              "         border-top: none;\n"
-              "         word-wrap: break-word;\n"
-              "      }\n"
-              "\n"
-              "      .tab {\n"
-              "         overflow: hidden;\n"
-              "         border: none;\n"
-              "         background-color: none;\n"
-              "         margin-left: " MARGIN_LEFT ";\n"
-              "         margin-top: 10px;\n"
-              "      }\n"
-              "\n"
-              "      .tab button.active {\n"
-              "         background-color: #ccc;\n"
-              "      }\n"
-              "\n"
-              "      .tab button:hover {\n"
-              "         background-color: #ddd;\n"
-              "      }\n"
-              "\n"
-              "      .tab button {\n"
-              "         background-color: inherit;\n"
-              "         float: left;\n"
-              "         margin-left: 20px\n"
-              "         border: 2px solid black;\n"
-              "         cursor: pointer;\n"
-              "         padding: 14px 16px;\n"
-              "         font-size: 17px;\n"
-              "      }\n"
-              "\n"
+              "   table {\n"
+              "     table-layout: fixed;"
+              "   }\n"
+              "   table, th, td {\n"
+              "     border: 2px solid black;\n"
+              "     border-collapse: collapse;\n"
+              "     word-wrap: break-word;\n"
+              "   }\n"
+              "   .tabcontent {\n"
+              "     display: none;\n"
+              "     padding: 0px 0px;\n"
+              "     border: 2px solid #ccc;\n"
+              "     border-top: none;\n"
+              "     word-wrap: break-word;\n"
+              "   }\n"
+              "   .tab {\n"
+              "     overflow: hidden;\n"
+              "     border: none;\n"
+              "     background-color: none;\n"
+              "     margin-left: " MARGIN_LEFT ";\n"
+              "     margin-top: 10px;\n"
+              "   }\n"
+              "   .tab button.active {\n"
+              "     background-color: #ccc;\n"
+              "   }\n"
+              "   .tab button:hover {\n"
+              "     background-color: #ddd;\n"
+              "   }\n"
+              "   .tab button {\n"
+              "     background-color: inherit;\n"
+              "     float: left;\n"
+              "     margin-left: 20px\n"
+              "     border: 2px solid black;\n"
+              "     cursor: pointer;\n"
+              "     padding: 14px 16px;\n"
+              "     font-size: 17px;\n"
+              "   }\n"
               "  </style>\n"
               "  </head>\n"
-              "  <section>\n");
+              "  <section>\n\n");
 
    if (!top) {
-      fprintf(f, "<nav>");
-      fprintf(f, "   <b>Hierarchy:</b><br>\n");
+      fprintf(f, "<nav>\n"
+                 "<b>Hierarchy:</b><br>\n");
       int offset = 0;
 
       ident_t full_hier = s->hier;
@@ -1451,30 +1440,30 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
                         offset * 10, link, istr(curr_id));
          offset++;
       } while (curr_id != NULL);
-      fprintf(f, "</nav>");
+      fprintf(f, "</nav>\n\n");
    }
 
-   fprintf(f, "  <header>\n");
+   fprintf(f, "<header>");
    va_start(ap, title);
    vfprintf(f, title, ap);
    va_end(ap);
-   fprintf(f, "  </header>\n");
+   fprintf(f, "</header>\n\n");
 
-   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    if (!top)
-      fprintf(f, "     Instance:&nbsp;%s\n", istr(s->hier));
+      fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    else
-      fprintf(f, "     Instance:");
-   fprintf(f, "  </h2>\n");
+      fprintf(f, "   Instance:");
+   fprintf(f, "</h2>\n\n");
 
    cover_file_t *src = cover_file(&(s->loc));
-   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    if (!top)
-      fprintf(f, "     File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
+      fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
                src->name, src->name);
    else
-      fprintf(f, "     File:");
-   fprintf(f, "  </h2>\n");
+      fprintf(f, "   File:");
+   fprintf(f, "</h2>\n\n");
 }
 
 static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
@@ -1491,30 +1480,30 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
       else
          checked_sprintf(color, sizeof(color), "#ff0000");
 
-      fprintf(f, "      <td bgcolor=%s>%.1f %% (%d/%d)</td>\n",
+      fprintf(f, "    <td bgcolor=%s>%.1f %% (%d/%d)</td>\n",
               color, perc, hit, total);
       return;
    }
 
-   fprintf(f, "      <td bgcolor=#aaaaaa>N.A.</td>\n");
+   fprintf(f, "    <td bgcolor=#aaaaaa>N.A.</td>\n");
 }
 
 static void cover_print_hierarchy_header(FILE *f)
 {
    fprintf(f, "<table style=\"width:70%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
               "  <tr>\n"
-              "     <th bgcolor=#999999 style=\"width:30%%\">Instance</th>\n"
-              "     <th bgcolor=#999999 style=\"width:10%%\">Statement</th>\n"
-              "     <th bgcolor=#999999 style=\"width:10%%\">Branch</th>\n"
-              "     <th bgcolor=#999999 style=\"width:10%%\">Toggle</th>\n"
-              "     <th bgcolor=#999999 style=\"width:10%%\">Expression</th>\n"
-              "     <th bgcolor=#999999 style=\"width:10%%\">Average</th>\n"
+              "    <th bgcolor=#999999 style=\"width:30%%\">Instance</th>\n"
+              "    <th bgcolor=#999999 style=\"width:10%%\">Statement</th>\n"
+              "    <th bgcolor=#999999 style=\"width:10%%\">Branch</th>\n"
+              "    <th bgcolor=#999999 style=\"width:10%%\">Toggle</th>\n"
+              "    <th bgcolor=#999999 style=\"width:10%%\">Expression</th>\n"
+              "    <th bgcolor=#999999 style=\"width:10%%\">Average</th>\n"
               "  </tr>\n");
 }
 
 static void cover_print_hierarchy_footer(FILE *f)
 {
-   fprintf(f, "</table>\n");
+   fprintf(f, "</table>\n\n");
 }
 
 static void cover_print_timestamp(FILE *f)
@@ -1541,8 +1530,8 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
    else
       stats = &(ctx->nested_stats);
 
-   fprintf(f, "   <tr>\n"
-              "      <td><a href=\"%s%s.html\">%s</a></td>\n",
+   fprintf(f, "  <tr>\n"
+              "    <td><a href=\"%s%s.html\">%s</a></td>\n",
               top ? "hier/" : "", istr(hier), istr(print_hier));
 
    cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
@@ -1557,7 +1546,7 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
 
    cover_print_percents_cell(f, avg_hit, avg_total);
 
-   fprintf(f, "   </tr>\n");
+   fprintf(f, "  </tr>\n");
 
    float perc_stmt = 0.0f;
    float perc_branch = 0.0f;
@@ -1622,13 +1611,21 @@ static void cover_print_code_line(FILE *f, loc_t loc, cover_line_t *line)
    fprintf(f, "&nbsp;<code>");
    int last = strlen(line->text);
    int curr = 0;
-   while (curr <= last) {
+   while (curr < last) {
+
+      // Highlight code location
       if (curr == loc.first_column)
          fprintf(f, "<code style=\"background-color:#bbbbbb;\">");
-      fprintf(f, "%c", line->text[curr]);
+
+      char c = line->text[curr];
+      if (c != '\n')
+         fprintf(f, "%c", c);
+
+      // Finish code highlight
       if (curr == (loc.first_column + loc.column_delta) &&
             loc.line_delta == 0)
          fprintf(f, "</code>");
+
       curr++;
    }
    if (loc.line_delta > 0)
@@ -1776,7 +1773,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
    loc_t loc = pair->tag->loc;
-   fprintf(f, "<p>");
+   fprintf(f, "    <p>");
 
    switch (pair->tag->kind) {
    case TAG_STMT:
@@ -1823,7 +1820,7 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
    default:
       fatal("unsupported type of code coverage: %d !", pair->tag->kind);
    }
-   fprintf(f, "</p>");
+   fprintf(f, "</p>\n");
 }
 
 static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
@@ -1866,15 +1863,15 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
          n = chn->n_hits;
       }
 
-      fprintf(f, "<section style=\"background-color:");
+      fprintf(f, "  <section style=\"background-color:");
       if (pkind == PAIR_UNCOVERED)
-         fprintf(f, "#ffcccc;\">");
+         fprintf(f, "#ffcccc;\">\n");
       else if (pkind == PAIR_EXCLUDED)
-         fprintf(f, "#d6eaf8;\">");
+         fprintf(f, "#d6eaf8;\">\n");
       else
-         fprintf(f, "#ccffcc;\">");
+         fprintf(f, "#ccffcc;\">\n");
 
-      fprintf(f, "   <h2>");
+      fprintf(f, "  <h2>");
       if (pkind == PAIR_UNCOVERED)
          fprintf(f, "Uncovered ");
       else if (pkind == PAIR_EXCLUDED)
@@ -1890,14 +1887,14 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
          fprintf(f, "toggles:");
       else if (kind == TAG_EXPRESSION)
          fprintf(f, "expressions:");
-      fprintf(f, "   </h2>");
+      fprintf(f, "</h2>\n");
 
-      fprintf(f, "<section style=\"padding:0px 10px;\"");
+      fprintf(f, "  <section style=\"padding:0px 10px;\">\n");
       for (int j = 0; j < n; j++) {
          cover_print_pair(f, pair, pkind);
          pair++;
       }
-      fprintf(f, "</section></section>");
+      fprintf(f, "  </section>\n\n");
    }
 
    fprintf(f, "</div>\n");
@@ -1910,7 +1907,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Branch')\">Branch</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
-              "</div>\n");
+              "</div>\n\n");
 
    cover_print_chain(f, ctx->tagging, &(ctx->ch_stmt), TAG_STMT);
    cover_print_chain(f, ctx->tagging, &(ctx->ch_branch), TAG_BRANCH);
@@ -2201,7 +2198,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
 
    cover_print_html_header(f, ctx, false, s, "NVC code coverage report");
 
-   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Sub-instances: </h2>\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
    cover_print_hierarchy_header(f);
 
    int skipped = 0;
@@ -2209,16 +2206,16 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
 
    cover_print_hierarchy_footer(f);
 
-   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Current Instance: </h2>\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
    cover_print_hierarchy_header(f);
    cover_print_hierarchy_summary(f, ctx, s->hier, false, true, true);
    cover_print_hierarchy_footer(f);
 
-   fprintf(f, "  <h2 style=\"margin-left: " MARGIN_LEFT ";\"> Details: </h2>\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
    if (skipped)
       fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
-                 "displayed.</h2>", ctx->tagging->report_item_limit, skipped);
+                 "displayed.</h3>\n\n", ctx->tagging->report_item_limit, skipped);
    cover_print_hierarchy_guts(f, ctx);
    cover_print_timestamp(f);
 
