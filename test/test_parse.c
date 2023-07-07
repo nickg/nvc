@@ -5588,6 +5588,37 @@ START_TEST(test_issue727)
 }
 END_TEST
 
+START_TEST(test_visibility8)
+{
+   input_from_file(TESTDIR "/parse/visibility8.vhd");
+
+   const error_t expect[] = {
+      { 16, "declaration of S1 is hidden" },
+      { 21, "declaration of C1 is hidden" },
+      { 22, "declaration of T1 is hidden" },
+      { 23, "declaration of T2 is hidden" },
+      { 24, "declaration of V1 is hidden" },
+      { 25, "declaration of A1 is hidden" },
+      { 26, "declaration of F1 is hidden" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5705,6 +5736,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue701);
    tcase_add_test(tc_core, test_issue708);
    tcase_add_test(tc_core, test_issue727);
+   tcase_add_test(tc_core, test_visibility8);
    suite_add_tcase(s, tc_core);
 
    return s;

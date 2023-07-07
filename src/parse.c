@@ -6225,6 +6225,7 @@ static void p_type_declaration(tree_t container)
    consume(tTYPE);
 
    ident_t id = p_identifier();
+   hide_name(nametab, id);
 
    // Protected type bodies are broken out here to avoid having to
    // return a dummy type for them in p_full_type_declaration
@@ -6297,9 +6298,14 @@ static tree_t p_subtype_declaration(void)
    BEGIN("subtype declaration");
 
    consume(tSUBTYPE);
+
    ident_t id = p_identifier();
+   hide_name(nametab, id);
+
    consume(tIS);
+
    type_t sub = p_subtype_indication();
+
    consume(tSEMI);
 
    if (type_kind(sub) != T_SUBTYPE || type_has_ident(sub)) {
@@ -6429,6 +6435,9 @@ static void p_constant_declaration(tree_t parent)
    consume(tCONSTANT);
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next)
+      hide_name(nametab, it->ident);
 
    consume(tCOLON);
 
@@ -6799,6 +6808,9 @@ static void p_variable_declaration(tree_t parent)
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
 
+   for (ident_list_t *it = ids; it != NULL; it = it->next)
+      hide_name(nametab, it->ident);
+
    consume(tCOLON);
 
    type_t type = p_subtype_indication();
@@ -6855,6 +6867,9 @@ static void p_signal_declaration(tree_t parent)
    consume(tSIGNAL);
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next)
+      hide_name(nametab, it->ident);
 
    consume(tCOLON);
 
@@ -6928,9 +6943,14 @@ static tree_t p_alias_declaration(void)
 
    tree_t t = tree_new(T_ALIAS);
 
-   bool has_subtype_indication = false;
    consume(tALIAS);
-   tree_set_ident(t, p_designator());
+
+   ident_t id = p_designator();
+   tree_set_ident(t, id);
+
+   hide_name(nametab, id);
+
+   bool has_subtype_indication = false;
    if (optional(tCOLON)) {
       tree_set_type(t, p_subtype_indication());
       has_subtype_indication = true;
@@ -7029,6 +7049,9 @@ static void p_file_declaration(tree_t parent)
    consume(tFILE);
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next)
+      hide_name(nametab, it->ident);
 
    consume(tCOLON);
 

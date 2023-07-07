@@ -553,13 +553,18 @@ static const symbol_t *symbol_for(scope_t *s, ident_t name)
    return NULL;
 }
 
-static const decl_t *get_decl(const symbol_t *sym, unsigned nth)
+static inline const decl_t *get_decl(const symbol_t *sym, unsigned nth)
 {
    assert(nth < sym->ndecls);
-   if (nth < INLINE_DECLS)
-      return &(sym->decls[nth]);
-   else
-      return &(sym->overflow[nth - INLINE_DECLS]);
+   return (nth < INLINE_DECLS)
+      ? &(sym->decls[nth]) : &(sym->overflow[nth - INLINE_DECLS]);
+}
+
+static inline decl_t *get_decl_mutable(symbol_t *sym, unsigned nth)
+{
+   assert(nth < sym->ndecls);
+   return (nth < INLINE_DECLS)
+      ? &(sym->decls[nth]) : &(sym->overflow[nth - INLINE_DECLS]);
 }
 
 static decl_t *add_decl(symbol_t *sym)
@@ -735,8 +740,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       kind = ATTRIBUTE;
 
    for (int i = 0; i < sym->ndecls; i++) {
-      decl_t *dd = (i < INLINE_DECLS)
-         ? &(sym->decls[i]) : &(sym->overflow[i - INLINE_DECLS]);
+      decl_t *dd = get_decl_mutable(sym, i);
 
       if (dd->tree == decl)
          return sym;   // Ignore duplicates
@@ -1157,6 +1161,22 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
    make_visible_slow(tab->top_scope, alias ?: tree_ident(decl), decl);
 }
 
+void hide_name(nametab_t *tab, ident_t name)
+{
+   const symbol_t *exist = symbol_for(tab->top_scope, name);
+   if (exist == NULL || exist->owner == tab->top_scope)
+      return;
+
+   symbol_t *sym = local_symbol_for(tab->top_scope, name);
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      decl_t *dd = get_decl_mutable(sym, i);
+
+      if (dd->origin != tab->top_scope && dd->visibility == DIRECT)
+         dd->visibility = HIDDEN;
+   }
+}
+
 void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
                  ident_t ident, int depth)
 {
@@ -1471,8 +1491,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
       return NULL;
    }
-   else if (sym->ndecls == 1)
-      return get_decl(sym, 0)->tree;
+   else if (sym->ndecls == 1) {
+      const decl_t *dd = get_decl(sym, 0);
+      if (dd->visibility != HIDDEN)
+         return dd->tree;
+   }
 
    // Check if all but one declartion is hidden
    int hidden = 0, overload = 0, subprograms = 0;
@@ -1561,7 +1584,9 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       return NULL;    // Was an earlier error
 
    diag_t *d = diag_new(DIAG_ERROR, loc);
-   if (overload == 0)
+   if (hidden > 0 && hidden == sym->ndecls)
+      diag_printf(d, "declaration of %s is hidden", istr(name));
+   else if (overload == 0)
       diag_printf(d, "multiple conflicting visible declarations of %s",
                   istr(name));
    else
@@ -1584,7 +1609,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       tb_printf(tb, " declaration of %s", istr(name));
 
       type_t type = get_type_or_null(dd->tree);
-      if (type != NULL)
+      if (type != NULL && !is_type_decl(dd->tree))
          tb_printf(tb, " as %s", type_pp(tree_type(dd->tree)));
 
       if (dd->origin->container != NULL)
