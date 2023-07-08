@@ -2232,7 +2232,6 @@ static void begin_overload_resolution(overload_t *o)
 
    if (o->initial == 0 && !o->error) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
-      diag_printf(d, "no visible subprogram declaration for %s", istr(o->name));
 
       if (sym != NULL) {
          const bool hinted = diag_hints(d) > 0;
@@ -2247,38 +2246,19 @@ static void begin_overload_resolution(overload_t *o)
             diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
       }
 
-      if (o->prefix != NULL) {
-         type_t ptype = tree_type(o->prefix);
-         if (type_is_protected(ptype)) {
-            scope_t *s = scope_for_type(o->nametab, ptype);
-            hint_for_typo(s, d, o->name, N_SUBPROGRAM);
+      type_t ptype = o->prefix ? get_type_or_null(o->prefix) : NULL;
+      if (ptype != NULL && type_is_protected(ptype)) {
+         diag_printf(d, "protected type %s has no method named %s",
+                     type_pp(ptype), istr(o->name));
 
-            LOCAL_TEXT_BUF tb = tb_new();
-            int others = 0, methods = 0;
-            const int ndecls = type_decls(ptype);
-            for (int i = 0; i < ndecls; i++) {
-               tree_t d = type_decl(ptype, i);
-               if (is_subprogram(d)) {
-                  if (methods++ < 3) {
-                     if (methods > 1) tb_cat(tb, ", ");
-                     tb_istr(tb, tree_ident(d));
-                  }
-                  else
-                     others++;
-               }
-            }
-
-            if (others > 0)
-               tb_printf(tb, " and %d others", others);
-
-            diag_hint(d, NULL, "prefix of call is an object of protected "
-                      "type %s which has %s %s", type_pp(ptype),
-                      methods == 0 ? "no methods"
-                      : (methods == 1 ? "method" : "methods"), tb_get(tb));
-         }
+         scope_t *s = scope_for_type(o->nametab, ptype);
+         hint_for_typo(s, d, o->name, N_SUBPROGRAM);
       }
-      else
+      else {
+         diag_printf(d, "no visible subprogram declaration for %s",
+                     istr(o->name));
          hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
+      }
 
       diag_emit(d);
       o->error = true;

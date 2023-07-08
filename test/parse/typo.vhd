@@ -9,6 +9,16 @@ architecture test of typo is
         foo, bar : integer;
     end record;
 
+    type pt is protected
+        procedure one;
+        procedure two;
+    end protected;
+
+    type pt is protected body
+        procedure one is begin end procedure;
+        procedure two is begin end procedure;
+    end protected body;
+
 begin
     assert rset;                  -- Error
 
@@ -26,5 +36,11 @@ begin
         variable r : rec;
     begin
         r.frodo := 1;
+    end process;
+
+    p3: process is
+        variable p : pt;
+    begin
+        p.onn;                          -- Error
     end process;
 end architecture;

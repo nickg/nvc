@@ -4935,6 +4935,11 @@ static void typo_diag_fn(diag_t *d)
                        "record type REC has no field named FRODO");
       ck_assert_str_eq(diag_get_hint(d, 0), "did you mean FOO?");
       break;
+   case 5:
+      ck_assert_str_eq(diag_get_text(d),
+                       "protected type PT has no method named ONN");
+      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean ONE?");
+      break;
    default:
       ck_abort_msg("too many diagnostics");
       break;
@@ -4943,6 +4948,8 @@ static void typo_diag_fn(diag_t *d)
 
 START_TEST(test_typo)
 {
+   set_standard(STD_02);
+
    input_from_file(TESTDIR "/parse/typo.vhd");
 
    diag_set_consumer(typo_diag_fn);
@@ -4958,7 +4965,7 @@ START_TEST(test_typo)
 
    fail_unless(parse() == NULL);
 
-   fail_unless(error_count() == 5);
+   fail_unless(error_count() == 6);
 }
 END_TEST
 

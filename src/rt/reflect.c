@@ -296,9 +296,9 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       avm->pt.f_subtype = vm->pt.f_subtype->pt.f_array;
 
       dimension_rec *dims = avm->pt.f_subtype->pt.f_dimension_data->ptr;
-      size_t total = 0;
+      size_t total = 1;
       for (int i = 0; i < avm->pt.f_subtype->pt.f_dimensions; i++)
-         total += dims[i].f_length;
+         total *= dims[i].f_length;
 
       avm->pt.f_elements =
          zero_alloc(sizeof(ffi_uarray_t) + total * sizeof(value_mirror *));
