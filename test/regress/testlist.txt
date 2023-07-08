@@ -815,3 +815,4 @@ reflect1        normal,2019
 signal32        normal,2019
 reflect2        normal,2019
 issue734        fail,gold,2008
+reflect3        normal,2019

@@ -121,6 +121,22 @@ typedef struct {
 } array_subtype_mirror;
 
 typedef struct {
+   ffi_uarray_t   *f_name;
+   subtype_mirror *f_subtype;
+} field_rec;
+
+typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+   ffi_uarray_t   *f_fields;
+} record_subtype_mirror_pt;
+
+typedef struct {
+   void                     *access;
+   record_subtype_mirror_pt  pt;
+} record_subtype_mirror;
+
+typedef struct {
    void                   *context;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
@@ -170,6 +186,18 @@ typedef struct {
 } array_value_mirror;
 
 typedef struct {
+   void                  *context;
+   value_mirror          *f_owner;
+   record_subtype_mirror *f_subtype;
+   ffi_uarray_t          *f_elements;
+} record_value_mirror_pt;
+
+typedef struct {
+   void                   *access;
+   record_value_mirror_pt  pt;
+} record_value_mirror;
+
+typedef struct {
    void                     *context;
    uint8_t                   f_class;
    subtype_mirror           *f_subtype;
@@ -177,6 +205,7 @@ typedef struct {
    enumeration_value_mirror *f_enumeration;
    floating_value_mirror    *f_floating;
    array_value_mirror       *f_array;
+   record_value_mirror      *f_record;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -192,6 +221,7 @@ typedef struct {
    enumeration_subtype_mirror *f_enumeration;
    floating_subtype_mirror    *f_floating;
    array_subtype_mirror       *f_array;
+   record_subtype_mirror      *f_record;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -327,6 +357,17 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       vm->pt.f_class = CLASS_ARRAY;
       vm->pt.f_array = avm;
    }
+   else if (type_is_record(type)) {
+      record_value_mirror *rvm = zero_alloc(sizeof(record_value_mirror));
+      rvm->access = &(rvm->pt);
+
+      rvm->pt.context = context;
+      rvm->pt.f_owner = vm;
+      rvm->pt.f_subtype = vm->pt.f_subtype->pt.f_record;
+
+      vm->pt.f_class = CLASS_RECORD;
+      vm->pt.f_record = rvm;
+   }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
               "attribute", type_pp(type));
@@ -356,25 +397,49 @@ static floating_value_mirror *get_floating_mirror(void *context, type_t type,
    return get_value_mirror(context, scalar, type, NULL)->pt.f_floating;
 }
 
+static bool safe_to_cache(type_t type)
+{
+   if (type_is_unconstrained(type))
+      return false;
+   else if (type_is_array(type)) {
+      const int ndims = dimension_of(type);
+      for (int i = 0; i < ndims; i++) {
+         int64_t length;
+         if (!folded_length(range_of(type, i), &length))
+            return false;
+      }
+
+      return true;
+   }
+   else if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         if (!safe_to_cache(tree_type(type_field(type, i))))
+            return false;
+      }
+
+      return true;
+   }
+   else
+      return true;
+}
+
 static subtype_mirror *get_subtype_mirror(void *context, type_t type,
                                           const jit_scalar_t *bounds)
 {
-   const bool can_cache = type_is_scalar(type);
    internal_cache_pt *cache = get_cache(context);
 
-   if (can_cache) {
-      for (int i = 0; i < cache->f_num_subtypes; i++) {
-         cache_elem_t *e = &(cache->f_subtype_cache[i]);
-         if (e->f_type == type)
-            return e->f_mirror;
-      }
+   for (int i = 0; i < cache->f_num_subtypes; i++) {
+      cache_elem_t *e = &(cache->f_subtype_cache[i]);
+      if (e->f_type == type)
+         return e->f_mirror;
    }
 
    subtype_mirror *sm = zero_alloc(sizeof(subtype_mirror));
    sm->access = &(sm->pt);
    sm->pt.context = context;
 
-   if (can_cache) {
+   if (safe_to_cache(type)) {
       if (cache->f_num_subtypes == cache->f_max_subtypes) {
          const size_t new_max = MAX(cache->f_max_subtypes * 2, 128);
          cache_elem_t *tmp = zero_alloc(new_max * sizeof(cache_elem_t));
@@ -528,6 +593,32 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       sm->pt.f_class = CLASS_ARRAY;
       sm->pt.f_array = astm;
+   }
+   else if (type_is_record(type)) {
+      record_subtype_mirror *rsm = zero_alloc(sizeof(record_subtype_mirror));
+      rsm->access = &(rsm->pt);
+
+      rsm->pt.context = context;
+      rsm->pt.f_owner = sm;
+
+      type_t base = type_base_recur(type);
+      const int nfields = type_fields(base);
+
+      rsm->pt.f_fields =
+         zero_alloc(sizeof(ffi_uarray_t) + nfields * sizeof(field_rec));
+      rsm->pt.f_fields->dims[0].left = 0;
+      rsm->pt.f_fields->dims[0].length = nfields;
+      rsm->pt.f_fields->ptr = rsm->pt.f_fields + 1;
+
+      field_rec *fields = rsm->pt.f_fields->ptr;
+      for (int i = 0; i < nfields; i++) {
+         tree_t f = type_field(base, i);
+         fields[i].f_name = get_string(istr(tree_ident(f)));
+         fields[i].f_subtype = get_subtype_mirror(context, tree_type(f), NULL);
+      }
+
+      sm->pt.f_class = CLASS_RECORD;
+      sm->pt.f_record = rsm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "

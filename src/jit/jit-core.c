@@ -1013,17 +1013,17 @@ void jit_abort(void)
 {
    jit_thread_local_t *thread = jit_thread_local();
 
-   const int code = atomic_load(&thread->jit->exit_status);
-
    switch (thread->state) {
    case JIT_IDLE:
-      fatal_exit(code);
+      fatal_exit(1);
       break;
    case JIT_RUNNING:
       if (thread->jmp_buf_valid)
          siglongjmp(thread->abort_env, 1);
-      else
+      else {
+         const int code = atomic_load(&thread->jit->exit_status);
          fatal_exit(code);
+      }
       break;
    }
 
@@ -1033,7 +1033,8 @@ void jit_abort(void)
 void jit_abort_with_status(int code)
 {
    jit_thread_local_t *thread = jit_thread_local();
-   atomic_store(&(thread->jit->exit_status), code);
+   if (thread->jit != NULL)
+      atomic_store(&(thread->jit->exit_status), code);
 
    jit_abort();
 }

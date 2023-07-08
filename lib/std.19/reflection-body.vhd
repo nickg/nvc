@@ -399,14 +399,17 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type record_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : record_subtype_mirror;
+
         impure function get_subtype_mirror return record_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function get (element_idx : index) return value_mirror is
@@ -423,39 +426,65 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type record_subtype_mirror_pt is protected body
+        variable f_owner : subtype_mirror;
+
+        type field_rec is record
+            f_name    : string_ptr;
+            f_subtype : subtype_mirror;
+        end record;
+
+        type field_array is array (index range <>) of field_rec;
+        type field_array_ptr is access field_array;
+
+        variable f_fields : field_array_ptr;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function length return index is
         begin
-            report "unimplemented" severity failure;
+            return index(f_fields.all'length);
         end function;
 
         impure function element_name (element_idx : index) return string is
         begin
-            report "unimplemented" severity failure;
+            return f_fields.all(element_idx).f_name.all;
         end function;
 
         impure function element_index (element_name : string) return index is
         begin
-            report "unimplemented" severity failure;
+            for i in f_fields.all'range loop
+                if f_fields.all(i).f_name.all = element_name then
+                    return i;
+                end if;
+            end loop;
+            report simple_name & " has no element named " & element_name
+                severity error;
+            return index'right;
         end function;
 
         impure function element_subtype (element_idx : index) return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_fields.all(element_idx).f_subtype;
         end function;
 
         impure function element_subtype (element_name : string) return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            for i in f_fields.all'range loop
+                if f_fields.all(i).f_name.all = element_name then
+                    return f_fields.all(i).f_subtype;
+                end if;
+            end loop;
+            report simple_name & " has no element named " & element_name
+                severity error;
+            return null;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
     end protected body;
 
@@ -724,6 +753,7 @@ package body reflection is
         variable f_enumeration : enumeration_subtype_mirror;
         variable f_floating    : floating_subtype_mirror;
         variable f_array       : array_subtype_mirror;
+        variable f_record      : record_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -755,7 +785,8 @@ package body reflection is
 
         impure function to_record return record_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_RECORD;
+            return f_record;
         end function;
 
         impure function to_array return array_subtype_mirror is
@@ -794,6 +825,7 @@ package body reflection is
         variable f_enumeration : enumeration_value_mirror;
         variable f_floating    : floating_value_mirror;
         variable f_array       : array_value_mirror;
+        variable f_record      : record_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -830,7 +862,8 @@ package body reflection is
 
         impure function to_record return record_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_RECORD;
+            return f_record;
         end function;
 
         impure function to_array return array_value_mirror is
