@@ -1557,7 +1557,12 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   cover_tag_t *tag = cover_add_tag(b, NULL, lu->cover, TAG_BRANCH, flags);
+   // Refer location of test condition instead of branch statement to
+   // get accurate test condition location in the coverage report
+   const loc_t *loc = (tree_kind(b) == T_ASSOC) ?
+                        tree_loc(b) : tree_loc(tree_value(b));
+
+   cover_tag_t *tag = cover_add_tag(b, loc, NULL, lu->cover, TAG_BRANCH, flags);
    if (tag != NULL)
       emit_cover_branch(hit_reg, tag->tag, flags);
 }
@@ -1632,9 +1637,9 @@ static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
                   tmp = lower_toggle_tag_for(lu, e_type, where, arr_suffix,
                                              dimension_of(e_type));
                else {
-                  cover_tag_t *tag = cover_add_tag(where, arr_suffix,
-                                                   lu->cover, TAG_TOGGLE,
-                                                   flags);
+                  cover_tag_t *tag = cover_add_tag(where, tree_loc(where),
+                                                   arr_suffix, lu->cover,
+                                                   TAG_TOGGLE, flags);
                   if (tag)
                      tmp = tag->tag;
                }
@@ -1656,7 +1661,7 @@ static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
       return first_tag;
    }
    else {
-      cover_tag_t *tag = cover_add_tag(where, NULL, lu->cover,
+      cover_tag_t *tag = cover_add_tag(where, tree_loc(where), NULL, lu->cover,
                                        TAG_TOGGLE, flags);
       return tag ? tag->tag : -1;
    }
@@ -1727,7 +1732,7 @@ static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
-   cover_tag_t *tag = cover_add_tag(fcall, NULL, lu->cover,
+   cover_tag_t *tag = cover_add_tag(fcall, tree_loc(fcall), NULL, lu->cover,
                                     TAG_EXPRESSION, flags);
    if (tag != NULL) {
       emit_cover_expr(mask, tag->tag);
@@ -6008,11 +6013,10 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       cover_push_scope(lu->cover, c);
 
       if (tree_has_value(c)) {
-         tree_t v = tree_value(c);
-         vcode_reg_t test = lower_rvalue(lu, v);
+         vcode_reg_t test = lower_rvalue(lu, tree_value(c));
 
          if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-            lower_branch_coverage(lu, v, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
+            lower_branch_coverage(lu, c, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
 
          vcode_block_t btrue = emit_block();
 
@@ -6369,11 +6373,10 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       emit_jump(test_bb);
 
       vcode_select_block(test_bb);
-      tree_t v = tree_value(stmt);
-      vcode_reg_t test = lower_rvalue(lu, v);
+      vcode_reg_t test = lower_rvalue(lu, tree_value(stmt));
 
       if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, v, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
+         lower_branch_coverage(lu, stmt, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
 
       emit_cond(test, body_bb, exit_bb);
    }
@@ -6411,11 +6414,10 @@ static void lower_loop_control(lower_unit_t *lu, tree_t stmt,
 
    if (tree_has_value(stmt)) {
       vcode_block_t true_bb = emit_block();
-      tree_t v = tree_value(stmt);
-      vcode_reg_t result = lower_rvalue(lu, v);
+      vcode_reg_t result = lower_rvalue(lu, tree_value(stmt));
 
       if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, v, COV_FLAG_FALSE | COV_FLAG_TRUE, result);
+         lower_branch_coverage(lu, stmt, COV_FLAG_FALSE | COV_FLAG_TRUE, result);
 
       emit_cond(result, true_bb, false_bb);
 
@@ -6981,7 +6983,8 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    cover_push_scope(lu->cover, stmt);
    if (cover_enabled(lu->cover, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
-      cover_tag_t *tag = cover_add_tag(stmt, NULL, lu->cover, TAG_STMT, 0);
+      cover_tag_t *tag = cover_add_tag(stmt, tree_loc(stmt), NULL,
+                                       lu->cover, TAG_STMT, 0);
       if (tag != NULL)
          emit_cover_stmt(tag->tag);
    }

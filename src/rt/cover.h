@@ -107,6 +107,12 @@ typedef struct _cover_tag {
    // Hierarchy path of the covered object
    ident_t        hier;
 
+   // Name of the function for expression coverage
+   ident_t        func_name;
+
+   // Type of underlying tree object
+   tree_kind_t    tree_kind;
+
    // Start position for signal name
    int            sig_pos;
 } cover_tag_t;
@@ -178,8 +184,9 @@ unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
-                           tag_kind_t kind, uint32_t flags);
+cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
+                           cover_tagging_t *ctx, tag_kind_t kind,
+                           uint32_t flags);
 
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
 void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);
