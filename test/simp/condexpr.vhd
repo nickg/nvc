@@ -8,6 +8,7 @@ architecture test of condexpr is
     begin
         return 2 when x > 1 else unaffected;
         return 5 when x < 5 else 7;
+        return 7 when x = 2;
     end function;
 
     procedure bar (x : integer) is

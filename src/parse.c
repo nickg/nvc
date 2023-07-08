@@ -6398,26 +6398,26 @@ static tree_t p_conditional_or_unaffected_expression(vhdl_standard_t minstd)
 
       tree_t value = tree_new(T_COND_VALUE);
 
-      do {
-         tree_t cond = tree_new(T_COND_EXPR);
-         tree_set_result(cond, expr0);
-         tree_set_value(cond, p_condition());
+      tree_t c0 = tree_new(T_COND_EXPR);
+      tree_set_result(c0, expr0);
+      tree_set_value(c0, p_condition());
+      tree_set_loc(c0, CURRENT_LOC);
 
+      tree_add_cond(value, c0);
+
+      while (optional(tELSE)) {
+         tree_t cond = tree_new(T_COND_EXPR);
+         tree_set_result(cond, p_expression_or_unaffected());
          tree_set_loc(cond, CURRENT_LOC);
 
          tree_add_cond(value, cond);
 
-         if (!optional(tELSE))
+         if (!optional(tWHEN))
             break;
 
-         expr0 = p_expression_or_unaffected();
-      } while (optional(tWHEN));
-
-      tree_t last = tree_new(T_COND_EXPR);
-      tree_set_result(last, expr0);
-      tree_set_loc(last, CURRENT_LOC);
-
-      tree_add_cond(value, last);
+         tree_set_value(cond, p_condition());
+         tree_set_loc(cond, CURRENT_LOC);
+      }
 
       tree_set_loc(value, CURRENT_LOC);
       return value;

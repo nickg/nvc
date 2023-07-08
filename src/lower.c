@@ -6343,11 +6343,13 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    if (ireg == VCODE_INVALID_REG)
       ireg = emit_load(ivar);
 
-   vcode_reg_t next_reg = emit_add(ireg, stepn_reg);
-   emit_store(next_reg, ivar);
+   if (!vcode_block_finished()) {
+      vcode_reg_t next_reg = emit_add(ireg, stepn_reg);
+      emit_store(next_reg, ivar);
 
-   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, ireg, rightn_reg);
-   emit_cond(done_reg, exit_bb, body_bb);
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, ireg, rightn_reg);
+      emit_cond(done_reg, exit_bb, body_bb);
+   }
 
    vcode_select_block(exit_bb);
 

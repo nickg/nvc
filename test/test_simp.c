@@ -1458,7 +1458,7 @@ START_TEST(test_condexpr)
    fail_unless(tree_kind(tree_value(c1)) == T_LITERAL);
 
    tree_t foo = tree_decl(a, 1);
-   fail_unless(tree_stmts(foo) == 2);
+   fail_unless(tree_stmts(foo) == 3);
 
    tree_t s0 = tree_stmt(foo, 0);
    fail_unless(tree_kind(s0) == T_IF);
@@ -1476,6 +1476,10 @@ START_TEST(test_condexpr)
 
    tree_t s1c1s0 = tree_stmt(tree_cond(s1, 1), 0);
    fail_unless(tree_kind(s1c1s0) == T_RETURN);
+
+   tree_t s2 = tree_stmt(foo, 2);
+   fail_unless(tree_kind(s2) == T_IF);
+   fail_unless(tree_conds(s2) == 1);
 
    tree_t bar = tree_decl(a, 2);
    fail_unless(tree_stmts(bar) == 2);

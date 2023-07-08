@@ -5156,6 +5156,52 @@ START_TEST(test_issue725)
 }
 END_TEST
 
+START_TEST(test_cond2)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/lower/cond2.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit("WORK.COND2.DUMMY_LOOP(Q)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_LOAD, .name = "I._L0" },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 5 },
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(5);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5282,6 +5328,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue662);
    tcase_add_test(tc, test_event1);
    tcase_add_test(tc, test_issue725);
+   tcase_add_test(tc, test_cond2);
    suite_add_tcase(s, tc);
 
    return s;

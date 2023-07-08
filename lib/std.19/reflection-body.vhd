@@ -99,10 +99,7 @@ package body reflection is
         begin
             for i in f_literals.all'range loop
                 tmp := f_literals.all(i);
-                --return tmp when tmp.image = literal_name;
-                if tmp.image = literal_name then
-                    return tmp;
-                end if;
+                return tmp when tmp.image = literal_name;
             end loop;
 
             report literal_name

@@ -1610,6 +1610,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_WAIT:
    case T_PSL:
    case T_VAR_ASSIGN:
+   case T_RETURN:
       dump_stmt(t, indent);
       break;
    case T_CONST_DECL:
