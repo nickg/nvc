@@ -1384,7 +1384,7 @@ static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
    }
 }
 
-static void hint_for_typo(nametab_t *tab, diag_t *d, ident_t name,
+static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
                           name_mask_t filter)
 {
    if (ident_runtil(name, '.') != name)
@@ -1393,7 +1393,7 @@ static void hint_for_typo(nametab_t *tab, diag_t *d, ident_t name,
    const symbol_t *best = NULL;
    int bestd = INT_MAX;
 
-   for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
+   for (scope_t *s = top_scope; s != NULL; s = s->parent) {
       for (sym_chunk_t *chunk = &(s->symbols); chunk; chunk = chunk->chain) {
          for (int i = 0; i < chunk->count; i++) {
             if (chunk->symbols[i].mask & filter) {
@@ -1482,7 +1482,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          else
             diag_printf(d, "no visible declaration for %s", istr(name));
 
-         hint_for_typo(tab, d, name, N_OBJECT | N_TYPE);
+         hint_for_typo(tab->top_scope, d, name, N_OBJECT | N_TYPE);
          diag_emit(d);
       }
 
@@ -1667,7 +1667,7 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
       diag_printf(d, "no visible subprogram declaration for %s",
                   istr(tree_ident(ref)));
-      hint_for_typo(tab, d, tree_ident(ref), N_SUBPROGRAM);
+      hint_for_typo(tab->top_scope, d, tree_ident(ref), N_SUBPROGRAM);
       diag_emit(d);
       return NULL;
    }
@@ -2233,7 +2233,6 @@ static void begin_overload_resolution(overload_t *o)
    if (o->initial == 0 && !o->error) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
       diag_printf(d, "no visible subprogram declaration for %s", istr(o->name));
-      hint_for_typo(o->nametab, d, o->name, N_SUBPROGRAM);
 
       if (sym != NULL) {
          const bool hinted = diag_hints(d) > 0;
@@ -2247,6 +2246,39 @@ static void begin_overload_resolution(overload_t *o)
          if (!hinted)
             diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
       }
+
+      if (o->prefix != NULL) {
+         type_t ptype = tree_type(o->prefix);
+         if (type_is_protected(ptype)) {
+            scope_t *s = scope_for_type(o->nametab, ptype);
+            hint_for_typo(s, d, o->name, N_SUBPROGRAM);
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            int others = 0, methods = 0;
+            const int ndecls = type_decls(ptype);
+            for (int i = 0; i < ndecls; i++) {
+               tree_t d = type_decl(ptype, i);
+               if (is_subprogram(d)) {
+                  if (methods++ < 3) {
+                     if (methods > 1) tb_cat(tb, ", ");
+                     tb_istr(tb, tree_ident(d));
+                  }
+                  else
+                     others++;
+               }
+            }
+
+            if (others > 0)
+               tb_printf(tb, " and %d others", others);
+
+            diag_hint(d, NULL, "prefix of call is an object of protected "
+                      "type %s which has %s %s", type_pp(ptype),
+                      methods == 0 ? "no methods"
+                      : (methods == 1 ? "method" : "methods"), tb_get(tb));
+         }
+      }
+      else
+         hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
 
       diag_emit(d);
       o->error = true;

@@ -465,6 +465,11 @@ package body reflection is
         variable f_owner   : value_mirror;
         variable f_subtype : array_subtype_mirror;
 
+        type value_array is array (natural range <>) of value_mirror;
+        type value_array_ptr is access value_array;
+
+        variable f_elements : value_array_ptr;
+
         impure function get_subtype_mirror return array_subtype_mirror is
         begin
             return f_subtype;
@@ -475,24 +480,48 @@ package body reflection is
             return f_owner;
         end function;
 
-        impure function get (idx : index) return value_mirror is
+        impure function normalise_index (idx : index; dim : dimension) return natural is
         begin
-            report "unimplemented" severity failure;
+            return natural(idx - f_subtype.left(dim));
+        end function;
+
+        impure function stride (dim : dimension) return natural is
+            variable tmp : natural := 0;
+        begin
+            return 0 when dim = 1;
+            for i in index'(1) to dim - 1 loop
+                tmp := tmp + natural(f_subtype.length(i));
+            end loop;
+            return tmp;
+        end function;
+
+        impure function get (idx : index) return value_mirror is
+            variable norm_idx : natural;
+        begin
+            assert f_subtype.dimensions = 1;
+            return f_elements.all(normalise_index(idx, 1));
         end function;
 
         impure function get (idx1, idx2 : index) return value_mirror is
+            constant stride1 : natural := stride(1);
         begin
-            report "unimplemented" severity failure;
+            return get((idx1, idx2));
         end function;
 
         impure function get (idx1, idx2, idx3 : index) return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return get((idx1, idx2, idx3));
         end function;
 
         impure function get (idx : index_vector) return value_mirror is
+            variable tmp : natural := 0;
         begin
-            report "unimplemented" severity failure;
+            assert f_subtype.dimensions = dimension(idx'length);
+            for i in idx'range loop
+                tmp := tmp * stride(i);
+                tmp := tmp + normalise_index(idx(i), i);
+            end loop;
+            return f_elements.all(tmp);
         end function;
     end protected body;
 

@@ -919,3 +919,37 @@ type_t type_from_object(object_t *obj)
    assert(obj->tag == OBJECT_TAG_TYPE);
    return container_of(obj, struct _type, object);
 }
+
+int type_bit_width(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_INTEGER:
+   case T_PHYSICAL:
+      {
+         tree_t r = range_of(type, 0);
+         return bits_for_range(assume_int(tree_left(r)),
+                               assume_int(tree_right(r)));
+      }
+
+   case T_REAL:
+       // All real types are doubles at the moment
+       return 64;
+
+   case T_SUBTYPE:
+      return type_bit_width(type_base(type));
+
+   case T_ENUM:
+      return bits_for_range(0, type_enum_literals(type) - 1);
+
+   case T_ARRAY:
+      return type_bit_width(type_elem(type));
+
+   default:
+      fatal_trace("unhandled type %s in type_bit_width", type_pp(type));
+   }
+}
+
+int type_byte_width(type_t type)
+{
+   return (type_bit_width(type) + 7) / 8;
+}

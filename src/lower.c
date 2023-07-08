@@ -3436,40 +3436,6 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
    return vals;
 }
 
-static int lower_bit_width(type_t type)
-{
-   switch (type_kind(type)) {
-   case T_INTEGER:
-   case T_PHYSICAL:
-      {
-         tree_t r = range_of(type, 0);
-         return bits_for_range(assume_int(tree_left(r)),
-                               assume_int(tree_right(r)));
-      }
-
-   case T_REAL:
-       // All real types are doubles at the moment
-       return 64;
-
-   case T_SUBTYPE:
-      return lower_bit_width(type_base(type));
-
-   case T_ENUM:
-      return bits_for_range(0, type_enum_literals(type) - 1);
-
-   case T_ARRAY:
-      return lower_bit_width(type_elem(type));
-
-   default:
-      fatal_trace("unhandled type %s in lower_bit_width", type_pp(type));
-   }
-}
-
-static int lower_byte_width(type_t type)
-{
-   return (lower_bit_width(type) + 7) / 8;
-}
-
 static vcode_reg_t lower_record_sub_aggregate(lower_unit_t *lu, tree_t value,
                                               tree_t field, bool is_const)
 {
@@ -7289,7 +7255,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
 
    if (type_is_scalar(type)) {
       vcode_type_t voffset = vtype_offset();
-      vcode_reg_t size_reg = emit_const(voffset, lower_byte_width(type));
+      vcode_reg_t size_reg = emit_const(voffset, type_byte_width(type));
       vcode_reg_t len_reg = emit_const(voffset, 1);
       vcode_type_t vtype = lower_type(type);
 
@@ -7323,7 +7289,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       assert(type_is_array(type));
 
       vcode_type_t voffset = vtype_offset();
-      vcode_reg_t size_reg = emit_const(voffset, lower_byte_width(type));
+      vcode_reg_t size_reg = emit_const(voffset, type_byte_width(type));
       vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
       vcode_type_t vtype = lower_type(lower_elem_recur(type));
 

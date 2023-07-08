@@ -161,6 +161,7 @@ typedef struct {
    void                 *context;
    value_mirror         *f_owner;
    array_subtype_mirror *f_subtype;
+   ffi_uarray_t         *f_elements;
 } array_value_mirror_pt;
 
 typedef struct {
@@ -293,6 +294,35 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       avm->pt.context = context;
       avm->pt.f_owner = vm;
       avm->pt.f_subtype = vm->pt.f_subtype->pt.f_array;
+
+      dimension_rec *dims = avm->pt.f_subtype->pt.f_dimension_data->ptr;
+      size_t total = 0;
+      for (int i = 0; i < avm->pt.f_subtype->pt.f_dimensions; i++)
+         total += dims[i].f_length;
+
+      avm->pt.f_elements =
+         zero_alloc(sizeof(ffi_uarray_t) + total * sizeof(value_mirror *));
+
+      avm->pt.f_elements->dims[0].left = 0;
+      avm->pt.f_elements->dims[0].length = total;
+      avm->pt.f_elements->ptr = avm->pt.f_elements + 1;
+
+      type_t elem = type_elem(type);
+      const int ebytes = type_byte_width(elem);
+
+      value_mirror **elems = avm->pt.f_elements->ptr;
+      for (int i = 0; i < total; i++) {
+         jit_scalar_t elt = { .integer = 0 };
+
+#define UNPACK_ELEMENT(type) do {               \
+            const type *p = value.pointer;      \
+            elt.integer = p[i];                 \
+         } while (0);
+
+         FOR_ALL_SIZES(ebytes, UNPACK_ELEMENT);
+
+         elems[i] = get_value_mirror(context, elt, elem, NULL);
+      }
 
       vm->pt.f_class = CLASS_ARRAY;
       vm->pt.f_array = avm;

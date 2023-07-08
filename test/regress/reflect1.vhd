@@ -50,6 +50,9 @@ begin
         vm := v2'reflect;
         assert vm.get_value_class = CLASS_ARRAY;
         avm := vm.to_array;
+        assert avm.get(1).to_integer.value = 1;
+        assert avm.get(2).to_integer.value = 2;
+        assert avm.get((1 => 3)).to_integer.value = 3;
         astm := avm.get_subtype_mirror;
         assert astm.dimensions = 1;
         assert astm.index_subtype = natural'reflect;
