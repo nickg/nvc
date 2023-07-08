@@ -11520,13 +11520,21 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
 
       lib_t lib = lib_require(lname);
 
-      tree_t unit = lib_get(lib, ident_prefix(lname, uname, '.'));
-      if (unit == NULL || !is_package(unit))
+      ident_t unit_name = ident_prefix(lname, uname, '.');
+      tree_t unit = lib_get(lib, unit_name);
+      if (unit == NULL)
          return NULL;
       else if (tree_kind(unit) == T_PACKAGE && package_needs_body(unit)) {
          if ((unit = body_of(unit)) == NULL)
             return NULL;
       }
+      else if (tree_kind(unit) == T_ENTITY) {
+         ident_t ename = ident_prefix(unit_name, well_known(W_ELAB), '.');
+         if ((unit = lib_get(lib, ename)) == NULL)
+            return NULL;
+      }
+      else if (!is_package(unit))
+         return NULL;
 
       vcode_unit_t root = lib_get_vcode(lib, unit);
       if (root == NULL)
