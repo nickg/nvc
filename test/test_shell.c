@@ -101,6 +101,78 @@ START_TEST(test_examine1)
 }
 END_TEST
 
+static void wave1_add_wave(ident_t path, rt_signal_t *s, void *user)
+{
+   int *state = user;
+
+   switch ((*state)++) {
+   case 0:
+      ck_assert_str_eq(istr(path), "/x");
+      break;
+   default:
+      ck_abort_msg("unexpected call to wave1_add_wave in state %d", *state - 1);
+   }
+}
+
+static void wave1_signal_update(ident_t path, uint64_t now, rt_signal_t *s,
+                                void *user)
+{
+   int *state = user;
+
+   switch ((*state)++) {
+   case 1:
+      ck_assert_str_eq(istr(path), "/x");
+      ck_assert_int_eq(now, 1000000);
+      break;
+   case 2:
+      ck_assert_str_eq(istr(path), "/x");
+      ck_assert_int_eq(now, 2000000);
+      break;
+   default:
+      ck_abort_msg("unexpected call to wave1_signal_update in state %d",
+                   *state - 1);
+   }
+}
+
+START_TEST(test_wave1)
+{
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tcl_shell_t *sh = shell_new(jit_new);
+
+   int state = 0;
+   shell_handler_t handler = {
+      .add_wave = wave1_add_wave,
+      .signal_update = wave1_signal_update,
+      .context = &state,
+   };
+   shell_set_handler(sh, &handler);
+
+   const char *result = NULL;
+
+   shell_eval(sh, "analyse " TESTDIR "/shell/wave1.vhd", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "elaborate wave1", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "add wave /x", &result);
+   ck_assert_str_eq(result, "");
+   ck_assert_int_eq(state, 1);
+
+   shell_eval(sh, "run", &result);
+   ck_assert_str_eq(result, "");
+   ck_assert_int_eq(state, 3);
+
+   shell_free(sh);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -109,6 +181,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_sanity);
    tcase_add_test(tc, test_analyse);
    tcase_add_test(tc, test_examine1);
+   tcase_add_test(tc, test_wave1);
    suite_add_tcase(s, tc);
 
    return s;

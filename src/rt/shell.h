@@ -22,11 +22,18 @@
 
 typedef jit_t *(*jit_factory_t)(unit_registry_t *);
 
+typedef struct {
+   void (*add_wave)(ident_t path, rt_signal_t *s, void *ctx);
+   void (*signal_update)(ident_t path, uint64_t now, rt_signal_t *s, void *ctx);
+   void *context;
+} shell_handler_t;
+
 tcl_shell_t *shell_new(jit_factory_t make_jit);
 void shell_free(tcl_shell_t *sh);
 bool shell_eval(tcl_shell_t *sh, const char *script, const char **result);
 bool shell_do(tcl_shell_t *sh, const char *file);
 void shell_interact(tcl_shell_t *sh);
 void shell_reset(tcl_shell_t *sh, tree_t top);
+void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h);
 
 #endif  // _RT_SHELL_H

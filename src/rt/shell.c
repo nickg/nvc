@@ -59,6 +59,8 @@ typedef struct {
    ident_t       name;
    ident_t       path;
    print_func_t *printer;
+   rt_watch_t   *watch;
+   tcl_shell_t  *owner;
 } shell_signal_t;
 
 typedef char *(*get_line_fn_t)(tcl_shell_t *);
@@ -82,6 +84,7 @@ typedef struct _tcl_shell {
    get_line_fn_t    getline;
    jit_factory_t    make_jit;
    unit_registry_t *registry;
+   shell_handler_t  handler;
 } tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
@@ -117,7 +120,7 @@ static void shell_update_now(tcl_shell_t *sh)
    Tcl_UpdateLinkedVar(sh->interp, "deltas");
 }
 
-static void shell_cmd_add(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
+static void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
                           const char *help)
 {
    shell_cmd_t cmd = { name, fn, help };
@@ -465,6 +468,57 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
                     Tcl_GetString(objv[0]));
 }
 
+static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                           void *user)
+{
+   shell_signal_t *ss = user;
+   shell_handler_t *h = &(ss->owner->handler);
+
+   if (h->signal_update != NULL)
+      (*h->signal_update)(ss->path, now, s, h->context);
+}
+
+static const char add_help[] =
+   "Add signals and other objects to the display\n"
+   "\n"
+   "Syntax:\n"
+   "  add wave <name>\n"
+   "\n"
+   "Examples:\n"
+   "  add wave /*\tAdd all signals to waveform\n";
+
+static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
+                         int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (objc != 3 || strcmp(Tcl_GetString(objv[1]), "wave") != 0)
+      goto usage;
+   else if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   const char *glob = Tcl_GetString(objv[2]);
+   for (int i = 0; i < sh->nsignals; i++) {
+      shell_signal_t *ss = &(sh->signals[i]);
+      if (!ident_glob(ss->path, glob, -1))
+         continue;
+
+      if (sh->handler.add_wave != NULL)
+         (*sh->handler.add_wave)(ss->path, ss->signal, sh->handler.context);
+
+      assert(ss->watch == NULL);
+      assert(find_watch(&(ss->signal->nexus), shell_event_cb) == NULL);
+
+      ss->watch = model_set_event_cb(sh->model, ss->signal,
+                                     shell_event_cb, ss, true);
+   }
+
+   return TCL_OK;
+
+ usage:
+   return tcl_error(sh, "syntax error, enter $bold$help add for usage");
+}
+
 static const char help_help[] =
    "Display list of commands or detailed help\n"
    "\n"
@@ -669,18 +723,19 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
 
    atexit(Tcl_Finalize);
 
-   shell_cmd_add(sh, "help", shell_cmd_help, help_help);
-   shell_cmd_add(sh, "exit", shell_cmd_exit, exit_help);
-   shell_cmd_add(sh, "copyright", shell_cmd_copyright, copyright_help);
-   shell_cmd_add(sh, "find", shell_cmd_find, find_help);
-   shell_cmd_add(sh, "run", shell_cmd_run, run_help);
-   shell_cmd_add(sh, "restart", shell_cmd_restart, restart_help);
-   shell_cmd_add(sh, "analyse", shell_cmd_analyse, analyse_help);
-   shell_cmd_add(sh, "vcom", shell_cmd_analyse, analyse_help);
-   shell_cmd_add(sh, "elaborate", shell_cmd_elaborate, elaborate_help);
-   shell_cmd_add(sh, "vsim", shell_cmd_elaborate, elaborate_help);
-   shell_cmd_add(sh, "examine", shell_cmd_examine, examine_help);
-   shell_cmd_add(sh, "exa", shell_cmd_examine, examine_help);
+   shell_add_cmd(sh, "help", shell_cmd_help, help_help);
+   shell_add_cmd(sh, "exit", shell_cmd_exit, exit_help);
+   shell_add_cmd(sh, "copyright", shell_cmd_copyright, copyright_help);
+   shell_add_cmd(sh, "find", shell_cmd_find, find_help);
+   shell_add_cmd(sh, "run", shell_cmd_run, run_help);
+   shell_add_cmd(sh, "restart", shell_cmd_restart, restart_help);
+   shell_add_cmd(sh, "analyse", shell_cmd_analyse, analyse_help);
+   shell_add_cmd(sh, "vcom", shell_cmd_analyse, analyse_help);
+   shell_add_cmd(sh, "elaborate", shell_cmd_elaborate, elaborate_help);
+   shell_add_cmd(sh, "vsim", shell_cmd_elaborate, elaborate_help);
+   shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);
+   shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
+   shell_add_cmd(sh, "add", shell_cmd_add, add_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
@@ -740,6 +795,7 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
       shell_signal_t *ss = (*wptr)++;
       ss->signal = s;
       ss->name = ident_downcase(tree_ident(s->where));
+      ss->owner = sh;
 
       tb_istr(path, ss->name);
       ss->path = ident_new(tb_get(path));
@@ -752,6 +808,7 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
       shell_signal_t *ss = (*wptr)++;
       ss->signal = a->signal;
       ss->name = ident_downcase(tree_ident(a->where));
+      ss->owner = sh;
 
       tb_istr(path, ss->name);
       ss->path = ident_new(tb_get(path));
@@ -830,4 +887,9 @@ bool shell_do(tcl_shell_t *sh, const char *file)
       warnf("Tcl_Eval returned unknown code %d", code);
       return false;
    }
+}
+
+void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h)
+{
+   sh->handler = *h;
 }
