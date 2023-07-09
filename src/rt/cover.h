@@ -97,11 +97,21 @@ typedef struct _cover_tag {
    // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
    int32_t        unrc_msk;
 
-   // Location in the source file
+   // Location of the tag in the source file
    loc_t          loc;
+
+   // Locations of LHS/RHS operands
+   loc_t          loc_rhs;
+   loc_t          loc_lhs;
 
    // Hierarchy path of the covered object
    ident_t        hier;
+
+   // Name of the function for expression coverage
+   ident_t        func_name;
+
+   // Type of underlying tree object
+   tree_kind_t    tree_kind;
 
    // Start position for signal name
    int            sig_pos;
@@ -126,6 +136,8 @@ typedef enum {
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
 #define COVER_FLAGS_OR_EXPR (COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
 #define COVER_FLAGS_XOR_EXPR (COV_FLAG_11 | COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
+
+#define COVER_FLAGS_LHS_RHS_BINS (COV_FLAG_11 | COV_FLAG_00 | COV_FLAG_10 | COV_FLAG_01)
 
 #define COVER_FLAGS_ALL_BINS (COV_FLAG_TRUE | COV_FLAG_FALSE | COV_FLAG_CHOICE | \
                               COV_FLAG_00 | COV_FLAG_01 | COV_FLAG_10 | COV_FLAG_11 | \
@@ -172,8 +184,9 @@ unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
-                           tag_kind_t kind, uint32_t flags);
+cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
+                           cover_tagging_t *ctx, tag_kind_t kind,
+                           uint32_t flags);
 
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
 void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);

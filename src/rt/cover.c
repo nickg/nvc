@@ -319,8 +319,9 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
    return f;
 }
 
-cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
-                           tag_kind_t kind, uint32_t flags)
+cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
+                           cover_tagging_t *ctx, tag_kind_t kind,
+                           uint32_t flags)
 {
    assert(ctx != NULL);
 
@@ -332,7 +333,6 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
         ignore_scope = ignore_scope->parent)
       ;
 
-   const loc_t *loc = tree_loc(t);
    for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
       line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
       if (loc->first_line > lr->start && loc->first_line <= lr->end)
@@ -353,6 +353,18 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       ctx->top_scope->expression_label++;
    }
 
+   // Query LHS/RHS operand locations of binary expressions
+   loc_t loc_lhs, loc_rhs = {0};
+   if (flags & COVER_FLAGS_LHS_RHS_BINS) {
+      assert(tree_params(t) > 1);
+      loc_lhs = *tree_loc(tree_param(t, 0));
+      loc_rhs = *tree_loc(tree_param(t, 1));
+   }
+
+   ident_t func_name = NULL;
+   if (kind == TAG_EXPRESSION)
+      func_name = tree_ident(t);
+
 #ifdef COVER_DEBUG_EMIT
    printf("Tag: %s\n", istr(hier));
    printf("    First line: %d\n", tree_loc(t)->first_line);
@@ -369,8 +381,12 @@ cover_tag_t *cover_add_tag(tree_t t, ident_t suffix, cover_tagging_t *ctx,
       .flags      = flags,
       .excl_msk   = 0,
       .unrc_msk   = 0,
-      .loc        = *tree_loc(t),
+      .loc        = *loc,
+      .loc_lhs    = loc_lhs,
+      .loc_rhs    = loc_rhs,
       .hier       = hier,
+      .tree_kind  = tree_kind(t),
+      .func_name  = func_name,
       .sig_pos    = ctx->top_scope->sig_pos,
    };
 
@@ -450,11 +466,21 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       write_u32(tag->tag, f);
       write_u32(tag->data, f);
       write_u32(tag->flags, f);
+      write_u32(tag->tree_kind, f);
       // Do not dump "excl_msk" since it is only filled at
       // report generation time
       write_u32(tag->unrc_msk, f);
+
       loc_write(&(tag->loc), loc_ctx);
+      if (tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_write(&(tag->loc_lhs), loc_ctx);
+         loc_write(&(tag->loc_rhs), loc_ctx);
+      }
+
       ident_write(tag->hier, ident_ctx);
+      if (tag->kind == TAG_EXPRESSION)
+         ident_write(tag->func_name, ident_ctx);
+
       write_u32(tag->sig_pos, f);
    }
 
@@ -720,11 +746,20 @@ static void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    tag->tag = read_u32(f);
    tag->data = read_u32(f);
    tag->flags = read_u32(f);
+   tag->tree_kind = read_u32(f);
    tag->unrc_msk = read_u32(f);
    tag->excl_msk = 0;
 
    loc_read(&(tag->loc), loc_rd);
+   if (tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
+      loc_read(&(tag->loc_lhs), loc_rd);
+      loc_read(&(tag->loc_rhs), loc_rd);
+   }
+
    tag->hier = ident_read(ident_ctx);
+   if (tag->kind == TAG_EXPRESSION)
+      tag->func_name = ident_read(ident_ctx);
+
    tag->sig_pos = read_u32(f);
 }
 
@@ -1623,31 +1658,181 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
    }
 }
 
-static void cover_print_code_line(FILE *f, loc_t loc, cover_line_t *line)
+static inline void cover_print_char(FILE *f, char c)
 {
-   fprintf(f, "&nbsp;<code>");
-   int last = strlen(line->text);
-   int curr = 0;
-   while (curr < last) {
+   if (c == '\n' || c == ' ')
+      fprintf(f, "&nbsp");
+   else
+      fprintf(f, "%c", c);
+}
+
+static void cover_print_single_code_line(FILE *f, loc_t loc, cover_line_t *line)
+{
+   assert(loc.line_delta == 0);
+
+   int curr_char = 0;
+   while (curr_char < strlen(line->text)) {
 
       // Highlight code location
-      if (curr == loc.first_column)
+      if (curr_char == loc.first_column)
          fprintf(f, "<code class=\"cbg\">");
 
-      char c = line->text[curr];
-      if (c != '\n')
-         fprintf(f, "%c", c);
+      cover_print_char(f, line->text[curr_char]);
 
       // Finish code highlight
-      if (curr == (loc.first_column + loc.column_delta) &&
-            loc.line_delta == 0)
+      if (curr_char == (loc.first_column + loc.column_delta))
          fprintf(f, "</code>");
+
+      curr_char++;
+   }
+}
+
+static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
+{
+   int last = strlen(pair->line->text);
+   int curr = 0;
+
+   // Offset by line number width
+   int digits = pair->tag->loc.first_line;
+   do {
+      digits /= 10;
+      fprintf(f, "&nbsp");
+   } while (digits > 0);
+   fprintf(f, "&nbsp");
+
+   loc_t *loc_lhs = &(pair->tag->loc_lhs);
+   loc_t *loc_rhs = &(pair->tag->loc_rhs);
+
+   int lhs_beg = loc_lhs->first_column;
+   int rhs_beg = loc_rhs->first_column;
+
+   int lhs_end = lhs_beg + loc_lhs->column_delta;
+   int rhs_end = rhs_beg + loc_rhs->column_delta;
+
+   int lhs_mid = (lhs_end + lhs_beg) / 2;
+   int rhs_mid = (rhs_end + rhs_beg) / 2;
+
+   while (curr < last) {
+      if (curr == lhs_mid - 1)
+         fprintf(f, "L");
+      else if (curr == lhs_mid)
+         fprintf(f, "H");
+      else if (curr == lhs_mid + 1)
+         fprintf(f, "S");
+
+      else if (curr == lhs_beg)
+         fprintf(f, "<");
+      else if (curr > lhs_beg && curr < lhs_end)
+         fprintf(f, "-");
+      else if (curr == (lhs_beg + loc_lhs->column_delta))
+         fprintf(f, ">");
+
+      else if (curr == rhs_mid - 1)
+         fprintf(f, "R");
+      else if (curr == rhs_mid)
+         fprintf(f, "H");
+      else if (curr == rhs_mid + 1)
+         fprintf(f, "S");
+
+      else if (curr == rhs_beg)
+         fprintf(f, "<");
+      else if (curr > rhs_beg && curr < rhs_end)
+         fprintf(f, "-");
+      else if (curr == (rhs_beg + loc_rhs->column_delta))
+         fprintf(f, ">");
+
+      else
+         fprintf(f, "&nbsp");
 
       curr++;
    }
-   if (loc.line_delta > 0)
+}
+
+static void cover_print_tag_title(FILE *f, cover_pair_t *pair)
+{
+   tree_kind_t kind = pair->tag->tree_kind;
+
+   fprintf(f, "<h3>");
+
+   switch (pair->tag->kind) {
+   case TAG_STMT:
+      fprintf(f, "\"%s\" ", tree_kind_str(kind));
+      fprintf(f, "statement:");
+      break;
+   case TAG_BRANCH:
+      switch (kind) {
+      case T_COND_STMT:
+      case T_COND_ASSIGN:
+         fprintf(f, "\"if\" / \"when\" / \"else\" condition:");
+         break;
+      case T_ASSOC:
+         fprintf(f, "\"case\" / \"with\" / \"select\" choice:");
+         break;
+      case T_WHILE:
+      case T_EXIT:
+      case T_NEXT:
+         fprintf(f, "Loop control condition:");
+         break;
+      default:
+         fprintf(f, "Condition:");
+         break;
+      };
+      break;
+   case TAG_EXPRESSION:
+      fprintf(f, "%s expression", istr(pair->tag->func_name));
+      break;
+   default:
+      break;
+   }
+   fprintf(f, "</h3>");
+}
+
+static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
+{
+   loc_t loc = pair->tag->loc;
+   cover_line_t *curr_line = pair->line;
+   cover_line_t *last_line = pair->line + loc.line_delta;
+
+   cover_print_tag_title(f, pair);
+
+   if (loc.line_delta == 0) {
+      fprintf(f, "<code>");
+      fprintf(f, "%d:", loc.first_line);
+
+      cover_print_single_code_line(f, loc, curr_line);
+      if (pair->tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         fprintf(f, "<br>");
+         cover_print_lhs_rhs_arrows(f, pair);
+      }
       fprintf(f, "</code>");
-   fprintf(f, "</code>");
+   }
+   else {
+      fprintf(f, "<code>");
+
+      do {
+         // Shorten code samples longer than 5 lines
+         if (loc.line_delta > 5 &&
+             curr_line == pair->line + 2) {
+            fprintf(f, "...<br>");
+            curr_line = last_line - 1;
+            continue;
+         }
+         else
+            fprintf(f, "%lu:", loc.first_line + (curr_line - pair->line));
+
+         int curr_char = 0;
+         while (curr_char < curr_line->len) {
+            cover_print_char(f, curr_line->text[curr_char]);
+            curr_char++;
+         }
+
+         fprintf(f, "<br>");
+         curr_line++;
+
+      } while (curr_line <= last_line);
+
+      fprintf(f, "</code>");
+   }
 }
 
 static void cover_print_get_exclude_button(FILE *f, cover_tag_t *tag,
@@ -1788,7 +1973,6 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 
 static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
-   loc_t loc = pair->tag->loc;
    fprintf(f, "    <p>");
 
    switch (pair->tag->kind) {
@@ -1800,14 +1984,13 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
          assert(pair->tag->unrc_msk == 0);
          fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
       }
-      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
-      cover_print_code_line(f, loc, pair->line);
+
+      cover_print_code_loc(f, pair);
       fprintf(f, "<hr>");
       break;
 
    case TAG_BRANCH:
-      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
-      cover_print_code_line(f, loc, pair->line);
+      cover_print_code_loc(f, pair);
       cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");
       break;
@@ -1827,8 +2010,7 @@ static void cover_print_pair(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       break;
 
    case TAG_EXPRESSION:
-      fprintf(f, "<h3>Line %d:</h3>", loc.first_line);
-      cover_print_code_line(f, loc, pair->line);
+      cover_print_code_loc(f, pair);
       cover_print_bins(f, pair, pkind);
       fprintf(f, "<hr>");
       break;
