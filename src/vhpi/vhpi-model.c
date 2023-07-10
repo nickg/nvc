@@ -2084,7 +2084,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
 
    int offset = 0;
-   c_objDecl *decl;
+   c_objDecl *decl = NULL;
    c_typeDecl *td;
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn != NULL) {
