@@ -32,12 +32,15 @@
   `--exit-severity=error`.
 - Comparison operators as well as `minimum`/`maximum` functions are now
   defined for all scalar array types in VHDL-2019.
-- Added support for selected sequential statements in VHDL-2008.
+- Added support for selected signal and variable sequential assignment
+  statements.
 - The `-a` analysis command now accepts an `-f list` option where `list`
   is a text file containing a list of files to analyse.  Alternatively
   this may be written `@list`.
 - Accesses to protected types and files are now allowed in VHDL-2019.
 - Fixed a crash when indexing a null array (#734).
+- Named and range choices are now supported in aggregate targets of
+  variable and signal assignments (#712).
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

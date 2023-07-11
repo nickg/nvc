@@ -2126,12 +2126,55 @@ static tree_t sem_check_lvalue(tree_t t)
    }
 }
 
+static bool sem_check_aggregate_target_element(tree_t a, type_t type)
+{
+   tree_t value = tree_value(a);
+
+   if (tree_kind(value) != T_AGGREGATE) {
+      if (!sem_static_name(value, sem_locally_static))
+         sem_error(value, "aggregate element must be locally static name");
+   }
+
+   const assoc_kind_t kind = tree_subkind(a);
+   switch (kind) {
+   case A_RANGE:
+      if (standard() >= STD_08) {
+         // LRM 08 section 10.6.2.1: it is an error if the element
+         // association contains a choice that is a discrete range and
+         // an expression of a type other than the aggregate type.
+         if (type_eq(tree_type(value), type))
+            break;
+         else {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+            diag_printf(d, "range choice expression must have same type "
+                        "as aggregate");
+            diag_hint(d, tree_loc(value), "expression type is %s but "
+                      "aggregate is %s", type_pp(tree_type(value)),
+                      type_pp(type));
+            diag_lrm(d, STD_08, "10.6.2");
+            diag_emit(d);
+            return false;
+         }
+      }
+      // Fall-through
+   case A_OTHERS:
+      sem_error(a, "%s association not allowed in aggregate target",
+                assoc_kind_str(kind));
+   case A_NAMED:
+   case A_POS:
+      break;
+   }
+
+   return true;
+}
+
 static bool sem_check_variable_target(tree_t target)
 {
    if (tree_kind(target) == T_AGGREGATE) {
       // Rules for aggregate variable targets in LRM 93 section 8.5
 
-      if (!type_is_composite(tree_type(target)))
+      type_t type = tree_type(target);
+      if (!type_is_composite(type))
          sem_error(target, "aggregate target of variable assignment has "
                    "non-composite type %s", type_pp(tree_type(target)));
 
@@ -2143,23 +2186,8 @@ static bool sem_check_variable_target(tree_t target)
          if (!sem_check_variable_target(value))
             return false;
 
-         if (tree_kind(value) != T_AGGREGATE) {
-            if (!sem_static_name(value, sem_locally_static))
-               sem_error(value, "aggregate element must be locally static name");
-         }
-
-         assoc_kind_t kind = tree_subkind(a);
-         switch (kind) {
-         case A_OTHERS:
-         case A_RANGE:
-            sem_error(a, "%s association not allowed in aggregate "
-                      "variable target", assoc_kind_str(kind));
-         case A_NAMED:
-            sem_error(a, "sorry, named associations are not yet "
-                      "supported here");
-         case A_POS:
-            break;
-         }
+         if (!sem_check_aggregate_target_element(a, type))
+            return false;
       }
    }
    else {
@@ -2330,7 +2358,8 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
    if (tree_kind(target) == T_AGGREGATE) {
       // Rules for aggregate signal targets in LRM 93 section 8.4
 
-      if (!type_is_composite(tree_type(target)))
+      type_t type = tree_type(target);
+      if (!type_is_composite(type))
          sem_error(target, "aggregate target of signal assignment has "
                    "non-composite type %s", type_pp(tree_type(target)));
 
@@ -2342,22 +2371,8 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          if (!sem_check_signal_target(value, tab))
             return false;
 
-         if (tree_kind(value) != T_AGGREGATE
-             && !sem_static_name(value, sem_locally_static))
-            sem_error(value, "aggregate element must be locally static name");
-
-         assoc_kind_t kind = tree_subkind(a);
-         switch (kind) {
-         case A_OTHERS:
-         case A_RANGE:
-            sem_error(a, "%s association not allowed in aggregate "
-                      "signal target", assoc_kind_str(kind));
-         case A_NAMED:
-            sem_error(a, "sorry, named associations are not yet "
-                      "supported here");
-         case A_POS:
-            break;
-         }
+         if (!sem_check_aggregate_target_element(a, type))
+            return false;
       }
 
       return true;

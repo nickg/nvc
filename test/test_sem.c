@@ -560,8 +560,8 @@ START_TEST(test_seq)
       { 232, "type of range bounds REAL is not discrete" },
       { 243, "target of variable assignment must be a variable name" },
       { 244, "aggregate element must be locally static name" },
-      { 245, "others association not allowed in aggregate variable target" },
-      { 246, "range association not allowed in aggregate variable target" },
+      { 245, "others association not allowed in aggregate target" },
+      { 246, "range association not allowed in aggregate target" },
       { 254, "X with class SIGNAL must be a name denoting a signal" },
       { 255, "X with class SIGNAL must be a name denoting a signal" },
       { 263, "target of variable assignment must be a variable name or" },
@@ -887,11 +887,11 @@ START_TEST(test_signal)
       { 14, "type of aggregate cannot be determined from the surrounding" },
       { 15, "type of string literal cannot be determined from the surrou" },
       { 16, "target of signal assignment must be a signal name" },
-      { 17, "others association not allowed in aggregate signal target" },
+      { 17, "others association not allowed in aggregate target" },
       { 18, "cannot assign to input port P" },
       { 22, "cannot be determined from the surrounding context" },
       { 23, "target of signal assignment must be a signal name" },
-      { 24, "others association not allowed in aggregate signal target" },
+      { 24, "others association not allowed in aggregate target" },
       { 25, "cannot assign to input port P" },
       { 30, "aggregate element must be locally static name" },
       { 40, "signal X is not a formal parameter and subprogram PROC1 [BIT] "
@@ -2490,6 +2490,7 @@ START_TEST(test_vhdl2008)
       { 40, "no visible declaration for BAZ" },
       { 41, "SUBTYPE attribute is only allowed in a type mark" },
       { 49, "case choice must be globally static" },
+      { 59, "range choice expression must have same type as aggregate" },
       { -1, NULL }
    };
    expect_errors(expect);

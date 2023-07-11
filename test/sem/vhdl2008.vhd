@@ -50,4 +50,13 @@ begin
             s <= 5;
     end generate;
 
+    -- Range in aggregate target
+    process is
+        variable v : integer_vector(1 to 2);
+        variable a, b : integer;
+    begin
+        (1 to 2 => v) := v;             -- OK
+        (1 to 2 => a) := v;             -- Error
+    end process;
+
 end architecture;
