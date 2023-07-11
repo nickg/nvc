@@ -56,8 +56,6 @@ int main(int argc, char **argv)
    thread_init();
    register_signal_handlers();
 
-   opt_set_int(OPT_ERROR_LIMIT, -1);
-
    results = calloc(sizeof(int), NUM_JOBS);
 
    workq_t *wq1 = workq_new(NULL);
