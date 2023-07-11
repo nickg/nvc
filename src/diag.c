@@ -1142,11 +1142,8 @@ void set_stderr_severity(vhdl_severity_t severity)
    }
 }
 
-void wrapped_printf(const char *fmt, ...)
+void wrapped_vprintf(const char *fmt, va_list ap)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
    char *text LOCAL = NULL;
    if (strchr(fmt, '$') != 0)
       text = color_vasprintf(fmt, ap);
@@ -1154,6 +1151,14 @@ void wrapped_printf(const char *fmt, ...)
       text = xvasprintf(fmt, ap);
 
    diag_wrap_lines(text, strlen(text), 0, stdout);
+}
+
+void wrapped_printf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   wrapped_vprintf(fmt, ap);
 
    va_end(ap);
 }

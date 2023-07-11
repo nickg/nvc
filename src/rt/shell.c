@@ -101,6 +101,22 @@ static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
    return TCL_ERROR;
 }
 
+__attribute__((format(printf, 2, 3)))
+static void shell_printf(tcl_shell_t *sh, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   if (sh->handler.stdout_write != NULL) {
+      char *buf LOCAL = color_vasprintf(fmt, ap);
+      (*sh->handler.stdout_write)(buf, strlen(buf), sh->handler.context);
+   }
+   else
+      wrapped_vprintf(fmt, ap);
+
+   va_end(ap);
+}
+
 static bool shell_has_model(tcl_shell_t *sh)
 {
    if (sh->model == NULL) {
@@ -173,10 +189,8 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
       else if (strcmp(unit, "ns") == 0) mult = 1000000;
       else if (strcmp(unit, "us") == 0) mult = 1000000000;
       else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
-      else {
-         fprintf(stderr, "invalid time unit %s", unit);
-         return TCL_ERROR;
-      }
+      else
+         return tcl_error(sh, "invalid time unit %s", unit);
 
       stop_time = model_now(sh->model, NULL) + (base * mult);
    }
@@ -542,19 +556,17 @@ static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
    else if (objc != 1)
       return tcl_error(sh, "syntax error, try $bold$help$$");
 
-   printf("List of supported commands:\n");
+   shell_printf(sh, "List of supported commands:\n");
 
    for (shell_cmd_t *c = sh->cmds; c < sh->cmds + sh->ncmds; c++) {
       const int linelen = strchrnul(c->help, '\n') - c->help;
-      color_printf("  $bold$%-16s$$", c->name);
-      fwrite(c->help, linelen, 1, stdout);
-      printf("\n");
+      shell_printf(sh, "  $bold$%-16s$$%.*s\n", c->name, linelen, c->help);
    }
 
-   printf("\n");
-   wrapped_printf("Use $bold$help <command>$$ for detailed usage of a "
-                  "particular command. Standard TCL commands are also "
-                  "accepted.\n");
+   shell_printf(sh, "\n");
+   shell_printf(sh, "Use $bold$help <command>$$ for detailed usage "
+                "of a particular command. Standard TCL commands are "
+                "also accepted.\n");
 
    return TCL_OK;
 }
@@ -564,8 +576,9 @@ static const char copyright_help[] = "Display copyright information";
 static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
                                int objc, Tcl_Obj *const objv[])
 {
+   tcl_shell_t *sh = cd;
    extern char copy_string[];
-   printf("%s\n", copy_string);
+   shell_printf(sh, "%s\n", copy_string);
    return TCL_OK;
 }
 

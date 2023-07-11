@@ -109,6 +109,7 @@ void reset_error_count(void);
 unsigned set_error_limit(unsigned limit);
 
 void wrapped_printf(const char *fmt, ...);
+void wrapped_vprintf(const char *fmt, va_list ap);
 
 // Accessors for use in unit tests
 const char *diag_get_text(diag_t *d);
