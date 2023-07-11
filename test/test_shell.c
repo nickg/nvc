@@ -173,6 +173,55 @@ START_TEST(test_wave1)
 }
 END_TEST
 
+static void stdout_handler(const char *buf, size_t nchars, void *ctx)
+{
+   int *state = ctx;
+   ck_assert_str_eq(buf, "hello, world!\n");
+   ck_assert_int_eq(nchars, 14);
+   (*state)++;
+}
+
+static void stderr_handler(const char *buf, size_t nchars, void *ctx)
+{
+   // Error stream is unbuffered
+   int *state = ctx;
+   if ((*state)++ == 1) {
+      ck_assert_str_eq(buf, "error");
+      ck_assert_int_eq(nchars, 5);
+   }
+   else {
+      ck_assert_str_eq(buf, "\n");
+      ck_assert_int_eq(nchars, 1);
+   }
+}
+
+START_TEST(test_redirect)
+{
+   tcl_shell_t *sh = shell_new(NULL);
+
+   int state = 0;
+   shell_handler_t handler = {
+      .stdout_write = stdout_handler,
+      .stderr_write = stderr_handler,
+      .context = &state,
+   };
+   shell_set_handler(sh, &handler);
+
+   const char *result = NULL;
+   fail_unless(shell_eval(sh, "puts \"hello, world!\"", &result));
+   ck_assert_str_eq(result, "");
+
+   ck_assert_int_eq(state, 1);
+
+   fail_unless(shell_eval(sh, "puts stderr error", &result));
+   ck_assert_str_eq(result, "");
+
+   ck_assert_int_eq(state, 3);
+
+   shell_free(sh);
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -182,6 +231,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_analyse);
    tcase_add_test(tc, test_examine1);
    tcase_add_test(tc, test_wave1);
+   tcase_add_test(tc, test_redirect);
    suite_add_tcase(s, tc);
 
    return s;

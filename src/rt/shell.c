@@ -889,7 +889,58 @@ bool shell_do(tcl_shell_t *sh, const char *file)
    }
 }
 
+static int shell_redirect_close(ClientData cd, Tcl_Interp *interp)
+{
+   return EINVAL;
+}
+
+static void shell_redirect_watch(ClientData cd, int mask)
+{
+}
+
+static int shell_redirect_output(ClientData cd, const char *buf, int nchars,
+                                 int *error)
+{
+   tcl_shell_t *sh = untag_pointer(cd, tcl_shell_t);
+   if (pointer_tag(cd) == 0)
+      (*sh->handler.stdout_write)(buf, nchars, sh->handler.context);
+   else
+      (*sh->handler.stderr_write)(buf, nchars, sh->handler.context);
+
+   return nchars;
+}
+
+static const Tcl_ChannelType redirect_funcs = {
+   .typeName = "redirect",
+   .version = TCL_CHANNEL_VERSION_4,
+   .closeProc = shell_redirect_close,
+   .watchProc = shell_redirect_watch,
+   .outputProc = shell_redirect_output,
+};
+
 void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h)
 {
    sh->handler = *h;
+
+   if (h->stdout_write != NULL) {
+      Tcl_Channel chan = Tcl_CreateChannel(&redirect_funcs, "redirect0",
+                                           tag_pointer(sh, 0), TCL_WRITABLE);
+      Tcl_SetChannelOption(NULL, chan, "-translation", "lf");
+      Tcl_SetChannelOption(NULL, chan, "-buffering", "line");
+      Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
+
+      Tcl_RegisterChannel(sh->interp, chan);
+      Tcl_SetStdChannel(chan, TCL_STDOUT);
+   }
+
+   if (h->stderr_write != NULL) {
+      Tcl_Channel chan = Tcl_CreateChannel(&redirect_funcs, "redirect1",
+                                           tag_pointer(sh, 1), TCL_WRITABLE);
+      Tcl_SetChannelOption(NULL, chan, "-translation", "lf");
+      Tcl_SetChannelOption(NULL, chan, "-buffering", "none");
+      Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
+
+      Tcl_RegisterChannel(sh->interp, chan);
+      Tcl_SetStdChannel(chan, TCL_STDERR);
+   }
 }
