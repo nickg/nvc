@@ -506,11 +506,9 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
       if (sh->handler.add_wave != NULL)
          (*sh->handler.add_wave)(ss->path, ss->signal, sh->handler.context);
 
-      assert(ss->watch == NULL);
-      assert(find_watch(&(ss->signal->nexus), shell_event_cb) == NULL);
-
-      ss->watch = model_set_event_cb(sh->model, ss->signal,
-                                     shell_event_cb, ss, true);
+      if (ss->watch == NULL)
+        ss->watch = model_set_event_cb(sh->model, ss->signal,
+                                       shell_event_cb, ss, true);
    }
 
    return TCL_OK;
