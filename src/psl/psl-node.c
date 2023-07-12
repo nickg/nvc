@@ -112,6 +112,7 @@ object_class_t psl_object = {
    .change_allowed = change_allowed,
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
+   .has_loc        = true,
    .tag            = OBJECT_TAG_PSL,
    .last_kind      = P_LAST_PSL_KIND
 };

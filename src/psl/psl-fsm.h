@@ -40,6 +40,7 @@ typedef struct _fsm_state {
    fsm_edge_t  *edges;
    psl_node_t   test;
    bool         initial;
+   bool         repeating;
    bool         accept;
 } fsm_state_t;
 

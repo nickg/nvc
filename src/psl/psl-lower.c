@@ -43,9 +43,7 @@ static vcode_reg_t psl_lower_boolean(lower_unit_t *lu, psl_node_t p)
    assert(psl_kind(p) == P_HDL_EXPR);
    vcode_reg_t test_reg = lower_rvalue(lu, psl_tree(p));
 
-   if (standard() >= STD_08)
-      return test_reg;  // Always converted to boolean by ?? operator
-   else if (!vtype_eq(vcode_reg_type(test_reg), vtype_bool())) {
+   if (!vtype_eq(vcode_reg_type(test_reg), vtype_bool())) {
       vcode_type_t std_logic = vtype_int(0, 8);
       vcode_reg_t one_reg = emit_const(std_logic, 3);
       return emit_cmp(VCODE_CMP_EQ, test_reg, one_reg);
@@ -71,29 +69,33 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
 
    if (state->test != NULL) {
       vcode_reg_t test_reg = psl_lower_boolean(lu, state->test);
-      vcode_reg_t severity_reg = emit_const(vtype_int(0, 3), 1);
+      vcode_reg_t severity_reg = emit_const(vtype_int(0, 3), 2);
 
       vcode_reg_t locus = psl_debug_locus(state->test);
       emit_assert(test_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, severity_reg,
                   locus, VCODE_INVALID_REG, VCODE_INVALID_REG);
    }
 
-   if (state->initial)
+   if (state->repeating)
       emit_enter_state(emit_const(vint32, state->id));
 
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
-      vcode_block_t enter_bb = emit_block();
-      vcode_block_t skip_bb = emit_block();
+      if (e->guard != NULL) {
+         vcode_block_t enter_bb = emit_block();
+         vcode_block_t skip_bb = emit_block();
 
-      vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
-      emit_cond(guard_reg, enter_bb, skip_bb);
+         vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
+         emit_cond(guard_reg, enter_bb, skip_bb);
 
-      vcode_select_block(enter_bb);
+         vcode_select_block(enter_bb);
 
-      emit_enter_state(emit_const(vint32, e->dest->id));
-      emit_jump(skip_bb);
+         emit_enter_state(emit_const(vint32, e->dest->id));
+         emit_jump(skip_bb);
 
-      vcode_select_block(skip_bb);
+         vcode_select_block(skip_bb);
+      }
+      else
+         emit_enter_state(emit_const(vint32, e->dest->id));
    }
 
    emit_return(VCODE_INVALID_REG);
@@ -101,8 +103,6 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
 
 void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
 {
-   assert(psl_kind(p) == P_ASSERT);
-
    psl_fsm_t *fsm = psl_fsm_new(psl_value(p));
 
    if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label))) {

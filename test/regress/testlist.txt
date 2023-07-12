@@ -733,7 +733,7 @@ issue610        normal,2008
 issue640        normal
 vests49         normal
 signal30        normal
-psl1            normal,psl,gold
+psl1            fail,psl,gold
 elab36          normal
 cover13         cover,shell
 gentype5        normal,2008
@@ -817,3 +817,4 @@ reflect2        normal,2019
 issue734        fail,gold,2008
 reflect3        normal,2019
 issue712        normal,2008
+psl2            fail,gold,psl

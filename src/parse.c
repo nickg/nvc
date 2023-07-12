@@ -10653,7 +10653,7 @@ static psl_node_t p_psl_or_hdl_expression(void)
 
    psl_node_t p = psl_new(P_HDL_EXPR);
    psl_set_tree(p, expr);
-   psl_set_loc(p, CURRENT_LOC);
+   psl_set_loc(p, tree_loc(expr));
    psl_set_type(p, PSL_TYPE_BOOLEAN);
 
    return p;

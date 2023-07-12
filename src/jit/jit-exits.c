@@ -23,6 +23,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "object.h"
+#include "psl/psl-node.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
 #include "rt/structs.h"
@@ -442,7 +443,7 @@ void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                    int64_t hint_left, int64_t hint_right, int8_t hint_valid,
-                   tree_t where)
+                   object_t *where)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -459,9 +460,14 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
    const diag_level_t level = diag_severity(severity);
 
-   diag_t *d = diag_new(level, tree_loc(where));
-   if (msg == NULL)
-      diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
+   diag_t *d = diag_new(level, &(where->loc));
+   if (msg == NULL) {
+      psl_node_t p = psl_from_object(where);
+      if (p == NULL)
+         diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
+      else
+         diag_printf(d, "PSL assertion failed");
+   }
    else {
       diag_printf(d, "Assertion %s: ", levels[severity]);
       diag_write(d, (const char *)msg, msg_len);
@@ -472,13 +478,16 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    }
 
    if (hint_valid) {
-      assert(tree_kind(where) == T_FCALL);
-      type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
-      type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
+      tree_t tree = tree_from_object(where);
+      assert(tree != NULL);
+
+      assert(tree_kind(tree) == T_FCALL);
+      type_t p0_type = tree_type(tree_value(tree_param(tree, 0)));
+      type_t p1_type = tree_type(tree_value(tree_param(tree, 1)));
 
       LOCAL_TEXT_BUF tb = tb_new();
       to_string(tb, p0_type, hint_left);
-      switch (tree_subkind(tree_ref(where))) {
+      switch (tree_subkind(tree_ref(tree))) {
       case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
       case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
       case S_SCALAR_LT:  tb_cat(tb, " < "); break;
@@ -490,7 +499,7 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       to_string(tb, p1_type, hint_right);
       tb_cat(tb, " is false");
 
-      diag_hint(d, tree_loc(where), "%s", tb_get(tb));
+      diag_hint(d, &(where->loc), "%s", tb_get(tb));
    }
 
    diag_emit(d);
@@ -581,13 +590,13 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    switch (which) {
    case JIT_EXIT_ASSERT_FAIL:
       {
-         uint8_t *msg        = args[0].pointer;
-         int32_t  len        = args[1].integer;
-         int32_t  severity   = args[2].integer;
-         int64_t  hint_left  = args[3].integer;
-         int64_t  hint_right = args[4].integer;
-         int8_t   hint_valid = args[5].integer;
-         tree_t   where      = args[6].pointer;
+         uint8_t  *msg        = args[0].pointer;
+         int32_t   len        = args[1].integer;
+         int32_t   severity   = args[2].integer;
+         int64_t   hint_left  = args[3].integer;
+         int64_t   hint_right = args[4].integer;
+         int8_t    hint_valid = args[5].integer;
+         object_t *where      = args[6].pointer;
 
          x_assert_fail(msg, len, severity, hint_left, hint_right,
                        hint_valid, where);

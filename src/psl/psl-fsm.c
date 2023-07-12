@@ -33,7 +33,7 @@
                   psl_kind_str(psl_kind(p)),  __FUNCTION__);    \
    } while (0)
 
-static void build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p);
+static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p);
 
 static fsm_state_t *add_state(psl_fsm_t *fsm)
 {
@@ -58,7 +58,8 @@ static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
    from->edges = e;
 }
 
-static void build_implication(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
+                                      psl_node_t p)
 {
    psl_node_t rhs = psl_operand(p, 1);
 
@@ -67,23 +68,20 @@ static void build_implication(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       {
          fsm_state_t *new = add_state(fsm);
          add_edge(state, new, EDGE_NEXT, psl_operand(p, 0));
-         build_node(fsm, new, psl_value(rhs));
+         return build_node(fsm, new, psl_value(rhs));
       }
-      break;
 
    default:
       CANNOT_HANDLE(rhs);
    }
 }
 
-static void build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    int ops = psl_operands(p);
    assert(ops > 0);
 
    build_node(fsm, state, psl_operand(p, 0));
-   if (ops == 1)
-      return;
 
    for (int i = 1; i < ops; i++) {
       psl_node_t rhs = psl_operand(p, i);
@@ -91,30 +89,29 @@ static void build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       case PSL_SERE_CONCAT:
          {
             fsm_state_t *new = add_state(fsm);
-            add_edge(state, new, EDGE_NEXT, psl_value(rhs));
-            build_node(fsm, new, rhs);
+            add_edge(state, new, EDGE_NEXT, NULL);
+            state = build_node(fsm, new, rhs);
          }
          break;
       default:
          CANNOT_HANDLE(p);
       }
    }
+
+   return state;
 }
 
-static void build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
    case P_HDL_EXPR:
       assert(state->test == NULL);
-      state->test   = p;
-      state->accept = true;
-      break;
+      state->test = p;
+      return state;
    case P_SERE:
-      build_sere(fsm, state, p);
-      break;
+      return build_sere(fsm, state, p);
    case P_IMPLICATION:
-      build_implication(fsm, state, p);
-      break;
+      return build_implication(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }
@@ -125,18 +122,25 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    psl_fsm_t *fsm = xcalloc(sizeof(psl_fsm_t));
    fsm->tail = &(fsm->states);
 
-   fsm_state_t *initial = add_state(fsm);
+   fsm_state_t *initial = add_state(fsm), *final = initial;
    initial->initial = true;
 
    switch (psl_kind(p)) {
    case P_ALWAYS:
-      build_node(fsm, initial, psl_value(p));
+      initial->repeating = true;
+      final = build_node(fsm, initial, psl_value(p));
+      break;
+
+   case P_HDL_EXPR:
+   case P_SERE:
+      final = build_node(fsm, initial, p);
       break;
 
    default:
       CANNOT_HANDLE(p);
    }
 
+   final->accept = true;
    return fsm;
 }
 

@@ -78,7 +78,8 @@ static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
    vcode_select_unit(root);
 
    const vunit_kind_t kind = vcode_unit_kind();
-   if (kind != VCODE_UNIT_INSTANCE && kind != VCODE_UNIT_PROCESS)
+   if (kind != VCODE_UNIT_INSTANCE && kind != VCODE_UNIT_PROCESS
+       && kind != VCODE_UNIT_PROPERTY)
       return;
 
    for (vcode_unit_t it = vcode_unit_child(root);

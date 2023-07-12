@@ -830,7 +830,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       STATIC_ASSERT(OBJECT_TAG_COUNT <= 4);
       fbuf_put_uint(f, object->tag | (object->kind << 2));
 
-      if (object->tag == OBJECT_TAG_TREE)
+      if (class->has_loc)
          loc_write(&object->loc, loc_ctx);
 
       const imask_t has = class->has_map[object->kind];
@@ -997,7 +997,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
 
       object_t *object = object_new(arena, class, kind);
 
-      if (tag == OBJECT_TAG_TREE)
+      if (class->has_loc)
          loc_read(&(object->loc), loc_ctx);
 
       const imask_t has = class->has_map[object->kind];

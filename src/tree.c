@@ -461,6 +461,7 @@ object_class_t tree_object = {
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_TREE,
    .last_kind      = T_LAST_TREE_KIND,
+   .has_loc        = true,
    .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
                        T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT,
                        T_PACK_INST },

@@ -90,6 +90,7 @@ object_class_t vlog_object = {
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_VLOG,
    .last_kind      = V_LAST_NODE_KIND,
+   .has_loc        = true,
    .gc_roots       = { V_MODULE },
    .gc_num_roots   = 1
 };

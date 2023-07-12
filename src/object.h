@@ -222,6 +222,7 @@ typedef struct {
    const int               last_kind;
    const int               gc_roots[10];
    const int               gc_num_roots;
+   const bool              has_loc;
    size_t                 *object_size;
 } object_class_t;
 
