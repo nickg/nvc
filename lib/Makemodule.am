@@ -12,12 +12,12 @@ DRIVER = bin/nvc$(EXEEXT)
 
 gen-deps: $(DRIVER)
 	$(MAKE) gen-deps-std gen-deps-std-08 gen-deps-ieee \
-	  gen-deps-synopsys gen-deps-ieee-08 gen-deps-nvc \
-	  gen-deps-nvc-08 gen-deps-std-19 gen-deps-nvc-19 \
-	  gen-deps-ieee-19
+	  gen-deps-ieee-08 gen-deps-nvc gen-deps-nvc-08 gen-deps-std-19 \
+	  gen-deps-nvc-19 gen-deps-ieee-19
 
 clean-libs:
 	rm -f $(BOOTSTRAPLIBS)
+	rm -f lib/synopsys/_NVC_LIB lib/synopsys/_index lib/synopsys/SYNOPSYS.ATTRIBUTES
 	for d in std std.08 std.19 nvc nvc.08 nvc.19 ieee ieee.08 \
 	         ieee.19 synopsys; do \
 	  if test -d lib/$$d; then rmdir lib/$$d; fi; \

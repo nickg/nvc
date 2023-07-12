@@ -41,6 +41,8 @@
 - Fixed a crash when indexing a null array (#734).
 - Named and range choices are now supported in aggregate targets of
   variable and signal assignments (#712).
+- The `synopsys.attributes` package is no longer distributed or built as
+  part of the standard libraries.
 
 ## Version 1.9.2 - 2023-05-01
 - Fix elaboration errors with recursive entity instantiation (#668).

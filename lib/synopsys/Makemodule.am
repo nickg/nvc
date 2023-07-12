@@ -2,7 +2,6 @@
 # traditionally compiled into the IEEE library
 synopsys_ieeedir = $(pkglibdir)/ieee
 synopsys_ieee_08dir = $(pkglibdir)/ieee.08
-synopsysdir = $(pkglibdir)/synopsys
 synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_ARITH \
 	lib/ieee/IEEE.STD_LOGIC_ARITH-body \
@@ -23,21 +22,12 @@ synopsys_ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body \
 	lib/ieee.08/IEEE.STD_LOGIC_MISC \
 	lib/ieee.08/IEEE.STD_LOGIC_MISC-body
-synopsys_DATA = \
-	lib/synopsys/_NVC_LIB \
-	lib/synopsys/_index \
-	lib/synopsys/SYNOPSYS.ATTRIBUTES
 
 EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_misc.vhd lib/synopsys/std_logic_signed.vhd \
-	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd \
-	lib/synopsys/attributes.vhd
+	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd
 
-BOOTSTRAPLIBS += $(synopsys_DATA) $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
-
-lib/synopsys/_NVC_LIB:
-
-lib/synopsys/_index:
+BOOTSTRAPLIBS += $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
 
 lib/ieee/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
@@ -65,14 +55,3 @@ lib/ieee.08/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd @
 
 lib/ieee.08/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
-
-lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
-
-gen-deps-synopsys:
-	$(nvc) --std=1993 -L lib/ --work=lib/synopsys --print-deps | \
-		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
-
-lib/ieee/IEEE.STD_LOGIC_MISC: lib/synopsys/SYNOPSYS.ATTRIBUTES
-
-include lib/synopsys/deps.mk
