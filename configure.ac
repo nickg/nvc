@@ -215,8 +215,7 @@ AS_IF([test x$enable_tcl = xyes],
 
        AX_LIB_READLINE
        if test "x$ax_cv_lib_readline" = xno ; then
-         AC_MSG_ERROR([readline or a compatible library is required when
-                       TCL is enabled])
+         AC_MSG_ERROR([readline or a compatible library is required when TCL is enabled])
        fi])
 
 AM_CONDITIONAL([ENABLE_TCL], [test x$enable_tcl = xyes])

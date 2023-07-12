@@ -10,6 +10,7 @@ packages:
   - pkgconf
   - elfutils-dev
   - libffi-dev
+  - zstd-dev
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:

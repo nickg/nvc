@@ -6,6 +6,8 @@ packages:
   - elfutils
   - check
   - libffi
+  - libzstd
+  - tcl
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:
@@ -15,7 +17,7 @@ tasks:
       ./autogen.sh
       mkdir build
       cd build
-      ../configure --enable-debug
+      ../configure --enable-debug --enable-tcl
   - build: |
       cd nvc/build
       make
@@ -25,5 +27,5 @@ tasks:
   - release: |
       cd nvc/build
       make distclean
-      ../configure --disable-debug
+      ../configure --disable-debug --enable-tcl
       make

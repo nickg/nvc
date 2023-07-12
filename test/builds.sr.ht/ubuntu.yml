@@ -10,6 +10,9 @@ packages:
   - zlib1g-dev
   - pkg-config
   - libdw-dev
+  - libzstd-dev
+  - tcl-dev
+  - libreadline-dev
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:
@@ -20,7 +23,7 @@ tasks:
       mkdir build
       cd build
       ../configure --enable-debug --enable-asan \
-          --with-llvm=/usr/bin/llvm-config
+          --with-llvm=/usr/bin/llvm-config --enable-tcl
   - build: |
       cd nvc/build
       make
@@ -34,10 +37,10 @@ tasks:
       ./bin/jitperf -L lib/ ../test/perf/simple.vhd
   - interpreter: |
       cd nvc/build
-      ../configure --disable-llvm --enable-debug
+      ../configure --disable-llvm --enable-debug --enable-tcl
       make clean check
   - release: |
       cd nvc/build
       make distclean
-      ../configure --disable-debug
+      ../configure --disable-debug --enable-tcl
       make

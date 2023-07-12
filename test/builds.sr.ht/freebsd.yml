@@ -7,6 +7,8 @@ packages:
   - libunwind
   - pkgconf
   - libffi
+  - zstd
+  - tcl86
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:
@@ -18,7 +20,7 @@ tasks:
       export LDFLAGS="-L/usr/local/lib"
       mkdir build
       cd build
-      ../configure --enable-debug
+      ../configure --enable-debug --enable-tcl
   - build: |
       cd nvc/build
       make -j2
@@ -30,5 +32,5 @@ tasks:
       make distclean
       export CPPFLAGS="-I/usr/local/include"
       export LDFLAGS="-L/usr/local/lib"
-      ../configure --disable-debug
+      ../configure --disable-debug --enable-tcl
       make

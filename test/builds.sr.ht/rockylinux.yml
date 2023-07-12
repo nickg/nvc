@@ -11,6 +11,9 @@ packages:
   - pkg-config
   - elfutils-devel
   - capstone-devel
+  - tcl-devel
+  - libzstd-devel
+  - readline-devel
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:
@@ -20,7 +23,7 @@ tasks:
       ./autogen.sh
       mkdir build
       cd build
-      ../configure --enable-debug --disable-lto
+      ../configure --enable-debug --disable-lto --enable-tcl
   - build: |
       cd nvc/build
       make
@@ -30,6 +33,6 @@ tasks:
   - release: |
       cd nvc/build
       make distclean
-      ../configure --disable-debug
+      ../configure --disable-debug --enable-tcl
       make
       make check

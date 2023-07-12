@@ -354,7 +354,7 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
    }
 
    // Query LHS/RHS operand locations of binary expressions
-   loc_t loc_lhs, loc_rhs = {0};
+   loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
    if (flags & COVER_FLAGS_LHS_RHS_BINS) {
       assert(tree_params(t) > 1);
       loc_lhs = *tree_loc(tree_param(t, 0));

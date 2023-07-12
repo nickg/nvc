@@ -6,6 +6,7 @@ packages:
   - libdwarf
   - check
   - libffi
+  - zstd
 sources:
   - https://git.sr.ht/~nickg/nvc
 tasks:
