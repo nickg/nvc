@@ -25,6 +25,7 @@ tasks:
       cd nvc/build
       make
   - test: |
+      export BROKEN_LIBC=1
       cd nvc/build
       make check
   - release: |

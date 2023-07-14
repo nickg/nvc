@@ -141,6 +141,7 @@ static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
 static bool force_jit = false;
+static bool broken_libc = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -847,7 +848,7 @@ static bool run_test(test_t *test)
          }
       }
 
-      if (test->flags & F_FAIL) {
+      if ((test->flags & F_FAIL) || broken_libc) {
          if (run_cmd(outf, &args) != RUN_OK) {
             failed(NULL);
             result = false;
@@ -1109,6 +1110,7 @@ int main(int argc, char **argv)
       return EXIT_FAILURE;
 
    force_jit = getenv("FORCE_JIT") != NULL;
+   broken_libc = getenv("BROKEN_LIBC") != NULL;
 
    char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));
 

@@ -274,6 +274,7 @@ typedef enum {
    RELOC_FOREIGN,
    RELOC_PRIVDATA,
    RELOC_COVER,
+   RELOC_PROCESSED,
 } reloc_kind_t;
 
 typedef struct {

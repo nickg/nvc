@@ -300,6 +300,18 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
             //       allocating coverage memory earlier
             r->ptr = &(j->cover_mem);
          }
+         else if (r->kind == RELOC_PROCESSED) {
+            // Detect musl libc brokenness
+            diag_t *d = diag_new(DIAG_FATAL, NULL);
+            diag_printf(d, "shared library containing %s was not properly "
+                        "unloaded", istr(f->name));
+            diag_hint(d, NULL, "this is probably because your libc does not "
+                      "implement dlclose(3) correctly");
+            diag_hint(d, NULL, "run the $bold$-e$$ and $bold$-r$$ steps in "
+                      "separate commands as a workaround");
+            diag_emit(d);
+            fatal_exit(1);
+         }
          else {
             jit_handle_t h = jit_lazy_compile_locked(j, ident_new(str));
             if (h == JIT_HANDLE_INVALID)
@@ -319,6 +331,8 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
                fatal_trace("unhandled relocation kind %d", r->kind);
             }
          }
+
+         r->kind = RELOC_PROCESSED;
       }
 
       store_release(&f->state, JIT_FUNC_READY);
