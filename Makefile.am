@@ -72,6 +72,7 @@ release: update-test-dist
 	echo $(PACKAGE_VERSION) | grep -E "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$$"
 	$(AM_V_GEN)( \
 	  v=$(PACKAGE_VERSION); d=$$(date '+%Y-%m-%d'); \
+	  b=$$(echo $(PACKAGE_VERSION) | sed 's/.[0-9]$$//'); \
 	  n=$$(date '+%-d'); l=$$(date '+%B %Y'); \
 	  case $$n in \
 	    1?) n=$${n}th ;; \
@@ -81,6 +82,7 @@ release: update-test-dist
 	    *)  n=$${n}th ;; \
 	  esac; \
 	  sed -i "s/\(Unreleased changes\)/\1\n\n## Version $$v - $$d/" $(top_srcdir)/NEWS.md; \
+	  sed -i "s/\bmaster\b/$$b/" $(top_srcdir)/www/features.html.in; \
 	  sed -i -e "/define(__version,/cdefine(__version, \`$$v')dnl/" \
 	    -e "/define(__release_date,/cdefine(__release_date, \`$$n $$l')dnl/" \
 	    -e "/define(__release_date_short,/cdefine(__release_date_short, \`$$d')dnl/" \
