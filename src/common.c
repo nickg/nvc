@@ -1947,16 +1947,13 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
    case T_RECORD_REF:
       {
          tree_t ref = name_to_ref(expr);
-         if (ref != NULL && class_of(ref) == C_SIGNAL) {
-            if (longest_static_prefix(expr) == expr)
-               (*fn)(expr, ctx);
-            else {
-               build_wait(tree_value(expr), fn, ctx);
-               build_wait_for_target(expr, fn, ctx);
-            }
-         }
-         else
+         if (ref != NULL && class_of(ref) == C_SIGNAL
+             && longest_static_prefix(expr) == expr)
+            (*fn)(expr, ctx);
+         else {
             build_wait(tree_value(expr), fn, ctx);
+            build_wait_for_target(expr, fn, ctx);
+         }
       }
       break;
 

@@ -856,6 +856,14 @@ START_TEST(test_allsens)
    fail_unless(tree_kind(e) == T_ARRAY_REF);
    fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
    fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+
+   // P15: n
+   w = tree_stmt(tree_stmt(a, 15), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
 }
 END_TEST
 

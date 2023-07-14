@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed incorrect sensitivity list generation with concurrent statements
+  such as `x <= C(y)` where C is a constant array.
 
 ## Version 1.10.0 - 2023-07-14
 - ZSTD is now a build dependency. Install `libzstd-dev` or similar.

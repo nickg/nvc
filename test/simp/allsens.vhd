@@ -7,6 +7,7 @@ architecture test of allsens is
     signal v    : bit_vector(1 to 3);
     signal z    : bv_array(1 to 3);
     signal n    : integer range v'range := 3;
+    constant c  : bit_vector(1 to 3) := "101";
 begin
 
     p0: process (all) is                -- (y)
@@ -72,5 +73,7 @@ begin
     end process;
 
     p14: v <= x & y & v(2);             -- x, y, v(2)
+
+    p15: x <= c(n);                     -- n
 
 end architecture;
