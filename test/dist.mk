@@ -102,6 +102,7 @@ EXTRA_DIST += \
 	test/elab/libbind3.vhd \
 	test/elab/libbind.vhd \
 	test/elab/link1.vhd \
+	test/elab/mixed1.v \
 	test/elab/mixed1.vhd \
 	test/elab/neorv1.vhd \
 	test/elab/open2.vhd \
@@ -1420,7 +1421,9 @@ EXTRA_DIST += \
 	test/regress/view4.vhd \
 	test/regress/view5.vhd \
 	test/regress/vital1.vhd \
+	test/regress/vlog1.v \
 	test/regress/vlog1.vhd \
+	test/regress/vlog2.v \
 	test/regress/wait10.vhd \
 	test/regress/wait11.vhd \
 	test/regress/wait12.vhd \
@@ -1662,4 +1665,8 @@ EXTRA_DIST += \
 	test/simp/static1.vhd \
 	test/simp/table.vhd \
 	test/simp/use.vhd \
-	test/test-osvvm.tcl
+	test/test-osvvm.tcl \
+	test/vlog/dff.v \
+	test/vlog/parse1.v \
+	test/vlog/ports.v \
+	test/vlog/simple_sem.v
