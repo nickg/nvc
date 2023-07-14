@@ -22,7 +22,7 @@ architecture psl of psl2 is
 
 begin
 
-  clk <= clk + 1 after 1 ns when clk < 6;
+  clk <= clk + 1 after 1 ns when clk < 5;
 
   a <= seq_a(clk);
   b <= seq_b(clk);
