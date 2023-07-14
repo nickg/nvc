@@ -1382,6 +1382,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PACK_BODY:
       case T_PACKAGE:
       case T_PACK_INST:
+      case T_PSL:
          tree_add_decl(ctx->out, d);
          break;
       case T_FUNC_DECL:
@@ -1773,7 +1774,7 @@ static void elab_psl(tree_t t, const elab_ctx_t *ctx)
    elab_external_names(t, ctx);
 
    if (error_count() == 0)
-      psl_lower(ctx->lowered, tree_psl(t), tree_ident(t));
+      psl_lower_assert(ctx->lowered, tree_psl(t), tree_ident(t));
 
    tree_add_stmt(ctx->out, t);
 }

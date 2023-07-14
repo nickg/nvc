@@ -56,7 +56,7 @@ typedef enum {
 
 #define NET_F_FORCED       (1 << 0)
 #define NET_F_INOUT        (1 << 1)
-// Unused                  (1 << 2)
+#define NET_F_CACHE_EVENT  (1 << 2)
 #define NET_F_R_IDENT      (1 << 3)
 // Unused                  (1 << 4)
 #define NET_F_REGISTER     (1 << 5)

@@ -26,6 +26,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
+#include "psl/psl-node.h"
 #include "rt/heap.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -498,6 +499,10 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 
       case T_PSL:
          {
+            psl_node_t psl = tree_psl(t);
+            if (psl_kind(psl) != P_ASSERT)
+               continue;
+
             ident_t name = tree_ident(t);
             ident_t sym = ident_prefix(s->name, name, '.');
 
@@ -509,7 +514,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 
             p->wakeable.kind      = W_PROPERTY;
             p->wakeable.pending   = false;
-            p->wakeable.postponed = false;
+            p->wakeable.postponed = true;
             p->wakeable.delayed   = false;
 
             list_add(&s->properties, p);
@@ -983,6 +988,10 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
 
    thread->active_obj = NULL;
    thread->active_scope = NULL;
+
+   // Run the property in the first time step
+   prop->wakeable.pending = true;
+   workq_do(m->postponedq, async_update_property, prop);
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
@@ -2580,6 +2589,23 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
    if (obj->pending)
       return;   // Already scheduled
 
+   if (obj->trigger != NULL) {
+      tlab_t tlab = jit_null_tlab(m->jit);
+      jit_scalar_t result,
+         arg1 = { .pointer = obj->trigger->closure.context },
+         arg2 = { .integer = 0 };
+
+      jit_fastcall(m->jit, obj->trigger->closure.handle, &result,
+                   arg1, arg2, &tlab);
+
+      TRACE("run trigger %s ==> %"PRIi64,
+            istr(jit_get_name(m->jit, obj->trigger->closure.handle)),
+            result.integer);
+
+      if (result.integer == 0)
+         return;   // Filtered
+   }
+
    workq_t *wq = obj->postponed ? m->postponedq : m->procq;
 
    switch (obj->kind) {
@@ -2634,6 +2660,9 @@ static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
 {
    nexus->last_event = m->now;
    nexus->event_delta = m->iteration;
+
+   if (nexus->flags & NET_F_CACHE_EVENT)
+      nexus->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
    if (pointer_tag(nexus->pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(nexus->pending, rt_wakeable_t);
@@ -2924,7 +2953,7 @@ static void sync_event_cache(rt_model_t *m)
       TRACE("sync event flag %d for %s", event, istr(tree_ident(s->where)));
 
       if (event)
-         s->shared.flags |= SIG_F_EVENT_FLAG;
+         assert(s->shared.flags & SIG_F_EVENT_FLAG);   // Set by notify_event
       else
          s->shared.flags &= ~SIG_F_EVENT_FLAG;
    }
@@ -3592,6 +3621,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    if (ss->size == 1) {
       assert(!(ss->flags & SIG_F_CACHE_EVENT));   // Should have taken fast-path
       ss->flags |= SIG_F_CACHE_EVENT | (result ? SIG_F_EVENT_FLAG : 0);
+      s->nexus.flags |= NET_F_CACHE_EVENT;
       list_add(&m->eventsigs, s);
    }
 
@@ -4154,4 +4184,30 @@ void x_process_init(jit_handle_t handle, tree_t where)
    p->wakeable.delayed   = false;
 
    list_add(&s->procs, p);
+}
+
+void *x_function_trigger(const ffi_closure_t *closure)
+{
+   rt_model_t *m = get_model();
+
+   TRACE("function trigger %s context %p",
+         istr(jit_get_name(m->jit, closure->handle)), closure->context);
+
+   rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t));
+   t->closure = *closure;
+
+   return t;
+}
+
+void x_add_trigger(void *ptr)
+{
+   rt_model_t *m = get_model();
+
+   TRACE("add trigger %p %s", ptr,
+         istr(jit_get_name(m->jit, ((rt_trigger_t *)ptr)->closure.handle)));
+
+   rt_wakeable_t *obj = get_active_wakeable();
+   assert(obj->trigger == NULL);
+
+   obj->trigger = ptr;
 }

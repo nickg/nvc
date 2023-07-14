@@ -35,11 +35,16 @@ typedef enum {
 typedef uint32_t wakeup_gen_t;
 
 typedef struct {
+   ffi_closure_t closure;
+} rt_trigger_t;
+
+typedef struct {
    wakeable_kind_t kind : 8;
    unsigned        pending : 1;
    unsigned        postponed : 1;
    unsigned        delayed : 1;
    unsigned        free_later : 1;
+   rt_trigger_t   *trigger;
 } rt_wakeable_t;
 
 typedef struct _rt_proc {
@@ -51,6 +56,8 @@ typedef struct _rt_proc {
    rt_scope_t    *scope;
    mptr_t         privdata;
 } rt_proc_t;
+
+STATIC_ASSERT(sizeof(rt_proc_t) <= 128);
 
 typedef struct {
    rt_wakeable_t  wakeable;

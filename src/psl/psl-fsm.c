@@ -81,7 +81,8 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    int ops = psl_operands(p);
    assert(ops > 0);
 
-   build_node(fsm, state, psl_operand(p, 0));
+   psl_node_t prev = psl_operand(p, 0);
+   build_node(fsm, state, prev);
 
    for (int i = 1; i < ops; i++) {
       psl_node_t rhs = psl_operand(p, i);
@@ -89,8 +90,8 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       case PSL_SERE_CONCAT:
          {
             fsm_state_t *new = add_state(fsm);
-            add_edge(state, new, EDGE_NEXT, NULL);
-            state = build_node(fsm, new, rhs);
+            add_edge(state, new, EDGE_NEXT, prev);
+            state = build_node(fsm, new, (prev = rhs));
          }
          break;
       default:

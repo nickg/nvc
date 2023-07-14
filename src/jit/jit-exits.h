@@ -100,5 +100,7 @@ void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
                       const jit_scalar_t *bounds);
 void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
+void *x_function_trigger(const ffi_closure_t *closure);
+void x_add_trigger(void *ptr);
 
 #endif  // _JIT_EXITS_H

@@ -741,6 +741,7 @@ static int irgen_align_of(vcode_type_t vtype)
    case VCODE_TYPE_SIGNAL:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_TRIGGER:
       return sizeof(void *);
    case VCODE_TYPE_CARRAY:
       return irgen_align_of(vtype_elem(vtype));
@@ -761,6 +762,7 @@ static int irgen_size_bits(vcode_type_t vtype)
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_TRIGGER:
       return sizeof(void *) * 8;
    default:
       fatal_trace("cannot handle type %d in irgen_size_bits",
@@ -810,6 +812,7 @@ static int irgen_size_bytes(vcode_type_t vtype)
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_TRIGGER:
       return sizeof(void *);
 
    case VCODE_TYPE_SIGNAL:
@@ -1638,6 +1641,7 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_TRIGGER:
       return j_load(g, JIT_SZ_PTR, addr);
 
    case VCODE_TYPE_SIGNAL:
@@ -1703,6 +1707,7 @@ static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_REAL:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_TRIGGER:
       j_store(g, irgen_jit_size(vtype), value, addr);
       break;
 
@@ -3478,6 +3483,26 @@ static void irgen_op_enter_state(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_ENTER_STATE);
 }
 
+static void irgen_op_function_trigger(jit_irgen_t *g, int op)
+{
+   jit_value_t closure = irgen_get_arg(g, op, 0);
+   jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+
+   j_send(g, 0, closure);
+   j_send(g, 1, context);
+   macro_exit(g, JIT_EXIT_FUNCTION_TRIGGER);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_add_trigger(jit_irgen_t *g, int op)
+{
+   jit_value_t trigger = irgen_get_arg(g, op, 0);
+
+   j_send(g, 0, trigger);
+   macro_exit(g, JIT_EXIT_ADD_TRIGGER);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3857,6 +3882,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_ENTER_STATE:
          irgen_op_enter_state(g, i);
+         break;
+      case VCODE_OP_FUNCTION_TRIGGER:
+         irgen_op_function_trigger(g, i);
+         break;
+      case VCODE_OP_ADD_TRIGGER:
+         irgen_op_add_trigger(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));

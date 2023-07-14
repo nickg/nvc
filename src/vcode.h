@@ -161,6 +161,8 @@ typedef enum {
    VCODE_OP_ENTER_STATE,
    VCODE_OP_REFLECT_VALUE,
    VCODE_OP_REFLECT_SUBTYPE,
+   VCODE_OP_FUNCTION_TRIGGER,
+   VCODE_OP_ADD_TRIGGER,
 } vcode_op_t;
 
 typedef enum {
@@ -179,6 +181,7 @@ typedef enum {
    VCODE_TYPE_CLOSURE,
    VCODE_TYPE_CONTEXT,
    VCODE_TYPE_DEBUG_LOCUS,
+   VCODE_TYPE_TRIGGER,
 } vtype_kind_t;
 
 typedef enum {
@@ -261,6 +264,7 @@ vcode_type_t vtype_resolution(vcode_type_t base);
 vcode_type_t vtype_closure(vcode_type_t result);
 vcode_type_t vtype_context(ident_t name);
 vcode_type_t vtype_debug_locus(void);
+vcode_type_t vtype_trigger(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -522,5 +526,7 @@ vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
                                vcode_reg_t bounds);
 vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
                                  vcode_reg_t locus, vcode_reg_t bounds);
+vcode_reg_t emit_function_trigger(vcode_reg_t closure);
+void emit_add_trigger(vcode_reg_t trigger);
 
 #endif  // _VCODE_H

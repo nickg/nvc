@@ -956,7 +956,8 @@ const char *vcode_op_string(vcode_op_t op)
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "strconv", "canon value", "convstr",
       "trap neg", "process init", "clear event", "trap exp", "implicit event",
-      "enter state", "reflect value", "reflect subtype",
+      "enter state", "reflect value", "reflect subtype", "function trigger",
+      "add trigger",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1095,6 +1096,10 @@ static int vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_DEBUG_LOCUS:
       col += printf("D<>");
+      break;
+
+   case VCODE_TYPE_TRIGGER:
+      col += printf("T<>");
       break;
    }
 
@@ -2272,6 +2277,22 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_result_type(col, op);
             }
             break;
+
+         case VCODE_OP_FUNCTION_TRIGGER:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_ADD_TRIGGER:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
          }
 
          if (j == mark_op && i == old_block)
@@ -2322,6 +2343,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_OFFSET:
       case VCODE_TYPE_OPAQUE:
       case VCODE_TYPE_DEBUG_LOCUS:
+      case VCODE_TYPE_TRIGGER:
          return true;
       case VCODE_TYPE_RESOLUTION:
       case VCODE_TYPE_CLOSURE:
@@ -2365,6 +2387,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_OPAQUE:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_DEBUG_LOCUS:
+   case VCODE_TYPE_TRIGGER:
       return false;
 
    case VCODE_TYPE_REAL:
@@ -2640,6 +2663,16 @@ vcode_type_t vtype_debug_locus(void)
    return vtype_new(n);
 }
 
+vcode_type_t vtype_trigger(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_TRIGGER;
+
+   return vtype_new(n);
+}
+
 vcode_type_t vtype_real(double low, double high)
 {
    assert(active_unit != NULL);
@@ -2757,7 +2790,7 @@ bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_POINTER
       || kind == VCODE_TYPE_FILE || kind == VCODE_TYPE_ACCESS
       || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL
-      || kind == VCODE_TYPE_CONTEXT;
+      || kind == VCODE_TYPE_CONTEXT || kind == VCODE_TYPE_TRIGGER;
 }
 
 bool vtype_is_composite(vcode_type_t type)
@@ -4036,6 +4069,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_SIGNAL:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_OFFSET:
+   case VCODE_TYPE_TRIGGER:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type);
       vcode_reg_data(op->result)->bounds = var->bounds;
@@ -5872,6 +5906,26 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
    return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
 }
 
+vcode_reg_t emit_function_trigger(vcode_reg_t closure)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FUNCTION_TRIGGER);
+   vcode_add_arg(op, closure);
+
+   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+                "argument to function trigger must be a closure");
+
+   return (op->result = vcode_add_reg(vtype_trigger()));
+}
+
+void emit_add_trigger(vcode_reg_t trigger)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ADD_TRIGGER);
+   vcode_add_arg(op, trigger);
+
+   VCODE_ASSERT(vcode_reg_kind(trigger) == VCODE_TYPE_TRIGGER,
+                "add trigger argument must be trigger");
+}
+
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
                              ident_wr_ctx_t ident_wr_ctx,
                              loc_wr_ctx_t *loc_wr_ctx)
@@ -5997,6 +6051,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
       case VCODE_TYPE_OPAQUE:
       case VCODE_TYPE_DEBUG_LOCUS:
+      case VCODE_TYPE_TRIGGER:
          break;
 
       case VCODE_TYPE_CONTEXT:
@@ -6172,6 +6227,7 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
       case VCODE_TYPE_OPAQUE:
       case VCODE_TYPE_DEBUG_LOCUS:
+      case VCODE_TYPE_TRIGGER:
          break;
 
       case VCODE_TYPE_CONTEXT:

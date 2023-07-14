@@ -22,10 +22,10 @@ architecture psl of psl2 is
 
 begin
 
-  clk <= clk + 1 after 1 ns when clk < 5;
+  clkgen: clk <= clk + 1 after 1 ns when clk < 5;
 
-  a <= seq_a(clk);
-  b <= seq_b(clk);
+  agen: a <= seq_a(clk);
+  bgen: b <= seq_b(clk);
 
   -- This assertion holds
   -- psl SERE_0_a : assert {a};
@@ -34,11 +34,9 @@ begin
   -- psl SERE_1_a : assert {a; a};
 
   -- This assertion holds
-  -- XXX: this currently fails incorrectly
   -- psl SERE_2_a : assert {a; a and b};
 
   -- This assertion doesn't hold at cycle 2
-  -- XXX: this doesn't fail!
   -- psl SERE_3_a : assert always {a; a};
 
 end architecture psl;

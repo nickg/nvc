@@ -8594,6 +8594,10 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
          lower_instantiated_package(lu, decl);
       break;
 
+   case T_PSL:
+      psl_lower_decl(lu, tree_psl(decl), tree_ident(decl));
+      break;
+
    default:
       fatal_trace("cannot lower decl kind %s", tree_kind_str(tree_kind(decl)));
    }

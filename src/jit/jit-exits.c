@@ -1162,6 +1162,29 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_FUNCTION_TRIGGER:
+      {
+         jit_handle_t  handle  = args[0].integer;
+         void         *context = args[1].pointer;
+
+         if (jit_has_runtime(jit_thread_local()->jit)) {
+            ffi_closure_t closure = { handle, context };
+            args[0].pointer = x_function_trigger(&closure);
+         }
+         else
+            args[0].pointer = NULL;   // Called during constant folding
+      }
+      break;
+
+   case JIT_EXIT_ADD_TRIGGER:
+      {
+         void *trigger = args[0].pointer;
+
+         if (trigger != NULL)
+            x_add_trigger(trigger);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }

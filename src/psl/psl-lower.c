@@ -101,8 +101,10 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
    emit_return(VCODE_INVALID_REG);
 }
 
-void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
+void psl_lower_assert(lower_unit_t *parent, psl_node_t p, ident_t label)
 {
+   assert(psl_kind(p) == P_ASSERT);
+
    psl_fsm_t *fsm = psl_fsm_new(psl_value(p));
 
    if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label))) {
@@ -110,10 +112,10 @@ void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
       psl_fsm_dump(fsm, fname);
    }
 
-   vcode_unit_t context = parent ? get_vcode(parent) : NULL;
-   vcode_select_unit(context);
+   vcode_unit_t context = get_vcode(parent);
+   vcode_select_unit(get_vcode(parent));
 
-   ident_t prefix = parent ? vcode_unit_name() : lib_name(lib_work());
+   ident_t prefix = vcode_unit_name();
    ident_t name = ident_prefix(prefix, label, '.');
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
@@ -126,18 +128,20 @@ void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
    vcode_reg_t state_reg = emit_param(vint32, vint32, ident_new("state"));
 
    vcode_block_t reset_bb = emit_block();
-   vcode_block_t clock_bb = emit_block();
-   vcode_block_t skip_bb = emit_block();
    vcode_block_t case_bb = emit_block();
    vcode_block_t abort_bb = emit_block();
 
    vcode_reg_t zero_reg = emit_const(vint32, 0);
    vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_LT, state_reg, zero_reg);
-   emit_cond(cmp_reg, reset_bb, clock_bb);
+   emit_cond(cmp_reg, reset_bb, case_bb);
 
    // Only handle a single clock for the whole property
    psl_node_t clk = psl_clock(psl_value(p));
    tree_t clk_expr = psl_tree(clk);
+
+   int hops;
+   vcode_var_t trigger_var = lower_search_vcode_obj(clk, lu, &hops);
+   assert(trigger_var != VCODE_INVALID_VAR);
 
    vcode_select_block(reset_bb);
 
@@ -145,19 +149,11 @@ void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
 
    build_wait(clk_expr, psl_wait_cb, lu);
 
+   vcode_reg_t trigger_ptr = emit_var_upref(hops, trigger_var);
+   vcode_reg_t trigger_reg = emit_load_indirect(trigger_ptr);
+   emit_add_trigger(trigger_reg);
+
    emit_return(emit_const(vint32, fsm->next_id));
-
-   vcode_select_block(clock_bb);
-
-   emit_comment("Test clock expression");
-
-   vcode_reg_t clk_reg = lower_rvalue(lu, clk_expr);
-   emit_cond(clk_reg, case_bb, skip_bb);
-
-   vcode_select_block(skip_bb);
-
-   emit_enter_state(state_reg);
-   emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(case_bb);
 
@@ -187,4 +183,54 @@ void psl_lower(lower_unit_t *parent, psl_node_t p, ident_t label)
    lower_unit_free(lu);
 
    psl_fsm_free(fsm);
+}
+
+static void psl_lower_clock_decl(lower_unit_t *parent, psl_node_t p,
+                                 ident_t label)
+{
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_unit_t context = get_vcode(parent);
+   vcode_select_unit(get_vcode(parent));
+
+   ident_t prefix = vcode_unit_name();
+   ident_t name = ident_prefix(prefix, label, '.');
+
+   vcode_unit_t vu = emit_function(name, psl_to_object(p), context);
+   vcode_set_result(vtype_bool());
+
+   vcode_type_t vcontext = vtype_context(prefix);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
+
+   vcode_reg_t clk_reg = lower_rvalue(lu, psl_tree(p));
+   emit_return(clk_reg);
+
+   lower_unit_free(lu);
+   vcode_state_restore(&state);
+
+   vcode_type_t vtrigger = vtype_trigger();
+   vcode_var_t var = emit_var(vtrigger, vtrigger, label, 0);
+
+   vcode_reg_t context_reg = emit_context_upref(0);
+   vcode_reg_t closure_reg = emit_closure(name, context_reg,
+                                          VCODE_INVALID_TYPE, vtype_bool());
+   vcode_reg_t trigger_reg = emit_function_trigger(closure_reg);
+   emit_store(trigger_reg, var);
+
+   lower_put_vcode_obj(p, var, parent);
+}
+
+void psl_lower_decl(lower_unit_t *parent, psl_node_t p, ident_t label)
+{
+   switch (psl_kind(p)) {
+   case P_CLOCK_DECL:
+      psl_lower_clock_decl(parent, p, label);
+      break;
+   default:
+      fatal_at(psl_loc(p), "cannot lower PSL declaration kind %s",
+               psl_kind_str(psl_kind(p)));
+   }
 }
