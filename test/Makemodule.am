@@ -156,7 +156,7 @@ update-test-dist:
 	  echo "EXTRA_DIST += \\" ; \
 	  cd $(top_srcdir) ; \
 	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' \
-	    'test/*.gtkw' 'test/*.tcl' \
+	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' \
 	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
 endif
