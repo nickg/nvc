@@ -151,13 +151,70 @@ static void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
    Tcl_CreateObjCommand(sh->interp, name, fn, sh, NULL);
 }
 
+static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                           void *user)
+{
+   shell_signal_t *ss = user;
+   shell_handler_t *h = &(ss->owner->handler);
+
+   if (h->signal_update != NULL)
+      (*h->signal_update)(ss->path, now, s, h->context);
+}
+
+static void recreate_signals(tcl_shell_t *sh, rt_scope_t *scope,
+                             shell_signal_t **wptr)
+{
+   for (list_iter(rt_signal_t *, s, scope->signals)) {
+      shell_signal_t *ss = (*wptr)++;
+      assert(ss->name == ident_downcase(tree_ident(s->where)));
+      ss->signal = s;
+
+      if (ss->watch != NULL)
+         ss->watch = model_set_event_cb(ss->owner->model, ss->signal,
+                                        shell_event_cb, ss, true);
+   }
+
+   for (list_iter(rt_alias_t *, a, scope->aliases)) {
+      shell_signal_t *ss = (*wptr)++;
+      assert(ss->name == ident_downcase(tree_ident(a->where)));
+      ss->signal = a->signal;
+
+      if (ss->watch != NULL)
+         ss->watch = model_set_event_cb(sh->model, ss->signal,
+                                        shell_event_cb, ss, true);
+   }
+
+   for (list_iter(rt_scope_t *, child, scope->children))
+      recreate_signals(sh, child, wptr);
+}
+
 static const char restart_help[] =
    "Restart the simulation";
 
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
-   return tcl_error(cd, "not implemented");
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   model_free(sh->model);
+   jit_reset(sh->jit);
+
+   sh->model = model_new(sh->top, sh->jit);
+   model_reset(sh->model);
+
+   if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
+      fatal_trace("cannot find root scope");
+
+   shell_signal_t *wptr = sh->signals;
+   recreate_signals(sh, sh->root, &wptr);
+   assert(wptr == sh->signals + sh->nsignals);
+
+   shell_update_now(sh);
+
+   return TCL_OK;
 }
 
 static const char run_help[] =
@@ -482,16 +539,6 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
                     Tcl_GetString(objv[0]));
 }
 
-static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
-                           void *user)
-{
-   shell_signal_t *ss = user;
-   shell_handler_t *h = &(ss->owner->handler);
-
-   if (h->signal_update != NULL)
-      (*h->signal_update)(ss->path, now, s, h->context);
-}
-
 static const char add_help[] =
    "Add signals and other objects to the display\n"
    "\n"
@@ -755,8 +802,11 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
 
 void shell_free(tcl_shell_t *sh)
 {
-   if (sh->model != NULL)
+   if (sh->model != NULL) {
       model_free(sh->model);
+      hash_free(sh->namemap);
+      free(sh->signals);
+   }
 
    if (sh->jit != NULL)
       jit_free(sh->jit);
@@ -764,6 +814,9 @@ void shell_free(tcl_shell_t *sh)
    unit_registry_free(sh->registry);
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
+
+   free(sh->prompt);
+   free(sh->cmds);
    free(sh);
 }
 

@@ -6,8 +6,6 @@ proc assert condition {
 
 set testdir [file dirname [file normalize [info script]]]
 
-puts testdir
-
 vcom $testdir/signal1.vhd
 vsim signal1
 
