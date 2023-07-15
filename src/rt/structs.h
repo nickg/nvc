@@ -134,19 +134,20 @@ typedef struct {
 } res_memo_t;
 
 typedef struct _rt_nexus {
-   rt_nexus_t   *chain;
-   rt_signal_t  *signal;
-   uint32_t      offset;
-   int32_t       active_delta;
-   uint32_t      width;
-   net_flags_t   flags;
-   uint8_t       size;
-   uint8_t       n_sources;
-   uint64_t      last_event;
-   void         *pending;
-   rt_source_t  *outputs;
-   void         *free_value;
-   rt_source_t   sources;
+   rt_nexus_t    *chain;
+   rt_signal_t   *signal;
+   uint32_t       offset;
+   delta_cycle_t  active_delta;
+   delta_cycle_t  event_delta;
+   uint32_t       width;
+   net_flags_t    flags;
+   uint8_t        size;
+   uint8_t        n_sources;
+   uint64_t       last_event;
+   void          *pending;
+   rt_source_t   *outputs;
+   void          *free_value;
+   rt_source_t    sources;
 } rt_nexus_t;
 
 STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);

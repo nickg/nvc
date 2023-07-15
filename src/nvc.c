@@ -525,6 +525,20 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
+static int parse_stop_delta(const char *str)
+{
+   const int ival = parse_int(str);
+   if (ival < 1)
+      fatal("$bold$--stop-delta$$ argument must be greater than zero");
+   else if (ival > DELTA_CYCLE_MAX) {
+      warnf("the maxmimum number of supported delta cycles is %d",
+            DELTA_CYCLE_MAX);
+      return DELTA_CYCLE_MAX;
+   }
+   else
+      return ival;
+}
+
 static void ctrl_c_handler(void *arg)
 {
    rt_model_t *model = arg;
@@ -638,7 +652,7 @@ static int run(int argc, char **argv)
             gtkw_fname = optarg;
          break;
       case 'd':
-         opt_set_int(OPT_STOP_DELTA, parse_int(optarg));
+         opt_set_int(OPT_STOP_DELTA, parse_stop_delta(optarg));
          break;
       case 'i':
          wave_include_glob(optarg);
