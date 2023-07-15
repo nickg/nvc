@@ -818,3 +818,5 @@ issue734        fail,gold,2008
 reflect3        normal,2019
 issue712        normal,2008
 psl2            fail,gold,psl
+signal33        normal
+cmdline8        shell

@@ -86,7 +86,7 @@ typedef struct _rt_model {
    jit_t             *jit;
    rt_nexus_t        *nexuses;
    rt_nexus_t       **nexus_tail;
-   unsigned           stop_delta;
+   delta_cycle_t      stop_delta;
    int                iteration;
    uint64_t           now;
    bool               can_create_delta;
@@ -1545,6 +1545,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    new->chain        = old->chain;
    new->flags        = old->flags;
    new->active_delta = old->active_delta;
+   new->event_delta  = old->event_delta;
    new->last_event   = old->last_event;
 
    old->chain = new;
@@ -1672,7 +1673,8 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->nexus.flags        = flags | NET_F_FAST_DRIVER;
    s->nexus.signal       = s;
    s->nexus.pending      = NULL;
-   s->nexus.active_delta = -1;
+   s->nexus.active_delta = DELTA_CYCLE_MAX;
+   s->nexus.event_delta  = DELTA_CYCLE_MAX;
    s->nexus.last_event   = TIME_HIGH;
 
    *m->nexus_tail = &(s->nexus);
@@ -2088,7 +2090,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
               nth == 0 ? tb_get(tb) : "+",
               n->width, n->size, n->n_sources, n_outputs);
 
-      if (n->active_delta == m->iteration && n->last_event == m->now)
+      if (n->event_delta == m->iteration && n->last_event == m->now)
          fprintf(stderr, "%s -> ", fmt_nexus(n, nexus_last_value(n)));
 
       fputs(fmt_nexus(n, nexus_effective(n)), stderr);
@@ -2631,6 +2633,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
 {
    nexus->last_event = m->now;
+   nexus->event_delta = m->iteration;
 
    if (pointer_tag(nexus->pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(nexus->pending, rt_wakeable_t);
@@ -2916,7 +2919,7 @@ static void sync_event_cache(rt_model_t *m)
       assert(s->shared.flags & SIG_F_CACHE_EVENT);
 
       const bool event = s->nexus.last_event == m->now
-         && s->nexus.active_delta == m->iteration;
+         && s->nexus.event_delta == m->iteration;
 
       TRACE("sync event flag %d for %s", event, istr(tree_ident(s->where)));
 
@@ -3577,7 +3580,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_event == m->now && n->active_delta == m->iteration) {
+      if (n->last_event == m->now && n->event_delta == m->iteration) {
          result = 1;
          break;
       }
