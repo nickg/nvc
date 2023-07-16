@@ -3618,7 +3618,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
       assert(count >= 0);
    }
 
-   if (ss->size == 1) {
+   if (ss->size == s->nexus.size) {
       assert(!(ss->flags & SIG_F_CACHE_EVENT));   // Should have taken fast-path
       ss->flags |= SIG_F_CACHE_EVENT | (result ? SIG_F_EVENT_FLAG : 0);
       s->nexus.flags |= NET_F_CACHE_EVENT;
