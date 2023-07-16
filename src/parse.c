@@ -11717,23 +11717,13 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
    };
 
    if (look_for(&lookp)) {
-      consume(tASSERT);
-
-      psl_node_t p = p_psl_property();
-      (void)p;
-
-      psl_node_t a = psl_new(P_ASSERT);
-
-      psl_set_loc(a, CURRENT_LOC);
-      psl_check(a);
+      psl_node_t a = p_psl_assert_directive();
 
       tree_t s = tree_new(T_PSL);
       tree_set_psl(s, a);
       tree_set_ident(s, label);
 
       scan_as_vhdl();
-
-      consume(tSEMI);
 
       tree_set_loc(s, CURRENT_LOC);
       ensure_labelled(s, label);

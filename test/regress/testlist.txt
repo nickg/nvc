@@ -821,3 +821,4 @@ psl2            fail,gold,psl
 signal33        normal
 cmdline8        shell
 tcl2            normal,tcl
+psl3            fail,gold,2008
