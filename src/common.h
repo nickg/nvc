@@ -222,6 +222,7 @@ typedef enum {
    W_DOLLAR_FINISH,
    W_DOLLAR_WRITE,
    W_STD_REFLECTION,
+   W_NVC_PSL_SUPPORT,
 
    NUM_WELL_KNOWN
 } well_known_t;

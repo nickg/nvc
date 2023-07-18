@@ -11961,6 +11961,8 @@ static tree_t p_psl_declaration(void)
    tree_t t = tree_new(T_PSL);
    psl_node_t p;
 
+   insert_names_for_psl(nametab);
+
    switch (tok) {
    case tPROPERTY:
       p = p_psl_property_declaration(t);

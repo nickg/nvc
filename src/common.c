@@ -989,6 +989,8 @@ void intern_strings(void)
    id_cache[W_DOLLAR_WRITE]   = ident_new("$write");
    id_cache[W_STD_REFLECTION] = ident_new("STD.REFLECTION");
 
+   id_cache[W_NVC_PSL_SUPPORT] = ident_new("NVC.PSL_SUPPORT");
+
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
    id_cache[W_IEEE_ULOGIC_VECTOR] =
