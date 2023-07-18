@@ -5,6 +5,8 @@
   wrong value in rare circumstances.
 - Decimal bit string literals more than 64 bits wide are now supported
   (#731).
+- The format of fractional `time` values returned by the standard
+  `to_string` function was changed to match other simulators.
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install

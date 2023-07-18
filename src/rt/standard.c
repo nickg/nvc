@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <float.h>
 
 static ffi_uarray_t bit_vec_to_string(const uint8_t *vec, size_t vec_len,
                                       int log_base)
@@ -73,7 +74,7 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
               unit);
    }
 
-   size_t max_len = 16 + strlen(unit_str) + 1;
+   size_t max_len = 32 + strlen(unit_str) + 1;
    char *buf = rt_tlab_alloc(max_len);
 
    size_t len;
@@ -81,7 +82,7 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
       len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
                             value / unit, unit_str);
    else
-      len = checked_sprintf(buf, max_len, "%g %s",
+      len = checked_sprintf(buf, max_len, "%.*g %s", DBL_DIG,
                             (double)value / (double)unit, unit_str);
 
    *u = ffi_wrap(buf, 1, len);

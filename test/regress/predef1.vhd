@@ -69,7 +69,8 @@ begin
         report to_string(now, ns);
         assert to_string(now, ns) = "2 ns";
         assert to_string(50 ns, unit => us) = "0.05 us";
-        assert to_string(value => 1 min, unit => hr) = "0.0166667 hr";
+        assert to_string(value => 1 min, unit => hr) = "0.0166666666666667 hr";
+        assert to_string(1310408750 ps, unit => ns) = "1310408.75 ns";
 
         assert to_string(r)(1 to 7) = "1.23456";
         report to_string(r, 2);
