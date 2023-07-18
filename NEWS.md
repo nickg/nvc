@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Decimal bit string literals more than 64 bits wide are now supported
+  (#731).
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install

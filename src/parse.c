@@ -612,7 +612,7 @@ static void require_std(vhdl_standard_t which, const char *feature)
    }
 }
 
-static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
+static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
 {
    tree_t t = tree_new(T_STRING);
    tree_set_loc(t, loc);
@@ -620,7 +620,7 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
    const char *p = str;
    int length = -1;
 
-   if (isdigit((int)*p)) {
+   if (isdigit_iso88591(*p)) {
       require_std(STD_08, "bit string literals with length specifier");
       length = strtoul(p, (char **)&p, 10);
    }
@@ -644,9 +644,6 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
       return t;
    }
 
-   if (base == 10)
-      require_std(STD_08, "decimal bit string literals");
-
    tree_t one = tree_new(T_REF);
    tree_set_ident(one, ident_new("'1'"));
    tree_set_loc(one, loc);
@@ -655,27 +652,77 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
    tree_set_ident(zero, ident_new("'0'"));
    tree_set_loc(zero, loc);
 
+   if (base == 10) {
+      require_std(STD_08, "decimal bit string literals");
+
+      int ddigits = 0;
+      uint8_t *decimal LOCAL = xmalloc(strlen(str));
+
+      for (++p; *p != '\"'; p++) {
+         if (*p == '_')
+            continue;
+         else if (!isdigit_iso88591(*p)) {
+            parse_error(loc, "invalid digit '%c' in decimal bit string", *p);
+            return t;
+         }
+         else
+            decimal[ddigits++] = *p - '0';
+      }
+
+      const int maxbits = (length == -1 ? ddigits * 4 : length);
+      tree_t *bits LOCAL = xmalloc_array(maxbits, sizeof(tree_t));
+      int pos = maxbits - 1;
+
+      for (;;) {
+         bool all_zero = true;
+         int cout = 0;
+         for (int i = 0, cin = 0; i < ddigits; i++, cin = cout) {
+            all_zero &= (decimal[i] == 0);
+            cout = decimal[i] & 1;
+            decimal[i] >>= 1;
+            if (cin) decimal[i] += 5;
+         }
+
+         if (all_zero)
+            break;
+         else if (pos < 0 && cout) {
+            parse_error(CURRENT_LOC, "excess non-zero digits in "
+                        "decimal bit string literal");
+            return t;
+         }
+         else if (pos >= 0)
+            bits[pos--] = cout ? one : zero;
+      }
+
+      if (length == -1)
+         length = maxbits - pos - 1;
+
+      for (int i = maxbits - length; i < maxbits; i++)
+         tree_add_char(t, i <= pos ? zero : bits[i]);
+
+      return t;
+   }
+
    tree_t *bits LOCAL = NULL;
    if (length >= 0)
       bits = xmalloc_array(length, sizeof(tree_t));
 
    tree_t pad = mode == UNSIGNED ? zero : NULL;
    int nbits = 0;
-   int64_t decimal = 0;
    for (++p; *p != '\"'; p++) {
       if (*p == '_')
          continue;
 
-      const bool extended = (isdigit((int)*p) && *p < '0' + base)
+      const bool extended = (isdigit_iso88591(*p) && *p < '0' + base)
          || (base > 10 && *p >= 'A' && *p < 'A' + base - 10)
          || (base > 10 && *p >= 'a' && *p < 'a' + base - 10);
 
-      int n = (isdigit((int)*p) ? (*p - '0')
-               : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
+      int n = (isdigit_iso88591(*p) ? (*p - '0')
+               : 10 + (isupper_iso88591(*p) ? (*p - 'A') : (*p - 'a')));
       tree_t digit = NULL;
 
       if (!extended) {
-         if (standard() < STD_08 || base == 10 || !isprint_iso88591(*p)) {
+         if (standard() < STD_08 || !isprint_iso88591(*p)) {
             parse_error(loc, "invalid digit '%c' in bit string", *p);
             return t;
          }
@@ -685,16 +732,6 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
             tree_set_ident(digit, ident_new(rune));
             tree_set_loc(digit, loc);
          }
-      }
-      else if (base == 10) {
-         decimal *= 10;
-         if (decimal < 0) {
-            parse_error(loc, "sorry, decimal values greater than 64 bits "
-                        "are not supported");
-            return t;
-         }
-         decimal += n;
-         continue;
       }
 
       for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
@@ -719,29 +756,6 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
          else
             tree_add_char(t, bit);
       }
-   }
-
-   if (base == 10) {
-      nbits = ilog2(decimal + 1);
-
-      if (length == -1) {
-         length = nbits;
-         bits = xmalloc_array(length, sizeof(tree_t));
-      }
-
-      int pos = nbits - 1;
-      for (; decimal > 0; decimal >>= 1) {
-         if (pos < 0 && (decimal & 1)) {
-            parse_error(CURRENT_LOC, "excess non-zero digits in "
-                        "bit string literal");
-            return t;
-         }
-         else if (pos >= 0)
-            bits[pos--] = (decimal & 1) ? one : zero;
-      }
-
-      while (pos >= 0)
-         bits[pos--] = zero;
    }
 
    if (length >= 0) {
@@ -3981,7 +3995,7 @@ static tree_t p_literal(void)
       {
          consume(tBITSTRING);
 
-         tree_t t = bit_str_to_literal(last_lval.str, CURRENT_LOC);
+         tree_t t = bit_string_to_literal(last_lval.str, CURRENT_LOC);
          free(last_lval.str);
          return t;
       }

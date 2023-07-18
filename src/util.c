@@ -1110,6 +1110,18 @@ bool isspace_iso88591(unsigned char ch)
       || ch =='\r' || ch == 0xa0;
 }
 
+bool isdigit_iso88591(unsigned char ch)
+{
+   return ch >= '0' && ch <= '9';
+}
+
+bool isupper_iso88591(unsigned char ch)
+{
+   return (ch >= 'A' && ch <= 'Z')
+      || (ch >= 0xc0 && ch <= 0xd6)
+      || (ch >= 0xd8 && ch <= 0xde);
+}
+
 int next_power_of_2(int n)
 {
    n--;
