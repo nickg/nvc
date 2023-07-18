@@ -3,9 +3,12 @@
   such as `x <= C(y)` where C is a constant array.
 - Fixed an incorrect optimisation which caused `'event` to return the
   wrong value in rare circumstances.
+- Decimal bit string literals more than 64 bits wide are now supported
+  (#731).
 
 ## Version 1.10.0 - 2023-07-14
-- ZSTD is now a build dependency. Install `libzstd-dev` or similar.
+- The Zstandard compression library is now a build dependency.  Install
+  `libzstd-dev` or similar.
 - The `integer` type is now 64-bit in VHDL-2019 mode.
 - The [VUnit](https://vunit.github.io/) VHDL libraries can now be
   installed with `nvc --install vunit` but please note this does not

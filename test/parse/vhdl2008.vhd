@@ -123,6 +123,7 @@ begin
         x := d"C4";                     -- Error
         x := 8x"-";                     -- OK
         x := 12d"13";                   -- OK
+        x := 3d"13";                    -- Error
     end process;
 
     b2: block is
