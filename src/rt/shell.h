@@ -27,6 +27,10 @@ typedef struct {
    void (*signal_update)(ident_t path, uint64_t now, rt_signal_t *s, void *ctx);
    void (*stdout_write)(const char *buf, size_t nchars, void *ctx);
    void (*stderr_write)(const char *buf, size_t nchars, void *ctx);
+   void (*start_sim)(ident_t top, void *ctx);
+   void (*restart_sim)(void *ctx);
+   void (*quit_sim)(void *ctx);
+   void (*exit)(int status, void *ctx);
    void *context;
 } shell_handler_t;
 

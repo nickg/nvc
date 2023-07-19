@@ -563,6 +563,34 @@ static void signal_update_handler(ident_t path, uint64_t now, rt_signal_t *s,
    ws_send_packet(server->websocket, pb);
 }
 
+static void start_sim_handler(ident_t top, void *user)
+{
+   web_server_t *server = user;
+
+   packet_buf_t *pb = fresh_packet_buffer(server);
+   pb_pack_u8(pb, S2C_START_SIM);
+   pb_pack_ident(pb, top);
+   ws_send_packet(server->websocket, pb);
+}
+
+static void restart_sim_handler(void *user)
+{
+   web_server_t *server = user;
+
+   packet_buf_t *pb = fresh_packet_buffer(server);
+   pb_pack_u8(pb, S2C_RESTART_SIM);
+   ws_send_packet(server->websocket, pb);
+}
+
+static void quit_sim_handler(void *user)
+{
+   web_server_t *server = user;
+
+   packet_buf_t *pb = fresh_packet_buffer(server);
+   pb_pack_u8(pb, S2C_QUIT_SIM);
+   ws_send_packet(server->websocket, pb);
+}
+
 static void upgrade_handler(void *cls, struct MHD_Connection *con,
                             void *con_cls, const char *extra_in,
                             size_t extra_in_size, MHD_socket sock,
@@ -746,6 +774,9 @@ void start_server(jit_factory_t make_jit, tree_t top,
       .signal_update = signal_update_handler,
       .stderr_write = tunnel_output,
       .stdout_write = tunnel_output,
+      .start_sim = start_sim_handler,
+      .restart_sim = restart_sim_handler,
+      .quit_sim  = quit_sim_handler,
       .context = server
    };
    shell_set_handler(server->shell, &handler);

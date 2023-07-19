@@ -85,6 +85,7 @@ typedef struct _tcl_shell {
    jit_factory_t    make_jit;
    unit_registry_t *registry;
    shell_handler_t  handler;
+   bool             quit;
 } tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
@@ -126,6 +127,21 @@ static bool shell_has_model(tcl_shell_t *sh)
    }
 
    return true;
+}
+
+static void shell_clear_model(tcl_shell_t *sh)
+{
+   if (sh->model == NULL)
+      return;
+
+   model_free(sh->model);
+   hash_free(sh->namemap);
+
+   sh->model = NULL;
+   sh->namemap = NULL;
+
+   if (sh->handler.quit_sim != NULL)
+      (*sh->handler.quit_sim)(sh->handler.context);
 }
 
 static void shell_update_now(tcl_shell_t *sh)
@@ -214,6 +230,9 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
 
    shell_update_now(sh);
 
+   if (sh->handler.restart_sim != NULL)
+      (*sh->handler.restart_sim)(sh->handler.context);
+
    return TCL_OK;
 }
 
@@ -261,16 +280,6 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
 
    shell_update_now(sh);
 
-   return TCL_OK;
-}
-
-static const char exit_help[] =
-   "Exit the simulation";
-
-static int shell_cmd_exit(ClientData cd, Tcl_Interp *interp,
-                          int objc, Tcl_Obj *const objv[])
-{
-   fclose(stdin);
    return TCL_OK;
 }
 
@@ -398,13 +407,7 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
       return tcl_error(sh, "cannot find unit %s in library %s",
                        Tcl_GetString(objv[pos]), istr(lib_name(work)));
 
-   if (sh->model != NULL) {
-      model_free(sh->model);
-      hash_free(sh->namemap);
-
-      sh->model = NULL;
-      sh->namemap = NULL;
-   }
+   shell_clear_model(sh);
 
    reset_error_count();
 
@@ -575,7 +578,86 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help add for usage");
+   return tcl_error(sh, "syntax error, enter $bold$help add$$ for usage");
+}
+
+static const char quit_help[] =
+   "Exit the simulator or unload the current design\n"
+   "\n"
+   "Syntax:\n"
+   "  quit [-sim]\n"
+   "\n"
+   "Options:\n"
+   "  -sim\t\tUnload the current simulation but do not exit the program.\n";
+
+static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
+                          int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   bool quit_sim = false;
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-sim") == 0)
+         quit_sim = true;
+      else
+         goto usage;
+   }
+
+   if (pos != objc)
+      goto usage;
+
+   if (quit_sim) {
+      if (!shell_has_model(sh))
+         return TCL_ERROR;
+      else
+         shell_clear_model(sh);
+   }
+   else {
+      sh->quit = true;
+
+      if (sh->handler.exit != NULL)
+         (*sh->handler.exit)(0, sh->handler.context);
+   }
+
+   return TCL_OK;
+
+ usage:
+   return tcl_error(sh, "syntax error, enter $bold$help quit$$ for usage");
+}
+
+static const char exit_help[] =
+   "Exit the simulator and return a status code\n"
+   "\n"
+   "Syntax:\n"
+   "  exit [-code <integer>]\n"
+   "\n"
+   "Options:\n"
+   "  -code <integer>\tStatus code to return to shell.\n";
+
+static int shell_cmd_exit(ClientData cd, Tcl_Interp *interp,
+                          int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   int pos = 1, status = EXIT_SUCCESS;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-code") == 0 && pos < objc)
+         status = atoi(Tcl_GetString(objv[pos++]));
+      else
+         goto usage;
+   }
+
+   if (pos != objc)
+      goto usage;
+
+   if (sh->handler.exit != NULL)
+      (*sh->handler.exit)(status, sh->handler.context);
+
+   Tcl_Exit(status);
+
+ usage:
+   return tcl_error(sh, "syntax error, enter $bold$help exit$$ for usage");
 }
 
 static const char help_help[] =
@@ -781,6 +863,8 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
 
    atexit(Tcl_Finalize);
 
+   Tcl_DeleteCommand(sh->interp, "exit");
+
    shell_add_cmd(sh, "help", shell_cmd_help, help_help);
    shell_add_cmd(sh, "exit", shell_cmd_exit, exit_help);
    shell_add_cmd(sh, "copyright", shell_cmd_copyright, copyright_help);
@@ -794,6 +878,8 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "add", shell_cmd_add, add_help);
+   shell_add_cmd(sh, "quit", shell_cmd_quit, quit_help);
+   shell_add_cmd(sh, "exit", shell_cmd_exit, exit_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
@@ -893,10 +979,7 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
 
 void shell_reset(tcl_shell_t *sh, tree_t top)
 {
-   if (sh->model != NULL) {
-      model_free(sh->model);
-      hash_free(sh->namemap);
-   }
+   shell_clear_model(sh);
 
    jit_reset(sh->jit);
    jit_enable_runtime(sh->jit, true);
@@ -920,6 +1003,9 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
    tb_free(path);
 
    shell_update_now(sh);
+
+   if (sh->handler.start_sim != NULL)
+      (*sh->handler.start_sim)(tree_ident(top), sh->handler.context);
 }
 
 void shell_interact(tcl_shell_t *sh)
@@ -927,7 +1013,7 @@ void shell_interact(tcl_shell_t *sh)
    show_banner();
 
    char *line;
-   while ((line = (*sh->getline)(sh))) {
+   while (!sh->quit && (line = (*sh->getline)(sh))) {
       const char *result = NULL;
       if (shell_eval(sh, line, &result) && *result != '\0')
          color_printf("$+black$%s$$\n", result);

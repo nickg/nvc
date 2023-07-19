@@ -274,18 +274,35 @@ static void wave_binary_frame(web_socket_t *ws, const void *data, size_t len,
 
    switch ((*state)++) {
    case 0:
-      ck_assert_int_eq(len, 8);
-      ck_assert_int_eq(bytes[1] << 8 | bytes[2], 5);
-      ck_assert_int_eq(bytes[0], S2C_INIT_CMD);
-      ck_assert_mem_eq(bytes + 3, "hello", 5);
+      ck_assert_int_eq(len, 18);
+      ck_assert_int_eq(bytes[0], S2C_START_SIM);
+      ck_assert_int_eq(bytes[1] << 8 | bytes[2], 15);
+      ck_assert_mem_eq(bytes + 3, "WORK.WAVE1.elab", 15);
       break;
 
    case 1:
+      ck_assert_int_eq(len, 8);
+      ck_assert_int_eq(bytes[0], S2C_INIT_CMD);
+      ck_assert_int_eq(bytes[1] << 8 | bytes[2], 5);
+      ck_assert_mem_eq(bytes + 3, "hello", 5);
+      break;
+
+   case 2:
       ck_assert_int_eq(len, 5);
       ck_assert_int_eq(bytes[0], S2C_ADD_WAVE);
       ck_assert_int_eq(bytes[1] << 8 | bytes[2], 2);
       ck_assert_int_eq(bytes[3], '/');
       ck_assert_int_eq(bytes[4], 'x');
+      break;
+
+   case 3:
+      ck_assert_int_eq(len, 1);
+      ck_assert_int_eq(bytes[0], S2C_RESTART_SIM);
+      break;
+
+   case 4:
+      ck_assert_int_eq(len, 1);
+      ck_assert_int_eq(bytes[0], S2C_QUIT_SIM);
       break;
 
    default:
@@ -318,10 +335,15 @@ START_TEST(test_wave)
 
    ws_poll(ws);
 
+   ws_send_text(ws, "restart; quit -sim");
+   ws_flush(ws);
+
+   ws_poll(ws);
+
    shutdown_server(ws);
    ws_free(ws);
 
-   ck_assert_int_eq(state, 2);
+   ck_assert_int_eq(state, 5);
 
    close(sock);
    join_server(pid);

@@ -33,6 +33,9 @@ typedef enum {
    S2C_ADD_WAVE = 0x00,
    S2C_SIGNAL_UPDATE = 0x01,
    S2C_INIT_CMD = 0x02,
+   S2C_START_SIM = 0x03,
+   S2C_RESTART_SIM = 0x04,
+   S2C_QUIT_SIM = 0x05,
 } s2c_opcode_t;
 
 typedef struct {

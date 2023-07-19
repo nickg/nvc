@@ -107,11 +107,11 @@ static void wave1_add_wave(ident_t path, rt_signal_t *s, void *user)
    int *state = user;
 
    switch ((*state)++) {
-   case 0:
-   case 2:
+   case 1:
+   case 3:
       ck_assert_str_eq(istr(path), "/x");
       break;
-   case 3:
+   case 4:
       ck_assert_str_eq(istr(path), "/u/y");
       break;
    default:
@@ -125,23 +125,50 @@ static void wave1_signal_update(ident_t path, uint64_t now, rt_signal_t *s,
    int *state = user;
 
    switch ((*state)++) {
-   case 1:
+   case 2:
       ck_assert_str_eq(istr(path), "/x");
       ck_assert_int_eq(now, 1000000);
       ck_assert_int_eq(s->shared.data[0], 1);
       break;
-   case 4:
+   case 5:
       ck_assert_str_eq(istr(path), "/x");
       ck_assert_int_eq(now, 2000000);
       ck_assert_int_eq(s->shared.data[0], 0);
       break;
-   case 5:
+   case 6:
       ck_assert_str_eq(istr(path), "/u/y");
       ck_assert_int_eq(now, 2000000);
       ck_assert_int_eq(s->shared.data[0], 0);
       break;
    default:
       ck_abort_msg("unexpected call to wave1_signal_update in state %d",
+                   *state - 1);
+   }
+}
+
+static void wave1_start_sim(ident_t top, void *user)
+{
+   int *state = user;
+
+   switch ((*state)++) {
+   case 0:
+      ck_assert_str_eq(istr(top), "WORK.WAVE1.elab");
+      break;
+   default:
+      ck_abort_msg("unexpected call to wave1_start_sim in state %d",
+                   *state - 1);
+   }
+}
+
+static void wave1_quit_sim(void *user)
+{
+   int *state = user;
+
+   switch ((*state)++) {
+   case 7:
+      break;
+   default:
+      ck_abort_msg("unexpected call to wave1_quit_sim in state %d",
                    *state - 1);
    }
 }
@@ -159,6 +186,8 @@ START_TEST(test_wave1)
    shell_handler_t handler = {
       .add_wave = wave1_add_wave,
       .signal_update = wave1_signal_update,
+      .start_sim = wave1_start_sim,
+      .quit_sim = wave1_quit_sim,
       .context = &state,
    };
    shell_set_handler(sh, &handler);
@@ -170,26 +199,31 @@ START_TEST(test_wave1)
 
    shell_eval(sh, "elaborate wave1", &result);
    ck_assert_str_eq(result, "");
-
-   shell_eval(sh, "add wave /x", &result);
-   ck_assert_str_eq(result, "");
    ck_assert_int_eq(state, 1);
 
-   shell_eval(sh, "run 1 ns", &result);
+   shell_eval(sh, "add wave /x", &result);
    ck_assert_str_eq(result, "");
    ck_assert_int_eq(state, 2);
 
-   shell_eval(sh, "add wave /x", &result);
+   shell_eval(sh, "run 1 ns", &result);
    ck_assert_str_eq(result, "");
    ck_assert_int_eq(state, 3);
 
-   shell_eval(sh, "add wave /u/y", &result);
+   shell_eval(sh, "add wave /x", &result);
    ck_assert_str_eq(result, "");
    ck_assert_int_eq(state, 4);
 
+   shell_eval(sh, "add wave /u/y", &result);
+   ck_assert_str_eq(result, "");
+   ck_assert_int_eq(state, 5);
+
    shell_eval(sh, "run", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 6);
+   ck_assert_int_eq(state, 7);
+
+   shell_eval(sh, "quit -sim", &result);
+   ck_assert_str_eq(result, "");
+   ck_assert_int_eq(state, 8);
 
    shell_free(sh);
 
@@ -246,6 +280,27 @@ START_TEST(test_redirect)
 }
 END_TEST
 
+static void exit_handler(int status, void *ctx)
+{
+   ck_assert_int_eq(status, 5);
+}
+
+START_TEST(test_exit)
+{
+   tcl_shell_t *sh = shell_new(NULL);
+
+   shell_handler_t handler = {
+      .exit = exit_handler
+   };
+   shell_set_handler(sh, &handler);
+
+   const char *result = NULL;
+   fail_unless(shell_eval(sh, "exit -code 5", &result));
+
+   ck_abort_msg("should have exited");
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -256,6 +311,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_examine1);
    tcase_add_test(tc, test_wave1);
    tcase_add_test(tc, test_redirect);
+   tcase_add_exit_test(tc, test_exit, 5);
    suite_add_tcase(s, tc);
 
    return s;
