@@ -6503,12 +6503,12 @@ static tree_t p_psl_condition(void)
 {
    BEGIN("condition");
 
-   //scan_as_vhdl();
+   scan_as_vhdl();
 
    tree_t value = p_expression();
    solve_psl_condition(nametab, value);
 
-   //scan_as_psl();
+   scan_as_psl();
 
    return value;
 }
@@ -10806,8 +10806,8 @@ static tree_t p_psl_builtin_function_call(void)
 
    BEGIN("PSL Built-in Function call");
 
-   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE,
-                        tFELL, tENDED, tNONDET, tNONDETV);
+   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE, tFELL, tENDED,
+                        tNONDET, tNONDETV);
 
    psl_node_t p = psl_new(P_BUILTIN_FUNC);
 

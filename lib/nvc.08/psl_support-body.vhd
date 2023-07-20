@@ -20,7 +20,7 @@ package body psl_support is
         val : in std_ulogic_vector
     ) return boolean is
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             case val(i) is
                 when 'U' => return true;
                 when 'X' => return true;
@@ -33,15 +33,12 @@ package body psl_support is
         return false;
     end;
 
-    ---------------------------------------------------------------------------
-    ---------------------------------------------------------------------------
-
     function countones(
         val : in std_ulogic_vector
     ) return integer is
-        variable n : integer;
+        variable n : integer := 0;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1' or val(i) = 'H') then
                 n := n + 1;
             end if;
@@ -52,9 +49,9 @@ package body psl_support is
     function countones(
         val : in bit_vector
     ) return integer is
-        variable n : integer;
+        variable n : integer := 0;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1') then
                 n := n + 1;
             end if;
@@ -62,16 +59,12 @@ package body psl_support is
         return n;
     end;
 
-
-    ---------------------------------------------------------------------------
-    ---------------------------------------------------------------------------
-
     function onehot(
         val : in std_ulogic_vector
     ) return boolean is
         variable flag : boolean := false;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1' or val(i) = 'H') then
                 if (flag) then
                     return false;
@@ -88,7 +81,7 @@ package body psl_support is
     ) return boolean is
         variable flag : boolean := false;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1') then
                 if (flag) then
                     return false;
@@ -100,16 +93,12 @@ package body psl_support is
         return flag;
     end;
 
-    ---------------------------------------------------------------------------
-    --
-    ---------------------------------------------------------------------------
-
     function onehot0(
         val : in std_ulogic_vector
     ) return boolean is
         variable flag : boolean := false;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1' or val(i) = 'H') then
                 if (flag) then
                     return false;
@@ -126,7 +115,7 @@ package body psl_support is
     ) return boolean is
         variable flag : boolean := false;
     begin
-        for i in val'left to val'right loop
+        for i in val'low to val'high loop
             if (val(i) = '1') then
                 if (flag) then
                     return false;
@@ -137,6 +126,5 @@ package body psl_support is
         end loop;
         return true;
     end;
-
 
 end package body;
