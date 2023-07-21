@@ -144,6 +144,33 @@ static void shell_clear_model(tcl_shell_t *sh)
       (*sh->handler.quit_sim)(sh->handler.context);
 }
 
+static void shell_next_time_step(rt_model_t *m, void *user)
+{
+   tcl_shell_t *sh = user;
+   assert(sh->handler.next_time_step != NULL);
+
+   uint64_t now = model_now(m, NULL);
+   (*sh->handler.next_time_step)(now, sh->handler.context);
+
+   model_set_global_cb(sh->model, RT_NEXT_TIME_STEP, shell_next_time_step, sh);
+}
+
+static void shell_create_model(tcl_shell_t *sh)
+{
+   assert(sh->model == NULL);
+
+   sh->model = model_new(sh->top, sh->jit);
+
+   if (sh->handler.next_time_step != NULL)
+      model_set_global_cb(sh->model, RT_NEXT_TIME_STEP,
+                          shell_next_time_step, sh);
+
+   model_reset(sh->model);
+
+   if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
+      fatal_trace("cannot find root scope");
+}
+
 static void shell_update_now(tcl_shell_t *sh)
 {
    sh->now_var = model_now(sh->model, &sh->deltas_var);
@@ -216,13 +243,11 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
       return TCL_ERROR;
 
    model_free(sh->model);
+   sh->model = NULL;
+
    jit_reset(sh->jit);
 
-   sh->model = model_new(sh->top, sh->jit);
-   model_reset(sh->model);
-
-   if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
-      fatal_trace("cannot find root scope");
+   shell_create_model(sh);
 
    shell_signal_t *wptr = sh->signals;
    recreate_signals(sh, sh->root, &wptr);
@@ -985,11 +1010,8 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
    jit_enable_runtime(sh->jit, true);
 
    sh->top = top;
-   sh->model = model_new(top, sh->jit);
-   model_reset(sh->model);
 
-   if ((sh->root = find_scope(sh->model, tree_stmt(top, 0))) == NULL)
-      fatal_trace("cannot find root scope");
+   shell_create_model(sh);
 
    sh->nsignals = count_signals(sh->root);
    sh->signals = xcalloc_array(sh->nsignals, sizeof(shell_signal_t));

@@ -19,6 +19,7 @@
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "option.h"
 #include "rt/shell.h"
 #include "rt/structs.h"
 
@@ -108,10 +109,10 @@ static void wave1_add_wave(ident_t path, rt_signal_t *s, void *user)
 
    switch ((*state)++) {
    case 1:
-   case 3:
+   case 4:
       ck_assert_str_eq(istr(path), "/x");
       break;
-   case 4:
+   case 5:
       ck_assert_str_eq(istr(path), "/u/y");
       break;
    default:
@@ -125,17 +126,17 @@ static void wave1_signal_update(ident_t path, uint64_t now, rt_signal_t *s,
    int *state = user;
 
    switch ((*state)++) {
-   case 2:
+   case 3:
       ck_assert_str_eq(istr(path), "/x");
       ck_assert_int_eq(now, 1000000);
       ck_assert_int_eq(s->shared.data[0], 1);
       break;
-   case 5:
+   case 7:
       ck_assert_str_eq(istr(path), "/x");
       ck_assert_int_eq(now, 2000000);
       ck_assert_int_eq(s->shared.data[0], 0);
       break;
-   case 6:
+   case 8:
       ck_assert_str_eq(istr(path), "/u/y");
       ck_assert_int_eq(now, 2000000);
       ck_assert_int_eq(s->shared.data[0], 0);
@@ -165,7 +166,7 @@ static void wave1_quit_sim(void *user)
    int *state = user;
 
    switch ((*state)++) {
-   case 7:
+   case 9:
       break;
    default:
       ck_abort_msg("unexpected call to wave1_quit_sim in state %d",
@@ -173,13 +174,25 @@ static void wave1_quit_sim(void *user)
    }
 }
 
+static void wave1_next_time_step(uint64_t now, void *user)
+{
+   int *state = user;
+
+   switch ((*state)++) {
+   case 2:
+      ck_assert_int_eq(now, UINT64_C(1000000));
+      break;
+   case 6:
+      ck_assert_int_eq(now, UINT64_C(2000000));
+      break;
+   default:
+      ck_abort_msg("unexpected call to wave1_next_time_step in state %d",
+                   *state - 1);
+   }
+}
+
 START_TEST(test_wave1)
 {
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tcl_shell_t *sh = shell_new(jit_new);
 
    int state = 0;
@@ -188,6 +201,7 @@ START_TEST(test_wave1)
       .signal_update = wave1_signal_update,
       .start_sim = wave1_start_sim,
       .quit_sim = wave1_quit_sim,
+      .next_time_step = wave1_next_time_step,
       .context = &state,
    };
    shell_set_handler(sh, &handler);
@@ -207,27 +221,27 @@ START_TEST(test_wave1)
 
    shell_eval(sh, "run 1 ns", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 3);
+   ck_assert_int_eq(state, 4);
 
    shell_eval(sh, "add wave /x", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 4);
+   ck_assert_int_eq(state, 5);
 
    shell_eval(sh, "add wave /u/y", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 5);
+   ck_assert_int_eq(state, 6);
 
    shell_eval(sh, "run", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 7);
+   ck_assert_int_eq(state, 9);
 
    shell_eval(sh, "quit -sim", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 8);
+   ck_assert_int_eq(state, 10);
 
    shell_free(sh);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 

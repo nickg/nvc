@@ -363,6 +363,19 @@ static void pb_pack_u32(packet_buf_t *pb, uint32_t value)
    pb->buf[pb->wptr++] = value & 0xff;
 }
 
+static void pb_pack_u64(packet_buf_t *pb, uint64_t value)
+{
+   pb_grow(pb, 8);
+   pb->buf[pb->wptr++] = (value >> 56) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 48) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 40) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 32) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 24) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 16) & 0xff;
+   pb->buf[pb->wptr++] = (value >> 8) & 0xff;
+   pb->buf[pb->wptr++] = value & 0xff;
+}
+
 static void pb_pack_bytes(packet_buf_t *pb, const void *data, size_t len)
 {
    pb_grow(pb, len);
@@ -591,6 +604,16 @@ static void quit_sim_handler(void *user)
    ws_send_packet(server->websocket, pb);
 }
 
+static void next_time_step_handler(uint64_t now, void *user)
+{
+   web_server_t *server = user;
+
+   packet_buf_t *pb = fresh_packet_buffer(server);
+   pb_pack_u8(pb, S2C_NEXT_TIME_STEP);
+   pb_pack_u64(pb, now);
+   ws_send_packet(server->websocket, pb);
+}
+
 static void upgrade_handler(void *cls, struct MHD_Connection *con,
                             void *con_cls, const char *extra_in,
                             size_t extra_in_size, MHD_socket sock,
@@ -776,7 +799,8 @@ void start_server(jit_factory_t make_jit, tree_t top,
       .stdout_write = tunnel_output,
       .start_sim = start_sim_handler,
       .restart_sim = restart_sim_handler,
-      .quit_sim  = quit_sim_handler,
+      .quit_sim = quit_sim_handler,
+      .next_time_step = next_time_step_handler,
       .context = server
    };
    shell_set_handler(server->shell, &handler);

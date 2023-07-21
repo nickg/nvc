@@ -296,11 +296,24 @@ static void wave_binary_frame(web_socket_t *ws, const void *data, size_t len,
       break;
 
    case 3:
+      ck_assert_int_eq(len, 9);
+      ck_assert_int_eq(bytes[0], S2C_NEXT_TIME_STEP);
+      break;
+
+   case 4:
+      ck_assert_int_eq(len, 10);
+      ck_assert_int_eq(bytes[0], S2C_SIGNAL_UPDATE);
+      ck_assert_int_eq(bytes[1] << 8 | bytes[2], 2);
+      ck_assert_int_eq(bytes[3], '/');
+      ck_assert_int_eq(bytes[4], 'x');
+      break;
+
+   case 5:
       ck_assert_int_eq(len, 1);
       ck_assert_int_eq(bytes[0], S2C_RESTART_SIM);
       break;
 
-   case 4:
+   case 6:
       ck_assert_int_eq(len, 1);
       ck_assert_int_eq(bytes[0], S2C_QUIT_SIM);
       break;
@@ -335,6 +348,13 @@ START_TEST(test_wave)
 
    ws_poll(ws);
 
+   ws_send_text(ws, "run 1 ns");
+   ws_flush(ws);
+
+   ws_poll(ws);
+
+   ck_assert_int_eq(state, 5);
+
    ws_send_text(ws, "restart; quit -sim");
    ws_flush(ws);
 
@@ -343,7 +363,7 @@ START_TEST(test_wave)
    shutdown_server(ws);
    ws_free(ws);
 
-   ck_assert_int_eq(state, 5);
+   ck_assert_int_eq(state, 7);
 
    close(sock);
    join_server(pid);
