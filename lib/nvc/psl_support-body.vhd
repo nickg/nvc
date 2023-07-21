@@ -16,6 +16,8 @@
 
 package body psl_support is
 
+`if VHDL_VERSION < "08" then
+
     function isunknown(
         val : in std_logic_vector
     ) return boolean is
@@ -32,6 +34,8 @@ package body psl_support is
         end loop;
         return false;
     end;
+
+`end if
 
     function isunknown(
         val : in std_ulogic_vector
@@ -50,6 +54,8 @@ package body psl_support is
         return false;
     end;
 
+`if VHDL_VERSION < "08" then
+
     function countones(
         val : in std_logic_vector
     ) return integer is
@@ -62,6 +68,8 @@ package body psl_support is
         end loop;
         return n;
     end;
+
+`end if
 
     function countones(
         val : in std_ulogic_vector
@@ -89,8 +97,10 @@ package body psl_support is
         return n;
     end;
 
+`if VHDL_VERSION < "08" then
+
     function onehot(
-        val : in std_ulogic_vector
+        val : in std_logic_vector
     ) return boolean is
         variable flag : boolean := false;
     begin
@@ -106,8 +116,10 @@ package body psl_support is
         return flag;
     end;
 
+`end if
+
     function onehot(
-        val : in std_logic_vector
+        val : in std_ulogic_vector
     ) return boolean is
         variable flag : boolean := false;
     begin
@@ -139,6 +151,8 @@ package body psl_support is
         end loop;
         return flag;
     end;
+
+`if VHDL_VERSION < "08" then
 
     function onehot0(
         val : in std_logic_vector
@@ -156,6 +170,8 @@ package body psl_support is
         end loop;
         return true;
     end;
+
+`end if
 
     function onehot0(
         val : in std_ulogic_vector

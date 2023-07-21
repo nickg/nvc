@@ -19,7 +19,6 @@
 #define _COMMON_H
 
 #include "tree.h"
-#include "psl/psl-node.h"
 
 //
 // Various utility functions

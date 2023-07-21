@@ -30,9 +30,13 @@ package psl_support is
     -- Returns true if there is at least one of input vector bits is:
     --  'U', 'W', 'X', 'Z', '-'
     ---------------------------------------------------------------------------
+`if VHDL_VERSION < "08" then
+
     function isunknown(
         val : in std_logic_vector
     ) return boolean;
+
+`end if
 
     function isunknown(
         val : in std_ulogic_vector
@@ -41,9 +45,13 @@ package psl_support is
     ---------------------------------------------------------------------------
     --  Returns number of '1' or 'H' in the input vector.
     ---------------------------------------------------------------------------
+`if VHDL_VERSION < "08" then
+
     function countones(
         val : in std_logic_vector
     ) return boolean;
+
+`end if
 
     function countones(
         val : in std_ulogic_vector
@@ -57,9 +65,13 @@ package psl_support is
     -- Returns true if there is exactly one occurence of '1' or 'H' in the
     -- input vector.
     ---------------------------------------------------------------------------
+`if VHDL_VERSION < "08" then
+
     function onehot(
         val : in std_logic_vector
     ) return boolean;
+
+`end if
 
     function onehot(
         val : in std_ulogic_vector
@@ -73,9 +85,13 @@ package psl_support is
     -- Returns true if there is zero or one occurence of '1' or 'H' in the
     -- input vector.
     ---------------------------------------------------------------------------
+`if VHDL_VERSION < "08" then
+
     function onehot0(
         val : in std_logic_vector
     ) return boolean;
+
+`end if
 
     function onehot0(
         val : in std_ulogic_vector

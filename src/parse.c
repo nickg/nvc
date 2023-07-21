@@ -10676,7 +10676,7 @@ static psl_node_t p_psl_value_range(void)
    //   Value
    // | finite_Range
 
-   BEGIN("PSL Value set");
+   BEGIN("PSL Value Range");
 
    // TODO: Enforce Numeric or Boolean on "l" and "r"
 

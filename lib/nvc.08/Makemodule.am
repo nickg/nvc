@@ -32,11 +32,11 @@ lib/nvc.08/NVC.IEEE_SUPPORT: $(srcdir)/lib/nvc.08/ieee_support.vhd @ifGNUmake@ |
 lib/nvc.08/NVC.IEEE_SUPPORT-body: $(srcdir)/lib/nvc.08/ieee_support-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/ieee_support-body.vhd
 
-lib/nvc.08/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc.08/psl_support.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/psl_support.vhd
+lib/nvc.08/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/psl_support.vhd
 
-lib/nvc.08/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc.08/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/psl_support-body.vhd
+lib/nvc.08/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/psl_support-body.vhd
 
 gen-deps-nvc-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 --print-deps | \
