@@ -6,3 +6,8 @@ lib/nvc/NVC.POLYFILL: lib/std/STD.STANDARD $(top_srcdir)/lib/nvc/polyfill.vhd
 
 lib/nvc/NVC.SIM_PKG: lib/std/STD.STANDARD $(top_srcdir)/lib/nvc/sim_pkg.vhd
 
+lib/nvc/NVC.PSL_SUPPORT: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc/psl_support.vhd
+
+lib/nvc/NVC.PSL_SUPPORT-body: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_1164 lib/nvc/NVC.PSL_SUPPORT $(top_srcdir)/lib/nvc/psl_support-body.vhd
+
+

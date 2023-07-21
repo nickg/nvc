@@ -7,7 +7,9 @@ nvc_19_DATA = \
 	lib/nvc.19/NVC.IEEE_SUPPORT \
 	lib/nvc.19/NVC.IEEE_SUPPORT-body \
 	lib/nvc.19/NVC.TEXTBUF \
-	lib/nvc.19/NVC.TEXTBUF-body
+	lib/nvc.19/NVC.TEXTBUF-body \
+	lib/nvc.19/NVC.PSL_SUPPORT \
+	lib/nvc.19/NVC.PSL_SUPPORT-body
 
 BOOTSTRAPLIBS += $(nvc_19_DATA)
 
@@ -32,6 +34,12 @@ lib/nvc.19/NVC.TEXTBUF: $(srcdir)/lib/nvc/textbuf.vhd @ifGNUmake@ | $(DRIVER)
 
 lib/nvc.19/NVC.TEXTBUF-body: $(srcdir)/lib/nvc/textbuf-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/textbuf-body.vhd
+
+lib/nvc.19/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/psl_support.vhd
+
+lib/nvc.19/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/psl_support-body.vhd
 
 gen-deps-nvc-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --print-deps | \

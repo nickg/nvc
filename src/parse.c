@@ -165,6 +165,8 @@ static type_t p_anonymous_type_indication(void);
 static tree_t p_psl_declaration(void);
 static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
+static tree_t p_psl_builtin_function_call(void);
+static psl_node_t p_psl_sere(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -4208,7 +4210,8 @@ static tree_t p_allocator(void)
 static tree_t p_primary(void)
 {
    // name | literal | aggregate | function_call | qualified_expression
-   //   | type_conversion | allocator | ( expression )
+   //   | type_conversion | allocator | ( expression ) |
+   //  PSL: Built_In_Function_Call
 
    BEGIN("primary");
 
@@ -4258,6 +4261,18 @@ static tree_t p_primary(void)
 
    case tNEW:
       return p_allocator();
+
+   case tNEXT:
+   case tPREV:
+   case tSTABLE:
+   case tROSE:
+   case tFELL:
+   case tENDED:
+   case tNONDET:
+   case tNONDETV:
+      assert(is_scanned_as_psl());
+      tree_t t = p_psl_builtin_function_call();
+      return t;
 
    default:
       expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING, tNEW);
@@ -10656,6 +10671,61 @@ static tree_t p_generate_statement(ident_t label)
    }
 }
 
+static psl_node_t p_psl_value_range(void)
+{
+   //   Value
+   // | finite_Range
+
+   BEGIN("PSL Value Range");
+
+   // TODO: Enforce Numeric or Boolean on "l" and "r"
+
+   scan_as_vhdl();
+
+   tree_t l = p_expression();
+   tree_t tgt = l;
+
+   if (optional(tTO)) {
+      tree_t range = tree_new(T_RANGE);
+      tree_t r = p_expression();
+
+      tree_set_left(range, l);
+      tree_set_right(range, r);
+      tree_set_subkind(range, RANGE_TO);
+      tgt = range;
+   }
+
+   psl_node_t p = psl_new(P_HDL_EXPR);
+   psl_set_tree(p, tgt);
+
+   scan_as_psl();
+
+   return p;
+}
+
+static psl_node_t p_psl_value_set(void)
+{
+   //   { Value_Range { , Value_Range } }
+   // | boolean
+
+   psl_node_t p = psl_new(P_VALUE_SET);
+
+   token_t tok = one_of(tBOOLEAN, tLBRACE);
+   if (tok == tBOOLEAN) {
+      psl_set_subkind(p, PSL_VALUE_SET_BOOLEAN);
+      return p;
+   }
+
+   psl_set_subkind(p, PSL_VALUE_SET_EXPLICIT);
+
+   psl_add_operand(p, p_psl_value_range());
+   while (optional(tCOMMA))
+      psl_add_operand(p, p_psl_value_range());
+
+   consume(tRBRACE);
+   return p;
+}
+
 static psl_node_t p_psl_or_hdl_expression(void)
 {
    // HDL_Expression | PSL_Expression | Built_In_Function_Call
@@ -10669,6 +10739,13 @@ static psl_node_t p_psl_or_hdl_expression(void)
    psl_set_tree(p, expr);
    psl_set_loc(p, tree_loc(expr));
    psl_set_type(p, PSL_TYPE_BOOLEAN);
+
+   if (optional(tUNION)) {
+      psl_node_t new = psl_new(P_UNION);
+      psl_add_operand(new, p);
+      psl_add_operand(new, p_psl_or_hdl_expression());
+      return new;
+   }
 
    return p;
 }
@@ -10712,15 +10789,205 @@ static psl_node_t p_psl_clock_declaration(tree_t parent)
    return p;
 }
 
+static tree_t p_psl_builtin_function_call(void)
+{
+   // prev (Any_Type [ , Number [ , Clock_Expression ]] )
+   //  | next ( Any_Type )
+   //  | stable ( Any_Type [ , Clock_Expression ] )
+   //  | rose ( Bit [ , Clock_Expression ] )
+   //  | fell ( Bit [ , Clock_Expression ] )
+   //  | ended ( Sequence [ , Clock_Expression ])
+   //  | nondet ( Value_Set )
+   //  | nondet_vector ( Number, Value_Set)
+
+   BEGIN("PSL Built-in Function call");
+
+   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE, tFELL, tENDED,
+                        tNONDET, tNONDETV);
+
+   psl_node_t p = psl_new(P_BUILTIN_FUNC);
+
+   // Parse the function call
+   consume(tLPAREN);
+
+   switch (tok) {
+   case tNEXT:
+   case tPREV:
+   case tSTABLE:
+   case tROSE:
+   case tFELL:
+   {
+      psl_node_t p1 = p_psl_or_hdl_expression();
+      // TODO: Enfore "bit" for "rose" and "fell"
+      psl_add_operand(p, p1);
+
+      if (tok == tNEXT)
+         break;
+
+      if (tok == tPREV && optional(tCOMMA)) {
+         psl_node_t p2 = p_psl_or_hdl_expression();
+         // TODO: Enforce numeric value on p2
+         psl_add_operand(p, p2);
+      }
+
+      if (optional(tCOMMA))
+         psl_set_clock(p, p_psl_clock_expression());
+
+      break;
+   }
+
+   case tENDED:
+   {
+      // TODO: Enforce sequence on p
+      psl_add_operand(p, p_psl_sequence());
+
+      if (optional(tCOMMA))
+         psl_set_clock(p, p_psl_clock_expression());
+
+      break;
+   }
+   case tNONDETV:
+   {
+      psl_node_t p1 = p_psl_or_hdl_expression();
+      // TODO: Enforce number on p1
+      psl_add_operand(p, p1);
+   }
+
+   case tNONDET:
+   {
+      psl_node_t p2 = p_psl_value_set();
+      psl_add_operand(p, p2);
+      break;
+   }
+   }
+
+   consume(tRPAREN);
+
+   // Determine function kind and return type
+   unsigned kind = 0;
+   type_t rvt = type_new(T_NONE);
+   switch (tok) {
+   case tNEXT:
+      kind = PSL_BUILTIN_NEXT;
+      break;
+   case tPREV:
+      kind = PSL_BUILTIN_PREV;
+      break;
+   case tSTABLE:
+      kind = PSL_BUILTIN_STABLE;
+      rvt = std_type(NULL, STD_BOOLEAN);
+      break;
+   case tROSE:
+      kind = PSL_BUILTIN_ROSE;
+      rvt = std_type(NULL, STD_BOOLEAN);
+      break;
+   case tFELL:
+      kind = PSL_BUILTIN_FELL;
+      rvt = std_type(NULL, STD_BOOLEAN);
+      break;
+   case tENDED:
+      kind = PSL_BUILTIN_ENDED;
+      rvt = std_type(NULL, STD_BOOLEAN);
+      break;
+   case tNONDET:
+      kind = PSL_BUILTIN_NONDET;
+      break;
+   case tNONDETV:
+      kind = PSL_BUILTIN_NONDET_VECTOR;
+      rvt = std_type(NULL, STD_BIT_VECTOR);
+      break;
+   }
+   psl_set_subkind(p, kind);
+
+   tree_t t_psl = tree_new(T_PSL);
+   tree_set_psl(t_psl, p);
+
+   tree_t fcall = tree_new(T_FCALL);
+   tree_set_ref(fcall, t_psl);
+   tree_set_type(fcall, rvt);
+
+   return fcall;
+}
+
+static psl_node_t p_psl_parameter_definition(void)
+{
+   // PSL_Identifier [ Index_Range ] in Value_Set
+
+   BEGIN("PSL Parameter definition");
+
+   psl_node_t p = psl_new(P_PARAM);
+   tree_t param = tree_new(T_PARAM);
+   ident_t name = p_identifier();
+   tree_set_ident(param, name);
+   insert_name(nametab, param, NULL);
+
+   if (optional(tLSQUARE)) {
+
+      scan_as_vhdl();
+
+      // TODO: Enforce left and right to be numeric
+      tree_t range = tree_new(T_RANGE);
+      tree_set_left(range, p_expression());
+      consume(tTO);
+      tree_set_subkind(range, RANGE_TO);
+      tree_set_right(range, p_expression());
+
+      scan_as_psl();
+
+      tree_set_value(param, range);
+      psl_set_tree(p, param);
+
+      consume(tRSQUARE);
+   }
+
+   consume(tIN);
+
+   psl_set_value(p, p_psl_value_set());
+
+   return p;
+}
+
+static void p_psl_parameters_definition(psl_node_t p)
+{
+   // Parameter_Definition {, Parameter_Definition }
+
+   psl_add_operand(p, p_psl_parameter_definition());
+
+   while (optional(tCOMMA))
+      psl_add_operand(p, p_psl_parameter_definition());
+}
+
 static psl_node_t p_psl_parametrized_sere(void)
 {
    // for Parameters_Definition : And_Or_SERE_OP { SERE }
 
    BEGIN("PSL Parametrized SERE");
 
-   fatal_trace("parametrized_SERE not yet supported!");
+   consume(tFOR);
 
-   return NULL;
+   psl_node_t p = psl_new(P_SERE);
+   p_psl_parameters_definition(p);
+
+   consume(tCOLON);
+
+   switch (one_of(tAMP, tDBLAMP, tBAR)) {
+   case tAMP:
+      psl_set_subkind(p, PSL_SERE_PARAM_NEQ_AND);
+      break;
+   case tDBLAMP:
+      psl_set_subkind(p, PSL_SERE_PARAM_EQU_AND);
+      break;
+   case tBAR:
+      psl_set_subkind(p, PSL_SERE_PARAM_OR);
+      break;
+   }
+
+   // Last operand is always SERE that is parametrized
+   consume(tLBRACE);
+   psl_add_operand(p, p_psl_sere());
+   consume(tRBRACE);
+
+   return p;
 }
 
 static psl_node_t p_psl_compound_sere(void)
@@ -11689,6 +11956,8 @@ static tree_t p_psl_declaration(void)
    token_t tok = peek();
    tree_t t = tree_new(T_PSL);
    psl_node_t p;
+
+   insert_names_for_psl(nametab);
 
    switch (tok) {
    case tPROPERTY:

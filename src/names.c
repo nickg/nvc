@@ -142,6 +142,7 @@ struct nametab {
    scope_t    *top_scope;
    type_set_t *top_type_set;
    tree_t      std;
+   tree_t      psl;
 };
 
 typedef struct {
@@ -1918,6 +1919,26 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
                      tree_kind_str(tree_kind(c)));
       }
    }
+}
+
+void insert_names_for_psl(nametab_t *tab)
+{
+   if (tab->psl == NULL) {
+      tree_t nvc = tree_new(T_LIBRARY);
+      ident_t nvc_i = well_known(W_NVC);
+      tree_set_ident(nvc, nvc_i);
+      tree_set_ident2(nvc, nvc_i);
+      insert_name(tab, nvc, nvc_i);
+
+      tree_t psl_support = tree_new(T_USE);
+      tree_set_ident(psl_support, well_known(W_NVC_PSL_SUPPORT));
+      tree_set_ident2(psl_support, well_known(W_ALL));
+      tree_set_ref(psl_support, nvc);
+
+      tab->psl = psl_support;
+   }
+
+   insert_names_from_use(tab, tab->psl);
 }
 
 static void missing_record_field_cb(diag_t *d, ident_t id, void *arg)

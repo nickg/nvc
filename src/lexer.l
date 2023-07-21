@@ -253,6 +253,14 @@ STRING_K      ?i:string
 WITHIN        ?i:within
 VIEW          ?i:view
 PRIVATE       ?i:private
+PREV          ?i:prev
+STABLE        ?i:stable
+ROSE          ?i:rose
+FELL          ?i:fell
+ENDED         ?i:ended
+NONDET        ?i:nondet
+NONDET_V      ?i:nondet_vector
+UNION         ?i:union
 
 %%
 
@@ -491,6 +499,14 @@ PRIVATE       ?i:private
 <PSL>"[->"               { TOKEN(tARROWRPT); }
 <PSL>"&&"                { TOKEN(tDBLAMP); }
 <PSL>{WITHIN}            { TOKEN(tWITHIN); }
+<PSL>{PREV}              { TOKEN(tPREV); }
+<PSL>{STABLE}            { TOKEN(tSTABLE); }
+<PSL>{ROSE}              { TOKEN(tROSE); }
+<PSL>{FELL}              { TOKEN(tFELL); }
+<PSL>{ENDED}             { TOKEN(tENDED); }
+<PSL>{NONDET}            { TOKEN(tNONDET); }
+<PSL>{NONDET_V}          { TOKEN(tNONDETV); }
+<PSL>{UNION}             { TOKEN(tUNION); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
@@ -826,4 +842,9 @@ void scan_as_vhdl(void)
 void scan_as_verilog(void)
 {
    BEGIN(VLOG);
+}
+
+bool is_scanned_as_psl(void)
+{
+   return (YY_START == PSL);
 }

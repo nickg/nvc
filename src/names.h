@@ -86,6 +86,7 @@ void mangle_decl(nametab_t *tab, tree_t decl);
 void insert_name(nametab_t *tab, tree_t decl, ident_t alias);
 void insert_names_from_use(nametab_t *tab, tree_t use);
 void insert_names_from_context(nametab_t *tab, tree_t unit);
+void insert_names_for_psl(nametab_t *tab);
 void insert_decls(nametab_t *tab, tree_t container);
 void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
