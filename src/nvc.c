@@ -1185,6 +1185,19 @@ static int do_cmd(int argc, char **argv)
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(get_jit);
 
+   if (top_level != NULL) {
+      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
+      tree_t top = lib_get(lib_work(), ename);
+      if (top == NULL)
+         fatal("%s not elaborated", istr(top_level));
+
+      // XXX: temporary hack
+      vcode_unit_t vu = unit_registry_get(registry, top_level);
+      lib_put_vcode(lib_work(), top, vu);
+
+      shell_reset(sh, top);
+   }
+
    for (int i = optind; i < next_cmd; i++) {
       if (!shell_do(sh, argv[i]))
          return EXIT_FAILURE;
@@ -1228,7 +1241,12 @@ static int interact_cmd(int argc, char **argv)
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(lib_work(), ename);
-      assert(top != NULL);
+      if (top == NULL)
+         fatal("%s not elaborated", istr(top_level));
+
+      // XXX: temporary hack
+      vcode_unit_t vu = unit_registry_get(registry, top_level);
+      lib_put_vcode(lib_work(), top, vu);
 
       shell_reset(sh, top);
    }
