@@ -1,0 +1,10 @@
+40ns+1: PSL assertion failed
+50ns+1: PSL assertion failed
+50ns+1: PSL assertion failed
+60ns+1: PSL assertion failed
+70ns+1: PSL assertion failed
+80ns+1: PSL assertion failed
+90ns+1: PSL assertion failed
+100ns+1: PSL assertion failed
+130ns+1: PSL assertion failed
+135ns+1: FINISH called
