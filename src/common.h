@@ -98,12 +98,18 @@ void capture_syntax(text_buf_t *tb);
 typedef void (*build_wait_fn_t)(tree_t, void *);
 void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx);
 
-typedef union {
-   int64_t integer;
-   double  real;
-} scalar_value_t;
+typedef struct {
+   unsigned count;
+   uint8_t  values[];
+} enum_array_t;
 
-bool parse_value(type_t type, const char *str, scalar_value_t *value);
+typedef union {
+   int64_t       integer;
+   double        real;
+   enum_array_t *enums;
+} parsed_value_t;
+
+bool parse_value(type_t type, const char *str, parsed_value_t *value);
 
 //
 // Utility typedefs

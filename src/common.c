@@ -238,31 +238,77 @@ tree_t get_real_lit(tree_t t, type_t type, double r)
    return f;
 }
 
-bool parse_value(type_t type, const char *str, scalar_value_t *value)
+bool parse_value(type_t type, const char *str, parsed_value_t *value)
 {
-   while (isspace_iso88591(*str))
-      ++str;
-
    type_t base = type_base_recur(type);
    const type_kind_t basek = type_kind(base);
+
+   if (basek == T_ARRAY && type_is_character_array(base)) {
+      value->enums = NULL;
+
+      int map[256];
+      for (int i = 0; i < ARRAY_LEN(map); i++)
+         map[i] = INT_MAX;
+
+      type_t elem = type_elem(base);
+
+      const int nlits = type_enum_literals(elem);
+      for (int i = 0; i < nlits; i++) {
+         ident_t id = tree_ident(type_enum_literal(elem, i));
+         if (ident_char(id, 0) == '\'')
+            map[(uint8_t)ident_char(id, 1)] = i;
+      }
+
+      while (map[(uint8_t)*str] == INT_MAX && isspace_iso88591(*str))
+         ++str;
+
+      const bool quoted = map['\"'] == INT_MAX && *str == '\"';
+      if (quoted) str++;
+
+      const size_t max = strlen(str);
+      enum_array_t *array = xmalloc_flex(sizeof(enum_array_t), max, 1);
+
+      int n = 0, m;
+      for (; *str != '\0' && (m = map[(uint8_t)*str]) != INT_MAX; str++, n++)
+         array->values[n] = m;
+
+      assert(n <= max);
+      array->count = n;
+
+      if (quoted && *str++ != '\"') {
+         free(array);
+         return false;
+      }
+
+      for (; *str; str++) {
+         if (!isspace_iso88591(*str)) {
+            free(array);
+            return false;
+         }
+      }
+
+      value->enums = array;
+      return true;
+   }
+
+   while (isspace_iso88591(*str))
+      ++str;
 
    switch (basek) {
    case T_INTEGER:
       {
-         bool is_negative = *str == '-';
+         const bool is_negative = *str == '-';
          int num_digits = 0;
 
-         if (is_negative) {
-            ++str;
-         }
+         if (is_negative) ++str;
+
          int64_t sum = 0;
-         while (isdigit((int)*str) || (*str == '_')) {
+         for (; isdigit_iso88591(*str) || (*str == '_'); str++) {
             if (*str != '_') {
                sum *= 10;
                sum += (*str - '0');
                num_digits++;
             }
-            ++str;
          }
 
          value->integer = is_negative ? -sum : sum;
@@ -338,9 +384,10 @@ bool parse_value(type_t type, const char *str, scalar_value_t *value)
          if (value->integer == -1)
             return false;
       }
+      break;
 
    default:
-      break;
+      return false;
    }
 
    for (; *str; str++) {

@@ -953,3 +953,29 @@ int type_byte_width(type_t type)
 {
    return (type_bit_width(type) + 7) / 8;
 }
+
+bool type_is_character_array(type_t t)
+{
+   // LRM 93 section 3.1.1 an enumeration type is a character type if at
+   // least one of its enumeration literals is a character literal
+
+   if (!type_is_array(t))
+      return false;
+
+   if (dimension_of(t) != 1)
+      return false;
+
+   type_t elem = type_base_recur(type_elem(t));
+
+   if (!type_is_enum(elem))
+      return false;
+
+   const int nlits = type_enum_literals(elem);
+   for (int i = 0; i < nlits; i++) {
+      tree_t lit = type_enum_literal(elem, i);
+      if (ident_char(tree_ident(lit), 0) == '\'')
+         return true;
+   }
+
+   return false;
+}

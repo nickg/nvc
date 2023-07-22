@@ -3033,33 +3033,6 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_is_character_array(type_t t)
-{
-   // According LRM 93 section 3.1.1 an enumeration type is a character
-   // type if at least one of its enumeration literals is a character
-   // literal
-
-   if (!type_is_array(t))
-      return false;
-
-   if (dimension_of(t) != 1)
-      return false;
-
-   type_t elem = type_base_recur(type_elem(t));
-
-   if (!type_is_enum(elem))
-      return false;
-
-   const int nlits = type_enum_literals(elem);
-   for (int i = 0; i < nlits; i++) {
-      tree_t lit = type_enum_literal(elem, i);
-      if (ident_char(tree_ident(lit), 0) == '\'')
-         return true;
-   }
-
-   return false;
-}
-
 static bool sem_check_string_literal(tree_t t)
 {
    // String literals are in LRM 93 section 7.3.1
@@ -5100,7 +5073,7 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
    // LRM 93 8.8 if the type of the expression is an array then it must be
    // a one dimensional character array type
 
-   const bool is_1d_character_array = sem_is_character_array(type);
+   const bool is_1d_character_array = type_is_character_array(type);
    const bool valid = is_1d_character_array || type_is_discrete(type);
 
    if (!valid) {

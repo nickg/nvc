@@ -1885,33 +1885,9 @@ static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
 
 static tree_t elab_generic_parse(tree_t generic, const char *str)
 {
-   type_t type = tree_type(generic), elem;
+   type_t type = tree_type(generic);
 
-   if (type_is_array(type) && type_is_enum((elem = type_elem(type)))) {
-      tree_t t = tree_new(T_STRING);
-
-      for (const char *p = str; *p != '\0'; p++) {
-         const char ch[] = { '\'', *p, '\'', '\0' };
-         ident_t id = ident_new(ch);
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, id);
-         tree_add_char(t, ref);
-
-         const int nlit = type_enum_literals(elem);
-         for (int i = 0; i < nlit; i++) {
-            tree_t lit = type_enum_literal(elem, i);
-            if (tree_ident(lit) == id) {
-               tree_set_ref(ref, lit);
-               break;
-            }
-         }
-      }
-
-      tree_set_type(t, subtype_for_string(t, type));
-      return t;
-   }
-
-   scalar_value_t value;
+   parsed_value_t value;
    if (!parse_value(type, str, &value))
       fatal("failed to parse \"%s\" as type %s for generic %s",
             str, type_pp(type), istr(tree_ident(generic)));
@@ -1950,6 +1926,23 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
       tree_set_ival(result, value.integer);
 
       return result;
+   }
+   else if (type_is_character_array(type)) {
+      tree_t t = tree_new(T_STRING);
+
+      type_t elem = type_base_recur(type_elem(type));
+      for (int i = 0; i < value.enums->count; i++) {
+         tree_t lit = type_enum_literal(elem, value.enums->values[i]);
+
+         tree_t ref = tree_new(T_REF);
+         tree_set_ident(ref, tree_ident(lit));
+         tree_set_ref(ref, lit);
+         tree_add_char(t, ref);
+      }
+      free(value.enums);
+
+      tree_set_type(t, subtype_for_string(t, type));
+      return t;
    }
    else
       fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),

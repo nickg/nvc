@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ START_TEST(test_integer)
    (void)dummy;   // Ensure at least one object survives GC
 
    type_t t = type_new(T_INTEGER);
-   scalar_value_t v;
+   parsed_value_t v;
 
    fail_unless(parse_value(t, "0", &v));
    fail_unless(v.integer == 0);
@@ -68,7 +68,7 @@ START_TEST(test_enum)
    tree_t dummy = tree_new(T_ENTITY);
    (void)dummy;   // Ensure at least one object survives GC
 
-   scalar_value_t v;
+   parsed_value_t v;
    type_t t = type_new(T_ENUM);
    {
       tree_t lit1 = tree_new(T_ENUM_LIT);
@@ -103,7 +103,7 @@ START_TEST(test_subtype)
    tree_t dummy = tree_new(T_ENTITY);
    (void)dummy;   // Ensure at least one object survives GC
 
-   scalar_value_t v;
+   parsed_value_t v;
    type_t t = type_new(T_ENUM);
    type_t s = type_new(T_SUBTYPE);
    {
@@ -148,7 +148,7 @@ END_TEST
 START_TEST(test_real)
 {
    type_t t = std_type(NULL, STD_REAL);
-   scalar_value_t v;
+   parsed_value_t v;
 
    fail_unless(parse_value(t, "0", &v));
    ck_assert_double_eq(v.real, 0.0);
@@ -170,7 +170,7 @@ END_TEST
 START_TEST(test_physical)
 {
    type_t t = std_type(NULL, STD_TIME);
-   scalar_value_t v;
+   parsed_value_t v;
 
    fail_unless(parse_value(t, "0ps", &v));
    ck_assert_int_eq(v.integer, 0);
@@ -180,6 +180,41 @@ START_TEST(test_physical)
 
    fail_unless(parse_value(t, " 3   ps ", &v));
    ck_assert_int_eq(v.integer, 3000);
+}
+END_TEST
+
+START_TEST(test_string)
+{
+   type_t str = std_type(NULL, STD_STRING);
+   type_t bv = std_type(NULL, STD_BIT_VECTOR);
+   parsed_value_t v;
+
+   fail_unless(parse_value(str, " \"hello\"", &v));
+   ck_assert_int_eq(v.enums->count, 8);
+   ck_assert_mem_eq(v.enums->values, " \"hello\"", 8);
+   free(v.enums);
+
+   fail_unless(parse_value(bv, " \"10101\"  ", &v));
+   ck_assert_int_eq(v.enums->count, 5);
+
+   const uint8_t bits1[] = { 1, 0, 1, 0, 1 };
+   ck_assert_mem_eq(v.enums->values, bits1, 5);
+   free(v.enums);
+
+   fail_unless(parse_value(bv, "110  ", &v));
+   ck_assert_int_eq(v.enums->count, 3);
+
+   const uint8_t bits2[] = { 1, 1, 0 };
+   ck_assert_mem_eq(v.enums->values, bits2, 3);
+   free(v.enums);
+
+   fail_if(parse_value(bv, " \"101012\"  ", &v));
+   fail_if(parse_value(bv, " 1010121  ", &v));
+
+   fail_unless(parse_value(str, "  unquoted  ", &v));
+   ck_assert_int_eq(v.enums->count, 12);
+   ck_assert_mem_eq(v.enums->values, "  unquoted  ", 12);
+   free(v.enums);
 }
 END_TEST
 
@@ -193,6 +228,7 @@ Suite *get_value_tests(void)
    tcase_add_test(tc_core, test_subtype);
    tcase_add_test(tc_core, test_real);
    tcase_add_test(tc_core, test_physical);
+   tcase_add_test(tc_core, test_string);
    suite_add_tcase(s, tc_core);
 
    return s;

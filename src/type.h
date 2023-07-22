@@ -151,6 +151,7 @@ bool type_is_convertible_map(type_t from, type_t to, hash_t *map);
 bool type_is_composite(type_t t);
 bool type_is_homogeneous(type_t t);
 bool type_is_resolved(type_t t);
+bool type_is_character_array(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);
