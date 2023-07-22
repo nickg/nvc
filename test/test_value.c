@@ -180,6 +180,8 @@ START_TEST(test_physical)
 
    fail_unless(parse_value(t, " 3   ps ", &v));
    ck_assert_int_eq(v.integer, 3000);
+
+   fail_if(parse_value(t, " 5", &v));
 }
 END_TEST
 

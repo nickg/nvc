@@ -368,6 +368,9 @@ bool parse_value(type_t type, const char *str, parsed_value_t *value)
             *p = toupper_iso88591(*p);
          *p = '\0';
 
+         if (p == copy)
+            return false;
+
          ident_t id = ident_new(copy);
 
          value->integer = -1;
