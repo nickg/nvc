@@ -3143,14 +3143,14 @@ static inline void check_delay(int64_t delay)
    }
 }
 
-void force_signal(rt_signal_t *s, const void *values, int offset, size_t count)
+void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
+                  int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("force signal %s (offset %d) to %s", istr(tree_ident(s->where)), offset,
+   TRACE("force signal %s+%d to %s", istr(tree_ident(s->where)), offset,
          fmt_values(values, count));
 
-   rt_model_t *m = get_model();
    assert(m->can_create_delta);
 
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -3169,14 +3169,37 @@ void force_signal(rt_signal_t *s, const void *values, int offset, size_t count)
    }
 }
 
-void deposit_signal(rt_signal_t *s, const void *values, int offset, size_t count)
+void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("deposit signal %s (offset %d) to %s", istr(tree_ident(s->where)),
+   TRACE("release signal %s+%d", istr(tree_ident(s->where)), offset);
+
+   assert(m->can_create_delta);
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      if (n->flags & NET_F_FORCED)
+         n->flags &= ~NET_F_FORCED;
+
+      rt_source_t *src = get_forcing_source(m, n);
+      src->disconnected = 1;
+
+      deltaq_insert_force_release(m, n);
+   }
+}
+
+void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
+                    int offset, size_t count)
+{
+   RT_LOCK(s->lock);
+
+   TRACE("deposit signal %s+%d to %s", istr(tree_ident(s->where)),
          offset, fmt_values(values, count));
 
-   rt_model_t *m = get_model();
    assert(m->can_create_delta);
 
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -3443,6 +3466,25 @@ int64_t get_static_expr(rt_model_t *m, tree_t expr)
    }
 
    return eval_static_expr(m->jit, expr);
+}
+
+void get_forcing_value(rt_signal_t *s, uint8_t *value)
+{
+   uint8_t *p = value;
+   rt_nexus_t *n = &(s->nexus);
+   for (int i = 0; i < s->n_nexus; i++) {
+      assert(n->n_sources > 0);
+      rt_source_t *s = NULL;
+      for (s = &(n->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_FORCING)
+            break;
+      }
+      assert(s != NULL);
+
+      memcpy(p, s->u.forcing.bytes, n->width * n->size);
+      p += n->width * n->size;
+   }
+   assert(p == value + s->shared.size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4081,30 +4123,16 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-   RT_LOCK(s->lock);
 
    TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count), count);
 
    rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
 
    check_postponed(0, proc);
 
-   rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   char *vptr = values;
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
-
-      n->flags |= NET_F_FORCED;
-
-      rt_source_t *src = get_forcing_source(m, n);
-      copy_value_ptr(n, &(src->u.forcing), vptr);
-      vptr += n->width * n->size;
-
-      deltaq_insert_force_release(m, n);
-   }
+   force_signal(m, s, values, offset, count);
 }
 
 void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
@@ -4115,23 +4143,11 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
          offset, count);
 
    rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
 
    check_postponed(0, proc);
 
-   rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
-
-      if (n->flags & NET_F_FORCED)
-         n->flags &= ~NET_F_FORCED;
-
-      rt_source_t *src = get_forcing_source(m, n);
-      src->disconnected = 1;
-
-      deltaq_insert_force_release(m, n);
-   }
+   release_signal(m, s, offset, count);
 }
 
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,

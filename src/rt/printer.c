@@ -98,6 +98,24 @@ static void std_logic_vector_printer(print_func_t *f, const void *data,
    tb_append(f->printer->buf, '"');
 }
 
+static void bit_printer(print_func_t *f, const void *data, size_t size,
+                        print_flags_t flags)
+{
+   assert(size == 1);
+   tb_cat(f->printer->buf, *(uint8_t *)data ? "'1'" : "'0'");
+}
+
+static void bit_vector_printer(print_func_t *f, const void *data,
+                               size_t size, print_flags_t flags)
+{
+   tb_append(f->printer->buf, '"');
+
+   for (int i = 0; i < size; i++)
+      tb_append(f->printer->buf, *((uint8_t *)data + i) ? '1' : '0');
+
+   tb_append(f->printer->buf, '"');
+}
+
 printer_t *printer_new(void)
 {
    printer_t *p = xcalloc(sizeof(printer_t));
@@ -145,6 +163,9 @@ print_func_t *printer_for(printer_t *p, type_t type)
        case W_IEEE_ULOGIC:
           f->typefn = std_logic_printer;
           break;
+       case W_STD_BIT:
+          f->typefn = bit_printer;
+          break;
        default:
           goto invalid;
        }
@@ -155,10 +176,13 @@ print_func_t *printer_for(printer_t *p, type_t type)
       case W_IEEE_ULOGIC_VECTOR:
           f->typefn = std_logic_vector_printer;
           break;
-       default:
-          goto invalid;
-       }
-       break;
+      case W_STD_BIT_VECTOR:
+          f->typefn = bit_vector_printer;
+          break;
+      default:
+         goto invalid;
+      }
+      break;
    default:
       goto invalid;
    }
@@ -175,5 +199,13 @@ const char *print_signal(print_func_t *fn, rt_signal_t *s, print_flags_t flags)
 {
    tb_rewind(fn->printer->buf);
    (*fn->typefn)(fn, s->shared.data, s->shared.size, flags);
+   return tb_get(fn->printer->buf);
+}
+
+const char *print_raw(print_func_t *fn, const void *data, size_t size,
+                      print_flags_t flags)
+{
+   tb_rewind(fn->printer->buf);
+   (*fn->typefn)(fn, data, size, flags);
    return tb_get(fn->printer->buf);
 }

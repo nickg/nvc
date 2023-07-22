@@ -33,5 +33,7 @@ void printer_free(printer_t *p);
 print_func_t *printer_for(printer_t *p, type_t type);
 
 const char *print_signal(print_func_t *fn, rt_signal_t *s, print_flags_t flags);
+const char *print_raw(print_func_t *fn, const void *data, size_t size,
+                      print_flags_t flags);
 
 #endif  // _RT_PRINTER_H

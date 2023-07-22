@@ -315,6 +315,89 @@ START_TEST(test_exit)
 }
 END_TEST
 
+static void force1_stdout_handler(const char *buf, size_t nchars, void *user)
+{
+   static const char *expect[] = {
+      "force /x '1'\n", "force /y 42\n", "force /z \"110\"\n"
+   };
+
+   int *state = user;
+   ck_assert_int_lt(*state, ARRAY_LEN(expect));
+   ck_assert_int_eq(nchars, strlen(expect[*state]));
+   ck_assert_mem_eq(buf, expect[*state], nchars);
+
+   (*state)++;
+}
+
+START_TEST(test_force1)
+{
+   const error_t expect[] = {
+      { LINE_INVALID, "expected 3 elements for signal /z but have 5" },
+      { LINE_INVALID, "value '11' is not valid for type BIT" },
+      { LINE_INVALID, "signal /x is not forced" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tcl_shell_t *sh = shell_new(jit_new);
+
+   int state = 0;
+   shell_handler_t handler = {
+      .stdout_write = force1_stdout_handler,
+      .context = &state
+   };
+   shell_set_handler(sh, &handler);
+
+   const char *result = NULL;
+
+   shell_eval(sh, "analyse " TESTDIR "/shell/force1.vhd", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "elaborate force1", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "run 1 ns", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "force /x '1'", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "force /y 42", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "force /z \"110\"", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "force", &result);
+   ck_assert_str_eq(result, "");
+   ck_assert_int_eq(state, 3);
+
+   shell_eval(sh, "run 1 ns", &result);
+   ck_assert_str_eq(result, "");
+
+   fail_if(shell_eval(sh, "force /z \"11011\"", &result));
+   fail_if(shell_eval(sh, "force /x {11}", &result));
+
+   shell_eval(sh, "noforce /x", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "run 1 ns", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "noforce *", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "noforce /x", &result);
+
+   shell_eval(sh, "run", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_free(sh);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -325,6 +408,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_examine1);
    tcase_add_test(tc, test_wave1);
    tcase_add_test(tc, test_redirect);
+   tcase_add_test(tc, test_force1);
    tcase_add_exit_test(tc, test_exit, 5);
    suite_add_tcase(s, tc);
 

@@ -2399,9 +2399,9 @@ int vhpi_put_value(vhpiHandleT handle,
          }
 
          if (mode == vhpiForcePropagate)
-            force_signal(signal, ptr, offset, num_elems);
+            force_signal(model, signal, ptr, offset, num_elems);
          else
-            deposit_signal(signal, ptr, offset, num_elems);
+            deposit_signal(model, signal, ptr, offset, num_elems);
 
          return 0;
       }

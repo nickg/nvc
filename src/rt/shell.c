@@ -102,6 +102,12 @@ static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
    return TCL_ERROR;
 }
 
+static int syntax_error(tcl_shell_t *sh, Tcl_Obj *const objv[])
+{
+   return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
+                    Tcl_GetString(objv[0]));
+}
+
 __attribute__((format(printf, 2, 3)))
 static void shell_printf(tcl_shell_t *sh, const char *fmt, ...)
 {
@@ -177,6 +183,20 @@ static void shell_update_now(tcl_shell_t *sh)
 
    Tcl_UpdateLinkedVar(sh->interp, "now");
    Tcl_UpdateLinkedVar(sh->interp, "deltas");
+}
+
+static bool shell_get_printer(tcl_shell_t *sh, shell_signal_t *ss)
+{
+   if (ss->printer == NULL)
+      ss->printer = printer_for(sh->printer, tree_type(ss->signal->where));
+
+   if (ss->printer == NULL) {
+      tcl_error(sh, "cannot display type %s",
+                type_pp(tree_type(ss->signal->where)));
+      return false;
+   }
+
+   return true;
 }
 
 static void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
@@ -343,7 +363,7 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help find$$ for usage");
+   return syntax_error(sh, objv);
 }
 
 static const char analyse_help[] =
@@ -389,8 +409,7 @@ static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
    return error_count() > 0 ? TCL_ERROR : TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
-                    Tcl_GetString(objv[0]));
+   return syntax_error(sh, objv);
 }
 
 static const char elaborate_help[] =
@@ -453,8 +472,7 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
-                    Tcl_GetString(objv[0]));
+   return syntax_error(sh, objv);
 }
 
 static const char examine_help[] =
@@ -541,12 +559,8 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
       if (ss == NULL)
          return tcl_error(sh, "cannot find name '%s'", name);
 
-      if (ss->printer == NULL)
-         ss->printer = printer_for(sh->printer, tree_type(ss->signal->where));
-
-      if (ss->printer == NULL)
-         return tcl_error(sh, "cannot display type %s",
-                          type_pp(tree_type(ss->signal->where)));
+      if (!shell_get_printer(sh, ss))
+         return TCL_ERROR;
 
       const char *str = print_signal(ss->printer, ss->signal, flags);
       result[i] = Tcl_NewStringObj(str, -1);
@@ -563,8 +577,133 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
-                    Tcl_GetString(objv[0]));
+   return syntax_error(sh, objv);
+}
+
+static const char force_help[] =
+   "Force the value of a signal\n"
+   "\n"
+   "Syntax:\n"
+   "  force [<signal> <value>]\n"
+   "\n"
+   "Value can be either an enumeration literal ('1', true), an integer "
+   "(42, 0), or a bit string literal (\"10111\") and must be appropriate "
+   "for the signal type. Without arguments lists all currently forced "
+   "signals.\n"
+   "\n"
+   "Examples:\n"
+   "  force /uut/foo '1'\n"
+   "  force /bitvec \"10011\"\n";
+
+static int shell_cmd_force(ClientData cd, Tcl_Interp *interp,
+                           int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+   else if (objc != 3 && objc != 1)
+      return syntax_error(sh, objv);
+
+   if (objc == 1) {
+      for (int i = 0; i < sh->nsignals; i++) {
+         shell_signal_t *ss = &(sh->signals[i]);
+         if (!(ss->signal->nexus.flags & NET_F_FORCED))
+            continue;
+
+         if (!shell_get_printer(sh, ss))
+            return TCL_ERROR;
+
+         const size_t nbytes = ss->signal->shared.size;
+         uint8_t *value LOCAL = xmalloc(nbytes);
+         get_forcing_value(ss->signal, value);
+
+         shell_printf(sh, "force %s %s\n", istr(ss->path),
+                      print_raw(ss->printer, value, nbytes, 0));
+      }
+
+      return TCL_OK;
+   }
+
+   const char *signame = Tcl_GetString(objv[1]);
+   const char *valstr = Tcl_GetString(objv[2]);
+
+   shell_signal_t *ss = hash_get(sh->namemap, ident_new(signame));
+   if (ss == NULL)
+      return tcl_error(sh, "cannot find signal '%s'", signame);
+
+   type_t type = tree_type(ss->signal->where);
+
+   parsed_value_t value;
+   if (!parse_value(type, valstr, &value))
+      return tcl_error(sh, "value '%s' is not valid for type %s",
+                       valstr, type_pp(type));
+
+   if (type_is_scalar(type))
+      force_signal(sh->model, ss->signal, &value.integer, 0, 1);
+   else if (type_is_character_array(type)) {
+      const int width = signal_width(ss->signal);
+      if (value.enums->count != width) {
+         tcl_error(sh, "expected %d elements for signal %s but have %d", width,
+                   signame, value.enums->count);
+         free(value.enums);
+         return TCL_ERROR;
+      }
+
+      force_signal(sh->model, ss->signal, value.enums->values, 0, width);
+      free(value.enums);
+   }
+   else
+      return tcl_error(sh, "cannot force signals of type %s", type_pp(type));
+
+   return TCL_OK;
+}
+
+static const char noforce_help[] =
+   "Stop forcing the value of signals\n"
+   "\n"
+   "Syntax:\n"
+   "  noforce <signal>...\n"
+   "  noforce *\n"
+   "\n"
+   "The second form stops forcing all currently forced signals.\n"
+   "\n"
+   "Examples:\n"
+   "  noforce /uut/foo /baz\n";
+
+static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
+                             int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+   else if (objc == 1)
+      return syntax_error(sh, objv);
+
+   for (int i = 1; i < objc; i++) {
+      const char *signame = Tcl_GetString(objv[i]);
+      if (strcmp(signame, "*") == 0) {
+         for (int i = 0; i < sh->nsignals; i++) {
+            shell_signal_t *ss = &(sh->signals[i]);
+            if (ss->signal->nexus.flags & NET_F_FORCED)
+               release_signal(sh->model, ss->signal, 0,
+                              signal_width(ss->signal));
+         }
+      }
+      else {
+         shell_signal_t *ss = hash_get(sh->namemap, ident_new(signame));
+         if (ss == NULL)
+            return tcl_error(sh, "cannot find signal '%s'", signame);
+
+         if (!(ss->signal->nexus.flags & NET_F_FORCED))
+            return tcl_error(sh, "signal %s is not forced", signame);
+
+         release_signal(sh->model, ss->signal, 0, signal_width(ss->signal));
+      }
+   }
+
+   return TCL_OK;
 }
 
 static const char add_help[] =
@@ -603,7 +742,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help add$$ for usage");
+   return syntax_error(sh, objv);
 }
 
 static const char quit_help[] =
@@ -648,7 +787,7 @@ static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help quit$$ for usage");
+   return syntax_error(sh, objv);
 }
 
 static const char exit_help[] =
@@ -682,7 +821,7 @@ static int shell_cmd_exit(ClientData cd, Tcl_Interp *interp,
    Tcl_Exit(status);
 
  usage:
-   return tcl_error(sh, "syntax error, enter $bold$help exit$$ for usage");
+   return syntax_error(sh, objv);
 }
 
 static const char help_help[] =
@@ -700,7 +839,7 @@ static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
       const char *which = Tcl_GetString(objv[1]);
       for (int i = 0; i < sh->ncmds; i++) {
          if (strcmp(sh->cmds[i].name, which) == 0) {
-            fputs(sh->cmds[i].help, stdout);
+            shell_printf(sh, "%s", sh->cmds[i].help);
             return TCL_OK;
          }
       }
@@ -904,7 +1043,8 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "add", shell_cmd_add, add_help);
    shell_add_cmd(sh, "quit", shell_cmd_quit, quit_help);
-   shell_add_cmd(sh, "exit", shell_cmd_exit, exit_help);
+   shell_add_cmd(sh, "force", shell_cmd_force, force_help);
+   shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
