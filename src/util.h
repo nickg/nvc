@@ -364,6 +364,7 @@ void get_lib_dir(text_buf_t *tb);
 void get_data_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
 void open_pipe(int *rfd, int *wfd);
+bool is_absolute_path(const char *path);
 
 struct cpu_state;
 typedef void (*fault_fn_t)(int, void *, struct cpu_state *, void *);

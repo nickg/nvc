@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE coverage SYSTEM 'http://cobertura.sourceforge.net/xml/coverage-04.dtd'>
+<coverage version="nvc 1.11-devel" line-rate="0.909091" branch-rate="0.333333" complexity="0.0" lines-valid="11" lines-covered="10" branches-valid="3" branches-covered="1" timestamp="0">
+<sources>
+<source>.</source>
+</sources>
+<packages>
+<package name="WORK" line-rate="0.909091" branch-rate="0.333333" complexity="0.0">
+<classes>
+<class name="SUB(TEST)" filename="regress/cover17.vhd" line-rate="1.000000" branch-rate="1.000000" complexity="0.0" >
+<methods/>
+<lines>
+<line number="10" hits="4" branch="true" condition-coverage="100 %">
+<conditions>
+<condition number="0" type="jump" coverage="100 %"/>
+</conditions>
+</line>
+<line number="11" hits="1" branch="false"/>
+<line number="13" hits="3" branch="false"/>
+</lines>
+</class>
+<class name="COVER17(TEST)" filename="regress/cover17.vhd" line-rate="0.875000" branch-rate="0.000000" complexity="0.0" >
+<methods/>
+<lines>
+<line number="33" hits="1" branch="false"/>
+<line number="34" hits="1" branch="false"/>
+<line number="35" hits="1" branch="true" condition-coverage="50 %">
+<conditions>
+<condition number="0" type="jump" coverage="50 %"/>
+</conditions>
+</line>
+<line number="36" hits="1" branch="false"/>
+<line number="38" hits="1" branch="false"/>
+<line number="39" hits="1" branch="true" condition-coverage="50 %">
+<conditions>
+<condition number="0" type="jump" coverage="50 %"/>
+</conditions>
+</line>
+<line number="40" hits="0" branch="false"/>
+<line number="42" hits="1" branch="false"/>
+</lines>
+</class>
+</classes>
+</package>
+</packages>
+</coverage>

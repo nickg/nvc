@@ -824,3 +824,4 @@ tcl2            normal,tcl
 psl3            fail,gold,2008
 issue731        normal,2008
 psl4            fail,psl,gold,2008
+cover17         cover,export=cobertura

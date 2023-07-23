@@ -53,6 +53,10 @@ Execute a previously elaborated top level design unit.
 Process code coverage data from
 .Ar file
 and generate coverage report.
+.\" --cover-export
+.It Fl \-cover-export Ar unit
+Export collected coverage information for a previously executed top
+level design unit to an external format such as Cobertura XML.
 .\" --dump
 .It Fl \-dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
@@ -79,21 +83,30 @@ Check input files for syntax errors only.
 .El
 .\"
 .Pp
-Commands can be chained together.  For example to analyse a file
-.Ar foo.vhd
+Commands can be chained together arbitrarily and the top-level unit
+name need only be specified once.  For example to analyse a file
+.Ql source.vhd
 and then elaborate and run a top-level entity
-.Ar bar :
+.Ql tb :
 .Bd -literal -offset indent
-$ nvc -a foo.vhd -e bar -r
+$ nvc -a source.vhd -e tb -r
 .Ed
 .Pp
-Note that the
+Or to elaborate again with coverage collection enabled, run the
+simulation, and export the data to the Cobertura format:
+.Bd -literal -offset indent
+$ nvc -e --cover tb -r --cover-export --format=cobertura -o out.xml
+.Ed
+.Pp
+Note how the
 .Ar unit
 argument for the
 .Fl r
-run command is taken from the earlier
+and
+.Fl \-cover-export
+commands is taken from the earlier
 .Fl e
-elaborate command.
+command.
 .\" ------------------------------------------------------------
 .\" Global options
 .\" ------------------------------------------------------------
@@ -445,6 +458,28 @@ value of
 is 5000.
 .It Fl V , Fl \-verbose
 Prints detailed hierarchy coverage when generating code coverage report.
+.El
+.\" ------------------------------------------------------------
+.\" Coverage export options
+.\" ------------------------------------------------------------
+.Ss Coverage export options
+.Bl -tag -width Ds
+.\" --format
+.It Fl \-format= Ns Ar format
+Output file format.  Currently the only valid value is
+.Ql cobertura
+which is the Cobertura XML format widely supported by CI systems.
+.\" --output
+.It Fl o , Fl \-output= Ns Ar file
+Write output to
+.Ar file .
+If this option is not specified the standard output stream is used.
+.\" --relative
+.It Fl \-relative Ns Op = Ns Ar path
+Strip
+.Ar path
+or the current working directory from the front of any absolute path
+names in the output.
 .El
 .\" ------------------------------------------------------------
 .\" Make options

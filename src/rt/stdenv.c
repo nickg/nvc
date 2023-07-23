@@ -140,13 +140,8 @@ static const char *find_dir_separator(const char *str)
 
 static ffi_uarray_t *to_absolute_path(const char *input, size_t len)
 {
-   if (input[0] == DIR_SEP[0] || input[0] == '/')
+   if (is_absolute_path(input))
       return to_line_n(input, len);
-
-#ifdef __MINGW32__
-   if (isalpha((int)input[0]) && input[1] == ':')
-      return to_line_n(input, len);
-#endif
 
    char buf[PATH_MAX];
    if (realpath(input, buf) == NULL)

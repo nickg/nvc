@@ -200,4 +200,7 @@ cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask);
 
 void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging);
 
+void cover_export_cobertura(cover_tagging_t *tagging, FILE *f,
+                            const char *relative);
+
 #endif  // _COVER_H

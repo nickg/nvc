@@ -93,6 +93,7 @@
 #define F_TCL     (1 << 20)
 #define F_GTKW    (1 << 21)
 #define F_NOCOLL  (1 << 22)
+#define F_EXPORT  (1 << 23)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -122,6 +123,7 @@ struct test {
    char      *heapsz;
    char      *cover;
    char      *define;
+   char      *export;
 };
 
 struct arglist {
@@ -471,6 +473,17 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_DEFINE;
             test->define = strdup(value + 1);
          }
+         else if (strncmp(opt, "export", 6) == 0) {
+            char *value = strchr(opt, '=');
+            if (value == NULL) {
+               fprintf(stderr, "Error on testlist line %d: missing argument to "
+                       "export option in test %s\n", lineno, name);
+               goto out_close;
+            }
+
+            test->flags |= F_EXPORT;
+            test->export = strdup(value + 1);
+         }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -697,27 +710,40 @@ static bool enter_test_directory(test_t *test, char *dir)
    return true;
 }
 
-__attribute__((format(printf, 1, 2)))
-static void failed(const char *fmt, ...)
+static void explain(int attr, const char *prefix, const char *fmt, va_list ap)
 {
    char *reason = NULL;
-   if (fmt != NULL) {
-      va_list ap;
-      va_start(ap, fmt);
+   if (fmt != NULL)
       reason = xvasprintf(fmt, ap);
-      va_end(ap);
-   }
 
-   set_attr(ANSI_FG_RED);
+   set_attr(attr);
    if (reason != NULL)
-      printf("failed (%s)", reason);
+      printf("%s (%s)", prefix, reason);
    else
-      printf("failed");
+      printf("%s", prefix);
    set_attr(ANSI_RESET);
    printf("\n");
    fflush(stdout);
 
    free(reason);
+}
+
+__attribute__((format(printf, 1, 2)))
+static void failed(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   explain(ANSI_FG_RED, "failed", fmt, ap);
+   va_end(ap);
+}
+
+__attribute__((format(printf, 1, 2)))
+static void skipped(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   explain(ANSI_FG_CYAN, "skipped", fmt, ap);
+   va_end(ap);
 }
 
 static bool run_test(test_t *test)
@@ -742,9 +768,17 @@ static bool run_test(test_t *test)
 #endif
 
    if (skip) {
-      set_attr(ANSI_FG_CYAN);
-      printf("skipped\n");
-      set_attr(ANSI_RESET);
+      if (skip & F_SLOW)
+         skipped("slow with interpreter");
+      else if (skip & F_VERILOG)
+         skipped("verilog not enabled");
+      else if (skip & F_TCL)
+         skipped("tcl not enabled");
+      else if (skip & (F_NOTWIN | F_WAVE))
+         skipped("disabled on windows");
+      else
+         skipped(NULL);
+
       return true;
    }
 
@@ -896,7 +930,58 @@ static bool run_test(test_t *test)
       goto out_print;
    }
 
-   if ((test->flags & F_COVER) && !(test->flags & F_SHELL)) {
+   if ((test->flags & F_COVER) && (test->flags & F_EXPORT)) {
+      // Generate and check XML report
+      push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
+      push_arg(&args, "--cover-export");
+      push_arg(&args, "--relative=%s", test_dir);
+      push_arg(&args, "--out=export.xml");
+      push_arg(&args, "--format=%s", test->export);
+      push_arg(&args, "%s", test->name);
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("coverage report");
+         result = false;
+         goto out_print;
+      }
+      else if (!file_exists("export.xml")) {
+         failed("missing exported coverage report");
+         result = false;
+         goto out_print;
+      }
+
+#ifdef XMLLINT_PATH
+      push_arg(&args, "%s", XMLLINT_PATH);
+      push_arg(&args, "--noout");
+      push_arg(&args, "--nonet");
+      push_arg(&args, "--dtdvalid");
+      push_arg(&args, "%s/%s.dtd", test_dir, test->export);
+      push_arg(&args, "export.xml");
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("XML lint failed");
+         result = false;
+         goto out_print;
+      }
+#else
+      skipped("missing xmllint");
+      goto out_close;
+#endif
+
+#ifndef __MINGW32__  // Directory separator different on Windows
+      push_arg(&args, "%s", DIFF_PATH);
+      push_arg(&args, "-u");
+      push_arg(&args, "%s/regress/gold/%s.xml", test_dir, test->name);
+      push_arg(&args, "export.xml");
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("XML mismatch");
+         result = false;
+         goto out_print;
+      }
+#endif
+   }
+   else if ((test->flags & F_COVER) && !(test->flags & F_SHELL)) {
       // Generate coverage report
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "-c");
@@ -1102,6 +1187,8 @@ int main(int argc, char **argv)
 #else
    setenv("LANG", "en_US.UTF-8", 1);
 #endif
+
+   setenv("NVC_COVER_TIMESTAMP", "0", 1);
 
    if (getenv("QUICK"))
       return 0;

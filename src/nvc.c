@@ -88,6 +88,7 @@ static int scan_cmd(int start, int argc, char **argv)
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
       "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
+      "--cover-export"
    };
 
    for (int i = start; i < argc; i++) {
@@ -266,6 +267,9 @@ static void set_top_level(char **argv, int next_cmd)
       if (top_level == NULL)
          fatal("missing top-level unit name");
    }
+   else if (optind != next_cmd - 1)
+      fatal("excess positional argument '%s' following top-level unit name",
+            argv[optind + 1]);
    else {
       free(top_level_orig);
       top_level_orig = xstrdup(argv[optind]);
@@ -1292,6 +1296,7 @@ static int coverage(int argc, char **argv)
    static struct option long_options[] = {
       { "report",       required_argument, 0, 'r' },
       { "exclude-file", required_argument, 0, 'e' },
+      { "export",       required_argument, 0, 'E' },
       { "merge",        required_argument, 0, 'm' },
       { "dont-print",   required_argument, 0, 'd' },
       { "item-limit",   required_argument, 0, 'l' },
@@ -1300,6 +1305,7 @@ static int coverage(int argc, char **argv)
    };
 
    const char *out_db = NULL, *rpt_file = NULL, *exclude_file = NULL;
+   const char *export_file = NULL;
    int c, index;
    const char *spec = ":V";
    cover_mask_t rpt_mask = 0;
@@ -1315,6 +1321,9 @@ static int coverage(int argc, char **argv)
          break;
       case 'e':
          exclude_file = optarg;
+         break;
+      case 'E':
+         export_file = optarg;
          break;
       case 'd':
          rpt_mask = parse_cover_print_spec(optarg);
@@ -1375,7 +1384,91 @@ static int coverage(int argc, char **argv)
       cover_report(rpt_file, cover, item_limit);
    }
 
+   if (export_file && cover) {
+      progress("Exporting XML coverage report");
+
+      FILE *f = fopen(export_file, "w");
+      if (f == NULL)
+         fatal_errno("cannot open %s", export_file);
+
+      cover_export_cobertura(cover, f, NULL);
+      fclose(f);
+   }
+
    return 0;
+}
+
+static int cover_export_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { "format",   required_argument, 0, 'f' },
+      { "output",   required_argument, 0, 'o' },
+      { "relative", optional_argument, 0, 'r' },
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+
+   enum { UNSET, COBERTURA } format = UNSET;
+   const char *output = NULL, *relative = NULL;
+   int c, index;
+   const char *spec = ":o";
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 'f':
+         if (strcasecmp(optarg, "cobertura") == 0)
+            format = COBERTURA;
+         else
+            fatal("unknown format '%s', valid formats are: cobertura", optarg);
+         break;
+      case 'o':
+         output = optarg;
+         break;
+      case 'r':
+         relative = optarg ?: ".";
+         break;
+      case '?':
+         bad_option("coverage", argv);
+      case ':':
+         missing_argument("coverage", argv);
+      default:
+         abort();
+      }
+   }
+
+   set_top_level(argv, next_cmd);
+
+   if (format == UNSET) {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "the $bold$--format$$ option is required");
+      diag_hint(d, NULL, "pass $bold$--format=cobertura$$ for Cobertura XML");
+      diag_emit(d);
+      return EXIT_FAILURE;
+   }
+
+   char *fname LOCAL = xasprintf("_%s.elab.covdb", istr(top_level));
+   fbuf_t *f = lib_fbuf_open(lib_work(), fname, FBUF_IN, FBUF_CS_NONE);
+
+   if (f == NULL)
+      fatal("no coverage database for %s", istr(top_level));
+
+   int rpt_mask = 0;
+   cover_tagging_t *cover = cover_read_tags(f, rpt_mask);
+   fbuf_close(f, NULL);
+
+   FILE *file = stdout;
+   if (output != NULL && (file = fopen(output, "w")) == NULL)
+      fatal_errno("cannot create %s", output);
+
+   cover_export_cobertura(cover, file, relative);
+
+   if (file != stdout)
+      fclose(file);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : 0;
 }
 
 static void usage(void)
@@ -1384,10 +1477,11 @@ static void usage(void)
           "\n"
           "COMMAND is one of:\n"
           " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
-          " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
-          " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
+          " -e [OPTION]... TOP\t\tElaborate design unit TOP\n"
+          " -r [OPTION]... TOP\t\tExecute previously elaborated TOP\n"
           " -c [OPTION]... FILE...\t\tProcess code coverage from FILEs\n"
           " -i\t\t\t\tLaunch interactive TCL shell\n"
+          " --cover-export TOP\t\tExport code coverage statistics for TOP\n"
           " --do SCRIPT\t\t\tEvaluate TCL script\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --init\t\t\t\tInitialise work library directory\n"
@@ -1414,7 +1508,7 @@ static void usage(void)
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
-          " -f, --files=LIST\t\tRead files to analyse from LIST\n"
+          " -f, --files=LIST\tRead files to analyse from LIST\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
@@ -1458,6 +1552,7 @@ static void usage(void)
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
           "                   \tto OUTPUT coverage database\n"
           "     --exclude-file=\tApply exclude file when generating report\n"
+          "     --export=FILE\tEquivalent to `--cover-export -o FILE'\n"
           "     --dont-print=\tDo not include specified tags in generated "
           "code\n"
           "                  \tcoverage report. Argument is a list of:\n"
@@ -1466,6 +1561,11 @@ static void usage(void)
           "                  \t  excluded\n"
           "     --report=DIR\tGenerate HTML report with code coverage results\n"
           "                    \tto DIR folder.\n"
+          "\n"
+          "Coverage export options:\n"
+          "     --format=FMT\tFile format (must be 'cobertura')\n"
+          " -o, --output=FILE\tOutput file name\n"
+          "     --relative=PATH\tStrip PATH from prefix of absolute paths\n"
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
@@ -1568,15 +1668,16 @@ static void parse_library_map(char *str)
 static int process_command(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "dump",       no_argument, 0, 'd' },
-      { "make",       no_argument, 0, 'm' },
-      { "syntax",     no_argument, 0, 's' },
-      { "list",       no_argument, 0, 'l' },
-      { "init",       no_argument, 0, 'n' },
-      { "install",    no_argument, 0, 'I' },
-      { "print-deps", no_argument, 0, 'P' },
-      { "aotgen",     no_argument, 0, 'A' },
-      { "do",         no_argument, 0, 'D' },
+      { "dump",         no_argument, 0, 'd' },
+      { "make",         no_argument, 0, 'm' },
+      { "syntax",       no_argument, 0, 's' },
+      { "list",         no_argument, 0, 'l' },
+      { "init",         no_argument, 0, 'n' },
+      { "install",      no_argument, 0, 'I' },
+      { "print-deps",   no_argument, 0, 'P' },
+      { "aotgen",       no_argument, 0, 'A' },
+      { "do",           no_argument, 0, 'D' },
+      { "cover-export", no_argument, 0, 'E' },
       { 0, 0, 0, 0 }
    };
 
@@ -1614,6 +1715,8 @@ static int process_command(int argc, char **argv)
       return do_cmd(argc, argv);
    case 'i':
       return interact_cmd(argc, argv);
+   case 'E':
+      return cover_export_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;

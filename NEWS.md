@@ -3,6 +3,8 @@
   (#731).
 - The format of fractional `time` values returned by the standard
   `to_string` function was changed to match other simulators.
+- New command `--cover-export` exports coverage data in the Cobertura
+  XML format which is supported by most CI environments such as GitLab.
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install

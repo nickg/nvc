@@ -2083,6 +2083,19 @@ void get_data_dir(text_buf_t *tb)
 #endif
 }
 
+bool is_absolute_path(const char *path)
+{
+   if (path[0] == DIR_SEP[0] || path[0] == '/')
+      return true;
+
+#ifdef __MINGW32__
+   if (isalpha((int)path[0]) && path[1] == ':')
+      return true;
+#endif
+
+   return false;
+}
+
 void progress(const char *fmt, ...)
 {
    if (opt_get_int(OPT_VERBOSE)) {

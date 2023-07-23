@@ -145,6 +145,13 @@ AC_DEFINE_UNQUOTED([SH_PATH], ["`$pathprog $sh_path`"], [Path to POSIX shell])
 AC_PATH_PROG([diff_path], ["diff"], ["/usr/bin/diff"])
 AC_DEFINE_UNQUOTED([DIFF_PATH], ["`$pathprog $diff_path`"], [Path to diff program])
 
+AC_PATH_PROG([xmllint_path], ["xmllint"])
+if test -n "$xmllint_path"; then
+  # This is only used for regression tests
+  AC_DEFINE_UNQUOTED([XMLLINT_PATH], ["`$pathprog $xmllint_path`"],
+                     [Path to xmllint program for tests])
+fi
+
 AC_DEFINE_UNQUOTED([DIR_SEP], ["$DIR_SEP"], [Directory separator])
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
