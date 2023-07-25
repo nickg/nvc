@@ -258,16 +258,17 @@ Print generated intermediate code.  This is only useful for debugging
 the compiler.
 .\"
 .It Fl g Ar name Ns = Ns Ar value
-Override top-level generic
+Override generic
 .Ar name
 with
 .Ar value .
-Integers, enumeration literals, and string literals are supported.  For
-example
+Integers, enumeration literals, and string literals are supported.
+Generics in internal instances can be overridden by giving the full
+dotted path to the generic.  For example
 .Fl gI=5 ,
 .Fl gINIT='1' ,
 and
-.Fl gSTR="hello" .
+.Fl gUUT.STR="hello" .
 .\" --jit
 .It Fl j , Fl \-jit
 Normally

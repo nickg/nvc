@@ -367,15 +367,23 @@ START_TEST(test_toplevel2)
 {
    input_from_file(TESTDIR "/elab/toplevel2.vhd");
 
+   const error_t expect[] = {
+      { LINE_INVALID, "generic value for UNUSED not used" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    elab_set_generic("I", "4");
    elab_set_generic("S", "hello");
    elab_set_generic("B", "'1'");
    elab_set_generic("V", "101");
+   elab_set_generic("UNUSED", "6678");
 
    tree_t top = run_elab();
    fail_if(top == NULL);
    fail_unless(tree_stmts(tree_stmt(top, 0)) == 3);
-   fail_if_errors();
+
+   check_expected_errors();
 }
 END_TEST
 

@@ -48,6 +48,7 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct _elab_ctx elab_ctx_t;
+typedef struct _generic_list generic_list_t;
 
 typedef struct _elab_ctx {
    const elab_ctx_t *parent;
@@ -79,14 +80,11 @@ typedef struct {
    tree_t *result;
 } synth_binding_params_t;
 
-typedef struct generic_list generic_list_t;
-
-struct generic_list {
+typedef struct _generic_list {
    generic_list_t *next;
    ident_t         name;
    char           *value;
-   bool            used;
-};
+} generic_list_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
@@ -947,6 +945,104 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
    }
 }
 
+static tree_t elab_parse_generic_string(tree_t generic, const char *str)
+{
+   type_t type = tree_type(generic);
+
+   parsed_value_t value;
+   if (!parse_value(type, str, &value))
+      fatal("failed to parse \"%s\" as type %s for generic %s",
+            str, type_pp(type), istr(tree_ident(generic)));
+
+   if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      tree_t lit = type_enum_literal(base, value.integer);
+
+      tree_t result = tree_new(T_REF);
+      tree_set_type(result, type);
+      tree_set_ident(result, ident_new(str));
+      tree_set_ref(result, lit);
+      tree_set_loc(result, tree_loc(generic));
+
+      return result;
+   }
+   else if (type_is_integer(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_INT);
+      tree_set_type(result, type);
+      tree_set_ival(result, value.integer);
+      tree_set_loc(result, tree_loc(generic));
+
+      return result;
+   }
+   else if (type_is_real(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_REAL);
+      tree_set_type(result, type);
+      tree_set_dval(result, value.real);
+      tree_set_loc(result, tree_loc(generic));
+
+      return result;
+   }
+   else if (type_is_physical(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_PHYSICAL);
+      tree_set_type(result, type);
+      tree_set_ival(result, value.integer);
+      tree_set_loc(result, tree_loc(generic));
+
+      return result;
+   }
+   else if (type_is_character_array(type)) {
+      tree_t t = tree_new(T_STRING);
+      tree_set_loc(t, tree_loc(generic));
+
+      type_t elem = type_base_recur(type_elem(type));
+      for (int i = 0; i < value.enums->count; i++) {
+         tree_t lit = type_enum_literal(elem, value.enums->values[i]);
+
+         tree_t ref = tree_new(T_REF);
+         tree_set_ident(ref, tree_ident(lit));
+         tree_set_ref(ref, lit);
+         tree_add_char(t, ref);
+      }
+      free(value.enums);
+
+      tree_set_type(t, subtype_for_string(t, type));
+      return t;
+   }
+   else
+      fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
+            type_pp(type));
+}
+
+static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
+{
+   if (generic_override == NULL)
+      return NULL;
+
+   ident_t qual = tree_ident(g);
+   for (const elab_ctx_t *e = ctx; e->inst; e = e->parent)
+      qual = ident_prefix(tree_ident(e->inst), qual, '.');
+
+   generic_list_t **it, *tmp;
+   for (it = &generic_override;
+        *it && (*it)->name != qual;
+        it = &((*it)->next))
+      ;
+
+   if (*it == NULL)
+      return NULL;
+
+   tree_t value = elab_parse_generic_string(g, (*it)->value);
+
+   *it = (tmp = (*it))->next;
+   free(tmp->value);
+   free(tmp);
+
+   return value;
+}
+
 static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                           elab_ctx_t *ctx)
 {
@@ -1037,6 +1133,14 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          }
 
          map = m;
+      }
+
+      tree_t override = elab_find_generic_override(cg, ctx);
+      if (override != NULL) {
+         map = tree_new(T_PARAM);
+         tree_set_subkind(map, P_POS);
+         tree_set_pos(map, i);
+         tree_set_value(map, override);
       }
 
       if (map == NULL) {
@@ -1883,72 +1987,6 @@ static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_generic_parse(tree_t generic, const char *str)
-{
-   type_t type = tree_type(generic);
-
-   parsed_value_t value;
-   if (!parse_value(type, str, &value))
-      fatal("failed to parse \"%s\" as type %s for generic %s",
-            str, type_pp(type), istr(tree_ident(generic)));
-
-   if (type_is_enum(type)) {
-      type_t base = type_base_recur(type);
-      tree_t lit = type_enum_literal(base, value.integer);
-
-      tree_t result = tree_new(T_REF);
-      tree_set_type(result, type);
-      tree_set_ident(result, ident_new(str));
-      tree_set_ref(result, lit);
-
-      return result;
-   }
-   else if (type_is_integer(type)) {
-      tree_t result = tree_new(T_LITERAL);
-      tree_set_subkind(result, L_INT);
-      tree_set_type(result, type);
-      tree_set_ival(result, value.integer);
-
-      return result;
-   }
-   else if (type_is_real(type)) {
-      tree_t result = tree_new(T_LITERAL);
-      tree_set_subkind(result, L_REAL);
-      tree_set_type(result, type);
-      tree_set_dval(result, value.real);
-
-      return result;
-   }
-   else if (type_is_physical(type)) {
-      tree_t result = tree_new(T_LITERAL);
-      tree_set_subkind(result, L_PHYSICAL);
-      tree_set_type(result, type);
-      tree_set_ival(result, value.integer);
-
-      return result;
-   }
-   else if (type_is_character_array(type)) {
-      tree_t t = tree_new(T_STRING);
-
-      type_t elem = type_base_recur(type_elem(type));
-      for (int i = 0; i < value.enums->count; i++) {
-         tree_t lit = type_enum_literal(elem, value.enums->values[i]);
-
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, tree_ident(lit));
-         tree_set_ref(ref, lit);
-         tree_add_char(t, ref);
-      }
-      free(value.enums);
-
-      tree_set_type(t, subtype_for_string(t, type));
-      return t;
-   }
-   else
-      fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
-            type_pp(type));
-}
-
 static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
 {
    tree_t ent = tree_primary(arch);
@@ -1961,21 +1999,10 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
       tree_t g = tree_generic(ent, i);
       ident_t name = tree_ident(g);
 
-      generic_list_t *it;
-      for (it = generic_override;
-           it != NULL && it->name != name;
-           it = it->next)
-         ;
-
-      tree_t value = NULL;
-      if (it != NULL) {
-         value = elab_generic_parse(g, it->value);
-         tree_set_loc(value, tree_loc(g));
-         it->used = true;
-      }
-      else if (tree_has_value(g))
+      tree_t value = elab_find_generic_override(g, ctx);
+      if (value == NULL && tree_has_value(g))
          value = tree_value(g);
-      else {
+      else if (value == NULL) {
          error_at(tree_loc(g), "generic %s of top-level entity must have "
                   "default value or be specified using -gNAME=VALUE",
                   istr(name));
@@ -2055,7 +2082,6 @@ void elab_set_generic(const char *name, const char *value)
    generic_list_t *new = xmalloc(sizeof(generic_list_t));
    new->name  = id;
    new->value = xstrdup(value);
-   new->used  = false;
    new->next  = generic_override;
 
    generic_override = new;
@@ -2106,28 +2132,22 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
 
-   for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
-      if (!it->used)
-         warnf("generic value for %s not used", istr(it->name));
-   }
+   for (generic_list_t *it = generic_override; it != NULL; it = it->next)
+      warnf("generic value for %s not used", istr(it->name));
 
    freeze_global_arena();
 
-   if (error_count() == 0) {
-      lib_t work = lib_work();
-      lib_put(work, e);
+   lib_t work = lib_work();
+   lib_put(work, e);
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
-      ident_t b0_name = tree_ident(tree_stmt(e, 0));
-      ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
-      vcode_unit_t vu = unit_registry_get(ur, vu_name);
-      lib_put_vcode(work, e, vu);
+   ident_t b0_name = tree_ident(tree_stmt(e, 0));
+   ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
+   vcode_unit_t vu = unit_registry_get(ur, vu_name);
+   lib_put_vcode(work, e, vu);
 #endif
 
-      return e;
-   }
-   else
-      return NULL;
+   return e;
 }
 
 tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
@@ -2163,26 +2183,20 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
 
-   for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
-      if (!it->used)
-         warnf("generic value for %s not used", istr(it->name));
-   }
+   for (generic_list_t *it = generic_override; it != NULL; it = it->next)
+      warnf("generic value for %s not used", istr(it->name));
 
    freeze_global_arena();
 
-   if (error_count() == 0) {
-      lib_t work = lib_work();
-      lib_put(work, e);
+   lib_t work = lib_work();
+   lib_put(work, e);
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
-      ident_t b0_name = tree_ident(tree_stmt(e, 0));
-      ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
-      vcode_unit_t vu = unit_registry_get(ur, vu_name);
-      lib_put_vcode(work, e, vu);
+   ident_t b0_name = tree_ident(tree_stmt(e, 0));
+   ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
+   vcode_unit_t vu = unit_registry_get(ur, vu_name);
+   lib_put_vcode(work, e, vu);
 #endif
 
-      return e;
-   }
-   else
-      return NULL;
+   return e;
 }
