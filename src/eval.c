@@ -239,7 +239,7 @@ bool eval_possible(tree_t t, unit_registry_t *ur)
             if (tree_has_value(decl))
                return eval_possible(tree_value(decl), ur);
             else
-               return true;
+               return false;
 
          default:
             return eval_not_possible(t, "reference");
