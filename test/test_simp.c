@@ -1380,7 +1380,11 @@ START_TEST(test_genpack1)
 
    tree_t b0 = tree_stmt(top, 0);
    fail_unless(tree_kind(b0) == T_BLOCK);
-   fail_unless(tree_stmts(b0) == 0);
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t p1 = tree_stmt(b0, 0);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+   fail_unless(tree_stmts(p1) == 2);   // Should have been eliminated
 
    fail_if_errors();
 }
@@ -1520,6 +1524,21 @@ START_TEST(test_ieee1)
 }
 END_TEST
 
+START_TEST(test_issue742)
+{
+   input_from_file(TESTDIR "/simp/issue742.vhd");
+
+   tree_t b = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   tree_t test = tree_decl(b, 0);
+   fail_unless(tree_kind(test) == T_PROC_BODY);
+   fail_unless(tree_stmts(test) == 1);
+   fail_unless(tree_kind(tree_stmt(test, 0)) == T_VAR_ASSIGN);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1578,6 +1597,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_casegen);
    tcase_add_test(tc_core, test_condexpr);
    tcase_add_test(tc_core, test_ieee1);
+   tcase_add_test(tc_core, test_issue742);
    suite_add_tcase(s, tc_core);
 
    return s;

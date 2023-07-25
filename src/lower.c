@@ -2698,11 +2698,37 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
                      istr(tree_ident(decl)));
       }
    }
-   else if (mode == LOWER_THUNK && lu->parent == NULL
-            && !arena_frozen(tree_arena(container))) {
+   else if (mode == LOWER_THUNK && lu->parent == NULL) {
       // Handle a special case of simplifying locally static expressions
       // that reference constant declarations
-      return lower_rvalue(lu, tree_value(decl));
+      assert(tree_kind(decl) == T_CONST_DECL);
+
+      type_t type = tree_type(decl);
+      tree_t value = tree_value(decl);
+      vcode_reg_t value_reg = lower_rvalue(lu, value), ptr_reg;
+
+      switch (vcode_reg_kind(value_reg)) {
+      case VCODE_TYPE_POINTER:
+      case VCODE_TYPE_UARRAY:
+         ptr_reg = value_reg;
+         break;
+      default:
+         {
+            vcode_type_t vtype = lower_type(type);
+            vcode_type_t vbounds = lower_bounds(type);
+            vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl), 0);
+            lower_put_vcode_obj(decl, var, lu);
+            emit_store(value_reg, var);
+
+            ptr_reg = emit_index(var, VCODE_INVALID_REG);
+         }
+         break;
+      }
+
+      if (type_is_array(type))
+         return lower_coerce_arrays(lu, tree_type(value), type, ptr_reg);
+      else
+         return ptr_reg;
    }
 
    assert(!is_uninstantiated_package(container));
