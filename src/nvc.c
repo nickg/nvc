@@ -1731,6 +1731,7 @@ int main(int argc, char **argv)
    intern_strings();
    register_signal_handlers();
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
+   check_cpu_features();
 
    atexit(fbuf_cleanup);
 

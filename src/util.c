@@ -2191,6 +2191,15 @@ void remove_fault_handler(fault_fn_t fn, void *context)
    fatal_trace("no fault handler for %p with context %p", fn, context);
 }
 
+void check_cpu_features(void)
+{
+#ifdef HAVE_POPCNT
+   if (!__builtin_cpu_supports("popcnt"))
+      fatal("CPU is missing support for POPCNT instruction, reconfigure "
+            "with $bold$--disable-popcnt$$");
+#endif
+}
+
 void list_add(ptr_list_t *l, void *item)
 {
    if (*l == NULL) {

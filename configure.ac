@@ -84,15 +84,17 @@ EXTRA_LDFLAGS=
 # Need to prevent GCC calling strndup builtin if using gnulib version
 if test "x$ac_cv_func_strndup" != xyes; then
   AX_CHECK_COMPILE_FLAG([-fno-builtin-strndup],
-                        [AS_VAR_APPEND([EXTRA_CFLAGS], [-fno-builtin-strndup])])
+                        [AX_APPEND_FLAG([-fno-builtin-strndup],
+                                        [EXTRA_CFLAGS])])
 fi
 
 # Prefer linking with Mold if available
 AX_CHECK_LINK_FLAG(
   [-fuse-ld=mold],
-  [AS_VAR_APPEND([EXTRA_CFLAGS], [-fuse-ld=mold])
+  [AX_APPEND_FLAG([-fuse-ld=mold], [EXTRA_LDFLAGS])
    AX_CHECK_LINK_FLAG([-Wl,--undefined-version],
-                      [AS_VAR_APPEND([EXTRA_LDFLAGS], [-Wl,--undefined-version])])])
+                      [AX_APPEND_FLAG([-Wl,--undefined-version],
+                                      [EXTRA_LDFLAGS])])])
 
 CHECK_DYNAMIC_LIST(
   [EXPORT_LDFLAGS="-Wl,--dynamic-list=$srcdir/src/symbols.txt"],
@@ -105,10 +107,22 @@ AX_CHECK_COMPILE_FLAG([-fPIC],
   [-Werror])
 AC_SUBST(PIC_FLAG)
 
-AX_CHECK_COMPILE_FLAG([-mavx2],
-  [AC_DEFINE_UNQUOTED([HAVE_AVX2], [1], [Target supports AVX2 instructions])],
-  [],
-  [-Werror])
+case $target_cpu in
+  x86_64|amd64)
+    AX_CHECK_COMPILE_FLAG(
+      [-mavx2],
+      [AC_DEFINE_UNQUOTED([HAVE_AVX2], [1],
+                          [Target supports AVX2 instructions])],
+      [], [-Werror])
+
+    AX_CHECK_COMPILE_FLAG(
+      [-mpopcnt],
+      [AX_APPEND_FLAG([-mpopcnt], [EXTRA_CFLAGS])
+       AC_DEFINE_UNQUOTED([HAVE_POPCNT], [1],
+                          [Target supports POPCNT instructions])],
+      [], [-Werror])
+    ;;
+esac
 
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 
@@ -282,18 +296,18 @@ AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Location of data files])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
-case $host_cpu in
+case $target_cpu in
   x86_64|amd64)
-    AC_DEFINE_UNQUOTED([ARCH_X86_64], [1], [Host is x86_64])
+    AC_DEFINE_UNQUOTED([ARCH_X86_64], [1], [Target is x86_64])
     ;;
   aarch64)
-    AC_DEFINE_UNQUOTED([ARCH_ARM64], [1], [Host is arm64])
+    AC_DEFINE_UNQUOTED([ARCH_ARM64], [1], [Target is arm64])
     ;;
 esac
 
 AM_CONDITIONAL([ARCH_X86_64],
-               [test x$host_cpu = xx86_64 -o x$host_cpu = xamd64])
-AM_CONDITIONAL([ARCH_ARM64], [test x$host_cpu = xaarch64])
+               [test x$target_cpu = xx86_64 -o x$target_cpu = xamd64])
+AM_CONDITIONAL([ARCH_ARM64], [test x$target_cpu = xaarch64])
 
 # Prefer calling the linker directy to using CC
 linker_path=
