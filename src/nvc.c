@@ -445,6 +445,9 @@ static int elaborate(int argc, char **argv)
    else
       fatal("%s is not a VHDL design unit or Verilog module", istr(top_level));
 
+   jit_free(jit);  // JIT must be shut down before exiting
+   jit = NULL;
+
    if (top == NULL)
       return EXIT_FAILURE;
 
@@ -467,8 +470,6 @@ static int elaborate(int argc, char **argv)
 
    if (!use_jit)
       AOT_ONLY(cgen(top, registry));
-
-   jit_free(jit);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
