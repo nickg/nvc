@@ -13,6 +13,8 @@
   @Forty-Bot).
 - Fixed a compilation error when using the predefined
   `minimum`/`maximum` functions with arrays of physical types.
+- Overloaded protected procedure calls could read the wrong value of
+  protected type variables in rare circumstances.
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install
