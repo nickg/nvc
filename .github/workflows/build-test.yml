@@ -262,6 +262,8 @@ jobs:
         run: ./vhdl-projects/neorv32/test.sh
       - name: Test vhdl-extras
         run: ./vhdl-projects/extras/test.sh
+      - name: Test PoC
+        run: ./vhdl-projects/poc/test.sh
 
   vunit:
     name: VUnit
