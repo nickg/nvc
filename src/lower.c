@@ -2478,7 +2478,10 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 
    int hops = 0;
    for (; ; hops++) {
-      if (ident_starts_with(unit_name, vcode_unit_name())) {
+      ident_t this = vcode_unit_name();
+      assert(this != unit_name);
+      if (ident_starts_with(unit_name, this)
+          && ident_char(unit_name, ident_len(this)) == '.') {
          vcode_state_restore(&state);
          return emit_context_upref(hops);
       }
