@@ -653,7 +653,42 @@ static tree_t simp_case(tree_t t)
 
 static bool simp_has_drivers(tree_t t)
 {
-   return tree_visit_only(t, NULL, NULL, T_SIGNAL_ASSIGN) > 0;
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      return true;
+   case T_VAR_ASSIGN:
+   case T_WAIT:
+   case T_NEXT:
+   case T_EXIT:
+   case T_FORCE:
+   case T_RELEASE:
+   case T_RETURN:
+      return false;
+   case T_IF:
+      {
+         const int nconds = tree_conds(t);
+         for (int i = 0; i < nconds; i++) {
+            if (simp_has_drivers(tree_cond(t, i)))
+               return true;
+         }
+         return false;
+      }
+   case T_CASE:
+   case T_MATCH_CASE:
+   case T_WHILE:
+   case T_COND_STMT:
+   case T_SEQUENCE:
+      {
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++) {
+            if (simp_has_drivers(tree_stmt(t, i)))
+               return true;
+         }
+         return false;
+      }
+   default:
+      return true;   // Conservative
+   }
 }
 
 static tree_t simp_cond(tree_t t)
