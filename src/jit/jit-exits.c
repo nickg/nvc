@@ -529,7 +529,17 @@ void x_unreachable(tree_t where)
 
 void x_func_wait(void)
 {
-   jit_msg(NULL, DIAG_FATAL, "cannot wait inside function call");
+   jit_stack_trace_t *trace = jit_stack_trace();
+   tree_t inner = trace->frames[0].decl;
+   free(trace);
+
+   if (tree_kind(inner) == T_PROC_BODY) {
+      // Must be procedure body in protected object
+      jit_msg(NULL, DIAG_FATAL, "cannot wait inside call to protected "
+              "type method");
+   }
+   else
+      jit_msg(NULL, DIAG_FATAL, "cannot wait inside function call");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

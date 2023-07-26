@@ -5206,15 +5206,7 @@ START_TEST(test_protpcall)
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_PCALL, .func = "WORK.PROTECTED11.PT.PROC(I)", .target = 1 },
-      };
-
-      CHECK_BB(0);
-
-      EXPECT_BB(1) = {
-         { VCODE_OP_RESUME, .func = "WORK.PROTECTED11.PT.PROC(I)" },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_VAR_UPREF, .name = "COUNT", .hops = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.PROTECTED11.PT.PROC(I)" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -5223,7 +5215,7 @@ START_TEST(test_protpcall)
          { VCODE_OP_RETURN },
       };
 
-      CHECK_BB(1);
+      CHECK_BB(0);
    }
 
    {
@@ -5231,7 +5223,6 @@ START_TEST(test_protpcall)
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_STORE, .name = "ARG" },
          { VCODE_OP_VAR_UPREF, .name = "COUNT", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
@@ -5239,8 +5230,8 @@ START_TEST(test_protpcall)
          { VCODE_OP_TRAP_ADD },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_CONTEXT_UPREF, .hops = 2 },
-         { VCODE_OP_PCALL, .func = "WORK.PROTECTED11.DO_SOMETHING",
-           .target = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.PROTECTED11.DO_SOMETHING" },
+         { VCODE_OP_RETURN },
       };
 
       CHECK_BB(0);

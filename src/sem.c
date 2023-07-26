@@ -2894,7 +2894,8 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
    if (!tree_has_ref(t))
       return false;
 
-   if (tree_kind(t) == T_PROT_PCALL && tree_has_name(t)
+   const bool is_protected = (tree_kind(t) == T_PROT_PCALL);
+   if (is_protected && tree_has_name(t)
        && !sem_check(tree_name(t), tab))
       return false;
 
@@ -2914,8 +2915,8 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
 
    const tree_flags_t flags = tree_flags(decl);
 
-   const bool never_waits = !!(flags & TREE_F_NEVER_WAITS);
-   const bool has_wait = !!(flags & TREE_F_HAS_WAIT);
+   const bool never_waits = is_protected || !!(flags & TREE_F_NEVER_WAITS);
+   const bool has_wait = !is_protected && !!(flags & TREE_F_HAS_WAIT);
 
    assert(!never_waits || !has_wait);
 

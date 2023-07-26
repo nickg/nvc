@@ -9858,7 +9858,8 @@ static void lower_predef(lower_unit_t *parent, tree_t decl)
 
 static void lower_proc_body(lower_unit_t *parent, tree_t body)
 {
-   const bool never_waits = !!(tree_flags(body) & TREE_F_NEVER_WAITS);
+   const bool never_waits = !!(tree_flags(body) & TREE_F_NEVER_WAITS)
+      || (tree_flags(body) & TREE_F_PROTECTED);
 
    vcode_select_unit(parent->vunit);
 

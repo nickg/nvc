@@ -827,3 +827,4 @@ psl4            fail,psl,gold,2008
 cover17         cover,export=cobertura
 toplevel3       normal,guut.i=2,guut.s=2
 predef4         normal,2008
+protected11     fail,gold,2002
