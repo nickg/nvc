@@ -44,6 +44,11 @@ typedef enum {
    O_NAMED,
 } overload_state_t;
 
+typedef union {
+   tree_t      vhdl;
+   vlog_node_t vlog;
+} hdl_node_t;
+
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
@@ -66,7 +71,7 @@ struct _spec {
    spec_t      *next;
    spec_kind_t  kind;
    ident_t      ident;
-   tree_t       tree;
+   hdl_node_t   node;
    unsigned     matches;
 };
 
@@ -75,7 +80,7 @@ typedef enum {
 } visibility_t;
 
 typedef struct {
-   tree_t        tree;
+   hdl_node_t    node;
    scope_t      *origin;
    visibility_t  visibility : 16;
    tree_kind_t   kind : 16;
@@ -104,7 +109,7 @@ typedef struct _sym_chunk {
 
 typedef symbol_t *(*lazy_fn_t)(scope_t *, ident_t, void *);
 typedef void (*formal_fn_t)(diag_t *, ident_t, void *);
-typedef void (*make_visible_t)(scope_t *, ident_t, tree_t);
+typedef void (*make_visible_t)(scope_t *, ident_t, hdl_node_t);
 
 typedef struct _lazy_sym {
    lazy_sym_t *next;
@@ -129,7 +134,7 @@ struct scope {
    formal_fn_t    formal_fn;
    void          *formal_arg;
    ident_t        prefix;
-   tree_t         container;
+   hdl_node_t     container;
    type_t         type;
    bool           suppress;
    lazy_sym_t    *lazy;
@@ -146,8 +151,8 @@ struct nametab {
 };
 
 typedef struct {
-   type_t type;
-   tree_t src;
+   type_t     type;
+   hdl_node_t src;
 } tracked_type_t;
 
 typedef A(tracked_type_t) tracked_type_list_t;
@@ -164,7 +169,7 @@ static type_t _solve_types(nametab_t *tab, tree_t expr);
 static bool can_call_no_args(nametab_t *tab, tree_t decl);
 static bool is_forward_decl(tree_t decl, tree_t existing);
 static bool denotes_same_object(tree_t a, tree_t b);
-static void make_visible_slow(scope_t *s, ident_t name, tree_t decl);
+static void make_visible_slow(scope_t *s, ident_t name, hdl_node_t decl);
 static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name);
 
 static void begin_overload_resolution(overload_t *o);
@@ -220,9 +225,9 @@ static void type_set_describe(nametab_t *tab, diag_t *d, const loc_t *loc,
       else
          diag_hint(d, NULL, "context contains type %s", type_pp(tt.type));
 
-      if (tt.src != NULL && is_subprogram(tt.src))
-         diag_hint(d, tree_loc(tt.src), "context contains overload %s",
-                   type_pp(tree_type(tt.src)));
+      if (tt.src.vhdl != NULL && is_subprogram(tt.src.vhdl))
+         diag_hint(d, tree_loc(tt.src.vhdl), "context contains overload %s",
+                   type_pp(tree_type(tt.src.vhdl)));
    }
 
    if (poss > 0)
@@ -245,7 +250,8 @@ static void type_set_add(nametab_t *tab, type_t t, tree_t src)
          return;
    }
 
-   APUSH(tab->top_type_set->members, ((tracked_type_t){t, src}));
+   hdl_node_t node = {.vhdl = src};
+   APUSH(tab->top_type_set->members, ((tracked_type_t){t, node}));
 }
 
 static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
@@ -415,7 +421,7 @@ void pop_scope(nametab_t *tab)
    for (spec_t *it = tab->top_scope->specs, *next; it != NULL; it = next) {
       if (it->kind == SPEC_EXACT && it->matches == 0
           && !tab->top_scope->suppress)
-         error_at(tree_loc(it->tree), "instance %s not found", istr(it->ident));
+         error_at(tree_loc(it->node.vhdl), "instance %s not found", istr(it->ident));
 
       next = it->next;
       free(it);
@@ -483,21 +489,21 @@ hash_t *get_generic_map(nametab_t *tab)
 static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
 {
    for (; s != NULL; s = s->parent) {
-      if (s->container == NULL)
+      if (s->container.vhdl == NULL)
          continue;
 
-      if (what == S_LOOP && is_loop_stmt(s->container))
-         return s->container;
-      else if (what == S_SUBPROGRAM && is_subprogram(s->container))
-         return s->container;
-      else if (what == S_DESIGN_UNIT && is_design_unit(s->container))
-         return s->container;
-      else if (what == S_PROCESS && tree_kind(s->container) == T_PROCESS)
-         return s->container;
-      else if (what == S_PROTECTED && tree_kind(s->container) == T_PROT_BODY)
-         return s->container;
-      else if (what == S_CONCURRENT_BLOCK && is_concurrent_block(s->container))
-         return s->container;
+      if (what == S_LOOP && is_loop_stmt(s->container.vhdl))
+         return s->container.vhdl;
+      else if (what == S_SUBPROGRAM && is_subprogram(s->container.vhdl))
+         return s->container.vhdl;
+      else if (what == S_DESIGN_UNIT && is_design_unit(s->container.vhdl))
+         return s->container.vhdl;
+      else if (what == S_PROCESS && tree_kind(s->container.vhdl) == T_PROCESS)
+         return s->container.vhdl;
+      else if (what == S_PROTECTED && tree_kind(s->container.vhdl) == T_PROT_BODY)
+         return s->container.vhdl;
+      else if (what == S_CONCURRENT_BLOCK && is_concurrent_block(s->container.vhdl))
+         return s->container.vhdl;
    }
 
    return NULL;
@@ -515,13 +521,13 @@ ident_t scope_prefix(nametab_t *tab)
 
 void scope_set_container(nametab_t *tab, tree_t container)
 {
-   tab->top_scope->container = container;
+   tab->top_scope->container.vhdl = container;
 }
 
 void scope_set_subprogram(nametab_t *tab, tree_t subprog)
 {
-   tab->top_scope->container = subprog;
-   tab->top_scope->prefix    = tree_ident2(subprog);
+   tab->top_scope->container.vhdl = subprog;
+   tab->top_scope->prefix         = tree_ident2(subprog);
 }
 
 tree_t find_enclosing(nametab_t *tab, scope_kind_t what)
@@ -703,8 +709,9 @@ static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
          for (int i = 0; i < nlits; i++) {
             tree_t literal = type_enum_literal(type, i);
             ident_t lit_name = tree_ident(literal);
+            hdl_node_t node = {.vhdl = literal};
 
-            (*fn)(s, lit_name, literal);
+            (*fn)(s, lit_name, node);
          }
       }
       break;
@@ -715,8 +722,9 @@ static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
          for (int i = 0; i < nunits; i++) {
             tree_t unit = type_unit(type, i);
             ident_t unit_name = tree_ident(unit);
+            hdl_node_t node = {.vhdl = unit};
 
-            (*fn)(s, unit_name, unit);
+            (*fn)(s, unit_name, node);
          }
       }
       break;
@@ -726,14 +734,14 @@ static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
    }
 }
 
-static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
+static symbol_t *make_visible(scope_t *s, ident_t name, hdl_node_t decl,
                               visibility_t kind, scope_t *origin)
 {
    symbol_t *sym = local_symbol_for(s, name);
-   const bool overload = can_overload(decl);
-   const tree_kind_t tkind = tree_kind(decl);
-   const name_mask_t mask = name_mask_for(decl);
-   type_t type = get_type_or_null(decl);
+   const bool overload = can_overload(decl.vhdl);
+   const tree_kind_t tkind = tree_kind(decl.vhdl);
+   const name_mask_t mask = name_mask_for(decl.vhdl);
+   type_t type = get_type_or_null(decl.vhdl);
 
    assert(origin == s || kind != DIRECT);
 
@@ -743,22 +751,22 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
    for (int i = 0; i < sym->ndecls; i++) {
       decl_t *dd = get_decl_mutable(sym, i);
 
-      if (dd->tree == decl)
+      if (dd->node.vhdl == decl.vhdl)
          return sym;   // Ignore duplicates
       else if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
          continue;
       else if (dd->kind == T_LIBRARY) {
-         if (tkind == T_LIBRARY && tree_ident(decl) == name)
+         if (tkind == T_LIBRARY && tree_ident(decl.vhdl) == name)
             return sym;   // Ignore redundant library declarations
          else
             dd->visibility = HIDDEN;
       }
       else if (dd->kind == T_TYPE_DECL && tkind == T_PROT_BODY
-               && type_is_protected(tree_type(dd->tree)))
+               && type_is_protected(tree_type(dd->node.vhdl)))
          continue;
       else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
-         if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
-            if ((mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
+         if (dd->origin == s && is_forward_decl(decl.vhdl, dd->node.vhdl)) {
+            if ((mask & N_SUBPROGRAM) && tree_subkind(dd->node.vhdl) == S_FOREIGN) {
                // Ignore redundant bodies of foreign subprograms
                return sym;
             }
@@ -775,31 +783,31 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          else if (dd->kind == T_LIBRARY)
             dd->visibility = HIDDEN;    // Library hidden by design unit
          else if (dd->origin == s) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl.vhdl));
             diag_printf(d, "%s already declared in this region", istr(name));
-            diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
-            diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_hint(d, tree_loc(dd->node.vhdl), "previous declaration was here");
+            diag_hint(d, tree_loc(decl.vhdl), "duplicate declaration");
             diag_emit(d);
             return sym;
          }
-         else if (is_design_unit(decl))
+         else if (is_design_unit(decl.vhdl))
             ;   // Design unit is top level so cannot hide anything
          dd->visibility = HIDDEN;
       }
       else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)
          kind = HIDDEN;
-      else if (kind == POTENTIAL && denotes_same_object(dd->tree, decl))
+      else if (kind == POTENTIAL && denotes_same_object(dd->node.vhdl, decl.vhdl))
          return sym;   // Same object visible through different aliases
       else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
-               && type_eq(tree_type(dd->tree), type)
-               && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
+               && type_eq(tree_type(dd->node.vhdl), type)
+               && (tree_flags(dd->node.vhdl) & TREE_F_PREDEFINED)) {
          // Allow pre-defined operators be to hidden by
          // user-defined subprograms in the same region
-         tree_set_flag(dd->tree, TREE_F_HIDDEN);
+         tree_set_flag(dd->node.vhdl, TREE_F_HIDDEN);
          dd->visibility = HIDDEN;
       }
-      else if (is_forward_decl(decl, dd->tree)) {
-         if ((dd->mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
+      else if (is_forward_decl(decl.vhdl, dd->node.vhdl)) {
+         if ((dd->mask & N_SUBPROGRAM) && tree_subkind(dd->node.vhdl) == S_FOREIGN) {
             // Hide bodies of subprograms declared with 'FOREIGN attribute
             return sym;
          }
@@ -807,29 +815,29 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             dd->visibility = HIDDEN;
       }
       else if (overload && (mask & dd->mask & (N_SUBPROGRAM | N_OBJECT))
-               && kind == DIRECT && type_eq(type, tree_type(dd->tree))) {
+               && kind == DIRECT && type_eq(type, tree_type(dd->node.vhdl))) {
          if (dd->origin != s) {
             // LRM 93 section 10.3 on visibility specifies that if two
             // declarations are homographs then the one in the inner scope
             // hides the one in the outer scope
             dd->visibility = HIDDEN;
          }
-         else if (signature_has_error(decl))
+         else if (signature_has_error(decl.vhdl))
             ;  // Ignore cascading errors
          else if ((dd->kind == T_FUNC_BODY && tkind == T_FUNC_BODY)
                   || (dd->kind == T_PROC_BODY && tkind == T_PROC_BODY)) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl.vhdl));
             diag_printf(d, "duplicate subprogram body %s", type_pp(type));
-            diag_hint(d, tree_loc(decl), "duplicate definition here");
-            diag_hint(d, tree_loc(dd->tree), "previous definition was here");
+            diag_hint(d, tree_loc(decl.vhdl), "duplicate definition here");
+            diag_hint(d, tree_loc(dd->node.vhdl), "previous definition was here");
             diag_emit(d);
             return sym;
          }
          else if (dd->origin == origin && !type_is_none(type)) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl.vhdl));
             diag_printf(d, "%s already declared in this region", type_pp(type));
-            diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
-            diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_hint(d, tree_loc(dd->node.vhdl), "previous declaration was here");
+            diag_hint(d, tree_loc(decl.vhdl), "duplicate declaration");
             diag_emit(d);
             return sym;
          }
@@ -837,7 +845,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
    }
 
    *add_decl(sym) = (decl_t) {
-      .tree       = decl,
+      .node       = {.vhdl = decl.vhdl},
       .visibility = overload ? OVERLOAD : kind,
       .origin     = origin,
       .mask       = mask,
@@ -847,7 +855,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
    sym->mask |= mask;
 
    if (kind == DIRECT)
-      add_type_literals(s, decl, make_visible_slow);
+      add_type_literals(s, decl.vhdl, make_visible_slow);
 
    return sym;
 }
@@ -868,7 +876,7 @@ static void merge_symbol(scope_t *s, const symbol_t *src)
 
       if (was_fresh) {
          *add_decl(dst) = (decl_t) {
-            .tree       = dd->tree,
+            .node       = {.vhdl = dd->node.vhdl},
             .visibility = dd->visibility == DIRECT ? POTENTIAL : dd->visibility,
             .origin     = dd->origin,
             .mask       = dd->mask,
@@ -876,7 +884,7 @@ static void merge_symbol(scope_t *s, const symbol_t *src)
          };
       }
       else
-         make_visible(s, tree_ident(dd->tree), dd->tree, POTENTIAL, dd->origin);
+         make_visible(s, tree_ident(dd->node.vhdl), dd->node, POTENTIAL, dd->origin);
    }
 }
 
@@ -885,7 +893,7 @@ static void merge_scopes(scope_t *to, scope_t *from)
    for (sym_chunk_t *chunk = &(from->symbols); chunk; chunk = chunk->chain) {
       for (int i = 0; i < chunk->count; i++) {
          symbol_t *sym = &(chunk->symbols[i]);
-         assert(sym->owner->container == from->container);
+         assert(sym->owner->container.vhdl == from->container.vhdl);
          merge_symbol(to, sym);
       }
    }
@@ -900,7 +908,8 @@ static symbol_t *lazy_lib_cb(scope_t *s, ident_t name, void *context)
    if (unit == NULL || error)
       return NULL;
 
-   return make_visible(s, name, unit, DIRECT, s);
+   hdl_node_t node = {.vhdl = unit};
+   return make_visible(s, name, node, DIRECT, s);
 }
 
 static void make_library_visible(scope_t *s, lib_t lib)
@@ -913,7 +922,7 @@ static void make_library_visible(scope_t *s, lib_t lib)
    s->lazy = l;
 }
 
-static void make_visible_slow(scope_t *s, ident_t name, tree_t decl)
+static void make_visible_slow(scope_t *s, ident_t name, hdl_node_t decl)
 {
    // Wrapper for make_visible in the common case of direct visibility
    // and the origin is the same as the target scope
@@ -921,24 +930,24 @@ static void make_visible_slow(scope_t *s, ident_t name, tree_t decl)
    make_visible(s, name, decl, DIRECT, s);
 }
 
-static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
+static void make_visible_fast(scope_t *s, ident_t id, hdl_node_t d)
 {
    // This should be functionally equivalent to calling make_visible but
    // with the knowledge there are no existing symbols in the scope and
    // it has been checked already
 
-   const tree_kind_t kind = tree_kind(d);
-   const name_mask_t mask = name_mask_for(d);
+   const tree_kind_t kind = tree_kind(d.vhdl);
+   const name_mask_t mask = name_mask_for(d.vhdl);
 
    visibility_t visibility = DIRECT;
-   if (can_overload(d))
+   if (can_overload(d.vhdl))
       visibility = OVERLOAD;
    else if (kind == T_ATTR_SPEC)
       visibility = ATTRIBUTE;
 
    symbol_t *sym = local_symbol_for(s, id);
    *add_decl(sym) = (decl_t) {
-      .tree       = d,
+      .node       = d,
       .visibility = visibility,
       .origin     = s,
       .mask       = mask,
@@ -947,7 +956,7 @@ static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
 
    sym->mask |= mask;
 
-   add_type_literals(s, d, make_visible_fast);
+   add_type_literals(s, d.vhdl, make_visible_fast);
 }
 
 static ident_t unit_bare_name(tree_t unit)
@@ -986,7 +995,8 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
    const int ndecls = type_decls(type);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = type_decl(type, i);
-      make_visible_fast(s, tree_ident(d), d);
+      hdl_node_t node = {.vhdl = d};
+      make_visible_fast(s, tree_ident(d), node);
    }
 
    if (cacheable)
@@ -1021,16 +1031,16 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    else {
       for (scope_t *ss = tab->top_scope; ss; ss = ss->parent) {
          for (s = ss->chain; s; s = s->chain) {
-            if (s->container == unit)
+            if (s->container.vhdl == unit)
                return s;
          }
       }
    }
 
    s = xcalloc(sizeof(scope_t));
-   s->lookup    = hash_new(128);
-   s->sym_tail  = &(s->symbols);
-   s->container = unit;
+   s->lookup         = hash_new(128);
+   s->sym_tail       = &(s->symbols);
+   s->container.vhdl = unit;
 
    if (kind == T_LIBRARY)
       make_library_visible(s, lib_require(tree_ident(unit)));
@@ -1043,15 +1053,16 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(unit, i);
+         hdl_node_t node = {.vhdl = d};
          const tree_kind_t dkind = tree_kind(d);
          if (dkind == T_ALIAS || dkind == T_TYPE_DECL) {
             // Handle special cases: an alias may make the same
             // enumeration literal visible multiple times and a type
             // declaration may hide an earlier incomplete type
-            make_visible_slow(s, tree_ident(d), d);
+            make_visible_slow(s, tree_ident(d), node);
          }
          else
-            make_visible_fast(s, tree_ident(d), d);
+            make_visible_fast(s, tree_ident(d), node);
       }
 
       switch (kind) {
@@ -1061,7 +1072,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
             const int nports = tree_ports(unit);
             for (int i = 0; i < nports; i++) {
                tree_t p = tree_port(unit, i);
-               make_visible_fast(s, tree_ident(p), p);
+               hdl_node_t node = {.vhdl = p};
+               make_visible_fast(s, tree_ident(p), node);
             }
          }
          // Fall-through
@@ -1083,7 +1095,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
                   }
                }
 
-               make_visible_fast(s, tree_ident(g), decl);
+               hdl_node_t node = {.vhdl = decl};
+               make_visible_fast(s, tree_ident(g), node);
             }
          }
          break;
@@ -1093,8 +1106,10 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
       }
 
       ident_t bare_name = unit_bare_name(unit);
-      if (symbol_for(s, bare_name) == NULL)
-         make_visible_fast(s, bare_name, unit);
+      if (symbol_for(s, bare_name) == NULL) {
+         hdl_node_t node = {.vhdl = unit};
+         make_visible_fast(s, bare_name, node);
+      }
    }
 
    if (cacheable)
@@ -1128,7 +1143,7 @@ static bool is_forward_decl(tree_t decl, tree_t existing)
 tree_t find_forward_decl(nametab_t *tab, tree_t decl)
 {
    scope_t *region = tab->top_scope;
-   if (region->container == decl)
+   if (region->container.vhdl == decl)
       region = region->parent;
 
    ident_t name = tree_ident(decl);
@@ -1139,8 +1154,8 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
 
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
-      if (dd->origin == region && is_forward_decl(decl, dd->tree))
-         return dd->tree;
+      if (dd->origin == region && is_forward_decl(decl, dd->node.vhdl))
+         return dd->node.vhdl;
    }
 
    return NULL;
@@ -1154,12 +1169,13 @@ psl_node_t find_default_clock(nametab_t *tab)
 
    const decl_t *dd = get_decl(sym, 0);
    assert(dd->kind == T_PSL);
-   return tree_psl(dd->tree);
+   return tree_psl(dd->node.vhdl);
 }
 
 void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
 {
-   make_visible_slow(tab->top_scope, alias ?: tree_ident(decl), decl);
+   hdl_node_t node = {.vhdl = decl};
+   make_visible_slow(tab->top_scope, alias ?: tree_ident(decl), node);
 }
 
 void hide_name(nametab_t *tab, ident_t name)
@@ -1191,18 +1207,19 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
       if (kind == SPEC_EXACT && (*p)->ident == ident) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
          diag_printf(d, "duplicate specification for instance %s", istr(ident));
-         diag_hint(d, tree_loc((*p)->tree), "previous specification was here");
+         diag_hint(d, tree_loc((*p)->node.vhdl), "previous specification was here");
          diag_hint(d, tree_loc(spec), "duplicate specification here");
          diag_emit(d);
          return;
       }
    }
 
+   hdl_node_t node = {.vhdl = spec};
    spec_t *s = xmalloc(sizeof(spec_t));
    s->next    = NULL;
    s->kind    = kind;
    s->ident   = ident;
-   s->tree    = spec;
+   s->node    = node;
    s->matches = 0;
 
    *p = s;
@@ -1249,9 +1266,9 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
    case T_WHILE:
       cnt = NULL;
       for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
-         if (s->container == NULL)
+         if (s->container.vhdl == NULL)
             continue;
-         if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS) {
+         if (is_subprogram(s->container.vhdl) || tree_kind(s->container.vhdl) == T_PROCESS) {
             cnt = &(s->lbl_cnts.loop);
             break;
          }
@@ -1278,7 +1295,7 @@ type_t resolve_type(nametab_t *tab, type_t incomplete)
       for (int i = 0; i < sym->ndecls; i++) {
          const decl_t *dd = get_decl(sym, i);
          if (dd->kind == T_TYPE_DECL) {
-            type_t def = tree_type(dd->tree);
+            type_t def = tree_type(dd->node.vhdl);
             if (type_kind(def) != T_INCOMPLETE && type_eq(def, incomplete))
                return def;
          }
@@ -1301,8 +1318,8 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
       const decl_t *dd = get_decl(sym, i);
       if (dd->visibility != HIDDEN && dd->visibility != ATTRIBUTE) {
          count++;
-         uniq = dd->tree;
-         mask |= name_mask_for(dd->tree);
+         uniq = dd->node.vhdl;
+         mask |= name_mask_for(dd->node.vhdl);
       }
    }
 
@@ -1318,19 +1335,19 @@ tree_t query_spec(nametab_t *tab, tree_t object)
    for (spec_t *it = tab->top_scope->specs; it != NULL; it = it->next) {
       switch (it->kind) {
       case SPEC_ALL:
-         if (tree_ident(tree_ref(object)) == tree_ident2(it->tree)) {
+         if (tree_ident(tree_ref(object)) == tree_ident2(it->node.vhdl)) {
             it->matches++;
-            return it->tree;
+            return it->node.vhdl;
          }
          break;
       case SPEC_OTHERS:
-         if (tree_ident(tree_ref(object)) == tree_ident2(it->tree))
+         if (tree_ident(tree_ref(object)) == tree_ident2(it->node.vhdl))
             others = it;
          break;
       case SPEC_EXACT:
          if (it->ident == tree_ident(object)) {
             it->matches++;
-            return it->tree;
+            return it->node.vhdl;
          }
          break;
       }
@@ -1338,7 +1355,7 @@ tree_t query_spec(nametab_t *tab, tree_t object)
 
    if (others != NULL) {
       others->matches++;
-      return others->tree;
+      return others->node.vhdl;
    }
 
    return NULL;
@@ -1377,8 +1394,8 @@ static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
          const decl_t *dd = get_decl(sym, i);
          if (dd->visibility == HIDDEN)
             continue;
-         else if (dd->kind == T_LIBRARY || is_container(dd->tree))
-            ss = private_scope_for(tab, dd->tree);
+         else if (dd->kind == T_LIBRARY || is_container(dd->node.vhdl))
+            ss = private_scope_for(tab, dd->node.vhdl);
       }
 
       if (ss == NULL) return NULL;
@@ -1495,7 +1512,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    else if (sym->ndecls == 1) {
       const decl_t *dd = get_decl(sym, 0);
       if (dd->visibility != HIDDEN)
-         return dd->tree;
+         return dd->node.vhdl;
    }
 
    // Check if all but one declartion is hidden
@@ -1508,7 +1525,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if (dd->kind == T_PROT_BODY)
          hidden++;
       else
-         result = dd->tree;
+         result = dd->node.vhdl;
 
       if (dd->visibility == OVERLOAD) {
          overload++;
@@ -1522,7 +1539,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
    tree_kind_t what = T_LAST_TREE_KIND;
    for (unsigned i = 0; i < sym->ndecls; i++) {
-      const tree_kind_t kind = tree_kind(get_decl(sym, i)->tree);
+      const tree_kind_t kind = tree_kind(get_decl(sym, i)->node.vhdl);
       if (what == T_LAST_TREE_KIND)
          what = kind;
       else if (what != kind)
@@ -1536,7 +1553,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       for (int i = 0; i < sym->ndecls; i++) {
          const decl_t *dd = get_decl(sym, i);
          if (dd->visibility == OVERLOAD)
-            APUSH(m, dd->tree);
+            APUSH(m, dd->node.vhdl);
       }
 
       if (m.count > 1 && subprograms > 0) {
@@ -1609,14 +1626,14 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       tb_printf(tb, " declaration of %s", istr(name));
 
-      type_t type = get_type_or_null(dd->tree);
-      if (type != NULL && !is_type_decl(dd->tree))
-         tb_printf(tb, " as %s", type_pp(tree_type(dd->tree)));
+      type_t type = get_type_or_null(dd->node.vhdl);
+      if (type != NULL && !is_type_decl(dd->node.vhdl))
+         tb_printf(tb, " as %s", type_pp(tree_type(dd->node.vhdl)));
 
-      if (dd->origin->container != NULL)
-         tb_printf(tb, " from %s", istr(tree_ident(dd->origin->container)));
+      if (dd->origin->container.vhdl != NULL)
+         tb_printf(tb, " from %s", istr(tree_ident(dd->origin->container.vhdl)));
 
-      diag_hint(d, tree_loc(dd->tree), "%s", tb_get(tb));
+      diag_hint(d, tree_loc(dd->node.vhdl), "%s", tb_get(tb));
    }
 
    diag_hint(d, loc, "use of name %s here", istr(name));
@@ -1642,16 +1659,16 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
             continue;
          else if (dd->mask & N_SUBPROGRAM) {
             if (constraint == NULL)
-               APUSH(matching, dd->tree);
+               APUSH(matching, dd->node.vhdl);
             else {
-               type_t signature = tree_type(dd->tree);
+               type_t signature = tree_type(dd->node.vhdl);
                if (type_eq_map(constraint, signature, tab->top_scope->gmap))
-                  APUSH(matching, dd->tree);
+                  APUSH(matching, dd->node.vhdl);
             }
          }
          else if (allow_enum && dd->kind == T_ENUM_LIT
-                  && type_eq(type_result(constraint), tree_type(dd->tree)))
-            APUSH(matching, dd->tree);
+                  && type_eq(type_result(constraint), tree_type(dd->node.vhdl)))
+            APUSH(matching, dd->node.vhdl);
       }
    }
 
@@ -1812,7 +1829,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       }
 
       scope_t *s = private_scope_for(tab, unit);
-      assert(s->container == unit);
+      assert(s->container.vhdl == unit);
 
       ident_t what = tree_ident2(use);
       if (what == well_known(W_ALL)) {
@@ -1840,20 +1857,20 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
             if (dd->kind == T_TYPE_DECL) {
-               type_t type = tree_type(dd->tree);
+               type_t type = tree_type(dd->node.vhdl);
                if (type_is_enum(type)) {
                   const int nlits = type_enum_literals(type);
                   for (int i = 0; i < nlits; i++) {
-                     tree_t lit = type_enum_literal(type, i);
-                     make_visible(tab->top_scope, tree_ident(lit), lit,
+                     hdl_node_t lit = {.vhdl = type_enum_literal(type, i)};
+                     make_visible(tab->top_scope, tree_ident(lit.vhdl), lit,
                                   POTENTIAL, s);
                   }
                }
                else if (type_is_physical(type)) {
                   const int nunits = type_units(type);
                   for (int i = 0; i < nunits; i++) {
-                     tree_t u = type_unit(type, i);
-                     make_visible(tab->top_scope, tree_ident(u), u,
+                     hdl_node_t u = {.vhdl = type_unit(type, i)};
+                     make_visible(tab->top_scope, tree_ident(u.vhdl), u,
                                   POTENTIAL, s);
                   }
                }
@@ -1865,7 +1882,8 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    }
    else {
       ident_t bare_name = unit_bare_name(unit);
-      make_visible(tab->top_scope, bare_name, unit, POTENTIAL, tab->top_scope);
+      hdl_node_t node = {.vhdl = unit};
+      make_visible(tab->top_scope, bare_name, node, POTENTIAL, tab->top_scope);
    }
 }
 
@@ -1893,7 +1911,8 @@ void insert_generics(nametab_t *tab, tree_t container)
    const int ngenerics = tree_generics(container);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(container, i);
-      make_visible_slow(tab->top_scope, tree_ident(g), g);
+      hdl_node_t node = {.vhdl = g};
+      make_visible_slow(tab->top_scope, tree_ident(g), node);
    }
 }
 
@@ -2210,7 +2229,7 @@ static void begin_overload_resolution(overload_t *o)
          else if (!(dd->mask & N_SUBPROGRAM))
             continue;
 
-         tree_t next = dd->tree;
+         tree_t next = dd->node.vhdl;
          if (dd->kind == T_ALIAS) {
             tree_t value = tree_value(next);
             if (tree_kind(value) != T_REF || !tree_has_ref(value))
@@ -2259,8 +2278,8 @@ static void begin_overload_resolution(overload_t *o)
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
             if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
-               diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
-                         type_pp(tree_type(dd->tree)));
+               diag_hint(d, tree_loc(dd->node.vhdl), "subprogram %s is hidden",
+                         type_pp(tree_type(dd->node.vhdl)));
          }
 
          if (!hinted)
@@ -2581,7 +2600,8 @@ static void overload_push_names(overload_t *o)
          const int nports = tree_ports(o->candidates.items[i]);
          for (int j = 0; j < nports; j++) {
             tree_t p = tree_port(o->candidates.items[i], j);
-            make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
+            hdl_node_t node = {.vhdl = p};
+            make_visible_slow(o->nametab->top_scope, tree_ident(p), node);
          }
       }
    }
@@ -2898,15 +2918,15 @@ static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
 
    for (int i = 0; i < op_sym->ndecls; i++) {
       const decl_t *dd = get_decl(op_sym, i);
-      if (!(dd->mask & N_SUBPROGRAM) || tree_ports(dd->tree) == 0)
+      if (!(dd->mask & N_SUBPROGRAM) || tree_ports(dd->node.vhdl) == 0)
          continue;
 
       // TODO: according to the standard we should only allow
       // TREE_F_PREDEFINED here
 
-      type_t arg0 = tree_type(tree_port(dd->tree, 0));
+      type_t arg0 = tree_type(tree_port(dd->node.vhdl, 0));
       if (type_eq(arg0, type))
-         return dd->tree;
+         return dd->node.vhdl;
    }
 
    return NULL;
@@ -3008,7 +3028,7 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
       if (sym != NULL) {
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
-            if (dd->tree == decl) {
+            if (dd->node.vhdl == decl) {
                owner = dd->origin;
                break;
             }
@@ -3090,7 +3110,7 @@ static type_list_t possible_types(nametab_t *tab, tree_t value)
             if (dd->visibility == HIDDEN)
                continue;
 
-            type_t type1 = tree_type(dd->tree);
+            type_t type1 = tree_type(dd->node.vhdl);
             if (type_kind(type1) == T_FUNC)
                type1 = type_result(type1);
 
@@ -3812,9 +3832,9 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
                      const decl_t *dd = get_decl(sym, i);
                      if (dd->visibility != ATTRIBUTE)
                         continue;
-                     else if (tree_class(dd->tree) == class
-                              && tree_ident2(dd->tree) == id) {
-                        a = dd->tree;
+                     else if (tree_class(dd->node.vhdl) == class
+                              && tree_ident2(dd->node.vhdl) == id) {
+                        a = dd->node.vhdl;
                         break;
                      }
                   }
@@ -4406,9 +4426,9 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
       if (sym != NULL) {
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
-            if ((dd->mask & N_FUNC) && tree_ports(dd->tree) == 1) {
-               type_t p0_type = tree_type(tree_port(dd->tree, 0));
-               type_set_add(tab, p0_type, dd->tree);
+            if ((dd->mask & N_FUNC) && tree_ports(dd->node.vhdl) == 1) {
+               type_t p0_type = tree_type(tree_port(dd->node.vhdl, 0));
+               type_set_add(tab, p0_type, dd->node.vhdl);
             }
 
             tab->top_type_set->cconv = true;
