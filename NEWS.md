@@ -11,6 +11,8 @@
   package body (#742).
 - Added support for reading command line arguments in VHPI (from
   @Forty-Bot).
+- Fixed a compilation error when using the predefined
+  `minimum`/`maximum` functions with arrays of physical types.
 
 ## Version 1.10.0 - 2023-07-14
 - The Zstandard compression library is now a build dependency.  Install

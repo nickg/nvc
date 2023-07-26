@@ -351,32 +351,14 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    }
 }
 
-static tree_t simp_convert_range_bound(attr_kind_t attr, tree_t r)
+static tree_t simp_convert_range_bound(tree_t expr, tree_t where)
 {
-   tree_t expr;
-   switch (attr) {
-   case ATTR_LEFT:
-      expr = tree_left(r);
-      break;
-   case ATTR_RIGHT:
-      expr = tree_right(r);
-      break;
-   case ATTR_LOW:
-      expr = (tree_subkind(r) == RANGE_TO) ? tree_left(r) : tree_right(r);
-      break;
-   case ATTR_HIGH:
-      expr = (tree_subkind(r) == RANGE_TO) ? tree_right(r) : tree_left(r);
-      break;
-   default:
-      fatal_trace("unsupported attribute %d", attr);
-   }
-
-   type_t type = tree_type(r);
+   type_t type = tree_type(where);
    if (type_eq(tree_type(expr), type))
       return expr;
 
    tree_t conv = tree_new(T_TYPE_CONV);
-   tree_set_loc(conv, tree_loc(r));
+   tree_set_loc(conv, tree_loc(where));
    tree_set_value(conv, expr);
    tree_set_type(conv, type);
 
@@ -453,8 +435,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                fatal_trace("invalid enumeration attribute %d", predef);
             }
          }
-
-         if (type_is_array(type)) {
+         else if (type_is_array(type)) {
             if (tree_params(t) > 0) {
                tree_t value = tree_value(tree_param(t, 0));
                if (!folded_int(value, &dim_i))
@@ -498,10 +479,19 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                return t;
 
          case ATTR_LOW:
+            if (tree_subkind(r) == RANGE_TO)
+               return simp_convert_range_bound(tree_left(r), t);
+            else
+               return simp_convert_range_bound(tree_right(r), t);
          case ATTR_HIGH:
+            if (tree_subkind(r) == RANGE_TO)
+               return simp_convert_range_bound(tree_right(r), t);
+            else
+               return simp_convert_range_bound(tree_left(r), t);
          case ATTR_LEFT:
+            return simp_convert_range_bound(tree_left(r), t);
          case ATTR_RIGHT:
-            return simp_convert_range_bound(predef, r);
+            return simp_convert_range_bound(tree_right(r), t);
          case ATTR_ASCENDING:
             return get_enum_lit(t, NULL, (rkind == RANGE_TO));
          default:

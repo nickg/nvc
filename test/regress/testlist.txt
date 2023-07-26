@@ -821,3 +821,4 @@ psl2            fail,gold,psl
 signal33        normal
 cmdline8        shell
 issue731        normal,2008
+predef4         normal,2008
