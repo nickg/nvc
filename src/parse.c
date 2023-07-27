@@ -334,8 +334,7 @@ static void drop_tokens_until(token_t tok)
 {
    token_t next = tEOF;
    do {
-      if (next == tID || next == tSTRING)
-         free(last_lval.str);
+      free_token(tok, &last_lval);
       next = peek();
       drop_token();
    } while ((tok != next) && (next != tEOF));

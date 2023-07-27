@@ -220,6 +220,14 @@ const char *token_str(token_t tok)
    return "???";
 }
 
+void free_token(token_t tok, yylval_t *lval)
+{
+   if (tok == tID || tok == tSTRING || tok == tBITSTRING)
+      free(lval->str);
+
+   DEBUG_ONLY(lval->str = NULL);
+}
+
 static void pp_defines_init(void)
 {
    if (pp_defines != NULL)
@@ -506,12 +514,10 @@ token_t processed_yylex(void)
       default:
          if (cond_stack.count == 0 || ATOP(cond_stack).result)
             return token;
-         else if (token == tSTRING || token == tID) {
-            free(yylval.str);
+         else {
+            free_token(token, &yylval);
             break;
          }
-         else
-            break;
       }
    }
 }

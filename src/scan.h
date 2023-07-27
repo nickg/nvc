@@ -44,6 +44,7 @@ void input_from_file(const char *file);
 hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);
+void free_token(token_t tok, yylval_t *lval);
 
 void pp_defines_add(const char *name, const char *value);
 const char *pp_defines_get(const char *name);
