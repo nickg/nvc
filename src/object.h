@@ -67,7 +67,7 @@ typedef uint64_t imask_t;
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
 #define I_FOREIGN    ONE_HOT(32)
-#define I_INDEXCON   ONE_HOT(33)
+#define I_INDEXES    ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
 #define I_DESIGNATED ONE_HOT(36)

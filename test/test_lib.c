@@ -114,7 +114,7 @@ static tree_t str_to_agg(const char *p, const char *end)
    type_t type = type_new(T_ARRAY);
    type_set_ident(type, ident_new("string"));
    type_set_elem(type, my_int_type());
-   type_add_index_constr(type, my_int_type());
+   type_add_index(type, my_int_type());
 
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, RANGE_DOWNTO);

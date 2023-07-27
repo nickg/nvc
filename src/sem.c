@@ -687,9 +687,9 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
             sem_error(t, "array %s cannot have element of protected type",
                       istr(tree_ident(t)));
 
-         const int nindex = type_index_constrs(type);
+         const int nindex = type_indexes(type);
          for (int i = 0; i < nindex; i++) {
-            type_t index_type = type_index_constr(type, i);
+            type_t index_type = type_index(type, i);
             if (type_is_none(index_type))
                return false;
             else if (!type_is_discrete(index_type))

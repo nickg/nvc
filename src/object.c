@@ -69,7 +69,7 @@ typedef struct _object_arena {
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
                           | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
-                          | I_DIMS | I_RANGES | I_INDEXCON | I_PARTS \
+                          | I_DIMS | I_RANGES | I_INDEXES | I_PARTS \
                           | I_PRAGMAS)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
@@ -84,7 +84,7 @@ static const char *item_text_map[] = {
    "I_TYPE",     "I_SUBKIND",    "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE",  "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
    "I_PARTS"  ,  "I_CLASS",      "I_RANGES",   "I_NAME",       "I_PRAGMAS",
-   "I_DVAL",     "I_SPEC",       "I_FOREIGN",  "I_INDEXCON",   "I_BASE",
+   "I_DVAL",     "I_SPEC",       "I_FOREIGN",  "I_INDEXES",    "I_BASE",
    "I_ELEM",     "I_DESIGNATED", "????",       "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",   "I_DIMS",     "I_FIELDS",     "I_CLOCK",
    "I_GUARD",    "????",         "I_CHARS",    "I_CONSTR",     "I_FLAGS",

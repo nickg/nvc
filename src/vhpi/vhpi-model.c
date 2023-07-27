@@ -2680,7 +2680,7 @@ static c_typeDecl *build_typeDecl(type_t type)
          c_arrayTypeDecl *td =
             new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
          init_compositeTypeDecl(&(td->composite), decl, type);
-         td->NumDimensions = type_index_constrs(type);
+         td->NumDimensions = type_indexes(type);
          td->ElemType = cached_typeDecl(type_elem(type));
 
          for (int i = 0; i < td->NumDimensions; i++)

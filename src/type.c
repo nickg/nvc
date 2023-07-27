@@ -46,7 +46,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_UNITS | I_DIMS),
 
    // T_ARRAY
-   (I_IDENT | I_INDEXCON | I_ELEM),
+   (I_IDENT | I_INDEXES | I_ELEM),
 
    // T_RECORD
    (I_IDENT | I_FIELDS),
@@ -487,21 +487,21 @@ void type_set_result(type_t t, type_t r)
    object_write_barrier(&(t->object), &(r->object));
 }
 
-unsigned type_index_constrs(type_t t)
+unsigned type_indexes(type_t t)
 {
-   item_t *item = lookup_item(&type_object, t, I_INDEXCON);
+   item_t *item = lookup_item(&type_object, t, I_INDEXES);
    return obj_array_count(item->obj_array);
 }
 
-void type_add_index_constr(type_t t, type_t c)
+void type_add_index(type_t t, type_t sub)
 {
-   type_array_add(lookup_item(&type_object, t, I_INDEXCON), c);
-   object_write_barrier(&(t->object), &(c->object));
+   type_array_add(lookup_item(&type_object, t, I_INDEXES), sub);
+   object_write_barrier(&(t->object), &(sub->object));
 }
 
-type_t type_index_constr(type_t t, unsigned n)
+type_t type_index(type_t t, unsigned n)
 {
-   item_t *item = lookup_item(&type_object, t, I_INDEXCON);
+   item_t *item = lookup_item(&type_object, t, I_INDEXES);
    return type_array_nth(item, n);
 }
 

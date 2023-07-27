@@ -647,10 +647,10 @@ static void dump_type_decl(tree_t t, int indent)
       print_syntax("#array ");
       if (kind == T_ARRAY) {
          print_syntax("(");
-         const int nindex = type_index_constrs(type);
+         const int nindex = type_indexes(type);
          for (int i = 0; i < nindex; i++) {
             if (i > 0) print_syntax(", ");
-            dump_type(type_index_constr(type, i));
+            dump_type(type_index(type, i));
             print_syntax(" #range <>");
          }
          print_syntax(")");

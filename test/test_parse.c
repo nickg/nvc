@@ -1467,8 +1467,8 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("INT_ARRAY"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ARRAY);
-   fail_unless(type_index_constrs(t) == 1);
-   i = type_index_constr(t, 0);
+   fail_unless(type_indexes(t) == 1);
+   i = type_index(t, 0);
    fail_unless(type_kind(i) == T_INTEGER);
    fail_unless(type_ident(i) == ident_new("STD.STANDARD.INTEGER"));
    b = type_elem(t);
@@ -1507,7 +1507,7 @@ START_TEST(test_array)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(tree_ranges(type_constraint(t, 0)) == 2);
-   fail_unless(type_index_constrs(type_base(t)) == 2);
+   fail_unless(type_indexes(type_base(t)) == 2);
    r = tree_range(type_constraint(t, 0), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 3);

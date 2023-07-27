@@ -6003,7 +6003,7 @@ static type_t p_unconstrained_array_definition(ident_t id)
    type_t t = type_new(T_ARRAY);
    type_set_ident(t, id);
    do {
-      type_add_index_constr(t, p_index_subtype_definition());
+      type_add_index(t, p_index_subtype_definition());
    } while (optional(tCOMMA));
 
    mangle_type(nametab, t);
@@ -6042,7 +6042,7 @@ static type_t p_constrained_array_definition(ident_t id)
       type_t index_type = std_type(NULL, STD_INTEGER);
       tree_t r = p_constrained_discrete_range(index_type);
       tree_add_range(constraint, r);
-      type_add_index_constr(base, tree_type(r));
+      type_add_index(base, tree_type(r));
    } while (optional(tCOMMA));
    consume(tRPAREN);
 

@@ -104,9 +104,9 @@ void type_set_result(type_t t, type_t r);
 type_t type_designated(type_t t);
 void type_set_designated(type_t t, type_t a);
 
-unsigned type_index_constrs(type_t t);
-void type_add_index_constr(type_t t, type_t c);
-type_t type_index_constr(type_t t, unsigned n);
+unsigned type_indexes(type_t t);
+void type_add_index(type_t t, type_t sub);
+type_t type_index(type_t t, unsigned n);
 
 unsigned type_constraints(type_t t);
 void type_add_constraint(type_t t, tree_t c);

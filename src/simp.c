@@ -445,14 +445,14 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
             if (name_kind == T_REF
                 && tree_kind(tree_ref(name)) == T_TYPE_DECL
-                && type_is_unconstrained(type)) {
+                && type_kind(type) == T_ARRAY) {
 
                // Get index type of unconstrained array
 
-               if (dim_i < 1 || dim_i > type_index_constrs(type))
+               if (dim_i < 1 || dim_i > type_indexes(type))
                   return t;
 
-               type  = type_index_constr(type, dim_i - 1);
+               type  = type_index(type, dim_i - 1);
                dim_i = 1;
             }
             else if (type_is_unconstrained(type))

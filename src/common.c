@@ -795,7 +795,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
       return type_new(T_NONE);
 
    if (type_is_unconstrained(array)) {
-      const int nindex = type_index_constrs(array);
+      const int nindex = type_indexes(array);
       assert(from_dim < nindex);
 
       type_t type = type_new(T_ARRAY);
@@ -803,7 +803,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
       type_set_elem(type, type_elem(array));
 
       for (int i = from_dim; i < nindex; i++)
-         type_add_index_constr(type, type_index_constr(array, i));
+         type_add_index(type, type_index(array, i));
 
       return type;
    }
@@ -824,7 +824,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
 
       for (int i = from_dim; i < ndims; i++) {
          tree_t r = range_of(array, i);
-         type_add_index_constr(base, tree_type(r));
+         type_add_index(base, tree_type(r));
          tree_add_range(constraint, r);
       }
 
@@ -868,7 +868,7 @@ unsigned dimension_of(type_t type)
    case T_SUBTYPE:
       return dimension_of(type_base(type));
    case T_ARRAY:
-      return type_index_constrs(type);
+      return type_indexes(type);
    case T_NONE:
    case T_ACCESS:
    case T_RECORD:
@@ -961,7 +961,7 @@ type_t index_type_of(type_t type, unsigned dim)
    type_t base = type_base_recur(type);
    type_kind_t base_kind = type_kind(base);
    if (base_kind == T_ARRAY)
-      return type_index_constr(base, dim);
+      return type_index(base, dim);
    else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;
    else if (base_kind == T_RECORD)

@@ -7245,7 +7245,7 @@ static vcode_reg_t lower_resolution_func(lower_unit_t *lu, type_t type,
 
    type_t uarray_param = type_param(tree_type(rdecl), 0);
    assert(type_kind(uarray_param) == T_ARRAY);
-   tree_t r = range_of(type_index_constr(uarray_param, 0), 0);
+   tree_t r = range_of(type_index(uarray_param, 0), 0);
 
    vcode_reg_t ileft_reg = emit_const(vtype_offset(), assume_int(tree_left(r)));
 
