@@ -32,20 +32,6 @@ typedef union {
 } jit_scalar_t;
 
 typedef struct {
-   int offset;
-   int size;
-   int repeat;
-   int align;
-} layout_part_t;
-
-typedef struct {
-   int nparts;
-   int size;
-   int align;
-   layout_part_t parts[0];
-} jit_layout_t;
-
-typedef struct {
    void *(*init)(jit_t *);
    void (*cgen)(jit_t *, jit_handle_t, void *);
    void (*cleanup)(void *);
@@ -72,7 +58,6 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text);
 void *jit_link(jit_t *j, jit_handle_t handle);
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var);
 void jit_set_silent(jit_t *j, bool silent);
-const jit_layout_t *jit_layout(jit_t *j, type_t type);
 void jit_limit_backedges(jit_t *j, int limit);
 void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);

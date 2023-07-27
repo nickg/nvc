@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "jit/jit-exits.h"
+#include "jit/jit-layout.h"
 #include "jit/jit.h"
 #include "tree.h"
 #include "type.h"
@@ -263,6 +264,20 @@ static internal_cache_pt *get_cache(void *context)
    return pt;
 }
 
+static jit_scalar_t load_scalar(const void *base, size_t off, size_t size)
+{
+   jit_scalar_t elt = { .integer = 0 };
+
+#define UNPACK_ELEMENT(type) do {               \
+      const type *p = base;                     \
+      elt.integer = p[off];                     \
+   } while (0);
+
+   FOR_ALL_SIZES(size, UNPACK_ELEMENT);
+
+   return elt;
+}
+
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
                                       type_t type, const jit_scalar_t *bounds)
 {
@@ -342,15 +357,7 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
 
       value_mirror **elems = avm->pt.f_elements->ptr;
       for (int i = 0; i < total; i++) {
-         jit_scalar_t elt = { .integer = 0 };
-
-#define UNPACK_ELEMENT(type) do {               \
-            const type *p = value.pointer;      \
-            elt.integer = p[i];                 \
-         } while (0);
-
-         FOR_ALL_SIZES(ebytes, UNPACK_ELEMENT);
-
+         jit_scalar_t elt = load_scalar(value.pointer, i, ebytes);
          elems[i] = get_value_mirror(context, elt, elem, NULL);
       }
 
@@ -364,6 +371,32 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       rvm->pt.context = context;
       rvm->pt.f_owner = vm;
       rvm->pt.f_subtype = vm->pt.f_subtype->pt.f_record;
+
+      type_t base = type_base_recur(type);
+      const int nfields = type_fields(base);
+
+      rvm->pt.f_elements =
+         zero_alloc(sizeof(ffi_uarray_t) + nfields * sizeof(value_mirror *));
+      rvm->pt.f_elements->dims[0].left = 0;
+      rvm->pt.f_elements->dims[0].length = nfields;
+      rvm->pt.f_elements->ptr = rvm->pt.f_elements + 1;
+
+      const jit_layout_t *l = layout_of(type);
+      assert(l->nparts == nfields);
+
+      value_mirror **elements = rvm->pt.f_elements->ptr;
+      for (int i = 0; i < l->nparts; i++) {
+         type_t ft = tree_type(type_field(base, i));
+         void *ptr = value.pointer + l->parts[i].offset;
+         if (type_is_scalar(ft)) {
+            jit_scalar_t elt = load_scalar(ptr, 0, l->parts[i].size);
+            elements[i] = get_value_mirror(context, elt, ft, NULL);
+         }
+         else {
+            jit_scalar_t elt = { .pointer = ptr };
+            elements[i] = get_value_mirror(context, elt, ft, NULL);
+         }
+      }
 
       vm->pt.f_class = CLASS_RECORD;
       vm->pt.f_record = rvm;

@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "ident.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-layout.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "mask.h"
@@ -826,48 +827,40 @@ START_TEST(test_prot1)
 }
 END_TEST
 
-static tree_t make_field(const char *name, type_t type)
-{
-   tree_t f = tree_new(T_FIELD_DECL);
-   tree_set_type(f, type);
-   tree_set_ident(f, ident_new(name));
-   return f;
-}
-
 START_TEST(test_layout)
 {
    jit_t *j = jit_new(NULL);
    const jit_layout_t *l = NULL;
 
-   l = jit_layout(j, std_type(NULL, STD_INTEGER));
+   l = layout_of(std_type(NULL, STD_INTEGER));
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 4);
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 4);
 
-   l = jit_layout(j, std_type(NULL, STD_REAL));
+   l = layout_of(std_type(NULL, STD_REAL));
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 8);
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 8);
 
-   l = jit_layout(j, std_type(NULL, STD_TIME));
+   l = layout_of(std_type(NULL, STD_TIME));
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 8);
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 8);
 
-   l = jit_layout(j, std_type(NULL, STD_BOOLEAN));
+   l = layout_of(std_type(NULL, STD_BOOLEAN));
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 1);
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 1);
 
-   l = jit_layout(j, std_type(NULL, STD_STRING));
+   l = layout_of(std_type(NULL, STD_STRING));
    ck_assert_int_eq(l->nparts, 2);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, sizeof(void *));
@@ -877,15 +870,18 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].size, 4);
    ck_assert_int_eq(l->parts[1].repeat, 2);
 
-   make_new_arena();
+   input_from_file(TESTDIR "/jit/layout.vhd");
 
-   type_t r1 = type_new(T_RECORD);
-   type_set_ident(r1, ident_new("R1"));
-   type_add_field(r1, make_field("X", std_type(NULL, STD_INTEGER)));
-   type_add_field(r1, make_field("Y", std_type(NULL, STD_BOOLEAN)));
-   type_add_field(r1, make_field("Z", std_type(NULL, STD_REAL)));
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
 
-   l = jit_layout(j, r1);
+   freeze_global_arena();
+   fail_unless(parse() == NULL);
+
+   type_t r1 = tree_type(search_decls(p, ident_new("R1"), 0));
+
+   l = layout_of(r1);
    ck_assert_int_eq(l->nparts, 3);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 4);
@@ -897,12 +893,9 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[2].size, 8);
    ck_assert_int_eq(l->parts[2].repeat, 1);
 
-   type_t r2 = type_new(T_RECORD);
-   type_set_ident(r2, ident_new("R2"));
-   type_add_field(r2, make_field("X", r1));
-   type_add_field(r2, make_field("Y", std_type(NULL, STD_INTEGER)));
+   type_t r2 = tree_type(search_decls(p, ident_new("R2"), 0));
 
-   l = jit_layout(j, r2);
+   l = layout_of(r2);
    ck_assert_int_eq(l->nparts, 2);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 16);
@@ -912,33 +905,9 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].size, 4);
    ck_assert_int_eq(l->parts[1].repeat, 1);
 
-   type_t a = type_new(T_SUBTYPE);
-   type_set_base(a, std_type(NULL, STD_STRING));
+   type_t a = tree_type(search_decls(p, ident_new("A"), 0));
 
-   type_t std_int = std_type(NULL, STD_INTEGER);
-
-   tree_t left = tree_new(T_LITERAL);
-   tree_set_subkind(left, L_INT);
-   tree_set_ival(left, 1);
-   tree_set_type(left, std_int);
-
-   tree_t right = tree_new(T_LITERAL);
-   tree_set_subkind(right, L_INT);
-   tree_set_ival(right, 5);
-   tree_set_type(right, std_int);
-
-   tree_t r = tree_new(T_RANGE);
-   tree_set_subkind(r, RANGE_TO);
-   tree_set_left(r, left);
-   tree_set_right(r, right);
-
-   tree_t cons = tree_new(T_CONSTRAINT);
-   tree_set_subkind(cons, C_INDEX);
-   tree_add_range(cons, r);
-
-   type_add_constraint(a, cons);
-
-   l = jit_layout(j, a);
+   l = layout_of(a);
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, 1);

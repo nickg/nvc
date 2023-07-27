@@ -92,7 +92,6 @@ typedef struct _jit {
    chash_t         *index;
    mspace_t        *mspace;
    void            *lower_ctx;
-   hash_t          *layouts;
    bool             silent;
    bool             runtime;
    bool             shutdown;
@@ -184,15 +183,6 @@ void jit_free(jit_t *j)
    free(j->funcs);
 
    free(j->cover_mem);
-
-   if (j->layouts != NULL) {
-      hash_iter_t it = HASH_BEGIN;
-      const void *key;
-      void *value;
-      while (hash_iter(j->layouts, &it, &key, &value))
-         free(value);
-      hash_free(j->layouts);
-   }
 
    for (jit_tier_t *it = j->tiers, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -799,116 +789,6 @@ tlab_t jit_null_tlab(jit_t *j)
 {
    tlab_t t = { .mspace = j->mspace };
    return t;
-}
-
-const jit_layout_t *jit_layout(jit_t *j, type_t type)
-{
-   if (j->layouts == NULL)
-      j->layouts = hash_new(256);
-
-   jit_layout_t *l = hash_get(j->layouts, type);
-   if (l != NULL)
-      return l;
-
-   if (type_is_integer(type) || type_is_physical(type) || type_is_enum(type)) {
-      l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
-      l->nparts = 1;
-
-      tree_t r = type_dim(type, 0);
-      int64_t low, high;
-      if (!folded_bounds(r, &low, &high))
-         fatal_trace("type %s has unknown bounds", type_pp(type));
-
-      const int bits = bits_for_range(low, high);
-      l->parts[0].offset = 0;
-      l->parts[0].size   = l->size = ALIGN_UP(bits, 8) / 8;
-      l->parts[0].repeat = 1;
-      l->parts[0].align  = l->align = l->parts[0].size;
-   }
-   else if (type_is_real(type)) {
-      l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
-      l->nparts = 1;
-
-      l->parts[0].offset = 0;
-      l->parts[0].size   = l->size = sizeof(double);
-      l->parts[0].repeat = 1;
-      l->parts[0].align  = l->align = l->parts[0].size;
-   }
-   else if (type_is_array(type)) {
-      const int ndims = dimension_of(type);
-
-      if (type_is_unconstrained(type)) {
-         l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
-         l->nparts = 2;
-         l->size   = sizeof(void *) + ndims * 2 * sizeof(int32_t);
-         l->align  = sizeof(void *);
-
-         l->parts[0].offset = 0;
-         l->parts[0].size   = sizeof(void *);
-         l->parts[0].repeat = 1;
-         l->parts[0].align  = l->parts[0].size;
-
-         l->parts[1].offset = sizeof(void *);
-         l->parts[1].size   = sizeof(int32_t);
-         l->parts[1].repeat = ndims * 2;
-         l->parts[1].align  = l->parts[1].size;
-      }
-      else {
-         int length = 1;
-         for (int i = 0; i < ndims; i++) {
-            tree_t r = range_of(type, i);
-
-            int64_t dlen;
-            if (!folded_length(r, &dlen))
-               fatal_at(tree_loc(r), "dimension %d of type %s is not static",
-                        i, type_pp(type));
-
-            length *= dlen;
-         }
-
-         const jit_layout_t *el = jit_layout(j, type_elem(type));
-         assert(!type_is_array(type_elem(type)));
-
-         l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
-         l->nparts = 1;
-         l->size   = length * el->size;
-         l->align  = el->align;
-
-         l->parts[0].offset = 0;
-         l->parts[0].size   = el->size;
-         l->parts[0].repeat = length;
-         l->parts[0].align  = el->align;
-      }
-   }
-   else if (type_is_record(type)) {
-      const int nfields = type_fields(type);
-
-      l = xcalloc_flex(sizeof(jit_layout_t), nfields, sizeof(layout_part_t));
-      l->nparts = nfields;
-
-      int offset = 0;
-      for (int i = 0; i < nfields; i++) {
-         type_t ftype = tree_type(type_field(type, i));
-         const jit_layout_t *fl = jit_layout(j, ftype);
-
-         offset = ALIGN_UP(offset, fl->align);
-
-         l->parts[i].offset = offset;
-         l->parts[i].size   = fl->size;
-         l->parts[i].repeat = 1;
-         l->parts[i].align  = fl->align;
-
-         offset += fl->size;
-      }
-
-      l->size  = offset;
-      l->align = sizeof(void *);  // Matches irgen_align_of
-   }
-   else
-      fatal_trace("cannot get layout for %s", type_pp(type));
-
-   hash_put(j->layouts, type, l);
-   return l;
 }
 
 void jit_limit_backedges(jit_t *j, int limit)

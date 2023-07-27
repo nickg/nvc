@@ -24,6 +24,9 @@ begin
         assert rstm.element_index("B") = 1;
         assert rstm.element_subtype("A") = integer'reflect;
         assert rstm.to_subtype_mirror = rec1'reflect;     -- Should cache
+
+        assert rvm.get(0).to_integer.value = 1;
+        assert rvm.get("b").to_integer.value = 2;
         wait;
     end process;
 

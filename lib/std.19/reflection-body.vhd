@@ -402,6 +402,11 @@ package body reflection is
         variable f_owner   : value_mirror;
         variable f_subtype : record_subtype_mirror;
 
+        type vm_array is array (natural_index range <>) of value_mirror;
+        type vm_array_ptr is access vm_array;
+
+        variable f_elements : vm_array_ptr;
+
         impure function get_subtype_mirror return record_subtype_mirror is
         begin
             return f_subtype;
@@ -414,12 +419,12 @@ package body reflection is
 
         impure function get (element_idx : index) return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_elements(element_idx);
         end function;
 
         impure function get (element_name : string) return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return get(f_subtype.element_index(element_name));
         end function;
     end protected body;
 
@@ -453,10 +458,33 @@ package body reflection is
             return f_fields.all(element_idx).f_name.all;
         end function;
 
+        pure function casecmp (x, y : in string) return boolean is
+            variable xp, yp : integer;
+        begin
+            if x'length = y'length then
+                for i in x'range loop
+                    xp := character'pos(x(i));
+                    yp := character'pos(y(i));
+                    next when xp = yp;
+                    if xp >= 97 and xp <= 122 then
+                        xp := xp - 32;
+                    end if;
+                    if yp >= 97 and yp <= 122 then
+                        yp := yp - 32;
+                    end if;
+                    next when xp = yp;
+                    return false;
+                end loop;
+                return true;
+            else
+                return false;
+            end if;
+        end function;
+
         impure function element_index (element_name : string) return index is
         begin
             for i in f_fields.all'range loop
-                if f_fields.all(i).f_name.all = element_name then
+                if casecmp(f_fields.all(i).f_name.all, element_name) then
                     return i;
                 end if;
             end loop;
@@ -473,7 +501,7 @@ package body reflection is
         impure function element_subtype (element_name : string) return subtype_mirror is
         begin
             for i in f_fields.all'range loop
-                if f_fields.all(i).f_name.all = element_name then
+                if casecmp(f_fields.all(i).f_name.all, element_name) then
                     return f_fields.all(i).f_subtype;
                 end if;
             end loop;
