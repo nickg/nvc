@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements
   such as `x <= C(y)` where C is a constant array.
 - Fixed an incorrect optimisation which caused `'event` to return the

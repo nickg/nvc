@@ -263,6 +263,7 @@ EXTRA_DIST += \
 	test/lower/proc1.vhd \
 	test/lower/proc3.vhd \
 	test/lower/proc7.vhd \
+	test/lower/protpcall.vhd \
 	test/lower/protupref.vhd \
 	test/lower/real1.vhd \
 	test/lower/record1.vhd \
@@ -594,6 +595,7 @@ EXTRA_DIST += \
 	test/regress/cmdline5.sh \
 	test/regress/cmdline6.sh \
 	test/regress/cmdline7.sh \
+	test/regress/cmdline8.sh \
 	test/regress/comp1.vhd \
 	test/regress/concat1.vhd \
 	test/regress/concat2.vhd \
@@ -1171,7 +1173,9 @@ EXTRA_DIST += \
 	test/regress/issue726.vhd \
 	test/regress/issue72.vhd \
 	test/regress/issue730.vhd \
+	test/regress/issue731.vhd \
 	test/regress/issue734.vhd \
+	test/regress/issue744.vhd \
 	test/regress/issue79.vhd \
 	test/regress/issue82.vhd \
 	test/regress/issue83.vhd \
@@ -1219,6 +1223,7 @@ EXTRA_DIST += \
 	test/regress/predef1.vhd \
 	test/regress/predef2.vhd \
 	test/regress/predef3.vhd \
+	test/regress/predef4.vhd \
 	test/regress/proc10.vhd \
 	test/regress/proc11.vhd \
 	test/regress/proc12.vhd \
@@ -1323,6 +1328,7 @@ EXTRA_DIST += \
 	test/regress/signal30.vhd \
 	test/regress/signal31.vhd \
 	test/regress/signal32.vhd \
+	test/regress/signal33.vhd \
 	test/regress/signal3.vhd \
 	test/regress/signal4.vhd \
 	test/regress/signal5.vhd \
@@ -1652,6 +1658,7 @@ EXTRA_DIST += \
 	test/simp/issue496.vhd \
 	test/simp/issue49.vhd \
 	test/simp/issue574.vhd \
+	test/simp/issue742.vhd \
 	test/simp/order1.vhd \
 	test/simp/osvvm4.vhd \
 	test/simp/ports2008.vhd \
