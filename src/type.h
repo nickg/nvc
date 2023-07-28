@@ -167,6 +167,7 @@ int type_bit_width(type_t type);
 int type_byte_width(type_t type);
 
 bool type_frozen(type_t t);
+tree_t type_container(type_t t);
 
 object_t *type_to_object(type_t t);
 type_t type_from_object(object_t *obj);

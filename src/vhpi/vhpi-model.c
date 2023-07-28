@@ -2619,8 +2619,15 @@ static c_typeDecl *cached_typeDecl(type_t type);
 
 static c_typeDecl *build_typeDecl(type_t type)
 {
-   ident_t id = type_ident(type);
-   tree_t unit = lib_get_qualified(ident_runtil(id, '.')), decl = NULL;
+   type_t base = type;
+   while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
+      base = type_base(base);   // Anonymous subtypes have no declaration
+
+   ident_t id = type_ident(base);
+   tree_t unit = type_container(base), decl = NULL;
+
+   if (unit != NULL && tree_kind(unit) == T_ELAB)
+      unit = tree_stmt(unit, 0);   // Get root block
 
    if (unit != NULL)
       decl = search_decls(unit, ident_rfrom(id, '.'), 0);

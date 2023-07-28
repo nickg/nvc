@@ -1379,6 +1379,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROC_INST:
       case T_PROT_BODY:
       case T_TYPE_DECL:
+      case T_SUBTYPE_DECL:
       case T_PACK_BODY:
       case T_PACKAGE:
       case T_PACK_INST:
