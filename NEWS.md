@@ -1,12 +1,24 @@
 ## Unreleased changes
-- Decimal bit string literals more than 64 bits wide are now supported
-  (#731).
-- The format of fractional `time` values returned by the standard
-  `to_string` function was changed to match other simulators.
 - New command `--cover-export` exports coverage data in the Cobertura
   XML format which is supported by most CI environments such as GitLab.
 - Generics on internal instances can now be overridden with the `-g`
   elaboration option.  For example `-g uut.value=42`.
+
+## Version 1.10.1 - 2023-07-28
+- Fixed incorrect sensitivity list generation with concurrent statements
+  such as `x <= C(y)` where C is a constant array.
+- Fixed an incorrect optimisation which caused `'event` to return the
+  wrong value in rare circumstances.
+- Decimal bit string literals more than 64 bits wide are now supported
+  (#731).
+- The format of fractional `time` values returned by the standard
+  `to_string` function was changed to match other simulators.
+- Fixed a crash when constant folding a locally static expression in a
+  package body (#742).
+- Added support for reading command line arguments in VHPI (from
+  @Forty-Bot).
+- Fixed a compilation error when using the predefined
+  `minimum`/`maximum` functions with arrays of physical types.
 - Overloaded protected procedure calls could read the wrong value of
   protected type variables in rare circumstances.
 
