@@ -909,6 +909,13 @@ bool type_frozen(type_t t)
    return arena_frozen(object_arena(&(t->object)));
 }
 
+tree_t type_container(type_t t)
+{
+   object_t *o = arena_root(object_arena(&(t->object)));
+   assert(o->tag == OBJECT_TAG_TREE);
+   return container_of(o, struct _tree, object);
+}
+
 object_t *type_to_object(type_t t)
 {
    return t ? &(t->object) : NULL;
