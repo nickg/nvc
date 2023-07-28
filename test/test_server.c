@@ -288,11 +288,14 @@ static void wave_binary_frame(web_socket_t *ws, const void *data, size_t len,
       break;
 
    case 2:
-      ck_assert_int_eq(len, 5);
+      ck_assert_int_eq(len, 9);
       ck_assert_int_eq(bytes[0], S2C_ADD_WAVE);
       ck_assert_int_eq(bytes[1] << 8 | bytes[2], 2);
       ck_assert_int_eq(bytes[3], '/');
       ck_assert_int_eq(bytes[4], 'x');
+      ck_assert_int_eq(bytes[5] << 8 | bytes[6], 2);
+      ck_assert_int_eq(bytes[7], 'b');
+      ck_assert_int_eq(bytes[8], '0');
       break;
 
    case 3:
@@ -301,11 +304,14 @@ static void wave_binary_frame(web_socket_t *ws, const void *data, size_t len,
       break;
 
    case 4:
-      ck_assert_int_eq(len, 10);
+      ck_assert_int_eq(len, 9);
       ck_assert_int_eq(bytes[0], S2C_SIGNAL_UPDATE);
       ck_assert_int_eq(bytes[1] << 8 | bytes[2], 2);
       ck_assert_int_eq(bytes[3], '/');
       ck_assert_int_eq(bytes[4], 'x');
+      ck_assert_int_eq(bytes[5] << 8 | bytes[6], 2);
+      ck_assert_int_eq(bytes[7], 'b');
+      ck_assert_int_eq(bytes[8], '1');
       break;
 
    case 5:

@@ -220,8 +220,10 @@ static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
    shell_signal_t *ss = user;
    shell_handler_t *h = &(ss->owner->handler);
 
-   if (h->signal_update != NULL)
-      (*h->signal_update)(ss->path, now, s, h->context);
+   if (h->signal_update != NULL) {
+      const char *enc = print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
+      (*h->signal_update)(ss->path, now, s, enc, h->context);
+   }
 }
 
 static void recreate_signals(tcl_shell_t *sh, rt_scope_t *scope,
@@ -710,7 +712,7 @@ static const char add_help[] =
    "Add signals and other objects to the display\n"
    "\n"
    "Syntax:\n"
-   "  add wave <name>\n"
+   "  add wave <name>...\n"
    "\n"
    "Examples:\n"
    "  add wave /*\tAdd all signals to waveform\n";
@@ -720,19 +722,33 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
 {
    tcl_shell_t *sh = cd;
 
-   if (objc != 3 || strcmp(Tcl_GetString(objv[1]), "wave") != 0)
+   if (objc < 3 || strcmp(Tcl_GetString(objv[1]), "wave") != 0)
       goto usage;
    else if (!shell_has_model(sh))
       return TCL_ERROR;
 
-   const char *glob = Tcl_GetString(objv[2]);
+   const int nglobs = objc - 2;
+   char **globs LOCAL = xmalloc_array(nglobs, sizeof(char *));
+   for (int i = 0; i < nglobs; i++)
+      globs[i] = Tcl_GetString(objv[i + 2]);
+
    for (int i = 0; i < sh->nsignals; i++) {
       shell_signal_t *ss = &(sh->signals[i]);
-      if (!ident_glob(ss->path, glob, -1))
-         continue;
 
-      if (sh->handler.add_wave != NULL)
-         (*sh->handler.add_wave)(ss->path, ss->signal, sh->handler.context);
+      bool match = false;
+      for (int j = 0; j < nglobs; j++)
+         match |= ident_glob(ss->path, globs[j], -1);
+
+      if (!match)
+         continue;
+      else if (!shell_get_printer(sh, ss))
+         return TCL_ERROR;
+
+      if (sh->handler.add_wave != NULL) {
+         const char *enc =
+            print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
+         (*sh->handler.add_wave)(ss->path, enc, sh->handler.context);
+      }
 
       if (ss->watch == NULL)
         ss->watch = model_set_event_cb(sh->model, ss->signal,

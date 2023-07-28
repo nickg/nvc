@@ -22,10 +22,11 @@
 
 typedef struct _print_func print_func_t;
 
-#define PRINT_F_RADIX 0x3
-#define PRINT_F_BIN 1
-#define PRINT_F_HEX 2
-#define PRINT_F_DEC 3
+#define PRINT_F_RADIX  0x3
+#define PRINT_F_BIN    1
+#define PRINT_F_HEX    2
+#define PRINT_F_DEC    3
+#define PRINT_F_ENCODE 0x4
 typedef uint32_t print_flags_t;
 
 printer_t *printer_new(void);

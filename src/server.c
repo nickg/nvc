@@ -21,7 +21,6 @@
 #include "option.h"
 #include "phase.h"
 #include "rt/shell.h"
-#include "rt/structs.h"
 #include "server.h"
 #include "sha1.h"
 #include "thread.h"
@@ -354,6 +353,7 @@ static void pb_pack_u16(packet_buf_t *pb, uint16_t value)
    pb->buf[pb->wptr++] = value & 0xff;
 }
 
+#if 0
 static void pb_pack_u32(packet_buf_t *pb, uint32_t value)
 {
    pb_grow(pb, 4);
@@ -362,6 +362,7 @@ static void pb_pack_u32(packet_buf_t *pb, uint32_t value)
    pb->buf[pb->wptr++] = (value >> 8) & 0xff;
    pb->buf[pb->wptr++] = value & 0xff;
 }
+#endif
 
 static void pb_pack_u64(packet_buf_t *pb, uint64_t value)
 {
@@ -553,26 +554,26 @@ static packet_buf_t *fresh_packet_buffer(web_server_t *server)
    return server->packetbuf;
 }
 
-static void add_wave_handler(ident_t path, rt_signal_t *s, void *user)
+static void add_wave_handler(ident_t path, const char *enc, void *user)
 {
    web_server_t *server = user;
 
    packet_buf_t *pb = fresh_packet_buffer(server);
    pb_pack_u8(pb, S2C_ADD_WAVE);
    pb_pack_ident(pb, path);
+   pb_pack_str(pb, enc);
    ws_send_packet(server->websocket, pb);
 }
 
 static void signal_update_handler(ident_t path, uint64_t now, rt_signal_t *s,
-                                  void *user)
+                                  const char *enc, void *user)
 {
    web_server_t *server = user;
 
    packet_buf_t *pb = fresh_packet_buffer(server);
    pb_pack_u8(pb, S2C_SIGNAL_UPDATE);
    pb_pack_ident(pb, path);
-   pb_pack_u32(pb, s->shared.size);
-   pb_pack_bytes(pb, s->shared.data, s->shared.size);
+   pb_pack_str(pb, enc);
    ws_send_packet(server->websocket, pb);
 }
 
