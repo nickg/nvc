@@ -43,5 +43,6 @@ bool shell_do(tcl_shell_t *sh, const char *file);
 void shell_interact(tcl_shell_t *sh);
 void shell_reset(tcl_shell_t *sh, tree_t top);
 void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h);
+void shell_print_banner(tcl_shell_t *sh);
 
 #endif  // _RT_SHELL_H

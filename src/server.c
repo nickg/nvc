@@ -79,6 +79,7 @@ typedef struct MHD_UpgradeResponseHandle mhd_urh_t;
 typedef struct {
    tcl_shell_t  *shell;
    bool          shutdown;
+   bool          banner;
    mhd_urh_t    *urh;
    web_socket_t *websocket;
    MHD_socket    closesock;
@@ -639,6 +640,9 @@ static void upgrade_handler(void *cls, struct MHD_Connection *con,
 
    diag_set_consumer(tunnel_diag, server);
 
+   if (server->banner)
+      shell_print_banner(server->shell);
+
    if (server->top != NULL)
       shell_reset(server->shell, server->top);
 
@@ -792,6 +796,7 @@ void start_server(jit_factory_t make_jit, tree_t top,
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;
+   server->banner    = !opt_get_int(OPT_UNIT_TEST);
 
    shell_handler_t handler = {
       .add_wave = add_wave_handler,

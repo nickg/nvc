@@ -999,17 +999,23 @@ static char *shell_raw_get_line(tcl_shell_t *sh)
    }
 }
 
-static void show_banner(void)
+void shell_print_banner(tcl_shell_t *sh)
 {
    extern const char version_string[];
-   printf("\n");
-   print_centred(version_string);
-   wrapped_printf(
+   shell_printf(sh, "\n");
+
+   if (sh->handler.stdout_write == NULL)
+      print_centred(version_string);
+   else
+      shell_printf(sh, "\t%s", version_string);
+
+   static const char blurb[] =
       "\n\nThis program comes with ABSOLUTELY NO WARRANTY. This is free "
       "software, and you are welcome to redistribute it under certain "
       "conditions; type $bold$copyright$$ for details.\n\n"
-      "Type $bold$help$$ for a list of supported commands.\n\n",
-      version_string);
+      "Type $bold$help$$ for a list of supported commands.\n\n";
+
+   shell_printf(sh, blurb);
 }
 
 static int compare_shell_cmd(const void *a, const void *b)
@@ -1188,7 +1194,7 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
 
 void shell_interact(tcl_shell_t *sh)
 {
-   show_banner();
+   shell_print_banner(sh);
 
    char *line;
    while (!sh->quit && (line = (*sh->getline)(sh))) {

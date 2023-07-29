@@ -29,10 +29,11 @@
 typedef void (*type_fn_t)(print_func_t *, const void *, size_t, print_flags_t);
 
 typedef struct _print_func {
-   printer_t *printer;
-   type_fn_t  typefn;
-   char      *map;
-   size_t     stride;
+   printer_t    *printer;
+   type_fn_t     typefn;
+   char         *map;
+   size_t        stride;
+   print_func_t *elem;
 } print_func_t;
 
 typedef struct _printer {
@@ -41,6 +42,20 @@ typedef struct _printer {
 } printer_t;
 
 static const char std_logic_map[] = "UX01ZWLH-";
+
+static void begin_quote(print_func_t *f, print_flags_t flags, char enc)
+{
+   if (flags & PRINT_F_ENCODE)
+      tb_append(f->printer->buf, enc);
+   else
+      tb_append(f->printer->buf, '"');
+}
+
+static void end_quote(print_func_t *f, print_flags_t flags)
+{
+   if (!(flags & PRINT_F_ENCODE))
+      tb_append(f->printer->buf, '"');
+}
 
 static void int_printer(print_func_t *f, const void *data, size_t size,
                         print_flags_t flags)
@@ -99,10 +114,7 @@ static void std_logic_printer(print_func_t *f, const void *data, size_t size,
 static void std_logic_vector_printer(print_func_t *f, const void *data,
                                      size_t size, print_flags_t flags)
 {
-   if (flags & PRINT_F_ENCODE)
-      tb_append(f->printer->buf, 'L');
-   else
-      tb_append(f->printer->buf, '"');
+   begin_quote(f, flags, 'L');
 
    for (int i = 0; i < size; i++) {
       const uint8_t bit = *((uint8_t *)data + i);
@@ -110,8 +122,7 @@ static void std_logic_vector_printer(print_func_t *f, const void *data,
       tb_append(f->printer->buf, std_logic_map[bit]);
    }
 
-   if (!(flags & PRINT_F_ENCODE))
-      tb_append(f->printer->buf, '"');
+   end_quote(f, flags);
 }
 
 static void bit_printer(print_func_t *f, const void *data, size_t size,
@@ -129,16 +140,24 @@ static void bit_printer(print_func_t *f, const void *data, size_t size,
 static void bit_vector_printer(print_func_t *f, const void *data,
                                size_t size, print_flags_t flags)
 {
-   if (flags & PRINT_F_ENCODE)
-      tb_append(f->printer->buf, 'B');
-   else
-      tb_append(f->printer->buf, '"');
+   begin_quote(f, flags, 'B');
 
    for (int i = 0; i < size; i++)
       tb_append(f->printer->buf, *((uint8_t *)data + i) ? '1' : '0');
 
-   if (!(flags & PRINT_F_ENCODE))
-      tb_append(f->printer->buf, '"');
+   end_quote(f, flags);
+}
+
+static void physical_printer(print_func_t *f, const void *data, size_t size,
+                             print_flags_t flags)
+{
+   if (flags & PRINT_F_ENCODE)
+      tb_append(f->printer->buf, 'p');
+
+   int_printer(f, data, size, 0);
+
+   tb_append(f->printer->buf, ' ');
+   tb_cat(f->printer->buf, f->map);
 }
 
 static void enum_printer(print_func_t *f, const void *data, size_t size,
@@ -165,8 +184,45 @@ static void make_enum_map(print_func_t *f, type_t type)
 
    for (int i = 0; i < nlits; i++) {
       ident_t id = tree_ident(type_enum_literal(type, i));
-      memcpy(f->map + i*f->stride, istr(id), stride);
+      memcpy(f->map + i*f->stride, istr(id), ident_len(id));
    }
+}
+
+static void enum_vector_printer(print_func_t *f, const void *data,
+                                size_t size, print_flags_t flags)
+{
+   if (flags & PRINT_F_ENCODE)
+      tb_append(f->printer->buf, 'E');
+
+   flags &= ~PRINT_F_ENCODE;
+
+   tb_append(f->printer->buf, '(');
+
+   for (int i = 0; i < size; i++) {
+      if (i > 0) tb_cat(f->printer->buf, ", ");
+      (*f->elem->typefn)(f->elem, data + i, 1, flags);
+   }
+
+   tb_append(f->printer->buf, ')');
+}
+
+static void string_printer(print_func_t *f, const void *data,
+                           size_t size, print_flags_t flags)
+{
+   bool allprint = true;
+   for (int i = 0; i < size; i++)
+      allprint &= isprint_iso88591(*((uint8_t *)data + i));
+
+   if (allprint) {
+      begin_quote(f, flags, 'S');
+
+      for (int i = 0; i < size; i++)
+         tb_append(f->printer->buf, *((uint8_t *)data + i));
+
+      end_quote(f, flags);
+   }
+   else
+      enum_vector_printer(f, data, size, flags);
 }
 
 printer_t *printer_new(void)
@@ -214,31 +270,50 @@ print_func_t *printer_for(printer_t *p, type_t type)
       f->typefn = int_printer;
       break;
    case T_ENUM:
-       switch (is_well_known(type_ident(base))) {
-       case W_IEEE_LOGIC:
-       case W_IEEE_ULOGIC:
-          f->typefn = std_logic_printer;
-          break;
-       case W_STD_BIT:
-          f->typefn = bit_printer;
-          break;
-       default:
-          f->typefn = enum_printer;
-          make_enum_map(f, type);
-          break;
-       }
-       break;
+      switch (is_well_known(type_ident(base))) {
+      case W_IEEE_LOGIC:
+      case W_IEEE_ULOGIC:
+         f->typefn = std_logic_printer;
+         break;
+      case W_STD_BIT:
+         f->typefn = bit_printer;
+         break;
+      default:
+         f->typefn = enum_printer;
+         make_enum_map(f, type);
+         break;
+      }
+      break;
+   case T_PHYSICAL:
+      f->typefn = physical_printer;
+      f->map = xstrdup(istr(tree_ident(type_unit(base, 0))));
+      break;
    case T_ARRAY:
       switch (is_well_known(type_ident(base))) {
       case W_IEEE_LOGIC_VECTOR:
       case W_IEEE_ULOGIC_VECTOR:
-          f->typefn = std_logic_vector_printer;
-          break;
+      case W_IEEE_UNSIGNED:
+      case W_IEEE_SIGNED:
+         f->typefn = std_logic_vector_printer;
+         break;
       case W_STD_BIT_VECTOR:
-          f->typefn = bit_vector_printer;
-          break;
+         f->typefn = bit_vector_printer;
+         break;
+      case W_STD_STRING:
+         f->typefn = string_printer;
+         f->elem = printer_for(p, type_elem(base));
+         break;
       default:
-         goto invalid;
+         {
+            type_t elem = type_elem(type);
+            if (type_is_enum(elem)) {
+               f->typefn = enum_vector_printer;
+               f->elem = printer_for(p, type_elem(base));
+               break;
+            }
+
+            goto invalid;
+         }
       }
       break;
    default:

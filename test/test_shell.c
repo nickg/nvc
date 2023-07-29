@@ -85,6 +85,10 @@ START_TEST(test_examine1)
       { "/a", "'1'" },
       { "/b", "\"01XU\"" },
       { "-hex /b", "\"01XU\"" },   // TODO
+      { "/s", "\"hello\"" },
+      { "/v", "(FOO, BAR, BAZ)" },
+      { "/p", "42000000 FS" },
+      { "/ss", "('a', NUL)" },
    };
 
    for (int i = 0; i < ARRAY_LEN(tests); i++) {
