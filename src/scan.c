@@ -147,6 +147,9 @@ int get_next_char(char *b, int max_buffer)
    const ptrdiff_t navail = file_start + file_sz - read_ptr;
    assert(navail >= 0);
 
+   if (navail == 0)
+      return 0;
+
    const int nchars = MIN(navail, max_buffer);
 
    memcpy(b, read_ptr, nchars);

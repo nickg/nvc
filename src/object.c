@@ -278,8 +278,11 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
    for (imask_t mask = 1; np < new_nitems; mask <<= 1) {
       if ((old_has & mask) && (new_has & mask))
          object->items[np++] = tmp[op++];
-      else if (old_has & mask)
+      else if (old_has & mask) {
+         if (ITEM_OBJ_ARRAY & mask)
+            obj_array_free(&(tmp[op].obj_array));
          ++op;
+      }
       else if (new_has & mask)
          memset(&(object->items[np++]), '\0', sizeof(item_t));
    }
