@@ -3099,6 +3099,7 @@ START_TEST(test_lcs2016_41)
       { 19, "value VALUE_MIRROR does not match type of target INTEGER" },
       { 23, "prefix of attribute REFLECT is not a type mark or an object "
         "with a type" },
+      { 25, "prefix of 'REFLECT attribute must be a fully constrained " },
       { -1, NULL }
    };
    expect_errors(expect);

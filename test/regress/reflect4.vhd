@@ -1,0 +1,45 @@
+entity reflect4 is
+end entity;
+
+use std.reflection.all;
+
+architecture test of reflect4 is
+    type rec1 is record
+        a, b : integer;
+        c : string;
+    end record;
+begin
+
+    p1: process is
+        variable v1   : rec1 := (1, 2, "abc");
+        variable vm   : value_mirror;
+        variable rvm  : record_value_mirror;
+        variable rstm : record_subtype_mirror;
+        variable astm : array_subtype_mirror;
+    begin
+        vm := v1'reflect;
+        rvm := vm.to_record;
+        rstm := rvm.get_subtype_mirror;
+        assert rstm.length = 3;
+        assert rstm.element_name(0) = "A";
+        assert rstm.element_name(1) = "B";
+        assert rstm.element_name(2) = "C";
+        assert rstm.element_index("B") = 1;
+        assert rstm.element_subtype("A") = integer'reflect;
+        assert rstm.element_subtype("C").get_type_class = class_array;
+
+        assert rvm.get(0).to_integer.value = 1;
+        assert rvm.get("b").to_integer.value = 2;
+
+        astm := rstm.element_subtype("C").to_array;
+        assert astm.length = 3;
+        assert astm.left = 1;
+        assert astm.right = 3;
+        assert astm.ascending;
+
+        assert rvm.get("c").to_array.get(1).to_enumeration.image = "'a'";
+        assert rvm.get("c").to_array.get(3).to_enumeration.image = "'c'";
+        wait;
+    end process;
+
+end architecture;

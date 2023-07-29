@@ -2369,6 +2369,8 @@ static void irgen_op_reflect_value(jit_irgen_t *g, int op)
       else
          j_send(g, 3, irgen_get_value(g, vreg));
    }
+   else
+      j_send(g, 3, value);
 
    macro_exit(g, JIT_EXIT_REFLECT_VALUE);
 

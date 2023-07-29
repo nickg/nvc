@@ -22,6 +22,7 @@ begin
         astm := stm.to_array;           -- OK
         vm := p1'reflect;               -- Error
         assert v'subtype'reflect.get_type_class = CLASS_ARRAY;  -- OK
+        stm := bit_vector'reflect;      -- Error
         wait;
     end process;
 

@@ -74,7 +74,7 @@ const jit_layout_t *layout_of(type_t type)
          l->parts[0].align  = l->parts[0].size;
 
          l->parts[1].offset = sizeof(void *);
-         l->parts[1].size   = sizeof(int32_t);
+         l->parts[1].size   = sizeof(int64_t);
          l->parts[1].repeat = ndims * 2;
          l->parts[1].align  = l->parts[1].size;
       }

@@ -278,25 +278,36 @@ static jit_scalar_t load_scalar(const void *base, size_t off, size_t size)
    return elt;
 }
 
-static jit_scalar_t *get_array_bounds(type_t type)
+static jit_scalar_t *get_array_bounds(type_t type, void *ptr)
 {
    const int ndims = dimension_of(type);
-
    jit_scalar_t *fbounds = xmalloc_array(ndims*2 + 1, sizeof(jit_scalar_t));
-   fbounds[0].pointer = NULL;
 
-   for (int i = 0; i < ndims; i++) {
-      tree_t r = range_of(type, i);
+   if (type_is_unconstrained(type)) {
+      ffi_uarray_t *u = ptr;
+      fbounds[0].pointer = u->ptr;
 
-      int64_t left, length;
-      if (!folded_int(tree_left(r), &left))
-         goto not_const;
-      else if (!folded_length(r, &length))
-         goto not_const;
+      for (int i = 0; i < ndims; i++) {
+         fbounds[i*2+1].integer = u->dims[i].left;
+         fbounds[i*2+2].integer = u->dims[i].length;
+      }
+   }
+   else {
+      fbounds[0].pointer = ptr;
 
-      const range_kind_t dir = tree_subkind(r);
-      fbounds[i*2+1].integer = left;
-      fbounds[i*2+2].integer = (dir == RANGE_DOWNTO ? ~length : length);
+      for (int i = 0; i < ndims; i++) {
+         tree_t r = range_of(type, i);
+
+         int64_t left, length;
+         if (!folded_int(tree_left(r), &left))
+            goto not_const;
+         else if (!folded_length(r, &length))
+            goto not_const;
+
+         const range_kind_t dir = tree_subkind(r);
+         fbounds[i*2+1].integer = left;
+         fbounds[i*2+2].integer = (dir == RANGE_DOWNTO ? ~length : length);
+      }
    }
 
    return fbounds;
@@ -421,8 +432,7 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
             elements[i] = get_value_mirror(context, elt, ft, NULL);
          }
          else if (type_is_array(ft)) {
-            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft);
-            fbounds[0].pointer = ptr;
+            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft, ptr);
             elements[i] = get_value_mirror(context, fbounds[0], ft, fbounds);
          }
          else {
@@ -676,6 +686,9 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       rsm->pt.f_fields->dims[0].length = nfields;
       rsm->pt.f_fields->ptr = rsm->pt.f_fields + 1;
 
+      const jit_layout_t *l = layout_of(type);
+      assert(l->nparts == nfields);
+
       field_rec *fields = rsm->pt.f_fields->ptr;
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(base, i);
@@ -683,7 +696,8 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
          type_t ft = tree_type(f);
          if (type_is_array(ft)) {
-            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft);
+            void *ptr = bounds[0].pointer + l->parts[i].offset;
+            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft, ptr);
             fields[i].f_subtype = get_subtype_mirror(context, ft, fbounds);
          }
          else
@@ -708,7 +722,9 @@ void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
 
 void *x_reflect_subtype(void *context, tree_t where, const jit_scalar_t *bounds)
 {
-   return get_subtype_mirror(context, tree_type(where), bounds);
+   type_t type = tree_type(where);
+   assert(!type_is_unconstrained(type));   // Should be caught earlier
+   return get_subtype_mirror(context, type, bounds);
 }
 
 void _std_reflection_init(void)

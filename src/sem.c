@@ -3914,6 +3914,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       if (get_type_or_null(name) == NULL)
          sem_error(t, "prefix of attribute REFLECT is not a type mark or "
                    "an object with a type");
+      else if (named_type != NULL && type_is_unconstrained(named_type))
+         sem_error(t, "prefix of 'REFLECT attribute must be a fully "
+                   "constrained subtype");
 
       return true;
 

@@ -867,7 +867,7 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 8);
    ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
-   ck_assert_int_eq(l->parts[1].size, 4);
+   ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
    ck_assert_int_eq(l->parts[1].repeat, 2);
 
    input_from_file(TESTDIR "/jit/layout.vhd");
