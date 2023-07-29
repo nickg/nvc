@@ -278,6 +278,34 @@ static jit_scalar_t load_scalar(const void *base, size_t off, size_t size)
    return elt;
 }
 
+static jit_scalar_t *get_array_bounds(type_t type)
+{
+   const int ndims = dimension_of(type);
+
+   jit_scalar_t *fbounds = xmalloc_array(ndims*2 + 1, sizeof(jit_scalar_t));
+   fbounds[0].pointer = NULL;
+
+   for (int i = 0; i < ndims; i++) {
+      tree_t r = range_of(type, i);
+
+      int64_t left, length;
+      if (!folded_int(tree_left(r), &left))
+         goto not_const;
+      else if (!folded_length(r, &length))
+         goto not_const;
+
+      const range_kind_t dir = tree_subkind(r);
+      fbounds[i*2+1].integer = left;
+      fbounds[i*2+2].integer = (dir == RANGE_DOWNTO ? ~length : length);
+   }
+
+   return fbounds;
+
+ not_const:
+   jit_msg(NULL, DIAG_FATAL, "array %s bounds are not constant", type_pp(type));
+   return NULL;
+}
+
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
                                       type_t type, const jit_scalar_t *bounds)
 {
@@ -391,6 +419,11 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
          if (type_is_scalar(ft)) {
             jit_scalar_t elt = load_scalar(ptr, 0, l->parts[i].size);
             elements[i] = get_value_mirror(context, elt, ft, NULL);
+         }
+         else if (type_is_array(ft)) {
+            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft);
+            fbounds[0].pointer = ptr;
+            elements[i] = get_value_mirror(context, fbounds[0], ft, fbounds);
          }
          else {
             jit_scalar_t elt = { .pointer = ptr };
@@ -647,7 +680,14 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(base, i);
          fields[i].f_name = get_string(istr(tree_ident(f)));
-         fields[i].f_subtype = get_subtype_mirror(context, tree_type(f), NULL);
+
+         type_t ft = tree_type(f);
+         if (type_is_array(ft)) {
+            jit_scalar_t *fbounds LOCAL = get_array_bounds(ft);
+            fields[i].f_subtype = get_subtype_mirror(context, ft, fbounds);
+         }
+         else
+            fields[i].f_subtype = get_subtype_mirror(context, ft, NULL);
       }
 
       sm->pt.f_class = CLASS_RECORD;
