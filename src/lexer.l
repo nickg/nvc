@@ -26,6 +26,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "ident.h"
 #include "option.h"
 #include "scan.h"
 #include "tree.h"
@@ -71,8 +72,8 @@
 #define TOKEN_08(t) TOKEN_LRM(t, STD_08)
 #define TOKEN_19(t) TOKEN_LRM(t, STD_19)
 
-static int parse_id(const char *str);
-static int parse_ex_id(const char *str);
+static int parse_id(char *str);
+static int parse_ex_id(char *str);
 static int parse_bit_string(const char *str);
 static int parse_string(const char *str);
 static int parse_decimal_literal(const char *str);
@@ -532,7 +533,7 @@ UNION         ?i:union
 <INITIAL,PSL>{BITSTRING} { return parse_bit_string(yytext); }
 <INITIAL,PSL>{STRING}    { return parse_string(yytext); }
 <INITIAL,PSL>{CHAR}      { if (resolve_ir1045()) {
-                              yylval.str = xstrdup(yytext);
+                              yylval.ident = ident_new(yytext);
                               TOKEN(tID);
                            }
                            REJECT;
@@ -596,37 +597,35 @@ static bool begin_psl_comment(void)
       return false;
 }
 
-static int parse_id(const char *str)
+static int parse_id(char *str)
 {
-   char *p = (yylval.str = xmalloc(strlen(str) + 1));
-   for (; *str; str++, p++)
-      *p = toupper_iso88591(*str);
-   *p = '\0';
+   for (char *p = str; *p; p++)
+      *p = toupper_iso88591(*p);
 
+   yylval.ident = ident_new(str);
    TOKEN(tID);
 }
 
-static int parse_ex_id(const char *str)
+static int parse_ex_id(char *str)
 {
-   char *p = (yylval.str = xmalloc(strlen(str) + 1));
-
-   // Replacing double '\\' character by single '\\'
-   *p++ = *str++;
-   while (*str) {
-      if ((*str == '\\') && (*(str+1) == '\\')) str++;
-      *p++ = *str++;
+   // Replace double '\\' character by single '\\'
+   char *p = str + 1;
+   for (char *s = p; *s; ) {
+      if (*s == '\\' && *(s + 1) == '\\') s++;
+      *p++ = *s++;
    }
    *p = '\0';
 
+   yylval.ident = ident_new(str);
    TOKEN(tID);
 }
 
 static void strip_underscores(char *s)
 {
    char *p;
-   for (p = s; *s != '\0'; s++)
-      if (*s != '_')
-         *p++ = *s;
+   for (p = s; *s; s++) {
+      if (*s != '_') *p++ = *s;
+   }
    *p = '\0';
 }
 

@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "diag.h"
+#include "ident.h"
 #include "option.h"
 #include "scan.h"
 #include "hash.h"
@@ -222,7 +223,7 @@ const char *token_str(token_t tok)
 
 void free_token(token_t tok, yylval_t *lval)
 {
-   if (tok == tID || tok == tSTRING || tok == tBITSTRING)
+   if (tok == tSTRING || tok == tBITSTRING)
       free(lval->str);
 
    DEBUG_ONLY(lval->str = NULL);
@@ -325,7 +326,7 @@ static bool pp_cond_analysis_relation(void)
 
    case tID:
       {
-         char *name = yylval.str;
+         const char *name = istr(yylval.ident);
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
@@ -364,8 +365,6 @@ static bool pp_cond_analysis_relation(void)
 
             free(yylval.str);
          }
-
-         free(name);
       }
       break;
 

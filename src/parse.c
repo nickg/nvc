@@ -273,7 +273,7 @@ static ident_t peek_ident(void)
    if (peek() != tID)
       return NULL;
 
-   return ident_new(tokenq[tokenq_tail].lval.str);
+   return tokenq[tokenq_tail].lval.ident;
 }
 
 static bool look_for(const look_params_t *params)
@@ -2427,12 +2427,8 @@ static ident_t p_identifier(void)
 {
    // basic_identifier | extended_identifier
 
-   if (consume(tID)) {
-      char *s = last_lval.str;
-      ident_t i = ident_new(s);
-      free(s);
-      return i;
-   }
+   if (consume(tID))
+      return last_lval.ident;
    else
       return error_marker();
 }
