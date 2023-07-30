@@ -14,6 +14,16 @@ architecture test of reflect5 is
         end loop;
         return path;
     end function;
+
+    type pt is protected
+        procedure proc;
+    end protected;
+
+    type pt is protected body
+        procedure proc is
+        begin
+        end procedure;
+    end protected body;
 begin
 
     p1: process is
@@ -22,8 +32,12 @@ begin
         variable astm : access_subtype_mirror;
         variable fvm  : file_value_mirror;
         variable avm  : access_value_mirror;
+        variable pstm : physical_subtype_mirror;
+        variable pvm  : physical_value_mirror;
         file f : text;
         variable ptr : line;
+        variable d : delay_length;
+        variable p : pt;
     begin
         stm := text'reflect;
         assert stm.get_type_class = CLASS_FILE;
@@ -50,6 +64,26 @@ begin
         assert avm.get.to_array.get_subtype_mirror.length = 5;
         assert avm.get.to_array.get(1).to_enumeration.image= "'h'";
         assert avm.get.to_array.get(5).to_enumeration.image= "'o'";
+
+        stm := time'reflect;
+        assert stm.get_type_class = CLASS_PHYSICAL;
+        pstm := stm.to_physical;
+        assert pstm.units_length = 8;
+        assert pstm.unit_index("ns") = 3;
+        assert pstm.unit_name(5) = "MS";
+        assert pstm.scale("fs") = 1;
+        assert pstm.scale("ns") = 1000000;
+
+        d := 20 ns;
+        pvm := d'reflect.to_physical;
+        assert pvm.value = 20000000;
+        assert pvm.image = "20000000 FS";
+
+        stm := pt'reflect;
+        assert stm.get_type_class = CLASS_PROTECTED;
+        assert stm.to_protected.to_subtype_mirror = stm;
+
+        assert p'reflect.get_value_class = CLASS_PROTECTED;
 
         wait;
     end process;

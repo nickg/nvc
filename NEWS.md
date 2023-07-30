@@ -3,6 +3,8 @@
   XML format which is supported by most CI environments such as GitLab.
 - Generics on internal instances can now be overridden with the `-g`
   elaboration option.  For example `-g uut.value=42`.
+- Implemented the `'reflect` attribute and associated protected types
+  from VHDL-2019.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

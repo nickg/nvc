@@ -44,6 +44,7 @@ typedef struct _subtype_mirror subtype_mirror;
 typedef struct _integer_value_mirror integer_value_mirror;
 typedef struct _floating_value_mirror floating_value_mirror;
 typedef struct _enumeration_value_mirror enumeration_value_mirror;
+typedef struct _physical_value_mirror physical_value_mirror;
 
 typedef struct {
    type_t          f_type;
@@ -99,6 +100,27 @@ typedef struct {
    void                       *access;
    floating_subtype_mirror_pt  pt;
 } floating_subtype_mirror;
+
+typedef struct {
+   ffi_uarray_t *f_name;
+   int64_t       f_scale;
+} unit_rec;
+
+typedef struct {
+   void                  *context;
+   subtype_mirror        *f_owner;
+   physical_value_mirror *f_left;
+   physical_value_mirror *f_right;
+   physical_value_mirror *f_low;
+   physical_value_mirror *f_high;
+   uint8_t                f_ascending;
+   ffi_uarray_t          *f_units;
+} physical_subtype_mirror_pt;
+
+typedef struct {
+   void                       *access;
+   physical_subtype_mirror_pt  pt;
+} physical_subtype_mirror;
 
 typedef struct {
    subtype_mirror *f_index_subtype;
@@ -160,6 +182,16 @@ typedef struct {
 } access_subtype_mirror;
 
 typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+} protected_subtype_mirror_pt;
+
+typedef struct {
+   void                        *access;
+   protected_subtype_mirror_pt  pt;
+} protected_subtype_mirror;
+
+typedef struct {
    void                   *context;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
@@ -195,6 +227,18 @@ typedef struct _floating_value_mirror {
    void                     *access;
    floating_value_mirror_pt  pt;
 } floating_value_mirror;
+
+typedef struct {
+   void                    *context;
+   value_mirror            *f_owner;
+   physical_subtype_mirror *f_subtype;
+   int64_t                  f_value;
+} physical_value_mirror_pt;
+
+typedef struct _physical_value_mirror {
+   void                     *access;
+   physical_value_mirror_pt  pt;
+} physical_value_mirror;
 
 typedef struct {
    void                 *context;
@@ -247,6 +291,17 @@ typedef struct {
 
 typedef struct {
    void                     *context;
+   value_mirror             *f_owner;
+   protected_subtype_mirror *f_subtype;
+} protected_value_mirror_pt;
+
+typedef struct {
+   void                      *access;
+   protected_value_mirror_pt  pt;
+} protected_value_mirror;
+
+typedef struct {
+   void                     *context;
    uint8_t                   f_class;
    subtype_mirror           *f_subtype;
    integer_value_mirror     *f_integer;
@@ -256,6 +311,8 @@ typedef struct {
    record_value_mirror      *f_record;
    file_value_mirror        *f_file;
    access_value_mirror      *f_access;
+   physical_value_mirror    *f_physical;
+   protected_value_mirror   *f_protected;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -274,6 +331,8 @@ typedef struct {
    record_subtype_mirror      *f_record;
    file_subtype_mirror        *f_file;
    access_subtype_mirror      *f_access;
+   physical_subtype_mirror    *f_physical;
+   protected_subtype_mirror   *f_protected;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -563,6 +622,29 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       vm->pt.f_class = CLASS_ACCESS;
       vm->pt.f_access = avm;
    }
+   else if (type_is_physical(type)) {
+      physical_value_mirror *pvm = zero_alloc(sizeof(physical_value_mirror));
+      pvm->access = &(pvm->pt);
+
+      pvm->pt.context = context;
+      pvm->pt.f_value = value.integer;
+      pvm->pt.f_owner = vm;
+      pvm->pt.f_subtype = vm->pt.f_subtype->pt.f_physical;
+
+      vm->pt.f_class = CLASS_PHYSICAL;
+      vm->pt.f_physical = pvm;
+   }
+   else if (type_is_protected(type)) {
+      protected_value_mirror *pvm = zero_alloc(sizeof(protected_value_mirror));
+      pvm->access = &(pvm->pt);
+
+      pvm->pt.context = context;
+      pvm->pt.f_owner = vm;
+      pvm->pt.f_subtype = vm->pt.f_subtype->pt.f_protected;
+
+      vm->pt.f_class = CLASS_PROTECTED;
+      vm->pt.f_protected = pvm;
+   }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
               "attribute", type_pp(type));
@@ -583,6 +665,13 @@ static enumeration_value_mirror *get_enumeration_mirror(void *context,
 {
    jit_scalar_t scalar = { .integer = value };
    return get_value_mirror(context, scalar, type, NULL)->pt.f_enumeration;
+}
+
+static physical_value_mirror *get_physical_mirror(void *context, type_t type,
+                                                  int64_t value)
+{
+   jit_scalar_t scalar = { .integer = value };
+   return get_value_mirror(context, scalar, type, NULL)->pt.f_physical;
 }
 
 static floating_value_mirror *get_floating_mirror(void *context, type_t type,
@@ -638,8 +727,10 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       if (cache->f_num_subtypes == cache->f_max_subtypes) {
          const size_t new_max = MAX(cache->f_max_subtypes * 2, 128);
          cache_elem_t *tmp = zero_alloc(new_max * sizeof(cache_elem_t));
-         memcpy(tmp, cache->f_subtype_cache,
-                cache->f_max_subtypes * sizeof(cache_elem_t));
+
+         if (cache->f_subtype_cache != NULL)
+            memcpy(tmp, cache->f_subtype_cache,
+                   cache->f_max_subtypes * sizeof(cache_elem_t));
 
          cache->f_subtype_cache = tmp;
          cache->f_max_subtypes = new_max;
@@ -861,6 +952,64 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       sm->pt.f_class = CLASS_ACCESS;
       sm->pt.f_access = astm;
+   }
+   else if (type_is_physical(type)) {
+      physical_subtype_mirror *psm =
+         zero_alloc(sizeof(physical_subtype_mirror));
+      psm->access = &(psm->pt);
+
+      psm->pt.context = context;
+      psm->pt.f_owner = sm;
+
+      range_kind_t rkind;
+      int64_t low = INT64_MIN, high = INT64_MAX;
+      for (;; type = type_base(type)) {
+         tree_t r = range_of(type, 0);
+         rkind = tree_subkind(r);
+         if (rkind != RANGE_EXPR && folded_bounds(r, &low, &high))
+            break;
+         else if (type_kind(type) != T_SUBTYPE)
+            break;
+      }
+
+      psm->pt.f_ascending = (rkind == RANGE_TO);
+
+      type_t index = index_type_of(type, 0);
+      psm->pt.f_low = get_physical_mirror(context, index, low);
+      psm->pt.f_high = get_physical_mirror(context, index, high);
+
+      psm->pt.f_left = (rkind == RANGE_TO) ? psm->pt.f_low : psm->pt.f_high;
+      psm->pt.f_right = (rkind == RANGE_TO) ? psm->pt.f_high : psm->pt.f_low;
+
+      type_t base = type_base_recur(type);
+      const int nunits = type_units(base);
+
+      psm->pt.f_units =
+         zero_alloc(sizeof(ffi_uarray_t) + nunits * sizeof(unit_rec));
+      psm->pt.f_units->dims[0].left = 1;
+      psm->pt.f_units->dims[0].length = nunits;
+      psm->pt.f_units->ptr = psm->pt.f_units + 1;
+
+      unit_rec *units = psm->pt.f_units->ptr;
+      for (int i = 0; i < nunits; i++) {
+         tree_t u = type_unit(base, i);
+         units[i].f_name = get_string(istr(tree_ident(u)));
+         units[i].f_scale = assume_int(tree_value(u));
+      }
+
+      sm->pt.f_class = CLASS_PHYSICAL;
+      sm->pt.f_physical = psm;
+   }
+   else if (type_is_protected(type)) {
+      protected_subtype_mirror *psm =
+         zero_alloc(sizeof(protected_subtype_mirror));
+      psm->access = &(psm->pt);
+
+      psm->pt.context = context;
+      psm->pt.f_owner = sm;
+
+      sm->pt.f_class = CLASS_PROTECTED;
+      sm->pt.f_protected = psm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "

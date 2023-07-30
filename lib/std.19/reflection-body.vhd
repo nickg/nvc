@@ -42,6 +42,29 @@ package body reflection is
 
     shared variable cache : internal_cache_pt;
 
+    function casecmp (x, y : in string) return boolean is
+        variable xp, yp : integer;
+    begin
+        if x'length = y'length then
+            for i in x'range loop
+                xp := character'pos(x(i));
+                yp := character'pos(y(i));
+                next when xp = yp;
+                if xp >= 97 and xp <= 122 then
+                    xp := xp - 32;
+                end if;
+                if yp >= 97 and yp <= 122 then
+                    yp := yp - 32;
+                end if;
+                next when xp = yp;
+                return false;
+            end loop;
+            return true;
+        else
+            return false;
+        end if;
+    end function;
+
     ---------------------------------------------------------------------------
 
     type enumeration_value_mirror_pt is protected body
@@ -301,98 +324,126 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type physical_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : physical_subtype_mirror;
+        variable f_value   : integer;
+
         impure function get_subtype_mirror return physical_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function unit_index return index is
         begin
-            report "unimplemented" severity failure;
+            return 1;
         end function;
 
         impure function value return integer is
         begin
-            report "unimplemented" severity failure;
+            return f_value;
         end function;
 
         impure function image return string is
         begin
-            report "unimplemented" severity failure;
+            return integer'image(f_value) & " " & f_subtype.unit_name(1);
         end function;
     end protected body;
 
     ---------------------------------------------------------------------------
 
     type physical_subtype_mirror_pt is protected body
+        variable f_owner     : subtype_mirror;
+        variable f_left      : physical_value_mirror;
+        variable f_right     : physical_value_mirror;
+        variable f_low       : physical_value_mirror;
+        variable f_high      : physical_value_mirror;
+        variable f_ascending : boolean;
+
+        type unit_rec is record
+            f_name  : string_ptr;
+            f_scale : natural;
+        end record;
+
+        type unit_array is array (index range <>) of unit_rec;
+        type unit_array_ptr is access unit_array;
+
+        variable f_units : unit_array_ptr;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function units_length return index is
         begin
-            report "unimplemented" severity failure;
+            return index(f_units'length);
         end function;
 
         impure function unit_name (unit_idx: index) return string is
         begin
-            report "unimplemented" severity failure;
+            return f_units(unit_idx).f_name.all;
         end function;
 
         impure function unit_index (unit_name : string) return index is
         begin
-            report "unimplemented" severity failure;
+            for i in f_units.all'range loop
+                if casecmp(f_units.all(i).f_name.all, unit_name) then
+                    return i;
+                end if;
+            end loop;
+            report simple_name & " has no unit named " & unit_name
+                severity error;
+            return index'left;
         end function;
 
         impure function scale (unit_idx: index) return natural is
         begin
-            report "unimplemented" severity failure;
+            return f_units(unit_idx).f_scale;
         end function;
 
         impure function scale (unit_name: string) return natural is
         begin
-            report "unimplemented" severity failure;
+            return scale(unit_index(unit_name));
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function left return physical_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_left;
         end function;
 
         impure function right return physical_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_right;
         end function;
 
         impure function low return physical_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_low;
         end function;
 
         impure function high return physical_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_high;
         end function;
 
         impure function length return index is
         begin
-            report "unimplemented" severity failure;
+            return maximum(index(f_high.value - f_low.value + 1), 0);
         end function;
 
         impure function ascending return boolean is
         begin
-            report "unimplemented" severity failure;
+            return f_ascending;
         end function;
     end protected body;
 
@@ -456,29 +507,6 @@ package body reflection is
         impure function element_name (element_idx : index) return string is
         begin
             return f_fields.all(element_idx).f_name.all;
-        end function;
-
-        pure function casecmp (x, y : in string) return boolean is
-            variable xp, yp : integer;
-        begin
-            if x'length = y'length then
-                for i in x'range loop
-                    xp := character'pos(x(i));
-                    yp := character'pos(y(i));
-                    next when xp = yp;
-                    if xp >= 97 and xp <= 122 then
-                        xp := xp - 32;
-                    end if;
-                    if yp >= 97 and yp <= 122 then
-                        yp := yp - 32;
-                    end if;
-                    next when xp = yp;
-                    return false;
-                end loop;
-                return true;
-            else
-                return false;
-            end if;
         end function;
 
         impure function element_index (element_name : string) return index is
@@ -762,28 +790,33 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type protected_value_mirror_pt is protected body
+        variable f_owner   : value_mirror;
+        variable f_subtype : protected_subtype_mirror;
+
         impure function get_subtype_mirror return protected_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
     end protected body;
 
     ---------------------------------------------------------------------------
 
     type protected_subtype_mirror_pt is protected body
+        variable f_owner : subtype_mirror;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
     end protected body;
 
@@ -799,6 +832,8 @@ package body reflection is
         variable f_record      : record_subtype_mirror;
         variable f_file        : file_subtype_mirror;
         variable f_access      : access_subtype_mirror;
+        variable f_physical    : physical_subtype_mirror;
+        variable f_protected   : protected_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -825,7 +860,8 @@ package body reflection is
 
         impure function to_physical return physical_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_PHYSICAL;
+            return f_physical;
         end function;
 
         impure function to_record return record_subtype_mirror is
@@ -854,7 +890,8 @@ package body reflection is
 
         impure function to_protected return protected_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_PROTECTED;
+            return f_protected;
         end function;
 
         impure function simple_name return string is
@@ -875,6 +912,8 @@ package body reflection is
         variable f_record      : record_value_mirror;
         variable f_file        : file_value_mirror;
         variable f_access      : access_value_mirror;
+        variable f_physical    : physical_value_mirror;
+        variable f_protected   : protected_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -906,7 +945,8 @@ package body reflection is
 
         impure function to_physical return physical_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_PHYSICAL;
+            return f_physical;
         end function;
 
         impure function to_record return record_value_mirror is
@@ -935,7 +975,8 @@ package body reflection is
 
         impure function to_protected return protected_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_PROTECTED;
+            return f_protected;
         end function;
     end protected body;
 
