@@ -138,6 +138,17 @@ typedef struct {
 } record_subtype_mirror;
 
 typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+   subtype_mirror *f_designated;
+} file_subtype_mirror_pt;
+
+typedef struct {
+   void                   *access;
+   file_subtype_mirror_pt  pt;
+} file_subtype_mirror;
+
+typedef struct {
    void                   *context;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
@@ -199,6 +210,19 @@ typedef struct {
 } record_value_mirror;
 
 typedef struct {
+   void                *context;
+   value_mirror        *f_owner;
+   file_subtype_mirror *f_subtype;
+   ffi_uarray_t        *f_logical_name;
+   uint8_t              f_open_kind;
+} file_value_mirror_pt;
+
+typedef struct {
+   void                 *access;
+   file_value_mirror_pt  pt;
+} file_value_mirror;
+
+typedef struct {
    void                     *context;
    uint8_t                   f_class;
    subtype_mirror           *f_subtype;
@@ -207,6 +231,7 @@ typedef struct {
    floating_value_mirror    *f_floating;
    array_value_mirror       *f_array;
    record_value_mirror      *f_record;
+   file_value_mirror        *f_file;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -223,6 +248,7 @@ typedef struct {
    floating_subtype_mirror    *f_floating;
    array_subtype_mirror       *f_array;
    record_subtype_mirror      *f_record;
+   file_subtype_mirror        *f_file;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -315,6 +341,31 @@ static jit_scalar_t *get_array_bounds(type_t type, void *ptr)
  not_const:
    jit_msg(NULL, DIAG_FATAL, "array %s bounds are not constant", type_pp(type));
    return NULL;
+}
+
+static jit_scalar_t *get_null_array(type_t type)
+{
+   const int ndims = dimension_of(type);
+   jit_scalar_t *bounds = xmalloc_array(ndims*2 + 1, sizeof(jit_scalar_t));
+   bounds[0].pointer = NULL;
+
+   for (int i = 0; i < ndims; i++) {
+      bounds[i*2+1].integer = 0;
+      bounds[i*2+2].integer = 0;
+   }
+
+   return bounds;
+}
+
+static ffi_uarray_t *get_file_logical_name(FILE *fp)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (get_handle_path(fileno(fp), tb))
+      return get_string(tb_get(tb));
+   else {
+      jit_msg(NULL, DIAG_WARN, "unable to get file logical name");
+      return NULL;
+   }
 }
 
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
@@ -443,6 +494,22 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
 
       vm->pt.f_class = CLASS_RECORD;
       vm->pt.f_record = rvm;
+   }
+   else if (type_is_file(type)) {
+      file_value_mirror *fvm = zero_alloc(sizeof(file_value_mirror));
+      fvm->access = &(fvm->pt);
+
+      fvm->pt.context = context;
+      fvm->pt.f_owner = vm;
+
+      FILE *fp = value.pointer;
+
+      extern int8_t __nvc_file_mode(FILE **fp);
+      fvm->pt.f_open_kind = __nvc_file_mode(&fp);
+      fvm->pt.f_logical_name = get_file_logical_name(fp);
+
+      vm->pt.f_class = CLASS_FILE;
+      vm->pt.f_file = fvm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
@@ -706,6 +773,25 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       sm->pt.f_class = CLASS_RECORD;
       sm->pt.f_record = rsm;
+   }
+   else if (type_is_file(type)) {
+      file_subtype_mirror *fsm =
+         zero_alloc(sizeof(file_subtype_mirror));
+      fsm->access = &(fsm->pt);
+
+      fsm->pt.context = context;
+      fsm->pt.f_owner = sm;
+
+      type_t designated = type_designated(type);
+
+      jit_scalar_t *dbounds LOCAL = NULL;
+      if (type_is_array(designated))
+         dbounds = get_null_array(designated);
+
+      fsm->pt.f_designated = get_subtype_mirror(context, designated, dbounds);
+
+      sm->pt.f_class = CLASS_FILE;
+      sm->pt.f_file = fsm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "

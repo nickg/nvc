@@ -1668,6 +1668,40 @@ bool get_handle_info(int fd, file_info_t *info)
 #endif
 }
 
+bool get_handle_path(int fd, text_buf_t *tb)
+{
+#ifdef __MINGW32__
+   HANDLE handle = (HANDLE)_get_osfhandle(fd);
+   char buf[PATH_MAX];
+
+   DWORD nchars = GetFinalPathNameByHandle(handle, buf, PATH_MAX, 0);
+   if (nchars == 0)
+      return false;
+
+   tb_catn(tb, buf, nchars);
+   return true;
+#elif defined __linux__
+   char path[64], buf[PATH_MAX];
+   checked_sprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+
+   size_t nchars = readlink(path, buf, PATH_MAX);
+   if (nchars == -1)
+      return false;
+
+   tb_catn(tb, buf, nchars);
+   return true;
+#elif defined F_GETPATH
+   char buf[PATH_MAX];
+   if (fcntl(fd, F_GETPATH, buf) == -1)
+      return false;
+
+   tb_cat(tb, buf);
+   return true;
+#else
+   return false;
+#endif
+}
+
 void run_program(const char *const *args)
 {
 #if defined __CYGWIN__ || defined __MINGW32__

@@ -347,6 +347,7 @@ typedef struct {
 
 bool get_file_info(const char *path, file_info_t *info);
 bool get_handle_info(int fd, file_info_t *info);
+bool get_handle_path(int fd, text_buf_t *tb);
 
 void progress(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));

@@ -704,43 +704,51 @@ package body reflection is
     ---------------------------------------------------------------------------
 
     type file_value_mirror_pt is protected body
+        variable f_owner        : value_mirror;
+        variable f_subtype      : file_subtype_mirror;
+        variable f_logical_name : string_ptr;
+        variable f_open_kind    : file_open_kind;
+
         impure function get_subtype_mirror return file_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_subtype;
         end function;
 
         impure function to_value_mirror return value_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function get_file_logical_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_logical_name.all;
         end function;
 
         impure function get_file_open_kind return file_open_kind is
         begin
-            report "unimplemented" severity failure;
+            return f_open_kind;
         end function;
     end protected body;
 
     ---------------------------------------------------------------------------
 
     type file_subtype_mirror_pt is protected body
+        variable f_owner      : subtype_mirror;
+        variable f_designated : subtype_mirror;
+
         impure function to_subtype_mirror return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_owner;
         end function;
 
         impure function simple_name return string is
         begin
-            report "unimplemented" severity failure;
+            return f_owner.simple_name;
         end function;
 
         impure function designated_subtype return subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            return f_designated;
         end function;
     end protected body;
 
@@ -782,6 +790,7 @@ package body reflection is
         variable f_floating    : floating_subtype_mirror;
         variable f_array       : array_subtype_mirror;
         variable f_record      : record_subtype_mirror;
+        variable f_file        : file_subtype_mirror;
 
         impure function get_type_class return type_class is
         begin
@@ -830,7 +839,8 @@ package body reflection is
 
         impure function to_file return file_subtype_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_FILE;
+            return f_file;
         end function;
 
         impure function to_protected return protected_subtype_mirror is
@@ -854,6 +864,7 @@ package body reflection is
         variable f_floating    : floating_value_mirror;
         variable f_array       : array_value_mirror;
         variable f_record      : record_value_mirror;
+        variable f_file        : file_value_mirror;
 
         impure function get_value_class return value_class is
         begin
@@ -907,7 +918,8 @@ package body reflection is
 
         impure function to_file return file_value_mirror is
         begin
-            report "unimplemented" severity failure;
+            assert f_class = CLASS_FILE;
+            return f_file;
         end function;
 
         impure function to_protected return protected_value_mirror is
