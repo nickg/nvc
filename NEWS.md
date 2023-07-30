@@ -5,6 +5,7 @@
   elaboration option.  For example `-g uut.value=42`.
 - Implemented the `'reflect` attribute and associated protected types
   from VHDL-2019.
+- Added support for VHDL-2019 sequential block statements.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

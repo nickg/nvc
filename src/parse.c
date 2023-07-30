@@ -9872,13 +9872,70 @@ static tree_t p_case_statement(ident_t label)
    return t;
 }
 
+static void p_sequential_block_declarative_part(tree_t block)
+{
+   // { process_declarative_item }
+
+   BEGIN("sequential block declarative part");
+
+   while (not_at_token(tBEGIN))
+      p_process_declarative_item(block);
+}
+
+static void p_sequential_block_statement_part(tree_t block)
+{
+   // { sequential_statement }
+
+   BEGIN("sequential block statement part");
+
+   p_sequence_of_statements(block);
+}
+
+static tree_t p_sequential_block_statement(ident_t label)
+{
+   // [ label : ] block  [ is ] sequential_block_declarative_part
+   //   begin sequential_block_statement_part end [ block ] [ label ] ;
+
+   BEGIN("sequential block statement");
+
+   consume(tBLOCK);
+   optional(tIS);
+
+   require_std(STD_19, "sequential block statements");
+
+   push_scope(nametab);
+
+   tree_t t = tree_new(T_SEQUENCE);
+
+   scope_set_container(nametab, t);
+   set_label_and_loc(t, label, CURRENT_LOC);
+
+   p_sequential_block_declarative_part(t);
+
+   consume(tBEGIN);
+
+   p_sequential_block_statement_part(t);
+
+   consume(tEND);
+   optional(tBLOCK);
+
+   p_trailing_label(label);
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   sem_check(t, nametab);
+   pop_scope(nametab);
+
+   return t;
+}
+
 static tree_t p_sequential_statement(void)
 {
    // wait_statement | assertion_statement | report_statement
    //   | signal_assignment_statement | variable_assignment_statement
    //   | procedure_call_statement | if_statement | case_statement
    //   | loop_statement | next_statement | exit_statement | return_statement
-   //   | null_statement
+   //   | null_statement | 2019: sequential_block_statement
 
    BEGIN("sequential statement");
 
@@ -9945,8 +10002,12 @@ static tree_t p_sequential_statement(void)
          }
       }
 
+   case tBLOCK:
+      return p_sequential_block_statement(label);
+
    default:
-      expect(tWAIT, tID);
+      expect(tWAIT, tID, tASSERT, tREPORT, tIF, tNULL, tRETURN, tCASE, tWHILE,
+             tFOR, tLOOP, tEXIT, tNEXT, tWITH, tLTLT, tLPAREN, tBLOCK);
       drop_tokens_until(tSEMI);
       return tree_new(T_NULL);
    }

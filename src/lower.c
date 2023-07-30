@@ -6971,6 +6971,13 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    }
 }
 
+static void lower_sequential_block(lower_unit_t *lu, tree_t stmt,
+                                   loop_stack_t *loops)
+{
+   lower_decls(lu, stmt);
+   lower_sequence(lu, stmt, loops);
+}
+
 static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
    PUSH_DEBUG_INFO(stmt);
@@ -7024,7 +7031,7 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       lower_for(lu, stmt, loops);
       break;
    case T_SEQUENCE:
-      lower_sequence(lu, stmt, loops);
+      lower_sequential_block(lu, stmt, loops);
       break;
    case T_EXIT:
    case T_NEXT:

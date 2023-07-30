@@ -5947,6 +5947,20 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_sequence(tree_t t, nametab_t *tab)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      // Mark all constant declarations as they need to be treated
+      // specially when calculating longest static prefix
+      tree_t d = tree_decl(t, i);
+      if (tree_kind(d) == T_CONST_DECL)
+         tree_set_flag(d, TREE_F_SEQ_BLOCK);
+   }
+
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -6119,6 +6133,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_view_decl(t, tab);
    case T_COND_VALUE:
       return sem_check_cond_value(t, tab);
+   case T_SEQUENCE:
+      return sem_check_sequence(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

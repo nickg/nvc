@@ -831,3 +831,5 @@ protected11     fail,gold,2002
 issue744        normal,vhpi
 reflect4        normal,2019
 reflect5        normal,2019
+seqblock1       normal,2019
+seqblock2       normal,2019

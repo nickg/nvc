@@ -3150,6 +3150,25 @@ START_TEST(test_lcs2016_19)
 }
 END_TEST
 
+START_TEST(test_lcs2016_07)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_07.vhd");
+
+   const error_t expect[] = {
+      { 16, "no visible declaration for C" },
+      { 18, "unexpected shared while parsing process declarative item" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3303,6 +3322,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_41);
    tcase_add_test(tc_core, test_lcs2016_14a);
    tcase_add_test(tc_core, test_lcs2016_19);
+   tcase_add_test(tc_core, test_lcs2016_07);
    suite_add_tcase(s, tc_core);
 
    return s;
