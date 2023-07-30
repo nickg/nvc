@@ -98,7 +98,7 @@ package ENV is
   function "+"(TREC: TIME_RECORD; DELTA: REAL) return TIME_RECORD;
   function "+"(DELTA: REAL; TREC: TIME_RECORD) return TIME_RECORD;
   function "-"(TREC: TIME_RECORD; DELTA: REAL) return TIME_RECORD;
-  function "-"(DELTA: REAL; TREC: TIME_RECORD) return TIME_RECORD;
+  --function "-"(DELTA: REAL; TREC: TIME_RECORD) return TIME_RECORD;
 
   -- Time difference in seconds.  TR1, TR2 must both be in local
   -- time, or both in UTC.

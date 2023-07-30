@@ -31,6 +31,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <dirent.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -52,6 +53,11 @@ typedef struct {
    int8_t  weekday;
    int64_t dayofyear;
 } time_record_t;
+
+typedef struct {
+   ffi_uarray_t *name;
+   ffi_uarray_t *items;
+} directory_t;
 
 typedef enum {
    DIR_OPEN_STATUS_OK = 0,
@@ -437,6 +443,71 @@ void _std_env_deletefile(const uint8_t *path_ptr, int64_t path_len,
       *status = errno_to_file_delete_status();
    else
       *status = FILE_DELETE_STATUS_OK;
+}
+
+DLLEXPORT
+void _std_env_dir_open(const uint8_t *path_ptr, int64_t path_len,
+                       directory_t *dir, int8_t *status)
+{
+   char *path LOCAL = to_cstring(path_ptr, path_len);
+
+   DIR *d = opendir(path);
+   if (d == NULL) {
+      *status = errno_to_dir_open_status();
+      return;
+   }
+
+   char resolved[PATH_MAX];
+   realpath(path, resolved);
+
+   const size_t resolvedsz = strlen(resolved);
+   size_t memsz = sizeof(ffi_uarray_t)*2 + resolvedsz;
+   struct dirent *e;
+   int count = 0;
+   while ((e = readdir(d))) {
+      const size_t nchars = strlen(e->d_name);
+      memsz += sizeof(ffi_uarray_t) + ALIGN_UP(nchars, 8);
+      count++;
+   }
+   memsz += count * sizeof(ffi_uarray_t *);
+
+   rewinddir(d);
+
+   void *mem = jit_mspace_alloc(memsz), *next = mem;
+   dir->items = next;
+   dir->items->dims[0].left = 0;
+   dir->items->dims[0].length = count;
+   dir->items->ptr = dir->items + 1;
+
+   next += sizeof(ffi_uarray_t) + count * sizeof(ffi_uarray_t *);
+
+   for (int nth = 0; (e = readdir(d)); nth++) {
+      const size_t nchars = strlen(e->d_name);
+
+      ffi_uarray_t *u = next;
+      u->ptr = u + 1;
+      u->dims[0].left = 1;
+      u->dims[0].length = nchars;
+      memcpy(u->ptr, e->d_name, nchars);
+
+      *((ffi_uarray_t **)dir->items->ptr + nth) = u;
+
+      next += sizeof(ffi_uarray_t) + ALIGN_UP(nchars, 8);
+   }
+
+   closedir(d);
+
+   dir->name = next;
+   dir->name->ptr = dir->name + 1;
+   dir->name->dims[0].left = 1;
+   dir->name->dims[0].length = resolvedsz;
+
+   memcpy(dir->name->ptr, resolved, resolvedsz);
+
+   next += sizeof(ffi_uarray_t) + resolvedsz;
+   assert(next == mem + memsz);
+
+   *status = 0;
 }
 
 DLLEXPORT

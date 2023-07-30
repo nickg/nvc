@@ -15,6 +15,7 @@
   _std_env_createdir;
   _std_env_deletefile;
   _std_env_diff_trec;
+  _std_env_dir_open;
   _std_env_epoch;
   _std_env_epoch_trec;
   _std_env_file_line;

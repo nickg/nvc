@@ -132,11 +132,11 @@ package body env is
         return trec + (-delta);
     end function;
 
-    function "-" (delta : real; trec : time_record) return time_record is
-    begin
-        -- It's not really clear what this is for
-        report "not implemented" severity failure;
-    end function;
+    -- function "-" (delta : real; trec : time_record) return time_record is
+    -- begin
+    --     -- It's not really clear what this is for
+    --     report "not implemented" severity failure;
+    -- end function;
 
     function "-" (tr1, tr2 : time_record) return real is
         function impl (tr1, tr2 : in time_record) return real;
@@ -251,19 +251,27 @@ package body env is
     procedure dir_open (dir    : out directory;
                         path   : in string;
                         status : out dir_open_status) is
+        procedure impl (path   : in string;
+                        dir    : out directory;
+                        status : out dir_open_status);
+        attribute foreign of impl : procedure is "_std_env_dir_open";
     begin
-        report "not implemented" severity failure;
+        impl(path, dir, status);
     end procedure;
 
     impure function dir_open (dir  : out directory;
                               path : in string) return dir_open_status is
+        variable status : dir_open_status;
     begin
-        report "not implemented" severity failure;
+        dir_open(dir, path, status);
+        return status;
     end function;
 
     procedure dir_close (variable dir : inout directory) is
     begin
-        report "not implemented" severity failure;
+        -- No-op with garbage collection
+        dir.name := null;
+        dir.items := null;
     end procedure;
 
     impure function dir_itemexists (path : in string) return boolean is
