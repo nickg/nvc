@@ -158,9 +158,15 @@ table below.
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
+        LCS2016-006c</td>
+    <td>Directory API</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
         LCS2016-006e</td>
-    <td>File IO / directory IO</td>
-    <td class="feature-missing"></td>
+    <td>Environment API </td>
+    <td class="feature-done">1.10</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006f">

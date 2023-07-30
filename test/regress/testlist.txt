@@ -833,3 +833,4 @@ reflect4        normal,2019
 reflect5        normal,2019
 seqblock1       normal,2019
 seqblock2       normal,2019
+stdenv6         normal,2019

@@ -273,7 +273,7 @@ package body env is
         return impl(path);
     end function;
 
-    impure function dir_itemisdir (path  : in string) return boolean is
+    impure function dir_itemisdir (path : in string) return boolean is
         impure function impl (path : in string) return boolean;
         attribute foreign of impl : function is "_std_env_itemisdir";
     begin
@@ -363,13 +363,18 @@ package body env is
 
     procedure dir_deletefile (path   : in string;
                               status : out file_delete_status) is
+        procedure impl (path    : in string;
+                        status  : out file_delete_status);
+        attribute foreign of impl : procedure is "_std_env_deletefile";
     begin
-        report "not implemented" severity failure;
+        impl(path, status);
     end procedure;
 
     impure function dir_deletefile (path : in string) return file_delete_status is
+        variable status : file_delete_status;
     begin
-        report "not implemented" severity failure;
+        dir_deletefile(path, status);
+        return status;
     end function;
 
     impure function to_string (variable call_path : inout call_path_element)

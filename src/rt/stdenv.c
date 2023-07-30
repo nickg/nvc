@@ -68,6 +68,13 @@ typedef enum {
    DIR_CREATE_STATUS_ERROR = 3
 } dir_create_status_t;
 
+typedef enum {
+   FILE_DELETE_STATUS_OK = 0,
+   FILE_DELETE_STATUS_NO_FILE = 1,
+   FILE_DELETE_STATUS_ACCESS_DENIED = 2,
+   FILE_DELETE_STATUS_ERROR = 3
+} file_delete_status_t;
+
 typedef struct {
    ffi_uarray_t *name;
    ffi_uarray_t *file_name;
@@ -125,6 +132,16 @@ static int8_t errno_to_dir_create_status(void)
    case EEXIST: return DIR_CREATE_STATUS_ITEM_EXISTS;
    case EACCES: return DIR_CREATE_STATUS_ACCESS_DENIED;
    default: return DIR_CREATE_STATUS_ERROR;
+   }
+}
+
+static int8_t errno_to_file_delete_status(void)
+{
+   switch (errno) {
+   case 0: return FILE_DELETE_STATUS_OK;
+   case ENOENT: return FILE_DELETE_STATUS_NO_FILE;
+   case EACCES: return DIR_CREATE_STATUS_ACCESS_DENIED;
+   default: return FILE_DELETE_STATUS_ERROR;
    }
 }
 
@@ -408,6 +425,18 @@ bool _std_env_itemisdir(const uint8_t *path_ptr, int64_t path_len)
       return false;
 
    return info.type == FILE_DIR;
+}
+
+DLLEXPORT
+void _std_env_deletefile(const uint8_t *path_ptr, int64_t path_len,
+                         int8_t *status)
+{
+   char *path LOCAL = to_cstring(path_ptr, path_len);
+
+   if (remove(path) == -1)
+      *status = errno_to_file_delete_status();
+   else
+      *status = FILE_DELETE_STATUS_OK;
 }
 
 DLLEXPORT
