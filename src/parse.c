@@ -3122,7 +3122,11 @@ static tree_t p_attribute_name(tree_t prefix)
 
    type_t type = prefix_type(prefix);
 
-   if (!is_type_attribute(kind) && type != NULL && type_is_access(type)) {
+   const bool deref_prefix =
+      !is_type_attribute(kind) && kind != ATTR_REFLECT
+      && type != NULL && type_is_access(type);
+
+   if (deref_prefix) {
       prefix = implicit_dereference(prefix);
       type   = tree_type(prefix);
    }

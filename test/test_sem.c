@@ -3095,11 +3095,11 @@ START_TEST(test_lcs2016_41)
    input_from_file(TESTDIR "/sem/lcs2016_41.vhd");
 
    const error_t expect[] = {
-      { 18, "value SUBTYPE_MIRROR does not match type of target INTEGER" },
-      { 19, "value VALUE_MIRROR does not match type of target INTEGER" },
-      { 23, "prefix of attribute REFLECT is not a type mark or an object "
+      { 20, "value SUBTYPE_MIRROR does not match type of target INTEGER" },
+      { 21, "value VALUE_MIRROR does not match type of target INTEGER" },
+      { 25, "prefix of attribute REFLECT is not a type mark or an object "
         "with a type" },
-      { 25, "prefix of 'REFLECT attribute must be a fully constrained " },
+      { 27, "prefix of 'REFLECT attribute must be a fully constrained " },
       { -1, NULL }
    };
    expect_errors(expect);

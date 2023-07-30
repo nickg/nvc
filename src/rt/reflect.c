@@ -149,6 +149,17 @@ typedef struct {
 } file_subtype_mirror;
 
 typedef struct {
+   void           *context;
+   subtype_mirror *f_owner;
+   subtype_mirror *f_designated;
+} access_subtype_mirror_pt;
+
+typedef struct {
+   void                     *access;
+   access_subtype_mirror_pt  pt;
+} access_subtype_mirror;
+
+typedef struct {
    void                   *context;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
@@ -223,6 +234,18 @@ typedef struct {
 } file_value_mirror;
 
 typedef struct {
+   void                  *context;
+   value_mirror          *f_owner;
+   access_subtype_mirror *f_subtype;
+   value_mirror          *f_value;
+} access_value_mirror_pt;
+
+typedef struct {
+   void                   *access;
+   access_value_mirror_pt  pt;
+} access_value_mirror;
+
+typedef struct {
    void                     *context;
    uint8_t                   f_class;
    subtype_mirror           *f_subtype;
@@ -232,6 +255,7 @@ typedef struct {
    array_value_mirror       *f_array;
    record_value_mirror      *f_record;
    file_value_mirror        *f_file;
+   access_value_mirror      *f_access;
 } value_mirror_pt;
 
 typedef struct _value_mirror {
@@ -249,6 +273,7 @@ typedef struct {
    array_subtype_mirror       *f_array;
    record_subtype_mirror      *f_record;
    file_subtype_mirror        *f_file;
+   access_subtype_mirror      *f_access;
 } subtype_mirror_pt;
 
 typedef struct _subtype_mirror {
@@ -501,6 +526,7 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
 
       fvm->pt.context = context;
       fvm->pt.f_owner = vm;
+      fvm->pt.f_subtype = vm->pt.f_subtype->pt.f_file;
 
       FILE *fp = value.pointer;
 
@@ -510,6 +536,32 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
 
       vm->pt.f_class = CLASS_FILE;
       vm->pt.f_file = fvm;
+   }
+   else if (type_is_access(type)) {
+      access_value_mirror *avm = zero_alloc(sizeof(access_value_mirror));
+      avm->access = &(avm->pt);
+
+      avm->pt.context = context;
+      avm->pt.f_owner = vm;
+      avm->pt.f_subtype = vm->pt.f_subtype->pt.f_access;
+
+      if (value.pointer != NULL) {
+         type_t designated = type_designated(type);
+         if (type_is_array(designated)) {
+            jit_scalar_t *bounds LOCAL =
+               get_array_bounds(designated, value.pointer);
+            avm->pt.f_value =
+               get_value_mirror(context, bounds[0], designated, bounds);
+         }
+         else {
+            jit_scalar_t access = { .pointer = value.pointer };
+            avm->pt.f_value =
+               get_value_mirror(context, access, designated, NULL);
+         }
+      }
+
+      vm->pt.f_class = CLASS_ACCESS;
+      vm->pt.f_access = avm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
@@ -775,8 +827,7 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       sm->pt.f_record = rsm;
    }
    else if (type_is_file(type)) {
-      file_subtype_mirror *fsm =
-         zero_alloc(sizeof(file_subtype_mirror));
+      file_subtype_mirror *fsm = zero_alloc(sizeof(file_subtype_mirror));
       fsm->access = &(fsm->pt);
 
       fsm->pt.context = context;
@@ -792,6 +843,24 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
 
       sm->pt.f_class = CLASS_FILE;
       sm->pt.f_file = fsm;
+   }
+   else if (type_is_access(type)) {
+      access_subtype_mirror *astm = zero_alloc(sizeof(access_subtype_mirror));
+      astm->access = &(astm->pt);
+
+      astm->pt.context = context;
+      astm->pt.f_owner = sm;
+
+      type_t designated = type_designated(type);
+
+      jit_scalar_t *dbounds LOCAL = NULL;
+      if (type_is_array(designated))
+         dbounds = get_null_array(designated);
+
+      astm->pt.f_designated = get_subtype_mirror(context, designated, dbounds);
+
+      sm->pt.f_class = CLASS_ACCESS;
+      sm->pt.f_access = astm;
    }
    else
       jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
