@@ -39,7 +39,9 @@ const jit_layout_t *layout_of(type_t type)
       l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
       l->nparts = 1;
 
-      tree_t r = type_dim(type, 0);
+      type_t base = type_base_recur(type);
+
+      tree_t r = type_dim(base, 0);
       int64_t low, high;
       if (!folded_bounds(r, &low, &high))
          fatal_trace("type %s has unknown bounds", type_pp(type));

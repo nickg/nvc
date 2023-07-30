@@ -5,7 +5,7 @@ use std.reflection.all;
 
 architecture test of reflect3 is
     type rec1 is record
-        a, b : integer;
+        a, b : natural;
         c : string(1 to 3);
     end record;
 begin
@@ -25,7 +25,7 @@ begin
         assert rstm.element_name(1) = "B";
         assert rstm.element_name(2) = "C";
         assert rstm.element_index("B") = 1;
-        assert rstm.element_subtype("A") = integer'reflect;
+        assert rstm.element_subtype("A") = natural'reflect;
         assert rstm.element_subtype("C").get_type_class = class_array;
         assert rstm.to_subtype_mirror = rec1'reflect;     -- Should cache
 
