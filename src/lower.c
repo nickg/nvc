@@ -79,6 +79,7 @@ typedef struct _lower_unit {
    cover_tagging_t *cover;
    bool             finished;
    bool             elaborating;
+   lower_mode_t     mode;
 } lower_unit_t;
 
 typedef enum {
@@ -121,8 +122,6 @@ typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
 
 typedef A(concat_param_t) concat_list_t;
-
-static lower_mode_t mode = LOWER_NORMAL;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
 static vcode_type_t lower_bounds(type_t type);
@@ -1291,7 +1290,7 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
       tb_downcase(tb);
       return lower_wrap_string(tb_get(tb));
    }
-   else if (mode == LOWER_THUNK) {
+   else if (lu->mode == LOWER_THUNK) {
       vcode_type_t vchar = vtype_char();
       return emit_undefined(vtype_uarray(1, vchar, vchar), vchar);
    }
@@ -2693,7 +2692,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
    vcode_type_t vtype = lower_var_type(decl);
 
    if (kind != T_PACKAGE && kind != T_PACK_INST) {
-      if (mode == LOWER_THUNK)
+      if (lu->mode == LOWER_THUNK)
          return emit_undefined(vtype_pointer(vtype), vtype);
       else {
          vcode_dump();
@@ -2701,7 +2700,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
                      istr(tree_ident(decl)));
       }
    }
-   else if (mode == LOWER_THUNK && lu->parent == NULL) {
+   else if (lu->mode == LOWER_THUNK && lu->parent == NULL) {
       // Handle a special case of simplifying locally static expressions
       // that reference constant declarations
       assert(tree_kind(decl) == T_CONST_DECL);
@@ -2736,7 +2735,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
 
    assert(!is_uninstantiated_package(container));
 
-   if (mode == LOWER_THUNK)
+   if (lu->mode == LOWER_THUNK)
       context = emit_package_init(tree_ident(container), VCODE_INVALID_REG);
    else
       context = emit_link_package(tree_ident(container));
@@ -2797,7 +2796,7 @@ static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
 {
    type_t type = tree_type(decl);
 
-   if (mode == LOWER_THUNK)
+   if (lu->mode == LOWER_THUNK)
       return emit_undefined(lower_signal_type(type), lower_bounds(type));
 
    int hops = 0;
@@ -2845,7 +2844,7 @@ static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
    int hops = 0;
    int obj = lower_search_vcode_obj(decl, lu, &hops);
 
-   if (mode == LOWER_THUNK) {
+   if (lu->mode == LOWER_THUNK) {
       type_t type = tree_type(decl);
       emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
       return emit_undefined(lower_signal_type(type), lower_bounds(type));
@@ -2886,9 +2885,9 @@ static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)
    else {
       vcode_reg_t reg = obj;
       const bool undefined_in_thunk =
-         mode == LOWER_THUNK && (reg == VCODE_INVALID_REG
-                                 || tree_class(decl) == C_SIGNAL
-                                 || type_is_protected(tree_type(decl)));
+         lu->mode == LOWER_THUNK && (reg == VCODE_INVALID_REG
+                                     || tree_class(decl) == C_SIGNAL
+                                     || type_is_protected(tree_type(decl)));
       if (undefined_in_thunk) {
          type_t type = tree_type(decl);
          emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
@@ -2935,7 +2934,7 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
          var = vcode_find_var(tree_ident(decl));
          assert(var != VCODE_INVALID_VAR);
       }
-      else if (mode == LOWER_THUNK) {
+      else if (lu->mode == LOWER_THUNK) {
          type_t type = tree_type(decl);
          emit_comment("Cannot resolve generic %s", istr(tree_ident(decl)));
          return emit_undefined(lower_type(type), lower_bounds(type));
@@ -2978,7 +2977,7 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
    int hops = 0;
    vcode_var_t var = lower_get_var(lu, alias, &hops);
    if (var == VCODE_INVALID_VAR) {
-      if (mode == LOWER_THUNK)
+      if (lu->mode == LOWER_THUNK)
          return emit_undefined(lower_type(type), lower_bounds(type));
       else {
          // External alias variable
@@ -3452,13 +3451,13 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
          free(sub);
    }
 
-   if (mode == LOWER_THUNK DEBUG_ONLY(|| true)) {
+   if (lu->mode == LOWER_THUNK DEBUG_ONLY(|| true)) {
       // We may attempt to evaluate a locally static expression that
       // references this array before the bounds checker has run
       for (int i = 0; i < *n_elems; i++) {
          if (vals[i] != VCODE_INVALID_REG)
             continue;
-         else if (mode == LOWER_THUNK) {
+         else if (lu->mode == LOWER_THUNK) {
             type_t elem = type_elem(type);
             vals[i] = emit_undefined(lower_type(elem), lower_bounds(elem));
          }
@@ -3478,7 +3477,7 @@ static vcode_reg_t lower_record_sub_aggregate(lower_unit_t *lu, tree_t value,
    if (is_const && type_is_array(ftype)) {
       if (tree_kind(value) == T_STRING)
          return lower_string_literal(value, true);
-      else if (mode == LOWER_THUNK && !lower_const_bounds(ftype))
+      else if (lu->mode == LOWER_THUNK && !lower_const_bounds(ftype))
          return emit_undefined(lower_type(ftype), lower_bounds(ftype));
       else {
          int nvals;
@@ -8683,7 +8682,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      if (mode == LOWER_THUNK && kind == T_SIGNAL_DECL)
+      if (lu->mode == LOWER_THUNK && kind == T_SIGNAL_DECL)
          continue;
       else if (is_subprogram(d) || kind == T_PROT_BODY)
          continue;
@@ -10054,8 +10053,6 @@ static void lower_driver_cb(tree_t t, void *__ctx)
 
 void lower_process(lower_unit_t *parent, tree_t proc)
 {
-   mode = LOWER_NORMAL;
-
    assert(tree_kind(proc) == T_PROCESS);
 
    vcode_select_unit(parent->vunit);
@@ -11195,8 +11192,6 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 {
    // TODO: this should really be in eval.c
 
-   mode = LOWER_THUNK;
-
    ident_t context_id = NULL;
    if (parent != NULL) {
       vcode_select_unit(parent->vunit);
@@ -11288,8 +11283,6 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 
 vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 {
-   mode = LOWER_THUNK;
-
    ident_t context_id = NULL;
    if (parent != NULL) {
       vcode_select_unit(parent->vunit);
@@ -11348,8 +11341,6 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              cover_tagging_t *cover, tree_t block)
 {
-   mode = LOWER_NORMAL;
-
    assert(tree_kind(block) == T_BLOCK);
 
    vcode_select_unit(parent ? parent->vunit : NULL);
@@ -11382,8 +11373,6 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 void lower_standalone_unit(unit_registry_t *ur, tree_t unit)
 {
    freeze_global_arena();
-
-   mode = LOWER_NORMAL;
 
    vcode_unit_t root = NULL;
    switch (tree_kind(unit)) {
@@ -11423,6 +11412,7 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
    const vunit_kind_t kind = vcode_unit_kind();
 
    new->name = vcode_unit_name();
+   new->mode = (kind == VCODE_UNIT_THUNK) ? LOWER_THUNK : LOWER_NORMAL;
 
    vcode_state_restore(&state);
 
