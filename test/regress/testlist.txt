@@ -834,3 +834,4 @@ reflect5        normal,2019
 seqblock1       normal,2019
 seqblock2       normal,2019
 stdenv6         normal,2019
+issue747        fail,gold,gL=10
