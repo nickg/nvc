@@ -95,7 +95,6 @@ typedef struct _jit {
    bool             silent;
    bool             runtime;
    bool             shutdown;
-   unsigned         backedge;
    int              exit_status;
    jit_tier_t      *tiers;
    aot_dll_t       *aotlib;
@@ -791,11 +790,6 @@ tlab_t jit_null_tlab(jit_t *j)
    return t;
 }
 
-void jit_limit_backedges(jit_t *j, int limit)
-{
-   j->backedge = limit;
-}
-
 void jit_set_silent(jit_t *j, bool silent)
 {
    j->silent = silent;
@@ -809,11 +803,6 @@ void jit_enable_runtime(jit_t *j, bool enable)
 bool jit_has_runtime(jit_t *j)
 {
    return j->runtime;
-}
-
-int jit_backedge_limit(jit_t *j)
-{
-   return j->backedge;
 }
 
 static aot_dll_t *load_dll_internal(jit_t *j, const char *path)

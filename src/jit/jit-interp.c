@@ -43,7 +43,6 @@ typedef struct _jit_interp {
    unsigned char *frame;
    unsigned       flags;
    mspace_t      *mspace;
-   unsigned       backedge;
    jit_anchor_t  *anchor;
    tlab_t        *tlab;
 } jit_interp_t;
@@ -74,8 +73,6 @@ typedef struct _jit_interp {
       default: break;                                   \
       }                                                 \
    } while (0)
-
-#define BOUNDED_LIMIT 10000   // Max backedges in bounded mode
 
 static void interp_dump_reg(jit_interp_t *state, int64_t ival)
 {
@@ -597,23 +594,6 @@ static void interp_cset(jit_interp_t *state, jit_ir_t *ir)
 static void interp_branch_to(jit_interp_t *state, jit_value_t label)
 {
    JIT_ASSERT(label.kind == JIT_VALUE_LABEL);
-   if (state->backedge > 0 && label.label < state->pc) {
-      // Limit the number of loop iterations in bounded mode
-      if (--(state->backedge) == 0) {
-         bool safe_to_abort = true;
-         for (jit_anchor_t *a = state->anchor; a; a = a->caller) {
-            if (a->func->privdata != MPTR_INVALID) {
-               // We might be in the middle of initialising a package so
-               // cannot abandon execution here
-               safe_to_abort = false;
-            }
-         }
-
-         if (safe_to_abort)
-            jit_msg(NULL, DIAG_FATAL, "maximum iteration limit reached");
-      }
-   }
-
    state->pc = label.label;
    JIT_ASSERT(state->pc < state->func->nirs);
 }
@@ -1102,7 +1082,6 @@ void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
       .func     = f,
       .frame    = frame,
       .mspace   = jit_get_mspace(f->jit),
-      .backedge = jit_backedge_limit(f->jit),
       .anchor   = &anchor,
       .tlab     = tlab,
    };

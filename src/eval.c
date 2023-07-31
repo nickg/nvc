@@ -142,14 +142,11 @@ tree_t eval_try_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                      void *context)
 {
    const bool verbose = opt_get_verbose(OPT_EVAL_VERBOSE, NULL);
-
    jit_set_silent(jit, !verbose);
-   jit_limit_backedges(jit, ITER_LIMIT);
 
    tree_t result = eval_do_fold(jit, expr, parent, context);
 
    jit_set_silent(jit, false);
-   jit_limit_backedges(jit, 0);
 
    return result;
 }

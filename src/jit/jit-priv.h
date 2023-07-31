@@ -361,7 +361,6 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
 void **jit_get_privdata_ptr(jit_t *j, jit_func_t *f);
 bool jit_has_runtime(jit_t *j);
-int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
