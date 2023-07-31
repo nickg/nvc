@@ -236,19 +236,17 @@ static void bounds_check_array_ref(tree_t t)
          type_t index_type = index_type_of(value_type, i);
          const range_kind_t dir = tree_subkind(r);
 
-         int64_t ivalue;
-         checked = folded_int(pvalue, &ivalue);
+         int64_t ivalue, low, high;
+         if (folded_int(pvalue, &ivalue) && folded_bounds(r, &low, &high)) {
+            checked = true;
 
-         int64_t low, high;
-         if (folded_bounds(r, &low, &high)) {
-            int64_t folded;
-            if (!index_in_range(pvalue, low, high, &folded)) {
+            if (ivalue < low || ivalue > high) {
                LOCAL_TEXT_BUF tb = tb_new();
                tb_cat(tb, "array");
                if (tree_kind(value) == T_REF)
                   tb_printf(tb, " %s", istr(tree_ident(value)));
                tb_cat(tb, " index ");
-               to_string(tb, index_type, folded);
+               to_string(tb, index_type, ivalue);
                tb_printf(tb, " outside of %s range ", type_pp(index_type));
                bounds_fmt_type_range(tb, index_type, dir, low, high);
 

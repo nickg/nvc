@@ -1,0 +1,1 @@
+(init): index 10 outside of NATURAL range 9 downto 0

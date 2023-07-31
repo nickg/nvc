@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed a crash due to an array bounds check being incorrectly optimised
+  out (#747).
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements
