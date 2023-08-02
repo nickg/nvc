@@ -81,6 +81,14 @@ typedef enum {
    FILE_DELETE_STATUS_ERROR = 3
 } file_delete_status_t;
 
+typedef enum {
+   DIR_DELETE_STATUS_OK = 0,
+   DIR_DELETE_STATUS_NO_DIRECTORY = 1,
+   DIR_DELETE_STATUS_NOT_EMPTY = 2,
+   DIR_DELETE_STATUS_ACCESS_DENIED = 3,
+   DIR_DELETE_STATUS_ERROR = 4
+} dir_delete_status_t;
+
 typedef struct {
    ffi_uarray_t *name;
    ffi_uarray_t *file_name;
@@ -146,8 +154,20 @@ static int8_t errno_to_file_delete_status(void)
    switch (errno) {
    case 0: return FILE_DELETE_STATUS_OK;
    case ENOENT: return FILE_DELETE_STATUS_NO_FILE;
-   case EACCES: return DIR_CREATE_STATUS_ACCESS_DENIED;
+   case EACCES: return FILE_DELETE_STATUS_ACCESS_DENIED;
    default: return FILE_DELETE_STATUS_ERROR;
+   }
+}
+
+static int8_t errno_to_dir_delete_status(void)
+{
+   switch (errno) {
+   case 0: return DIR_DELETE_STATUS_OK;
+   case ENOENT:
+   case ENOTDIR: return DIR_DELETE_STATUS_NO_DIRECTORY;
+   case ENOTEMPTY: return DIR_DELETE_STATUS_NOT_EMPTY;
+   case EACCES: return DIR_DELETE_STATUS_ACCESS_DENIED;
+   default: return DIR_DELETE_STATUS_ERROR;
    }
 }
 
@@ -443,6 +463,62 @@ void _std_env_deletefile(const uint8_t *path_ptr, int64_t path_len,
       *status = errno_to_file_delete_status();
    else
       *status = FILE_DELETE_STATUS_OK;
+}
+
+static int8_t delete_tree(const char *path)
+{
+   DIR *d = opendir(path);
+   if (d == NULL)
+      return errno_to_dir_delete_status();
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   int8_t status = DIR_DELETE_STATUS_OK;
+
+   struct dirent *e;
+   while (status == DIR_DELETE_STATUS_OK && (e = readdir(d))) {
+      if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
+         continue;
+
+      tb_rewind(tb);
+      tb_cat(tb, path);
+      tb_cat(tb, DIR_SEP);
+      tb_cat(tb, e->d_name);
+
+#if defined __MINGW32__ || !defined DT_DIR
+      file_info_t info;
+      get_file_info(tb_get(tb), &info);
+
+      const bool is_dir = (info.type == FILE_DIR);
+#else
+      const bool is_dir = (e->d_type == DT_DIR);
+#endif
+
+      if (is_dir)
+         status = delete_tree(tb_get(tb));
+      else if (remove(tb_get(tb)) == -1)
+         status = errno_to_dir_delete_status();
+   }
+
+   closedir(d);
+
+   if (status == DIR_DELETE_STATUS_OK && rmdir(path) == -1)
+      return errno_to_dir_delete_status();
+
+   return status;
+}
+
+DLLEXPORT
+void _std_env_deletedir(const uint8_t *path_ptr, int64_t path_len,
+                        int8_t recursive, int8_t *status)
+{
+   char *path LOCAL = to_cstring(path_ptr, path_len);
+
+   if (recursive)
+      *status = delete_tree(path);
+   else if (rmdir(path) == -1)
+      *status = errno_to_dir_delete_status();
+   else
+      *status = DIR_DELETE_STATUS_OK;
 }
 
 DLLEXPORT

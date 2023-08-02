@@ -13,6 +13,7 @@
   # Exported from src/rt/stdenv.c
   _std_env_add_trec_real;
   _std_env_createdir;
+  _std_env_deletedir;
   _std_env_deletefile;
   _std_env_diff_trec;
   _std_env_dir_open;

@@ -352,21 +352,28 @@ package body env is
     procedure dir_deletedir (path   : in string;
                              status : out dir_delete_status) is
     begin
-        report "not implemented" severity failure;
+        dir_deletedir(path, false, status);
     end procedure;
 
     procedure dir_deletedir (path      : in string;
                              recursive : in boolean;
                              status    : out dir_delete_status) is
+        procedure impl (path      : in string;
+                        recursive : in boolean;
+                        status    : out dir_delete_status);
+        attribute foreign of impl : procedure is "_std_env_deletedir";
     begin
-        report "not implemented" severity failure;
+        impl(path, recursive, status);
     end procedure;
 
     impure function dir_deletedir (path      : in string;
                                    recursive : in boolean := false)
-        return dir_delete_status is
+        return dir_delete_status
+    is
+        variable status : dir_delete_status;
     begin
-        report "not implemented" severity failure;
+        dir_deletedir(path, recursive, status);
+        return status;
     end function;
 
     procedure dir_deletefile (path   : in string;

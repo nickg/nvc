@@ -41,6 +41,23 @@ begin
 
         assert dir_deletefile("tmp.txt") = STATUS_NO_FILE;
 
+        assert dir_createdir("testdir") = STATUS_OK;
+        assert dir_itemisdir("testdir");
+        assert dir_deletedir("testdir") = STATUS_OK;
+
+        assert dir_deletedir("nothere") = STATUS_NO_DIRECTORY;
+
+        assert dir_createdir("testdir") = STATUS_OK;
+        file_open(f, "testdir/tmp.txt", write_mode);
+        file_close(f);
+        assert dir_createdir("testdir/sub") = STATUS_OK;
+        file_open(f, "testdir/sub/sub.txt", write_mode);
+        file_close(f);
+        assert dir_deletedir("testdir") = STATUS_NOT_EMPTY;
+
+        assert dir_deletedir("testdir", recursive => true) = STATUS_OK;
+        assert not dir_itemexists("testdir");
+
         wait;
     end process;
 
