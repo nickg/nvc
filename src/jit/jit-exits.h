@@ -102,5 +102,10 @@ void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
 void *x_function_trigger(const ffi_closure_t *closure);
 void x_add_trigger(void *ptr);
+int64_t x_get_vhdl_assert_count(int8_t severity);
+void x_increment_vhdl_assert_count(int8_t severity);
+void x_clear_vhdl_assert(void);
+void x_set_vhdl_assert_enable(int8_t severity, bool enable);
+bool x_get_vhdl_assert_enable(int8_t severity);
 
 #endif  // _JIT_EXITS_H
