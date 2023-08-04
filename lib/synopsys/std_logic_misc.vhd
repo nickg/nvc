@@ -72,7 +72,7 @@ package std_logic_misc is
 
     function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_LOGIC_VECTOR;
-    `if VHDL_VERSION < "08" then
+    `if VHDL_VERSION < "2008" then
     function Sense (V: STD_ULOGIC_VECTOR; vZ, vU, vDC: STD_ULOGIC)
     					   return STD_ULOGIC_VECTOR;
 

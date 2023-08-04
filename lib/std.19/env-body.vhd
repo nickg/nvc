@@ -573,14 +573,35 @@ package body env is
         return impl(level);
     end function;
 
+    type read_severity_pt is protected
+        procedure set (level : severity_level);
+        impure function get return severity_level;
+    end protected;
+
+    type read_severity_pt is protected body
+        variable current : severity_level := error;
+
+        procedure set (level : severity_level) is
+        begin
+            current := level;
+        end procedure;
+
+        impure function get return severity_level is
+        begin
+            return current;
+        end function;
+    end protected body;
+
+    shared variable read_severity : read_severity_pt;
+
     procedure SetVhdlReadSeverity (Level : severity_level := failure) is
     begin
-        report "not implemented" severity failure;
+        read_severity.set(level);
     end procedure;
 
     impure function GetVhdlReadSeverity return severity_level is
     begin
-        report "not implemented" severity failure;
+        return read_severity.get;
     end function;
 
     impure function PslAssertFailed return boolean is

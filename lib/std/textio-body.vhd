@@ -31,6 +31,15 @@ package body textio is
         return astr(nth);
     end function;
 
+    impure function read_severity return severity_level is
+    begin
+        `if VHDL_VERSION < "2019" then
+            return error;
+        `else
+            return std.env.GetVhdlReadSeverity;
+        `end if
+    end function;
+
     procedure grow (l        : inout line;
                     extra    : in natural;
                     old_size : out natural ) is
@@ -147,7 +156,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "bit read failed";
+        assert good report "bit read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -189,7 +198,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "bit_vector read failed";
+        assert good report "bit_vector read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -215,7 +224,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "boolean read failed";
+        assert good report "boolean read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -237,7 +246,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "character read failed";
+        assert good report "character read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -289,7 +298,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "integer read failed";
+        assert good report "integer read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -355,7 +364,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "real read failed";
+        assert good report "real read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -377,7 +386,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "string read failed";
+        assert good report "string read failed" severity read_severity;
     end procedure;
 
     procedure read (l     : inout line;
@@ -429,7 +438,7 @@ package body textio is
         variable good : boolean;
     begin
         read(l, value, good);
-        assert good report "time read failed";
+        assert good report "time read failed" severity read_severity;
     end procedure;
 
     procedure sread (l      : inout line;
@@ -519,7 +528,7 @@ package body textio is
         variable good : boolean;
     begin
         oread(l, value, good);
-        assert good report "oread failed";
+        assert good report "oread failed" severity read_severity;
     end procedure;
 
     procedure hread (l     : inout line;
@@ -602,7 +611,7 @@ package body textio is
         variable good : boolean;
     begin
         hread(l, value, good);
-        assert good report "hread failed";
+        assert good report "hread failed" severity read_severity;
     end procedure;
 
     constant LINE_BUFFER_SIZE : positive := 128;

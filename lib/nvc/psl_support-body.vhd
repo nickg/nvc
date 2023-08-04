@@ -16,7 +16,7 @@
 
 package body psl_support is
 
-`if VHDL_VERSION < "08" then
+`if VHDL_VERSION < "2008" then
 
     function isunknown(
         val : in std_logic_vector
@@ -54,7 +54,7 @@ package body psl_support is
         return false;
     end;
 
-`if VHDL_VERSION < "08" then
+`if VHDL_VERSION < "2008" then
 
     function countones(
         val : in std_logic_vector
@@ -97,7 +97,7 @@ package body psl_support is
         return n;
     end;
 
-`if VHDL_VERSION < "08" then
+`if VHDL_VERSION < "2008" then
 
     function onehot(
         val : in std_logic_vector
@@ -152,7 +152,7 @@ package body psl_support is
         return flag;
     end;
 
-`if VHDL_VERSION < "08" then
+`if VHDL_VERSION < "2008" then
 
     function onehot0(
         val : in std_logic_vector

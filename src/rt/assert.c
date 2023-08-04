@@ -190,7 +190,7 @@ DLLEXPORT
 void _std_env_set_assert_format_valid(uint8_t level, const uint8_t *format_ptr,
                                       int64_t format_len, int8_t *valid)
 {
-   assert(level < SEVERITY_FAILURE);
+   assert(level <= SEVERITY_FAILURE);
 
    char *cstr LOCAL = null_terminate(format_ptr, format_len);
    format_part_t *f = check_format(cstr);
@@ -207,7 +207,7 @@ DLLEXPORT
 void _std_env_set_assert_format(uint8_t level, const uint8_t *format_ptr,
                                 int64_t format_len)
 {
-   assert(level < SEVERITY_FAILURE);
+   assert(level <= SEVERITY_FAILURE);
 
    char *cstr LOCAL = null_terminate(format_ptr, format_len);
    format_part_t *f = check_format(cstr);
@@ -222,7 +222,7 @@ void _std_env_set_assert_format(uint8_t level, const uint8_t *format_ptr,
 DLLEXPORT
 void _std_env_get_assert_format(uint8_t level, ffi_uarray_t *u)
 {
-   assert(level < SEVERITY_FAILURE);
+   assert(level <= SEVERITY_FAILURE);
 
    if (format[level] == NULL)
       *u = ffi_wrap(NULL, 1, 0);
