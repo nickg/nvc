@@ -1,9 +1,9 @@
-entity stdenv8 is
+entity assert9 is
 end entity;
 
 use std.env.all;
 
-architecture test of stdenv8 is
+architecture test of assert9 is
 begin
 
     process is
