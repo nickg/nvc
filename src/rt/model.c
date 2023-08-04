@@ -79,6 +79,11 @@ typedef struct {
    rt_scope_t    *active_scope;
 } __attribute__((aligned(64))) model_thread_t;
 
+typedef struct _rt_asserts {
+   unsigned   cnts[SEVERITY_FAILURE + 1];
+   bool       enables[SEVERITY_FAILURE + 1];
+} rt_asserts_t;
+
 typedef struct _rt_model {
    tree_t             top;
    hash_t            *scopes;
@@ -111,6 +116,7 @@ typedef struct _rt_model {
    memblock_t        *memblocks;
    model_thread_t    *threads[MAX_THREADS];
    ptr_list_t         eventsigs;
+   rt_asserts_t       asserts;
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -2059,6 +2065,14 @@ static void reset_coverage(rt_model_t *m)
    fbuf_close(f, NULL);
 }
 
+static void reset_asserts(rt_model_t *m)
+{
+   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++) {
+      m->asserts.cnts[i] = 0;
+      m->asserts.enables[i] = true;
+   }
+}
+
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
@@ -2216,6 +2230,7 @@ void model_reset(rt_model_t *m)
    // Initialisation is described in LRM 93 section 12.6.4
 
    reset_coverage(m);
+   reset_asserts(m);
    reset_scope(m, m->root);
 
    if (m->force_stop)
@@ -3485,6 +3500,46 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
       p += n->width * n->size;
    }
    assert(p == value + s->shared.size);
+}
+
+int64_t get_vhdl_assert_count(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   return m->asserts.cnts[severity];
+}
+
+void clear_vhdl_assert(void)
+{
+   rt_model_t *m = get_model();
+
+   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++)
+      m->asserts.cnts[i] = 0;
+}
+
+void increment_vhdl_assert_count(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   m->asserts.cnts[severity]++;
+}
+
+void set_vhdl_assert_enable(int8_t severity, bool enable)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   m->asserts.enables[severity] = enable;
+}
+
+bool get_vhdl_assert_enable(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   return m->asserts.enables[severity];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@
 #include "common.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-exits.h"
 #include "scan.h"
 #include "rt/rt.h"
 
@@ -659,6 +660,31 @@ int64_t _std_env_seconds_to_time(double real)
 {
    double whole, frac = modf(real, &whole);
    return (int64_t)whole * UINT64_C(1000000000000000) + (int64_t)(frac * 1e15);
+}
+
+DLLEXPORT
+int64_t _std_env_get_vhdl_assert_count(vhdl_severity_t severity_level)
+{
+   return get_vhdl_assert_count(severity_level);
+}
+
+DLLEXPORT
+void _std_env_clear_vhdl_assert(void)
+{
+   clear_vhdl_assert();
+}
+
+DLLEXPORT
+void _std_env_set_vhdl_assert_enable(vhdl_severity_t severity_level,
+                                     bool enable)
+{
+   set_vhdl_assert_enable(severity_level, enable);
+}
+
+DLLEXPORT
+bool _std_env_get_vhdl_assert_enable(vhdl_severity_t severity_level)
+{
+   return get_vhdl_assert_enable(severity_level);
 }
 
 void _std_env_init(void)

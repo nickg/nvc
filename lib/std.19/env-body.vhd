@@ -487,46 +487,61 @@ package body env is
 
     impure function IsVhdlAssertFailed return boolean is
     begin
-        report "not implemented" severity failure;
+        return IsVhdlAssertFailed(warning) or IsVhdlAssertFailed(error) or
+               IsVhdlAssertFailed(failure);
     end function;
 
     impure function IsVhdlAssertFailed (Level : severity_level)
         return boolean is
+        function impl (Level : severity_level) return natural;
+        attribute foreign of impl : function is "_std_env_get_vhdl_assert_count";
     begin
-        report "not implemented" severity failure;
+        return (impl(Level) > 0);
     end function;
 
     impure function GetVhdlAssertCount return natural is
     begin
-        report "not implemented" severity failure;
+        return GetVhdlAssertCount(warning) + GetVhdlAssertCount(error) +
+               GetVhdlAssertCount(failure);
     end function;
 
     impure function GetVhdlAssertCount (Level : severity_level)
         return natural is
+        function impl (Level : severity_level) return natural;
+        attribute foreign of impl : function is "_std_env_get_vhdl_assert_count";
     begin
-        report "not implemented" severity failure;
+        return impl(Level);
     end function;
 
     procedure ClearVhdlAssert is
+        procedure impl;
+        attribute foreign of impl : procedure is "_std_env_clear_vhdl_assert";
     begin
-        report "not implemented" severity failure;
+        impl;
     end procedure;
 
     procedure SetVhdlAssertEnable (Enable : boolean := true) is
     begin
-        report "not implemented" severity failure;
+        SetVhdlAssertEnable (note,    Enable);
+        SetVhdlAssertEnable (warning, Enable);
+        SetVhdlAssertEnable (error,   Enable);
+        SetVhdlAssertEnable (failure, Enable);
     end procedure;
 
     procedure SetVhdlAssertEnable (Level  : severity_level := note;
                                    Enable : boolean := true) is
+        procedure impl (Level : severity_level; Enable : boolean);
+        attribute foreign of impl : procedure is "_std_env_set_vhdl_assert_enable";
     begin
-        report "not implemented" severity failure;
+        impl(Level, enable);
     end procedure;
 
     impure function GetVhdlAssertEnable (Level : severity_level := note)
         return boolean is
+        function impl (Level : severity_level) return boolean;
+        attribute foreign of impl : function is "_std_env_get_vhdl_assert_enable";
     begin
-        report "not implemented" severity failure;
+        return impl(Level);
     end function;
 
     procedure SetVhdlAssertFormat(Level  : SEVERITY_LEVEL;

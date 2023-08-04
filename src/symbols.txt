@@ -37,6 +37,10 @@
   _std_env_stop;
   _std_env_tool_version;
   _std_env_vhdl_version;
+  _std_env_get_vhdl_assert_count;
+  _std_env_clear_vhdl_assert;
+  _std_env_set_vhdl_assert_enable;
+  _std_env_get_vhdl_assert_enable;
 
   # Exported from src/rt/simpkg.c
   _nvc_current_delta;
