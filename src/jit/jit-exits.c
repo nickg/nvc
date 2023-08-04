@@ -609,9 +609,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          object_t *where      = args[6].pointer;
 
          if (jit_has_runtime(thread->jit)) {
-            if (!x_get_vhdl_assert_enable(severity))
+            if (!get_vhdl_assert_enable(severity))
               break;
-            x_increment_vhdl_assert_count(severity);
+            increment_vhdl_assert_count(severity);
          }
 
          x_assert_fail(msg, len, severity, hint_left, hint_right,
@@ -627,9 +627,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          tree_t   where    = args[3].pointer;
 
          if (jit_has_runtime(thread->jit)) {
-            if (!x_get_vhdl_assert_enable(severity))
+            if (!get_vhdl_assert_enable(severity))
                break;
-            x_increment_vhdl_assert_count(severity);
+            increment_vhdl_assert_count(severity);
          }
 
          x_report(msg, len, severity, where);

@@ -3502,6 +3502,46 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
    assert(p == value + s->shared.size);
 }
 
+int64_t get_vhdl_assert_count(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   return m->asserts.cnts[severity];
+}
+
+void clear_vhdl_assert(void)
+{
+   rt_model_t *m = get_model();
+
+   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++)
+      m->asserts.cnts[i] = 0;
+}
+
+void increment_vhdl_assert_count(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   m->asserts.cnts[severity]++;
+}
+
+void set_vhdl_assert_enable(int8_t severity, bool enable)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   m->asserts.enables[severity] = enable;
+}
+
+bool get_vhdl_assert_enable(int8_t severity)
+{
+   rt_model_t *m = get_model();
+
+   assert(severity <= SEVERITY_FAILURE);
+   return m->asserts.enables[severity];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -4241,55 +4281,4 @@ void x_add_trigger(void *ptr)
    assert(obj->trigger == NULL);
 
    obj->trigger = ptr;
-}
-
-int64_t x_get_vhdl_assert_count(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   TRACE("get_vhdl_assert_count, severity: %d", severity);
-   assert(severity <= SEVERITY_FAILURE);
-
-   return m->asserts.cnts[severity];
-}
-
-void x_clear_vhdl_assert(void)
-{
-   rt_model_t *m = get_model();
-
-   TRACE("clear_vhdl_assert");
-
-   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++)
-      m->asserts.cnts[i] = 0;
-}
-
-void x_increment_vhdl_assert_count(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   TRACE("get_vhdl_assert_count, severity: %d", severity);
-   assert(severity <= SEVERITY_FAILURE);
-
-   m->asserts.cnts[severity]++;
-}
-
-void x_set_vhdl_assert_enable(int8_t severity, bool enable)
-{
-   rt_model_t *m = get_model();
-
-   TRACE("set_vhdl_assert_enable, severity: %d, enable: %d", severity, enable);
-   assert(severity <= SEVERITY_FAILURE);
-
-   m->asserts.enables[severity] = enable;
-}
-
-bool x_get_vhdl_assert_enable(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   assert(severity <= SEVERITY_FAILURE);
-   TRACE("get_vhdl_assert_enable, severity: %d, enable: %d",
-         severity, m->asserts.enables[severity]);
-
-   return m->asserts.enables[severity];
 }

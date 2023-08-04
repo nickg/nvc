@@ -589,26 +589,26 @@ int64_t _std_env_seconds_to_time(double real)
 DLLEXPORT
 int64_t _std_env_get_vhdl_assert_count(vhdl_severity_t severity_level)
 {
-   return x_get_vhdl_assert_count(severity_level);
+   return get_vhdl_assert_count(severity_level);
 }
 
 DLLEXPORT
 void _std_env_clear_vhdl_assert(void)
 {
-   x_clear_vhdl_assert();
+   clear_vhdl_assert();
 }
 
 DLLEXPORT
 void _std_env_set_vhdl_assert_enable(vhdl_severity_t severity_level,
                                      bool enable)
 {
-   x_set_vhdl_assert_enable(severity_level, enable);
+   set_vhdl_assert_enable(severity_level, enable);
 }
 
 DLLEXPORT
 bool _std_env_get_vhdl_assert_enable(vhdl_severity_t severity_level)
 {
-   return x_get_vhdl_assert_enable(severity_level);
+   return get_vhdl_assert_enable(severity_level);
 }
 
 void _std_env_init(void)
