@@ -137,9 +137,10 @@ jit_thread_local_t *jit_thread_local(void)
 jit_t *jit_new(unit_registry_t *ur)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
-   j->registry = ur;
-   j->index    = chash_new(FUNC_HASH_SZ);
-   j->mspace   = mspace_new(opt_get_size(OPT_HEAP_SIZE));
+   j->registry    = ur;
+   j->index       = chash_new(FUNC_HASH_SZ);
+   j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
+   j->exit_status = INT_MIN;
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -915,6 +916,8 @@ void jit_abort(void)
 
 void jit_abort_with_status(int code)
 {
+   assert(code != INT_MIN);
+
    jit_thread_local_t *thread = jit_thread_local();
    if (thread->jit != NULL)
       atomic_store(&(thread->jit->exit_status), code);
@@ -922,19 +925,19 @@ void jit_abort_with_status(int code)
    jit_abort();
 }
 
-void jit_set_exit_status(jit_t *j, int status)
+void jit_reset_exit_status(jit_t *j)
 {
-   atomic_cas(&(j->exit_status), 0, status);
+   atomic_store(&(j->exit_status), INT_MIN);
 }
 
-void jit_reset_exit_status(jit_t *j, int status)
+bool jit_exit_status(jit_t *j, int *status)
 {
-   atomic_store(&(j->exit_status), status);
-}
-
-int jit_exit_status(jit_t *j)
-{
-   return j->exit_status;
+   if (j->exit_status != INT_MIN) {
+      *status = j->exit_status;
+      return true;
+   }
+   else
+      return false;
 }
 
 static void jit_async_cgen(void *context, void *arg)

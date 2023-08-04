@@ -1079,6 +1079,17 @@ const char *ordinal_str(int n)
    }
 }
 
+char *null_terminate(const uint8_t *data, size_t len)
+{
+   char *cstr = xmalloc(len + 1);
+   if (data != NULL)
+      memcpy(cstr, data, len);
+   else
+      assert(len == 0);
+   cstr[len] = '\0';
+   return cstr;
+}
+
 char toupper_iso88591(unsigned char ch)
 {
    if (ch >= 'a' && ch <= 'z')

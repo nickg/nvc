@@ -837,3 +837,4 @@ stdenv6         normal,2019
 issue747        fail,gold,gL=10
 assert8         fail,2019,gold
 assert9         fail,2019,gold
+assert10        fail,2019,gold

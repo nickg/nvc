@@ -107,9 +107,7 @@ DLLEXPORT
 void _std_to_string_real_format(double value, const void *fmt_ptr,
                                 int64_t fmt_length, ffi_uarray_t *u)
 {
-   char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
-   memcpy(fmt_cstr, fmt_ptr, fmt_length);
-   fmt_cstr[fmt_length] = '\0';
+   char *fmt_cstr LOCAL = null_terminate(fmt_ptr, fmt_length);
 
    if (fmt_cstr[0] != '%')
       jit_msg(NULL, DIAG_FATAL, "conversion specification must "

@@ -245,6 +245,7 @@ bool utf8_terminal(void);
 int terminal_width(void);
 
 const char *ordinal_str(int n);
+char *null_terminate(const uint8_t *data, size_t len);
 
 char toupper_iso88591(unsigned char ch);
 char tolower_iso88591(unsigned char ch);

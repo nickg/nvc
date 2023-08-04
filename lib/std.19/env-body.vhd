@@ -544,17 +544,24 @@ package body env is
         return impl(Level);
     end function;
 
-    procedure SetVhdlAssertFormat(Level  : SEVERITY_LEVEL;
-                                  Format : string) is
+    procedure SetVhdlAssertFormat (Level  : severity_level;
+                                   Format : string) is
+        procedure impl (Level  : severity_level;
+                        Format : string);
+        attribute foreign of impl : procedure is "_std_env_set_assert_format";
     begin
-        report "not implemented" severity failure;
+        impl(level, format);
     end procedure;
 
     procedure SetVhdlAssertFormat (Level  : severity_level;
                                    Format : string;
                                    Valid  : out boolean) is
+        procedure impl (Level  : severity_level;
+                        Format : string;
+                        Valid  : out boolean);
+        attribute foreign of impl : procedure is "_std_env_set_assert_format_valid";
     begin
-        report "not implemented" severity failure;
+        impl(level, format, valid);
     end procedure;
 
     impure function GetVhdlAssertFormat (Level : severity_level)

@@ -82,6 +82,7 @@ struct _diag {
    bool          source;
    bool          suppress;
    bool          stacktrace;
+   bool          prefix;
 };
 
 typedef struct _hint_rec {
@@ -421,6 +422,7 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
    d->color    = color_terminal() && consumer_fn == NULL;
    d->source   = true;
    d->suppress = false;
+   d->prefix   = true;
 
    if (!loc_invalid_p(loc)) {
       diag_hint_t hint = {
@@ -441,6 +443,14 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
    }
 
    return d;
+}
+
+void diag_clear(diag_t *d)
+{
+   d->prefix = false;
+   ACLEAR(d->hints);
+   ACLEAR(d->trace);
+   tb_rewind(d->msg);
 }
 
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap)
@@ -919,12 +929,14 @@ static void diag_format_full(diag_t *d, FILE *f)
 {
    if (diag_has_message(d)) {
       int col = 0;
-      switch (d->level) {
-      case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
-      case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
-      case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
-      case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
-      case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
+      if (d->prefix) {
+         switch (d->level) {
+         case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
+         case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
+         case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
+         case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
+         case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
+         }
       }
 
       diag_wrap_lines(tb_get(d->msg), tb_len(d->msg), col, f);

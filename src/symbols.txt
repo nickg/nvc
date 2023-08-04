@@ -42,6 +42,10 @@
   _std_env_set_vhdl_assert_enable;
   _std_env_get_vhdl_assert_enable;
 
+  # Exported from src/rt/assert.c
+  _std_env_set_assert_format;
+  _std_env_set_assert_format_valid;
+
   # Exported from src/rt/simpkg.c
   _nvc_current_delta;
   _nvc_ieee_warnings;

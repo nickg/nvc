@@ -366,7 +366,6 @@ jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr);
 object_t *jit_get_locus(jit_value_t value);
-void jit_set_exit_status(jit_t *j, int status);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_func_t *f);

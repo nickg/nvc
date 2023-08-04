@@ -105,15 +105,6 @@ static void copy_str(const char *str, ffi_uarray_t *u)
    *u = ffi_wrap(buf, 1, len);
 }
 
-static char *to_cstring(const uint8_t *data, int len)
-{
-   len = abs(len);
-   char *cstr = xmalloc(len + 1);
-   memcpy(cstr, data, len);
-   cstr[len] = '\0';
-   return cstr;
-}
-
 static ffi_uarray_t *to_line_n(const char *str, size_t len)
 {
    char *buf = jit_mspace_alloc(len);
@@ -234,7 +225,7 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 DLLEXPORT
 void _std_env_getenv(const uint8_t *name_ptr, int64_t name_len, ffi_uarray_t *u)
 {
-   char *LOCAL cstr = to_cstring(name_ptr, name_len);
+   char *LOCAL cstr = null_terminate(name_ptr, name_len);
 
    // LRM19 section 16.5.6: conditional analysis identifiers are part of
    // the queried environment and take precedence over possibly
@@ -397,7 +388,7 @@ DLLEXPORT
 void _std_env_set_workingdir(const uint8_t *dir_ptr, int64_t dir_len,
                              int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(dir_ptr, dir_len);
+   char *cstr LOCAL = null_terminate(dir_ptr, dir_len);
 
    if (chdir(cstr) == -1)
       *status = errno_to_dir_open_status();
@@ -409,7 +400,7 @@ DLLEXPORT
 void _std_env_createdir(const uint8_t *path_ptr, int64_t path_len,
                         int8_t parents, int8_t *status)
 {
-   char *cstr LOCAL = to_cstring(path_ptr, path_len);
+   char *cstr LOCAL = null_terminate(path_ptr, path_len);
 
 #ifdef __MINGW32__
    if (mkdir(cstr) == -1)
@@ -424,7 +415,7 @@ void _std_env_createdir(const uint8_t *path_ptr, int64_t path_len,
 DLLEXPORT
 bool _std_env_itemexists(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    file_info_t info;
    return get_file_info(path, &info);
@@ -433,7 +424,7 @@ bool _std_env_itemexists(const uint8_t *path_ptr, int64_t path_len)
 DLLEXPORT
 bool _std_env_itemisfile(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    file_info_t info;
    if (!get_file_info(path, &info))
@@ -445,7 +436,7 @@ bool _std_env_itemisfile(const uint8_t *path_ptr, int64_t path_len)
 DLLEXPORT
 bool _std_env_itemisdir(const uint8_t *path_ptr, int64_t path_len)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    file_info_t info;
    if (!get_file_info(path, &info))
@@ -458,7 +449,7 @@ DLLEXPORT
 void _std_env_deletefile(const uint8_t *path_ptr, int64_t path_len,
                          int8_t *status)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    if (remove(path) == -1)
       *status = errno_to_file_delete_status();
@@ -512,7 +503,7 @@ DLLEXPORT
 void _std_env_deletedir(const uint8_t *path_ptr, int64_t path_len,
                         int8_t recursive, int8_t *status)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    if (recursive)
       *status = delete_tree(path);
@@ -526,7 +517,7 @@ DLLEXPORT
 void _std_env_dir_open(const uint8_t *path_ptr, int64_t path_len,
                        directory_t *dir, int8_t *status)
 {
-   char *path LOCAL = to_cstring(path_ptr, path_len);
+   char *path LOCAL = null_terminate(path_ptr, path_len);
 
    DIR *d = opendir(path);
    if (d == NULL) {

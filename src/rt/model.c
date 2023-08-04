@@ -1150,7 +1150,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
       }
    }
 
-   if (jit_exit_status(m->jit) == 0) {
+   if (model_exit_status(m) == 0) {
       memo->flags |= R_MEMO;
       if (identity)
          memo->flags |= R_IDENT;
@@ -1161,7 +1161,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          type_pp(tree_type(signal->where)));
 
    jit_set_silent(m->jit, false);
-   jit_reset_exit_status(m->jit, 0);
+   jit_reset_exit_status(m->jit);
 
    set_exit_severity(old_severity);
 
@@ -2953,7 +2953,6 @@ static void reached_iteration_limit(rt_model_t *m)
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
    diag_emit(d);
 
-   jit_reset_exit_status(m->jit, EXIT_FAILURE);
    m->force_stop = true;
 }
 
@@ -3397,6 +3396,20 @@ void model_interrupt(rt_model_t *m)
 {
    model_stop(m);
    jit_interrupt(m->jit, handle_interrupt_cb, m);
+}
+
+int model_exit_status(rt_model_t *m)
+{
+   int status;
+   if (jit_exit_status(m->jit, &status))
+      return status;
+   else if (m->asserts.cnts[SEVERITY_ERROR] > 0
+            || m->asserts.cnts[SEVERITY_FAILURE] > 0)
+      return EXIT_FAILURE;
+   else if (m->stop_delta > 0 && m->iteration == m->stop_delta)
+      return EXIT_FAILURE;
+   else
+      return 0;
 }
 
 // TODO: this interface should be removed eventually

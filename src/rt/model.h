@@ -30,6 +30,7 @@ bool model_can_create_delta(rt_model_t *m);
 int64_t model_now(rt_model_t *m, unsigned *deltas);
 void model_stop(rt_model_t *m);
 void model_interrupt(rt_model_t *m);
+int model_exit_status(rt_model_t *m);
 
 void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
                          void *user);

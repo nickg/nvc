@@ -738,7 +738,7 @@ static int run(int argc, char **argv)
 
    set_ctrl_c_handler(NULL, NULL);
 
-   const int rc = jit_exit_status(jit);
+   const int rc = model_exit_status(model);
 
    if (dumper != NULL)
       wave_dumper_free(dumper);

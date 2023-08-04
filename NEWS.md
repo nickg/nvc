@@ -7,6 +7,7 @@
   from VHDL-2019.
 - Added support for VHDL-2019 sequential block statements.
 - Implemented the VHDL-2019 directory I/O functions in `std.env`.
+- Added VHDL-2019 assert API (with @Blebowski).
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements
