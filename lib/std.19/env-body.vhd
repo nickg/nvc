@@ -565,9 +565,12 @@ package body env is
     end procedure;
 
     impure function GetVhdlAssertFormat (Level : severity_level)
-        return string is
+        return string
+    is
+        function impl (Level : severity_level) return string;
+        attribute foreign of impl : function is "_std_env_get_assert_format";
     begin
-        report "not implemented" severity failure;
+        return impl(level);
     end function;
 
     procedure SetVhdlReadSeverity (Level : severity_level := failure) is

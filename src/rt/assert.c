@@ -57,6 +57,21 @@ typedef struct _format_part {
    };
 } format_part_t;
 
+static const struct {
+   const char *name;
+   uint64_t    value;
+} precision[] = {
+   { "fs", 1 },
+   { "ps", 1000 },
+   { "ns", 1000000 },
+   { "us", 1000000000 },
+   { "ms", UINT64_C(1000000000000) },
+   { "sec", UINT64_C(1000000000000000) },
+   { "m", UINT64_C(60000000000000000) },
+   { "min", UINT64_C(60000000000000000) },   // Non-standard
+   { "hr", UINT64_C(3600000000000000000) },
+};
+
 static format_part_t *format[SEVERITY_FAILURE + 1];
 
 static void free_format(format_part_t *f)
@@ -129,26 +144,11 @@ static format_part_t *check_format(const char *str)
          if (*p == '.') {
             p++;
 
-            static const struct {
-               const char *name;
-               uint64_t    value;
-            } valid[] = {
-               { "fs", 1 },
-               { "ps", 1000 },
-               { "ns", 1000000 },
-               { "us", 1000000000 },
-               { "ms", UINT64_C(1000000000000) },
-               { "sec", UINT64_C(1000000000000000) },
-               { "m", UINT64_C(60000000000000000) },
-               { "min", UINT64_C(60000000000000000) },   // Non-standard
-               { "hr", UINT64_C(3600000000000000000) },
-            };
-
-            for (int i = 0; i < ARRAY_LEN(valid); i++) {
-               const size_t len = strlen(valid[i].name);
-               if (strncmp(p, valid[i].name, len) == 0) {
-                  (*f)->rep.precision = valid[i].value;
-                  (*f)->rep.units = valid[i].name;
+            for (int i = 0; i < ARRAY_LEN(precision); i++) {
+               const size_t len = strlen(precision[i].name);
+               if (strncmp(p, precision[i].name, len) == 0) {
+                  (*f)->rep.precision = precision[i].value;
+                  (*f)->rep.units = precision[i].name;
                   p += len;
                   break;
                }
@@ -217,6 +217,51 @@ void _std_env_set_assert_format(uint8_t level, const uint8_t *format_ptr,
 
    free_format(format[level]);
    format[level] = f;
+}
+
+DLLEXPORT
+void _std_env_get_assert_format(uint8_t level, ffi_uarray_t *u)
+{
+   assert(level < SEVERITY_FAILURE);
+
+   if (format[level] == NULL)
+      *u = ffi_wrap(NULL, 1, 0);
+   else {
+      LOCAL_TEXT_BUF tb = tb_new();
+      for (format_part_t *p = format[level]; p; p = p->next) {
+         switch (p->kind) {
+         case PART_TEXT:
+            tb_cat(tb, p->text);
+            break;
+         case PART_REPLACEMENT:
+            tb_append(tb, '{');
+            tb_append(tb, p->rep.variable);
+            tb_append(tb, ':');
+            tb_append(tb, p->rep.fill);
+            tb_append(tb, p->rep.align);
+
+            if (p->rep.width > 0)
+               tb_printf(tb, "%d", p->rep.width);
+
+            if (p->rep.precision > 0) {
+               for (int i = 0; i < ARRAY_LEN(precision); i++) {
+                  if (p->rep.precision == precision[i].value) {
+                     tb_printf(tb, ".%s", precision[i].name);
+                     break;
+                  }
+               }
+            }
+
+            tb_append(tb, '}');
+            break;
+         }
+      }
+
+      const size_t nchars = tb_len(tb);
+      char *mem = rt_tlab_alloc(nchars);
+      memcpy(mem, tb_get(tb), nchars);
+      *u = ffi_wrap(mem, 1, nchars);
+   }
 }
 
 static const char *get_severity_string(vhdl_severity_t severity)
