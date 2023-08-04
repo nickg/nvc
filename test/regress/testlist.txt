@@ -839,3 +839,4 @@ assert8         fail,2019,gold
 assert9         fail,2019,gold
 assert10        fail,2019,gold
 assert11        normal,2019
+assert12        normal

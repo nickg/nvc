@@ -5138,8 +5138,6 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt)
       return;
    }
 
-   vcode_reg_t severity_reg = lower_rvalue(lu, tree_severity(stmt));
-
    tree_t value = tree_value(stmt);
 
    vcode_reg_t value_reg,
@@ -5156,28 +5154,36 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt)
    if (vcode_reg_const(value_reg, &value_const) && value_const)
       return;
 
-   vcode_block_t message_bb = VCODE_INVALID_BLOCK;
+   vcode_block_t fail_bb = VCODE_INVALID_BLOCK;
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
-   vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
-   if (tree_has_message(stmt)) {
-      tree_t m = tree_message(stmt);
+   tree_t message = tree_has_message(stmt) ? tree_message(stmt) : NULL;
+   tree_t severity = tree_severity(stmt);
 
-      // If the message can have side effects then branch to a new block
-      if (!lower_side_effect_free(m)) {
-         message_bb = emit_block();
-         exit_bb    = emit_block();
-         emit_cond(value_reg, exit_bb, message_bb);
-         vcode_select_block(message_bb);
-      }
+   // If evaluating the message or severity expressions can have side
+   // effects then branch to a new block
+   const bool has_side_effects =
+      (message != NULL && !lower_side_effect_free(message))
+      || !lower_side_effect_free(severity);
 
-      vcode_reg_t message_wrapped = lower_rvalue(lu, m);
-      message = lower_array_data(message_wrapped);
-      length  = lower_array_len(lu, tree_type(m), 0, message_wrapped);
+   if (has_side_effects) {
+      fail_bb = emit_block();
+      exit_bb = emit_block();
+      emit_cond(value_reg, exit_bb, fail_bb);
+      vcode_select_block(fail_bb);
    }
 
+   vcode_reg_t message_reg = VCODE_INVALID_REG, length_reg = VCODE_INVALID_REG;
+   if (message != NULL) {
+      vcode_reg_t message_wrapped = lower_rvalue(lu, message);
+      message_reg = lower_array_data(message_wrapped);
+      length_reg  = lower_array_len(lu, tree_type(message), 0, message_wrapped);
+   }
+
+   vcode_reg_t severity_reg = lower_rvalue(lu, severity);
+
    vcode_reg_t locus = lower_debug_locus(value);
-   emit_assert(value_reg, message, length, severity_reg, locus,
+   emit_assert(value_reg, message_reg, length_reg, severity_reg, locus,
                hint_left_reg, hint_right_reg);
 
    if (exit_bb != VCODE_INVALID_BLOCK) {

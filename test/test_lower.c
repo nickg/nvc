@@ -373,11 +373,6 @@ START_TEST(test_wait1)
 {
    input_from_file(TESTDIR "/lower/wait1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.WAIT1.P1");
@@ -390,10 +385,10 @@ START_TEST(test_wait1)
    CHECK_BB(0);
 
    const check_bb_t bb1[] = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
@@ -403,10 +398,10 @@ START_TEST(test_wait1)
    CHECK_BB(1);
 
    const check_bb_t bb2[] = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1 },
@@ -416,10 +411,10 @@ START_TEST(test_wait1)
    CHECK_BB(2);
 
    const check_bb_t bb3[] = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000001 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT,  .target = 4 }
@@ -432,17 +427,14 @@ START_TEST(test_wait1)
    };
 
    CHECK_BB(4);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_assign1)
 {
    input_from_file(TESTDIR "/lower/assign1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    run_elab();
 
@@ -469,10 +461,10 @@ START_TEST(test_assign1)
    CHECK_BB(1);
 
    const check_bb_t bb2[] = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD,  .name = "X" },
       { VCODE_OP_CONST, .value = 64 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_LOAD,  .name = "Y" },
@@ -498,13 +490,13 @@ START_TEST(test_assign1)
    CHECK_BB(2);
 
    const check_bb_t bb3[] = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_TRAP_ADD },
       { VCODE_OP_CONST, .value = 12 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 4 }
@@ -517,17 +509,14 @@ START_TEST(test_assign1)
    };
 
    CHECK_BB(4);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_assign2)
 {
    input_from_file(TESTDIR "/lower/assign2.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    run_elab();
 
@@ -556,7 +545,6 @@ START_TEST(test_assign2)
       fail_unless(vcode_get_arg(4, i) == vcode_get_result((i == 6) ? 2 : 3));
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 7 },
@@ -564,6 +552,7 @@ START_TEST(test_assign2)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 3 },
@@ -588,17 +577,14 @@ START_TEST(test_assign2)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_signal1)
 {
    input_from_file(TESTDIR "/lower/signal1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    run_elab();
 
@@ -639,13 +625,13 @@ START_TEST(test_signal1)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_RESOLVED },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 1 },
@@ -657,6 +643,8 @@ START_TEST(test_signal1)
 
       CHECK_BB(1);
    }
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -753,11 +741,6 @@ START_TEST(test_arith1)
 {
    input_from_file(TESTDIR "/lower/arith1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.ARITH1.P1");
@@ -784,13 +767,13 @@ START_TEST(test_arith1)
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_TRAP_ADD },
       { VCODE_OP_CONST, .value = 15 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_DEBUG_LOCUS },
@@ -876,6 +859,8 @@ START_TEST(test_arith1)
    };
 
    CHECK_BB(2);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -953,11 +938,6 @@ START_TEST(test_arrayop1)
 {
    input_from_file(TESTDIR "/lower/arrayop1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.ARRAYOP1.P1");
@@ -974,7 +954,6 @@ START_TEST(test_arrayop1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 1 },
@@ -987,12 +966,15 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"<\"(QQ)B" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1000,18 +982,12 @@ START_TEST(test_array1)
 {
    input_from_file(TESTDIR "/lower/array1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.ARRAY1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.ARRAY1.FUNC()Q" },
@@ -1023,12 +999,15 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(QQ)B" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1051,12 +1030,12 @@ START_TEST(test_nest1)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_FCALL, .func = "WORK.NEST1.LINE_7.ADD_TO_X(I)I" },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
@@ -1114,11 +1093,6 @@ START_TEST(test_signal2)
 {
    input_from_file(TESTDIR "/lower/signal2.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.SIGNAL2.P1");
@@ -1131,11 +1105,11 @@ START_TEST(test_signal2)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_EVENT },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_ACTIVE },
@@ -1145,6 +1119,8 @@ START_TEST(test_signal2)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1152,22 +1128,17 @@ START_TEST(test_attr1)
 {
    input_from_file(TESTDIR "/lower/attr1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.ATTR1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_SUB },
@@ -1203,17 +1174,14 @@ START_TEST(test_attr1)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_assign3)
 {
    input_from_file(TESTDIR "/lower/assign3.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    run_elab();
 
@@ -1225,7 +1193,6 @@ START_TEST(test_assign3)
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_COPY },
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_CONST, .value = 0 },
@@ -1233,23 +1200,21 @@ START_TEST(test_assign3)
       { VCODE_OP_WRAP },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"/=\"(QQ)B" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_record1)
 {
    input_from_file(TESTDIR "/lower/record1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    run_elab();
 
@@ -1271,12 +1236,12 @@ START_TEST(test_record1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "A" },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 5 },
@@ -1295,6 +1260,8 @@ START_TEST(test_record1)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1379,11 +1346,6 @@ START_TEST(test_proc1)
 {
    input_from_file(TESTDIR "/lower/proc1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
 
    {
@@ -1395,10 +1357,10 @@ START_TEST(test_proc1)
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
          { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
-         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
@@ -1428,6 +1390,8 @@ START_TEST(test_proc1)
 
       CHECK_BB(0);
    }
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1615,7 +1579,6 @@ START_TEST(test_slice1)
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_COPY },
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_WRAP },
@@ -1625,6 +1588,7 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST, .value = -2147483647 },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func="*WORK.SLICE1-TEST.\"=\"" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
@@ -1754,13 +1718,13 @@ START_TEST(test_func5)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_FCALL, .func = "WORK.FUNC5.ADD_ONE_S(sI)I" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
          { VCODE_OP_LOAD_INDIRECT },
@@ -1779,18 +1743,12 @@ START_TEST(test_bounds1)
 {
    input_from_file(TESTDIR "/lower/bounds1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
 
    vcode_unit_t v0 = find_unit("WORK.BOUNDS1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_LOAD,  .name = "K" },
       { VCODE_OP_CONST, .value = 0 },
@@ -1801,6 +1759,7 @@ START_TEST(test_bounds1)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_DEBUG_LOCUS },
@@ -1816,6 +1775,8 @@ START_TEST(test_bounds1)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -3016,7 +2977,6 @@ START_TEST(test_hintbug)
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_COPY },
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
@@ -3031,6 +2991,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_FCALL , .func = "STD.STANDARD.\"=\"(QQ)B" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 }
@@ -4726,7 +4687,6 @@ START_TEST(test_genpack1)
    vcode_select_unit(vu);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_LINK_PACKAGE, .name = "WORK.P5" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
@@ -4741,6 +4701,7 @@ START_TEST(test_genpack1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(SS)B" },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 },
@@ -5199,9 +5160,9 @@ START_TEST(test_protpcall)
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_TRAP_ADD },
          { VCODE_OP_STORE_INDIRECT },
-         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
