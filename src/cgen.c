@@ -97,6 +97,7 @@ static bool cgen_is_preload(ident_t name)
       "STD.STANDARD",
       "STD.TEXTIO",
       "STD.ENV",
+      "STD.REFLECTION",
       "IEEE.STD_LOGIC",
       "IEEE.NUMERIC",
       "IEEE.MATH",
