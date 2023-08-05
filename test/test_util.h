@@ -54,17 +54,12 @@
 
 #define parse_and_check(...) ({                                    \
          static const tree_kind_t array[] = { __VA_ARGS__ };       \
-         _parse_and_check(array, ARRAY_LEN(array), false, false);  \
+         _parse_and_check(array, ARRAY_LEN(array), false);         \
       })
 
 #define parse_check_and_simplify(...) ({                           \
          static const tree_kind_t array[] = { __VA_ARGS__ };       \
-         _parse_and_check(array, ARRAY_LEN(array), true, false);   \
-      })
-
-#define parse_check_simplify_and_lower(...) ({                     \
-         static const tree_kind_t array[] = { __VA_ARGS__ };       \
-         _parse_and_check(array, ARRAY_LEN(array), true, true);    \
+         _parse_and_check(array, ARRAY_LEN(array), true);          \
       })
 
 typedef struct {
@@ -79,7 +74,6 @@ TCase *nvc_unit_test(void);
 int nvc_run_test(Suite *s);
 unit_registry_t *get_registry(void);
 tree_t run_elab(void);
-tree_t _parse_and_check(const tree_kind_t *array, int num,
-                        bool simp, bool lower);
+tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp);
 
 #endif  // _TEST_UTIL_H

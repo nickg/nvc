@@ -371,7 +371,8 @@ static void vlog_driver_cb(vlog_node_t v, void *context)
    }
 }
 
-static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
+static void vlog_lower_always(unit_registry_t *ur, lower_unit_t *parent,
+                              vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
    vcode_select_unit(context);
@@ -382,7 +383,8 @@ static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
 
    vlog_visit(stmt, vlog_driver_cb, lu);
 
@@ -403,10 +405,11 @@ static void vlog_lower_always(lower_unit_t *parent, vlog_node_t stmt)
 
    emit_wait(start_bb, VCODE_INVALID_REG);
 
-   lower_unit_free(lu);
+   unit_registry_finalise(ur, lu);
 }
 
-static void vlog_lower_initial(lower_unit_t *parent, vlog_node_t stmt)
+static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
+                               vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
    vcode_select_unit(context);
@@ -417,7 +420,8 @@ static void vlog_lower_initial(lower_unit_t *parent, vlog_node_t stmt)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
 
    emit_return(VCODE_INVALID_REG);
 
@@ -427,20 +431,21 @@ static void vlog_lower_initial(lower_unit_t *parent, vlog_node_t stmt)
 
    emit_wait(start_bb, VCODE_INVALID_REG);
 
-   lower_unit_free(lu);
+   unit_registry_finalise(ur, lu);
 }
 
-static void vlog_lower_concurrent(lower_unit_t *parent, vlog_node_t scope)
+static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
+                                  vlog_node_t scope)
 {
    const int nstmts = vlog_stmts(scope);
    for (int i = 0; i < nstmts; i++) {
       vlog_node_t s = vlog_stmt(scope, i);
       switch (vlog_kind(s)) {
       case V_ALWAYS:
-         vlog_lower_always(parent, s);
+         vlog_lower_always(ur, parent, s);
          break;
       case V_INITIAL:
-         vlog_lower_initial(parent, s);
+         vlog_lower_initial(ur, parent, s);
          break;
       default:
          CANNOT_HANDLE(s);
@@ -465,6 +470,7 @@ void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent)
    vcode_unit_t vu = emit_instance(name, tree_to_object(wrap), context);
 
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
 
    vlog_lower_decls(lu, root);
    vlog_lower_port_map(lu, root, wrap);
@@ -473,7 +479,7 @@ void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent)
 
    lower_finished(lu);
 
-   vlog_lower_concurrent(lu, root);
+   vlog_lower_concurrent(ur, lu, root);
 
-   lower_unit_free(lu);
+   unit_registry_finalise(ur, lu);
 }

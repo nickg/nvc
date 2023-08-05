@@ -1,4 +1,5 @@
 package cannot_return_safety_check_pkg is
+    impure function fun return string;
 end package cannot_return_safety_check_pkg;
 
 package body cannot_return_safety_check_pkg is

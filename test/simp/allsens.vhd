@@ -56,7 +56,7 @@ begin
     begin
         case x is
             when '0' =>
-                v(0) <= v(1);
+                v(2) <= v(1);
             when '1' =>
                 proc(y);
         end case;

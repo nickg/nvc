@@ -394,10 +394,8 @@ START_TEST(test_issue98)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -440,10 +438,8 @@ START_TEST(test_aggregate)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -453,13 +449,8 @@ START_TEST(test_osvvm1)
    set_standard(STD_08);
    input_from_file(TESTDIR "/bounds/osvvm1.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE, -1);
-   bounds_check(p);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   tree_t b = parse_check_and_simplify(T_PACK_BODY);
-   fail_unless(error_count() == 0);
-
-   bounds_check(b);
    fail_if_errors();
 }
 END_TEST
@@ -475,10 +466,8 @@ START_TEST(test_range1)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -494,10 +483,8 @@ START_TEST(test_case2)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -508,7 +495,6 @@ START_TEST(test_issue477a)
    input_from_file(TESTDIR "/bounds/issue477a.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE);
-   bounds_check(p);
 
    tree_t d = search_decls(p, ident_new("C_DATA_VERSION"), 0);
    fail_if(d == NULL);
@@ -535,10 +521,8 @@ START_TEST(test_issue477b)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_PACKAGE);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_PACKAGE);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -553,10 +537,8 @@ START_TEST(test_case3)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -573,10 +555,8 @@ START_TEST(test_driver1)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -585,10 +565,8 @@ START_TEST(test_nullrange)
 {
    input_from_file(TESTDIR "/bounds/nullrange.vhd");
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    fail_if_errors();
 }
 END_TEST
@@ -604,10 +582,8 @@ START_TEST(test_issue617)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST
@@ -623,10 +599,8 @@ START_TEST(test_issue734)
    };
    expect_errors(expect);
 
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(error_count() == 0);
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   bounds_check(a);
    check_expected_errors();
 }
 END_TEST

@@ -1,4 +1,8 @@
 package vital_timing is
+    PROCEDURE VitalSetupHoldCheck (
+            SIGNAL   TestSignal    : IN     bit_vector
+
+    );
 end package;
 
 PACKAGE BODY VITAL_Timing IS

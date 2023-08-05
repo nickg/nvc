@@ -101,7 +101,8 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
    emit_return(VCODE_INVALID_REG);
 }
 
-void psl_lower_assert(lower_unit_t *parent, psl_node_t p, ident_t label)
+void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
+                      ident_t label)
 {
    assert(psl_kind(p) == P_ASSERT);
 
@@ -119,7 +120,8 @@ void psl_lower_assert(lower_unit_t *parent, psl_node_t p, ident_t label)
    ident_t name = ident_prefix(prefix, label, '.');
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
-   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -180,13 +182,13 @@ void psl_lower_assert(lower_unit_t *parent, psl_node_t p, ident_t label)
    }
    assert(pos == fsm->next_id);
 
-   lower_unit_free(lu);
+   unit_registry_finalise(ur, lu);
 
    psl_fsm_free(fsm);
 }
 
-static void psl_lower_clock_decl(lower_unit_t *parent, psl_node_t p,
-                                 ident_t label)
+static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
+                                 psl_node_t p, ident_t label)
 {
    vcode_state_t state;
    vcode_state_save(&state);
@@ -203,12 +205,14 @@ static void psl_lower_clock_decl(lower_unit_t *parent, psl_node_t p,
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   lower_unit_t *lu = lower_unit_new(NULL, parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
 
    vcode_reg_t clk_reg = lower_rvalue(lu, psl_tree(p));
    emit_return(clk_reg);
 
-   lower_unit_free(lu);
+   unit_registry_finalise(ur, lu);
+
    vcode_state_restore(&state);
 
    vcode_type_t vtrigger = vtype_trigger();
@@ -223,11 +227,12 @@ static void psl_lower_clock_decl(lower_unit_t *parent, psl_node_t p,
    lower_put_vcode_obj(p, var, parent);
 }
 
-void psl_lower_decl(lower_unit_t *parent, psl_node_t p, ident_t label)
+void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
+                    ident_t label)
 {
    switch (psl_kind(p)) {
    case P_CLOCK_DECL:
-      psl_lower_clock_decl(parent, p, label);
+      psl_lower_clock_decl(ur, parent, p, label);
       break;
    default:
       fatal_at(psl_loc(p), "cannot lower PSL declaration kind %s",

@@ -1645,7 +1645,8 @@ static void elab_pop_scope(elab_ctx_t *ctx)
 
    cover_pop_scope(ctx->cover);
 
-   lower_unit_free(ctx->lowered);
+   if (ctx->lowered != NULL)
+      unit_registry_finalise(ctx->registry, ctx->lowered);
 }
 
 static bool elab_copy_genvar_cb(tree_t t, void *ctx)
@@ -1879,7 +1880,7 @@ static void elab_psl(tree_t t, const elab_ctx_t *ctx)
    elab_external_names(t, ctx);
 
    if (error_count() == 0)
-      psl_lower_assert(ctx->lowered, tree_psl(t), tree_ident(t));
+      psl_lower_assert(ctx->registry, ctx->lowered, tree_psl(t), tree_ident(t));
 
    tree_add_stmt(ctx->out, t);
 }

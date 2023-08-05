@@ -2254,9 +2254,6 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
 
                simplify_local(unit, jit, ur);
                bounds_check(unit);
-
-               if (error_count() == base_errors && unit_needs_cgen(unit))
-                  lower_standalone_unit(ur, unit);
             }
             else
                lib_put_error(work, unit);

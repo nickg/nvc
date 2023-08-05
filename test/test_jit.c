@@ -107,7 +107,7 @@ START_TEST(test_add1)
 {
    input_from_file(TESTDIR "/jit/add1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -128,7 +128,7 @@ START_TEST(test_fact)
 {
    input_from_file(TESTDIR "/jit/fact.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -148,7 +148,7 @@ START_TEST(test_sum)
 {
    input_from_file(TESTDIR "/jit/sum.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -199,7 +199,7 @@ START_TEST(test_context1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -242,8 +242,7 @@ START_TEST(test_record1)
 {
    input_from_file(TESTDIR "/jit/record1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                  T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -267,8 +266,7 @@ START_TEST(test_record2)
 {
    input_from_file(TESTDIR "/jit/record2.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                  T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -292,8 +290,7 @@ START_TEST(test_record3)
 {
    input_from_file(TESTDIR "/jit/record3.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                  T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -365,7 +362,7 @@ START_TEST(test_overflow)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -415,7 +412,7 @@ START_TEST(test_record4)
 {
    input_from_file(TESTDIR "/jit/record4.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -449,7 +446,7 @@ START_TEST(test_access1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -493,7 +490,7 @@ START_TEST(test_array1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -549,7 +546,7 @@ START_TEST(test_relop1)
 {
    input_from_file(TESTDIR "/jit/relop1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -582,9 +579,9 @@ START_TEST(test_proc1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                  T_PACKAGE, T_PACK_BODY,
-                                  T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
+                            T_PACKAGE, T_PACK_BODY,
+                            T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -604,7 +601,7 @@ START_TEST(test_packsignal)
 {
    input_from_file(TESTDIR "/jit/packsignal.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -626,7 +623,7 @@ START_TEST(test_unreachable)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -655,7 +652,7 @@ START_TEST(test_arith1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -740,7 +737,7 @@ START_TEST(test_assert1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -762,7 +759,7 @@ START_TEST(test_case1)
 {
    input_from_file(TESTDIR "/jit/case1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -790,7 +787,7 @@ START_TEST(test_real1)
 {
    input_from_file(TESTDIR "/jit/real1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -808,7 +805,7 @@ START_TEST(test_prot1)
 
    input_from_file(TESTDIR "/jit/prot1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -932,7 +929,7 @@ START_TEST(test_range1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -972,7 +969,7 @@ START_TEST(test_trace1)
 
    diag_set_consumer(trace1_diag_fn, NULL);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -992,7 +989,7 @@ START_TEST(test_issue496)
 
    input_from_file(TESTDIR "/jit/issue496.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACKAGE);
+   parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    jit_t *j = jit_new(get_registry());
 
@@ -1063,7 +1060,7 @@ START_TEST(test_value1)
    };
    expect_errors(expect);
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -1461,7 +1458,7 @@ START_TEST(test_issue575)
 {
    input_from_file(TESTDIR "/jit/issue575.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 
@@ -1771,7 +1768,7 @@ START_TEST(test_tlab1)
 
    input_from_file(TESTDIR "/jit/tlab1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    jit_t *j = jit_new(get_registry());
 

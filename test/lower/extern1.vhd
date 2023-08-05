@@ -9,6 +9,7 @@ package complex is
     constant MATH_CBASE_J : COMPLEX := COMPLEX'(0.0, 1.0);
     constant MATH_CZERO   : COMPLEX := COMPLEX'(0.0, 0.0);
 
+    function SQRT(Z: in COMPLEX ) return COMPLEX;
 end package;
 
 package body complex is

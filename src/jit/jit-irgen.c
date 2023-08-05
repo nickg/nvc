@@ -4080,9 +4080,6 @@ static void irgen_analyse(jit_irgen_t *g)
    // all wait statements resume at the initial block
    g->stateless = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
 
-   if (vcode_unit_child(vcode_active_unit()) != NULL)
-      g->stateless = false;
-
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
       if (!(vcode_var_flags(i) & VAR_TEMP)) {

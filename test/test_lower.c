@@ -355,6 +355,7 @@ static vcode_unit_t find_unit_for(tree_t decl)
    vcode_unit_t vu = unit_registry_get(ur, tree_ident2(decl));
    if (vu == NULL)
       fail("missing vcode unit for %s", istr(tree_ident2(decl)));
+
    return vu;
 }
 
@@ -868,7 +869,7 @@ START_TEST(test_pack1)
 {
    input_from_file(TESTDIR "/lower/pack1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t v0 = find_unit("WORK.PACK1.ADD1(I)I");
    vcode_select_unit(v0);
@@ -2149,6 +2150,8 @@ START_TEST(test_issue136)
    fail_if(body == NULL);
    fail_unless(tree_kind(body) == T_PROT_BODY);
 
+   (void)find_unit("WORK.CANNOT_RETURN_SAFETY_CHECK_PKG.RECORD_RETURNER_T");
+
    vcode_unit_t v0 = find_unit_for(tree_decl(body, 1));
    vcode_select_unit(v0);
 
@@ -2233,12 +2236,27 @@ START_TEST(test_issue158)
 {
    input_from_file(TESTDIR "/lower/issue158.vhd");
 
-   unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
-   tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
-   simplify_local(p, jit, ur);
-   lower_standalone_unit(get_registry(), p);
-   jit_free(jit);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit("WORK.CANNOT_RETURN_SAFETY_CHECK_PKG.FUN()S");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NULL },
+      { VCODE_OP_STORE, .name = "VALUE" },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_INDEX, .name = "VALUE" },
+      { VCODE_OP_FCALL, .func = "WORK.CANNOT_RETURN_SAFETY_CHECK_PKG.PROC("
+        "46WORK.CANNOT_RETURN_SAFETY_CHECK_PKG.STRING_PTR)" },
+      { VCODE_OP_LOAD, .name = "VALUE" },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_NULL_CHECK },
+      { VCODE_OP_ALL },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -2270,7 +2288,6 @@ START_TEST(test_issue164)
    input_from_file(TESTDIR "/lower/issue164.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(get_registry(), p);
 
    vcode_select_unit(find_unit_for(tree_decl(p, 0)));
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME(I)"));
@@ -2693,7 +2710,6 @@ START_TEST(test_dealloc)
    input_from_file(TESTDIR "/lower/dealloc.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v1 = find_unit_for(tree_decl(p, 1));
    vcode_select_unit(v1);
@@ -3038,7 +3054,6 @@ START_TEST(test_tounsigned)
    input_from_file(TESTDIR "/lower/tounsigned.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit_for(tree_decl(p, 0));
    vcode_select_unit(v0);
@@ -3235,9 +3250,8 @@ START_TEST(test_sum)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
-   tree_t f = tree_decl(p, 11);
+   tree_t f = search_decls(p, ident_new("SUM"), 0);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
    vcode_unit_t v0 = find_unit_for(f);
@@ -3290,7 +3304,6 @@ START_TEST(test_extern1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = tree_decl(p, 0);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
@@ -3314,7 +3327,6 @@ START_TEST(test_synopsys1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("WRITE"), 0);
    fail_if(f == NULL);
@@ -3379,7 +3391,6 @@ START_TEST(test_access2)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("GET_FRESH"), 0);
    fail_if(f == NULL);
@@ -3416,7 +3427,6 @@ START_TEST(test_vital1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
@@ -3500,7 +3510,6 @@ START_TEST(test_incomplete)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit("WORK.P");
    vcode_select_unit(v0);
@@ -3526,7 +3535,6 @@ START_TEST(test_issue389)
    tree_t p = parse_check_and_simplify(T_PACKAGE);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    vcode_unit_t v0 = find_unit("WORK.COMMON");
    vcode_select_unit(v0);
@@ -3554,7 +3562,6 @@ START_TEST(test_const1)
    tree_t b = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(b);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), b);
 
    {
       vcode_unit_t v1 = find_unit("WORK.ISSUEH");
@@ -3605,8 +3612,6 @@ START_TEST(test_vital2)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
@@ -3660,7 +3665,6 @@ START_TEST(test_conv1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("GET"), 0);
    fail_if(f == NULL);
@@ -3833,7 +3837,9 @@ START_TEST(test_protupref)
 
    input_from_file(TESTDIR "/lower/protupref.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   (void)find_unit("WORK.ALERTLOGPKG.ALERTLOGSTRUCTPTYPE");
 
    vcode_unit_t vu = find_unit(
       "WORK.ALERTLOGPKG.ALERTLOGSTRUCTPTYPE.ALERT("
@@ -3860,7 +3866,7 @@ START_TEST(test_closefile)
 {
    input_from_file(TESTDIR "/lower/closefile.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit("WORK.FILEPACK.TEST");
    vcode_select_unit(vu);
@@ -4304,7 +4310,19 @@ START_TEST(test_issue444)
 {
    input_from_file(TESTDIR "/lower/issue444.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu1 = find_unit("WORK.ISSUE444.PROC(I)");
+   vcode_select_unit(vu1);
+
+   ck_assert_int_eq(vcode_count_vars(), 2);
+   fail_unless(vcode_var_flags(1) & VAR_TEMP);
+
+   vcode_unit_t vu2 = find_unit("WORK.ISSUE444.PROC(I).T$value");
+   vcode_select_unit(vu2);
+
+   ck_assert_int_eq(vcode_count_vars(), 1);
+   fail_unless(vcode_var_flags(0) & VAR_TEMP);
 
    fail_if_errors();
 }
@@ -4315,7 +4333,50 @@ START_TEST(test_vunit1)
    set_standard(STD_02);
    input_from_file(TESTDIR "/lower/vunit1.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   (void)find_unit("WORK.STRING_PTR_PKG.PROT_STORAGE_T");
+
+   vcode_unit_t vu = find_unit("WORK.STRING_PTR_PKG.PROT_STORAGE_T.SET(NPC)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_VAR_UPREF, .name = "ST", .hops = 1 },
+      { VCODE_OP_RECORD_REF, .field = 5 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_NULL_CHECK },
+      { VCODE_OP_ALL },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_INDEX, .name = "S" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INDEX_CHECK },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_NULL_CHECK },
+      { VCODE_OP_ALL },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 1 },
+   };
+
+   CHECK_BB(3);
 
    fail_if_errors();
 }
@@ -4325,7 +4386,7 @@ START_TEST(test_vunit2)
 {
    input_from_file(TESTDIR "/lower/vunit2.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit(
       "WORK.VUNIT2.GET_ONE(N)19WORK.VUNIT2.INT_PTR");
@@ -4355,7 +4416,7 @@ START_TEST(test_vunit3)
 {
    input_from_file(TESTDIR "/lower/vunit3.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit("WORK.VUNIT3.ALLOC_REG()19WORK.VUNIT3.REC_PTR");
    vcode_select_unit(vu);
@@ -4381,7 +4442,7 @@ START_TEST(test_vunit4)
 {
    input_from_file(TESTDIR "/lower/vunit4.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit("WORK.VUNIT4.GET_REC(N)15WORK.VUNIT4.REC");
    vcode_select_unit(vu);
@@ -4647,7 +4708,7 @@ START_TEST(test_issue476)
 
    input_from_file(TESTDIR "/lower/issue476.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE);
+   parse_check_and_simplify(T_PACKAGE);
 
    fail_if_errors();
 }
@@ -4659,7 +4720,7 @@ START_TEST(test_issue478)
 
    input_from_file(TESTDIR "/lower/issue478.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE);
+   parse_check_and_simplify(T_PACKAGE);
 
    vcode_unit_t vu = find_unit("WORK.TEST_PKG");
    vcode_select_unit(vu);
@@ -4765,7 +4826,7 @@ START_TEST(test_bigarray)
 {
    input_from_file(TESTDIR "/lower/bigarray.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu =
       find_unit("WORK.BIGARRAY.GET_ARRAY()21WORK.BIGARRAY.INT_VEC");
@@ -5018,7 +5079,6 @@ START_TEST(test_copy1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_standalone_unit(get_registry(), p);
 
    tree_t f = search_decls(p, ident_new("TEST_COPY"), 0);
    fail_if(f == NULL);
@@ -5089,7 +5149,7 @@ START_TEST(test_issue725)
 
    input_from_file(TESTDIR "/lower/issue725.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE);
+   parse_check_and_simplify(T_PACKAGE);
 
    fail_if_errors();
 }
@@ -5101,7 +5161,7 @@ START_TEST(test_cond2)
 
    input_from_file(TESTDIR "/lower/cond2.vhd");
 
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
    vcode_unit_t vu = find_unit("WORK.COND2.DUMMY_LOOP(Q)");
    vcode_select_unit(vu);

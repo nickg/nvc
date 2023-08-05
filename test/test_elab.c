@@ -303,7 +303,7 @@ START_TEST(test_issue159)
 
    lib_t other = lib_tmp("dummy");
    lib_set_work(other);
-   parse_check_simplify_and_lower(T_PACKAGE, T_ENTITY, T_ARCH, -1);
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, -1);
    fail_if_errors();
 
    lib_set_work(work);
@@ -318,8 +318,7 @@ START_TEST(test_issue175)
 
    lib_t lib2 = lib_tmp("lib2");
    lib_set_work(lib2);
-   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY, T_PACKAGE,
-                                  T_PACK_BODY, -1);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY, -1);
    fail_if_errors();
 
    lib_t lib = lib_tmp("lib");

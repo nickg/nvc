@@ -1,8 +1,4 @@
 package vital_timing is
-end package;
-
-PACKAGE BODY VITAL_Timing IS
-
     -- Types for fields of VitalTimingDataType
     TYPE VitalTimeArrayT  IS ARRAY (INTEGER RANGE <>) OF TIME;
     TYPE VitalTimeArrayPT IS ACCESS VitalTimeArrayT;
@@ -23,6 +19,15 @@ PACKAGE BODY VITAL_Timing IS
         SetupEnA  : VitalBoolArrayPT;
     END RECORD;
 
+    PROCEDURE VitalSetupHoldCheck (
+            VARIABLE TimingData    : INOUT  VitalTimingDataType;
+            SIGNAL   TestSignal    : IN     bit_vector;
+    	    CONSTANT EnableHoldOnRef   : IN   BOOLEAN := TRUE  --IR252 3/23/98
+
+    );
+end package;
+
+PACKAGE BODY VITAL_Timing IS
     PROCEDURE VitalSetupHoldCheck (
             VARIABLE TimingData    : INOUT  VitalTimingDataType;
             SIGNAL   TestSignal    : IN     bit_vector;

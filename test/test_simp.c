@@ -313,8 +313,8 @@ START_TEST(test_ffold)
 {
    input_from_file(TESTDIR "/simp/ffold.vhd");
 
-   tree_t a = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                             T_ENTITY, T_ARCH);
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
+                                       T_ENTITY, T_ARCH);
    fail_if_errors();
 
    tree_t b = tree_stmt(a, 0);
@@ -363,8 +363,8 @@ START_TEST(test_ffold2)
 {
    input_from_file(TESTDIR "/simp/ffold2.vhd");
 
-   tree_t a = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
-                                             T_ENTITY, T_ARCH);
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
+                                       T_ENTITY, T_ARCH);
 
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
@@ -1055,11 +1055,11 @@ START_TEST(test_order1)
 {
    input_from_file(TESTDIR "/simp/order1.vhd");
 
-   tree_t p = parse_check_simplify_and_lower(T_PACKAGE, T_PACKAGE);
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    tree_t x = search_decls(p, ident_new("X"), 0);
    fail_if(x == NULL);
-   fail_unless(tree_kind(tree_value(x)) == T_FCALL);
+   fail_unless(folded_b(tree_value(x), false));
 
    fail_if_errors();
 }
@@ -1069,8 +1069,8 @@ START_TEST(test_genmap)
 {
    input_from_file(TESTDIR "/simp/genmap.vhd");
 
-   tree_t a = parse_check_simplify_and_lower(T_ENTITY, T_PACKAGE, T_ENTITY,
-                                             T_ENTITY, T_ARCH);
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_PACKAGE, T_ENTITY,
+                                       T_ENTITY, T_ARCH);
 
    tree_t u1 = tree_stmt(a, 0);
    fail_unless(tree_genmaps(u1) == 2);

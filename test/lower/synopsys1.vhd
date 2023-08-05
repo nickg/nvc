@@ -3,6 +3,9 @@ package synopsys1 is
     type line is access string;
     type side is (left, right);
     subtype width is natural;
+
+    procedure WRITE(L:inout LINE; VALUE:in STD_ULOGIC_VECTOR;
+                    JUSTIFIED:in SIDE := RIGHT; FIELD:in WIDTH := 0);
 end package;
 
 package body synopsys1 is

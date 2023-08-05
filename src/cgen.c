@@ -20,17 +20,18 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
-#include "lower.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "object.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/cover.h"
 #include "rt/rt.h"
 #include "thread.h"
+#include "type.h"
 #include "vcode.h"
 
 #include <stdlib.h>
@@ -411,13 +412,20 @@ void cgen(tree_t top, unit_registry_t *ur)
    workq_free(wq);
 }
 
-static void preload_add_children(vcode_unit_t vu, unit_list_t *list)
+static void preload_add_unit(preload_job_t *job, ident_t ident)
 {
-   vcode_select_unit(vu);
-   APUSH(*list, vu);
+   vcode_unit_t vu = unit_registry_get(job->registry, ident);
+   if (vu == NULL)
+      fatal("missing code for %s", istr(ident));
 
-   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
-      preload_add_children(it, list);
+   unsigned pos = 0;
+   for (; pos < job->units.count; pos++) {
+      if (job->units.items[pos] == vu)
+         break;
+   }
+
+   if (pos == job->units.count)
+      APUSH(job->units, vu);
 }
 
 static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
@@ -434,11 +442,79 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    if (is_uninstantiated_package(unit))
       return;
 
-   vcode_unit_t vu = unit_registry_get(job->registry, ident);
-   if (vu == NULL)
-      fatal("missing code for %s", istr(ident));
+   preload_add_unit(job, ident);
 
-   preload_add_children(vu, &job->units);
+   ident_t helper_suffix[] = {
+      ident_new("image"),
+      ident_new("value"),
+      ident_new("resolved"),
+      ident_new("copy"),
+      ident_new("new"),
+   };
+
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (is_subprogram(d)) {
+         const subprogram_kind_t kind = tree_subkind(d);
+         if (kind != S_FOREIGN && !is_open_coded_builtin(kind))
+            preload_add_unit(job, tree_ident2(d));
+      }
+      else if (tree_kind(d) == T_TYPE_DECL) {
+         type_t type = tree_type(d);
+         ident_t id = type_ident(type);
+
+         if (type_is_protected(type)) {
+            preload_add_unit(job, id);
+
+            const int nmeth = type_decls(type);
+            for (int i = 0; i < nmeth; i++) {
+               tree_t m = type_decl(type, i);
+               if (is_subprogram(m))
+                  preload_add_unit(job, tree_ident2(m));
+            }
+         }
+         else {
+            for (int i = 0; i < ARRAY_LEN(helper_suffix); i++) {
+               ident_t func = ident_prefix(id, helper_suffix[i], '$');
+               if (unit_registry_query(job->registry, func))
+                  preload_add_unit(job, func);
+            }
+         }
+      }
+   }
+}
+
+static void preload_find_dependencies(preload_job_t *job, vcode_unit_t unit)
+{
+   vcode_select_unit(unit);
+
+   const int nblocks = vcode_count_blocks();
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int nops = vcode_count_ops();
+      for (int op = 0; op < nops; op++) {
+         switch (vcode_get_op(op)) {
+         case VCODE_OP_LINK_PACKAGE:
+            preload_add_unit(job, vcode_get_ident(op));
+            break;
+         case VCODE_OP_FCALL:
+         case VCODE_OP_PCALL:
+         case VCODE_OP_CLOSURE:
+         case VCODE_OP_PROTECTED_INIT:
+         case VCODE_OP_PACKAGE_INIT:
+            {
+               const vcode_cc_t cc = vcode_get_subkind(op);
+               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
+                  preload_add_unit(job, vcode_get_func(op));
+            }
+            break;
+         default:
+            break;
+         }
+      }
+   }
 }
 
 static void preload_do_link(const char *so_name, const char *obj_file)
@@ -496,7 +572,7 @@ void aotgen(const char *outfile, char **argv, int argc)
    }
 
    for (unsigned i = 0; i < job.units.count; i++)
-      cgen_find_dependencies(job.units.items[i], job.registry, &job.units);
+      preload_find_dependencies(&job, job.units.items[i]);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();

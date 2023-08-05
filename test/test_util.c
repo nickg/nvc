@@ -137,9 +137,6 @@ tree_t run_elab(void)
       bounds_check(t);
       fail_if(error_count() > 0);
 
-      if (unit_needs_cgen(t))
-         lower_standalone_unit(ur, t);
-
       const tree_kind_t kind = tree_kind(t);
       if (kind == T_ENTITY || kind == T_CONFIGURATION)
          last_ent = t;
@@ -152,8 +149,7 @@ tree_t run_elab(void)
    return top;
 }
 
-tree_t _parse_and_check(const tree_kind_t *array, int num,
-                        bool simp, bool lower)
+tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 {
    jit_t *jit = NULL;
    tree_t last = NULL;
@@ -182,13 +178,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
             unit_registry_purge(ur, tree_ident(last));
 
          simplify_local(last, jit, ur);
-      }
-
-      if (lower && error_count() == 0) {
          bounds_check(last);
-
-         if (unit_needs_cgen(last))
-            lower_standalone_unit(get_registry(), last);
       }
    }
 

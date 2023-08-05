@@ -1173,6 +1173,10 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
 
    sh->top = top;
 
+   vcode_unit_t vu = lib_get_vcode(lib_work(), top);
+   if (vu != NULL)
+      unit_registry_put_all(sh->registry, vu);
+
    shell_create_model(sh);
 
    sh->nsignals = count_signals(sh->root);

@@ -222,9 +222,6 @@ int main(int argc, char **argv)
          if (error_count() > 0)
             return EXIT_FAILURE;
 
-         if (unit_needs_cgen(unit))
-            lower_standalone_unit(ur, unit);
-
          if (pack == NULL && tree_kind(unit) == T_PACKAGE)
             pack = unit;
       }
