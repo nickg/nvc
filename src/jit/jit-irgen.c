@@ -64,6 +64,8 @@ typedef struct {
    vcode_reg_t     flags;
    unsigned        bufsz;
    bool            used_tlab;
+   bool            stateless;
+   bool            needs_context;
 } jit_irgen_t;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3897,20 +3899,29 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
    }
 }
 
-static void irgen_locals(jit_irgen_t *g, bool force_stack)
+static void irgen_locals(jit_irgen_t *g)
 {
    const int nvars = vcode_count_vars();
    g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
 
-   bool on_stack = true;
+   bool on_stack;
    const vunit_kind_t kind = vcode_unit_kind();
-   if (kind != VCODE_UNIT_THUNK && kind != VCODE_UNIT_FUNCTION
-       && kind != VCODE_UNIT_PROPERTY)
+   switch (kind) {
+   case VCODE_UNIT_PROCESS:
+      on_stack = g->stateless;
+      break;
+   case VCODE_UNIT_INSTANCE:
+   case VCODE_UNIT_PROCEDURE:
+   case VCODE_UNIT_PACKAGE:
+   case VCODE_UNIT_PROTECTED:
       on_stack = false;
-   else if (vcode_unit_child(vcode_active_unit()) != NULL)
-      on_stack = false;
+      break;
+   default:
+      on_stack = !g->needs_context;
+      break;
+   }
 
-   if (on_stack || force_stack) {
+   if (on_stack) {
       // Local variables on stack
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
@@ -4063,46 +4074,52 @@ static bool irgen_is_procedure(void)
    }
 }
 
-static bool irgen_process_is_stateless(void)
+static void irgen_analyse(jit_irgen_t *g)
 {
    // A process is stateless if it has no non-temporary variables and
    // all wait statements resume at the initial block
-
-   assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
+   g->stateless = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
 
    if (vcode_unit_child(vcode_active_unit()) != NULL)
-      return false;
+      g->stateless = false;
 
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
-      if (!(vcode_var_flags(i) & VAR_TEMP))
-         return false;
+      if (!(vcode_var_flags(i) & VAR_TEMP)) {
+         g->stateless = false;
+         break;
+      }
    }
 
    const int nblocks = vcode_count_blocks();
    for (int i = 0; i < nblocks; i++) {
       vcode_select_block(i);
 
-      const int last_op = vcode_count_ops() - 1;
-      switch (vcode_get_op(last_op)) {
-      case VCODE_OP_WAIT: break;
-      case VCODE_OP_PCALL: return false;
-      default: continue;
-      }
-
-      if (vcode_get_target(last_op, 0) != 1) {
-         // This a kludge: remove it when vcode optimises better
-         vcode_select_block(vcode_get_target(last_op, 0));
-         if (vcode_count_ops() != 1)
-            return false;
-         else if (vcode_get_op(0) != VCODE_OP_JUMP)
-            return false;
-         else if (vcode_get_target(0, 0) != 1)
-            return false;
+      const int nops = vcode_count_ops();
+      for (int j = 0; j < nops; j++) {
+         vcode_op_t op = vcode_get_op(j);
+         if (j == nops - 1 && op == VCODE_OP_WAIT) {
+            vcode_block_t target = vcode_get_target(j, 0);
+            if (target != 1) {
+               // This a kludge: remove it when vcode optimises better
+               vcode_select_block(target);
+               if (vcode_count_ops() != 1)
+                  g->stateless = false;
+               else if (vcode_get_op(0) != VCODE_OP_JUMP)
+                  g->stateless = false;
+               else if (vcode_get_target(0, 0) != 1)
+                  g->stateless = false;
+               vcode_select_block(i);
+            }
+         }
+         else if (j == nops - 1 && op == VCODE_OP_PCALL)
+            g->stateless = false;
+         else if (op == VCODE_OP_CONTEXT_UPREF && vcode_get_hops(j) == 0) {
+            g->needs_context = true;
+            g->stateless = false;
+         }
       }
    }
-
-   return true;
 }
 
 void jit_irgen(jit_func_t *f)
@@ -4119,16 +4136,16 @@ void jit_irgen(jit_func_t *f)
    g->func = f;
    g->map  = xmalloc_array(vcode_count_regs(), sizeof(jit_value_t));
 
+   irgen_analyse(g);
+
    const vunit_kind_t kind = vcode_unit_kind();
-   const bool is_stateless =
-      kind == VCODE_UNIT_PROCESS && irgen_process_is_stateless();
    const bool has_privdata =
       kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
    const bool has_params =
       kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
       || kind == VCODE_UNIT_THUNK || kind == VCODE_UNIT_PROPERTY;
    const bool has_jump_table =
-      (kind == VCODE_UNIT_PROCESS && !is_stateless)
+      (kind == VCODE_UNIT_PROCESS && !g->stateless)
       || kind == VCODE_UNIT_PROCEDURE;
 
    if (has_privdata) {
@@ -4164,9 +4181,9 @@ void jit_irgen(jit_func_t *f)
    if (has_jump_table)
       irgen_jump_table(g);
 
-   irgen_locals(g, is_stateless);
+   irgen_locals(g);
 
-   if (is_stateless) {
+   if (g->stateless) {
       g->contextarg = j_recv(g, 1);
 
       jit_value_t state = j_recv(g, 0);
