@@ -4451,6 +4451,10 @@ vcode_reg_t emit_xnor(vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_not(vcode_reg_t arg)
 {
+   int64_t cval;
+   if (vcode_reg_const(arg, &cval))
+      return emit_const(vtype_bool(), !cval);
+
    op_t *op = vcode_add_op(VCODE_OP_NOT);
    vcode_add_arg(op, arg);
 
