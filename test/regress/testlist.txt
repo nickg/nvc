@@ -174,7 +174,7 @@ proc10          normal
 array3          normal
 slice2          normal
 attr8           normal
-attr9           normal
+value1          normal
 bounds12        gold,fail
 bounds13        gold,fail
 access5         normal
@@ -841,3 +841,4 @@ assert10        fail,2019,gold
 assert11        normal,2019
 assert12        normal
 image2          normal,2019
+value2          normal,2019

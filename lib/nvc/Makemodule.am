@@ -12,8 +12,8 @@ EXTRA_DIST += \
 	lib/nvc/sim_pkg.vhd \
 	lib/nvc/polyfill.vhd \
 	lib/nvc/polyfill-body.vhd \
-	lib/nvc/textbuf.vhd \
-	lib/nvc/textbuf-body.vhd \
+	lib/nvc/text_util.vhd \
+	lib/nvc/text_util-body.vhd \
 	lib/nvc/psl_support.vhd \
 	lib/nvc/psl_support-body.vhd
 

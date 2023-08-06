@@ -15,10 +15,10 @@
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- An efficient string builder
+-- Utilities for handling text
 -------------------------------------------------------------------------------
 
-package textbuf is
+package text_util is
     type str_ptr_t is access string;
 
     type text_buf_t is record
@@ -30,4 +30,10 @@ package textbuf is
     procedure tb_cat (tb : out text_buf_t; str : in string);
 
     impure function to_string (tb : inout text_buf_t) return string;
+
+    -- Used in the implementation of 'VALUE for composite types
+    function next_delimiter (s : string; pos : natural) return string;
+    function count_delimiters (s : string) return natural;
+    function find_open (s : string) return natural;
+    procedure find_close (s : string; pos : natural);
 end package;

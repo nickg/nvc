@@ -4693,8 +4693,12 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          vcode_reg_t reg = emit_fcall(func, lower_type(base),
                                       lower_bounds(base),
                                       VCODE_CC_PREDEF, args, 2);
-         lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
-         return emit_cast(lower_type(name_type), lower_bounds(name_type), reg);
+
+         if (type_is_scalar(name_type))
+            lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
+         // TODO: need array bounds check here
+
+         return reg;
       }
 
    case ATTR_SUCC:
@@ -8534,14 +8538,180 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
    emit_return(emit_cast(vtype, vbounds, result_reg));
 }
 
+static void lower_record_value_helper(lower_unit_t *lu, type_t type,
+                                      tree_t decl, vcode_reg_t preg)
+{
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vnat = vtype_int(0, INT64_MAX);
+
+   vcode_reg_t locus = lower_debug_locus(decl);
+
+   vcode_var_t result_var =
+      emit_var(vtype, vtype, ident_new("result"), VAR_HEAP);
+
+   ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
+   ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
+   ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
+   vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
+
+   vcode_reg_t open_args[] = { text_util_reg, preg };
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat,
+                                     VCODE_CC_VHDL, open_args, 2);
+
+   vcode_reg_t off_reg = emit_cast(voffset, voffset, open_reg);
+   vcode_reg_t ptr_reg = emit_index(result_var, VCODE_INVALID_REG);
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      vcode_reg_t nd_args[] = { text_util_reg, preg, off_reg };
+      vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype,
+                                      VCODE_CC_VHDL, nd_args, 3);
+
+      type_t ftype = type_base_recur(tree_type(type_field(type, i)));
+
+      ident_t func = ident_prefix(type_ident(ftype), ident_new("value"), '$');
+      vcode_reg_t args[] = {
+         lower_context_for_call(lu, func),
+         nd_reg,
+      };
+
+      vcode_type_t fvtype = lower_func_result_type(ftype);
+      vcode_type_t fvbounds = lower_bounds(ftype);
+
+      vcode_reg_t value_reg = emit_fcall(func, fvtype, fvbounds,
+                                         VCODE_CC_PREDEF, args, 2);
+
+      vcode_reg_t vlen_reg = emit_uarray_len(nd_reg, 0);
+      off_reg = emit_add(off_reg, vlen_reg);
+      off_reg = emit_add(off_reg, emit_const(voffset, 1));   // Skip comma
+
+      vcode_reg_t fptr_reg = emit_record_ref(ptr_reg, i);
+      if (type_is_array(ftype)) {
+         vcode_reg_t data_reg = lower_array_data(value_reg);
+         vcode_reg_t count_reg = lower_array_total_len(lu, ftype, value_reg);
+         emit_copy(fptr_reg, data_reg, count_reg);
+      }
+      else if (type_is_record(ftype))
+         lower_copy_record(lu, ftype, fptr_reg, value_reg, locus);
+      else
+         emit_store_indirect(value_reg, fptr_reg);
+   }
+
+   vcode_reg_t close_args[] = { text_util_reg, preg, off_reg };
+   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+              VCODE_CC_VHDL, close_args, ARRAY_LEN(close_args));
+
+   emit_return(ptr_reg);
+}
+
+static void lower_array_value_helper(lower_unit_t *lu, type_t type,
+                                     tree_t decl, vcode_reg_t preg)
+{
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t vnat = vtype_int(0, INT64_MAX);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   vcode_reg_t locus = lower_debug_locus(decl);
+
+   vcode_reg_t zero_reg = emit_const(voffset, 0);
+   vcode_reg_t one_reg = emit_const(voffset, 1);
+
+   ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
+   ident_t count_delim_fn = ident_new("NVC.TEXT_UTIL.COUNT_DELIMITERS(S)N");
+   ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
+   ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
+   vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
+
+   vcode_reg_t count_args[] = { text_util_reg, preg };
+   vcode_reg_t count_result_reg = emit_fcall(count_delim_fn, vnat, vnat,
+                                             VCODE_CC_VHDL, count_args, 2);
+   vcode_reg_t count_reg = emit_cast(voffset, voffset, count_result_reg);
+
+   type_t elem = type_base_recur(lower_elem_recur(type));
+   vcode_type_t velem = lower_type(elem);
+   vcode_type_t vbounds = lower_bounds(elem);
+
+   vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
+
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   emit_store(zero_reg, i_var);
+
+   vcode_reg_t open_args[] = { text_util_reg, preg };
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat,
+                                     VCODE_CC_VHDL, open_args, 2);
+
+   vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
+   emit_store(emit_cast(voffset, voffset, open_reg), pos_var);
+
+   vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, count_reg, zero_reg);
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg = emit_load(i_var);
+   vcode_reg_t pos_reg = emit_load(pos_var);
+
+   vcode_reg_t nd_args[] = { text_util_reg, preg, pos_reg };
+   vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype,
+                                   VCODE_CC_VHDL, nd_args, 3);
+
+   ident_t func = ident_prefix(type_ident(elem), ident_new("value"), '$');
+   vcode_reg_t args[] = {
+      lower_context_for_call(lu, func),
+      nd_reg,
+   };
+
+   vcode_reg_t value_reg = emit_fcall(func, lower_func_result_type(elem),
+                                      vbounds, VCODE_CC_PREDEF, args, 2);
+   vcode_reg_t ptr_reg = emit_array_ref(mem_reg, i_reg);
+
+   if (type_is_record(elem))
+      lower_copy_record(lu, elem, ptr_reg, value_reg, locus);
+   else
+      emit_store_indirect(value_reg, ptr_reg);
+
+   vcode_reg_t next_i_reg = emit_add(i_reg, one_reg);
+   emit_store(next_i_reg, i_var);
+
+   vcode_reg_t vlen_reg = emit_add(emit_uarray_len(nd_reg, 0), one_reg);
+   vcode_reg_t next_pos_reg = emit_add(pos_reg, vlen_reg);
+   emit_store(next_pos_reg, pos_var);
+
+   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_i_reg, count_reg);
+   emit_cond(done_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_reg_t close_args[] = { text_util_reg, preg, emit_load(pos_var) };
+   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+              VCODE_CC_VHDL, close_args, ARRAY_LEN(close_args));
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(vtype_offset(), 1),
+        .right = count_reg,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+
+   vcode_reg_t wrap_reg = emit_wrap(mem_reg, dims, 1);
+   emit_return(wrap_reg);
+}
+
 static void lower_value_helper(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
 
-   type_t type = tree_type(decl);
+   type_t type = type_base_recur(tree_type(decl));
    assert(type_is_representable(type));
 
-   vcode_set_result(lower_type(type));
+   vcode_set_result(lower_func_result_type(type));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -8561,13 +8731,11 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
    case T_PHYSICAL:
       lower_physical_value_helper(lu, type, decl, preg);
       break;
-   case T_SUBTYPE:
-      assert(type_is_array(type));
-      // Fall-through
-   case T_ARRAY:
    case T_RECORD:
-      // TODO
-      emit_unreachable(lower_debug_locus(decl));
+      lower_record_value_helper(lu, type, decl, preg);
+      break;
+   case T_ARRAY:
+      lower_array_value_helper(lu, type, decl, preg);
       break;
    default:
       fatal_trace("cannot lower value helper for type %s", type_pp(type));

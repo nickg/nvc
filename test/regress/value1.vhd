@@ -1,7 +1,7 @@
-entity attr9 is
+entity value1 is
 end entity;
 
-architecture test of attr9 is
+architecture test of value1 is
 begin
 
     process is

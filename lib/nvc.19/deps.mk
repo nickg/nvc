@@ -12,7 +12,7 @@ lib/nvc.19/NVC.PSL_SUPPORT: lib/std.19/STD.STANDARD lib/ieee.19/IEEE.STD_LOGIC_1
 
 lib/nvc.19/NVC.SIM_PKG: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc/sim_pkg.vhd
 
-lib/nvc.19/NVC.TEXTBUF-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.TEXTBUF $(top_srcdir)/lib/nvc/textbuf-body.vhd
+lib/nvc.19/NVC.TEXT_UTIL-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.TEXT_UTIL $(top_srcdir)/lib/nvc/text_util-body.vhd
 
-lib/nvc.19/NVC.TEXTBUF: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc/textbuf.vhd
+lib/nvc.19/NVC.TEXT_UTIL: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc/text_util.vhd
 

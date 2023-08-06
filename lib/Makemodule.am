@@ -18,6 +18,7 @@ gen-deps: $(DRIVER)
 clean-libs:
 	rm -f $(BOOTSTRAPLIBS)
 	rm -f lib/synopsys/_NVC_LIB lib/synopsys/_index lib/synopsys/SYNOPSYS.ATTRIBUTES
+	rm -f lib/nvc.19/NVC.TEXTBUF lib/nvc.19/NVC.TEXTBUF-body
 	for d in std std.08 std.19 nvc nvc.08 nvc.19 ieee ieee.08 \
 	         ieee.19 synopsys; do \
 	  if test -d lib/$$d; then rmdir lib/$$d; fi; \

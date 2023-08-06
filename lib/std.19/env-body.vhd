@@ -15,7 +15,7 @@
 -------------------------------------------------------------------------------
 
 library nvc;
-use nvc.textbuf.all;
+use nvc.text_util.all;
 
 package body env is
 
