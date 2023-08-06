@@ -1098,17 +1098,32 @@ static vcode_reg_t lower_signal_array_aggregate(lower_unit_t *lu, tree_t expr)
       return a0_reg;
 }
 
-static vcode_reg_t lower_param(lower_unit_t *lu, tree_t value, tree_t port,
-                               port_mode_t mode)
+static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
+                                        unsigned nth)
 {
-   type_t value_type = tree_type(value);
+   if (nth >= tree_params(fcall))
+      return VCODE_INVALID_REG;
 
-   class_t class = C_DEFAULT;
-   type_t port_type = value_type;
-   if (port != NULL) {
-      port_type = tree_type(port);
-      class = tree_class(port);
-   }
+   tree_t param = tree_param(fcall, nth);
+
+   assert(tree_subkind(param) == P_POS);
+   assert(tree_pos(param) == nth);
+
+   tree_t value = tree_value(param);
+   tree_t decl = tree_ref(fcall);
+
+   port_mode_t mode = PORT_IN;
+   if (nth < tree_ports(decl))
+      mode = tree_subkind(tree_port(decl, nth));
+
+   tree_t port = NULL;
+   if (!is_open_coded_builtin(tree_subkind(decl)))
+      port = tree_port(decl, nth);
+
+   type_t value_type = tree_type(value);
+   type_t port_type = port ? tree_type(port) : value_type;
+
+   const class_t class = port ? tree_class(port) : C_DEFAULT;
 
    // This is not legal in VHDL anyway, but we allow it at analysis time
    // with --relaxed
@@ -1152,31 +1167,6 @@ static vcode_reg_t lower_param(lower_unit_t *lu, tree_t value, tree_t port,
       lower_check_scalar_bounds(lu, reg, port_type, value, port);
       return reg;
    }
-}
-
-static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
-                                        unsigned nth)
-{
-   if (nth >= tree_params(fcall))
-      return VCODE_INVALID_REG;
-
-   tree_t param = tree_param(fcall, nth);
-
-   assert(tree_subkind(param) == P_POS);
-   assert(tree_pos(param) == nth);
-
-   tree_t value = tree_value(param);
-   tree_t decl = tree_ref(fcall);
-
-   port_mode_t mode = PORT_IN;
-   if (nth < tree_ports(decl))
-      mode = tree_subkind(tree_port(decl, nth));
-
-   tree_t port = NULL;
-   if (!is_open_coded_builtin(tree_subkind(decl)))
-      port = tree_port(decl, nth);
-
-   return lower_param(lu, value, port, mode);
 }
 
 static void lower_signal_flag_field_cb(lower_unit_t *lu, tree_t field,
@@ -4485,6 +4475,28 @@ static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
                                   locus, bounds_reg);
 }
 
+static vcode_reg_t lower_attr_param(lower_unit_t *lu, tree_t value,
+                                    type_t port_type, class_t class)
+{
+   type_t value_type = tree_type(value);
+
+   vcode_reg_t reg;
+   if (class == C_SIGNAL || class == C_FILE)
+      reg = lower_lvalue(lu, value);
+   else
+      reg = lower_rvalue(lu, value);
+
+   if (reg == VCODE_INVALID_REG)
+      return reg;
+
+   if (type_is_array(value_type))
+      return lower_coerce_arrays(lu, value_type, port_type ?: value_type, reg);
+   else if (class == C_SIGNAL || class == C_FILE)
+      return reg;
+   else
+      return reg;
+}
+
 static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 {
    tree_t name = tree_name(expr);
@@ -4643,13 +4655,17 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_IMAGE:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         type_t base = type_base_recur(tree_type(value));
+         type_t type = tree_type(value);
+         type_t base = type_base_recur(type);
          ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
          vcode_type_t ctype = vtype_char();
          vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, base, C_CONSTANT);
+
          vcode_reg_t args[] = {
             lower_context_for_call(lu, func),
-            lower_param(lu, value, NULL, PORT_IN)
+            arg_reg,
          };
          return emit_fcall(func, strtype, strtype, VCODE_CC_PREDEF, args, 2);
       }
@@ -4684,63 +4700,63 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_SUCC:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
-         return emit_add(arg, emit_const(vcode_reg_type(arg), 1));
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
+         return emit_add(arg_reg, emit_const(vcode_reg_type(arg_reg), 1));
       }
 
    case ATTR_PRED:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
-         return emit_sub(arg, emit_const(vcode_reg_type(arg), 1));
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
+         return emit_sub(arg_reg, emit_const(vcode_reg_type(arg_reg), 1));
       }
 
    case ATTR_LEFTOF:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
 
          type_t type = tree_type(expr);
          const int dir =
             (type_is_enum(type) || direction_of(type, 0) == RANGE_TO) ? -1 : 1;
-         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+         return emit_add(arg_reg, emit_const(vcode_reg_type(arg_reg), dir));
       }
 
    case ATTR_RIGHTOF:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
 
          type_t type = tree_type(expr);
          const int dir =
             (type_is_enum(type) || direction_of(type, 0) == RANGE_TO) ? 1 : -1;
-         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+         return emit_add(arg_reg, emit_const(vcode_reg_type(arg_reg), dir));
       }
 
    case ATTR_POS:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
 
          type_t type = tree_type(expr);
-         return emit_cast(lower_type(type), lower_bounds(type), arg);
+         return emit_cast(lower_type(type), lower_bounds(type), arg_reg);
       }
 
    case ATTR_VAL:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(lu, value, NULL, PORT_IN);
+         vcode_reg_t arg_reg = lower_attr_param(lu, value, NULL, C_CONSTANT);
 
          type_t type = tree_type(expr);
-         lower_check_scalar_bounds(lu, arg, type, expr, NULL);
-         return emit_cast(lower_type(type), lower_bounds(type), arg);
+         lower_check_scalar_bounds(lu, arg_reg, type, expr, NULL);
+         return emit_cast(lower_type(type), lower_bounds(type), arg_reg);
       }
 
    case ATTR_STABLE:
    case ATTR_QUIET:
       {
          tree_t param = tree_value(tree_param(expr, 0));
-         vcode_reg_t param_reg = lower_param(lu, param, NULL, PORT_IN);
+         vcode_reg_t param_reg = lower_attr_param(lu, param, NULL, C_SIGNAL);
 
          type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_lvalue(lu, name), len_reg;
@@ -7908,12 +7924,271 @@ static void lower_numeric_image_helper(type_t type, vcode_reg_t preg)
    emit_return(str_reg);
 }
 
+static void lower_record_image_helper(lower_unit_t *lu, type_t type,
+                                      vcode_reg_t preg)
+{
+   const int nfields = type_fields(type);
+   vcode_reg_t regs[nfields];
+   vcode_reg_t lengths[nfields];
+
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_reg_t sum_reg = emit_const(voffset, nfields + 1);
+
+   for (int i = 0; i < nfields; i++) {
+      type_t ftype = type_base_recur(tree_type(type_field(type, i)));
+      ident_t func = ident_prefix(type_ident(ftype), ident_new("image"), '$');
+
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
+      vcode_reg_t field_reg = emit_record_ref(preg, i);
+
+      if (type_is_scalar(ftype) || have_uarray_ptr(field_reg))
+         field_reg = emit_load_indirect(field_reg);
+
+      vcode_reg_t args[] = { context_reg, field_reg };
+      regs[i] = emit_fcall(func, strtype, strtype, VCODE_CC_PREDEF, args, 2);
+      lengths[i] = emit_uarray_len(regs[i], 0);
+
+      sum_reg = emit_add(sum_reg, lengths[i]);
+   }
+
+   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, sum_reg);
+
+   vcode_reg_t lparen_reg = emit_array_ref(mem_reg, emit_const(voffset, 0));
+   emit_store_indirect(emit_const(ctype, '('), lparen_reg);
+
+   vcode_reg_t index_reg = emit_const(voffset, 1);
+   for (int i = 0; i < nfields; i++) {
+      if (i > 0) {
+         vcode_reg_t comma_reg = emit_array_ref(mem_reg, index_reg);
+         emit_store_indirect(emit_const(ctype, ','), comma_reg);
+         index_reg = emit_add(index_reg, emit_const(voffset, 1));
+      }
+
+      vcode_reg_t src_reg = emit_unwrap(regs[i]);
+      vcode_reg_t dest_reg = emit_array_ref(mem_reg, index_reg);
+      emit_copy(dest_reg, src_reg, lengths[i]);
+      index_reg = emit_add(index_reg, lengths[i]);
+   }
+
+   vcode_reg_t rparen_reg = emit_array_ref(mem_reg, index_reg);
+   emit_store_indirect(emit_const(ctype, ')'), rparen_reg);
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(vtype_offset(), 1),
+        .right = sum_reg,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
+static void lower_array_image_helper(lower_unit_t *lu, type_t type,
+                                     vcode_reg_t preg)
+{
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t fields[] = { vtype_pointer(ctype), voffset };
+   vcode_type_t rtype = vtype_named_record(ident_new("elem"), fields, 2);
+
+   vcode_reg_t length_reg = lower_array_len(lu, type, 0, preg);
+
+   vcode_reg_t elems_reg = emit_alloc(rtype, rtype, length_reg);
+   vcode_reg_t zero_reg = emit_const(voffset, 0);
+   vcode_reg_t one_reg = emit_const(voffset, 1);
+   vcode_reg_t data_reg = lower_array_data(preg);
+
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   emit_store(zero_reg, i_var);
+
+   vcode_block_t loop1_bb = emit_block();
+   vcode_block_t alloc_bb = emit_block();
+
+   vcode_var_t sum_var = lower_temp_var(lu, "sum", voffset, voffset);
+   emit_store(emit_add(length_reg, one_reg), sum_var);
+
+   type_t elem = type_base_recur(type_elem(type));
+   ident_t func = ident_prefix(type_ident(elem), ident_new("image"), '$');
+
+   vcode_reg_t context_reg = lower_context_for_call(lu, func);
+
+   vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, length_reg, zero_reg);
+   emit_cond(null_reg, alloc_bb, loop1_bb);
+
+   vcode_select_block(loop1_bb);
+
+   {
+      vcode_reg_t i_reg = emit_load(i_var);
+      vcode_reg_t sum_reg = emit_load(sum_var);
+
+      vcode_reg_t elem_reg = emit_array_ref(data_reg, i_reg);
+      if (type_is_scalar(elem))
+         elem_reg = emit_load_indirect(elem_reg);
+
+      vcode_reg_t args[] = { context_reg, elem_reg };
+      vcode_reg_t str_reg = emit_fcall(func, strtype, strtype,
+                                       VCODE_CC_PREDEF, args, 2);
+
+      vcode_reg_t edata_reg = emit_unwrap(str_reg);
+      vcode_reg_t elen_reg = emit_uarray_len(str_reg, 0);
+      emit_store(emit_add(sum_reg, elen_reg), sum_var);
+
+      vcode_reg_t rptr_reg = emit_array_ref(elems_reg, i_reg);
+      emit_store_indirect(edata_reg, emit_record_ref(rptr_reg, 0));
+      emit_store_indirect(elen_reg, emit_record_ref(rptr_reg, 1));
+
+      vcode_reg_t next_reg = emit_add(i_reg, one_reg);
+      emit_store(next_reg, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_reg, length_reg);
+      emit_cond(done_reg, alloc_bb, loop1_bb);
+   }
+
+   vcode_select_block(alloc_bb);
+
+   vcode_reg_t sum_reg = emit_load(sum_var);
+   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, sum_reg);
+
+   vcode_reg_t lparen_reg = emit_array_ref(mem_reg, zero_reg);
+   emit_store_indirect(emit_const(ctype, '('), lparen_reg);
+
+   vcode_block_t loop2_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   vcode_var_t index_var = lower_temp_var(lu, "index", voffset, voffset);
+   emit_store(zero_reg, i_var);
+   emit_store(one_reg, index_var);
+
+   emit_cond(null_reg, exit_bb, loop2_bb);
+
+   vcode_select_block(loop2_bb);
+
+   {
+      vcode_reg_t i_reg = emit_load(i_var);
+      vcode_reg_t index_reg = emit_load(index_var);
+
+      vcode_reg_t rptr_reg = emit_array_ref(elems_reg, i_reg);
+      vcode_reg_t edata_reg = emit_load_indirect(emit_record_ref(rptr_reg, 0));
+      vcode_reg_t elen_reg = emit_load_indirect(emit_record_ref(rptr_reg, 1));
+
+      vcode_reg_t dest_reg = emit_array_ref(mem_reg, index_reg);
+      emit_copy(dest_reg, edata_reg, elen_reg);
+
+      index_reg = emit_add(index_reg, elen_reg);
+      vcode_reg_t comma_reg = emit_array_ref(mem_reg, index_reg);
+      emit_store_indirect(emit_const(ctype, ','), comma_reg);
+
+      emit_store(emit_add(index_reg, one_reg), index_var);
+
+      vcode_reg_t next_reg = emit_add(i_reg, one_reg);
+      emit_store(next_reg, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_reg, length_reg);
+      emit_cond(done_reg, exit_bb, loop2_bb);
+   }
+
+   vcode_select_block(exit_bb);
+
+   vcode_reg_t last_reg = emit_sub(sum_reg, one_reg);
+   vcode_reg_t rparen_reg = emit_array_ref(mem_reg, last_reg);
+   emit_store_indirect(emit_const(ctype, ')'), rparen_reg);
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(voffset, 1),
+        .right = sum_reg,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
+static void lower_character_array_image_helper(lower_unit_t *lu, type_t type,
+                                               vcode_reg_t preg, bool quote)
+{
+   type_t elem = type_base_recur(type_elem(type));
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t voffset = vtype_offset();
+
+   const int nlits = type_enum_literals(elem);
+   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
+   for (int i = 0; i < nlits; i++) {
+      const ident_t id = tree_ident(type_enum_literal(elem, i));
+      assert(ident_char(id, 0) == '\'');
+      map[i] = emit_const(ctype, ident_char(id, 1));
+   }
+
+   vcode_type_t map_vtype = vtype_carray(nlits, ctype, ctype);
+   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
+
+   vcode_reg_t zero_reg = emit_const(voffset, 0);
+   vcode_reg_t one_reg = emit_const(voffset, 1);
+   vcode_reg_t two_reg = emit_const(voffset, 2);
+
+   vcode_reg_t length_reg = lower_array_len(lu, type, 0, preg);
+   vcode_reg_t data_reg = lower_array_data(preg);
+   vcode_reg_t total_reg = quote ? emit_add(length_reg, two_reg) : length_reg;
+
+   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, total_reg);
+
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   emit_store(zero_reg, i_var);
+
+   if (quote) {
+      vcode_reg_t lquote_reg = emit_array_ref(mem_reg, zero_reg);
+      emit_store_indirect(emit_const(ctype, '"'), lquote_reg);
+   }
+
+   vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, length_reg, zero_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg    = emit_load(i_var);
+   vcode_reg_t sptr_reg = emit_array_ref(data_reg, i_reg);
+   vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
+   vcode_reg_t off_reg  = emit_cast(voffset, voffset, src_reg);
+   vcode_reg_t lptr_reg = emit_array_ref(emit_address_of(map_reg), off_reg);
+   vcode_reg_t doff_reg = quote ? emit_add(i_reg, one_reg) : i_reg;
+   vcode_reg_t dptr_reg = emit_array_ref(mem_reg, doff_reg);
+
+   emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
+
+   vcode_reg_t next_reg = emit_add(i_reg, one_reg);
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, length_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   if (quote) {
+      vcode_reg_t right_reg = emit_add(length_reg, one_reg);
+      vcode_reg_t rquote_reg = emit_array_ref(mem_reg, right_reg);
+      emit_store_indirect(emit_const(ctype, '"'), rquote_reg);
+   }
+
+   vcode_dim_t dims[] = {
+      {
+         .left  = emit_const(voffset, 1),
+         .right = total_reg,
+         .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
 static void lower_image_helper(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
 
    type_t type = tree_type(decl);
-   assert(type_is_scalar(type));
+   assert(type_is_representable(type));
 
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
@@ -7922,8 +8197,8 @@ static void lower_image_helper(lower_unit_t *lu, object_t *obj)
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   vcode_reg_t preg = emit_param(lower_type(type), lower_bounds(type),
-                                 ident_new("VAL"));
+   vcode_type_t ptype = lower_param_type(type, C_CONSTANT, PORT_IN);
+   vcode_reg_t preg = emit_param(ptype, lower_bounds(type), ident_new("VAL"));
 
    switch (type_kind(type)) {
    case T_ENUM:
@@ -7936,14 +8211,28 @@ static void lower_image_helper(lower_unit_t *lu, object_t *obj)
    case T_PHYSICAL:
       lower_physical_image_helper(type, preg);
       break;
+   case T_RECORD:
+      lower_record_image_helper(lu, type, preg);
+      break;
+   case T_SUBTYPE:
+      assert(type_is_array(type));
+      // Fall-through
+   case T_ARRAY:
+      {
+         type_t elem = type_elem(type);
+         if (type_is_enum(elem) && all_character_literals(elem))
+            lower_character_array_image_helper(lu, type, preg, true);
+         else
+            lower_array_image_helper(lu, type, preg);
+      }
+      break;
    default:
-      fatal_trace("cannot lower image helper for type %s",
-                  type_kind_str(type_kind(type)));
+      fatal_trace("cannot lower image helper for type %s", type_pp(type));
    }
 }
 
-static vcode_reg_t lower_enum_value_helper(lower_unit_t *lu, type_t type,
-                                           vcode_reg_t preg)
+static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
+                                    tree_t decl, vcode_reg_t preg)
 {
    const int nlits = type_enum_literals(type);
    assert(nlits >= 1);
@@ -8059,17 +8348,21 @@ static vcode_reg_t lower_enum_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t ptr2_reg = emit_array_ref(ptr1_reg, arg_len_reg);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+
    vcode_reg_t locus = lower_debug_locus(type_enum_literal(type, 0));
    emit_report(mem_reg, msg_len, failure_reg, locus);
-   emit_return(emit_const(lower_type(type), 0));
+   emit_return(emit_const(vtype, 0));
 
    vcode_select_block(match_bb);
 
-   return i_reg;
+   lower_check_scalar_bounds(lu, i_reg, type, decl, NULL);
+   emit_return(emit_cast(vtype, vbounds, i_reg));
 }
 
-static vcode_reg_t lower_physical_value_helper(lower_unit_t *lu, type_t type,
-                                               vcode_reg_t preg)
+static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
+                                        tree_t decl, vcode_reg_t preg)
 {
    vcode_reg_t arg_len_reg  = emit_uarray_len(preg, 0);
    vcode_reg_t arg_data_reg = emit_unwrap(preg);
@@ -8205,18 +8498,25 @@ static vcode_reg_t lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t ptr2_reg = emit_array_ref(ptr1_reg, tail_len);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+
    vcode_reg_t locus = lower_debug_locus(type_unit(type, 0));
    emit_report(mem_reg, msg_len, failure_reg, locus);
-   emit_return(emit_const(lower_type(type), 0));
+   emit_return(emit_const(vtype, 0));
 
    vcode_select_block(match_bb);
 
    vcode_reg_t mul_ptr = emit_array_ref(mul_array_ptr, i_reg);
    vcode_reg_t mul_reg = emit_load_indirect(mul_ptr);
-   return emit_mul(int_reg, mul_reg);
+   vcode_reg_t result_reg = emit_mul(int_reg, mul_reg);
+
+   lower_check_scalar_bounds(lu, result_reg, type, decl, NULL);
+   emit_return(emit_cast(vtype, vbounds, result_reg));
 }
 
-static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
+static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
+                                       tree_t decl, vcode_reg_t preg)
 {
    vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
    vcode_reg_t data_reg = emit_unwrap(preg);
@@ -8224,8 +8524,14 @@ static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t vreal  = vtype_real(-DBL_MAX, DBL_MAX);
 
-   return emit_strconv(data_reg, len_reg, VCODE_INVALID_REG,
-                       type_is_real(type) ? vreal : vint64);
+   vcode_reg_t result_reg = emit_strconv(data_reg, len_reg, VCODE_INVALID_REG,
+                                         type_is_real(type) ? vreal : vint64);
+
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+
+   lower_check_scalar_bounds(lu, result_reg, type, decl, NULL);
+   emit_return(emit_cast(vtype, vbounds, result_reg));
 }
 
 static void lower_value_helper(lower_unit_t *lu, object_t *obj)
@@ -8233,7 +8539,7 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
 
    type_t type = tree_type(decl);
-   assert(type_is_scalar(type));
+   assert(type_is_representable(type));
 
    vcode_set_result(lower_type(type));
 
@@ -8244,24 +8550,28 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
    vcode_reg_t preg = emit_param(strtype, strtype, ident_new("VAL"));
 
-   vcode_reg_t result = VCODE_INVALID_REG;
    switch (type_kind(type)) {
    case T_ENUM:
-      result = lower_enum_value_helper(lu, type, preg);
+      lower_enum_value_helper(lu, type, decl, preg);
       break;
    case T_INTEGER:
    case T_REAL:
-      result = lower_numeric_value_helper(type, preg);
+      lower_numeric_value_helper(lu, type, decl, preg);
       break;
    case T_PHYSICAL:
-      result = lower_physical_value_helper(lu, type, preg);
+      lower_physical_value_helper(lu, type, decl, preg);
+      break;
+   case T_SUBTYPE:
+      assert(type_is_array(type));
+      // Fall-through
+   case T_ARRAY:
+   case T_RECORD:
+      // TODO
+      emit_unreachable(lower_debug_locus(decl));
       break;
    default:
       fatal_trace("cannot lower value helper for type %s", type_pp(type));
    }
-
-   lower_check_scalar_bounds(lu, result, type, decl, NULL);
-   emit_return(emit_cast(lower_type(type), lower_bounds(type), result));
 }
 
 static void lower_resolved_helper(lower_unit_t *lu, object_t *obj)
@@ -8539,7 +8849,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
          ident_t id = type_ident(type);
          object_t *obj = tree_to_object(decl);
 
-         if (type_is_scalar(type)) {
+         if (type_is_representable(type)) {
             ident_t image = ident_prefix(id, ident_new("image"), '$');
             unit_registry_defer(lu->registry, image, lu, emit_function,
                                 lower_image_helper, NULL, obj);
@@ -8967,23 +9277,34 @@ static void lower_predef_record_eq(lower_unit_t *lu, tree_t decl)
    emit_return(emit_const(vtype_bool(), 0));
 }
 
-static void lower_predef_scalar_to_string(lower_unit_t *lu, type_t arg_type,
-                                          type_t std_string)
+static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
 {
    // LRM 08 section 5.7 on string representations
 
-   ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
-   vcode_type_t rtype = lower_type(std_string);
-   vcode_type_t rbounds = lower_bounds(std_string);
+   type_t arg_type = tree_type(tree_port(decl, 0));
    vcode_reg_t context_reg = 0, r0 = 1;
+
+   if (type_is_array(arg_type)) {
+      type_t elem = type_elem(arg_type);
+      if (type_is_enum(elem) && all_character_literals(elem)) {
+         lower_character_array_image_helper(lu, arg_type, r0, false);
+         return;
+      }
+   }
+
+   assert(type_is_representable(arg_type));
+
+   ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t rtype = vtype_uarray(1, ctype, ctype);
    vcode_reg_t args[] = { context_reg, r0 };
    vcode_reg_t str_reg =
-      emit_fcall(func, rtype, rbounds, VCODE_CC_PREDEF, args, 2);
+      emit_fcall(func, rtype, ctype, VCODE_CC_PREDEF, args, 2);
 
    if (type_is_enum(arg_type)) {
       // If the result is a character literal return just the character
       // without the quotes
-      vcode_reg_t quote_reg = emit_const(vtype_char(), '\'');
+      vcode_reg_t quote_reg = emit_const(ctype, '\'');
       vcode_reg_t data_reg  = lower_array_data(str_reg);
       vcode_reg_t char0_reg = emit_load_indirect(data_reg);
       vcode_reg_t is_quote  = emit_cmp(VCODE_CMP_EQ, char0_reg, quote_reg);
@@ -9009,92 +9330,9 @@ static void lower_predef_scalar_to_string(lower_unit_t *lu, type_t arg_type,
       emit_return(emit_wrap(char1_ptr, dims, 1));
 
       vcode_select_block(other_bb);
-
-      emit_return(str_reg);
-   }
-   else
-      emit_return(str_reg);
-}
-
-static void lower_predef_array_to_string(lower_unit_t *lu, type_t arg_type,
-                                         type_t std_string)
-{
-
-   type_t arg_elem    = type_base_recur(type_elem(arg_type));
-   type_t result_elem = type_base_recur(type_elem(std_string));
-
-   vcode_type_t elem_vtype = lower_type(result_elem);
-
-   const int nlits = type_enum_literals(arg_elem);
-   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
-   for (int i = 0; i < nlits; i++) {
-      const ident_t id = tree_ident(type_enum_literal(arg_elem, i));
-      assert(ident_char(id, 0) == '\'');
-      map[i] = emit_const(elem_vtype, ident_char(id, 1));
    }
 
-   vcode_reg_t array_reg = 1;
-
-   vcode_type_t map_vtype = vtype_carray(nlits, elem_vtype, elem_vtype);
-   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
-
-   vcode_reg_t len_reg = lower_array_len(lu, arg_type, 0, array_reg);
-   vcode_reg_t mem_reg = emit_alloc(elem_vtype, elem_vtype, len_reg);
-
-   vcode_type_t index_vtype = lower_type(index_type_of(std_string, 0));
-
-   vcode_reg_t left_reg  = lower_array_left(lu, arg_type, 0, array_reg);
-   vcode_reg_t right_reg = lower_array_right(lu, arg_type, 0, array_reg);
-   vcode_reg_t dir_reg   = lower_array_dir(lu, arg_type, 0, array_reg);
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", vtype_offset(), vtype_offset());
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg    = emit_load(i_var);
-   vcode_reg_t sptr_reg = emit_array_ref(lower_array_data(array_reg), i_reg);
-   vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
-   vcode_reg_t off_reg  = emit_cast(vtype_offset(), vtype_offset(), src_reg);
-   vcode_reg_t lptr_reg = emit_array_ref(emit_address_of(map_reg), off_reg);
-   vcode_reg_t dptr_reg = emit_array_ref(lower_array_data(mem_reg), i_reg);
-   emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   vcode_dim_t dims[] = {
-      {
-         .left  = emit_const(index_vtype, 1),
-         .right = emit_cast(index_vtype, index_vtype, len_reg),
-         .dir   = emit_const(vtype_bool(), RANGE_TO)
-      }
-   };
-   emit_return(emit_wrap(mem_reg, dims, 1));
-}
-
-static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
-{
-   type_t arg_type = tree_type(tree_port(decl, 0));
-   type_t result_type = type_result(tree_type(decl));
-
-   if (type_is_scalar(arg_type))
-      lower_predef_scalar_to_string(lu, arg_type, result_type);
-   else if (type_is_array(arg_type))
-      lower_predef_array_to_string(lu, arg_type, result_type);
-   else
-      fatal_trace("cannot generate TO_STRING for %s", type_pp(arg_type));
+   emit_return(str_reg);
 }
 
 static void lower_predef_bit_shift(lower_unit_t *lu, tree_t decl,

@@ -190,7 +190,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_012">
         LCS2016-012</td>
     <td><code>'IMAGE</code> and <code>TO_STRING</code> for composite types</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_014">

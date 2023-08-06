@@ -137,6 +137,7 @@ bool type_is_enum(type_t t);
 bool type_is_integer(type_t t);
 bool type_is_real(type_t t);
 bool type_is_scalar(type_t t);
+bool type_is_representable(type_t t);
 bool type_is_file(type_t t);
 bool type_is_protected(type_t t);
 bool type_is_access(type_t t);

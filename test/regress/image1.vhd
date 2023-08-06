@@ -17,12 +17,12 @@ package body p is
     end procedure;
 end package body;
 
-entity image is
+entity image1 is
 end entity;
 
 use work.p.all;
 
-architecture test of image is
+architecture test of image1 is
     type enum2 is (C, D);
     type my_int is range 1 to 4;
     type my_phys is range 1 to 100

@@ -890,18 +890,6 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
       tree_set_flag(d, TREE_F_UNIVERSAL);
 }
 
-static bool all_character_literals(type_t type)
-{
-   type_t base = type_base_recur(type);
-   const int nlits = type_enum_literals(base);
-   for (int i = 0; i < nlits; i++) {
-      if (ident_char(tree_ident(type_enum_literal(base, i)), 0) != '\'')
-         return false;
-   }
-
-   return true;
-}
-
 static bool is_bit_or_std_ulogic(type_t type)
 {
    if (!type_is_enum(type))
@@ -1099,7 +1087,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       break;
    }
 
-   if (standard() >= STD_08 && !bootstrapping && type_is_scalar(t)) {
+   if (standard() >= STD_08 && !bootstrapping && type_is_representable(t)) {
       // The TO_STRING operators in STD.STANDARD are declared at
       // the end of the package according to LRM 08 section 5.2.6
       declare_unary(container, ident_new("TO_STRING"), t,
@@ -1461,7 +1449,7 @@ static void declare_additional_standard_operators(tree_t unit)
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_TYPE_DECL) {
          type_t type = tree_type(d);
-         if (type_is_scalar(type))
+         if (type_is_representable(type))
             declare_unary(unit, to_string, type, std_string, S_TO_STRING);
       }
    }

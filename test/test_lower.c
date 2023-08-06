@@ -2049,9 +2049,9 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_RETURN }
    };
@@ -4749,11 +4749,11 @@ START_TEST(test_genpack1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
-      { VCODE_OP_LINK_PACKAGE, .name = "WORK.P5" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.P5" },
       { VCODE_OP_FCALL, .func = "WORK.P5.T$image" },
       { VCODE_OP_CONST, .value = 97 },
       { VCODE_OP_CONST_ARRAY, .length = 1 },

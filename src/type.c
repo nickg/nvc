@@ -789,6 +789,27 @@ bool type_is_scalar(type_t t)
       || base == T_ENUM || base == T_PHYSICAL || base == T_NONE;
 }
 
+bool type_is_representable(type_t t)
+{
+   if (type_is_scalar(t))
+      return true;
+   else if (standard() < STD_19)
+      return false;
+   else if (type_is_record(t)) {
+      const int nfields = type_fields(t);
+      for (int i = 0; i < nfields; i++) {
+         if (!type_is_representable(tree_type(type_field(t, i))))
+            return false;
+      }
+
+      return true;
+   }
+   else if (type_is_array(t))
+      return type_is_representable(type_elem(t));
+   else
+      return false;
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);

@@ -2366,3 +2366,17 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
    }
    list_free(&copy_ctx.copied_subs);
 }
+
+bool all_character_literals(type_t type)
+{
+   assert(type_is_enum(type));
+
+   type_t base = type_base_recur(type);
+   const int nlits = type_enum_literals(base);
+   for (int i = 0; i < nlits; i++) {
+      if (ident_char(tree_ident(type_enum_literal(base, i)), 0) != '\'')
+         return false;
+   }
+
+   return true;
+}
