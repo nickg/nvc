@@ -212,6 +212,7 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
       tb_cat(tb, "expected");
       break;
    case T_TYPE_CONV:
+   case T_ATTR_REF:
       tb_printf(tb, "subtype %s", type_pp(tree_type(where)));
       break;
    default:

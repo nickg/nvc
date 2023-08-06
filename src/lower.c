@@ -4696,7 +4696,11 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          if (type_is_scalar(name_type))
             lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
-         // TODO: need array bounds check here
+         else if (type_is_array(name_type) && lower_const_bounds(name_type)) {
+            vcode_reg_t locus = lower_debug_locus(expr);
+            lower_check_array_sizes(lu, name_type, base, VCODE_INVALID_REG,
+                                    reg, locus);
+         }
 
          return reg;
       }
