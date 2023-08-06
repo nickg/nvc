@@ -260,6 +260,7 @@ int checked_sprintf(char *buf, int len, const char *fmt, ...)
 int next_power_of_2(int n) __attribute__((pure));
 int ilog2(int64_t n) __attribute__((pure));
 int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
+bool ipow_safe(int64_t x, int64_t y, int64_t *result);
 
 typedef enum {
    MEM_NONE, MEM_RO, MEM_RW, MEM_RX, MEM_RWX

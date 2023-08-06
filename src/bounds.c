@@ -972,18 +972,18 @@ static void bounds_check_duplicate_choice(tree_t old, tree_t new, int length)
 
 static void bounds_check_array_case(tree_t t, type_t type)
 {
-   int64_t expect = -1;
+   int64_t expect = -1, elemsz = -1, length = -1;
    if (!type_is_unconstrained(type)) {
       // Calculate how many values each element has
       type_t elem = type_elem(type);
       assert(type_is_enum(elem));
 
-      int64_t elemsz, length;
       const bool known =
          folded_length(range_of(elem, 0), &elemsz)
          && folded_length(range_of(type, 0), &length);
 
-      if (known) expect = ipow(elemsz, length);
+      if (known && !ipow_safe(elemsz, length, &expect))
+         expect = INT64_MAX;
    }
 
    int nchoices = 0;
@@ -991,7 +991,7 @@ static void bounds_check_array_case(tree_t t, type_t type)
    for (int i = 0; i < nstmts; i++)
       nchoices += tree_assocs(tree_stmt(t, i));
 
-   int64_t have = 0, length = -1;
+   int64_t have = 0;
    int64_t *hashes LOCAL = xmalloc_array(nchoices, sizeof(int64_t));
    tree_t *choices LOCAL = xmalloc_array(nchoices, sizeof(tree_t));
    int hptr = 0;
@@ -1048,9 +1048,22 @@ static void bounds_check_array_case(tree_t t, type_t type)
       }
    }
 
-   if (have != expect)
-      bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
-                   " possible values", have, expect);
+   if (have != expect && expect != -1) {
+      const loc_t *loc = tree_loc(tree_value(t));
+      diag_t *d = diag_new(DIAG_ERROR, loc);
+      diag_printf(d, "choices cover only %"PRIi64" of ", have);
+      if (expect > 100000)
+         diag_printf(d, "%"PRIi64" ** %"PRIi64, elemsz, length);
+      else
+         diag_printf(d, "%"PRIi64, expect);
+      diag_printf(d, " possible values");
+
+      diag_hint(d, loc, "expression has %"PRIi64" elements of type %s, "
+                "each of which has %"PRIi64" possible values",
+                length, type_pp(type_elem(type)), elemsz);
+
+      diag_emit(d);
+   }
 }
 
 static void bounds_check_case(tree_t t)

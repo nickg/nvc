@@ -1160,17 +1160,28 @@ int ilog2(int64_t n)
    }
 }
 
-int64_t ipow(int64_t x, int64_t y)
+bool ipow_safe(int64_t x, int64_t y, int64_t *result)
 {
    assert(y >= 0);
+   int overflow = 0, xo = 0;
    int64_t r = 1;
    while (y) {
       if (y & 1)
-         r *= x;
+         overflow |= xo || __builtin_mul_overflow(r, x, &r);
       y >>= 1;
-      x *= x;
+      xo |= __builtin_mul_overflow(x, x, &x);
    }
-   return r;
+   *result = r;
+   return !overflow;
+}
+
+int64_t ipow(int64_t x, int64_t y)
+{
+   int64_t result;
+   if (!ipow_safe(x, y, &result))
+      DEBUG_ONLY(fatal_trace("integer overflow in ipow"));
+
+   return result;
 }
 
 #ifndef __SANITIZE_ADDRESS__
