@@ -777,15 +777,15 @@ static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
          switch (count) {
          case 8:
             ir->size = JIT_SZ_64;
-            ir->arg1 = LVN_CONST(*(uint64_t *)src);
+            ir->arg1 = LVN_CONST(unaligned_load(src, uint64_t));
             break;
          case 4:
             ir->size = JIT_SZ_32;
-            ir->arg1 = LVN_CONST(*(uint32_t *)src);
+            ir->arg1 = LVN_CONST(unaligned_load(src, uint32_t));
             break;
          case 2:
             ir->size = JIT_SZ_16;
-            ir->arg1 = LVN_CONST(*(uint16_t *)src);
+            ir->arg1 = LVN_CONST(unaligned_load(src, uint16_t));
             break;
          case 1:
             ir->size = JIT_SZ_8;

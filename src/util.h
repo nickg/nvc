@@ -451,4 +451,10 @@ void list_clear(ptr_list_t *l);
 #define PACK_BE64(u) \
    PACK_BE32(u >> 32), PACK_BE32(u)
 
+#define unaligned_load(ptr, type) ({                                    \
+         const struct { type value; }                                   \
+            __attribute__((packed)) *s = ptr;                           \
+         s->value;                                                      \
+      })
+
 #endif // _UTIL_H
