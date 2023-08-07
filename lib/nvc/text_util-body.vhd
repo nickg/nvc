@@ -87,6 +87,32 @@ package body text_util is
             severity failure;
     end function;
 
+    function find_quote (s : string) return natural is
+        constant len : integer := s'length;
+        alias ss     : string(1 to len) is s;
+    begin
+        for i in 1 to len loop
+            if ss(i) = '"' then
+                return i;
+            elsif ss(i) /= ' ' then
+                return 0;
+            end if;
+        end loop;
+    end function;
+
+    function find_unquote (s : string; pos : natural) return natural is
+        constant len : integer := s'length;
+        alias ss     : string(1 to len) is s;
+    begin
+        for i in 1 + pos to len loop
+            if ss(i) = '"' and (i = len or ss(i + 1) /= '"') then
+                return i - 1;
+            end if;
+        end loop;
+        report "failed to parse '" & s & "' (missing closing '""')"
+            severity failure;
+    end function;
+
     procedure find_close (s : string; pos : natural) is
         constant len : integer := s'length;
         alias ss     : string(1 to len) is s;
@@ -100,5 +126,11 @@ package body text_util is
         end loop;
         report "failed to parse '" & s & "' (missing closing ')')"
             severity failure;
+    end procedure;
+
+    procedure report_bad_char (s : string; c : character) is
+    begin
+        report "invalid character " & character'image(c)
+            & " in string " & s severity failure;
     end procedure;
 end package body;

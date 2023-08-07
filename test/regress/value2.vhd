@@ -16,6 +16,9 @@ architecture test of value2 is
     end record;
 
     type t_pair_pair is array (1 to 2) of t_pair;
+
+    type t_abc is ('a', 'b', 'c');
+    type t_abc_vec is array (natural range <>) of t_abc;
 begin
 
     process is
@@ -25,6 +28,8 @@ begin
         assert t_nested'value("((1, 2), true, 1.5, (5, 6))") = ((1, 2), true, 1.5, (5, 6));
         assert t_int_vec'value("(1,2,3)") = (1, 2, 3);
         assert t_pair_pair'value("((1,2), (3,  4))") = ((1,2), (3,4));
+        assert t_abc_vec'value("('a', 'b', 'c')") = "abc";
+        assert t_abc_vec'value("""abc""") = "abc";
         wait;
     end process;
 

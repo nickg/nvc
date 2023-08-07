@@ -1,7 +1,7 @@
-entity bounds40 is
+entity value3 is
 end entity;
 
-architecture test of bounds40 is
+architecture test of value3 is
     type t_pair is record
         x, y : integer;
     end record;

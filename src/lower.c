@@ -8619,33 +8619,140 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
    vcode_type_t vnat = vtype_int(0, INT64_MAX);
 
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
    vcode_reg_t locus = lower_debug_locus(decl);
 
    vcode_reg_t zero_reg = emit_const(voffset, 0);
    vcode_reg_t one_reg = emit_const(voffset, 1);
 
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   emit_store(zero_reg, i_var);
+
    ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
    ident_t count_delim_fn = ident_new("NVC.TEXT_UTIL.COUNT_DELIMITERS(S)N");
    ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
+   ident_t find_quote_fn = ident_new("NVC.TEXT_UTIL.FIND_QUOTE(S)N");
+   ident_t find_unquote_fn = ident_new("NVC.TEXT_UTIL.FIND_UNQUOTE(SN)N");
    ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
+   ident_t bad_char_fn = ident_new("NVC.TEXT_UTIL.REPORT_BAD_CHAR(SC)");
    vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
+
+   type_t elem = type_base_recur(lower_elem_recur(type));
+   vcode_type_t velem = lower_type(elem);
+   vcode_type_t vbounds = lower_bounds(elem);
+
+   if (type_is_character_array(type)) {
+      vcode_block_t quote_bb = emit_block();
+      vcode_block_t body_bb = emit_block();
+      vcode_block_t bad_bb = emit_block();
+      vcode_block_t good_bb = emit_block();
+      vcode_block_t exit_bb = emit_block();
+      vcode_block_t paren_bb = emit_block();
+
+      vcode_reg_t quote_args[] = { text_util_reg, preg };
+      vcode_reg_t quote_result_reg = emit_fcall(find_quote_fn, vnat, vnat,
+                                                VCODE_CC_VHDL, quote_args, 2);
+      vcode_reg_t quote_pos_reg = emit_cast(voffset, voffset, quote_result_reg);
+
+      vcode_reg_t quoted_reg = emit_cmp(VCODE_CMP_EQ, quote_pos_reg, zero_reg);
+      emit_cond(quoted_reg, paren_bb, quote_bb);
+
+      vcode_select_block(quote_bb);
+
+      vcode_reg_t unquote_args[] = { text_util_reg, preg, quote_result_reg };
+      vcode_reg_t unquote_result_reg = emit_fcall(find_unquote_fn, vnat, vnat,
+                                                  VCODE_CC_VHDL, unquote_args,
+                                                  ARRAY_LEN(unquote_args));
+      vcode_reg_t unquote_pos_reg =
+         emit_cast(voffset, voffset, unquote_result_reg);
+
+      vcode_reg_t count_reg = emit_sub(unquote_pos_reg, quote_pos_reg);
+      vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
+
+      vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
+      emit_store(emit_cast(voffset, voffset, quote_pos_reg), pos_var);
+
+      const int nlits = type_enum_literals(elem);
+      vcode_reg_t entry_vtype = vtype_int(0, nlits);
+      vcode_reg_t map[256], def_reg = emit_const(entry_vtype, nlits);
+      for (int i = 0; i < 256; i++)
+         map[i] = def_reg;
+      for (int i = 0; i < nlits; i++) {
+         const ident_t id = tree_ident(type_enum_literal(elem, i));
+         if (ident_char(id, 0) == '\'')
+            map[(uint8_t)ident_char(id, 1)] = emit_const(entry_vtype, i);
+      }
+
+      vcode_type_t map_vtype = vtype_carray(256, entry_vtype, entry_vtype);
+      vcode_reg_t map_array_reg = emit_const_array(map_vtype, map, 256);
+      vcode_reg_t map_reg = emit_address_of(map_array_reg);
+
+      vcode_reg_t data_reg = lower_array_data(preg);
+
+      vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, count_reg, zero_reg);
+      emit_cond(null_reg, exit_bb, body_bb);
+
+      vcode_select_block(body_bb);
+
+      vcode_reg_t i_reg = emit_load(i_var);
+      vcode_reg_t pos_reg = emit_load(pos_var);
+      vcode_reg_t sptr_reg = emit_array_ref(data_reg, pos_reg);
+      vcode_reg_t dptr_reg = emit_array_ref(mem_reg, i_reg);
+      vcode_reg_t char_reg = emit_load_indirect(sptr_reg);
+      vcode_reg_t cast_reg = emit_cast(voffset, ctype, char_reg);
+      vcode_reg_t mptr_reg = emit_array_ref(map_reg, cast_reg);
+      vcode_reg_t entry_reg = emit_load_indirect(mptr_reg);
+
+      vcode_reg_t bad_reg = emit_cmp(VCODE_CMP_EQ, entry_reg, def_reg);
+      emit_cond(bad_reg, bad_bb, good_bb);
+
+      vcode_select_block(good_bb);
+
+      vcode_reg_t good_reg = emit_cast(velem, velem, entry_reg);
+      emit_store_indirect(good_reg, dptr_reg);
+
+      vcode_reg_t next_pos_reg = emit_add(pos_reg, one_reg);
+      emit_store(next_pos_reg, pos_var);
+
+      vcode_reg_t next_i_reg = emit_add(i_reg, one_reg);
+      emit_store(next_i_reg, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_i_reg, count_reg);
+      emit_cond(done_reg, exit_bb, body_bb);
+
+      vcode_select_block(bad_bb);
+
+      vcode_reg_t bad_char_args[] = { text_util_reg, preg, char_reg };
+      emit_fcall(bad_char_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                 VCODE_CC_VHDL, bad_char_args, ARRAY_LEN(bad_char_args));
+
+      emit_unreachable(locus);
+
+      vcode_select_block(exit_bb);
+
+      vcode_dim_t dims[] = {
+         { .left  = emit_const(vtype_offset(), 1),
+           .right = count_reg,
+           .dir   = emit_const(vtype_bool(), RANGE_TO)
+         }
+      };
+
+      vcode_reg_t wrap_reg = emit_wrap(mem_reg, dims, 1);
+      emit_return(wrap_reg);
+
+      vcode_select_block(paren_bb);
+
+      lower_release_temp(lu, pos_var);
+   }
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
 
    vcode_reg_t count_args[] = { text_util_reg, preg };
    vcode_reg_t count_result_reg = emit_fcall(count_delim_fn, vnat, vnat,
                                              VCODE_CC_VHDL, count_args, 2);
    vcode_reg_t count_reg = emit_cast(voffset, voffset, count_result_reg);
 
-   type_t elem = type_base_recur(lower_elem_recur(type));
-   vcode_type_t velem = lower_type(elem);
-   vcode_type_t vbounds = lower_bounds(elem);
-
    vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
-   emit_store(zero_reg, i_var);
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
    vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat,

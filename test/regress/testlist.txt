@@ -842,4 +842,5 @@ assert11        normal,2019
 assert12        normal
 image2          normal,2019
 value2          normal,2019
-bounds40        fail,2019,gold
+value3          fail,2019,gold
+value4          fail,2019,gold
