@@ -4242,9 +4242,13 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 
       const tree_kind_t name_kind = tree_kind(name);
       if ((name_kind == T_ARRAY_REF || name_kind == T_ARRAY_SLICE)
-          && tree_kind(tree_value(p)) == T_OPEN) {
-         error_at(tree_loc(p), "sub-elements of composite port cannot be "
-                  "associated with OPEN");
+          && tree_kind(tree_value(p)) == T_OPEN && standard() < STD_19) {
+         diag_t *d = pedantic_diag(p);
+         if (d != NULL) {
+            diag_printf(d, "sub-elements of composite port cannot be "
+                        "associated with OPEN");
+            diag_emit(d);
+         }
       }
    }
 
