@@ -81,3 +81,16 @@ begin
     end process;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package data_type_pkg is
+    generic ( type t_generic;
+              c_default : t_generic );
+end package;
+
+-------------------------------------------------------------------------------
+
+package data_type_pkg_bv is new work.data_type_pkg
+    generic map ( t_generic => bit_vector(1 to 8),
+                  c_default => X"00" );  -- OK
