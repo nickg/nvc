@@ -4,6 +4,9 @@
 - The type of string literals and aggregates in generic map associations
   such as `G => X"00"` where `G` has generic a type can now be
   determined correctly (#750).
+- Fixed a spurious "duplicate declaration" error if a use clause for an
+  instantiated packages appears in the same declarative region that
+  instantiated the package (#750).
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

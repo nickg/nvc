@@ -1052,7 +1052,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
             // declaration may hide an earlier incomplete type
             make_visible_slow(s, tree_ident(d), d);
          }
-         else
+         else if (dkind != T_USE)
             make_visible_fast(s, tree_ident(d), d);
       }
 

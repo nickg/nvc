@@ -87,10 +87,22 @@ end architecture;
 package data_type_pkg is
     generic ( type t_generic;
               c_default : t_generic );
+    constant c_val : t_generic := c_default;
 end package;
 
 -------------------------------------------------------------------------------
 
-package data_type_pkg_bv is new work.data_type_pkg
-    generic map ( t_generic => bit_vector(1 to 8),
-                  c_default => X"00" );  -- OK
+package data_type_pkg_bv is
+    package inst is new work.data_type_pkg
+        generic map ( t_generic => bit_vector(1 to 8),
+                      c_default => X"00" );  -- OK
+    use inst.all;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.data_type_pkg_bv.all;
+
+package data_type_test is
+    constant test : bit_vector(1 to 8) := inst.c_val;  -- OK
+end package;
