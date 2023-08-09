@@ -239,6 +239,9 @@ static void type_set_add(nametab_t *tab, type_t t, tree_t src)
    if (type_kind(t) == T_INCOMPLETE)
       t = resolve_type(tab, t);
 
+   if (tab->top_scope->gmap != NULL)
+      t = hash_get(tab->top_scope->gmap, t) ?: t;
+
    for (unsigned i = 0; i < tab->top_type_set->members.count; i++) {
       if (type_eq(tab->top_type_set->members.items[i].type, t))
          return;

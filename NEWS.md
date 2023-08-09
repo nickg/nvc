@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Fixed a crash due to an array bounds check being incorrectly optimised
   out (#747).
+- The type of string literals and aggregates in generic map associations
+  such as `G => X"00"` where `G` has generic a type can now be
+  determined correctly (#750).
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

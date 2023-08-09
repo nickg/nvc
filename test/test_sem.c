@@ -2858,7 +2858,7 @@ START_TEST(test_genpack2)
    input_from_file(TESTDIR "/sem/genpack2.vhd");
 
    parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACK_INST, T_PACKAGE, T_PACK_BODY,
-                   T_PACK_INST, T_ENTITY, T_ARCH);
+                   T_PACK_INST, T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_INST);
 
    fail_if_errors();
 }
