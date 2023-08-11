@@ -1933,12 +1933,18 @@ void insert_names_for_psl(nametab_t *tab)
       tree_set_ident2(nvc, nvc_i);
       insert_name(tab, nvc, nvc_i);
 
-      tree_t psl_support = tree_new(T_USE);
-      tree_set_ident(psl_support, well_known(W_NVC_PSL_SUPPORT));
-      tree_set_ident2(psl_support, well_known(W_ALL));
-      tree_set_ref(psl_support, nvc);
+      ident_t psl_support_i = well_known(W_NVC_PSL_SUPPORT);
+      lib_t lnvc = lib_require(nvc_i);
+      tree_t psl_support = lib_get(lnvc, psl_support_i);
+      if (psl_support == NULL)
+         fatal("cannot find %s package", istr(psl_support_i));
 
-      tab->psl = psl_support;
+      tree_t u = tree_new(T_USE);
+      tree_set_ident(u, psl_support_i);
+      tree_set_ident2(u, well_known(W_ALL));
+      tree_set_ref(u, psl_support);
+
+      tab->psl = u;
    }
 
    insert_names_from_use(tab, tab->psl);

@@ -869,24 +869,6 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
    return NULL;
 }
 
-static tree_t simp_use(tree_t t)
-{
-   tree_t lib_decl = tree_ref(t);
-   if (tree_kind(lib_decl) != T_LIBRARY)
-      return t;
-
-   ident_t qual = tree_ident(t);
-   ident_t lalias = ident_until(qual, '.');
-   ident_t lname = tree_ident2(lib_decl);
-
-   if (lalias != lname) {
-      ident_t rest = ident_from(qual, '.');
-      tree_set_ident(t, ident_prefix(lname, rest, '.'));
-   }
-
-   return t;
-}
-
 static tree_t simp_assert(tree_t t)
 {
    bool value_b;
@@ -1310,8 +1292,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_record_ref(t, ctx);
    case T_CONTEXT_REF:
       return simp_context_ref(t, ctx);
-   case T_USE:
-      return simp_use(t);
    case T_ASSERT:
       return simp_assert(t);
    case T_IF_GENERATE:

@@ -2514,9 +2514,13 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
       switch (peek()) {
       case tID:
-         tree_set_ident(u, ident_prefix(i1, p_identifier(), '.'));
+         i1 = ident_prefix(i1, p_identifier(), '.');
+         tree_set_ident(u, i1);
 
          if (optional(tDOT)) {
+            if (head != NULL)
+               head = resolve_name(nametab, CURRENT_LOC, i1);
+
             switch (peek()) {
             case tID:
                tree_set_ident2(u, p_identifier());
@@ -2556,6 +2560,8 @@ static void p_use_clause(tree_t unit, add_func_t addf)
          if (kind == T_LIBRARY && !tree_has_ident2(head)) {
             // Library declaration had an error
          }
+         else if (is_uninstantiated_package(head))
+            parse_error(CURRENT_LOC, "cannot use an uninstantiated package");
          else if (kind == T_LIBRARY || kind == T_PACKAGE
                   || kind == T_PACK_INST
                   || (kind == T_GENERIC_DECL
@@ -12525,10 +12531,16 @@ static tree_t p_design_unit(void)
 
    // The std.standard package is implicit unless we are bootstrapping
    if (!bootstrapping) {
+      lib_t lstd = lib_require(std_i);
+      ident_t standard_i = well_known(W_STD_STANDARD);
+      tree_t standard = lib_get(lstd, standard_i);
+      if (standard == NULL)
+         fatal("cannot find %s package", istr(standard_i));
+
       tree_t u = tree_new(T_USE);
-      tree_set_ident(u, well_known(W_STD_STANDARD));
+      tree_set_ident(u, standard_i);
       tree_set_ident2(u, well_known(W_ALL));
-      tree_set_ref(u, std);
+      tree_set_ref(u, standard);
 
       tree_add_context(unit, u);
       insert_names_from_use(nametab, u);

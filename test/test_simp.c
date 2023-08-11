@@ -923,24 +923,6 @@ START_TEST(test_static1)
 }
 END_TEST
 
-START_TEST(test_use)
-{
-   lib_t somelib = lib_tmp("somelib");
-   lib_set_work(somelib);
-
-   input_from_file(TESTDIR "/simp/use.vhd");
-
-   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
-   fail_if(p == NULL);
-
-   fail_unless(tree_contexts(p) == 4);
-
-   tree_t u = tree_context(p, 3);
-   fail_unless(tree_kind(u) == T_USE);
-   fail_unless(tree_ident(u) == ident_new("SOMELIB.PACK"));
-}
-END_TEST
-
 START_TEST(test_predef)
 {
    input_from_file(TESTDIR "/simp/predef.vhd");
@@ -1570,7 +1552,6 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_allsens);
    tcase_add_test(tc_core, test_issue425);
    tcase_add_test(tc_core, test_static1);
-   tcase_add_test(tc_core, test_use);
    tcase_add_test(tc_core, test_predef);
    tcase_add_test(tc_core, test_guard);
    tcase_add_test(tc_core, test_copysub);

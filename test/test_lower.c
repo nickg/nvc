@@ -2180,27 +2180,6 @@ START_TEST(test_access_bug)
 }
 END_TEST
 
-START_TEST(test_rectype)
-{
-   input_from_file(TESTDIR "/lower/rectype.vhd");
-
-   run_elab();
-
-   vcode_unit_t v0 = find_unit("WORK.E.P1");
-   vcode_select_unit(v0);
-
-   fail_unless(vtype_kind(2) == VCODE_TYPE_RECORD);
-   fail_unless(vtype_kind(3) == VCODE_TYPE_RECORD);
-
-   // We used to mangle this with @<address>
-   ident_t r2_name = vtype_name(0);
-   fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
-
-   ident_t r1_name = vtype_name(3);
-   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1$"));
-}
-END_TEST
-
 START_TEST(test_issue149)
 {
    input_from_file(TESTDIR "/lower/issue149.vhd");
@@ -2539,6 +2518,7 @@ START_TEST(test_tag)
 
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_PACKAGE_INIT, .name = "WORK.P" },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_CONST, .value = 0 },
@@ -3740,6 +3720,7 @@ START_TEST(test_issue426)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "EXP_STATUS" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "EXP_STATUS" },
       { VCODE_OP_COPY },
@@ -5307,7 +5288,6 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue136);
    tcase_add_test(tc, test_issue125);
    tcase_add_test(tc, test_access_bug);
-   tcase_add_test(tc, test_rectype);
    tcase_add_test(tc, test_issue149);
    tcase_add_test(tc, test_issue158);
    tcase_add_test(tc, test_issue167);

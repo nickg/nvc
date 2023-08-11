@@ -3114,7 +3114,11 @@ START_TEST(test_context)
    fail_unless(tree_kind(c1) == T_CONTEXT);
    fail_unless(tree_ident(c1) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
    fail_unless(tree_contexts(c1) == 5);
-   fail_unless(tree_kind(tree_context(c1, 3)) == T_USE);
+   tree_t u3 = tree_context(c1, 3);
+   fail_unless(tree_kind(u3) == T_USE);
+   fail_unless(tree_ident(u3) == ident_new("WIDGET_LIB.WIDGET_DEFS"));
+   fail_unless(tree_ident2(u3) == well_known(W_ALL));
+   fail_unless(tree_ref(u3) == p1);
    lib_put(lib_work(), c1);
 
    lib_t project = lib_tmp("project");
@@ -4251,9 +4255,8 @@ START_TEST(test_error5)
    input_from_file(TESTDIR "/parse/error5.vhd");
 
    const error_t expect[] = {
-      {  2, "unit WORK.NOTHERE not found in library WORK" },
+      {  2, "design unit NOTHERE not found in library WORK" },
       // It would be better to avoid the following errors
-      {  2, "unit WORK.NOTHERE not found in library WORK" },
       {  8, "no visible declaration for MYTYPE" },
       {  8, "no visible declaration for MYFUNC" },
       { -1, NULL }
@@ -4353,7 +4356,8 @@ START_TEST(test_issue457)
    lib_set_work(test_context_lib);
 
    const error_t expect[] = {
-      {  7, "design unit TEST_CONTEXT.TEST_CONTEXT is not a package" },
+      {  7, "TEST_CONTEXT.TEST_CONTEXT is not a library or instantiated "
+         "package" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -4469,7 +4473,7 @@ START_TEST(test_error7)
    const error_t expect[] = {
       {  4, "FOO already declared in this region" },
       {  7, "depends on WORK.ERROR7 which was analysed with errors" },
-      { 11, "design unit WORK.ERROR7 was analysed with errors" },
+      { 11, " depends on WORK.ERROR7 which was analysed with errors" },
       { -1, NULL }
    };
    expect_errors(expect);

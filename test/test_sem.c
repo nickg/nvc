@@ -2740,7 +2740,7 @@ START_TEST(test_issue465)
    input_from_file(TESTDIR "/sem/issue465.vhd");
 
    const error_t expect[] = {
-      {  1, "unit WORK.TESTTEST_PKG not found in library WORK" },
+      {  1, "design unit TESTTEST_PKG not found in library WORK" },
       {  8, "design unit depends on WORK.TEST2_PKG which was analysed with" },
       { -1, NULL }
    };

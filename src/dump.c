@@ -731,6 +731,14 @@ static void dump_component(tree_t t, int indent)
    print_syntax("#end #component;\n");
 }
 
+static void dump_use(tree_t t)
+{
+   print_syntax("#use %s", istr(tree_ident(t)));
+   if (tree_has_ident2(t))
+      print_syntax(".%s", istr(tree_ident2(t)));
+   print_syntax(";\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -927,10 +935,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_USE:
-      print_syntax("#use %s", istr(tree_ident(t)));
-      if (tree_has_ident2(t))
-         print_syntax(".%s", istr(tree_ident2(t)));
-      print_syntax(";\n");
+      dump_use(t);
       return;
 
    case T_PACKAGE:
@@ -1443,10 +1448,7 @@ static void dump_context(tree_t t, int indent)
          break;
 
       case T_USE:
-         print_syntax("#use %s", istr(tree_ident(c)));
-         if (tree_has_ident2(c))
-            print_syntax(".%s", istr(tree_ident2(c)));
-         print_syntax(";\n");
+         dump_use(c);
          break;
 
       case T_CONTEXT_REF:
