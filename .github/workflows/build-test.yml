@@ -60,18 +60,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ./build/coverage/nvc.info
-      - name: Build Debian package
-        run: |
-          ln -s contrib/debian debian
-          sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
-          sudo apt-get build-dep .
-          dpkg-buildpackage -uc -us -b
-          mv ../*.deb .
-      - name: 'Upload artifact'
-        uses: actions/upload-artifact@v3
-        with:
-          name: 'Ubuntu package'
-          path: nvc_${{ env.VERSION }}-1_amd64.deb
 
   build-mac:
     name: Mac OS
@@ -175,9 +163,35 @@ jobs:
           name: 'MSYS2 mingw64 package'
           path: contrib/msys2/${{ env.MSYS2_PKG }}
 
+  build-package:
+    name: Build package
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - name: Get version
+        id: version
+        run: |
+          vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
+          full=$(git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
+          echo "VERSION=$full" >> $GITHUB_ENV
+      - name: Build Debian package
+        run: |
+          ln -s contrib/debian debian
+          sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
+          sudo apt-get build-dep .
+          dpkg-buildpackage -uc -us -b
+          mv ../*.deb .
+      - name: 'Upload artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          name: 'Ubuntu package'
+          path: nvc_${{ env.VERSION }}-1_amd64.deb
+
   vests:
     name: VESTs
-    needs: [ build-ubuntu ]
+    needs: [ build-package ]
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -207,7 +221,7 @@ jobs:
 
   projects:
     name: External Projects
-    needs: [ build-ubuntu ]
+    needs: [ build-package ]
     runs-on: ubuntu-20.04
     timeout-minutes: 15
     steps:
@@ -267,7 +281,7 @@ jobs:
 
   vunit:
     name: VUnit
-    needs: [ build-ubuntu ]
+    needs: [ build-package ]
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -339,7 +353,7 @@ jobs:
   osvvm:
     if: ${{ false }}    # Takes too long for now
     name: OSVVM
-    needs: [ build-ubuntu ]
+    needs: [ build-package ]
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
