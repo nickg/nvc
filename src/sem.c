@@ -5543,6 +5543,31 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
 static bool sem_check_configuration(tree_t t, nametab_t *tab)
 {
+   if (!tree_has_primary(t))
+      return false;   // Was parse error
+
+   tree_t of = tree_primary(t);
+
+   // LRM 08 section 3.4.1: for a configuration of a given design
+   // entity, both the configuration declaration and the corresponding
+   // entity declaration shall reside in the same library
+   ident_t elib = ident_until(tree_ident(of), '.');
+   if (standard() < STD_19 && elib != lib_name(lib_work())) {
+      diag_t *d = pedantic_diag(t);
+      if (d != NULL) {
+         ident_t ename = ident_rfrom(tree_ident(of), '.');
+         diag_printf(d, "configuration declaration %s must reside in the "
+                     "same library as entity %s", istr(tree_ident(t)),
+                     istr(ename));
+         diag_hint(d, NULL, "entity %s is in library %s which is not the same "
+                   "as the current working library %s",
+                   istr(ename), istr(elib), istr(lib_name(lib_work())));
+         diag_lrm(d, STD_08, "3.4");
+         diag_emit(d);
+         return false;
+      }
+   }
+
    return true;
 }
 

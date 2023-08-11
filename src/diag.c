@@ -412,6 +412,7 @@ static const struct {
    { "Interface package declarations", { [STD_08] = "6.5.5" } },
    { "Selected names", { [STD_08] = "8.3", [STD_93] = "6.3" } },
    { "Simple variable assignments", { [STD_08] = "10.6.2" } },
+   { "Configuration declarations", { [STD_08] = "3.4", [STD_93] = "1.4" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

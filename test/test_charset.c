@@ -119,7 +119,7 @@ Suite *get_charset_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_iso88591);
    tcase_add_test(tc, test_utf8);
-   tcase_add_loop_test(tc, test_strings, STD_93, STD_19);
+   tcase_add_loop_test(tc, test_strings, STD_93, STD_19 + 1);
    suite_add_tcase(s, tc);
 
    return s;

@@ -494,44 +494,6 @@ static tree_t error_expr(void)
    return t;
 }
 
-static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
-{
-   // TODO: should be able to replace this with resolve_name
-
-   ident_t lname = ident_until(name, '.');
-   lib_t lib = lib_loaded(lname);
-   if (lib != NULL) {
-      bool error;
-      tree_t unit = lib_get_allow_error(lib, name, &error);
-      if (unit == NULL) {
-         if (hint != NULL)
-            parse_error(where, "missing declaration for %s %s",
-                        hint, istr(name));
-         else
-            parse_error(where, "cannot find unit %s", istr(name));
-      }
-      else if (error) {
-         parse_error(where, "design unit depends on %s which was analysed"
-                     " with errors", istr(name));
-         suppress_errors(nametab);
-         return NULL;
-      }
-
-      return unit;
-   }
-   else if (name == error_marker())
-      return NULL;
-   else if (lname == name) {
-      parse_error(where, "%s does not name a visible component or design unit",
-                  istr(name));
-      return NULL;
-   }
-   else {
-      parse_error(where, "missing library clause for %s", istr(lname));
-      return NULL;
-   }
-}
-
 static tree_t find_binding(tree_t inst)
 {
    ident_t name;
@@ -2578,14 +2540,14 @@ static void p_context_reference(tree_t unit)
       tree_set_ident(c, name);
       tree_set_loc(c, CURRENT_LOC);
 
-      tree_t ctx = find_unit(CURRENT_LOC, name, "context");
+      tree_t ctx = resolve_name(nametab, CURRENT_LOC, name);
       if (ctx != NULL && tree_kind(ctx) == T_CONTEXT) {
          insert_names_from_context(nametab, ctx);
          tree_set_ref(c, ctx);
       }
       else if (ctx != NULL)
-         parse_error(CURRENT_LOC, "unit %s is not a context declaration",
-                     istr(name));
+         parse_error(CURRENT_LOC, "%s%s is not a context declaration",
+                     is_design_unit(ctx) ? "design unit " : "", istr(name));
 
       tree_add_context(unit, c);
    } while (optional(tCOMMA));
@@ -3195,7 +3157,7 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       const tree_kind_t kind = tree_kind(decl);
       if (kind == T_LIBRARY) {
          ident_t unit_name = ident_prefix(tree_ident(decl), suffix, '.');
-         tree_t unit = find_unit(CURRENT_LOC, unit_name, NULL);
+         tree_t unit = resolve_name(nametab, CURRENT_LOC, unit_name);
          if (unit == NULL) {
             tree_t dummy = tree_new(T_REF);
             tree_set_ident(dummy, unit_name);
@@ -5304,7 +5266,7 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
 
    ident_t unit_name = p_selected_identifier();
 
-   tree_t pack = find_unit(CURRENT_LOC, unit_name, "package");
+   tree_t pack = resolve_name(nametab, CURRENT_LOC, unit_name);
    if (pack != NULL && !is_uninstantiated_package(pack)) {
       parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
                   istr(unit_name));
@@ -8699,7 +8661,7 @@ static tree_t p_block_configuration(tree_t of)
       case T_ENTITY:
          {
             ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
-            sub = find_unit(CURRENT_LOC, qual, NULL);
+            sub = resolve_name(nametab, CURRENT_LOC, qual);
          }
          break;
       case T_ARCH:
@@ -8763,6 +8725,34 @@ static tree_t p_block_configuration(tree_t of)
    return b;
 }
 
+static ident_t p_entity_name(tree_t *entity)
+{
+   // name
+
+   BEGIN("entity name");
+
+   ident_t ename = p_selected_identifier();
+
+   ident_t qual = ename;
+   if (ident_runtil(ename, '.') == ename)
+      qual = ident_prefix(lib_name(lib_work()), ename, '.');
+
+   *entity = resolve_name(nametab, CURRENT_LOC, qual);
+
+   if (*entity != NULL && tree_kind(*entity) != T_ENTITY) {
+      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+      diag_printf(d, "%s%s is not an entity",
+                  is_design_unit(*entity) ? "design unit " : "", istr(ename));
+      diag_hint(d, tree_loc(*entity), "%s is a %s", istr(ename),
+                class_str(class_of(*entity)));
+      diag_emit(d);
+      *entity = NULL;
+      return ename;
+   }
+
+   return ename;
+}
+
 static void p_configuration_declaration(tree_t unit)
 {
    // configuration identifier of name is configuration_declarative_part
@@ -8781,17 +8771,11 @@ static void p_configuration_declaration(tree_t unit)
 
    consume(tOF);
 
-   ident_t ename = p_identifier();
-   ident_t qual = ident_prefix(lib_name(lib_work()), ename, '.');
-   tree_set_ident2(unit, qual);
+   tree_t of = NULL;
+   ident_t ename = p_entity_name(&of);
+   tree_set_ident2(unit, ename);
 
-   tree_t of = find_unit(CURRENT_LOC, qual, "entity");
-   if (of != NULL && tree_kind(of) != T_ENTITY) {
-      parse_error(CURRENT_LOC, "%s does not name an entity in library %s",
-                  istr(ename), istr(lib_name(lib_work())));
-      of = NULL;
-   }
-   else if (of != NULL) {
+   if (of != NULL) {
       tree_set_primary(unit, of);
       insert_name(nametab, of, ename);
       insert_decls(nametab, of);
@@ -12202,20 +12186,15 @@ static void p_architecture_body(tree_t unit)
 
    consume(tOF);
 
-   ident_t entity_name = p_identifier();
+   tree_t e = NULL;
+   ident_t entity_name = p_entity_name(&e);
    tree_set_ident2(unit, entity_name);
 
    consume(tIS);
 
-   ident_t ename = ident_prefix(lib_name(lib_work()), entity_name, '.');
-   tree_t e = find_unit(CURRENT_LOC, ename, "entity");
-   if (e != NULL && tree_kind(e) == T_ENTITY) {
+   if (e != NULL) {
       tree_set_primary(unit, e);
       insert_names_from_context(nametab, e);
-   }
-   else if (e != NULL) {
-      parse_error(CURRENT_LOC, "unit %s is not an entity", istr(ename));
-      e = NULL;
    }
 
    push_scope(nametab);
@@ -12223,6 +12202,7 @@ static void p_architecture_body(tree_t unit)
    if (entity_name != arch_name && e != NULL)
       insert_name(nametab, e, entity_name);
 
+   ident_t ename = ident_prefix(lib_name(lib_work()), entity_name, '.');
    ident_t qual = ident_prefix(ename, arch_name, '-');
    scope_set_prefix(nametab, qual);
 

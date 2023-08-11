@@ -866,7 +866,7 @@ START_TEST(test_entity)
    const error_t expect[] = {
       { 23, "design unit E-INVALID not found in library WORK" },
       { 26, "design unit WORK.PACK is not an entity" },
-      { 30, "unit WORK.PACK is not an entity" },
+      { 30, "design unit PACK is not an entity" },
       { 61, "signal assignment statement not allowed inside passive process" },
       { -1, NULL }
    };
@@ -1565,8 +1565,8 @@ START_TEST(test_context)
    input_from_file(TESTDIR "/sem/context.vhd");
 
    const error_t expect[] = {
-      { 27, "unit FOO.PACK is not a context declaration" },
-      { 42, "missing declaration for context WORK.BLAH" },
+      { 27, "no visible declaration for FOO.PACK" },
+      { 42, "design unit BLAH not found in library WORK" },
       { 40, "library clause in a context declaration may not have logical" },
       { 41, "context declaration use clause may not have WORK" },
       { 42, "context declaration context reference may not have WORK" },
@@ -3172,6 +3172,36 @@ START_TEST(test_lcs2016_07)
 }
 END_TEST
 
+START_TEST(test_lcs2016_23)
+{
+   set_standard(_i);
+
+   input_from_file(TESTDIR "/sem/lcs2016_23.vhd");
+
+   const error_t expect[] = {
+      { 14, "configuration declaration FOO_CFG must reside in the same "
+        "library as entity FOO_E" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   lib_t foo = lib_tmp("foo");
+   lib_set_work(foo);
+
+   parse_and_check(T_ENTITY, T_ARCH, -1);
+
+   lib_t bar = lib_tmp("bar");
+   lib_set_work(bar);
+
+   parse_and_check(T_CONFIGURATION);
+
+   if (_i < STD_19)
+      check_expected_errors();
+   else
+      fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3326,6 +3356,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_14a);
    tcase_add_test(tc_core, test_lcs2016_19);
    tcase_add_test(tc_core, test_lcs2016_07);
+   tcase_add_loop_test(tc_core, test_lcs2016_23, STD_08, STD_19 + 1);
    suite_add_tcase(s, tc_core);
 
    return s;

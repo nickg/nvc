@@ -2892,7 +2892,7 @@ START_TEST(test_error)
       { 47, "S1 already declared in this region" },
       { 50, "B1 already declared in this region" },
       { 56, "C1 already declared in this region" },
-      { 64, "missing declaration for entity WORK.NOT_HERE" },
+      { 64, "design unit NOT_HERE not found in library WORK" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2915,9 +2915,9 @@ START_TEST(test_config)
 
    const error_t expect[] = {
       { 29, "no visible declaration for X" },
-      { 38, "CONF does not name an entity in library WORK" },
+      { 38, "design unit CONF is not an entity" },
       { 39, "no visible declaration for ARCH" },
-      { 45, "cannot find unit WORK.ENT-BAD" },
+      { 45, "design unit ENT-BAD not found in library WORK" },
       { 52, "P is not a block that can be configured" },
       { 55, "instance P not found" },
       { -1, NULL }
@@ -2953,7 +2953,7 @@ START_TEST(test_config)
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_ident(c) == ident_new("WORK.CONF"));
-   fail_unless(tree_ident2(c) == ident_new("WORK.ENT"));
+   fail_unless(tree_ident2(c) == ident_new("ENT"));
    fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
@@ -3578,7 +3578,7 @@ START_TEST(test_error2)
       {  2, "no visible declaration for BAR" },
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },
-      { 17, "cannot find unit STD.NOTHERE" },
+      { 17, "design unit NOTHERE not found in library STD" },
       { 22, "unexpected identifier while parsing range" },
       { 29, "expected physical type definition trailing" },
       { 33, "expected record type definition trailing identifier" },
@@ -3931,7 +3931,7 @@ START_TEST(test_badprimary)
    input_from_file(TESTDIR "/parse/badprimary.vhd");
 
    const error_t expect[] = {
-      { 17, "missing declaration for entity WORK.NOT_HERE" },
+      { 17, "design unit NOT_HERE not found in library WORK" },
       { 26, "depends on WORK.NOT_HERE-BAD which was analysed with errors" },
       { -1, NULL }
    };
@@ -4603,7 +4603,7 @@ START_TEST(test_issue468)
    input_from_file(TESTDIR "/parse/issue468.vhd");
 
    const error_t expect[] = {
-      {  2, "cannot find unit WORK.TEST3" },
+      {  2, "design unit TEST3 not found in library WORK" },
       { -1, NULL }
    };
    expect_errors(expect);
