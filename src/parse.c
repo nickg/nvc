@@ -2508,71 +2508,56 @@ static void p_use_clause(tree_t unit, add_func_t addf)
    do {
       tree_t u = tree_new(T_USE);
 
-      ident_t i1 = p_identifier();
-      tree_t head = resolve_name(nametab, CURRENT_LOC, i1);
+      ident_t i1 = p_identifier(), i2 = NULL;
       consume(tDOT);
 
-      switch (peek()) {
-      case tID:
-         i1 = ident_prefix(i1, p_identifier(), '.');
-         tree_set_ident(u, i1);
+      do {
+         i1 = ident_prefix(i1, i2, '.');
 
-         if (optional(tDOT)) {
-            if (head != NULL)
-               head = resolve_name(nametab, CURRENT_LOC, i1);
-
-            switch (peek()) {
-            case tID:
-               tree_set_ident2(u, p_identifier());
-               break;
-
-            case tSTRING:
-               tree_set_ident2(u, p_operator_symbol());
-               break;
-
-            case tALL:
-               consume(tALL);
-               tree_set_ident2(u, well_known(W_ALL));
-               break;
-
-            default:
-               expect(tID, tSTRING, tALL);
-            }
+         switch (peek()) {
+         case tID:
+            i2 = p_identifier();
+            break;
+         case tSTRING:
+            i2 = p_operator_symbol();
+            break;
+         case tALL:
+            consume(tALL);
+            i2 = well_known(W_ALL);
+            break;
+         default:
+            expect(tID, tSTRING, tALL);
+            i2 = NULL;
+            break;
          }
-         break;
+      } while (optional(tDOT));
 
-      case tALL:
-         consume(tALL);
-         tree_set_ident(u, i1);
-         tree_set_ident2(u, well_known(W_ALL));
-         break;
-
-      default:
-         expect(tID, tALL);
-         tree_set_ident(u, error_marker());
-      }
+      tree_set_ident(u, i1);
+      tree_set_ident2(u, i2);
 
       tree_set_loc(u, CURRENT_LOC);
       (*addf)(unit, u);
 
-      if (head != NULL) {
-         const tree_kind_t kind = tree_kind(head);
-         if (kind == T_LIBRARY && !tree_has_ident2(head)) {
-            // Library declaration had an error
-         }
-         else if (is_uninstantiated_package(head))
-            parse_error(CURRENT_LOC, "cannot use an uninstantiated package");
-         else if (kind == T_LIBRARY || kind == T_PACKAGE
-                  || kind == T_PACK_INST
-                  || (kind == T_GENERIC_DECL
-                      && tree_class(head) == C_PACKAGE)) {
-            tree_set_ref(u, head);
-            insert_names_from_use(nametab, u);
-         }
-         else
-            parse_error(CURRENT_LOC, "%s is not a library or %spackage",
-                        istr(i1), standard() >= STD_08 ? "instantiated " : "");
+      tree_t head = resolve_name(nametab, CURRENT_LOC, i1);
+      if (head == NULL)
+         continue;
+
+      const tree_kind_t kind = tree_kind(head);
+      if (kind == T_LIBRARY && !tree_has_ident2(head)) {
+         // Library declaration had an error
       }
+      else if (is_uninstantiated_package(head))
+         parse_error(CURRENT_LOC, "cannot use an uninstantiated package");
+      else if (kind == T_LIBRARY || kind == T_PACKAGE
+               || kind == T_PACK_INST
+               || (kind == T_GENERIC_DECL
+                   && tree_class(head) == C_PACKAGE)) {
+         tree_set_ref(u, head);
+         insert_names_from_use(nametab, u);
+      }
+      else
+         parse_error(CURRENT_LOC, "%s is not a library or %spackage",
+                     istr(i1), standard() >= STD_08 ? "instantiated " : "");
    } while (optional(tCOMMA));
 
    consume(tSEMI);
@@ -12533,14 +12518,14 @@ static tree_t p_design_unit(void)
    if (!bootstrapping) {
       lib_t lstd = lib_require(std_i);
       ident_t standard_i = well_known(W_STD_STANDARD);
-      tree_t standard = lib_get(lstd, standard_i);
-      if (standard == NULL)
+      tree_t std_pkg = lib_get(lstd, standard_i);
+      if (std_pkg == NULL)
          fatal("cannot find %s package", istr(standard_i));
 
       tree_t u = tree_new(T_USE);
       tree_set_ident(u, standard_i);
       tree_set_ident2(u, well_known(W_ALL));
-      tree_set_ref(u, standard);
+      tree_set_ref(u, std_pkg);
 
       tree_add_context(unit, u);
       insert_names_from_use(nametab, u);

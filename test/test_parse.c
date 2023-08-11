@@ -4473,7 +4473,8 @@ START_TEST(test_error7)
    const error_t expect[] = {
       {  4, "FOO already declared in this region" },
       {  7, "depends on WORK.ERROR7 which was analysed with errors" },
-      { 11, " depends on WORK.ERROR7 which was analysed with errors" },
+      { 11, "depends on WORK.ERROR7 which was analysed with errors" },
+      { 17, "unexpected ; while parsing use clause, expecting ." },
       { -1, NULL }
    };
    expect_errors(expect);

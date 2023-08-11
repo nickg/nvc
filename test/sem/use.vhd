@@ -30,4 +30,6 @@ end package body;
 entity ent is
     use work.pkg1.my_int1;              -- OK
     constant c : my_int1 := 2;          -- OK
+    use work.spam;                      -- Error
+    use work.1;                         -- Error
 end entity;

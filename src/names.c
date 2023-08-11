@@ -1465,7 +1465,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if (tab->top_scope->overload == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
 
-         ident_t prefix = ident_until(name, '.');
+         ident_t prefix = ident_runtil(name, '.');
          const symbol_t *psym = prefix ? iterate_symbol_for(tab, prefix) : NULL;
          if (psym != NULL && psym->ndecls == 1) {
             if (psym->decls[0].kind == T_LIBRARY) {
@@ -1480,8 +1480,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                               istr(ident_rfrom(name, '.')), istr(psym->name));
             }
             else
-               diag_printf(d, "name %s not found in object %s",
-                           istr(ident_rfrom(name, '.')), istr(psym->name));
+               diag_printf(d, "name %s not found in %s %s",
+                           istr(ident_rfrom(name, '.')),
+                           (is_design_unit(psym->decls[0].tree)
+                            ? "design unit" : "object"),
+                           istr(psym->name));
          }
          else
             diag_printf(d, "no visible declaration for %s", istr(name));
@@ -1757,11 +1760,11 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
 
-   if (!tree_has_ref(use))
+   if (!tree_has_ref(use) || !tree_has_ident2(use))
       return;   // Was earlier error
 
    tree_t unit = tree_ref(use);
-   ident_t unit_name = tree_ident(use);
+   ident_t what = tree_ident2(use);
 
    if (tree_kind(unit) == T_GENERIC_DECL) {
       assert(tree_class(unit) == C_PACKAGE);
@@ -1773,21 +1776,18 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       assert(is_uninstantiated_package(unit));
    }
 
-   const bool lib_import = tree_kind(unit) == T_LIBRARY;
-
-   if (lib_import) {
-      ident_t lib_name = tree_ident(unit);
+   if (tree_kind(unit) == T_LIBRARY) {
+      ident_t lib_name = tree_ident2(unit);
+      ident_t unit_name = ident_prefix(lib_name, what, '.');
       lib_t lib = lib_require(lib_name);
       bool error;
-      if (lib_name == unit_name || unit_name == well_known(W_WORK)) {
+      if (what == well_known(W_ALL)) {
          make_library_visible(tab->top_scope, lib);
          return;
       }
-      else if (unit_name == well_known(W_ERROR))
-         return;   // Was earlier parse error
       else if ((unit = lib_get_allow_error(lib, unit_name, &error)) == NULL) {
-         error_at(tree_loc(use), "unit %s not found in library %s",
-                  istr(unit_name), istr(ident_until(unit_name, '.')));
+         error_at(tree_loc(use), "design unit %s not found in library %s",
+                  istr(what), istr(lib_name));
          return;
       }
       else if (error) {
@@ -1796,79 +1796,62 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
          return;
       }
 
-      unit_name = tree_ident(unit);
+      make_visible(tab->top_scope, what, unit, POTENTIAL, tab->top_scope);
+      return;
    }
 
-   ident_t tag = unit_name;
-   if (tree_has_ident2(use))
-      tag = ident_prefix(tag, tree_ident2(use), '.');
+   assert(is_package(unit));
 
-   if (tree_has_ident2(use)) {
-      if (!is_package(unit)) {
-         error_at(tree_loc(use), "design unit %s is not a package",
-                  istr(unit_name));
-         return;
-      }
-      else if (lib_import && is_uninstantiated_package(unit)) {
-         error_at(tree_loc(use), "cannot use an uninstantiated package");
-         return;
-      }
+   scope_t *s = private_scope_for(tab, unit);
+   assert(s->container == unit);
 
-      scope_t *s = private_scope_for(tab, unit);
-      assert(s->container == unit);
-
-      ident_t what = tree_ident2(use);
-      if (what == well_known(W_ALL)) {
-         for (int i = 0; i < tab->top_scope->imported.count; i++) {
-            if (tab->top_scope->imported.items[i] == unit)
-               return;
-         }
-
-         merge_scopes(tab->top_scope, s);
-         APUSH(tab->top_scope->imported, unit);
-      }
-      else {
-         const symbol_t *sym = symbol_for(s, what);
-         if (sym == NULL) {
-            error_at(tree_loc(use), "object %s not found in unit %s",
-                     istr(what), istr(tree_ident(unit)));
+   if (what == well_known(W_ALL)) {
+      for (int i = 0; i < tab->top_scope->imported.count; i++) {
+         if (tab->top_scope->imported.items[i] == unit)
             return;
-         }
+      }
 
-         merge_symbol(tab->top_scope, sym);
+      merge_scopes(tab->top_scope, s);
+      APUSH(tab->top_scope->imported, unit);
+   }
+   else {
+      const symbol_t *sym = symbol_for(s, what);
+      if (sym == NULL) {
+         error_at(tree_loc(use), "name %s not found in %s %s",
+                  istr(what), is_design_unit(unit) ? "design unit" : "object",
+                  istr(tree_ident(unit)));
+         return;
+      }
 
-         // If this is an enumeration or physical type then also make
-         // the literals visible
-         // TODO: for VHDL-2008, also predefined functions
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
-            if (dd->kind == T_TYPE_DECL) {
-               type_t type = tree_type(dd->tree);
-               if (type_is_enum(type)) {
-                  const int nlits = type_enum_literals(type);
-                  for (int i = 0; i < nlits; i++) {
-                     tree_t lit = type_enum_literal(type, i);
-                     make_visible(tab->top_scope, tree_ident(lit), lit,
-                                  POTENTIAL, s);
-                  }
+      merge_symbol(tab->top_scope, sym);
+
+      // If this is an enumeration or physical type then also make
+      // the literals visible
+      // TODO: for VHDL-2008, also predefined functions
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->kind == T_TYPE_DECL) {
+            type_t type = tree_type(dd->tree);
+            if (type_is_enum(type)) {
+               const int nlits = type_enum_literals(type);
+               for (int i = 0; i < nlits; i++) {
+                  tree_t lit = type_enum_literal(type, i);
+                  make_visible(tab->top_scope, tree_ident(lit), lit,
+                               POTENTIAL, s);
                }
-               else if (type_is_physical(type)) {
-                  const int nunits = type_units(type);
-                  for (int i = 0; i < nunits; i++) {
-                     tree_t u = type_unit(type, i);
-                     make_visible(tab->top_scope, tree_ident(u), u,
-                                  POTENTIAL, s);
-                  }
+            }
+            else if (type_is_physical(type)) {
+               const int nunits = type_units(type);
+               for (int i = 0; i < nunits; i++) {
+                  tree_t u = type_unit(type, i);
+                  make_visible(tab->top_scope, tree_ident(u), u,
+                               POTENTIAL, s);
                }
             }
          }
-
-         merge_symbol(tab->top_scope, symbol_for(s, unit_bare_name(unit)));
       }
-   }
-   else {
-      ident_t bare_name = unit_bare_name(unit);
-      make_visible(tab->top_scope, bare_name, unit, POTENTIAL, tab->top_scope);
+
+      merge_symbol(tab->top_scope, symbol_for(s, unit_bare_name(unit)));
    }
 }
 
@@ -1937,7 +1920,7 @@ void insert_names_for_psl(nametab_t *tab)
       lib_t lnvc = lib_require(nvc_i);
       tree_t psl_support = lib_get(lnvc, psl_support_i);
       if (psl_support == NULL)
-         fatal("cannot find %s package", istr(psl_support_i));
+         fatal("required package %s not found", istr(psl_support_i));
 
       tree_t u = tree_new(T_USE);
       tree_set_ident(u, psl_support_i);

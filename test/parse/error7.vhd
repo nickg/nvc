@@ -13,3 +13,5 @@ use work.error7.all;                    -- Error
 package other is
     constant x : integer := bad;        -- Error (suppressed)
 end package;
+
+use work;                           -- Error

@@ -105,4 +105,5 @@ use work.data_type_pkg_bv.all;
 
 package data_type_test is
     constant test : bit_vector(1 to 8) := inst.c_val;  -- OK
+    use work.data_type_pkg_bv.inst.all;  -- OK
 end package;

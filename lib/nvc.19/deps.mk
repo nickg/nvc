@@ -2,9 +2,9 @@
 
 lib/nvc.19/NVC.IEEE_SUPPORT-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.IEEE_SUPPORT lib/ieee.19/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc.08/ieee_support-body.vhd
 
-lib/nvc.19/NVC.IEEE_SUPPORT: lib/ieee.19/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc.08/ieee_support.vhd
+lib/nvc.19/NVC.IEEE_SUPPORT: lib/std.19/STD.STANDARD lib/ieee.19/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc.08/ieee_support.vhd
 
-lib/nvc.19/NVC.POLYFILL: $(top_srcdir)/lib/nvc.08/polyfill.vhd
+lib/nvc.19/NVC.POLYFILL: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc.08/polyfill.vhd
 
 lib/nvc.19/NVC.PSL_SUPPORT-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.PSL_SUPPORT lib/ieee.19/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc/psl_support-body.vhd
 
