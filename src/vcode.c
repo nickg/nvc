@@ -965,6 +965,7 @@ const char *vcode_op_string(vcode_op_t op)
       return strs[op];
 }
 
+LCOV_EXCL_START
 static int vcode_dump_reg(vcode_reg_t reg)
 {
    int printed;
@@ -1154,7 +1155,6 @@ static int vcode_dump_var(vcode_var_t var, int hops)
    }
 }
 
-LCOV_EXCL_START
 void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 {
    assert(active_unit != NULL);
@@ -2357,47 +2357,6 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
 
       return false;
    }
-}
-
-bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
-{
-   const vtype_t *tt = vcode_type_data(type);
-   const vtype_t *bt = vcode_type_data(bounds);
-
-   if (bt->kind == VCODE_TYPE_UARRAY || tt->kind == VCODE_TYPE_UARRAY)
-      return false;
-   else if (bt->kind != tt->kind)
-      return false;
-
-   switch (bt->kind) {
-   case VCODE_TYPE_INT:
-      return bt->low >= tt->low && bt->high <= tt->high;
-
-   case VCODE_TYPE_CARRAY:
-   case VCODE_TYPE_UARRAY:
-   case VCODE_TYPE_RECORD:
-      return vtype_eq(type, bounds);
-
-   case VCODE_TYPE_POINTER:
-   case VCODE_TYPE_ACCESS:
-   case VCODE_TYPE_OFFSET:
-   case VCODE_TYPE_FILE:
-   case VCODE_TYPE_RESOLUTION:
-   case VCODE_TYPE_CLOSURE:
-   case VCODE_TYPE_OPAQUE:
-   case VCODE_TYPE_CONTEXT:
-   case VCODE_TYPE_DEBUG_LOCUS:
-   case VCODE_TYPE_TRIGGER:
-      return false;
-
-   case VCODE_TYPE_REAL:
-      return bt->rlow >= tt->rlow && bt->rhigh <= tt->rhigh;
-
-   case VCODE_TYPE_SIGNAL:
-      return vtype_includes(tt->base, bt->base);
-   }
-
-   return false;
 }
 
 void vcode_dump(void)

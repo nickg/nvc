@@ -266,7 +266,6 @@ vcode_type_t vtype_context(ident_t name);
 vcode_type_t vtype_debug_locus(void);
 vcode_type_t vtype_trigger(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
-bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
 bool vtype_is_scalar(vcode_type_t type);
 bool vtype_is_composite(vcode_type_t type);
