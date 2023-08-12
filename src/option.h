@@ -61,6 +61,7 @@ typedef enum {
    OPT_NO_COLLAPSE,
    OPT_COVER_VERBOSE,
    OPT_COVER_TIMESTAMP,
+   OPT_DRIVER_VERBOSE,
 
    OPT_LAST_NAME
 } opt_name_t;

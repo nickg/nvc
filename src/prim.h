@@ -58,6 +58,7 @@ typedef struct _tcl_shell tcl_shell_t;
 typedef struct _bit_mask bit_mask_t;
 typedef struct _printer printer_t;
 typedef struct _unit_registry unit_registry_t;
+typedef struct _driver_set driver_set_t;
 
 typedef struct _rt_model      rt_model_t;
 typedef struct _rt_watch      rt_watch_t;

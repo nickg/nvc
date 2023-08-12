@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "driver.h"
 #include "hash.h"
 #include "lib.h"
 #include "lower.h"
@@ -10435,74 +10436,7 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                            VCODE_INVALID_REG, lower_driver_field_cb, NULL);
 }
 
-static void lower_driver_target(lower_unit_t *lu, tree_t target)
-{
-   if (tree_kind(target) == T_AGGREGATE) {
-      const int nassocs = tree_assocs(target);
-      for (int i = 0; i < nassocs; i++)
-         lower_driver_target(lu, tree_value(tree_assoc(target, i)));
-   }
-   else {
-      tree_t prefix = longest_static_prefix(target);
-
-      tree_t ref = name_to_ref(prefix);
-      if (ref != NULL && tree_kind(tree_ref(ref)) == T_PARAM_DECL) {
-         // Assignment to procedure parameter: this is handled at the
-         // call site instead
-         return;
-      }
-
-      type_t prefix_type = tree_type(prefix);
-      vcode_reg_t nets_reg = lower_lvalue(lu, prefix);
-
-      if (!type_is_homogeneous(prefix_type))
-         lower_for_each_field(lu, prefix_type, nets_reg, VCODE_INVALID_REG,
-                              VCODE_INVALID_REG, lower_driver_field_cb, NULL);
-      else {
-         vcode_reg_t count_reg = lower_type_width(lu, prefix_type, nets_reg);
-         emit_drive_signal(lower_array_data(nets_reg), count_reg);
-      }
-   }
-}
-
-static void lower_driver_cb(tree_t t, void *__ctx)
-{
-   lower_unit_t *lu = __ctx;
-
-   switch (tree_kind(t)) {
-   case T_SIGNAL_ASSIGN:
-      lower_driver_target(lu, tree_target(t));
-      break;
-
-   case T_PCALL:
-   case T_PROT_PCALL:
-      // LRM 08 section 4.2.2.3: a process statement contains a driver
-      // for each actual signal associated with a formal signal
-      // parameter of mode out or inout in a subprogram call.
-      {
-         tree_t decl = tree_ref(t);
-         const int nports = tree_ports(decl);
-         for (int i = 0; i < nports; i++) {
-            tree_t p = tree_port(decl, i);
-            if (tree_class(p) != C_SIGNAL)
-               continue;
-
-            const port_mode_t mode = tree_subkind(p);
-            if (mode == PORT_OUT || mode == PORT_INOUT) {
-               tree_t arg = tree_param(t, i);
-               assert(tree_subkind(arg) == P_POS);
-               lower_driver_target(lu, tree_value(arg));
-            }
-         }
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
-void lower_process(lower_unit_t *parent, tree_t proc)
+void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 {
    assert(tree_kind(proc) == T_PROCESS);
 
@@ -10525,7 +10459,20 @@ void lower_process(lower_unit_t *parent, tree_t proc)
 
    lower_decls(lu, proc);
 
-   tree_visit(proc, lower_driver_cb, lu);
+   driver_info_t *di = get_drivers(ds, proc);
+   for (; di; di = di->chain_proc) {
+      assert(!di->tentative);
+      type_t prefix_type = tree_type(di->prefix);
+      vcode_reg_t nets_reg = lower_lvalue(lu, di->prefix);
+
+      if (!type_is_homogeneous(prefix_type))
+         lower_for_each_field(lu, prefix_type, nets_reg, VCODE_INVALID_REG,
+                              VCODE_INVALID_REG, lower_driver_field_cb, NULL);
+      else {
+         vcode_reg_t count_reg = lower_type_width(lu, prefix_type, nets_reg);
+         emit_drive_signal(lower_array_data(nets_reg), count_reg);
+      }
+   }
 
    // If the last statement in the process is a static wait then this
    // process is always sensitive to the same set of signals and we can

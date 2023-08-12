@@ -165,4 +165,5 @@ void set_default_options(void)
    opt_set_int(OPT_NO_COLLAPSE, 0);
    opt_set_int(OPT_COVER_VERBOSE, get_int_env("NVC_COVER_VERBOSE", 0));
    opt_set_int(OPT_COVER_TIMESTAMP, get_int_env("NVC_COVER_TIMESTAMP", -1));
+   opt_set_int(OPT_DRIVER_VERBOSE, get_int_env("NVC_DRIVER_VERBOSE", 0));
 }

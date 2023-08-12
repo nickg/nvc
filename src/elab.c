@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "driver.h"
 #include "eval.h"
 #include "hash.h"
 #include "jit/jit.h"
@@ -67,6 +68,7 @@ typedef struct _elab_ctx {
    bool              external_names;
    cover_tagging_t  *cover;
    void             *context;
+   driver_set_t     *drivers;
 } elab_ctx_t;
 
 typedef struct {
@@ -1447,6 +1449,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       diag_add_hint_fn(elab_hint_fn, t);
       bounds_check(b);   // Catch port size mismatches
       simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
+      new_ctx.drivers = find_drivers(arch_copy);
       diag_remove_hint_fn(elab_hint_fn);
    }
 
@@ -1643,6 +1646,9 @@ static void elab_pop_scope(elab_ctx_t *ctx)
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
 
+   if (ctx->drivers != NULL)
+      free_drivers(ctx->drivers);
+
    cover_pop_scope(ctx->cover);
 
    if (ctx->lowered != NULL)
@@ -1758,6 +1764,8 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       simplify_global(copy, new_ctx.generics, new_ctx.jit, new_ctx.registry);
 
+      new_ctx.drivers = find_drivers(copy);
+
       if (error_count() == 0) {
          elab_decls(copy, &new_ctx);
          elab_external_names(b, &new_ctx);
@@ -1815,6 +1823,8 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
 
+         new_ctx.drivers = find_drivers(cond);
+
          if (error_count() == 0) {
             elab_lower(b, &new_ctx);
             elab_stmts(cond, &new_ctx);
@@ -1857,6 +1867,8 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    elab_decls(chosen, &new_ctx);
    elab_external_names(b, &new_ctx);
 
+   new_ctx.drivers = find_drivers(chosen);
+
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
       elab_stmts(chosen, &new_ctx);
@@ -1865,12 +1877,22 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
+static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
+{
+   if (ctx->drivers != NULL)
+      return ctx->drivers;
+   else if (ctx->parent != NULL)
+      return elab_driver_set(ctx->parent);
+   else
+      return NULL;
+}
+
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
    elab_external_names(t, ctx);
 
    if (error_count() == 0)
-      lower_process(ctx->lowered, t);
+      lower_process(ctx->lowered, t, elab_driver_set(ctx));
 
    tree_add_stmt(ctx->out, t);
 }
@@ -2057,6 +2079,8 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    elab_decls(entity, &new_ctx);
 
    simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
+
+   new_ctx.drivers = find_drivers(arch_copy);
 
    if (error_count() == 0) {
       elab_decls(arch_copy, &new_ctx);

@@ -120,6 +120,7 @@ int main(int argc, char **argv)
 #ifdef ENABLE_SERVER
    nfail += RUN_TESTS(server);
 #endif
+   nfail += RUN_TESTS(driver);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

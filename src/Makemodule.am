@@ -50,7 +50,9 @@ lib_libnvc_a_SOURCES = \
 	src/mask.h \
 	src/mask.c \
 	src/thread.h \
-	src/thread.c
+	src/thread.c \
+	src/driver.h \
+	src/driver.c
 
 if ENABLE_SERVER
 lib_libnvc_a_SOURCES += src/server.c src/server.h
