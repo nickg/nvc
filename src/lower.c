@@ -2691,7 +2691,8 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
                      istr(tree_ident(decl)));
       }
    }
-   else if (lu->mode == LOWER_THUNK && lu->parent == NULL) {
+   else if (lu->mode == LOWER_THUNK && lu->parent == NULL
+            && tree_has_value(decl)) {
       // Handle a special case of simplifying locally static expressions
       // that reference constant declarations
       assert(tree_kind(decl) == T_CONST_DECL);

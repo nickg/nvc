@@ -848,3 +848,4 @@ open1           normal,2019
 issue750        normal,2008
 order3          shell
 driver18        normal,2008
+vhpi9           normal,vhpi
