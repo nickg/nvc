@@ -134,12 +134,14 @@ struct scope {
    lazy_sym_t    *lazy;
    tree_list_t    imported;
    label_cnts_t   lbl_cnts;
+   scope_t       *chain;
 };
 
 typedef struct _nametab {
    scope_t    *top_scope;
    type_set_t *top_type_set;
-   hash_t     *globals;
+   hash_t     *globalmap;
+   scope_t    *globals;
    tree_t      std;
    tree_t      psl;
 } nametab_t;
@@ -165,6 +167,7 @@ static bool is_forward_decl(tree_t decl, tree_t existing);
 static bool denotes_same_object(tree_t a, tree_t b);
 static void make_visible_slow(scope_t *s, ident_t name, tree_t decl);
 static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name);
+static void free_scope(scope_t *s);
 
 static void begin_overload_resolution(overload_t *o);
 static tree_t finish_overload_resolution(overload_t *o);
@@ -354,7 +357,7 @@ static bool can_overload(tree_t t)
 nametab_t *nametab_new(void)
 {
    nametab_t *tab = xcalloc(sizeof(nametab_t));
-   tab->globals = hash_new(128);
+   tab->globalmap = hash_new(128);
    return tab;
 }
 
@@ -362,7 +365,13 @@ void nametab_finish(nametab_t *tab)
 {
    assert(tab->top_scope == NULL);
    assert(tab->top_type_set == NULL);
-   hash_free(tab->globals);
+
+   for (scope_t *s = tab->globals, *tmp; s; s = tmp) {
+      tmp = s->chain;
+      free_scope(s);
+   }
+
+   hash_free(tab->globalmap);
    free(tab);
 }
 
@@ -964,13 +973,14 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
 
    void *key = type;
 
-   scope_t *s = hash_get(tab->globals, key);
+   scope_t *s = hash_get(tab->globalmap, key);
    if (s != NULL)
       return s;
 
    s = xcalloc(sizeof(scope_t));
    s->lookup   = hash_new(128);
    s->sym_tail = &(s->symbols);
+   s->chain    = tab->globals;
 
    const int ndecls = type_decls(type);
    for (int i = 0; i < ndecls; i++) {
@@ -978,8 +988,8 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
       make_visible_fast(s, tree_ident(d), d);
    }
 
-   hash_put(tab->globals, key, s);
-   return s;
+   hash_put(tab->globalmap, key, s);
+   return (tab->globals = s);
 }
 
 static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
@@ -990,7 +1000,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    if (kind == T_LIBRARY)
       key = tree_ident(unit);   // Tree pointer is not stable
 
-   scope_t *s = hash_get(tab->globals, key);
+   scope_t *s = hash_get(tab->globalmap, key);
    if (s != NULL)
       return s;
 
@@ -998,6 +1008,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    s->lookup    = hash_new(128);
    s->sym_tail  = &(s->symbols);
    s->container = unit;
+   s->chain     = tab->globals;
 
    if (kind == T_LIBRARY)
       make_library_visible(s, lib_require(tree_ident(unit)));
@@ -1064,8 +1075,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
          make_visible_fast(s, bare_name, unit);
    }
 
-   hash_put(tab->globals, key, s);
-   return s;
+   hash_put(tab->globalmap, key, s);
+   return (tab->globals = s);
 }
 
 static bool is_forward_decl(tree_t decl, tree_t existing)
