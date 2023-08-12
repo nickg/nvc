@@ -165,6 +165,18 @@ update-test-dist:
 	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' \
 	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
+
+orphan-tests:
+	( \
+	  cd $(top_srcdir) ; \
+	  missing=$$(comm -23 \
+	    <(git ls-files -- 'test/regress/*.vhd' 'test/regress/*.v' \
+	       | sed 's|.*/\([[:alnum:]]*\)\..*|\1|' | sort | uniq) \
+	    <(cut -d' ' -f1 test/regress/testlist.txt | sort) \
+	    | tee /dev/stderr | wc -l) ; \
+	  [ "$$missing" = 0 ] || exit 1 ; \
+	)
+
 endif
 
 .PHONY: update-test-dist

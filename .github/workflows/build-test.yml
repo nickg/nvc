@@ -53,6 +53,8 @@ jobs:
           make -C build bin/jitperf
           export ASAN_OPTIONS=detect_leaks=0    # XXX: remove this
           ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
+      - name: Check for orphan tests
+        run: make -C build orphan-tests
       - name: Coverage report
         run: make -C build cov-generate
       - name: Coveralls
