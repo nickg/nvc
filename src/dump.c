@@ -569,7 +569,8 @@ static void dump_binding(tree_t t, int indent)
    print_syntax("#use %s", istr(tree_ident(t)));
    if (tree_has_ident2(t))
       print_syntax("(%s)", istr(tree_ident2(t)));
-   print_syntax("\n");
+   if (tree_genmaps(t) > 0 || tree_params(t) > 0)
+      print_syntax("\n");
    dump_generic_map(t, indent + 2, tree_params(t) > 0 ? "\n" : "");
    dump_port_map(t, indent + 2, "");
    print_syntax(";\n");
