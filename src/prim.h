@@ -42,7 +42,7 @@ typedef struct _chash chash_t;
 typedef struct _hset hset_t;
 typedef struct _eval_frame eval_frame_t;
 typedef struct text_buf text_buf_t;
-typedef struct nametab nametab_t;
+typedef struct _nametab nametab_t;
 typedef struct _diag diag_t;
 typedef struct _mspace mspace_t;
 typedef struct _tlab tlab_t;

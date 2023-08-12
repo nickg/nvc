@@ -130,20 +130,19 @@ struct scope {
    void          *formal_arg;
    ident_t        prefix;
    tree_t         container;
-   type_t         type;
    bool           suppress;
    lazy_sym_t    *lazy;
    tree_list_t    imported;
-   scope_t       *chain;
    label_cnts_t   lbl_cnts;
 };
 
-struct nametab {
+typedef struct _nametab {
    scope_t    *top_scope;
    type_set_t *top_type_set;
+   hash_t     *globals;
    tree_t      std;
    tree_t      psl;
-};
+} nametab_t;
 
 typedef struct {
    type_t type;
@@ -355,6 +354,7 @@ static bool can_overload(tree_t t)
 nametab_t *nametab_new(void)
 {
    nametab_t *tab = xcalloc(sizeof(nametab_t));
+   tab->globals = hash_new(128);
    return tab;
 }
 
@@ -362,6 +362,7 @@ void nametab_finish(nametab_t *tab)
 {
    assert(tab->top_scope == NULL);
    assert(tab->top_type_set == NULL);
+   hash_free(tab->globals);
    free(tab);
 }
 
@@ -388,8 +389,6 @@ static void free_overflow(sym_chunk_t *chunk)
 static void free_scope(scope_t *s)
 {
    hash_free(s->lookup);
-
-   if (s->chain) free_scope(s->chain);
 
    free_overflow(&(s->symbols));
 
@@ -961,30 +960,17 @@ static ident_t unit_bare_name(tree_t unit)
 
 static scope_t *scope_for_type(nametab_t *tab, type_t type)
 {
-   static hash_t *cache = NULL;
-   INIT_ONCE(cache = hash_new(128));
-
    assert(type_is_protected(type));
 
-   const bool cacheable = type_frozen(type);
    void *key = type;
 
-   scope_t *s = NULL;
-   if (cacheable && (s = hash_get(cache, key)))
+   scope_t *s = hash_get(tab->globals, key);
+   if (s != NULL)
       return s;
-   else {
-      for (scope_t *ss = tab->top_scope; ss; ss = ss->parent) {
-         for (s = ss->chain; s; s = s->chain) {
-            if (s->type == type)
-               return s;
-         }
-      }
-   }
 
    s = xcalloc(sizeof(scope_t));
    s->lookup   = hash_new(128);
    s->sym_tail = &(s->symbols);
-   s->type     = type;
 
    const int ndecls = type_decls(type);
    for (int i = 0; i < ndecls; i++) {
@@ -992,43 +978,21 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
       make_visible_fast(s, tree_ident(d), d);
    }
 
-   if (cacheable)
-      hash_put(cache, key, s);
-   else {
-      s->chain = tab->top_scope->chain;
-      tab->top_scope->chain = s;
-   }
-
+   hash_put(tab->globals, key, s);
    return s;
 }
 
 static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 {
-   static hash_t *cache = NULL;
-   INIT_ONCE(cache = hash_new(128));
-
    const tree_kind_t kind = tree_kind(unit);
 
-   bool cacheable = true;
    void *key = unit;
    if (kind == T_LIBRARY)
       key = tree_ident(unit);   // Tree pointer is not stable
-   else {
-      assert(is_container(unit));
-      cacheable = tree_frozen(unit);
-   }
 
-   scope_t *s = NULL;
-   if (cacheable && (s = hash_get(cache, key)))
+   scope_t *s = hash_get(tab->globals, key);
+   if (s != NULL)
       return s;
-   else {
-      for (scope_t *ss = tab->top_scope; ss; ss = ss->parent) {
-         for (s = ss->chain; s; s = s->chain) {
-            if (s->container == unit)
-               return s;
-         }
-      }
-   }
 
    s = xcalloc(sizeof(scope_t));
    s->lookup    = hash_new(128);
@@ -1100,13 +1064,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
          make_visible_fast(s, bare_name, unit);
    }
 
-   if (cacheable)
-      hash_put(cache, key, s);
-   else {
-      s->chain = tab->top_scope->chain;
-      tab->top_scope->chain = s;
-   }
-
+   hash_put(tab->globals, key, s);
    return s;
 }
 
