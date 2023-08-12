@@ -4998,11 +4998,6 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
                 "argument to record ref must be a pointer");
 
    vtype_t *rtype = vcode_type_data(rptype->pointed);
-
-   const bool is_signal = rtype->kind == VCODE_TYPE_SIGNAL;
-   if (is_signal)
-      rtype = vcode_type_data(rtype->base);
-
    VCODE_ASSERT(rtype->kind == VCODE_TYPE_RECORD,
                 "argument must be pointer to record or record signal");
 
@@ -5019,9 +5014,6 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
       bounds_type = vtype_elem(field_type);
       result_type = field_type;
    }
-
-   if (is_signal)
-      result_type = vtype_signal(result_type);
 
    op->result = vcode_add_reg(vtype_pointer(result_type));
 
