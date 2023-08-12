@@ -996,11 +996,20 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 {
    const tree_kind_t kind = tree_kind(unit);
 
+   hash_t *cache = tab->globalmap;
+   ident_t id = tree_ident(unit);
    void *key = unit;
    if (kind == T_LIBRARY)
-      key = tree_ident(unit);   // Tree pointer is not stable
+      key = id;   // Tree pointer is not stable
+   else if (is_well_known(id) < NUM_WELL_KNOWN) {
+      // Standard packages can be safely stored in a global cache as we
+      // know they won't change
+      static hash_t *stdcache = NULL;
+      INIT_ONCE(stdcache = hash_new(64));
+      cache = stdcache;
+   }
 
-   scope_t *s = hash_get(tab->globalmap, key);
+   scope_t *s = hash_get(cache, key);
    if (s != NULL)
       return s;
 
@@ -1008,7 +1017,11 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    s->lookup    = hash_new(128);
    s->sym_tail  = &(s->symbols);
    s->container = unit;
-   s->chain     = tab->globals;
+
+   if (cache == tab->globalmap) {
+      s->chain = tab->globals;
+      tab->globals = s;
+   }
 
    if (kind == T_LIBRARY)
       make_library_visible(s, lib_require(tree_ident(unit)));
@@ -1075,8 +1088,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
          make_visible_fast(s, bare_name, unit);
    }
 
-   hash_put(tab->globalmap, key, s);
-   return (tab->globals = s);
+   hash_put(cache, key, s);
+   return s;
 }
 
 static bool is_forward_decl(tree_t decl, tree_t existing)
