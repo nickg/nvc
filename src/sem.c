@@ -5542,20 +5542,157 @@ static bool sem_check_binding(tree_t t, nametab_t *tab)
 
 static bool sem_check_block_config(tree_t t, nametab_t *tab)
 {
-   bool ok = true;
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok &= sem_check(tree_decl(t, i), tab);
-
-   return ok;
+   return true;
 }
 
 static bool sem_check_spec(tree_t t, nametab_t *tab)
 {
-   if (tree_has_value(t))
-      return sem_check(tree_value(t), tab);
-   else
+   if (!tree_has_ref(t))
+      return false;
+
+   tree_t comp = tree_ref(t);
+   assert(tree_kind(comp) == T_COMPONENT);
+
+   if (!tree_has_value(t))
       return true;
+
+   tree_t bind = tree_value(t);
+   assert(tree_kind(bind) == T_BINDING);
+
+   if (!sem_check(bind, tab))
+      return false;
+
+   tree_t entity = primary_unit_of(tree_ref(bind));
+   assert(tree_kind(entity) == T_ENTITY);
+
+   bool ok = true;
+
+   const int c_ngenerics = tree_generics(comp);
+   const int e_ngenerics = tree_generics(entity);
+   const int b_genmaps = tree_genmaps(bind);
+
+   for (int i = 0; i < c_ngenerics; i++) {
+      tree_t cg = tree_generic(comp, i);
+
+      tree_t rebind = NULL;
+      for (int j = 0; rebind == NULL && j < b_genmaps; j++) {
+         tree_t value = tree_value(tree_genmap(bind, j));
+         if (tree_kind(value) == T_REF && tree_ref(value) == cg)
+            rebind = value;
+      }
+
+      if (rebind != NULL)
+         continue;   // Ignore for now
+
+      tree_t match = NULL;
+      for (int j = 0; match == NULL && j < e_ngenerics; j++) {
+         tree_t eg = tree_generic(entity, j);
+         if (tree_ident(eg) == tree_ident(cg))
+            match = eg;
+      }
+
+      if (match == NULL) {
+         if (!tree_has_value(cg)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "generic %s in component %s without a default value "
+                        "has no corresponding generic in entity %s",
+                        istr(tree_ident(cg)), istr(tree_ident(comp)),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(cg), "generic %s declared here",
+                      istr(tree_ident(cg)));
+            diag_emit(d);
+         }
+
+         ok = false;
+         continue;
+      }
+
+      type_t ctype = tree_type(cg);
+      type_t etype = tree_type(match);
+      if (!type_eq(ctype, etype)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "generic %s in component %s has type %s which is "
+                     "incompatible with type %s in entity %s",
+                     istr(tree_ident(cg)), istr(tree_ident(comp)),
+                     type_pp2(ctype, etype), type_pp2(etype, ctype),
+                     istr(tree_ident(entity)));
+         diag_hint(d, tree_loc(cg), "declaration of generic %s in component",
+                   istr(tree_ident(cg)));
+         diag_hint(d, tree_loc(match), "declaration of generic %s in entity",
+                   istr(tree_ident(match)));
+         diag_emit(d);
+
+         ok = false;
+         continue;
+      }
+   }
+
+   const int c_nports = tree_ports(comp);
+   const int e_nports = tree_ports(entity);
+   const int b_nparams = tree_params(bind);
+
+   for (int i = 0; i < c_nports; i++) {
+      tree_t cp = tree_port(comp, i);
+
+      tree_t rebind = NULL;
+      for (int j = 0; rebind == NULL && j < b_nparams; j++) {
+         tree_t value = tree_value(tree_param(bind, j));
+         if (tree_kind(value) == T_REF && tree_ref(value) == cp)
+            rebind = value;
+      }
+
+      if (rebind != NULL)
+         continue;   // Ignore for now
+
+      tree_t match = NULL;
+      for (int j = 0; match == NULL && j < e_nports; j++) {
+         tree_t ep = tree_port(entity, j);
+         if (tree_ident(ep) == tree_ident(cp))
+            match = ep;
+      }
+
+      if (match == NULL) {
+         const bool open_ok =
+            tree_has_value(cp)
+            || (tree_subkind(cp) == PORT_OUT
+                && !type_is_unconstrained(tree_type(cp)));
+
+         if (!open_ok) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "port %s in component %s without a default value "
+                        "has no corresponding port in entity %s",
+                        istr(tree_ident(cp)), istr(tree_ident(comp)),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(cp), "port %s declared here",
+                      istr(tree_ident(cp)));
+            diag_emit(d);
+         }
+
+         ok = false;
+         continue;
+      }
+
+      type_t ctype = tree_type(cp);
+      type_t etype = tree_type(match);
+      if (!type_eq(ctype, etype)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "port %s in component %s has type %s which is "
+                     "incompatible with type %s in entity %s",
+                     istr(tree_ident(cp)), istr(tree_ident(comp)),
+                     type_pp2(ctype, etype), type_pp2(etype, ctype),
+                     istr(tree_ident(entity)));
+         diag_hint(d, tree_loc(cp), "declaration of port %s in component",
+                   istr(tree_ident(cp)));
+         diag_hint(d, tree_loc(match), "declaration of port %s in entity",
+                   istr(tree_ident(match)));
+         diag_emit(d);
+
+         ok = false;
+         continue;
+      }
+   }
+
+   return ok;
 }
 
 static bool sem_check_configuration(tree_t t, nametab_t *tab)

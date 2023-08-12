@@ -7,6 +7,7 @@
 - Fixed a spurious "duplicate declaration" error if a use clause for an
   instantiated packages appears in the same declarative region that
   instantiated the package (#750).
+- Improved checking for configuration specifications.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements
