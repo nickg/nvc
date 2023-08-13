@@ -1676,17 +1676,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_CANON_VALUE:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[1]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
          case VCODE_OP_COMMENT:
             {
                color_printf("$cyan$// %s$$ ", op->comment);
@@ -5719,26 +5708,6 @@ vcode_reg_t emit_convstr(vcode_reg_t value)
 
    VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(value)),
                 "convstr value must be scalar");
-
-   vcode_type_t vchar = vtype_char();
-   return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
-}
-
-vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CANON_VALUE) {
-      if (other->args.items[0] == ptr && other->args.items[1] == len)
-         return other->result;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_CANON_VALUE);
-   vcode_add_arg(op, ptr);
-   vcode_add_arg(op, len);
-
-   VCODE_ASSERT(vcode_reg_kind(ptr) == VCODE_TYPE_POINTER,
-                "canon value ptr argument must be pointer");
-   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
-                "canon value len argument must be offset");
 
    vcode_type_t vchar = vtype_char();
    return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));

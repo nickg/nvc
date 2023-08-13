@@ -63,7 +63,6 @@ int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int64_t *used);
 double x_string_to_real(const uint8_t *raw_str, int32_t str_len);
 ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max);
 ffi_uarray_t x_real_to_string(double value, char *buf, size_t max);
-ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf);
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                    int64_t hint_left, int64_t hint_right, int8_t hint_valid,
                    object_t *where);

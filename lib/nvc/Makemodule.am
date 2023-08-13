@@ -5,6 +5,8 @@ nvc_DATA = \
 	lib/nvc/NVC.SIM_PKG \
 	lib/nvc/NVC.POLYFILL \
 	lib/nvc/NVC.POLYFILL-body \
+	lib/nvc/NVC.TEXT_UTIL \
+	lib/nvc/NVC.TEXT_UTIL-body \
 	lib/nvc/NVC.PSL_SUPPORT \
 	lib/nvc/NVC.PSL_SUPPORT-body
 
@@ -31,6 +33,12 @@ lib/nvc/NVC.POLYFILL: $(srcdir)/lib/nvc/polyfill.vhd @ifGNUmake@ | $(DRIVER)
 
 lib/nvc/NVC.POLYFILL-body: $(srcdir)/lib/nvc/polyfill-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
+
+lib/nvc/NVC.TEXT_UTIL: $(srcdir)/lib/nvc/text_util.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/text_util.vhd
+
+lib/nvc/NVC.TEXT_UTIL-body: $(srcdir)/lib/nvc/text_util-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/text_util-body.vhd
 
 lib/nvc/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/psl_support.vhd

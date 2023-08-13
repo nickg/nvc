@@ -8258,8 +8258,15 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
+   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
 
-   vcode_reg_t canon_reg = emit_canon_value(arg_data_reg, arg_len_reg);
+   ident_t canon_fn = ident_new("NVC.TEXT_UTIL.CANON_VALUE(S)S");
+   vcode_reg_t canon_args[] = {
+      lower_context_for_call(lu, canon_fn),
+      preg,
+   };
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar, VCODE_CC_VHDL,
+                                      canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
    size_t stride = 0;
@@ -8386,6 +8393,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
 
    vcode_var_t used_var = lower_temp_var(lu, "used", voffset, voffset);
    vcode_reg_t used_ptr = emit_index(used_var, VCODE_INVALID_REG);
@@ -8394,11 +8402,28 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
                                       used_ptr, vint64);
 
    vcode_reg_t used_reg = emit_load_indirect(used_ptr);
-   vcode_reg_t tail_reg = emit_array_ref(arg_data_reg, used_reg);
+   vcode_reg_t tail_ptr = emit_array_ref(arg_data_reg, used_reg);
    vcode_reg_t tail_len = emit_sub(arg_len_reg, used_reg);
 
-   vcode_reg_t canon_reg = emit_canon_value(tail_reg, tail_len);
-   vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
+   vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
+   vcode_reg_t to_reg = emit_const(vtype_bool(), RANGE_TO);
+
+   vcode_dim_t tail_dims[1] = {
+      { .left  = one_reg,
+        .right = tail_len,
+        .dir   = to_reg
+      },
+   };
+   vcode_reg_t tail_reg = emit_wrap(tail_ptr, tail_dims, 1);
+
+   ident_t canon_fn = ident_new("NVC.TEXT_UTIL.CANON_VALUE(S)S");
+   vcode_reg_t canon_args[] = {
+      lower_context_for_call(lu, canon_fn),
+      tail_reg,
+   };
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar, VCODE_CC_VHDL,
+                                      canon_args, ARRAY_LEN(canon_args));
+   vcode_reg_t canon_len_reg = emit_uarray_len(canon_reg, 0);
 
    const int nunits = type_units(type);
    assert(nunits >= 1);
@@ -8469,9 +8494,9 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t char_ptr = emit_array_ref(char_array_ptr, char_off);
 
    vcode_dim_t dims[] = {
-      { .left  = emit_const(vtype_offset(), 1),
+      { .left  = one_reg,
         .right = len_reg,
-        .dir   = emit_const(vtype_bool(), RANGE_TO)
+        .dir   = to_reg,
       }
    };
    vcode_reg_t str_reg = emit_wrap(char_ptr, dims, 1);
@@ -8509,7 +8534,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
    vcode_reg_t ptr1_reg = emit_array_ref(mem_reg, emit_const(voffset, 1));
-   emit_copy(ptr1_reg, tail_reg, tail_len);
+   emit_copy(ptr1_reg, tail_ptr, tail_len);
 
    vcode_reg_t ptr2_reg = emit_array_ref(ptr1_reg, tail_len);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);

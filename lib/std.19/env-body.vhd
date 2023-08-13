@@ -410,7 +410,7 @@ package body env is
                 end if;
                 tb_cat(tb, to_string(call_path(i)));
             end loop;
-            return to_string(tb);
+            return tb.buf(1 to tb.len);
         else
             return "";
         end if;

@@ -6,6 +6,8 @@ nvc_08_DATA = \
 	lib/nvc.08/NVC.POLYFILL \
 	lib/nvc.08/NVC.IEEE_SUPPORT \
 	lib/nvc.08/NVC.IEEE_SUPPORT-body \
+	lib/nvc.08/NVC.TEXT_UTIL \
+	lib/nvc.08/NVC.TEXT_UTIL-body \
 	lib/nvc.08/NVC.PSL_SUPPORT \
 	lib/nvc.08/NVC.PSL_SUPPORT-body
 
@@ -31,6 +33,12 @@ lib/nvc.08/NVC.IEEE_SUPPORT: $(srcdir)/lib/nvc.08/ieee_support.vhd @ifGNUmake@ |
 
 lib/nvc.08/NVC.IEEE_SUPPORT-body: $(srcdir)/lib/nvc.08/ieee_support-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/ieee_support-body.vhd
+
+lib/nvc.08/NVC.TEXT_UTIL: $(srcdir)/lib/nvc/text_util.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/text_util.vhd
+
+lib/nvc.08/NVC.TEXT_UTIL-body: $(srcdir)/lib/nvc/text_util-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/text_util-body.vhd
 
 lib/nvc.08/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/psl_support.vhd

@@ -12,3 +12,7 @@ lib/nvc.08/NVC.PSL_SUPPORT: lib/std.08/STD.STANDARD lib/ieee.08/IEEE.STD_LOGIC_1
 
 lib/nvc.08/NVC.SIM_PKG: lib/std.08/STD.STANDARD $(top_srcdir)/lib/nvc/sim_pkg.vhd
 
+lib/nvc.08/NVC.TEXT_UTIL-body: lib/std.08/STD.STANDARD lib/nvc.08/NVC.TEXT_UTIL lib/nvc.08/NVC.POLYFILL $(top_srcdir)/lib/nvc/text_util-body.vhd
+
+lib/nvc.08/NVC.TEXT_UTIL: lib/std.08/STD.STANDARD $(top_srcdir)/lib/nvc/text_util.vhd
+

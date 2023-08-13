@@ -380,33 +380,6 @@ double x_string_to_real(const uint8_t *raw_str, int32_t str_len)
    return value;
 }
 
-ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
-{
-   char *p = buf;
-   int pos = 0;
-
-   for (; pos < str_len && isspace_iso88591(raw_str[pos]); pos++)
-      ;
-
-   bool upcase = true;
-   for (; pos < str_len && !isspace_iso88591(raw_str[pos]); pos++) {
-      if (raw_str[pos] == '\'')
-         upcase = !upcase;
-
-      *p++ = upcase ? toupper_iso88591(raw_str[pos]) : raw_str[pos];
-   }
-
-   for (; pos < str_len; pos++) {
-      if (!isspace_iso88591(raw_str[pos])) {
-         jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                 "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
-                 (const char *)raw_str);
-      }
-   }
-
-   return ffi_wrap(buf, 1, p - buf);
-}
-
 ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max)
 {
    size_t len = checked_sprintf(buf, max, "%"PRIi64, value);
@@ -848,20 +821,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_EXIT_FUNC_WAIT:
       {
          x_func_wait();
-      }
-      break;
-
-   case JIT_EXIT_CANON_VALUE:
-      {
-         uint8_t *ptr = args[0].pointer;
-         int32_t  len = args[1].integer;
-
-         char *buf = jit_mspace_alloc(len);
-
-         ffi_uarray_t u = x_canon_value(ptr, len, buf);
-         args[0].pointer = u.ptr;
-         args[1].integer = u.dims[0].left;
-         args[2].integer = u.dims[0].length;
       }
       break;
 

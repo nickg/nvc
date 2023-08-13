@@ -3318,20 +3318,6 @@ static void irgen_op_convstr(jit_irgen_t *g, int op)
    j_recv(g, 2);   // Length
 }
 
-static void irgen_op_canon_value(jit_irgen_t *g, int op)
-{
-   jit_value_t ptr = irgen_get_arg(g, op, 0);
-   jit_value_t len = irgen_get_arg(g, op, 1);
-
-   j_send(g, 0, ptr);
-   j_send(g, 1, len);
-   macro_exit(g, JIT_EXIT_CANON_VALUE);
-
-   g->map[vcode_get_result(op)] = j_recv(g, 0);
-   j_recv(g, 1);   // Left
-   j_recv(g, 2);   // Length
-}
-
 static void irgen_op_debug_out(jit_irgen_t *g, int op)
 {
    jit_value_t value = irgen_get_arg(g, op, 0);
@@ -3853,9 +3839,6 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_CONVSTR:
          irgen_op_convstr(g, i);
-         break;
-      case VCODE_OP_CANON_VALUE:
-         irgen_op_canon_value(g, i);
          break;
       case VCODE_OP_DEBUG_OUT:
          irgen_op_debug_out(g, i);
