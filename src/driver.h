@@ -33,6 +33,7 @@ typedef struct _driver_info {
 
 driver_set_t *find_drivers(tree_t block);
 driver_info_t *get_drivers(driver_set_t *ds, tree_t what);
+bool has_unique_driver(driver_set_t *ds, tree_t what);
 void free_drivers(driver_set_t *ds);
 void dump_drivers(driver_set_t *ds);
 

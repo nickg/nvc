@@ -123,6 +123,46 @@ void mask_set_range(bit_mask_t *m, int start, int count)
    }
 }
 
+bool mask_test_range(bit_mask_t *m, int start, int count)
+{
+   if (m->size <= 64)
+      return !!(m->bits & mask_for_range(start, start + count - 1));
+
+   if (count > 0 && start % 64 != 0) {
+      // Pre-loop: test range of bits in first 64-bit word
+      const int low = start % 64;
+      const int high = MIN(low + count - 1, 63);
+      const int nbits = high - low + 1;
+
+      if (m->ptr[start / 64] & mask_for_range(low, high))
+         return true;
+
+      start += nbits;
+      count -= nbits;
+   }
+
+   if (count > 0) {
+      // Main loop: test complete 64-bit words
+      for (; count >= 64; count -= 64, start += 64) {
+         if (m->ptr[start / 64])
+            return true;
+      }
+   }
+
+   if (count > 0) {
+      // Post-loop: test range of bits in last 64-bit word
+      assert(start % 64 == 0);
+      const int high = MIN(count - 1, 63);
+
+      if (m->ptr[start / 64] & mask_for_range(0, high))
+         return true;
+
+      assert(count == high + 1);
+   }
+
+   return false;
+}
+
 int mask_popcount(bit_mask_t *m)
 {
    if (m->size > 64) {

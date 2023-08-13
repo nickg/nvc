@@ -20,9 +20,11 @@
 #include "driver.h"
 #include "hash.h"
 #include "ident.h"
+#include "mask.h"
 #include "option.h"
 #include "phase.h"
 #include "tree.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -325,6 +327,122 @@ void free_drivers(driver_set_t *ds)
 driver_info_t *get_drivers(driver_set_t *ds, tree_t what)
 {
    return hash_get(ds->map, what);
+}
+
+bool has_unique_driver(driver_set_t *ds, tree_t what)
+{
+   // True if signal has exactly one driver for each sub-element
+
+   driver_info_t *di = get_drivers(ds, what);
+
+   if (di == NULL)
+      return false;
+
+   // First pass: look for assignments to the full signal
+
+   bool saw_ref = false, saw_multiple = false;
+   tree_t proc = di->where;
+   for (driver_info_t *it = di; it; it = it->chain_decl) {
+      if (it->where != proc)
+         saw_multiple = true;
+      else if (tree_kind(it->prefix) == T_REF)
+         saw_ref = true;
+   }
+
+   if (saw_ref && !saw_multiple)
+      return true;
+
+   type_t type = tree_type(what);
+   int64_t length = 0, left = 0, right = 0;
+   range_kind_t rkind = RANGE_ERROR;
+   if (type_is_array(type) && dimension_of(type) == 1) {
+      tree_t r = range_of(type, 0);
+      if (folded_length(r, &length)) {
+         left = assume_int(tree_left(r));
+         right = assume_int(tree_right(r));
+         rkind = tree_subkind(r);
+      }
+   }
+   else if (type_is_record(type))
+      length = type_fields(type);
+
+   if (length == 0)
+      return false;
+
+   // Second pass: look for assignments to disjoint sub-elements
+
+   bit_mask_t mask = {};
+   mask_init(&mask, length);
+
+   bool covered = false;
+   for (driver_info_t *it = di; it; it = it->chain_decl) {
+      const tree_kind_t kind = tree_kind(it->prefix);
+      if (kind != T_ARRAY_REF && kind != T_ARRAY_SLICE && kind != T_RECORD_REF)
+         goto out_free;
+
+      tree_t value = tree_value(it->prefix);
+      if (tree_kind(value) != T_REF)
+         goto out_free;
+
+      assert(tree_ref(value) == what);
+
+      switch (kind) {
+      case T_ARRAY_REF:
+         {
+            assert(tree_params(it->prefix) == 1);
+            tree_t p0 = tree_value(tree_param(it->prefix, 0));
+
+            int64_t ival;
+            if (!folded_int(p0, &ival))
+               goto out_free;
+
+            const int zero = rkind == RANGE_TO ? ival - left : ival - right;
+            if (mask_test(&mask, zero))
+               goto out_free;
+
+            mask_set(&mask, zero);
+         }
+         break;
+
+      case T_ARRAY_SLICE:
+         {
+            tree_t r = tree_range(it->prefix, 0);
+
+            int64_t low, high;
+            if (!folded_bounds(r, &low, &high) || high < low)
+               goto out_free;
+
+            const int count = high - low + 1;
+            const int zero = rkind == RANGE_TO ? low - left : low - right;
+
+            if (mask_test_range(&mask, zero, count))
+               goto out_free;
+
+            mask_set_range(&mask, zero, count);
+         }
+         break;
+
+      case T_RECORD_REF:
+         {
+            const int pos = tree_pos(tree_ref(it->prefix));
+
+            if (mask_test(&mask, pos))
+               goto out_free;
+
+            mask_set(&mask, pos);
+         }
+         break;
+
+      default:
+         goto out_free;
+      }
+   }
+
+   covered = (mask_popcount(&mask) == length);
+
+ out_free:
+   mask_free(&mask);
+   return covered;
 }
 
 LCOV_EXCL_START

@@ -4469,14 +4469,12 @@ START_TEST(test_directmap)
       { VCODE_OP_STORE, .name = "I" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CONST, .value = 4 },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_ALIAS_SIGNAL },
       { VCODE_OP_STORE, .name = "O" },
-      { VCODE_OP_MAP_SIGNAL },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_MAP_CONST },
       { VCODE_OP_RETURN },
    };
 

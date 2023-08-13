@@ -99,7 +99,8 @@ START_TEST(test_sanity1)
    ck_assert_ptr_nonnull(g5p0di->chain_proc);
    ck_assert(g5p0di->tentative);
 
-   free_drivers(di);
+   ck_assert(has_unique_driver(ds, x));
+   ck_assert(!has_unique_driver(ds, z));
 
    free_drivers(ds);
 
@@ -145,6 +146,35 @@ START_TEST(test_sanity2)
 }
 END_TEST
 
+START_TEST(test_unique1)
+{
+   input_from_file(TESTDIR "/driver/unique1.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   driver_set_t *ds = find_drivers(a);
+
+   tree_t s1 = get_decl(a, "S1");
+   ck_assert(has_unique_driver(ds, s1));
+
+   tree_t s2 = get_decl(a, "S2");
+   ck_assert(!has_unique_driver(ds, s2));
+
+   tree_t s3 = get_decl(a, "S3");
+   ck_assert(has_unique_driver(ds, s3));
+
+   tree_t s4 = get_decl(a, "S4");
+   ck_assert(has_unique_driver(ds, s4));
+
+   tree_t s5 = get_decl(a, "S5");
+   ck_assert(!has_unique_driver(ds, s5));
+
+   free_drivers(ds);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_driver_tests(void)
 {
    Suite *s = suite_create("driver");
@@ -152,6 +182,7 @@ Suite *get_driver_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_sanity1);
    tcase_add_test(tc, test_sanity2);
+   tcase_add_test(tc, test_unique1);
    suite_add_tcase(s, tc);
 
    return s;

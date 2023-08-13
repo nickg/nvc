@@ -1241,10 +1241,20 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->inst      = ctx->inst ?: parent->inst;
 }
 
+static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
+{
+   if (ctx->drivers != NULL)
+      return ctx->drivers;
+   else if (ctx->parent != NULL)
+      return elab_driver_set(ctx->parent);
+   else
+      return NULL;
+}
+
 static void elab_lower(tree_t b, elab_ctx_t *ctx)
 {
    ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
-                                 ctx->cover, b);
+                                 elab_driver_set(ctx), ctx->cover, b);
 
    if (ctx->cover != NULL)
       eval_alloc_cover_mem(ctx->jit, ctx->cover);
@@ -1875,16 +1885,6 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    }
 
    elab_pop_scope(&new_ctx);
-}
-
-static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
-{
-   if (ctx->drivers != NULL)
-      return ctx->drivers;
-   else if (ctx->parent != NULL)
-      return elab_driver_set(ctx->parent);
-   else
-      return NULL;
 }
 
 static void elab_process(tree_t t, const elab_ctx_t *ctx)

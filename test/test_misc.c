@@ -400,6 +400,8 @@ START_TEST(test_set_clear_range)
    bit_mask_t m;
    mask_init(&m, mask_size[_i]);
 
+   fail_if(mask_test_range(&m, 0, mask_size[_i]));
+
    mask_set_range(&m, 1, 2);
 
    fail_if(mask_test(&m, 0));
@@ -407,6 +409,7 @@ START_TEST(test_set_clear_range)
    fail_unless(mask_test(&m, 2));
    fail_if(mask_test(&m, 3));
    ck_assert_int_eq(mask_popcount(&m), 2);
+   fail_unless(mask_test_range(&m, 0, 5));
 
    if (mask_size[_i] > 64) {
       mask_set_range(&m, 70, 3);
@@ -417,6 +420,7 @@ START_TEST(test_set_clear_range)
       fail_unless(mask_test(&m, 72));
       fail_if(mask_test(&m, 73));
       ck_assert_int_eq(mask_popcount(&m), 5);
+      fail_unless(mask_test_range(&m, 60, 20));
 
       mask_clear_range(&m, 71, 2);
 
