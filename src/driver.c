@@ -343,7 +343,9 @@ bool has_unique_driver(driver_set_t *ds, tree_t what)
    bool saw_ref = false, saw_multiple = false;
    tree_t proc = di->where;
    for (driver_info_t *it = di; it; it = it->chain_decl) {
-      if (it->where != proc)
+      if (it->tentative)
+         return false;
+      else if (it->where != proc)
          saw_multiple = true;
       else if (tree_kind(it->prefix) == T_REF)
          saw_ref = true;
