@@ -371,7 +371,7 @@ START_TEST(test_func)
    input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
-      {   5, "function arguments must have mode IN" },
+      {   5, "function parameters must have mode IN" },
       {  19, "must be an unconstrained array type" },
       {  23, "resolution function must have a single argument" },
       {  25, "no visible subprogram declaration for UENUM" },
@@ -379,11 +379,11 @@ START_TEST(test_func)
       {  29, "subprogram body is not allowed in package specification" },
       {  36, "design unit BAD not found in library WORK" },
       {  48, "expected return type INTEGER but have UENUM" },
-      {  51, "function arguments must have mode IN" },
+      {  51, "function parameters must have mode IN" },
       {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
       { 114, "positional parameters must precede named parameters" },
       { 115, "formal parameter X already has an associated actual" },
-      { 124, "function arguments may not have VARIABLE class" },
+      { 124, "class of function parameters must be CONSTANT, SIGNAL, or FILE" },
       { 146, "B with class VARIABLE must be a name denoting a variable" },
       { 161, "pure function TEST18 cannot call impure function" },
       { 166, "formal parameter X with access type must have class VARIABLE" },
@@ -403,6 +403,8 @@ START_TEST(test_func)
       { 317, "default value of parameter X in subprogram body FUNC3" },
       { 324, "function FUNC4 declaration was pure but body is impure" },
       { 331, "function FUNC5 declaration was impure but body is pure" },
+      { 336, "class of function parameters must be CONSTANT, SIGNAL, or FILE" },
+      { 338, "function parameters must have mode IN" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2815,22 +2817,6 @@ START_TEST(test_gensub2)
 }
 END_TEST
 
-START_TEST(test_vhdl2019)
-{
-   set_standard(STD_19);
-   input_from_file(TESTDIR "/sem/vhdl2019.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   parse_and_check(T_ENTITY, T_ARCH);
-
-   check_expected_errors();
-}
-END_TEST
-
 START_TEST(test_altera1)
 {
    input_from_file(TESTDIR "/sem/altera1.vhd");
@@ -3228,6 +3214,26 @@ START_TEST(test_config2)
 }
 END_TEST
 
+START_TEST(test_lcs2016_02)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_02.vhd");
+
+   const error_t expect[] = {
+      {  4, "pure function parameters must have mode IN" },
+      {  6, "class of pure function parameters must be CONSTANT, SIGNAL, "
+         "or FILE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3364,7 +3370,6 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_gensub);
    tcase_add_test(tc_core, test_issue482);
    tcase_add_test(tc_core, test_gensub2);
-   tcase_add_test(tc_core, test_vhdl2019);
    tcase_add_test(tc_core, test_altera1);
    tcase_add_test(tc_core, test_issue509);
    tcase_add_test(tc_core, test_genpack2);
@@ -3384,6 +3389,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_07);
    tcase_add_loop_test(tc_core, test_lcs2016_23, STD_08, STD_19 + 1);
    tcase_add_test(tc_core, test_config2);
+   tcase_add_test(tc_core, test_lcs2016_02);
    suite_add_tcase(s, tc_core);
 
    return s;

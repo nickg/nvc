@@ -1455,16 +1455,32 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
 
 static bool sem_check_func_ports(tree_t t, nametab_t *tab)
 {
+   const bool pure = !(tree_flags(t) & TREE_F_IMPURE);
+   const bool pre_std19 = (standard() < STD_19);
+
+   if (!pure && !pre_std19)
+      return true;   // LCS2016_002 relaxed rules for impure functions
+
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      if (standard() < STD_19) {
-         if (tree_subkind(p) != PORT_IN)
-            sem_error(p, "function arguments must have mode IN");
-
-         // See LRM 93 section 2.1.1 for default class
-         if (tree_class(p) == C_VARIABLE)
-            sem_error(p, "function arguments may not have VARIABLE class");
+      if (tree_subkind(p) != PORT_IN) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
+         diag_printf(d, "%sfunction parameters must have mode IN",
+                     pre_std19 ? "" : "pure ");
+         diag_hint(d, tree_loc(p), "parameter %s has mode %s",
+                   istr(tree_ident(p)), port_mode_str(tree_subkind(p)));
+         diag_lrm(d, STD_08, "4.2.2.1");
+         diag_emit(d);
+      }
+      else if (tree_class(p) == C_VARIABLE) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
+         diag_printf(d, "class of %sfunction parameters must be CONSTANT, "
+                     "SIGNAL, or FILE", pre_std19 ? "" : "pure ");
+         diag_hint(d, tree_loc(p), "parameter %s has class %s",
+                   istr(tree_ident(p)), class_str(tree_class(p)));
+         diag_lrm(d, STD_08, "4.2.2.1");
+         diag_emit(d);
       }
    }
 

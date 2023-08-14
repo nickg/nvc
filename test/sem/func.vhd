@@ -333,4 +333,8 @@ package body func3 is
         return 1;
     end function;
 
+    impure function func6 (variable x : integer) return integer;  -- Error
+
+    impure function func7 (x : inout integer) return integer;  -- Error
+
 end package body;
