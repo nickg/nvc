@@ -98,7 +98,7 @@ VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
 VLOG_STRING     "\""[^\n\"]*"\""
-BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
+BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]*\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
