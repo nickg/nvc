@@ -859,18 +859,6 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
       }
 
    case T_PROTECTED:
-      // Rules for protected types are in LRM 02 section 3.5
-      {
-         bool ok = true;
-         const int ndecls = type_decls(type);
-         for (int i = 0; i < ndecls; i++) {
-            tree_t d = type_decl(type, i);
-            ok &= sem_check(d, tab);
-         }
-
-         return ok;
-      }
-
    default:
       return true;
    }
@@ -1487,6 +1475,63 @@ static bool sem_check_func_ports(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_protected_method(tree_t t, nametab_t *tab)
+{
+   if (standard() >= STD_19)
+      return true;   // Relaxed in LCS2016_04
+
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(t, i);
+      type_t type = tree_type(p);
+
+      if (sem_has_access(type)) {
+         diag_t *d = pedantic_diag(p);
+         if (d != NULL) {
+            diag_printf(d, "parameters of protected type methods cannot be of "
+                        "an access type or a composite type containing an "
+                        "access type");
+            if (type_is_access(type))
+               diag_hint(d, tree_loc(p), "type of %s is %s which is an "
+                         "access type", istr(tree_ident(p)), type_pp(type));
+            else
+               diag_hint(d, tree_loc(p), "type of %s is %s which has an "
+                         "access type as a subelement",
+                         istr(tree_ident(p)), type_pp(type));
+            diag_lrm(d, STD_08, "5.6.2");
+            diag_emit(d);
+         }
+      }
+      else if (type_is_file(type)) {
+         diag_t *d = pedantic_diag(p);
+         if (p != NULL) {
+            diag_printf(d, "parameters of protected type methods cannot be of "
+                        "a file type");
+            diag_hint(d, tree_loc(p), "type of %s is %s which is a file type",
+                      istr(tree_ident(p)), type_pp(type));
+            diag_lrm(d, STD_08, "5.6.2");
+            diag_emit(d);
+         }
+      }
+   }
+
+   if (tree_kind(t) == T_FUNC_DECL) {
+      type_t result = type_result(tree_type(t));
+      if (sem_has_access(result) || type_is_file(result)) {
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "return type of a protected type method cannot be "
+                        "of a file type, access type, or a composite type with "
+                        "a subelement that is an access type");
+            diag_lrm(d, STD_08, "5.6.2");
+            diag_emit(d);
+         }
+      }
+   }
+
+   return true;
+}
+
 static bool sem_check_func_result(tree_t t)
 {
    type_t result = type_result(tree_type(t));
@@ -1501,13 +1546,17 @@ static bool sem_check_func_result(tree_t t)
 
 static bool sem_check_func_decl(tree_t t, nametab_t *tab)
 {
-   if (tree_flags(t) & TREE_F_PREDEFINED)
+   const tree_flags_t flags = tree_flags(t);
+   if (flags & TREE_F_PREDEFINED)
       return true;
 
    if (!sem_check_func_ports(t, tab))
       return false;
 
    if (!sem_check_func_result(t))
+      return false;
+
+   if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
       return false;
 
    return true;
@@ -1760,6 +1809,10 @@ static bool sem_check_func_body(tree_t t, nametab_t *tab)
 
 static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
 {
+   const tree_flags_t flags = tree_flags(t);
+   if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
+      return false;
+
    return true;
 }
 

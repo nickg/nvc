@@ -3234,6 +3234,30 @@ START_TEST(test_lcs2016_02)
 }
 END_TEST
 
+START_TEST(test_lcs2016_04)
+{
+   set_standard(_i);
+
+   input_from_file(TESTDIR "/sem/lcs2016_04.vhd");
+
+   const error_t expect[] = {
+      {  9, "parameters of protected type methods cannot be of an access" },
+      { 10, "parameters of protected type methods cannot be of an access" },
+      { 11, "parameters of protected type methods cannot be of a file type" },
+      { 12, "return type of a protected type method cannot be of a file "},
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   if (_i < STD_19)
+      check_expected_errors();
+   else
+      fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3390,6 +3414,7 @@ Suite *get_sem_tests(void)
    tcase_add_loop_test(tc_core, test_lcs2016_23, STD_08, STD_19 + 1);
    tcase_add_test(tc_core, test_config2);
    tcase_add_test(tc_core, test_lcs2016_02);
+   tcase_add_loop_test(tc_core, test_lcs2016_04, STD_08, STD_19 + 1);
    suite_add_tcase(s, tc_core);
 
    return s;

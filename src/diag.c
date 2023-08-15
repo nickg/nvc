@@ -415,6 +415,8 @@ static const struct {
    { "Configuration declarations", { [STD_08] = "3.4", [STD_93] = "1.4" } },
    { "Formal parameter lists", { [STD_19] = "4.2.2.1", [STD_08] = "4.2.2.1",
         [STD_93] = "2.1.1" } },
+   { "Protected type declarations", { [STD_08] = "5.6.2",
+        [STD_02] = "3.5.1" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
