@@ -10,6 +10,7 @@
 - Added VHDL-2019 assert API (with @Blebowski).
 - Implemented `'image`, `'value` and `to_string` for composite types in
   VHDL-2019.
+- Empty bit string literals are now parsed correctly.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

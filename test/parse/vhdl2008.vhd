@@ -259,4 +259,10 @@ begin
         end block;
     end block;
 
+    b9: block is
+        constant x : bit_vector(3 downto 0) := 4sx"";  -- Error
+        constant y : bit_vector(0 downto 0) := 4x"";  -- OK
+    begin
+    end block;
+
 end architecture;

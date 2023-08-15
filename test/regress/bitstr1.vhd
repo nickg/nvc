@@ -24,6 +24,10 @@ begin
         assert 12UX"000WWW" = string'("WWWWWWWWWWWW");
         assert 12SX"FFFC00" = string'("110000000000");
         assert 12SX"XXXX00" = string'("XXXX00000000");
+
+        -- Empty bit strings should be allowed
+        assert 4x"" = string'("0000");
+        assert d"" = string'("");
         wait;
     end process;
 

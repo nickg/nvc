@@ -3616,6 +3616,7 @@ START_TEST(test_vhdl2008)
       { 229, "unexpected trailing label for generate statement body without" },
       { 231, "expected trailing generate statement body label to match FOO" },
       { 248, "expected trailing case generate statement label to match G3" },
+      { 263, "signed bit string literal cannot be an empty string" },
       { -1, NULL }
    };
    expect_errors(expect);
