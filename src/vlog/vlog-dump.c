@@ -19,6 +19,7 @@
 #include "common.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 
 #include <ctype.h>
@@ -86,6 +87,20 @@ static void vlog_dump_net_decl(vlog_node_t v, int indent)
 
    switch (vlog_subkind(v)) {
    case V_NET_WIRE: print_syntax("#wire"); break;
+   }
+
+   const int ndims = vlog_ranges(v);
+   int dim = 0;
+   for (; dim < ndims; dim++) {
+      vlog_node_t d = vlog_range(v, dim);
+      if (vlog_subkind(d) != V_DIM_PACKED)
+         break;
+
+      print_syntax(" [");
+      vlog_dump(vlog_left(d), indent);
+      print_syntax(":");
+      vlog_dump(vlog_right(d), indent);
+      print_syntax("]");
    }
 
    print_syntax(" %s;\n", istr(vlog_ident(v)));
@@ -185,7 +200,15 @@ static void vlog_dump_string(vlog_node_t v)
 
 static void vlog_dump_number(vlog_node_t v)
 {
-   //print_syntax("'b%s", vlog_text(v));
+   number_t n = vlog_number(v);
+
+   const int width = number_width(n);
+   print_syntax("%d'b", width);
+
+   for (int i = width - 1; i >= 0; i--) {
+      const char tab[] = "01zx";
+      print_syntax("%c", tab[number_bit(n, i)]);
+   }
 }
 
 void vlog_dump(vlog_node_t v, int indent)

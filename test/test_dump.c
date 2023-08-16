@@ -25,6 +25,7 @@
 #include "scan.h"
 #include "tree.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-phase.h"
 
 #include <string.h>
 
@@ -295,6 +296,49 @@ START_TEST(test_vhdl4)
 }
 END_TEST
 
+#ifdef ENABLE_VERILOG
+START_TEST(test_vlog1)
+{
+   input_from_file(TESTDIR "/dump/vlog1.v");
+
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   vlog_dump(m1, 0);
+   diff_dump(tb_get(tb),
+             "module dff (d, clk, rstb, q);\n"
+             "  input d;\n"
+             "  input clk;\n"
+             "  input rstb;\n"
+             "  output reg q;\n"
+             "  always @(posedge clk)\n"
+             "    q <= d;\n"
+             "endmodule // dff\n\n");
+   tb_rewind(tb);
+
+   vlog_node_t m2 = vlog_parse();
+   fail_if(m2 == NULL);
+
+   vlog_dump(m2, 0);
+   diff_dump(tb_get(tb),
+             "module mod2;\n"
+             "  wire [5'b00111:5'b00000] bus;\n"
+             "  initial begin\n"
+             "    $display(\"hello\");\n"
+             "    $finish;\n"
+             "  end\n"
+             "  assign bus = 5'b00011;\n"
+             "endmodule // mod2\n\n");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+END_TEST
+#endif
+
 Suite *get_dump_tests(void)
 {
    Suite *s = suite_create("dump");
@@ -304,6 +348,9 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_vhdl2);
    tcase_add_test(tc_core, test_vhdl3);
    tcase_add_test(tc_core, test_vhdl4);
+#ifdef ENABLE_VERILOG
+   tcase_add_test(tc_core, test_vlog1);
+#endif
    suite_add_tcase(s, tc_core);
 
    return s;

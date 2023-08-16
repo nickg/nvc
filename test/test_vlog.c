@@ -148,33 +148,6 @@ START_TEST(test_ports)
 }
 END_TEST
 
-START_TEST(test_dump)
-{
-   input_from_file(TESTDIR "/vlog/dff.v");
-
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   capture_syntax(tb);
-   vlog_dump(m, 0);
-
-   ck_assert_str_eq(tb_get(tb),
-                    "module dff (d, clk, rstb, q);\n"
-                    "  input d;\n"
-                    "  input clk;\n"
-                    "  input rstb;\n"
-                    "  output reg q;\n"
-                    "  always @(posedge clk)\n"
-                    "    q <= d;\n"
-                    "endmodule // dff\n\n");
-
-   fail_unless(vlog_parse() == NULL);
-
-   fail_if_errors();
-}
-END_TEST
-
 START_TEST(test_parse1)
 {
    input_from_file(TESTDIR "/vlog/parse1.v");
@@ -281,7 +254,6 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_dff);
    tcase_add_test(tc, test_simple_sem);
    tcase_add_test(tc, test_ports);
-   tcase_add_test(tc, test_dump);
    tcase_add_test(tc, test_parse1);
    tcase_add_test(tc, test_number1);
    tcase_add_test(tc, test_number2);
