@@ -303,6 +303,17 @@ net_declaration:
         |       net_type '[' expression ':' expression ']'
                 list_of_net_identifiers ';'
                 {
+                   vlog_node_t r = vlog_new(V_DIMENSION);
+                   vlog_set_loc(r, &@$);
+                   vlog_set_subkind(r, V_DIM_PACKED);
+                   vlog_set_left(r, $3);
+                   vlog_set_right(r, $5);
+
+                   for (node_list_t *it = $7; it; it = it->next) {
+                      vlog_add_range(it->value, r);
+                      vlog_set_datatype(it->value, DT_LOGIC);
+                   }
+
                    $$ = $7;
                 }
         ;

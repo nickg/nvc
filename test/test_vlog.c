@@ -186,6 +186,15 @@ START_TEST(test_parse1)
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 2);
 
+   vlog_node_t x = vlog_decl(m, 0);
+   fail_unless(vlog_kind(x) == V_NET_DECL);
+   fail_unless(vlog_ranges(x) == 1);
+   fail_unless(vlog_subkind(x) == V_NET_WIRE);
+
+   vlog_node_t xd0 = vlog_range(x, 0);
+   fail_unless(vlog_kind(xd0) == V_DIMENSION);
+   fail_unless(vlog_subkind(xd0) == V_DIM_PACKED);
+
    vlog_node_t s1 = vlog_stmt(m, 1);
    fail_unless(vlog_kind(s1) == V_ALWAYS);
    fail_unless(vlog_stmts(s1) == 1);

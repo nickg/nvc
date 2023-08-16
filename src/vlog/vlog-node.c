@@ -30,7 +30,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2),
 
    // V_PORT_DECL
-   (I_IDENT | I_SUBKIND | I_IDENT2),
+   (I_IDENT | I_SUBKIND | I_IDENT2 | I_RANGES),
 
    // V_REF
    (I_IDENT | I_REF),
@@ -63,20 +63,23 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_NUMBER),
 
    // V_NET_DECL
-   (I_IDENT | I_SUBKIND),
+   (I_IDENT | I_SUBKIND | I_RANGES | I_DATATYPE),
 
    // V_ASSIGN
    (I_TARGET | I_VALUE),
 
    // V_ROOT
    (I_IDENT | I_STMTS | I_DECLS),
+
+   // V_DIMENSION
+   (I_SUBKIND | I_LEFT | I_RIGHT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MODULE",    "V_PORT_DECL",   "V_REF",    "V_ALWAYS",
    "V_TIMING",    "V_NBASSIGN",    "V_EVENT",  "V_INITIAL",
    "V_SEQ_BLOCK", "V_SYSTASK",     "V_STRING", "V_NUMBER",
-   "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",
+   "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",   "V_DIMENSION",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -239,6 +242,26 @@ void vlog_add_param(vlog_node_t v, vlog_node_t p)
    object_write_barrier(&(v->object), &(p->object));
 }
 
+unsigned vlog_ranges(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_RANGES);
+   return obj_array_count(item->obj_array);
+}
+
+vlog_node_t vlog_range(vlog_node_t v, unsigned n)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_RANGES);
+   return vlog_array_nth(item, n);
+}
+
+void vlog_add_range(vlog_node_t v, vlog_node_t r)
+{
+   assert(r != NULL);
+   assert(r->object.kind == V_DIMENSION);
+   vlog_array_add(lookup_item(&vlog_object, v, I_RANGES), r);
+   object_write_barrier(&(v->object), &(r->object));
+}
+
 unsigned vlog_decls(vlog_node_t v)
 {
    item_t *item = lookup_item(&vlog_object, v, I_DECLS);
@@ -314,6 +337,42 @@ number_t vlog_number(vlog_node_t v)
 void vlog_set_number(vlog_node_t v, number_t n)
 {
    lookup_item(&vlog_object, v, I_NUMBER)->number = n;
+}
+
+data_type_t vlog_datatype(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_DATATYPE)->ival;
+}
+
+void vlog_set_datatype(vlog_node_t v, data_type_t dt)
+{
+   lookup_item(&vlog_object, v, I_DATATYPE)->ival = dt;
+}
+
+vlog_node_t vlog_left(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_LEFT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _vlog_node, object);
+}
+
+void vlog_set_left(vlog_node_t v, vlog_node_t e)
+{
+   lookup_item(&vlog_object, v, I_LEFT)->object = &(e->object);
+   object_write_barrier(&(v->object), &(e->object));
+}
+
+vlog_node_t vlog_right(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_RIGHT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _vlog_node, object);
+}
+
+void vlog_set_right(vlog_node_t v, vlog_node_t e)
+{
+   lookup_item(&vlog_object, v, I_RIGHT)->object = &(e->object);
+   object_write_barrier(&(v->object), &(e->object));
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

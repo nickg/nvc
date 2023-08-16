@@ -59,9 +59,21 @@ typedef enum {
    V_NET_DECL,
    V_ASSIGN,
    V_ROOT,
+   V_DIMENSION,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
+
+typedef enum {
+   DT_LOGIC,
+   DT_INTEGER,
+   DT_REAL,
+} data_type_t;
+
+typedef enum {
+   V_DIM_PACKED,
+   V_DIM_UNPACKED
+} vlog_dimension_kind_t;
 
 vlog_node_t vlog_new(vlog_kind_t kind);
 vlog_kind_t vlog_kind(vlog_node_t v);
@@ -94,6 +106,10 @@ unsigned vlog_params(vlog_node_t v);
 vlog_node_t vlog_param(vlog_node_t v, unsigned n);
 void vlog_add_param(vlog_node_t v, vlog_node_t p);
 
+unsigned vlog_ranges(vlog_node_t v);
+vlog_node_t vlog_range(vlog_node_t v, unsigned n);
+void vlog_add_range(vlog_node_t v, vlog_node_t r);
+
 unsigned vlog_decls(vlog_node_t v);
 vlog_node_t vlog_decl(vlog_node_t v, unsigned n);
 void vlog_add_decl(vlog_node_t v, vlog_node_t d);
@@ -107,11 +123,20 @@ void vlog_set_value(vlog_node_t v, vlog_node_t e);
 vlog_node_t vlog_target(vlog_node_t v);
 void vlog_set_target(vlog_node_t v, vlog_node_t e);
 
+vlog_node_t vlog_left(vlog_node_t v);
+void vlog_set_left(vlog_node_t v, vlog_node_t e);
+
+vlog_node_t vlog_right(vlog_node_t v);
+void vlog_set_right(vlog_node_t v, vlog_node_t e);
+
 const char *vlog_text(vlog_node_t v);
 void vlog_set_text(vlog_node_t v, const char *text);
 
 number_t vlog_number(vlog_node_t v);
 void vlog_set_number(vlog_node_t v, number_t n);
+
+data_type_t vlog_datatype(vlog_node_t v);
+void vlog_set_datatype(vlog_node_t v, data_type_t dt);
 
 typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 
