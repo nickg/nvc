@@ -74,7 +74,6 @@ package body ieee_support is
 
   function rel_match_leq (l, r : std_ulogic) return std_ulogic is
   begin
-      report "rel_match_leq l=" & std_ulogic'image(l) & " r=" & std_ulogic'image(r);
       assert l /= '-' and r /= '-'
           report "STD_LOGIC_1164: '-' operand for matching ordering operator"
           severity ERROR;
