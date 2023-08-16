@@ -80,6 +80,7 @@ void vlog_set_ident2(vlog_node_t v, ident_t i);
 
 vlog_node_t vlog_ref(vlog_node_t v);
 void vlog_set_ref(vlog_node_t v, vlog_node_t d);
+bool vlog_has_ref(vlog_node_t v);
 
 unsigned vlog_stmts(vlog_node_t v);
 vlog_node_t vlog_stmt(vlog_node_t v, unsigned n);

@@ -53,7 +53,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_SEQ_BLOCK
    (I_IDENT | I_STMTS),
 
-   // V_SYSTASK_ENABLE
+   // V_SYSTASK
    (I_IDENT | I_SUBKIND | I_PARAMS),
 
    // V_STRING
@@ -168,6 +168,11 @@ vlog_node_t vlog_ref(vlog_node_t v)
    item_t *item = lookup_item(&vlog_object, v, I_REF);
    assert(item->object != NULL);
    return container_of(item->object, struct _vlog_node, object);
+}
+
+bool vlog_has_ref(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_REF)->object != NULL;
 }
 
 void vlog_set_ref(vlog_node_t v, vlog_node_t d)

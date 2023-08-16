@@ -35,7 +35,39 @@ struct _vlog_scope {
 
 static vlog_scope_t *top_scope = NULL;
 
-static void vlog_push_scope(void)
+static bool is_net(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      if (vlog_has_ref(v)) {
+         vlog_node_t decl = vlog_ref(v);
+         switch (vlog_kind(decl)) {
+         case V_NET_DECL: return true;
+         case V_PORT_DECL: return vlog_subkind(decl) != V_PORT_OUTPUT_REG;
+         default: return false;
+         }
+      }
+      else
+         return false;
+
+   default:
+      return false;
+   }
+}
+
+static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      diag_printf(d, "'%s'", istr(vlog_ident(v)));
+      break;
+   default:
+      diag_printf(d, "%s", alt);
+      break;
+   }
+}
+
+static void push_scope(void)
 {
    vlog_scope_t *s = xcalloc(sizeof(vlog_scope_t));
    s->symbols = hash_new(128);
@@ -44,7 +76,7 @@ static void vlog_push_scope(void)
    top_scope = s;
 }
 
-static void vlog_pop_scope(void)
+static void pop_scope(void)
 {
    assert(top_scope != NULL);
 
@@ -86,6 +118,11 @@ static void vlog_check_ref(vlog_node_t ref)
    vlog_set_ref(ref, decl);
 }
 
+static void vlog_check_number(vlog_node_t num)
+{
+
+}
+
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
@@ -93,6 +130,13 @@ static void vlog_check_nbassign(vlog_node_t stmt)
 
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
+
+   if (is_net(target)) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
+      name_for_diag(d, target, "target");
+      diag_printf(d, " cannot be assigned in a procedural block");
+      diag_emit(d);
+   }
 }
 
 static void vlog_check_assign(vlog_node_t stmt)
@@ -102,6 +146,13 @@ static void vlog_check_assign(vlog_node_t stmt)
 
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
+
+   if (!is_net(target)) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
+      name_for_diag(d, target, "target");
+      diag_printf(d, " cannot be driven by continuous assignment");
+      diag_emit(d);
+   }
 }
 
 static void vlog_check_timing(vlog_node_t timing)
@@ -170,7 +221,7 @@ static void vlog_check_net_decl(vlog_node_t net)
 static void vlog_check_module(vlog_node_t module)
 {
    assert(top_scope == NULL);
-   vlog_push_scope();
+   push_scope();
 
    const int ndecls = vlog_decls(module);
    for (int i = 0; i < ndecls; i++)
@@ -184,7 +235,7 @@ static void vlog_check_module(vlog_node_t module)
    for (int i = 0; i < nstmts; i++)
       vlog_check(vlog_stmt(module, i));
 
-   vlog_pop_scope();
+   pop_scope();
 }
 
 void vlog_check(vlog_node_t v)
@@ -225,6 +276,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_SYSTASK:
       vlog_check_systask(v);
+      break;
+   case V_NUMBER:
+      vlog_check_number(v);
       break;
    default:
       fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));

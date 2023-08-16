@@ -101,13 +101,15 @@ START_TEST(test_simple_sem)
       {  7, "duplicate declaration of x" },
       { 13, "no visible declaration for qq" },
       { 13, "no visible declaration for dd" },
+      { 19, "'r' cannot be driven by continuous assignment" },
+      { 20, "'q' cannot be assigned in a procedural block" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    input_from_file(TESTDIR "/vlog/simple_sem.v");
 
-   for (int i = 0; i < 3; i++) {
+   for (int i = 0; i < 4; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);

@@ -12,3 +12,11 @@ module bad_ref1 (input d, clk, rstb,
   always @(posedge clk)
     qq /* error */ <= dd /* error */;
 endmodule // dff
+
+module bad_target (input d, output q, output reg r);
+  //reg x;
+  wire [7:0] bus;
+  assign r = 1; // Error
+  initial q <= 5; // Error
+
+endmodule // bad_target
