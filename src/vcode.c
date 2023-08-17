@@ -40,7 +40,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_ALLOC || x == VCODE_OP_COPY                           \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
-    || x == VCODE_OP_PUSH_SCOPE || x == VCODE_OP_STRCONV)
+    || x == VCODE_OP_PUSH_SCOPE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -954,7 +954,7 @@ const char *vcode_op_string(vcode_op_t op)
       "range length", "exponent check", "zero check", "map const",
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
-      "unreachable", "package init", "strconv", "canon value", "convstr",
+      "unreachable", "package init", "canon value", "convstr",
       "trap neg", "process init", "clear event", "trap exp", "implicit event",
       "enter state", "reflect value", "reflect subtype", "function trigger",
       "add trigger",
@@ -1657,21 +1657,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_STRCONV:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[1]);
-               if (op->args.count > 2) {
-                  col += printf(" used ");
-                  col += vcode_dump_reg(op->args.items[2]);
-               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5666,34 +5651,6 @@ vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds)
    vcode_reg_data(op->result)->bounds = bounds;
 
    return op->result;
-}
-
-vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
-                         vcode_type_t type)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_STRCONV) {
-      if (other->args.items[0] == ptr && other->args.items[1] == len
-          && other->type == type && used_ptr == VCODE_INVALID_REG)
-         return other->result;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_STRCONV);
-   vcode_add_arg(op, ptr);
-   vcode_add_arg(op, len);
-   if (used_ptr != VCODE_INVALID_REG)
-      vcode_add_arg(op, used_ptr);
-   op->type = type;
-
-   VCODE_ASSERT(vcode_reg_kind(ptr) == VCODE_TYPE_POINTER,
-                "strconv ptr argument must be pointer");
-   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
-                "strconv len argument must be offset");
-   VCODE_ASSERT(used_ptr == VCODE_INVALID_REG
-                || vcode_reg_kind(used_ptr) == VCODE_TYPE_POINTER,
-                "strconv used_ptr argument must be pointer");
-   VCODE_ASSERT(vtype_is_scalar(type), "strconv result must be scalar");
-
-   return (op->result = vcode_add_reg(type));
 }
 
 vcode_reg_t emit_convstr(vcode_reg_t value)

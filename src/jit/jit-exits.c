@@ -309,77 +309,6 @@ void x_div_zero(tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
-int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int64_t *used)
-{
-   const char *p = (const char *)raw_str;
-   const char *endp = p + str_len;
-
-   for (; p < endp && isspace_iso88591(*p); p++)
-      ;
-
-   const bool is_negative = p < endp && *p == '-';
-   if (is_negative) p++;
-
-   int64_t value = INT64_MIN;
-   int num_digits = 0;
-   while (p < endp && (isdigit((int)*p) || *p == '_')) {
-      if (*p != '_') {
-         value *= 10;
-         value += (*p - '0');
-         num_digits++;
-      }
-      ++p;
-   }
-
-   if (is_negative) value = -value;
-
-   if (num_digits == 0)
-      jit_msg(NULL, DIAG_FATAL, "invalid integer value "
-              "\"%.*s\"", str_len, (const char *)raw_str);
-
-   if (used != NULL)
-      *used = p - (const char *)raw_str;
-   else {
-      for (; p < endp && *p != '\0'; p++) {
-         if (!isspace_iso88591(*p)) {
-            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                    "value \"%.*s\"", (int)(endp - p), p, str_len,
-                    (const char *)raw_str);
-         }
-      }
-   }
-
-   return value;
-}
-
-double x_string_to_real(const uint8_t *raw_str, int32_t str_len)
-{
-   char *null LOCAL = xmalloc(str_len + 1);
-   memcpy(null, raw_str, str_len);
-   null[str_len] = '\0';
-
-   char *p = null;
-   for (; p < p + str_len && isspace_iso88591(*p); p++)
-      ;
-
-   double value = strtod(p, &p);
-
-   if (*p != '\0' && !isspace_iso88591(*p))
-      jit_msg(NULL, DIAG_FATAL, "invalid real value "
-              "\"%.*s\"", str_len, (const char *)raw_str);
-   else {
-      for (; p < null + str_len && *p != '\0'; p++) {
-         if (!isspace_iso88591(*p)) {
-            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                    "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
-                    (const char *)raw_str);
-         }
-      }
-   }
-
-   return value;
-}
-
 ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max)
 {
    size_t len = checked_sprintf(buf, max, "%"PRIi64, value);
@@ -821,25 +750,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_EXIT_FUNC_WAIT:
       {
          x_func_wait();
-      }
-      break;
-
-   case JIT_EXIT_STRING_TO_INT:
-      {
-         uint8_t *ptr  = args[0].pointer;
-         int32_t  len  = args[1].integer;
-         int64_t *used = args[2].pointer;
-
-         args[0].integer = x_string_to_int(ptr, len, used);
-      }
-      break;
-
-   case JIT_EXIT_STRING_TO_REAL:
-      {
-         uint8_t *ptr = args[0].pointer;
-         int32_t  len = args[1].integer;
-
-         args[0].real = x_string_to_real(ptr, len);
       }
       break;
 

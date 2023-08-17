@@ -8395,13 +8395,30 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
 
-   vcode_var_t used_var = lower_temp_var(lu, "used", voffset, voffset);
+   vcode_type_t vstdint = (standard() < STD_19)
+      ? vtype_int(INT32_MIN, INT32_MAX) : vtype_int(INT64_MIN, INT64_MAX);
+
+   vcode_var_t used_var = lower_temp_var(lu, "used", vstdint, vstdint);
    vcode_reg_t used_ptr = emit_index(used_var, VCODE_INVALID_REG);
 
-   vcode_reg_t int_reg = emit_strconv(arg_data_reg, arg_len_reg,
-                                      used_ptr, vint64);
+   vcode_var_t int_var = lower_temp_var(lu, "int", vint64, vint64);
+   vcode_reg_t int_ptr = emit_index(int_var, VCODE_INVALID_REG);
 
-   vcode_reg_t used_reg = emit_load_indirect(used_ptr);
+   ident_t conv_fn =
+      ident_new("NVC.TEXT_UTIL.STRING_TO_INT(S21NVC.TEXT_UTIL.T_INT64N)");
+   vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+   vcode_reg_t conv_args[] = {
+      text_util_reg,
+      preg,
+      int_ptr,
+      used_ptr,
+   };
+   emit_fcall(conv_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+              VCODE_CC_VHDL, conv_args, ARRAY_LEN(conv_args));
+
+   vcode_reg_t int_reg = emit_load(int_var);
+   vcode_reg_t used_reg = emit_cast(voffset, voffset, emit_load(used_var));
+
    vcode_reg_t tail_ptr = emit_array_ref(arg_data_reg, used_reg);
    vcode_reg_t tail_len = emit_sub(arg_len_reg, used_reg);
 
@@ -8418,7 +8435,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
 
    ident_t canon_fn = ident_new("NVC.TEXT_UTIL.CANON_VALUE(S)S");
    vcode_reg_t canon_args[] = {
-      lower_context_for_call(lu, canon_fn),
+      text_util_reg,
       tail_reg,
    };
    vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar, VCODE_CC_VHDL,
@@ -8559,14 +8576,30 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
 static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
                                        tree_t decl, vcode_reg_t preg)
 {
-   vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
-   vcode_reg_t data_reg = emit_unwrap(preg);
+   vcode_reg_t result_reg;
+   if (type_is_real(type)) {
+      ident_t conv_fn = ident_new("NVC.TEXT_UTIL.STRING_TO_REAL(S)R");
 
-   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t vreal  = vtype_real(-DBL_MAX, DBL_MAX);
+      vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+      vcode_reg_t conv_args[] = { text_util_reg, preg };
 
-   vcode_reg_t result_reg = emit_strconv(data_reg, len_reg, VCODE_INVALID_REG,
-                                         type_is_real(type) ? vreal : vint64);
+      vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
+
+      result_reg = emit_fcall(conv_fn, vreal, vreal, VCODE_CC_VHDL,
+                              conv_args, ARRAY_LEN(conv_args));
+   }
+   else {
+      ident_t conv_fn =
+         ident_new("NVC.TEXT_UTIL.STRING_TO_INT(S)21NVC.TEXT_UTIL.T_INT64");
+
+      vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+      vcode_reg_t conv_args[] = { text_util_reg, preg };
+
+      vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+
+      result_reg = emit_fcall(conv_fn, vint64, vint64, VCODE_CC_VHDL,
+                              conv_args, ARRAY_LEN(conv_args));
+   }
 
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);

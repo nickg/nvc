@@ -27,9 +27,18 @@ package text_util is
         buf   : str_ptr_t;
     end record;
 
+    type t_int64 is range -9223372036854775807 - 1 to 9223372036854775807;
+
     procedure tb_cat (tb : out text_buf_t; str : in string);
 
-    -- Used in the implementation of 'VALUE for composite types
+    -- Used to implement 'VALUE and 'IMAGE for scalar types
+    function canon_value (s : string) return string;
+    function string_to_int (s : string) return t_int64;
+    procedure string_to_int (s : in string; value : out t_int64;
+                             used : out natural);
+    function string_to_real (s : string) return real;
+
+    -- Used to implement 'VALUE for composite types
     function next_delimiter (s : string; pos : natural) return string;
     function count_delimiters (s : string) return natural;
     function find_open (s : string) return natural;
@@ -37,6 +46,4 @@ package text_util is
     procedure find_close (s : string; pos : natural);
     function find_unquote (s : string; pos : natural) return natural;
     procedure report_bad_char (s : string; c : character);
-
-    function canon_value (s : string) return string;
 end package;

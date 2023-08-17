@@ -120,7 +120,7 @@ static void find_benchmarks(tree_t pack, const char *filter,
    const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(pack, i);
-      if (tree_kind(d) != T_PROC_DECL)
+      if (!is_subprogram(d))
          continue;
 
       ident_t id = tree_ident(d);

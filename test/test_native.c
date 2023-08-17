@@ -346,10 +346,23 @@ END_TEST
 
 static void test_call_diag_fn(diag_t *d, void *context)
 {
-   ck_assert_str_eq(diag_get_text(d), "invalid integer value \"foo\"");
-   ck_assert_int_eq(diag_traces(d), 2);
-   ck_assert_str_eq(diag_get_trace(d, 0), "do_str2int");
-   ck_assert_str_eq(diag_get_trace(d, 1), "do_atest");
+   ck_assert_str_eq(diag_get_text(d), "executed unreachable instruction");
+
+   int *state = context;
+   switch ((*state)++) {
+   case 0:
+      ck_assert_int_eq(diag_traces(d), 1);
+      ck_assert_str_eq(diag_get_trace(d, 0), "do_unreachable");
+      break;
+   case 1:
+   case 2:
+      ck_assert_int_eq(diag_traces(d), 2);
+      ck_assert_str_eq(diag_get_trace(d, 0), "do_unreachable");
+      ck_assert_str_eq(diag_get_trace(d, 1), "do_atest");
+      break;
+   default:
+      ck_abort_msg("unexpected call to test_call_diag_fn");
+   }
 }
 
 START_TEST(test_call)
@@ -376,28 +389,29 @@ START_TEST(test_call)
    ck_assert_int_eq(jit_call(j, h_double, 2).integer, 4);
    ck_assert_int_eq(jit_call(j, h_double, 5).integer, 10);
 
-   const char *do_str2int =
-      "    SEND    #2, #0          \n"
-      "    $EXIT   #25             \n"
+   int state = 0;
+   diag_set_consumer(test_call_diag_fn, &state);
+
+   const char *do_unreachable =
+      "    SEND    #0, #0          \n"
+      "    $EXIT   #4              \n"
       "    RET                     \n";
 
-   jit_handle_t h_str2int = assemble(j, do_str2int, "do_str2int", "pI");
-   ck_assert_int_eq(jit_call(j, h_str2int, "4", 1).integer, 4);
-   ck_assert_int_eq(jit_call(j, h_str2int, "5", 1).integer, 5);
-   ck_assert_int_eq(jit_call(j, h_str2int, "-123", 4).integer, -123);
-
-   const char *do_atest =
-      "    CALL    <do_str2int>    \n"
-      "    RET                     \n";
-
-   jit_handle_t h_atest = assemble(j, do_atest, "do_atest", "pI");
-   ck_assert_int_eq(jit_call(j, h_atest, "4", 1).integer, 4);
-   ck_assert_int_eq(jit_call(j, h_atest, "5", 1).integer, 5);
-
-   diag_set_consumer(test_call_diag_fn, NULL);
+   jit_handle_t h_unreachable =
+      assemble(j, do_unreachable, "do_unreachable", "");
 
    jit_scalar_t result;
-   fail_if(jit_try_call(j, h_atest, &result, "foo", 4));
+   fail_if(jit_try_call(j, h_unreachable, &result));
+
+   const char *do_atest =
+      "    CALL    <do_unreachable>   \n"
+      "    RET                        \n";
+
+   jit_handle_t h_atest = assemble(j, do_atest, "do_atest", "pI");
+   fail_if(jit_try_call(j, h_atest, &result));
+   fail_if(jit_try_call(j, h_atest, &result));
+
+   ck_assert_int_eq(state, 3);
 
    jit_free(j);
 }

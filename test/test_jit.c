@@ -1052,8 +1052,8 @@ START_TEST(test_value1)
    input_from_file(TESTDIR "/jit/value1.vhd");
 
    const error_t expect[] = {
-      { 72, "found invalid characters \"x\" after value \"42x\"" },
-      { 76, "invalid real value \"4..4\"" },
+      { 239, "found invalid characters \"x\" after value \"42x\"" },
+      { 387, "found invalid characters \".4\" after value \"4..4\"" },
       { 80, "\" FOO\" is not a valid unit name" },
       { 23, "\"FOO\" is not a valid enumeration value" },
       { -1, NULL },
@@ -1070,7 +1070,7 @@ START_TEST(test_value1)
    ck_assert_int_eq(jit_call(j, fn1, NULL, "123", 1, 3).integer, 123);
    ck_assert_int_eq(jit_call(j, fn1, NULL, "-5", 1, 2).integer, -5);
    ck_assert_int_eq(jit_call(j, fn1, NULL, " 42 ", 1, 4).integer, 42);
-   fail_if(jit_try_call(j, fn1, &result, NULL, "42x", 1, 4));
+   fail_if(jit_try_call(j, fn1, &result, NULL, "42x", 1, 3));
 
    jit_handle_t fn2 = compile_for_test(j, "WORK.VALUE1.STR_TO_REAL(S)R");
    ck_assert_double_eq(jit_call(j, fn2, NULL, "123", 1, 3).real, 123.0);
