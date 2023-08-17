@@ -1884,6 +1884,8 @@ static bool lower_side_effect_free(tree_t expr)
          if (kind == S_DIV || kind == S_DIV_PR || kind == S_DIV_RI
              || kind == S_REM || kind == S_MOD)
             return false;
+         else if (kind == S_CONCAT)
+            return false;   // Allocates memory
          else if (!is_builtin(kind))
             return false;
 

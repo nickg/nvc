@@ -5241,6 +5241,25 @@ START_TEST(test_protpcall)
 }
 END_TEST
 
+START_TEST(test_assert2)
+{
+   input_from_file(TESTDIR "/lower/assert2.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ASSERT2.TEST(IS)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5368,6 +5387,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue725);
    tcase_add_test(tc, test_cond2);
    tcase_add_test(tc, test_protpcall);
+   tcase_add_test(tc, test_assert2);
    suite_add_tcase(s, tc);
 
    return s;
