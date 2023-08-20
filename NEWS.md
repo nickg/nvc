@@ -10,7 +10,20 @@
 - Added VHDL-2019 assert API (with @Blebowski).
 - Implemented `'image`, `'value` and `to_string` for composite types in
   VHDL-2019.
+
+## Version 1.10.2 - 2023-08-20
+- Fixed a crash due to an array bounds check being incorrectly optimised
+  out (#747).
+- The type of string literals and aggregates in generic map associations
+  such as `G => X"00"` where `G` has a generic type can now be
+  determined correctly (#750).
+- Fixed a spurious "duplicate declaration" error if a use clause for an
+  instantiated packages appears in the same declarative region that
+  instantiated the package (#750).
+- Improved checking for configuration specifications.
 - Empty bit string literals are now parsed correctly.
+- Fixed stack corruption when a function returns an alias of one of its
+  array arguments.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

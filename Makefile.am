@@ -96,11 +96,13 @@ sync-branch:
 	branch=origin/v$$(echo $$last | sed 's/.[0-9]$$//')-branch; \
 	echo "last version was $$last, branch $$branch"; \
 	git show $$branch:NEWS.md >/tmp/NEWS.md; \
+	new=$$(awk '/## Version/ { print($$3); exit }' /tmp/NEWS.md); \
+	echo "new version was $$new"; \
 	awk '/Version '$$last'/ { exit; } /Version/ { x=1 } x==1,/./ { print($$0); }' \
 	  /tmp/NEWS.md > /tmp/trimmed.md; \
 	sed -i -e '/Version/,$$ b;' -e '/^$$/ r /tmp/trimmed.md' $(top_srcdir)/NEWS.md; \
 	git checkout $$branch $(top_srcdir)/www/defs.m4; \
-	sed -i 's/1.9.1/1.9.2/g' $(top_srcdir)/README.md
+	sed -i 's/'$$last'/'$$new'/g' $(top_srcdir)/README.md
 
 clean-local: clean-test clean-libs
 

@@ -1,6 +1,10 @@
 name: Build MSYS2 and Ubuntu packages
 
-on: [workflow_dispatch, release]
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
 
 jobs:
   pkg-windows-msys2:
