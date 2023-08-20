@@ -769,6 +769,7 @@ EXTRA_DIST += \
 	test/regress/func22.vhd \
 	test/regress/func23.vhd \
 	test/regress/func24.vhd \
+	test/regress/func25.vhd \
 	test/regress/func2.vhd \
 	test/regress/func3.vhd \
 	test/regress/func4.vhd \
@@ -940,6 +941,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue718.txt \
 	test/regress/gold/issue730.txt \
 	test/regress/gold/issue734.txt \
+	test/regress/gold/issue747.txt \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1176,6 +1178,7 @@ EXTRA_DIST += \
 	test/regress/issue731.vhd \
 	test/regress/issue734.vhd \
 	test/regress/issue744.vhd \
+	test/regress/issue747.vhd \
 	test/regress/issue79.vhd \
 	test/regress/issue82.vhd \
 	test/regress/issue83.vhd \
@@ -1481,6 +1484,7 @@ EXTRA_DIST += \
 	test/sem/concat.vhd \
 	test/sem/conc.vhd \
 	test/sem/condexpr.vhd \
+	test/sem/config2.vhd \
 	test/sem/config.vhd \
 	test/sem/const2.vhd \
 	test/sem/const.vhd \

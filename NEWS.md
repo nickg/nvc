@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised
   out (#747).
 - The type of string literals and aggregates in generic map associations
