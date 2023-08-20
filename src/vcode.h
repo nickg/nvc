@@ -150,7 +150,6 @@ typedef enum {
    VCODE_OP_LINK_INSTANCE,
    VCODE_OP_UNREACHABLE,
    VCODE_OP_PACKAGE_INIT,
-   VCODE_OP_CONVSTR,
    VCODE_OP_TRAP_NEG,
    VCODE_OP_PROCESS_INIT,
    VCODE_OP_CLEAR_EVENT,
@@ -513,7 +512,6 @@ void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 void emit_unreachable(vcode_reg_t locus);
-vcode_reg_t emit_convstr(vcode_reg_t value);
 void emit_enter_state(vcode_reg_t state);
 vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
                                vcode_reg_t context, vcode_reg_t locus,

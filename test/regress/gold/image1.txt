@@ -10,3 +10,7 @@
 1010ps+0: Report Note: a
 1010ps+0: Report Note: 3
 1010ps+0: Report Note: 20 unit_1
+1010ps+0: Report Note: 0
+1010ps+0: Report Note: 10
+1010ps+0: Report Note: -2147483648
+1010ps+0: Report Note: 2147483647

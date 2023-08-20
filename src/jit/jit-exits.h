@@ -59,8 +59,6 @@ void x_exponent_fail(int64_t value, tree_t where);
 void x_overflow(int64_t lhs, int64_t rhs, tree_t where);
 void x_null_deref(tree_t where);
 void x_div_zero(tree_t where);
-ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max);
-ffi_uarray_t x_real_to_string(double value, char *buf, size_t max);
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                    int64_t hint_left, int64_t hint_right, int8_t hint_valid,
                    object_t *where);

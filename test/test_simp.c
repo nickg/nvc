@@ -341,7 +341,7 @@ START_TEST(test_ffold)
    fail_unless(folded_b(tree_value(tree_decl(b, 13)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 14)), false));
    fail_unless(folded_b(tree_value(tree_decl(b, 15)), true));
-   fail_unless(folded_b(tree_value(tree_decl(b, 16)), true));
+   fail_if(folded_b(tree_value(tree_decl(b, 16)), true));   // Cannot fold now
    fail_unless(folded_b(tree_value(tree_decl(b, 17)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 18)), true));
    fail_unless(folded_i(tree_value(tree_decl(b, 19)), 80));

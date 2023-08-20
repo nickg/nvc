@@ -6,6 +6,7 @@
   _std_standard_now;
   _std_to_hstring_bit_vec;
   _std_to_ostring_bit_vec;
+  _std_to_string_real;
   _std_to_string_real_digits;
   _std_to_string_real_format;
   _std_to_string_time;

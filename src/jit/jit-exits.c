@@ -309,18 +309,6 @@ void x_div_zero(tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
-ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max)
-{
-   size_t len = checked_sprintf(buf, max, "%"PRIi64, value);
-   return ffi_wrap(buf, 1, len);
-}
-
-ffi_uarray_t x_real_to_string(double value, char *buf, size_t max)
-{
-   size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, value);
-   return ffi_wrap(buf, 1, len);
-}
-
 void x_elab_order_fail(tree_t where)
 {
    assert(tree_kind(where) == T_EXTERNAL_NAME);
@@ -601,19 +589,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_INT_TO_STRING:
-      {
-         int64_t value = args[0].integer;
-
-         char *buf = jit_mspace_alloc(28);
-
-         ffi_uarray_t u = x_int_to_string(value, buf, 28);
-         args[0].pointer = u.ptr;
-         args[1].integer = u.dims[0].left;
-         args[2].integer = u.dims[0].length;
-      }
-      break;
-
    case JIT_EXIT_ALIAS_SIGNAL:
       {
          if (!jit_has_runtime(jit_thread_local()->jit))
@@ -623,19 +598,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          tree_t        where = args[1].pointer;
 
          x_alias_signal(ss, where);
-      }
-      break;
-
-   case JIT_EXIT_REAL_TO_STRING:
-      {
-         double value = args[0].real;
-
-         char *buf = jit_mspace_alloc(32);
-
-         ffi_uarray_t u = x_real_to_string(value, buf, 32);
-         args[0].pointer = u.ptr;
-         args[1].integer = u.dims[0].left;
-         args[2].integer = u.dims[0].length;
       }
       break;
 

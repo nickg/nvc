@@ -3267,29 +3267,6 @@ static void irgen_op_active(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
-static void irgen_op_convstr(jit_irgen_t *g, int op)
-{
-   jit_value_t value = irgen_get_arg(g, op, 0);
-
-   j_send(g, 0, value);
-
-   switch (vcode_reg_kind(vcode_get_arg(op, 0))) {
-   case VCODE_TYPE_INT:
-      macro_exit(g, JIT_EXIT_INT_TO_STRING);
-      break;
-   case VCODE_TYPE_REAL:
-      macro_exit(g, JIT_EXIT_REAL_TO_STRING);
-      break;
-   default:
-      vcode_dump_with_mark(op, NULL, NULL);
-      fatal_trace("invalid type in convstr");
-   }
-
-   g->map[vcode_get_result(op)] = j_recv(g, 0);
-   j_recv(g, 1);   // Left
-   j_recv(g, 2);   // Length
-}
-
 static void irgen_op_debug_out(jit_irgen_t *g, int op)
 {
    jit_value_t value = irgen_get_arg(g, op, 0);
@@ -3805,9 +3782,6 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_CLEAR_EVENT:
          irgen_op_clear_event(g, i);
-         break;
-      case VCODE_OP_CONVSTR:
-         irgen_op_convstr(g, i);
          break;
       case VCODE_OP_DEBUG_OUT:
          irgen_op_debug_out(g, i);

@@ -56,6 +56,10 @@ begin
         print_enum1(e1);
         report my_int'image(j);
         report my_phys'image(2 UNIT_2);
+        report integer'image(0);
+        report integer'image(10);
+        report integer'image(integer'left);
+        report integer'image(integer'right);
         wait;
     end process;
 

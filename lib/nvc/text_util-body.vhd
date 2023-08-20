@@ -395,4 +395,37 @@ package body text_util is
             return fraction;
         end if;
     end function;
+
+    function change_bounds (s : string; l, r : positive) return string is
+        alias ss : string(l to r) is s;
+    begin
+        return ss;
+    end function;
+
+    function int_to_string (x : t_int64) return string is
+        variable tmp  : t_int64 := x;
+        variable buf  : string(1 to 32);
+        variable pos  : positive := buf'right;
+        constant zero : natural := character'pos('0');
+    begin
+        loop
+            buf(pos) := character'val(zero + integer(abs(tmp rem 10)));
+            pos := pos - 1;
+            tmp := tmp / 10;
+            exit when tmp = 0;
+        end loop;
+        if x < 0 then
+            buf(pos) := '-';
+            pos := pos - 1;
+        end if;
+        return change_bounds(buf(pos + 1 to buf'right), 1, buf'right - pos);
+    end function;
+
+    function real_to_string (x : real) return string is
+        function impl (x : real) return string;
+        attribute foreign of impl : function is "_std_to_string_real";
+    begin
+        return impl(x);
+    end function;
+
 end package body;

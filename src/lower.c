@@ -7903,10 +7903,23 @@ static void lower_enum_image_helper(type_t type, vcode_reg_t preg)
    }
 }
 
-static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
+static void lower_physical_image_helper(lower_unit_t *lu, type_t type,
+                                        vcode_reg_t preg)
 {
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_reg_t num_reg = emit_convstr(emit_cast(vint64, vint64, preg));
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+
+   vcode_reg_t cast_reg = emit_cast(vint64, vint64, preg);
+   ident_t conv_fn =
+      ident_new("NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
+   vcode_reg_t conv_args[] = {
+      lower_context_for_call(lu, conv_fn),
+      cast_reg
+   };
+   vcode_reg_t num_reg = emit_fcall(conv_fn, vstring, vstring,
+                                    VCODE_CC_VHDL, conv_args, 2);
+
    vcode_reg_t num_len = emit_uarray_len(num_reg, 0);
 
    const char *unit0 = istr(ident_downcase(tree_ident(type_unit(type, 0))));
@@ -7936,9 +7949,32 @@ static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
    emit_return(emit_wrap(mem_reg, dims, 1));
 }
 
-static void lower_numeric_image_helper(type_t type, vcode_reg_t preg)
+static void lower_numeric_image_helper(lower_unit_t *lu, type_t type,
+                                       vcode_reg_t preg)
 {
-   vcode_reg_t str_reg = emit_convstr(preg);
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+
+   ident_t conv_fn;
+   vcode_reg_t arg_reg;
+
+   if (type_is_real(type)) {
+      arg_reg = preg;
+      conv_fn = ident_new("NVC.TEXT_UTIL.REAL_TO_STRING(R)S");
+   }
+   else {
+      vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+      arg_reg = emit_cast(vint64, vint64, preg);
+      conv_fn = ident_new(
+         "NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
+   }
+
+   vcode_reg_t conv_args[] = {
+      lower_context_for_call(lu, conv_fn),
+      arg_reg
+   };
+   vcode_reg_t str_reg = emit_fcall(conv_fn, vstring, vstring,
+                                    VCODE_CC_VHDL, conv_args, 2);
    emit_return(str_reg);
 }
 
@@ -8224,10 +8260,10 @@ static void lower_image_helper(lower_unit_t *lu, object_t *obj)
       break;
    case T_INTEGER:
    case T_REAL:
-      lower_numeric_image_helper(type, preg);
+      lower_numeric_image_helper(lu, type, preg);
       break;
    case T_PHYSICAL:
-      lower_physical_image_helper(type, preg);
+      lower_physical_image_helper(lu, type, preg);
       break;
    case T_RECORD:
       lower_record_image_helper(lu, type, preg);

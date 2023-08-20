@@ -148,6 +148,15 @@ void _std_to_ostring_bit_vec(const uint8_t *vec_ptr, int64_t vec_len,
    *u = bit_vec_to_string(vec_ptr, vec_len, 3);
 }
 
+DLLEXPORT
+void _std_to_string_real(double value, ffi_uarray_t *u)
+{
+   const size_t max = 32;
+   char *buf = jit_mspace_alloc(max);
+   size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, value);
+   *u = ffi_wrap(buf, 1, len);
+}
+
 void _std_standard_init(void)
 {
    // Dummy function to force linking

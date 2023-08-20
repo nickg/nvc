@@ -37,6 +37,8 @@ package text_util is
     procedure string_to_int (s : in string; value : out t_int64;
                              used : out natural);
     function string_to_real (s : string) return real;
+    function int_to_string (x : t_int64) return string;
+    function real_to_string (x : real) return string;
 
     -- Used to implement 'VALUE for composite types
     function next_delimiter (s : string; pos : natural) return string;
