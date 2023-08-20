@@ -9,6 +9,8 @@
   instantiated the package (#750).
 - Improved checking for configuration specifications.
 - Empty bit string literals are now parsed correctly.
+- Fixed stack corruption when a function returns an alias of one of its
+  array arguments.
 
 ## Version 1.10.1 - 2023-07-28
 - Fixed incorrect sensitivity list generation with concurrent statements

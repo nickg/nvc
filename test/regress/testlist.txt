@@ -825,3 +825,4 @@ predef4         normal,2008
 issue744        normal,vhpi
 issue747        fail,gold,gL=10
 vhpi9           normal,vhpi
+func25          normal

@@ -379,6 +379,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_ADDRESS_OF:
    case VCODE_OP_LINK_VAR:
    case VCODE_OP_LINK_PACKAGE:
+   case VCODE_OP_CONTEXT_UPREF:
       break;
 
    case VCODE_OP_ALLOC:
@@ -445,7 +446,13 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_FCALL:
-      // Must have been safety checked by definition
+      for (int i = 0; i < defn->args.count; i++) {
+         const vtype_kind_t rkind = vcode_reg_kind(reg);
+         if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY) {
+            // Function may return a pointer to its argument
+            vcode_heap_allocate(defn->args.items[i]);
+         }
+      }
       break;
 
    case VCODE_OP_RECORD_REF:
