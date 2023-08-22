@@ -4423,7 +4423,9 @@ static void lower_convert_record(lower_unit_t *lu, vcode_reg_t value_reg,
          lower_convert_record(lu, from_reg, where, from_type, to_type, to_reg);
       else {
          vcode_reg_t elem_reg = emit_load_indirect(from_reg);
-         emit_store_indirect(elem_reg, to_reg);
+         vcode_reg_t conv_reg =
+            lower_conversion(lu, elem_reg, where, from_type, to_type);
+         emit_store_indirect(conv_reg, to_reg);
       }
    }
 }
