@@ -2680,17 +2680,8 @@ static bool sem_check_cond_assign(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_conversion(tree_t t, nametab_t *tab)
+static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
 {
-   // Type conversions are described in LRM 93 section 7.3.5
-
-   tree_t value = tree_value(t);
-   if (!sem_check(value, tab))
-      return false;
-
-   type_t from = tree_type(value);
-   type_t to   = tree_type(t);
-
    if (type_eq(to, from))
       return true;
 
@@ -2725,12 +2716,66 @@ static bool sem_check_conversion(tree_t t, nametab_t *tab)
          return true;
    }
 
-   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-   diag_printf(d, "conversion only allowed between closely related types");
-   diag_hint(d, tree_loc(t), "%s and %s are not closely related",
-             type_pp2(from, to), type_pp2(to, from));
-   diag_emit(d);
+   if (from_k == T_RECORD && to_k == T_RECORD && standard() >= STD_19) {
+      // Each element of the target type must have a matching element in
+      // the from type
+      const int from_nf = type_fields(from);
+      const int to_nf = type_fields(to);
+
+      for (int i = 0; i < to_nf; i++) {
+         tree_t to_f = type_field(to, i), from_f = NULL;
+         type_t to_ftype = tree_type(to_f);
+         ident_t name = tree_ident(to_f);
+
+         for (int j = 0; j < from_nf && from_f == NULL; j++) {
+            tree_t f = type_field(from, j);
+            if (tree_ident(f) != name)
+               continue;
+
+            type_t from_ftype = tree_type(f);
+            if (!sem_check_closely_related(from_ftype, to_ftype, NULL))
+               break;
+
+            from_f = f;
+         }
+
+         if (from_f == NULL && where != NULL) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(where));
+            diag_printf(d, "conversion only allowed between closely "
+                        "related types");
+            diag_hint(d, tree_loc(to_f), "field %s in record type %s has no "
+                      "matching element in type %s", istr(tree_ident(to_f)),
+                      type_pp2(to, from), type_pp2(from, to));
+            diag_emit(d);
+            return false;
+         }
+         else if (from_f == NULL)
+            return false;
+      }
+
+      return true;
+   }
+
+   if (where != NULL) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(where));
+      diag_printf(d, "conversion only allowed between closely related types");
+      diag_hint(d, tree_loc(where), "%s and %s are not closely related",
+                type_pp2(from, to), type_pp2(to, from));
+      diag_emit(d);
+   }
+
    return false;
+}
+
+static bool sem_check_conversion(tree_t t, nametab_t *tab)
+{
+   // Type conversions are described in LRM 93 section 7.3.5
+
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
+      return false;
+
+   return sem_check_closely_related(tree_type(value), tree_type(t), t);
 }
 
 static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)

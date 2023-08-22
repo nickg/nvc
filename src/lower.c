@@ -165,6 +165,8 @@ static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t locus, void *context);
 static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
                                 vcode_reg_t array, tree_t where);
+static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
+                                    tree_t where, type_t from, type_t to);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -4372,6 +4374,60 @@ static vcode_reg_t lower_all(lower_unit_t *lu, tree_t all, expr_ctx_t ctx)
       return all_reg;
 }
 
+static void lower_convert_record(lower_unit_t *lu, vcode_reg_t value_reg,
+                                 tree_t where, type_t from, type_t to,
+                                 vcode_reg_t ptr_reg)
+{
+   const int to_nf = type_fields(to);
+   const int from_nf = type_fields(from);
+
+   for (int i = 0; i < to_nf; i++) {
+      tree_t to_f = type_field(to, i);
+      type_t to_type = tree_type(to_f), from_type = NULL;
+      ident_t name = tree_ident(to_f);
+
+      vcode_reg_t from_reg = VCODE_INVALID_REG;
+      for (int j = 0; j < from_nf; j++) {
+         tree_t f = type_field(from, j);
+         if (tree_ident(f) == name) {
+            from_reg = emit_record_ref(value_reg, j);
+            from_type = tree_type(f);
+            break;
+         }
+      }
+      assert(from_reg != VCODE_INVALID_REG);
+
+      if (have_uarray_ptr(from_reg))
+         from_reg = emit_load_indirect(from_reg);
+
+      vcode_reg_t to_reg = emit_record_ref(ptr_reg, i);
+
+      if (type_is_array(to_type)) {
+         vcode_reg_t conv_reg =
+            lower_conversion(lu, from_reg, where, from_type, to_type);
+
+         // Shallow copy is ok here as the result of this conversion is
+         // effectively constant
+         if (have_uarray_ptr(to_reg)) {
+            assert(vcode_reg_kind(conv_reg) == VCODE_TYPE_UARRAY);
+            emit_store_indirect(conv_reg, to_reg);
+         }
+         else {
+            vcode_reg_t data_reg = lower_array_data(conv_reg);
+            vcode_reg_t count_reg =
+               lower_array_total_len(lu, to_type, conv_reg);
+            emit_copy(to_reg, data_reg, count_reg);
+         }
+      }
+      else if (type_is_record(to_type))
+         lower_convert_record(lu, from_reg, where, from_type, to_type, to_reg);
+      else {
+         vcode_reg_t elem_reg = emit_load_indirect(from_reg);
+         emit_store_indirect(elem_reg, to_reg);
+      }
+   }
+}
+
 static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
                                     tree_t where, type_t from, type_t to)
 {
@@ -4409,6 +4465,13 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
       // Possibly change width
       lower_check_scalar_bounds(lu, value_reg, to, where, NULL);
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
+   }
+   else if (from_k == T_RECORD && to_k == T_RECORD) {
+      vcode_type_t vtype_to = lower_type(to);
+      vcode_var_t tmp_var = lower_temp_var(lu, "conv", vtype_to, vtype_to);
+      vcode_reg_t ptr_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+      lower_convert_record(lu, value_reg, where, from, to, ptr_reg);
+      return ptr_reg;
    }
    else {
       // No conversion to perform
