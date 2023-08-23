@@ -475,9 +475,9 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 
             preload_add_unit(job, id);
 
-            const int nmeth = type_decls(type);
+            const int nmeth = tree_decls(d);
             for (int i = 0; i < nmeth; i++) {
-               tree_t m = type_decl(type, i);
+               tree_t m = tree_decl(d, i);
                if (is_subprogram(m))
                   preload_add_unit(job, tree_ident2(m));
             }

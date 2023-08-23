@@ -6035,7 +6035,7 @@ static type_t p_composite_type_definition(ident_t id)
    }
 }
 
-static void p_protected_type_declarative_item(type_t type)
+static void p_protected_type_declarative_item(tree_t decl)
 {
    // subprogram_declaration | 2008: subprogram_instantiation_declaration
    //   | attribute_specification | use_clause
@@ -6044,11 +6044,11 @@ static void p_protected_type_declarative_item(type_t type)
 
    switch (peek()) {
    case tATTRIBUTE:
-      p_attribute_specification((tree_t)type, (add_func_t)type_add_unit);
+      p_attribute_specification(decl, tree_add_decl);
       break;
 
    case tUSE:
-      p_use_clause((tree_t)type, (add_func_t)type_add_unit);
+      p_use_clause(decl, tree_add_decl);
       break;
 
    case tFUNCTION:
@@ -6056,11 +6056,11 @@ static void p_protected_type_declarative_item(type_t type)
    case tIMPURE:
    case tPURE:
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
-         type_add_decl(type, p_subprogram_instantiation_declaration());
+         tree_add_decl(decl, p_subprogram_instantiation_declaration());
       else {
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, TREE_F_PROTECTED);
-         type_add_decl(type, p_subprogram_declaration(spec));
+         tree_add_decl(decl, p_subprogram_declaration(spec));
       }
       break;
 
@@ -6069,14 +6069,14 @@ static void p_protected_type_declarative_item(type_t type)
    }
 }
 
-static void p_protected_type_declarative_part(type_t type)
+static void p_protected_type_declarative_part(tree_t decl)
 {
    // { protected_type_declarative_item }
 
    BEGIN("protected type declarative part");
 
    while (not_at_token(tEND))
-      p_protected_type_declarative_item(type);
+      p_protected_type_declarative_item(decl);
 }
 
 static tree_t p_protected_type_declaration(ident_t id)
@@ -6101,7 +6101,14 @@ static tree_t p_protected_type_declaration(ident_t id)
    push_scope(nametab);
    scope_set_prefix(nametab, id);
 
-   p_protected_type_declarative_part(type);
+   p_protected_type_declarative_part(t);
+
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      if (is_subprogram(d))
+         type_add_field(type, d);
+   }
 
    pop_scope(nametab);
 
@@ -7260,6 +7267,7 @@ static tree_t p_protected_type_body(ident_t id)
    tree_t body = tree_new(T_PROT_BODY);
    tree_set_ident(body, id);
    tree_set_loc(body, CURRENT_LOC);
+   tree_set_primary(body, decl);
 
    insert_name(nametab, body, NULL);
 
@@ -7269,7 +7277,7 @@ static tree_t p_protected_type_body(ident_t id)
       type_t type = tree_type(decl);
       assert(type_is_protected(type));
       tree_set_type(body, type);
-      insert_protected_decls(nametab, type);
+      insert_decls(nametab, decl);
    }
    else
       tree_set_type(body, type_new(T_NONE));

@@ -90,7 +90,6 @@ void insert_names_for_psl(nametab_t *tab);
 void insert_decls(nametab_t *tab, tree_t container);
 void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
-void insert_protected_decls(nametab_t *tab, type_t type);
 void insert_names_for_config(nametab_t *tab, tree_t unit);
 void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
                  ident_t ident, int depth);

@@ -70,7 +70,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT),
 
    // T_PROTECTED
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_FIELDS),
 
    // T_GENERIC
    (I_IDENT | I_SUBKIND),
@@ -451,26 +451,7 @@ tree_t type_field(type_t t, unsigned n)
 
 void type_add_field(type_t t, tree_t p)
 {
-   assert(p->object.kind == T_FIELD_DECL || p->object.kind == T_VIEW_ELEMENT);
    tree_array_add(lookup_item(&type_object, t, I_FIELDS), p);
-   object_write_barrier(&(t->object), &(p->object));
-}
-
-unsigned type_decls(type_t t)
-{
-   item_t *item = lookup_item(&type_object, t, I_DECLS);
-   return obj_array_count(item->obj_array);
-}
-
-tree_t type_decl(type_t t, unsigned n)
-{
-   item_t *item = lookup_item(&type_object, t, I_DECLS);
-   return tree_array_nth(item, n);
-}
-
-void type_add_decl(type_t t, tree_t p)
-{
-   tree_array_add(lookup_item(&type_object, t, I_DECLS), p);
    object_write_barrier(&(t->object), &(p->object));
 }
 

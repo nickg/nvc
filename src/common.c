@@ -1126,7 +1126,6 @@ bool package_needs_body(tree_t pack)
 
 tree_t search_decls(tree_t container, ident_t name, int nth)
 {
-   type_t type;
    tree_kind_t kind = tree_kind(container);
    if (kind == T_LIBRARY) {
       if (nth == 0) {
@@ -1135,16 +1134,6 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       }
       else
          return NULL;
-   }
-   else if ((kind == T_VAR_DECL || kind == T_PARAM_DECL)
-            && type_is_protected((type = tree_type(container)))) {
-      const int ndecls = type_decls(type);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = type_decl(type, i);
-         if (tree_ident(d) == name && nth-- == 0)
-            return d;
-      }
-      return NULL;
    }
    else if (kind == T_ENTITY || kind == T_BLOCK) {
       const int nports = tree_ports(container);

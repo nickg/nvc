@@ -3025,9 +3025,9 @@ START_TEST(test_protected)
    fail_unless(tree_kind(d) == T_PROT_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PROTECTED);
-   fail_unless(type_decls(t) == 3);
+   fail_unless(type_fields(t) == 3);
 
-   s = type_decl(t, 0);
+   s = type_field(t, 0);
    fail_unless(tree_kind(s) == T_PROC_DECL);
    fail_unless(tree_ident(s) == ident_new("INCREMENT"));
    fail_unless(tree_flags(s) & TREE_F_PROTECTED);

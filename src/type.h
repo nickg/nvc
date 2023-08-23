@@ -116,10 +116,6 @@ unsigned type_fields(type_t t);
 tree_t type_field(type_t t, unsigned n);
 void type_add_field(type_t t, tree_t e);
 
-unsigned type_decls(type_t t);
-tree_t type_decl(type_t t, unsigned n);
-void type_add_decl(type_t t, tree_t e);
-
 void type_set_resolution(type_t t, tree_t r);
 bool type_has_resolution(type_t t);
 tree_t type_resolution(type_t t);

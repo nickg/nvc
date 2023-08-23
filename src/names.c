@@ -982,9 +982,9 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
    s->sym_tail = &(s->symbols);
    s->chain    = tab->globals;
 
-   const int ndecls = type_decls(type);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = type_decl(type, i);
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t d = type_field(type, i);
       make_visible_fast(s, tree_ident(d), d);
    }
 
@@ -1994,15 +1994,6 @@ void push_scope_for_formals(nametab_t *tab, formal_kind_t kind, tree_t unit)
          break;
       }
    }
-}
-
-void insert_protected_decls(nametab_t *tab, type_t type)
-{
-   assert(type_is_protected(type));
-
-   const int ndecls = type_decls(type);
-   for (int i = 0; i < ndecls; i++)
-      insert_name(tab, type_decl(type, i), NULL);
 }
 
 void insert_names_for_config(nametab_t *tab, tree_t unit)
