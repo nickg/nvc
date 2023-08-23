@@ -1375,14 +1375,14 @@ static void dump_port(tree_t t, int indent)
    const class_t class = tree_class(t);
    print_syntax("#%s %s", class_str(class), istr(tree_ident(t)));
 
+   type_t type = get_type_or_null(t);
    if (class == C_PACKAGE) {
       print_syntax(" #is #new ");
       dump_expr(tree_value(t));
    }
-   else if (class == C_TYPE) {
+   else if (class == C_TYPE && type_kind(type) == T_GENERIC) {
       print_syntax(" #is ");
 
-      type_t type = tree_type(t);
       switch (type_subkind(type)) {
       case GTYPE_PRIVATE:
          print_syntax("#private");
@@ -1423,7 +1423,7 @@ static void dump_port(tree_t t, int indent)
       case PORT_INVALID: dir = "??";     break;
       }
       print_syntax(" : #%s ", dir);
-      dump_type(tree_type(t));
+      dump_type(type);
 
       if (tree_has_value(t)) {
          print_syntax(" := ");
