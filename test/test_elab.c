@@ -823,8 +823,9 @@ START_TEST(test_tc3138)
 
    tree_t b0 = tree_stmt(e, 0);
    fail_unless(tree_ident(b0) == ident_new("C05S02B02X00P02N01I03138ENT"));
-   fail_unless(tree_stmts(b0) == 1);
-   fail_unless(tree_kind(tree_stmt(b0, 0)) == T_PROCESS);
+   fail_unless(tree_stmts(b0) == 2);
+   fail_unless(tree_kind(tree_stmt(b0, 0)) == T_BLOCK);
+   fail_unless(tree_kind(tree_stmt(b0, 1)) == T_PROCESS);
 
    fail_if_errors();
 }

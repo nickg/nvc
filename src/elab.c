@@ -531,8 +531,8 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
    }
 
    if (entity == NULL) {
-      error_at(tree_loc(inst), "cannot find entity for component %s "
-               "without binding indication", istr(tree_ident(comp)));
+      warn_at(tree_loc(inst), "cannot find entity for component %s "
+              "without binding indication", istr(tree_ident(comp)));
       return NULL;
    }
 
@@ -792,8 +792,11 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
    int binding_nparams = 0;
    tree_t binding = NULL;
    if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
-      binding = tree_value(tree_spec(inst));
-      binding_nparams = tree_params(binding);
+      tree_t spec = tree_spec(inst);
+      if (tree_has_value(spec)) {
+         binding = tree_value(spec);
+         binding_nparams = tree_params(binding);
+      }
    }
 
    for (int i = 0; i < nports; i++) {
@@ -1054,8 +1057,11 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    int binding_ngenmaps = 0;
    tree_t binding = NULL;
    if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
-      binding = tree_value(tree_spec(inst));
-      binding_ngenmaps = tree_genmaps(binding);
+      tree_t spec = tree_spec(inst);
+      if (tree_has_value(spec)) {
+         binding = tree_value(spec);
+         binding_ngenmaps = tree_genmaps(binding);
+      }
    }
 
    if (ctx->generics == NULL && ngenerics > 0)
@@ -1417,9 +1423,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                   tree_kind_str(tree_kind(ref)));
    }
 
-   if (arch == NULL)
-      return;
-   else if (tree_kind(arch) == T_VERILOG) {
+   if (arch != NULL && tree_kind(arch) == T_VERILOG) {
       elab_verilog_module(arch, t, &new_ctx);
       return;
    }
@@ -1429,12 +1433,26 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    tree_set_loc(b, tree_loc(t));
 
    tree_add_stmt(ctx->out, b);
+   new_ctx.out = b;
+
+   if (arch == NULL) {
+      assert(tree_kind(ref) == T_COMPONENT);
+
+      elab_push_scope(ref, &new_ctx);
+      elab_generics(ref, ref, t, &new_ctx);
+      elab_ports(ref, ref, t, &new_ctx);
+
+      if (error_count() == 0)
+         elab_lower(b, &new_ctx);
+
+      elab_pop_scope(&new_ctx);
+      return;
+   }
 
    new_ctx.inst_name = hpathf(new_ctx.inst_name, '@', "%s(%s)",
                               simple_name(istr(tree_ident2(arch))),
                               simple_name(istr(tree_ident(arch))));
    new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
-   new_ctx.out = b;
 
    elab_subprogram_prefix(arch, &new_ctx);
 

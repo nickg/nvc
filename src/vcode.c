@@ -383,6 +383,8 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_ALLOC:
+   case VCODE_OP_REFLECT_SUBTYPE:
+   case VCODE_OP_REFLECT_VALUE:
       // Always allocated in mspace
       break;
 
