@@ -2040,38 +2040,38 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
    const int ndecls = tree_decls(spec);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(spec, i);
-      tree_kind_t dkind = tree_kind(d);
 
-      if (dkind == T_FUNC_DECL || dkind == T_PROC_DECL
-          || (dkind == T_TYPE_DECL && type_is_protected(tree_type(d)))) {
-         type_t dtype = tree_type(d);
+      const tree_kind_t dkind = tree_kind(d);
+      if (dkind != T_FUNC_DECL && dkind != T_PROC_DECL && dkind != T_PROT_DECL)
+         continue;
 
-         bool found = false;
-         const int nbody_decls = tree_decls(body);
-         const int start = (body == spec ? i + 1 : 0);
-         for (int j = start; !found && (j < nbody_decls); j++) {
-            tree_t b = tree_decl(body, j);
-            tree_kind_t bkind = tree_kind(b);
-            if (bkind == T_FUNC_BODY || bkind == T_PROC_BODY
-                || bkind == T_PROT_BODY) {
-               if (type_eq(dtype, tree_type(b)))
-                  found = true;
-            }
-         }
+      type_t dtype = tree_type(d);
 
-         if (found)
+      bool found = false;
+      const int nbody_decls = tree_decls(body);
+      const int start = (body == spec ? i + 1 : 0);
+      for (int j = start; !found && (j < nbody_decls); j++) {
+         tree_t b = tree_decl(body, j);
+         const tree_kind_t bkind = tree_kind(b);
+         if (bkind != T_FUNC_BODY && bkind != T_PROC_BODY
+             && bkind != T_PROT_BODY)
             continue;
+         else if (type_eq(dtype, tree_type(b)))
+            found = true;
+      }
 
-         const bool missing = (dkind == T_TYPE_DECL)
-            || (!(tree_flags(d) & TREE_F_PREDEFINED)
-                && tree_subkind(d) != S_FOREIGN);
+      if (found)
+         continue;
 
-         if (missing && opt_get_int(OPT_MISSING_BODY)) {
-            warn_at(tree_loc(d), "missing body for %s %s",
-                    (dkind == T_TYPE_DECL) ? "protected type"
-                    : (dkind == T_PROC_DECL ? "procedure" : "function"),
-                    type_pp(dtype));
-         }
+      const bool missing = dkind == T_PROT_DECL
+         || (!(tree_flags(d) & TREE_F_PREDEFINED)
+             && tree_subkind(d) != S_FOREIGN);
+
+      if (missing && opt_get_int(OPT_MISSING_BODY)) {
+         warn_at(tree_loc(d), "missing body for %s %s",
+                 (dkind == T_PROT_DECL) ? "protected type"
+                 : (dkind == T_PROC_DECL ? "procedure" : "function"),
+                 type_pp(dtype));
       }
    }
 

@@ -673,13 +673,6 @@ static void dump_type_decl(tree_t t, int indent)
       print_syntax(" #of ");
       dump_type(type_elem(type));
    }
-   else if (type_kind(type) == T_PROTECTED) {
-      print_syntax("#protected\n");
-      for (unsigned i = 0; i < type_decls(type); i++)
-         dump_decl(type_decl(type, i), indent + 2);
-      tab(indent);
-      print_syntax("#end #protected");
-   }
    else if (type_is_record(type)) {
       print_syntax("#record\n");
       const int nfields = type_fields(type);
@@ -914,6 +907,18 @@ static void dump_decl(tree_t t, int indent)
 
    case T_COMPONENT:
       dump_component(t, indent);
+      return;
+
+   case T_PROT_DECL:
+      {
+         print_syntax("#type %s #is #protected\n", istr(tree_ident(t)));
+         type_t type = tree_type(t);
+         const int ndecls = type_decls(type);
+         for (int i = 0; i < ndecls; i++)
+            dump_decl(type_decl(type, i), indent + 2);
+         tab(indent);
+         print_syntax("#end #protected;\n");
+      }
       return;
 
    case T_PROT_BODY:

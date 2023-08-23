@@ -3022,7 +3022,7 @@ START_TEST(test_protected)
 
    d = search_decls(p, ident_new("SHAREDCOUNTER"), 0);
    fail_if(d == NULL);
-   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_kind(d) == T_PROT_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PROTECTED);
    fail_unless(type_decls(t) == 3);
@@ -3584,7 +3584,7 @@ START_TEST(test_error2)
       { 33, "expected record type definition trailing identifier" },
       { 38, "unexpected procedure while parsing subprogram body" },
       { 42, "unexpected function while parsing subprogram body" },
-      { 44, "protected type declaration trailing label to match OTHER" },
+      { 45, "trailing protected type declaration label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
       { 53, "no visible subprogram declaration for F" },
       { -1, NULL }

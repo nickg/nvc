@@ -6079,7 +6079,7 @@ static void p_protected_type_declarative_part(type_t type)
       p_protected_type_declarative_item(type);
 }
 
-static type_t p_protected_type_declaration(tree_t tdecl)
+static tree_t p_protected_type_declaration(ident_t id)
 {
    // protected protected_type_declarative_part end protected [ simple_name ]
 
@@ -6088,15 +6088,18 @@ static type_t p_protected_type_declaration(tree_t tdecl)
    consume(tPROTECTED);
 
    type_t type = type_new(T_PROTECTED);
-   ident_t id = tree_ident(tdecl);
    type_set_ident(type, id);
+
    mangle_type(nametab, type);
 
-   tree_set_type(tdecl, type);
+   tree_t t = tree_new(T_PROT_DECL);
+   tree_set_ident(t, id);
+   tree_set_type(t, type);
+
+   insert_name(nametab, t, NULL);
 
    push_scope(nametab);
    scope_set_prefix(nametab, id);
-   insert_name(nametab, tdecl, NULL);
 
    p_protected_type_declarative_part(type);
 
@@ -6105,23 +6108,22 @@ static type_t p_protected_type_declaration(tree_t tdecl)
    consume(tEND);
    consume(tPROTECTED);
 
-   if (peek() == tID && p_identifier() != id)
-      parse_error(CURRENT_LOC, "expected protected type declaration trailing "
-                  "label to match %s", istr(id));
+   p_trailing_label(id);
 
-   return type;
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
 }
 
-static type_t p_protected_type_definition(tree_t tdecl)
+static tree_t p_protected_type_definition(ident_t id)
 {
    // protected_type_declaration | protected_type_body
 
    BEGIN("protected type definition");
 
-   // Protected type bodies are trees rather than types and so handled
-   // elsewhere to simplify the parser
-
-   return p_protected_type_declaration(tdecl);
+   if (peek_nth(2) == tBODY)
+      return p_protected_type_body(id);
+   else
+      return p_protected_type_declaration(id);
 }
 
 static type_t p_type_definition(tree_t tdecl)
@@ -6149,11 +6151,8 @@ static type_t p_type_definition(tree_t tdecl)
    case tARRAY:
       return p_composite_type_definition(id);
 
-   case tPROTECTED:
-      return p_protected_type_definition(tdecl);
-
    default:
-      expect(tRANGE, tACCESS, tFILE, tRECORD, STD(00, tPROTECTED));
+      expect(tRANGE, tACCESS, tFILE, tRECORD);
       return type_new(T_NONE);
    }
 }
@@ -6199,21 +6198,11 @@ static void p_type_declaration(tree_t container)
    ident_t id = p_identifier();
    hide_name(nametab, id);
 
-   // Protected type bodies are broken out here to avoid having to
-   // return a dummy type for them in p_full_type_declaration
-
-   const bool is_prot_body =
-      (peek_nth(1) == tIS)
-      && (peek_nth(2) == tPROTECTED)
-      && (peek_nth(3) == tBODY);
-
-   if (is_prot_body) {
+   // Protected type definitions are trees rather than types
+   if (peek_nth(1) == tIS && peek_nth(2) == tPROTECTED) {
       consume(tIS);
-      tree_t body = p_protected_type_body(id);
+      tree_add_decl(container, p_protected_type_definition(id));
       consume(tSEMI);
-
-      insert_name(nametab, body, id);
-      tree_add_decl(container, body);
    }
    else {
       // Insert univeral_integer and universal_real predefined functions
@@ -7260,29 +7249,32 @@ static tree_t p_protected_type_body(ident_t id)
    consume(tPROTECTED);
    consume(tBODY);
 
-   push_scope(nametab);
-   scope_set_prefix(nametab, id);
+   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
 
-   tree_t tdecl = resolve_name(nametab, CURRENT_LOC, id);
-
-   type_t type = NULL;
-   if (tdecl != NULL) {
-      const bool protected = tree_kind(tdecl) == T_TYPE_DECL
-         && type_is_protected((type = tree_type(tdecl)));
-
-      if (!protected) {
-         parse_error(CURRENT_LOC, "object %s is not a protected type "
-                     "declaration", istr(id));
-         type = type_new(T_NONE);
-      }
-      else
-         insert_protected_decls(nametab, type);
+   if (decl != NULL && tree_kind(decl) != T_PROT_DECL) {
+      parse_error(CURRENT_LOC, "object %s is not a protected type "
+                  "declaration", istr(id));
+      decl = NULL;
    }
 
    tree_t body = tree_new(T_PROT_BODY);
    tree_set_ident(body, id);
-   tree_set_type(body, type ?: type_new(T_NONE));
+   tree_set_loc(body, CURRENT_LOC);
 
+   insert_name(nametab, body, NULL);
+
+   push_scope(nametab);
+
+   if (decl != NULL) {
+      type_t type = tree_type(decl);
+      assert(type_is_protected(type));
+      tree_set_type(body, type);
+      insert_protected_decls(nametab, type);
+   }
+   else
+      tree_set_type(body, type_new(T_NONE));
+
+   scope_set_prefix(nametab, id);
    scope_set_container(nametab, body);
 
    p_protected_type_body_declarative_part(body);
@@ -7293,9 +7285,7 @@ static tree_t p_protected_type_body(ident_t id)
    consume(tPROTECTED);
    consume(tBODY);
 
-   if (peek() == tID && p_identifier() != id)
-      parse_error(CURRENT_LOC, "expected protected body trailing label "
-                  "to match %s", istr(id));
+   p_trailing_label(id);
 
    tree_set_loc(body, CURRENT_LOC);
    sem_check(body, nametab);
@@ -7587,7 +7577,7 @@ static void p_entity_declarative_item(tree_t entity)
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
              tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED,
-             tSIGNAL, tVIEW);
+             tSIGNAL, STD(19, tVIEW));
    }
 }
 
@@ -8209,7 +8199,7 @@ static void p_package_declarative_item(tree_t pack)
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
              tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE,
-             tDISCONNECT, tGROUP, tPACKAGE, tVIEW);
+             tDISCONNECT, tGROUP, tPACKAGE, STD(19, tVIEW));
    }
 }
 
@@ -8992,7 +8982,7 @@ static void p_block_declarative_item(tree_t parent)
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED, tDISCONNECT, tGROUP, tPACKAGE, tVIEW);
+             tSHARED, tDISCONNECT, tGROUP, STD(08, tPACKAGE), STD(19, tVIEW));
    }
 }
 
@@ -12335,7 +12325,8 @@ static void p_package_body_declarative_item(tree_t parent)
 
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE, tGROUP, tPACKAGE);
+             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE, tGROUP,
+             STD(08, tPACKAGE));
    }
 }
 
@@ -12464,7 +12455,8 @@ static void p_library_unit(tree_t unit)
       break;
 
    default:
-      expect(tENTITY, tCONFIGURATION, tARCHITECTURE, tPACKAGE, tCONTEXT);
+      expect(tENTITY, tCONFIGURATION, tARCHITECTURE, tPACKAGE,
+             STD(08, tCONTEXT));
    }
 
    if (bootstrapping && unit != find_std(nametab))

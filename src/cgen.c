@@ -455,16 +455,24 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
-      if (is_subprogram(d)) {
-         const subprogram_kind_t kind = tree_subkind(d);
-         if (kind != S_FOREIGN && !is_open_coded_builtin(kind))
-            preload_add_unit(job, tree_ident2(d));
-      }
-      else if (tree_kind(d) == T_TYPE_DECL) {
-         type_t type = tree_type(d);
-         ident_t id = type_ident(type);
+      switch (tree_kind(d)) {
+      case T_FUNC_DECL:
+      case T_FUNC_BODY:
+      case T_FUNC_INST:
+      case T_PROC_DECL:
+      case T_PROC_BODY:
+      case T_PROC_INST:
+         {
+            const subprogram_kind_t kind = tree_subkind(d);
+            if (kind != S_FOREIGN && !is_open_coded_builtin(kind))
+               preload_add_unit(job, tree_ident2(d));
+         }
+         break;
+      case T_PROT_DECL:
+         {
+            type_t type = tree_type(d);
+            ident_t id = type_ident(type);
 
-         if (type_is_protected(type)) {
             preload_add_unit(job, id);
 
             const int nmeth = type_decls(type);
@@ -474,13 +482,21 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
                   preload_add_unit(job, tree_ident2(m));
             }
          }
-         else {
+         break;
+      case T_TYPE_DECL:
+         {
+            type_t type = tree_type(d);
+            ident_t id = type_ident(type);
+
             for (int i = 0; i < ARRAY_LEN(helper_suffix); i++) {
                ident_t func = ident_prefix(id, helper_suffix[i], '$');
                if (unit_registry_query(job->registry, func))
                   preload_add_unit(job, func);
             }
          }
+         break;
+      default:
+         break;
       }
    }
 }

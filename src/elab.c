@@ -1512,6 +1512,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROC_BODY:
       case T_FUNC_INST:
       case T_PROC_INST:
+      case T_PROT_DECL:
       case T_PROT_BODY:
       case T_TYPE_DECL:
       case T_SUBTYPE_DECL:

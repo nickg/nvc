@@ -316,8 +316,6 @@ START_TEST(test_vhdl5)
              "    function SOMETHING return INTEGER;\n"
              "      -- WORK.VHDL5.PT.SOMETHING()I\n"
              "  end protected;\n"
-             "  -- predefined \"=\" [PT, PT return BOOLEAN]\n"
-             "  -- predefined \"/=\" [PT, PT return BOOLEAN]\n"
              "\n"
              "  type PT is protected body\n"
              "    variable V : INTEGER := 55;\n"

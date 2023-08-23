@@ -9338,6 +9338,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_GROUP_TEMPLATE:
    case T_SUBTYPE_DECL:
    case T_VIEW_DECL:
+   case T_PROT_DECL:
       break;
 
    case T_PACKAGE:

@@ -554,6 +554,7 @@ class_t class_of(tree_t t)
    case T_SUBTYPE_DECL:
       return C_SUBTYPE;
    case T_TYPE_DECL:
+   case T_PROT_DECL:
       return C_TYPE;
    case T_FILE_DECL:
       return C_FILE;
@@ -573,6 +574,7 @@ class_t class_of(tree_t t)
    case T_RECORD_REF:
    case T_ALL:
    case T_ALIAS:
+   case T_QUALIFIED:
       return class_of(tree_value(t));
    case T_PACKAGE:
    case T_PACK_BODY:
@@ -738,6 +740,7 @@ bool is_type_decl(tree_t t)
    switch (tree_kind(t)) {
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
+   case T_PROT_DECL:
       return true;
    default:
       return false;
@@ -757,6 +760,7 @@ tree_t aliased_type_decl(tree_t decl)
       }
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
+   case T_PROT_DECL:
       return decl;
    case T_GENERIC_DECL:
       if (tree_class(decl) == C_TYPE)
@@ -1109,10 +1113,8 @@ bool package_needs_body(tree_t pack)
             return true;
          continue;
 
-      case T_TYPE_DECL:
-         if (type_is_protected(tree_type(d)))
-            return true;
-         continue;
+      case T_PROT_DECL:
+         return true;
 
       default:
          continue;

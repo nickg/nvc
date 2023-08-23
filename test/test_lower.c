@@ -2144,9 +2144,9 @@ START_TEST(test_issue136)
    input_from_file(TESTDIR "/lower/issue136.vhd");
 
    tree_t e = run_elab();
+   tree_t b0 = tree_stmt(e, 0);
 
-   tree_t body = search_decls(tree_stmt(e, 0),
-                              ident_new("RECORD_RETURNER_T"), 1);
+   tree_t body = search_decls(b0, ident_new("RECORD_RETURNER_T"), 1);
    fail_if(body == NULL);
    fail_unless(tree_kind(body) == T_PROT_BODY);
 

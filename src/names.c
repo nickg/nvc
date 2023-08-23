@@ -645,6 +645,7 @@ static name_mask_t name_mask_for(tree_t t)
       return N_PROC;
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
+   case T_PROT_DECL:
       return N_TYPE;
    case T_GENERIC_DECL:
       switch (class_of(t)) {
@@ -764,8 +765,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          else
             dd->visibility = HIDDEN;
       }
-      else if (dd->kind == T_TYPE_DECL && tkind == T_PROT_BODY
-               && type_is_protected(tree_type(dd->tree)))
+      else if (dd->kind == T_PROT_DECL && tkind == T_PROT_BODY)
          continue;
       else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
          if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
@@ -1104,6 +1104,8 @@ static bool is_forward_decl(tree_t decl, tree_t existing)
       return type_eq(tree_type(decl), tree_type(existing))
          && !(tree_flags(existing) & TREE_F_PREDEFINED);
    }
+   else if (tkind == T_PROT_BODY && ekind == T_PROT_DECL)
+      return type_eq(tree_type(decl), tree_type(existing));
    else if (tkind == T_CONST_DECL && ekind == T_CONST_DECL)
       return tree_has_value(decl) && !tree_has_value(existing);
    else
