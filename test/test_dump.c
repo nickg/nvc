@@ -296,6 +296,54 @@ START_TEST(test_vhdl4)
 }
 END_TEST
 
+START_TEST(test_vhdl5)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/dump/vhdl5.vhd");
+
+   tree_t b = parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   dump(b);
+   diff_dump(tb_get(tb),
+             "use STD.STANDARD.all;\n"
+             "\n"
+             "package body WORK.VHDL5-body is\n"
+             "  type PT is protected\n"
+             "    function SOMETHING return INTEGER;\n"
+             "      -- WORK.VHDL5.PT.SOMETHING()I\n"
+             "  end protected;\n"
+             "  -- predefined \"=\" [PT, PT return BOOLEAN]\n"
+             "  -- predefined \"/=\" [PT, PT return BOOLEAN]\n"
+             "\n"
+             "  type PT is protected body\n"
+             "    variable V : INTEGER := 55;\n"
+             "\n"
+             "    function SOMETHING return INTEGER is\n"
+             "      -- WORK.VHDL5.PT.SOMETHING()I\n"
+             "    begin\n"
+             "      return V;\n"
+             "    end function;\n"
+             "  end protected body;\n"
+             "\n"
+             "  variable SV : PT;\n"
+             "\n"
+             "  procedure GET_IT ( variable X : out INTEGER ) is   -- Never waits\n"
+             "    -- WORK.VHDL5.GET_IT(I)\n"
+             "  begin\n"
+             "    X := SV.SOMETHING;\n"
+             "  end procedure;\n"
+             "end package body;\n"
+             "\n");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+END_TEST
+
 #ifdef ENABLE_VERILOG
 START_TEST(test_vlog1)
 {
@@ -348,6 +396,7 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_vhdl2);
    tcase_add_test(tc_core, test_vhdl3);
    tcase_add_test(tc_core, test_vhdl4);
+   tcase_add_test(tc_core, test_vhdl5);
 #ifdef ENABLE_VERILOG
    tcase_add_test(tc_core, test_vlog1);
 #endif
