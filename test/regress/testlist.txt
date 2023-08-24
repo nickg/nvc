@@ -854,3 +854,4 @@ driver19        normal,2008
 func25          normal
 conv9           normal,2019
 comp2           normal
+issue751        normal

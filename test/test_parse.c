@@ -5632,6 +5632,44 @@ START_TEST(test_visibility8)
 }
 END_TEST
 
+START_TEST(test_issue751)
+{
+   input_from_file(TESTDIR "/parse/issue751.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t p0 = tree_stmt(a, 0);
+   fail_unless(tree_ident(p0) == ident_new("_P0"));
+   fail_unless(tree_flags(p0) & TREE_F_SYNTHETIC_NAME);
+
+   tree_t outer = tree_decl(p0, 0);
+   fail_unless(tree_kind(outer) == T_FUNC_BODY);
+   fail_unless(tree_ident2(outer) == ident_new(
+                  "WORK.ISSUE751-TEST._P0.OUTER()I"));
+
+   tree_t inner = tree_decl(outer, 0);
+   fail_unless(tree_kind(inner) == T_FUNC_BODY);
+   fail_unless(tree_ident2(inner) == ident_new(
+                  "WORK.ISSUE751-TEST._P0.OUTER()I.INNER()I"));
+
+   tree_t abc = tree_decl(p0, 1);
+   fail_unless(tree_kind(abc) == T_TYPE_DECL);
+   fail_unless(type_ident(tree_type(abc)) == ident_new(
+                  "WORK.ISSUE751-TEST._P0.ABC"));
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5750,6 +5788,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue708);
    tcase_add_test(tc_core, test_issue727);
    tcase_add_test(tc_core, test_visibility8);
+   tcase_add_test(tc_core, test_issue751);
    suite_add_tcase(s, tc_core);
 
    return s;
