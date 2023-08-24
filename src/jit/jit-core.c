@@ -389,13 +389,20 @@ void jit_fill_irbuf(jit_func_t *f)
 
    if (jit_fill_from_aot(f, f->jit->aotlib))
       return;
-   else if (jit_fill_from_aot(f, f->jit->preloadlib))
+
+   if (jit_fill_from_aot(f, f->jit->preloadlib))
       return;
-   else if (f->jit->registry != NULL
-            && (f->unit = unit_registry_get(f->jit->registry, f->name)))
-      jit_irgen(f);
-   else
+
+   if (f->jit->registry != NULL) {
+      // Unit registry is not thread-safe
+      SCOPED_LOCK(f->jit->lock);
+      f->unit = unit_registry_get(f->jit->registry, f->name);
+   }
+
+   if (f->unit == NULL)
       fatal_trace("cannot generate JIT IR for %s", istr(f->name));
+
+   jit_irgen(f);
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)
