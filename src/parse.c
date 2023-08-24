@@ -7991,7 +7991,7 @@ static tree_t p_process_statement(ident_t label)
 
    push_scope(nametab);
    scope_set_container(nametab, t);
-   scope_set_prefix(nametab, label);
+   scope_set_prefix(nametab, tree_ident(t));
 
    p_process_declarative_part(t);
 
@@ -8003,7 +8003,9 @@ static tree_t p_process_statement(ident_t label)
    if (postponed)
       optional(tPOSTPONED);
    consume(tPROCESS);
+
    p_trailing_label(label);
+
    consume(tSEMI);
 
    pop_scope(nametab);

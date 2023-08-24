@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed memory corruption in rare circumstances with functions declared
+  in process declarative regions (#751).
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised
