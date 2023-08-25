@@ -478,7 +478,7 @@ lib_t lib_new(const char *spec)
    if (get_file_info(path, &dir_info)) {
       if (dir_info.type == FILE_DIR) {
          file_info_t lockf_info;
-         existing = get_file_info(lockf, &lockf_info);
+         existing = !get_file_info(lockf, &lockf_info);
       }
       else
          fatal("path %s already exists and is not a directory", path);
@@ -498,7 +498,7 @@ lib_t lib_new(const char *spec)
       // We cannot do this check above as we may be racing with another
       // process trying to create the library which has already made the
       // directory but not yet created the lock file
-      fatal("directory %s already exists and is not an NVC library",
+      warnf("directory %s already exists and is not an NVC library",
             path);
    }
    else {

@@ -857,3 +857,4 @@ comp2           normal
 issue751        normal
 issue732        normal,2008
 genpack15       normal,2008
+issue548        shell
