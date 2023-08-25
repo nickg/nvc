@@ -827,3 +827,4 @@ issue747        fail,gold,gL=10
 vhpi9           normal,vhpi
 func25          normal
 issue751        normal
+issue548        shell
