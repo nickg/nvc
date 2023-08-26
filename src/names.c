@@ -1629,14 +1629,24 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
 tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
 {
-   assert(tree_kind(ref) == T_REF);
+   const bool is_protected = tree_kind(ref) == T_PROT_REF;
+   assert(is_protected || tree_kind(ref) == T_REF);
 
    const bool allow_enum =
       constraint != NULL && type_kind(constraint) == T_FUNC
-      && type_params(constraint) == 0;
+      && type_params(constraint) == 0
+      && !is_protected;
+
+   const symbol_t *sym;
+   if (is_protected) {
+      type_t ptype = tree_type(tree_value(ref));
+      assert(type_is_protected(ptype));
+      sym = symbol_for(scope_for_type(tab, ptype), tree_ident(ref));
+   }
+   else
+      sym = iterate_symbol_for(tab, tree_ident(ref));
 
    SCOPED_A(tree_t) matching = AINIT;
-   const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
    if (sym != NULL) {
       for (int i = 0; i < sym->ndecls; i++) {
          const decl_t *dd = get_decl(sym, i);
@@ -2195,10 +2205,13 @@ static void begin_overload_resolution(overload_t *o)
          tree_t next = dd->tree;
          if (dd->kind == T_ALIAS) {
             tree_t value = tree_value(next);
-            if (tree_kind(value) != T_REF || !tree_has_ref(value))
+            const tree_kind_t kind = tree_kind(value);
+            if (kind == T_REF && tree_has_ref(value))
+               next = tree_ref(value);
+            else if (kind == T_PROT_REF)
+               next = value;
+            else
                continue;
-
-            next = tree_ref(value);
          }
 
          overload_add_candidate(o, next);
@@ -2474,7 +2487,7 @@ static tree_t finish_overload_resolution(overload_t *o)
    tree_t result = NULL;
    for (unsigned i = 0; i < o->candidates.count; i++) {
       tree_t d = o->candidates.items[i];
-      if (tree_flags(d) & TREE_F_UNIVERSAL) {
+      if (is_subprogram(d) && (tree_flags(d) & TREE_F_UNIVERSAL)) {
          // LRM 08 section 9.3.6 implicit conversions only occur when
          // there is a unique numeric type in the context. If a univeral
          // operator is in the candidate list then the other candidates
@@ -3284,13 +3297,24 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
       }
       else {
          assert(typek == T_FUNC);
+
+         if (tree_kind(decl) == T_PROT_REF) {
+            // Calling an alias of a protected type method
+            assert(kind == T_FCALL);
+            tree_change_kind(fcall, T_PROT_FCALL);
+            tree_set_name(fcall, tree_value(decl));
+
+            decl = tree_ref(decl);
+         }
+
          tree_set_ref(fcall, decl);
 
          const tree_flags_t flags = tree_flags(decl);
          if ((flags & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
             tree_change_kind(fcall, T_PROT_FCALL);
-         else if ((flags & TREE_F_KNOWS_SUBTYPE)
-                  && !tab->top_type_set->known_subtype) {
+
+         if ((flags & TREE_F_KNOWS_SUBTYPE)
+             && !tab->top_type_set->known_subtype) {
             error_at(tree_loc(fcall), "function %s with return identifier %s "
                      "cannot be called in this context as the result subtype "
                      "is not known", istr(tree_ident(decl)),
@@ -3323,7 +3347,14 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    solve_subprogram_params(tab, pcall, &o);
 
    tree_t decl = finish_overload_resolution(&o);
-   if (decl != NULL) {
+   if (decl != NULL && tree_kind(decl) == T_PROT_REF) {
+      // Calling an alias of a protected type method
+      assert(kind == T_PCALL);
+      tree_change_kind(pcall, T_PROT_PCALL);
+      tree_set_ref(pcall, tree_ref(decl));
+      tree_set_name(pcall, tree_value(decl));
+   }
+   else if (decl != NULL) {
       tree_set_ref(pcall, decl);
       if ((tree_flags(decl) & TREE_F_PROTECTED) && kind == T_PCALL)
          tree_change_kind(pcall, T_PROT_PCALL);
@@ -3489,6 +3520,16 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
 
 static type_t solve_prot_ref(nametab_t *tab, tree_t pref)
 {
+   type_t constraint;
+   if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
+      // Reference to protected type subprogram with signature
+      tree_t decl = resolve_subprogram_name(tab, pref, constraint);
+      type_t type = decl ? tree_type(decl) : type_new(T_NONE);
+      tree_set_type(pref, type);
+      tree_set_ref(pref, decl);
+      return type;
+   }
+
    error_at(tree_loc(pref), "invalid use of name %s", istr(tree_ident(pref)));
 
    type_t type = type_new(T_NONE);

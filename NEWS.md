@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Fixed memory corruption in rare circumstances with functions declared
   in process declarative regions (#751).
+- Fixed a race condition when creating library directories that
+  occasionally led to build failures with `make -j` (#746).
+- Aliases of protected type methods are now allowed.
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised

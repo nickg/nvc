@@ -828,3 +828,4 @@ vhpi9           normal,vhpi
 func25          normal
 issue751        normal
 issue548        shell
+alias15         normal,2002
