@@ -494,15 +494,16 @@ lib_t lib_new(const char *spec)
       if (errno != EEXIST)
          fatal_errno("lib_new: %s", lockf);
    }
-   else if (existing) {
-      // We cannot do this check above as we may be racing with another
-      // process trying to create the library which has already made the
-      // directory but not yet created the lock file
-      warnf("directory %s already exists and is not an NVC library",
-            path);
-   }
    else {
       file_write_lock(fd);
+
+      if (existing) {
+         // We cannot do this check above as we may be racing with another
+         // process trying to create the library which has already made the
+         // directory but not yet created the lock file
+         warnf("directory %s already exists and is not an NVC library",
+               path);
+      }
 
       const char *marker = PACKAGE_STRING "\n";
       if (write(fd, marker, strlen(marker)) < 0)
