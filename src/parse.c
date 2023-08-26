@@ -162,6 +162,8 @@ static tree_t p_record_element_constraint(type_t base);
 static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject);
 static type_t p_index_subtype_definition(void);
 static type_t p_anonymous_type_indication(void);
+static tree_t p_alias_declaration(void);
+static void p_variable_declaration(tree_t parent);
 static tree_t p_psl_declaration(void);
 static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
@@ -6071,10 +6073,24 @@ static type_t p_composite_type_definition(ident_t id)
    }
 }
 
+static void p_private_variable_declaration(tree_t decl)
+{
+   // 2019: private variable_declaration
+
+   BEGIN("private variable declaration");
+
+   consume(tPRIVATE);
+
+   require_std(STD_19, "private variable declarations");
+
+   p_variable_declaration(decl);
+}
+
 static void p_protected_type_declarative_item(tree_t decl)
 {
    // subprogram_declaration | 2008: subprogram_instantiation_declaration
    //   | attribute_specification | use_clause
+   //   | 2019: private_variable_declaration | alias_declaration
 
    BEGIN("protected type declarative item");
 
@@ -6100,8 +6116,17 @@ static void p_protected_type_declarative_item(tree_t decl)
       }
       break;
 
+   case tPRIVATE:
+      p_private_variable_declaration(decl);
+      break;
+
+   case tALIAS:
+      tree_add_decl(decl, p_alias_declaration());
+      break;
+
    default:
-      expect(tATTRIBUTE, tUSE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE);
+      expect(tATTRIBUTE, tUSE, STD(08, tFUNCTION), tPROCEDURE, tIMPURE, tPURE,
+             STD(19, tPRIVATE), tALIAS);
    }
 }
 
@@ -6142,7 +6167,7 @@ static tree_t p_protected_type_declaration(ident_t id)
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-      if (is_subprogram(d))
+      if (is_subprogram(d) || tree_kind(d) == T_ALIAS)
          type_add_field(type, d);
    }
 
@@ -6154,6 +6179,7 @@ static tree_t p_protected_type_declaration(ident_t id)
    p_trailing_label(id);
 
    tree_set_loc(t, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 

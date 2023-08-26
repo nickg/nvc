@@ -3285,9 +3285,30 @@ START_TEST(test_alias2)
    const error_t expect[] = {
       { 39, "no visible subprogram FOOBAR matches signature []" },
       { 40, "no visible declaration for XX" },
-      { 49, "function GET_BITS with return identifier RV cannot be called "
+      { 42, "invalid use of name INCREMENT" },
+      { 42, "aliased name is not static" },
+      { 50, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },
-      { 50, "function GET_BITS with return identifier RV cannot be called" },
+      { 51, "function GET_BITS with return identifier RV cannot be called" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_lcs2016_33)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_33.vhd");
+
+   const error_t expect[] = {
+      { 17, "an alias declared within a protected type declaration must "
+        "denote a protected type method" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3457,6 +3478,7 @@ Suite *get_sem_tests(void)
    tcase_add_loop_test(tc_core, test_lcs2016_04, STD_08, STD_19 + 1);
    tcase_add_test(tc_core, test_lcs2016_75);
    tcase_add_test(tc_core, test_alias2);
+   tcase_add_test(tc_core, test_lcs2016_33);
    suite_add_tcase(s, tc_core);
 
    return s;

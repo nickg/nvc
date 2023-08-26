@@ -6091,6 +6091,9 @@ static bool sem_check_release(tree_t t, nametab_t *tab)
 
 static bool sem_check_prot_ref(tree_t t, nametab_t *tab)
 {
+   if (standard() >= STD_19)
+      return true;   // Alias of private variable method
+
    // There are no legal ways this can appear here and should always
    // have been converted to a call
    assert(error_count() > 0);
@@ -6238,6 +6241,25 @@ static bool sem_check_sequence(tree_t t, nametab_t *tab)
       tree_t d = tree_decl(t, i);
       if (tree_kind(d) == T_CONST_DECL)
          tree_set_flag(d, TREE_F_SEQ_BLOCK);
+   }
+
+   return true;
+}
+
+static bool sem_check_prot_decl(tree_t t, nametab_t *tab)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      if (tree_kind(d) == T_ALIAS) {
+         // LRM 19 section 5.6.2: it is an error if an alias declared
+         // within a protected type declaration denotes anything other
+         // than a method of a protected type
+         tree_t value = tree_value(d);
+         if (tree_kind(value) != T_PROT_REF)
+            sem_error(d, "an alias declared within a protected type "
+                      "declaration must denote a protected type method");
+      }
    }
 
    return true;
@@ -6417,6 +6439,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_cond_value(t, tab);
    case T_SEQUENCE:
       return sem_check_sequence(t, tab);
+   case T_PROT_DECL:
+      return sem_check_prot_decl(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

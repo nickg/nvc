@@ -11,6 +11,8 @@
 - Implemented `'image`, `'value` and `to_string` for composite types in
   VHDL-2019.
 - Implemented the "closely related record types" feature from VHDL-2019.
+- Implemented the "composition with protected types" feature from
+  VHDL-2019.
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised

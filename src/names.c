@@ -3248,6 +3248,21 @@ static type_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, type_t ftype,
    return type_elem(rtype);
 }
 
+static void nest_protected_call(tree_t call, tree_t pref)
+{
+   tree_t prefix = tree_name(call);
+   tree_t value = tree_value(pref);
+
+   tree_t nest = tree_new(T_PROT_REF);
+   tree_set_value(nest, prefix);
+   tree_set_ref(nest, tree_ref(value));
+   tree_set_ident(nest, tree_ident(value));
+   tree_set_type(nest, tree_type(value));
+
+   tree_set_name(call, nest);
+   tree_set_ref(call, tree_ref(pref));
+}
+
 static type_t solve_fcall(nametab_t *tab, tree_t fcall)
 {
    if (tree_has_type(fcall))
@@ -3285,9 +3300,12 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
 
          if (tree_kind(decl) == T_PROT_REF) {
             // Calling an alias of a protected type method
-            assert(kind == T_FCALL);
-            tree_change_kind(fcall, T_PROT_FCALL);
-            tree_set_name(fcall, tree_value(decl));
+            if (tree_kind(fcall) == T_PROT_FCALL)
+               nest_protected_call(fcall, decl);
+            else {
+               tree_change_kind(fcall, T_PROT_FCALL);
+               tree_set_name(fcall, tree_value(decl));
+            }
 
             decl = tree_ref(decl);
          }
@@ -3334,10 +3352,13 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    tree_t decl = finish_overload_resolution(&o);
    if (decl != NULL && tree_kind(decl) == T_PROT_REF) {
       // Calling an alias of a protected type method
-      assert(kind == T_PCALL);
-      tree_change_kind(pcall, T_PROT_PCALL);
-      tree_set_ref(pcall, tree_ref(decl));
-      tree_set_name(pcall, tree_value(decl));
+      if (kind == T_PROT_PCALL)
+         nest_protected_call(pcall, decl);
+      else {
+         tree_change_kind(pcall, T_PROT_PCALL);
+         tree_set_ref(pcall, tree_ref(decl));
+         tree_set_name(pcall, tree_value(decl));
+      }
    }
    else if (decl != NULL) {
       tree_set_ref(pcall, decl);

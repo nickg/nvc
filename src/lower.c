@@ -4227,6 +4227,16 @@ static vcode_reg_t lower_record_ref(lower_unit_t *lu, tree_t expr,
       return f_reg;
 }
 
+static vcode_reg_t lower_prot_ref(lower_unit_t *lu, tree_t expr)
+{
+   assert(standard() >= STD_19);
+
+   vcode_reg_t prefix = lower_rvalue(lu, tree_value(expr));
+
+   vcode_type_t vtype = lower_type(tree_type(expr));
+   return emit_link_var(prefix, tree_ident(expr), vtype);
+}
+
 static void lower_new_record(lower_unit_t *lu, type_t type,
                              vcode_reg_t dst_ptr, vcode_reg_t src_ptr)
 {
@@ -4982,6 +4992,8 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
       return lower_array_slice(lu, expr, ctx);
    case T_RECORD_REF:
       return lower_record_ref(lu, expr, ctx);
+   case T_PROT_REF:
+      return lower_prot_ref(lu, expr);
    case T_NEW:
       return lower_new(lu, expr);
    case T_ALL:
@@ -9376,6 +9388,9 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
    assert(tree_kind(body) == T_PROT_BODY);
 
    cover_push_scope(lu->cover, body);
+
+   if (standard() >= STD_19)
+      lower_decls(lu, tree_primary(body));
 
    lower_decls(lu, body);
    emit_return(VCODE_INVALID_REG);

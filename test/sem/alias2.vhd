@@ -39,6 +39,7 @@ architecture test of alias2 is
     alias bad1 is pt.foobar [];         -- Error
     alias bad2 is xx.increment [];      -- Error
     alias bits is pt.get_bits [return bit_vector];  -- OK
+    alias bad3 is pt.increment;         -- Error
 
 begin
 

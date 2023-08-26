@@ -859,3 +859,4 @@ issue732        normal,2008
 genpack15       normal,2008
 issue548        shell
 alias15         normal,2002
+protected12     normal,2019
