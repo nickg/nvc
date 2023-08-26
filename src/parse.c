@@ -6970,6 +6970,8 @@ static tree_t p_alias_declaration(void)
       drop_tokens_until(tRPAREN);
    }
 
+   const tree_kind_t value_kind = tree_kind(value);
+
    if (peek() == tLSQUARE) {
       type_t type = p_signature();
       if (has_subtype_indication) {
@@ -6977,9 +6979,11 @@ static tree_t p_alias_declaration(void)
                      "signature and a subtype indication");
          type = type_new(T_NONE);
       }
-      else if (tree_kind(value) != T_REF) {
-         parse_error(tree_loc(value), "invalid name in subprogram alias");
-         type = type_new(T_NONE);
+      else if (value_kind != T_REF && value_kind != T_PROT_REF) {
+         if (!type_is_none((type = solve_types(nametab, value, NULL)))) {
+            parse_error(tree_loc(value), "invalid name in subprogram alias");
+            type = type_new(T_NONE);
+         }
       }
       else {
          ident_t id = tree_ident(value);
@@ -6992,7 +6996,7 @@ static tree_t p_alias_declaration(void)
       solve_types(nametab, value, NULL);
 
    const bool type_alias =
-      tree_kind(value) == T_REF
+      value_kind == T_REF
       && tree_has_ref(value)
       && is_type_decl(tree_ref(value));
 

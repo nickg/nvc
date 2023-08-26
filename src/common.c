@@ -515,6 +515,7 @@ class_t class_of(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_VAR_DECL:
+   case T_PROT_REF:
       return C_VARIABLE;
    case T_SIGNAL_DECL:
    case T_IMPLICIT_SIGNAL:
