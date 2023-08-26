@@ -360,6 +360,19 @@ static inline bool jit_fill_from_aot(jit_func_t *f, aot_dll_t *lib)
    return lib != NULL && jit_pack_fill(lib->pack, f->jit, f);
 }
 
+__attribute__((noreturn))
+static void jit_missing_unit(jit_func_t *f)
+{
+   tree_t unit = lib_get_qualified(f->name);
+   if (unit != NULL && tree_kind(unit) == T_PACKAGE)
+      jit_msg(tree_loc(unit), DIAG_FATAL, "missing body for package %s",
+              istr(f->name));
+   else
+      jit_msg(NULL, DIAG_FATAL, "missing body for %s", istr(f->name));
+
+   __builtin_unreachable();
+}
+
 void jit_fill_irbuf(jit_func_t *f)
 {
    const func_state_t state = load_acquire(&(f->state));
@@ -380,6 +393,9 @@ void jit_fill_irbuf(jit_func_t *f)
          thread_sleep(100);
       }
       return;
+   case JIT_FUNC_ERROR:
+      jit_missing_unit(f);
+      break;
    default:
       fatal_trace("illegal function state for %s", istr(f->name));
    }
@@ -399,8 +415,10 @@ void jit_fill_irbuf(jit_func_t *f)
       f->unit = unit_registry_get(f->jit->registry, f->name);
    }
 
-   if (f->unit == NULL)
-      fatal_trace("cannot generate JIT IR for %s", istr(f->name));
+   if (f->unit == NULL) {
+      store_release(&(f->state), JIT_FUNC_ERROR);
+      jit_missing_unit(f);
+   }
 
    jit_irgen(f);
 }

@@ -1603,6 +1603,23 @@ START_TEST(test_bounds41)
 }
 END_TEST
 
+START_TEST(test_body1)
+{
+   input_from_file(TESTDIR "/elab/body1.vhd");
+
+   const error_t expect[] = {
+      {  1, "missing body for package WORK.PACK" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1691,6 +1708,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue707);
    tcase_add_test(tc, test_bounds40);
    tcase_add_test(tc, test_bounds41);
+   tcase_add_test(tc, test_body1);
    suite_add_tcase(s, tc);
 
    return s;

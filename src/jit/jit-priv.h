@@ -261,7 +261,8 @@ typedef struct {
 typedef enum {
    JIT_FUNC_PLACEHOLDER,
    JIT_FUNC_COMPILING,
-   JIT_FUNC_READY
+   JIT_FUNC_READY,
+   JIT_FUNC_ERROR,
 } func_state_t;
 
 typedef enum {
