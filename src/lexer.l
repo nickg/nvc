@@ -522,6 +522,7 @@ UNION         ?i:union
 <VLOG>"end"              { return tEND; }
 <VLOG>"wire"             { return tWIRE; }
 <VLOG>"assign"           { return tASSIGN; }
+<VLOG>"if"               { return tIF; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

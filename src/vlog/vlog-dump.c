@@ -106,6 +106,28 @@ static void vlog_dump_net_decl(vlog_node_t v, int indent)
    print_syntax(" %s;\n", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_var_decl(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#reg");
+
+   const int ndims = vlog_ranges(v);
+   int dim = 0;
+   for (; dim < ndims; dim++) {
+      vlog_node_t d = vlog_range(v, dim);
+      if (vlog_subkind(d) != V_DIM_PACKED)
+         break;
+
+      print_syntax(" [");
+      vlog_dump(vlog_left(d), indent);
+      print_syntax(":");
+      vlog_dump(vlog_right(d), indent);
+      print_syntax("]");
+   }
+
+   print_syntax(" %s;\n", istr(vlog_ident(v)));
+}
+
 static void vlog_dump_always(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -175,6 +197,19 @@ static void vlog_dump_assign(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
+static void vlog_dump_if(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#if (");
+   vlog_node_t c0 = vlog_cond(v, 0);
+   vlog_dump(vlog_value(c0), 0);
+   print_syntax(")\n");
+
+   const int nstmts = vlog_stmts(c0);
+   for (int i = 0; i < nstmts; i++)
+      vlog_dump(vlog_stmt(c0, i), indent + 2);
+}
+
 static void vlog_dump_systask(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -229,6 +264,9 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_NET_DECL:
       vlog_dump_net_decl(v, indent);
       break;
+   case V_VAR_DECL:
+      vlog_dump_var_decl(v, indent);
+      break;
    case V_ALWAYS:
       vlog_dump_always(v, indent);
       break;
@@ -258,6 +296,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_NUMBER:
       vlog_dump_number(v);
+      break;
+   case V_IF:
+      vlog_dump_if(v, indent);
       break;
    default:
       print_syntax("\n");

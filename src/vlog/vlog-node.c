@@ -73,13 +73,23 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_DIMENSION
    (I_SUBKIND | I_LEFT | I_RIGHT),
+
+   // V_IF
+   (I_CONDS),
+
+   // V_COND
+   (I_VALUE | I_STMTS),
+
+   // V_VAR_DECL
+   (I_IDENT | I_RANGES),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",    "V_PORT_DECL",   "V_REF",    "V_ALWAYS",
-   "V_TIMING",    "V_NBASSIGN",    "V_EVENT",  "V_INITIAL",
-   "V_SEQ_BLOCK", "V_SYSTASK",     "V_STRING", "V_NUMBER",
-   "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",   "V_DIMENSION",
+   "V_MODULE",    "V_PORT_DECL",   "V_REF",     "V_ALWAYS",
+   "V_TIMING",    "V_NBASSIGN",    "V_EVENT",   "V_INITIAL",
+   "V_SEQ_BLOCK", "V_SYSTASK",     "V_STRING",  "V_NUMBER",
+   "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",    "V_DIMENSION",
+   "V_IF",        "V_COND",        "V_VAR_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -279,6 +289,25 @@ void vlog_add_decl(vlog_node_t v, vlog_node_t d)
    assert(d != NULL);
    vlog_array_add(lookup_item(&vlog_object, v, I_DECLS), d);
    object_write_barrier(&(v->object), &(d->object));
+}
+
+unsigned vlog_conds(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_CONDS);
+   return obj_array_count(item->obj_array);
+}
+
+vlog_node_t vlog_cond(vlog_node_t v, unsigned n)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_CONDS);
+   return vlog_array_nth(item, n);
+}
+
+void vlog_add_cond(vlog_node_t v, vlog_node_t c)
+{
+   assert(c != NULL && c->object.kind == V_COND);
+   vlog_array_add(lookup_item(&vlog_object, v, I_CONDS), c);
+   object_write_barrier(&(v->object), &(c->object));
 }
 
 unsigned vlog_subkind(vlog_node_t v)

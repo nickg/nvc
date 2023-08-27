@@ -60,6 +60,9 @@ typedef enum {
    V_ASSIGN,
    V_ROOT,
    V_DIMENSION,
+   V_IF,
+   V_COND,
+   V_VAR_DECL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -113,6 +116,10 @@ void vlog_add_range(vlog_node_t v, vlog_node_t r);
 unsigned vlog_decls(vlog_node_t v);
 vlog_node_t vlog_decl(vlog_node_t v, unsigned n);
 void vlog_add_decl(vlog_node_t v, vlog_node_t d);
+
+unsigned vlog_conds(vlog_node_t v);
+vlog_node_t vlog_cond(vlog_node_t v, unsigned n);
+void vlog_add_cond(vlog_node_t v, vlog_node_t c);
 
 unsigned vlog_subkind(vlog_node_t v);
 void vlog_set_subkind(vlog_node_t v, unsigned sub);

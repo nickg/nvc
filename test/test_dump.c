@@ -372,8 +372,11 @@ START_TEST(test_vlog1)
    diff_dump(tb_get(tb),
              "module mod2;\n"
              "  wire [5'b00111:5'b00000] bus;\n"
+             "  reg r;\n"
              "  initial begin\n"
              "    $display(\"hello\");\n"
+             "    if (bus)\n"
+             "      r <= 5'b00001;\n"
              "    $finish;\n"
              "  end\n"
              "  assign bus = 5'b00011;\n"

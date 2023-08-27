@@ -97,6 +97,7 @@ static bool is_decl(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_PORT_DECL:
    case V_NET_DECL:
+   case V_VAR_DECL:
       return true;
    default:
       return false;
@@ -112,7 +113,7 @@ static bool is_decl(vlog_node_t v)
 %type   <vlog>          port_declaration port_reference
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
-%type   <vlog>          decimal_number
+%type   <vlog>          decimal_number conditional_statement variable_type
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -120,7 +121,8 @@ static bool is_decl(vlog_node_t v)
 %type   <list>          net_declaration list_of_net_identifiers
 %type   <list>          module_or_generate_item_declaration
 %type   <list>          module_or_generate_item continuous_assign
-%type   <list>          list_of_net_assignments
+%type   <list>          list_of_net_assignments reg_declaration
+%type   <list>          list_of_variable_identifiers
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -142,6 +144,7 @@ static bool is_decl(vlog_node_t v)
 %token                  tLE 294 "<="
 %token                  tWIRE 358 "wire"
 %token                  tASSIGN 227 "assign"
+%token                  tIF 234 "if"
 %token                  tEOF 0 "end of file"
 
 /*
@@ -293,6 +296,7 @@ module_or_generate_item:
 
 module_or_generate_item_declaration:
                 net_declaration
+        |       reg_declaration
         ;
 
 net_declaration:
@@ -339,6 +343,34 @@ list_of_net_identifiers:
 
                    $$ = NULL;
                    node_list_append(&$$, v);
+                }
+        ;
+
+reg_declaration:
+                tREG list_of_variable_identifiers ';'
+                {
+                   $$ = $2;
+                }
+        ;
+
+list_of_variable_identifiers:
+                list_of_variable_identifiers ',' variable_type
+                {
+                   $$ = $1;
+                   node_list_append(&$$, $3);
+                }
+        |       variable_type
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $1);
+                }
+        ;
+
+variable_type:  identifier
+                {
+                   $$ = vlog_new(V_VAR_DECL);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, $1);
                 }
         ;
 
@@ -394,6 +426,7 @@ statement:      procedural_timing_control_statement
         |       nonblocking_assignment ';'
         |       seq_block
         |       system_task_enable
+        |       conditional_statement
         ;
 
 statement_or_null:
@@ -411,6 +444,21 @@ list_of_statements:
                 {
                    $$ = NULL;
                    node_list_append(&$$, $1);
+                }
+        ;
+
+conditional_statement:
+                tIF '(' expression ')' statement_or_null
+                {
+                   vlog_node_t c = vlog_new(V_COND);
+                   vlog_set_loc(c, &@3);
+                   vlog_set_value(c, $3);
+                   if ($5 != NULL)
+                      vlog_add_stmt(c, $5);
+
+                   $$ = vlog_new(V_IF);
+                   vlog_set_loc($$, &@$);
+                   vlog_add_cond($$, c);
                 }
         ;
 

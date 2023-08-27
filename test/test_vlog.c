@@ -157,7 +157,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 2);
    fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 2);
+   fail_unless(vlog_decls(m) == 3);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -188,6 +188,14 @@ START_TEST(test_parse1)
    vlog_node_t s1s0s1 = vlog_stmt(s1s0, 1);
    fail_unless(vlog_kind(s1s0s1) == V_SYSTASK);
    fail_unless(vlog_ident(s1s0s1) == ident_new("$finish"));
+
+   vlog_node_t s1s0s2 = vlog_stmt(s1s0, 2);
+   fail_unless(vlog_kind(s1s0s2) == V_IF);
+   fail_unless(vlog_conds(s1s0s2) == 1);
+
+   vlog_node_t s1s0s3 = vlog_stmt(s1s0, 3);
+   fail_unless(vlog_kind(s1s0s3) == V_IF);
+   fail_unless(vlog_conds(s1s0s3) == 1);
 
    fail_unless(vlog_parse() == NULL);
 
