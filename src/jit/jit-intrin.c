@@ -140,6 +140,26 @@ static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
    thread->anchor = NULL;
 }
 
+__attribute__((cold, noreturn))
+static void __ieee_failure(jit_func_t *func, jit_anchor_t *caller,
+                           const char *msg)
+{
+   jit_anchor_t frame = {
+      .caller = caller,
+      .func = func
+   };
+
+   jit_thread_local_t *thread = jit_thread_local();
+   thread->anchor = &frame;
+
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "Assertion Failure: %s", msg);
+   diag_show_source(d, false);
+   diag_emit(d);
+
+   jit_abort_with_status(EXIT_FAILURE);
+}
+
 __attribute__((always_inline))
 static inline void __add_unsigned(const uint8_t *left, const uint8_t *right,
                                   uint8_t cbit, int size, uint8_t *result)
@@ -493,6 +513,50 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = args[3].integer ^ (args[3].integer >> 63);
+   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"and\": arguments of "
+                     "overloaded 'and' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, lsize);
+      for (int i = 0; i < lsize; i++)
+         result[i] = and_table[left[i]][right[i]];
+
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+
+static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = args[3].integer ^ (args[3].integer >> 63);
+   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"or\": arguments of "
+                     "overloaded 'or' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, lsize);
+      for (int i = 0; i < lsize; i++)
+         result[i] = or_table[left[i]][right[i]];
+
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
@@ -521,6 +585,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "RESIZE(" UU "N)" UU, ieee_resize_unsigned },
    { NS "RESIZE(" S "N)" S, ieee_resize_signed },
    { NS "RESIZE(" US "N)" US, ieee_resize_signed },
+   { SL "\"and\"(VV)V", ieee_and_vector },
+   { SL "\"and\"(YY)Y", ieee_and_vector },
+   { SL "\"or\"(VV)V", ieee_or_vector },
+   { SL "\"or\"(YY)Y", ieee_or_vector },
    { NULL, NULL }
 };
 
