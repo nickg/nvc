@@ -2,6 +2,7 @@ package std_logic_perf is
     procedure test_to_x01;
     procedure test_and;
     procedure test_or;
+    procedure test_xor;
 end package;
 
 library ieee;
@@ -42,4 +43,13 @@ package body std_logic_perf is
         end loop;
     end procedure;
 
+    procedure test_xor is
+        constant ITERS : integer := 100;
+        variable s     : std_logic_vector(32 downto 0) := (others => '0');
+    begin
+        for i in 1 to ITERS loop
+            s(31 downto 0) := s(32 downto 1) xor X"deadbeef";
+            s(32) := '1';
+        end loop;
+    end procedure;
 end package body;

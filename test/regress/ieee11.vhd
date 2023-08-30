@@ -48,6 +48,9 @@ begin
         assert s7 + X"22" = X"32";
         assert s8 + X"ffff" = "10000000000001111";
         assert (X"0000" + to_signed(-1, 4)) = X"ffff";
+        assert (s1 and s1) = "U0110XXXX101010X1";
+        assert (s1 or s1) = "U0110XXXX101010X1";
+        assert (s1 xor s1) = "U0000XXXX000000X0";
         wait;
     end process;
 

@@ -54,6 +54,12 @@ typedef enum {
    _DC = 0x8
 } std_ulogic_t;
 
+#define IS_01(x) \
+   _Generic((x),                                                        \
+            uint64_t: (((x) & UINT64_C(0x0e0e0e0e0e0e0e0e))             \
+                       == UINT64_C(0x0202020202020202)),                \
+            uint8_t: ((x) & 0xe) == 0x02)
+
 static const uint8_t cvt_to_x01[16] = {
    _X, _X, _0, _1, _X, _X, _0, _1, _X, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
@@ -244,14 +250,14 @@ static inline bool __all_01(const void *vec, int size)
 {
    int pos = 0;
    for (; pos + 7 < size; pos += 8) {
-      const uint64_t u64 = *(const uint64_t *)(vec + pos);
-      if ((u64 & UINT64_C(0x0e0e0e0e0e0e0e0e)) != UINT64_C(0x0202020202020202))
+      const uint64_t u64 = unaligned_load(vec + pos, uint64_t);
+      if (!IS_01(u64))
          return false;
    }
 
    for (; pos < size; pos++) {
       const uint8_t u8 = *(const uint8_t *)(vec + pos);
-      if (u8 != _1 && u8 != _0)
+      if (!IS_01(u8))
          return false;
    }
 
@@ -302,29 +308,8 @@ static void ieee_to_01(jit_func_t *func, jit_anchor_t *anchor,
       args[1].integer = 0;
       args[2].integer = -1;
    }
-   else if (__all_01(input, size)) {
-      args[0].pointer = (void *)input;
-      args[1].integer = size - 1;
-      args[2].integer = ~size;
-   }
    else {
-      uint8_t *result = __tlab_alloc(tlab, size);
-
-      bool bad = false;
-      for (int i = 0; i < size; i++) {
-         const uint8_t elt = input[i];
-         if (elt == _1 || elt == _H)
-            result[i] = _1;
-         else if (elt == _0 || elt == _L)
-            result[i] = _0;
-         else
-            bad = true;
-      }
-
-      if (bad)
-         memset(result, xmap, size);
-
-      args[0].pointer = result;
+      args[0].pointer = __to_01(tlab, input, size, xmap);
       args[1].integer = size - 1;
       args[2].integer = ~size;
    }
@@ -409,7 +394,7 @@ static inline uint8_t __pack_low_bits(const void* vec)
 
 __attribute__((always_inline))
 static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
-                                     uint8_t *result)
+                                     uint8_t *restrict result)
 {
    int pos = size - 8, carry = 0;
    for (; pos > 0; pos -= 8) {
@@ -526,8 +511,30 @@ static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
                      "overloaded 'and' operator are not of the same length");
    else {
       uint8_t *result = __tlab_alloc(tlab, lsize);
-      for (int i = 0; i < lsize; i++)
-         result[i] = and_table[left[i]][right[i]];
+
+      int pos = 0;
+      for (; pos + 7 < lsize; pos += 8) {
+         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
+         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
+         if (!IS_01(l64) || !IS_01(r64))
+            goto slow_path;
+
+         const uint64_t or = (l64 & r64) | UINT64_C(0x0202020202020202);
+         memcpy(result + pos, &or, sizeof(or));
+      }
+
+      for (; pos < lsize; pos++) {
+         const uint8_t l8 = left[pos];
+         const uint8_t r8 = right[pos];
+         if (!IS_01(l8) || !IS_01(r8))
+            goto slow_path;
+
+         result[pos] = (l8 & r8) | 0x02;
+      }
+
+   slow_path:
+      for (; pos < lsize; pos++)
+         result[pos] = and_table[left[pos]][right[pos]];
 
       args[0].pointer = result;
       args[1].integer = 1;
@@ -548,8 +555,75 @@ static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
                      "overloaded 'or' operator are not of the same length");
    else {
       uint8_t *result = __tlab_alloc(tlab, lsize);
-      for (int i = 0; i < lsize; i++)
-         result[i] = or_table[left[i]][right[i]];
+
+      int pos = 0;
+      for (; pos + 7 < lsize; pos += 8) {
+         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
+         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
+         if (!IS_01(l64) || !IS_01(r64))
+            goto slow_path;
+
+         const uint64_t or = (l64 | r64) | UINT64_C(0x0202020202020202);
+         memcpy(result + pos, &or, sizeof(or));
+      }
+
+      for (; pos < lsize; pos++) {
+         const uint8_t l8 = left[pos];
+         const uint8_t r8 = right[pos];
+         if (!IS_01(l8) || !IS_01(r8))
+            goto slow_path;
+
+         result[pos] = (l8 | r8) | 0x02;
+      }
+
+   slow_path:
+      for (; pos < lsize; pos++)
+         result[pos] = or_table[left[pos]][right[pos]];
+
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+
+
+static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = args[3].integer ^ (args[3].integer >> 63);
+   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"xor\": arguments of "
+                     "overloaded 'xor' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, lsize);
+
+      int pos = 0;
+      for (; pos + 7 < lsize; pos += 8) {
+         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
+         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
+         if (!IS_01(l64) || !IS_01(r64))
+            goto slow_path;
+
+         const uint64_t xor = (l64 ^ r64) | UINT64_C(0x0202020202020202);
+         memcpy(result + pos, &xor, sizeof(xor));
+      }
+
+      for (; pos < lsize; pos++) {
+         const uint8_t l8 = left[pos];
+         const uint8_t r8 = right[pos];
+         if (!IS_01(l8) || !IS_01(r8))
+            goto slow_path;
+
+         result[pos] = (l8 ^ r8) | 0x02;
+      }
+
+   slow_path:
+      for (; pos < lsize; pos++)
+         result[pos] = xor_table[left[pos]][right[pos]];
 
       args[0].pointer = result;
       args[1].integer = 1;
@@ -589,6 +663,8 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SL "\"and\"(YY)Y", ieee_and_vector },
    { SL "\"or\"(VV)V", ieee_or_vector },
    { SL "\"or\"(YY)Y", ieee_or_vector },
+   { SL "\"xor\"(VV)V", std_xor_vector },
+   { SL "\"xor\"(YY)Y", std_xor_vector },
    { NULL, NULL }
 };
 
