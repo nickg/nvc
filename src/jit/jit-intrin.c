@@ -393,6 +393,21 @@ static inline uint8_t __pack_low_bits(const void* vec)
 }
 
 __attribute__((always_inline))
+static inline void __spread_bits(void* vec, uint8_t packed)
+{
+   const uint64_t spread1 = packed * UINT64_C(0x0000040010004001);
+   const uint64_t mask1 = spread1 & UINT64_C(0x0001000100010001);
+
+   const uint64_t spread2 = packed * UINT64_C(0x0002000800200080);
+   const uint64_t mask2 = spread2 & UINT64_C(0x0100010001000100);
+
+   const uint64_t bits = mask1 | mask2 | UINT64_C(0x0202020202020202);
+   const uint64_t swap = __builtin_bswap64(bits);
+
+   memcpy(vec, &swap, sizeof(swap));
+}
+
+__attribute__((always_inline))
 static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
                                      uint8_t *restrict result)
 {
@@ -402,16 +417,7 @@ static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
       const unsigned rbyte = __pack_low_bits(right + pos);
       const unsigned sum = lbyte + rbyte + carry;
 
-      const uint64_t spread1 = sum * UINT64_C(0x0000040010004001);
-      const uint64_t mask1 = spread1 & UINT64_C(0x0001000100010001);
-
-      const uint64_t spread2 = sum * UINT64_C(0x0002000800200080);
-      const uint64_t mask2 = spread2 & UINT64_C(0x0100010001000100);
-
-      const uint64_t bits = mask1 | mask2 | UINT64_C(0x0202020202020202);
-      const uint64_t swap = __builtin_bswap64(bits);
-
-      memcpy(result + pos, &swap, sizeof(swap));
+      __spread_bits(result + pos, sum);
       carry = !!(sum & 0x100);
    }
 
@@ -586,7 +592,6 @@ static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
-
 static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
                            jit_scalar_t *args, tlab_t *tlab)
 {
@@ -631,6 +636,64 @@ static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void ieee_to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                             jit_scalar_t *args, tlab_t *tlab)
+{
+   const int64_t size = args[2].integer;
+   uint64_t arg = args[1].integer;
+
+   if (size < 1) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      const int roundup = (size + 7) & ~7;
+      uint8_t *result = __tlab_alloc(tlab, roundup), last = 0;
+      for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
+         __spread_bits(result + pos, (last = (arg & 0xff)));
+
+      const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
+      if (unlikely(arg != 0 || (last & spill_mask)))
+         __ieee_warn(func, anchor, "NUMERIC_STD.TO_UNSIGNED: vector truncated");
+
+      args[0].pointer = result + roundup - size;
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
+static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   const int64_t size = args[2].integer;
+   int64_t arg = args[1].integer;
+
+   if (size < 1) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      const int roundup = (size + 7) & ~7;
+      uint8_t *result = __tlab_alloc(tlab, roundup), last = 0;
+      for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
+         __spread_bits(result + pos, (last = (arg & 0xff)));
+
+      const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
+      if (unlikely((arg != 0 && arg != -1)
+                   || (arg == 0 && result[roundup - size] == _1)
+                   || (arg == -1 && result[roundup - size] == _0)
+                   || (arg == 0 && (last & spill_mask) != 0)
+                   || (arg == -1 && (last & spill_mask) != spill_mask)))
+         __ieee_warn(func, anchor, "NUMERIC_STD.TO_SIGNED: vector truncated");
+
+      args[0].pointer = result + roundup - size;
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
@@ -665,6 +728,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SL "\"or\"(YY)Y", ieee_or_vector },
    { SL "\"xor\"(VV)V", std_xor_vector },
    { SL "\"xor\"(YY)Y", std_xor_vector },
+   { NS "TO_UNSIGNED(NN)" U, ieee_to_unsigned },
+   { NS "TO_UNSIGNED(NN)" UU, ieee_to_unsigned },
+   { NS "TO_SIGNED(IN)" S, ieee_to_signed },
+   { NS "TO_SIGNED(IN)" US, ieee_to_signed },
    { NULL, NULL }
 };
 

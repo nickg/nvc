@@ -4,6 +4,7 @@ package numeric_std_perf is
     procedure test_add_signed;
     procedure test_to_01;
     procedure test_resize;
+    procedure test_to_signed;
 end package;
 
 library ieee;
@@ -74,4 +75,17 @@ package body numeric_std_perf is
             s2 := resize(s1, 8);
         end loop;
     end procedure;
+
+    procedure test_to_signed is
+        constant WIDTH : integer := 16;
+        constant ITERS : integer := 1;
+        variable s     : signed(WIDTH - 1 downto 0);
+    begin
+        for i in 1 to ITERS loop
+            for j in 0 to integer'(2 ** (WIDTH/2) - 1) loop
+                s := to_signed(j - 100, WIDTH);
+            end loop;
+        end loop;
+    end procedure;
+
 end package body;

@@ -28,6 +28,8 @@ architecture test of ieee11 is
 begin
 
     tb: process is
+        variable five : integer := 5;
+        variable one : integer := 1;
     begin
         assert to_x01(s1) = "X0110XXXX101010X1";
         assert to_01(s2, '0') = (16 downto 0 => '0');
@@ -51,6 +53,16 @@ begin
         assert (s1 and s1) = "U0110XXXX101010X1";
         assert (s1 or s1) = "U0110XXXX101010X1";
         assert (s1 xor s1) = "U0000XXXX000000X0";
+        assert to_unsigned(five, 8) = X"05";
+        assert to_unsigned(five, 16) = X"0005";
+        assert to_unsigned(five, 80) = X"00000000000000000005";
+        assert to_unsigned(five, 9) = "000000101";
+        assert to_unsigned(five, 2) = "01";
+        assert to_signed(five, 8) = X"05";
+        assert to_signed(-five, 8) = "11111011";
+        assert to_signed(-five, 80) = X"fffffffffffffffffb";
+        assert to_signed(-five, 2) = "11";
+        assert to_signed(one, 1) = "1";
         wait;
     end process;
 
