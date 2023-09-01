@@ -12590,6 +12590,17 @@ static tree_t p_design_unit(void)
    return unit;
 }
 
+static void flush_pragmas(void)
+{
+   (void)peek();   // Skips over all pragmas until next token
+
+   if (pragmas.count > 0) {
+      warn_at(tree_loc(pragmas.items[0]), "ignoring pragma outside of "
+              "design unit");
+      ACLEAR(pragmas);
+   }
+}
+
 tree_t parse(void)
 {
    n_correct = RECOVER_THRESH;
@@ -12608,6 +12619,8 @@ tree_t parse(void)
    for (int i = 0; i < pragmas.count; i++)
       tree_add_pragma(unit, pragmas.items[i]);
    ACLEAR(pragmas);
+
+   flush_pragmas();
 
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;
