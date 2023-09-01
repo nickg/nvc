@@ -382,6 +382,16 @@ void object_one_time_init(void)
    }
 }
 
+static bool is_gc_root(const object_class_t *class, int kind)
+{
+   for (int j = 0; j < class->gc_num_roots; j++) {
+      if (class->gc_roots[j] == kind)
+         return true;
+   }
+
+   return false;
+}
+
 object_t *object_new(object_arena_t *arena,
                      const object_class_t *class, int kind)
 {
@@ -414,6 +424,9 @@ object_t *object_new(object_arena_t *arena,
 
    object_t *object = arena->alloc;
    arena->alloc = (char *)arena->alloc + size;
+
+   if (arena->root == NULL && is_gc_root(class, kind))
+      arena->root = object;
 
    memset(object, '\0', size);
 
@@ -502,13 +515,7 @@ void object_arena_gc(object_arena_t *arena)
 
       const object_class_t *class = classes[object->tag];
 
-      bool top_level = false;
-      for (int j = 0; (j < class->gc_num_roots) && !top_level; j++) {
-         if (class->gc_roots[j] == object->kind)
-            top_level = true;
-      }
-
-      if (top_level)
+      if (is_gc_root(class, object->kind))
          gc_mark_from_root(object, generation);
 
       const size_t size =
