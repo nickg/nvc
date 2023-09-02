@@ -2458,9 +2458,13 @@ static ident_t p_operator_symbol(void)
    char *s = last_lval.str;
    for (char *p = s; *p != '\0'; p++)
       *p = tolower_iso88591(*p);
-   ident_t id = ident_new(s);
-   free(s);
 
+   ident_t id = ident_new(s);
+
+   if (!is_operator_symbol(id))
+      parse_error(CURRENT_LOC, "%s is not an operator symbol", s);
+
+   free(s);
    return id;
 }
 

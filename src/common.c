@@ -25,6 +25,7 @@
 #include "option.h"
 #include "phase.h"
 #include "scan.h"
+#include "thread.h"
 #include "type.h"
 #include "vlog/vlog-phase.h"
 
@@ -2372,4 +2373,39 @@ bool all_character_literals(type_t type)
    }
 
    return true;
+}
+
+bool is_operator_symbol(ident_t ident)
+{
+   const int len = ident_len(ident);
+   if (len < 3)
+      return false;
+   else if (ident_char(ident, 0) != '"')
+      return false;
+   else if (ident_char(ident, len - 1) != '"')
+      return false;
+   else if (ident_char(ident, 1) == '?' && standard() < STD_08)
+      return false;
+
+   static const char *const strings[] = {
+      "\"??\"", "\"and\"", "\"or\"", "\"nand\"", "\"nor\"",
+      "\"xor\"", "\"xnor\"", "\"=\"", "\"/=\"", "\"<\"", "\"<=\"",
+      "\">\"", "\">=\"", "\"?=\"", "\"?/=\"", "\"?<\"", "\"?<=\"",
+      "\"?>\"", "\"?>=\"", "\"sll\"", "\"srl\"", "\"sla\"", "\"sra\"",
+      "\"rol\"", "\"ror\"", "\"+\"", "\"-\"", "\"&\"", "\"*\"",
+      "\"/\"", "\"mod\"", "\"rem\"", "\"**\"", "\"abs\"", "\"not\""
+   };
+
+   static ident_t operators[ARRAY_LEN(strings)];
+   INIT_ONCE({
+         for (int i = 0; i < ARRAY_LEN(strings); i++)
+            operators[i] = ident_new(strings[i]);
+      });
+
+   for (int i = 0; i < ARRAY_LEN(operators); i++) {
+      if (ident == operators[i])
+         return true;
+   }
+
+   return false;
 }

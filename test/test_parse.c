@@ -1400,6 +1400,12 @@ START_TEST(test_func)
 
    input_from_file(TESTDIR "/parse/func.vhd");
 
+   const error_t expect[] = {
+      { 20, "\"blah\" is not an operator symbol" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1431,12 +1437,12 @@ START_TEST(test_func)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(tree_decls(p) == 1);
+   fail_unless(tree_decls(p) == 2);
 
    p = parse();
    fail_unless(p == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

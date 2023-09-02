@@ -17,4 +17,6 @@ package body func is
         return 42;
     end function "+";
 
+    function "blah"(x : integer) return integer;  -- Error
+
 end package body;

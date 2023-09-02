@@ -1750,14 +1750,6 @@ tree_t find_std(nametab_t *tab)
    return tab->std;
 }
 
-static bool is_operator_symbol(ident_t ident)
-{
-   return ident_len(ident) == 3
-      && ident_char(ident, 0) == '"'
-      && !isalnum_iso88591(ident_char(ident, 1))
-      && ident_char(ident, 2) == '"';
-}
-
 void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
