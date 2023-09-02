@@ -2196,7 +2196,8 @@ void print_syntax(const char *fmt, ...)
          last_was_newline = false;
          comment = true;
       }
-      else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
+      else if (!isalnum_iso88591(*p) && *p != '_'
+               && *p != '%' && highlighting) {
          tb_printf(tb, "$$%c", *p);
          last_was_newline = false;
          highlighting = false;

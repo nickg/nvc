@@ -866,3 +866,4 @@ ieee13          normal,gold
 ieee14          normal,gold
 ieee15          fail,gold
 issue752        shell
+predef5         normal,2008

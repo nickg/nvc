@@ -253,6 +253,7 @@ bool isprint_iso88591(unsigned char ch);
 bool isspace_iso88591(unsigned char ch);
 bool isdigit_iso88591(unsigned char ch);
 bool isupper_iso88591(unsigned char ch);
+bool isalnum_iso88591(unsigned char ch);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));

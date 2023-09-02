@@ -1750,6 +1750,14 @@ tree_t find_std(nametab_t *tab)
    return tab->std;
 }
 
+static bool is_operator_symbol(ident_t ident)
+{
+   return ident_len(ident) == 3
+      && ident_char(ident, 0) == '"'
+      && !isalnum_iso88591(ident_char(ident, 1))
+      && ident_char(ident, 2) == '"';
+}
+
 void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
@@ -1819,13 +1827,15 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
 
       merge_symbol(tab->top_scope, sym);
 
-      // If this is an enumeration or physical type then also make
-      // the literals visible
-      // TODO: for VHDL-2008, also predefined functions
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->kind == T_TYPE_DECL) {
-            type_t type = tree_type(dd->tree);
+      if (standard() >= STD_08) {
+         // If this is an enumeration or physical type then also make
+         // the literals and operators visible
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (!is_type_decl(dd->tree))
+               continue;
+
+            type_t type = type_base_recur(tree_type(dd->tree));
             if (type_is_enum(type)) {
                const int nlits = type_enum_literals(type);
                for (int i = 0; i < nlits; i++) {
@@ -1841,6 +1851,20 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
                   make_visible(tab->top_scope, tree_ident(u), u,
                                POTENTIAL, s);
                }
+            }
+
+            const int ndecls = tree_decls(unit);
+            for (int i = 0; i < ndecls; i++) {
+               tree_t d = tree_decl(unit, i);
+               if (!is_subprogram(d) || !is_operator_symbol(tree_ident(d)))
+                  continue;
+               else if (tree_ports(d) == 0)
+                  continue;
+               else if (!type_eq(tree_type(tree_port(d, 0)), type))
+                  continue;
+
+               make_visible(tab->top_scope, tree_ident(d), d,
+                            POTENTIAL, s);
             }
          }
       }
