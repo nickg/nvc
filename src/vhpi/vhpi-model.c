@@ -236,6 +236,15 @@ typedef struct {
 DEF_CLASS(portDecl, vhpiPortDeclK, interface.objDecl.decl.object);
 
 typedef struct {
+   c_interfaceDecl interface;
+   vhpiModeT       Mode;
+   vhpiBooleanT    IsLocal;
+   vhpiBooleanT    IsVital;
+} c_genericDecl;
+
+DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
+
+typedef struct {
    c_abstractDecl  decl;
    vhpiStringT     StrVal;
    vhpiStringT     SignatureName;
@@ -382,6 +391,11 @@ static c_typeDecl *cached_typeDecl(type_t type);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
+static const vhpiModeT mode_map[] = {
+   vhpiInMode, vhpiInMode, vhpiOutMode, vhpiInoutMode, vhpiBufferMode,
+   vhpiLinkageMode, vhpiLinkageMode /* view */, vhpiLinkageMode /* view */
+};
+
 static inline vhpi_context_t *vhpi_context(void)
 {
    assert(global_context != NULL);
@@ -434,6 +448,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiRecordTypeDeclK:
    case vhpiSubtypeDeclK:
    case vhpiElemDeclK:
+   case vhpiGenericDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -454,6 +469,7 @@ static c_objDecl *is_objDecl(c_vhpiObject *obj)
    switch (obj->kind) {
    case vhpiSigDeclK:
    case vhpiPortDeclK:
+   case vhpiGenericDeclK:
       return container_of(obj, c_objDecl, decl.object);
    default:
       return NULL;
@@ -1919,6 +1935,19 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return rtd->RecordElems.count;
       }
 
+   case vhpiModeP:
+      {
+         if (is_genericDecl(obj))
+            return cast_genericDecl(obj)->Mode;
+         else if (is_portDecl(obj))
+            return cast_portDecl(obj)->Mode;
+         else {
+            vhpi_error(vhpiError, &(obj->loc), "object does not have %s "
+                       "property", vhpi_property_str(property));
+            return vhpiUndefined;
+         }
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));
@@ -2800,8 +2829,36 @@ static c_typeDecl *cached_typeDecl(type_t type)
    return d;
 }
 
-static c_vhpiObject *vhpi_build_signal_decl(tree_t decl,
-                                            c_abstractRegion *region)
+static c_vhpiObject *build_genericDecl(tree_t generic, int pos,
+                                       c_abstractRegion *region)
+{
+   c_typeDecl *td = cached_typeDecl(tree_type(generic));
+
+   c_genericDecl *g = new_object(sizeof(c_genericDecl), vhpiGenericDeclK);
+   init_interfaceDecl(&(g->interface), generic, pos, region, td);
+
+   g->IsLocal = true;
+   g->IsVital = false;
+   g->Mode = mode_map[tree_subkind(generic)];
+
+   return &(g->interface.objDecl.decl.object);
+}
+
+static c_vhpiObject *build_portDecl(tree_t port, int pos,
+                                    c_abstractRegion *region)
+{
+   c_typeDecl *td = cached_typeDecl(tree_type(port));
+
+   c_portDecl *p = new_object(sizeof(c_portDecl), vhpiPortDeclK);
+   init_interfaceDecl(&(p->interface), port, pos, region, td);
+
+   p->Mode = mode_map[tree_subkind(port)];
+
+   return &(p->interface.objDecl.decl.object);
+}
+
+static c_vhpiObject *build_signalDecl(tree_t decl,
+                                      c_abstractRegion *region)
 {
    c_typeDecl *td = cached_typeDecl(tree_type(decl));
 
@@ -2820,7 +2877,7 @@ static void vhpi_build_decls(tree_t container, c_abstractRegion *region,
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
          {
-            c_vhpiObject *signal = vhpi_build_signal_decl(d, region);
+            c_vhpiObject *signal = build_signalDecl(d, region);
             APUSH(region->decls, signal);
             if (where)
                APUSH(where->signals, signal);
@@ -2832,16 +2889,6 @@ static void vhpi_build_decls(tree_t container, c_abstractRegion *region,
    }
 }
 
-static c_vhpiObject *vhpi_build_port_decl(tree_t port, int pos,
-                                          c_abstractRegion *region)
-{
-   c_typeDecl *td = cached_typeDecl(tree_type(port));
-
-   c_portDecl *p = new_object(sizeof(c_portDecl), vhpiPortDeclK);
-   init_interfaceDecl(&(p->interface), port, pos, region, td);
-   return &(p->interface.objDecl.decl.object);
-}
-
 static void vhpi_build_ports(tree_t unit, c_rootInst *where)
 {
    c_abstractRegion *region = &(where->designInstUnit.region);
@@ -2849,7 +2896,18 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    const int nports = tree_ports(unit);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(unit, i);
-      APUSH(where->ports, vhpi_build_port_decl(p, i, region));
+      APUSH(where->ports, build_portDecl(p, i, region));
+   }
+}
+
+static void vhpi_build_generics(tree_t unit, c_rootInst *where)
+{
+   c_abstractRegion *region = &(where->designInstUnit.region);
+
+   const int ngenerics = tree_generics(unit);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(unit, i);
+      APUSH(where->ports, build_genericDecl(g, i, region));
    }
 }
 
@@ -2863,7 +2921,9 @@ static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
 
    tree_t b0 = tree_stmt(c->top, 0);
    if (tree_kind(b0) == T_VERILOG)
-      fatal_trace("verilog top-level modules are not supported by VHPI");
+      fatal_at(tree_loc(b0), "Verilog top-level modules are not supported "
+               "by VHPI");
+
    assert(tree_kind(b0) == T_BLOCK);
 
    tree_t h = tree_decl(b0, 0);
@@ -2886,8 +2946,9 @@ static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
    c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
    init_designInstUnit(&(c->root->designInstUnit), b0, &(arch->designUnit));
 
-   vhpi_build_decls(b0, &(c->root->designInstUnit.region), c->root);
+   vhpi_build_generics(b0, c->root);
    vhpi_build_ports(b0, c->root);
+   vhpi_build_decls(b0, &(c->root->designInstUnit.region), c->root);
 
    VHPI_TRACE("building model for %s took %"PRIu64" ms",
               istr(ident_runtil(tree_ident(b0), '.')),

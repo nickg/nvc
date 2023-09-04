@@ -425,6 +425,8 @@ void vhpi1_startup(void)
    vhpi_release_handle(handle_y3);
 
    fail_unless(vhpi_get(vhpiKindP, handle_x) == vhpiPortDeclK);
+   fail_unless(vhpi_get(vhpiModeP, handle_x) == vhpiInMode);
+   fail_unless(vhpi_get(vhpiModeP, handle_y) == vhpiOutMode);
 
    vhpiHandleT handle_r = vhpi_handle_by_name("r", root);
    check_error();
