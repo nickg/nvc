@@ -29,7 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static vhpiErrorInfoT last_error;
+static __thread vhpiErrorInfoT last_error;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Public API
@@ -326,13 +326,8 @@ uint64_t vhpi_time_to_native(const vhpiTimeT *time)
    return ((uint64_t)time->high << 32) | (uint64_t)time->low;
 }
 
-void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins,
-                       int argc, char **argv)
+void vhpi_load_plugins(const char *plugins)
 {
-   vhpi_clear_error();
-
-   vhpi_build_design_model(top, model, argc, argv);
-
    char *plugins_copy LOCAL = xstrdup(plugins);
 
    char *tok = strtok(plugins_copy, ",");

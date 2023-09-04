@@ -368,12 +368,14 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
-typedef struct {
+typedef struct _vhpi_context {
    c_tool     *tool;
    c_rootInst *root;
    shash_t    *strtab;
    rt_model_t *model;
    hash_t     *typecache;
+   tree_t      top;
+   jit_t      *jit;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type);
@@ -2851,13 +2853,15 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    }
 }
 
-void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
+static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
 {
    const uint64_t start_us = get_timestamp_us();
 
-   assert(tree_kind(top) == T_ELAB);
+   vhpi_clear_error();
 
-   tree_t b0 = tree_stmt(top, 0);
+   assert(tree_kind(c->top) == T_ELAB);
+
+   tree_t b0 = tree_stmt(c->top, 0);
    if (tree_kind(b0) == T_VERILOG)
       fatal_trace("verilog top-level modules are not supported by VHPI");
    assert(tree_kind(b0) == T_BLOCK);
@@ -2871,12 +2875,7 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
    tree_t p = tree_primary(s);
    assert(tree_kind(p) == T_ENTITY);
 
-   assert(global_context == NULL);
-   vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
-   c->strtab    = shash_new(1024);
-   c->model     = m;
-   c->tool      = build_tool(argc, argv);
-   c->typecache = hash_new(128);
+   c->tool = build_tool(argc, argv);
 
    c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
    init_entityDecl(entity, p);
@@ -2893,4 +2892,32 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
    VHPI_TRACE("building model for %s took %"PRIu64" ms",
               istr(ident_runtil(tree_ident(b0), '.')),
               (get_timestamp_us() - start_us) / 1000);
+}
+
+vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
+                                 int argc, char **argv)
+{
+   assert(global_context == NULL);
+
+   vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
+   c->strtab    = shash_new(1024);
+   c->model     = model;
+   c->tool      = build_tool(argc, argv);
+   c->typecache = hash_new(128);
+   c->top       = top;
+   c->jit       = jit;
+
+   vhpi_build_design_model(c, argc, argv);
+
+   return c;
+}
+
+void vhpi_context_free(vhpi_context_t *c)
+{
+   assert(c == global_context);
+   global_context = NULL;
+
+   shash_free(c->strtab);
+   hash_free(c->typecache);
+   free(c);
 }

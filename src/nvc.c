@@ -724,8 +724,11 @@ static int run(int argc, char **argv)
 
    rt_model_t *model = model_new(top, jit);
 
-   if (vhpi_plugins != NULL)
-      vhpi_load_plugins(top, model, vhpi_plugins, next_cmd - 1, argv + 1);
+   vhpi_context_t *vhpi = NULL;
+   if (vhpi_plugins != NULL) {
+      vhpi = vhpi_context_new(top, model, jit, next_cmd - 1, argv + 1);
+      vhpi_load_plugins(vhpi_plugins);
+   }
 
    set_ctrl_c_handler(ctrl_c_handler, model);
 
@@ -742,6 +745,9 @@ static int run(int argc, char **argv)
 
    if (dumper != NULL)
       wave_dumper_free(dumper);
+
+   if (vhpi != NULL)
+      vhpi_context_free(vhpi);
 
    model_free(model);
    jit_free(jit);
