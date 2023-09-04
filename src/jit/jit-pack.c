@@ -412,7 +412,7 @@ static inline double unpack_double(pack_func_t *pf)
 static const char *unpack_str(pack_func_t *pf)
 {
    const unsigned off = unpack_uint(pf);
-   return pf->strtab + off;
+   return off == 0 ? NULL : pf->strtab + off;
 }
 
 static loc_t unpack_loc(pack_func_t *pf)
@@ -420,7 +420,7 @@ static loc_t unpack_loc(pack_func_t *pf)
    loc_t loc = pf->last_loc;
 
    const char *file = unpack_str(pf);
-   if (*file != '\0') {
+   if (file != NULL) {
       loc.file_ref = loc_file_ref(file, NULL);
       loc.first_line = unpack_uint(pf);
       loc.first_column = unpack_uint(pf);
