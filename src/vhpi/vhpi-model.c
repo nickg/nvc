@@ -632,9 +632,13 @@ static const char *cb_data_pp(const vhpiCbDataT *data)
 
 static void *new_object(size_t size, vhpiClassKindT class)
 {
-   void *ptr = xcalloc(size);
-   ((c_vhpiObject *)ptr)->kind = class;
-   return ptr;
+   assert(size >= sizeof(c_vhpiObject));
+
+   c_vhpiObject *obj = xcalloc(size);
+   obj->kind = class;
+   obj->loc = LOC_INVALID;
+
+   return obj;
 }
 
 static vhpiCharT *new_string(const char *s)
@@ -2031,14 +2035,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 
    c_abstractRegion *region = is_abstractRegion(obj);
    if (region != NULL) {
-         switch (property) {
-         case vhpiNameP: return region->Name;
-         case vhpiCaseNameP: return region->CaseName;
-         case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
-         case vhpiFullNameP: return region->FullName;
-         case vhpiFullCaseNameP: return region->FullCaseName;
-         default: goto unsupported;
-         }
+      switch (property) {
+      case vhpiNameP: return region->Name;
+      case vhpiCaseNameP: return region->CaseName;
+      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
+      case vhpiFullNameP: return region->FullName;
+      case vhpiFullCaseNameP: return region->FullCaseName;
+      default: goto unsupported;
+      }
    }
 
    c_enumLiteral *el = is_enumLiteral(obj);

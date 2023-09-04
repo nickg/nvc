@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "debug.h"
 #include "diag.h"
 #include "jit/jit-ffi.h"
 #include "option.h"
@@ -175,7 +176,7 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    last_error.severity = sev;
    last_error.str = NULL;
 
-   if (loc != NULL) {
+   if (!loc_invalid_p(loc)) {
       last_error.file = (char *)loc_file_str(loc);
       last_error.line = loc->first_line;
    }
@@ -187,10 +188,39 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    last_error.message = xvasprintf(fmt, ap);
    va_end(ap);
 
-   if (loc != NULL)
-      error_at(loc, "%s", last_error.message);
-   else
-      errorf("%s", last_error.message);
+   const diag_level_t map[] = {
+      DIAG_NOTE, DIAG_WARN, DIAG_ERROR, DIAG_FATAL, DIAG_ERROR, DIAG_ERROR
+   };
+
+   diag_t *d = diag_new(map[sev], loc);
+   diag_printf(d, "%s", last_error.message);
+
+   debug_info_t *trace = debug_capture();
+
+   const debug_frame_t *last_prog = NULL, *first_lib = NULL;
+   const int nframes = debug_count_frames(trace);
+   for (int i = 0; i < nframes; i++) {
+      const debug_frame_t *f = debug_get_frame(trace, i);
+      if (f->kind == FRAME_PROG)
+         last_prog = f;
+      else if (f->kind == FRAME_LIB) {
+         first_lib = f;
+         break;
+      }
+   }
+
+   if (last_prog != NULL && strncmp(last_prog->symbol, "vhpi", 4) == 0)
+      diag_hint(d, NULL, "in call to VHPI function function $bold$%s$$",
+                last_prog->symbol);
+
+   if (first_lib != NULL)
+      diag_hint(d, NULL, "called from user function $bold$%s$$ "
+                "at %s:%d", first_lib->symbol,
+                first_lib->srcfile, first_lib->lineno);
+
+   debug_free(trace);
+
+   diag_emit(d);
 }
 
 rt_event_t vhpi_get_rt_event(int reason)
