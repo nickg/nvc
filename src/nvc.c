@@ -779,7 +779,9 @@ static int print_deps_cmd(int argc, char **argv)
    }
 
    const int count = next_cmd - optind;
-   tree_t *targets = xmalloc_array(count, sizeof(tree_t));
+   tree_t *targets = NULL;
+   if (count > 0)
+      targets = xmalloc_array(count, sizeof(tree_t));
 
    lib_t work = lib_work();
 
