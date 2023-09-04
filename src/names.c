@@ -2182,6 +2182,24 @@ static type_t get_protected_type(tree_t t)
    }
 }
 
+static tree_t get_aliased_subprogram(tree_t t)
+{
+   assert(tree_kind(t) == T_ALIAS);
+   tree_t aliased = tree_value(t);
+   const tree_kind_t kind = tree_kind(aliased);
+   if (kind == T_REF && tree_has_ref(aliased)) {
+      tree_t decl = tree_ref(aliased);
+      if (tree_kind(decl) == T_ALIAS)
+         return get_aliased_subprogram(decl);
+      else
+         return decl;
+   }
+   else if (kind == T_PROT_REF)
+      return aliased;
+   else
+      return NULL;
+}
+
 static void begin_overload_resolution(overload_t *o)
 {
    const symbol_t *sym = NULL;
@@ -2204,16 +2222,8 @@ static void begin_overload_resolution(overload_t *o)
             continue;
 
          tree_t next = dd->tree;
-         if (dd->kind == T_ALIAS) {
-            tree_t value = tree_value(next);
-            const tree_kind_t kind = tree_kind(value);
-            if (kind == T_REF && tree_has_ref(value))
-               next = tree_ref(value);
-            else if (kind == T_PROT_REF)
-               next = value;
-            else
-               continue;
-         }
+         if (dd->kind == T_ALIAS && !(next = get_aliased_subprogram(next)))
+            continue;
 
          overload_add_candidate(o, next);
       }

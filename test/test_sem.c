@@ -3287,9 +3287,9 @@ START_TEST(test_alias2)
       { 40, "no visible declaration for XX" },
       { 42, "invalid use of name INCREMENT" },
       { 42, "aliased name is not static" },
-      { 50, "function GET_BITS with return identifier RV cannot be called "
+      { 53, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },
-      { 51, "function GET_BITS with return identifier RV cannot be called" },
+      { 54, "function GET_BITS with return identifier RV cannot be called" },
       { -1, NULL }
    };
    expect_errors(expect);
