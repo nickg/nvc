@@ -368,10 +368,23 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
-static c_tool     *tool = NULL;
-static c_rootInst *rootInst = NULL;
-static shash_t    *strtab = NULL;
-static rt_model_t *model = NULL;
+typedef struct {
+   c_tool     *tool;
+   c_rootInst *root;
+   shash_t    *strtab;
+   rt_model_t *model;
+   hash_t     *typecache;
+} vhpi_context_t;
+
+static c_typeDecl *cached_typeDecl(type_t type);
+
+static vhpi_context_t *global_context = NULL;   // TODO: thread local
+
+static inline vhpi_context_t *vhpi_context(void)
+{
+   assert(global_context != NULL);
+   return global_context;
+}
 
 static vhpiHandleT handle_for(c_vhpiObject *obj)
 {
@@ -604,6 +617,7 @@ static void *new_object(size_t size, vhpiClassKindT class)
 
 static vhpiCharT *new_string(const char *s)
 {
+   shash_t *strtab = vhpi_context()->strtab;
    vhpiCharT *p = shash_get(strtab, s);
    if (p == NULL)
       shash_put(strtab, s, (p = (vhpiCharT *)xstrdup(s)));
@@ -612,6 +626,7 @@ static vhpiCharT *new_string(const char *s)
 
 static vhpiCharT *new_string_n(const char *s, size_t n)
 {
+   shash_t *strtab = vhpi_context()->strtab;
    vhpiCharT *p = shash_get(strtab, s);
    if (p == NULL)
       shash_put(strtab, s, (p = (vhpiCharT *)xstrndup(s, n)));
@@ -1135,7 +1150,7 @@ static rt_scope_t *vhpi_get_scope_abstractRegion(c_abstractRegion *region)
    if (region->scope)
       return region->scope;
 
-   rt_scope_t *scope = find_scope(model, region->tree);
+   rt_scope_t *scope = find_scope(vhpi_context()->model, region->tree);
    if (scope == NULL) {
       vhpi_error(vhpiError, &(region->object.loc),
                  "cannot find scope object for %s", region->Name);
@@ -1296,12 +1311,13 @@ static int enable_cb(c_callback *cb)
    case vhpiCbNextTimeStep:
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
-      model_set_global_cb(model, vhpi_get_rt_event(cb->Reason),
+      model_set_global_cb(vhpi_context()->model, vhpi_get_rt_event(cb->Reason),
                           vhpi_global_cb, cb);
       return 0;
 
    case vhpiCbAfterDelay:
-      model_set_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
+      model_set_timeout_cb(vhpi_context()->model, cb->when,
+                           vhpi_timeout_cb, cb);
       return 0;
 
    case vhpiCbValueChange:
@@ -1318,7 +1334,8 @@ static int enable_cb(c_callback *cb)
          if (signal == NULL)
             return 1;
 
-         cb->w = model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
+         cb->w = model_set_event_cb(vhpi_context()->model, signal,
+                                    vhpi_signal_event_cb, cb, false);
          return 0;
       }
 
@@ -1345,7 +1362,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             goto err;
          }
 
-         cb->when = vhpi_time_to_native(cb->data.time) + model_now(model, NULL);
+         cb->when = vhpi_time_to_native(cb->data.time)
+            + model_now(vhpi_context()->model, NULL);
    }
    else if (cb->Reason == vhpiCbValueChange && cb->data.value) {
       vhpi_error(vhpiInternal, NULL,
@@ -1376,15 +1394,17 @@ static bool disable_cb(c_callback *cb)
    case vhpiCbNextTimeStep:
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
-      return model_clear_global_cb(model, vhpi_get_rt_event(cb->Reason),
+      return model_clear_global_cb(vhpi_context()->model,
+                                   vhpi_get_rt_event(cb->Reason),
                                    vhpi_global_cb, cb);
       return true;
 
    case vhpiCbAfterDelay:
-      return model_clear_timeout_cb(model, cb->when, vhpi_timeout_cb, cb);
+      return model_clear_timeout_cb(vhpi_context()->model, cb->when,
+                                    vhpi_timeout_cb, cb);
 
    case vhpiCbValueChange:
-      return model_clear_event_cb(model, cb->w);
+      return model_clear_event_cb(vhpi_context()->model, cb->w);
 
    default:
       assert(false);
@@ -1489,10 +1509,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
    switch (type) {
    case vhpiRootInst:
-      return handle_for(&(rootInst->designInstUnit.region.object));
+      return handle_for(&(vhpi_context()->root->designInstUnit.region.object));
 
    case vhpiTool:
-      return handle_for(&(tool->object));
+      return handle_for(&(vhpi_context()->tool->object));
 
    case DEPRECATED_vhpiSubtype:
    case DEPRECATED_vhpiReturnTypeMark:
@@ -1597,7 +1617,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
    c_abstractRegion *region;
    if (scope == NULL)
-      region = &(rootInst->designInstUnit.region);
+      region = &(vhpi_context()->root->designInstUnit.region);
    else {
       c_vhpiObject *obj = from_handle(scope);
       if (obj == NULL)
@@ -2328,6 +2348,8 @@ int vhpi_put_value(vhpiHandleT handle,
          double real;
          int num_elems = 0;
 
+         rt_model_t *model = vhpi_context()->model;
+
          if (!model_can_create_delta(model)) {
             vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
                        "during current simulation phase");
@@ -2484,7 +2506,7 @@ void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
    VHPI_TRACE("time_p=%p cycles=%p", time_p, cycles);
 
    unsigned deltas;
-   const uint64_t now = model_now(model, &deltas);
+   const uint64_t now = model_now(vhpi_context()->model, &deltas);
 
    if (time_p != NULL) {
       time_p->high = now >> 32;
@@ -2512,7 +2534,7 @@ int vhpi_control(vhpiSimControlT command, ...)
    case vhpiFinish:
    case vhpiStop:
       notef("VHPI plugin requested end of simulation");
-      model_stop(model);
+      model_stop(vhpi_context()->model);
       return 0;
 
    case vhpiReset:
@@ -2602,6 +2624,7 @@ static c_intRange *build_int_range(tree_t t)
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    init_range(&(ir->range), t);
 
+   rt_model_t *model = vhpi_context()->model;
    ir->LeftBound  = vhpi_int_from_native(get_static_expr(model, tree_left(t)));
    ir->RightBound = vhpi_int_from_native(get_static_expr(model, tree_right(t)));
 
@@ -2614,8 +2637,6 @@ static c_intRange *build_unconstrained()
    ir->range.IsUnconstrained = vhpiTrue;
    return ir;
 }
-
-static c_typeDecl *cached_typeDecl(type_t type);
 
 static c_typeDecl *build_typeDecl(type_t type)
 {
@@ -2747,7 +2768,7 @@ static c_typeDecl *build_typeDecl(type_t type)
 
             tree_t c = type_constraint(type, 0);
             if (tree_subkind(c) != C_RANGE)
-               fatal_trace("unsupported constraint subkind %d\n", tree_subkind(c));
+               fatal_trace("unsupported constraint subkind %d", tree_subkind(c));
 
             c_intRange *ir = build_int_range(tree_range(c, 0));
             td->typeDecl.size = range_len(ir);
@@ -2767,14 +2788,11 @@ static c_typeDecl *build_typeDecl(type_t type)
 
 static c_typeDecl *cached_typeDecl(type_t type)
 {
-   static hash_t *h = NULL;
-   if (h == NULL)
-      h = hash_new(128);
-
-   c_typeDecl *d = hash_get(h, type);
+   hash_t *cache = vhpi_context()->typecache;
+   c_typeDecl *d = hash_get(cache, type);
    if (d == NULL) {
       d = build_typeDecl(type);
-      hash_put(h, type, d);
+      hash_put(cache, type, d);
    }
 
    return d;
@@ -2853,12 +2871,12 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
    tree_t p = tree_primary(s);
    assert(tree_kind(p) == T_ENTITY);
 
-   assert(strtab == NULL);
-   strtab = shash_new(1024);
-
-   model = m;
-
-   tool = build_tool(argc, argv);
+   assert(global_context == NULL);
+   vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
+   c->strtab    = shash_new(1024);
+   c->model     = m;
+   c->tool      = build_tool(argc, argv);
+   c->typecache = hash_new(128);
 
    c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
    init_entityDecl(entity, p);
@@ -2866,11 +2884,11 @@ void vhpi_build_design_model(tree_t top, rt_model_t *m, int argc, char **argv)
    c_secondaryUnit *arch = new_object(sizeof(c_secondaryUnit), vhpiArchBodyK);
    init_secondaryUnit(arch, s, &(entity->designUnit));
 
-   rootInst = new_object(sizeof(c_rootInst), vhpiRootInstK);
-   init_designInstUnit(&(rootInst->designInstUnit), b0, &(arch->designUnit));
+   c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
+   init_designInstUnit(&(c->root->designInstUnit), b0, &(arch->designUnit));
 
-   vhpi_build_decls(b0, &(rootInst->designInstUnit.region), rootInst);
-   vhpi_build_ports(b0, rootInst);
+   vhpi_build_decls(b0, &(c->root->designInstUnit.region), c->root);
+   vhpi_build_ports(b0, c->root);
 
    VHPI_TRACE("building model for %s took %"PRIu64" ms",
               istr(ident_runtil(tree_ident(b0), '.')),
