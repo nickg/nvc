@@ -20,6 +20,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.format == vhpiIntVal);
    vhpi_printf("value=%d", value.value.intg);
    fail_unless(value.value.intg == 42);
+   fail_unless(value.numElems == 0);
 
    vhpi_release_handle(handle_sos);
 }

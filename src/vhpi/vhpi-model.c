@@ -2203,6 +2203,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       td = decl->Type;
    }
 
+   assert(!td->IsUnconstrained);
+
    if (td->format == (vhpiFormatT)-1) {
       vhpi_error(vhpiInternal, &(obj->loc), "type %s not supported in "
                  "vhpi_get_value", type_pp(td->type));
@@ -2241,22 +2243,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       size = signal_size(signal);
    }
 
-   assert(!td->IsUnconstrained);
-   value_p->numElems = td->size;
-
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = td->format;
-   else if (value_p->format == vhpiBinStrVal && td->map_str != NULL) {
-      if (value_p->bufSize < value_p->numElems + 1)
-         return value_p->numElems + 1;
-
-      const uint8_t *p = value + offset;
-      for (int i = 0; i < value_p->numElems; i++)
-         value_p->value.str[i] = td->map_str[*p++];
-      value_p->value.str[value_p->numElems] = '\0';
-
-      return 0;
-   }
+   else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
+      value_p->format = vhpiBinStrVal;
    else if (value_p->format != td->format) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
                  "object %s: expecting %d", value_p->format,
@@ -2264,7 +2254,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
    }
 
-   switch (td->format) {
+   switch (value_p->format) {
    case vhpiLogicVal:
       value_p->value.enumv = value[offset];
       return 0;
@@ -2294,6 +2284,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiLogicVecVal:
       {
+         value_p->numElems = td->size;
+
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
@@ -2307,6 +2299,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiSmallEnumVecVal:
       {
+         value_p->numElems = td->size;
+
          const int max = value_p->bufSize / sizeof(vhpiSmallEnumT);
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiSmallEnumT);
@@ -2320,6 +2314,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiEnumVecVal:
       {
+         value_p->numElems = td->size;
+
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
@@ -2334,14 +2330,21 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
       }
 
+   case vhpiBinStrVal:
    case vhpiStrVal:
       {
+         value_p->numElems = td->size;
+
          if (value_p->bufSize + 1 < value_p->numElems)
             return value_p->numElems + 1;
 
          const vhpiCharT *p = value + offset;
-         for (int i = 0; i < value_p->numElems; i++)
-            value_p->value.str[i] = *p++;
+         for (int i = 0; i < value_p->numElems; i++) {
+            if (value_p->format == vhpiBinStrVal)
+               value_p->value.str[i] = td->map_str[*p++];
+            else
+               value_p->value.str[i] = *p++;
+         }
 
          value_p->value.str[value_p->numElems] = '\0';
          return 0;
@@ -2349,6 +2352,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiRealVecVal:
       {
+         value_p->numElems = td->size;
+
          const int max = value_p->bufSize / sizeof(vhpiRealT);
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiRealT);
