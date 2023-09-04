@@ -39,6 +39,10 @@ architecture test of alias2 is
     alias bad1 is pt.foobar [];         -- Error
     alias bad2 is xx.increment [];      -- Error
     alias bits is pt.get_bits [return bit_vector];  -- OK
+    alias bad3 is pt.increment;         -- Error
+    alias fb1 is foobar [];             -- OK
+    alias fb2 is fb1 [];                -- OK
+    alias inc2 is inc [];               -- OK
 
 begin
 
@@ -48,6 +52,8 @@ begin
         assert get = 1;                 -- OK
         assert bits = "101";            -- Error
         assert pt.get_bits = "111";     -- Error
+        fb2;                            -- OK
+        inc2;                           -- OK
         wait;
     end process;
 

@@ -3185,9 +3185,10 @@ START_TEST(test_alias2)
    const error_t expect[] = {
       { 39, "no visible subprogram FOOBAR matches signature []" },
       { 40, "no visible declaration for XX" },
-      { 49, "function GET_BITS with return identifier RV cannot be called "
+      { 42, "invalid use of name INCREMENT" },
+      { 53, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },
-      { 50, "function GET_BITS with return identifier RV cannot be called" },
+      { 54, "function GET_BITS with return identifier RV cannot be called" },
       { -1, NULL }
    };
    expect_errors(expect);
