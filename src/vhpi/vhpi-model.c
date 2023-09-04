@@ -20,10 +20,12 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
-#include "rt/rt.h"
 #include "rt/model.h"
+#include "rt/rt.h"
+#include "rt/structs.h"
 #include "tree.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
@@ -202,14 +204,14 @@ typedef struct {
    c_abstractDecl   decl;
    vhpiObjectListT  IndexedNames;
    vhpiObjectListT  SelectedNames;
-   rt_signal_t     *signal;
-   rt_scope_t      *scope;
    c_typeDecl      *Type;
    vhpiIntT         Access;
    vhpiStaticnessT  Staticness;
    vhpiBooleanT     IsDynamic;
    bool             IndexedNames_valid;
    bool             SelectedNames_valid;
+   rt_signal_t     *signal;
+   rt_scope_t      *scope;
 } c_objDecl;
 
 typedef struct {
@@ -240,6 +242,8 @@ typedef struct {
    vhpiModeT       Mode;
    vhpiBooleanT    IsLocal;
    vhpiBooleanT    IsVital;
+   jit_handle_t    handle;
+   ident_t         name;
 } c_genericDecl;
 
 DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
@@ -1192,6 +1196,7 @@ static rt_scope_t *vhpi_get_scope_objDecl(c_objDecl *decl)
    if (decl->scope == NULL)
       vhpi_error(vhpiError, &(decl->decl.object.loc),
                  "cannot find scope object for %s", decl->decl.Name);
+
    return decl->scope;
 }
 
@@ -2194,14 +2199,37 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
    }
 
-   rt_signal_t *signal;
-   if (pn != NULL)
-      signal = vhpi_get_signal_prefixedName(pn);
-   else
-      signal = vhpi_get_signal_objDecl(decl);
+   int size = 1;
+   const unsigned char *value;
+   if (obj->kind == vhpiGenericDeclK) {
+      rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
+      if (*mptr_get(scope->privdata) == NULL) {
+         vhpi_error(vhpiInternal, &(obj->loc), "%s has not been elaborated",
+                    decl->decl.FullName);
+         return -1;
+      }
 
-   if (signal == NULL)
-      return -1;
+      jit_t *j = vhpi_context()->jit;
+      c_genericDecl *g = cast_genericDecl(obj);
+
+      if (g->handle == JIT_HANDLE_INVALID)
+         g->handle = jit_lazy_compile(j, scope->name);
+
+      value = jit_get_frame_var(j, g->handle, g->name);
+   }
+   else {
+      rt_signal_t *signal;
+      if (pn != NULL)
+         signal = vhpi_get_signal_prefixedName(pn);
+      else
+         signal = vhpi_get_signal_objDecl(decl);
+
+      if (signal == NULL)
+         return -1;
+
+      value = signal_value(signal);
+      size = signal_size(signal);
+   }
 
    assert(!td->IsUnconstrained);
    value_p->numElems = td->size;
@@ -2212,7 +2240,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       if (value_p->bufSize < value_p->numElems + 1)
          return value_p->numElems + 1;
 
-      const uint8_t *p = signal_value_u8(signal) + offset;
+      const uint8_t *p = value + offset;
       for (int i = 0; i < value_p->numElems; i++)
          value_p->value.str[i] = td->map_str[*p++];
       value_p->value.str[value_p->numElems] = '\0';
@@ -2228,30 +2256,30 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    switch (td->format) {
    case vhpiLogicVal:
-      value_p->value.enumv = signal_value_u8(signal)[offset];
+      value_p->value.enumv = value[offset];
       return 0;
 
    case vhpiSmallEnumVal:
-      value_p->value.smallenumv = signal_value_u8(signal)[offset];
+      value_p->value.smallenumv = value[offset];
       return 0;
 
    case vhpiEnumVal:
 #define SIGNAL_READ_ENUM(type) \
-      value_p->value.enumv = ((const type *)signal_value(signal))[offset]
+      value_p->value.enumv = ((const type *)value)[offset]
 
-      FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUM);
+      FOR_ALL_SIZES(size, SIGNAL_READ_ENUM);
       return 0;
 
    case vhpiCharVal:
-      value_p->value.ch = signal_value_u8(signal)[offset];
+      value_p->value.ch = value[offset];
       return 0;
 
    case vhpiIntVal:
-      value_p->value.intg = ((const uint32_t *)signal_value(signal))[offset];
+      value_p->value.intg = ((const uint32_t *)value)[offset];
       return 0;
 
    case vhpiRealVal:
-      value_p->value.real = ((const double *)signal_value(signal))[offset];
+      value_p->value.real = ((const double *)value)[offset];
       return 0;
 
    case vhpiLogicVecVal:
@@ -2260,7 +2288,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
 
-         const uint8_t *p = signal_value_u8(signal) + offset;
+         const uint8_t *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.enumvs[i] = *p++;
 
@@ -2273,7 +2301,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiSmallEnumT);
 
-         const uint8_t *p = signal_value_u8(signal) + offset;
+         const uint8_t *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.smallenumvs[i] = *p++;
 
@@ -2286,13 +2314,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiEnumT);
 
-#define SIGNAL_READ_ENUMV(type) do { \
-      const type *p = ((const type *)signal_value(signal)) + offset; \
-      for (int i = 0; i < value_p->numElems; i++) \
-         value_p->value.enumvs[i] = *p++; \
-   } while (0)
+#define SIGNAL_READ_ENUMV(type) do {                            \
+            const type *p = ((const type *)value) + offset;     \
+            for (int i = 0; i < value_p->numElems; i++)         \
+               value_p->value.enumvs[i] = *p++;                 \
+         } while (0)
 
-         FOR_ALL_SIZES(signal_size(signal), SIGNAL_READ_ENUMV);
+         FOR_ALL_SIZES(size, SIGNAL_READ_ENUMV);
          return 0;
       }
 
@@ -2301,7 +2329,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (value_p->bufSize + 1 < value_p->numElems)
             return value_p->numElems + 1;
 
-         const vhpiCharT *p = signal_value_u8(signal) + offset;
+         const vhpiCharT *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.str[i] = *p++;
 
@@ -2315,7 +2343,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          if (max < value_p->numElems)
             return value_p->numElems * sizeof(vhpiRealT);
 
-         const double *p = ((const double *)signal_value(signal)) + offset;
+         const double *p = ((const double *)value) + offset;
          for (int i = 0; i < value_p->numElems; i++)
             value_p->value.reals[i] = *p++;
 
@@ -2840,6 +2868,9 @@ static c_vhpiObject *build_genericDecl(tree_t generic, int pos,
    g->IsLocal = true;
    g->IsVital = false;
    g->Mode = mode_map[tree_subkind(generic)];
+
+   g->name = tree_ident(generic);
+   g->handle = JIT_HANDLE_INVALID;
 
    return &(g->interface.objDecl.decl.object);
 }

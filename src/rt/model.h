@@ -71,9 +71,4 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value);
 
 int64_t get_static_expr(rt_model_t *m, tree_t expr);
 
-static inline const uint8_t *signal_value_u8(rt_signal_t *s)
-{
-   return signal_value(s);
-}
-
 #endif  // _RT_MODEL_H

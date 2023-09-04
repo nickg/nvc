@@ -483,14 +483,20 @@ void **jit_get_privdata_ptr(jit_t *j, jit_func_t *f)
    return mptr_get(f->privdata);
 }
 
-void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
+void *jit_get_frame_var(jit_t *j, jit_handle_t handle, ident_t name)
 {
    jit_func_t *f = jit_get_func(j, handle);
    if (f->privdata == MPTR_INVALID)
       fatal_trace("%s not linked", istr(f->name));
 
-   assert(var < f->nvars);
-   return *mptr_get(f->privdata) + f->linktab[var].offset;
+   jit_fill_irbuf(f);
+
+   for (int i = 0; i < f->nvars; i++) {
+      if (f->linktab[i].name == name)
+         return *mptr_get(f->privdata) + f->linktab[i].offset;
+   }
+
+   fatal_trace("%s has no variable %s", istr(f->name), istr(name));
 }
 
 static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
