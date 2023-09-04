@@ -428,6 +428,11 @@ void vhpi1_startup(void)
    fail_unless(vhpi_get(vhpiModeP, handle_x) == vhpiInMode);
    fail_unless(vhpi_get(vhpiModeP, handle_y) == vhpiOutMode);
 
+   fail_unless(vhpi_get(vhpiIsLocalP, handle_x) == vhpiUndefined);
+
+   vhpiErrorInfoT info;
+   fail_unless(vhpi_check_error(&info));
+
    vhpiHandleT handle_r = vhpi_handle_by_name("r", root);
    check_error();
    fail_if(handle_r == NULL);

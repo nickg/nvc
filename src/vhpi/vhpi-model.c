@@ -1795,7 +1795,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          c_callback *cb = cast_callback(obj);
          if (cb == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          return cb->State;
       }
@@ -1807,10 +1807,8 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    case vhpiIsScalarP:
       {
          c_typeDecl *td = is_typeDecl(obj);
-         if (td == NULL) {
-            vhpi_error(vhpiError, &(obj->loc), "object is not a type");
-            return vhpiUndefined;
-         }
+         if (td == NULL)
+            goto missing_property;
 
          if (property == vhpiIsCompositeP)
             return td->IsComposite;
@@ -1848,7 +1846,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          c_arrayTypeDecl *a = cast_arrayTypeDecl(obj);
          if (a == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          VHPI_TRACE("dims=%d", a->NumDimensions);
          return a->NumDimensions;
@@ -1864,9 +1862,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (td != NULL)
             return td->IsUnconstrained;
 
-         vhpi_error(vhpiFailure, NULL,
-                    "unsupported property vhpiIsUnconstrainedP in vhpi_get");
-         return vhpiUndefined;
+         goto missing_property;
       }
 
    case vhpiLeftBoundP:
@@ -1874,7 +1870,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          c_intRange *ir = cast_intRange(obj);
          if (ir == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          VHPI_TRACE("left=%d right=%d", ir->LeftBound, ir->RightBound);
          if (property == vhpiLeftBoundP)
@@ -1895,7 +1891,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
          c_expr *e = cast_expr(obj);
          if (e == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          return e->Staticness;
       }
@@ -1913,7 +1909,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          c_enumTypeDecl *etd = cast_enumTypeDecl(obj);
          if (etd == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          return etd->EnumLiterals.count;
       }
@@ -1926,7 +1922,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
          c_enumLiteral *el = cast_enumLiteral(obj);
          if (el == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          return el->Position;
       }
@@ -1935,22 +1931,31 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          c_recordTypeDecl *rtd = cast_recordTypeDecl(obj);
          if (rtd == NULL)
-            return vhpiUndefined;
+            goto missing_property;
 
          return rtd->RecordElems.count;
       }
 
    case vhpiModeP:
       {
-         if (is_genericDecl(obj))
-            return cast_genericDecl(obj)->Mode;
-         else if (is_portDecl(obj))
-            return cast_portDecl(obj)->Mode;
-         else {
-            vhpi_error(vhpiError, &(obj->loc), "object does not have %s "
-                       "property", vhpi_property_str(property));
-            return vhpiUndefined;
-         }
+         c_genericDecl *gd = is_genericDecl(obj);
+         if (gd != NULL)
+            return gd->Mode;
+
+         c_portDecl *pd = is_portDecl(obj);
+         if (pd != NULL)
+            return pd->Mode;
+
+         goto missing_property;
+      }
+
+   case vhpiIsLocalP:
+      {
+         c_genericDecl *gd = is_genericDecl(obj);
+         if (gd == NULL)
+            goto missing_property;
+
+         return gd->IsLocal;
       }
 
    default:
@@ -1958,6 +1963,11 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
                  vhpi_property_str(property));
       return vhpiUndefined;
    }
+
+missing_property:
+   vhpi_error(vhpiError, &(obj->loc), "object does not have %s property",
+              vhpi_property_str(property));
+   return vhpiUndefined;
 }
 
 static vhpiCharT *cached_caseName(c_abstractDecl *decl)
@@ -2865,7 +2875,7 @@ static c_vhpiObject *build_genericDecl(tree_t generic, int pos,
    c_genericDecl *g = new_object(sizeof(c_genericDecl), vhpiGenericDeclK);
    init_interfaceDecl(&(g->interface), generic, pos, region, td);
 
-   g->IsLocal = true;
+   g->IsLocal = (tree_kind(region->tree) == T_COMPONENT);
    g->IsVital = false;
    g->Mode = mode_map[tree_subkind(generic)];
 

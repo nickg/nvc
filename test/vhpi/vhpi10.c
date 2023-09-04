@@ -37,6 +37,7 @@ void vhpi10_startup(void)
    vhpi_printf("g0 handle %p", g0);
    fail_unless(vhpi_get(vhpiKindP, g0) == vhpiGenericDeclK);
    fail_unless(vhpi_get(vhpiModeP, g0) == vhpiInMode);
+   fail_unless(vhpi_get(vhpiIsLocalP, g0) == vhpiFalse);
 
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
