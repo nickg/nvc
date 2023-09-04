@@ -40,6 +40,16 @@ void vhpi10_startup(void)
    fail_unless(vhpi_get(vhpiModeP, g0) == vhpiInMode);
    fail_unless(vhpi_get(vhpiIsLocalP, g0) == vhpiFalse);
 
+   vhpiHandleT it = vhpi_iterator(vhpiGenericDecls, root);
+   fail_if(it == NULL);
+   fail_unless(vhpi_scan(it) == g0);
+
+   vhpiHandleT g1 = vhpi_scan(it);
+   fail_if(g1 == NULL);
+
+   fail_unless(vhpi_scan(it) == NULL);
+   vhpi_release_handle(it);
+
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,

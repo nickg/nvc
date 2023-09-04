@@ -348,6 +348,7 @@ typedef struct {
    c_designInstUnit designInstUnit;
    vhpiObjectListT  ports;
    vhpiObjectListT  signals;
+   vhpiObjectListT  generics;
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
@@ -999,6 +1000,7 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       switch (type) {
       case vhpiPortDecls: it->list = &(rootInst->ports); return true;
       case vhpiSigDecls: it->list = &(rootInst->signals); return true;
+      case vhpiGenericDecls: it->list = &(rootInst->generics); return true;
       default: break;
       }
    }
@@ -1675,6 +1677,12 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if ((rootInst = is_rootInst(&(region->object)))) {
       for (int i = 0; i < rootInst->ports.count; i++) {
          d = cast_abstractDecl(rootInst->ports.items[i]);
+         if (strcasecmp((char *)d->Name, elem) == 0)
+            goto found_decl;
+      }
+
+      for (int i = 0; i < rootInst->generics.count; i++) {
+         d = cast_abstractDecl(rootInst->generics.items[i]);
          if (strcasecmp((char *)d->Name, elem) == 0)
             goto found_decl;
       }
@@ -2957,7 +2965,7 @@ static void vhpi_build_generics(tree_t unit, c_rootInst *where)
    const int ngenerics = tree_generics(unit);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(unit, i);
-      APUSH(where->ports, build_genericDecl(g, i, region));
+      APUSH(where->generics, build_genericDecl(g, i, region));
    }
 }
 

@@ -1,6 +1,7 @@
 entity vhpi10 is
     generic (
-        g0 : integer := 42
+        g0 : integer := 42;
+        g1 : string := "hello"
         );
 end entity;
 
