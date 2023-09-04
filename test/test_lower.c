@@ -2775,8 +2775,8 @@ START_TEST(test_issue333)
       { VCODE_OP_ALL },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UNWRAP },
-      { VCODE_OP_COPY },
       { VCODE_OP_WRAP },
+      { VCODE_OP_COPY },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
@@ -2791,8 +2791,8 @@ START_TEST(test_issue333)
       { VCODE_OP_ALL },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UNWRAP },
-      { VCODE_OP_COPY },
       { VCODE_OP_WRAP },
+      { VCODE_OP_COPY },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_WAIT, .target = 2 }
@@ -3437,9 +3437,9 @@ START_TEST(test_access2)
       { VCODE_OP_ALL },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UNWRAP },
+      { VCODE_OP_WRAP },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
-      { VCODE_OP_WRAP },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_RETURN }
    };
@@ -4194,8 +4194,9 @@ START_TEST(test_array2)
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_CONST, .value = 0 },
@@ -4203,7 +4204,6 @@ START_TEST(test_array2)
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
-         { VCODE_OP_WRAP },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_STORE, .name = "P" },
          { VCODE_OP_WAIT, .target = 2 },
@@ -4328,8 +4328,8 @@ START_TEST(test_osvvm2)
       { VCODE_OP_ALL },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UNWRAP },
-      { VCODE_OP_COPY },
       { VCODE_OP_WRAP },
+      { VCODE_OP_COPY },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "FIELDNAME" },
       { VCODE_OP_RETURN },
@@ -5250,6 +5250,45 @@ START_TEST(test_protpcall)
 }
 END_TEST
 
+START_TEST(test_issue756)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue756.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE756.TB");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.ISSUE756.GET_SIZE()I" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_MUL },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_FCALL, .func = "WORK.ISSUE756.GET_SIZE()I" },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_MUL },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "PTR" },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5378,6 +5417,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue725);
    tcase_add_test(tc, test_cond2);
    tcase_add_test(tc, test_protpcall);
+   tcase_add_test(tc, test_issue756);
    suite_add_tcase(s, tc);
 
    return s;

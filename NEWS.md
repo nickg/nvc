@@ -6,6 +6,8 @@
 - Aliases of protected type methods are now allowed.
 - Fixed a crash when a pragma appears outside of a design unit (#752).
 - Fixed a crash analysing an alias of an alias of a subprogram (#755).
+- Fixed an elaboration failure when an allocator expression has an
+  array type with an unconstrained element (#756).
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised
