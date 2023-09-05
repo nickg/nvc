@@ -22,6 +22,28 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.value.intg == 42);
    fail_unless(value.numElems == 0);
 
+   vhpiHandleT c0 = vhpi_handle_by_name("c0", root);
+   check_error();
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(c0, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 5);
+   fail_unless(value.numElems == 0);
+
+   vhpiHandleT c1 = vhpi_handle_by_name("c1", root);
+   check_error();
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(c1, &value);
+   check_error();
+   fail_unless(value.format == vhpiRealVal);
+   vhpi_printf("value=%f", value.value.real);
+   fail_unless(value.value.real == 1.5);
+   fail_unless(value.numElems == 0);
+
    vhpi_release_handle(handle_sos);
 }
 
@@ -40,15 +62,32 @@ void vhpi10_startup(void)
    fail_unless(vhpi_get(vhpiModeP, g0) == vhpiInMode);
    fail_unless(vhpi_get(vhpiIsLocalP, g0) == vhpiFalse);
 
-   vhpiHandleT it = vhpi_iterator(vhpiGenericDecls, root);
-   fail_if(it == NULL);
-   fail_unless(vhpi_scan(it) == g0);
+   vhpiHandleT it1 = vhpi_iterator(vhpiGenericDecls, root);
+   fail_if(it1 == NULL);
+   fail_unless(vhpi_scan(it1) == g0);
 
-   vhpiHandleT g1 = vhpi_scan(it);
+   vhpiHandleT g1 = vhpi_scan(it1);
    fail_if(g1 == NULL);
 
-   fail_unless(vhpi_scan(it) == NULL);
-   vhpi_release_handle(it);
+   fail_unless(vhpi_scan(it1) == NULL);
+   vhpi_release_handle(it1);
+
+   vhpiHandleT c0 = vhpi_handle_by_name("c0", root);
+   check_error();
+   fail_if(c0 == NULL);
+   vhpi_printf("c0 handle %p", c0);
+   fail_unless(vhpi_get(vhpiKindP, c0) == vhpiConstDeclK);
+
+   vhpiHandleT it2 = vhpi_iterator(vhpiConstDecls, root);
+   fail_if(it2 == NULL);
+   fail_unless(vhpi_scan(it2) == c0);
+
+   vhpiHandleT c1 = vhpi_scan(it2);
+   fail_if(c1 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, c1) == vhpiConstDeclK);
+
+   fail_unless(vhpi_scan(it2) == NULL);
+   vhpi_release_handle(it2);
 
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,

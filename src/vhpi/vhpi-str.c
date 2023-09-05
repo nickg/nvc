@@ -18,6 +18,8 @@
 #include "util.h"
 #include "vhpi/vhpi-util.h"
 
+LCOV_EXCL_START
+
 const char *vhpi_property_str(int property)
 {
    switch (property) {
@@ -535,3 +537,5 @@ const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode)
       }
    }
 }
+
+LCOV_EXCL_STOP

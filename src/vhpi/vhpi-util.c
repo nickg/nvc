@@ -210,7 +210,7 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    }
 
    if (last_prog != NULL && strncmp(last_prog->symbol, "vhpi", 4) == 0)
-      diag_hint(d, NULL, "in call to VHPI function function $bold$%s$$",
+      diag_hint(d, NULL, "in call to VHPI function $bold$%s$$",
                 last_prog->symbol);
 
    if (first_lib != NULL)

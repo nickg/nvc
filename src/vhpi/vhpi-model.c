@@ -249,6 +249,15 @@ typedef struct {
 DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
 
 typedef struct {
+   c_objDecl    objDecl;
+   vhpiBooleanT IsDeferred;
+   jit_handle_t handle;
+   ident_t      name;
+} c_constDecl;
+
+DEF_CLASS(constDecl, vhpiConstDeclK, objDecl.decl.object);
+
+typedef struct {
    c_abstractDecl  decl;
    vhpiStringT     StrVal;
    vhpiStringT     SignatureName;
@@ -346,9 +355,6 @@ typedef struct {
 
 typedef struct {
    c_designInstUnit designInstUnit;
-   vhpiObjectListT  ports;
-   vhpiObjectListT  signals;
-   vhpiObjectListT  generics;
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
@@ -378,6 +384,7 @@ typedef struct {
    vhpiObjectListT *list;
    c_vhpiObject    *single;
    uint32_t         pos;
+   vhpiClassKindT   filter;
 } c_iterator;
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
@@ -454,6 +461,7 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiSubtypeDeclK:
    case vhpiElemDeclK:
    case vhpiGenericDeclK:
+   case vhpiConstDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -475,6 +483,7 @@ static c_objDecl *is_objDecl(c_vhpiObject *obj)
    case vhpiSigDeclK:
    case vhpiPortDeclK:
    case vhpiGenericDeclK:
+   case vhpiConstDeclK:
       return container_of(obj, c_objDecl, decl.object);
    default:
       return NULL;
@@ -485,8 +494,8 @@ static c_objDecl *cast_objDecl(c_vhpiObject *obj)
 {
    c_objDecl *od = is_objDecl(obj);
    if (od == NULL)
-      vhpi_error(vhpiError, NULL, "class kind %s is not an object declaration",
-                 vhpi_class_str(obj->kind));
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not an object "
+                 "declaration", vhpi_class_str(obj->kind));
    return od;
 }
 
@@ -995,24 +1004,39 @@ static void init_entityDecl(c_entityDecl *e, tree_t t)
 
 static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj)
 {
-   c_rootInst *rootInst = is_rootInst(obj);
-   if (rootInst != NULL) {
-      switch (type) {
-      case vhpiPortDecls: it->list = &(rootInst->ports); return true;
-      case vhpiSigDecls: it->list = &(rootInst->signals); return true;
-      case vhpiGenericDecls: it->list = &(rootInst->generics); return true;
-      default: break;
-      }
-   }
+   it->filter = vhpiUndefined;
 
    c_abstractRegion *region = is_abstractRegion(obj);
    if (region != NULL) {
       switch (type) {
-      case vhpiDecls: it->list = &(region->decls); return true;
+      case vhpiDecls:
+         it->list = &(region->decls);
+         return true;
       case vhpiInternalRegions:
          it->list = &(region->InternalRegions);
          return true;
-      default: return false;
+      case vhpiConstDecls:
+         it->filter = vhpiConstDeclK;
+         it->list = &(region->decls);
+         return true;
+      case vhpiVarDecls:
+         it->filter = vhpiVarDeclK;
+         it->list = &(region->decls);
+         return true;
+      case vhpiSigDecls:
+         it->filter = vhpiSigDeclK;
+         it->list = &(region->decls);
+         return true;
+      case vhpiGenericDecls:
+         it->filter = vhpiGenericDeclK;
+         it->list = &(region->decls);
+         return true;
+      case vhpiPortDecls:
+         it->filter = vhpiPortDeclK;
+         it->list = &(region->decls);
+         return true;
+      default:
+         return false;
       }
    }
 
@@ -1673,21 +1697,6 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
          goto found_decl;
    }
 
-   c_rootInst *rootInst;
-   if ((rootInst = is_rootInst(&(region->object)))) {
-      for (int i = 0; i < rootInst->ports.count; i++) {
-         d = cast_abstractDecl(rootInst->ports.items[i]);
-         if (strcasecmp((char *)d->Name, elem) == 0)
-            goto found_decl;
-      }
-
-      for (int i = 0; i < rootInst->generics.count; i++) {
-         d = cast_abstractDecl(rootInst->generics.items[i]);
-         if (strcasecmp((char *)d->Name, elem) == 0)
-            goto found_decl;
-      }
-   }
-
    return NULL;
 
 found_decl: ;
@@ -1782,9 +1791,11 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
    if (it->single)
       return it->pos++ ? NULL : handle_for(it->single);
 
-   if (it->pos < it->list->count) {
+   while (it->pos < it->list->count) {
       vhpiHandleT handle = handle_for(it->list->items[it->pos++]);
-      return handle;
+      if (it->filter == vhpiUndefined
+          || from_handle(handle)->kind == it->filter)
+         return handle;
    }
 
    return NULL;
@@ -2224,35 +2235,61 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
 
    int size = 1;
-   const unsigned char *value;
-   if (obj->kind == vhpiGenericDeclK) {
-      rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
-      if (*mptr_get(scope->privdata) == NULL) {
-         vhpi_error(vhpiInternal, &(obj->loc), "%s has not been elaborated",
-                    decl->decl.FullName);
-         return -1;
+   const unsigned char *value = NULL;
+   switch (obj->kind) {
+   case vhpiGenericDeclK:
+   case vhpiConstDeclK:
+      {
+         rt_scope_t *scope =
+            vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
+         if (*mptr_get(scope->privdata) == NULL) {
+            vhpi_error(vhpiInternal, &(obj->loc), "%s has not been elaborated",
+                       decl->decl.FullName);
+            return -1;
+         }
+
+         jit_t *j = vhpi_context()->jit;
+
+         c_genericDecl *g = is_genericDecl(obj);
+         if (g != NULL) {
+            if (g->handle == JIT_HANDLE_INVALID)
+               g->handle = jit_lazy_compile(j, scope->name);
+
+            value = jit_get_frame_var(j, g->handle, g->name);
+         }
+
+         c_constDecl *c = is_constDecl(obj);
+         if (c != NULL) {
+            if (c->handle == JIT_HANDLE_INVALID)
+               c->handle = jit_lazy_compile(j, scope->name);
+
+            value = jit_get_frame_var(j, c->handle, c->name);
+         }
       }
+      break;
 
-      jit_t *j = vhpi_context()->jit;
-      c_genericDecl *g = cast_genericDecl(obj);
+   case vhpiSigDeclK:
+   case vhpiPortDeclK:
+   case vhpiIndexedNameK:
+   case vhpiSelectedNameK:
+      {
+         rt_signal_t *signal;
+         if (pn != NULL)
+            signal = vhpi_get_signal_prefixedName(pn);
+         else
+            signal = vhpi_get_signal_objDecl(decl);
 
-      if (g->handle == JIT_HANDLE_INVALID)
-         g->handle = jit_lazy_compile(j, scope->name);
+         if (signal == NULL)
+            return -1;
 
-      value = jit_get_frame_var(j, g->handle, g->name);
-   }
-   else {
-      rt_signal_t *signal;
-      if (pn != NULL)
-         signal = vhpi_get_signal_prefixedName(pn);
-      else
-         signal = vhpi_get_signal_objDecl(decl);
+         value = signal_value(signal);
+         size = signal_size(signal);
+      }
+      break;
 
-      if (signal == NULL)
-         return -1;
-
-      value = signal_value(signal);
-      size = signal_size(signal);
+   default:
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s cannot be used with "
+                 "vhpi_get_value", vhpi_class_str(obj->kind));
    }
 
    if (value_p->format == vhpiObjTypeVal)
@@ -2884,8 +2921,8 @@ static c_typeDecl *cached_typeDecl(type_t type)
    return d;
 }
 
-static c_vhpiObject *build_genericDecl(tree_t generic, int pos,
-                                       c_abstractRegion *region)
+static void build_genericDecl(tree_t generic, int pos,
+                              c_abstractRegion *region)
 {
    c_typeDecl *td = cached_typeDecl(tree_type(generic));
 
@@ -2899,11 +2936,11 @@ static c_vhpiObject *build_genericDecl(tree_t generic, int pos,
    g->name = tree_ident(generic);
    g->handle = JIT_HANDLE_INVALID;
 
-   return &(g->interface.objDecl.decl.object);
+   APUSH(region->decls, &(g->interface.objDecl.decl.object));
 }
 
-static c_vhpiObject *build_portDecl(tree_t port, int pos,
-                                    c_abstractRegion *region)
+static void build_portDecl(tree_t port, int pos,
+                           c_abstractRegion *region)
 {
    c_typeDecl *td = cached_typeDecl(tree_type(port));
 
@@ -2912,35 +2949,47 @@ static c_vhpiObject *build_portDecl(tree_t port, int pos,
 
    p->Mode = mode_map[tree_subkind(port)];
 
-   return &(p->interface.objDecl.decl.object);
+   APUSH(region->decls, &(p->interface.objDecl.decl.object));
 }
 
-static c_vhpiObject *build_signalDecl(tree_t decl,
-                                      c_abstractRegion *region)
+static void build_signalDecl(tree_t decl, c_abstractRegion *region)
 {
    c_typeDecl *td = cached_typeDecl(tree_type(decl));
 
    c_sigDecl *s = new_object(sizeof(c_sigDecl), vhpiSigDeclK);
    init_objDecl(&(s->objDecl), decl, region, td);
 
-   return &(s->objDecl.decl.object);
+   APUSH(region->decls, &(s->objDecl.decl.object));
+}
+
+static void build_constDecl(tree_t decl, c_abstractRegion *region)
+{
+   c_typeDecl *td = cached_typeDecl(tree_type(decl));
+
+   c_constDecl *cd = new_object(sizeof(c_constDecl), vhpiConstDeclK);
+   init_objDecl(&(cd->objDecl), decl, region, td);
+
+   cd->IsDeferred = !tree_has_value(decl);
+
+   cd->name = tree_ident(decl);
+   cd->handle = JIT_HANDLE_INVALID;
+
+   APUSH(region->decls, &(cd->objDecl.decl.object));
 }
 
 static void vhpi_build_decls(tree_t container, c_abstractRegion *region,
-                             c_rootInst *where)
+                             c_rootInst *root)
 {
    const int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(container, i);
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-         {
-            c_vhpiObject *signal = build_signalDecl(d, region);
-            APUSH(region->decls, signal);
-            if (where)
-               APUSH(where->signals, signal);
-            break;
-         }
+         build_signalDecl(d, region);
+         break;
+      case T_CONST_DECL:
+         build_constDecl(d, region);
+         break;
       default:
          break;
       }
@@ -2954,7 +3003,7 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    const int nports = tree_ports(unit);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(unit, i);
-      APUSH(where->ports, build_portDecl(p, i, region));
+      build_portDecl(p, i, region);
    }
 }
 
@@ -2965,7 +3014,7 @@ static void vhpi_build_generics(tree_t unit, c_rootInst *where)
    const int ngenerics = tree_generics(unit);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(unit, i);
-      APUSH(where->generics, build_genericDecl(g, i, region));
+      build_genericDecl(g, i, region);
    }
 }
 
