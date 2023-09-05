@@ -2455,6 +2455,14 @@ int vhpi_put_value(vhpiHandleT handle,
    if (signal == NULL)
       return 1;
 
+   rt_model_t *model = vhpi_context()->model;
+
+   if (!model_can_create_delta(model)) {
+      vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
+                 "during current simulation phase");
+      return 1;
+   }
+
    switch (mode) {
    case vhpiForcePropagate:
    case vhpiDepositPropagate:
@@ -2470,14 +2478,6 @@ int vhpi_put_value(vhpiHandleT handle,
          } scalar;
          double real;
          int num_elems = 0;
-
-         rt_model_t *model = vhpi_context()->model;
-
-         if (!model_can_create_delta(model)) {
-            vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
-                       "during current simulation phase");
-            return 1;
-         }
 
          switch (value_p->format) {
          case vhpiLogicVal:
@@ -2587,6 +2587,10 @@ int vhpi_put_value(vhpiHandleT handle,
 
          return 0;
       }
+
+   case vhpiRelease:
+      release_signal(model, signal, offset, signal_width(signal));
+      return 0;
 
    default:
       vhpi_error(vhpiFailure, NULL, "mode %s not supported in vhpi_put_value",

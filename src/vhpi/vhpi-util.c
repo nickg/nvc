@@ -189,10 +189,15 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    va_end(ap);
 
    const diag_level_t map[] = {
-      DIAG_NOTE, DIAG_WARN, DIAG_ERROR, DIAG_FATAL, DIAG_ERROR, DIAG_ERROR
+      [vhpiNote] = DIAG_NOTE,
+      [vhpiWarning] = DIAG_WARN,
+      [vhpiError] = DIAG_ERROR,
+      [vhpiFailure] = DIAG_FATAL,
+      [vhpiSystem] = DIAG_ERROR,
+      [vhpiInternal] = DIAG_FATAL,
    };
 
-   diag_t *d = diag_new(map[sev], loc);
+   diag_t *d = diag_new(sev < ARRAY_LEN(map) ? map[sev] : DIAG_ERROR, loc);
    diag_printf(d, "%s", last_error.message);
 
    debug_info_t *trace = debug_capture();

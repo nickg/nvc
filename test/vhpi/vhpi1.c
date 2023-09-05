@@ -98,6 +98,9 @@ static void y_value_change(const vhpiCbDataT *cb_data)
    if (value.value.intg == 75) {
       test_bin_str();
 
+      vhpi_put_value(handle_x, &value, vhpiRelease);
+      check_error();
+
       vhpi_control(vhpiFinish);
       check_error();
    }
