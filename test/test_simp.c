@@ -1521,6 +1521,24 @@ START_TEST(test_issue742)
 }
 END_TEST
 
+START_TEST(test_cpcall)
+{
+   input_from_file(TESTDIR "/simp/cpcall.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t w0 = tree_stmt(tree_stmt(a, 0), 1);
+   fail_unless(tree_kind(w0) == T_WAIT);
+   fail_unless(tree_flags(w0) & TREE_F_STATIC_WAIT);
+
+   tree_t w1 = tree_stmt(tree_stmt(a, 1), 1);
+   fail_unless(tree_kind(w1) == T_WAIT);
+   fail_if(tree_flags(w1) & TREE_F_STATIC_WAIT);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1579,6 +1597,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_condexpr);
    tcase_add_test(tc_core, test_ieee1);
    tcase_add_test(tc_core, test_issue742);
+   tcase_add_test(tc_core, test_cpcall);
    suite_add_tcase(s, tc_core);
 
    return s;

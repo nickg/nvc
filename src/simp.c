@@ -546,12 +546,14 @@ static tree_t simp_process(tree_t t)
       tree_t w = tree_new(T_WAIT);
       tree_set_ident(w, tree_ident(p));
       tree_set_flag(w, TREE_F_STATIC_WAIT);
+
       if (ntriggers == 1 && tree_kind(tree_trigger(t, 0)) == T_ALL)
          build_wait(t, simp_build_wait_cb, w);
       else {
          for (int i = 0; i < ntriggers; i++)
             tree_add_trigger(w, tree_trigger(t, i));
       }
+
       tree_add_stmt(p, w);
 
       return p;
@@ -805,8 +807,13 @@ static tree_t simp_concurrent(tree_t t)
 
    tree_t w = tree_new(T_WAIT);
 
-   // Concurrent procedure calls may have internal waits
-   if (tree_kind(s0) != T_PCALL)
+   if (tree_kind(s0) == T_PCALL) {
+      // Concurrent procedure calls may have internal waits
+      tree_t decl = tree_ref(s0);
+      if (tree_flags(decl) & TREE_F_NEVER_WAITS)
+         tree_set_flag(w, TREE_F_STATIC_WAIT);
+   }
+   else
       tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;  // Where to add new statements
