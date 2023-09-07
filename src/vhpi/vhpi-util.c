@@ -188,7 +188,7 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    last_error.message = xvasprintf(fmt, ap);
    va_end(ap);
 
-   const diag_level_t map[] = {
+   static const diag_level_t map[] = {
       [vhpiNote] = DIAG_NOTE,
       [vhpiWarning] = DIAG_WARN,
       [vhpiError] = DIAG_ERROR,

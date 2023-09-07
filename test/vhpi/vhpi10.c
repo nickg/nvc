@@ -89,6 +89,29 @@ void vhpi10_startup(void)
    fail_unless(vhpi_scan(it2) == NULL);
    vhpi_release_handle(it2);
 
+   vhpiHandleT b0 = vhpi_handle_by_name("b0", root);
+   check_error();
+   fail_if(b0 == NULL);
+   vhpi_printf("b0 handle %p", b0);
+   fail_unless(vhpi_get(vhpiKindP, b0) == vhpiBlockStmtK);
+   fail_if(vhpi_get(vhpiIsGuardedP, b0));
+
+   vhpiHandleT b0s0 = vhpi_handle_by_name("s0", b0);
+   check_error();
+   fail_if(b0s0 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, b0s0) == vhpiSigDeclK);
+
+   vhpiHandleT it3 = vhpi_iterator(vhpiBlockStmts, root);
+   fail_if(it3 == NULL);
+   fail_unless(vhpi_scan(it3) == b0);
+
+   vhpiHandleT b1 = vhpi_scan(it3);
+   fail_if(b1 == NULL);
+   fail_unless(vhpi_get(vhpiIsGuardedP, b1));
+
+   fail_unless(vhpi_scan(it3) == NULL);
+   vhpi_release_handle(it3);
+
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,
