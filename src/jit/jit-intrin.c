@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef HAVE_AVX2
 #include <x86intrin.h>
@@ -694,12 +695,25 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void ieee_math_sin(jit_func_t *func, jit_anchor_t *anchor,
+                          jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = sin(args[1].real);
+}
+
+static void ieee_math_cos(jit_func_t *func, jit_anchor_t *anchor,
+                          jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = cos(args[1].real);
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
 #define S "23IEEE.NUMERIC_STD.SIGNED"
 #define NS "IEEE.NUMERIC_STD."
 #define SL "IEEE.STD_LOGIC_1164."
+#define MR "IEEE.MATH_REAL."
 
 static jit_intrinsic_t intrinsic_list[] = {
    { NS "ADD_UNSIGNED(" U U "L)" U, ieee_add_unsigned },
@@ -732,6 +746,8 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "TO_UNSIGNED(NN)" UU, ieee_to_unsigned },
    { NS "TO_SIGNED(IN)" S, ieee_to_signed },
    { NS "TO_SIGNED(IN)" US, ieee_to_signed },
+   { MR "SIN(R)R", ieee_math_sin },
+   { MR "COS(R)R", ieee_math_cos },
    { NULL, NULL }
 };
 
