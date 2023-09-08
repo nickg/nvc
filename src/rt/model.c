@@ -84,6 +84,19 @@ typedef struct _rt_asserts {
    bool       enables[SEVERITY_FAILURE + 1];
 } rt_asserts_t;
 
+typedef void (*defer_fn_t)(rt_model_t *, void *);
+
+typedef struct {
+   defer_fn_t  fn;
+   void       *arg;
+} defer_task_t;
+
+typedef struct {
+   defer_task_t *tasks;
+   unsigned      count;
+   unsigned      max;
+} deferq_t;
+
 typedef struct _rt_model {
    tree_t             top;
    hash_t            *scopes;
@@ -102,13 +115,13 @@ typedef struct _rt_model {
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
    rt_watch_t        *watches;
-   workq_t           *procq;
-   workq_t           *delta_procq;
-   workq_t           *driverq;
-   workq_t           *delta_driverq;
-   workq_t           *effq;
-   workq_t           *postponedq;
-   workq_t           *implicitq;
+   deferq_t           procq;
+   deferq_t           delta_procq;
+   deferq_t           driverq;
+   deferq_t           delta_driverq;
+   deferq_t           effq;
+   deferq_t           postponedq;
+   deferq_t           implicitq;
    rt_callback_t     *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
@@ -143,14 +156,14 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src);
 static void free_value(rt_nexus_t *n, rt_value_t v);
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
-static void async_run_process(void *context, void *arg);
-static void async_update_property(void *context, void *arg);
-static void async_update_driver(void *context, void *arg);
-static void async_fast_driver(void *context, void *arg);
-static void async_fast_all_drivers(void *context, void *arg);
-static void async_update_driving(void *context, void *arg);
-static void async_disconnect(void *context, void *arg);
-static void async_deposit(void *context, void *arg);
+static void async_run_process(rt_model_t *m, void *arg);
+static void async_update_property(rt_model_t *m, void *arg);
+static void async_update_driver(rt_model_t *m, void *arg);
+static void async_fast_driver(rt_model_t *m, void *arg);
+static void async_fast_all_drivers(rt_model_t *m, void *arg);
+static void async_update_driving(rt_model_t *m, void *arg);
+static void async_disconnect(rt_model_t *m, void *arg);
+static void async_deposit(rt_model_t *m, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
 {
@@ -297,6 +310,41 @@ static model_thread_t *model_thread(rt_model_t *m)
       return (m->threads[my_id] = xcalloc(sizeof(model_thread_t)));
 
    return m->threads[my_id];
+}
+
+__attribute__((cold, noinline))
+static void deferq_grow(deferq_t *dq)
+{
+   dq->max = MAX(dq->max * 2, 64);
+   dq->tasks = xrealloc_array(dq->tasks, dq->max, sizeof(defer_task_t));
+}
+
+static inline void deferq_do(deferq_t *dq, defer_fn_t fn, void *arg)
+{
+   if (unlikely(dq->count == dq->max))
+      deferq_grow(dq);
+
+   dq->tasks[dq->count++] = (defer_task_t){ fn, arg };
+}
+
+static void deferq_scan(deferq_t *dq, scan_fn_t fn, void *arg)
+{
+   for (int i = 0; i < dq->count; i++)
+      (*fn)(NULL, dq->tasks[i].arg, arg);
+}
+
+static void deferq_run(rt_model_t *m, deferq_t *dq)
+{
+   const defer_task_t *tasks = dq->tasks;
+   const int count = dq->count;
+
+   for (int i = 0; i < count; i++)
+      (*tasks[i].fn)(m, tasks[i].arg);
+
+   assert(dq->tasks == tasks);
+   assert(dq->count == count);
+
+   dq->count = 0;
 }
 
 static void *static_alloc(rt_model_t *m, size_t size)
@@ -555,22 +603,6 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = mptr_new(m->mspace, "root privdata");
 
-   m->procq         = workq_new(m);
-   m->delta_procq   = workq_new(m);
-   m->postponedq    = workq_new(m);
-   m->driverq       = workq_new(m);
-   m->delta_driverq = workq_new(m);
-   m->effq          = workq_new(m);
-
-#if !RT_MULTITHREADED
-   workq_not_thread_safe(m->procq);
-   workq_not_thread_safe(m->delta_procq);
-#endif
-   workq_not_thread_safe(m->postponedq);
-   workq_not_thread_safe(m->driverq);
-   workq_not_thread_safe(m->delta_driverq);
-   workq_not_thread_safe(m->effq);
-
    tree_walk_deps(top, scope_deps_cb, m);
 
    rt_scope_t *s = NULL;
@@ -730,15 +762,13 @@ void model_free(rt_model_t *m)
       }
    }
 
-   workq_free(m->procq);
-   workq_free(m->delta_procq);
-   workq_free(m->postponedq);
-   workq_free(m->driverq);
-   workq_free(m->delta_driverq);
-   workq_free(m->effq);
-
-   if (m->implicitq != NULL)
-      workq_free(m->implicitq);
+   free(m->procq.tasks);
+   free(m->delta_procq.tasks);
+   free(m->postponedq.tasks);
+   free(m->implicitq.tasks);
+   free(m->driverq.tasks);
+   free(m->delta_driverq.tasks);
+   free(m->effq.tasks);
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
@@ -886,7 +916,7 @@ static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 {
    if (delta == 0) {
       set_pending(&proc->wakeable);
-      workq_do(m->delta_procq, async_run_process, proc);
+      deferq_do(&m->delta_procq, async_run_process, proc);
       m->next_is_delta = true;
    }
    else {
@@ -902,7 +932,7 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
                                  rt_nexus_t *nexus, rt_source_t *source)
 {
    if (delta == 0) {
-      workq_do(m->delta_driverq, async_update_driver, source);
+      deferq_do(&m->delta_driverq, async_update_driver, source);
       m->next_is_delta = true;
    }
    else {
@@ -913,13 +943,13 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
 
 static void deltaq_insert_force_release(rt_model_t *m, rt_nexus_t *nexus)
 {
-   workq_do(m->delta_driverq, async_update_driving, nexus);
+   deferq_do(&m->delta_driverq, async_update_driving, nexus);
    m->next_is_delta = true;
 }
 
 static void deltaq_insert_deposit(rt_model_t *m, rt_deposit_t *deposit)
 {
-   workq_do(m->delta_driverq, async_deposit, deposit);
+   deferq_do(&m->delta_driverq, async_deposit, deposit);
    m->next_is_delta = true;
 }
 
@@ -927,7 +957,7 @@ static void deltaq_insert_disconnect(rt_model_t *m, uint64_t delta,
                                      rt_source_t *source)
 {
    if (delta == 0) {
-      workq_do(m->delta_driverq, async_disconnect, source);
+      deferq_do(&m->delta_driverq, async_disconnect, source);
       m->next_is_delta = true;
    }
    else {
@@ -997,7 +1027,7 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
 
    // Run the property in the first time step
    prop->wakeable.pending = true;
-   workq_do(m->postponedq, async_update_property, prop);
+   deferq_do(&m->postponedq, async_update_property, prop);
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
@@ -1517,7 +1547,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
          if ((nexus->flags & NET_F_FAST_DRIVER) && old->fastqueued) {
             rt_nexus_t *n0 = &(nexus->signal->nexus);
             if (!n0->sources.sigqueued)
-               workq_do(m->delta_driverq, async_fast_driver, new);
+               deferq_do(&m->delta_driverq, async_fast_driver, new);
             new->fastqueued = 1;
          }
 
@@ -2472,13 +2502,13 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
          d->fastqueued = 1;
       }
       else if (signal->shared.flags & NET_F_FAST_DRIVER) {
-         workq_do(m->delta_driverq, async_fast_all_drivers, signal);
+         deferq_do(&m->delta_driverq, async_fast_all_drivers, signal);
          m->next_is_delta = true;
          d0->sigqueued = 1;
          d->fastqueued = 1;
       }
       else {
-         workq_do(m->delta_driverq, async_fast_driver, d);
+         deferq_do(&m->delta_driverq, async_fast_driver, d);
          m->next_is_delta = true;
          d->fastqueued = 1;
       }
@@ -2529,65 +2559,54 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
    deltaq_insert_disconnect(m, after, d);
 }
 
-static void async_watch_callback(void *context, void *arg)
+static void async_watch_callback(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_watch_t *w = arg;
 
    assert(w->wakeable.pending);
    w->wakeable.pending = false;
    bool free_later = w->wakeable.free_later;
 
-   MODEL_ENTRY(m);
    (*w->fn)(m->now, w->signal, w, w->user_data);
 
    if (free_later)
       free(w);
 }
 
-static void async_timeout_callback(void *context, void *arg)
+static void async_timeout_callback(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_callback_t *cb = arg;
-
-   MODEL_ENTRY(m);
    (*cb->fn)(m, cb->user);
    free(cb);
 }
 
-static void async_update_implicit_signal(void *context, void *arg)
+static void async_update_implicit_signal(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_implicit_t *imp = arg;
 
    assert(imp->wakeable.pending);
    imp->wakeable.pending = false;
 
-   MODEL_ENTRY(m);
    update_implicit_signal(m, imp);
 }
 
-static void async_run_process(void *context, void *arg)
+static void async_run_process(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_proc_t *proc = arg;
 
    assert(proc->wakeable.pending);
    proc->wakeable.pending = false;
 
-   MODEL_ENTRY(m);
    run_process(m, proc);
 }
 
-static void async_update_property(void *context, void *arg)
+static void async_update_property(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_prop_t *prop = arg;
 
    assert(prop->wakeable.pending);
    prop->wakeable.pending = false;
 
-   MODEL_ENTRY(m);
    update_property(m, prop);
 }
 
@@ -2621,7 +2640,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          return;   // Filtered
    }
 
-   workq_t *wq = obj->postponed ? m->postponedq : m->procq;
+   deferq_t *dq = obj->postponed ? &m->postponedq : &m->procq;
 
    switch (obj->kind) {
    case W_PROC:
@@ -2629,7 +2648,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
          TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
                istr(proc->name));
-         workq_do(wq, async_run_process, proc);
+         deferq_do(dq, async_run_process, proc);
 
          if (proc->wakeable.delayed) {
             // This process was already scheduled to run at a later
@@ -2644,7 +2663,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
       {
          rt_prop_t *prop = container_of(obj, rt_prop_t, wakeable);
          TRACE("wakeup property %s", istr(prop->name));
-         workq_do(wq, async_update_property, prop);
+         deferq_do(dq, async_update_property, prop);
       }
       break;
 
@@ -2654,7 +2673,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          TRACE("wakeup implicit signal %s closure %s",
                istr(tree_ident(imp->signal.where)),
                istr(jit_get_name(m->jit, imp->closure.handle)));
-         workq_do(m->implicitq, async_update_implicit_signal, imp);
+         deferq_do(&m->implicitq, async_update_implicit_signal, imp);
       }
       break;
 
@@ -2663,7 +2682,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
          TRACE("wakeup %svalue change callback %s",
                obj->postponed ? "postponed " : "", debug_symbol_name(w->fn));
-         workq_do(wq, async_watch_callback, w);
+         deferq_do(dq, async_watch_callback, w);
       }
       break;
    }
@@ -2707,18 +2726,15 @@ static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
    }
 }
 
-static void async_update_effective(void *context, void *arg)
+static void async_update_effective(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_nexus_t *nexus = arg;
-
-   MODEL_ENTRY(m);
    update_effective(m, nexus);
 }
 
 static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
 {
-   workq_do(m->effq, async_update_effective, nexus);
+   deferq_do(&m->effq, async_update_effective, nexus);
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
@@ -2838,58 +2854,41 @@ static void fast_update_all_drivers(rt_model_t *m, rt_signal_t *signal)
    }
 }
 
-static void async_update_driver(void *context, void *arg)
+static void async_update_driver(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_source_t *src = arg;
-
-   MODEL_ENTRY(m);
    update_driver(m, src->u.driver.nexus, src);
 }
 
-static void async_fast_driver(void *context, void *arg)
+static void async_fast_driver(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_source_t *src = arg;
-
-   MODEL_ENTRY(m);
    fast_update_driver(m, src->u.driver.nexus);
 }
 
-static void async_fast_all_drivers(void *context, void *arg)
+static void async_fast_all_drivers(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_signal_t *signal = arg;
-
-   MODEL_ENTRY(m);
    fast_update_all_drivers(m, signal);
 }
 
-static void async_disconnect(void *context, void *arg)
+static void async_disconnect(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_source_t *src = arg;
 
-   MODEL_ENTRY(m);
    src->disconnected = 1;
    update_driver(m, src->u.driver.nexus, NULL);
 }
 
-static void async_update_driving(void *context, void *arg)
+static void async_update_driving(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_nexus_t *nexus = arg;
-
-   MODEL_ENTRY(m);
    update_driver(m, nexus, NULL);
 }
 
-static void async_deposit(void *context, void *arg)
+static void async_deposit(rt_model_t *m, void *arg)
 {
-   rt_model_t *m = context;
    rt_deposit_t *deposit = arg;
-
-   MODEL_ENTRY(m);
 
    // Force takes priority over deposit
    if (!(deposit->nexus->flags & NET_F_FORCED))
@@ -2947,8 +2946,8 @@ static void reached_iteration_limit(rt_model_t *m)
 
    diag_printf(d, "limit of %d delta cycles reached", m->stop_delta);
 
-   workq_scan(m->delta_procq, iteration_limit_proc_cb, d);
-   workq_scan(m->delta_driverq, iteration_limit_driver_cb, d);
+   deferq_scan(&m->delta_procq, iteration_limit_proc_cb, d);
+   deferq_scan(&m->delta_driverq, iteration_limit_driver_cb, d);
 
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
    diag_emit(d);
@@ -2973,9 +2972,9 @@ static void sync_event_cache(rt_model_t *m)
    }
 }
 
-static void swap_workq(workq_t **a, workq_t **b)
+static void swap_deferq(deferq_t *a, deferq_t *b)
 {
-   workq_t *tmp = *a;
+   deferq_t tmp = *a;
    *a = *b;
    *b = tmp;
 }
@@ -3001,8 +3000,8 @@ static void model_cycle(rt_model_t *m)
       deltaq_dump(m);
 #endif
 
-   swap_workq(&m->procq, &m->delta_procq);
-   swap_workq(&m->driverq, &m->delta_driverq);
+   swap_deferq(&m->procq, &m->delta_procq);
+   swap_deferq(&m->driverq, &m->delta_driverq);
 
    if (!is_delta_cycle) {
       global_event(m, RT_NEXT_TIME_STEP);
@@ -3016,25 +3015,25 @@ static void model_cycle(rt_model_t *m)
                assert(proc->wakeable.delayed);
                proc->wakeable.delayed = false;
                set_pending(&proc->wakeable);
-               workq_do(m->procq, async_run_process, proc);
+               deferq_do(&m->procq, async_run_process, proc);
             }
             break;
          case EVENT_DRIVER:
             {
                rt_source_t *source = untag_pointer(e, rt_source_t);
-               workq_do(m->driverq, async_update_driver, source);
+               deferq_do(&m->driverq, async_update_driver, source);
             }
             break;
          case EVENT_TIMEOUT:
             {
                rt_callback_t *cb = untag_pointer(e, rt_callback_t);
-               workq_do(m->driverq, async_timeout_callback, cb);
+               deferq_do(&m->driverq, async_timeout_callback, cb);
             }
             break;
          case EVENT_DISCONNECT:
             {
                rt_source_t *source = untag_pointer(e, rt_source_t);
-               workq_do(m->driverq, async_disconnect, source);
+               deferq_do(&m->driverq, async_disconnect, source);
             }
             break;
          }
@@ -3046,17 +3045,11 @@ static void model_cycle(rt_model_t *m)
       }
    }
 
-   workq_start(m->driverq);
-   workq_drain(m->driverq);
-
-   workq_start(m->effq);
-   workq_drain(m->effq);
+   deferq_run(m, &m->driverq);
+   deferq_run(m, &m->effq);
 
    // Update implicit signals
-   if (m->implicitq != NULL) {
-      workq_start(m->implicitq);
-      workq_drain(m->implicitq);
-   }
+   deferq_run(m, &m->implicitq);
 
    sync_event_cache(m);
 
@@ -3066,8 +3059,7 @@ static void model_cycle(rt_model_t *m)
 #endif
 
    // Run all non-postponed processes and event callbacks
-   workq_start(m->procq);
-   workq_drain(m->procq);
+   deferq_run(m, &m->procq);
 
    global_event(m, RT_END_OF_PROCESSES);
 
@@ -3078,8 +3070,7 @@ static void model_cycle(rt_model_t *m)
       m->can_create_delta = false;
 
       // Run all postponed processes and event callbacks
-      workq_start(m->postponedq);
-      workq_drain(m->postponedq);
+      deferq_run(m, &m->postponedq);
 
       global_event(m, RT_END_TIME_STEP);
 
@@ -4125,11 +4116,6 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
          istr(tree_ident(where)), count, size, kind);
 
    rt_model_t *m = get_model();
-
-   if (m->implicitq == NULL) {
-      m->implicitq = workq_new(m);
-      workq_not_thread_safe(m->implicitq);
-   }
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_implicit_t *imp = static_alloc(m, sizeof(rt_implicit_t) + datasz);
