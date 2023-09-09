@@ -707,6 +707,12 @@ static void ieee_math_cos(jit_func_t *func, jit_anchor_t *anchor,
    args[0].real = cos(args[1].real);
 }
 
+static void ieee_math_log2(jit_func_t *func, jit_anchor_t *anchor,
+                          jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = log2(args[1].real);
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
@@ -748,6 +754,7 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "TO_SIGNED(IN)" US, ieee_to_signed },
    { MR "SIN(R)R", ieee_math_sin },
    { MR "COS(R)R", ieee_math_cos },
+   { MR "LOG2(R)R", ieee_math_log2 },
    { NULL, NULL }
 };
 

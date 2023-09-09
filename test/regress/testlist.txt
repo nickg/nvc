@@ -870,3 +870,4 @@ predef5         normal,2008
 vhpi10          normal,vhpi
 bounds40        fail,gold
 bounds41        fail,gold
+ieee16          normal
