@@ -868,3 +868,5 @@ ieee15          fail,gold
 issue752        shell
 predef5         normal,2008
 vhpi10          normal,vhpi
+bounds40        fail,gold
+bounds41        fail,gold

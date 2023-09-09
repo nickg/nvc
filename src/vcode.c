@@ -684,6 +684,7 @@ void vcode_opt(void)
             case VCODE_OP_TRAP_SUB:
             case VCODE_OP_TRAP_MUL:
             case VCODE_OP_TRAP_EXP:
+            case VCODE_OP_ALLOC:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal("defintion of r%d does not dominate all uses",

@@ -1,4 +1,4 @@
-value length 4 does not match target length 3
+aggregate length 4 does not match subtype INTEGER_VECTOR length 3
 bounds36.vhd
     |
  16 |         (i1, y) := x(4 downto i1);                -- Error

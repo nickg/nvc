@@ -181,7 +181,8 @@ static bool lower_is_const(tree_t t)
    switch (tree_kind(t)) {
    case T_AGGREGATE:
       {
-         if (!lower_const_bounds(tree_type(t)))
+         type_t type = tree_type(t);
+         if (type_is_record(type) && !lower_const_bounds(type))
             return false;
 
          const int nassocs = tree_assocs(t);
@@ -3830,12 +3831,20 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       }
    }
 
+   bool all_literals = true;
    tree_t def_value = NULL;
    const int nassocs = tree_assocs(expr);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
-      if (tree_subkind(a) == A_OTHERS) {
+      switch (tree_subkind(a)) {
+      case A_POS:
+         all_literals &= (tree_kind(tree_value(a)) == T_LITERAL);
+         break;
+      case A_OTHERS:
          def_value = tree_value(a);
+         // Fall-through
+      default:
+         all_literals = false;
          break;
       }
    }
@@ -3859,6 +3868,35 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    vcode_type_t velem   = lower_type(scalar_elem_type);
    vcode_type_t vbounds = lower_bounds(scalar_elem_type);
+   vcode_type_t voffset = vtype_offset();
+
+   if (all_literals) {
+      // The array has non-constant bounds but the elements are all
+      // constants so just create a constant array and wrap it
+      vcode_reg_t *values LOCAL = xmalloc_array(nassocs, sizeof(vcode_reg_t));
+      for (int i = 0; i < nassocs; i++)
+         values[i] = lower_literal(tree_value(tree_assoc(expr, i)));
+
+      type_t elem = type_elem(type);
+
+      vcode_type_t velem   = lower_type(elem);
+      vcode_type_t vbounds = lower_bounds(elem);
+      vcode_type_t vtype = vtype_carray(nassocs, velem, vbounds);
+
+      vcode_reg_t array_reg = emit_const_array(vtype, values, nassocs);
+      vcode_reg_t mem_reg = emit_address_of(array_reg);
+
+      vcode_reg_t nassocs_reg = emit_const(voffset, nassocs);
+      vcode_reg_t length_reg = emit_range_length(left_reg, right_reg, dir_reg);
+
+      vcode_reg_t locus = lower_debug_locus(expr);
+      emit_length_check(length_reg, nassocs_reg, locus, VCODE_INVALID_REG);
+
+      vcode_dim_t dims[1] = {
+         { left_reg, right_reg, dir_reg }
+      };
+      return emit_wrap(mem_reg, dims, 1);
+   }
 
    int64_t null_const;
    bool known_not_null = false;
@@ -3876,8 +3914,6 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       else
          known_not_null = true;
    }
-
-   vcode_type_t voffset = vtype_offset();
 
    vcode_reg_t stride;
    if (array_of_array)
@@ -3997,6 +4033,11 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    vcode_reg_t next_pos = VCODE_INVALID_REG;
 
+   type_t index_type = index_type_of(type, 0);
+   tree_t index_r = range_of(index_type, 0);
+
+   vcode_type_t vindex = lower_type(index_type);
+
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
@@ -4034,18 +4075,28 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             next_pos = emit_add(next_pos, count_reg);
          }
 
+         vcode_reg_t locus = lower_debug_locus(a);
+         vcode_reg_t hint = lower_debug_locus(index_r);
+
+         vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+
+         vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
+         vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
+         vcode_reg_t left_index_reg =
+            emit_select(dir_reg, down_left_reg, up_left_reg);
+
+         emit_index_check(left_index_reg, left_reg, right_reg,
+                          dir_reg, locus, hint);
+
          if (count_reg != VCODE_INVALID_REG) {
+            vcode_reg_t one_reg = emit_const(voffset, 1);
             vcode_reg_t right_off_reg =
-               emit_sub(emit_add(off_reg, count_reg), emit_const(voffset, 1));
+               emit_sub(emit_add(index_off_reg, count_reg), one_reg);
             vcode_reg_t up_right_reg = emit_add(left_reg, right_off_reg);
             vcode_reg_t down_right_reg = emit_add(right_reg, right_off_reg);
             vcode_reg_t right_index_reg =
                emit_select(dir_reg, down_right_reg, up_right_reg);
 
-            tree_t index_r = range_of(index_type_of(type, 0), 0);
-
-            vcode_reg_t locus = lower_debug_locus(a);
-            vcode_reg_t hint = lower_debug_locus(index_r);
             emit_index_check(right_index_reg, left_reg, right_reg,
                              dir_reg, locus, hint);
          }
@@ -5816,7 +5867,7 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
       else
          value_reg = lower_known_subtype(lu, value, type, target_reg);
 
-      vcode_reg_t locus = lower_debug_locus(value);
+      vcode_reg_t locus = lower_debug_locus(stmt);
       lower_copy_record(lu, type, target_reg, value_reg, locus);
    }
 }
@@ -7309,12 +7360,12 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       vcode_reg_t data_reg = lower_array_data(value_reg);
 
       if (is_const && skip_copy) {
-         if (!lower_const_bounds(type)) {
+         if (vcode_reg_kind(value_reg) == VCODE_TYPE_UARRAY)
+            emit_store(value_reg, var);
+         else {
             vcode_reg_t wrapped_reg = lower_wrap(lu, value_type, data_reg);
             emit_store(wrapped_reg, var);
          }
-         else
-            assert(false);   // TODO: this needs vtype adjusted above
       }
       else if (type_is_unconstrained(type)) {
          count_reg = lower_array_total_len(lu, value_type, value_reg);

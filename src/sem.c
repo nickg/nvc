@@ -928,6 +928,8 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
    if (!sem_no_access_file_or_protected(t, type, "constants"))
       return false;
 
+   tree_t fwd = find_forward_decl(tab, t);
+
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check(value, tab))
@@ -938,14 +940,13 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      if (type_is_unconstrained(type))
+      if (fwd == NULL && type_is_unconstrained(type))
          tree_set_type(t, tree_type(value));
    }
    else if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
       sem_error(t, "deferred constant declarations are only permitted "
                 "in packages");
 
-   tree_t fwd = find_forward_decl(tab, t);
    if (fwd != NULL && !type_strict_eq(tree_type(fwd), type)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
       diag_printf(d, "expected type %s for deferred constant %s but "

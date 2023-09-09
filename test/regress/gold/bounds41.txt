@@ -1,0 +1,5 @@
+(init): index 6 outside of INTEGER range 1 to 5
+bounds41.vhd:15
+    |
+ 15 |         constant c2 : real_vector(1 to c1'length) := (0.0, 1.0, 0.0, 1.0, c1(2), 0.0);
+    |

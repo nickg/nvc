@@ -171,6 +171,8 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
       tb_cat(tb, "expression");
    else if (kind == T_ASSOC)
       tb_cat(tb, "choice");
+   else if (kind == T_AGGREGATE)
+      tb_cat(tb, "aggregate");
    else
       tb_cat(tb, "value");
    tb_printf(tb, " length %"PRIi64, right);
@@ -213,6 +215,7 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
       break;
    case T_TYPE_CONV:
    case T_ATTR_REF:
+   case T_AGGREGATE:
       tb_printf(tb, "subtype %s", type_pp(tree_type(where)));
       break;
    default:
