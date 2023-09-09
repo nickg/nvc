@@ -1273,13 +1273,30 @@ static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
       memcpy(v->ext, p, valuesz);
 }
 
+static inline bool cmp_bytes(const void *a, const void *b, size_t size)
+{
+   if (likely(size <= 128)) {
+      for (; size > 7; size -= 8, a += 8, b += 8) {
+         if (*(const uint64_t *)a != *(const uint64_t *)b)
+            return false;
+      }
+      for (; size > 0; size--, a++, b++) {
+         if (*(const uint8_t *)a != *(const uint8_t *)b)
+            return false;
+      }
+      return true;
+   }
+   else
+      return memcmp(a, b, size) == 0;
+}
+
 static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
 {
    const size_t valuesz = n->width * n->size;
    if (valuesz <= sizeof(rt_value_t))
       return a.qword == b.qword;
    else
-      return memcmp(a.ext, b.ext, valuesz) == 0;
+      return cmp_bytes(a.ext, b.ext, valuesz);
 }
 
 static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
@@ -2711,6 +2728,17 @@ static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
    }
 }
 
+static bool is_event(rt_nexus_t *nexus, const void *new)
+{
+   const size_t valuesz = nexus->size * nexus->width;
+   const void *effective = nexus_effective(nexus);
+
+   if (valuesz == 1)
+      return *(const uint8_t *)effective != *(const uint8_t *)new;
+   else
+      return !cmp_bytes(effective, new, valuesz);
+}
+
 static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
 {
    const void *value = effective_value(nexus);
@@ -2720,7 +2748,7 @@ static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
 
    nexus->active_delta = m->iteration;
 
-   if (memcmp(nexus_effective(nexus), value, nexus->size * nexus->width) != 0) {
+   if (is_event(nexus, value)) {
       propagate_nexus(nexus, value);
       notify_event(m, nexus);
    }
@@ -2746,8 +2774,6 @@ static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
 
 static void update_driving(rt_model_t *m, rt_nexus_t *nexus, const void *value)
 {
-   const size_t valuesz = nexus->size * nexus->width;
-
    TRACE("update %s driving value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, value));
 
@@ -2759,11 +2785,11 @@ static void update_driving(rt_model_t *m, rt_nexus_t *nexus, const void *value)
       // effective value later
       update_outputs = true;
 
-      memcpy(nexus_driving(nexus), value, valuesz);
+      memcpy(nexus_driving(nexus), value, nexus->size * nexus->width);
 
       enqueue_effective(m, nexus);
    }
-   else if (memcmp(nexus_effective(nexus), value, valuesz) != 0) {
+   else if (is_event(nexus, value)) {
       propagate_nexus(nexus, value);
       notify_event(m, nexus);
       update_outputs = true;
