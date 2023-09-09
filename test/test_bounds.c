@@ -623,6 +623,29 @@ START_TEST(test_case4)
 }
 END_TEST
 
+START_TEST(test_initial)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/bounds/initial.vhd");
+
+   const error_t expect[] = {
+      {  8, "expected at most 5 positional associations in REAL_VECTOR "
+         "aggregate with index type NATURAL range 1 to 5" },
+      { 11, "expected at most 5 positional associations in REAL_VECTOR "
+        "aggregate with index type NATURAL range 1 to 5" },
+      { 17, "expected at most 5 positional associations in REAL_VECTOR "
+        "aggregate with index type NATURAL range 1 to 5" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -655,6 +678,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue617);
    tcase_add_test(tc_core, test_issue734);
    tcase_add_test(tc_core, test_case4);
+   tcase_add_test(tc_core, test_initial);
    suite_add_tcase(s, tc_core);
 
    return s;

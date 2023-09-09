@@ -1,6 +1,10 @@
 package pack is
-    constant k : string := "hello, world";
+    constant k : string;
 end package;
+
+package body pack is
+    constant k : string := "hello, world";
+end package body;
 
 -------------------------------------------------------------------------------
 

@@ -11,7 +11,12 @@ architecture test of nullarray is
 
     type rec_array is array (natural range <>) of rec;
 
-    constant A : bit_vector := "010";
+    function get_bits return bit_vector is
+    begin
+        return "010";
+    end function;
+
+    constant A : bit_vector := get_bits;
 
     constant B : rec_array(null_range_type) := (others => (0, 1, A));
 begin

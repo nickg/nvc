@@ -3551,14 +3551,13 @@ START_TEST(test_const1)
 
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_INDEX, .name = "C" },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST_ARRAY, .length = 3 },
          { VCODE_OP_ADDRESS_OF },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_WRAP },
-         { VCODE_OP_STORE, .name = "C" },
+         { VCODE_OP_COPY },
          { VCODE_OP_RETURN },
       };
 
@@ -4242,12 +4241,15 @@ START_TEST(test_nullarray)
 
      EXPECT_BB(0) = {
         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-        { VCODE_OP_CONST, .value = 0 },
-        { VCODE_OP_CONST, .value = 1 },
-        { VCODE_OP_CONST_ARRAY, .length = 3 },
-        { VCODE_OP_ADDRESS_OF },
-        { VCODE_OP_CONST, .value = 0 },
-        { VCODE_OP_CONST, .value = 2 },
+        { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+        { VCODE_OP_FCALL, .func = "WORK.NULLARRAY.GET_BITS()Q" },
+        { VCODE_OP_UNWRAP },
+        { VCODE_OP_UARRAY_LEN },
+        { VCODE_OP_ALLOC },
+        { VCODE_OP_COPY },
+        { VCODE_OP_UARRAY_LEFT },
+        { VCODE_OP_UARRAY_RIGHT },
+        { VCODE_OP_UARRAY_DIR },
         { VCODE_OP_WRAP },
         { VCODE_OP_STORE, .name = "A" },
         { VCODE_OP_RETURN },

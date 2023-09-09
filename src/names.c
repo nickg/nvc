@@ -4071,7 +4071,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 
          if (kind != A_POS)
             all_simple_pos = false;
-         else if (all_simple_pos && t1 != NULL && !type_eq(etype, t0))
+         else if (all_simple_pos && t1 != NULL && type_eq(etype, t1))
             all_simple_pos = false;
       }
 

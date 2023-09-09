@@ -937,6 +937,9 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
+
+      if (type_is_unconstrained(type))
+         tree_set_type(t, tree_type(value));
    }
    else if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
       sem_error(t, "deferred constant declarations are only permitted "
@@ -1006,6 +1009,9 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
+
+      if (standard() >= STD_19 && type_is_unconstrained(type))
+         tree_set_type(t, tree_type(value));
    }
 
    return true;
@@ -1056,6 +1062,9 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
+
+      if (standard() >= STD_08 && type_is_unconstrained(type))
+         tree_set_type(t, tree_type(value));
    }
 
    // From VHDL-2000 onwards shared variables must be protected types

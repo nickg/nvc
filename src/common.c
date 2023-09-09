@@ -1861,6 +1861,7 @@ type_t subtype_for_string(tree_t str, type_t base)
    tree_set_left(r, left);
    tree_set_right(r, right);
    tree_set_loc(r, tree_loc(str));
+   tree_set_type(r, index_type);
 
    tree_t c = tree_new(T_CONSTRAINT);
    tree_set_subkind(c, C_INDEX);
