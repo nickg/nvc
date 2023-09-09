@@ -332,6 +332,7 @@ void nvc_rusage(nvc_rusage_t *ru);
 
 typedef uint64_t timestamp_t;   // Nanoseconds
 
+uint64_t get_timestamp_ns(void);
 uint64_t get_timestamp_us(void);
 timestamp_t get_real_time(void);
 unsigned nvc_nprocs(void);

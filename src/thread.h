@@ -114,4 +114,10 @@ void start_world(void);
 typedef enum { WX_WRITE, WX_EXECUTE } wx_mode_t;
 void thread_wx_mode(wx_mode_t mode);
 
+typedef struct _barrier barrier_t;
+
+barrier_t *barrier_new(int count);
+void barrier_free(barrier_t *b);
+void barrier_wait(barrier_t *b);
+
 #endif  // _THREAD_H

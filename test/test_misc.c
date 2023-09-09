@@ -648,6 +648,43 @@ START_TEST(test_stop_world)
 }
 END_TEST
 
+static void *barrier_fn(void *__arg)
+{
+   barrier_t *b = __arg;
+
+   static volatile int ctr = 0;
+
+   atomic_add(&ctr, 1);
+   barrier_wait(b);
+
+   const int nthreads = atomic_load(&ctr);
+   barrier_wait(b);
+
+   for (int i = 0; i < 10; i++) {
+      atomic_add(&ctr, 1);
+      barrier_wait(b);
+      ck_assert_int_eq(atomic_load(&ctr), nthreads * (i + 2));
+      barrier_wait(b);
+   }
+
+   return NULL;
+}
+
+START_TEST(test_barrier)
+{
+   static const int N = 4;
+   barrier_t *b = barrier_new(N);
+   nvc_thread_t *threads[N];
+   for (int i = 0; i < N; i++)
+      threads[i] = thread_create(barrier_fn, b, "t%d", i);
+
+   for (int i = 0; i < N; i++)
+      thread_join(threads[i]);
+
+   barrier_free(b);
+}
+END_TEST
+
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -694,6 +731,7 @@ Suite *get_misc_tests(void)
 #ifndef __SANITIZE_THREAD__
    tcase_add_test(tc_thread, test_stop_world);
 #endif
+   tcase_add_test(tc_thread, test_barrier);
    suite_add_tcase(s, tc_thread);
 
    return s;

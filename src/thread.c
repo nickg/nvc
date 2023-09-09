@@ -227,6 +227,12 @@ typedef struct {
    unsigned     max;
 } globalq_t;
 
+typedef struct _barrier {
+   unsigned count;
+   unsigned reached;
+   unsigned passed;
+} __attribute__((aligned(64))) barrier_t;
+
 static parking_bay_t parking_bays[PARKING_BAYS] = {
    [0 ... PARKING_BAYS - 1] = {
       PTHREAD_MUTEX_INITIALIZER,
@@ -1332,4 +1338,32 @@ void thread_wx_mode(wx_mode_t mode)
 #else
    // Could use Intel memory protection keys here
 #endif
+}
+
+barrier_t *barrier_new(int count)
+{
+   barrier_t *b = xcalloc(sizeof(barrier_t));
+   b->count = count;
+   return b;
+}
+
+void barrier_free(barrier_t *b)
+{
+   free(b);
+}
+
+void barrier_wait(barrier_t *b)
+{
+   const int count = relaxed_load(&b->count);
+   const int passed = relaxed_load(&b->passed);
+
+   if (atomic_fetch_add(&b->reached, 1) == count - 1) {
+      // Last thread to pass barrier
+      relaxed_store(&b->reached, 0);
+      store_release(&b->passed, passed + 1);
+   }
+   else {
+      while (load_acquire(&b->passed) == passed)
+         progressive_backoff();
+   }
 }

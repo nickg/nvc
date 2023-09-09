@@ -1880,7 +1880,7 @@ void make_dir(const char *path)
 #endif
 }
 
-uint64_t get_timestamp_us(void)
+uint64_t get_timestamp_ns(void)
 {
 #if defined __MINGW32__
    static volatile uint64_t freq;
@@ -1894,13 +1894,18 @@ uint64_t get_timestamp_us(void)
    LARGE_INTEGER ticks;
    if (!QueryPerformanceCounter(&ticks))
       fatal_errno("QueryPerformanceCounter");
-   return (double)ticks.QuadPart * (1e6 / (double)freq);
+   return (double)ticks.QuadPart * (1e9 / (double)freq);
 #else
    struct timespec ts;
    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
       fatal_errno("clock_gettime");
-   return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
+   return ts.tv_nsec + (ts.tv_sec * UINT64_C(1000000000));
 #endif
+}
+
+uint64_t get_timestamp_us(void)
+{
+   return get_timestamp_ns() / 1000;
 }
 
 timestamp_t get_real_time(void)
