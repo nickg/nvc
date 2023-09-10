@@ -2354,14 +2354,17 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    switch (value_p->format) {
    case vhpiLogicVal:
+      value_p->numElems = 1;
       value_p->value.enumv = value[offset];
       return 0;
 
    case vhpiSmallEnumVal:
+      value_p->numElems = 1;
       value_p->value.smallenumv = value[offset];
       return 0;
 
    case vhpiEnumVal:
+      value_p->numElems = 1;
 #define SIGNAL_READ_ENUM(type) \
       value_p->value.enumv = ((const type *)value)[offset]
 
@@ -2369,14 +2372,17 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return 0;
 
    case vhpiCharVal:
+      value_p->numElems = 1;
       value_p->value.ch = value[offset];
       return 0;
 
    case vhpiIntVal:
+      value_p->numElems = 1;
       value_p->value.intg = ((const uint32_t *)value)[offset];
       return 0;
 
    case vhpiRealVal:
+      value_p->numElems = 1;
       value_p->value.real = ((const double *)value)[offset];
       return 0;
 

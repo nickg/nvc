@@ -20,7 +20,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.format == vhpiIntVal);
    vhpi_printf("value=%d", value.value.intg);
    fail_unless(value.value.intg == 42);
-   fail_unless(value.numElems == 0);
+   fail_unless(value.numElems == 1);
 
    vhpiHandleT c0 = vhpi_handle_by_name("c0", root);
    check_error();
@@ -31,7 +31,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.format == vhpiIntVal);
    vhpi_printf("value=%d", value.value.intg);
    fail_unless(value.value.intg == 5);
-   fail_unless(value.numElems == 0);
+   fail_unless(value.numElems == 1);
 
    vhpiHandleT c1 = vhpi_handle_by_name("c1", root);
    check_error();
@@ -42,7 +42,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.format == vhpiRealVal);
    vhpi_printf("value=%f", value.value.real);
    fail_unless(value.value.real == 1.5);
-   fail_unless(value.numElems == 0);
+   fail_unless(value.numElems == 1);
 
    vhpi_release_handle(handle_sos);
 }

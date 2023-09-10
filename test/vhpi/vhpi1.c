@@ -92,6 +92,7 @@ static void y_value_change(const vhpiCbDataT *cb_data)
    vhpi_get_value(handle_y, &value);
    check_error();
    fail_unless(value.format == vhpiIntVal);
+   fail_unless(value.numElems == 1);
 
    vhpi_printf("y value changed to %d", value.value.intg);
 
