@@ -10687,6 +10687,58 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                            VCODE_INVALID_REG, lower_driver_field_cb, NULL);
 }
 
+static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
+{
+   driver_info_t *di = get_drivers(ds, proc);
+   if (di == NULL || di->chain_proc != NULL)
+      return false;
+   else if (tree_stmts(proc) != 2)
+      return false;
+
+   tree_t s0 = tree_stmt(proc, 0);
+   if (tree_kind(s0) != T_SIGNAL_ASSIGN)
+      return false;
+   else if (tree_target(s0) != di->prefix)
+      return false;
+   else if (type_is_record(tree_type(di->prefix)))
+      return false;
+   else if (tree_waveforms(s0) != 1)
+      return false;
+
+   tree_t w0 = tree_waveform(s0, 0);
+   if (tree_has_delay(w0)) {
+      tree_t d = tree_delay(w0);
+      if (tree_kind(d) != T_LITERAL)
+         return false;
+   }
+
+   if (tree_has_reject(s0)) {
+      tree_t r = tree_reject(s0);
+      if (tree_kind(r) != T_LITERAL)
+         return false;
+   }
+
+   tree_t value = tree_value(w0), ref = name_to_ref(value);
+   if (ref == NULL || class_of(ref) != C_SIGNAL)
+      return false;
+   else if (value != longest_static_prefix(value))
+      return false;
+
+   tree_t s1 = tree_stmt(proc, 1);
+   if (tree_kind(s1) != T_WAIT)
+      return false;
+   else if (!(tree_flags(s1) & TREE_F_STATIC_WAIT))
+      return false;
+   else if (tree_triggers(s1) != 1)
+      return false;
+
+   tree_t t0 = tree_trigger(s1, 0);
+   if (!same_tree(t0, value))
+      return false;
+
+   return true;
+}
+
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 {
    assert(tree_kind(proc) == T_PROCESS);
@@ -10725,25 +10777,63 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
       }
    }
 
-   // If the last statement in the process is a static wait then this
-   // process is always sensitive to the same set of signals and we can
-   // emit a single _sched_event call in the reset block
-   tree_t wait = NULL;
-   const int nstmts = tree_stmts(proc);
-   if (nstmts > 0
-       && tree_kind((wait = tree_stmt(proc, nstmts - 1))) == T_WAIT
-       && (tree_flags(wait) & TREE_F_STATIC_WAIT)) {
+   const bool transfer = can_use_transfer_signal(proc, ds);
 
-      const int ntriggers = tree_triggers(wait);
-      for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(lu, tree_trigger(wait, i), VCODE_INVALID_REG);
+   if (transfer) {
+      tree_t s0 = tree_stmt(proc, 0);
+      assert(tree_kind(s0) == T_SIGNAL_ASSIGN);
+      assert(tree_waveforms(s0) == 1);
+
+      emit_debug_info(tree_loc(s0));
+
+      tree_t target = tree_target(s0);
+      vcode_reg_t target_reg = lower_lvalue(lu, target);
+
+      tree_t w0 = tree_waveform(s0, 0);
+      vcode_reg_t source_reg = lower_lvalue(lu, tree_value(w0));
+
+      vcode_reg_t count_reg =
+         lower_type_width(lu, tree_type(target), target_reg);
+
+      vcode_reg_t delay_reg;
+      if (tree_has_delay(w0))
+         delay_reg = lower_rvalue(lu, tree_delay(w0));
+      else
+         delay_reg = emit_const(vtype_time(), 0);
+
+      vcode_reg_t reject_reg = delay_reg;
+      if (tree_has_reject(s0))
+         reject_reg = lower_rvalue(lu, tree_reject(s0));
+
+      vcode_reg_t target_nets = lower_array_data(target_reg);
+      vcode_reg_t source_nets = lower_array_data(source_reg);
+      emit_transfer_signal(target_nets, source_nets, count_reg,
+                           reject_reg, delay_reg);
+   }
+   else {
+      // If the last statement in the process is a static wait then this
+      // process is always sensitive to the same set of signals and we can
+      // emit a single _sched_event call in the reset block
+      tree_t wait = NULL;
+      const int nstmts = tree_stmts(proc);
+      if (nstmts > 0
+          && tree_kind((wait = tree_stmt(proc, nstmts - 1))) == T_WAIT
+          && (tree_flags(wait) & TREE_F_STATIC_WAIT)) {
+
+         const int ntriggers = tree_triggers(wait);
+         for (int i = 0; i < ntriggers; i++)
+            lower_sched_event(lu, tree_trigger(wait, i), VCODE_INVALID_REG);
+      }
    }
 
    emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(start_bb);
 
-   lower_sequence(lu, proc, NULL);
+   if (transfer)
+      emit_return(VCODE_INVALID_REG);
+   else
+      lower_sequence(lu, proc, NULL);
 
    if (!vcode_block_finished())
       emit_jump(start_bb);

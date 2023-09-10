@@ -3071,6 +3071,27 @@ static void irgen_op_drive_signal(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_DRIVE_SIGNAL);
 }
 
+static void irgen_op_transfer_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t target  = irgen_get_arg(g, op, 0);
+   jit_value_t toffset = jit_value_from_reg(jit_value_as_reg(target) + 1);
+   jit_value_t source  = irgen_get_arg(g, op, 1);
+   jit_value_t soffset = jit_value_from_reg(jit_value_as_reg(source) + 1);
+   jit_value_t count   = irgen_get_arg(g, op, 2);
+   jit_value_t reject  = irgen_get_arg(g, op, 3);
+   jit_value_t after   = irgen_get_arg(g, op, 4);
+
+   j_send(g, 0, target);
+   j_send(g, 1, toffset);
+   j_send(g, 2, source);
+   j_send(g, 3, soffset);
+   j_send(g, 4, count);
+   j_send(g, 5, after);
+   j_send(g, 6, reject);
+
+   macro_exit(g, JIT_EXIT_TRANSFER_SIGNAL);
+}
+
 static void irgen_op_resolved(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -3749,6 +3770,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_DRIVE_SIGNAL:
          irgen_op_drive_signal(g, i);
+         break;
+      case VCODE_OP_TRANSFER_SIGNAL:
+         irgen_op_transfer_signal(g, i);
          break;
       case VCODE_OP_RESOLVED:
          irgen_op_resolved(g, i);

@@ -240,6 +240,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_INIT_SIGNAL:
       case VCODE_OP_MAP_SIGNAL:
       case VCODE_OP_DRIVE_SIGNAL:
+      case VCODE_OP_TRANSFER_SIGNAL:
       case VCODE_OP_MAP_CONST:
       case VCODE_OP_RESOLVED:
       case VCODE_OP_RESOLUTION_WRAPPER:
@@ -5341,6 +5342,97 @@ START_TEST(test_const3)
 }
 END_TEST
 
+START_TEST(test_transfer1)
+{
+   input_from_file(TESTDIR "/lower/transfer1.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRANSFER1.P1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "A" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "B" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_TRANSFER_SIGNAL },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRANSFER1.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "D" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "E" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_TRANSFER_SIGNAL },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRANSFER1.P3");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "E" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "F" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRANSFER1.P4");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "D" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "E" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_CONST, .value = 5000000 },
+         { VCODE_OP_CONST, .value = 2000000 },
+         { VCODE_OP_TRANSFER_SIGNAL },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5471,6 +5563,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_assert2);
    tcase_add_test(tc, test_issue756);
    tcase_add_test(tc, test_const3);
+   tcase_add_test(tc, test_transfer1);
    suite_add_tcase(s, tc);
 
    return s;

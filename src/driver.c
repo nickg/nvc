@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "common.h"
 #include "diag.h"
 #include "driver.h"
 #include "hash.h"
@@ -49,64 +50,6 @@ typedef struct {
    tree_t        proc;
    bool          tentative;
 } proc_params_t;
-
-static bool same_tree(tree_t a, tree_t b)
-{
-   const tree_kind_t akind = tree_kind(a);
-   if (akind != tree_kind(b))
-      return false;
-
-   switch (akind) {
-   case T_REF:
-      return tree_ref(a) == tree_ref(b);
-   case T_ARRAY_REF:
-      {
-         if (!same_tree(tree_value(a), tree_value(b)))
-            return false;
-
-         const int nparams = tree_params(a);
-         assert(nparams == tree_params(b));
-
-         for (int i = 0; i < nparams; i++) {
-            tree_t pa = tree_value(tree_param(a, i));
-            tree_t pb = tree_value(tree_param(b, i));
-            if (!same_tree(pa, pb))
-               return false;
-         }
-
-         return true;
-      }
-   case T_ARRAY_SLICE:
-      {
-         if (!same_tree(tree_value(a), tree_value(b)))
-            return false;
-
-         tree_t ra = tree_range(a, 0);
-         tree_t rb = tree_range(b, 0);
-
-         const range_kind_t rakind = tree_subkind(ra);
-         if (rakind != tree_subkind(rb) || rakind == RANGE_EXPR)
-            return false;
-
-         return same_tree(tree_left(ra), tree_left(rb))
-            && same_tree(tree_right(ra), tree_right(rb));
-      }
-
-   case T_RECORD_REF:
-      return tree_ident(a) == tree_ident(b)
-         && same_tree(tree_value(a), tree_value(b));
-   case T_LITERAL:
-      {
-         const literal_kind_t alkind = tree_subkind(a);
-         if (alkind != tree_subkind(b) || alkind != L_INT)
-            return false;
-         else
-            return tree_ival(a) == tree_ival(b);
-      }
-   default:
-      return false;
-   }
-}
 
 static driver_info_t *alloc_driver_info(driver_set_t *ds)
 {

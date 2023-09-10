@@ -933,7 +933,8 @@ bool vcode_block_finished(void)
       vcode_op_t kind = b->ops.items[b->ops.count - 1].kind;
       return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
          || kind == VCODE_OP_COND || kind == VCODE_OP_PCALL
-         || kind == VCODE_OP_RETURN || kind == VCODE_OP_CASE;
+         || kind == VCODE_OP_RETURN || kind == VCODE_OP_CASE
+         || kind == VCODE_OP_UNREACHABLE;
    }
 }
 
@@ -962,7 +963,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "trap neg", "process init", "clear event",
       "trap exp", "implicit event", "enter state", "reflect value",
-      "reflect subtype", "function trigger", "add trigger",
+      "reflect subtype", "function trigger", "add trigger", "transfer signal",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1371,6 +1372,21 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
+            }
+            break;
+
+         case VCODE_OP_TRANSFER_SIGNAL:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" to ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" reject ");
+               vcode_dump_reg(op->args.items[3]);
+               printf(" after ");
+               vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -4768,6 +4784,25 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
                 "target argument to drive signal is not a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument type to drive signal is not offset");
+}
+
+void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
+                          vcode_reg_t count, vcode_reg_t reject,
+                          vcode_reg_t after)
+{
+   op_t *op = vcode_add_op(VCODE_OP_TRANSFER_SIGNAL);
+   vcode_add_arg(op, target);
+   vcode_add_arg(op, source);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, reject);
+   vcode_add_arg(op, after);
+
+   VCODE_ASSERT(vcode_reg_kind(target) == VCODE_TYPE_SIGNAL,
+                "target argument to transfer signal is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument type to transfer signal is not offset");
+   VCODE_ASSERT(vcode_reg_kind(source) == VCODE_TYPE_SIGNAL,
+                "source argument to transfer signal is not a signal");
 }
 
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,

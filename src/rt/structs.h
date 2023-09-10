@@ -29,7 +29,7 @@
 typedef void *(*value_fn_t)(rt_nexus_t *);
 
 typedef enum {
-   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY,
+   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER,
 } wakeable_kind_t;
 
 typedef uint32_t wakeup_gen_t;
@@ -197,6 +197,16 @@ typedef struct _rt_implicit {
    ffi_closure_t closure;
    rt_signal_t   signal;   // Has a flexible member
 } rt_implicit_t;
+
+typedef struct {
+   rt_wakeable_t  wakeable;
+   rt_proc_t     *proc;
+   rt_nexus_t    *target;
+   rt_nexus_t    *source;
+   int64_t        after;
+   int64_t        reject;
+   unsigned       count;
+} rt_transfer_t;
 
 typedef struct _rt_alias {
    rt_alias_t  *chain;

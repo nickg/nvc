@@ -86,6 +86,7 @@ type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);
 bool all_character_literals(type_t type);
 bool is_operator_symbol(ident_t ident);
+bool same_tree(tree_t a, tree_t b);
 
 void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
                         type_copy_pred_t type_pred, void *context,

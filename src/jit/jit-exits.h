@@ -33,6 +33,9 @@ sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
                               uint32_t flags, tree_t where, int32_t offset);
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
                       int32_t count, int64_t after, int64_t reject);
+void x_transfer_signal(sig_shared_t *target_ss, uint32_t toffset,
+                       sig_shared_t *source_ss, uint32_t soffset,
+                       int32_t count, int64_t after, int64_t reject);
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset,
                           int32_t count);

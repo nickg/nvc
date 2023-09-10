@@ -512,6 +512,24 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_TRANSFER_SIGNAL:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t *target    = args[0].pointer;
+         int32_t       toffset   = args[1].integer;
+         sig_shared_t *source    = args[2].pointer;
+         int32_t       soffset   = args[3].integer;
+         int32_t       count     = args[4].integer;
+         int64_t       after     = args[5].integer;
+         int64_t       reject    = args[6].integer;
+
+         x_transfer_signal(target, toffset, source, soffset,
+                           count, after, reject);
+      }
+      break;
+
    case JIT_EXIT_MAP_SIGNAL:
       {
          if (!jit_has_runtime(thread->jit))

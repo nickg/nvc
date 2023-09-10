@@ -160,6 +160,7 @@ typedef enum {
    VCODE_OP_REFLECT_SUBTYPE,
    VCODE_OP_FUNCTION_TRIGGER,
    VCODE_OP_ADD_TRIGGER,
+   VCODE_OP_TRANSFER_SIGNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -498,6 +499,9 @@ void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
+void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
+                          vcode_reg_t count, vcode_reg_t reject,
+                          vcode_reg_t after);
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,

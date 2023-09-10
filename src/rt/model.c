@@ -164,6 +164,7 @@ static void async_fast_all_drivers(rt_model_t *m, void *arg);
 static void async_update_driving(rt_model_t *m, void *arg);
 static void async_disconnect(rt_model_t *m, void *arg);
 static void async_deposit(rt_model_t *m, void *arg);
+static void async_transfer_signal(rt_model_t *m, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
 {
@@ -2702,6 +2703,15 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          deferq_do(dq, async_watch_callback, w);
       }
       break;
+
+   case W_TRANSFER:
+      {
+         rt_transfer_t *t = container_of(obj, rt_transfer_t, wakeable);
+         TRACE("wakeup signal transfer for %s",
+               istr(tree_ident(t->target->signal->where)));
+         deferq_do(dq, async_transfer_signal, t);
+      }
+      break;
    }
 
    set_pending(obj);
@@ -2921,6 +2931,24 @@ static void async_deposit(rt_model_t *m, void *arg)
       update_driving(m, deposit->nexus, deposit->data);
 
    free(deposit);
+}
+
+static void async_transfer_signal(rt_model_t *m, void *arg)
+{
+   rt_transfer_t *t = arg;
+
+   assert(t->wakeable.pending);
+   t->wakeable.pending = false;
+
+   rt_nexus_t *n = t->target;
+   char *vptr = nexus_effective(t->source);
+   for (int count = t->count; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      sched_driver(m, n, t->after, t->reject, vptr, t->proc);
+      vptr += n->width * n->size;
+   }
 }
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
@@ -3722,6 +3750,48 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       sched_driver(m, n, after, reject, vptr, proc);
       vptr += n->width * n->size;
    }
+}
+
+void x_transfer_signal(sig_shared_t *target_ss, uint32_t toffset,
+                       sig_shared_t *source_ss, uint32_t soffset,
+                       int32_t count, int64_t after, int64_t reject)
+{
+   rt_signal_t *target = container_of(target_ss, rt_signal_t, shared);
+   rt_signal_t *source = container_of(source_ss, rt_signal_t, shared);
+
+   TRACE("transfer signal %s+%d to %s+%d count=%d",
+         istr(tree_ident(source->where)), soffset,
+         istr(tree_ident(target->where)), toffset, count);
+
+   rt_proc_t *proc = get_active_proc();
+
+   check_delay(after);
+   check_postponed(after, proc);
+   check_reject_limit(target, after, reject);
+
+   rt_model_t *m = get_model();
+
+   rt_transfer_t *t = static_alloc(m, sizeof(rt_transfer_t));
+   t->proc   = proc;
+   t->target = split_nexus(m, target, toffset, count);
+   t->source = split_nexus(m, source, soffset, count);
+   t->count  = count;
+   t->after  = after;
+   t->reject = reject;
+
+   t->wakeable.kind      = W_TRANSFER;
+   t->wakeable.postponed = false;
+   t->wakeable.pending   = true;   // Scheduled immediately
+   t->wakeable.delayed   = false;
+
+   for (rt_nexus_t *n = t->source; count > 0; n = n->chain) {
+      sched_event(m, n, &(t->wakeable));
+
+      count -= n->width;
+      assert(count >= 0);
+   }
+
+   deferq_do(&m->delta_procq, async_transfer_signal, t);
 }
 
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)

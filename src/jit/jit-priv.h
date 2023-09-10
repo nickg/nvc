@@ -162,6 +162,7 @@ typedef enum {
    JIT_EXIT_REFLECT_SUBTYPE,
    JIT_EXIT_FUNCTION_TRIGGER,
    JIT_EXIT_ADD_TRIGGER,
+   JIT_EXIT_TRANSFER_SIGNAL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
