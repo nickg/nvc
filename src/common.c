@@ -1159,7 +1159,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       else if (tree_ident(d) == name) {
          if (tree_kind(d) == T_TYPE_DECL
              && type_kind(tree_type(d)) == T_INCOMPLETE)
-               best = d;
+            best = d;
          else if (nth-- == 0)
             return d;
       }

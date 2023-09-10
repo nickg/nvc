@@ -15,7 +15,8 @@ begin
     end block;
 
     b1: block (true) is
-        signal s0 : bit;
+        type t_abc is (a, b, c);
+        signal s0 : t_abc;
     begin
     end block;
 

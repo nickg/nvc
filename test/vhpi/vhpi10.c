@@ -109,6 +109,11 @@ void vhpi10_startup(void)
    fail_if(b1 == NULL);
    fail_unless(vhpi_get(vhpiIsGuardedP, b1));
 
+   vhpiHandleT b1s0 = vhpi_handle_by_name("s0", b1);
+   check_error();
+   fail_if(b1s0 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, b1s0) == vhpiSigDeclK);
+
    fail_unless(vhpi_scan(it3) == NULL);
    vhpi_release_handle(it3);
 

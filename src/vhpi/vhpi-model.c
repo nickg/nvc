@@ -2821,21 +2821,55 @@ static c_typeDecl *build_typeDecl(type_t type)
       base = type_base(base);   // Anonymous subtypes have no declaration
 
    ident_t id = type_ident(base);
-   tree_t unit = type_container(base), decl = NULL;
+   tree_t unit = type_container(base);
+   ident_t unit_name = tree_ident(unit);
 
-   if (unit != NULL && tree_kind(unit) == T_ELAB)
+   if (tree_kind(unit) == T_ELAB) {
       unit = tree_stmt(unit, 0);   // Get root block
+      unit_name = ident_runtil(unit_name, '.');   // Strip ".elab"
+   }
 
-   if (unit != NULL)
-      decl = search_decls(unit, ident_rfrom(id, '.'), 0);
+   assert(ident_starts_with(id, unit_name));
 
-   if (decl == NULL)
-      fatal_trace("cannot find type declaration for %s", istr(id));
+   // Skip library name
+   ident_walk_selected(&unit_name);
+   ident_walk_selected(&id);
 
+   // Skip top-level unit name
+   ident_walk_selected(&unit_name);
+   ident_walk_selected(&id);
+
+   assert(ident_walk_selected(&unit_name) == NULL);
+   ident_t b = ident_walk_selected(&id);
+
+   tree_t decl = NULL;
+   while (id != NULL) {
+      tree_t next = NULL;
+      const int nstmts = tree_stmts(unit);
+      for (int i = 0; next == NULL && i < nstmts; i++) {
+         tree_t s = tree_stmt(unit, i);
+         if (tree_ident(s) == b)
+            next = s;
+      }
+
+      if (next == NULL)
+         fatal_trace("cannot find %s within %s", istr(b),
+                     istr(tree_ident(unit)));
+
+      unit = next;
+      b = ident_walk_selected(&id);
+   }
+
+   if ((decl = search_decls(unit, b, 0)) == NULL)
+      fatal_trace("cannot find type declaration for %s", type_pp(type));
+
+#ifdef DEBUG
+   const tree_kind_t dkind = tree_kind(decl);
    if (type_kind(type) == T_SUBTYPE)
-      assert(tree_kind(decl) == T_SUBTYPE_DECL || tree_kind(decl) == T_TYPE_DECL);
+      assert(dkind == T_SUBTYPE_DECL || dkind == T_TYPE_DECL);
    else
-      assert(tree_kind(decl) == T_TYPE_DECL);
+      assert(dkind == T_TYPE_DECL);
+#endif
 
    switch (type_kind(type)) {
    case T_INTEGER:
