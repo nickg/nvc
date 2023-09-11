@@ -94,6 +94,7 @@
 #define F_GTKW    (1 << 21)
 #define F_NOCOLL  (1 << 22)
 #define F_EXPORT  (1 << 23)
+#define F_SHUFFLE (1 << 24)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -402,6 +403,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_PSL;
          else if (strcmp(opt, "tcl") == 0)
             test->flags |= F_TCL;
+         else if (strcmp(opt, "shuffle") == 0)
+            test->flags |= F_SHUFFLE;
          else if (strcmp(opt, "no-collapse") == 0)
             test->flags |= F_NOCOLL;
          else if (strncmp(opt, "O", 1) == 0) {
@@ -913,6 +916,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_GTKW)
          push_arg(&args, "-g");
+
+      if (test->flags & F_SHUFFLE)
+         push_arg(&args, "--shuffle");
 
       push_arg(&args, "%s", test->name);
    }

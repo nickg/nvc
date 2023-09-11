@@ -339,9 +339,7 @@ static void deferq_shuffle(deferq_t *dq)
 {
    int cur = dq->count;
    while (cur > 0) {
-      const int swap = rand() % cur;
-      cur--;
-
+      const int swap = rand() % cur--;
       const defer_task_t tmp = dq->tasks[cur];
       dq->tasks[cur] = dq->tasks[swap];
       dq->tasks[swap] = tmp;
