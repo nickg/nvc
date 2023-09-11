@@ -67,4 +67,6 @@ package body AlertLogPkg is
 
   end protected body AlertLogStructPType ;
 
+-- synthesis translate_on
+
 end package body AlertLogPkg ;

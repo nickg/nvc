@@ -283,5 +283,7 @@ bool is_scanned_as_psl(void);
 #define tNONDET        391
 #define tNONDETV       392
 #define tUNION         393
+#define tTRANSLATEON   394
+#define tTRANSLATEOFF  395
 
 #endif  // _SCAN_H

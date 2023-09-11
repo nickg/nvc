@@ -213,19 +213,21 @@ static token_t wrapped_yylex(void)
       case tSYNTHON:
          skip_pragma(PRAGMA_SYNTHESIS_ON);
          break;
-
       case tSYNTHOFF:
          skip_pragma(PRAGMA_SYNTHESIS_OFF);
          break;
-
       case tCOVERAGEON:
          skip_pragma(PRAGMA_COVERAGE_ON);
          break;
-
       case tCOVERAGEOFF:
          skip_pragma(PRAGMA_COVERAGE_OFF);
          break;
-
+      case tTRANSLATEON:
+         skip_pragma(PRAGMA_TRANSLATE_ON);
+         break;
+      case tTRANSLATEOFF:
+         skip_pragma(PRAGMA_TRANSLATE_OFF);
+         break;
       default:
          return token;
       }
@@ -12594,8 +12596,39 @@ static tree_t p_design_unit(void)
    return unit;
 }
 
-static void flush_pragmas(void)
+static void flush_pragmas(tree_t unit)
 {
+   // Make sure pragmas always appear in off/on pairs
+   tree_t coverage_off = NULL, synthesis_off = NULL, translate_off = NULL;
+
+   for (int i = 0; i < pragmas.count; i++) {
+      tree_t p = pragmas.items[i];
+      tree_add_pragma(unit, p);
+
+      switch (tree_subkind(p)) {
+      case PRAGMA_SYNTHESIS_ON: synthesis_off = NULL; break;
+      case PRAGMA_SYNTHESIS_OFF: synthesis_off = p; break;
+      case PRAGMA_COVERAGE_ON: coverage_off = NULL; break;
+      case PRAGMA_COVERAGE_OFF: coverage_off = p; break;
+      case PRAGMA_TRANSLATE_ON: translate_off = NULL; break;
+      case PRAGMA_TRANSLATE_OFF: translate_off = p; break;
+      }
+   }
+
+   if (coverage_off != NULL)
+      warn_at(tree_loc(coverage_off), "no matching $bold$coverage on$$ "
+              "directive seen before end of design unit");
+
+   if (synthesis_off != NULL)
+      warn_at(tree_loc(synthesis_off), "no matching $bold$synthesis "
+              "translate_on$$ directive seen before end of design unit");
+
+   if (translate_off != NULL)
+      warn_at(tree_loc(translate_off), "no matching $bold$pragma "
+              "translate_on$$ directive seen before end of design unit");
+
+   ACLEAR(pragmas);
+
    (void)peek();   // Skips over all pragmas until next token
 
    if (pragmas.count > 0) {
@@ -12620,11 +12653,7 @@ tree_t parse(void)
    nametab_finish(nametab);
    nametab = NULL;
 
-   for (int i = 0; i < pragmas.count; i++)
-      tree_add_pragma(unit, pragmas.items[i]);
-   ACLEAR(pragmas);
-
-   flush_pragmas();
+   flush_pragmas(unit);
 
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;

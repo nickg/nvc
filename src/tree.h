@@ -237,6 +237,8 @@ typedef enum {
    PRAGMA_COVERAGE_OFF,
    PRAGMA_SYNTHESIS_ON,
    PRAGMA_SYNTHESIS_OFF,
+   PRAGMA_TRANSLATE_ON,
+   PRAGMA_TRANSLATE_OFF,
 } pragma_kind_t;
 
 typedef enum {

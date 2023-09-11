@@ -115,6 +115,8 @@ SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
 COVERAGE_OFF    {PRAGMA}(?i:coverage)[ \t]+(?i:off).*
 COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
+TRANSLATE_OFF   {PRAGMA}(?i:pragma)[ \t]+(?i:translate_off).*
+TRANSLATE_ON    {PRAGMA}(?i:pragma)[ \t]+(?i:translate_on).*
 PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
@@ -269,6 +271,8 @@ UNION         ?i:union
 {SYNTH_ON}               { TOKEN(tSYNTHON); }
 {COVERAGE_OFF}           { TOKEN(tCOVERAGEOFF); }
 {COVERAGE_ON}            { TOKEN(tCOVERAGEON); }
+{TRANSLATE_OFF}          { TOKEN(tTRANSLATEOFF); }
+{TRANSLATE_ON}           { TOKEN(tTRANSLATEON); }
 
 <PSL,INITIAL>"--"        { comment_caller = YY_START; BEGIN(COMMENT); }
 <VLOG>"//"               { comment_caller = YY_START; BEGIN(COMMENT); }
