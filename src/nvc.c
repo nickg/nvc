@@ -46,6 +46,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <time.h>
 
 #if HAVE_GIT_SHA
 #include "gitsha.h"
@@ -594,6 +595,7 @@ static int run(int argc, char **argv)
       { "load",          required_argument, 0, 'l' },
       { "vhpi-trace",    no_argument,       0, 'T' },
       { "gtkw",          optional_argument, 0, 'g' },
+      { "shuffle",       no_argument,       0, 'H' },
       { 0, 0, 0, 0 }
    };
 
@@ -677,6 +679,12 @@ static int run(int argc, char **argv)
          break;
       case 'a':
          opt_set_int(OPT_DUMP_ARRAYS, 1);
+         break;
+      case 'H':
+         warnf("the $bold$--shuffle$$ option is intended for debug use only "
+               "and may introduce significant performance overhead as well "
+               "as non-deterministic behaviour");
+         opt_set_int(OPT_SHUFFLE_PROCS, 1);
          break;
       default:
          abort();
@@ -1550,6 +1558,7 @@ static void usage(void)
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           "     --profile\t\tDisplay detailed statistics at end of run\n"
+          "     --shuffle\t\tRun processes in random order\n"
           "     --stats\t\tPrint time and memory usage at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
@@ -1742,6 +1751,7 @@ int main(int argc, char **argv)
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
    check_cpu_features();
 
+   srand((unsigned)time(NULL));
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {

@@ -64,6 +64,7 @@ typedef enum {
    OPT_DRIVER_VERBOSE,
    OPT_JIT_INTRINSICS,
    OPT_VECTOR_INTRINSICS,
+   OPT_SHUFFLE_PROCS,
 
    OPT_LAST_NAME
 } opt_name_t;

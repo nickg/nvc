@@ -379,6 +379,16 @@ Loads a VHPI plugin from the shared library
 See section
 .Sx VHPI
 for details on the VHPI implementation.
+.\" --shuffle
+.It Fl \-shuffle
+Run processes in random order.  The VHDL standard does not specify the
+execution order of processes and different simulators may exhibit subtly
+different orderings.  The
+.Fl \-shuffle
+option can help to find and debug code that inadvertently depends on a
+particular process execution order.  This option should only be used
+during debug as it incurs a significant performance overhead as well as
+introducing potentially non-deterministic behaviour.
 .\" --stats
 .It Fl \-stats
 Print a summary of the time taken and memory used at the end of the run.

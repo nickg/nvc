@@ -130,6 +130,7 @@ typedef struct _rt_model {
    model_thread_t    *threads[MAX_THREADS];
    ptr_list_t         eventsigs;
    rt_asserts_t       asserts;
+   bool               shuffle;
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -332,6 +333,19 @@ static void deferq_scan(deferq_t *dq, scan_fn_t fn, void *arg)
 {
    for (int i = 0; i < dq->count; i++)
       (*fn)(NULL, dq->tasks[i].arg, arg);
+}
+
+static void deferq_shuffle(deferq_t *dq)
+{
+   int cur = dq->count;
+   while (cur > 0) {
+      const int swap = rand() % cur;
+      cur--;
+
+      const defer_task_t tmp = dq->tasks[cur];
+      dq->tasks[cur] = dq->tasks[swap];
+      dq->tasks[swap] = tmp;
+   }
 }
 
 static void deferq_run(rt_model_t *m, deferq_t *dq)
@@ -596,6 +610,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->stop_delta  = opt_get_int(OPT_STOP_DELTA);
    m->eventq_heap = heap_new(512);
    m->res_memo    = ihash_new(128);
+   m->shuffle     = opt_get_int(OPT_SHUFFLE_PROCS);
 
    m->can_create_delta = true;
 
@@ -3111,6 +3126,9 @@ static void model_cycle(rt_model_t *m)
    if (__trace_on)
       dump_signals(m, m->root);
 #endif
+
+   if (m->shuffle)
+      deferq_shuffle(&m->procq);
 
    // Run all non-postponed processes and event callbacks
    deferq_run(m, &m->procq);
