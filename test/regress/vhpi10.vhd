@@ -1,3 +1,14 @@
+entity sub is
+    generic ( g0 : integer );
+end entity;
+
+architecture test of sub is
+begin
+
+end architecture;
+
+-------------------------------------------------------------------------------
+
 entity vhpi10 is
     generic (
         g0 : integer := 42;
@@ -7,6 +18,10 @@ end entity;
 architecture test of vhpi10 is
     constant c0 : integer := 5;
     constant c1 : real := 1.5;
+
+    component sub is
+        generic ( g0 : integer );
+    end component;
 begin
 
     b0: block is
@@ -19,5 +34,8 @@ begin
         signal s0 : t_abc;
     begin
     end block;
+
+    i0: component sub
+        generic map ( g0 => 100 );
 
 end architecture;

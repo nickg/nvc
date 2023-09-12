@@ -44,6 +44,20 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.value.real == 1.5);
    fail_unless(value.numElems == 1);
 
+   vhpiHandleT i0g0 = vhpi_handle_by_name("i0.g0", root);
+   check_error();
+   fail_if(i0g0 == NULL);
+   vhpi_printf("i0g0 handle %p", i0g0);
+   fail_unless(vhpi_get(vhpiKindP, i0g0) == vhpiGenericDeclK);
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(i0g0, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 100);
+   fail_unless(value.numElems == 1);
+
    vhpi_release_handle(handle_sos);
 }
 
@@ -95,6 +109,9 @@ void vhpi10_startup(void)
    vhpi_printf("b0 handle %p", b0);
    fail_unless(vhpi_get(vhpiKindP, b0) == vhpiBlockStmtK);
    fail_if(vhpi_get(vhpiIsGuardedP, b0));
+   fail_if(vhpi_get(vhpiIsSeqStmtP, b0));
+   vhpi_printf("b0 label %s", vhpi_get_str(vhpiLabelNameP, b0));
+   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, b0), "B0") == 0);
 
    vhpiHandleT b0s0 = vhpi_handle_by_name("s0", b0);
    check_error();
@@ -109,6 +126,9 @@ void vhpi10_startup(void)
    fail_if(b1 == NULL);
    fail_unless(vhpi_get(vhpiIsGuardedP, b1));
 
+   fail_unless(vhpi_scan(it3) == NULL);
+   vhpi_release_handle(it3);
+
    vhpiHandleT b1s0 = vhpi_handle_by_name("s0", b1);
    check_error();
    fail_if(b1s0 == NULL);
@@ -116,6 +136,22 @@ void vhpi10_startup(void)
 
    fail_unless(vhpi_scan(it3) == NULL);
    vhpi_release_handle(it3);
+
+   vhpiHandleT i0 = vhpi_handle_by_name("i0", root);
+   check_error();
+   fail_if(i0 == NULL);
+   vhpi_printf("i0 handle %p", i0);
+   fail_unless(vhpi_get(vhpiKindP, i0) == vhpiCompInstStmtK);
+   fail_if(vhpi_get(vhpiIsSeqStmtP, i0));
+   vhpi_printf("io label %s", vhpi_get_str(vhpiLabelNameP, i0));
+   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, i0), "I0") == 0);
+
+   vhpiHandleT it4 = vhpi_iterator(vhpiCompInstStmts, root);
+   fail_if(it4 == NULL);
+   fail_unless(vhpi_scan(it4) == i0);
+
+   fail_unless(vhpi_scan(it4) == NULL);
+   vhpi_release_handle(it4);
 
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,

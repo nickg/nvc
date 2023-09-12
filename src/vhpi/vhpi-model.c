@@ -364,7 +364,20 @@ typedef struct {
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
 
 typedef struct {
+   vhpiBooleanT IsSeqStmt;
+   vhpiStringT  LabelName;
+} c_stmt;
+
+typedef struct {
+   c_designInstUnit designInstUnit;
+   c_stmt           stmt;
+} c_compInstStmt;
+
+DEF_CLASS(compInstStmt, vhpiCompInstStmtK, designInstUnit.region.object);
+
+typedef struct {
    c_abstractRegion region;
+   c_stmt           stmt;
    vhpiBooleanT     IsGuarded;
 } c_blockStmt;
 
@@ -411,6 +424,7 @@ typedef struct _vhpi_context {
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type);
+static void vhpi_lazy_block(c_abstractRegion *r);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -443,6 +457,7 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    switch (obj->kind) {
    case vhpiRootInstK:
    case vhpiBlockStmtK:
+   case vhpiCompInstStmtK:
       return container_of(obj, c_abstractRegion, object);
    default:
       return NULL;
@@ -556,6 +571,19 @@ static c_expr *cast_expr(c_vhpiObject *obj)
                  vhpi_class_str(obj->kind));
 
    return e;
+}
+
+static c_stmt *is_stmt(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiBlockStmtK:
+      return &(container_of(obj, c_blockStmt, region.object)->stmt);
+   case vhpiCompInstStmtK:
+      return &(container_of(obj, c_compInstStmt,
+                            designInstUnit.region.object)->stmt);
+   default:
+      return NULL;
+   }
 }
 
 static c_name *is_name(c_vhpiObject *obj)
@@ -818,6 +846,12 @@ static void init_expr(c_expr *e, c_objDecl *obj, c_typeDecl *Type)
    e->Staticness = obj->Staticness;
 }
 
+static void init_stmt(c_stmt *s, tree_t t)
+{
+   s->IsSeqStmt = false;
+   s->LabelName = new_string(istr(tree_ident(t)));
+}
+
 static void init_name(c_name *n, c_objDecl *obj, c_typeDecl *Type,
                       vhpiStringT Name, vhpiStringT FullName)
 {
@@ -1065,6 +1099,10 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
          return true;
       case vhpiBlockStmts:
          it->filter = vhpiBlockStmtK;
+         it->list = &(region->stmts);
+         return true;
+      case vhpiCompInstStmts:
+         it->filter = vhpiCompInstStmtK;
          it->list = &(region->stmts);
          return true;
       default:
@@ -1724,45 +1762,53 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (elem == NULL)
       return handle_for(&(region->object));
 
-   for (int i = 0; i < region->stmts.count; i++) {
-      c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
-      if (r != NULL && strcasecmp((char *)r->Name, elem) == 0)
-         return handle_for(&(r->object));
+   for (c_abstractRegion *next = region; next != NULL;
+        region = next, next = NULL) {
+
+      for (int i = 0; i < region->stmts.count; i++) {
+         c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
+         if (r == NULL || strcasecmp((char *)r->Name, elem) != 0)
+            continue;
+
+         expand_lazy_region(r);
+
+         if ((elem = strtok_r(NULL, ":.", &saveptr))) {
+            next = r;
+            break;
+         }
+         else
+            return handle_for(&(r->object));
+      }
    }
 
-   c_abstractDecl *d;
    for (int i = 0; i < region->decls.count; i++) {
-      d = cast_abstractDecl(region->decls.items[i]);
-      if (strcasecmp((char *)d->Name, elem) == 0)
-         goto found_decl;
+      c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
+      if (strcasecmp((char *)d->Name, elem) != 0)
+         continue;
+
+      char *suffix;
+      c_vhpiObject *obj = &(d->object);
+      while ((suffix = strtok_r(NULL, ".", &saveptr)) != NULL) {
+         c_iterator it = {};
+         if (!init_iterator(&it, vhpiSelectedNames, &(d->object)))
+            return NULL;
+
+         for (int i = 0; i < it.list->count; i++) {
+            c_selectedName *sn = is_selectedName(it.list->items[i]);
+            assert(sn != NULL);
+
+            obj = &(sn->prefixedName.name.expr.object);
+            if (strcasecmp((char *)sn->Suffix->decl.Name, suffix) == 0)
+               return handle_for(obj);
+         }
+
+         return NULL;
+      }
+
+      return handle_for(obj);
    }
 
    return NULL;
-
-found_decl: ;
-
-   char *suffix;
-   c_vhpiObject *obj = &(d->object);
-   while ((suffix = strtok_r(NULL, ".", &saveptr)) != NULL) {
-      c_iterator it = { };
-      if (!init_iterator(&it, vhpiSelectedNames, &(d->object)))
-         return NULL;
-
-      for (int i = 0; i < it.list->count; i++) {
-         c_selectedName *sn = is_selectedName(it.list->items[i]);
-         assert(sn != NULL);
-
-         obj = &(sn->prefixedName.name.expr.object);
-         if (strcasecmp((char *)sn->Suffix->decl.Name, suffix) == 0)
-            goto found_suffix;
-      }
-
-      return NULL;
-
-found_suffix: ;
-   }
-
-   return handle_for(obj);
 }
 
 DLLEXPORT
@@ -2030,6 +2076,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return bs->IsGuarded;
       }
 
+   case vhpiIsSeqStmtP:
+      {
+         c_stmt *s = is_stmt(obj);
+         if (s == NULL)
+            goto missing_property;
+
+         return s->IsSeqStmt;
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));
@@ -2037,7 +2092,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    }
 
 missing_property:
-   vhpi_error(vhpiError, &(obj->loc), "object does not have %s property",
+   vhpi_error(vhpiError, &(obj->loc), "object does not have property %s",
               vhpi_property_str(property));
    return vhpiUndefined;
 }
@@ -2109,7 +2164,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
       case vhpiFullNameP: return region->FullName;
       case vhpiFullCaseNameP: return region->FullCaseName;
-      default: goto unsupported;
+      default: break;   // May be statement instance
       }
    }
 
@@ -2168,15 +2223,24 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 
    c_argv *arg = is_argv(obj);
    if (arg != NULL) {
-      switch(property) {
+      switch (property) {
       case vhpiStrValP: return arg->StrVal;
       default: goto unsupported;
       }
    }
 
+   c_stmt *s = is_stmt(obj);
+   if (s != NULL) {
+      switch (property) {
+      case vhpiLabelNameP: return s->LabelName;
+      default: goto unsupported;
+      }
+   }
+
 unsupported:
-   fatal_trace("unsupported property %s in vhpi_get_str",
-               vhpi_property_str(property));
+   vhpi_error(vhpiError, &(obj->loc), "object does not have string property %s",
+              vhpi_property_str(property));
+   return NULL;
 }
 
 DLLEXPORT
@@ -3074,6 +3138,7 @@ static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
 {
    c_blockStmt *bs = new_object(sizeof(c_blockStmt), vhpiBlockStmtK);
    init_abstractRegion(&(bs->region), t);
+   init_stmt(&(bs->stmt), t);
 
    if (tree_decls(t) > 1) {
       tree_t d1 = tree_decl(t, 1);
@@ -3085,6 +3150,19 @@ static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
    APUSH(region->stmts, &(bs->region.object));
 
    return &(bs->region);
+}
+
+static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
+                                            c_abstractRegion *region)
+{
+   c_compInstStmt *c = new_object(sizeof(c_compInstStmt), vhpiCompInstStmtK);
+   init_designInstUnit(&(c->designInstUnit), t, NULL);
+   init_stmt(&(c->stmt), t);
+
+   APUSH(region->InternalRegions, &(c->designInstUnit.region.object));
+   APUSH(region->stmts, &(c->designInstUnit.region.object));
+
+   return &(c->designInstUnit.region);
 }
 
 static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
@@ -3105,10 +3183,8 @@ static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
    }
 }
 
-static void vhpi_build_ports(tree_t unit, c_rootInst *where)
+static void vhpi_build_ports(tree_t unit, c_abstractRegion *region)
 {
-   c_abstractRegion *region = &(where->designInstUnit.region);
-
    const int nports = tree_ports(unit);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(unit, i);
@@ -3116,22 +3192,13 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    }
 }
 
-static void vhpi_build_generics(tree_t unit, c_rootInst *where)
+static void vhpi_build_generics(tree_t unit, c_abstractRegion *region)
 {
-   c_abstractRegion *region = &(where->designInstUnit.region);
-
    const int ngenerics = tree_generics(unit);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(unit, i);
       build_genericDecl(g, i, region);
    }
-}
-
-static void vhpi_lazy_block(c_abstractRegion *r)
-{
-   c_blockStmt *bs = cast_blockStmt(&(r->object));
-
-   vhpi_build_decls(bs->region.tree, r);
 }
 
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
@@ -3142,7 +3209,21 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
       switch (tree_kind(s)) {
       case T_BLOCK:
          {
-            c_abstractRegion *r = build_blockStmt(s, region);
+            tree_t h = tree_decl(s, 0);
+            assert(tree_kind(h) == T_HIER);
+
+            c_abstractRegion *r = NULL;
+            switch (tree_subkind(h)) {
+            case T_BLOCK:
+               r = build_blockStmt(s, region);
+               break;
+            case T_ARCH:
+               r = build_compInstStmt(s, tree_ref(h), region);
+               break;
+            default:
+               continue;
+            }
+
             r->lazyfn = vhpi_lazy_block;
          }
          break;
@@ -3150,6 +3231,14 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
          break;
       }
    }
+}
+
+static void vhpi_lazy_block(c_abstractRegion *r)
+{
+   vhpi_build_generics(r->tree, r);
+   vhpi_build_ports(r->tree, r);
+   vhpi_build_decls(r->tree, r);
+   vhpi_build_stmts(r->tree, r);
 }
 
 static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
@@ -3187,10 +3276,11 @@ static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
    c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
    init_designInstUnit(&(c->root->designInstUnit), b0, &(arch->designUnit));
 
-   vhpi_build_generics(b0, c->root);
-   vhpi_build_ports(b0, c->root);
-   vhpi_build_decls(b0, &(c->root->designInstUnit.region));
-   vhpi_build_stmts(b0, &(c->root->designInstUnit.region));
+   c_abstractRegion *region = &(c->root->designInstUnit.region);
+   vhpi_build_generics(b0, region);
+   vhpi_build_ports(b0, region);
+   vhpi_build_decls(b0, region);
+   vhpi_build_stmts(b0, region);
 
    VHPI_TRACE("building model for %s took %"PRIu64" ms",
               istr(ident_runtil(tree_ident(b0), '.')),
