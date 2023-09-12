@@ -78,6 +78,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.numElems == 5);
    vhpi_printf("g1 value '%s'", (char *)str);
    fail_unless(strcmp((char *)str, "hello") == 0);
+   fail_unless(vhpi_get(vhpiSizeP, g1) == 5);
 
    vhpi_release_handle(handle_sos);
 }

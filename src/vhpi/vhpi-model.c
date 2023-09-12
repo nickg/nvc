@@ -634,6 +634,7 @@ static c_designInstUnit *cast_designInstUnit(c_vhpiObject *obj)
 {
    switch (obj->kind) {
    case vhpiRootInstK:
+   case vhpiCompInstStmtK:
       return container_of(obj, c_designInstUnit, region.object);
    default:
       vhpi_error(vhpiError, NULL, "class kind %s is not an instance of a design unit",
@@ -1392,6 +1393,59 @@ static rt_signal_t *vhpi_get_signal_prefixedName(c_prefixedName *pn)
    return pn->signal;
 }
 
+static vhpiIntT vhpi_count_elements(c_typeDecl *td, ffi_uarray_t *u)
+{
+   if (td->IsUnconstrained) {
+      assert(u != NULL);
+
+      c_arrayTypeDecl *at = cast_arrayTypeDecl(&(td->decl.object));
+      assert(at);
+
+      vhpiIntT num = 1;
+      for (int i = 0; i < at->NumDimensions; i++)
+         num *= ffi_abs_length(u->dims[0].length);
+
+      return num;
+   }
+   else
+      return td->numElems;
+}
+
+static void *vhpi_get_value_ptr(c_vhpiObject *obj)
+{
+   jit_t *j = vhpi_context()->jit;
+
+   c_objDecl *decl = cast_objDecl(obj);
+   assert(decl != NULL);
+
+   rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
+   if (*mptr_get(scope->privdata) == NULL) {
+      vhpi_error(vhpiError, &(obj->loc), "%s has not been elaborated",
+                 decl->decl.FullName);
+      return NULL;
+   }
+
+   c_genericDecl *g = is_genericDecl(obj);
+   if (g != NULL) {
+      if (g->handle == JIT_HANDLE_INVALID)
+         g->handle = jit_lazy_compile(j, scope->name);
+
+      return jit_get_frame_var(j, g->handle, g->name);
+   }
+
+   c_constDecl *c = is_constDecl(obj);
+   if (c != NULL) {
+      if (c->handle == JIT_HANDLE_INVALID)
+         c->handle = jit_lazy_compile(j, scope->name);
+
+      return jit_get_frame_var(j, c->handle, c->name);
+   }
+
+   vhpi_error(vhpiInternal, &(obj->loc), "cannot find elaborated value for %s",
+              decl->decl.FullName);
+   return NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Public API
 
@@ -1928,20 +1982,27 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    case vhpiSizeP:
       {
-         c_typeDecl *td;
          c_name *n = is_name(obj);
-         if (n != NULL)
-            td = n->expr.Type;
+         if (n != NULL) {
+            c_typeDecl *td = n->expr.Type;
+            assert(!td->IsUnconstrained);
+            return td->numElems;
+         }
          else {
             c_objDecl *decl = cast_objDecl(obj);
             if (decl == NULL)
                return 0;
 
-            td = decl->Type;
-         }
+            if (decl->Type->IsUnconstrained) {
+               ffi_uarray_t *u = vhpi_get_value_ptr(obj);
+               if (u == NULL)
+                  return vhpiUndefined;
 
-         assert(!td->IsUnconstrained);
-         return td->numElems;
+               return vhpi_count_elements(decl->Type, u);
+            }
+            else
+               return decl->Type->numElems;
+         }
       }
 
    case vhpiArgcP:
@@ -2352,31 +2413,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    case vhpiGenericDeclK:
    case vhpiConstDeclK:
       {
-         rt_scope_t *scope =
-            vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
-         if (*mptr_get(scope->privdata) == NULL) {
-            vhpi_error(vhpiInternal, &(obj->loc), "%s has not been elaborated",
-                       decl->decl.FullName);
+         if ((value = vhpi_get_value_ptr(obj)) == NULL)
             return -1;
-         }
-
-         jit_t *j = vhpi_context()->jit;
-
-         c_genericDecl *g = is_genericDecl(obj);
-         if (g != NULL) {
-            if (g->handle == JIT_HANDLE_INVALID)
-               g->handle = jit_lazy_compile(j, scope->name);
-
-            value = jit_get_frame_var(j, g->handle, g->name);
-         }
-
-         c_constDecl *c = is_constDecl(obj);
-         if (c != NULL) {
-            if (c->handle == JIT_HANDLE_INVALID)
-               c->handle = jit_lazy_compile(j, scope->name);
-
-            value = jit_get_frame_var(j, c->handle, c->name);
-         }
 
          if (td->IsUnconstrained) {
             c_arrayTypeDecl *at = cast_arrayTypeDecl(&(td->decl.object));
@@ -2384,10 +2422,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
             ffi_uarray_t *u = (ffi_uarray_t *)value;
             value = u->ptr;
-
-            num_elems = 1;
-            for (int i = 0; i < at->NumDimensions; i++)
-               num_elems *= ffi_abs_length(u->dims[0].length);
+            num_elems = vhpi_count_elements(td, u);
          }
       }
       break;
