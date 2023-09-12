@@ -60,6 +60,8 @@ typedef struct _ffi_uarray {
    } dims[1];
 } ffi_uarray_t;
 
+#define ffi_abs_length(l) ((l) ^ ((l) >> 63))
+
 // The code generator knows the layout of this struct
 typedef struct _ffi_closure {
    jit_handle_t  handle;

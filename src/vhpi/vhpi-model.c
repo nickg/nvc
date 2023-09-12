@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "jit/jit.h"
+#include "jit/jit-ffi.h"
 #include "lib.h"
 #include "option.h"
 #include "rt/model.h"
@@ -134,7 +135,7 @@ typedef struct tag_typeDecl {
    c_typeDecl     *BaseType;
    vhpiFormatT     format;
    const char     *map_str;
-   vhpiIntT        size;
+   vhpiIntT        numElems;
    vhpiBooleanT    IsAnonymous;
    vhpiBooleanT    IsComposite;
    vhpiBooleanT    IsScalar;
@@ -812,13 +813,13 @@ static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
    d->format = vhpi_format_for_type(d->type, &d->map_str);
    d->IsUnconstrained = type_is_unconstrained(d->type);
    d->homogeneous = type_is_homogeneous(d->type);
+   d->numElems = d->IsUnconstrained ? -1 : 1;
 }
 
 static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, type_t type)
 {
    init_typeDecl(&(d->typeDecl), t, type);
    d->typeDecl.IsScalar = true;
-   d->typeDecl.size = 1;
 }
 
 static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t, type_t type)
@@ -916,7 +917,7 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
                      tb_get(suffix));
    in->BaseIndex = BaseIndex;
 
-   in->offset = BaseIndex * Type->size;
+   in->offset = BaseIndex * Type->numElems;
    if (prefix) {
       c_indexedName *pin = is_indexedName(&(prefix->expr.object));
       if (pin)
@@ -1940,7 +1941,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          }
 
          assert(!td->IsUnconstrained);
-         return td->size;
+         return td->numElems;
       }
 
    case vhpiArgcP:
@@ -2339,15 +2340,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       td = decl->Type;
    }
 
-   assert(!td->IsUnconstrained);
-
    if (td->format == (vhpiFormatT)-1) {
       vhpi_error(vhpiInternal, &(obj->loc), "type %s not supported in "
                  "vhpi_get_value", type_pp(td->type));
       return -1;
    }
 
-   int size = 1;
+   int size = 1, num_elems = td->numElems;
    const unsigned char *value = NULL;
    switch (obj->kind) {
    case vhpiGenericDeclK:
@@ -2378,6 +2377,18 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
             value = jit_get_frame_var(j, c->handle, c->name);
          }
+
+         if (td->IsUnconstrained) {
+            c_arrayTypeDecl *at = cast_arrayTypeDecl(&(td->decl.object));
+            assert(at);
+
+            ffi_uarray_t *u = (ffi_uarray_t *)value;
+            value = u->ptr;
+
+            num_elems = 1;
+            for (int i = 0; i < at->NumDimensions; i++)
+               num_elems *= ffi_abs_length(u->dims[0].length);
+         }
       }
       break;
 
@@ -2405,6 +2416,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
                  "vhpi_get_value", vhpi_class_str(obj->kind));
    }
 
+   assert(td->IsComposite || num_elems == 1);
+
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = td->format;
    else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
@@ -2418,17 +2431,17 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    switch (value_p->format) {
    case vhpiLogicVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
       value_p->value.enumv = value[offset];
       return 0;
 
    case vhpiSmallEnumVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
       value_p->value.smallenumv = value[offset];
       return 0;
 
    case vhpiEnumVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
 #define SIGNAL_READ_ENUM(type) \
       value_p->value.enumv = ((const type *)value)[offset]
 
@@ -2436,27 +2449,27 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return 0;
 
    case vhpiCharVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
       value_p->value.ch = value[offset];
       return 0;
 
    case vhpiIntVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
       value_p->value.intg = ((const uint32_t *)value)[offset];
       return 0;
 
    case vhpiRealVal:
-      value_p->numElems = 1;
+      value_p->numElems = num_elems;
       value_p->value.real = ((const double *)value)[offset];
       return 0;
 
    case vhpiLogicVecVal:
       {
-         value_p->numElems = td->size;
-
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
-         if (max < value_p->numElems)
-            return value_p->numElems * sizeof(vhpiEnumT);
+         if (max < num_elems)
+            return num_elems * sizeof(vhpiEnumT);
+
+         value_p->numElems = num_elems;
 
          const uint8_t *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++)
@@ -2467,11 +2480,11 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiSmallEnumVecVal:
       {
-         value_p->numElems = td->size;
-
          const int max = value_p->bufSize / sizeof(vhpiSmallEnumT);
-         if (max < value_p->numElems)
-            return value_p->numElems * sizeof(vhpiSmallEnumT);
+         if (max < num_elems)
+            return num_elems * sizeof(vhpiSmallEnumT);
+
+         value_p->numElems = num_elems;
 
          const uint8_t *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++)
@@ -2482,11 +2495,11 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiEnumVecVal:
       {
-         value_p->numElems = td->size;
-
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
-         if (max < value_p->numElems)
-            return value_p->numElems * sizeof(vhpiEnumT);
+         if (max < num_elems)
+            return num_elems * sizeof(vhpiEnumT);
+
+         value_p->numElems = num_elems;
 
 #define SIGNAL_READ_ENUMV(type) do {                            \
             const type *p = ((const type *)value) + offset;     \
@@ -2501,10 +2514,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    case vhpiBinStrVal:
    case vhpiStrVal:
       {
-         value_p->numElems = td->size;
+         if (value_p->bufSize + 1 < num_elems)
+            return num_elems + 1;
 
-         if (value_p->bufSize + 1 < value_p->numElems)
-            return value_p->numElems + 1;
+         value_p->numElems = num_elems;
 
          const vhpiCharT *p = value + offset;
          for (int i = 0; i < value_p->numElems; i++) {
@@ -2520,11 +2533,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiRealVecVal:
       {
-         value_p->numElems = td->size;
+         if (value_p->bufSize / sizeof(vhpiRealT) < num_elems)
+            return num_elems * sizeof(vhpiRealT);
 
-         const int max = value_p->bufSize / sizeof(vhpiRealT);
-         if (max < value_p->numElems)
-            return value_p->numElems * sizeof(vhpiRealT);
+         value_p->numElems = num_elems;
 
          const double *p = ((const double *)value) + offset;
          for (int i = 0; i < value_p->numElems; i++)
@@ -3008,7 +3020,7 @@ static c_typeDecl *build_typeDecl(type_t type)
             c_typeDecl *ftd = cached_typeDecl(tree_type(f));
             c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
             init_elemDecl(ed, f, ftd);
-            td->composite.typeDecl.size += ftd->size;
+            td->composite.typeDecl.numElems += ftd->numElems;
             APUSH(td->RecordElems, &(ed->decl.object));
          }
 
@@ -3022,14 +3034,14 @@ static c_typeDecl *build_typeDecl(type_t type)
                new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
             init_compositeTypeDecl(&(td->composite), decl, type);
             td->ElemType = cached_typeDecl(type_elem(type));
-            td->composite.typeDecl.size = td->ElemType->size;
+            td->composite.typeDecl.numElems = td->ElemType->numElems;
 
             tree_t c = type_constraint(type, 0);
             assert(tree_subkind(c) == C_INDEX);
             td->NumDimensions = tree_ranges(c);
             for (int i = 0; i < td->NumDimensions; i++) {
                c_intRange *ir = build_int_range(tree_range(c, i));
-               td->composite.typeDecl.size *= range_len(ir);
+               td->composite.typeDecl.numElems *= range_len(ir);
                APUSH(td->Constraints, &(ir->range.object));
             }
 
@@ -3051,11 +3063,8 @@ static c_typeDecl *build_typeDecl(type_t type)
                fatal_trace("unsupported constraint subkind %d", tree_subkind(c));
 
             c_intRange *ir = build_int_range(tree_range(c, 0));
-            td->typeDecl.size = range_len(ir);
             APUSH(td->Constraints, &(ir->range.object));
          }
-         else
-            td->typeDecl.size = cached_typeDecl(type_base(type))->size;
 
          return &(td->typeDecl);
       }

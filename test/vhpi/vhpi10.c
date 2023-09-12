@@ -58,6 +58,27 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.value.intg == 100);
    fail_unless(value.numElems == 1);
 
+   vhpiHandleT g1 = vhpi_handle_by_name("g1", root);
+   check_error();
+
+   value.format = vhpiObjTypeVal;
+   value.bufSize = 0;
+   value.value.str = NULL;
+
+   const int bufsz = vhpi_get_value(g1, &value);
+   check_error();
+   fail_unless(value.format == vhpiStrVal);
+   fail_unless(bufsz == 6);
+
+   vhpiCharT str[6];
+   value.value.str = str;
+   value.bufSize = sizeof(str);
+   vhpi_get_value(g1, &value);
+   check_error();
+   fail_unless(value.numElems == 5);
+   vhpi_printf("g1 value '%s'", (char *)str);
+   fail_unless(strcmp((char *)str, "hello") == 0);
+
    vhpi_release_handle(handle_sos);
 }
 

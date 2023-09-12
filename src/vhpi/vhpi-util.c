@@ -127,16 +127,7 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 DLLEXPORT
 int vhpi_is_printable(char ch)
 {
-   if (ch < 32)
-      return 0;
-   else if (ch < 127)
-      return 1;
-   else if (ch == 127)
-      return 0;
-   else if ((unsigned char)ch < 160)
-      return 0;
-   else
-      return 1;
+   return isprint_iso88591(ch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
