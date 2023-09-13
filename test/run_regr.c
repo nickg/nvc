@@ -125,6 +125,7 @@ struct test {
    char      *cover;
    char      *define;
    char      *export;
+   char      *plusarg;
 };
 
 struct arglist {
@@ -487,6 +488,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_EXPORT;
             test->export = strdup(value + 1);
          }
+         else if (opt[0] == '+')
+            test->plusarg = strdup(opt + 1);
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -919,6 +922,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_SHUFFLE)
          push_arg(&args, "--shuffle");
+
+      if (test->plusarg != NULL)
+         push_arg(&args, "+%s", test->plusarg);
 
       push_arg(&args, "%s", test->name);
    }

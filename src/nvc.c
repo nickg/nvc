@@ -577,6 +577,19 @@ static jit_t *get_jit(unit_registry_t *ur)
    return jit;
 }
 
+static int plusarg_cmp(const void *lptr, const void *rptr)
+{
+   const char *lstr = *(const char **)lptr;
+   const char *rstr = *(const char **)rptr;
+
+   if (lstr[0] == '+' && rstr[0] != '+')
+      return -1;
+   else if (lstr[0] != '+' && rstr[0] == '+')
+      return 1;
+   else
+      return lptr - rptr;
+}
+
 static int run(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -691,6 +704,16 @@ static int run(int argc, char **argv)
       }
    }
 
+   // Shuffle the arguments to put all the plusargs first
+   qsort(argv + optind, next_cmd - optind, sizeof(char *), plusarg_cmp);
+
+   int nplusargs = 0;
+   char **plusargs = argv + optind;
+   for (int i = optind; i < next_cmd; i++) {
+      if (argv[i][0] == '+')
+         nplusargs++, optind++;
+   }
+
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
@@ -734,9 +757,11 @@ static int run(int argc, char **argv)
 
    vhpi_context_t *vhpi = NULL;
    if (vhpi_plugins != NULL) {
-      vhpi = vhpi_context_new(top, model, jit, next_cmd - 1, argv + 1);
+      vhpi = vhpi_context_new(top, model, jit, nplusargs, plusargs);
       vhpi_load_plugins(vhpi_plugins);
    }
+   else if (nplusargs > 0)
+      warnf("found plusargs on command line but no VHPI plugin was loaded");
 
    set_ctrl_c_handler(ctrl_c_handler, model);
 

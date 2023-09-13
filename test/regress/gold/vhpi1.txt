@@ -2,9 +2,7 @@ loading VHPI plugin
 VHPI printf hello, world!
 VHPI printf tool is nvc
 VHPI printf tool version is
-VHPI printf arg is -r
-VHPI printf arg is --load=
-VHPI printf arg is vhpi1
+VHPI printf arg is +foo=bar
 VHPI printf root handle
 VHPI printf root name is VHPI1
 VHPI printf root full name is :VHPI1

@@ -230,7 +230,7 @@ implicit2       normal
 file2           normal
 case5           gold,fail
 toplevel1       normal
-vhpi1           gold,vhpi
+vhpi1           gold,vhpi,+foo=bar
 vhpi2           normal,vhpi
 issue69         normal
 issue70         normal
