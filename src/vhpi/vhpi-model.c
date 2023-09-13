@@ -1817,23 +1817,20 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (elem == NULL)
       return handle_for(&(region->object));
 
-   for (c_abstractRegion *next = region; next != NULL;
-        region = next, next = NULL) {
+ search_region:
+   for (int i = 0; i < region->stmts.count; i++) {
+      c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
+      if (r == NULL || strcasecmp((char *)r->Name, elem) != 0)
+         continue;
 
-      for (int i = 0; i < region->stmts.count; i++) {
-         c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
-         if (r == NULL || strcasecmp((char *)r->Name, elem) != 0)
-            continue;
+      expand_lazy_region(r);
 
-         expand_lazy_region(r);
-
-         if ((elem = strtok_r(NULL, ":.", &saveptr))) {
-            next = r;
-            break;
-         }
-         else
-            return handle_for(&(r->object));
+      if ((elem = strtok_r(NULL, ":.", &saveptr))) {
+         region = r;
+         goto search_region;
       }
+      else
+         return handle_for(&(r->object));
    }
 
    for (int i = 0; i < region->decls.count; i++) {

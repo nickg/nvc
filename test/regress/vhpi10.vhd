@@ -5,6 +5,12 @@ end entity;
 architecture test of sub is
 begin
 
+    sub_b0: block is
+        signal s : bit;
+    begin
+        s <= '1';
+    end block;
+
 end architecture;
 
 -------------------------------------------------------------------------------

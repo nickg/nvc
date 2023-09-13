@@ -172,6 +172,22 @@ void vhpi10_startup(void)
    fail_unless(vhpi_scan(it4) == NULL);
    vhpi_release_handle(it4);
 
+   vhpiHandleT sub_b0 = vhpi_handle_by_name("sub_b0", i0);
+   check_error();
+   fail_if(sub_b0 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, sub_b0) == vhpiBlockStmtK);
+   vhpi_printf("sub_b0 label %s", vhpi_get_str(vhpiLabelNameP, sub_b0));
+   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, sub_b0), "SUB_B0") == 0);
+
+   fail_unless(vhpi_handle_by_name("i0.sub_b0", root) == sub_b0);
+
+   vhpiHandleT it5 = vhpi_iterator(vhpiBlockStmts, i0);
+   fail_if(it5 == NULL);
+   fail_unless(vhpi_scan(it5) == sub_b0);
+
+   fail_unless(vhpi_scan(it5) == NULL);
+   vhpi_release_handle(it5);
+
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,
