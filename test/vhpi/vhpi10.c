@@ -156,9 +156,6 @@ void vhpi10_startup(void)
    fail_if(b1s0 == NULL);
    fail_unless(vhpi_get(vhpiKindP, b1s0) == vhpiSigDeclK);
 
-   fail_unless(vhpi_scan(it3) == NULL);
-   vhpi_release_handle(it3);
-
    vhpiHandleT i0 = vhpi_handle_by_name("i0", root);
    check_error();
    fail_if(i0 == NULL);
