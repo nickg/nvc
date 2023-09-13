@@ -384,6 +384,15 @@ typedef struct {
 
 DEF_CLASS(blockStmt, vhpiBlockStmtK, region.object);
 
+typedef struct {
+   c_abstractRegion region;
+   c_stmt           stmt;
+   vhpiIntT         GenerateIndex;
+   c_constDecl     *ParamDecl;
+} c_forGenerate;
+
+DEF_CLASS(forGenerate, vhpiForGenerateK, region.object);
+
 typedef enum {
    CB_INACTIVE,
    CB_ACTIVE,
@@ -459,6 +468,7 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    case vhpiRootInstK:
    case vhpiBlockStmtK:
    case vhpiCompInstStmtK:
+   case vhpiForGenerateK:
       return container_of(obj, c_abstractRegion, object);
    default:
       return NULL;
@@ -582,6 +592,8 @@ static c_stmt *is_stmt(c_vhpiObject *obj)
    case vhpiCompInstStmtK:
       return &(container_of(obj, c_compInstStmt,
                             designInstUnit.region.object)->stmt);
+   case vhpiForGenerateK:
+      return &(container_of(obj, c_forGenerate, region.object)->stmt);
    default:
       return NULL;
    }
@@ -732,9 +744,9 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->LineNo     = loc->first_line;
    r->LineOffset = loc->line_delta;
 
-   r->Name = r->CaseName = new_string(istr(tree_ident(t)));
+   r->Name = new_string(istr(tree_ident(t)));
    char *full LOCAL = xasprintf(":%s", r->Name);
-   r->FullName = r->FullCaseName = new_string(full);
+   r->FullName = new_string(full);
 
    r->tree = t;
 }
@@ -1444,6 +1456,36 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
    vhpi_error(vhpiInternal, &(obj->loc), "cannot find elaborated value for %s",
               decl->decl.FullName);
    return NULL;
+}
+
+static bool recover_source_id(const loc_t *loc, const char **text, int *nchars)
+{
+   // We do not save the orignal case of identifiers as it does not seem
+   // to be required except for the VHPI CaseName property. Instead try
+   // to recover the original identifier text using the source location.
+
+   const char *src = loc_get_source(loc);
+   if (src == NULL)
+      return false;
+
+   const char *start = src + loc->first_column;
+   if (!isalnum_iso88591(start[0]))
+      return false;
+
+   if (loc->line_delta == 0) {
+      *text = start;
+      *nchars = loc->column_delta + 1;
+      return true;
+   }
+   else {
+      int delta = 1;
+      while (isalnum_iso88591(start[delta]))
+         delta++;
+
+      *text = start;
+      *nchars = delta;
+      return true;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2156,47 +2198,90 @@ missing_property:
    return vhpiUndefined;
 }
 
-static vhpiCharT *cached_caseName(c_abstractDecl *decl)
+static vhpiCharT *cached_regionCaseName(c_abstractRegion *region)
+{
+   if (region->CaseName != NULL)
+      return region->CaseName;
+
+   const char *text;
+   int nchars;
+   if (!recover_source_id(tree_loc(region->tree), &text, &nchars))
+      goto failed;
+
+   if (region->Name[0] != toupper_iso88591(*text))
+      goto failed;
+
+   const size_t expect = strlen((char *)region->Name);
+   if (nchars < expect && region->Name[nchars] == '(') {
+      // Handle indices appended to for-generate block names
+      region->CaseName = new_string_n(text, expect);
+      memcpy(region->CaseName + nchars, region->Name + nchars, expect - nchars);
+      return region->CaseName;
+   }
+   else if (nchars != expect)
+      goto failed;
+
+   return (region->CaseName = new_string_n(text, nchars));
+
+ failed:
+   vhpi_error(vhpiWarning, &(region->object.loc), "cannot recover original "
+              "CaseName of region %s", region->Name);
+   return (region->CaseName = region->Name);
+}
+
+static vhpiCharT *cached_declCaseName(c_abstractDecl *decl)
 {
    if (decl->CaseName != NULL)
       return decl->CaseName;
 
-   // We do not save the orignal case of identifiers as it does not seem
-   // to be required except for this property. Instead try to recover
-   // the original identifier text using the source location.
-
-   const loc_t *loc = tree_loc(decl->tree);
-   if (loc->line_delta != 0)
-      goto failed;
-
-   const char *src = loc_get_source(loc);
-   if (src == NULL)
+   const char *text;
+   int nchars;
+   if (!recover_source_id(&(decl->object.loc), &text, &nchars))
       goto failed;
 
    // Do some basic sanity checks to make sure we found the right
    // identifier
 
-   const char *start = src + loc->first_column;
-   if (decl->Name[0] != toupper_iso88591(*start))
+   if (decl->Name[0] != toupper_iso88591(*text))
+      goto failed;
+   else if (nchars != strlen((char *)decl->Name))
       goto failed;
 
-   return (decl->CaseName = new_string_n(start, loc->column_delta + 1));
+   return (decl->CaseName = new_string_n(text, nchars));
 
  failed:
+   vhpi_error(vhpiWarning, &(decl->object.loc), "cannot recover original "
+              "CaseName of declaration %s", decl->Name);
    return (decl->CaseName = decl->Name);
 }
 
-static vhpiCharT *cached_fullCaseName(c_abstractDecl *decl)
+static vhpiCharT *cached_regionFullCaseName(c_abstractRegion *region)
+{
+   if (region->FullCaseName != NULL)
+      return region->FullCaseName;
+
+   vhpiCharT *cn = cached_regionCaseName(region);
+
+   vhpiCharT *uppercn = (vhpiCharT *)"";
+   if (region->UpperRegion != NULL)
+      uppercn = cached_regionFullCaseName(region->UpperRegion);
+
+   char *full LOCAL = xasprintf("%s:%s", uppercn, cn);
+   return (region->FullCaseName = new_string(full));
+}
+
+static vhpiCharT *cached_declFullCaseName(c_abstractDecl *decl)
 {
    if (decl->FullCaseName != NULL)
       return decl->FullCaseName;
 
-   vhpiCharT *cn = cached_caseName(decl);
+   vhpiCharT *cn = cached_declCaseName(decl);
 
    if (decl->ImmRegion == NULL)
       return (decl->FullCaseName = cn);
 
-   char *full LOCAL = xasprintf("%s:%s", decl->ImmRegion->FullCaseName, cn);
+   char *full LOCAL =
+      xasprintf("%s:%s", cached_regionFullCaseName(decl->ImmRegion), cn);
    return (decl->FullCaseName = new_string(full));
 }
 
@@ -2219,10 +2304,10 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (region != NULL) {
       switch (property) {
       case vhpiNameP: return region->Name;
-      case vhpiCaseNameP: return region->CaseName;
+      case vhpiCaseNameP: return cached_regionCaseName(region);
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
       case vhpiFullNameP: return region->FullName;
-      case vhpiFullCaseNameP: return region->FullCaseName;
+      case vhpiFullCaseNameP: return cached_regionFullCaseName(region);
       default: break;   // May be statement instance
       }
    }
@@ -2239,10 +2324,10 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (d != NULL) {
       switch (property) {
       case vhpiNameP: return d->Name;
-      case vhpiCaseNameP: return cached_caseName(d);
+      case vhpiCaseNameP: return cached_declCaseName(d);
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
       case vhpiFullNameP: return d->FullName;
-      case vhpiFullCaseNameP: return cached_fullCaseName(d);
+      case vhpiFullCaseNameP: return cached_declFullCaseName(d);
       default: goto unsupported;
       }
    }
@@ -3206,6 +3291,18 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    return &(c->designInstUnit.region);
 }
 
+static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
+{
+   c_forGenerate *g = new_object(sizeof(c_forGenerate), vhpiForGenerateK);
+   init_abstractRegion(&(g->region), t);
+   init_stmt(&(g->stmt), t);
+
+   APUSH(region->InternalRegions, &(g->region.object));
+   APUSH(region->stmts, &(g->region.object));
+
+   return &(g->region);
+}
+
 static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
 {
    const int ndecls = tree_decls(container);
@@ -3260,6 +3357,9 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
                break;
             case T_ARCH:
                r = build_compInstStmt(s, tree_ref(h), region);
+               break;
+            case T_FOR_GENERATE:
+               r = build_forGenerate(s, region);
                break;
             default:
                continue;

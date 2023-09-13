@@ -11,6 +11,12 @@ begin
         s <= '1';
     end block;
 
+    ForGen1: for i in 1 to 3 generate
+        signal s : integer;
+    begin
+        s <= i;
+    end generate;
+
 end architecture;
 
 -------------------------------------------------------------------------------

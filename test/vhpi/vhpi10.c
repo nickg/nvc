@@ -188,6 +188,14 @@ void vhpi10_startup(void)
    fail_unless(vhpi_scan(it5) == NULL);
    vhpi_release_handle(it5);
 
+   vhpiHandleT genblk1 = vhpi_handle_by_name("I0.FORGEN1(1)", root);
+   check_error();
+   fail_if(genblk1 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, genblk1) == vhpiForGenerateK);
+   vhpi_printf("genblk1 CaseName is %s",
+               (char *)vhpi_get_str(vhpiCaseNameP, genblk1));
+   fail_unless(strcmp((char *)vhpi_get_str(vhpiCaseNameP, genblk1), "ForGen1(1)") == 0);
+
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,
