@@ -3049,6 +3049,9 @@ START_TEST(test_lcs2016_18)
       { 25, "'INDEX parameter for type INT_MAP must be between 1 and 2" },
       { 26, "prefix of 'INDEX attribute must be an array type" },
       { 29, "only integer literals are supported for 'INDEX parameter" },
+      { 38, "prefix of attribute IMAGE must be a type" },
+      { 40, "prefix of attribute LENGTH must be an array or a discrete "
+        "type but have type REAL" },
       { -1, NULL }
    };
    expect_errors(expect);

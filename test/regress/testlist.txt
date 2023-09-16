@@ -873,3 +873,4 @@ bounds41        fail,gold
 ieee16          normal
 shuffle1        normal,2002,shuffle
 vhpi11          normal,vhpi,2008
+attr18          normal,2019

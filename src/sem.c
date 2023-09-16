@@ -3884,9 +3884,12 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             sem_error(name, "prefix does not have LENGTH attribute");
          else if (type_is_none(type))
             return false;
-         else if (!type_is_array(type))
-            sem_error(name, "prefix of attribute LENGTH must be an array but "
-                      "have type %s", type_pp(type));
+         else if (!type_is_array(type)
+                  && !(standard() >= STD_19 && type_is_discrete(type)))
+            sem_error(name, "prefix of attribute LENGTH must be an array%s "
+                      "but have type %s",
+                      standard() >= STD_19 ? " or a discrete type" : "",
+                      type_pp(type));
 
          if (!sem_check_dimension_attr(t, tab))
             return false;
@@ -3978,18 +3981,23 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_IMAGE:
    case ATTR_VALUE:
       {
+         if (named_type == NULL && standard() >= STD_19
+             && tree_params(t) == 0) {
+            // LCS2016-18 allows attribute with object prefix
+            named_type = get_type_or_null(name);
+            add_param(t, name, P_POS, NULL);
+         }
+
          if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
-
-         type_t name_type = tree_type(name);
-         if (!type_is_representable(name_type))
+         else if (!type_is_representable(named_type))
             sem_error(t, "cannot use attribute %s with non-%s type %s",
                       istr(attr),
                       standard() < STD_19 ? "scalar" : "representable",
-                      type_pp(name_type));
+                      type_pp(named_type));
 
          type_t std_string = std_type(NULL, STD_STRING);
-         type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
+         type_t arg_type = predef == ATTR_IMAGE ? named_type : std_string;
          if (!sem_check_attr_param(t, arg_type, 1, 1, tab))
             return false;
 
@@ -4003,6 +4011,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_POS:
    case ATTR_VAL:
       {
+         if (named_type == NULL && standard() >= STD_19)
+            named_type = get_type_or_null(name);   // LCS2016-08 relaxation
+
          if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 

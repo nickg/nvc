@@ -431,6 +431,8 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                return make_ref(type_enum_literal(type, nlits - 1));
             case ATTR_ASCENDING:
                return get_enum_lit(t, NULL, true);
+            case ATTR_LENGTH:
+               return get_int_lit(t, NULL, nlits);
             default:
                fatal_trace("invalid enumeration attribute %d", predef);
             }
@@ -469,14 +471,26 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
          switch (predef) {
          case ATTR_LENGTH:
-            if (tree_kind(tree_left(r)) == T_LITERAL
-                && tree_kind(tree_right(r)) == T_LITERAL) {
-               int64_t low, high;
-               range_bounds(r, &low, &high);
-               return get_int_lit(t, NULL, (high < low) ? 0 : high - low + 1);
-            }
-            else
+            {
+               int64_t low, high, length = 0;
+               if (folded_bounds(r, &low, &high)) {
+                  if (high < low)
+                     return get_int_lit(t, NULL, 0);
+                  else {
+                     bool overflow = false;
+                     overflow |= __builtin_sub_overflow(high, low, &length);
+                     overflow |= __builtin_add_overflow(length, 1, &length);
+
+                     if (overflow)
+                        error_at(tree_loc(t), "value of LENGTH attribute "
+                                 "exceeds universal integer range");
+                     else
+                        return get_int_lit(t, NULL, length);
+                  }
+               }
+
                return t;
+            }
 
          case ATTR_LOW:
             if (tree_subkind(r) == RANGE_TO)

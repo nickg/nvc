@@ -1539,6 +1539,24 @@ START_TEST(test_cpcall)
 }
 END_TEST
 
+START_TEST(test_length)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/simp/length.vhd");
+
+   const error_t expect[] = {
+      {  3, "value of LENGTH attribute exceeds universal integer range" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1598,6 +1616,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_ieee1);
    tcase_add_test(tc_core, test_issue742);
    tcase_add_test(tc_core, test_cpcall);
+   tcase_add_test(tc_core, test_length);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -30,4 +30,14 @@ begin
     begin
     end process;
 
+    p3: process is
+        constant x : integer := 2;
+        variable y : real;
+    begin
+        report x'image;                 -- OK
+        report p3'image;                -- Error
+        assert x'left = integer'left;   -- OK
+        report y'length;                -- Error
+    end process;
+
 end architecture;
