@@ -103,6 +103,7 @@ typedef struct _jit {
    unsigned         next_handle;
    nvc_lock_t       lock;
    int32_t         *cover_mem;
+   unsigned         cover_ntags;
    jit_irq_fn_t     interrupt;
    void            *interrupt_ctx;
    unit_registry_t *registry;
@@ -1362,25 +1363,22 @@ bool jit_will_abort(jit_ir_t *ir)
       return ir->op == J_TRAP;
 }
 
-void jit_alloc_cover_mem(jit_t *j, int n_tags)
+int32_t *jit_get_cover_mem(jit_t *j, int mintags)
 {
-   if (n_tags == 0)
-      return;
-   else if (j->cover_mem == NULL)
-      j->cover_mem = xcalloc_array(n_tags, sizeof(int32_t));
-   else
-      j->cover_mem= xrealloc_array(j->cover_mem, n_tags, sizeof(int32_t));
-}
+   if (mintags > j->cover_ntags) {
+      j->cover_mem = xrealloc_array(j->cover_mem, mintags, sizeof(int32_t));
+      memset(j->cover_mem + j->cover_ntags, '\0',
+             (mintags - j->cover_ntags) * sizeof(int32_t));
+      j->cover_ntags = mintags;
+   }
 
-int32_t *jit_get_cover_mem(jit_t *j)
-{
    return j->cover_mem;
 }
 
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
 {
    assert(addr.kind == JIT_ADDR_COVER);
-   int32_t *base = jit_get_cover_mem(j);
+   int32_t *base = jit_get_cover_mem(j, addr.int64 + 1);
    assert(base != NULL);
    return base + addr.int64;
 }
