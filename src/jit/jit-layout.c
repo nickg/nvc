@@ -94,7 +94,7 @@ const jit_layout_t *layout_of(type_t type)
       if (nelems < 0) {
          l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
          l->nparts = 2;
-         l->size   = sizeof(void *) + ndims * 2 * sizeof(int32_t);
+         l->size   = sizeof(void *) + ndims * 2 * sizeof(int64_t);
          l->align  = sizeof(void *);
 
          l->parts[0].offset = 0;

@@ -915,6 +915,7 @@ START_TEST(test_layout)
 
    l = layout_of(bv);
    ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->size, sizeof(void *) + 2*sizeof(int64_t));
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, sizeof(void *));
    ck_assert_int_eq(l->parts[0].align, sizeof(void *));

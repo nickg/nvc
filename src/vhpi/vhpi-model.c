@@ -436,6 +436,7 @@ typedef struct _vhpi_context {
 
 static c_typeDecl *cached_typeDecl(type_t type);
 static void vhpi_lazy_block(c_abstractRegion *r);
+static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -963,14 +964,21 @@ static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *si
    if (Constraints->count == 0)
       return;
 
+   ffi_uarray_t *dyn = NULL;
    vhpiIntT *lens LOCAL = xmalloc_array(Constraints->count, sizeof(vhpiIntT));
    for (i = 0; i < Constraints->count; i++) {
       c_intRange *ir = is_intRange(Constraints->items[i]);
       assert(ir != NULL);
-      if (ir->range.IsUnconstrained)
-         return;
+      if (ir->range.IsUnconstrained) {
+         if (dyn == NULL) {
+            if ((dyn = vhpi_get_value_ptr(&(prefix->expr.object))) == NULL)
+               return;
+         }
+         lens[i] = ffi_abs_length(dyn->dims[i].length);
+      }
+      else
+         lens[i] = range_len(ir);
 
-      lens[i] = range_len(ir);
       if (lens[i] == 0)
          return;
    }
@@ -1422,15 +1430,30 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn != NULL) {
-      void *base = vhpi_get_value_ptr(&(pn->simpleName->decl.object));
+      void *base = vhpi_get_value_ptr(pn->Prefix
+                                      ? &(pn->Prefix->expr.object)
+                                      : &(pn->simpleName->decl.object));
       if (base == NULL)
          return NULL;
 
       c_selectedName *sn = is_selectedName(obj);
       if (sn != NULL) {
-         const jit_layout_t *l = layout_of(pn->simpleName->decl.type);
-         assert(sn->Suffix->Position < l->nparts);
-         return base + l->parts[sn->Suffix->Position].offset;
+         const jit_layout_t *l1 = layout_of(pn->simpleName->decl.type);
+         assert(sn->Suffix->Position < l1->nparts);
+         return base + l1->parts[sn->Suffix->Position].offset;
+      }
+
+      c_indexedName *in = is_indexedName(obj);
+      if (in != NULL) {
+         type_t type = pn->Prefix
+            ? pn->Prefix->expr.Type->type : pn->simpleName->decl.type;
+         const jit_layout_t *l = layout_of(type);
+
+         if (l->nparts == 2)
+            return ((ffi_uarray_t *)base)->ptr;   // Wrapped array
+
+         assert(l->nparts == 1);
+         return base;
       }
 
       vhpi_error(vhpiInternal, &(obj->loc), "unsupported prefixed name kind %s",
