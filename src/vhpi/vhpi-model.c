@@ -714,15 +714,6 @@ static vhpiCharT *new_string(const char *s)
    return p;
 }
 
-static vhpiCharT *new_string_n(const char *s, size_t n)
-{
-   shash_t *strtab = vhpi_context()->strtab;
-   vhpiCharT *p = shash_get(strtab, s);
-   if (p == NULL)
-      shash_put(strtab, s, (p = (vhpiCharT *)xstrndup(s, n)));
-   return p;
-}
-
 static c_tool *build_tool(int argc, char **argv)
 {
    c_tool *t = new_object(sizeof(c_tool), vhpiToolK);
@@ -744,9 +735,9 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->LineNo     = loc->first_line;
    r->LineOffset = loc->line_delta;
 
-   r->Name = new_string(istr(tree_ident(t)));
+   r->Name = r->CaseName = new_string(istr(tree_ident(t)));
    char *full LOCAL = xasprintf(":%s", r->Name);
-   r->FullName = new_string(full);
+   r->FullName = r->FullCaseName = new_string(full);
 
    r->tree = t;
 }
@@ -766,10 +757,10 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
    d->LineNo     = loc->first_line;
    d->LineOffset = loc->line_delta;
 
-   d->Name = new_string(istr(tree_ident(t)));
+   d->Name = d->CaseName = new_string(istr(tree_ident(t)));
    if (r) {
       char *full LOCAL = xasprintf("%s:%s", r->FullName, d->Name);
-      d->FullName = new_string(full);
+      d->FullName = d->FullCaseName = new_string(full);
    }
 
    d->ImmRegion = r;
@@ -1456,36 +1447,6 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
    vhpi_error(vhpiInternal, &(obj->loc), "cannot find elaborated value for %s",
               decl->decl.FullName);
    return NULL;
-}
-
-static bool recover_source_id(const loc_t *loc, const char **text, int *nchars)
-{
-   // We do not save the orignal case of identifiers as it does not seem
-   // to be required except for the VHPI CaseName property. Instead try
-   // to recover the original identifier text using the source location.
-
-   const char *src = loc_get_source(loc);
-   if (src == NULL)
-      return false;
-
-   const char *start = src + loc->first_column;
-   if (!isalnum_iso88591(start[0]))
-      return false;
-
-   if (loc->line_delta == 0) {
-      *text = start;
-      *nchars = loc->column_delta + 1;
-      return true;
-   }
-   else {
-      int delta = 1;
-      while (isalnum_iso88591(start[delta]))
-         delta++;
-
-      *text = start;
-      *nchars = delta;
-      return true;
-   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2198,93 +2159,6 @@ missing_property:
    return vhpiUndefined;
 }
 
-static vhpiCharT *cached_regionCaseName(c_abstractRegion *region)
-{
-   if (region->CaseName != NULL)
-      return region->CaseName;
-
-   const char *text;
-   int nchars;
-   if (!recover_source_id(tree_loc(region->tree), &text, &nchars))
-      goto failed;
-
-   if (region->Name[0] != toupper_iso88591(*text))
-      goto failed;
-
-   const size_t expect = strlen((char *)region->Name);
-   if (nchars < expect && region->Name[nchars] == '(') {
-      // Handle indices appended to for-generate block names
-      region->CaseName = new_string_n(text, expect);
-      memcpy(region->CaseName + nchars, region->Name + nchars, expect - nchars);
-      return region->CaseName;
-   }
-   else if (nchars != expect)
-      goto failed;
-
-   return (region->CaseName = new_string_n(text, nchars));
-
- failed:
-   vhpi_error(vhpiWarning, &(region->object.loc), "cannot recover original "
-              "CaseName of region %s", region->Name);
-   return (region->CaseName = region->Name);
-}
-
-static vhpiCharT *cached_declCaseName(c_abstractDecl *decl)
-{
-   if (decl->CaseName != NULL)
-      return decl->CaseName;
-
-   const char *text;
-   int nchars;
-   if (!recover_source_id(&(decl->object.loc), &text, &nchars))
-      goto failed;
-
-   // Do some basic sanity checks to make sure we found the right
-   // identifier
-
-   if (decl->Name[0] != toupper_iso88591(*text))
-      goto failed;
-   else if (nchars != strlen((char *)decl->Name))
-      goto failed;
-
-   return (decl->CaseName = new_string_n(text, nchars));
-
- failed:
-   vhpi_error(vhpiWarning, &(decl->object.loc), "cannot recover original "
-              "CaseName of declaration %s", decl->Name);
-   return (decl->CaseName = decl->Name);
-}
-
-static vhpiCharT *cached_regionFullCaseName(c_abstractRegion *region)
-{
-   if (region->FullCaseName != NULL)
-      return region->FullCaseName;
-
-   vhpiCharT *cn = cached_regionCaseName(region);
-
-   vhpiCharT *uppercn = (vhpiCharT *)"";
-   if (region->UpperRegion != NULL)
-      uppercn = cached_regionFullCaseName(region->UpperRegion);
-
-   char *full LOCAL = xasprintf("%s:%s", uppercn, cn);
-   return (region->FullCaseName = new_string(full));
-}
-
-static vhpiCharT *cached_declFullCaseName(c_abstractDecl *decl)
-{
-   if (decl->FullCaseName != NULL)
-      return decl->FullCaseName;
-
-   vhpiCharT *cn = cached_declCaseName(decl);
-
-   if (decl->ImmRegion == NULL)
-      return (decl->FullCaseName = cn);
-
-   char *full LOCAL =
-      xasprintf("%s:%s", cached_regionFullCaseName(decl->ImmRegion), cn);
-   return (decl->FullCaseName = new_string(full));
-}
-
 DLLEXPORT
 const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 {
@@ -2304,10 +2178,10 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (region != NULL) {
       switch (property) {
       case vhpiNameP: return region->Name;
-      case vhpiCaseNameP: return cached_regionCaseName(region);
+      case vhpiCaseNameP: return region->CaseName;
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
       case vhpiFullNameP: return region->FullName;
-      case vhpiFullCaseNameP: return cached_regionFullCaseName(region);
+      case vhpiFullCaseNameP: return region->FullCaseName;
       default: break;   // May be statement instance
       }
    }
@@ -2324,10 +2198,10 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (d != NULL) {
       switch (property) {
       case vhpiNameP: return d->Name;
-      case vhpiCaseNameP: return cached_declCaseName(d);
+      case vhpiCaseNameP: return d->CaseName;
       case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
       case vhpiFullNameP: return d->FullName;
-      case vhpiFullCaseNameP: return cached_declFullCaseName(d);
+      case vhpiFullCaseNameP: return d->FullCaseName;
       default: goto unsupported;
       }
    }
