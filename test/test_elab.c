@@ -18,8 +18,10 @@
 #include "test_util.h"
 #include "common.h"
 #include "diag.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "phase.h"
+#include "rt/cover.h"
 #include "scan.h"
 #include "type.h"
 
@@ -1595,6 +1597,28 @@ START_TEST(test_bounds41)
 }
 END_TEST
 
+START_TEST(test_issue759)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue759.vhd");
+
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
+                                       T_ENTITY, T_ARCH);
+
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
+
+   tree_t e = elab(a, jit, ur, tagging);
+   fail_if(e == NULL);
+
+   jit_free(jit);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1683,6 +1707,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue707);
    tcase_add_test(tc, test_bounds40);
    tcase_add_test(tc, test_bounds41);
+   tcase_add_test(tc, test_issue759);
    suite_add_tcase(s, tc);
 
    return s;

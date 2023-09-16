@@ -1140,9 +1140,6 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                  ctx->cover, b);
 
-   if (ctx->cover != NULL)
-      eval_alloc_cover_mem(ctx->jit, ctx->cover);
-
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
 

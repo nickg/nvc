@@ -2045,7 +2045,8 @@ static void reset_coverage(rt_model_t *m)
    int32_t n_tags;
    cover_count_tags(m->cover, &n_tags);
 
-   jit_alloc_cover_mem(m->jit, n_tags);
+   // Pre-allocate coverage counters
+   jit_get_cover_mem(m->jit, n_tags);
 
    fbuf_close(f, NULL);
 }
@@ -2053,7 +2054,10 @@ static void reset_coverage(rt_model_t *m)
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      const int32_t *counts = jit_get_cover_mem(m->jit);
+      int32_t n_tags;
+      cover_count_tags(m->cover, &n_tags);
+
+      const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
       fbuf_t *covdb =  cover_open_lib_file(m->top, FBUF_OUT, true);
       cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, counts);
       fbuf_close(covdb, NULL);

@@ -321,11 +321,3 @@ void *eval_instance(jit_t *jit, ident_t name, void *context)
 
    return result.pointer;
 }
-
-void eval_alloc_cover_mem(jit_t *jit, cover_tagging_t *cover)
-{
-   int32_t n_tags;
-   cover_count_tags(cover, &n_tags);
-
-   jit_alloc_cover_mem(jit, n_tags);
-}
