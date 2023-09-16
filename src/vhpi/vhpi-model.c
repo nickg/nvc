@@ -481,7 +481,7 @@ static c_abstractRegion *cast_abstractRegion(c_vhpiObject *obj)
 {
    c_abstractRegion *r = is_abstractRegion(obj);
    if (r == NULL)
-      vhpi_error(vhpiError, NULL, "class kind %s is not a region",
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not a region",
                  vhpi_class_str(obj->kind));
    return r;
 }
@@ -512,7 +512,7 @@ static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
 {
    c_abstractDecl *decl = is_abstractDecl(obj);
    if (decl == NULL)
-      vhpi_error(vhpiError, NULL, "class kind %s is not a declaration",
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not a declaration",
                  vhpi_class_str(obj->kind));
    return decl;
 }
@@ -580,7 +580,7 @@ static c_expr *cast_expr(c_vhpiObject *obj)
 {
    c_expr *e = is_expr(obj);
    if (e == NULL)
-      vhpi_error(vhpiError, NULL, "class kind %s is not an expression",
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not an expression",
                  vhpi_class_str(obj->kind));
 
    return e;
@@ -627,7 +627,7 @@ static c_prefixedName *cast_prefixedName(c_vhpiObject *obj)
 {
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn == NULL)
-      vhpi_error(vhpiError, NULL, "class kind %s is not a prefixed name",
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not a prefixed name",
                  vhpi_class_str(obj->kind));
    return pn;
 }
@@ -651,8 +651,8 @@ static c_designInstUnit *cast_designInstUnit(c_vhpiObject *obj)
    case vhpiCompInstStmtK:
       return container_of(obj, c_designInstUnit, region.object);
    default:
-      vhpi_error(vhpiError, NULL, "class kind %s is not an instance of a design unit",
-                 vhpi_class_str(obj->kind));
+      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not an instance of "
+                 "a design unit", vhpi_class_str(obj->kind));
       return NULL;
    }
 }
@@ -1062,8 +1062,6 @@ static void expand_lazy_region(c_abstractRegion *r)
 {
    if (r->lazyfn == NULL)
       return;
-
-   VHPI_TRACE("expand lazy region %s", r->Name);
 
    (*r->lazyfn)(r);
    r->lazyfn = NULL;
@@ -1753,19 +1751,8 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    switch (type) {
    case vhpiRootInst:
       return handle_for(&(vhpi_context()->root->designInstUnit.region.object));
-
    case vhpiTool:
       return handle_for(&(vhpi_context()->tool->object));
-
-   case DEPRECATED_vhpiSubtype:
-   case DEPRECATED_vhpiReturnTypeMark:
-   case DEPRECATED_vhpiName:
-   case DEPRECATED_vhpiTypeMark:
-   case DEPRECATED_vhpiDecl:
-      vhpi_error(vhpiError, NULL, "relationship %s is deprecated and "
-                 "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
-      return NULL;
-
    default:
       break;
    }
@@ -1842,6 +1829,14 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
          return handle_for(&(sn->Suffix->decl.object));
       }
+   case DEPRECATED_vhpiSubtype:
+   case DEPRECATED_vhpiReturnTypeMark:
+   case DEPRECATED_vhpiName:
+   case DEPRECATED_vhpiTypeMark:
+   case DEPRECATED_vhpiDecl:
+      vhpi_error(vhpiError, &(obj->loc), "relationship %s is deprecated and "
+                 "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
+      return NULL;
    default:
       fatal_trace("relationship %s not supported in vhpi_handle",
                   vhpi_one_to_one_str(type));
@@ -2214,8 +2209,8 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
 
    default:
-      vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
-                 vhpi_property_str(property));
+      vhpi_error(vhpiFailure, &(obj->loc), "unsupported property %s in "
+                 "vhpi_get", vhpi_property_str(property));
       return vhpiUndefined;
    }
 
@@ -2779,8 +2774,8 @@ int vhpi_put_value(vhpiHandleT handle,
       return 0;
 
    default:
-      vhpi_error(vhpiFailure, NULL, "mode %s not supported in vhpi_put_value",
-                 vhpi_put_value_mode_str(mode));
+      vhpi_error(vhpiFailure, &(obj->loc), "mode %s not supported in "
+                 "vhpi_put_value", vhpi_put_value_mode_str(mode));
       return 1;
    }
 }
