@@ -911,6 +911,26 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[0].repeat, 5);
    ck_assert_int_eq(l->parts[0].align, 1);
 
+   type_t bv = tree_type(search_decls(p, ident_new("T_BYTE_VECTOR"), 0));
+
+   l = layout_of(bv);
+   ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].align, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
+   ck_assert_int_eq(l->parts[1].repeat, 2);
+
+   type_t c1 = tree_type(search_decls(p, ident_new("C1"), 0));
+
+   l = layout_of(c1);
+   ck_assert_int_eq(l->nparts, 1);
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, 1);
+   ck_assert_int_eq(l->parts[0].align, 1);
+   ck_assert_int_eq(l->parts[0].repeat, 3 * 8);
+
    jit_free(j);
 }
 END_TEST

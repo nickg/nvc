@@ -23,6 +23,32 @@
 
 #include <assert.h>
 
+static int count_sub_elements(type_t type)
+{
+   if (type_is_array(type)) {
+      if (type_is_unconstrained(type))
+         return -1;
+      else {
+         const int ndims = dimension_of(type);
+
+         int length = count_sub_elements(type_elem(type));
+         for (int i = 0; i < ndims; i++) {
+            tree_t r = range_of(type, i);
+
+            int64_t dlen;
+            if (!folded_length(r, &dlen))
+               return -1;
+
+            length *= dlen;
+         }
+
+         return length;
+      }
+   }
+   else
+      return 1;
+}
+
 const jit_layout_t *layout_of(type_t type)
 {
    assert(type_frozen(type));   // Not safe to cache otherwise
@@ -63,8 +89,9 @@ const jit_layout_t *layout_of(type_t type)
    }
    else if (type_is_array(type)) {
       const int ndims = dimension_of(type);
+      const int nelems = count_sub_elements(type);
 
-      if (type_is_unconstrained(type)) {
+      if (nelems < 0) {
          l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
          l->nparts = 2;
          l->size   = sizeof(void *) + ndims * 2 * sizeof(int32_t);
@@ -81,29 +108,20 @@ const jit_layout_t *layout_of(type_t type)
          l->parts[1].align  = l->parts[1].size;
       }
       else {
-         int length = 1;
-         for (int i = 0; i < ndims; i++) {
-            tree_t r = range_of(type, i);
+         type_t elem = type_elem(type);
+         while (type_is_array(elem))
+            elem = type_elem(elem);
 
-            int64_t dlen;
-            if (!folded_length(r, &dlen))
-               fatal_at(tree_loc(r), "dimension %d of type %s is not static",
-                        i, type_pp(type));
-
-            length *= dlen;
-         }
-
-         const jit_layout_t *el = layout_of(type_elem(type));
-         assert(!type_is_array(type_elem(type)));
+         const jit_layout_t *el = layout_of(elem);
 
          l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
          l->nparts = 1;
-         l->size   = length * el->size;
+         l->size   = nelems * el->size;
          l->align  = el->align;
 
          l->parts[0].offset = 0;
          l->parts[0].size   = el->size;
-         l->parts[0].repeat = length;
+         l->parts[0].repeat = nelems;
          l->parts[0].align  = el->align;
       }
    }
