@@ -20,8 +20,9 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
-#include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-layout.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
 #include "rt/model.h"
@@ -1400,8 +1401,9 @@ static vhpiIntT vhpi_count_elements(c_typeDecl *td, ffi_uarray_t *u)
 {
    if (td->IsUnconstrained) {
       assert(u != NULL);
+      assert(td->numElems == -1);
 
-      c_arrayTypeDecl *at = cast_arrayTypeDecl(&(td->decl.object));
+      c_arrayTypeDecl *at = is_arrayTypeDecl(&(td->decl.object));
       assert(at);
 
       vhpiIntT num = 1;
@@ -1417,6 +1419,24 @@ static vhpiIntT vhpi_count_elements(c_typeDecl *td, ffi_uarray_t *u)
 static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 {
    jit_t *j = vhpi_context()->jit;
+
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn != NULL) {
+      void *base = vhpi_get_value_ptr(&(pn->simpleName->decl.object));
+      if (base == NULL)
+         return NULL;
+
+      c_selectedName *sn = is_selectedName(obj);
+      if (sn != NULL) {
+         const jit_layout_t *l = layout_of(pn->simpleName->decl.type);
+         assert(sn->Suffix->Position < l->nparts);
+         return base + l->parts[sn->Suffix->Position].offset;
+      }
+
+      vhpi_error(vhpiInternal, &(obj->loc), "unsupported prefixed name kind %s",
+                 vhpi_class_str(obj->kind));
+      return NULL;
+   }
 
    c_objDecl *decl = cast_objDecl(obj);
    assert(decl != NULL);
@@ -1447,6 +1467,15 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
    vhpi_error(vhpiInternal, &(obj->loc), "cannot find elaborated value for %s",
               decl->decl.FullName);
    return NULL;
+}
+
+static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
+{
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn != NULL)
+      return vhpi_get_prefix_kind(&(pn->simpleName->decl.object));
+   else
+      return obj->kind;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1985,8 +2014,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          c_name *n = is_name(obj);
          if (n != NULL) {
             c_typeDecl *td = n->expr.Type;
-            assert(!td->IsUnconstrained);
-            return td->numElems;
+            if (td->IsUnconstrained) {
+               void *value = vhpi_get_value_ptr(obj);
+               if (value != NULL)
+                  return vhpi_count_elements(td, value);
+               else
+                  return 0;
+            }
+            else
+               return td->numElems;
          }
          else {
             c_objDecl *decl = cast_objDecl(obj);
@@ -2365,7 +2401,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    int size = 1, num_elems = td->numElems;
    const unsigned char *value = NULL;
-   switch (obj->kind) {
+   switch (vhpi_get_prefix_kind(obj)) {
    case vhpiGenericDeclK:
    case vhpiConstDeclK:
       {
@@ -2385,8 +2421,6 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    case vhpiSigDeclK:
    case vhpiPortDeclK:
-   case vhpiIndexedNameK:
-   case vhpiSelectedNameK:
       {
          rt_signal_t *signal;
          if (pn != NULL)
