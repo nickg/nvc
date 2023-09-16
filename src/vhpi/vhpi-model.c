@@ -308,11 +308,10 @@ typedef struct {
 } c_name;
 
 typedef struct {
-   c_name       name;
-   c_objDecl   *simpleName;
-   c_name      *Prefix;
-   rt_signal_t *signal;
-   rt_scope_t  *scope;
+   c_name        name;
+   c_vhpiObject *Prefix;
+   rt_signal_t  *signal;
+   rt_scope_t   *scope;
 } c_prefixedName;
 
 typedef struct {
@@ -437,6 +436,7 @@ typedef struct _vhpi_context {
 static c_typeDecl *cached_typeDecl(type_t type);
 static void vhpi_lazy_block(c_abstractRegion *r);
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
+static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -847,10 +847,10 @@ static void init_range(c_range *r, tree_t t)
    r->IsUp = (rkind == RANGE_TO);
 }
 
-static void init_expr(c_expr *e, c_objDecl *obj, c_typeDecl *Type)
+static void init_expr(c_expr *e, vhpiStaticnessT Staticness, c_typeDecl *Type)
 {
    e->Type = Type;
-   e->Staticness = obj->Staticness;
+   e->Staticness = Staticness;
 }
 
 static void init_stmt(c_stmt *s, tree_t t)
@@ -859,39 +859,43 @@ static void init_stmt(c_stmt *s, tree_t t)
    s->LabelName = new_string(istr(tree_ident(t)));
 }
 
-static void init_name(c_name *n, c_objDecl *obj, c_typeDecl *Type,
+static void init_name(c_name *n, vhpiStaticnessT Staticness, c_typeDecl *Type,
                       vhpiStringT Name, vhpiStringT FullName)
 {
-   init_expr(&(n->expr), obj, Type);
+   init_expr(&(n->expr), Staticness, Type);
    n->Name = n->CaseName = Name;
    n->FullName = n->FullCaseName = FullName;
 }
 
 static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
-                              c_objDecl *simpleName, c_name *prefix,
-                              const char *suffix)
+                              c_vhpiObject *prefix, const char *suffix)
 {
-   vhpiStringT Name, FullName;
+   vhpiStringT Name = NULL, FullName = NULL;
 
-   if (prefix != NULL) {
-      pn->Prefix = prefix;
-      Name = prefix->Name;
-      FullName = prefix->FullName;
-   }
-   else {
-      Name = simpleName->decl.Name;
-      FullName = simpleName->decl.FullName;
+   c_name *name = is_name(prefix);
+   if (name != NULL) {
+      Name = name->Name;
+      FullName = name->FullName;
    }
 
-   vhpiStringT name = (vhpiStringT)xasprintf("%s%s", Name, suffix);
-   vhpiStringT fullname = (vhpiStringT)xasprintf("%s%s", FullName, suffix);
-   init_name(&(pn->name), simpleName, Type, name, fullname);
-   pn->simpleName = simpleName;
+   vhpiStaticnessT Staticness = vhpiDynamic;
+   c_objDecl *obj = is_objDecl(prefix);
+   if (obj != NULL) {
+      Name = obj->decl.Name;
+      FullName = obj->decl.FullName;
+      Staticness = obj->Staticness;
+   }
+
+   Name = (vhpiStringT)xasprintf("%s%s", Name, suffix);
+   FullName = (vhpiStringT)xasprintf("%s%s", FullName, suffix);
+
+   init_name(&(pn->name), Staticness, Type, Name, FullName);
+   pn->Prefix = prefix;
 }
 
 static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
-                             c_objDecl *simpleName, c_name *prefix,
-                             vhpiObjectListT *Constraints, vhpiIntT indices[])
+                             c_vhpiObject *prefix, vhpiObjectListT *Constraints,
+                             vhpiIntT indices[])
 {
    vhpiIntT BaseIndex = 0;
 
@@ -919,13 +923,12 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
    }
    tb_append(suffix, ')');
 
-   init_prefixedName(&(in->prefixedName), Type, simpleName, prefix,
-                     tb_get(suffix));
+   init_prefixedName(&(in->prefixedName), Type, prefix, tb_get(suffix));
    in->BaseIndex = BaseIndex;
 
    in->offset = BaseIndex * Type->numElems;
    if (prefix) {
-      c_indexedName *pin = is_indexedName(&(prefix->expr.object));
+      c_indexedName *pin = is_indexedName(prefix);
       if (pin)
          in->offset += pin->offset;
    }
@@ -939,13 +942,10 @@ static vhpiIntT range_len(c_intRange *ir)
       return MAX(ir->LeftBound - ir->RightBound + 1, 0);
 }
 
-static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *simpleName,
-                                    c_name *prefix, c_typeDecl *Type)
+static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames,
+                                    c_vhpiObject *prefix, c_typeDecl *Type)
 {
-   int i;
-
-   if (Type == NULL)
-      Type = simpleName->Type;
+   assert(Type != NULL);
 
    vhpiObjectListT *Constraints;
    c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
@@ -966,14 +966,12 @@ static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *si
 
    ffi_uarray_t *dyn = NULL;
    vhpiIntT *lens LOCAL = xmalloc_array(Constraints->count, sizeof(vhpiIntT));
-   for (i = 0; i < Constraints->count; i++) {
+   for (int i = 0; i < Constraints->count; i++) {
       c_intRange *ir = is_intRange(Constraints->items[i]);
       assert(ir != NULL);
       if (ir->range.IsUnconstrained) {
-         if (dyn == NULL) {
-            if ((dyn = vhpi_get_value_ptr(&(prefix->expr.object))) == NULL)
-               return;
-         }
+         if (dyn == NULL && (dyn = vhpi_get_value_ptr(prefix)) == NULL)
+            return;
          lens[i] = ffi_abs_length(dyn->dims[i].length);
       }
       else
@@ -983,40 +981,38 @@ static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames, c_objDecl *si
          return;
    }
 
+   int pos = 0;
    vhpiIntT *indices LOCAL = xcalloc_array(Constraints->count, sizeof(vhpiIntT));
    do {
       c_indexedName *in = new_object(sizeof(c_indexedName), vhpiIndexedNameK);
-      init_indexedName(in, atd->ElemType, simpleName, prefix, Constraints, indices);
+      init_indexedName(in, atd->ElemType, prefix, Constraints, indices);
       APUSH(*IndexedNames, &(in->prefixedName.name.expr.object));
 
-      for (i = Constraints->count - 1; i >= 0; i--) {
-         indices[i]++;
-         if (indices[i] >= lens[i])
-            indices[i] = 0;
+      for (pos = Constraints->count - 1; pos >= 0; pos--) {
+         indices[pos]++;
+         if (indices[pos] >= lens[pos])
+            indices[pos] = 0;
          else
             break;
       }
-   } while (i > 0 || indices[0] != 0);
+   } while (pos > 0 || indices[0] != 0);
 }
 
-static void init_selectedName(c_selectedName *sn, c_objDecl *simpleName,
-                              c_name *prefix, c_elemDecl *Suffix)
+static void init_selectedName(c_selectedName *sn, c_vhpiObject *prefix,
+                              c_elemDecl *Suffix)
 {
    LOCAL_TEXT_BUF suffix = tb_new();
    tb_append(suffix, '.');
    tb_cat(suffix, (const char *)Suffix->decl.Name);
 
-   init_prefixedName(&(sn->prefixedName), Suffix->Type,
-                     simpleName, prefix, tb_get(suffix));
+   init_prefixedName(&(sn->prefixedName), Suffix->Type, prefix, tb_get(suffix));
    sn->Suffix = Suffix;
 }
 
 static void vhpi_build_selectedNames(vhpiObjectListT *SelectedNames,
-                                     c_objDecl *simpleName, c_name *prefix,
-                                     c_typeDecl *Type)
+                                     c_vhpiObject *prefix, c_typeDecl *Type)
 {
-   if (Type == NULL)
-      Type = simpleName->Type;
+   assert(Type != NULL);
 
    c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
    c_recordTypeDecl *rtd = is_recordTypeDecl(&(Type->decl.object));
@@ -1033,7 +1029,7 @@ static void vhpi_build_selectedNames(vhpiObjectListT *SelectedNames,
       assert(ed != NULL);
 
       c_selectedName *sn = new_object(sizeof(c_selectedName), vhpiSelectedNameK);
-      init_selectedName(sn, simpleName, prefix, ed);
+      init_selectedName(sn, prefix, ed);
       APUSH(*SelectedNames, &(sn->prefixedName.name.expr.object));
    }
 }
@@ -1174,14 +1170,16 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       switch(type) {
          case vhpiIndexedNames:
             if (!od->IndexedNames_valid) {
-               vhpi_build_indexedNames(&(od->IndexedNames), od, NULL, NULL);
+               c_typeDecl *td = vhpi_get_type(obj);
+               vhpi_build_indexedNames(&(od->IndexedNames), obj, td);
                od->IndexedNames_valid = true;
             }
             it->list = &(od->IndexedNames);
             return true;
          case vhpiSelectedNames:
             if (!od->SelectedNames_valid) {
-               vhpi_build_selectedNames(&(od->SelectedNames), od, NULL, NULL);
+               c_typeDecl *td = vhpi_get_type(obj);
+               vhpi_build_selectedNames(&(od->SelectedNames), obj, td);
                od->SelectedNames_valid = true;
             }
             it->list = &(od->SelectedNames);
@@ -1196,24 +1194,22 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       switch (type) {
       case vhpiIndexedNames:
          if (!n->IndexedNames_valid) {
-            c_prefixedName *pn = cast_prefixedName(&(n->expr.object));
+            c_prefixedName *pn = cast_prefixedName(obj);
             if (pn == NULL)
                return false;
 
-            vhpi_build_indexedNames(&(n->IndexedNames), pn->simpleName, n,
-                                    n->expr.Type);
+            vhpi_build_indexedNames(&(n->IndexedNames), obj, n->expr.Type);
             n->IndexedNames_valid = true;
          }
          it->list = &(n->IndexedNames);
          return true;
       case vhpiSelectedNames:
          if (!n->SelectedNames_valid) {
-            c_prefixedName *pn = cast_prefixedName(&(n->expr.object));
+            c_prefixedName *pn = cast_prefixedName(obj);
             if (pn == NULL)
                return false;
 
-            vhpi_build_selectedNames(&(n->SelectedNames), pn->simpleName, n,
-                                     n->expr.Type);
+            vhpi_build_selectedNames(&(n->SelectedNames), obj, n->expr.Type);
             n->SelectedNames_valid = true;
          }
          it->list = &(n->SelectedNames);
@@ -1319,15 +1315,15 @@ static rt_scope_t *vhpi_get_scope_prefixedName(c_prefixedName *pn)
    if (pn->scope)
       return pn->scope;
 
-   rt_scope_t *parent;
-   if (pn->Prefix) {
-      c_prefixedName *ppn = is_prefixedName(&(pn->Prefix->expr.object));
-      assert(ppn != NULL);
+   rt_scope_t *parent = NULL;
 
+   c_prefixedName *ppn = is_prefixedName(pn->Prefix);
+   if (ppn != NULL)
       parent = vhpi_get_scope_prefixedName(ppn);
-   }
-   else
-      parent = vhpi_get_scope_objDecl(pn->simpleName);
+
+   c_objDecl *od = is_objDecl(pn->Prefix);
+   if (od != NULL)
+      parent = vhpi_get_scope_objDecl(od);
 
    if (parent == NULL)
       return NULL;
@@ -1375,20 +1371,21 @@ static rt_signal_t *vhpi_get_signal_prefixedName(c_prefixedName *pn)
       return pn->signal;
 
    rt_scope_t *scope = NULL;
-   if (pn->Prefix) {
-      c_prefixedName *ppn = is_prefixedName(&(pn->Prefix->expr.object));
-      assert(ppn != NULL);
 
-      if (pn->Prefix->expr.Type->homogeneous)
+   c_prefixedName *ppn = is_prefixedName(pn->Prefix);
+   if (ppn != NULL) {
+      if (ppn->name.expr.Type->homogeneous)
          pn->signal = vhpi_get_signal_prefixedName(ppn);
       else
          scope = vhpi_get_scope_prefixedName(ppn);
    }
-   else {
-      if (pn->simpleName->Type->homogeneous)
-         pn->signal = vhpi_get_signal_objDecl(pn->simpleName);
+
+   c_objDecl *od = is_objDecl(pn->Prefix);
+   if (od != NULL) {
+      if (od->Type->homogeneous)
+         pn->signal = vhpi_get_signal_objDecl(od);
       else
-         scope = vhpi_get_scope_objDecl(pn->simpleName);
+         scope = vhpi_get_scope_objDecl(od);
    }
 
    c_vhpiObject *obj = &(pn->name.expr.object);
@@ -1424,36 +1421,49 @@ static vhpiIntT vhpi_count_elements(c_typeDecl *td, ffi_uarray_t *u)
       return td->numElems;
 }
 
+static c_typeDecl *vhpi_get_type(c_vhpiObject *obj)
+{
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL)
+      return od->Type;
+
+   c_expr *expr = is_expr(obj);
+   if (expr != NULL)
+      return expr->Type;
+
+   return NULL;
+}
+
 static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 {
    jit_t *j = vhpi_context()->jit;
 
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn != NULL) {
-      void *base = vhpi_get_value_ptr(pn->Prefix
-                                      ? &(pn->Prefix->expr.object)
-                                      : &(pn->simpleName->decl.object));
+      void *base = vhpi_get_value_ptr(pn->Prefix);
       if (base == NULL)
          return NULL;
 
+      c_typeDecl *td = vhpi_get_type(pn->Prefix);
+      if (td == NULL)
+         return NULL;
+
+      const jit_layout_t *l = layout_of(td->type);
+
       c_selectedName *sn = is_selectedName(obj);
       if (sn != NULL) {
-         const jit_layout_t *l1 = layout_of(pn->simpleName->decl.type);
-         assert(sn->Suffix->Position < l1->nparts);
-         return base + l1->parts[sn->Suffix->Position].offset;
+         assert(sn->Suffix->Position < l->nparts);
+         return base + l->parts[sn->Suffix->Position].offset;
       }
 
       c_indexedName *in = is_indexedName(obj);
       if (in != NULL) {
-         type_t type = pn->Prefix
-            ? pn->Prefix->expr.Type->type : pn->simpleName->decl.type;
-         const jit_layout_t *l = layout_of(type);
-
          if (l->nparts == 2)
             return ((ffi_uarray_t *)base)->ptr;   // Wrapped array
-
-         assert(l->nparts == 1);
-         return base;
+         else {
+            assert(l->nparts == 1);
+            return base;
+         }
       }
 
       vhpi_error(vhpiInternal, &(obj->loc), "unsupported prefixed name kind %s",
@@ -1496,7 +1506,7 @@ static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
 {
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn != NULL)
-      return vhpi_get_prefix_kind(&(pn->simpleName->decl.object));
+      return vhpi_get_prefix_kind(pn->Prefix);
    else
       return obj->kind;
 }
@@ -1822,10 +1832,7 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          if (pn == NULL)
             return NULL;
 
-         if (pn->Prefix)
-            return handle_for(&(pn->Prefix->expr.object));
-         else
-            return handle_for(&(pn->simpleName->decl.object));
+         return handle_for(pn->Prefix);
       }
    case vhpiSuffix:
       {
