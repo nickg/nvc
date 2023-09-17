@@ -651,6 +651,11 @@ bool type_is_none(type_t t)
    return type_base_kind(t) == T_NONE;
 }
 
+bool type_is_valid(type_t t)
+{
+   return type_base_kind(t) != T_NONE;
+}
+
 tree_t type_constraint_for_field(type_t t, tree_t f)
 {
    if (t->object.kind == T_SUBTYPE) {
@@ -755,7 +760,11 @@ bool type_is_physical(type_t t)
 
 bool type_is_integer(type_t t)
 {
-   return type_base_kind(t) == T_INTEGER;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_INTEGER;
+   else
+      return base == T_INTEGER;
 }
 
 bool type_is_real(type_t t)
@@ -763,11 +772,22 @@ bool type_is_real(type_t t)
    return type_base_kind(t) == T_REAL;
 }
 
+bool type_is_generic(type_t t)
+{
+   return type_base_kind(t) == T_GENERIC;
+}
+
 bool type_is_scalar(type_t t)
 {
    const type_kind_t base = type_base_kind(t);
-   return base == T_INTEGER || base == T_REAL
-      || base == T_ENUM || base == T_PHYSICAL || base == T_NONE;
+   if (base == T_GENERIC) {
+      const gtype_class_t class = type_subkind(type_base_recur(t));
+      return class == GTYPE_SCALAR || class == GTYPE_DISCRETE
+         || class == GTYPE_FLOATING || class == GTYPE_INTEGER;
+   }
+   else
+      return base == T_INTEGER || base == T_REAL
+         || base == T_ENUM || base == T_PHYSICAL || base == T_NONE;
 }
 
 bool type_is_representable(type_t t)
@@ -872,6 +892,11 @@ bool type_is_convertible_map(type_t from, type_t to, hash_t *map)
    else if (tok == T_GENERIC && map != NULL) {
       type_t to_map = hash_get(map, to);
       return to_map ? type_is_convertible_map(from, to_map, map) : false;
+   }
+   else if (tok == T_GENERIC) {
+      // Handle VHDL-2019 anonymous type classes
+      return (fromk == T_INTEGER && type_subkind(to) == GTYPE_INTEGER)
+         || (fromk == T_REAL && type_subkind(to) == GTYPE_FLOATING);
    }
    else
       return false;

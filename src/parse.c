@@ -2413,6 +2413,55 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
    return ATTR_USER;
 }
 
+static void add_generic_type_op(tree_t parent, int nargs, type_t type,
+                                type_t result, const char *name)
+{
+   ident_t id = ident_new(name);
+
+   type_t ftype = type_new(T_FUNC);
+   type_set_ident(ftype, id);
+   type_set_result(ftype, result);
+
+   for (int i = 0; i < nargs; i++)
+      type_add_param(ftype, type);
+
+   tree_t p = tree_new(T_GENERIC_DECL);
+   tree_set_class(p, C_FUNCTION);
+   tree_set_ident(p, id);
+   tree_set_type(p, ftype);
+   tree_set_subkind(p, PORT_IN);
+   tree_set_loc(p, CURRENT_LOC);
+   tree_set_flag(p, TREE_F_PREDEFINED);
+
+   if (standard() >= STD_19) {
+      // LRM 08 section 6.5.3.1: the *predefined* [..] operators,
+      // implicitly declared as formal generic subprograms
+      //
+      // LCS2016-59 changed the wording here: additional operators are
+      // implicitly declared as formal generic subprograms with an
+      // interface subprogram default in form of a box (<>)
+
+      tree_t box = tree_new(T_BOX);
+      tree_set_loc(box, CURRENT_LOC);
+
+      tree_set_value(p, box);
+   }
+
+   for (int j = 0; j < nargs; j++) {
+      tree_t arg = tree_new(T_PORT_DECL);
+      tree_set_ident(arg, ident_new(j == 0 ? "L" : "R"));
+      tree_set_type(arg, type);
+      tree_set_subkind(arg, PORT_IN);
+      tree_set_class(arg, C_CONSTANT);
+      tree_set_loc(arg, CURRENT_LOC);
+
+      tree_add_port(p, arg);
+   }
+
+   add_interface(parent, p, T_GENERIC_DECL);
+   insert_name(nametab, p, NULL);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -5075,40 +5124,43 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    // immediately following the interface type declaration in the
    // enclosing interface list
 
-   const char *predef[] = { "\"=\"", "\"/=\"" };
-
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   type_t std_string = std_type(NULL, STD_STRING);
 
-   for (unsigned i = 0; i < ARRAY_LEN(predef); i++) {
-      ident_t id = ident_new(predef[i]);
-
-      type_t ftype = type_new(T_FUNC);
-      type_set_ident(ftype, id);
-      type_set_result(ftype, std_bool);
-      type_add_param(ftype, type);
-      type_add_param(ftype, type);
-
-      tree_t p = tree_new(T_GENERIC_DECL);
-      tree_set_class(p, C_FUNCTION);
-      tree_set_ident(p, id);
-      tree_set_type(p, ftype);
-      tree_set_subkind(p, PORT_IN);
-      tree_set_flag(p, TREE_F_PREDEFINED);
-      tree_set_loc(p, CURRENT_LOC);
-
-      for (int j = 0; j < 2; j++) {
-         tree_t arg = tree_new(T_PORT_DECL);
-         tree_set_ident(arg, ident_new(j == 0 ? "L" : "R"));
-         tree_set_type(arg, type);
-         tree_set_subkind(arg, PORT_IN);
-         tree_set_class(arg, C_CONSTANT);
-         tree_set_loc(arg, CURRENT_LOC);
-
-         tree_add_port(p, arg);
-      }
-
-      add_interface(parent, p, kind);
-      insert_name(nametab, p, NULL);
+   switch (type_subkind(type)) {
+   case GTYPE_INTEGER:
+      add_generic_type_op(parent, 2, type, type, "\"mod\"");
+      add_generic_type_op(parent, 2, type, type, "\"rem\"");
+      add_generic_type_op(parent, 2, type, type, "\"**\"");
+      // Fall-through
+   case GTYPE_FLOATING:
+      add_generic_type_op(parent, 2, type, type, "\"+\"");
+      add_generic_type_op(parent, 2, type, type, "\"-\"");
+      add_generic_type_op(parent, 1, type, type, "\"+\"");
+      add_generic_type_op(parent, 1, type, type, "\"-\"");
+      add_generic_type_op(parent, 2, type, type, "\"*\"");
+      add_generic_type_op(parent, 2, type, type, "\"/\"");
+      add_generic_type_op(parent, 1, type, type, "\"abs\"");
+      // Fall-through
+   case GTYPE_DISCRETE:
+   case GTYPE_SCALAR:
+      add_generic_type_op(parent, 2, type, std_bool, "\"<\"");
+      add_generic_type_op(parent, 2, type, std_bool, "\">\"");
+      add_generic_type_op(parent, 2, type, std_bool, "\"<=\"");
+      add_generic_type_op(parent, 2, type, std_bool, "\">=\"");
+      add_generic_type_op(parent, 2, type, type, "MINIMUM");
+      add_generic_type_op(parent, 2, type, type, "MAXIMUM");
+      add_generic_type_op(parent, 1, type, std_string, "TO_STRING");
+      // Fall-through
+   case GTYPE_PHYSICAL:
+   case GTYPE_ARRAY:
+   case GTYPE_FILE:
+   case GTYPE_ACCESS:
+      // TODO
+   case GTYPE_PRIVATE:
+      add_generic_type_op(parent, 2, type, std_bool, "\"=\"");
+      add_generic_type_op(parent, 2, type, std_bool, "\"/=\"");
+      break;
    }
 }
 

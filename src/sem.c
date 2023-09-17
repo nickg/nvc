@@ -1917,7 +1917,9 @@ static void sem_check_static_elab(tree_t t)
    case T_CONST_DECL:
       {
          type_t type = tree_type(t);
-         if (type_is_scalar(type) && !type_is_none(type))
+         if (type_is_generic(type))
+            ;  // Cannot check further
+         else if (type_is_scalar(type) && !type_is_none(type))
             sem_check_static_elab(range_of(type, 0));
          else if (type_is_array(type) && !type_is_unconstrained(type)) {
             const int ndims = dimension_of(type);
@@ -4495,6 +4497,43 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       // The parser already called map_generic_type
       assert(tree_kind(value) == T_TYPE_REF);
       assert(type_kind(type) == T_GENERIC);
+
+      type_t map = tree_type(value);
+      if (type_is_none(map))
+         return false;
+
+      switch (type_subkind(type)) {
+      case GTYPE_PRIVATE:
+         break;
+      case GTYPE_SCALAR:
+         if (!type_is_scalar(map))
+            sem_error(param, "cannot map type %s to generic interface type %s "
+                      "which requires a scalar type", type_pp(map),
+                      istr(tree_ident(decl)));
+         break;
+      case GTYPE_DISCRETE:
+         if (!type_is_discrete(map))
+            sem_error(param, "cannot map type %s to generic interface type %s "
+                      "which requires a discrete type", type_pp(map),
+                      istr(tree_ident(decl)));
+         break;
+      case GTYPE_INTEGER:
+         if (!type_is_integer(map))
+            sem_error(param, "cannot map type %s to generic interface type %s "
+                      "which requires an integer type", type_pp(map),
+                      istr(tree_ident(decl)));
+         break;
+      case GTYPE_FLOATING:
+         if (!type_is_real(map))
+            sem_error(param, "cannot map type %s to generic interface type %s "
+                      "which requires a floating-point type", type_pp(map),
+                      istr(tree_ident(decl)));
+         break;
+      default:
+         sem_error(decl, "sorry, this form of anonymous type indication is "
+                   "not yet supported");
+      }
+
       break;
 
    case C_PACKAGE:

@@ -3322,6 +3322,31 @@ START_TEST(test_lcs2016_33)
 }
 END_TEST
 
+START_TEST(test_lcs2016_59)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_59.vhd");
+
+   const error_t expect[] = {
+      { 63, "cannot map type BIT_VECTOR to generic interface type T which "
+        "requires a scalar type" },
+      { 85, "cannot map type REAL to generic interface type T which "
+        "requires a discrete type" },
+      { 93, "cannot map type BIT to generic interface type T which "
+        "requires an integer type" },
+      { 106, "cannot map type INTEGER to generic interface type T which "
+        "requires a floating-point type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3482,6 +3507,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_75);
    tcase_add_test(tc_core, test_alias2);
    tcase_add_test(tc_core, test_lcs2016_33);
+   tcase_add_test(tc_core, test_lcs2016_59);
    suite_add_tcase(s, tc_core);
 
    return s;

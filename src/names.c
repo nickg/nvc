@@ -448,6 +448,25 @@ void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
    if (tab->top_scope->gmap == NULL)
       tab->top_scope->gmap = hash_new(128);
 
+   // Try to prevent large numbers of cascading errors when the actual
+   // type is not of the correct class: sem_check_generic_actual will
+   // report a single error later
+
+   static bool (*const pred[])(type_t) = {
+      [GTYPE_PRIVATE] = type_is_valid,
+      [GTYPE_INTEGER] = type_is_integer,
+      [GTYPE_DISCRETE] = type_is_discrete,
+      [GTYPE_SCALAR] = type_is_scalar,
+      [GTYPE_ARRAY] = type_is_array,
+      [GTYPE_ACCESS] = type_is_access,
+      [GTYPE_FILE] = type_is_file,
+      [GTYPE_FLOATING] = type_is_real,
+   };
+
+   const gtype_class_t class = type_subkind(generic);
+   if (pred[class] != NULL && !(*pred[class])(actual))
+      suppress_errors(tab);
+
    hash_put(tab->top_scope->gmap, generic, actual);
 }
 
@@ -1657,6 +1676,8 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
 
    if (matching.count == 1)
       return matching.items[0];
+   else if (tab->top_scope->suppress)
+      return NULL;
    else if (constraint != NULL) {
       const char *signature = strchr(type_pp(constraint), '[');
       error_at(tree_loc(ref), "no visible subprogram%s %s matches "
