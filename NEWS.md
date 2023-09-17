@@ -11,6 +11,8 @@
 - Fixed a memory leak in the `--print-deps` command.
 - Fixed a crash when evaluating globally static expressions during
   elaboration with coverage enabled (#759).
+- Fixed an analysis crash where a predefined function for a type
+  declared in a package is overridden in the package body only (#760).
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised

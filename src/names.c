@@ -797,7 +797,8 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
                && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
          // Allow pre-defined operators be to hidden by
          // user-defined subprograms in the same region
-         tree_set_flag(dd->tree, TREE_F_HIDDEN);
+         if (!tree_frozen(dd->tree))
+            tree_set_flag(dd->tree, TREE_F_HIDDEN);  // Will be deleted later
          dd->visibility = HIDDEN;
       }
       else if (is_forward_decl(decl, dd->tree)) {
