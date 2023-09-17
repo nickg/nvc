@@ -121,7 +121,7 @@ PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 
-%x COMMENT C_COMMENT PSL VLOG
+%x COMMENT C_COMMENT PSL VLOG SDF
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -264,6 +264,45 @@ ENDED         ?i:ended
 NONDET        ?i:nondet
 NONDET_V      ?i:nondet_vector
 UNION         ?i:union
+POSEDGE       ?i:posedge
+NEGEDGE       ?i:negedge
+INTERCONNECT  ?i:interconnect
+
+DELAYFILE      ?i:delayfile
+SDFVERSION     ?i:sdfversion
+DESIGN         ?i:design
+DATE           ?i:date
+VENDOR         ?i:vendor
+PROGRAM        ?i:program
+VERSION        ?i:version
+DIVIDER        ?i:divider
+VOLTAGE        ?i:voltage
+TEMPERATURE    ?i:temperature
+TIMESCALE      ?i:timescale
+CELL           ?i:cell
+CELLTYPE       ?i:celltype
+INSTANCE       ?i:instance
+ABSOLUTE       ?i:absolute
+PATHPULSE      ?i:pathpulse
+PATHPULSEP     ?i:pathpulsepercent
+INCREMENT      ?i:increment
+IOPATH         ?i:iopath
+DELAY          ?i:delay
+SETUP          ?i:setup
+HOLD           ?i:hold
+SETUPHOLD      ?i:setuphold
+RECOVERY       ?i:recovery
+REMOVAL        ?i:removal
+RECREM         ?i:recrem
+WIDTH          ?i:width
+PERIOD         ?i:period
+SKEW           ?i:skew
+BIDIRSKEW      ?i:bidirectskew
+NOCHANGE       ?i:nochange
+NETDELAY       ?i:netdelay
+DEVICE         ?i:device
+COND           ?i:cond
+CONDELSE       ?i:condelse
 
 %%
 
@@ -375,7 +414,7 @@ UNION         ?i:union
 {NEXT}                   { TOKEN(tNEXT); }
 {LITERAL}                { TOKEN(tLITERAL); }
 {GROUP}                  { TOKEN(tGROUP); }
-{LABEL}                  { TOKEN(tLABEL); }
+<INITIAL,SDF>{LABEL}     { TOKEN(tLABEL); }
 {GUARDED}                { TOKEN(tGUARDED); }
 {DISCONNECT}             { TOKEN(tDISCONNECT); }
 {REVRANGE}               { TOKEN(tREVRANGE); }
@@ -440,11 +479,12 @@ UNION         ?i:union
 <*>"."                   { TOKEN(tDOT); }
 <*>"&"                   { TOKEN(tAMP); }
 <*>"|"                   { TOKEN(tBAR); }
+<*>"!"                   { TOKEN(tEXCLAMATION); }
+<*>"~"                   { TOKEN(tTILDE); }
 <*>"["                   { TOKEN(tLSQUARE); }
 <*>"]"                   { TOKEN(tRSQUARE); }
 <*>"="                   { TOKEN(tEQ); }
 <*>"#"                   { TOKEN(tHASH); }
-<*>"~"                   { TOKEN(tTILDE); }
 
 <INITIAL,PSL>"!"         { TOKEN(tBAR); }
 <VLOG>"!"                { TOKEN(tBANG); }
@@ -527,8 +567,8 @@ UNION         ?i:union
 <VLOG>"inout"            { return tINOUT; }
 <VLOG>"reg"              { return tREG; }
 <VLOG>"always"           { return tALWAYS; }
-<VLOG>"posedge"          { return tPOSEDGE; }
-<VLOG>"negedge"          { return tNEGEDGE; }
+<VLOG>{POSEDGE}          { return tPOSEDGE; }
+<VLOG>{NEGEDGE}          { return tNEGEDGE; }
 <VLOG>"initial"          { return tINITIAL; }
 <VLOG>"begin"            { return tBEGIN; }
 <VLOG>"end"              { return tEND; }
@@ -543,16 +583,16 @@ UNION         ?i:union
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 
-<INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
-<INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
-<INITIAL,PSL>{BITSTRING} { return parse_bit_string(yytext); }
-<INITIAL,PSL>{STRING}    { return parse_string(yytext); }
-<INITIAL,PSL>{CHAR}      { if (resolve_ir1045()) {
-                              yylval.ident = ident_new(yytext);
-                              TOKEN(tID);
+<INITIAL,PSL,SDF>{DECIMAL} { return parse_decimal_literal(yytext); }
+<INITIAL,PSL>{BASED}       { return parse_based_literal(yytext); }
+<INITIAL,PSL>{BITSTRING}   { return parse_bit_string(yytext); }
+<INITIAL,PSL,SDF>{STRING}  { return parse_string(yytext); }
+<INITIAL,PSL>{CHAR}        { if (resolve_ir1045()) {
+                                yylval.ident = ident_new(yytext);
+                                TOKEN(tID);
+                             }
+                             REJECT;
                            }
-                           REJECT;
-                         }
 
 % /* These PSL tokens must be scanned in VHDL mode for look-ahead */
 "->"                     { TOKEN(tIFIMPL); }
@@ -568,6 +608,56 @@ UNION         ?i:union
 % /* These VHDL tokens must be scanned in PSL mode for look-ahead */
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }
 <PSL>{REPORT}            { TOKEN(tREPORT); }
+
+
+<SDF>{DELAYFILE}        { TOKEN(tDELAYFILE); }
+<SDF>{SDFVERSION}       { TOKEN(tSDFVERSION); }
+<SDF>{DESIGN}           { TOKEN(tDESIGN); }
+<SDF>{DATE}             { TOKEN(tDATE); }
+<SDF>{VENDOR}           { TOKEN(tVENDOR); }
+<SDF>{PROGRAM}          { TOKEN(tPROGRAM); }
+<SDF>{VERSION}          { TOKEN(tVERSION); }
+<SDF>{DIVIDER}          { TOKEN(tDIVIDER); }
+<SDF>{VOLTAGE}          { TOKEN(tVOLTAGE); }
+<SDF>{PROCESS}          { TOKEN(tPROCESS); }
+<SDF>{TEMPERATURE}      { TOKEN(tTEMPERATURE); }
+<SDF>{TIMESCALE}        { TOKEN(tTIMESCALE); }
+<SDF>{CELL}             { TOKEN(tCELL); }
+<SDF>{CELLTYPE}         { TOKEN(tCELLTYPE); }
+<SDF>{INSTANCE}         { TOKEN(tINSTANCE); }
+<SDF>{DELAY}            { TOKEN(tDELAY); }
+<SDF>{ABSOLUTE}         { TOKEN(tABSOLUTE); }
+<SDF>{PATHPULSE}        { TOKEN(tPATHPULSE); }
+<SDF>{PATHPULSEP}       { TOKEN(tPATHPULSEP); }
+<SDF>{INCREMENT}        { TOKEN(tINCREMENT); }
+<SDF>{IOPATH}           { TOKEN(tIOPATH); }
+<SDF>{POSEDGE}          { TOKEN(tPOSEDGE); }
+<SDF>{NEGEDGE}          { TOKEN(tNEGEDGE); }
+<SDF>{SETUP}            { TOKEN(tSETUP); }
+<SDF>{HOLD}             { TOKEN(tHOLD); }
+<SDF>{SETUPHOLD}        { TOKEN(tSETUPHOLD); }
+<SDF>{RECOVERY}         { TOKEN(tRECOVERY); }
+<SDF>{REMOVAL}          { TOKEN(tREMOVAL); }
+<SDF>{RECREM}           { TOKEN(tRECREM); }
+<SDF>{WIDTH}            { TOKEN(tWIDTH); }
+<SDF>{PERIOD}           { TOKEN(tPERIOD); }
+<SDF>{SKEW}             { TOKEN(tSKEW); }
+<SDF>{BIDIRSKEW}        { TOKEN(tBIDIRSKEW); }
+<SDF>{NOCHANGE}         { TOKEN(tNOCHANGE); }
+<SDF>{PORT}             { TOKEN(tPORT); }
+<SDF>{INTERCONNECT}     { TOKEN(tINTERCONNECT); }
+<SDF>{NETDELAY}         { TOKEN(tNETDELAY); }
+<SDF>{DEVICE}           { TOKEN(tDEVICE); }
+<SDF>{COND}             { TOKEN(tCOND); }
+<SDF>{CONDELSE}         { TOKEN(tCONDELSE); }
+
+<VLOG,SDF>"=="          { TOKEN(tDEQ); }
+<VLOG,SDF>"!="          { TOKEN(tDNEQ); }
+<VLOG,SDF>"==="         { TOKEN(tCEQ); }
+<VLOG,SDF>"!=="         { TOKEN(tCNEQ); }
+
+<SDF>{VHDL_ID}          { yylval.str = xstrdup(yytext); TOKEN(tID); }
+
 
 <INITIAL,PSL>{UTF8_MB}   { warn_utf8(yytext); REJECT; }
 
@@ -859,6 +949,11 @@ void scan_as_vhdl(void)
 void scan_as_verilog(void)
 {
    BEGIN(VLOG);
+}
+
+void scan_as_sdf(void)
+{
+   BEGIN(SDF);
 }
 
 bool is_scanned_as_psl(void)

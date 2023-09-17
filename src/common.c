@@ -28,6 +28,7 @@
 #include "thread.h"
 #include "type.h"
 #include "vlog/vlog-phase.h"
+#include "sdf/sdf-phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2323,6 +2324,13 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
 #else
       fatal("Verilog is not currently supported");
 #endif
+
+   case SOURCE_SDF:
+      {
+         sdf_node_t sdf_file = sdf_parse();
+         sdf_dump(sdf_file, 2);
+      }
+
       break;
    }
 }

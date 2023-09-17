@@ -101,6 +101,10 @@ void input_from_file(const char *file)
    if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v')
       kind = SOURCE_VERILOG;
 
+   else if (len > 4 && !strcmp(&(file[len - 4]), ".sdf")) {
+      src_kind = SOURCE_SDF;
+   }
+
    int fd;
    if (strcmp(file, "-") == 0)
       fd = STDIN_FILENO;

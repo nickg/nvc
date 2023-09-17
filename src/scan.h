@@ -32,11 +32,12 @@ typedef union {
    ident_t       ident;
    node_list_t  *list;
    vlog_node_t   vlog;
+   sdf_node_t    sdf;
 } yylval_t;
 
 // Functions shared between VHDL and Verilog scanners
 
-typedef enum { SOURCE_VHDL, SOURCE_VERILOG } hdl_kind_t;
+typedef enum { SOURCE_VHDL, SOURCE_VERILOG, SOURCE_SDF} hdl_kind_t;
 
 typedef int token_t;
 
@@ -53,6 +54,7 @@ const char *pp_defines_get(const char *name);
 void scan_as_psl(void);
 void scan_as_vhdl(void);
 void scan_as_verilog(void);
+void scan_as_sdf(void);
 
 // Private interface to Flex scanners
 
@@ -85,6 +87,8 @@ bool is_scanned_as_psl(void);
 #define tRBRACE        '}'
 #define tCARET         '^'
 #define tQUESTION      '?'
+#define tEXCLAMATION   '!'
+#define tTILDE         '~'
 #define tBAR           '|'
 #define tLSQUARE       '['
 #define tRSQUARE       ']'
@@ -293,5 +297,64 @@ bool is_scanned_as_psl(void);
 #define tUNTIL_        397
 #define tUNTIL_1       398
 #define tTIMESCALE     399
+#define tCEQ           400
+#define tCNEQ          401
+#define tDEQ           402
+#define tDNEQ          403
+
+#define tDELAYFILE     500
+#define tSDFVERSION    501
+#define tDESIGN        502
+#define tDATE          503
+#define tVENDOR        504
+#define tPROGRAM       505
+#define tVERSION       506
+#define tDIVIDER       507
+#define tVOLTAGE       508
+#define tTEMPERATURE   510
+#define tTIMESCALE     511
+#define tCELL          512
+#define tCELLTYPE      513
+#define tINSTANCE      514
+#define tDELAY         515
+#define tTIMINGCHECK   516
+#define tTIMINGENV     517
+#define tPATHPULSE     519
+#define tPATHPULSEP    520
+#define tIOPATH        522
+#define tRETAIN        523
+#define tSDFCOND       524
+#define tSDFCONDELSE   525
+#define tINTERCONNECT  526
+#define tNETDELAY      527
+#define tDEVICE        528
+#define tSETUP         529
+#define tHOLD          530
+#define tSETUPHOLD     531
+#define tRECOVERY      532
+#define tREMOVAL       533
+#define tRECREM        534
+#define tSKEW          535
+#define tBIDIRSKEW     536
+#define tWIDTH         537
+#define tPERIOD        538
+#define tNOCHANGE      539
+#define tCOND          540
+#define tSCOND         541
+#define tCCOND         542
+#define tPATHCONSTR    543
+#define tPERIODCONSTR  544
+#define tSUM           545
+#define tDIFF          546
+#define tSKEWCONSTR    547
+#define tEXCEPTION     548
+#define tNAME          549
+#define tARRIVAL       550
+#define tDEPARTURE     551
+#define tSLACK         552
+#define tWAVEFORM      553
+#define tINCREMENT     554
+#define tABSOLUTE      555
+#define tCONDELSE      556
 
 #endif  // _SCAN_H
