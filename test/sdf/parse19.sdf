@@ -1,0 +1,14 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (DELAY
+            (ABSOLUTE
+                (COND "my_cond_description" a.b.c.d (IOPATH x y ()))
+                (COND (((((e.f.g.h))))) (IOPATH x y (RETAIN (0.3) (0.4) ()) ()))
+                (CONDELSE (IOPATH x y ()))
+            )
+        )
+    )
+)

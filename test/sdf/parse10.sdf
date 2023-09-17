@@ -1,0 +1,14 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE B2.C2)
+        (DELAY
+            (ABSOLUTE
+                (IOPATH (posedge clk_a)       x_q             (0))
+                (IOPATH (negedge clk_b[17])   y_q             (0))
+                (IOPATH (negedge clk_c[2:3])  z_q[1:2]        (0))
+            )
+        )
+    )
+)

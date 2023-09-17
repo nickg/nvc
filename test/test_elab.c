@@ -1675,7 +1675,7 @@ START_TEST(test_issue759)
    jit_t *jit = jit_new(ur);
    cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0);
 
-   tree_t e = elab(tree_to_object(a), jit, ur, cover);
+   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
    fail_if(e == NULL);
 
    jit_free(jit);
@@ -1801,7 +1801,7 @@ START_TEST(test_vlog1)
    unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
 
-   tree_t top = elab(obj, j, ur, NULL);
+   tree_t top = elab(obj, j, ur, NULL, NULL);
    fail_unless(top == NULL);
 
    jit_free(j);

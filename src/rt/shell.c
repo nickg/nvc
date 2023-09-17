@@ -581,7 +581,7 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
 
    jit_enable_runtime(sh->jit, false);
 
-   tree_t top = elab(tree_to_object(unit), sh->jit, sh->registry, NULL);
+   tree_t top = elab(tree_to_object(unit), sh->jit, sh->registry, NULL, NULL);
    if (top == NULL)
       return TCL_ERROR;
 

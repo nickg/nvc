@@ -1,0 +1,24 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (TIMINGENV
+            (PATHCONSTRAINT (NAME "Fancy constraint") a b (0) (1:2:3))
+            (PATHCONSTRAINT a b c d e f (0) (1:2:3))
+            (PERIODCONSTRAINT x (0.1))
+            (PERIODCONSTRAINT y (0.2)
+                (EXCEPTION
+                    (INSTANCE top.my_inst)
+                    (INSTANCE top.your_inst)
+                    (INSTANCE *)
+                )
+            )
+            (SUM (top.gate_x1.a top.gate_x1.z) (top.gate_x2.b top.gate_x2.y) (0.1:1.2:3.4))
+            (SUM (aa.x aa.y) (bb.z bb.w) (cc.a cc.b) (dd.e dd.f) (0.123) (0.456))
+            (DIFF (x y) (a b) (0))
+            (DIFF (x y) (a b) (1) (2))
+            (SKEWCONSTRAINT (posedge fancy_inst.x) (10))
+        )
+    )
+)

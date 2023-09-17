@@ -100,6 +100,9 @@ VHDL_ID         ({LOWER}|{UPPER})(_?({LOWER}|{UPPER}|[0-9]))*
 BAD_ID          ({LOWER}|{UPPER}|_)({LOWER}|{UPPER}|[0-9_])*
 EXID            \\([^\\\n]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
+/* TODO: Add "escaped_character" handling to SDF ID */
+/* TODO: According to spec, identifier could even start with number*/
+SDF_ID          ([a-zA-Z$_])([a-zA-Z$_0-9])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"\n]|\"\")*\")|(\%([^\"\n\%]|\%\%)*\%)
 BADSTRING       (\"([^\"\n]|\"\")*)|(\%([^\"\n\%]|\%\%)*)
@@ -129,8 +132,10 @@ VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
 UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
+SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
+SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 
-%x COMMENT C_COMMENT PSL VLOG UDP
+%x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -273,6 +278,59 @@ ENDED         ?i:ended
 NONDET        ?i:nondet
 NONDET_V      ?i:nondet_vector
 UNION         ?i:union
+
+INTERCONNECT      ?i:interconnect
+DELAYFILE         ?i:delayfile
+SDFVERSION        ?i:sdfversion
+DESIGN            ?i:design
+DATE              ?i:date
+VENDOR            ?i:vendor
+PROGRAM           ?i:program
+VERSION           ?i:version
+DIVIDER           ?i:divider
+VOLTAGE           ?i:voltage
+TEMPERATURE       ?i:temperature
+TIMESCALE         ?i:timescale
+CELL              ?i:cell
+CELLTYPE          ?i:celltype
+INSTANCE          ?i:instance
+ABSOLUTE          ?i:absolute
+PATHPULSE         ?i:pathpulse
+PATHPULSEP        ?i:pathpulsepercent
+INCREMENT         ?i:increment
+IOPATH            ?i:iopath
+DELAY             ?i:delay
+SETUP             ?i:setup
+HOLD              ?i:hold
+SETUPHOLD         ?i:setuphold
+RECOVERY          ?i:recovery
+REMOVAL           ?i:removal
+RECREM            ?i:recrem
+WIDTH             ?i:width
+PERIOD            ?i:period
+SKEW              ?i:skew
+BIDIRSKEW         ?i:bidirectskew
+NOCHANGE          ?i:nochange
+NETDELAY          ?i:netdelay
+DEVICE            ?i:device
+COND              ?i:cond
+CONDELSE          ?i:condelse
+PATHCONSTRAINT    ?i:PATHCONSTRAINT
+PERIODCONSTRAINT  ?i:PERIODCONSTRAINT
+SUM               ?i:SUM
+DIFF              ?i:DIFF
+SKEWCONSTRAINT    ?i:SKEWCONSTRAINT
+ARRIVAL           ?i:ARRIVAL
+DEPARTURE         ?i:DEPARTURE
+SLACK             ?i:SLACK
+WAVEFORM          ?i:WAVEFORM
+NAME              ?i:NAME
+EXCEPTION         ?i:EXCEPTION
+TIMINGCHECK       ?i:TIMINGCHECK
+TIMINGENV         ?i:TIMINGENV
+RETAIN            ?i:RETAIN
+SCOND             ?i:SCOND
+CCOND             ?i:CCOND
 
 %%
 
@@ -614,6 +672,106 @@ UNION         ?i:union
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }
 <PSL>{REPORT}            { TOKEN(tREPORT); }
 
+
+% /* SDF rules separated from rest for better maintainability */
+
+% /* SDF hierarchical_identifier may conflict with SDF keywords ->
+     Must be scanned in separate mode! Tokens that may be lookahead
+     after an identifier must be scanned too. */
+<SDF,SDF_EXPR>"!"       { TOKEN(tBANG); }
+<SDF,SDF_EXPR>{TICK}    { TOKEN(tTICK); }
+<SDF,SDF_EXPR>"<<"      { TOKEN(tLTLT); }
+<SDF,SDF_EXPR>">>"      { TOKEN(tGTGT); }
+<SDF,SDF_EXPR>"<="      { TOKEN(tLE); }
+<SDF,SDF_EXPR>">="      { TOKEN(tGE); }
+<SDF,SDF_EXPR>"&&"      { TOKEN(tDBLAMP); }
+<SDF,SDF_EXPR>"~&"      { TOKEN(tTILDEAMP); }
+<SDF,SDF_EXPR>"~|"      { TOKEN(tTILDEBAR); }
+<SDF,SDF_EXPR>"^~"      { TOKEN(tTILDECARET); }
+<SDF,SDF_EXPR>"~^"      { TOKEN(tTILDECARET); }
+<SDF,SDF_EXPR>"%"       { TOKEN(tPERCENT); }
+<SDF,SDF_EXPR>"||"      { TOKEN(tLOGOR); }
+<SDF,SDF_EXPR>"^"       { TOKEN(tCARET); }
+<SDF,SDF_EXPR>"=="      { TOKEN(tLOGEQ); }
+<SDF,SDF_EXPR>"!="      { TOKEN(tLOGNEQ); }
+<SDF,SDF_EXPR>"==="     { TOKEN(tCASEEQ); }
+<SDF,SDF_EXPR>"!=="     { TOKEN(tCASENEQ); }
+
+<SDF,SDF_EXPR>"//"      { comment_caller = YY_START; BEGIN(COMMENT); }
+<SDF,SDF_EXPR>"/*"      { comment_caller = YY_START;
+                          BEGIN(C_COMMENT);
+                        }
+
+<SDF,SDF_EXPR>{SCALAR_ZERO}   { TOKEN(tSCALARZERO); }
+<SDF,SDF_EXPR>{SCALAR_ONE}    { TOKEN(tSCALARONE); }
+
+% /* TODO: Crosscheck SDF definition of decimal */
+<SDF,SDF_EXPR>{DECIMAL} { return parse_decimal_literal(yytext); }
+
+% /* VLOG_STRING is defined almost equally as SDF qstring */
+<SDF>{VLOG_STRING}     { return parse_string(yytext); }
+
+<SDF>{DELAYFILE}        { TOKEN(tDELAYFILE); }
+<SDF>{SDFVERSION}       { TOKEN(tSDFVERSION); }
+<SDF>{DESIGN}           { TOKEN(tDESIGN); }
+<SDF>{DATE}             { TOKEN(tDATE); }
+<SDF>{VENDOR}           { TOKEN(tVENDOR); }
+<SDF>{PROGRAM}          { TOKEN(tPROGRAM); }
+<SDF>{VERSION}          { TOKEN(tVERSION); }
+<SDF>{DIVIDER}          { TOKEN(tDIVIDER); }
+<SDF>{VOLTAGE}          { TOKEN(tVOLTAGE); }
+<SDF>{PROCESS}          { TOKEN(tPROCESS); }
+<SDF>{TEMPERATURE}      { TOKEN(tTEMPERATURE); }
+<SDF>{TIMESCALE}        { TOKEN(tTIMESCALE); }
+<SDF>{CELL}             { TOKEN(tCELL); }
+<SDF>{CELLTYPE}         { TOKEN(tCELLTYPE); }
+<SDF>{INSTANCE}         { TOKEN(tINSTANCE); }
+<SDF>{DELAY}            { TOKEN(tDELAY); }
+<SDF>{ABSOLUTE}         { TOKEN(tABSOLUTE); }
+<SDF>{PATHPULSE}        { TOKEN(tPATHPULSE); }
+<SDF>{PATHPULSEP}       { TOKEN(tPATHPULSEP); }
+<SDF>{INCREMENT}        { TOKEN(tINCREMENT); }
+<SDF>{IOPATH}           { TOKEN(tIOPATH); }
+<SDF>"posedge"          { TOKEN(tPOSEDGE); }
+<SDF>"negedge"          { TOKEN(tNEGEDGE); }
+<SDF>{SETUP}            { TOKEN(tSETUP); }
+<SDF>{HOLD}             { TOKEN(tHOLD); }
+<SDF>{SETUPHOLD}        { TOKEN(tSETUPHOLD); }
+<SDF>{RECOVERY}         { TOKEN(tRECOVERY); }
+<SDF>{REMOVAL}          { TOKEN(tREMOVAL); }
+<SDF>{RECREM}           { TOKEN(tRECREM); }
+<SDF>{WIDTH}            { TOKEN(tWIDTH); }
+<SDF>{PERIOD}           { TOKEN(tPERIOD); }
+<SDF>{SKEW}             { TOKEN(tSKEW); }
+<SDF>{BIDIRSKEW}        { TOKEN(tBIDIRSKEW); }
+<SDF>{NOCHANGE}         { TOKEN(tNOCHANGE); }
+<SDF>{PORT}             { TOKEN(tPORT); }
+<SDF>{INTERCONNECT}     { TOKEN(tINTERCONNECT); }
+<SDF>{NETDELAY}         { TOKEN(tNETDELAY); }
+<SDF>{DEVICE}           { TOKEN(tDEVICE); }
+<SDF>{COND}             { TOKEN(tSDFCOND); }
+<SDF>{CONDELSE}         { TOKEN(tSDFCONDELSE); }
+<SDF>{PATHCONSTRAINT}   { TOKEN(tPATHCONSTR); }
+<SDF>{PERIODCONSTRAINT} { TOKEN(tPERIODCONSTR); }
+<SDF>{SUM}              { TOKEN(tSUM); }
+<SDF>{DIFF}             { TOKEN(tDIFF); }
+<SDF>{SKEWCONSTRAINT}   { TOKEN(tSKEWCONSTR); }
+<SDF>{ARRIVAL}          { TOKEN(tARRIVAL); }
+<SDF>{DEPARTURE}        { TOKEN(tDEPARTURE); }
+<SDF>{SLACK}            { TOKEN(tSLACK); }
+<SDF>{WAVEFORM}         { TOKEN(tWAVEFORM); }
+<SDF>{NAME}             { TOKEN(tNAME); }
+<SDF>{EXCEPTION}        { TOKEN(tEXCEPTION); }
+<SDF>{LABEL}            { TOKEN(tLABEL); }
+<SDF>{TIMINGCHECK}      { TOKEN(tTIMINGCHECK); }
+<SDF>{TIMINGENV}        { TOKEN(tTIMINGENV); }
+<SDF>{RETAIN}           { TOKEN(tRETAIN); }
+<SDF>{SCOND}            { TOKEN(tSCOND); }
+<SDF>{CCOND}            { TOKEN(tCCOND); }
+
+<SDF,SDF_EXPR>{SDF_ID}  { yylval.str = xstrdup(yytext); TOKEN(tID); }
+
+
 <INITIAL,PSL>{UTF8_MB}   { warn_utf8(yytext); REJECT; }
 
 <INITIAL,PSL>{VHDL_ID}   { return parse_id(yytext); }
@@ -949,6 +1107,16 @@ void scan_as_verilog(void)
 void scan_as_udp(void)
 {
    BEGIN(UDP);
+}
+
+void scan_as_sdf(void)
+{
+   BEGIN(SDF);
+}
+
+void scan_as_sdf_expr(void)
+{
+   BEGIN(SDF_EXPR);
 }
 
 bool is_scanned_as_psl(void)

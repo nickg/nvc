@@ -28,6 +28,8 @@
 #include "thread.h"
 #include "type.h"
 #include "vlog/vlog-phase.h"
+#include "sdf/sdf-phase.h"
+#include "sdf/sdf-util.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2482,6 +2484,18 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
                   lib_put_vlog(work, module);
                }
             }
+         }
+      }
+      break;
+
+   case SOURCE_SDF:
+      {
+         sdf_file_t *sdf_file = sdf_parse(file, 0);
+         progress("analysed SDF file: %s", file);
+
+         if (sdf_file != NULL) {
+            warnf("SDF is not yet supported");
+            sdf_file_free(sdf_file);
          }
       }
       break;

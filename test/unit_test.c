@@ -111,6 +111,7 @@ int main(int argc, char **argv)
 #endif
    nfail += RUN_TESTS(psl);
    nfail += RUN_TESTS(vlog);
+   nfail += RUN_TESTS(sdf);
 #ifdef ENABLE_TCL
    nfail += RUN_TESTS(shell);
 #endif

@@ -1,0 +1,8 @@
+(DELAYFILE
+    (SDFVERSION "IEEE 3.0")
+    (TIMESCALE 10ns)
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE TOP.I1)
+    )
+)

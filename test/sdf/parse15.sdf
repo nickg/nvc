@@ -1,0 +1,13 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "DFF")
+        (INSTANCE hierarchy_example)
+        (DELAY
+            (PATHPULSE (0.4))
+            (PATHPULSE (0.1) (0.5))
+            (PATHPULSE my_inst.my_sub_inst.a my_inst_my_sub_inst.b (5.4))
+            (PATHPULSEPERCENT top.in top.out (10.2) (11.9))
+        )
+    )
+)

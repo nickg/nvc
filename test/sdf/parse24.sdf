@@ -1,0 +1,15 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (DELAY
+            (ABSOLUTE
+                (IOPATH a b (::))
+            )
+        )
+        (TIMINGCHECK
+            (WIDTH port_in (::))
+        )
+    )
+)

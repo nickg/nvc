@@ -64,6 +64,7 @@ typedef struct _elab_ctx {
    unit_registry_t  *registry;
    lower_unit_t     *lowered;
    cover_data_t     *cover;
+   sdf_file_t       *sdf;
    void             *context;
    driver_set_t     *drivers;
    hash_t           *modcache;
@@ -1397,6 +1398,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->library   = ctx->library ?: parent->library;
    ctx->out       = ctx->out ?: parent->out;
    ctx->cover     = parent->cover;
+   ctx->sdf       = parent->sdf;
    ctx->inst      = ctx->inst ?: parent->inst;
    ctx->modcache  = parent->modcache;
    ctx->depth     = parent->depth + 1;
@@ -2246,7 +2248,8 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
+            sdf_file_t *sdf)
 {
    make_new_arena();
 
@@ -2276,6 +2279,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       .cover     = cover,
       .library   = work,
       .jit       = jit,
+      .sdf       = sdf,
       .registry  = ur,
       .modcache  = hash_new(16),
       .dotted    = lib_name(work),

@@ -1,0 +1,7 @@
+(DELAYFILE
+    (SDFVERSION "FOR_SURE_INVALID_SDF_VERSION")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE I1)
+    )
+)

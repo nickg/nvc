@@ -1,0 +1,5 @@
+lib_libnvc_a_SOURCES += \
+	src/sdf/sdf-phase.h \
+	src/sdf/sdf-parse.c \
+	src/sdf/sdf-util.h \
+	src/sdf/sdf-util.c
