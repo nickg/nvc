@@ -7,7 +7,7 @@ if {[info exists env(OSVVM_DIR)]} {
     set OsvvmDir $env(OSVVM_DIR)
 } else {
     # known good snapshot
-    set OsvvmLibraries_tag "2023.05"
+    set OsvvmLibraries_tag "2023.07"
     set OsvvmDir [file join $::env(HOME) .cache nvc "OsvvmLibraries-${OsvvmLibraries_tag}"]
 }
 

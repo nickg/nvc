@@ -15,6 +15,7 @@
   VHDL-2019.
 - The new `--shuffle` option runs processes in a random order which can
   help to identify code that depends on a particular execution order.
+- Updated to OSVVM 2023.07 for `nvc --install`.
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised
