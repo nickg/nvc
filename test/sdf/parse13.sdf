@@ -1,0 +1,13 @@
+(DELAYFILE
+    (SDFVERSION "Fancy SDF super version 1.0 followed by 2.1 that shall be ignored")
+    (DATE "Dec 17, 1991 14:49:48")
+    (DESIGN "testchip")
+    (VENDOR "Big Chips Inc.")
+    (PROGRAM "New VHDL Compiler")
+    (PROGRAM "Duplicit program entry")
+    (VERSION "1.10.2")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE I1)
+    )
+)

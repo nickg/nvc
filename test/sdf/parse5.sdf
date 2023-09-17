@@ -1,0 +1,10 @@
+(DELAYFILE
+    (SDFVERSION "IEEE 3.0")
+    (VOLTAGE 1.08:1.2:1.32)
+    (PROCESS "worst")
+    (TEMPERATURE -40:25:125)
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE TOP.I1)
+    )
+)
