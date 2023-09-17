@@ -16,6 +16,23 @@
 - The new `--shuffle` option runs processes in a random order which can
   help to identify code that depends on a particular execution order.
 - Updated to OSVVM 2023.07 for `nvc --install`.
+- Various enhancements and fixes to the VHPI implementation.
+
+## Version 1.10.3 - 2023-09-17
+- Fixed memory corruption in rare circumstances with functions declared
+  in process declarative regions (#751).
+- Fixed a race condition when creating library directories that
+  occasionally led to build failures with `make -j` (#746).
+- Aliases of protected type methods are now allowed.
+- Fixed a crash when a pragma appears outside of a design unit (#752).
+- Fixed a crash analysing an alias of an alias of a subprogram (#755).
+- Fixed an elaboration failure when an allocator expression has an
+  array type with an unconstrained element (#756).
+- Fixed a memory leak in the `--print-deps` command.
+- Fixed a crash when evaluating globally static expressions during
+  elaboration with coverage enabled (#759).
+- Fixed an analysis crash where a predefined function for a type
+  declared in a package is overridden in the package body only (#760).
 
 ## Version 1.10.2 - 2023-08-20
 - Fixed a crash due to an array bounds check being incorrectly optimised
