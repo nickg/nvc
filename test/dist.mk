@@ -96,6 +96,7 @@ EXTRA_DIST += \
 	test/elab/issue539.vhd \
 	test/elab/issue669.vhd \
 	test/elab/issue707.vhd \
+	test/elab/issue759.vhd \
 	test/elab/issue93.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/libbind2.vhd \
@@ -146,6 +147,7 @@ EXTRA_DIST += \
 	test/eopt/slice2.vhd \
 	test/eopt/source1.vhd \
 	test/expect.vhd \
+	test/issue746.sh \
 	test/jit/access1.vhd \
 	test/jit/add1.vhd \
 	test/jit/arith1.vhd \
@@ -249,6 +251,7 @@ EXTRA_DIST += \
 	test/lower/issue613.vhd \
 	test/lower/issue662.vhd \
 	test/lower/issue725.vhd \
+	test/lower/issue756.vhd \
 	test/lower/issue94.vhd \
 	test/lower/link1.vhd \
 	test/lower/loop1.vhd \
@@ -382,6 +385,8 @@ EXTRA_DIST += \
 	test/parse/issue701.vhd \
 	test/parse/issue708.vhd \
 	test/parse/issue727.vhd \
+	test/parse/issue751.vhd \
+	test/parse/issue760.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names2.vhd \
@@ -466,6 +471,7 @@ EXTRA_DIST += \
 	test/regress/alias12.vhd \
 	test/regress/alias13.vhd \
 	test/regress/alias14.vhd \
+	test/regress/alias15.vhd \
 	test/regress/alias1.vhd \
 	test/regress/alias2.vhd \
 	test/regress/alias3.vhd \
@@ -1115,6 +1121,7 @@ EXTRA_DIST += \
 	test/regress/issue543.vhd \
 	test/regress/issue544.vhd \
 	test/regress/issue547.vhd \
+	test/regress/issue548.sh \
 	test/regress/issue549.vhd \
 	test/regress/issue550.vhd \
 	test/regress/issue551.vhd \
@@ -1179,6 +1186,8 @@ EXTRA_DIST += \
 	test/regress/issue734.vhd \
 	test/regress/issue744.vhd \
 	test/regress/issue747.vhd \
+	test/regress/issue751.vhd \
+	test/regress/issue752.sh \
 	test/regress/issue79.vhd \
 	test/regress/issue82.vhd \
 	test/regress/issue83.vhd \
@@ -1474,6 +1483,7 @@ EXTRA_DIST += \
 	test/sem/access.vhd \
 	test/sem/afunc.vhd \
 	test/sem/agg2008.vhd \
+	test/sem/alias2.vhd \
 	test/sem/alias.vhd \
 	test/sem/altera1.vhd \
 	test/sem/ambiguous.vhd \

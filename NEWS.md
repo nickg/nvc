@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared
   in process declarative regions (#751).
 - Fixed a race condition when creating library directories that
