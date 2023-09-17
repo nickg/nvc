@@ -93,7 +93,7 @@ static const char *item_text_map[] = {
    "????",       "????",         "????",       "????",         "I_PRIMARY",
 };
 
-static object_class_t *classes[4];
+static object_class_t *classes[5];
 static uint32_t        format_digest;
 static generation_t    next_generation = 1;
 static arena_array_t   all_arenas;
@@ -374,6 +374,9 @@ void object_one_time_init(void)
 
          extern object_class_t psl_object;
          object_init(&psl_object);
+
+         extern object_class_t sdf_object;
+         object_init(&sdf_object);
 
          // Increment this each time a incompatible change is made to
          // the on-disk format not expressed in the object items table
@@ -839,8 +842,8 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       object_t *object = p;
       object_class_t *class = classes[object->tag];
 
-      STATIC_ASSERT(OBJECT_TAG_COUNT <= 4);
-      fbuf_put_uint(f, object->tag | (object->kind << 2));
+      STATIC_ASSERT(OBJECT_TAG_COUNT <= 8);
+      fbuf_put_uint(f, object->tag | (object->kind << 3));
 
       if (class->has_loc)
          loc_write(&object->loc, loc_ctx);
@@ -1000,8 +1003,8 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
       const uint64_t hdr = fbuf_get_uint(f);
       if (hdr == UINT16_MAX) break;
 
-      const unsigned tag = hdr & 3;
-      const unsigned kind = hdr >> 2;
+      const unsigned tag = hdr & 7;
+      const unsigned kind = hdr >> 3;
 
       assert(tag < OBJECT_TAG_COUNT);
 

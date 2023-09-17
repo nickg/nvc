@@ -100,6 +100,7 @@ enum {
    OBJECT_TAG_TYPE = 1,
    OBJECT_TAG_VLOG = 2,
    OBJECT_TAG_PSL  = 3,
+   OBJECT_TAG_SDF  = 4,
 
    OBJECT_TAG_COUNT
 };
