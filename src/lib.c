@@ -473,13 +473,12 @@ lib_t lib_new(const char *spec)
 
    char *lockf LOCAL = xasprintf("%s" DIR_SEP "%s", path, "_NVC_LIB");
 
+   bool existing = false;
    file_info_t dir_info;
    if (get_file_info(path, &dir_info)) {
       if (dir_info.type == FILE_DIR) {
          file_info_t lockf_info;
-         if (!get_file_info(lockf, &lockf_info))
-            fatal("directory %s already exists and is not an NVC library",
-                  path);
+         existing = get_file_info(lockf, &lockf_info);
       }
       else
          fatal("path %s already exists and is not a directory", path);
@@ -494,6 +493,13 @@ lib_t lib_new(const char *spec)
       // to be opened again without O_CREAT.
       if (errno != EEXIST)
          fatal_errno("lib_new: %s", lockf);
+   }
+   else if (existing) {
+      // We cannot do this check above as we may be racing with another
+      // process trying to create the library which has already made the
+      // directory but not yet created the lock file
+      fatal("directory %s already exists and is not an NVC library",
+            path);
    }
    else {
       file_write_lock(fd);
