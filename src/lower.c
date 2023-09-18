@@ -3891,9 +3891,16 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    emit_comment("Begin array aggregrate line %d", tree_loc(expr)->first_line);
 
+   assert(hint == VCODE_INVALID_REG || !have_uarray_ptr(hint));
+
    vcode_reg_t bounds_reg = VCODE_INVALID_REG, a0_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type))
       bounds_reg = lower_aggregate_bounds(lu, expr, &a0_reg);
+   else if (hint != VCODE_INVALID_REG
+            && vcode_reg_kind(hint) == VCODE_TYPE_UARRAY)
+      bounds_reg = hint;
+   else if (needs_bounds_var(type))
+      bounds_reg = lower_get_type_bounds(lu, type);
 
    vcode_reg_t dir_reg = lower_array_dir(lu, type, 0, bounds_reg);
    vcode_reg_t left_reg = lower_array_left(lu, type, 0, bounds_reg);
@@ -4047,8 +4054,16 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
          vcode_reg_t ptr_reg = emit_array_ref(mem_reg, i_reg);
 
          if (def_reg == VCODE_INVALID_REG) {
-            if (tree_kind(def_value) == T_AGGREGATE)
-               def_reg = lower_aggregate(lu, def_value, ptr_reg);
+            if (tree_kind(def_value) == T_AGGREGATE) {
+               vcode_reg_t elem_reg = ptr_reg;
+               if (array_of_array && !multidim
+                   && !lower_const_bounds(elem_type)) {
+                  assert(bounds_reg != VCODE_INVALID_REG);
+                  elem_reg = lower_wrap_element(lu, type, bounds_reg, ptr_reg);
+               }
+
+               def_reg = lower_aggregate(lu, def_value, elem_reg);
+            }
             else
                def_reg = lower_rvalue(lu, def_value);
          }

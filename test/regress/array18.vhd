@@ -57,7 +57,7 @@ begin
     p1: process is
         variable v : integer := 5;
         variable v2 : t;
---        constant c2 : t := (others => (others => '0'));
+        constant c2 : t := (others => (others => '0'));
     begin
         v2(v)(1) := '1';
         wait for 1 ns;
