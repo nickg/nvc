@@ -9556,31 +9556,10 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 
 static void lower_decls(lower_unit_t *lu, tree_t scope)
 {
-   // Lower declarations in two passes with subprograms after signals,
-   // variables, constants, etc.
-
    const int ndecls = tree_decls(scope);
-
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (lu->mode == LOWER_THUNK && kind == T_SIGNAL_DECL)
-         continue;
-      else if (is_subprogram(d) || kind == T_PROT_BODY)
-         continue;
-      else
-         lower_decl(lu, d);
-   }
-
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(scope, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (!is_subprogram(d) && kind != T_PROT_BODY)
-         continue;
-
-      vcode_block_t bb = vcode_active_block();
-
-      switch (kind) {
+      switch (tree_kind(d)) {
       case T_FUNC_INST:
       case T_FUNC_BODY:
          unit_registry_defer(lu->registry, tree_ident2(d),
@@ -9618,11 +9597,9 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
         }
         break;
       default:
+         lower_decl(lu, d);
          break;
       }
-
-      vcode_select_unit(lu->vunit);
-      vcode_select_block(bb);
    }
 }
 
