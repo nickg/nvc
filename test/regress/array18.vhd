@@ -56,10 +56,13 @@ begin
 
     p1: process is
         variable v : integer := 5;
+        variable v2 : t;
+--        constant c2 : t := (others => (others => '0'));
     begin
+        v2(v)(1) := '1';
         wait for 1 ns;
         s(v)(2) <= '1';
-        assert c.get = 2;               -- XXX: should be 1
+        assert c.get = 1;
         wait;
     end process;
 end architecture;

@@ -275,6 +275,18 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
+static bool needs_bounds_var(type_t type)
+{
+   // A constrained array subtype with non-constant bounds should have
+   // its bounds evaluated once and stored in a variable
+   if (!type_is_array(type))
+      return false;
+   else if (type_is_unconstrained(type))
+      return false;
+   else
+      return !lower_const_bounds(type);
+}
+
 static int dims_for_type(type_t type)
 {
    int ndims = dimension_of(type);
@@ -2665,6 +2677,34 @@ void lower_put_vcode_obj(void *key, int obj, lower_unit_t *scope)
 static vcode_var_t lower_get_var(lower_unit_t *lu, tree_t decl, int *hops)
 {
    return lower_search_vcode_obj(decl, lu, hops);
+}
+
+static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
+{
+   if (type_has_ident(type)) {
+      int hops = 0;
+      vcode_var_t var = lower_search_vcode_obj(type, lu, &hops);
+      if (var == VCODE_INVALID_VAR) {
+         // Type or subtype declared in package
+         ident_t id = type_ident(type);
+         vcode_reg_t context = emit_link_package(ident_runtil(id, '.'));
+         vcode_reg_t ptr_reg = emit_link_var(context, id, lower_type(type));
+         return emit_load_indirect(ptr_reg);
+      }
+      else if (hops == 0)
+         return emit_load(var);
+      else {
+         vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+         return emit_load_indirect(ptr_reg);
+      }
+   }
+   else {
+      vcode_type_t vtype = lower_type(type);
+      assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
+
+      vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_elem(vtype)));
+      return lower_wrap(lu, type, null_reg);
+   }
 }
 
 static vcode_type_t lower_var_type(tree_t decl)
@@ -7322,23 +7362,26 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
 
    emit_debug_info(tree_loc(decl));
 
+   vcode_reg_t bounds_reg = VCODE_INVALID_REG;
    vcode_reg_t dest_reg  = VCODE_INVALID_REG;
    vcode_reg_t count_reg = VCODE_INVALID_REG;
+   vcode_reg_t mem_reg = VCODE_INVALID_REG;
 
    if (type_is_record(type))
       dest_reg = emit_index(var, VCODE_INVALID_REG);
-   else if (type_is_array(type) && !type_is_unconstrained(type)) {
-      count_reg = lower_array_total_len(lu, type, VCODE_INVALID_REG);
+   else if (needs_bounds_var(type)) {
+      bounds_reg = lower_get_type_bounds(lu, type);
+      count_reg = lower_array_total_len(lu, type, bounds_reg);
 
-      if (!lower_const_bounds(type)) {
-         type_t scalar_elem = lower_elem_recur(type);
-         dest_reg = emit_alloc(lower_type(scalar_elem),
-                               lower_bounds(scalar_elem),
-                               count_reg);
-         emit_store(lower_wrap(lu, type, dest_reg), var);
-      }
-      else
-         dest_reg = emit_index(var, VCODE_INVALID_REG);
+      vcode_type_t velem = lower_type(lower_elem_recur(type));
+      mem_reg = emit_alloc(velem, vbounds, count_reg);
+
+      dest_reg = lower_rewrap(mem_reg, bounds_reg);
+      emit_store(dest_reg, var);
+   }
+   else if (type_is_array(type) && !type_is_unconstrained(type)) {
+      count_reg = lower_array_total_len(lu, type, bounds_reg);
+      dest_reg = mem_reg = emit_index(var, VCODE_INVALID_REG);
    }
 
    type_t value_type = NULL;
@@ -7349,7 +7392,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       if (tree_kind(value) == T_AGGREGATE)
          value_reg = lower_aggregate(lu, value, dest_reg);
       else
-         value_reg = lower_known_subtype(lu, value, type, VCODE_INVALID_REG);
+         value_reg = lower_known_subtype(lu, value, type, bounds_reg);
    }
    else {
       value_type = type;
@@ -7388,8 +7431,8 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
          vcode_reg_t locus = lower_debug_locus(decl);
          lower_check_indexes(lu, value_type, type, value_reg, NULL);
          lower_check_array_sizes(lu, type, value_type,
-                                 VCODE_INVALID_REG, value_reg, locus);
-         emit_copy(dest_reg, data_reg, count_reg);
+                                 dest_reg, value_reg, locus);
+         emit_copy(mem_reg, data_reg, count_reg);
       }
    }
    else if (type_is_record(type))
@@ -7733,6 +7776,8 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
       type = value_type;
       bounds_reg = init_reg;
    }
+   else if (needs_bounds_var(type))
+      bounds_reg = lower_get_type_bounds(lu, type);
 
    sig_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
@@ -9341,6 +9386,24 @@ static void lower_hier_decl(lower_unit_t *lu, tree_t decl)
       cover_ignore_from_pragmas(lu->cover, tree_ref(decl));
 }
 
+static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
+{
+   vcode_type_t vtype = lower_type(type);
+   assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
+
+   type_t elem = lower_elem_recur(type);
+   vcode_type_t velem = lower_type(elem);
+   vcode_type_t vbounds = lower_bounds(elem);
+
+   vcode_var_t var = emit_var(vtype, vbounds, type_ident(type), VAR_CONST);
+
+   vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+   vcode_reg_t wrap_reg = lower_wrap(lu, type, null_reg);
+   emit_store(wrap_reg, var);
+
+   lower_put_vcode_obj(type, var, lu);
+}
+
 static void lower_decl(lower_unit_t *lu, tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -9377,6 +9440,9 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
          ident_t id = type_ident(type);
          object_t *obj = tree_to_object(decl);
 
+         if (needs_bounds_var(type))
+            lower_type_bounds_var(lu, type);
+
          if (type_is_representable(type)) {
             ident_t image = ident_prefix(id, ident_new("image"), '$');
             unit_registry_defer(lu->registry, image, lu, emit_function,
@@ -9407,6 +9473,14 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
       }
       break;
 
+   case T_SUBTYPE_DECL:
+      {
+         type_t type = tree_type(decl);
+         if (needs_bounds_var(type))
+            lower_type_bounds_var(lu, type);
+      }
+      break;
+
    case T_FUNC_DECL:
    case T_PROC_DECL:
    case T_ATTR_SPEC:
@@ -9416,7 +9490,6 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_SPEC:
    case T_GROUP:
    case T_GROUP_TEMPLATE:
-   case T_SUBTYPE_DECL:
    case T_VIEW_DECL:
    case T_PROT_DECL:
       break;

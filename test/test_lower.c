@@ -2313,12 +2313,12 @@ START_TEST(test_sigvar)
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
+         { VCODE_OP_LOAD, .name = "Y" },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_RESOLVED },
          { VCODE_OP_UARRAY_LEFT },
          { VCODE_OP_UARRAY_RIGHT },
          { VCODE_OP_UARRAY_DIR },
-         { VCODE_OP_LOAD, .name = "Y" },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_RANGE_LENGTH },
@@ -3066,10 +3066,10 @@ START_TEST(test_tounsigned)
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "I_VAL" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 4, .target_else = 3 },
    };
@@ -4771,7 +4771,19 @@ START_TEST(test_predef1)
       { VCODE_OP_STORE, .name = "A_WIDTH" },
       { VCODE_OP_STORE, .name = "B_WIDTH" },
       { VCODE_OP_STORE, .name = "DEPTH" },
+      { VCODE_OP_NULL },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_SUB },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_ADD },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_SUB },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "WORK.PREDEF1-TEST.F(III)I.A" },
       { VCODE_OP_RETURN },
    };
 
@@ -5433,6 +5445,60 @@ START_TEST(test_transfer1)
 }
 END_TEST
 
+START_TEST(test_subtype1)
+{
+   input_from_file(TESTDIR "/lower/subtype1.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.SUBTYPE1.GET_BV(N)Q");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_STORE, .name = "R" },
+         { VCODE_OP_NULL },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "WORK.SUBTYPE1-TEST.GET_BV(N)Q.T_RESULT" },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+         { VCODE_OP_FCALL, .func = "WORK.SUBTYPE1.GET_BV(N)Q.HELPER()Q" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.SUBTYPE1.GET_BV(N)Q.HELPER()Q");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1,
+           .name = "WORK.SUBTYPE1-TEST.GET_BV(N)Q.T_RESULT" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_ALLOC },
+         { VCODE_OP_UARRAY_LEFT },
+         { VCODE_OP_UARRAY_RIGHT },
+         { VCODE_OP_UARRAY_DIR },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_RANGE_LENGTH },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CAST },
+         { VCODE_OP_RANGE_NULL },
+         { VCODE_OP_COND, .target = 2, .target_else = 1 },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5564,6 +5630,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue756);
    tcase_add_test(tc, test_const3);
    tcase_add_test(tc, test_transfer1);
+   tcase_add_test(tc, test_subtype1);
    suite_add_tcase(s, tc);
 
    return s;
