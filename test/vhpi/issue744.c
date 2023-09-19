@@ -2,8 +2,10 @@
 
 #include <string.h>
 
-void issue744_startup(void)
+static void end_of_init(const vhpiCbDataT *cb_data)
 {
+   vhpi_printf("end of init callback");
+
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
    fail_if(root == NULL);
@@ -37,4 +39,14 @@ void issue744_startup(void)
    vhpi_printf("v right bound %d", vhpi_get(vhpiRightBoundP, b_range));
    fail_unless(vhpi_get(vhpiLeftBoundP, b_range) == 5);
    fail_unless(vhpi_get(vhpiRightBoundP, b_range) == 0);
+}
+
+void issue744_startup(void)
+{
+   vhpiCbDataT cb_data = {
+      .reason    = vhpiCbEndOfInitialization,
+      .cb_rtn    = end_of_init
+   };
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
 }

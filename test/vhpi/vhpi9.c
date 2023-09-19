@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-void vhpi9_startup(void)
+static void end_of_init(const vhpiCbDataT *cb_data)
 {
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
@@ -61,4 +61,14 @@ void vhpi9_startup(void)
    vhpi_printf("s right bound %d", vhpi_get(vhpiRightBoundP, s_elem_range));
    fail_unless(vhpi_get(vhpiLeftBoundP, s_elem_range) == 3);
    fail_unless(vhpi_get(vhpiRightBoundP, s_elem_range) == 0);
+}
+
+void vhpi9_startup(void)
+{
+   vhpiCbDataT cb_data = {
+      .reason    = vhpiCbEndOfInitialization,
+      .cb_rtn    = end_of_init,
+   };
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
 }

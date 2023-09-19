@@ -318,40 +318,9 @@ static void end_of_sim(const vhpiCbDataT *cb_data)
    vhpi_release_handle(handle_sos);
 }
 
-void vhpi1_startup(void)
+static void end_of_init(const vhpiCbDataT *cb_data)
 {
-   vhpi_printf("hello, world!");
-
-   vhpiCbDataT cb_data1 = {
-      .reason    = vhpiCbStartOfSimulation,
-      .cb_rtn    = start_of_sim,
-      .user_data = (char *)"some user data",
-   };
-   handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
-   check_error();
-   fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
-
-   vhpiCbDataT cb_data2 = {
-      .reason    = vhpiCbEndOfSimulation,
-      .cb_rtn    = end_of_sim
-   };
-   vhpi_register_cb(&cb_data2, 0);
-   check_error();
-
-   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
-   check_error();
-   fail_if(tool == NULL);
-   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
-   vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
-
-   vhpiHandleT args = vhpi_iterator(vhpiArgvs, tool);
-   fail_if(args == NULL);
-   int i = 0;
-   for (vhpiHandleT arg = vhpi_scan(args); arg != NULL; arg = vhpi_scan(args), i++)
-      vhpi_printf("arg is %s", vhpi_get_str(vhpiStrValP, arg));
-   fail_unless(vhpi_get(vhpiArgcP, tool) == i);
-
-   vhpi_release_handle(tool);
+   vhpi_printf("end of init callback");
 
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
@@ -366,7 +335,7 @@ void vhpi1_startup(void)
 
    vhpiHandleT root_ports = vhpi_iterator(vhpiPortDecls, root);
    fail_if(root_ports == NULL);
-   i = 0;
+   int i = 0;
    for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports), i++) {
       vhpi_printf("root port is %s", vhpi_get_str(vhpiNameP, port));
       fail_unless(vhpi_handle_by_index(vhpiPortDecls, root, i) == port);
@@ -511,4 +480,48 @@ void vhpi1_startup(void)
    vhpi_printf("full case name is %s", vhpi_get_str(vhpiFullCaseNameP, handle_case));
 
    vhpi_release_handle(root);
+}
+
+void vhpi1_startup(void)
+{
+   vhpi_printf("hello, world!");
+
+   vhpiCbDataT cb_data1 = {
+      .reason    = vhpiCbStartOfSimulation,
+      .cb_rtn    = start_of_sim,
+      .user_data = (char *)"some user data",
+   };
+   handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
+   check_error();
+   fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
+
+   vhpiCbDataT cb_data2 = {
+      .reason    = vhpiCbEndOfSimulation,
+      .cb_rtn    = end_of_sim
+   };
+   vhpi_register_cb(&cb_data2, 0);
+   check_error();
+
+   vhpiCbDataT cb_data3 = {
+      .reason    = vhpiCbEndOfInitialization,
+      .cb_rtn    = end_of_init
+   };
+   vhpi_register_cb(&cb_data3, 0);
+   check_error();
+
+   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
+   check_error();
+   fail_if(tool == NULL);
+   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
+   vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
+
+   vhpiHandleT args = vhpi_iterator(vhpiArgvs, tool);
+   fail_if(args == NULL);
+   int i = 0;
+   for (vhpiHandleT arg = vhpi_scan(args); arg != NULL; arg = vhpi_scan(args), i++)
+      vhpi_printf("arg is %s", vhpi_get_str(vhpiStrValP, arg));
+   fail_unless(vhpi_get(vhpiArgcP, tool) == i);
+
+   vhpi_release_handle(tool);
+
 }

@@ -76,6 +76,7 @@ typedef enum {
 } rt_signal_kind_t;
 
 typedef enum {
+   RT_END_OF_INITIALISATION,
    RT_START_OF_SIMULATION,
    RT_END_OF_SIMULATION,
    RT_END_OF_PROCESSES,

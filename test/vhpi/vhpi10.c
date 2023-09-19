@@ -8,85 +8,6 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 {
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
-
-   vhpiHandleT g0 = vhpi_handle_by_name("g0", root);
-   check_error();
-
-   vhpiValueT value = {
-      .format = vhpiObjTypeVal
-   };
-   vhpi_get_value(g0, &value);
-   check_error();
-   fail_unless(value.format == vhpiIntVal);
-   vhpi_printf("value=%d", value.value.intg);
-   fail_unless(value.value.intg == 42);
-   fail_unless(value.numElems == 1);
-
-   vhpiHandleT c0 = vhpi_handle_by_name("c0", root);
-   check_error();
-
-   value.format = vhpiObjTypeVal;
-   vhpi_get_value(c0, &value);
-   check_error();
-   fail_unless(value.format == vhpiIntVal);
-   vhpi_printf("value=%d", value.value.intg);
-   fail_unless(value.value.intg == 5);
-   fail_unless(value.numElems == 1);
-
-   vhpiHandleT c1 = vhpi_handle_by_name("c1", root);
-   check_error();
-
-   value.format = vhpiObjTypeVal;
-   vhpi_get_value(c1, &value);
-   check_error();
-   fail_unless(value.format == vhpiRealVal);
-   vhpi_printf("value=%f", value.value.real);
-   fail_unless(value.value.real == 1.5);
-   fail_unless(value.numElems == 1);
-
-   vhpiHandleT i0g0 = vhpi_handle_by_name("i0.g0", root);
-   check_error();
-   fail_if(i0g0 == NULL);
-   vhpi_printf("i0g0 handle %p", i0g0);
-   fail_unless(vhpi_get(vhpiKindP, i0g0) == vhpiGenericDeclK);
-
-   value.format = vhpiObjTypeVal;
-   vhpi_get_value(i0g0, &value);
-   check_error();
-   fail_unless(value.format == vhpiIntVal);
-   vhpi_printf("value=%d", value.value.intg);
-   fail_unless(value.value.intg == 100);
-   fail_unless(value.numElems == 1);
-
-   vhpiHandleT g1 = vhpi_handle_by_name("g1", root);
-   check_error();
-
-   value.format = vhpiObjTypeVal;
-   value.bufSize = 0;
-   value.value.str = NULL;
-
-   const int bufsz = vhpi_get_value(g1, &value);
-   check_error();
-   fail_unless(value.format == vhpiStrVal);
-   fail_unless(bufsz == 6);
-
-   vhpiCharT str[6];
-   value.value.str = str;
-   value.bufSize = sizeof(str);
-   vhpi_get_value(g1, &value);
-   check_error();
-   fail_unless(value.numElems == 5);
-   vhpi_printf("g1 value '%s'", (char *)str);
-   fail_unless(strcmp((char *)str, "hello") == 0);
-   fail_unless(vhpi_get(vhpiSizeP, g1) == 5);
-
-   vhpi_release_handle(handle_sos);
-}
-
-void vhpi10_startup(void)
-{
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
@@ -196,6 +117,70 @@ void vhpi10_startup(void)
                (char *)vhpi_get_str(vhpiCaseNameP, genblk1));
    //fail_unless(strcmp((char *)vhpi_get_str(vhpiCaseNameP, genblk1), "ForGen1(1)") == 0);
 
+   vhpiValueT value = {
+      .format = vhpiObjTypeVal
+   };
+   vhpi_get_value(g0, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 42);
+   fail_unless(value.numElems == 1);
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(c0, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 5);
+   fail_unless(value.numElems == 1);
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(c1, &value);
+   check_error();
+   fail_unless(value.format == vhpiRealVal);
+   vhpi_printf("value=%f", value.value.real);
+   fail_unless(value.value.real == 1.5);
+   fail_unless(value.numElems == 1);
+
+   vhpiHandleT i0g0 = vhpi_handle_by_name("i0.g0", root);
+   check_error();
+   fail_if(i0g0 == NULL);
+   vhpi_printf("i0g0 handle %p", i0g0);
+   fail_unless(vhpi_get(vhpiKindP, i0g0) == vhpiGenericDeclK);
+
+   value.format = vhpiObjTypeVal;
+   vhpi_get_value(i0g0, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 100);
+   fail_unless(value.numElems == 1);
+
+   value.format = vhpiObjTypeVal;
+   value.bufSize = 0;
+   value.value.str = NULL;
+
+   const int bufsz = vhpi_get_value(g1, &value);
+   check_error();
+   fail_unless(value.format == vhpiStrVal);
+   fail_unless(bufsz == 6);
+
+   vhpiCharT str[6];
+   value.value.str = str;
+   value.bufSize = sizeof(str);
+   vhpi_get_value(g1, &value);
+   check_error();
+   fail_unless(value.numElems == 5);
+   vhpi_printf("g1 value '%s'", (char *)str);
+   fail_unless(strcmp((char *)str, "hello") == 0);
+   fail_unless(vhpi_get(vhpiSizeP, g1) == 5);
+
+   vhpi_release_handle(handle_sos);
+}
+
+void vhpi10_startup(void)
+{
    vhpiCbDataT cb_data1 = {
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,
@@ -204,12 +189,4 @@ void vhpi10_startup(void)
    handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
    check_error();
    fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
-
-   vhpiValueT value = {
-      .format = vhpiObjTypeVal
-   };
-   vhpi_get_value(g0, &value);
-
-   vhpiErrorInfoT info;
-   fail_unless(vhpi_check_error(&info));
 }

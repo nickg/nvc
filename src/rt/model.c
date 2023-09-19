@@ -2373,6 +2373,8 @@ void model_reset(rt_model_t *m)
       TRACE("%s initial effective value %s", istr(tree_ident(n->signal->where)),
             fmt_nexus(n, initial));
    }
+
+   global_event(m, RT_END_OF_INITIALISATION);
 }
 
 static void update_property(rt_model_t *m, rt_prop_t *prop)
@@ -3319,12 +3321,16 @@ void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
 {
    assert(event < RT_LAST_EVENT);
 
+   // Add to end of list so callbacks are called in registration order
+   rt_callback_t **p = &(m->global_cbs[event]);
+   for (; *p; p = &(*p)->next);
+
    rt_callback_t *cb = xcalloc(sizeof(rt_callback_t));
-   cb->next = m->global_cbs[event];
+   cb->next = NULL;
    cb->fn   = fn;
    cb->user = user;
 
-   m->global_cbs[event] = cb;
+   *p = cb;
 }
 
 void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,

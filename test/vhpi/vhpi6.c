@@ -107,6 +107,19 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_printf("start of sim callback! user data is '%s'",
                (char *)cb_data->user_data);
 
+   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
+   check_error();
+   fail_if(root == NULL);
+   vhpi_printf("root handle %p", root);
+
+   handle_x = vhpi_handle_by_name("x", root);
+   check_error();
+
+   handle_y = vhpi_handle_by_name("y", root);
+   check_error();
+
+   vhpi_release_handle(root);
+
    long cycles;
    vhpiTimeT now;
    vhpi_get_time(&now, &cycles);
@@ -174,17 +187,4 @@ void vhpi6_startup(void)
    };
    vhpi_register_cb(&cb_data2, 0);
    check_error();
-
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
-   fail_if(root == NULL);
-   vhpi_printf("root handle %p", root);
-
-   handle_x = vhpi_handle_by_name("x", root);
-   check_error();
-
-   handle_y = vhpi_handle_by_name("y", root);
-   check_error();
-
-   vhpi_release_handle(root);
 }

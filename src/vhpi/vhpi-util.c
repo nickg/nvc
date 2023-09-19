@@ -238,6 +238,8 @@ rt_event_t vhpi_get_rt_event(int reason)
    case vhpiCbRepLastKnownDeltaCycle:
    case vhpiCbLastKnownDeltaCycle:
       return RT_LAST_KNOWN_DELTA_CYCLE;
+   case vhpiCbEndOfInitialization:
+      return RT_END_OF_INITIALISATION;
    default:
       fatal_trace("unhandled value %d in vhpi_get_rt_event", reason);
    }

@@ -136,20 +136,8 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
    vhpi_release_handle(handle);
 }
 
-void vhpi7_startup(void)
+static void end_of_init(const vhpiCbDataT *cb_data)
 {
-   vhpiCbDataT cb_data = {
-      .reason = vhpiCbStartOfSimulation,
-      .cb_rtn = start_of_sim,
-   };
-   vhpi_register_cb(&cb_data, 0);
-   check_error();
-
-   cb_data.reason = vhpiCbLastKnownDeltaCycle;
-   cb_data.cb_rtn = last_delta;
-   vhpi_register_cb(&cb_data, 0);
-   check_error();
-
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
    fail_if(root == NULL);
@@ -195,4 +183,24 @@ void vhpi7_startup(void)
    startup_2d(root, "O", o_outer, o_inner);
 
    vhpi_release_handle(root);
+}
+
+void vhpi7_startup(void)
+{
+   vhpiCbDataT cb_data = {
+      .reason = vhpiCbStartOfSimulation,
+      .cb_rtn = start_of_sim,
+   };
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
+
+   cb_data.reason = vhpiCbEndOfInitialization;
+   cb_data.cb_rtn = end_of_init;
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
+
+   cb_data.reason = vhpiCbLastKnownDeltaCycle;
+   cb_data.cb_rtn = last_delta;
+   vhpi_register_cb(&cb_data, 0);
+   check_error();
 }

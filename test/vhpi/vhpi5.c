@@ -110,16 +110,6 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
 {
-   start_recursive(m, 0, 16, true);
-   start_recursive(n, 0, 4096, true);
-   start_recursive(o, 0, 4096, true);
-}
-
-void vhpi5_startup(void)
-{
-   vhpi_printf("hello, world!");
-   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
-
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
    fail_if(root == NULL);
@@ -157,6 +147,18 @@ void vhpi5_startup(void)
    check_error();
    fail_if(n == NULL);
 
+   start_recursive(m, 0, 16, true);
+   start_recursive(n, 0, 4096, true);
+   start_recursive(o, 0, 4096, true);
+
+   vhpi_release_handle(root);
+}
+
+void vhpi5_startup(void)
+{
+   vhpi_printf("hello, world!");
+   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
+
    vhpiCbDataT cb_data = {
       .reason = vhpiCbStartOfSimulation,
       .cb_rtn = start_of_sim,
@@ -168,6 +170,4 @@ void vhpi5_startup(void)
    cb_data.cb_rtn = last_delta;
    vhpi_register_cb(&cb_data, 0);
    check_error();
-
-   vhpi_release_handle(root);
 }

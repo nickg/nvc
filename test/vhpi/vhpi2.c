@@ -57,6 +57,31 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("start_of_sim");
 
+   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
+   check_error();
+   fail_if(root == NULL);
+   vhpi_printf("root handle %p", root);
+
+   fail_unless(vhpi_get(vhpiKindP, root) == vhpiRootInstK);
+
+   handle_x = vhpi_handle_by_name("x", root);
+   check_error();
+   fail_if(handle_x == NULL);
+   vhpi_printf("x handle %p", handle_x);
+
+   handle_y = vhpi_handle_by_name("y", root);
+   check_error();
+   fail_if(handle_y == NULL);
+   vhpi_printf("y handle %p", handle_y);
+
+   vhpiHandleT y_type = vhpi_handle(vhpiBaseType, handle_y);
+   check_error();
+   fail_if(vhpi_get(vhpiIsCompositeP, y_type));
+   check_error();
+   fail_unless(vhpi_get(vhpiIsScalarP, y_type));
+   check_error();
+   vhpi_release_handle(y_type);
+
    vhpiValueT value = {
       .format = vhpiObjTypeVal
    };
@@ -89,6 +114,8 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    };
    end_of_timestep_cb = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();
+
+   vhpi_release_handle(root);
 }
 
 void vhpi2_startup(void)
@@ -103,31 +130,4 @@ void vhpi2_startup(void)
    handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
    check_error();
    fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
-
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
-   fail_if(root == NULL);
-   vhpi_printf("root handle %p", root);
-
-   fail_unless(vhpi_get(vhpiKindP, root) == vhpiRootInstK);
-
-   handle_x = vhpi_handle_by_name("x", root);
-   check_error();
-   fail_if(handle_x == NULL);
-   vhpi_printf("x handle %p", handle_x);
-
-   handle_y = vhpi_handle_by_name("y", root);
-   check_error();
-   fail_if(handle_y == NULL);
-   vhpi_printf("y handle %p", handle_y);
-
-   vhpiHandleT y_type = vhpi_handle(vhpiBaseType, handle_y);
-   check_error();
-   fail_if(vhpi_get(vhpiIsCompositeP, y_type));
-   check_error();
-   fail_unless(vhpi_get(vhpiIsScalarP, y_type));
-   check_error();
-   vhpi_release_handle(y_type);
-
-   vhpi_release_handle(root);
 }

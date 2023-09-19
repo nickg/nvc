@@ -1552,6 +1552,7 @@ static int enable_cb(c_callback *cb)
    case vhpiCbNextTimeStep:
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
+   case vhpiCbEndOfInitialization:
       model_set_global_cb(vhpi_context()->model, vhpi_get_rt_event(cb->Reason),
                           vhpi_global_cb, cb);
       return 0;
@@ -1581,7 +1582,9 @@ static int enable_cb(c_callback *cb)
       }
 
    default:
-      fatal("unsupported reason %d in vhpi_register_cb", cb->Reason);
+      vhpi_error(vhpiInternal, NULL,
+                 "unsupported reason %d in vhpi_register_cb", cb->Reason);
+      return 1;
    }
 }
 
@@ -3315,7 +3318,7 @@ static void vhpi_lazy_block(c_abstractRegion *r)
    vhpi_build_stmts(r->tree, r);
 }
 
-static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
+static void vhpi_build_design_model(vhpi_context_t *c)
 {
    const uint64_t start_us = get_timestamp_us();
 
@@ -3339,8 +3342,6 @@ static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
    tree_t p = tree_primary(s);
    assert(tree_kind(p) == T_ENTITY);
 
-   c->tool = build_tool(argc, argv);
-
    c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
    init_entityDecl(entity, p);
 
@@ -3361,6 +3362,12 @@ static void vhpi_build_design_model(vhpi_context_t *c, int argc, char **argv)
               (get_timestamp_us() - start_us) / 1000);
 }
 
+static void vhpi_initialise_cb(rt_model_t *m, void *arg)
+{
+   vhpi_context_t *c = arg;
+   vhpi_build_design_model(c);
+}
+
 vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
                                  int argc, char **argv)
 {
@@ -3374,7 +3381,7 @@ vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
    c->top       = top;
    c->jit       = jit;
 
-   vhpi_build_design_model(c, argc, argv);
+   model_set_global_cb(model, RT_END_OF_INITIALISATION, vhpi_initialise_cb, c);
 
    return c;
 }
