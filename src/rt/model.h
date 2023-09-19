@@ -69,6 +69,4 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 void get_forcing_value(rt_signal_t *s, uint8_t *value);
 
-int64_t get_static_expr(rt_model_t *m, tree_t expr);
-
 #endif  // _RT_MODEL_H

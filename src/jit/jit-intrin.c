@@ -525,7 +525,7 @@ __attribute__((noinline))
 static void ieee_plus_unsigned_natural(jit_func_t *func, jit_anchor_t *anchor,
                                        jit_scalar_t *args, tlab_t *tlab)
 {
-   const int size = ffi_abs_length(args[3].integer);
+   const int size = ffi_array_length(args[3].integer);
    uint8_t *left = args[1].pointer;
    const uint64_t right = args[4].integer;
 
@@ -572,8 +572,8 @@ static void ieee_plus_natural_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -609,8 +609,8 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
 static void ieee_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                 jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -647,8 +647,8 @@ static void ieee_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 static void ieee_minus_signed(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -685,8 +685,8 @@ static void ieee_minus_signed(jit_func_t *func, jit_anchor_t *anchor,
 static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -733,8 +733,8 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
                             jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -965,8 +965,8 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
 static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_abs_length(args[3].integer);
-   const int rsize = ffi_abs_length(args[6].integer);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 

@@ -3532,41 +3532,6 @@ static uint64_t nexus_last_active(rt_model_t *m, rt_nexus_t *nexus)
    return last;
 }
 
-int64_t get_static_expr(rt_model_t *m, tree_t expr)
-{
-   switch (tree_kind(expr)) {
-   case T_LITERAL:
-      switch (tree_subkind(expr)) {
-      case L_INT:
-      case L_PHYSICAL:
-         return tree_ival(expr);
-      }
-      break;
-
-   case T_REF:
-      {
-         tree_t decl = tree_ref(expr);
-         if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
-            return get_static_expr(m, tree_value(decl));
-      }
-      break;
-
-   case T_FCALL:
-      // There is a corner case where globally static expressions
-      // containing deferred constants will not be folded if the
-      // expression appears in a package as the value of the constant is
-      // not known at analysis time and it is not revisited during
-      // elaboration
-      assert(tree_flags(expr) & TREE_F_GLOBALLY_STATIC);
-      break;
-
-   default:
-      break;
-   }
-
-   return eval_static_expr(m->jit, expr);
-}
-
 void get_forcing_value(rt_signal_t *s, uint8_t *value)
 {
    uint8_t *p = value;

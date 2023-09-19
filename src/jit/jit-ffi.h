@@ -60,7 +60,9 @@ typedef struct _ffi_uarray {
    } dims[1];
 } ffi_uarray_t;
 
-#define ffi_abs_length(l) ((l) ^ ((l) >> 63))
+#define ffi_array_length(d1) ((d1) ^ ((d1) >> 63))
+#define ffi_array_right(d0, d1) ((d0 + d1) + (d1 < 0 ? 2 : -1))
+#define ffi_array_dir(d1) (d1 < 0)
 
 // The code generator knows the layout of this struct
 typedef struct _ffi_closure {
