@@ -46,7 +46,12 @@ begin
         assert resize(s5, 20) = "11111111110000011000";
         assert is_null(resize(s5, 0));
         assert resize(s6, 8) = X"00";
+        assert s7 + 0 = s7;
+        assert s7 + 1 = X"11";
         assert s7 + 5 = X"15";
+        assert 0 + s7 = s7;
+        assert 1 + s7 = X"11";
+        assert 5 + s7 = X"15";
         assert s7 + X"001" = X"011";
         assert s7 + X"f0" = X"00";
         assert s7 + X"22" = X"32";

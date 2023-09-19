@@ -466,6 +466,24 @@ static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
    }
 }
 
+__attribute__((always_inline))
+static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                     tlab_t *tlab, int64_t arg, int size)
+{
+   const int roundup = (size + 7) & ~7;
+   uint8_t *result = __tlab_alloc(tlab, roundup);
+
+   int last = 0;
+   for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
+      __spread_bits(result + pos, (last = (arg & 0xff)));
+
+   const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
+   if (unlikely(arg != 0 || (last & spill_mask)))
+      __ieee_warn(func, anchor, "NUMERIC_STD.TO_UNSIGNED: vector truncated");
+
+   return result + roundup - size;
+}
+
 static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                jit_scalar_t *args, tlab_t *tlab)
 {
@@ -503,11 +521,59 @@ static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+__attribute__((noinline))
+static void ieee_plus_unsigned_natural(jit_func_t *func, jit_anchor_t *anchor,
+                                       jit_scalar_t *args, tlab_t *tlab)
+{
+   const int size = ffi_abs_length(args[3].integer);
+   uint8_t *left = args[1].pointer;
+   const uint64_t right = args[4].integer;
+
+   // Must be unconditional to generate warning on truncation
+   uint8_t *result = __to_unsigned(func, anchor, tlab, right, size);
+
+   if (size == 0) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      left = __to_01(tlab, left, size, _X);
+
+      if (left[0] == _X || right == 0)
+         args[0].pointer = left;
+      else {
+         __ieee_packed_add(left, result, size, 0, result);
+         args[0].pointer = result;
+      }
+
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
+__attribute__((always_inline))
+static inline void __commute_vector_scalar(jit_scalar_t *args)
+{
+   jit_scalar_t tmp = args[1];
+   args[1] = args[2];
+   args[2] = args[3];
+   args[3] = args[4];
+   args[4] = tmp;
+}
+
+static void ieee_plus_natural_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                       jit_scalar_t *args, tlab_t *tlab)
+{
+   __commute_vector_scalar(args);
+   ieee_plus_unsigned_natural(func, anchor, args, tlab);
+}
+
 static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = args[3].integer ^ (args[3].integer >> 63);
-   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -859,16 +925,7 @@ static void ieee_to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       args[2].integer = -1;
    }
    else {
-      const int roundup = (size + 7) & ~7;
-      uint8_t *result = __tlab_alloc(tlab, roundup), last = 0;
-      for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
-         __spread_bits(result + pos, (last = (arg & 0xff)));
-
-      const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
-      if (unlikely(arg != 0 || (last & spill_mask)))
-         __ieee_warn(func, anchor, "NUMERIC_STD.TO_UNSIGNED: vector truncated");
-
-      args[0].pointer = result + roundup - size;
+      args[0].pointer = __to_unsigned(func, anchor, tlab, arg, size);
       args[1].integer = size - 1;
       args[2].integer = ~size;
    }
@@ -978,6 +1035,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "ADD_UNSIGNED(" UU UU "L)" UU, ieee_add_unsigned },
    { NS "\"+\"(" U U ")" U, ieee_plus_unsigned },
    { NS "\"+\"(" UU UU ")" UU, ieee_plus_unsigned },
+   { NS "\"+\"(" U "N)" U, ieee_plus_unsigned_natural },
+   { NS "\"+\"(" UU "N)" UU, ieee_plus_unsigned_natural },
+   { NS "\"+\"(N" U ")" U, ieee_plus_natural_unsigned },
+   { NS "\"+\"(N" UU ")" UU, ieee_plus_natural_unsigned },
    { NS "\"+\"(" S S ")" S, ieee_plus_signed },
    { NS "\"+\"(" US US ")" US, ieee_plus_signed },
    { NS "\"-\"(" U U ")" U, ieee_minus_unsigned },
