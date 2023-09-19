@@ -3,6 +3,8 @@ package std_logic_perf is
     procedure test_and;
     procedure test_or;
     procedure test_xor;
+    procedure test_equal;
+    procedure test_not_equal;
 end package;
 
 library ieee;
@@ -51,5 +53,33 @@ package body std_logic_perf is
             s(31 downto 0) := s(32 downto 1) xor X"deadbeef";
             s(32) := '1';
         end loop;
+    end procedure;
+
+    procedure test_equal is
+        constant ITERS : integer := 500;
+        variable x, y  : std_logic_vector(32 downto 0);
+        variable count : natural;
+    begin
+        for i in 1 to ITERS loop
+            if x = y then
+                count := count + 1;
+                x(i rem 32) := y(0);
+            end if;
+        end loop;
+        assert count = ITERS;
+    end procedure;
+
+    procedure test_not_equal is
+        constant ITERS : integer := 500;
+        variable x, y  : std_logic_vector(6 downto 0);
+        variable count : natural;
+    begin
+        for i in 1 to ITERS loop
+            if x /= y then
+                count := count + 1;
+                x(i rem 32) := y(0);
+            end if;
+        end loop;
+        assert count = 0;
     end procedure;
 end package body;

@@ -905,6 +905,47 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   args[0].integer = 0;
+
+   if (lsize != rsize)
+      return;
+
+   int size = lsize;
+   if (likely(size <= 128)) {
+      for (; size > 7; size -= 8, left += 8, right += 8) {
+         const uint64_t l64 = unaligned_load(left, uint64_t);
+         const uint64_t r64 = unaligned_load(right, uint64_t);
+         if (l64 != r64)
+            return;
+      }
+
+      for (; size > 3; size -= 4, left += 4, right += 4) {
+         const uint32_t l32 = unaligned_load(left, uint32_t);
+         const uint32_t r32 = unaligned_load(right, uint32_t);
+         if (l32 != r32)
+            return;
+      }
+
+      switch (size) {
+      case 3: if (*left++ != *right++) return;
+      case 2: if (*left++ != *right++) return;
+      case 1: if (*left++ != *right++) return;
+      }
+
+      args[0].integer = 1;
+   }
+   else
+      args[0].integer = (memcmp(left, right, size) == 0);
+}
+
 static void ieee_math_sin(jit_func_t *func, jit_anchor_t *anchor,
                           jit_scalar_t *args, tlab_t *tlab)
 {
@@ -930,6 +971,7 @@ static void ieee_math_log2(jit_func_t *func, jit_anchor_t *anchor,
 #define NS "IEEE.NUMERIC_STD."
 #define SL "IEEE.STD_LOGIC_1164."
 #define MR "IEEE.MATH_REAL."
+#define ST "STD.STANDARD."
 
 static jit_intrinsic_t intrinsic_list[] = {
    { NS "ADD_UNSIGNED(" U U "L)" U, ieee_add_unsigned },
@@ -970,6 +1012,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "TO_UNSIGNED(NN)" UU, ieee_to_unsigned },
    { NS "TO_SIGNED(IN)" S, ieee_to_signed },
    { NS "TO_SIGNED(IN)" US, ieee_to_signed },
+   { SL "\"=\"(VV)B", byte_vector_equal },
+   { SL "\"=\"(YY)B", byte_vector_equal },
+   { ST "\"=\"(QQ)B", byte_vector_equal },
+   { ST "\"=\"(SS)B", byte_vector_equal },
    { MR "SIN(R)R", ieee_math_sin },
    { MR "COS(R)R", ieee_math_cos },
    { MR "LOG2(R)R", ieee_math_log2 },
