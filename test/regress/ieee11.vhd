@@ -14,6 +14,7 @@ architecture test of ieee11 is
     signal s6 : signed(0 downto 1);
     signal s7 : unsigned(7 downto 0) := X"10";
     signal s8 : unsigned(16 downto 0) := '0' & X"0010";
+    signal s9 : unsigned(1 to 8) := X"05";
 
     function is_null (x : unsigned) return boolean is
     begin
@@ -63,6 +64,10 @@ begin
         assert to_signed(-five, 80) = X"fffffffffffffffffb";
         assert to_signed(-five, 2) = "11";
         assert to_signed(one, 1) = "1";
+        assert s7 * 5 = X"50";
+        assert s9 * 2 = X"0a";
+        assert std_logic_vector(s7 * "UU") = "XXXXXXXXXX";
+        assert s5 * X"ffff" = 1000;
         wait;
     end process;
 

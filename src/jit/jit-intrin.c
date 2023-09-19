@@ -125,6 +125,31 @@ static inline void *__tlab_alloc(tlab_t *t, size_t size)
       return mspace_alloc(t->mspace, size);
 }
 
+__attribute__((always_inline))
+static inline uint32_t __tlab_mark(tlab_t *t)
+{
+   return t->alloc;
+}
+
+__attribute__((always_inline))
+static inline void __tlab_restore(tlab_t *t, uint32_t mark)
+{
+   assert(mark <= t->alloc);
+   t->alloc = mark;
+}
+
+#if 0
+static void print_bits(const char *tag, const uint8_t *bits, size_t size)
+{
+   static const char map[] = "UX01ZWLH-";
+
+   printf("%s: ", tag);
+   for (int i = 0; i < size; i++)
+      printf("%c", map[bits[i]]);
+   printf("\n");
+}
+#endif
+
 __attribute__((cold))
 static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
 {
@@ -165,6 +190,16 @@ static void __ieee_failure(jit_func_t *func, jit_anchor_t *caller,
    diag_emit(d);
 
    jit_abort_with_status(EXIT_FAILURE);
+}
+
+__attribute__((always_inline))
+static inline void __invert_bits(const uint8_t *input, int size,
+                                 uint8_t *result)
+{
+   for (int i = 0; i < size; i++) {
+      assert(input[i] == _0 || input[i] == _1);
+      result[i] = input[i] ^ 1;
+   }
 }
 
 __attribute__((always_inline))
@@ -410,9 +445,9 @@ static inline void __spread_bits(void* vec, uint8_t packed)
 
 __attribute__((always_inline))
 static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
-                                     uint8_t *restrict result)
+                                     int carry, uint8_t *result)
 {
-   int pos = size - 8, carry = 0;
+   int pos = size - 8;
    for (; pos > 0; pos -= 8) {
       const unsigned lbyte = __pack_low_bits(left + pos);
       const unsigned rbyte = __pack_low_bits(right + pos);
@@ -459,7 +494,7 @@ static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
          args[0].pointer = right;
       else {
          uint8_t *result = __tlab_alloc(tlab, size);
-         __ieee_packed_add(left, right, size, result);
+         __ieee_packed_add(left, right, size, 0, result);
          args[0].pointer = result;
       }
 
@@ -496,10 +531,109 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
          args[0].pointer = right;
       else {
          uint8_t *result = __tlab_alloc(tlab, size);
-         __ieee_packed_add(left, right, size, result);
+         __ieee_packed_add(left, right, size, 0, result);
          args[0].pointer = result;
       }
 
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
+static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   const int size = lsize + rsize;
+
+   if (lsize == 0 || rsize == 0) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      uint8_t *result = __tlab_alloc(tlab, size);
+      const uint32_t mark = __tlab_mark(tlab);
+
+      left = __to_01(tlab, left, lsize, _X);
+      right = __to_01(tlab, right, rsize, _X);
+
+      if (left[0] == _X || right[0] == _X)
+         memset(result, _X, size);
+      else {
+         memset(result, _0, size);
+
+         uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
+         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
+            if (left[i] == _1) {
+               // Delay left-shift until value needed
+               memmove(adval, adval + shift, size - shift);
+               memset(adval + size - shift, _0, shift);
+               shift = 0;
+
+               __ieee_packed_add(result, adval, size, 0, result);
+            }
+         }
+      }
+
+      __tlab_restore(tlab, mark);
+
+      args[0].pointer = result;
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
+static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   const int size = lsize + rsize;
+
+   if (lsize == 0 || rsize == 0) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      uint8_t *result = __tlab_alloc(tlab, size);
+      const uint32_t mark = __tlab_mark(tlab);
+
+      left = __to_01(tlab, left, lsize, _X);
+      right = __to_01(tlab, right, rsize, _X);
+
+      if (left[0] == _X || right[0] == _X)
+         memset(result, _X, size);
+      else {
+         memset(result, _0, size);
+
+         uint8_t *adval = __resize_signed(tlab, right, rsize, size);
+         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
+            if (left[i] == _1) {
+               // Delay left-shift until value needed
+               memmove(adval, adval + shift, size - shift);
+               memset(adval + size - shift, _0, shift);
+               shift = 0;
+
+               if (i == 0)
+                  __invert_bits(adval, size, adval);
+
+               __ieee_packed_add(result, adval, size, i == 0, result);
+            }
+         }
+      }
+
+      __tlab_restore(tlab, mark);
+
+      args[0].pointer = result;
       args[1].integer = size - 1;
       args[2].integer = ~size;
    }
@@ -728,6 +862,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "\"+\"(" UU UU ")" UU, ieee_plus_unsigned },
    { NS "\"+\"(" S S ")" S, ieee_plus_signed },
    { NS "\"+\"(" US US ")" US, ieee_plus_signed },
+   { NS "\"*\"(" U U ")" U, ieee_mul_unsigned },
+   { NS "\"*\"(" UU UU ")" UU, ieee_mul_unsigned },
+   { NS "\"*\"(" S S ")" S, ieee_mul_signed },
+   { NS "\"*\"(" US US ")" US, ieee_mul_signed },
 #ifdef HAVE_SSE41
    { SL "TO_X01(V)V", std_to_x01_sse41, CPU_SSE41 },
    { SL "TO_X01(Y)Y", std_to_x01_sse41, CPU_SSE41 },
