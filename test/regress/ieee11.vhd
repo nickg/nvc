@@ -68,6 +68,8 @@ begin
         assert s9 * 2 = X"0a";
         assert std_logic_vector(s7 * "UU") = "XXXXXXXXXX";
         assert s5 * X"ffff" = 1000;
+        assert s7 - s9 = X"0b";
+        assert s5 - 1 = -1001;
         wait;
     end process;
 

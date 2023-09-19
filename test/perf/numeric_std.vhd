@@ -7,6 +7,8 @@ package numeric_std_perf is
     procedure test_to_signed;
     procedure test_mul_unsigned;
     procedure test_mul_signed;
+    procedure test_sub_unsigned;
+    procedure test_sub_signed;
 end package;
 
 library ieee;
@@ -112,6 +114,30 @@ package body numeric_std_perf is
             accum := resize(accum * two, WIDTH);
         end loop;
         assert accum = to_signed(2 ** ITERS, WIDTH);
+    end procedure;
+
+    procedure test_sub_unsigned is
+        constant WIDTH : integer := 16;
+        constant ITERS : integer := 500;
+        variable accum : unsigned(WIDTH - 1 downto 0) := (others => '0');
+        constant one   : unsigned(WIDTH - 1 downto 0) := to_unsigned(1, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum - one;
+        end loop;
+        assert accum = to_unsigned(2**WIDTH - ITERS, WIDTH);
+    end procedure;
+
+    procedure test_sub_signed is
+        constant WIDTH : integer := 16;
+        constant ITERS : integer := 500;
+        variable accum : signed(WIDTH - 1 downto 0) := (others => '0');
+        constant one   : signed(WIDTH - 1 downto 0) := to_signed(1, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum - one;
+        end loop;
+        assert accum = to_signed(-ITERS, WIDTH);
     end procedure;
 
 end package body;

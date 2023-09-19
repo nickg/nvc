@@ -540,6 +540,82 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void ieee_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   const int size = MAX(lsize, rsize);
+
+   if (lsize == 0 || rsize == 0) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      left = __resize_unsigned(tlab, left, lsize, size);
+      right = __resize_unsigned(tlab, right, rsize, size);
+
+      left = __to_01(tlab, left, size, _X);
+      right = __to_01(tlab, right, size, _X);
+
+      if (left[0] == _X)
+         args[0].pointer = left;
+      else if (right[0] == _X)
+         args[0].pointer = right;
+      else {
+         uint8_t *result = __tlab_alloc(tlab, size);
+         __invert_bits(right, size, result);
+         __ieee_packed_add(left, result, size, 1, result);
+         args[0].pointer = result;
+      }
+
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
+static void ieee_minus_signed(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_abs_length(args[3].integer);
+   const int rsize = ffi_abs_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   const int size = MAX(lsize, rsize);
+
+   if (lsize == 0 || rsize == 0) {
+      args[0].pointer = NULL;
+      args[1].integer = 0;
+      args[2].integer = -1;
+   }
+   else {
+      left = __resize_signed(tlab, left, lsize, size);
+      right = __resize_signed(tlab, right, rsize, size);
+
+      left = __to_01(tlab, left, size, _X);
+      right = __to_01(tlab, right, size, _X);
+
+      if (left[0] == _X)
+         args[0].pointer = left;
+      else if (right[0] == _X)
+         args[0].pointer = right;
+      else {
+         uint8_t *result = __tlab_alloc(tlab, size);
+         __invert_bits(right, size, result);
+         __ieee_packed_add(left, result, size, 1, result);
+         args[0].pointer = result;
+      }
+
+      args[1].integer = size - 1;
+      args[2].integer = ~size;
+   }
+}
+
 static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
@@ -862,6 +938,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "\"+\"(" UU UU ")" UU, ieee_plus_unsigned },
    { NS "\"+\"(" S S ")" S, ieee_plus_signed },
    { NS "\"+\"(" US US ")" US, ieee_plus_signed },
+   { NS "\"-\"(" U U ")" U, ieee_minus_unsigned },
+   { NS "\"-\"(" UU UU ")" UU, ieee_minus_unsigned },
+   { NS "\"-\"(" S S ")" S, ieee_minus_signed },
+   { NS "\"-\"(" US US ")" US, ieee_minus_signed },
    { NS "\"*\"(" U U ")" U, ieee_mul_unsigned },
    { NS "\"*\"(" UU UU ")" UU, ieee_mul_unsigned },
    { NS "\"*\"(" S S ")" S, ieee_mul_signed },
