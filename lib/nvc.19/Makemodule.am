@@ -9,7 +9,9 @@ nvc_19_DATA = \
 	lib/nvc.19/NVC.TEXT_UTIL \
 	lib/nvc.19/NVC.TEXT_UTIL-body \
 	lib/nvc.19/NVC.PSL_SUPPORT \
-	lib/nvc.19/NVC.PSL_SUPPORT-body
+	lib/nvc.19/NVC.PSL_SUPPORT-body \
+	lib/nvc.19/NVC.VERILOG \
+	lib/nvc.19/NVC.VERILOG-body
 
 BOOTSTRAPLIBS += $(nvc_19_DATA)
 
@@ -40,6 +42,12 @@ lib/nvc.19/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DR
 
 lib/nvc.19/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/psl_support-body.vhd
+
+lib/nvc.19/NVC.VERILOG: $(srcdir)/lib/nvc/verilog.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/verilog.vhd
+
+lib/nvc.19/NVC.VERILOG-body: $(srcdir)/lib/nvc/verilog-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/verilog-body.vhd
 
 gen-deps-nvc-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --print-deps | \

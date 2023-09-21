@@ -63,6 +63,7 @@ typedef enum {
    V_IF,
    V_COND,
    V_VAR_DECL,
+   V_DELAY_CONTROL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

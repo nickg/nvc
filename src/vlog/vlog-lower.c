@@ -55,21 +55,51 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
    return emit_debug_locus(unit, offset);
 }
 
-static vcode_reg_t vlog_lower_width(vlog_node_t v)
+static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
 {
    vcode_type_t voffset = vtype_offset();
+   vcode_reg_t left_reg = emit_const(voffset, 0), right_reg, data_reg;
+   vcode_reg_t dir_reg = emit_const(voffset, RANGE_TO);
 
-   switch (vlog_kind(v)) {
-   case V_STRING:
-      return emit_const(voffset, strlen(vlog_text(v)));
-   case V_NUMBER:
-      return emit_const(voffset, number_width(vlog_number(v)));
+   switch (vcode_reg_kind(reg)) {
+   case VCODE_TYPE_CARRAY:
+      data_reg = emit_address_of(reg);
+      right_reg = emit_const(voffset, vtype_size(vcode_reg_type(reg)) - 1);
+      break;
+   case VCODE_TYPE_INT:
+      {
+         vcode_type_t vlogic = vlog_logic_type();
+         ident_t name = ident_uniq("wrap_temp");
+         vcode_var_t tmp = emit_var(vlogic, vlogic, name, VAR_TEMP);
+         emit_store(reg, tmp);
+
+         data_reg = emit_index(tmp, VCODE_INVALID_REG);
+         right_reg = left_reg;
+      }
+      break;
    default:
-      CANNOT_HANDLE(v);
+      vcode_dump();
+      fatal_trace("cannot wrap r%d", reg);
    }
+
+   vcode_dim_t dims[1] = {
+      { left_reg, right_reg, dir_reg }
+   };
+   return emit_wrap(data_reg, dims, 1);
 }
 
-static void vlog_lower_port_decl(lower_unit_t *lu, vlog_node_t port)
+static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
+{
+   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+   vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
+   vcode_reg_t args[] = { context_reg, wrap_reg };
+   vcode_type_t vtime = vtype_time();
+   ident_t func = ident_new("NVC.VERILOG.TO_TIME(26NVC.VERILOG.T_PACKED_LOGIC)"
+                            "25STD.STANDARD.DELAY_LENGTH");
+   return emit_fcall(func, vtime, vtime, VCODE_CC_VHDL, args, ARRAY_LEN(args));
+}
+
+static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t port)
 {
    vcode_type_t vlogic = vlog_logic_type();
    vcode_type_t vsignal = vtype_signal(vlogic);
@@ -96,7 +126,8 @@ static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
       vlog_node_t d = vlog_decl(scope, i);
       switch (vlog_kind(d)) {
       case V_PORT_DECL:
-         vlog_lower_port_decl(lu, d);
+      case V_VAR_DECL:
+         vlog_lower_signal_decl(lu, d);
          break;
       default:
          CANNOT_HANDLE(d);
@@ -210,8 +241,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
             chars[i] = emit_const(vchar, text[i]);
 
          vcode_type_t vtype = vtype_carray(len, vchar, vchar);
-         vcode_reg_t array = emit_const_array(vtype, chars, len);
-         return emit_address_of(array);
+         return emit_const_array(vtype, chars, len);
       }
    case V_NUMBER:
       {
@@ -226,7 +256,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          else {
             vcode_reg_t *bits LOCAL = xmalloc_array(width, sizeof(vcode_reg_t));
             for (int i = 0; i < width; i++)
-               bits[i] = emit_const(vlogic, number_bit(num, width - i - 1 ));
+               bits[i] = emit_const(vlogic, number_bit(num, i));
 
             vcode_type_t varray = vtype_carray(width, vlogic, vlogic);
             return emit_const_array(varray, bits, width);
@@ -257,21 +287,40 @@ static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
 
 static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
 {
-   vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(v));
+   vcode_block_t true_bb = emit_block(), false_bb = VCODE_INVALID_BLOCK;
 
-   vcode_block_t true_bb = emit_block();
-   vcode_block_t false_bb = emit_block();
+   vlog_node_t ctrl = vlog_value(v);
+   switch (vlog_kind(ctrl)) {
+   case V_DELAY_CONTROL:
+      {
+         vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(ctrl));
+         emit_wait(true_bb, vlog_lower_to_time(lu, delay_reg));
 
-   emit_cond(test_reg, true_bb, false_bb);
+         vcode_select_block(true_bb);
+      }
+      break;
+   case V_EVENT:
+      {
+         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(v));
 
-   vcode_select_block(true_bb);
+         false_bb = emit_block();
+         emit_cond(test_reg, true_bb, false_bb);
+
+         vcode_select_block(true_bb);
+      }
+      break;
+   default:
+      CANNOT_HANDLE(ctrl);
+   }
 
    vlog_lower_stmts(lu, v);
 
-   if (!vcode_block_finished())
-      emit_jump(false_bb);
+   if (false_bb != VCODE_INVALID_BLOCK) {
+      if (!vcode_block_finished())
+         emit_jump(false_bb);
 
-   vcode_select_block(false_bb);
+      vcode_select_block(false_bb);
+   }
 }
 
 static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
@@ -279,6 +328,9 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
    vcode_reg_t nets_reg = vlog_lower_lvalue(lu, vlog_target(v));
    vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
    vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
+
+   if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
+      value_reg = emit_load_indirect(emit_address_of(value_reg));  // XXX
 
    vcode_type_t vtime = vtype_time();
    vcode_reg_t reject_reg = emit_const(vtime, 0);
@@ -302,16 +354,14 @@ static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
    case V_SYS_WRITE:
       {
          const int nparams = vlog_params(v);
-         vcode_reg_t *args LOCAL =
-            xmalloc_array(nparams * 2, sizeof(vcode_reg_t));
+         vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
          for (int i = 0; i < nparams; i++) {
-            vlog_node_t p = vlog_param(v, i);
-            args[i*2] = vlog_lower_width(p);
-            args[i*2 + 1] = vlog_lower_rvalue(lu, p);
+            vcode_reg_t p_reg = vlog_lower_rvalue(lu, vlog_param(v, i));
+            args[i] = vlog_lower_wrap(lu, p_reg);
          }
 
          emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams * 2);
+                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams);
       }
       break;
 
@@ -422,6 +472,8 @@ static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
 
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
    unit_registry_put(ur, lu);
+
+   vlog_visit(stmt, vlog_driver_cb, lu);
 
    emit_return(VCODE_INVALID_REG);
 

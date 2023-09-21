@@ -123,6 +123,11 @@ static void vlog_check_number(vlog_node_t num)
 
 }
 
+static void vlog_check_string(vlog_node_t num)
+{
+
+}
+
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
@@ -169,6 +174,11 @@ static void vlog_check_event(vlog_node_t event)
    vlog_check(vlog_value(event));
 }
 
+static void vlog_check_delay_control(vlog_node_t delay)
+{
+   vlog_check(vlog_value(delay));
+}
+
 static void vlog_check_always(vlog_node_t always)
 {
    const int nstmts = vlog_stmts(always);
@@ -206,6 +216,10 @@ static void vlog_check_systask(vlog_node_t call)
    }
 
    vlog_set_subkind(call, kind);
+
+   const int nparams = vlog_params(call);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(call, i));
 }
 
 static void vlog_check_port_decl(vlog_node_t port)
@@ -216,6 +230,11 @@ static void vlog_check_port_decl(vlog_node_t port)
 static void vlog_check_net_decl(vlog_node_t net)
 {
    vlog_insert_decl(net);
+}
+
+static void vlog_check_var_decl(vlog_node_t var)
+{
+   vlog_insert_decl(var);
 }
 
 static void vlog_check_module(vlog_node_t module)
@@ -256,6 +275,9 @@ void vlog_check(vlog_node_t v)
    case V_EVENT:
       vlog_check_event(v);
       break;
+   case V_DELAY_CONTROL:
+      vlog_check_delay_control(v);
+      break;
    case V_NBASSIGN:
       vlog_check_nbassign(v);
       break;
@@ -271,6 +293,9 @@ void vlog_check(vlog_node_t v)
    case V_NET_DECL:
       vlog_check_net_decl(v);
       break;
+   case V_VAR_DECL:
+      vlog_check_var_decl(v);
+      break;
    case V_SEQ_BLOCK:
       vlog_check_seq_block(v);
       break;
@@ -279,6 +304,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_NUMBER:
       vlog_check_number(v);
+      break;
+   case V_STRING:
+      vlog_check_string(v);
       break;
    default:
       fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));

@@ -8,7 +8,9 @@ nvc_DATA = \
 	lib/nvc/NVC.TEXT_UTIL \
 	lib/nvc/NVC.TEXT_UTIL-body \
 	lib/nvc/NVC.PSL_SUPPORT \
-	lib/nvc/NVC.PSL_SUPPORT-body
+	lib/nvc/NVC.PSL_SUPPORT-body \
+	lib/nvc/NVC.VERILOG \
+	lib/nvc/NVC.VERILOG-body
 
 EXTRA_DIST += \
 	lib/nvc/sim_pkg.vhd \
@@ -17,7 +19,9 @@ EXTRA_DIST += \
 	lib/nvc/text_util.vhd \
 	lib/nvc/text_util-body.vhd \
 	lib/nvc/psl_support.vhd \
-	lib/nvc/psl_support-body.vhd
+	lib/nvc/psl_support-body.vhd \
+	lib/nvc/verilog.vhd \
+	lib/nvc/verilog-body.vhd
 
 BOOTSTRAPLIBS += $(nvc_DATA)
 
@@ -45,6 +49,12 @@ lib/nvc/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVE
 
 lib/nvc/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/psl_support-body.vhd
+
+lib/nvc/NVC.VERILOG: $(srcdir)/lib/nvc/verilog.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/verilog.vhd
+
+lib/nvc/NVC.VERILOG-body: $(srcdir)/lib/nvc/verilog-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/verilog-body.vhd
 
 gen-deps-nvc:
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc --print-deps | \

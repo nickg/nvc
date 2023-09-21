@@ -214,7 +214,9 @@ const char *token_str(token_t tok)
          "restrict", "restrict_guarantee", "strong", "fairness", "cover",
          "property", "sequence", "const", "mutable", "hdltype", "boolean",
          "bit", "bitvector", "numeric", "string", "[*", "[+]", "[=", "[->",
-         "&&", "within", "system task", "view", "private"
+         "&&", "within", "system task", "view", "private" "prev", "stable",
+         "rose", "fell", "ended", "nondet", "nondetv", "untion", "translate on"
+         "translate off"
       };
 
       if (tok > 0 && tok - 200 < ARRAY_LEN(token_strs))

@@ -114,6 +114,7 @@ static bool is_decl(vlog_node_t v)
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
+%type   <vlog>          delay_control delay_value
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -528,7 +529,19 @@ procedural_timing_control_statement:
         ;
 
 delay_or_event_control:
-                event_control
+                delay_control
+        |       event_control
+        ;
+
+delay_control:  '#' delay_value
+                {
+                   $$ = vlog_new(V_DELAY_CONTROL);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_value($$, $2);
+                }
+        ;
+
+delay_value:    decimal_number
         ;
 
 event_control: '@' '(' event_expression ')' { $$ = $3; }

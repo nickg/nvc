@@ -196,7 +196,7 @@ number_t number_pack(const uint8_t *bits, unsigned width)
    assert(width <= EMBED_WIDTH);
 
    uint64_t packed = 0;
-   for (int i = 0; i < width; i++) {
+   for (int i = width - 1; i >= 0; i--) {
       assert(bits[i] <= LOGIC_X);
       packed <<= 2;
       packed |= bits[i];

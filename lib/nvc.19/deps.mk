@@ -16,3 +16,7 @@ lib/nvc.19/NVC.TEXT_UTIL-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.TEXT_UTIL 
 
 lib/nvc.19/NVC.TEXT_UTIL: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc/text_util.vhd
 
+lib/nvc.19/NVC.VERILOG-body: lib/std.19/STD.STANDARD lib/nvc.19/NVC.VERILOG $(top_srcdir)/lib/nvc/verilog-body.vhd
+
+lib/nvc.19/NVC.VERILOG: lib/std.19/STD.STANDARD $(top_srcdir)/lib/nvc/verilog.vhd
+

@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "jit/jit.h"
+#include "jit/jit-ffi.h"
 #include "rt/model.h"
 #include "vlog/vlog-number.h"
 
@@ -25,12 +26,18 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static const void *next_arg(jit_scalar_t **args, unsigned *length)
+{
+   void *ptr = (*args)[0].pointer;
+   *length = ffi_array_length((*args)[2].integer);
+   *args += 3;
+   return ptr;
+}
+
 static void verilog_printf(jit_scalar_t *args)
 {
-   const int fmtlen = (*args++).integer;
-   assert(fmtlen >= 0);
-
-   const char *fmt = (*args++).pointer, *start = fmt, *p = fmt;
+   unsigned fmtlen;
+   const char *fmt = next_arg(&args, &fmtlen), *start = fmt, *p = fmt;
 
    for (; *p && p < fmt + fmtlen; p++) {
       if (*p == '%') {
@@ -40,24 +47,30 @@ static void verilog_printf(jit_scalar_t *args)
          switch (*++p) {
          case 's':
             {
-               const int len = (*args++).integer;
-               const char *str = (*args++).pointer;
-               fwrite(str, 1, len, stdout);
+               unsigned len;
+               const char *str = next_arg(&args, &len);
+               fputs(str, stdout);
             }
             break;
          case 'd':
          case 'x':
             {
-               const int width = (*args++).integer;
-               const uint8_t *bits = (*args++).pointer;
+               unsigned width;
+               const uint8_t *bits = next_arg(&args, &width);
                number_t num = number_pack(bits, width);
 
                switch (*p) {
                case 'd':
-                  printf("%*"PRIi64, width, number_integer(num));
+                  if (number_is_defined(num))
+                     printf("%*"PRIi64, width, number_integer(num));
+                  else
+                     printf("x");
                   break;
                case 'x':
-                  printf("%0*"PRIx64, width, number_integer(num));
+                  if (number_is_defined(num))
+                     printf("%0*"PRIx64, width, number_integer(num));
+                  else
+                     printf("x");
                   break;
                }
             }

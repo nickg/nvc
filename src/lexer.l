@@ -444,6 +444,7 @@ UNION         ?i:union
 <*>"["                   { TOKEN(tLSQUARE); }
 <*>"]"                   { TOKEN(tRSQUARE); }
 <*>"="                   { TOKEN(tEQ); }
+<*>"#"                   { TOKEN(tHASH); }
 
 <INITIAL,PSL>"**"        { TOKEN(tPOWER); }
 <INITIAL,PSL>":="        { TOKEN(tASSIGN); }
