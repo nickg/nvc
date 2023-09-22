@@ -8,6 +8,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/thirdparty -I$(top_srcdir)/src
 AM_CFLAGS   = -Wall $(EXTRA_CFLAGS) $(LTO_FLAG)
 AM_CXXFLAGS = -Wall $(EXTRA_CFLAGS) $(LTO_FLAG)
 AM_LDFLAGS  = $(EXTRA_LDFLAGS) $(LLVM_LDFLAGS)
+AM_YFLAGS   = --locations $(EXTRA_YFLAGS)
 
 AM_CC       = $(PTHREAD_CC)
 AM_CFLAGS   += $(PTHREAD_CFLAGS)

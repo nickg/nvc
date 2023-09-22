@@ -80,6 +80,7 @@ AM_CONDITIONAL([GNULIB_STRNDUP], [test "x$ac_cv_func_strndup" != xyes])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
+EXTRA_YFLAGS=
 
 # Need to prevent GCC calling strndup builtin if using gnulib version
 if test "x$ac_cv_func_strndup" != xyes; then
@@ -142,6 +143,14 @@ AM_CONDITIONAL([ENABLE_VERILOG], [test x$enable_verilog = xyes])
 AS_IF([test x$enable_verilog = xyes],
       [AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
        AC_DEFINE_UNQUOTED([ENABLE_VERILOG], [1], [Verilog support enabled])])
+
+AS_IF([test "$ax_cv_prog_bison" = "yes"],
+      [AC_MSG_CHECKING([if ${YACC%% *} supports -Wcounterexamples])
+       AS_IF([$YACC -Wcounterexamples --version 2>/dev/null >/dev/null],
+             [AC_MSG_RESULT([yes])
+              AX_APPEND_FLAG([-Wcounterexamples], [EXTRA_YFLAGS])],
+             [AC_MSG_RESULT([no])])])
+
 AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
 
 case $host_os in
@@ -529,6 +538,7 @@ AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 
 AC_SUBST(EXTRA_CFLAGS)
 AC_SUBST(EXTRA_LDFLAGS)
+AC_SUBST(EXTRA_YFLAGS)
 
 AS_IF([test x$enable_maintainer_mode = xyes ],
       [AC_PATH_PROG([MANDOC], [mandoc])])
