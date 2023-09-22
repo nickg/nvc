@@ -16,9 +16,18 @@
 
 package body verilog is
 
-    function to_integer (value : t_packed_logic) return integer is
+    function to_integer (value : t_packed_logic) return t_int64 is
+        alias v      : t_packed_logic(0 to value'length - 1) is value;
+        variable r   : t_int64 := 0;
+        variable add : t_int64 := 1;
     begin
-        return 0;
+        for i in v'range loop
+            if v(i) = '1' then
+                r := r + add;
+            end if;
+            add := add * 2;
+        end loop;
+        return r;
     end function;
 
     function to_time (value : t_packed_logic) return delay_length is

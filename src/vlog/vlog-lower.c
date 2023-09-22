@@ -40,6 +40,7 @@
    emit_debug_info(vlog_loc((v)));                       \
 
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
+static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);
 
 static inline vcode_type_t vlog_logic_type(void)
 {
@@ -59,7 +60,6 @@ static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
 {
    vcode_type_t voffset = vtype_offset();
    vcode_reg_t left_reg = emit_const(voffset, 0), right_reg, data_reg;
-   vcode_reg_t dir_reg = emit_const(voffset, RANGE_TO);
 
    switch (vcode_reg_kind(reg)) {
    case VCODE_TYPE_CARRAY:
@@ -77,10 +77,14 @@ static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
          right_reg = left_reg;
       }
       break;
+   case VCODE_TYPE_UARRAY:
+      return reg;
    default:
       vcode_dump();
       fatal_trace("cannot wrap r%d", reg);
    }
+
+   vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
 
    vcode_dim_t dims[1] = {
       { left_reg, right_reg, dir_reg }
@@ -97,6 +101,19 @@ static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
    ident_t func = ident_new("NVC.VERILOG.TO_TIME(26NVC.VERILOG.T_PACKED_LOGIC)"
                             "25STD.STANDARD.DELAY_LENGTH");
    return emit_fcall(func, vtime, vtime, VCODE_CC_VHDL, args, ARRAY_LEN(args));
+}
+
+static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
+{
+   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+   vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
+   vcode_reg_t args[] = { context_reg, wrap_reg };
+   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   ident_t func = ident_new("NVC.VERILOG.TO_INTEGER"
+                            "(26NVC.VERILOG.T_PACKED_LOGIC)"
+                            "19NVC.VERILOG.T_INT64");
+   return emit_fcall(func, vint64, vint64, VCODE_CC_VHDL,
+                     args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
@@ -117,24 +134,57 @@ static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
    }
 }
 
-static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t port)
+static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t decl)
 {
    vcode_type_t vlogic = vlog_logic_type();
    vcode_type_t vsignal = vtype_signal(vlogic);
    vcode_type_t voffset = vtype_offset();
 
-   vcode_var_t var = emit_var(vsignal, vlogic, vlog_ident(port), VAR_SIGNAL);
-   lower_put_vcode_obj(port, var, lu);
+   const int nranges = vlog_ranges(decl);
+
+   vcode_dim_t *dims = NULL;
+   if (nranges > 0) {
+      dims = xmalloc_array(nranges, sizeof(vcode_dim_t));
+      vsignal = vtype_uarray(nranges, vsignal, vsignal);
+   }
+
+   vcode_var_t var = emit_var(vsignal, vlogic, vlog_ident(decl), VAR_SIGNAL);
+   lower_put_vcode_obj(decl, var, lu);
 
    vcode_reg_t size = emit_const(voffset, 1);
    vcode_reg_t count = emit_const(voffset, 1);
    vcode_reg_t init = emit_const(vlogic, 3);
    vcode_reg_t flags = emit_const(voffset, 0);
-   vcode_reg_t locus = vlog_debug_locus(port);
+   vcode_reg_t locus = vlog_debug_locus(decl);
 
-   vcode_reg_t nets_reg = emit_init_signal(vlogic, size, count, init, flags,
+   for (int i = 0; i < nranges; i++) {
+      vlog_node_t r = vlog_range(decl, i);
+      vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(r));
+      vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(r));
+
+      vcode_reg_t ileft_reg = vlog_lower_to_integer(lu, left_reg);
+      vcode_reg_t iright_reg = vlog_lower_to_integer(lu, right_reg);
+
+      vcode_reg_t dir_reg = emit_cmp(VCODE_CMP_GT, ileft_reg, iright_reg);
+      vcode_reg_t length_reg =
+         emit_range_length(ileft_reg, iright_reg, dir_reg);
+
+      count = emit_mul(count, length_reg);
+
+      dims[i].dir = dir_reg;
+      dims[i].left = ileft_reg;
+      dims[i].right = iright_reg;
+   }
+
+   vcode_reg_t nets_reg = emit_init_signal(vlogic, count, size, init, flags,
                                            locus, VCODE_INVALID_REG);
-   emit_store(nets_reg, var);
+
+   if (nranges > 0) {
+      vcode_reg_t wrap_reg = emit_wrap(nets_reg, dims, nranges);
+      emit_store(wrap_reg, var);
+   }
+   else
+      emit_store(nets_reg, var);
 }
 
 static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
@@ -226,7 +276,19 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          else
             nets_reg = emit_load_indirect(emit_var_upref(hops, var));
 
-         return emit_load_indirect(emit_resolved(nets_reg));
+         if (vcode_reg_kind(nets_reg) == VCODE_TYPE_UARRAY) {
+            vcode_reg_t data_reg = emit_resolved(emit_unwrap(nets_reg));
+
+            // XXX: add a rewrap opcode
+            vcode_dim_t dims[1] = {
+               { .left = emit_uarray_left(nets_reg, 0),
+                 .right = emit_uarray_right(nets_reg, 0),
+                 .dir = emit_uarray_dir(nets_reg, 0) },
+            };
+            return emit_wrap(data_reg, dims, 1);
+         }
+         else
+            return emit_load_indirect(emit_resolved(nets_reg));
       }
    case V_EVENT:
       {
@@ -343,12 +405,24 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
 
 static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
 {
-   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, vlog_target(v));
-   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+   vcode_reg_t target_reg = vlog_lower_lvalue(lu, vlog_target(v));
    vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
 
-   if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
-      value_reg = emit_load_indirect(emit_address_of(value_reg));  // XXX
+   vcode_reg_t count_reg, nets_reg;
+   if (vcode_reg_kind(target_reg) == VCODE_TYPE_UARRAY) {
+      nets_reg = emit_unwrap(target_reg);
+      count_reg = emit_uarray_len(target_reg, 0);
+
+      if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
+         value_reg = emit_address_of(value_reg);    // XXX
+   }
+   else {
+      nets_reg = target_reg;
+      count_reg = emit_const(vtype_offset(), 1);
+
+      if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
+         value_reg = emit_load_indirect(emit_address_of(value_reg));  // XXX
+   }
 
    vcode_type_t vtime = vtype_time();
    vcode_reg_t reject_reg = emit_const(vtime, 0);
@@ -463,8 +537,19 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
 
 static void vlog_lower_driver(lower_unit_t *lu, vlog_node_t v)
 {
-   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, v);
-   emit_drive_signal(nets_reg, emit_const(vtype_offset(), 1));
+   vcode_reg_t target_reg = vlog_lower_lvalue(lu, v);
+
+   vcode_reg_t nets_reg, count_reg;
+   if (vcode_reg_kind(target_reg) == VCODE_TYPE_UARRAY) {
+      nets_reg = emit_unwrap(target_reg);
+      count_reg = emit_uarray_len(target_reg, 0);
+   }
+   else {
+      nets_reg = target_reg;
+      count_reg = emit_const(vtype_offset(), 1);
+   }
+
+   emit_drive_signal(nets_reg, count_reg);
 }
 
 static void vlog_driver_cb(vlog_node_t v, void *context)

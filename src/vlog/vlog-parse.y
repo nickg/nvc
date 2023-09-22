@@ -123,7 +123,7 @@ static bool is_decl(vlog_node_t v)
 %type   <list>          module_or_generate_item_declaration
 %type   <list>          module_or_generate_item continuous_assign
 %type   <list>          list_of_net_assignments reg_declaration
-%type   <list>          list_of_variable_identifiers
+%type   <list>          list_of_variable_identifiers list_of_statements_opt
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -356,6 +356,20 @@ reg_declaration:
                 {
                    $$ = $2;
                 }
+        |       tREG '[' expression ':' expression ']'
+                list_of_variable_identifiers ';'
+                {
+                   vlog_node_t r = vlog_new(V_DIMENSION);
+                   vlog_set_loc(r, &@$);
+                   vlog_set_subkind(r, V_DIM_PACKED);
+                   vlog_set_left(r, $3);
+                   vlog_set_right(r, $5);
+
+                   for (node_list_t *it = $7; it; it = it->next)
+                      vlog_add_range(it->value, r);
+
+                   $$ = $7;
+                }
         ;
 
 list_of_variable_identifiers:
@@ -439,6 +453,12 @@ statement_or_null:
         |       ';' { $$ = NULL; }
         ;
 
+list_of_statements_opt:
+                list_of_statements
+        |       /* Empty */
+                { $$ = NULL; }
+        ;
+
 list_of_statements:
                 list_of_statements statement
                 {
@@ -508,7 +528,7 @@ system_task_enable:
                 }
         ;
 
-seq_block:      tBEGIN list_of_statements tEND
+seq_block:      tBEGIN list_of_statements_opt tEND
                 {
                    $$ = vlog_new(V_SEQ_BLOCK);
                    vlog_set_loc($$, &@$);
@@ -517,7 +537,7 @@ seq_block:      tBEGIN list_of_statements tEND
                       vlog_add_stmt($$, it->value);
                    node_list_free($2);
                 }
-        |       tBEGIN ':' identifier list_of_statements tEND
+        |       tBEGIN ':' identifier list_of_statements_opt tEND
                 {
                    $$ = vlog_new(V_SEQ_BLOCK);
                    vlog_set_loc($$, &@$);

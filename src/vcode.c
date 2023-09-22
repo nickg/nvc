@@ -4446,6 +4446,17 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
    VCODE_ASSERT(ptrkind == VCODE_TYPE_POINTER || ptrkind == VCODE_TYPE_SIGNAL,
                 "wrapped data is not pointer or signal");
 
+#ifdef DEBUG
+   for (int i = 0; i < ndims; i++) {
+      VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(dims[i].left)),
+                   "dimension %d left bound must be scalar", i + 1);
+      VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(dims[i].right)),
+                   "dimension %d right bound must be scalar", i + 1);
+      VCODE_ASSERT(vtype_eq(vtype_bool(), vcode_reg_type(dims[i].dir)),
+                   "dimension %d direction must be bool", i + 1);
+   }
+#endif
+
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
       ? vtype_pointed(ptr_type) : ptr_type;
 

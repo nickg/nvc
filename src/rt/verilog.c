@@ -62,15 +62,15 @@ static void verilog_printf(jit_scalar_t *args)
                switch (*p) {
                case 'd':
                   if (number_is_defined(num))
-                     printf("%*"PRIi64, width, number_integer(num));
+                     printf("%*"PRIi64, ilog2(width), number_integer(num));
                   else
-                     printf("x");
+                     printf("%*s", ilog2(width), "x");
                   break;
                case 'x':
                   if (number_is_defined(num))
                      printf("%0*"PRIx64, width, number_integer(num));
                   else
-                     printf("x");
+                     printf("%*s", width/4, "x");
                   break;
                }
             }

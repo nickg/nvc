@@ -1,4 +1,4 @@
 hello, world!
 string=foo
-foo       42 00005     0
+foo  42 00005   0
 0ms+0: $finish called

@@ -20,11 +20,13 @@
 
 package verilog is
 
+    type t_int64 is range -9223372036854775807 - 1 to 9223372036854775807;
+
     type t_logic is ('0', '1', 'Z', 'X');
 
     type t_packed_logic is array (natural range <>) of t_logic;
 
-    function to_integer (value : t_packed_logic) return integer;
+    function to_integer (value : t_packed_logic) return t_int64;
 
     function to_time (value : t_packed_logic) return delay_length;
 
