@@ -200,14 +200,31 @@ static void vlog_dump_assign(vlog_node_t v, int indent)
 static void vlog_dump_if(vlog_node_t v, int indent)
 {
    tab(indent);
-   print_syntax("#if (");
-   vlog_node_t c0 = vlog_cond(v, 0);
-   vlog_dump(vlog_value(c0), 0);
-   print_syntax(")\n");
+   print_syntax("#if ");
 
-   const int nstmts = vlog_stmts(c0);
-   for (int i = 0; i < nstmts; i++)
-      vlog_dump(vlog_stmt(c0, i), indent + 2);
+   const int nconds = vlog_conds(v);
+   for (int i = 0; i < nconds; i++) {
+      if (i > 0) {
+         tab(indent);
+         print_syntax("#else ");
+      }
+
+      vlog_node_t c = vlog_cond(v, i);
+      if (vlog_has_value(c)) {
+         print_syntax("(");
+         vlog_dump(vlog_value(c), 0);
+         print_syntax(")");
+      }
+
+      const int nstmts = vlog_stmts(c);
+      if (nstmts == 0)
+         print_syntax(";\n");
+      else {
+         print_syntax("\n");
+         for (int i = 0; i < nstmts; i++)
+            vlog_dump(vlog_stmt(c, i), indent + 2);
+      }
+   }
 }
 
 static void vlog_dump_systask(vlog_node_t v, int indent)

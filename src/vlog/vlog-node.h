@@ -126,6 +126,7 @@ unsigned vlog_subkind(vlog_node_t v);
 void vlog_set_subkind(vlog_node_t v, unsigned sub);
 
 vlog_node_t vlog_value(vlog_node_t v);
+bool vlog_has_value(vlog_node_t v);
 void vlog_set_value(vlog_node_t v, vlog_node_t e);
 
 vlog_node_t vlog_target(vlog_node_t v);

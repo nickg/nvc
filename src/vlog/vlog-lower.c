@@ -99,6 +99,24 @@ static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
    return emit_fcall(func, vtime, vtime, VCODE_CC_VHDL, args, ARRAY_LEN(args));
 }
 
+static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
+{
+
+   switch (vcode_reg_kind(reg)) {
+   case VCODE_TYPE_INT:
+      {
+         vcode_type_t vlogic = vlog_logic_type();
+         vcode_reg_t one_reg = emit_const(vlogic, 1);
+         assert(vtype_eq(vcode_reg_type(reg), vlogic));
+         return emit_cmp(VCODE_CMP_EQ, reg, one_reg);
+      }
+      break;
+   default:
+      vcode_dump();
+      fatal_trace("cannot convert r%d to bool", reg);
+   }
+}
+
 static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t port)
 {
    vcode_type_t vlogic = vlog_logic_type();
@@ -375,6 +393,45 @@ static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
    }
 }
 
+static void vlog_lower_if(lower_unit_t *lu, vlog_node_t v)
+{
+   vcode_block_t true_bb = emit_block();
+   vcode_block_t false_bb = emit_block(), skip_bb = false_bb;
+
+   const int nconds = vlog_conds(v);
+   assert(nconds == 1 || nconds == 2);
+
+   if (nconds == 2)
+      skip_bb = emit_block();
+
+   vlog_node_t c0 = vlog_cond(v, 0);
+
+   vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(c0));
+   vcode_reg_t bool_reg = vlog_lower_to_bool(lu, test_reg);
+   emit_cond(bool_reg, true_bb, false_bb);
+
+   vcode_select_block(true_bb);
+
+   vlog_lower_stmts(lu, c0);
+
+   if (!vcode_block_finished())
+      emit_jump(skip_bb);
+
+   if (nconds == 2) {
+      vlog_node_t c1 = vlog_cond(v, 1);
+      assert(!vlog_has_value(c1));
+
+      vcode_select_block(false_bb);
+
+      vlog_lower_stmts(lu, c1);
+
+      if (!vcode_block_finished())
+         emit_jump(skip_bb);
+   }
+
+   vcode_select_block(skip_bb);
+}
+
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
@@ -394,6 +451,9 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
          break;
       case V_SYSTASK:
          vlog_lower_systask(lu, s);
+         break;
+      case V_IF:
+         vlog_lower_if(lu, s);
          break;
       default:
          CANNOT_HANDLE(s);

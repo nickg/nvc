@@ -222,6 +222,23 @@ static void vlog_check_systask(vlog_node_t call)
       vlog_check(vlog_param(call, i));
 }
 
+static void vlog_check_if(vlog_node_t stmt)
+{
+   const int nconds = vlog_conds(stmt);
+   for (int i = 0; i < nconds; i++) {
+      vlog_node_t c = vlog_cond(stmt, i);
+
+      if (vlog_has_value(c))
+         vlog_check(vlog_value(c));
+      else
+         assert(i == nconds - 1);
+
+      const int nstmts = vlog_stmts(c);
+      for (int i = 0; i < nstmts; i++)
+         vlog_check(vlog_stmt(c, i));
+   }
+}
+
 static void vlog_check_port_decl(vlog_node_t port)
 {
    vlog_insert_decl(port);
@@ -307,6 +324,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_STRING:
       vlog_check_string(v);
+      break;
+   case V_IF:
+      vlog_check_if(v);
       break;
    default:
       fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));

@@ -7,5 +7,8 @@ module parse1;
     $finish;
     if (x);
     if (x) z <= 1;
+    if (x) $display("yes");
+    else if (z);
+    else $display("no");
   end
 endmodule // parse1

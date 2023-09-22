@@ -330,6 +330,11 @@ vlog_node_t vlog_value(vlog_node_t v)
    return container_of(item->object, struct _vlog_node, object);
 }
 
+bool vlog_has_value(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_VALUE)->object != NULL;
+}
+
 void vlog_set_value(vlog_node_t v, vlog_node_t e)
 {
    lookup_item(&vlog_object, v, I_VALUE)->object = &(e->object);

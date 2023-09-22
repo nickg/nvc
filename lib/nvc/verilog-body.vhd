@@ -26,7 +26,7 @@ package body verilog is
         variable r   : delay_length := 0 fs;
         variable add : delay_length := 1 fs;
     begin
-        for i in v'reverse_range loop
+        for i in v'range loop
             if v(i) = '1' then
                 r := r + add;
             end if;

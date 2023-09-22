@@ -146,6 +146,7 @@ static bool is_decl(vlog_node_t v)
 %token                  tWIRE 358 "wire"
 %token                  tASSIGN 227 "assign"
 %token                  tIF 234 "if"
+%token                  tELSE 255 "else"
 %token                  tEOF 0 "end of file"
 
 /*
@@ -157,6 +158,9 @@ static bool is_decl(vlog_node_t v)
 %left tPOWER
 %nonassoc tABS tNOT tNEW
  */
+
+%precedence "then"
+%precedence tELSE
 
 %define parse.error verbose
 %expect 0
@@ -449,7 +453,7 @@ list_of_statements:
         ;
 
 conditional_statement:
-                tIF '(' expression ')' statement_or_null
+                tIF '(' expression ')' statement_or_null %prec "then"
                 {
                    vlog_node_t c = vlog_new(V_COND);
                    vlog_set_loc(c, &@3);
@@ -460,6 +464,24 @@ conditional_statement:
                    $$ = vlog_new(V_IF);
                    vlog_set_loc($$, &@$);
                    vlog_add_cond($$, c);
+                }
+        |       tIF '(' expression ')' statement_or_null tELSE statement_or_null
+                {
+                   vlog_node_t c1 = vlog_new(V_COND);
+                   vlog_set_loc(c1, &@3);
+                   vlog_set_value(c1, $3);
+                   if ($5 != NULL)
+                      vlog_add_stmt(c1, $5);
+
+                   vlog_node_t c2 = vlog_new(V_COND);
+                   vlog_set_loc(c2, &@6);
+                   if ($7 != NULL)
+                      vlog_add_stmt(c2, $7);
+
+                   $$ = vlog_new(V_IF);
+                   vlog_set_loc($$, &@$);
+                   vlog_add_cond($$, c1);
+                   vlog_add_cond($$, c2);
                 }
         ;
 

@@ -197,6 +197,10 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(s1s0s3) == V_IF);
    fail_unless(vlog_conds(s1s0s3) == 1);
 
+   vlog_node_t s1s0s4 = vlog_stmt(s1s0, 4);
+   fail_unless(vlog_kind(s1s0s4) == V_IF);
+   fail_unless(vlog_conds(s1s0s4) == 2);
+
    fail_unless(vlog_parse() == NULL);
 
    fail_if_errors();
