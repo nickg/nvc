@@ -12211,8 +12211,7 @@ static tree_t p_concurrent_statement(void)
                conc = p_concurrent_procedure_call_statement(label, name);
                break;
             default:
-               parse_error(CURRENT_LOC, "expected concurrent statement %s",
-                           tree_kind_str(tree_kind(name)));
+               parse_error(CURRENT_LOC, "expected concurrent statement");
                drop_tokens_until(tSEMI);
                conc = tree_new(T_CONCURRENT);
             }

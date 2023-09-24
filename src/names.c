@@ -56,6 +56,7 @@ typedef struct {
    nametab_t        *nametab;
    bool              error;
    bool              trace;
+   bool              trial;
    type_t            signature;
    tree_t            prefix;
    unsigned          initial;
@@ -162,6 +163,7 @@ struct type_set {
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
+static type_t try_solve_type(nametab_t *tab, tree_t expr);
 static bool can_call_no_args(nametab_t *tab, tree_t decl);
 static bool is_forward_decl(tree_t decl, tree_t existing);
 static bool denotes_same_object(tree_t a, tree_t b);
@@ -2279,7 +2281,7 @@ static void begin_overload_resolution(overload_t *o)
    o->initial = o->candidates.count;
    o->error   = type_set_error(o->nametab);
 
-   if (o->initial == 0 && !o->error) {
+   if (o->initial == 0 && !o->error && !o->trial) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
 
       if (sym != NULL) {
@@ -2535,7 +2537,7 @@ static tree_t finish_overload_resolution(overload_t *o)
       }
    }
 
-   if (count > 1 && !o->error) {
+   if (count > 1 && !o->error && !o->trial) {
       const loc_t *loc = tree_loc(o->tree);
       diag_t *d = diag_new(DIAG_ERROR, loc);
       diag_printf(d, "ambiguous %s %s",
@@ -2564,7 +2566,7 @@ static tree_t finish_overload_resolution(overload_t *o)
 
       diag_emit(d);
    }
-   else if (count == 0 && !o->error) {
+   else if (count == 0 && !o->error && !o->trial) {
       LOCAL_TEXT_BUF tb = tb_new();
       tb_printf(tb, "%s [", istr(o->name));
       qsort(o->params.items, o->params.count, sizeof(tree_t), param_compar);
@@ -2771,7 +2773,7 @@ static void overload_next_argument(overload_t *o, tree_t p)
    assert(o->state != O_IDLE);
 
    tree_t value = tree_value(p);
-   type_t type = _solve_types(o->nametab, value);
+   type_t type = tree_type(value);
 
    if (o->trace) {
       printf("%s: next argument %s %s\n", istr(o->name),
@@ -2830,6 +2832,17 @@ static void overload_next_argument(overload_t *o, tree_t p)
 
    type_set_pop(o->nametab);
 
+   o->state = O_IDLE;
+}
+
+static void overload_cancel_argument(overload_t *o)
+{
+   assert(o->state != O_IDLE);
+
+   if (o->trace)
+      printf("%s: cancel argument\n", istr(o->name));
+
+   type_set_pop(o->nametab);
    o->state = O_IDLE;
 }
 
@@ -3052,7 +3065,7 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
 ////////////////////////////////////////////////////////////////////////////////
 // Type solver
 
-static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
+static bool solve_one_param(nametab_t *tab, tree_t p, overload_t *o, bool trial)
 {
    param_kind_t subkind = tree_subkind(p);
    switch (subkind) {
@@ -3070,7 +3083,16 @@ static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
       break;
    }
 
-   overload_next_argument(o, p);
+   tree_t value = tree_value(p);
+   if (trial && !try_solve_type(o->nametab, value)) {
+      overload_cancel_argument(o);
+      return false;
+   }
+   else {
+      _solve_types(o->nametab, value);
+      overload_next_argument(o, p);
+      return true;
+   }
 }
 
 static bool is_unambiguous(tree_t t)
@@ -3087,21 +3109,6 @@ static bool is_unambiguous(tree_t t)
       || kind == T_RECORD_REF
       || kind == T_ALL
       || (kind == T_REF && tree_has_ref(t));
-}
-
-static bool is_unambiguous_fcall(tree_t t)
-{
-   if (tree_kind(t) == T_FCALL) {
-      const int nparams = tree_params(t);
-      for (int i = 0; i < nparams; i++) {
-         if (!is_unambiguous(tree_value(tree_param(t, i))))
-            return false;
-      }
-
-      return true;
-   }
-
-   return false;
 }
 
 static type_list_t possible_types(nametab_t *tab, tree_t value)
@@ -3146,10 +3153,9 @@ static type_list_t possible_types(nametab_t *tab, tree_t value)
 static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 {
    const int nparams = tree_params(call);
-   uint64_t pmask = 0;
 
-   if (nparams > 64)
-      fatal_at(tree_loc(call), "more than 64 parameters are not supported");
+   bit_mask_t pmask;
+   mask_init(&pmask, nparams);
 
    // Make an initial pass over the parameters and solve the "easy" ones
 
@@ -3157,8 +3163,8 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
       if (is_unambiguous(value)) {
-         solve_one_param(tab, p, o);
-         pmask |= (1 << i);
+         solve_one_param(tab, p, o, false);
+         mask_set(&pmask, i);
       }
    }
 
@@ -3166,7 +3172,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
    // set of possible types for each remaining parameter
 
    for (int i = 0; i < nparams && o->candidates.count > 1; i++) {
-      if (pmask & (1 << i))
+      if (mask_test(&pmask, i))
          continue;
 
       tree_t p = tree_param(call, i);
@@ -3185,52 +3191,39 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       }
    }
 
-   // Solve all parameters which are function calls with unambiguous
-   // arguments
+   // Attempt to solve remaining parameters but suppress errors
 
    for (int i = 0; i < nparams; i++) {
-      if (pmask & (1 << i))
+      if (mask_test(&pmask, i))
          continue;
 
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
+
+      const bool trial = o->candidates.count > 1
+         && mask_popcount(&pmask) + 1 < nparams;
 
       if (o->error && o->initial == 0) {
          // Avoid cascading errors from an undefined subprogram
          tree_set_type(value, type_new(T_NONE));
-         pmask |= 1 << i;
+         mask_set(&pmask, i);
       }
-      else if (is_unambiguous_fcall(value)) {
-         solve_one_param(tab, p, o);
-         pmask |= (1 << i);
-      }
-   }
-
-   // Solve all remaining parameters which are themselves function calls
-
-   for (int i = 0; i < nparams; i++) {
-      if (pmask & (1 << i))
-         continue;
-
-      tree_t p = tree_param(call, i);
-      tree_t value = tree_value(p);
-
-      if (tree_kind(value) == T_FCALL) {
-         solve_one_param(tab, p, o);
-         pmask |= (1 << i);
-      }
+      else if (solve_one_param(tab, p, o, trial))
+         mask_set(&pmask, i);
    }
 
    // Catch-all pass for remaining parameters
 
    for (int i = 0; i < nparams; i++) {
-      if (pmask & (1 << i))
+      if (mask_test(&pmask, i))
          continue;
 
       tree_t p = tree_param(call, i);
-      solve_one_param(tab, p, o);
-      pmask |= (1 << i);
+      solve_one_param(tab, p, o, false);
+      mask_set(&pmask, i);
    }
+
+   mask_free(&pmask);
 }
 
 static bool can_call_no_args(nametab_t *tab, tree_t decl)
@@ -3311,6 +3304,78 @@ static void nest_protected_call(tree_t call, tree_t pref)
    tree_set_ref(call, tree_ref(pref));
 }
 
+static type_t resolve_fcall(nametab_t *tab, tree_t fcall, tree_t decl)
+{
+   type_t ftype = tree_type(decl);
+   type_kind_t typek = type_kind(ftype);
+   if (typek == T_PROC) {
+      error_at(tree_loc(fcall), "procedure %s not allowed in an expression",
+               istr(tree_ident(fcall)));
+      return type_new(T_NONE);
+   }
+   else {
+      assert(typek == T_FUNC);
+
+      if (tree_kind(decl) == T_PROT_REF) {
+         // Calling an alias of a protected type method
+         if (tree_kind(fcall) == T_PROT_FCALL)
+            nest_protected_call(fcall, decl);
+         else {
+            tree_change_kind(fcall, T_PROT_FCALL);
+            tree_set_name(fcall, tree_value(decl));
+         }
+
+         decl = tree_ref(decl);
+      }
+
+      tree_set_ref(fcall, decl);
+
+      const tree_flags_t flags = tree_flags(decl);
+      if ((flags & TREE_F_PROTECTED) && tree_kind(fcall) != T_PROT_FCALL)
+         tree_change_kind(fcall, T_PROT_FCALL);
+
+      if ((flags & TREE_F_KNOWS_SUBTYPE)
+          && !tab->top_type_set->known_subtype) {
+         error_at(tree_loc(fcall), "function %s with return identifier %s "
+                  "cannot be called in this context as the result subtype "
+                  "is not known", istr(tree_ident(decl)),
+                  istr(type_ident(type_result(ftype))));
+      }
+
+      return resolve_fcall_or_index(tab, fcall, ftype, decl);
+   }
+}
+
+static type_t try_solve_fcall(nametab_t *tab, tree_t fcall)
+{
+   if (tree_has_type(fcall))
+      return tree_type(fcall);
+
+   const tree_kind_t kind = tree_kind(fcall);
+
+   overload_t o = {
+      .tree     = fcall,
+      .state    = O_IDLE,
+      .nametab  = tab,
+      .trace    = false,
+      .trial    = true,
+      .prefix   = kind == T_PROT_FCALL ? tree_name(fcall) : NULL,
+      .nactuals = tree_params(fcall),
+      .name     = tree_ident(fcall),
+   };
+   begin_overload_resolution(&o);
+
+   solve_subprogram_params(tab, fcall, &o);
+
+   tree_t decl = finish_overload_resolution(&o);
+   if (decl == NULL)
+      return NULL;
+
+   type_t type = resolve_fcall(tab, fcall, decl);
+   tree_set_type(fcall, type);
+   return type;
+}
+
 static type_t solve_fcall(nametab_t *tab, tree_t fcall)
 {
    if (tree_has_type(fcall))
@@ -3335,46 +3400,8 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
    tree_t decl = finish_overload_resolution(&o);
    if (decl == NULL)
       type = type_new(T_NONE);
-   else {
-      type_t ftype = tree_type(decl);
-      type_kind_t typek = type_kind(ftype);
-      if (typek == T_PROC) {
-         error_at(tree_loc(fcall), "procedure %s not allowed in an expression",
-                  istr(tree_ident(fcall)));
-         type = type_new(T_NONE);
-      }
-      else {
-         assert(typek == T_FUNC);
-
-         if (tree_kind(decl) == T_PROT_REF) {
-            // Calling an alias of a protected type method
-            if (tree_kind(fcall) == T_PROT_FCALL)
-               nest_protected_call(fcall, decl);
-            else {
-               tree_change_kind(fcall, T_PROT_FCALL);
-               tree_set_name(fcall, tree_value(decl));
-            }
-
-            decl = tree_ref(decl);
-         }
-
-         tree_set_ref(fcall, decl);
-
-         const tree_flags_t flags = tree_flags(decl);
-         if ((flags & TREE_F_PROTECTED) && kind != T_PROT_FCALL)
-            tree_change_kind(fcall, T_PROT_FCALL);
-
-         if ((flags & TREE_F_KNOWS_SUBTYPE)
-             && !tab->top_type_set->known_subtype) {
-            error_at(tree_loc(fcall), "function %s with return identifier %s "
-                     "cannot be called in this context as the result subtype "
-                     "is not known", istr(tree_ident(decl)),
-                     istr(type_ident(type_result(ftype))));
-         }
-
-         type = resolve_fcall_or_index(tab, fcall, ftype, decl);
-      }
-   }
+   else
+      type = resolve_fcall(tab, fcall, decl);
 
    tree_set_type(fcall, type);
    return type;
@@ -3444,7 +3471,7 @@ static bool is_character_array(type_t t)
    return false;
 }
 
-static type_t solve_string(nametab_t *tab, tree_t str)
+static type_t try_solve_string(nametab_t *tab, tree_t str)
 {
    if (tree_has_type(str))
       return tree_type(str);
@@ -3454,16 +3481,8 @@ static type_t solve_string(nametab_t *tab, tree_t str)
    // dimensional array of a character type
 
    type_t type = NULL;
-   if (type_set_satisfies(tab, is_character_array, &type) != 1) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(str));
-      diag_printf(d, "type of string literal cannot be determined "
-                  "from the surrounding context");
-      type_set_describe(tab, d, tree_loc(str), is_character_array,
-                        "a one dimensional array of character type");
-      diag_emit(d);
-
-      type = type_new(T_NONE);
-   }
+   if (type_set_satisfies(tab, is_character_array, &type) != 1)
+      return NULL;
 
    type_t elem = type_elem(type);
    const int nchars = tree_chars(str);
@@ -3475,7 +3494,24 @@ static type_t solve_string(nametab_t *tab, tree_t str)
    return sub;
 }
 
-static type_t solve_literal(nametab_t *tab, tree_t lit)
+static type_t solve_string(nametab_t *tab, tree_t str)
+{
+   type_t type = try_solve_string(tab, str);
+   if (type != NULL)
+      return type;
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(str));
+   diag_printf(d, "type of string literal cannot be determined "
+               "from the surrounding context");
+   type_set_describe(tab, d, tree_loc(str), is_character_array,
+                     "a one dimensional array of character type");
+   diag_emit(d);
+
+   tree_set_type(str, (type = type_new(T_NONE)));
+   return type;
+}
+
+static type_t try_solve_literal(nametab_t *tab, tree_t lit)
 {
    if (tree_has_type(lit))
       return tree_type(lit);
@@ -3487,10 +3523,8 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
          if (!type_set_uniq(tab, &type)) {
             type_set_restrict(tab, type_is_access);
 
-            if (!type_set_uniq(tab, &type)) {
-               error_at(tree_loc(lit), "invalid use of null expression");
-               type = type_new(T_NONE);
-            }
+            if (!type_set_uniq(tab, &type))
+               return NULL;
          }
 
          tree_set_type(lit, type);
@@ -3503,7 +3537,7 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
          type_t type;
          tree_t decl = resolve_name(tab, tree_loc(lit), id);
          if (decl == NULL)
-            type = type_new(T_NONE);
+            return NULL;
          else if (tree_kind(decl) != T_UNIT_DECL) {
             error_at(tree_loc(lit), "%s is not a physical unit", istr(id));
             type = type_new(T_NONE);
@@ -3520,6 +3554,26 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
    default:
       fatal_at(tree_loc(lit), "cannot solve literal");
    }
+}
+
+static type_t solve_literal(nametab_t *tab, tree_t lit)
+{
+   type_t type = try_solve_literal(tab, lit);
+   if (type != NULL)
+      return type;
+   else if (tree_subkind(lit) == L_NULL)
+      error_at(tree_loc(lit), "invalid use of null expression");
+
+   tree_set_type(lit, (type = type_new(T_NONE)));
+   return type;
+}
+
+static type_t try_solve_ref(nametab_t *tab, tree_t ref)
+{
+   if (tree_has_type(ref))
+      return tree_type(ref);
+   else
+      return NULL;
 }
 
 static type_t solve_ref(nametab_t *tab, tree_t ref)
@@ -3925,7 +3979,216 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    return type;
 }
 
-static type_t solve_aggregate(nametab_t *tab, tree_t agg)
+static void solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
+{
+   const int nfields = type_fields(type);
+   const int nassocs = tree_assocs(agg);
+
+   // Mask used for finding the types of an "others" association
+   bit_mask_t fmask;
+   mask_init(&fmask, nfields);
+
+   for (int i = 0; i < nassocs; i++) {
+      type_set_push(tab);
+      tree_t a = tree_assoc(agg, i);
+
+      switch ((assoc_kind_t)tree_subkind(a)) {
+      case A_POS:
+         {
+            int pos = tree_pos(a);
+            if (pos < nfields) {
+               tree_t f = type_field(type, pos);
+               type_set_add(tab, solve_field_subtype(type, f), f);
+            }
+            if (pos < nfields) mask_set(&fmask, pos);
+         }
+         break;
+
+      case A_NAMED:
+         {
+            push_scope_for_fields(tab, type);
+            tree_t name = tree_name(a);
+            solve_types(tab, name, NULL);
+            pop_scope(tab);
+            if (tree_has_ref(name)) {
+               tree_t field = tree_ref(name);
+               type_set_add(tab, solve_field_subtype(type, field), field);
+               if (tree_kind(field) == T_FIELD_DECL) {
+                  const int pos = tree_pos(field);
+                  if (pos < nfields) mask_set(&fmask, pos);
+               }
+            }
+            else {
+               // Error in field name
+               type_set_add(tab, type_new(T_NONE), NULL);
+            }
+         }
+         break;
+
+      case A_OTHERS:
+         // Add the types of all the fields that haven't already be
+         // specified to the type set
+         for (int i = 0; i < MIN(nfields, 64); i++) {
+            if (!mask_test(&fmask, i)) {
+               tree_t f = type_field(type, i);
+               type_set_add(tab, tree_type(f), f);
+            }
+         }
+         break;
+
+      case A_RANGE:
+         // This is illegal and will generate an error during
+         // semantic checking
+         push_scope_for_fields(tab, type);
+         solve_types(tab, tree_range(a, 0), NULL);
+         pop_scope(tab);
+         break;
+      }
+
+      _solve_types(tab, a);
+      type_set_pop(tab);
+   }
+
+   mask_free(&fmask);
+}
+
+static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
+{
+   // All elements must be of the composite base type if this is a
+   // one-dimensional array otherwise construct an array type with
+   // n-1 dimensions.
+
+   type_set_push(tab);
+
+   type_t t0, t1 = NULL;
+   const int ndims = dimension_of(type);
+   if (ndims == 1) {
+      type_t elem = type_elem(type);
+      type_set_add(tab, (t0 = elem), NULL);
+
+      if (standard() >= STD_08 && !type_is_composite(elem))
+         type_set_add(tab, (t1 = type_base_recur(type)), NULL);
+   }
+   else
+      type_set_add(tab, (t0 = array_aggregate_type(type, 1)), NULL);
+
+   type_t index_type = index_type_of(type, 0);
+
+   bool all_simple_pos = true;
+   const int nassocs = tree_assocs(agg);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(agg, i);
+
+      const assoc_kind_t kind = tree_subkind(a);
+      switch (kind) {
+      case A_POS:
+      case A_OTHERS:
+         break;
+      case A_NAMED:
+         {
+            tree_t name = tree_name(a);
+            type_t ntype = solve_types(tab, name, index_type);
+
+            if (tree_kind(name) == T_REF && tree_has_ref(name)) {
+               tree_t type_decl = aliased_type_decl(tree_ref(name));
+               if (type_decl != NULL) {
+                  // This should have been parsed as a range association
+                  tree_t tmp = tree_new(T_ATTR_REF);
+                  tree_set_name(tmp, name);
+                  tree_set_ident(tmp, ident_new("RANGE"));
+                  tree_set_loc(tmp, tree_loc(name));
+                  tree_set_subkind(tmp, ATTR_RANGE);
+                  tree_set_type(tmp, ntype);
+
+                  tree_t r = tree_new(T_RANGE);
+                  tree_set_subkind(r, RANGE_EXPR);
+                  tree_set_value(r, tmp);
+                  tree_set_loc(r, tree_loc(name));
+                  tree_set_type(r, ntype);
+
+                  tree_set_subkind(a, A_RANGE);
+                  tree_add_range(a, r);
+               }
+            }
+         }
+         break;
+      case A_RANGE:
+         solve_types(tab, tree_range(a, 0), index_type);
+         break;
+      }
+
+      type_t etype = _solve_types(tab, tree_value(a));
+
+      // Hack to avoid pushing/popping type set on each iteration
+      ATRIM(tab->top_type_set->members, 0);
+      type_set_add(tab, t0, NULL);
+      type_set_add(tab, t1, NULL);
+
+      if (kind != A_POS)
+         all_simple_pos = false;
+      else if (all_simple_pos && t1 != NULL && type_eq(etype, t1))
+         all_simple_pos = false;
+   }
+
+   type_set_pop(tab);
+
+   if (type_is_unconstrained(type) && ndims == 1) {
+      // Create a new constrained array subtype for simple cases
+      // where the bounds are known
+
+      range_kind_t dir = RANGE_ERROR;
+      tree_t left = NULL, right = NULL;
+      if (all_simple_pos) {
+         tree_t index_r = range_of(index_type, 0);
+         left = tree_left(index_r);
+         dir = tree_subkind(index_r);
+
+         int64_t ileft;
+         if (folded_int(left, &ileft)) {
+            if (type_is_enum(tree_type(left))) {
+               type_t base = type_base_recur(index_type);
+               const int maxlit = type_enum_literals(base);
+               if (ileft + nassocs - 1 < maxlit)
+                  right = get_enum_lit(agg, index_type, ileft + nassocs - 1);
+            }
+            else
+               right = get_int_lit(agg, index_type, ileft + nassocs - 1);
+         }
+      }
+      else if (nassocs == 1) {
+         tree_t a0 = tree_assoc(agg, 0);
+         if (tree_subkind(a0) == A_RANGE) {
+            tree_t r = tree_range(a0, 0);
+            dir = tree_subkind(r);
+            if (dir == RANGE_TO || dir == RANGE_DOWNTO) {
+               left = tree_left(r);
+               right = tree_right(r);
+            }
+         }
+      }
+
+      if (left != NULL && right != NULL && dir != RANGE_ERROR) {
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_base(sub, type);
+
+         tree_t cons = tree_new(T_CONSTRAINT);
+         tree_set_subkind(cons, C_INDEX);
+
+         tree_t r = tree_new(T_RANGE);
+         tree_set_subkind(r, dir);
+         tree_set_left(r, left);
+         tree_set_type(r, index_type);
+
+         tree_set_right(r, right);
+         tree_add_range(cons, r);
+         type_add_constraint(sub, cons);
+
+         tree_set_type(agg, (type = sub));
+      }
+   }
+}
+
+static type_t try_solve_aggregate(nametab_t *tab, tree_t agg)
 {
    if (tree_has_type(agg))
       return tree_type(agg);
@@ -3936,225 +4199,34 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
    type_t type;
    if (type_set_error(tab))
       type = type_new(T_NONE);
-   else if (type_set_satisfies(tab, type_is_composite, &type) != 1) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
-      diag_printf(d, "type of aggregate cannot be determined "
-                  "from the surrounding context");
-      type_set_describe(tab, d, tree_loc(agg), type_is_composite,
-                        "a composite type");
-
-      diag_emit(d);
-      type = type_new(T_NONE);
-   }
+   else if (type_set_satisfies(tab, type_is_composite, &type) != 1)
+      return NULL;
 
    tree_set_type(agg, type);
 
-   if (type_is_record(type)) {
-      const int nfields = type_fields(type);
-      const int nassocs = tree_assocs(agg);
+   if (type_is_record(type))
+      solve_record_aggregate(tab, agg, type);
+   else
+      solve_array_aggregate(tab, agg, type);
 
-      // Mask used for finding the types of an "others" association
-      bit_mask_t fmask;
-      mask_init(&fmask, nfields);
+   return type;
+}
 
-      for (int i = 0; i < nassocs; i++) {
-         type_set_push(tab);
-         tree_t a = tree_assoc(agg, i);
+static type_t solve_aggregate(nametab_t *tab, tree_t agg)
+{
+   type_t type = try_solve_aggregate(tab, agg);
+   if (type != NULL)
+      return type;
 
-         switch ((assoc_kind_t)tree_subkind(a)) {
-         case A_POS:
-            {
-               int pos = tree_pos(a);
-               if (pos < nfields) {
-                  tree_t f = type_field(type, pos);
-                  type_set_add(tab, solve_field_subtype(type, f), f);
-               }
-               if (pos < nfields) mask_set(&fmask, pos);
-            }
-            break;
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
+   diag_printf(d, "type of aggregate cannot be determined "
+               "from the surrounding context");
+   type_set_describe(tab, d, tree_loc(agg), type_is_composite,
+                     "a composite type");
 
-         case A_NAMED:
-            {
-               push_scope_for_fields(tab, type);
-               tree_t name = tree_name(a);
-               solve_types(tab, name, NULL);
-               pop_scope(tab);
-               if (tree_has_ref(name)) {
-                  tree_t field = tree_ref(name);
-                  type_set_add(tab, solve_field_subtype(type, field), field);
-                  if (tree_kind(field) == T_FIELD_DECL) {
-                     const int pos = tree_pos(field);
-                     if (pos < nfields) mask_set(&fmask, pos);
-                  }
-               }
-               else {
-                  // Error in field name
-                  type_set_add(tab, type_new(T_NONE), NULL);
-               }
-            }
-            break;
+   diag_emit(d);
 
-         case A_OTHERS:
-            // Add the types of all the fields that haven't already be
-            // specified to the type set
-            for (int i = 0; i < MIN(nfields, 64); i++) {
-               if (!mask_test(&fmask, i)) {
-                  tree_t f = type_field(type, i);
-                  type_set_add(tab, tree_type(f), f);
-               }
-            }
-            break;
-
-         case A_RANGE:
-            // This is illegal and will generate an error during
-            // semantic checking
-            push_scope_for_fields(tab, type);
-            solve_types(tab, tree_range(a, 0), NULL);
-            pop_scope(tab);
-            break;
-         }
-
-         _solve_types(tab, a);
-         type_set_pop(tab);
-      }
-
-      mask_free(&fmask);
-   }
-   else {
-      // All elements must be of the composite base type if this is a
-      // one-dimensional array otherwise construct an array type with
-      // n-1 dimensions.
-
-      type_set_push(tab);
-
-      type_t t0, t1 = NULL;
-      const int ndims = dimension_of(type);
-      if (ndims == 1) {
-         type_t elem = type_elem(type);
-         type_set_add(tab, (t0 = elem), NULL);
-
-         if (standard() >= STD_08 && !type_is_composite(elem))
-            type_set_add(tab, (t1 = type_base_recur(type)), NULL);
-      }
-      else
-         type_set_add(tab, (t0 = array_aggregate_type(type, 1)), NULL);
-
-      type_t index_type = index_type_of(type, 0);
-
-      bool all_simple_pos = true;
-      const int nassocs = tree_assocs(agg);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(agg, i);
-
-         const assoc_kind_t kind = tree_subkind(a);
-         switch (kind) {
-         case A_POS:
-         case A_OTHERS:
-            break;
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               type_t ntype = solve_types(tab, name, index_type);
-
-               if (tree_kind(name) == T_REF && tree_has_ref(name)) {
-                  tree_t type_decl = aliased_type_decl(tree_ref(name));
-                  if (type_decl != NULL) {
-                     // This should have been parsed as a range association
-                     tree_t tmp = tree_new(T_ATTR_REF);
-                     tree_set_name(tmp, name);
-                     tree_set_ident(tmp, ident_new("RANGE"));
-                     tree_set_loc(tmp, tree_loc(name));
-                     tree_set_subkind(tmp, ATTR_RANGE);
-                     tree_set_type(tmp, ntype);
-
-                     tree_t r = tree_new(T_RANGE);
-                     tree_set_subkind(r, RANGE_EXPR);
-                     tree_set_value(r, tmp);
-                     tree_set_loc(r, tree_loc(name));
-                     tree_set_type(r, ntype);
-
-                     tree_set_subkind(a, A_RANGE);
-                     tree_add_range(a, r);
-                  }
-               }
-            }
-            break;
-         case A_RANGE:
-            solve_types(tab, tree_range(a, 0), index_type);
-            break;
-         }
-
-         type_t etype = _solve_types(tab, tree_value(a));
-
-         // Hack to avoid pushing/popping type set on each iteration
-         ATRIM(tab->top_type_set->members, 0);
-         type_set_add(tab, t0, NULL);
-         type_set_add(tab, t1, NULL);
-
-         if (kind != A_POS)
-            all_simple_pos = false;
-         else if (all_simple_pos && t1 != NULL && type_eq(etype, t1))
-            all_simple_pos = false;
-      }
-
-      type_set_pop(tab);
-
-      if (type_is_unconstrained(type) && ndims == 1) {
-         // Create a new constrained array subtype for simple cases
-         // where the bounds are known
-
-         range_kind_t dir = RANGE_ERROR;
-         tree_t left = NULL, right = NULL;
-         if (all_simple_pos) {
-            tree_t index_r = range_of(index_type, 0);
-            left = tree_left(index_r);
-            dir = tree_subkind(index_r);
-
-            int64_t ileft;
-            if (folded_int(left, &ileft)) {
-               if (type_is_enum(tree_type(left))) {
-                  type_t base = type_base_recur(index_type);
-                  const int maxlit = type_enum_literals(base);
-                  if (ileft + nassocs - 1 < maxlit)
-                     right = get_enum_lit(agg, index_type, ileft + nassocs - 1);
-               }
-               else
-                  right = get_int_lit(agg, index_type, ileft + nassocs - 1);
-            }
-         }
-         else if (nassocs == 1) {
-            tree_t a0 = tree_assoc(agg, 0);
-            if (tree_subkind(a0) == A_RANGE) {
-               tree_t r = tree_range(a0, 0);
-               dir = tree_subkind(r);
-               if (dir == RANGE_TO || dir == RANGE_DOWNTO) {
-                  left = tree_left(r);
-                  right = tree_right(r);
-               }
-            }
-         }
-
-         if (left != NULL && right != NULL && dir != RANGE_ERROR) {
-            type_t sub = type_new(T_SUBTYPE);
-            type_set_base(sub, type);
-
-            tree_t cons = tree_new(T_CONSTRAINT);
-            tree_set_subkind(cons, C_INDEX);
-
-            tree_t r = tree_new(T_RANGE);
-            tree_set_subkind(r, dir);
-            tree_set_left(r, left);
-            tree_set_type(r, index_type);
-
-            tree_set_right(r, right);
-            tree_add_range(cons, r);
-            type_add_constraint(sub, cons);
-
-            tree_set_type(agg, (type = sub));
-         }
-      }
-   }
-
+   tree_set_type(agg, (type = type_new(T_NONE)));
    return type;
 }
 
@@ -4237,18 +4309,27 @@ static type_t solve_all(nametab_t *tab, tree_t all)
    return type;
 }
 
-static type_t solve_open(nametab_t *tab, tree_t open)
+static type_t try_solve_open(nametab_t *tab, tree_t open)
 {
    if (tree_has_type(open))
       return tree_type(open);
 
    type_t type;
-   if (!type_set_uniq(tab, &type)) {
-      error_at(tree_loc(open), "cannot determine type of OPEN expression");
-      type = type_new(T_NONE);
-   }
+   if (!type_set_uniq(tab, &type))
+      return NULL;
 
    tree_set_type(open, type);
+   return type;
+}
+
+static type_t solve_open(nametab_t *tab, tree_t open)
+{
+   type_t type = try_solve_open(tab, open);
+   if (type != NULL)
+      return NULL;
+
+   error_at(tree_loc(open), "cannot determine type of OPEN expression");
+   tree_set_type(open, (type = type_new(T_NONE)));
    return type;
 }
 
@@ -4371,6 +4452,27 @@ static type_t solve_range(nametab_t *tab, tree_t r)
 
    tree_set_type(r, type);
    return type;
+}
+
+static type_t try_solve_type(nametab_t *tab, tree_t expr)
+{
+   switch (tree_kind(expr)) {
+   case T_FCALL:
+   case T_PROT_FCALL:
+      return try_solve_fcall(tab, expr);
+   case T_STRING:
+      return try_solve_string(tab, expr);
+   case T_AGGREGATE:
+      return try_solve_aggregate(tab, expr);
+   case T_REF:
+      return try_solve_ref(tab, expr);
+   case T_LITERAL:
+      return try_solve_literal(tab, expr);
+   case T_OPEN:
+      return try_solve_open(tab, expr);
+   default:
+      fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
+   }
 }
 
 static type_t _solve_types(nametab_t *tab, tree_t expr)

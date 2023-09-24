@@ -2398,6 +2398,7 @@ START_TEST(test_error1)
    const error_t expect[] = {
       { 25, "unexpected ; while parsing port map aspect, expecting" },
       { 23, "missing actual for port Y of mode IN without a default" },
+      { 26, "type of aggregate cannot be determined from the surrounding" },
       { 26, "expected concurrent statement" },
       { -1, NULL }
    };
