@@ -43,14 +43,7 @@
 #include <sys/stat.h>
 
 #include <llvm-c/Core.h>
-#include <llvm-c/BitWriter.h>
 #include <llvm-c/ExecutionEngine.h>
-#include <llvm-c/Analysis.h>
-#include <llvm-c/DebugInfo.h>
-#include <llvm-c/Transforms/Scalar.h>
-#include <llvm-c/Transforms/IPO.h>
-#include <llvm-c/Transforms/PassManagerBuilder.h>
-#include <llvm-c/TargetMachine.h>
 
 typedef A(vcode_unit_t) unit_list_t;
 typedef A(char *) obj_list_t;
