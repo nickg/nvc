@@ -4227,7 +4227,7 @@ static tree_t p_allocator(void)
    tree_t new = tree_new(T_NEW);
 
    tree_t value;
-   if (peek_nth(2) == tTICK)
+   if (peek_nth(2) == tTICK && peek_nth(3) == tLPAREN)
       value = p_qualified_expression(NULL);
    else {
       type_t type = p_subtype_indication();
@@ -4952,21 +4952,30 @@ static type_t p_array_index_incomplete_type(void)
 {
    // index_subtype_definition | index_constraint | anonymous_type_indication
 
-   return p_index_subtype_definition();
+   BEGIN("array index incomplete type");
+
+   if (peek() == tTYPE)
+      return p_anonymous_type_indication();
+   else
+      return p_index_subtype_definition();
 }
 
 static void p_array_index_incomplete_type_list(type_t type)
 {
    // array_index_incomplete_type { , array_index_incomplete_type }
 
+   BEGIN("array index incomplete type list");
+
    do {
-      (void)p_array_index_incomplete_type();
+      type_add_index(type, p_array_index_incomplete_type());
    } while (optional(tCOMMA));
 }
 
 static type_t p_incomplete_subtype_indication(void)
 {
    // subtype_indication | anonymous_type_indication
+
+   BEGIN("incomplete subtype indication");
 
    if (peek() == tTYPE)
       return p_anonymous_type_indication();
@@ -4989,7 +4998,7 @@ static void p_array_incomplete_type_definition(type_t type)
    consume(tRPAREN);
    consume(tOF);
 
-   (void)p_incomplete_subtype_indication();
+   type_set_elem(type, p_incomplete_subtype_indication());
 
    type_set_subkind(type, GTYPE_ARRAY);
 }
@@ -5002,7 +5011,7 @@ static void p_access_incomplete_type_definition(type_t type)
 
    consume(tACCESS);
 
-   (void)p_incomplete_subtype_indication();
+   type_set_designated(type, p_incomplete_subtype_indication());
 
    type_set_subkind(type, GTYPE_ACCESS);
 }
@@ -5016,7 +5025,7 @@ static void p_file_incomplete_type_definition(type_t type)
    consume(tFILE);
    consume(tOF);
 
-   (void)p_incomplete_subtype_indication();
+   type_set_designated(type, p_incomplete_subtype_indication());
 
    type_set_subkind(type, GTYPE_FILE);
 }
@@ -5127,19 +5136,25 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
    type_t std_string = std_type(NULL, STD_STRING);
 
-   switch (type_subkind(type)) {
+   const gtype_class_t class = type_subkind(type);
+
+   switch (class) {
    case GTYPE_INTEGER:
+      add_generic_type_op(parent, 2, type, type, "\"**\"");
+      // Fall-through
+   case GTYPE_PHYSICAL:
       add_generic_type_op(parent, 2, type, type, "\"mod\"");
       add_generic_type_op(parent, 2, type, type, "\"rem\"");
-      add_generic_type_op(parent, 2, type, type, "\"**\"");
       // Fall-through
    case GTYPE_FLOATING:
       add_generic_type_op(parent, 2, type, type, "\"+\"");
       add_generic_type_op(parent, 2, type, type, "\"-\"");
       add_generic_type_op(parent, 1, type, type, "\"+\"");
       add_generic_type_op(parent, 1, type, type, "\"-\"");
-      add_generic_type_op(parent, 2, type, type, "\"*\"");
-      add_generic_type_op(parent, 2, type, type, "\"/\"");
+      if (class != GTYPE_PHYSICAL) {
+         add_generic_type_op(parent, 2, type, type, "\"*\"");
+         add_generic_type_op(parent, 2, type, type, "\"/\"");
+      }
       add_generic_type_op(parent, 1, type, type, "\"abs\"");
       // Fall-through
    case GTYPE_DISCRETE:
@@ -5152,14 +5167,52 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
       add_generic_type_op(parent, 2, type, type, "MAXIMUM");
       add_generic_type_op(parent, 1, type, std_string, "TO_STRING");
       // Fall-through
-   case GTYPE_PHYSICAL:
    case GTYPE_ARRAY:
    case GTYPE_FILE:
    case GTYPE_ACCESS:
-      // TODO
    case GTYPE_PRIVATE:
       add_generic_type_op(parent, 2, type, std_bool, "\"=\"");
       add_generic_type_op(parent, 2, type, std_bool, "\"/=\"");
+      break;
+   }
+
+   switch (class) {
+   case GTYPE_ACCESS:
+      {
+         ident_t id = ident_new("DEALLOCATE");
+
+         type_t ftype = type_new(T_PROC);
+         type_set_ident(ftype, id);
+         type_add_param(ftype, type);
+
+         tree_t p = tree_new(T_GENERIC_DECL);
+         tree_set_class(p, C_PROCEDURE);
+         tree_set_ident(p, id);
+         tree_set_type(p, ftype);
+         tree_set_subkind(p, PORT_IN);
+         tree_set_loc(p, CURRENT_LOC);
+         tree_set_flag(p, TREE_F_PREDEFINED);
+
+         tree_t box = tree_new(T_BOX);
+         tree_set_loc(box, CURRENT_LOC);
+
+         tree_set_value(p, box);
+
+         tree_t arg = tree_new(T_PORT_DECL);
+         tree_set_ident(arg, ident_new("PTR"));
+         tree_set_type(arg, type);
+         tree_set_subkind(arg, PORT_INOUT);
+         tree_set_class(arg, C_VARIABLE);
+         tree_set_loc(arg, CURRENT_LOC);
+
+         tree_add_port(p, arg);
+
+         add_interface(parent, p, T_GENERIC_DECL);
+         insert_name(nametab, p, NULL);
+      }
+      break;
+
+   default:
       break;
    }
 }

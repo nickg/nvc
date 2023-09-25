@@ -1149,7 +1149,7 @@ START_TEST(test_protected2)
       { 26, "record field B cannot be of protected type" },
       { 30, "signals may not have protected type" },
       { 31, "attributes may not have protected type" },
-      { 35, "generics may not have protected type" },
+      { 35, "generic G1 may not have protected type" },
       { 41, "port P1 with class signal cannot be declared with protected "
         "type T_PROTECTED" },
       { -1, NULL }
@@ -1758,10 +1758,10 @@ START_TEST(test_file_and_access)
       { 21, "attributes may not have a type with a subelement of access type" },
       { 22, "attributes may not have a type with a subelement of access type" },
       { 23, "attributes may not have file type" },
-      { 27, "generics may not have access type" },
-      { 28, "generics may not have a type with a subelement of access type" },
-      { 29, "generics may not have a type with a subelement of access type" },
-      { 30, "generics may not have file type" },
+      { 27, "generic G1 may not have access type" },
+      { 28, "generic G2 may not have a type with a subelement of access type" },
+      { 29, "generic G3 may not have a type with a subelement of access type" },
+      { 30, "generic G4 may not have file type" },
       { 36, "port P1 cannot be declared with access type T_INT_ACCESS" },
       { 37, "port P2 cannot be declared with type T_ACCESS_ARRAY which has "
         "a subelement of access type" },
@@ -3330,14 +3330,42 @@ START_TEST(test_lcs2016_59)
    input_from_file(TESTDIR "/sem/lcs2016_59.vhd");
 
    const error_t expect[] = {
+      { 52, "signals may not have access type" },
+      { 53, "signals may not have file type" },
       { 63, "cannot map type BIT_VECTOR to generic interface type T which "
         "requires a scalar type" },
       { 85, "cannot map type REAL to generic interface type T which "
         "requires a discrete type" },
-      { 93, "cannot map type BIT to generic interface type T which "
+      { 96, "cannot map type BIT to generic interface type T which "
         "requires an integer type" },
-      { 106, "cannot map type INTEGER to generic interface type T which "
+      { 112, "cannot map type INTEGER to generic interface type T which "
         "requires a floating-point type" },
+      { 124, "cannot map type INTEGER to generic interface type T which "
+        "requires a physical type" },
+      { 146, "cannot map type REAL to generic interface type T which "
+        "requires an access type" },
+      { 149, "cannot map type T7 to generic interface type T as the "
+        "designated type (an anonymous type) is not a scalar type" },
+      { 155, "cannot map type T_INT_PTR to generic interface type T "
+        "as the designated type INTEGER is not BIT" },
+      { 181, "cannot map type REAL to generic interface type T which "
+        "requires a file type" },
+      { 190, "cannot map type T_INT_FILE to generic interface type T as "
+        "the designated type INTEGER is not BIT" },
+      { 208, "cannot map type INTEGER to generic interface type T which "
+        "requires an array type" },
+      { 211, "cannot map type T_BOOL_MAP to generic interface type T as "
+        "the index type BOOLEAN of the first dimension is not NATURAL" },
+      { 214, "cannot map type T6 to generic interface type T as the element "
+        "type (an anonymous type) is not a discrete type" },
+      { 217, "cannot map type T_BOOL_MAP to generic interface type T as the "
+        "index type BOOLEAN of the first dimension is not an integer type" },
+      { 220, "cannot map type T_TIME_MAP to generic interface type T as the "
+        "element type TIME is not BOOLEAN" },
+      { 223, "cannot map type T_MATRIX to generic interface type T as it has "
+        "2 dimensions but the incomplete type definition has 1" },
+      { 227, "declaration of variable V2 without an initial value cannot have "
+        "unconstrained type T6" },
       { -1, NULL }
    };
    expect_errors(expect);

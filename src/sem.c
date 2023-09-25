@@ -1349,8 +1349,19 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   if (!sem_no_access_file_or_protected(t, type, "generics"))
-      return false;
+   if (class != C_TYPE) {
+      if (type_is_access(type))
+         sem_error(t, "generic %s may not have access type",
+                   istr(tree_ident(t)));
+      else if (sem_has_access(type))
+         sem_error(t, "generic %s may not have a type with a subelement of "
+                   "access type", istr(tree_ident(t)));
+      else if (type_is_protected(type))
+         sem_error(t, "generic %s may not have protected type",
+                   istr(tree_ident(t)));
+      else if (type_is_file(type))
+         sem_error(t, "generic %s may not have file type", istr(tree_ident(t)));
+   }
 
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
@@ -4502,36 +4513,84 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       if (type_is_none(map))
          return false;
 
-      switch (type_subkind(type)) {
-      case GTYPE_PRIVATE:
-         break;
-      case GTYPE_SCALAR:
-         if (!type_is_scalar(map))
-            sem_error(param, "cannot map type %s to generic interface type %s "
-                      "which requires a scalar type", type_pp(map),
-                      istr(tree_ident(decl)));
-         break;
-      case GTYPE_DISCRETE:
-         if (!type_is_discrete(map))
-            sem_error(param, "cannot map type %s to generic interface type %s "
-                      "which requires a discrete type", type_pp(map),
-                      istr(tree_ident(decl)));
-         break;
-      case GTYPE_INTEGER:
-         if (!type_is_integer(map))
-            sem_error(param, "cannot map type %s to generic interface type %s "
-                      "which requires an integer type", type_pp(map),
-                      istr(tree_ident(decl)));
-         break;
-      case GTYPE_FLOATING:
-         if (!type_is_real(map))
-            sem_error(param, "cannot map type %s to generic interface type %s "
-                      "which requires a floating-point type", type_pp(map),
-                      istr(tree_ident(decl)));
-         break;
-      default:
-         sem_error(decl, "sorry, this form of anonymous type indication is "
-                   "not yet supported");
+      static const char *class_strings[] = {
+         [GTYPE_SCALAR] = "a scalar",
+         [GTYPE_DISCRETE] = "a discrete",
+         [GTYPE_INTEGER] = "an integer",
+         [GTYPE_FLOATING] = "a floating-point",
+         [GTYPE_PHYSICAL] = "a physical",
+         [GTYPE_ACCESS] = "an access",
+         [GTYPE_ARRAY] = "an array",
+         [GTYPE_FILE] = "a file",
+      };
+
+      const gtype_class_t class = type_subkind(type);
+      if (!type_matches_class(map, class))
+         sem_error(param, "cannot map type %s to generic interface type %s "
+                   "which requires %s type", type_pp(map),
+                   istr(tree_ident(decl)), class_strings[class]);
+      else if (class == GTYPE_ACCESS || class == GTYPE_FILE) {
+         type_t expect = type_designated(type);
+         type_t actual = type_designated(map);
+
+         if (type_is_generic(expect)) {
+            const gtype_class_t expect_class = type_subkind(expect);
+            if (!type_matches_class(actual, expect_class))
+               sem_error(param, "cannot map type %s to generic interface type "
+                         "%s as the designated type %s is not %s type",
+                         type_pp(map), istr(tree_ident(decl)),
+                         type_pp(actual), class_strings[expect_class]);
+         }
+         else if (!type_eq(actual, expect))
+            sem_error(param, "cannot map type %s to generic interface type "
+                      "%s as the designated type %s is not %s",
+                      type_pp(map), istr(tree_ident(decl)),
+                      type_pp(actual), type_pp(expect));
+      }
+      else if (class == GTYPE_ARRAY) {
+         const int nindex = type_indexes(type);
+         if (nindex != dimension_of(map))
+            sem_error(param, "cannot map type %s to generic interface "
+                      "type %s as it has %d dimensions but the incomplete "
+                      "type definition has %d", type_pp(map),
+                      istr(tree_ident(decl)), dimension_of(map), nindex);
+
+         for (int i = 0; i < nindex; i++) {
+            type_t itype = type_index(type, i);
+            type_t imap = index_type_of(map, i);
+
+            if (type_is_generic(itype)) {
+               const gtype_class_t expect_class = type_subkind(itype);
+               if (!type_matches_class(imap, expect_class))
+                  sem_error(param, "cannot map type %s to generic interface "
+                            "type %s as the index type %s of the %s dimension "
+                            "is not %s type", type_pp(map),
+                            istr(tree_ident(decl)), type_pp(imap),
+                            ordinal_str(i + 1), class_strings[expect_class]);
+            }
+            else if (!type_eq(imap, itype))
+               sem_error(param, "cannot map type %s to generic interface type "
+                         "%s as the index type %s of the %s dimension is not "
+                         "%s", type_pp(map), istr(tree_ident(decl)),
+                         type_pp(imap), ordinal_str(i + 1), type_pp(itype));
+         }
+
+         type_t expect = type_elem(type);
+         type_t actual = type_elem(map);
+
+          if (type_is_generic(expect)) {
+            const gtype_class_t expect_class = type_subkind(expect);
+            if (!type_matches_class(actual, expect_class))
+               sem_error(param, "cannot map type %s to generic interface type "
+                         "%s as the element type %s is not %s type",
+                         type_pp(map), istr(tree_ident(decl)),
+                         type_pp(actual), class_strings[expect_class]);
+         }
+         else if (!type_eq(actual, expect))
+            sem_error(param, "cannot map type %s to generic interface type "
+                      "%s as the element type %s is not %s",
+                      type_pp(map), istr(tree_ident(decl)),
+                      type_pp(actual), type_pp(expect));
       }
 
       break;

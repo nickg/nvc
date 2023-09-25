@@ -3764,11 +3764,11 @@ START_TEST(test_vhdl2019)
    fail_unless(tree_class(e059g12) == C_TYPE);
    fail_unless(type_subkind(tree_type(e059g12)) == GTYPE_PHYSICAL);
 
-   tree_t e059g15 = tree_generic(e059, 46);
+   tree_t e059g15 = tree_generic(e059, 60);
    fail_unless(tree_class(e059g15) == C_TYPE);
    fail_unless(type_subkind(tree_type(e059g15)) == GTYPE_FLOATING);
 
-   tree_t e059g18 = tree_generic(e059, 63);
+   tree_t e059g18 = tree_generic(e059, 77);
    fail_unless(tree_class(e059g18) == C_TYPE);
    fail_unless(type_subkind(tree_type(e059g18)) == GTYPE_ARRAY);
 

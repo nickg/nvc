@@ -873,6 +873,9 @@ unsigned dimension_of(type_t type)
    switch (type_kind(type)) {
    case T_SUBTYPE:
       return dimension_of(type_base(type));
+   case T_GENERIC:
+      assert(type_subkind(type) == GTYPE_ARRAY);
+      // Fall-through
    case T_ARRAY:
       return type_indexes(type);
    case T_NONE:
@@ -970,7 +973,9 @@ type_t index_type_of(type_t type, unsigned dim)
       return type_index(base, dim);
    else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;
-   else if (base_kind == T_RECORD)
+   else if (base_kind == T_GENERIC && type_subkind(base) == GTYPE_ARRAY)
+      return type_index(base, dim);
+   else if (base_kind == T_RECORD || base_kind == T_GENERIC)
       return NULL;
    else
       return tree_type(range_of(base, dim));

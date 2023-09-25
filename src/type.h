@@ -152,6 +152,8 @@ bool type_is_homogeneous(type_t t);
 bool type_is_resolved(type_t t);
 bool type_is_character_array(type_t t);
 
+bool type_matches_class(type_t t, gtype_class_t class);
+
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);
 type_kind_t type_base_kind(type_t t);

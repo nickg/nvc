@@ -73,7 +73,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_FIELDS),
 
    // T_GENERIC
-   (I_IDENT | I_SUBKIND),
+   (I_IDENT | I_SUBKIND | I_DESIGNATED | I_INDEXES | I_ELEM),
 
    // T_VIEW
    (I_IDENT | I_DESIGNATED | I_FIELDS),
@@ -265,10 +265,10 @@ ident_t type_ident(type_t t)
       switch (t->object.kind) {
       case T_SUBTYPE:
          return type_ident(type_base(t));
-
       case T_NONE:
          return ident_new("none");
-
+      case T_GENERIC:
+         return ident_new("anonymous");
       default:
          fatal_trace("type kind %s has no ident",
                      type_kind_str(t->object.kind));
@@ -583,6 +583,11 @@ const char *type_pp2(type_t t, type_t other)
          return tb_get(tb);
       }
 
+   case T_GENERIC:
+      if (!type_has_ident(t))
+         return "(an anonymous type)";
+      // Fall-through
+
    default:
       {
          const char *full1 = istr(type_ident(t));
@@ -618,7 +623,11 @@ type_kind_t type_base_kind(type_t t)
 
 bool type_is_array(type_t t)
 {
-   return type_base_kind(t) == T_ARRAY;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_ARRAY;
+   else
+      return base == T_ARRAY;
 }
 
 bool type_is_record(type_t t)
@@ -633,12 +642,20 @@ bool type_is_protected(type_t t)
 
 bool type_is_file(type_t t)
 {
-   return type_base_kind(t) == T_FILE;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_FILE;
+   else
+      return base == T_FILE;
 }
 
 bool type_is_access(type_t t)
 {
-   return type_base_kind(t) == T_ACCESS;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_ACCESS;
+   else
+      return base == T_ACCESS;
 }
 
 bool type_is_incomplete(type_t t)
@@ -725,6 +742,8 @@ bool type_is_unconstrained(type_t t)
    }
    else if (t->object.kind == T_ARRAY)
       return true;
+   else if (t->object.kind == T_GENERIC && type_subkind(t) == GTYPE_ARRAY)
+      return true;
    else if (t->object.kind == T_RECORD && standard() >= STD_08) {
       const int nfields = type_fields(t);
       for (int i = 0; i < nfields; i++) {
@@ -745,7 +764,12 @@ bool type_is_enum(type_t t)
 bool type_is_discrete(type_t t)
 {
    const type_kind_t base = type_base_kind(t);
-   return base == T_INTEGER || base == T_ENUM;
+   if (base == T_GENERIC) {
+      const gtype_class_t class = type_subkind(type_base_recur(t));
+      return class == GTYPE_INTEGER || class == GTYPE_DISCRETE;
+   }
+   else
+      return base == T_INTEGER || base == T_ENUM;
 }
 
 bool type_is_subprogram(type_t t)
@@ -755,7 +779,11 @@ bool type_is_subprogram(type_t t)
 
 bool type_is_physical(type_t t)
 {
-   return type_base_kind(t) == T_PHYSICAL;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_PHYSICAL;
+   else
+      return base == T_PHYSICAL;
 }
 
 bool type_is_integer(type_t t)
@@ -769,7 +797,11 @@ bool type_is_integer(type_t t)
 
 bool type_is_real(type_t t)
 {
-   return type_base_kind(t) == T_REAL;
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC)
+      return type_subkind(type_base_recur(t)) == GTYPE_FLOATING;
+   else
+      return base == T_REAL;
 }
 
 bool type_is_generic(type_t t)
@@ -1012,4 +1044,30 @@ bool type_is_character_array(type_t t)
    }
 
    return false;
+}
+
+bool type_matches_class(type_t t, gtype_class_t class)
+{
+   switch (class) {
+   case GTYPE_PRIVATE:
+      return true;
+   case GTYPE_SCALAR:
+      return type_is_scalar(t);
+   case GTYPE_DISCRETE:
+      return type_is_discrete(t);
+   case GTYPE_INTEGER:
+      return type_is_integer(t);
+   case GTYPE_FLOATING:
+      return type_is_real(t);
+   case GTYPE_PHYSICAL:
+      return type_is_physical(t);
+   case GTYPE_ACCESS:
+      return type_is_access(t);
+   case GTYPE_ARRAY:
+      return type_is_array(t);
+   case GTYPE_FILE:
+      return type_is_file(t);
+   default:
+      return false;
+   }
 }
