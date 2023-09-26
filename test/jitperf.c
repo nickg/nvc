@@ -64,7 +64,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
    jit_preload(j);
 #endif
 
-#if defined LLVM_HAS_LLJIT && 1
+#if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(j);
 #elif defined ARCH_X86_64 && 0
    jit_register_native_plugin(j);
