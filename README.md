@@ -199,5 +199,7 @@ simulation libraries of common FPGA vendors.
   --install xpm_vhdl` if you require simulation models of the XPM macros
 * For Altera Quartus use `nvc --install quartus`
 * For Lattice iCEcube2 use `nvc --install icecube2`
+* For [Free Model Foundry](https://freemodelfoundry.com/) common
+  packages use `nvc --install fmf`
 
 The libraries will be installed under `~/.nvc/lib`.

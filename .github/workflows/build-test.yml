@@ -265,6 +265,8 @@ jobs:
         run: nvc --install osvvm
       - name: Install UVVM
         run: nvc --install uvvm
+      - name: Install FMF packages
+        run: nvc --install fmf
       - name: Test FPHDL
         run: ./vhdl-projects/fphdl/test.sh
       - name: Test ZPU
@@ -295,6 +297,8 @@ jobs:
         run: ./vhdl-projects/extras/test.sh
       - name: Test PoC
         run: ./vhdl-projects/poc/test.sh
+      #- name: Test FMF dsp6713
+      #  run: ./vhdl-projects/fmf/dsp6713/test.sh
 
   vunit:
     name: VUnit
