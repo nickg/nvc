@@ -297,8 +297,8 @@ jobs:
         run: ./vhdl-projects/extras/test.sh
       - name: Test PoC
         run: ./vhdl-projects/poc/test.sh
-      #- name: Test FMF dsp6713
-      #  run: ./vhdl-projects/fmf/dsp6713/test.sh
+      - name: Test FMF dsp6713
+        run: ./vhdl-projects/fmf/dsp6713/test.sh
 
   vunit:
     name: VUnit

@@ -557,11 +557,11 @@ static jit_t *get_jit(unit_registry_t *ur)
    jit_t *jit = jit_new(ur);
    jit_enable_runtime(jit, true);
 
-#if HAVE_LLVM
+#ifdef HAVE_LLVM
    jit_preload(jit);
 #endif
 
-#if defined LLVM_HAS_LLJIT && 1
+#if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(jit);
 #elif defined ARCH_X86_64 && 0
    jit_register_native_plugin(jit);
