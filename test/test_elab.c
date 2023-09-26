@@ -1644,6 +1644,18 @@ START_TEST(test_issue759)
 }
 END_TEST
 
+START_TEST(test_block2)
+{
+   set_standard(_i);
+
+   input_from_file(TESTDIR "/elab/block2.vhd");
+
+   run_elab();
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1734,6 +1746,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds41);
    tcase_add_test(tc, test_body1);
    tcase_add_test(tc, test_issue759);
+   tcase_add_loop_test(tc, test_block2, STD_02, STD_19 + 1);
    suite_add_tcase(s, tc);
 
    return s;

@@ -150,7 +150,7 @@ static tree_t p_resolution_indication(void);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
 static void p_generic_map_aspect(tree_t inst, tree_t unit);
 static ident_t p_designator(void);
-static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
+static void p_interface_list(tree_t parent, tree_kind_t kind, bool ordered);
 static void p_trailing_label(ident_t label);
 static tree_t p_condition(void);
 static type_t p_subtype_indication(void);
@@ -4625,7 +4625,8 @@ static tree_t p_expression(void)
    return expr;
 }
 
-static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
+static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
+                                             bool ordered)
 {
    // [ constant ] identifier_list : [ in ] subtype_indication [ := expression ]
 
@@ -4674,14 +4675,8 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
       add_interface(parent, d, kind);
       sem_check(d, nametab);
 
-      if (kind == T_GENERIC_DECL && standard() >= STD_08) {
-         // Generics are immediately visible in VHDL-2008
+      if (ordered)
          insert_name(nametab, d, NULL);
-      }
-      else if (standard() >= STD_19) {
-         // Everything is immediately visible in VHDL-2019
-         insert_name(nametab, d, NULL);
-      }
    }
 }
 
@@ -4741,7 +4736,8 @@ static port_mode_t p_mode_view_indication(type_t *type, tree_t *name)
    }
 }
 
-static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
+static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind,
+                                           bool ordered)
 {
    // [signal] identifier_list : [ mode ] subtype_indication [ bus ]
    //    [ := expression ]
@@ -4794,8 +4790,7 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
       add_interface(parent, d, kind);
       sem_check(d, nametab);
 
-      // 2019: Ports and generics are immediately visible
-      if (standard() >= STD_19)
+      if (ordered)
          insert_name(nametab, d, NULL);
    }
 }
@@ -5245,7 +5240,7 @@ static tree_t p_interface_function_specification(void)
    if (optional(tLPAREN)) {
       push_scope(nametab);
 
-      p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
+      p_interface_list(d, T_PARAM_DECL, false);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
@@ -5298,7 +5293,7 @@ static tree_t p_interface_procedure_specification(void)
    if (optional(tLPAREN)) {
       push_scope(nametab);
 
-      p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
+      p_interface_list(d, T_PARAM_DECL, false);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
@@ -5442,8 +5437,8 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
    insert_name(nametab, d, NULL);
 }
 
-static void p_interface_declaration(class_t def_class, tree_t parent,
-                                    tree_kind_t kind)
+static void p_interface_declaration(tree_t parent, tree_kind_t kind,
+                                    bool ordered)
 {
    // interface_constant_declaration | interface_signal_declaration
    //   | interface_variable_declaration | interface_file_declaration
@@ -5456,11 +5451,11 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
    const token_t p = peek();
    switch (p) {
    case tCONSTANT:
-      p_interface_constant_declaration(parent, kind);
+      p_interface_constant_declaration(parent, kind, ordered);
       break;
 
    case tSIGNAL:
-      p_interface_signal_declaration(parent, kind);
+      p_interface_signal_declaration(parent, kind, ordered);
       break;
 
    case tVARIABLE:
@@ -5485,20 +5480,10 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       break;
 
    case tID:
-      {
-         switch (def_class) {
-         case C_CONSTANT:
-            p_interface_constant_declaration(parent, kind);
-            break;
-
-         case C_SIGNAL:
-            p_interface_signal_declaration(parent, kind);
-            break;
-
-         default:
-            fatal_trace("unexpected default class %s", class_str(def_class));
-         }
-      }
+      if (kind == T_PORT_DECL)
+         p_interface_signal_declaration(parent, kind, ordered);
+      else
+         p_interface_constant_declaration(parent, kind, ordered);
       break;
 
    default:
@@ -5506,31 +5491,36 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
    }
 }
 
-static void p_interface_element(class_t def_class, tree_t parent,
-                                tree_kind_t kind)
+static void p_interface_element(tree_t parent, tree_kind_t kind, bool ordered)
 {
    // interface_declaration
 
    BEGIN("interface element");
 
-   p_interface_declaration(def_class, parent, kind);
+   p_interface_declaration(parent, kind, ordered);
 }
 
-static void p_interface_list(class_t def_class, tree_t parent, tree_kind_t kind)
+static void p_interface_list(tree_t parent, tree_kind_t kind, bool ordered)
 {
    // interface_element { ; interface_element }
 
    BEGIN("interface list");
 
-   p_interface_element(def_class, parent, kind);
+   if (ordered)
+      push_scope(nametab);
+
+   p_interface_element(parent, kind, ordered);
 
    while (optional(tSEMI)) {
       if (peek() == tRPAREN) {
          require_std(STD_19, "optional trailing semicolons on interface lists");
          break;
       }
-      p_interface_element(def_class, parent, kind);
+      p_interface_element(parent, kind, ordered);
    }
+
+   if (ordered)
+      pop_scope(nametab);
 }
 
 static void p_port_list(tree_t parent)
@@ -5539,7 +5529,7 @@ static void p_port_list(tree_t parent)
 
    BEGIN("port list");
 
-   p_interface_list(C_SIGNAL, parent, T_PORT_DECL);
+   p_interface_list(parent, T_PORT_DECL, standard() >= STD_19);
 }
 
 static void p_port_clause(tree_t parent)
@@ -5553,8 +5543,6 @@ static void p_port_clause(tree_t parent)
 
    p_port_list(parent);
 
-   insert_ports(nametab, parent);
-
    consume(tRPAREN);
    consume(tSEMI);
 }
@@ -5565,7 +5553,7 @@ static void p_generic_list(tree_t parent)
 
    BEGIN("generic list");
 
-   p_interface_list(C_CONSTANT, parent, T_GENERIC_DECL);
+   p_interface_list(parent, T_GENERIC_DECL, standard() >= STD_08);
 }
 
 static void p_generic_clause(tree_t parent)
@@ -5591,13 +5579,13 @@ static void p_entity_header(tree_t entity)
 
    if (scan(tGENERIC)) {
       p_generic_clause(entity);
-
-      if (standard() < STD_08)
-         insert_generics(nametab, entity);
+      insert_generics(nametab, entity);
    }
 
-   if (scan(tPORT))
+   if (scan(tPORT)) {
       p_port_clause(entity);
+      insert_ports(nametab, entity);
+   }
 }
 
 static tree_t p_attribute_declaration(void)
@@ -6724,6 +6712,8 @@ static void p_subprogram_header(tree_t spec)
       consume(tLPAREN);
       p_generic_list(spec);
       consume(tRPAREN);
+
+      insert_generics(nametab, spec);
    }
 }
 
@@ -6788,7 +6778,7 @@ static tree_t p_subprogram_specification(void)
    }
 
    if (has_param_list) {
-      p_interface_list(C_CONSTANT, t, T_PARAM_DECL);
+      p_interface_list(t, T_PARAM_DECL, standard() >= STD_19);
       consume(tRPAREN);
 
       const int nports = tree_ports(t);
@@ -8263,12 +8253,13 @@ static tree_t p_component_declaration(void)
 
    if (peek() == tGENERIC) {
       p_generic_clause(c);
-      if (standard() < STD_08)
-         insert_generics(nametab, c);
+      insert_generics(nametab, c);
    }
 
-   if (peek() == tPORT)
+   if (peek() == tPORT) {
       p_port_clause(c);
+      insert_ports(nametab, c);
+   }
 
    pop_scope(nametab);
 
@@ -8413,6 +8404,8 @@ static void p_package_header(tree_t unit)
          p_generic_map_aspect(unit, unit);
          consume(tSEMI);
       }
+
+      insert_generics(nametab, unit);
    }
 }
 
@@ -10551,8 +10544,7 @@ static void p_block_header(tree_t block)
          consume(tSEMI);
       }
 
-      if (standard() < STD_08)
-         insert_generics(nametab, block);
+      insert_generics(nametab, block);
    }
 
    if (peek() == tPORT) {
@@ -10562,6 +10554,8 @@ static void p_block_header(tree_t block)
          p_port_map_aspect(block, block);
          consume(tSEMI);
       }
+
+      insert_ports(nametab, block);
    }
 }
 
