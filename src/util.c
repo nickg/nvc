@@ -2205,6 +2205,13 @@ unsigned nvc_nprocs(void)
    if (count == -1)
       fatal_errno("sysconf(_SC_NPROCESSORS_ONLN)");
 
+#ifdef __linux__
+   // Restrict to the number of CPUs we are allowed to run on
+   cpu_set_t s;
+   if (sched_getaffinity(gettid(), sizeof(cpu_set_t), &s) == 0)
+      return MAX(1, MIN(count, CPU_COUNT(&s)));
+#endif
+
    return count;
 #else
 #warning Cannot detect number of processors on this platform
