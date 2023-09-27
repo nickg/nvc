@@ -118,7 +118,7 @@ jobs:
             mingw-w64-x86_64-check
             mingw-w64-x86_64-ncurses
             mingw-w64-x86_64-libffi
-            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-tcl
             mingw-w64-x86_64-zstd
