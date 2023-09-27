@@ -2544,12 +2544,15 @@ START_TEST(test_tag)
 
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_PUSH_SCOPE },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_STORE, .name = "S" },
+         { VCODE_OP_POP_SCOPE },
          { VCODE_OP_RETURN },
       };
 
@@ -3722,6 +3725,7 @@ START_TEST(test_issue426)
 
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.CORE" },
       { VCODE_OP_INDEX, .name = "EXP_STATUS" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "EXP_STATUS" },
       { VCODE_OP_COPY },

@@ -3048,7 +3048,8 @@ static void irgen_op_push_scope(jit_irgen_t *g, int op)
    jit_value_t locus = irgen_get_arg(g, op, 0);
    j_send(g, 0, locus);
 
-   const int size = irgen_size_bytes(vcode_get_type(op));
+   vcode_type_t type = vcode_get_type(op);
+   const int size = type == VCODE_INVALID_TYPE ? 0 : irgen_size_bytes(type);
    j_send(g, 1, jit_value_from_int64(size));
 
    macro_exit(g, JIT_EXIT_PUSH_SCOPE);

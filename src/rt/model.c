@@ -396,51 +396,6 @@ static void global_event(rt_model_t *m, rt_event_t kind)
    }
 }
 
-static void scope_deps_cb(ident_t unit_name, void *__ctx)
-{
-   // TODO: this should be redundant now we have the package init op
-
-   rt_model_t *m = __ctx;
-
-   object_t *obj = lib_load_handler(unit_name);
-   if (obj == NULL) {
-      warnf("missing dependency %s", istr(unit_name));
-      return;
-   }
-
-   tree_t unit = tree_from_object(obj);
-   if (unit == NULL)
-      return;
-
-   if (hash_get(m->scopes, unit) != NULL)
-      return;
-
-   const tree_kind_t kind = tree_kind(unit);
-   if ((kind != T_PACKAGE && kind != T_PACK_INST)
-       || is_uninstantiated_package(unit)) {
-      tree_walk_deps(unit, scope_deps_cb, m);
-      return;
-   }
-
-   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where    = unit;
-   s->name     = tree_ident(unit);
-   s->kind     = SCOPE_PACKAGE;
-   s->privdata = mptr_new(m->mspace, "package privdata");
-
-   list_add(&m->root->children, s);
-
-   hash_put(m->scopes, unit, s);
-
-   tree_walk_deps(unit, scope_deps_cb, m);
-
-   if (kind == T_PACKAGE) {
-      tree_t body = body_of(unit);
-      if (body != NULL)
-         tree_walk_deps(body, scope_deps_cb, m);
-   }
-}
-
 static rt_scope_t *scope_for_verilog(rt_model_t *m, vlog_node_t scope,
                                      ident_t prefix)
 {
@@ -500,28 +455,6 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
    assert(tree_kind(hier) == T_HIER);
 
    ident_t path = tree_ident(hier);
-
-   const int ndecls = tree_decls(block);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(block, i);
-      switch (tree_kind(d)) {
-      case T_PACK_INST:
-         {
-            rt_scope_t *p = xcalloc(sizeof(rt_scope_t));
-            p->where    = d;
-            p->name     = ident_prefix(s->name, tree_ident(d), '.');
-            p->kind     = SCOPE_PACKAGE;
-            p->privdata = mptr_new(m->mspace, "pack inst privdata");
-
-            hash_put(m->scopes, d, p);
-
-            list_add(&s->children, p);
-         }
-
-      default:
-         break;
-      }
-   }
 
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
@@ -615,9 +548,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root = xcalloc(sizeof(rt_scope_t));
    m->root->kind     = SCOPE_ROOT;
    m->root->where    = top;
-   m->root->privdata = mptr_new(m->mspace, "root privdata");
-
-   tree_walk_deps(top, scope_deps_cb, m);
+   m->root->privdata = MPTR_INVALID;
 
    rt_scope_t *s = NULL;
    tree_t s0 = tree_stmt(top, 0);
@@ -1104,7 +1035,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
 static void reset_scope(rt_model_t *m, rt_scope_t *s)
 {
-   if (s->kind == SCOPE_INSTANCE || s->kind == SCOPE_PACKAGE) {
+   if (s->kind == SCOPE_INSTANCE) {
       TRACE("reset scope %s", istr(s->name));
 
       model_thread_t *thread = model_thread(m);
@@ -1129,6 +1060,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
          return;
       }
 
+      assert(thread->active_scope == s);
       thread->active_scope = NULL;
    }
 
@@ -4093,16 +4025,17 @@ void x_push_scope(tree_t where, int32_t size)
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
    s->where    = where;
    s->name     = name;
-   s->kind     = SCOPE_SIGNAL;
+   s->kind     = is_package(where) ? SCOPE_PACKAGE : SCOPE_SIGNAL;
    s->parent   = thread->active_scope;
    s->size     = size;
-   s->privdata = mptr_new(m->mspace, "push scope privdata");
+   s->privdata = MPTR_INVALID;
 
-   type_t type = tree_type(where);
-   if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
-      s->flags |= SCOPE_F_RESOLVED;
+   if (s->kind == SCOPE_SIGNAL) {
+      type_t type = tree_type(where);
+      if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
+         s->flags |= SCOPE_F_RESOLVED;
+   }
 
-   list_add(&thread->active_scope->children, s);
    thread->active_scope = s;
 }
 
@@ -4111,19 +4044,23 @@ void x_pop_scope(void)
    rt_model_t *m = get_model();
    model_thread_t *thread = model_thread(m);
 
-   TRACE("pop scope %s", istr(tree_ident(thread->active_scope->where)));
+   rt_scope_t *pop = thread->active_scope, *old = pop->parent;
 
-   if (unlikely(thread->active_scope->kind != SCOPE_SIGNAL))
-      fatal_trace("cannot pop non-signal scope");
+   TRACE("pop scope %s", istr(tree_ident(pop->where)));
 
    int offset = INT_MAX;
-   list_foreach(rt_scope_t *, s, thread->active_scope->children)
+   list_foreach(rt_scope_t *, s, pop->children)
       offset = MIN(offset, s->offset);
-   list_foreach(rt_signal_t *, s, thread->active_scope->signals)
+   list_foreach(rt_signal_t *, s, pop->signals)
       offset = MIN(offset, s->offset);
-   thread->active_scope->offset = offset;
+   pop->offset = offset;
 
-   thread->active_scope = thread->active_scope->parent;
+   thread->active_scope = old;
+
+   if (pop->kind == SCOPE_PACKAGE)
+      pop->parent = m->root;   // Always attach packages to root scope
+
+   list_add(&pop->parent->children, pop);
 }
 
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)

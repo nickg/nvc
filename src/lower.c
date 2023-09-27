@@ -11930,11 +11930,43 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
       emit_package_init(unit_name, VCODE_INVALID_REG);
 }
 
-static void lower_dependencies(tree_t primary, tree_t secondary)
+static void lower_dependencies(tree_t unit)
 {
-   tree_walk_deps(primary, lower_deps_cb, NULL);
-   if (secondary != NULL)
-      tree_walk_deps(secondary, lower_deps_cb, NULL);
+   tree_walk_deps(unit, lower_deps_cb, NULL);
+
+   switch (tree_kind(unit)) {
+   case T_ARCH:
+   case T_PACK_BODY:
+      lower_dependencies(tree_primary(unit));
+      break;
+   case T_BLOCK:
+      {
+         tree_t hier = tree_decl(unit, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         tree_t src = tree_ref(hier);
+         if (is_design_unit(src))
+            lower_dependencies(src);
+      }
+      break;
+   default:
+      break;
+   }
+}
+
+static bool lower_push_package_scope(tree_t pack)
+{
+   const int ndecls = tree_decls(pack);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(pack, i);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         vcode_reg_t locus = lower_debug_locus(pack);
+         emit_push_scope(locus, VCODE_INVALID_TYPE);
+         return true;
+      }
+   }
+
+   return false;
 }
 
 static void lower_pack_body(lower_unit_t *lu, object_t *obj)
@@ -11951,9 +11983,16 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
       emit_package_init(ieee_support, VCODE_INVALID_REG);
    }
 
-   lower_dependencies(pack, body);
+   lower_dependencies(body);
+
+   const bool has_scope =
+      lower_push_package_scope(pack) || lower_push_package_scope(body);
+
    lower_decls(lu, pack);
    lower_decls(lu, body);
+
+   if (has_scope)
+      emit_pop_scope();
 
    emit_return(VCODE_INVALID_REG);
 }
@@ -11963,9 +12002,15 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_from_object(obj);
    assert(!is_uninstantiated_package(pack));
 
-   lower_dependencies(pack, NULL);
+   lower_dependencies(pack);
+
+   const bool has_scope = lower_push_package_scope(pack);
+
    lower_generics(lu, pack);
    lower_decls(lu, pack);
+
+   if (has_scope)
+      emit_pop_scope();
 
    emit_return(VCODE_INVALID_REG);
 }
@@ -12185,7 +12230,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
-   lower_dependencies(block, tree_ref(hier));
+   lower_dependencies(block);
    lower_generics(lu, block);
    lower_ports(lu, ds, block);
    lower_decls(lu, block);
