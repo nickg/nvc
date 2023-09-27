@@ -27,7 +27,7 @@ makedepends=(
   "${MINGW_PACKAGE_PREFIX}-ncurses"
   "${MINGW_PACKAGE_PREFIX}-libffi"
   "${MINGW_PACKAGE_PREFIX}-check"
-  "${MINGW_PACKAGE_PREFIX}-pkg-config"
+  "${MINGW_PACKAGE_PREFIX}-pkgconf"
 )
 
 pkgver() {
