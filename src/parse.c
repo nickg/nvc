@@ -198,11 +198,15 @@ static void _push_state(const state_t *s)
 
 static void skip_pragma(pragma_kind_t kind)
 {
-   tree_t p = tree_new(T_PRAGMA);
-   tree_set_loc(p, &yylloc);
-   tree_set_subkind(p, kind);
+   if (nametab == NULL)
+      warn_at(&yylloc, "ignoring pragma outside of design unit");
+   else  {
+      tree_t p = tree_new(T_PRAGMA);
+      tree_set_loc(p, &yylloc);
+      tree_set_subkind(p, kind);
 
-   APUSH(pragmas, p);
+      APUSH(pragmas, p);
+   }
 }
 
 static token_t wrapped_yylex(void)
@@ -12726,14 +12730,6 @@ static void flush_pragmas(tree_t unit)
               "translate_on$$ directive seen before end of design unit");
 
    ACLEAR(pragmas);
-
-   (void)peek();   // Skips over all pragmas until next token
-
-   if (pragmas.count > 0) {
-      warn_at(tree_loc(pragmas.items[0]), "ignoring pragma outside of "
-              "design unit");
-      ACLEAR(pragmas);
-   }
 }
 
 tree_t parse(void)
