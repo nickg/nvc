@@ -299,6 +299,8 @@ jobs:
         run: ./vhdl-projects/poc/test.sh
       - name: Test FMF dsp6713
         run: ./vhdl-projects/fmf/dsp6713/test.sh
+      - name: Test Grlib
+        run: ./vhdl-projects/grlib/test.sh
 
   vunit:
     name: VUnit
