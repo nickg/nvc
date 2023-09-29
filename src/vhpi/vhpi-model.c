@@ -84,6 +84,7 @@ typedef struct tag_abstractRegion {
    vhpiStringT       Name;
    vhpiStringT       FullCaseName;
    vhpiStringT       FullName;
+   jit_handle_t      handle;
 } c_abstractRegion;
 
 typedef struct {
@@ -218,6 +219,7 @@ typedef struct {
    bool             SelectedNames_valid;
    rt_signal_t     *signal;
    rt_scope_t      *scope;
+   ident_t          name;
 } c_objDecl;
 
 typedef struct {
@@ -248,8 +250,6 @@ typedef struct {
    vhpiModeT       Mode;
    vhpiBooleanT    IsLocal;
    vhpiBooleanT    IsVital;
-   jit_handle_t    handle;
-   ident_t         name;
 } c_genericDecl;
 
 DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
@@ -257,8 +257,6 @@ DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
 typedef struct {
    c_objDecl    objDecl;
    vhpiBooleanT IsDeferred;
-   jit_handle_t handle;
-   ident_t      name;
 } c_constDecl;
 
 DEF_CLASS(constDecl, vhpiConstDeclK, objDecl.decl.object);
@@ -433,7 +431,7 @@ typedef struct _vhpi_context {
    jit_t      *jit;
 } vhpi_context_t;
 
-static c_typeDecl *cached_typeDecl(type_t type);
+static c_typeDecl *cached_typeDecl(type_t type, c_objDecl *obj);
 static void vhpi_lazy_block(c_abstractRegion *r);
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
@@ -741,7 +739,8 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    char *full LOCAL = xasprintf(":%s", r->Name);
    r->FullName = r->FullCaseName = new_string(full);
 
-   r->tree = t;
+   r->tree   = t;
+   r->handle = JIT_HANDLE_INVALID;
 }
 
 static void init_designInstUnit(c_designInstUnit *iu, tree_t t, c_designUnit *u)
@@ -771,13 +770,12 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
    d->tree = t;
 }
 
-static void init_objDecl(c_objDecl *d, tree_t t,
-                         c_abstractRegion *ImmRegion,
-                         c_typeDecl *Type)
+static void init_objDecl(c_objDecl *d, tree_t t, c_abstractRegion *ImmRegion)
 {
    init_abstractDecl(&(d->decl), t, ImmRegion);
 
-   d->Type = Type;
+   d->name = tree_ident(t);
+   d->Type = cached_typeDecl(tree_type(t), d);
 
    tree_flags_t flags = tree_flags(t);
    if (flags & TREE_F_LOCALLY_STATIC)
@@ -789,12 +787,9 @@ static void init_objDecl(c_objDecl *d, tree_t t,
 }
 
 static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
-                               int Position,
-                               c_abstractRegion *ImmRegion,
-                               c_typeDecl *Type)
+                               int Position, c_abstractRegion *ImmRegion)
 {
-   init_objDecl(&(d->objDecl), t, ImmRegion, Type);
-
+   init_objDecl(&(d->objDecl), t, ImmRegion);
    d->Position = Position;
 }
 
@@ -1433,6 +1428,15 @@ static c_typeDecl *vhpi_get_type(c_vhpiObject *obj)
    return NULL;
 }
 
+static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
+{
+   c_prefixedName *pn = is_prefixedName(obj);
+   if (pn != NULL)
+      return vhpi_get_prefix_kind(pn->Prefix);
+   else
+      return obj->kind;
+}
+
 static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 {
    jit_t *j = vhpi_context()->jit;
@@ -1480,34 +1484,36 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       return NULL;
    }
 
-   c_genericDecl *g = is_genericDecl(obj);
-   if (g != NULL) {
-      if (g->handle == JIT_HANDLE_INVALID)
-         g->handle = jit_lazy_compile(j, scope->name);
+   if (decl->decl.ImmRegion->handle == JIT_HANDLE_INVALID)
+      decl->decl.ImmRegion->handle = jit_lazy_compile(j, scope->name);
 
-      return jit_get_frame_var(j, g->handle, g->name);
-   }
-
-   c_constDecl *c = is_constDecl(obj);
-   if (c != NULL) {
-      if (c->handle == JIT_HANDLE_INVALID)
-         c->handle = jit_lazy_compile(j, scope->name);
-
-      return jit_get_frame_var(j, c->handle, c->name);
-   }
-
-   vhpi_error(vhpiInternal, &(obj->loc), "cannot find elaborated value for %s",
-              decl->decl.FullName);
-   return NULL;
+   return jit_get_frame_var(j, decl->decl.ImmRegion->handle, decl->name);
 }
 
-static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
+static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
 {
-   c_prefixedName *pn = is_prefixedName(obj);
-   if (pn != NULL)
-      return vhpi_get_prefix_kind(pn->Prefix);
-   else
-      return obj->kind;
+   if (ptr) *ptr = NULL;
+   if (dims) *dims = NULL;
+
+   void *base = vhpi_get_value_ptr(obj);
+   if (base == NULL)
+      return;
+
+   if (ptr != NULL)
+      *ptr = *(void **)base;
+
+   if (dims != NULL) {
+      switch (vhpi_get_prefix_kind(obj)) {
+      case vhpiSigDeclK:
+      case vhpiPortDeclK:
+         // Signals have extra word for offset
+         *dims = base + 2*sizeof(int64_t);
+         break;
+      default:
+         *dims = base + sizeof(int64_t);
+         break;
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2940,30 +2946,42 @@ static c_physRange *build_phys_range(tree_t t)
    return pr;
 }
 
-static c_intRange *build_int_range(tree_t r, type_t parent, int dim)
+static c_intRange *build_int_range(tree_t r, type_t parent, int dim,
+                                   c_objDecl *obj)
 {
-   range_kind_t dir;
-   int64_t low, high, left, right;
+   range_kind_t dir = RANGE_TO;
+   int64_t low, high, left = 1, right = 0;
    if (folded_bounds(r, &low, &high)) {
       dir = tree_subkind(r);
       left = (dir == RANGE_TO) ? low : high;
       right = (dir == RANGE_TO) ? high : low;
    }
    else {
-      // The type bounds are not known statically so use the variable
-      // generated by lower_type_bounds_var
-      jit_t *j = vhpi_context()->jit;
+      ffi_dim_t *bounds = NULL;
+      if (obj != NULL)
+         vhpi_get_uarray(&(obj->decl.object), NULL, &bounds);
+      else if (parent != NULL && !type_is_unconstrained(parent)) {
+         // The type bounds are not known statically so use the variable
+         // generated by lower_type_bounds_var
+         jit_t *j = vhpi_context()->jit;
 
-      assert(type_has_ident(parent));
-      ident_t id = type_ident(parent);
+         assert(type_has_ident(parent));
+         ident_t id = type_ident(parent);
 
-      jit_handle_t handle = jit_lazy_compile(j, ident_runtil(id, '.'));
-      ffi_uarray_t *u = jit_get_frame_var(j, handle, id);
-      assert(u != NULL);
+         jit_handle_t handle = jit_lazy_compile(j, ident_runtil(id, '.'));
+         ffi_uarray_t *u = jit_get_frame_var(j, handle, id);
+         assert(u != NULL);
 
-      dir = ffi_array_dir(u->dims[dim].length);
-      left = u->dims[dim].left;
-      right = ffi_array_right(u->dims[dim].left, u->dims[dim].length);
+         bounds = u->dims;
+      }
+
+      if (bounds == NULL)
+         vhpi_error(vhpiInternal, tree_loc(r), "cannot get bounds for range");
+      else {
+         dir = ffi_array_dir(bounds[dim].length);
+         left = bounds[dim].left;
+         right = ffi_array_right(bounds[dim].left, bounds[dim].length);
+      }
    }
 
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
@@ -2975,7 +2993,7 @@ static c_intRange *build_int_range(tree_t r, type_t parent, int dim)
    return ir;
 }
 
-static c_intRange *build_unconstrained()
+static c_intRange *build_unconstrained(void)
 {
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    ir->range.IsUnconstrained = vhpiTrue;
@@ -2983,7 +3001,8 @@ static c_intRange *build_unconstrained()
 }
 
 static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
-                                       type_t parent, int nextdim)
+                                       type_t parent, c_objDecl *obj,
+                                       int nextdim)
 {
    c_arrayTypeDecl *td =
       new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
@@ -2995,11 +3014,11 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
    if (type_is_array(elem) && !type_has_ident(elem)) {
       // Anonymous subtype may need to access parent type to
       // get non-constant bounds
-      td->ElemType =
-         build_arrayTypeDecl(elem, decl, parent, nextdim + td->NumDimensions);
+      td->ElemType = build_arrayTypeDecl(elem, decl, parent, obj,
+                                         nextdim + td->NumDimensions);
    }
    else
-      td->ElemType = cached_typeDecl(elem);
+      td->ElemType = cached_typeDecl(elem, NULL);
 
    if (type_is_unconstrained(type)) {
       for (int i = 0; i < td->NumDimensions; i++)
@@ -3013,7 +3032,7 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
 
       for (int i = 0; i < td->NumDimensions; i++) {
          tree_t r = tree_range(c, i);
-         c_intRange *ir = build_int_range(r, parent, nextdim + i);
+         c_intRange *ir = build_int_range(r, parent, nextdim + i, obj);
          td->composite.typeDecl.numElems *= range_len(ir);
          APUSH(td->Constraints, &(ir->range.object));
       }
@@ -3022,7 +3041,7 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
    return &(td->composite.typeDecl);
 }
 
-static c_typeDecl *build_typeDecl(type_t type)
+static c_typeDecl *build_typeDecl(type_t type, c_objDecl *obj)
 {
    type_t base = type;
    while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
@@ -3122,7 +3141,7 @@ static c_typeDecl *build_typeDecl(type_t type)
       }
 
    case T_ARRAY:
-      return build_arrayTypeDecl(type, decl, base, 0);
+      return build_arrayTypeDecl(type, decl, base, obj, 0);
 
    case T_RECORD:
       {
@@ -3133,7 +3152,7 @@ static c_typeDecl *build_typeDecl(type_t type)
          int nfields = type_fields(type);
          for (int i = 0; i < nfields; i++) {
             tree_t f = type_field(type, i);
-            c_typeDecl *ftd = cached_typeDecl(tree_type(f));
+            c_typeDecl *ftd = cached_typeDecl(tree_type(f), NULL);
             c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
             init_elemDecl(ed, f, ftd);
             td->composite.typeDecl.numElems += ftd->numElems;
@@ -3145,12 +3164,12 @@ static c_typeDecl *build_typeDecl(type_t type)
 
    case T_SUBTYPE:
       if (type_is_array(type))
-         return build_arrayTypeDecl(type, decl, base, 0);
+         return build_arrayTypeDecl(type, decl, base, obj, 0);
       else {
          c_subTypeDecl *td =
             new_object(sizeof(c_subTypeDecl), vhpiSubtypeDeclK);
          init_typeDecl(&(td->typeDecl), decl, type);
-         td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type));
+         td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type), NULL);
          td->isResolved = type_has_resolution(type);
 
          unsigned nconstrs = type_constraints(type);
@@ -3161,7 +3180,7 @@ static c_typeDecl *build_typeDecl(type_t type)
             if (tree_subkind(c) != C_RANGE)
                fatal_trace("unsupported constraint subkind %d", tree_subkind(c));
 
-            c_intRange *ir = build_int_range(tree_range(c, 0), NULL, 0);
+            c_intRange *ir = build_int_range(tree_range(c, 0), NULL, 0, NULL);
             APUSH(td->Constraints, &(ir->range.object));
          }
 
@@ -3174,12 +3193,12 @@ static c_typeDecl *build_typeDecl(type_t type)
    }
 }
 
-static c_typeDecl *cached_typeDecl(type_t type)
+static c_typeDecl *cached_typeDecl(type_t type, c_objDecl *obj)
 {
    hash_t *cache = vhpi_context()->typecache;
    c_typeDecl *d = hash_get(cache, type);
    if (d == NULL) {
-      d = build_typeDecl(type);
+      d = build_typeDecl(type, obj);
       hash_put(cache, type, d);
    }
 
@@ -3189,17 +3208,12 @@ static c_typeDecl *cached_typeDecl(type_t type)
 static void build_genericDecl(tree_t generic, int pos,
                               c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(tree_type(generic));
-
    c_genericDecl *g = new_object(sizeof(c_genericDecl), vhpiGenericDeclK);
-   init_interfaceDecl(&(g->interface), generic, pos, region, td);
+   init_interfaceDecl(&(g->interface), generic, pos, region);
 
    g->IsLocal = (tree_kind(region->tree) == T_COMPONENT);
    g->IsVital = false;
    g->Mode = mode_map[tree_subkind(generic)];
-
-   g->name = tree_ident(generic);
-   g->handle = JIT_HANDLE_INVALID;
 
    APUSH(region->decls, &(g->interface.objDecl.decl.object));
 }
@@ -3207,10 +3221,8 @@ static void build_genericDecl(tree_t generic, int pos,
 static void build_portDecl(tree_t port, int pos,
                            c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(tree_type(port));
-
    c_portDecl *p = new_object(sizeof(c_portDecl), vhpiPortDeclK);
-   init_interfaceDecl(&(p->interface), port, pos, region, td);
+   init_interfaceDecl(&(p->interface), port, pos, region);
 
    p->Mode = mode_map[tree_subkind(port)];
 
@@ -3219,25 +3231,18 @@ static void build_portDecl(tree_t port, int pos,
 
 static void build_signalDecl(tree_t decl, c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(tree_type(decl));
-
    c_sigDecl *s = new_object(sizeof(c_sigDecl), vhpiSigDeclK);
-   init_objDecl(&(s->objDecl), decl, region, td);
+   init_objDecl(&(s->objDecl), decl, region);
 
    APUSH(region->decls, &(s->objDecl.decl.object));
 }
 
 static void build_constDecl(tree_t decl, c_abstractRegion *region)
 {
-   c_typeDecl *td = cached_typeDecl(tree_type(decl));
-
    c_constDecl *cd = new_object(sizeof(c_constDecl), vhpiConstDeclK);
-   init_objDecl(&(cd->objDecl), decl, region, td);
+   init_objDecl(&(cd->objDecl), decl, region);
 
    cd->IsDeferred = !tree_has_value(decl);
-
-   cd->name = tree_ident(decl);
-   cd->handle = JIT_HANDLE_INVALID;
 
    APUSH(region->decls, &(cd->objDecl.decl.object));
 }

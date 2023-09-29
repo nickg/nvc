@@ -52,12 +52,15 @@ STATIC_ASSERT(sizeof(ffi_spec_t) == 8);
 typedef struct _jit_foreign jit_foreign_t;
 
 // The code generator knows the layout of this struct
+typedef struct {
+   int64_t left;
+   int64_t length;
+} ffi_dim_t;
+
+// The code generator knows the layout of this struct
 typedef struct _ffi_uarray {
-   void *ptr;
-   struct {
-      int64_t left;
-      int64_t length;
-   } dims[1];
+   void      *ptr;
+   ffi_dim_t  dims[1];   // Flexible member
 } ffi_uarray_t;
 
 #define ffi_array_length(d1) ((d1) ^ ((d1) >> 63))

@@ -19,9 +19,14 @@ end package;
 entity vhpi9 is
 end entity;
 
+use work.pack1.all;
 use work.pack2.all;
+
+library ieee;
+use ieee.std_logic_1164.all;
 
 architecture test of vhpi9 is
     signal s : t;
+    signal s2 : std_logic_vector(k downto 0);
 begin
 end architecture;
