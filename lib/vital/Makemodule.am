@@ -3,8 +3,6 @@ vital_08dir = $(pkglibdir)/ieee.08
 
 if ENABLE_VITAL
 vital_DATA = \
-	lib/ieee/_NVC_LIB \
-	lib/ieee/_index \
 	lib/ieee/IEEE.VITAL_TIMING \
 	lib/ieee/IEEE.VITAL_TIMING-body \
 	lib/ieee/IEEE.VITAL_PRIMITIVES \
@@ -12,8 +10,6 @@ vital_DATA = \
 	lib/ieee/IEEE.VITAL_MEMORY \
 	lib/ieee/IEEE.VITAL_MEMORY-body
 vital_08_DATA = \
-	lib/ieee.08/_NVC_LIB \
-	lib/ieee.08/_index \
 	lib/ieee.08/IEEE.VITAL_TIMING \
 	lib/ieee.08/IEEE.VITAL_TIMING-body \
 	lib/ieee.08/IEEE.VITAL_PRIMITIVES \
@@ -33,14 +29,6 @@ EXTRA_DIST += \
 if ENABLE_VITAL
 BOOTSTRAPLIBS += $(vital_DATA) $(vital_08_DATA)
 endif
-
-lib/ieee/_NVC_LIB:
-
-lib/ieee/_index:
-
-lib/ieee.08/_NVC_LIB:
-
-lib/ieee.08/_index:
 
 lib/ieee/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_p.vhdl
