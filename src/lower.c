@@ -12220,9 +12220,6 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    cover_push_scope(cover, block);
 
-   tree_t hier = tree_decl(block, 0);
-   assert(tree_kind(hier) == T_HIER);
-
    lower_dependencies(block);
    lower_generics(lu, block);
    lower_ports(lu, ds, block);

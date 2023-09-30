@@ -2453,8 +2453,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             return -1;
 
          if (td->IsUnconstrained) {
-            c_arrayTypeDecl *at = cast_arrayTypeDecl(&(td->decl.object));
-            assert(at);
+            assert(is_arrayTypeDecl(&(td->decl.object)));
 
             ffi_uarray_t *u = (ffi_uarray_t *)value;
             value = u->ptr;
