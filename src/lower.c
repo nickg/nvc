@@ -2709,16 +2709,17 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
 
 static vcode_type_t lower_var_type(tree_t decl)
 {
-   type_t type = tree_type(decl);
-
    if (tree_kind(decl) == T_ALIAS)
       return lower_alias_type(decl);
-   else if (class_of(decl) == C_SIGNAL)
-      return lower_signal_type(type);
-   else if (type_is_array(type) && lower_const_bounds(type))
-      return lower_type(lower_elem_recur(type));
-   else
-      return lower_type(type);
+   else {
+      type_t type = tree_type(decl);
+      if (class_of(decl) == C_SIGNAL)
+         return lower_signal_type(type);
+      else if (type_is_array(type) && lower_const_bounds(type))
+         return lower_type(lower_elem_recur(type));
+      else
+         return lower_type(type);
+   }
 }
 
 static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
@@ -3007,10 +3008,10 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
                                    expr_ctx_t ctx)
 {
    tree_t value = tree_value(alias);
-   type_t type = tree_type(value);
+   type_t type = tree_type(tree_has_type(alias) ? alias : value);
 
    if (!type_is_array(type))
-      return lower_expr(lu, tree_value(alias), ctx);
+      return lower_expr(lu, value, ctx);
 
    int hops = 0;
    vcode_var_t var = lower_get_var(lu, alias, &hops);
@@ -3022,14 +3023,6 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
          return lower_link_var(lu, alias);
       }
    }
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   for (int i = 0; i < hops; i++)
-      vcode_select_unit(vcode_unit_context());
-
-   vcode_state_restore(&state);
 
    if (hops == 0)
       return emit_load(var);

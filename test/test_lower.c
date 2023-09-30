@@ -39,7 +39,6 @@ typedef struct {
    vcode_block_t target_else;
    uint32_t      tag;
    int           length;
-   bool          delay;
    uint8_t       dim;
    uint8_t       hops;
    uint8_t       field;
@@ -159,10 +158,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have wait target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 0));
-         }
-         else if (e->delay && vcode_get_arg(i, 0) == VCODE_INVALID_REG) {
-            vcode_dump_with_mark(i, NULL, NULL);
-            fail("expected op %d in block %d to have wait delay", i, bb);
          }
          break;
 
@@ -457,7 +452,7 @@ START_TEST(test_assign1)
 
    const check_bb_t bb1[] = {
       { VCODE_OP_CONST, .value = 4000000 },
-      { VCODE_OP_WAIT,  .target = 2, .delay = true }
+      { VCODE_OP_WAIT,  .target = 2 }
    };
 
    CHECK_BB(1);
@@ -486,7 +481,7 @@ START_TEST(test_assign1)
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 1000000 },
-      { VCODE_OP_WAIT,  .target = 3, .delay = true }
+      { VCODE_OP_WAIT,  .target = 3 }
    };
 
    CHECK_BB(2);
@@ -1485,7 +1480,7 @@ START_TEST(test_proc3)
       EXPECT_BB(0) = {
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_CONST, .value = 10000000 },
-         { VCODE_OP_WAIT, .delay = true, .target = 1 }
+         { VCODE_OP_WAIT, .target = 1 }
       };
 
       CHECK_BB(0);
@@ -1495,7 +1490,7 @@ START_TEST(test_proc3)
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_CONST, .value = 5000000 },
-         { VCODE_OP_WAIT, .delay = true, .target = 2 }
+         { VCODE_OP_WAIT, .target = 2 }
       };
 
       CHECK_BB(1);
@@ -5503,6 +5498,32 @@ START_TEST(test_subtype1)
 }
 END_TEST
 
+START_TEST(test_alias1)
+{
+   input_from_file(TESTDIR "/lower/alias1.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ALIAS1.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+      { VCODE_OP_LINK_VAR, .name = "A" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5635,6 +5656,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_const3);
    tcase_add_test(tc, test_transfer1);
    tcase_add_test(tc, test_subtype1);
+   tcase_add_test(tc, test_alias1);
    suite_add_tcase(s, tc);
 
    return s;
