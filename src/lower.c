@@ -10758,7 +10758,7 @@ static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
       return false;
    else if (tree_target(s0) != di->prefix)
       return false;
-   else if (type_is_record(tree_type(di->prefix)))
+   else if (!type_is_homogeneous(tree_type(di->prefix)))
       return false;
    else if (tree_waveforms(s0) != 1)
       return false;
