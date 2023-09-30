@@ -416,7 +416,7 @@ token_t processed_yylex(void)
    for (;;) {
       token_t token = pp_yylex();
       switch (token) {
-      case tCONDIF:
+      case tCNDIF:
          {
             cond_state_t new = { .loc = yylloc };
             new.result = new.taken = pp_cond_analysis_expr();
@@ -438,7 +438,7 @@ token_t processed_yylex(void)
          }
          break;
 
-      case tCONDELSIF:
+      case tCNDELSIF:
          {
             if (cond_stack.count == 0)
                pp_error("unexpected $yellow$%s$$ outside conditional "
@@ -459,7 +459,7 @@ token_t processed_yylex(void)
          }
          break;
 
-      case tCONDELSE:
+      case tCNDELSE:
          {
             if (cond_stack.count == 0)
                pp_error("unexpected $yellow$%s$$ outside conditional "
@@ -471,7 +471,7 @@ token_t processed_yylex(void)
          }
          break;
 
-      case tCONDEND:
+      case tCNDEND:
          {
             if (cond_stack.count == 0)
                pp_error("unexpected $yellow$%s$$ outside conditional "
@@ -484,8 +484,8 @@ token_t processed_yylex(void)
          }
          break;
 
-      case tCONDERROR:
-      case tCONDWARN:
+      case tCNDERROR:
+      case tCNDWARN:
          {
             loc_t loc = yylloc;
             if (pp_expect(tSTRING)) {
@@ -496,7 +496,7 @@ token_t processed_yylex(void)
 
                if (cond_stack.count == 0 || ATOP(cond_stack).result) {
                   const diag_level_t level =
-                     token == tCONDWARN ? DIAG_WARN : DIAG_ERROR;
+                     token == tCNDWARN ? DIAG_WARN : DIAG_ERROR;
                   diag_t *d = diag_new(level, &loc);
                   diag_printf(d, "%s", yylval.str);
                   diag_emit(d);

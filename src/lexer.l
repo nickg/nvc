@@ -388,12 +388,12 @@ UNION         ?i:union
 {VIEW}                   { TOKEN_19(tVIEW); }
 {PRIVATE}                { TOKEN_19(tPRIVATE); }
 
-`{IF}                    { TOKEN(tCONDIF); }
-`{ELSE}                  { TOKEN(tCONDELSE); }
-`{ELSIF}                 { TOKEN(tCONDELSIF); }
-`{END}                   { TOKEN(tCONDEND); }
-`{ERROR}                 { TOKEN(tCONDERROR); }
-`{WARNING}               { TOKEN(tCONDWARN); }
+`{IF}                    { TOKEN(tCNDIF); }
+`{ELSE}                  { TOKEN(tCNDELSE); }
+`{ELSIF}                 { TOKEN(tCNDELSIF); }
+`{END}                   { TOKEN(tCNDEND); }
+`{ERROR}                 { TOKEN(tCNDERROR); }
+`{WARNING}               { TOKEN(tCNDWARN); }
 
 <INITIAL,PSL>{AND}       { TOKEN(tAND); }
 <INITIAL,PSL>{OR}        { TOKEN(tOR); }
