@@ -398,3 +398,47 @@ jobs:
       - name: Run OSVVM tests
         run: |
           tclsh ./test/test-osvvm.tcl
+
+  cocotb:
+    name: Cocotb
+    needs: [ build-package ]
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: nickg/cocotb
+          ref: nvc-revert
+          path: cocotb
+          submodules: recursive
+          fetch-depth: 1
+      - name: Install dependencies
+        run: sudo apt-get install python3 python3-virtualenv
+      - uses: actions/download-artifact@v3
+        with:
+          name: 'Ubuntu package'
+      - name: Install pre-built package
+        run: >-
+          sudo apt-get install ./nvc_*.deb
+      - name: Add to PATH
+        run: >-
+          echo /opt/nvc-*/bin >> $GITHUB_PATH
+      - name: Check --version output
+        run: nvc --version
+      - name: Install cocotb
+        run: |
+          cd cocotb
+          python3 -mvirtualenv venv
+          . venv/bin/activate
+          pip install .
+      - name: Run simple_dff example
+        run: |
+          . cocotb/venv/bin/activate
+          make -C cocotb/examples/simple_dff SIM=nvc TOPLEVEL_LANG=vhdl
+      - name: Run adder example
+        run: |
+          . cocotb/venv/bin/activate
+          make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
+      - name: Run matrix_multiplier example
+        run: |
+          . cocotb/venv/bin/activate
+          make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
