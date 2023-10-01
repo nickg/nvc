@@ -317,10 +317,8 @@ jobs:
           fetch-depth: 1
       - uses: actions/checkout@v3
         with:
-          #repository: antonblanchard/microwatt
-          #ref: master
-          repository: nickg/microwatt
-          ref: fix-vunit
+          repository: antonblanchard/microwatt
+          ref: master
           path: microwatt
           fetch-depth: 1
       - name: Install dependencies
