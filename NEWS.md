@@ -1,5 +1,6 @@
 ## Unreleased changes
-- Fixed compatibility with LLVM 17
+- Fixed compatibility with LLVM 17.
+- Fixed an intermittent crash when using the `--jit` elaboration option.
 
 ## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared
