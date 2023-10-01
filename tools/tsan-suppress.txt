@@ -1,2 +1,3 @@
 # This happens inside LLVM, appears benign
 race:getValueTypeList
+race:llvm::TimerGroup::TimerGroup

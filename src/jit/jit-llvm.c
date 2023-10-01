@@ -910,6 +910,8 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
          fn = llvm_add_fn(obj, "__nvc_get_object", obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOCAPTURE, 1);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_READONLY, 1);
       }
       break;
 
@@ -1099,16 +1101,24 @@ static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
    return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, "");
 }
 
-static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj, ident_t unit,
-                                              ptrdiff_t offset)
+static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj,
+                                              cgen_func_t *func,
+                                              ident_t unit, ptrdiff_t offset)
 {
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, unit);
+   LLVMValueRef unit_str;
+   if (func->mode == CGEN_AOT) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, unit);
 
-   object_fixup_locus(unit, &offset);
+      object_fixup_locus(unit, &offset);
+
+      unit_str = llvm_const_string(obj, tb_get(tb));
+   }
+   else
+      unit_str = llvm_ptr(obj, (void *)istr(unit));
 
    LLVMValueRef args[] = {
-      llvm_const_string(obj, tb_get(tb)),
+      unit_str,
       llvm_intptr(obj, offset),
    };
    return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
@@ -1206,10 +1216,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       else
          return llvm_ptr(obj, value.foreign);
    case JIT_VALUE_LOCUS:
-      if (cgb->func->mode == CGEN_AOT)
-         return cgen_rematerialise_object(obj, value.ident, value.disp);
-      else
-         return llvm_ptr(obj, jit_get_locus(value));
+      return cgen_rematerialise_object(obj, cgb->func, value.ident, value.disp);
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
    }
