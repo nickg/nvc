@@ -241,6 +241,7 @@ typedef enum {
 } vcode_dump_reason_t;
 
 typedef int (*vcode_dump_fn_t)(vcode_dump_reason_t, int, void *);
+typedef void (*vcode_dep_fn_t)(ident_t, void *);
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
@@ -287,6 +288,7 @@ bool vtype_repr_signed(vtype_repr_t repr);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
 vcode_unit_t vcode_unit_child(vcode_unit_t unit);
 void vcode_unit_unref(vcode_unit_t unit);
+void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx);
 
 void vcode_opt(void);
 void vcode_close(void);

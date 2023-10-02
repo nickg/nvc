@@ -2177,14 +2177,16 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
    for (generic_list_t *it = generic_override; it != NULL; it = it->next)
       warnf("generic value for %s not used", istr(it->name));
 
+   ident_t b0_name = tree_ident(tree_stmt(e, 0));
+   ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');
+   unit_registry_flush(ur, vu_name);
+
    freeze_global_arena();
 
    lib_t work = lib_work();
    lib_put(work, e);
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
-   ident_t b0_name = tree_ident(tree_stmt(e, 0));
-   ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
    lib_put_vcode(work, e, vu);
 #endif
@@ -2228,14 +2230,16 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
    for (generic_list_t *it = generic_override; it != NULL; it = it->next)
       warnf("generic value for %s not used", istr(it->name));
 
+   ident_t b0_name = tree_ident(tree_stmt(e, 0));
+   ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');
+   unit_registry_flush(ur, vu_name);
+
    freeze_global_arena();
 
    lib_t work = lib_work();
    lib_put(work, e);
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
-   ident_t b0_name = tree_ident(tree_stmt(e, 0));
-   ident_t vu_name = ident_prefix(lib_name(work), b0_name, '.');
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
    lib_put_vcode(work, e, vu);
 #endif

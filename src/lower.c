@@ -12380,6 +12380,40 @@ void unit_registry_purge(unit_registry_t *ur, ident_t prefix)
    }
 }
 
+static void flush_dependency_cb(ident_t name, void *ctx)
+{
+   unit_registry_t *ur = ctx;
+
+   void *ptr = hash_get(ur->map, name);
+   if (pointer_tag(ptr) != UNIT_DEFERRED)
+      return;
+
+   deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+
+   if (du->offset >= 0)
+      return;   // Does not reference objects which can be moved by GC
+
+   (void)unit_registry_get(ur, name);
+}
+
+void unit_registry_flush(unit_registry_t *ur, ident_t name)
+{
+   vcode_unit_t vu = unit_registry_get(ur, name);
+   assert(vu != NULL);
+
+   // Make sure all transitive dependencies of this unit which contain
+   // references to non-frozen objects are generated
+   vcode_walk_dependencies(vu, flush_dependency_cb, ur);
+
+   for (vcode_unit_t it = vcode_unit_child(vu);
+        it != NULL;
+        it = vcode_unit_next(it)) {
+      vcode_select_unit(it);
+      assert(vcode_unit_kind() != VCODE_UNIT_THUNK);
+      unit_registry_flush(ur, vcode_unit_name());
+   }
+}
+
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
 {
    assert(pointer_tag(hash_get(ur->map, lu->name)) == UNIT_GENERATED);

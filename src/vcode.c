@@ -6213,6 +6213,38 @@ vcode_unit_t vcode_read(fbuf_t *f, ident_rd_ctx_t ident_ctx,
    return root;
 }
 
+void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
+{
+   vcode_select_unit(vu);
+
+   const int nblocks = vcode_count_blocks();
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int nops = vcode_count_ops();
+      for (int op = 0; op < nops; op++) {
+         switch (vcode_get_op(op)) {
+         case VCODE_OP_LINK_PACKAGE:
+            (*fn)(vcode_get_ident(op), ctx);
+            break;
+         case VCODE_OP_FCALL:
+         case VCODE_OP_PCALL:
+         case VCODE_OP_CLOSURE:
+         case VCODE_OP_PROTECTED_INIT:
+         case VCODE_OP_PACKAGE_INIT:
+            {
+               const vcode_cc_t cc = vcode_get_subkind(op);
+               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
+                  (*fn)(vcode_get_func(op), ctx);
+            }
+            break;
+         default:
+            break;
+         }
+      }
+   }
+}
+
 #if VCODE_CHECK_UNIONS
 #define OP_USE_COUNT_U0(x)                                              \
    (OP_HAS_IDENT(x) + OP_HAS_FUNC(x) + OP_HAS_ADDRESS(x))

@@ -284,6 +284,8 @@ tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context)
    if (!jit_call_thunk(jit, thunk, &result, context))
       error_at(tree_loc(tree_value(stmt)), "generate expression is not static");
 
+   vcode_unit_unref(thunk);
+
    if (result.integer == -1)
       return NULL;
    else

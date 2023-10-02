@@ -58,9 +58,9 @@ typedef struct {
 } cgen_job_t;
 
 typedef struct {
-   unit_list_t      units;
+   unit_list_t     *units;
    unit_registry_t *registry;
-} preload_job_t;
+} discover_args_t;
 
 static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
@@ -111,12 +111,6 @@ static bool cgen_is_preload(ident_t name)
 static void cgen_add_dependency(ident_t name, unit_registry_t *ur,
                                 unit_list_t *list)
 {
-   if (cgen_is_preload(name))
-      return;
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
    vcode_unit_t vu = unit_registry_get(ur, name);
    if (vu == NULL)
       fatal("missing vcode unit %s", istr(name));
@@ -129,53 +123,16 @@ static void cgen_add_dependency(ident_t name, unit_registry_t *ur,
 
    if (pos == list->count)
       APUSH(*list, vu);
-
-   vcode_state_restore(&state);
 }
 
-static void cgen_load_package(ident_t name)
+static void cgen_dep_cb(ident_t name, void *ctx)
 {
-   // Make sure vcode is loaded for package dependencies
-   tree_t unit = lib_get_qualified(name);
-   if (unit != NULL)
-      (void)body_of(unit);
-}
+   discover_args_t *args = ctx;
 
-static void cgen_find_dependencies(vcode_unit_t unit, unit_registry_t *ur,
-                                   unit_list_t *list)
-{
-   vcode_select_unit(unit);
+   if (cgen_is_preload(name))
+      return;
 
-   const int nblocks = vcode_count_blocks();
-   for (int i = 0; i < nblocks; i++) {
-      vcode_select_block(i);
-
-      const int nops = vcode_count_ops();
-      for (int op = 0; op < nops; op++) {
-         switch (vcode_get_op(op)) {
-         case VCODE_OP_LINK_PACKAGE:
-            {
-               ident_t name = vcode_get_ident(op);
-               cgen_load_package(name);
-               cgen_add_dependency(name, ur, list);
-            }
-            break;
-         case VCODE_OP_FCALL:
-         case VCODE_OP_PCALL:
-         case VCODE_OP_CLOSURE:
-         case VCODE_OP_PROTECTED_INIT:
-         case VCODE_OP_PACKAGE_INIT:
-            {
-               const vcode_cc_t cc = vcode_get_subkind(op);
-               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
-                  cgen_add_dependency(vcode_get_func(op), ur, list);
-            }
-            break;
-         default:
-            break;
-         }
-      }
-   }
+   cgen_add_dependency(name, args->registry, args->units);
 }
 
 static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
@@ -183,8 +140,13 @@ static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
 {
    cgen_find_children(root, units);
 
+   discover_args_t args = {
+      .units = units,
+      .registry = ur
+   };
+
    for (unsigned i = 0; i < units->count; i++)
-      cgen_find_dependencies(units->items[i], ur, units);
+      vcode_walk_dependencies(units->items[i], cgen_dep_cb, &args);
 }
 
 static void cleanup_temp_dll(void)
@@ -405,25 +367,9 @@ void cgen(tree_t top, unit_registry_t *ur)
    workq_free(wq);
 }
 
-static void preload_add_unit(preload_job_t *job, ident_t ident)
-{
-   vcode_unit_t vu = unit_registry_get(job->registry, ident);
-   if (vu == NULL)
-      fatal("missing code for %s", istr(ident));
-
-   unsigned pos = 0;
-   for (; pos < job->units.count; pos++) {
-      if (job->units.items[pos] == vu)
-         break;
-   }
-
-   if (pos == job->units.count)
-      APUSH(job->units, vu);
-}
-
 static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 {
-   preload_job_t *job = ctx;
+   discover_args_t *args = ctx;
 
    if (kind != T_PACKAGE && kind != T_PACK_INST)
       return;
@@ -435,7 +381,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    if (is_uninstantiated_package(unit))
       return;
 
-   preload_add_unit(job, ident);
+   cgen_add_dependency(ident, args->registry, args->units);
 
    ident_t helper_suffix[] = {
       ident_new("image"),
@@ -458,7 +404,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
          {
             const subprogram_kind_t kind = tree_subkind(d);
             if (kind != S_FOREIGN && !is_open_coded_builtin(kind))
-               preload_add_unit(job, tree_ident2(d));
+               cgen_add_dependency(tree_ident2(d), args->registry, args->units);
          }
          break;
       case T_PROT_DECL:
@@ -466,13 +412,14 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
             type_t type = tree_type(d);
             ident_t id = type_ident(type);
 
-            preload_add_unit(job, id);
+            cgen_add_dependency(id, args->registry, args->units);
 
             const int nmeth = tree_decls(d);
             for (int i = 0; i < nmeth; i++) {
                tree_t m = tree_decl(d, i);
                if (is_subprogram(m))
-                  preload_add_unit(job, tree_ident2(m));
+                  cgen_add_dependency(tree_ident2(m), args->registry,
+                                      args->units);
             }
          }
          break;
@@ -483,8 +430,8 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 
             for (int i = 0; i < ARRAY_LEN(helper_suffix); i++) {
                ident_t func = ident_prefix(id, helper_suffix[i], '$');
-               if (unit_registry_query(job->registry, func))
-                  preload_add_unit(job, func);
+               if (unit_registry_query(args->registry, func))
+                  cgen_add_dependency(func, args->registry, args->units);
             }
          }
          break;
@@ -494,36 +441,10 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    }
 }
 
-static void preload_find_dependencies(preload_job_t *job, vcode_unit_t unit)
+static void preload_dep_cb(ident_t name, void *ctx)
 {
-   vcode_select_unit(unit);
-
-   const int nblocks = vcode_count_blocks();
-   for (int i = 0; i < nblocks; i++) {
-      vcode_select_block(i);
-
-      const int nops = vcode_count_ops();
-      for (int op = 0; op < nops; op++) {
-         switch (vcode_get_op(op)) {
-         case VCODE_OP_LINK_PACKAGE:
-            preload_add_unit(job, vcode_get_ident(op));
-            break;
-         case VCODE_OP_FCALL:
-         case VCODE_OP_PCALL:
-         case VCODE_OP_CLOSURE:
-         case VCODE_OP_PROTECTED_INIT:
-         case VCODE_OP_PACKAGE_INIT:
-            {
-               const vcode_cc_t cc = vcode_get_subkind(op);
-               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_VARIADIC)
-                  preload_add_unit(job, vcode_get_func(op));
-            }
-            break;
-         default:
-            break;
-         }
-      }
-   }
+   discover_args_t *args = ctx;
+   cgen_add_dependency(name, args->registry, args->units);
 }
 
 static void preload_do_link(const char *so_name, const char *obj_file)
@@ -567,9 +488,12 @@ static void preload_do_link(const char *so_name, const char *obj_file)
 
 void aotgen(const char *outfile, char **argv, int argc)
 {
-   preload_job_t job = {
-      .registry = unit_registry_new(),
-      .units    = AINIT
+   unit_list_t units = AINIT;
+   unit_registry_t *ur = unit_registry_new();
+
+   discover_args_t args = {
+      .registry = ur,
+      .units    = &units,
    };
 
    for (int i = 0; i < argc; i++) {
@@ -577,24 +501,24 @@ void aotgen(const char *outfile, char **argv, int argc)
          *p = toupper((int)*p);
 
       lib_t lib = lib_require(ident_new(argv[i]));
-      lib_walk_index(lib, preload_walk_index, &job);
+      lib_walk_index(lib, preload_walk_index, &args);
    }
 
-   for (unsigned i = 0; i < job.units.count; i++)
-      preload_find_dependencies(&job, job.units.items[i]);
+   for (unsigned i = 0; i < units.count; i++)
+      vcode_walk_dependencies(units.items[i], preload_dep_cb, &args);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
 
-   jit_t *jit = jit_new(job.registry);
+   jit_t *jit = jit_new(ur);
 
    progress("initialising");
 
    llvm_obj_t *obj = llvm_obj_new("preload");
    llvm_add_abi_version(obj);
 
-   for (int i = 0; i < job.units.count; i++) {
-      vcode_unit_t vu = job.units.items[i];
+   for (int i = 0; i < units.count; i++) {
+      vcode_unit_t vu = units.items[i];
       vcode_select_unit(vu);
 
       jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
@@ -603,7 +527,7 @@ void aotgen(const char *outfile, char **argv, int argc)
       llvm_aot_compile(obj, jit, handle);
    }
 
-   progress("code generation for %d units", job.units.count);
+   progress("code generation for %d units", units.count);
 
    llvm_opt_level_t olevel = opt_get_int(OPT_OPTIMISE);
    llvm_obj_finalise(obj, olevel);
@@ -622,7 +546,7 @@ void aotgen(const char *outfile, char **argv, int argc)
 
    LLVMShutdown();
 
-   ACLEAR(job.units);
+   ACLEAR(units);
    jit_free(jit);
-   unit_registry_free(job.registry);
+   unit_registry_free(ur);
 }

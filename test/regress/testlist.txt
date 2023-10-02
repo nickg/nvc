@@ -877,3 +877,4 @@ attr18          normal,2019
 issue762        normal,vhpi
 vlog3           verilog,gold
 vlog4           verilog,gold
+issue766        normal,2002
