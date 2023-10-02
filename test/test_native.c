@@ -1037,6 +1037,46 @@ START_TEST(test_memset)
 }
 END_TEST
 
+START_TEST(test_move)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV      R0, #0          \n"
+      "    RECV      R1, #1          \n"
+      "    RECV      R2, #2          \n"
+      "    $MOVE     R2, [R0], [R1]  \n"
+      "    RET                       \n";
+
+   char mem[16];
+   strncpy(mem, "hello", sizeof(mem));
+
+   jit_handle_t h1 = assemble(j, text1, "move1", "ppI");
+   jit_call(j, h1, mem, mem + 2, sizeof("hello"));
+   ck_assert_str_eq(mem, "llo");
+
+   strncpy(mem, "hello", sizeof(mem));
+
+   jit_call(j, h1, mem, mem + 2, sizeof("hello"));
+   ck_assert_str_eq(mem, "llo");
+
+   strncpy(mem, "hello", sizeof(mem));
+
+   jit_call(j, h1, mem + 2, mem, sizeof("world"));
+   ck_assert_str_eq(mem, "hehello");
+
+   memset(mem, 'x', sizeof(mem));
+
+   jit_call(j, h1, mem, "world", sizeof("world"));
+   ck_assert_str_eq(mem, "world");
+
+   jit_call(j, h1, mem, "123456789", sizeof("123456789"));
+   ck_assert_str_eq(mem, "123456789");
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -1063,6 +1103,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_float);
    tcase_add_test(tc, test_ccmp);
    tcase_add_test(tc, test_memset);
+   tcase_add_test(tc, test_move);
    suite_add_tcase(s, tc);
 
    return s;

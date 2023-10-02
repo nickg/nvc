@@ -67,6 +67,7 @@ typedef enum {
    X86_ADDR,
    X86_PATCH,
    X86_XMM,
+   X86_ADDR2,
 } x86_kind_t;
 
 typedef int8_t x86_reg_t;
@@ -80,14 +81,23 @@ typedef struct {
          x86_reg_t reg;
          int32_t   off;
       } addr;
+      struct {
+         x86_reg_t reg1;
+         x86_reg_t reg2;
+         int32_t   off;
+      } addr2;
    };
 } x86_operand_t;
+
+STATIC_ASSERT(sizeof(x86_operand_t) == 16);
 
 #define REG(x) ((x86_operand_t){ X86_REG, { .reg = (x) }})
 #define XMM(x) ((x86_operand_t){ X86_XMM, { .reg = (x) }})
 #define IMM(x) ((x86_operand_t){ X86_IMM, { .imm = (x) }})
 #define PTR(x) ((x86_operand_t){ X86_IMM, { .imm = (uintptr_t)(x) }})
 #define ADDR(r, o) ((x86_operand_t){ X86_ADDR, { .addr = { (r).reg, (o) }}})
+#define ADDR2(r1, r2, o) \
+   ((x86_operand_t){ X86_ADDR2, { .addr2 = { (r1).reg, (r2).reg, (o) }}})
 #define PATCH(n) ((x86_operand_t){ X86_PATCH, { .imm = (n) }})
 
 #define COMBINE(a, b) (((a).kind << 4) | (b).kind)
@@ -100,6 +110,7 @@ typedef struct {
 #define REG_XMM ((X86_REG << 4) | X86_XMM)
 #define XMM_REG ((X86_XMM << 4) | X86_REG)
 #define XMM_XMM ((X86_XMM << 4) | X86_XMM)
+#define REG_MEM2 ((X86_REG << 4) | X86_ADDR2)
 
 static const x86_operand_t __EAX = REG(0);
 static const x86_operand_t __ECX = REG(1);
@@ -153,6 +164,7 @@ typedef enum {
    X86_CMP_C  = 0x02,
    X86_CMP_EQ = 0x04,
    X86_CMP_NE = 0x05,
+   X86_CMP_BE = 0x06,
    X86_CMP_LE = 0x0e,
    X86_CMP_LT = 0x0c,
    X86_CMP_GE = 0x0d,
@@ -214,6 +226,8 @@ typedef enum {
 #define JZ(addr) asm_jcc(blob, (addr), X86_CMP_EQ)
 #define JNZ(addr) asm_jcc(blob, (addr), X86_CMP_NE)
 #define JLT(addr) asm_jcc(blob, (addr), X86_CMP_LT)
+#define JB(addr) asm_jcc(blob, (addr), X86_CMP_C)
+#define JBE(addr) asm_jcc(blob, (addr), X86_CMP_BE)
 #define MULSD(dst, src) asm_mulsd(blob, (dst), (src))
 #define DIVSD(dst, src) asm_divsd(blob, (dst), (src))
 #define ADDSD(dst, src) asm_addsd(blob, (dst), (src))
@@ -227,6 +241,7 @@ typedef enum {
 #define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
 #define __REX(size, xr, xsib, xrm) \
    __(0x40 | ((size) << 3) | ((xr) << 2) | ((xsib) << 1) | (xrm))
+#define __SIB(s, i, b) ((((s) & 3) << 6) | (((i) & 7) << 3) | ((b) & 7))
 
 #define __IMM64(x) __IMM32(x), __IMM32((x) >> 32)
 #define __IMM32(x) __IMM16(x), __IMM16((x) >> 16)
@@ -269,12 +284,29 @@ static void asm_neg(code_blob_t *blob, x86_operand_t dst, x86_size_t size)
 
 static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
-   assert(COMBINE(dst, src) == REG_MEM);
-   asm_rex(blob, __QWORD, dst.reg, src.addr.reg, 0);
-   if (is_imm8(src.addr.off))
-      __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-   else
-      __(0x8d, __MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+   switch (COMBINE(dst, src)) {
+   case REG_MEM:
+      asm_rex(blob, __QWORD, dst.reg, src.addr.reg, 0);
+      if (is_imm8(src.addr.off))
+         __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
+      else
+         __(0x8d, __MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      break;
+
+   case REG_MEM2:
+      asm_rex(blob, __QWORD, dst.reg, src.addr2.reg1, src.addr2.reg2);
+      if (src.addr2.off == 0)
+         __(0x8d, __MODRM(0, dst.reg, 4),
+            __SIB(0, src.addr2.reg2, src.addr2.reg1));
+      else
+         __(0x8d, __MODRM(1, dst.reg, 4),
+            __SIB(0, src.addr2.reg2, src.addr2.reg1),
+            src.addr2.off);
+      break;
+
+   default:
+      fatal_trace("unhandled operand combination in asm_lea");
+   }
 }
 
 static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
@@ -1434,9 +1466,21 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
    jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
    jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
 
-   // TODO: check for overlap
    MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+
+   CMP(__EDI, __ESI, __QWORD);
+   JB(IMM(19));                   // Source before destination
+   LEA(__EAX, ADDR2(__EDI, __ECX, -1));
+   CMP(__EAX, __ESI, __QWORD);
+   JBE(IMM(9));                   // Destination end before source
+
+   // Overlap
+   MOV(__EDI, __EAX, __QWORD);
+   LEA(__ESI, ADDR2(__ESI, __ECX, -1));
+   __(0xfd);   // STD
+
    __(0xf3, 0x48, 0xa4);   // REP MOVS
+   __(0xfc);   // CLD
 
    POP(__ESI);
 }
