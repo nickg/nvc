@@ -226,6 +226,20 @@ static tree_t simp_concat(tree_t t)
    return new;
 }
 
+static bool simp_literal_args(tree_t t, int64_t *p0, int64_t *p1)
+{
+   switch (tree_params(t)) {
+   case 2:
+      if (!folded_int(tree_value(tree_param(t, 1)), p1))
+         return false;
+      // Fall-through
+   case 1:
+      return folded_int(tree_value(tree_param(t, 0)), p0);
+   default:
+      return false;
+   }
+}
+
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
    if (standard() >= STD_08 && ctx->generics != NULL)
@@ -233,9 +247,108 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 
    t = simp_call_args(t);
 
-   if (tree_subkind(tree_ref(t)) == S_CONCAT)
-      t = simp_concat(t);
-   else if (tree_flags(t) & ctx->eval_mask)
+   const subprogram_kind_t kind = tree_subkind(tree_ref(t));
+   const tree_flags_t flags = tree_flags(t);
+
+   if (kind == S_CONCAT)
+      return simp_concat(t);
+   else if (kind != S_USER && kind != S_FOREIGN) {
+      // Simplify basic operations on literals without the overhead of
+      // generating code
+      int64_t p0, p1, result;
+      if (simp_literal_args(t, &p0, &p1)) {
+         switch (kind) {
+         case S_NEGATE:
+            if (p0 == INT64_MIN)
+               break;
+            else
+               return get_int_lit(t, NULL, -p0);
+
+         case S_IDENTITY:
+            return get_int_lit(t, NULL, p0);
+
+         case S_SCALAR_NOT:
+            return get_enum_lit(t, NULL, !p0);
+
+         case S_SCALAR_EQ:
+            return get_enum_lit(t, NULL, p0 == p1);
+
+         case S_SCALAR_NEQ:
+            return get_enum_lit(t, NULL, p0 != p1);
+
+         case S_SCALAR_GT:
+            return get_enum_lit(t, NULL, p0 > p1);
+
+         case S_SCALAR_LT:
+            return get_enum_lit(t, NULL, p0 < p1);
+
+         case S_SCALAR_GE:
+            return get_enum_lit(t, NULL, p0 >= p1);
+
+         case S_SCALAR_LE:
+            return get_enum_lit(t, NULL, p0 <= p1);
+
+         case S_SCALAR_XOR:
+            return get_enum_lit(t, NULL, p0 ^ p1);
+
+         case S_SCALAR_XNOR:
+            return get_enum_lit(t, NULL, !(p0 ^ p1));
+
+         case S_SCALAR_AND:
+            return get_enum_lit(t, NULL, p0 & p1);
+
+         case S_SCALAR_NAND:
+            return get_enum_lit(t, NULL, !(p0 & p1));
+
+         case S_SCALAR_OR:
+            return get_enum_lit(t, NULL, p0 | p1);
+
+         case S_SCALAR_NOR:
+            return get_enum_lit(t, NULL, !(p0 | p1));
+
+         case S_ADD:
+            if (__builtin_add_overflow(p0, p1, &result))
+               break;
+            else
+               return get_int_lit(t, NULL, result);
+
+         case S_SUB:
+            if (__builtin_sub_overflow(p0, p1, &result))
+               break;
+            else
+               return get_int_lit(t, NULL, result);
+
+         case S_MUL:
+            if (__builtin_mul_overflow(p0, p1, &result))
+               break;
+            else
+               return get_int_lit(t, NULL, result);
+
+         case S_DIV:
+            if ((p0 == INT64_MIN && p1 == -1) || p1 == 0)
+               break;
+            else
+               return get_int_lit(t, NULL, p0 / p1);
+
+         case S_EXP:
+            if (p1 >= 0 && ipow_safe(p0, p1, &result))
+               return get_int_lit(t, NULL, result);
+            else
+               break;
+
+         case S_ABS:
+            if (p0 == INT64_MIN)
+               break;
+            else
+               return get_int_lit(t, NULL, llabs(p0));
+
+         default:
+            break;
+         }
+      }
+   }
+
+   if (flags & ctx->eval_mask)
       return simp_fold(t, ctx);
 
    return t;

@@ -121,9 +121,6 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 20), 0)), 5));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 23), 0)), 16));
 
-   // Expressions involving TIME are not locally static
-   fail_if(tree_kind(tree_value(tree_stmt(p, 24))) == T_LITERAL);
-
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 4);
 
