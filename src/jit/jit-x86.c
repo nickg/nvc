@@ -298,10 +298,12 @@ static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
       if (src.addr2.off == 0)
          __(0x8d, __MODRM(0, dst.reg, 4),
             __SIB(0, src.addr2.reg2, src.addr2.reg1));
-      else
+      else if (is_imm8(src.addr2.off))
          __(0x8d, __MODRM(1, dst.reg, 4),
             __SIB(0, src.addr2.reg2, src.addr2.reg1),
             src.addr2.off);
+      else
+         fatal_trace("immediate too big for LEA instruction");
       break;
 
    default:
@@ -1967,7 +1969,7 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    JLT(IMM(13));
 
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EDI, __DWORD);
-   MOV(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __QWORD);
+   MOV(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, base)), __QWORD);
    ADD(__EAX, __ECX, __QWORD);
    JMP(IMM(26));
 
