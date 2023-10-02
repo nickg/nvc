@@ -208,6 +208,7 @@ typedef struct _cgen_func {
    jit_func_t      *source;
    jit_cfg_t       *cfg;
    char            *name;
+   ident_t          module;
    loc_t            last_loc;
    bit_mask_t       ptr_mask;
    cgen_mode_t      mode;
@@ -1105,23 +1106,32 @@ static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj,
                                               cgen_func_t *func,
                                               ident_t unit, ptrdiff_t offset)
 {
-   LLVMValueRef unit_str;
-   if (func->mode == CGEN_AOT) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, unit);
+   if (unit != func->module || offset < 0 || func->mode == CGEN_AOT) {
+      // Locus refers to another module that may not be loaded or the
+      // pointer is not stable
+      LLVMValueRef unit_str;
+      if (func->mode == CGEN_AOT) {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_istr(tb, unit);
 
-      object_fixup_locus(unit, &offset);
+         object_fixup_locus(unit, &offset);
 
-      unit_str = llvm_const_string(obj, tb_get(tb));
+         unit_str = llvm_const_string(obj, tb_get(tb));
+      }
+      else
+         unit_str = llvm_ptr(obj, (void *)istr(unit));
+
+      LLVMValueRef args[] = {
+         unit_str,
+         llvm_intptr(obj, offset),
+      };
+      return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
    }
-   else
-      unit_str = llvm_ptr(obj, (void *)istr(unit));
-
-   LLVMValueRef args[] = {
-      unit_str,
-      llvm_intptr(obj, offset),
-   };
-   return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
+   else {
+      // Locus refers to the module containing the unit being compiled
+      // which is guaranteed to be loaded
+      return llvm_ptr(obj, object_from_locus(unit, offset, NULL));
+   }
 }
 
 static LLVMValueRef cgen_rematerialise_handle(llvm_obj_t *obj,
@@ -2816,6 +2826,9 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    cgen_debug_loc(obj, func, &(func->source->object->loc));
 #endif  // ENABLE_DWARF
+
+   ptrdiff_t offset;
+   object_locus(func->source->object, &func->module, &offset);
 
    if (func->mode == CGEN_AOT) {
       cgen_aot_cpool(obj, func);
