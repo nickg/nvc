@@ -950,6 +950,9 @@ static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
    vcode_reg_t right_reg = lower_range_right(lu, r);
    vcode_reg_t dir_reg   = lower_range_dir(lu, r);
 
+   if (vcode_can_elide_bounds(value, left_reg, right_reg, dir_reg))
+      return;   // Avoid generating debug locus
+
    vcode_reg_t locus = lower_debug_locus(where);
 
    vcode_reg_t hint_locus = locus;

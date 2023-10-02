@@ -5545,17 +5545,9 @@ void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus)
                 "locus argument to zero check must be a debug locus");
 }
 
-static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
-                              vcode_reg_t left, vcode_reg_t right,
-                              vcode_reg_t dir, vcode_reg_t locus,
-                              vcode_reg_t hint)
+bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
+                            vcode_reg_t right, vcode_reg_t dir)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, kind) {
-      if (other->args.items[0] == reg && other->args.items[1] == left
-          && other->args.items[2] == right && other->args.items[3] == dir)
-         return;
-   }
-
    int64_t dconst;
    if (vcode_reg_const(dir, &dconst)) {
       int64_t lconst, rconst;
@@ -5572,10 +5564,7 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
                 && bounds->low >= rconst && bounds->high <= lconst)
             || (!is_null && (reg == left || reg == right));
 
-         if (ok_static) {
-            emit_comment("Elided bounds check for r%d", reg);
-            return;
-         }
+         return ok_static;
       }
       else if (vcode_reg_kind(reg) == VCODE_TYPE_REAL) {
          vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
@@ -5590,10 +5579,28 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
          if (isfinite(bounds->rlow) && lbounds->rlow == -DBL_MAX
              && isfinite(bounds->rhigh) && rbounds->rhigh == DBL_MAX) {
             // Covers the complete double range so can never overflow
-            emit_comment("Elided real bounds check for r%d", reg);
-            return;
+            return true;
          }
       }
+   }
+
+   return false;
+}
+
+static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
+                              vcode_reg_t left, vcode_reg_t right,
+                              vcode_reg_t dir, vcode_reg_t locus,
+                              vcode_reg_t hint)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, kind) {
+      if (other->args.items[0] == reg && other->args.items[1] == left
+          && other->args.items[2] == right && other->args.items[3] == dir)
+         return;
+   }
+
+   if (vcode_can_elide_bounds(reg, left, right, dir)) {
+      emit_comment("Elided bounds check for r%d", reg);
+      return;
    }
 
    op_t *op = vcode_add_op(kind);
