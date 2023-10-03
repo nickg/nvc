@@ -590,7 +590,10 @@ void _std_env_get_call_path(ffi_uarray_t **ptr)
       jit_frame_t *frame = &(stack->frames[i]);
       call_path_element_t *cpe = &(array[i - 1]);
 
-      cpe->name = to_line(istr(tree_ident(frame->decl)));
+      tree_t decl = tree_from_object(frame->object);
+      assert(decl != NULL);
+
+      cpe->name = to_line(istr(tree_ident(decl)));
       cpe->file_line = frame->loc.first_line;
 
       const char *file = loc_file_str(&frame->loc);

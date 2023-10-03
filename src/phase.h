@@ -49,7 +49,7 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
 void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for a design unit
-void cgen(tree_t top, unit_registry_t *ur);
+void cgen(tree_t top, unit_registry_t *ur, jit_t *jit);
 
 // Generate ahead-of-time preload library
 void aotgen(const char *outfile, char **argv, int argc);

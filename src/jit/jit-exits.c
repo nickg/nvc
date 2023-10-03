@@ -336,7 +336,7 @@ void x_unreachable(tree_t where)
 void x_func_wait(void)
 {
    jit_stack_trace_t *trace = jit_stack_trace();
-   tree_t inner = trace->frames[0].decl;
+   tree_t inner = tree_from_object(trace->frames[0].object);
    free(trace);
 
    if (tree_kind(inner) == T_PROC_BODY) {

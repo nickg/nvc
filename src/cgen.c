@@ -321,7 +321,7 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
    }
 }
 
-void cgen(tree_t top, unit_registry_t *ur)
+void cgen(tree_t top, unit_registry_t *ur, jit_t *jit)
 {
    assert(tree_kind(top) == T_ELAB);
 
@@ -341,7 +341,6 @@ void cgen(tree_t top, unit_registry_t *ur)
    if (!LLVMIsMultithreaded())
       fatal("LLVM was built without multithreaded support");
 
-   jit_t *jit = jit_new(ur);
    workq_t *wq = workq_new(jit);
 
    ident_t name = tree_ident(top);
@@ -363,7 +362,6 @@ void cgen(tree_t top, unit_registry_t *ur)
    LLVMShutdown();
 
    ACLEAR(units);
-   jit_free(jit);
    workq_free(wq);
 }
 

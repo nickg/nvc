@@ -478,7 +478,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    }
 
    if (!use_jit) {
-      AOT_ONLY(cgen(top, state->registry));
+      AOT_ONLY(cgen(top, state->registry, state->jit));
 
       // Must discard current JIT state to load AOT library later
       jit_free(state->jit);

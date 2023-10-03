@@ -302,7 +302,8 @@ typedef struct _jit_func {
    jit_tier_t     *next_tier;
    jit_cfg_t      *cfg;
    ffi_spec_t      spec;
-   object_t       *object;
+   ident_t         module;
+   ptrdiff_t       offset;
 } jit_func_t;
 
 // The code generator knows the layout of this struct

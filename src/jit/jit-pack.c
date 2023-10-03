@@ -219,12 +219,10 @@ static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
       pack_uint(pw, f->linktab[i].offset);
    }
 
-   ident_t unit;
-   ptrdiff_t offset;
-   object_locus(f->object, &unit, &offset);
+   object_fixup_locus(f->module, &f->offset);
 
-   pack_str(pw, istr(unit));
-   pack_uint(pw, offset);
+   pack_str(pw, istr(f->module));
+   pack_uint(pw, f->offset);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -552,10 +550,8 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       }
    }
 
-   ident_t unit = ident_new(unpack_str(pf));
-   ptrdiff_t offset = unpack_uint(pf);
-
-   f->object = object_from_locus(unit, offset, lib_load_handler);
+   f->module = ident_new(unpack_str(pf));
+   f->offset = unpack_uint(pf);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);

@@ -310,7 +310,7 @@ vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
-object_t *vcode_unit_object(vcode_unit_t vu);
+void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset);
 void vcode_set_result(vcode_type_t type);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,

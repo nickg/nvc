@@ -38,9 +38,9 @@ typedef struct {
 } jit_plugin_t;
 
 typedef struct {
-   loc_t   loc;
-   tree_t  decl;
-   ident_t symbol;
+   loc_t     loc;
+   object_t *object;
+   ident_t   symbol;
 } jit_frame_t;
 
 typedef struct {

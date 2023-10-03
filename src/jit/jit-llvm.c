@@ -208,7 +208,6 @@ typedef struct _cgen_func {
    jit_func_t      *source;
    jit_cfg_t       *cfg;
    char            *name;
-   ident_t          module;
    loc_t            last_loc;
    bit_mask_t       ptr_mask;
    cgen_mode_t      mode;
@@ -1106,7 +1105,7 @@ static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj,
                                               cgen_func_t *func,
                                               ident_t unit, ptrdiff_t offset)
 {
-   if (unit != func->module || offset < 0 || func->mode == CGEN_AOT) {
+   if (unit != func->source->module || offset < 0 || func->mode == CGEN_AOT) {
       // Locus refers to another module that may not be loaded or the
       // pointer is not stable
       LLVMValueRef unit_str;
@@ -2826,9 +2825,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    cgen_debug_loc(obj, func, &(func->source->object->loc));
 #endif  // ENABLE_DWARF
-
-   ptrdiff_t offset;
-   object_locus(func->source->object, &func->module, &offset);
 
    if (func->mode == CGEN_AOT) {
       cgen_aot_cpool(obj, func);

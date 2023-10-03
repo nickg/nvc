@@ -462,7 +462,8 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
    if (!jit_fastcall(j, f->handle, &result, p1, p2, &tlab)) {
-      error_at(&(f->object->loc), "failed to initialise %s", istr(f->name));
+      object_t *obj = object_from_locus(f->module, f->offset, lib_load_handler);
+      error_at(&(obj->loc), "failed to initialise %s", istr(f->name));
       result.pointer = NULL;
    }
    else if (result.pointer == NULL)
@@ -500,43 +501,45 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, ident_t name)
    fatal_trace("%s has no variable %s", istr(f->name), istr(name));
 }
 
-static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
                            const char *symbol)
 {
-   switch (tree_kind(enclosing)) {
-   case T_PROCESS:
-      {
-         rt_proc_t *proc = get_active_proc();
-         const char *name = istr(proc ? proc->name : tree_ident(enclosing));
-         diag_trace(d, loc, "Process$$ %s", name);
+   tree_t tree = tree_from_object(enclosing);
+   if (tree != NULL) {
+      switch (tree_kind(tree)) {
+      case T_PROCESS:
+         {
+            rt_proc_t *proc = get_active_proc();
+            const char *name = istr(proc ? proc->name : tree_ident(tree));
+            diag_trace(d, loc, "Process$$ %s", name);
+         }
+         break;
+      case T_FUNC_BODY:
+      case T_FUNC_DECL:
+         diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(tree)));
+         break;
+      case T_PROC_BODY:
+      case T_PROC_DECL:
+         diag_trace(d, loc, "Procedure$$ %s", type_pp(tree_type(tree)));
+         break;
+      case T_TYPE_DECL:
+         if (strstr(symbol, "$value"))
+            diag_trace(d, loc, "Attribute$$ %s'VALUE", istr(tree_ident(tree)));
+         else
+            diag_trace(d, loc, "Type$$ %s", istr(tree_ident(tree)));
+         break;
+      case T_BLOCK:
+         diag_trace(d, loc, "Process$$ (init)");
+         break;
+      case T_PACKAGE:
+      case T_PACK_BODY:
+      case T_PACK_INST:
+         diag_trace(d, loc, "Package$$ %s", istr(tree_ident(tree)));
+         break;
+      default:
+         diag_trace(d, loc, "$$%s", istr(tree_ident(tree)));
+         break;
       }
-      break;
-   case T_FUNC_BODY:
-   case T_FUNC_DECL:
-      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_PROC_BODY:
-   case T_PROC_DECL:
-      diag_trace(d, loc, "Procedure$$ %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_TYPE_DECL:
-      if (strstr(symbol, "$value"))
-         diag_trace(d, loc, "Attribute$$ %s'VALUE",
-                    istr(tree_ident(enclosing)));
-      else
-         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
-      break;
-   case T_BLOCK:
-      diag_trace(d, loc, "Process$$ (init)");
-      break;
-   case T_PACKAGE:
-   case T_PACK_BODY:
-   case T_PACK_INST:
-      diag_trace(d, loc, "Package$$ %s", istr(tree_ident(enclosing)));
-      break;
-   default:
-      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
-      break;
    }
 }
 
@@ -556,13 +559,14 @@ jit_stack_trace_t *jit_stack_trace(void)
    for (jit_anchor_t *a = thread->anchor; a; a = a->caller, frame++) {
       jit_fill_irbuf(a->func);
 
-      frame->decl = NULL;
-      if (a->func->object != NULL)
-         frame->decl = tree_from_object(a->func->object);
+      frame->object = NULL;
+      if (a->func->module != NULL)
+         frame->object = object_from_locus(a->func->module, a->func->offset,
+                                           lib_load_handler);
 
       // Scan backwards to find the last debug info
       assert(a->irpos < a->func->nirs);
-      frame->loc = frame->decl ? *tree_loc(frame->decl) : LOC_INVALID;
+      frame->loc = frame->object ? frame->object->loc : LOC_INVALID;
       for (jit_ir_t *ir = &(a->func->irbuf[a->irpos]);
            ir >= a->func->irbuf; ir--) {
          if (ir->op == J_DEBUG) {
@@ -595,8 +599,8 @@ static void jit_diag_cb(diag_t *d, void *arg)
    for (int i = 0; i < stack->count; i++) {
       jit_frame_t *frame = &(stack->frames[i]);
 
-      if (frame->decl != NULL)
-         jit_emit_trace(d, &(frame->loc), frame->decl, istr(frame->symbol));
+      if (frame->object != NULL)
+         jit_emit_trace(d, &(frame->loc), frame->object, istr(frame->symbol));
       else
          diag_trace(d, &(frame->loc), "%s", istr(frame->symbol));
    }
@@ -806,7 +810,8 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result,
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
    f->entry  = jit_interp;
-   f->object = vcode_unit_object(unit);
+
+   vcode_unit_object(unit, &f->module, &f->offset);
 
    jit_irgen(f);
 

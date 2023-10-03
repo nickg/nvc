@@ -4163,7 +4163,8 @@ void jit_irgen(jit_func_t *f)
 
    f->nregs   = g->next_reg;
    f->cpoolsz = g->cpoolptr;
-   f->object  = vcode_unit_object(f->unit);
+
+   vcode_unit_object(f->unit, &f->module, &f->offset);
 
    for (irgen_label_t *it = g->labels, *tmp; it; it = tmp) {
       assert(it->label < g->func->nirs);

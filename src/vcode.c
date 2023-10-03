@@ -2978,10 +2978,11 @@ vcode_unit_t vcode_unit_context(void)
    return active_unit->context;
 }
 
-object_t *vcode_unit_object(vcode_unit_t vu)
+void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset)
 {
    assert(vu != NULL);
-   return object_from_locus(vu->module, vu->offset, lib_load_handler);
+   *module = vu->module;
+   *offset = vu->offset;
 }
 
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
