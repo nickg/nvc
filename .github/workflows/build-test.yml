@@ -198,7 +198,6 @@ jobs:
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
           sudo apt-get build-dep .
-          export DEB_BUILD_OPTIONS=nostrip
           dpkg-buildpackage -uc -us -b
           mv ../*.deb .
       - name: 'Upload artifact'
