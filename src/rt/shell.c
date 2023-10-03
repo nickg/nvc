@@ -721,6 +721,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
                          int objc, Tcl_Obj *const objv[])
 {
    tcl_shell_t *sh = cd;
+   char **globs LOCAL = NULL;
 
    if (objc < 3 || strcmp(Tcl_GetString(objv[1]), "wave") != 0)
       goto usage;
@@ -728,7 +729,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
       return TCL_ERROR;
 
    const int nglobs = objc - 2;
-   char **globs LOCAL = xmalloc_array(nglobs, sizeof(char *));
+   globs = xmalloc_array(nglobs, sizeof(char *));
    for (int i = 0; i < nglobs; i++)
       globs[i] = Tcl_GetString(objv[i + 2]);
 
