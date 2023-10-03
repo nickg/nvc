@@ -1021,6 +1021,38 @@ static void ieee_math_log2(jit_func_t *func, jit_anchor_t *anchor,
    args[0].real = log2(args[1].real);
 }
 
+static void std_textio_consume(jit_func_t *func, jit_anchor_t *anchor,
+                               jit_scalar_t *args, tlab_t *tlab)
+{
+   ffi_uarray_t **line = args[2].pointer;
+   const int nchars = args[3].integer;
+
+   assert(*line != NULL);
+
+   const int length = ffi_array_length((*line)->dims[0].length);
+   assert(nchars <= length);
+
+   (*line)->ptr += nchars;
+   (*line)->dims[0].left = 1;
+   (*line)->dims[0].length = length - nchars;
+
+   args[0].pointer = NULL;
+}
+
+static void std_textio_shrink(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   ffi_uarray_t **line = args[2].pointer;
+   const int nchars = args[3].integer;
+
+   assert(*line != NULL);
+
+   (*line)->dims[0].left = 1;
+   (*line)->dims[0].length = nchars;
+
+   args[0].pointer = NULL;
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
@@ -1029,6 +1061,8 @@ static void ieee_math_log2(jit_func_t *func, jit_anchor_t *anchor,
 #define SL "IEEE.STD_LOGIC_1164."
 #define MR "IEEE.MATH_REAL."
 #define ST "STD.STANDARD."
+#define TI "STD.TEXTIO."
+#define LN "15STD.TEXTIO.LINE"
 
 static jit_intrinsic_t intrinsic_list[] = {
    { NS "ADD_UNSIGNED(" U U "L)" U, ieee_add_unsigned },
@@ -1080,6 +1114,8 @@ static jit_intrinsic_t intrinsic_list[] = {
    { MR "SIN(R)R", ieee_math_sin },
    { MR "COS(R)R", ieee_math_cos },
    { MR "LOG2(R)R", ieee_math_log2 },
+   { TI "CONSUME(" LN "N)", std_textio_consume },
+   { TI "SHRINK(" LN "N)", std_textio_shrink },
    { NULL, NULL }
 };
 
