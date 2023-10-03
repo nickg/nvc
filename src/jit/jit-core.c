@@ -1421,4 +1421,6 @@ void jit_reset(jit_t *j)
       if (f->privdata != MPTR_INVALID)
          *mptr_get(f->privdata) = NULL;
    }
+
+   jit_reset_exit_status(j);
 }

@@ -55,6 +55,11 @@
 #define GIT_SHA_ONLY(x)
 #endif
 
+typedef struct {
+   jit_t           *jit;
+   unit_registry_t *registry;
+} cmd_state_t;
+
 const char copy_string[] =
    "Copyright (C) 2011-2023  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
@@ -66,9 +71,8 @@ const char version_string[] =
 
 static ident_t          top_level = NULL;
 static char            *top_level_orig = NULL;
-static unit_registry_t *registry = NULL;
 
-static int process_command(int argc, char **argv);
+static int process_command(int argc, char **argv, cmd_state_t *state);
 static int parse_int(const char *str);
 static jit_t *get_jit(unit_registry_t *ur);
 
@@ -129,7 +133,7 @@ static void parse_pp_define(char *optarg)
    pp_defines_add(optarg, eq + 1);
 }
 
-static void do_file_list(const char *file, jit_t *jit)
+static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
 {
    FILE *f = fopen(file, "r");
    if (f == NULL)
@@ -148,14 +152,14 @@ static void do_file_list(const char *file, jit_t *jit)
       if (strlen(line) == 0)
          continue;
 
-      analyse_file(line, jit, registry);
+      analyse_file(line, jit, ur);
    }
 
    free(line);
    fclose(f);
 }
 
-static int analyse(int argc, char **argv)
+static int analyse(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
@@ -216,20 +220,20 @@ static int analyse(int argc, char **argv)
 
    set_error_limit(error_limit);
 
-   if (registry == NULL)
-      registry = unit_registry_new();
+   if (state->registry == NULL)
+      state->registry = unit_registry_new();
 
    lib_t work = lib_work();
-   jit_t *jit = jit_new(registry);
+   jit_t *jit = jit_new(state->registry);
 
    if (file_list != NULL)
-      do_file_list(file_list, jit);
+      do_file_list(file_list, jit, state->registry);
 
    for (int i = optind; i < next_cmd; i++) {
       if (argv[i][0] == '@')
-         do_file_list(argv[i] + 1, jit);
+         do_file_list(argv[i] + 1, jit, state->registry);
       else
-         analyse_file(argv[i], jit, registry);
+         analyse_file(argv[i], jit, state->registry);
    }
 
    jit_free(jit);
@@ -243,7 +247,7 @@ static int analyse(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static void parse_generic(const char *str)
@@ -339,7 +343,7 @@ static int parse_optimise_level(const char *str)
    return level;
 }
 
-static int elaborate(int argc, char **argv)
+static int elaborate(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "dump-llvm",       no_argument,       0, 'd' },
@@ -429,25 +433,29 @@ static int elaborate(int argc, char **argv)
          cover_load_spec_file(cover, cover_spec_file);
    }
 
-   if (registry != NULL)
-      unit_registry_free(registry);
+   if (state->registry != NULL) {
+      unit_registry_free(state->registry);
+      state->registry = NULL;
+   }
 
-   registry = unit_registry_new();
+   if (state->jit != NULL) {
+      jit_free(state->jit);
+      state->jit = NULL;
+   }
 
-   jit_t *jit = get_jit(registry);
-   jit_enable_runtime(jit, false);
+   state->registry = unit_registry_new();
+   state->jit = get_jit(state->registry);
+
+   jit_enable_runtime(state->jit, false);
 
    tree_t unit, top;
    vlog_node_t module;
    if ((unit = tree_from_object(obj)))
-      top = elab(unit, jit, registry, cover);
+      top = elab(unit, state->jit, state->registry, cover);
    else if ((module = vlog_from_object(obj)))
-      top = elab_verilog(module, jit, registry, cover);
+      top = elab_verilog(module, state->jit, state->registry, cover);
    else
       fatal("%s is not a VHDL design unit or Verilog module", istr(top_level));
-
-   jit_free(jit);  // JIT must be shut down before exiting
-   jit = NULL;
 
    if (top == NULL)
       return EXIT_FAILURE;
@@ -469,13 +477,18 @@ static int elaborate(int argc, char **argv)
       progress("saving library");
    }
 
-   if (!use_jit)
-      AOT_ONLY(cgen(top, registry));
+   if (!use_jit) {
+      AOT_ONLY(cgen(top, state->registry));
+
+      // Must discard current JIT state to load AOT library later
+      jit_free(state->jit);
+      state->jit = NULL;
+   }
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static uint64_t parse_time(const char *str)
@@ -590,7 +603,7 @@ static int plusarg_cmp(const void *lptr, const void *rptr)
       return lptr - rptr;
 }
 
-static int run(int argc, char **argv)
+static int run_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "trace",         no_argument,       0, 't' },
@@ -751,17 +764,22 @@ static int run(int argc, char **argv)
    if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
-   if (registry == NULL)
-      registry = unit_registry_new();
+   if (state->registry == NULL)
+      state->registry = unit_registry_new();
 
-   jit_t *jit = get_jit(registry);
-   AOT_ONLY(jit_load_dll(jit, tree_ident(top)));
+   if (state->jit == NULL)
+      state->jit = get_jit(state->registry);
 
-   rt_model_t *model = model_new(top, jit);
+   AOT_ONLY(jit_load_dll(state->jit, tree_ident(top)));
+
+   jit_reset(state->jit);
+   jit_enable_runtime(state->jit, true);
+
+   rt_model_t *model = model_new(top, state->jit);
 
    vhpi_context_t *vhpi = NULL;
    if (vhpi_plugins != NULL) {
-      vhpi = vhpi_context_new(top, model, jit, nplusargs, plusargs);
+      vhpi = vhpi_context_new(top, model, state->jit, nplusargs, plusargs);
       vhpi_load_plugins(vhpi_plugins);
    }
    else if (nplusargs > 0)
@@ -787,15 +805,14 @@ static int run(int argc, char **argv)
       vhpi_context_free(vhpi);
 
    model_free(model);
-   jit_free(jit);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return rc == 0 && argc > 1 ? process_command(argc, argv) : rc;
+   return rc == 0 && argc > 1 ? process_command(argc, argv, state) : rc;
 }
 
-static int print_deps_cmd(int argc, char **argv)
+static int print_deps_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -837,10 +854,10 @@ static int print_deps_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
-static int make_cmd(int argc, char **argv)
+static int make_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "deps-only", no_argument, 0, 'd' },
@@ -895,7 +912,7 @@ static int make_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static void list_walk_fn(lib_t lib, ident_t ident, int kind, void *context)
@@ -915,7 +932,7 @@ static void list_walk_fn(lib_t lib, ident_t ident, int kind, void *context)
    printf("%-30s  : %s\n", istr(ident), pretty);
 }
 
-static int list_cmd(int argc, char **argv)
+static int list_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -943,10 +960,10 @@ static int list_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
-static int init_cmd(int argc, char **argv)
+static int init_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -975,7 +992,7 @@ static int init_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static void list_packages(void)
@@ -1006,7 +1023,7 @@ static void list_packages(void)
    notef("the following packages can be installed:%s", tb_get(tb));
 }
 
-static int install_cmd(int argc, char **argv)
+static int install_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "dest", required_argument, 0, 'd' },
@@ -1066,10 +1083,10 @@ static int install_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
-static int syntax_cmd(int argc, char **argv)
+static int syntax_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -1102,7 +1119,7 @@ static int syntax_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static void dump_one_unit(ident_t name, bool add_elab, bool add_body)
@@ -1119,7 +1136,7 @@ static void dump_one_unit(ident_t name, bool add_elab, bool add_body)
    dump(top);
 }
 
-static int dump_cmd(int argc, char **argv)
+static int dump_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "elab", no_argument, 0, 'E' },
@@ -1165,11 +1182,11 @@ static int dump_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 #if ENABLE_LLVM
-static int aotgen_cmd(int argc, char **argv)
+static int aotgen_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -1202,16 +1219,16 @@ static int aotgen_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 #else
-static int aotgen_cmd(int argc, char **argv)
+static int aotgen_cmd(int argc, char **argv, cmd_state_t *state)
 {
    fatal("$bold$--aotgen$$ not supported without LLVM");
 }
 #endif
 
-static int do_cmd(int argc, char **argv)
+static int do_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -1232,6 +1249,11 @@ static int do_cmd(int argc, char **argv)
    if (optind == next_cmd)
       fatal("no script file specified");
 
+   if (state->jit != NULL) {
+      jit_free(state->jit);   // Shell creates its own instance
+      state->jit = NULL;
+   }
+
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(get_jit);
 
@@ -1242,7 +1264,7 @@ static int do_cmd(int argc, char **argv)
          fatal("%s not elaborated", istr(top_level));
 
       // XXX: temporary hack
-      vcode_unit_t vu = unit_registry_get(registry, top_level);
+      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
       lib_put_vcode(lib_work(), top, vu);
 
       shell_reset(sh, top);
@@ -1261,10 +1283,10 @@ static int do_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
-static int interact_cmd(int argc, char **argv)
+static int interact_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
@@ -1285,6 +1307,11 @@ static int interact_cmd(int argc, char **argv)
    if (optind != next_cmd)
       fatal("unexpected argument \"%s\"", argv[optind]);
 
+   if (state->jit != NULL) {
+      jit_free(state->jit);   // Shell creates its own instance
+      state->jit = NULL;
+   }
+
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(get_jit);
 
@@ -1295,7 +1322,7 @@ static int interact_cmd(int argc, char **argv)
          fatal("%s not elaborated", istr(top_level));
 
       // XXX: temporary hack
-      vcode_unit_t vu = unit_registry_get(registry, top_level);
+      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
       lib_put_vcode(lib_work(), top, vu);
 
       shell_reset(sh, top);
@@ -1311,7 +1338,7 @@ static int interact_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
 static uint32_t parse_cover_print_spec(char *str)
@@ -1337,7 +1364,7 @@ static uint32_t parse_cover_print_spec(char *str)
    return mask;
 }
 
-static int coverage(int argc, char **argv)
+static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "report",       required_argument, 0, 'r' },
@@ -1444,7 +1471,7 @@ static int coverage(int argc, char **argv)
    return 0;
 }
 
-static int cover_export_cmd(int argc, char **argv)
+static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "format",   required_argument, 0, 'f' },
@@ -1514,7 +1541,7 @@ static int cover_export_cmd(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : 0;
+   return argc > 1 ? process_command(argc, argv, state) : 0;
 }
 
 static void usage(void)
@@ -1713,7 +1740,7 @@ static void parse_library_map(char *str)
    lib_add_map(str, split + 1);
 }
 
-static int process_command(int argc, char **argv)
+static int process_command(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "dump",         no_argument, 0, 'd' },
@@ -1736,37 +1763,37 @@ static int process_command(int argc, char **argv)
    const char *spec = "aerci";
    switch (getopt_long(MIN(argc, 2), argv, spec, long_options, &index)) {
    case 'a':
-      return analyse(argc, argv);
+      return analyse(argc, argv, state);
    case 'e':
-      return elaborate(argc, argv);
+      return elaborate(argc, argv, state);
    case 'r':
-      return run(argc, argv);
+      return run_cmd(argc, argv, state);
    case 'c':
-      return coverage(argc, argv);
+      return coverage_cmd(argc, argv, state);
    case 'd':
-      return dump_cmd(argc, argv);
+      return dump_cmd(argc, argv, state);
    case 'm':
-      return make_cmd(argc, argv);
+      return make_cmd(argc, argv, state);
    case 's':
-      return syntax_cmd(argc, argv);
+      return syntax_cmd(argc, argv, state);
    case 'l':
-      return list_cmd(argc, argv);
+      return list_cmd(argc, argv, state);
    case 'n':
-      return init_cmd(argc, argv);
+      return init_cmd(argc, argv, state);
    case 'I':
-      return install_cmd(argc, argv);
+      return install_cmd(argc, argv, state);
    case 'P':
-      return print_deps_cmd(argc, argv);
+      return print_deps_cmd(argc, argv, state);
    case 'A':
-      return aotgen_cmd(argc, argv);
+      return aotgen_cmd(argc, argv, state);
    case 'D':
-      return do_cmd(argc, argv);
+      return do_cmd(argc, argv, state);
    case 'i':
-      return interact_cmd(argc, argv);
+      return interact_cmd(argc, argv, state);
    case 'E':
-      return cover_export_cmd(argc, argv);
+      return cover_export_cmd(argc, argv, state);
    default:
-      fatal("missing command, try %s --help for usage", PACKAGE);
+      fatal("missing command, try $bold$%s --help$$ for usage", PACKAGE);
       return EXIT_FAILURE;
    }
 }
@@ -1868,5 +1895,14 @@ int main(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return process_command(argc, argv);
+   cmd_state_t state = {};
+   const int ret = process_command(argc, argv, &state);
+
+   if (state.jit != NULL)
+      jit_free(state.jit);   // JIT must be shut down before exiting
+
+   if (state.registry != NULL)
+      unit_registry_free(state.registry);
+
+   return ret;
 }
