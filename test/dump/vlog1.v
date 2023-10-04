@@ -10,7 +10,7 @@ module mod2;
   initial begin
     $display("hello");
     if (bus)
-      r <= 1;
+      r <= 1 | r;
     $finish;
   end
   assign bus = 3;

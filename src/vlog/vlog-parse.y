@@ -149,15 +149,8 @@ static bool is_decl(vlog_node_t v)
 %token                  tELSE 255 "else"
 %token                  tEOF 0 "end of file"
 
-/*
-%left tAND tOR tNAND tNOR tXOR tXNOR
-%left tEQ tNEQ tLT tLE tGT tGE
-%left tSLL tSRL tSLA tSRA tROL tROR
-%left tPLUS tMINUS tAMP
-%left tTIMES tOVER tMOD tREM
-%left tPOWER
-%nonassoc tABS tNOT tNEW
- */
+%left                   '|'
+%left                   '&'
 
 %precedence "then"
 %precedence tELSE
@@ -622,6 +615,22 @@ lvalue:         hierarchical_identifier
 
 expression:     primary
         |       string
+        |       expression '|' expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_OR);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
+        |       expression '&' expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_AND);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
         ;
 
 list_of_expressions:

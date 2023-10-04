@@ -263,6 +263,18 @@ static void vlog_dump_number(vlog_node_t v)
    }
 }
 
+static void vlog_dump_binary(vlog_node_t v)
+{
+   vlog_dump(vlog_left(v), 0);
+
+   switch (vlog_subkind(v)) {
+   case V_BINARY_OR: print_syntax(" | "); break;
+   case V_BINARY_AND: print_syntax(" & "); break;
+   }
+
+   vlog_dump(vlog_right(v), 0);
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -316,6 +328,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_IF:
       vlog_dump_if(v, indent);
+      break;
+   case V_BINARY:
+      vlog_dump_binary(v);
       break;
    default:
       print_syntax("\n");

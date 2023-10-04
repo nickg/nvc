@@ -1,5 +1,5 @@
 module parse1;
-  wire [8:0] x, y;
+  wire [8:0] x, y, z;
   reg        z;
   assign y = x;
   always begin : foo
@@ -11,4 +11,5 @@ module parse1;
     else if (z);
     else $display("no");
   end
+  assign x = x | y;
 endmodule // parse1

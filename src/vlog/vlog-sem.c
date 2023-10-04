@@ -128,6 +128,12 @@ static void vlog_check_string(vlog_node_t num)
 
 }
 
+static void vlog_check_binary(vlog_node_t op)
+{
+   vlog_check(vlog_left(op));
+   vlog_check(vlog_right(op));
+}
+
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
@@ -327,6 +333,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_IF:
       vlog_check_if(v);
+      break;
+   case V_BINARY:
+      vlog_check_binary(v);
       break;
    default:
       fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));

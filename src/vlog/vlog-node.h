@@ -64,6 +64,7 @@ typedef enum {
    V_COND,
    V_VAR_DECL,
    V_DELAY_CONTROL,
+   V_BINARY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -78,6 +79,11 @@ typedef enum {
    V_DIM_PACKED,
    V_DIM_UNPACKED
 } vlog_dimension_kind_t;
+
+typedef enum {
+   V_BINARY_OR,
+   V_BINARY_AND,
+} vlog_binary_t;
 
 vlog_node_t vlog_new(vlog_kind_t kind);
 vlog_kind_t vlog_kind(vlog_node_t v);

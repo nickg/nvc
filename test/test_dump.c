@@ -436,7 +436,7 @@ START_TEST(test_vlog1)
              "  initial begin\n"
              "    $display(\"hello\");\n"
              "    if (bus)\n"
-             "      r <= 5'b00001;\n"
+             "      r <= 5'b00001 | r;\n"
              "    $finish;\n"
              "  end\n"
              "  assign bus = 5'b00011;\n"
