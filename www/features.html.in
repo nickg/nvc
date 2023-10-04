@@ -267,8 +267,8 @@ table below.
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_032">
         LCS2016-032</td>
-    <td><code>PATH_NAME</code> and shared variables and subprograms</td>
-    <td class="feature-missing"></td>
+    <td><code>PATH_NAME</code> and <code>INSTANCE_NAME</code> and protected types</td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_033">

@@ -17,6 +17,8 @@
   help to identify code that depends on a particular execution order.
 - Updated to OSVVM 2023.07 for `nvc --install`.
 - Various enhancements and fixes to the VHPI implementation.
+- Implemented the VHDL-2019 changes to `instance_name` and `path_name`
+  for protected type variables.
 
 ## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared

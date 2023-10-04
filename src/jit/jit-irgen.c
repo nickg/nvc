@@ -2336,9 +2336,7 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
 
 static void irgen_op_protected_init(jit_irgen_t *g, int op)
 {
-   jit_value_t arg0 = irgen_get_arg(g, op, 0);
-
-   j_send(g, 0, arg0);
+   irgen_send_args(g, op, 0);
    j_call(g, irgen_get_handle(g, op));
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
@@ -4115,7 +4113,12 @@ void jit_irgen(jit_func_t *f)
       const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
       g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
    }
-   else if (kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_INSTANCE) {
+   else if (kind == VCODE_UNIT_PROTECTED) {
+      const ffi_type_t types[] = { FFI_POINTER };
+      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+      irgen_params(g, 1);
+   }
+   else if (kind == VCODE_UNIT_INSTANCE) {
       const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
       g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
    }

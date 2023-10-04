@@ -1336,9 +1336,66 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
       tb_downcase(tb);
       break;
 
+   case T_PROT_BODY:
+      // LCS-2016-032 requires dynamic name
+      if (standard() < STD_19) {
+         get_hierarchical_name(tb, lu->parent, which);
+         tb_istr(tb, tree_ident(lu->container));
+         tb_append(tb, ':');
+         tb_downcase(tb);
+      }
+      break;
+
    default:
       fatal_at(tree_loc(lu->container), "cannot get hierarchical name");
    }
+}
+
+static vcode_reg_t lower_dynamic_name_attr(lower_unit_t *lu, const char *suffix,
+                                           attr_kind_t which)
+{
+   assert(standard() >= STD_19);
+
+   ident_t var_name =
+      ident_new(which == ATTR_PATH_NAME ? "path_name" : "instance_name");
+
+   int hops = 0;
+   vcode_var_t var = lower_search_vcode_obj(var_name, lu, &hops);
+   assert(var != VCODE_INVALID_VAR);
+
+   vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+   vcode_reg_t array_reg = emit_load_indirect(ptr_reg);
+
+   if (suffix[0] == '\0')
+      return array_reg;
+
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t voffset = vtype_offset();
+
+   const size_t suffix_len = strlen(suffix);
+   vcode_reg_t chars[suffix_len];
+
+   for (int j = 0; j < suffix_len; j++)
+      chars[j] = emit_const(ctype, suffix[j]);
+
+   vcode_type_t str_type = vtype_carray(suffix_len, ctype, ctype);
+   vcode_reg_t suffix_reg = emit_const_array(str_type, chars, suffix_len);
+
+   vcode_reg_t prefix_len_reg = emit_uarray_len(array_reg, 0);
+   vcode_reg_t suffix_len_reg = emit_const(voffset, suffix_len);
+   vcode_reg_t total_len_reg = emit_add(prefix_len_reg, suffix_len_reg);
+   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, total_len_reg);
+   vcode_reg_t suffix_ptr_reg = emit_array_ref(mem_reg, prefix_len_reg);
+
+   emit_copy(mem_reg, emit_unwrap(array_reg), prefix_len_reg);
+   emit_copy(suffix_ptr_reg, emit_address_of(suffix_reg), suffix_len_reg);
+
+   vcode_dim_t dim0 = {
+      .left  = emit_const(voffset, 1),
+      .right = total_len_reg,
+      .dir   = emit_const(vtype_bool(), RANGE_TO)
+   };
+   return emit_wrap(mem_reg, &dim0, 1);
 }
 
 static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
@@ -1425,6 +1482,26 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
          return lower_wrap_string(tb_get(tb));
       }
 
+   case T_PROT_DECL:
+      {
+         ident_t id = type_ident(tree_type(decl));
+
+         if (standard() >= STD_19) {
+            // LCS-2016-032 dynamic name inside protected body
+            for (lower_unit_t *it = lu; it != NULL; it = it->parent) {
+               if (it->name == id)
+                  return lower_dynamic_name_attr(lu, "", which);
+            }
+         }
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_append(tb, ':');
+         tb_istr(tb, id);
+         tb_replace(tb, '.', ':');
+         tb_downcase(tb);
+         return lower_wrap_string(tb_get(tb));
+      }
+
    case T_PROC_DECL:
    case T_FUNC_DECL:
    case T_PROC_BODY:
@@ -1459,6 +1536,10 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
             tb_istr(tb, tree_ident(primary_unit_of(container)));
             tb_replace(tb, '.', ':');
             tb_append(tb, ':');
+            tb_istr(tb, tree_ident(decl));
+            tb_downcase(tb);
+
+            return lower_wrap_string(tb_get(tb));
          }
          else if (obj == -1)
             fatal_at(tree_loc(decl), "cannot get hierachical name");
@@ -1467,12 +1548,14 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
             for (; hops--; scope = scope->parent);
 
             get_hierarchical_name(tb, scope, which);
+            tb_istr(tb, tree_ident(decl));
+            tb_downcase(tb);
+
+            if (tb_get(tb)[0] == ':')
+               return lower_wrap_string(tb_get(tb));
+            else
+               return lower_dynamic_name_attr(lu, tb_get(tb), which);
          }
-
-         tb_istr(tb, tree_ident(decl));
-         tb_downcase(tb);
-
-         return lower_wrap_string(tb_get(tb));
       }
 
    default:
@@ -4332,6 +4415,36 @@ static vcode_reg_t lower_prot_ref(lower_unit_t *lu, tree_t expr)
    return emit_link_var(prefix, tree_ident(expr), vtype);
 }
 
+static vcode_reg_t lower_protected_init(lower_unit_t *lu, type_t type,
+                                        tree_t decl)
+{
+   vcode_reg_t names[2] = { VCODE_INVALID_REG, VCODE_INVALID_REG };
+
+   if (standard() >= STD_19) {
+      // Pass path name and instance names as arguments for LCS-2016-032
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      static const attr_kind_t which[2] = {
+         ATTR_PATH_NAME, ATTR_INSTANCE_NAME
+      };
+
+      for (int i = 0; i < 2; i++) {
+         tb_rewind(tb);
+         get_hierarchical_name(tb, lu, which[i]);
+         if (decl != NULL)
+            tb_istr(tb, tree_ident(decl));
+         tb_append(tb, ':');
+         tb_downcase(tb);
+
+         names[i] = lower_wrap_string(tb_get(tb));
+      }
+   }
+
+   vcode_type_t vtype = lower_type(type);
+   vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
+   return emit_protected_init(vtype, context_reg, names[0], names[1]);
+}
+
 static void lower_new_record(lower_unit_t *lu, type_t type,
                              vcode_reg_t dst_ptr, vcode_reg_t src_ptr)
 {
@@ -4438,10 +4551,8 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       return result_reg;
    }
    else if (type_is_protected(type)) {
-      vcode_type_t vtype = lower_type(type);
-      vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
-      vcode_reg_t obj_reg = emit_protected_init(vtype, context_reg);
-      vcode_reg_t result_reg = emit_new(vtype, VCODE_INVALID_REG);
+      vcode_reg_t obj_reg = lower_protected_init(lu, type, NULL);
+      vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
       emit_store_indirect(obj_reg, all_reg);
       return result_reg;
@@ -7367,8 +7478,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
    lower_put_vcode_obj(decl, var, lu);
 
    if (type_is_protected(type)) {
-      vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
-      vcode_reg_t obj_reg = emit_protected_init(lower_type(type), context_reg);
+      vcode_reg_t obj_reg = lower_protected_init(lu, type, decl);
       emit_store(obj_reg, var);
       return;
    }
@@ -9532,8 +9642,27 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 
    cover_push_scope(lu->cover, body);
 
-   if (standard() >= STD_19)
+   if (standard() >= STD_19) {
+      // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
+      // protected type
+      ident_t path_i = ident_new("path_name");
+      ident_t inst_i = ident_new("instance_name");
+
+      vcode_type_t vchar = vtype_char();
+      vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+      vcode_reg_t path_reg = emit_param(vstring, vchar, path_i);
+      vcode_reg_t inst_reg = emit_param(vstring, vchar, inst_i);
+
+      vcode_var_t path_var = emit_var(vstring, vchar, path_i, VAR_CONST);
+      lower_put_vcode_obj(path_i, path_var, lu);
+      emit_store(path_reg, path_var);
+
+      vcode_var_t inst_var = emit_var(vstring, vchar, inst_i, VAR_CONST);
+      lower_put_vcode_obj(inst_i, inst_var, lu);
+      emit_store(inst_reg, inst_var);
+
       lower_decls(lu, tree_primary(body));
+   }
 
    lower_decls(lu, body);
    emit_return(VCODE_INVALID_REG);

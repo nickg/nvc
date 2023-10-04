@@ -1234,7 +1234,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    if (vu->kind == VCODE_UNIT_FUNCTION
        || vu->kind == VCODE_UNIT_PROCEDURE
-       || vu->kind == VCODE_UNIT_PROPERTY) {
+       || vu->kind == VCODE_UNIT_PROPERTY
+       || (vu->kind == VCODE_UNIT_PROTECTED && vu->params.count > 0)) {
 
       printf("Parameters %d\n", vu->params.count);
 
@@ -1469,6 +1470,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += color_printf(" := %s $magenta$%s$$ context ",
                                    vcode_op_string(op->kind), istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
+               if (op->args.count >= 3) {
+                  col += printf(" path " );
+                  col += vcode_dump_reg(op->args.items[1]);
+                  col += printf(" instance " );
+                  col += vcode_dump_reg(op->args.items[2]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2842,7 +2849,8 @@ int vcode_count_params(void)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_PROPERTY);
+          || active_unit->kind == VCODE_UNIT_PROPERTY
+          || active_unit->kind == VCODE_UNIT_PROTECTED);
 
    return active_unit->params.count;
 }
@@ -2852,7 +2860,8 @@ vcode_type_t vcode_param_type(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_PROPERTY);
+          || active_unit->kind == VCODE_UNIT_PROPERTY
+          || active_unit->kind == VCODE_UNIT_PROTECTED);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
@@ -2863,7 +2872,8 @@ vcode_reg_t vcode_param_reg(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_PROPERTY);
+          || active_unit->kind == VCODE_UNIT_PROPERTY
+          || active_unit->kind == VCODE_UNIT_PROTECTED);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].reg;
@@ -4879,12 +4889,23 @@ vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
    return (op->result = vcode_add_reg(vtype_context(name)));
 }
 
-vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context)
+vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
+                                vcode_reg_t path_name, vcode_reg_t inst_name)
 {
    op_t *op = vcode_add_op(VCODE_OP_PROTECTED_INIT);
    vcode_add_arg(op, context);
    op->func    = vtype_name(type);
    op->subkind = VCODE_CC_VHDL;
+
+   if (path_name != VCODE_INVALID_REG && inst_name != VCODE_INVALID_REG) {
+      vcode_add_arg(op, path_name);
+      vcode_add_arg(op, inst_name);
+
+      VCODE_ASSERT(vcode_reg_kind(path_name) == VCODE_TYPE_UARRAY,
+                   "path name argument must be uarray");
+      VCODE_ASSERT(vcode_reg_kind(inst_name) == VCODE_TYPE_UARRAY,
+                   "inst name argument must be uarray");
+   }
 
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CONTEXT,
                 "protected init type must be context");

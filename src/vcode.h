@@ -511,7 +511,8 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
                          vcode_type_t rtype);
-vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
+vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
+                                vcode_reg_t path_name, vcode_reg_t inst_name);
 void emit_process_init(ident_t name, vcode_reg_t locus);
 vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);

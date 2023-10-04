@@ -53,6 +53,8 @@ typedef struct {
 
 typedef struct {
    void         *context;
+   ffi_uarray_t  path_name;
+   ffi_uarray_t  inst_name;
    int64_t       f_canary1;
    cache_elem_t *f_subtype_cache;
    int64_t       f_num_subtypes;
@@ -62,6 +64,8 @@ typedef struct {
 
 typedef struct {
    void                 *context;
+   ffi_uarray_t          path_name;
+   ffi_uarray_t          inst_name;
    subtype_mirror       *f_owner;
    integer_value_mirror *f_left;
    integer_value_mirror *f_right;
@@ -77,6 +81,8 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
    ffi_uarray_t   *f_literals;
 } enumeration_subtype_mirror_pt;
@@ -88,6 +94,8 @@ typedef struct {
 
 typedef struct {
    void                  *context;
+   ffi_uarray_t           path_name;
+   ffi_uarray_t           inst_name;
    subtype_mirror        *f_owner;
    floating_value_mirror *f_left;
    floating_value_mirror *f_right;
@@ -108,6 +116,8 @@ typedef struct {
 
 typedef struct {
    void                  *context;
+   ffi_uarray_t           path_name;
+   ffi_uarray_t           inst_name;
    subtype_mirror        *f_owner;
    physical_value_mirror *f_left;
    physical_value_mirror *f_right;
@@ -132,6 +142,8 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
    uint64_t        f_dimensions;
    subtype_mirror *f_element_subtype;
@@ -150,6 +162,8 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
    ffi_uarray_t   *f_fields;
 } record_subtype_mirror_pt;
@@ -161,6 +175,8 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
    subtype_mirror *f_designated;
 } file_subtype_mirror_pt;
@@ -172,6 +188,8 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
    subtype_mirror *f_designated;
 } access_subtype_mirror_pt;
@@ -183,16 +201,22 @@ typedef struct {
 
 typedef struct {
    void           *context;
+   ffi_uarray_t    path_name;
+   ffi_uarray_t    inst_name;
    subtype_mirror *f_owner;
 } protected_subtype_mirror_pt;
 
 typedef struct {
    void                        *access;
+   ffi_uarray_t                 path_name;
+   ffi_uarray_t                 inst_name;
    protected_subtype_mirror_pt  pt;
 } protected_subtype_mirror;
 
 typedef struct {
    void                   *context;
+   ffi_uarray_t            path_name;
+   ffi_uarray_t            inst_name;
    value_mirror           *f_owner;
    integer_subtype_mirror *f_subtype;
    int64_t                 f_value;
@@ -205,6 +229,8 @@ typedef struct _integer_value_mirror {
 
 typedef struct {
    void                       *context;
+   ffi_uarray_t                path_name;
+   ffi_uarray_t                inst_name;
    value_mirror               *f_owner;
    enumeration_subtype_mirror *f_subtype;
    int64_t                     f_pos;
@@ -218,6 +244,8 @@ typedef struct _enumeration_value_mirror {
 
 typedef struct {
    void                    *context;
+   ffi_uarray_t             path_name;
+   ffi_uarray_t             inst_name;
    value_mirror            *f_owner;
    floating_subtype_mirror *f_subtype;
    double                   f_value;
@@ -230,6 +258,8 @@ typedef struct _floating_value_mirror {
 
 typedef struct {
    void                    *context;
+   ffi_uarray_t             path_name;
+   ffi_uarray_t             inst_name;
    value_mirror            *f_owner;
    physical_subtype_mirror *f_subtype;
    int64_t                  f_value;
@@ -242,6 +272,8 @@ typedef struct _physical_value_mirror {
 
 typedef struct {
    void                 *context;
+   ffi_uarray_t          path_name;
+   ffi_uarray_t          inst_name;
    value_mirror         *f_owner;
    array_subtype_mirror *f_subtype;
    ffi_uarray_t         *f_elements;
@@ -254,6 +286,8 @@ typedef struct {
 
 typedef struct {
    void                  *context;
+   ffi_uarray_t           path_name;
+   ffi_uarray_t           inst_name;
    value_mirror          *f_owner;
    record_subtype_mirror *f_subtype;
    ffi_uarray_t          *f_elements;
@@ -266,6 +300,8 @@ typedef struct {
 
 typedef struct {
    void                *context;
+   ffi_uarray_t         path_name;
+   ffi_uarray_t         inst_name;
    value_mirror        *f_owner;
    file_subtype_mirror *f_subtype;
    ffi_uarray_t        *f_logical_name;
@@ -279,6 +315,8 @@ typedef struct {
 
 typedef struct {
    void                  *context;
+   ffi_uarray_t           path_name;
+   ffi_uarray_t           inst_name;
    value_mirror          *f_owner;
    access_subtype_mirror *f_subtype;
    value_mirror          *f_value;
@@ -291,6 +329,8 @@ typedef struct {
 
 typedef struct {
    void                     *context;
+   ffi_uarray_t              path_name;
+   ffi_uarray_t              inst_name;
    value_mirror             *f_owner;
    protected_subtype_mirror *f_subtype;
 } protected_value_mirror_pt;
@@ -302,6 +342,8 @@ typedef struct {
 
 typedef struct {
    void                     *context;
+   ffi_uarray_t              path_name;
+   ffi_uarray_t              inst_name;
    uint8_t                   f_class;
    subtype_mirror           *f_subtype;
    integer_value_mirror     *f_integer;
@@ -322,6 +364,8 @@ typedef struct _value_mirror {
 
 typedef struct {
    void                       *context;
+   ffi_uarray_t                path_name;
+   ffi_uarray_t                inst_name;
    uint8_t                     f_class;
    ffi_uarray_t               *f_name;
    integer_subtype_mirror     *f_integer;

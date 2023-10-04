@@ -3799,7 +3799,7 @@ static bool sem_is_named_entity(tree_t t)
    case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
    case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
    case T_PROCESS:      case T_GENERIC_DECL: case T_PARAM_DECL:
-   case T_INSTANCE:
+   case T_INSTANCE:     case T_PROT_DECL:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
