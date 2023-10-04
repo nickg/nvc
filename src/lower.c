@@ -58,10 +58,6 @@ typedef enum {
    LOWER_THUNK
 } lower_mode_t;
 
-typedef enum {
-   SCOPE_HAS_PROTECTED = (1 << 1),
-} scope_flags_t;
-
 #define INSTANCE_BIT  0x80000000
 #define PARAM_VAR_BIT 0x40000000
 
@@ -72,7 +68,6 @@ typedef struct _lower_unit {
    hash_t          *objects;
    lower_unit_t    *parent;
    ident_t          name;
-   scope_flags_t    flags;
    tree_t           hier;
    tree_t           container;
    var_list_t       free_temps;
@@ -7367,7 +7362,6 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       vcode_reg_t context_reg = lower_context_for_call(lu, type_ident(type));
       vcode_reg_t obj_reg = emit_protected_init(lower_type(type), context_reg);
       emit_store(obj_reg, var);
-      lu->flags |= SCOPE_HAS_PROTECTED;
       return;
    }
 
