@@ -614,7 +614,8 @@ package body textio is
         assert good report "hread failed" severity read_severity;
     end procedure;
 
-    constant LINE_BUFFER_SIZE : positive := 128;
+    -- Allocator will round up to 128
+    constant LINE_BUFFER_SIZE : positive := 127;
 
     procedure readline (file f: text; l: inout line) is
         variable tmp  : line;
