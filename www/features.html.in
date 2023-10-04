@@ -73,7 +73,7 @@ many of the new features, please consult the table below.
   <tr>
     <td><code>'INSTANCE_NAME</code> etc. extended for package and
     subprogram instantiation</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>New standard environment package</td>

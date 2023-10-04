@@ -1,0 +1,4 @@
+:attr19(arch):monitor[record_t]:/0 fs: (a => -2147483648, b => '0')
+:attr19(arch):monitor[record_t]:/0 fs: (a => 10, b => '0')
+:attr19(arch):monitor[record_t]:/10000000 fs: (a => 11, b => '0')
+:attr19(arch):monitor[record_t]:/25000000 fs: (a => 11, b => '1')

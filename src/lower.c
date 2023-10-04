@@ -68,7 +68,6 @@ typedef struct _lower_unit {
    hash_t          *objects;
    lower_unit_t    *parent;
    ident_t          name;
-   tree_t           hier;
    tree_t           container;
    var_list_t       free_temps;
    vcode_unit_t     vunit;
@@ -1284,21 +1283,68 @@ static vcode_reg_t lower_wrap_string(const char *str)
    return emit_wrap(emit_address_of(data), &dim0, 1);
 }
 
+static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
+                                  attr_kind_t which)
+{
+   switch (tree_kind(lu->container)) {
+   case T_BLOCK:
+      {
+         tree_t hier = tree_decl(lu->container, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         if (which == ATTR_PATH_NAME)
+            tb_istr(tb, tree_ident(hier));
+         else
+            tb_istr(tb, tree_ident2(hier));
+
+         tb_append(tb, ':');
+      }
+      break;
+
+   case T_PROC_BODY:
+   case T_FUNC_BODY:
+   case T_PROC_INST:
+   case T_FUNC_INST:
+      get_hierarchical_name(tb, lu->parent, which);
+
+      tb_istr(tb, tree_ident(lu->container));
+
+      if (standard() >= STD_02)
+         type_signature(tree_type(lu->container), tb);
+
+      tb_append(tb, ':');
+      tb_downcase(tb);
+      break;
+
+   case T_PACK_BODY:
+   case T_PACKAGE:
+   case T_PACK_INST:
+      tb_append(tb, ':');
+      tb_istr(tb, tree_ident(primary_unit_of(lu->container)));
+      tb_append(tb, ':');
+      tb_replace(tb, '.', ':');
+      tb_downcase(tb);
+      break;
+
+   case T_PROCESS:
+      get_hierarchical_name(tb, lu->parent, which);
+
+      if (!(tree_flags(lu->container) & TREE_F_SYNTHETIC_NAME))
+         tb_istr(tb, tree_ident(lu->container));
+
+      tb_append(tb, ':');
+      tb_downcase(tb);
+      break;
+
+   default:
+      fatal_at(tree_loc(lu->container), "cannot get hierarchical name");
+   }
+}
+
 static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
                                    attr_kind_t which)
 {
    tree_t decl = tree_ref(ref);
-
-   if (which == ATTR_SIMPLE_NAME) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_istr(tb, tree_ident(decl));
-      tb_downcase(tb);
-      return lower_wrap_string(tb_get(tb));
-   }
-   else if (lu->mode == LOWER_THUNK) {
-      vcode_type_t vchar = vtype_char();
-      return emit_undefined(vtype_uarray(1, vchar, vchar), vchar);
-   }
 
    switch (tree_kind(decl)) {
    case T_PACK_BODY:
@@ -1329,16 +1375,7 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
             fatal_trace("cannot find instance %s", istr(tree_ident(decl)));
 
          LOCAL_TEXT_BUF tb = tb_new();
-
-         tree_t hier = tree_decl(it->container, 0);
-         assert(tree_kind(hier) == T_HIER);
-
-         if (which == ATTR_PATH_NAME)
-            tb_istr(tb, tree_ident(hier));
-         else
-            tb_istr(tb, tree_ident2(hier));
-
-         tb_append(tb, ':');
+         get_hierarchical_name(tb, it, which);
          return lower_wrap_string(tb_get(tb));
       }
 
@@ -1349,17 +1386,17 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
          ident_t dname = tree_ident(decl);
          lower_unit_t *it;
          for (it = lu; it != NULL; it = it->parent) {
-            if (it->hier == NULL)
+            if (tree_kind(it->container) != T_BLOCK)
                continue;
 
-            tree_t unit = tree_ref(it->hier);
+            tree_t hier = tree_decl(it->container, 0);
+            assert(tree_kind(hier) == T_HIER);
+
+            tree_t unit = tree_ref(hier);
             if (unit == decl || tree_ident(unit) == dname)
                break;
-            else if (tree_kind(unit) == T_ARCH) {
-               tree_t entity = tree_primary(unit);
-               if (tree_ident(entity) == dname)
-                  break;
-            }
+            else if (tree_ident(primary_unit_of(unit)) == dname)
+               break;
          }
 
          if (it == NULL)
@@ -1367,28 +1404,18 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
                         istr(tree_ident(decl)));
 
          LOCAL_TEXT_BUF tb = tb_new();
-
-         if (which == ATTR_PATH_NAME)
-            tb_istr(tb, tree_ident(it->hier));
-         else
-            tb_istr(tb, tree_ident2(it->hier));
-
-         tb_append(tb, ':');
+         get_hierarchical_name(tb, it, which);
          return lower_wrap_string(tb_get(tb));
       }
 
    case T_PROCESS:
       {
          lower_unit_t *scope = lu;
-         while (scope->hier == NULL)
+         while (tree_kind(scope->container) != T_BLOCK)
             scope = scope->parent;
 
          LOCAL_TEXT_BUF tb = tb_new();
-         if (which == ATTR_PATH_NAME)
-            tb_istr(tb, tree_ident(scope->hier));
-         else
-            tb_istr(tb, tree_ident2(scope->hier));
-         tb_append(tb, ':');
+         get_hierarchical_name(tb, scope, which);
 
          if (!(tree_flags(decl) & TREE_F_SYNTHETIC_NAME))
             tb_istr(tb, tree_ident(decl));
@@ -1402,6 +1429,19 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
    case T_FUNC_DECL:
    case T_PROC_BODY:
    case T_FUNC_BODY:
+      {
+         lower_unit_t *scope = lu;
+         while (scope && tree_ident2(decl) != scope->name)
+            scope = scope->parent;
+
+         if (scope == NULL)
+            fatal_at(tree_loc(decl), "cannot get hierachical name");
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         get_hierarchical_name(tb, scope, which);
+         return lower_wrap_string(tb_get(tb));
+      }
+
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
    case T_ALIAS:
@@ -1416,64 +1456,20 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
 
          if (obj == -1 && is_package((container = tree_container(decl)))) {
             tb_append(tb, ':');
-            if (tree_kind(container) == T_PACK_BODY)
-               tb_istr(tb, tree_ident(tree_primary(container)));
-            else
-               tb_istr(tb, tree_ident(container));
+            tb_istr(tb, tree_ident(primary_unit_of(container)));
+            tb_replace(tb, '.', ':');
+            tb_append(tb, ':');
          }
+         else if (obj == -1)
+            fatal_at(tree_loc(decl), "cannot get hierachical name");
          else {
             lower_unit_t *scope = lu;
             for (; hops--; scope = scope->parent);
 
-            SCOPED_A(lower_unit_t *) scopes = AINIT;
-            for (; scope && scope->hier == NULL; scope = scope->parent)
-               APUSH(scopes, scope);
-
-            if (scope != NULL) {
-               switch (which) {
-               case ATTR_PATH_NAME:
-                  tb_istr(tb, tree_ident(scope->hier));
-                  break;
-               case ATTR_INSTANCE_NAME:
-                  tb_istr(tb, tree_ident2(scope->hier));
-                  break;
-               default:
-                  break;
-               }
-            }
-
-            for (int i = scopes.count - 1; i >= 0; i--) {
-               lower_unit_t *s = scopes.items[i];
-               if (s->container == decl)
-                  continue;  // Printed below
-
-               tb_append(tb, ':');
-
-               const bool synthetic =
-                  tree_kind(s->container) == T_PROCESS
-                  && (tree_flags(s->container) & TREE_F_SYNTHETIC_NAME);
-
-               if (synthetic)
-                  ;   // Blank
-               else if (tree_kind(s->container) == T_PACK_BODY)
-                  tb_istr(tb, tree_ident(tree_primary(s->container)));
-               else
-                  tb_istr(tb, tree_ident(s->container));
-
-               if (standard() >= STD_02 && is_subprogram(s->container))
-                  type_signature(tree_type(s->container), tb);
-            }
+            get_hierarchical_name(tb, scope, which);
          }
 
-         tb_append(tb, ':');
          tb_istr(tb, tree_ident(decl));
-         if (standard() >= STD_02 && is_subprogram(decl))
-            type_signature(tree_type(decl), tb);
-
-         if (is_container(decl) || is_subprogram(decl))
-            tb_append(tb, ':');
-
-         tb_replace(tb, '.', ':');
          tb_downcase(tb);
 
          return lower_wrap_string(tb_get(tb));
@@ -4840,8 +4836,20 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
    case ATTR_INSTANCE_NAME:
    case ATTR_PATH_NAME:
+      if (lu->mode == LOWER_THUNK) {
+         vcode_type_t vchar = vtype_char();
+         return emit_undefined(vtype_uarray(1, vchar, vchar), vchar);
+      }
+      else
+         return lower_name_attr(lu, name, predef);
+
    case ATTR_SIMPLE_NAME:
-      return lower_name_attr(lu, name, predef);
+      {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_istr(tb, tree_ident(tree_ref(name)));
+         tb_downcase(tb);
+         return lower_wrap_string(tb_get(tb));
+      }
 
    case ATTR_IMAGE:
       {
@@ -9383,14 +9391,6 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
       lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, parent);
 }
 
-static void lower_hier_decl(lower_unit_t *lu, tree_t decl)
-{
-   lu->hier = decl;
-
-   if (lu->cover != NULL)
-      cover_ignore_from_pragmas(lu->cover, tree_ref(decl));
-}
-
 static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
 {
    vcode_type_t vtype = lower_type(type);
@@ -9433,10 +9433,6 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
 
    case T_ALIAS:
       lower_alias_decl(lu, decl);
-      break;
-
-   case T_HIER:
-      lower_hier_decl(lu, decl);
       break;
 
    case T_TYPE_DECL:
@@ -9497,6 +9493,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_GROUP_TEMPLATE:
    case T_VIEW_DECL:
    case T_PROT_DECL:
+   case T_HIER:
       break;
 
    case T_PACKAGE:
@@ -12216,6 +12213,13 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    unit_registry_put(ur, lu);
 
    cover_push_scope(cover, block);
+
+   if (lu->cover != NULL) {
+      tree_t hier = tree_decl(block, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      cover_ignore_from_pragmas(lu->cover, tree_ref(hier));
+   }
 
    lower_dependencies(block);
    lower_generics(lu, block);

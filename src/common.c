@@ -1448,6 +1448,7 @@ tree_t primary_unit_of(tree_t unit)
    case T_ENTITY:
    case T_COMPONENT:
    case T_PACKAGE:
+   case T_BLOCK:
       return unit;
    case T_ARCH:
    case T_CONFIGURATION:
