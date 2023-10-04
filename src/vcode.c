@@ -1234,8 +1234,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    if (vu->kind == VCODE_UNIT_FUNCTION
        || vu->kind == VCODE_UNIT_PROCEDURE
-       || vu->kind == VCODE_UNIT_PROPERTY
-       || (vu->kind == VCODE_UNIT_THUNK && vu->params.count > 0)) {
+       || vu->kind == VCODE_UNIT_PROPERTY) {
 
       printf("Parameters %d\n", vu->params.count);
 
@@ -2843,7 +2842,6 @@ int vcode_count_params(void)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK
           || active_unit->kind == VCODE_UNIT_PROPERTY);
 
    return active_unit->params.count;
@@ -2854,7 +2852,6 @@ vcode_type_t vcode_param_type(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK
           || active_unit->kind == VCODE_UNIT_PROPERTY);
    assert(param < active_unit->params.count);
 
@@ -2866,7 +2863,6 @@ vcode_reg_t vcode_param_reg(int param)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
-          || active_unit->kind == VCODE_UNIT_THUNK
           || active_unit->kind == VCODE_UNIT_PROPERTY);
    assert(param < active_unit->params.count);
 
@@ -2988,8 +2984,7 @@ static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
 
 static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
 {
-   if (context->kind == VCODE_UNIT_THUNK && child->kind != VCODE_UNIT_THUNK)
-      fatal_trace("thunk may not have non-thunk children");
+   assert(context->kind != VCODE_UNIT_THUNK);
 
    child->next = NULL;
    if (context->children == NULL)

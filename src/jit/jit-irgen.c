@@ -4091,7 +4091,7 @@ void jit_irgen(jit_func_t *f)
       kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
    const bool has_params =
       kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
-      || kind == VCODE_UNIT_THUNK || kind == VCODE_UNIT_PROPERTY;
+      || kind == VCODE_UNIT_PROPERTY;
    const bool has_jump_table =
       (kind == VCODE_UNIT_PROCESS && !g->stateless)
       || kind == VCODE_UNIT_PROCEDURE;
@@ -4119,6 +4119,8 @@ void jit_irgen(jit_func_t *f)
       const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
       g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
    }
+   else if (kind == VCODE_UNIT_THUNK)
+      g->contextarg = j_recv(g, 0);
 
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));
