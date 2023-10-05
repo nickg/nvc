@@ -3185,9 +3185,14 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
             overload_restrict_argument(o, p, possible.items, possible.count);
          ACLEAR(possible);
       }
-      else if (kind == T_AGGREGATE || kind == T_STRING) {
-         // This argument must have composite type
+      else if (kind == T_AGGREGATE) {
+         // Argument must be a compsoite type
          overload_restrict_argument_type(o, p, type_is_composite, "composite");
+      }
+      else if (kind == T_STRING) {
+         // Argument must be a character array type
+         overload_restrict_argument_type(o, p, type_is_character_array,
+                                         "character array");
       }
    }
 
@@ -3444,33 +3449,6 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    return NULL;  // Procedure call has no type
 }
 
-static bool is_character_array(type_t t)
-{
-   // According LRM 93 section 3.1.1 an enumeration type is a character
-   // type if at least one of its enumeration literals is a character
-   // literal
-
-   if (!type_is_array(t))
-      return false;
-
-   if (dimension_of(t) != 1)
-      return false;
-
-   type_t elem = type_base_recur(type_elem(t));
-
-   if (!type_is_enum(elem))
-      return false;
-
-   const int nlits = type_enum_literals(elem);
-   for (int i = 0; i < nlits; i++) {
-      tree_t lit = type_enum_literal(elem, i);
-      if (ident_char(tree_ident(lit), 0) == '\'')
-         return true;
-   }
-
-   return false;
-}
-
 static type_t try_solve_string(nametab_t *tab, tree_t str)
 {
    if (tree_has_type(str))
@@ -3481,7 +3459,7 @@ static type_t try_solve_string(nametab_t *tab, tree_t str)
    // dimensional array of a character type
 
    type_t type = NULL;
-   if (type_set_satisfies(tab, is_character_array, &type) != 1)
+   if (type_set_satisfies(tab, type_is_character_array, &type) != 1)
       return NULL;
 
    type_t elem = type_elem(type);
@@ -3503,7 +3481,7 @@ static type_t solve_string(nametab_t *tab, tree_t str)
    diag_t *d = diag_new(DIAG_ERROR, tree_loc(str));
    diag_printf(d, "type of string literal cannot be determined "
                "from the surrounding context");
-   type_set_describe(tab, d, tree_loc(str), is_character_array,
+   type_set_describe(tab, d, tree_loc(str), type_is_character_array,
                      "a one dimensional array of character type");
    diag_emit(d);
 

@@ -33,4 +33,12 @@ begin
         report f1;                      -- OK
     end process;
 
+    p3: process is
+        type byte_vector is array (1 to 8) of bit_vector(1 to 8);
+        variable v : bit_vector(7 downto 0);
+    begin
+        if v(7 downto 3) & "000" = X"12" then  -- OK
+        end if;
+    end process;
+
 end architecture;
