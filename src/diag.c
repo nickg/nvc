@@ -38,6 +38,7 @@ typedef struct _hint_rec hint_rec_t;
 typedef struct {
    loc_file_ref_t  ref;
    char           *name_str;
+   char           *abs_str;
    const char     *linebuf;
    bool            tried_open;
    unsigned        last_line;
@@ -151,6 +152,23 @@ const char *loc_file_str(const loc_t *loc)
       return loc_file_data(loc)->name_str;
    else
       return NULL;
+}
+
+static const char *loc_abs_path(const loc_t *loc)
+{
+   if (loc->file_ref == FILE_INVALID)
+      return NULL;
+
+   loc_file_t *data = loc_file_data(loc);
+   if (data->abs_str != NULL)
+      return data->abs_str;
+
+   if ((data->abs_str = realpath(data->name_str, NULL)) == NULL) {
+      // Avoid repeated calls to realpath in failing case
+      data->abs_str = data->name_str;
+   }
+
+   return data->abs_str;
 }
 
 bool loc_invalid_p(const loc_t *loc)
@@ -688,9 +706,9 @@ static int diag_compar(const void *_a, const void *_b)
 static void diag_emit_loc(const loc_t *loc, FILE *f)
 {
    const char *file = loc_file_str(loc);
-   char *abspath LOCAL = realpath(file, NULL);
+   const char *abspath = loc_abs_path(loc);
 
-   if (abspath != NULL)
+   if (abspath != file)
       color_fprintf(f, "$$$link:file://%s#%u\07%s:%u$\n",
                     abspath, loc->first_line, file, loc->first_line);
    else
