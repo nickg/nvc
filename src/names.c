@@ -162,6 +162,7 @@ struct type_set {
 static type_t _solve_types(nametab_t *tab, tree_t expr);
 static bool can_call_no_args(nametab_t *tab, tree_t decl);
 static bool is_forward_decl(tree_t decl, tree_t existing);
+static bool is_character_array(type_t t);
 static bool denotes_same_object(tree_t a, tree_t b);
 static void make_visible_slow(scope_t *s, ident_t name, tree_t decl);
 static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name);
@@ -3157,9 +3158,14 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
             overload_restrict_argument(o, p, possible.items, possible.count);
          ACLEAR(possible);
       }
-      else if (kind == T_AGGREGATE || kind == T_STRING) {
-         // This argument must have composite type
+      else if (kind == T_AGGREGATE) {
+         // Argument must be a compsoite type
          overload_restrict_argument_type(o, p, type_is_composite, "composite");
+      }
+      else if (kind == T_STRING) {
+         // Argument must be a character array type
+         overload_restrict_argument_type(o, p, is_character_array,
+                                         "character array");
       }
    }
 
