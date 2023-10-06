@@ -606,6 +606,7 @@ static int run(int argc, char **argv)
       { "exit-severity", required_argument, 0, 'x' },
       { "dump-arrays",   no_argument,       0, 'a' },
       { "load",          required_argument, 0, 'l' },
+      { "vhpi-debug",    no_argument,       0, 'D' },
       { "vhpi-trace",    no_argument,       0, 'T' },
       { "gtkw",          optional_argument, 0, 'g' },
       { "shuffle",       no_argument,       0, 'H' },
@@ -645,6 +646,9 @@ static int run(int argc, char **argv)
          break;
       case 'T':
          opt_set_str(OPT_VHPI_TRACE, "1");
+         break;
+      case 'D':
+         opt_set_int(OPT_VHPI_DEBUG, 1);
          break;
       case 's':
          stop_time = parse_time(optarg);
@@ -1588,6 +1592,7 @@ static void usage(void)
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
+          "     --vhpi-debug\tReport VHPI errors as diagnostic messages\n"
           "     --vhpi-trace\tTrace VHPI calls and events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
           "\n"

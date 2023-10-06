@@ -188,6 +188,11 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
       [vhpiInternal] = DIAG_FATAL,
    };
 
+   if (!opt_get_int(OPT_VHPI_DEBUG))
+      return;
+
+   // Also report the error as a diagnostic for debugging
+
    diag_t *d = diag_new(sev < ARRAY_LEN(map) ? map[sev] : DIAG_ERROR, loc);
    diag_printf(d, "%s", last_error.message);
 

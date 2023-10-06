@@ -411,6 +411,12 @@ or
 .It Fl \-trace
 Trace simulation events.  This is usually only useful for debugging the
 simulator.
+.\" --vhpi-debug
+.It Fl \-vhpi-debug
+Report any VHPI errors as diagnostic messages on the console.  Normally
+these are only returned through the
+.Fn vhpi_check_error
+function.
 .\" --vhpi-trace
 .It Fl \-vhpi-trace
 Trace VHPI calls and events.  This can be useful for debugging VHPI

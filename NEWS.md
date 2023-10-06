@@ -19,6 +19,9 @@
 - Various enhancements and fixes to the VHPI implementation.
 - Implemented the VHDL-2019 changes to `instance_name` and `path_name`
   for protected type variables.
+- VHPI error messages are no longer reported as diagnostic messages on
+  the console.  The new `--vhpi-debug` option restores the old
+  behaviour.
 
 ## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared
