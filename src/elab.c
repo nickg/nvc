@@ -1338,7 +1338,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    if (error_count() == 0) {
       diag_add_hint_fn(elab_hint_fn, t);
-      bounds_check(b);   // Catch port size mismatches
       simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
       diag_remove_hint_fn(elab_hint_fn);
    }
