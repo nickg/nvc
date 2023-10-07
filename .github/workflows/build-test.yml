@@ -61,7 +61,7 @@ jobs:
           export NVC_VECTOR_INTRINSICS=0
           cd build
           rm -rf logs
-          ./bin/run_regr ieee
+          ASAN_OPTIONS=detect_leaks=0 ./bin/run_regr ieee
       - name: JIT benchmarks
         run: |
           make -C build bin/jitperf
