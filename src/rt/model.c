@@ -2050,10 +2050,8 @@ static void reset_coverage(rt_model_t *m)
 
    m->cover = cover_read_tags(f, 0);
 
-   int32_t n_tags;
-   cover_count_tags(m->cover, &n_tags);
-
    // Pre-allocate coverage counters
+   const int n_tags = cover_count_tags(m->cover);
    jit_get_cover_mem(m->jit, n_tags);
 
    fbuf_close(f, NULL);
@@ -2070,11 +2068,10 @@ static void reset_asserts(rt_model_t *m)
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      int32_t n_tags;
-      cover_count_tags(m->cover, &n_tags);
+      const int n_tags = cover_count_tags(m->cover);
 
       const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
-      fbuf_t *covdb =  cover_open_lib_file(m->top, FBUF_OUT, true);
+      fbuf_t *covdb = cover_open_lib_file(m->top, FBUF_OUT, true);
       cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, counts);
       fbuf_close(covdb, NULL);
    }
@@ -3521,6 +3518,14 @@ bool get_vhdl_assert_enable(int8_t severity)
 
    assert(severity <= SEVERITY_FAILURE);
    return m->asserts.enables[severity];
+}
+
+int32_t *get_cover_counter(rt_model_t *m, int32_t tag)
+{
+   assert(tag >= 0);
+   assert(m->cover != NULL);
+   //   assert(tag <= cover_c
+   return jit_get_cover_mem(m->jit, tag + 1) + tag;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

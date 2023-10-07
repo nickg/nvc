@@ -3427,10 +3427,9 @@ static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
    jit_value_t shared = irgen_get_arg(g, op, 0);
 
    uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(tag);
 
    j_send(g, 0, shared);
-   j_send(g, 1, mem);
+   j_send(g, 1, jit_value_from_int64(tag));
    macro_exit(g, JIT_EXIT_COVER_TOGGLE);
 }
 

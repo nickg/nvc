@@ -69,4 +69,6 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 void get_forcing_value(rt_signal_t *s, uint8_t *value);
 
+int32_t *get_cover_counter(rt_model_t *m, int32_t tag);
+
 #endif  // _RT_MODEL_H

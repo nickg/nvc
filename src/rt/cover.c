@@ -915,12 +915,12 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
    loc_read_end(loc_rd);
 }
 
-void cover_count_tags(cover_tagging_t *tagging, int32_t *n_tags)
+unsigned cover_count_tags(cover_tagging_t *tagging)
 {
    if (tagging == NULL)
-      *n_tags = 0;
+      return 0;
    else
-      *n_tags = tagging->next_tag;
+      return tagging->next_tag;
 }
 
 void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
@@ -1085,7 +1085,9 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
    static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
    {                                                                          \
       uint32_t s_size = s->shared.size;                                       \
-      int32_t *toggle_mask = ((int32_t *)user);                               \
+      rt_model_t *m = get_model();                                            \
+      const int32_t tag = (uintptr_t)user;                                    \
+      int32_t *toggle_mask = get_cover_counter(m, tag);                       \
       COVER_TGL_CB_MSG(s)                                                     \
       for (int i = 0; i < s_size; i++) {                                      \
          uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
@@ -1130,14 +1132,15 @@ static bool is_constant_input(rt_signal_t *s)
    }
 }
 
-void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
+void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
    cover_mask_t op_mask = get_coverage(m)->mask;
-   sig_event_fn_t fn = &cover_toggle_cb_0_1;
 
    if (is_constant_input(s)) {
+      int32_t *toggle_mask = get_cover_counter(m, tag);
+
       for (int i = 0; i < s->shared.size; i++) {
          // Remember constant driver in run-time data. Unreachable mask not
          // available at run-time.
@@ -1145,6 +1148,8 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
       }
       return;
    }
+
+   sig_event_fn_t fn = &cover_toggle_cb_0_1;
 
    if ((op_mask & COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED) &&
        (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z))
@@ -1156,7 +1161,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t *toggle_mask)
    else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
-   model_set_event_cb(m, s, fn, toggle_mask, false);
+   model_set_event_cb(m, s, fn, (void *)(uintptr_t)tag, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

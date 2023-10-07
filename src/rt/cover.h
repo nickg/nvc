@@ -191,7 +191,7 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
 void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
 void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);
 
-void cover_count_tags(cover_tagging_t *tagging, int32_t *n_tags);
+unsigned cover_count_tags(cover_tagging_t *tagging);
 
 void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
                      const int32_t *counts);
