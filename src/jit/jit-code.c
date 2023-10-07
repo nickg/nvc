@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #if defined __MINGW32__
 #include <winnt.h>
@@ -83,12 +84,26 @@ STATIC_ASSERT(CODE_PAGE_SIZE % THREAD_CACHE_SIZE == 0);
 
 typedef struct _code_page code_page_t;
 
+typedef struct {
+   uintptr_t  addr;
+   char      *text;
+} code_comment_t;
+
+typedef struct {
+   unsigned        count;
+   unsigned        max;
+   code_comment_t *comments;
+} code_debug_t;
+
 typedef struct _code_span {
    code_cache_t *owner;
    code_span_t  *next;
    ident_t       name;
    uint8_t      *base;
    size_t        size;
+#ifdef DEBUG
+   code_debug_t  debug;
+#endif
 } code_span_t;
 
 typedef struct _patch_list {
@@ -293,10 +308,21 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
 
    cs_insn *insn = cs_malloc(span->owner->capstone);
 
+#ifdef DEBUG
+   code_comment_t *comment = span->debug.comments;
+#endif
+
    const uint8_t *const eptr = span->base + span->size;
    for (const uint8_t *ptr = span->base; ptr < eptr; ) {
-      size_t size = eptr - ptr;
       uint64_t address = (uint64_t)ptr;
+
+#ifdef DEBUG
+      for (; comment < span->debug.comments + span->debug.count
+              && comment->addr <= address; comment++)
+         printf("%30s;; %s\n", "", comment->text);
+#endif
+
+      size_t size = eptr - ptr;
       int col = 0;
       if (cs_disasm_iter(span->owner->capstone, &ptr, &size, &address, insn)) {
          char hex1[33], *p = hex1;
@@ -563,6 +589,125 @@ void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn)
       blob->patches = new;
    }
 }
+
+#ifdef DEBUG
+static void code_blob_print_value(text_buf_t *tb, jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      tb_printf(tb, "R%d", value.reg);
+      break;
+   case JIT_VALUE_INT64:
+      if (value.int64 < 4096)
+         tb_printf(tb, "#%"PRIi64, value.int64);
+      else
+         tb_printf(tb, "#0x%"PRIx64, value.int64);
+      break;
+   case JIT_VALUE_DOUBLE:
+      tb_printf(tb, "%%%g", value.dval);
+      break;
+   case JIT_ADDR_CPOOL:
+      tb_printf(tb, "[CP+%"PRIi64"]", value.int64);
+      break;
+   case JIT_ADDR_REG:
+      tb_printf(tb, "[R%d", value.reg);
+      if (value.disp != 0)
+         tb_printf(tb, "+%d", value.disp);
+      tb_cat(tb, "]");
+      break;
+   case JIT_ADDR_ABS:
+      tb_printf(tb, "[#%016"PRIx64"]", value.int64);
+      break;
+   case JIT_ADDR_COVER:
+      tb_printf(tb, "@%"PRIi64, value.int64);
+      break;
+   case JIT_VALUE_LABEL:
+      tb_printf(tb, "%d", value.label);
+      break;
+   case JIT_VALUE_HANDLE:
+      tb_printf(tb, "<%d>", value.handle);
+      break;
+   case JIT_VALUE_EXIT:
+      tb_printf(tb, "%s", jit_exit_name(value.exit));
+      break;
+   case JIT_VALUE_LOC:
+      tb_printf(tb, "<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
+      break;
+   case JIT_VALUE_FOREIGN:
+      tb_printf(tb, "$%s", istr(ffi_get_sym(value.foreign)));
+      break;
+   case JIT_VALUE_LOCUS:
+      tb_printf(tb, "%s%+d", istr(value.ident), value.disp);
+      break;
+   case JIT_VALUE_VPOS:
+      tb_printf(tb, "%u:%u", value.vpos.block, value.vpos.op);
+      break;
+   default:
+      tb_cat(tb, "???");
+   }
+}
+
+static void code_blob_add_comment(code_blob_t *blob, char *text)
+{
+   code_debug_t *dbg = &(blob->span->debug);
+
+   if (dbg->count == dbg->max) {
+      dbg->max = MAX(128, dbg->max * 2);
+      dbg->comments = xrealloc_array(dbg->comments, dbg->max,
+                                     sizeof(code_comment_t));
+   }
+
+   dbg->comments[dbg->count].addr = (uintptr_t)blob->wptr;
+   dbg->comments[dbg->count].text = text;
+   dbg->count++;
+}
+
+void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "%s%s", jit_op_name(ir->op), jit_cc_name(ir->cc));
+
+   if (ir->size != JIT_SZ_UNSPEC)
+      tb_printf(tb, ".%d", 1 << (3 + ir->size));
+
+   tb_printf(tb, "%*.s", (int)MAX(0, 10 - tb_len(tb)), "");
+
+   if (ir->result != JIT_REG_INVALID)
+      tb_printf(tb, "R%d", ir->result);
+
+   if (ir->arg1.kind != JIT_VALUE_INVALID) {
+      if (ir->result != JIT_REG_INVALID)
+         tb_cat(tb, ", ");
+      code_blob_print_value(tb, ir->arg1);
+   }
+
+   if (ir->arg2.kind != JIT_VALUE_INVALID) {
+      tb_cat(tb, ", ");
+      code_blob_print_value(tb, ir->arg2);
+   }
+
+   code_blob_add_comment(blob, tb_claim(tb));
+}
+
+void code_blob_printf(code_blob_t *blob, const char *fmt, ...)
+{
+   code_debug_t *dbg = &(blob->span->debug);
+
+   if (dbg->count == dbg->max) {
+      dbg->max = MAX(128, dbg->max * 2);
+      dbg->comments = xrealloc_array(dbg->comments, dbg->max,
+                                     sizeof(code_comment_t));
+   }
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   char *text = xvasprintf(fmt, ap);
+   code_blob_add_comment(blob, text);
+
+   va_end(ap);
+}
+#endif   // DEBUG
 
 #ifdef ARCH_ARM64
 static void *arm64_emit_trampoline(code_blob_t *blob, uintptr_t dest)

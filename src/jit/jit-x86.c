@@ -1848,6 +1848,7 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
          code_blob_mark(blob, i);
+      code_blob_print_ir(blob, &(f->irbuf[i]));
       jit_x86_op(blob, state, &(f->irbuf[i]));
    }
 

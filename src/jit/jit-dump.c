@@ -63,6 +63,16 @@ const char *jit_op_name(jit_op_t op)
    }
 }
 
+const char *jit_cc_name(jit_cc_t cc)
+{
+   static const char *names[] = {
+      "", ".T", ".F", ".EQ", ".NE", ".LT", ".GE", ".GT", ".LE",
+      ".O", ".NO", ".C", ".NC"
+   };
+   assert(cc < ARRAY_LEN(names));
+   return names[cc];
+}
+
 const char *jit_exit_name(jit_exit_t exit)
 {
    static const char *names[] = {
@@ -231,27 +241,11 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    }
 
    int col = 0;
-   col += printf("\t%s", jit_op_name(ir->op));
-   switch (ir->cc) {
-   case JIT_CC_NONE: break;
-   case JIT_CC_T:  col += printf(".T"); break;
-   case JIT_CC_F:  col += printf(".F"); break;
-   case JIT_CC_EQ: col += printf(".EQ"); break;
-   case JIT_CC_NE: col += printf(".NE"); break;
-   case JIT_CC_LT: col += printf(".LT"); break;
-   case JIT_CC_GT: col += printf(".GT"); break;
-   case JIT_CC_LE: col += printf(".LE"); break;
-   case JIT_CC_GE: col += printf(".GE"); break;
-   case JIT_CC_O:  col += printf(".O");  break;
-   case JIT_CC_NO: col += printf(".NO"); break;
-   case JIT_CC_C:  col += printf(".C");  break;
-   case JIT_CC_NC: col += printf(".NC"); break;
-   }
+   col += printf("\t%s%s", jit_op_name(ir->op), jit_cc_name(ir->cc));
    if (ir->size != JIT_SZ_UNSPEC)
       col += printf(".%d", 1 << (3 + ir->size));
 
-   while (col < 15)
-      col += printf(" ");
+   col += printf("%*.s", (int)MAX(0, 15 - col), "");
 
    if (ir->result != JIT_REG_INVALID)
       col += printf("R%d", ir->result);

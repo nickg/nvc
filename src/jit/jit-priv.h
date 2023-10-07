@@ -351,6 +351,7 @@ void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 void jit_dump_interleaved(jit_func_t *f);
 const char *jit_op_name(jit_op_t op);
+const char *jit_cc_name(jit_cc_t cc);
 const char *jit_exit_name(jit_exit_t exit);
 void jit_interp(jit_func_t *f, jit_anchor_t *caller, jit_scalar_t *args,
                 tlab_t *tlab);
@@ -393,6 +394,17 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry);
 void code_blob_mark(code_blob_t *blob, jit_label_t label);
 void code_blob_patch(code_blob_t *blob, jit_label_t label, code_patch_fn_t fn);
 void code_load_object(code_blob_t *blob, const void *data, size_t size);
+
+#ifdef DEBUG
+__attribute__((format(printf, 2, 3)))
+void code_blob_printf(code_blob_t *blob, const char *fmt, ...);
+
+void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir);
+#else
+
+#define code_blob_printf(blob, fmt, ...)
+#define code_blob_print_ir(blob, ir)
+#endif
 
 bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f);
 void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
