@@ -11302,22 +11302,40 @@ static void lower_map_signal(lower_unit_t *lu, vcode_reg_t src_reg,
       lower_for_each_field(lu, dst_type, dst_reg, src_reg, locus,
                            lower_map_signal_field_cb, &args);
    }
-   else {
+   else if (conv_func != VCODE_INVALID_REG) {
       vcode_reg_t src_count = lower_type_width(lu, src_type, src_reg);
       vcode_reg_t dst_count = lower_type_width(lu, dst_type, dst_reg);
 
+      assert(lower_have_signal(src_reg));
+
+      vcode_reg_t src_nets = lower_array_data(src_reg);
       vcode_reg_t dst_nets = lower_array_data(dst_reg);
 
-      if (lower_have_signal(src_reg)) {
-         vcode_reg_t src_nets = lower_array_data(src_reg);
+      emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
+   }
+   else if (type_is_array(src_type)) {
+      vcode_reg_t src_count = lower_array_total_len(lu, src_type, src_reg);
+      vcode_reg_t dst_count = lower_array_total_len(lu, dst_type, dst_reg);
+
+      vcode_reg_t locus = lower_debug_locus(where);
+      lower_check_array_sizes(lu, dst_type, src_type, dst_reg, src_reg, locus);
+
+      vcode_reg_t src_nets = lower_array_data(src_reg);
+      vcode_reg_t dst_nets = lower_array_data(dst_reg);
+
+      if (lower_have_signal(src_reg))
          emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
-      }
-      else if (type_is_array(src_type)) {
-         vcode_reg_t src_data = lower_array_data(src_reg);
-         emit_map_const(src_data, dst_nets, src_count);
-      }
       else
-         emit_map_const(src_reg, dst_nets, src_count);
+         emit_map_const(src_nets, dst_nets, src_count);
+   }
+   else {
+      vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+      vcode_reg_t dst_nets = lower_array_data(dst_reg);
+
+      if (lower_have_signal(src_reg))
+         emit_map_signal(src_reg, dst_nets, count_reg, count_reg, conv_func);
+      else
+         emit_map_const(src_reg, dst_nets, count_reg);
    }
 }
 
@@ -11527,14 +11545,14 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       type_t dst_type = mode == PORT_IN ? name_type : value_type;
 
       lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type,
-                       conv_func, port);
+                       conv_func, map);
    }
    else if (tree_kind(value) == T_WAVEFORM)
       lower_non_static_actual(lu, port, name_type, port_reg, value);
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
       lower_map_signal(lu, value_reg, port_reg, value_type, name_type,
-                       in_conv, port);
+                       in_conv, map);
    }
 }
 
@@ -11648,15 +11666,25 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
          emit_copy(ptr, src_reg, count_reg);
       }
    }
-   else if (field == -1) {
+   else if (field == -1 && type_is_array(type)) {
+      vcode_reg_t locus = lower_debug_locus(map);
+      lower_check_array_sizes(lu, port_type, type, src_reg,
+                              VCODE_INVALID_REG, locus);
+
       vcode_reg_t data_reg = lower_array_data(src_reg);
       emit_alias_signal(data_reg, lower_debug_locus(port));
+
       if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY) {
          vcode_reg_t wrap_reg = lower_wrap(lu, port_type, data_reg);
          emit_store(wrap_reg, var);
       }
       else
          emit_store(data_reg, var);
+   }
+   else if (field == -1) {
+      vcode_reg_t data_reg = lower_array_data(src_reg);
+      emit_alias_signal(data_reg, lower_debug_locus(port));
+      emit_store(data_reg, var);
    }
    else {
       vcode_reg_t data_reg = lower_array_data(src_reg);

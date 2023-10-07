@@ -64,7 +64,7 @@ START_TEST(test_elab4)
    input_from_file(TESTDIR "/elab/elab4.vhd");
 
    const error_t expect[] = {
-      { 21, "actual length 9 does not match formal length 8 for port X" },
+      { 21, "actual length 9 does not match formal length 8" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1593,7 +1593,7 @@ START_TEST(test_bounds41)
    input_from_file(TESTDIR "/elab/bounds41.vhd");
 
    const error_t expect[] = {
-      { 18, "actual length 1 does not match port P length 2" },
+      { 38, "actual length 1 does not match formal length 2" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1653,6 +1653,23 @@ START_TEST(test_block2)
    run_elab();
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_bounds42)
+{
+   input_from_file(TESTDIR "/elab/bounds42.vhd");
+
+   const error_t expect[] = {
+      { 27, "actual length 5 does not match formal length 2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -1746,6 +1763,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds41);
    tcase_add_test(tc, test_body1);
    tcase_add_test(tc, test_issue759);
+   tcase_add_test(tc, test_bounds42);
    tcase_add_loop_test(tc, test_block2, STD_02, STD_19 + 1);
    suite_add_tcase(s, tc);
 

@@ -4927,6 +4927,9 @@ START_TEST(test_issue613)
       { VCODE_OP_STORE, .name = "Q" },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_MAP_CONST },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_LENGTH_CHECK },   // Unnecessary
       { VCODE_OP_UNWRAP },
       { VCODE_OP_MAP_CONST },
       { VCODE_OP_RETURN },

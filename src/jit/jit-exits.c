@@ -165,7 +165,8 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
    const tree_kind_t kind = tree_kind(where);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL)
+   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL
+       || kind == T_PARAM)
       tb_cat(tb, "actual");
    else if (kind == T_CASE || kind == T_MATCH_CASE)
       tb_cat(tb, "expression");
@@ -212,6 +213,9 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
       break;
    case T_ASSOC:
       tb_cat(tb, "expected");
+      break;
+   case T_PARAM:
+      tb_cat(tb, "formal");
       break;
    case T_TYPE_CONV:
    case T_ATTR_REF:
