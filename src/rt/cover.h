@@ -61,6 +61,12 @@ typedef enum {
    //    XOR   - Flags for operand values: 01, 10, 11, 00
    //    XNOR  - Flags for operand values: 01, 10, 11, 00
    TAG_EXPRESSION,
+
+   // FSM state coverage
+   //
+   // Signal of user defined enum type is tracked to see if all enum values were
+   // reached.
+   TAG_STATE
 } tag_kind_t;
 
 typedef struct _cover_tag {
@@ -86,6 +92,8 @@ typedef struct _cover_tag {
    //                     Bit COV_FLAG_01:          LHS = 0/False and RHS = 1/True
    //                     Bit COV_FLAG_10:          LHS = 1/True  and RHS = 0/False
    //                     Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
+   //    TAG_STATE      - Each bit corresponds to FSM state reached value.
+   //                     N = (N_LITERALS-1) / 32 + 1
    int32_t        data;
 
    // Flags for coverage tag
@@ -113,8 +121,10 @@ typedef struct _cover_tag {
    // Type of underlying tree object
    tree_kind_t    tree_kind;
 
-   // Start position for signal name
-   int            sig_pos;
+   // Numeric data related to the cover tag:
+   //    TAG_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.
+   //    TAG_TOGGLE - Start position for signal name
+   int            num;
 } cover_tag_t;
 
 typedef enum {
@@ -125,6 +135,7 @@ typedef enum {
    COV_FLAG_01             = (1 << 4),
    COV_FLAG_10             = (1 << 5),
    COV_FLAG_11             = (1 << 6),
+   COV_FLAG_STATE          = (1 << 7),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
@@ -154,16 +165,19 @@ typedef enum {
    COVER_MASK_BRANCH                      = (1 << 1),
    COVER_MASK_TOGGLE                      = (1 << 2),
    COVER_MASK_EXPRESSION                  = (1 << 3),
+   COVER_MASK_STATE                       = (1 << 4),
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
    COVER_MASK_TOGGLE_INCLUDE_MEMS         = (1 << 10),
    COVER_MASK_EXCLUDE_UNREACHABLE         = (1 << 11),
+   COVER_MASK_FSM_NO_DEFAULT_ENUMS        = (1 << 12),
    COVER_MASK_DONT_PRINT_COVERED          = (1 << 16),
    COVER_MASK_DONT_PRINT_UNCOVERED        = (1 << 17),
    COVER_MASK_DONT_PRINT_EXCLUDED         = (1 << 18)
 } cover_mask_t;
 
-#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION)
+#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | \
+                        COVER_MASK_EXPRESSION | COVER_MASK_STATE)
 
 cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
@@ -179,6 +193,7 @@ void cover_dec_array_depth(cover_tagging_t *tagging);
 
 bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);
+bool cover_skip_type_state(cover_tagging_t *tagging, type_t type);
 
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 

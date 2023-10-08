@@ -15,3 +15,4 @@
 ** Note:      branch:        N.A.
 ** Note:      toggle:        N.A.
 ** Note:      expression:    85.7 % (12/14)
+** Note:      FSM state:     N.A.

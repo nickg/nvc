@@ -901,6 +901,18 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_COVER_STATE:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t *shared = args[0].pointer;
+         int32_t      *mem    = args[1].pointer;
+
+         x_cover_setup_state_cb(shared, mem);
+      }
+      break;
+
    case JIT_EXIT_PROCESS_INIT:
       {
          if (!jit_has_runtime(jit_thread_local()->jit))
