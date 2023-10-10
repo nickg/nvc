@@ -5,5 +5,7 @@ module vlog4;
     x <= 42;
     $display("x ==> %d", x);
     #1 $display("x ==> %d", x);
+    x = 12;
+    $display("x ==> %d", x);
   end
 endmodule // vlog4

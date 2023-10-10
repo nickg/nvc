@@ -88,6 +88,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_BINARY
    (I_LEFT | I_RIGHT | I_SUBKIND),
+
+   // V_BASSIGN
+   (I_TARGET | I_VALUE | I_SUBKIND),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -96,7 +99,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SEQ_BLOCK", "V_SYSTASK",     "V_STRING",   "V_NUMBER",
    "V_NET_DECL",  "V_ASSIGN",      "V_ROOT",     "V_DIMENSION",
    "V_IF",        "V_COND",        "V_VAR_DECL", "V_DELAY_CONTROL",
-   "V_BINARY",
+   "V_BINARY",    "V_BASSIGN",
 };
 
 static const change_allowed_t change_allowed[] = {

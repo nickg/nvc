@@ -208,6 +208,9 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(s2or) == V_BINARY);
    fail_unless(vlog_subkind(s2or) == V_BINARY_OR);
 
+   vlog_node_t s1s0s5 = vlog_stmt(s1s0, 5);
+   fail_unless(vlog_kind(s1s0s5) == V_BASSIGN);
+
    fail_unless(vlog_parse() == NULL);
 
    fail_if_errors();

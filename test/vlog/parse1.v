@@ -10,6 +10,7 @@ module parse1;
     if (x) $display("yes");
     else if (z);
     else $display("no");
+    z = 0;
   end
   assign x = x | y;
 endmodule // parse1

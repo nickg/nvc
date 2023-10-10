@@ -187,6 +187,21 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
+static void vlog_dump_bassign(vlog_node_t v, int indent)
+{
+   tab(indent);
+   vlog_dump(vlog_target(v), 0);
+
+   switch (vlog_subkind(v)) {
+   case V_ASSIGN_EQUALS:
+      print_syntax(" = ");
+      break;
+   }
+
+   vlog_dump(vlog_value(v), 0);
+   print_syntax(";\n");
+}
+
 static void vlog_dump_assign(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -310,6 +325,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_NBASSIGN:
       vlog_dump_nbassign(v, indent);
+      break;
+   case V_BASSIGN:
+      vlog_dump_bassign(v, indent);
       break;
    case V_ASSIGN:
       vlog_dump_assign(v, indent);

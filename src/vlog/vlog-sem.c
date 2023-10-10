@@ -134,6 +134,16 @@ static void vlog_check_binary(vlog_node_t op)
    vlog_check(vlog_right(op));
 }
 
+static void vlog_check_variable_target(vlog_node_t target)
+{
+   if (is_net(target)) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
+      name_for_diag(d, target, "target");
+      diag_printf(d, " cannot be assigned in a procedural block");
+      diag_emit(d);
+   }
+}
+
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
@@ -142,12 +152,18 @@ static void vlog_check_nbassign(vlog_node_t stmt)
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
 
-   if (is_net(target)) {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
-      name_for_diag(d, target, "target");
-      diag_printf(d, " cannot be assigned in a procedural block");
-      diag_emit(d);
-   }
+   vlog_check_variable_target(target);
+}
+
+static void vlog_check_bassign(vlog_node_t stmt)
+{
+   vlog_node_t target = vlog_target(stmt);
+   vlog_check(target);
+
+   vlog_node_t value = vlog_value(stmt);
+   vlog_check(value);
+
+   vlog_check_variable_target(target);
 }
 
 static void vlog_check_assign(vlog_node_t stmt)
@@ -304,6 +320,9 @@ void vlog_check(vlog_node_t v)
    case V_NBASSIGN:
       vlog_check_nbassign(v);
       break;
+   case V_BASSIGN:
+      vlog_check_bassign(v);
+      break;
    case V_ASSIGN:
       vlog_check_assign(v);
       break;
@@ -338,6 +357,7 @@ void vlog_check(vlog_node_t v)
       vlog_check_binary(v);
       break;
    default:
-      fatal_trace("cannot check verilog node %s", vlog_kind_str(vlog_kind(v)));
+      fatal_at(vlog_loc(v), "cannot check verilog node %s",
+               vlog_kind_str(vlog_kind(v)));
    }
 }

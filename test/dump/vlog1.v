@@ -12,6 +12,7 @@ module mod2;
     if (bus)
       r <= 1 | r;
     $finish;
+    r = 1;
   end
   assign bus = 3;
 endmodule // mod2

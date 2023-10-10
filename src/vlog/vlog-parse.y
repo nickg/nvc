@@ -110,7 +110,7 @@ static bool is_decl(vlog_node_t v)
 %type   <vlog>          procedural_timing_control_statement
 %type   <vlog>          lvalue event_control event_expression
 %type   <vlog>          nonblocking_assignment delay_or_event_control
-%type   <vlog>          port_declaration port_reference
+%type   <vlog>          port_declaration port_reference blocking_assignment
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
@@ -436,6 +436,7 @@ initial_construct:
 
 statement:      procedural_timing_control_statement
         |       nonblocking_assignment ';'
+        |       blocking_assignment ';'
         |       seq_block
         |       system_task_enable
         |       conditional_statement
@@ -547,6 +548,17 @@ nonblocking_assignment:
                 {
                    $$ = vlog_new(V_NBASSIGN);
                    vlog_set_loc($$, &@$);
+                   vlog_set_target($$, $1);
+                   vlog_set_value($$, $3);
+                }
+        ;
+
+blocking_assignment:
+                lvalue '=' expression
+                {
+                   $$ = vlog_new(V_BASSIGN);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_ASSIGN_EQUALS);
                    vlog_set_target($$, $1);
                    vlog_set_value($$, $3);
                 }

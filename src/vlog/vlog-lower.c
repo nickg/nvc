@@ -431,6 +431,21 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
    emit_sched_waveform(nets_reg, count_reg, value_reg, reject_reg, after_reg);
 }
 
+static void vlog_lower_bassign(lower_unit_t *lu, vlog_node_t v)
+{
+   vlog_lower_nbassign(lu, v);
+
+   // Delay one delta cycle to see the update
+
+   vcode_type_t vtime = vtype_time();
+   vcode_reg_t delay_reg = emit_const(vtime, 0);
+
+   vcode_block_t resume_bb = emit_block();
+   emit_wait(resume_bb, delay_reg);
+
+   vcode_select_block(resume_bb);
+}
+
 static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
 {
    const v_systask_kind_t kind = vlog_subkind(v);
@@ -520,6 +535,9 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
       case V_NBASSIGN:
          vlog_lower_nbassign(lu, s);
          break;
+      case V_BASSIGN:
+         vlog_lower_bassign(lu, s);
+         break;
       case V_SEQ_BLOCK:
          vlog_lower_stmts(lu, s);
          break;
@@ -558,6 +576,7 @@ static void vlog_driver_cb(vlog_node_t v, void *context)
 
    switch (vlog_kind(v)) {
    case V_NBASSIGN:
+   case V_BASSIGN:
    case V_ASSIGN:
       vlog_lower_driver(lu, vlog_target(v));
       break;

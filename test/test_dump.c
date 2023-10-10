@@ -438,6 +438,7 @@ START_TEST(test_vlog1)
              "    if (bus)\n"
              "      r <= 5'b00001 | r;\n"
              "    $finish;\n"
+             "    r = 5'b00001;\n"
              "  end\n"
              "  assign bus = 5'b00011;\n"
              "endmodule // mod2\n\n");
