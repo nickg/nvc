@@ -30,4 +30,7 @@ package verilog is
 
     function to_time (value : t_packed_logic) return delay_length;
 
+    function "&" (l, r : t_logic) return t_logic;
+    function "&" (l, r : t_packed_logic) return t_packed_logic;
+
 end package;

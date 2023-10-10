@@ -14,6 +14,8 @@
 --  limitations under the License.
 -------------------------------------------------------------------------------
 
+use work.polyfill.all;
+
 package body verilog is
 
     function to_integer (value : t_packed_logic) return t_int64 is
@@ -42,6 +44,35 @@ package body verilog is
             add := add * 2;
         end loop;
         return r;
+    end function;
+
+    function "&" (l, r : t_logic) return t_logic is
+    begin
+        if l = '1' and r = '1' then
+            return '1';
+        elsif l = 'X' or r = 'X' or l = 'Z' or r = 'Z' then
+            return 'X';
+        else
+            return '0';
+        end if;
+    end function;
+
+    function "&" (l, r : t_packed_logic) return t_packed_logic is
+        constant llen   : natural := l'length;
+        constant rlen   : natural := r'length;
+        constant len    : natural := maximum(llen, rlen);
+        alias la        : t_packed_logic(0 to llen - 1) is l;
+        alias ra        : t_packed_logic(0 to rlen - 1) is r;
+        variable result : t_packed_logic(0 to len - 1);
+    begin
+        for i in result'range loop
+            if i < llen and i < rlen then
+                result(i) := la(i) & ra(i);
+            else
+                result(i) := '0';
+            end if;
+        end loop;
+        return result;
     end function;
 
 end package body;

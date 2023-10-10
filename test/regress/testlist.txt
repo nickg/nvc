@@ -881,3 +881,4 @@ issue766        normal,2002
 attr19          normal,2008,gold
 attr20          normal,2019,work=lib
 protected13     normal,2019
+vlog5           verilog,gold

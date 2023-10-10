@@ -413,6 +413,7 @@ static rt_scope_t *scope_for_verilog(rt_model_t *m, vlog_node_t scope,
       switch (vlog_kind(v)) {
       case V_ALWAYS:
       case V_INITIAL:
+      case V_ASSIGN:
          {
             ident_t name = vlog_ident(v);
             ident_t sym = ident_prefix(s->name, name, '.');

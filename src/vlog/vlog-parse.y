@@ -405,6 +405,10 @@ net_assignment: lvalue '=' expression
                    vlog_set_loc($$, &@$);
                    vlog_set_target($$, $1);
                    vlog_set_value($$, $3);
+
+                   char *name LOCAL =
+                      xasprintf("__assign#line%d", @$.first_line);
+                   vlog_set_ident($$, ident_uniq(name));
                 }
         ;
 

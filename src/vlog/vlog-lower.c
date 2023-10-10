@@ -47,6 +47,12 @@ static inline vcode_type_t vlog_logic_type(void)
    return vtype_int(0, 3);
 }
 
+static inline vcode_type_t vlog_packed_logic_type(void)
+{
+   vcode_type_t vlogic = vlog_logic_type();
+   return vtype_uarray(1, vlogic, vlogic);
+}
+
 static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 {
    ident_t unit;
@@ -195,6 +201,7 @@ static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
       switch (vlog_kind(d)) {
       case V_PORT_DECL:
       case V_VAR_DECL:
+      case V_NET_DECL:
          vlog_lower_signal_decl(lu, d);
          break;
       default:
@@ -342,6 +349,29 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
             return emit_const_array(varray, bits, width);
          }
       }
+   case V_BINARY:
+      {
+         vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(v));
+         vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(v));
+
+         ident_t func = ident_new(
+            "NVC.VERILOG.\"&\"(26NVC.VERILOG.T_PACKED_LOGIC"
+            "26NVC.VERILOG.T_PACKED_LOGIC)26NVC.VERILOG.T_PACKED_LOGIC");
+
+         vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+
+         vcode_reg_t args[] = {
+            context_reg,
+            vlog_lower_wrap(lu, left_reg),
+            vlog_lower_wrap(lu, right_reg)
+         };
+
+         vcode_type_t vlogic = vlog_logic_type();
+         vcode_type_t vpacked = vlog_packed_logic_type();
+
+         return emit_fcall(func, vpacked, vlogic, VCODE_CC_VHDL,
+                           args, ARRAY_LEN(args));
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -359,6 +389,12 @@ static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
       break;
    case V_EVENT:
       vlog_lower_sensitivity(lu, vlog_value(v));
+      break;
+   case V_NUMBER:
+      break;
+   case V_BINARY:
+      vlog_lower_sensitivity(lu, vlog_left(v));
+      vlog_lower_sensitivity(lu, vlog_right(v));
       break;
    default:
       CANNOT_HANDLE(v);
@@ -650,6 +686,37 @@ static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
    unit_registry_finalise(ur, lu);
 }
 
+static void vlog_lower_continuous_assign(unit_registry_t *ur,
+                                         lower_unit_t *parent,
+                                         vlog_node_t stmt)
+{
+   vcode_unit_t context = get_vcode(parent);
+   vcode_select_unit(context);
+
+   ident_t name = ident_prefix(vcode_unit_name(), vlog_ident(stmt), '.');
+   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
+
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
+
+   vlog_visit(stmt, vlog_driver_cb, lu);
+
+   vlog_lower_sensitivity(lu, vlog_value(stmt));
+
+   emit_return(VCODE_INVALID_REG);
+
+   vcode_select_block(start_bb);
+
+   vlog_lower_nbassign(lu, stmt);
+
+   emit_wait(start_bb, VCODE_INVALID_REG);
+
+   unit_registry_finalise(ur, lu);
+}
+
 static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
                                   vlog_node_t scope)
 {
@@ -662,6 +729,9 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
          break;
       case V_INITIAL:
          vlog_lower_initial(ur, parent, s);
+         break;
+      case V_ASSIGN:
+         vlog_lower_continuous_assign(ur, parent, s);
          break;
       default:
          CANNOT_HANDLE(s);
