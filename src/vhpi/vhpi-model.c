@@ -1450,7 +1450,17 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       if (td == NULL)
          return NULL;
 
-      const jit_layout_t *l = layout_of(td->type);
+      const jit_layout_t *l;
+      switch (vhpi_get_prefix_kind(obj)) {
+      case vhpiPortDeclK:
+      case vhpiSigDeclK:
+         l = signal_layout_of(td->type);
+         break;
+      default:
+         l = layout_of(td->type);
+         break;
+      }
+
 
       c_selectedName *sn = is_selectedName(obj);
       if (sn != NULL) {

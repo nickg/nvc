@@ -35,5 +35,6 @@ typedef struct {
 } jit_layout_t;
 
 const jit_layout_t *layout_of(type_t type);
+const jit_layout_t *signal_layout_of(type_t type);
 
 #endif   // _JIT_LAYOUT_H

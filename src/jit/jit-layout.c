@@ -19,6 +19,7 @@
 #include "common.h"
 #include "hash.h"
 #include "jit/jit-layout.h"
+#include "thread.h"
 #include "type.h"
 
 #include <assert.h>
@@ -54,8 +55,7 @@ const jit_layout_t *layout_of(type_t type)
    assert(type_frozen(type));   // Not safe to cache otherwise
    static hash_t *cache = NULL;
 
-   if (cache == NULL)
-      cache = hash_new(256);
+   INIT_ONCE(cache = hash_new(256));
 
    jit_layout_t *l = hash_get(cache, type);
    if (l != NULL)
@@ -135,6 +135,92 @@ const jit_layout_t *layout_of(type_t type)
       for (int i = 0; i < nfields; i++) {
          type_t ftype = tree_type(type_field(type, i));
          const jit_layout_t *fl = layout_of(ftype);
+
+         offset = ALIGN_UP(offset, fl->align);
+
+         l->parts[i].offset = offset;
+         l->parts[i].size   = fl->size;
+         l->parts[i].repeat = 1;
+         l->parts[i].align  = fl->align;
+
+         offset += fl->size;
+      }
+
+      l->size  = offset;
+      l->align = sizeof(void *);  // Matches irgen_align_of
+   }
+   else
+      fatal_trace("cannot get layout for %s", type_pp(type));
+
+   hash_put(cache, type, l);
+   return l;
+}
+
+const jit_layout_t *signal_layout_of(type_t type)
+ {
+   assert(type_frozen(type));   // Not safe to cache otherwise
+   static hash_t *cache = NULL;
+
+   INIT_ONCE(cache = hash_new(256));
+
+   jit_layout_t *l = hash_get(cache, type);
+   if (l != NULL)
+      return l;
+
+   if (type_is_scalar(type) || type_const_bounds(type)) {
+      l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
+      l->nparts = 2;
+      l->size   = 16;
+      l->align  = 8;
+
+      // Shared signal data pointer
+      l->parts[0].offset = 0;
+      l->parts[0].size   = sizeof(void *);
+      l->parts[0].repeat = 1;
+      l->parts[0].align  = sizeof(void *);
+
+      // Offset
+      l->parts[1].offset = 8;
+      l->parts[1].size   = 8;
+      l->parts[1].repeat = 1;
+      l->parts[1].align  = 8;
+   }
+   else if (type_is_array(type)) {
+      const int ndims = dimension_of(type);
+
+      l = xcalloc_flex(sizeof(jit_layout_t), 3, sizeof(layout_part_t));
+      l->nparts = 3;
+      l->size   = 16 + ndims * 2 * sizeof(int64_t);
+      l->align  = 8;
+
+      // Shared signal data pointer
+      l->parts[0].offset = 0;
+      l->parts[0].size   = sizeof(void *);
+      l->parts[0].repeat = 1;
+      l->parts[0].align  = sizeof(void *);
+
+      // Offset
+      l->parts[1].offset = 8;
+      l->parts[1].size   = 8;
+      l->parts[1].repeat = 1;
+      l->parts[1].align  = 8;
+
+      // Array bounds
+      l->parts[2].offset = 16;
+      l->parts[2].size   = 8;
+      l->parts[2].repeat = ndims * 2;
+      l->parts[2].align  = 8;
+   }
+   else if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+
+      l = xcalloc_flex(sizeof(jit_layout_t), nfields, sizeof(layout_part_t));
+      l->nparts = nfields;
+
+      int offset = 0;
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
+         const jit_layout_t *fl = signal_layout_of(ftype);
 
          offset = ALIGN_UP(offset, fl->align);
 

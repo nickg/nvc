@@ -836,6 +836,17 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[0].repeat, 1);
    ck_assert_int_eq(l->parts[0].align, 4);
 
+   l = signal_layout_of(std_type(NULL, STD_INTEGER));
+   ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].repeat, 1);
+   ck_assert_int_eq(l->parts[0].align, 8);
+   ck_assert_int_eq(l->parts[1].offset, 8);
+   ck_assert_int_eq(l->parts[1].size, 8);
+   ck_assert_int_eq(l->parts[1].repeat, 1);
+   ck_assert_int_eq(l->parts[1].align, 8);
+
    l = layout_of(std_type(NULL, STD_REAL));
    ck_assert_int_eq(l->nparts, 1);
    ck_assert_int_eq(l->parts[0].offset, 0);
@@ -866,6 +877,20 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
    ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
    ck_assert_int_eq(l->parts[1].repeat, 2);
+
+   l = signal_layout_of(std_type(NULL, STD_STRING));
+   ck_assert_int_eq(l->nparts, 3);
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].repeat, 1);
+   ck_assert_int_eq(l->parts[0].align, 8);
+   ck_assert_int_eq(l->parts[1].offset, 8);
+   ck_assert_int_eq(l->parts[1].size, 8);
+   ck_assert_int_eq(l->parts[1].repeat, 1);
+   ck_assert_int_eq(l->parts[1].align, 8);
+   ck_assert_int_eq(l->parts[2].offset, 16);
+   ck_assert_int_eq(l->parts[2].size, sizeof(int64_t));
+   ck_assert_int_eq(l->parts[2].repeat, 2);
 
    input_from_file(TESTDIR "/jit/layout.vhd");
 

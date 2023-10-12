@@ -15,6 +15,7 @@ package pack2 is
 
     type r is record
         f : bit_vector(1 to k);
+        g : bit_vector(k downto 1);
     end record;
 
 end package;
