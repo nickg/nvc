@@ -61,6 +61,40 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("s right bound %d", vhpi_get(vhpiRightBoundP, s_elem_range));
    fail_unless(vhpi_get(vhpiLeftBoundP, s_elem_range) == 3);
    fail_unless(vhpi_get(vhpiRightBoundP, s_elem_range) == 0);
+
+   vhpiHandleT s3_signal = vhpi_handle_by_name("s3", root);
+   check_error();
+   fail_if(s3_signal == NULL);
+   vhpi_printf("s3 handle %p", s3_signal);
+   fail_unless(vhpi_get(vhpiKindP, s3_signal) == vhpiSigDeclK);
+
+   vhpiHandleT s3f = vhpi_handle_by_name("s3.f", root);
+   check_error();
+   fail_if(s3f == NULL);
+   fail_unless(vhpi_get(vhpiKindP, s3f) == vhpiSelectedNameK);
+
+   vhpi_printf("s3.f size %d", vhpi_get(vhpiSizeP, s3f));
+   fail_unless(vhpi_get(vhpiSizeP, s3f) == 4);
+
+   vhpiHandleT s3f_type = vhpi_handle(vhpiBaseType, s3f);
+   check_error();
+   fail_if(s3f_type == NULL);
+   vhpi_printf("s3.f type handle %p", s3f_type);
+   vhpi_printf("s3.f type name is %s", vhpi_get_str(vhpiNameP, s3f_type));
+
+   vhpiHandleT s3f_constrs = vhpi_iterator(vhpiConstraints, s3f_type);
+   check_error();
+   fail_if(s3f_constrs == NULL);
+
+   vhpiHandleT s3f_range = vhpi_scan(s3f_constrs);
+   check_error();
+   fail_if(s3f_range == NULL);
+   fail_unless(vhpi_scan(s_constrs) == NULL);
+   vhpi_printf("s3.f type range handle %p", s3f_range);
+   vhpi_printf("s3.f left bound %d", vhpi_get(vhpiLeftBoundP, s3f_range));
+   vhpi_printf("s3.f right bound %d", vhpi_get(vhpiRightBoundP, s3f_range));
+   fail_unless(vhpi_get(vhpiLeftBoundP, s3f_range) == 1);
+   fail_unless(vhpi_get(vhpiRightBoundP, s3f_range) == 4);
 }
 
 void vhpi9_startup(void)
