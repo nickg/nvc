@@ -152,6 +152,8 @@ bool type_is_homogeneous(type_t t);
 bool type_is_resolved(type_t t);
 bool type_is_character_array(type_t t);
 
+bool type_const_bounds(type_t t);
+
 bool type_matches_class(type_t t, gtype_class_t class);
 
 // Helper to find ultimate base type
@@ -160,7 +162,6 @@ type_kind_t type_base_kind(type_t t);
 
 // Helper function to find number of sub-elemets
 unsigned type_width(type_t type);
-bool type_known_width(type_t type);
 
 // Helpers for element constraints
 tree_t type_constraint_for_field(type_t t, tree_t f);

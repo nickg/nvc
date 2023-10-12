@@ -135,7 +135,6 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     type_t rtype, vcode_reg_t lval,
                                     vcode_reg_t rval, vcode_reg_t locus);
 static vcode_type_t lower_alias_type(tree_t alias);
-static bool lower_const_bounds(type_t type);
 static type_t lower_elem_recur(type_t type);
 static void lower_predef(lower_unit_t *lu, object_t *obj);
 static ident_t lower_predef_func_name(type_t type, const char *op);
@@ -176,7 +175,7 @@ static bool lower_is_const(tree_t t)
    case T_AGGREGATE:
       {
          type_t type = tree_type(t);
-         if (type_is_record(type) && !lower_const_bounds(type))
+         if (type_is_record(type) && !type_const_bounds(type))
             return false;
 
          const int nassocs = tree_assocs(t);
@@ -232,43 +231,6 @@ static bool lower_is_const(tree_t t)
    }
 }
 
-static bool lower_const_range(tree_t r)
-{
-   switch (tree_subkind(r)) {
-   case RANGE_TO:
-   case RANGE_DOWNTO:
-      return lower_is_const(tree_left(r)) && lower_is_const(tree_right(r));
-   default:
-      return false;
-   }
-}
-
-static bool lower_const_bounds(type_t type)
-{
-   if (type_is_record(type)) {
-      const int nfields = type_fields(type);
-      for (int i = 0; i < nfields; i++) {
-         type_t ftype = tree_type(type_field(type, i));
-         if (type_is_composite(ftype) && !lower_const_bounds(ftype))
-            return false;
-      }
-
-      return true;
-   }
-   else if (type_is_unconstrained(type))
-      return false;
-   else {
-      const int ndims = dimension_of(type);
-      for (int i = 0; i < ndims; i++) {
-         if (!lower_const_range(range_of(type, i)))
-            return false;
-      }
-
-      type_t elem = type_elem(type);
-      return type_is_composite(elem) ? lower_const_bounds(elem) : true;
-   }
-}
-
 static bool needs_bounds_var(type_t type)
 {
    // A constrained array subtype with non-constant bounds should have
@@ -278,7 +240,7 @@ static bool needs_bounds_var(type_t type)
    else if (type_is_unconstrained(type))
       return false;
    else
-      return !lower_const_bounds(type);
+      return !type_const_bounds(type);
 }
 
 static int dims_for_type(type_t type)
@@ -286,7 +248,7 @@ static int dims_for_type(type_t type)
    int ndims = dimension_of(type);
 
    for (type_t e = type_elem(type);
-        type_is_array(e) && !lower_const_bounds(e);
+        type_is_array(e) && !type_const_bounds(e);
         e = type_elem(e))
       ndims += dimension_of(e);
 
@@ -305,7 +267,7 @@ static bool have_uarray_ptr(vcode_reg_t reg)
 static bool lower_trivially_copyable(type_t type)
 {
    if (type_is_record(type))
-      return lower_const_bounds(type);
+      return type_const_bounds(type);
    else if (type_is_array(type))
       return lower_trivially_copyable(lower_elem_recur(type));
    else
@@ -358,7 +320,7 @@ static vcode_reg_t lower_range_left(lower_unit_t *lu, tree_t r)
 
    if (tree_subkind(r) == RANGE_EXPR) {
       tree_t array = tree_name(tree_value(r));
-      assert(!lower_const_bounds(tree_type(array)));
+      assert(!type_const_bounds(tree_type(array)));
 
       vcode_reg_t array_reg = lower_rvalue(lu, array), left_reg;
 
@@ -383,7 +345,7 @@ static vcode_reg_t lower_range_right(lower_unit_t *lu, tree_t r)
 
    if (tree_subkind(r) == RANGE_EXPR) {
       tree_t array = tree_name(tree_value(r));
-      assert(!lower_const_bounds(tree_type(array)));
+      assert(!type_const_bounds(tree_type(array)));
 
       vcode_reg_t array_reg = lower_rvalue(lu, array), right_reg;
 
@@ -414,7 +376,7 @@ static vcode_reg_t lower_range_dir(lower_unit_t *lu, tree_t r)
    case RANGE_EXPR:
       {
          tree_t array = tree_name(tree_value(r));
-         assert(!lower_const_bounds(tree_type(array)));
+         assert(!type_const_bounds(tree_type(array)));
 
          vcode_reg_t array_reg = lower_rvalue(lu, array);
 
@@ -458,7 +420,7 @@ static bool have_array_metadata(type_t type, vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
       return false;
-   else if (lower_const_bounds(type))
+   else if (type_const_bounds(type))
       return false;
    else if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
@@ -629,7 +591,7 @@ static vcode_type_t lower_array_type(type_t type)
    vcode_type_t elem_type   = lower_type(elem);
    vcode_type_t elem_bounds = lower_bounds(elem);
 
-   if (lower_const_bounds(type))
+   if (type_const_bounds(type))
       return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
    else
       return vtype_uarray(dims_for_type(type), elem_type, elem_bounds);
@@ -689,7 +651,7 @@ static vcode_type_t lower_type(type_t type)
    case T_ACCESS:
       {
          type_t access = type_designated(type);
-         if (type_is_array(access) && lower_const_bounds(access))
+         if (type_is_array(access) && type_const_bounds(access))
             return vtype_access(lower_type(lower_elem_recur(access)));
          else
             return vtype_access(lower_type(access));
@@ -742,14 +704,14 @@ static vcode_type_t lower_signal_type(type_t type)
    if (type_is_array(type)) {
       if (type_is_homogeneous(type)) {
          vcode_type_t base = vtype_signal(lower_type(lower_elem_recur(type)));
-         if (lower_const_bounds(type))
+         if (type_const_bounds(type))
             return base;
          else
             return vtype_uarray(dims_for_type(type), base, base);
       }
       else {
          vcode_type_t base = lower_signal_type(lower_elem_recur(type));
-         if (lower_const_bounds(type))
+         if (type_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base, base);
          else
             return vtype_uarray(dims_for_type(type), base, base);
@@ -835,7 +797,7 @@ static vcode_reg_t lower_wrap_element(lower_unit_t *lu, type_t type,
                                       vcode_reg_t array, vcode_reg_t data)
 {
    assert(type_is_array(type));
-   assert(!lower_const_bounds(type_elem(type)));
+   assert(!type_const_bounds(type_elem(type)));
    assert(array != VCODE_INVALID_REG);
 
    const int ndims = dimension_of(type);
@@ -966,7 +928,7 @@ static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
 {
    vcode_type_t reg_vtype = vcode_reg_type(reg);
    const bool have_uarray = vtype_kind(reg_vtype) == VCODE_TYPE_UARRAY;
-   const bool need_uarray = !lower_const_bounds(to);
+   const bool need_uarray = !type_const_bounds(to);
 
    if (have_uarray && need_uarray && vtype_dims(reg_vtype) == dims_for_type(to))
       return reg;
@@ -1015,7 +977,7 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
       if (type_is_array(ftype)) {
          vcode_reg_t r_reg = emit_resolved(lower_array_data(sig_reg));
 
-         if (lower_const_bounds(ftype)) {
+         if (type_const_bounds(ftype)) {
             vcode_reg_t count_reg =
                lower_array_total_len(lu, ftype, VCODE_INVALID_REG);
             emit_copy(dst_ptr, r_reg, count_reg);
@@ -1105,7 +1067,7 @@ static vcode_reg_t lower_signal_array_aggregate(lower_unit_t *lu, tree_t expr)
       vcode_dim_t dims[1] = { { left_reg, left_reg, dir_reg } };
       return emit_wrap(a0_reg, dims, 1);
    }
-   else if (!lower_const_bounds(type))
+   else if (!type_const_bounds(type))
       return lower_wrap(lu, type, a0_reg);
    else
       return a0_reg;
@@ -1245,7 +1207,7 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
    vcode_reg_t nets = lower_lvalue(lu, ref);
 
    type_t type = tree_type(ref);
-   if (type_is_array(type) && !lower_const_bounds(type)) {
+   if (type_is_array(type) && !type_const_bounds(type)) {
       assert(vcode_reg_kind(nets) == VCODE_TYPE_UARRAY);
       vcode_reg_t last_reg = emit_last_value(emit_unwrap(nets));
       return lower_wrap_with_new_bounds(lu, type, type, nets, last_reg);
@@ -2441,7 +2403,7 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
 
 static vcode_type_t lower_func_result_type(type_t result)
 {
-   if (type_is_array(result) && lower_const_bounds(result))
+   if (type_is_array(result) && type_const_bounds(result))
       return vtype_pointer(lower_type(lower_elem_recur(result)));
    else if (type_is_record(result))
       return vtype_pointer(lower_type(result));
@@ -2457,7 +2419,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
       if (type_is_homogeneous(type))
          return lower_signal_type(type);
       else if (type_is_array(type)) {
-         if (lower_const_bounds(type))
+         if (type_const_bounds(type))
             return vtype_pointer(lower_signal_type(lower_elem_recur(type)));
          else
             return lower_signal_type(type);
@@ -2470,7 +2432,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
    case C_CONSTANT:
       {
          if (type_is_array(type)) {
-            if (lower_const_bounds(type))
+            if (type_const_bounds(type))
                return vtype_pointer(lower_type(lower_elem_recur(type)));
             else
                return lower_type(type);
@@ -2692,7 +2654,7 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool nest)
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
 
    type_t type = tree_type(lit);
-   if (type_is_array(type) && !lower_const_bounds(type)) {
+   if (type_is_array(type) && !type_const_bounds(type)) {
       vcode_type_t elem = lower_type(type_elem(type));
       vcode_type_t array_type = vtype_carray(nchars, elem, elem);
       vcode_reg_t data = emit_const_array(array_type, tmp, nchars);
@@ -2792,7 +2754,7 @@ static vcode_type_t lower_var_type(tree_t decl)
       type_t type = tree_type(decl);
       if (class_of(decl) == C_SIGNAL)
          return lower_signal_type(type);
-      else if (type_is_array(type) && lower_const_bounds(type))
+      else if (type_is_array(type) && type_const_bounds(type))
          return lower_type(lower_elem_recur(type));
       else
          return lower_type(type);
@@ -2897,7 +2859,7 @@ static vcode_reg_t lower_var_ref(lower_unit_t *lu, tree_t decl, expr_ctx_t ctx)
       else
          return ptr_reg;
    }
-   else if (type_is_array(type) && lower_const_bounds(type))
+   else if (type_is_array(type) && type_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type) || type_is_protected(type))
       return emit_index(var, VCODE_INVALID_REG);
@@ -3068,12 +3030,12 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
    if (ptr_reg != VCODE_INVALID_REG) {
       if (type_is_scalar(type))
          return emit_load_indirect(ptr_reg);
-      else if (type_is_array(type) && !lower_const_bounds(type))
+      else if (type_is_array(type) && !type_const_bounds(type))
          return emit_load_indirect(ptr_reg);
       else
          return ptr_reg;
    }
-   else if (type_is_array(type) && lower_const_bounds(type))
+   else if (type_is_array(type) && type_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type) || type_is_protected(type))
       return emit_index(var, VCODE_INVALID_REG);
@@ -3375,7 +3337,7 @@ static vcode_reg_t lower_array_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
    vcode_reg_t ptr_reg = emit_array_ref(data_reg, offset_reg);
 
    type_t elem_type = tree_type(ref);
-   if (type_is_array(elem_type) && !lower_const_bounds(elem_type))
+   if (type_is_array(elem_type) && !type_const_bounds(elem_type))
       return lower_wrap_element(lu, value_type, array, ptr_reg);
    else
       return ptr_reg;
@@ -3432,7 +3394,7 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
    vcode_reg_t ptr_reg =
       emit_array_ref(data_reg, emit_mul(off_reg, stride_reg));
 
-   if (lower_const_bounds(type))
+   if (type_const_bounds(type))
       return ptr_reg;
 
    vcode_dim_t dim0 = {
@@ -3585,7 +3547,7 @@ static vcode_reg_t lower_record_sub_aggregate(lower_unit_t *lu, tree_t value,
    if (is_const && type_is_array(ftype)) {
       if (tree_kind(value) == T_STRING)
          return lower_string_literal(value, true);
-      else if (lu->mode == LOWER_THUNK && !lower_const_bounds(ftype))
+      else if (lu->mode == LOWER_THUNK && !type_const_bounds(ftype))
          return emit_undefined(lower_type(ftype), lower_bounds(ftype));
       else {
          int nvals;
@@ -3683,7 +3645,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
          type_t ftype = tree_type(f);
          vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
          if (type_is_array(ftype)) {
-            if (lower_const_bounds(ftype)) {
+            if (type_const_bounds(ftype)) {
                vcode_reg_t src_reg = lower_array_data(vals[i]);
                vcode_reg_t length_reg =
                   lower_array_total_len(lu, ftype, vals[i]);
@@ -3724,7 +3686,7 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
       return false;
 
    type_t type = tree_type(expr);
-   assert(lower_const_bounds(type));
+   assert(type_const_bounds(type));
 
    tree_t a0 = tree_assoc(expr, 0);
    if (tree_subkind(a0) != A_OTHERS)
@@ -3870,7 +3832,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
    type_t elem = type_elem(type);
    const bool expand_a0 =
       dimension_of(type) > 1
-      || (type_is_array(elem) && !lower_const_bounds(elem));
+      || (type_is_array(elem) && !type_const_bounds(elem));
 
    if (expand_a0) {
       const int ndims = dims_for_type(type);
@@ -3916,7 +3878,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    type_t type = tree_type(expr);
 
-   if (lower_const_bounds(type) && lower_is_const(expr)) {
+   if (type_const_bounds(type) && lower_is_const(expr)) {
       int rep_size = -1;
       tree_t rep_elem = NULL;
       if (lower_can_use_const_rep(expr, &rep_size, &rep_elem) && rep_size > 1) {
@@ -4057,7 +4019,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       mem_reg = emit_alloc(velem, vbounds, len_reg);
 
    vcode_reg_t wrap_reg;
-   if (lower_const_bounds(type))
+   if (type_const_bounds(type))
       wrap_reg = mem_reg;
    else if (bounds_reg != VCODE_INVALID_REG)
       wrap_reg = lower_rewrap(mem_reg, bounds_reg);
@@ -4127,7 +4089,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             if (tree_kind(def_value) == T_AGGREGATE) {
                vcode_reg_t elem_reg = ptr_reg;
                if (array_of_array && !multidim
-                   && !lower_const_bounds(elem_type)) {
+                   && !type_const_bounds(elem_type)) {
                   assert(bounds_reg != VCODE_INVALID_REG);
                   elem_reg = lower_wrap_element(lu, type, bounds_reg, ptr_reg);
                }
@@ -4392,11 +4354,11 @@ static vcode_reg_t lower_record_ref(lower_unit_t *lu, tree_t expr,
    vcode_reg_t f_reg = emit_record_ref(record, index);
    if (lower_have_signal(f_reg) && type_is_homogeneous(ftype))
       return emit_load_indirect(f_reg);
-   else if (type_is_array(ftype) && !lower_const_bounds(ftype)) {
+   else if (type_is_array(ftype) && !type_const_bounds(ftype)) {
       // The field type may be unconstrained but this particular
       // instance has a record element constraint
       vcode_reg_t array = emit_load_indirect(f_reg);
-      if (lower_const_bounds(tree_type(expr)))
+      if (type_const_bounds(tree_type(expr)))
          return lower_array_data(array);
       else
          return array;
@@ -4450,7 +4412,7 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
 {
    if (src_ptr == dst_ptr)
       return;
-   else if (lower_const_bounds(type))
+   else if (type_const_bounds(type))
       emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
    else {
       type_t base = lower_base_type(type);
@@ -4478,8 +4440,8 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       type_t value_type = type, result_type = type_designated(tree_type(expr));
       type_t elem = lower_elem_recur(type);
 
-      const bool wrap_result = !lower_const_bounds(result_type);
-      const bool wrap_value = !lower_const_bounds(type);
+      const bool wrap_result = !type_const_bounds(result_type);
+      const bool wrap_value = !type_const_bounds(type);
 
       type_t alloc_type = wrap_result ? result_type : elem;
 
@@ -4490,7 +4452,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
          value_type = tree_type(value);
 
          const bool in_place_aggregate =
-            tree_kind(value) == T_AGGREGATE && lower_const_bounds(value_type);
+            tree_kind(value) == T_AGGREGATE && type_const_bounds(value_type);
 
          if (!in_place_aggregate)
             init_reg = bounds_reg = lower_rvalue(lu, qual);
@@ -4539,7 +4501,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
       vcode_reg_t init_reg;
       if (tree_has_value(qual)) {
          tree_t value = tree_value(qual);
-         if (tree_kind(value) == T_AGGREGATE && lower_const_bounds(type))
+         if (tree_kind(value) == T_AGGREGATE && type_const_bounds(type))
             init_reg = lower_aggregate(lu, value, all_reg);
          else
             init_reg = lower_rvalue(lu, qual);
@@ -4597,7 +4559,7 @@ static vcode_reg_t lower_all(lower_unit_t *lu, tree_t all, expr_ctx_t ctx)
    access_reg = lower_incomplete_access(access_reg, tree_type(all));
    vcode_reg_t all_reg = emit_all(access_reg);
 
-   if (type_is_array(type) && !lower_const_bounds(type))
+   if (type_is_array(type) && !type_const_bounds(type))
       return emit_load_indirect(all_reg);
    else
       return all_reg;
@@ -4673,7 +4635,7 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
    }
    else if (from_k == T_INTEGER && to_k == T_REAL)
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
-   else if (to_k == T_ARRAY && !lower_const_bounds(to)) {
+   else if (to_k == T_ARRAY && !type_const_bounds(to)) {
       // Need to wrap in metadata
       vcode_reg_t wrap_reg = lower_wrap(lu, from, value_reg);
       if (type_is_unconstrained(to))
@@ -4885,7 +4847,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       {
          type_t type = tree_type(name);
          const int dim = lower_get_attr_dimension(expr);
-         if (lower_const_bounds(type))
+         if (type_const_bounds(type))
             return emit_const(vtype_bool(),
                               direction_of(type, dim) == RANGE_TO);
          else {
@@ -4921,7 +4883,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
             vcode_reg_t len_reg =
                lower_array_total_len(lu, name_type, name_reg);
             vcode_reg_t ptr_reg = emit_driving_value(name_reg, len_reg);
-            if (lower_const_bounds(name_type))
+            if (type_const_bounds(name_type))
                return ptr_reg;
             else
                return lower_wrap(lu, name_type, ptr_reg);
@@ -4991,7 +4953,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          if (lower_have_signal(value_reg))
             value_reg = emit_resolved(value_reg);
 
-         if (lower_const_bounds(value_type))
+         if (type_const_bounds(value_type))
             value_reg = lower_wrap(lu, value_type, value_reg);
 
          type_t base = type_base_recur(name_type);
@@ -5006,7 +4968,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          if (type_is_scalar(name_type))
             lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
-         else if (type_is_array(name_type) && lower_const_bounds(name_type)) {
+         else if (type_is_array(name_type) && type_const_bounds(name_type)) {
             vcode_reg_t locus = lower_debug_locus(expr);
             lower_check_array_sizes(lu, name_type, base, VCODE_INVALID_REG,
                                     reg, locus);
@@ -5118,8 +5080,8 @@ static vcode_reg_t lower_qualified(lower_unit_t *lu, tree_t expr)
    vcode_reg_t value_reg = lower_rvalue(lu, value);
 
    if (type_is_array(to_type)) {
-      const bool from_const = lower_const_bounds(from_type);
-      const bool to_const = lower_const_bounds(to_type);
+      const bool from_const = type_const_bounds(from_type);
+      const bool to_const = type_const_bounds(to_type);
 
       if (to_const && !from_const)
          return lower_array_data(value_reg);
@@ -5166,7 +5128,7 @@ static vcode_reg_t lower_cond_value(lower_unit_t *lu, tree_t expr)
 
       vcode_reg_t result_reg = lower_rvalue(lu, tree_result(c));
 
-      if (type_is_array(type) && lower_const_bounds(type)) {
+      if (type_is_array(type) && type_const_bounds(type)) {
          vcode_reg_t count_reg =
             lower_array_total_len(lu, type, VCODE_INVALID_REG);
          vcode_reg_t dest_reg = emit_index(temp_var, VCODE_INVALID_REG);
@@ -5250,7 +5212,7 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
    if (type_is_scalar(type))
       return lower_range_left(lu, range_of(type, 0));
    else if (type_is_array(type)) {
-      assert(lower_const_bounds(type));
+      assert(type_const_bounds(type));
       type_t elem = lower_elem_recur(type);
       vcode_reg_t elem_reg = lower_nested_default_value(lu, elem);
       const int size = lower_array_const_size(type);
@@ -5265,7 +5227,7 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
       }
    }
    else if (type_is_record(type)) {
-      assert(lower_const_bounds(type));
+      assert(type_const_bounds(type));
       const int nfields = type_fields(type);
       vcode_type_t vtype = lower_type(type);
 
@@ -5294,7 +5256,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
 
       type_t elem_type = lower_elem_recur(type);
 
-      if (lower_const_bounds(type)) {
+      if (type_const_bounds(type)) {
          if (type_is_scalar(elem_type)) {
             vcode_reg_t elem_reg = lower_nested_default_value(lu, elem_type);
             const int size = lower_array_const_size(type);
@@ -5365,7 +5327,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
       return hint_reg;
    }
    else if (type_is_record(type)) {
-      if (lower_const_bounds(type))
+      if (type_const_bounds(type))
          return emit_address_of(lower_nested_default_value(lu, type));
 
       type_t base = type_base_recur(type);
@@ -5709,7 +5671,7 @@ static bool lower_can_hint_aggregate(tree_t target, tree_t value)
       return false;
 
    type_t type = tree_type(target);
-   if (!lower_const_bounds(type))
+   if (!type_const_bounds(type))
       return false;
 
    tree_t ref = name_to_ref(target);
@@ -5730,7 +5692,7 @@ static bool lower_can_hint_concat(tree_t target, tree_t value)
    if (tree_subkind(fdecl) != S_CONCAT)
       return false;
 
-   if (!lower_const_bounds(tree_type(target)))
+   if (!type_const_bounds(tree_type(target)))
       return false;
 
    tree_t ref = name_to_ref(target);
@@ -7466,7 +7428,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       return;
    }
    else if (is_const && type_is_array(type)
-            && !lower_const_bounds(type)  // TODO: remove this restriction
+            && !type_const_bounds(type)  // TODO: remove this restriction
             && lower_is_const(tree_value(decl))) {
       skip_copy = true;   // Will be allocated in constant data
    }
@@ -9408,7 +9370,7 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
 
    type_t type = tree_type(decl);
-   assert(type_is_record(type) && !lower_const_bounds(type));
+   assert(type_is_record(type) && !type_const_bounds(type));
 
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
@@ -9576,7 +9538,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
                                 lower_copy_helper, NULL, obj);
          }
 
-         if (type_is_record(type) && !lower_const_bounds(type)) {
+         if (type_is_record(type) && !type_const_bounds(type)) {
             ident_t new = ident_prefix(id, ident_new("new"), '$');
             unit_registry_defer(lu->registry, new, lu, emit_function,
                                 lower_new_helper, NULL, obj);
@@ -11061,8 +11023,8 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       return NULL;
    else if (kind == T_CONV_FUNC) {
       type_t p0_type = tree_type(tree_port(fdecl, 0));
-      p0_uarray = type_is_array(p0_type) && !lower_const_bounds(p0_type);
-      r_uarray = type_is_array(rtype) && !lower_const_bounds(rtype);
+      p0_uarray = type_is_array(p0_type) && !type_const_bounds(p0_type);
+      r_uarray = type_is_array(rtype) && !type_const_bounds(rtype);
 
       if (!p0_uarray && !r_uarray) {
          *vatype = lower_param_type(atype, C_CONSTANT, PORT_IN);
@@ -11928,7 +11890,7 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
       if (type_is_scalar(type))
          emit_store(emit_load_indirect(ptr_reg), var);
       else if (type_is_array(type)) {
-         if (lower_const_bounds(type)) {
+         if (type_const_bounds(type)) {
             vcode_reg_t count_reg = lower_array_total_len(lu, type, ptr_reg);
             vcode_reg_t dest_reg = emit_index(var, VCODE_INVALID_REG);
             vcode_reg_t src_reg = lower_array_data(ptr_reg);
@@ -12013,7 +11975,7 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
 
       const bool is_array = type_is_array(type);
 
-      if (is_array && lower_const_bounds(type)) {
+      if (is_array && type_const_bounds(type)) {
          mem_reg = emit_index(var, VCODE_INVALID_REG);
          count_reg = lower_array_total_len(lu, type, VCODE_INVALID_REG);
       }

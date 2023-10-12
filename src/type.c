@@ -843,6 +843,34 @@ bool type_is_representable(type_t t)
       return false;
 }
 
+bool type_const_bounds(type_t t)
+{
+   if (type_is_unconstrained(t))
+      return false;
+   else if (type_is_record(t)) {
+      const int nfields = type_fields(t);
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(t, i));
+         if (!type_const_bounds(ftype))
+            return false;
+      }
+
+      return true;
+   }
+   else if (type_is_array(t)) {
+      const int ndims = dimension_of(t);
+      for (int i = 0; i < ndims; i++) {
+         int64_t low, high;
+         if (!folded_bounds(range_of(t, i), &low, &high))
+            return false;
+      }
+
+      return type_const_bounds(type_elem(t));
+   }
+   else
+      return true;
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);
@@ -855,27 +883,6 @@ const char *type_kind_str(type_kind_t t)
 {
    assert(t < T_LAST_TYPE_KIND);
    return kind_text_map[t];
-}
-
-bool type_known_width(type_t type)
-{
-   if (!type_is_array(type))
-      return true;
-
-   if (type_is_unconstrained(type))
-      return false;
-
-   if (!type_known_width(type_elem(type)))
-      return false;
-
-   const int ndims = dimension_of(type);
-   for (int i = 0; i < ndims; i++) {
-      int64_t low, high;
-      if (!folded_bounds(range_of(type, i), &low, &high))
-         return false;
-   }
-
-   return true;
 }
 
 unsigned type_width(type_t type)
