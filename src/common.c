@@ -1471,6 +1471,11 @@ unsigned get_case_choice_char(tree_t value, int depth)
          for (int i = 0; i < nparams; i++) {
             tree_t left = tree_value(tree_param(value, i));
 
+            type_t left_type = tree_type(left);
+            if (type_is_unconstrained(left_type))
+               fatal_at(tree_loc(left), "sorry, this expression is not "
+                        "currently supported in a case choice");
+
             tree_t lr = range_of(tree_type(left), 0);
             int64_t left_len;
             if (!folded_length(lr, &left_len))
