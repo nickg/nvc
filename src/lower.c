@@ -3577,29 +3577,30 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
          type_t ftype = tree_type(f);
          vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
          if (type_is_array(ftype)) {
-            if (lower_const_bounds(ftype)) {
-               vcode_reg_t src_reg = lower_array_data(vals[i]);
-               vcode_reg_t length_reg =
-                  lower_array_total_len(lu, ftype, vals[i]);
-               emit_copy(ptr_reg, src_reg, length_reg);
-            }
-            else {
-               vcode_reg_t src_reg = vals[i];
-               if (vcode_reg_kind(src_reg) != VCODE_TYPE_UARRAY)
-                  src_reg = lower_wrap(lu, tree_type(map[i]), src_reg);
+            if (have_uarray_ptr(ptr_reg)) {
+               type_t value_type = tree_type(map[i]);
+               vcode_reg_t wrap_reg =
+                  lower_wrap_with_new_bounds(lu, value_type, ftype,
+                                             vals[i], vals[i]);
 
                if ((cons = type_constraint_for_field(type, f))) {
                   // Element constraint may be OPEN for constants
                   type_t ctype = tree_type(cons);
                   if (!type_is_unconstrained(ctype)) {
                      vcode_reg_t locus = lower_debug_locus(map[i]);
-                     lower_check_array_sizes(lu, ctype, tree_type(map[i]),
+                     lower_check_array_sizes(lu, ctype, value_type,
                                              VCODE_INVALID_REG,
-                                             src_reg, locus);
+                                             wrap_reg, locus);
                   }
                }
 
-               emit_store_indirect(src_reg, ptr_reg);
+               emit_store_indirect(wrap_reg, ptr_reg);
+            }
+            else {
+               vcode_reg_t src_reg = lower_array_data(vals[i]);
+               vcode_reg_t length_reg =
+                  lower_array_total_len(lu, ftype, vals[i]);
+               emit_copy(ptr_reg, src_reg, length_reg);
             }
          }
          else if (type_is_record(ftype))

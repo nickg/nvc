@@ -5292,6 +5292,49 @@ START_TEST(test_issue756)
 }
 END_TEST
 
+START_TEST(test_issue768)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue768.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE);
+
+   unit_registry_t *ur = get_registry();
+   vcode_unit_t vu = unit_registry_get(ur, ident_new("WORK.ISSUE768"));
+   fail_if(vu == NULL);
+
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "C_HDLC_CODEC" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST_ARRAY, .length = 8 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST_ARRAY, .length = 8 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5421,6 +5464,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_cond2);
    tcase_add_test(tc, test_protpcall);
    tcase_add_test(tc, test_issue756);
+   tcase_add_test(tc, test_issue768);
    suite_add_tcase(s, tc);
 
    return s;
