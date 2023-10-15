@@ -2416,6 +2416,25 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
    return invalid;
 }
 
+static bool vhpi_scalar_fits_format(vhpiFormatT format, int size)
+{
+   // Allow reading integral scalar values with a wider type
+   switch (format) {
+   case vhpiLogicVal:
+   case vhpiSmallEnumVal:
+   case vhpiCharVal:
+      return size == 1;
+   case vhpiEnumVal:
+      return size <= 4;
+   case vhpiIntVal:
+      return size <= 4;
+   case vhpiLongIntVal:
+      return size <= 8;
+   default:
+      return false;
+   }
+}
+
 DLLEXPORT
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
@@ -2493,39 +2512,36 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    assert(td->IsComposite || num_elems == 1);
 
-   // Allow reading integral scalar values with a wider type
-   bool scalar_ok = false;
+   if (value_p->format == vhpiObjTypeVal)
+      value_p->format = td->format;
+   else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
+      value_p->format = vhpiBinStrVal;
+   else if (value_p->format != td->format
+            && !vhpi_scalar_fits_format(value_p->format, size)) {
+      vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
+                 "object %s: expecting %d", value_p->format,
+                 pn ? pn->name.Name : decl->decl.Name, td->format);
+      return -1;
+   }
+
    int64_t scalar = 0;
    switch (td->format) {
    case vhpiLogicVal:
    case vhpiSmallEnumVal:
    case vhpiCharVal:
       scalar = value[offset];
-      scalar_ok = (size == 1);
       break;
    case vhpiEnumVal:
 #define SIGNAL_READ_ENUM(type) \
       scalar = ((const type *)value)[offset]
       FOR_ALL_SIZES(size, SIGNAL_READ_ENUM);
-      scalar_ok = (size <= 4);
       break;
    case vhpiIntVal:
+   case vhpiLongIntVal:
       scalar = ((const int32_t *)value)[offset];
-      scalar_ok = (size <= 4);
       break;
    default:
       break;
-   }
-
-   if (value_p->format == vhpiObjTypeVal)
-      value_p->format = td->format;
-   else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
-      value_p->format = vhpiBinStrVal;
-   else if (!scalar_ok && value_p->format != td->format) {
-      vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
-                 "object %s: expecting %d", value_p->format,
-                 pn ? pn->name.Name : decl->decl.Name, td->format);
-      return -1;
    }
 
    switch (value_p->format) {
@@ -2552,6 +2568,11 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    case vhpiIntVal:
       value_p->numElems = num_elems;
       value_p->value.intg = scalar;
+      return 0;
+
+   case vhpiLongIntVal:
+      value_p->numElems = num_elems;
+      value_p->value.longintg = scalar;
       return 0;
 
    case vhpiRealVal:

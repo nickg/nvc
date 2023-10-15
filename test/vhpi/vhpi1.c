@@ -20,6 +20,9 @@ static void test_bin_str(void)
    vhpiHandleT hv = vhpi_handle_by_name("v", root);
    check_error();
 
+   vhpiHandleT hi = vhpi_handle_by_name("i", root);
+   check_error();
+
    char b_str[2] = { 0xff, 0xff };
    vhpiValueT b_value = {
       .format    = vhpiBinStrVal,
@@ -45,6 +48,34 @@ static void test_bin_str(void)
 
    vhpi_printf("b integer %x", b_value.value.intg);
    fail_unless(b_value.value.intg == 0);
+
+   vhpiValueT i_value = {
+      .format    = vhpiIntVal,
+      .bufSize   = 0,
+      .value.str = NULL
+   };
+   vhpi_get_value(hi, &i_value);
+   check_error();
+
+   vhpi_printf("i integer %x", i_value.value.intg);
+   fail_unless(i_value.value.intg == 42);
+
+   i_value.format = vhpiLongIntVal;
+   i_value.value.longintg = 0xdead;
+   vhpi_get_value(hi, &i_value);
+   check_error();
+
+   vhpi_printf("i long integer %lx", i_value.value.longintg);
+   fail_unless(i_value.value.longintg == 42);
+
+   i_value.format = vhpiSmallEnumVal;
+   i_value.value.smallenumv = 0xde;
+   int result = vhpi_get_value(hi, &i_value);
+   fail_unless(result == -1);
+
+   vhpiErrorInfoT errorinfo;
+   fail_unless(vhpi_check_error(&errorinfo));
+   fail_unless(errorinfo.severity == vhpiError);
 
    vhpiValueT v_value = {
       .format    = vhpiBinStrVal,
