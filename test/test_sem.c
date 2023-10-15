@@ -3199,6 +3199,25 @@ START_TEST(test_alias2)
 }
 END_TEST
 
+START_TEST(test_issue770)
+{
+   opt_set_int(OPT_RELAXED, 1);
+
+   input_from_file(TESTDIR "/sem/issue770.vhd");
+
+   const error_t expect[] = {
+      {  7, "class (constant) of parameter A of subprogram IDENTITY_A not "
+         "defined equally in subprogram specification and subprogram body" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3354,6 +3373,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_19);
    tcase_add_test(tc_core, test_config2);
    tcase_add_test(tc_core, test_alias2);
+   tcase_add_test(tc_core, test_issue770);
    suite_add_tcase(s, tc_core);
 
    return s;
