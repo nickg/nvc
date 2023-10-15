@@ -32,6 +32,20 @@ static void test_bin_str(void)
    vhpi_printf("b bit string '%s' %x", b_str);
    fail_unless(strcmp(b_str, "0") == 0);
 
+   b_value.format = vhpiLogicVal;
+   vhpi_get_value(hb, &b_value);
+   check_error();
+
+   vhpi_printf("b logic %x", b_value.value.smallenumv);
+   fail_unless(b_value.value.smallenumv == 0);
+
+   b_value.format = vhpiIntVal;
+   vhpi_get_value(hb, &b_value);
+   check_error();
+
+   vhpi_printf("b integer %x", b_value.value.intg);
+   fail_unless(b_value.value.intg == 0);
+
    vhpiValueT v_value = {
       .format    = vhpiBinStrVal,
       .bufSize   = 0,

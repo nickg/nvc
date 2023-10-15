@@ -2493,11 +2493,35 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    assert(td->IsComposite || num_elems == 1);
 
+   // Allow reading integral scalar values with a wider type
+   bool scalar_ok = false;
+   int64_t scalar = 0;
+   switch (td->format) {
+   case vhpiLogicVal:
+   case vhpiSmallEnumVal:
+   case vhpiCharVal:
+      scalar = value[offset];
+      scalar_ok = (size == 1);
+      break;
+   case vhpiEnumVal:
+#define SIGNAL_READ_ENUM(type) \
+      scalar = ((const type *)value)[offset]
+      FOR_ALL_SIZES(size, SIGNAL_READ_ENUM);
+      scalar_ok = (size <= 4);
+      break;
+   case vhpiIntVal:
+      scalar = ((const int32_t *)value)[offset];
+      scalar_ok = (size <= 4);
+      break;
+   default:
+      break;
+   }
+
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = td->format;
    else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
       value_p->format = vhpiBinStrVal;
-   else if (value_p->format != td->format) {
+   else if (!scalar_ok && value_p->format != td->format) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
                  "object %s: expecting %d", value_p->format,
                  pn ? pn->name.Name : decl->decl.Name, td->format);
@@ -2507,30 +2531,27 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    switch (value_p->format) {
    case vhpiLogicVal:
       value_p->numElems = num_elems;
-      value_p->value.enumv = value[offset];
+      value_p->value.enumv = scalar;
       return 0;
 
    case vhpiSmallEnumVal:
       value_p->numElems = num_elems;
-      value_p->value.smallenumv = value[offset];
+      value_p->value.smallenumv = scalar;
       return 0;
 
    case vhpiEnumVal:
       value_p->numElems = num_elems;
-#define SIGNAL_READ_ENUM(type) \
-      value_p->value.enumv = ((const type *)value)[offset]
-
-      FOR_ALL_SIZES(size, SIGNAL_READ_ENUM);
+      value_p->value.enumv = scalar;
       return 0;
 
    case vhpiCharVal:
       value_p->numElems = num_elems;
-      value_p->value.ch = value[offset];
+      value_p->value.ch = scalar;
       return 0;
 
    case vhpiIntVal:
       value_p->numElems = num_elems;
-      value_p->value.intg = ((const uint32_t *)value)[offset];
+      value_p->value.intg = scalar;
       return 0;
 
    case vhpiRealVal:
@@ -2621,7 +2642,9 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       }
 
    default:
-      fatal_trace("unsupported format %d", value_p->format);
+      vhpi_error(vhpiError, &(obj->loc), "unsupported format %d",
+                 value_p->format);
+      return -1;
    }
 }
 
