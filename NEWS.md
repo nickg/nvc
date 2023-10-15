@@ -6,6 +6,8 @@
 - Improved bounds checking for port map actuals.
 - Fixed a crash with aggregates for record types that contain an
   unconstrained field (#768).
+- Fix spurious "checksum 00000000" error when analysing multiple design
+  units and one contains `use work.all` (#769).
 
 ## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared

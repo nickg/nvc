@@ -546,6 +546,17 @@ static const symbol_t *symbol_for(scope_t *s, ident_t name)
       symbol_t *sym = hash_get(s->lookup, name);
       if (sym != NULL)
          return sym;
+   } while (s->formal_kind != F_RECORD && (s = s->parent));
+
+   return NULL;
+}
+
+static const symbol_t *lazy_symbol_for(scope_t *s, ident_t name)
+{
+   do {
+      symbol_t *sym = hash_get(s->lookup, name);
+      if (sym != NULL)
+         return sym;
       else {
          for (lazy_sym_t *it = s->lazy; it; it = it->next) {
             if ((sym = (*it->fn)(s, name, it->ctx)))
@@ -1373,7 +1384,7 @@ static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
 {
    for (scope_t *s = tab->top_scope, *ss = NULL; ; s = ss, ss = NULL) {
       ident_t next = ident_walk_selected(&name);
-      const symbol_t *sym = symbol_for(s, next);
+      const symbol_t *sym = lazy_symbol_for(s, next);
       if (sym == NULL || name == NULL)
          return sym;
 
