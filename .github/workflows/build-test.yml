@@ -301,6 +301,10 @@ jobs:
         run: ./vhdl-projects/fmf/dsp6713/test.sh
       - name: Test Grlib
         run: ./vhdl-projects/grlib/test.sh
+      - name: Test MEGA65
+        run: ./vhdl-projects/mega65/test.sh
+      - name: Test NetWiz
+        run: ./vhdl-projects/netwiz/test.sh
 
   vunit:
     name: VUnit
