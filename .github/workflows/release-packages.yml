@@ -73,9 +73,9 @@ jobs:
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
           sudo apt-get build-dep .
           dpkg-buildpackage -uc -us -b
-          mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_$${{ matrix.os }}.deb
+          mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb
       - name: 'Upload artifact'
         uses: actions/upload-artifact@v3
         with:
           name: '${{matrix.os}} package'
-          path: nvc_${{ env.VERSION }}-1_amd64_$${{ matrix.os }}.deb
+          path: nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb
