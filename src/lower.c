@@ -12268,26 +12268,21 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    lower_unit_t *lu = lower_unit_new(parent ? parent->registry : NULL,
                                      parent, thunk, NULL, NULL);
 
+   type_t to_type = tree_type(t), from_type = to_type;
+
    vcode_type_t vtype = VCODE_INVALID_TYPE;
    switch (tree_kind(t)) {
    case T_FCALL:
-      {
-         tree_t decl = tree_ref(t);
-         if (tree_has_type(decl))
-            vtype = lower_func_result_type(type_result(tree_type(decl)));
-      }
+      from_type = tree_type(tree_ref(t));
+      vtype = lower_func_result_type(type_result(from_type));
       break;
-
    case T_ATTR_REF:
-      vtype = lower_type(tree_type(t));
+      vtype = lower_type(to_type);
       break;
-
    default:
+      vtype = lower_func_result_type(to_type);
       break;
    }
-
-   if (vtype == VCODE_INVALID_TYPE)
-      vtype = lower_func_result_type(tree_type(t));
 
    vcode_set_result(vtype);
 
@@ -12297,8 +12292,11 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    }
 
    vcode_reg_t result_reg = lower_rvalue(lu, t);
+
    if (type_is_scalar(tree_type(t)))
       emit_return(emit_cast(vtype, vtype, result_reg));
+   else if (type_is_array(to_type))
+      emit_return(lower_coerce_arrays(lu, from_type, to_type, result_reg));
    else
       emit_return(result_reg);
 

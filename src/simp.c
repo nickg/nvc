@@ -147,17 +147,6 @@ static tree_t simp_call_args(tree_t t)
    return new;
 }
 
-static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
-{
-   type_t type = tree_type(t);
-   if (!type_is_scalar(type))
-      return t;
-   else if (!eval_possible(t, ctx->registry))
-      return t;
-
-   return eval_try_fold(ctx->jit, t, NULL, NULL);
-}
-
 static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -348,15 +337,32 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       }
    }
 
-   if (flags & ctx->eval_mask)
-      return simp_fold(t, ctx);
+   if (flags & ctx->eval_mask) {
+      // Only evaluate non-scalar expressions if they are locally-static
+      if (!(flags & TREE_F_LOCALLY_STATIC) && !type_is_scalar(tree_type(t)))
+         return t;
+      else if (!eval_possible(t, ctx->registry))
+         return t;
+
+      return eval_try_fold(ctx->jit, t, NULL, NULL);
+   }
 
    return t;
 }
 
 static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
 {
-   return simp_fold(t, ctx);
+   type_t type = tree_type(t);
+   if (type_is_array(type)) {
+      type_t elem = type_elem(type);
+      if (dimension_of(type) > 1 || !type_is_scalar(elem))
+         return t;   // Not supported currently
+   }
+
+   if (eval_possible(t, ctx->registry))
+      return eval_try_fold(ctx->jit, t, NULL, NULL);
+
+   return t;
 }
 
 static tree_t simp_pcall(tree_t t, simp_ctx_t *ctx)

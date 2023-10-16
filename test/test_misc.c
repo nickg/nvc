@@ -364,6 +364,16 @@ START_TEST(test_color_printf)
 }
 END_TEST
 
+START_TEST(test_strip)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, " hello world    \r\n");
+   tb_strip(tb);
+
+   ck_assert_str_eq(tb_get(tb), " hello world");
+}
+END_TEST
+
 static const int mask_size[] = { 15, 64, 101, 160, 256 };
 
 START_TEST(test_mask)
@@ -713,6 +723,7 @@ Suite *get_misc_tests(void)
 
    TCase *tc_util = tcase_create("util");
    tcase_add_test(tc_util, test_color_printf);
+   tcase_add_test(tc_util, test_strip);
    suite_add_tcase(s, tc_util);
 
    TCase *tc_mask = tcase_create("mask");

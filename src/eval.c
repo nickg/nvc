@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,12 +22,11 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit.h"
+#include "jit/jit-ffi.h"
 #include "lib.h"
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
-#include "rt/cover.h"
-#include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
 #include "vcode.h"
@@ -38,18 +37,6 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include <string.h>
-#include <math.h>
-
-typedef enum {
-   EVAL_WARN    = (1 << 2),
-   EVAL_VERBOSE = (1 << 3),
-} eval_flags_t;
-
-struct _eval {
-   jit_t        *jit;
-};
-
-#define ITER_LIMIT 10000
 
 static const char *eval_expr_name(tree_t expr)
 {
@@ -101,6 +88,92 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
    return tree;
 }
 
+static void *thunk_result_cb(jit_scalar_t *args, void *user)
+{
+   tree_t expr = user;
+   type_t type = tree_type(expr);
+   const loc_t *loc = tree_loc(expr);
+
+   if (type_is_array(type)) {
+      assert(dimension_of(type) == 1);
+
+      type_t elem = type_elem(type);
+      assert(type_is_scalar(elem));
+
+      type_t base = type_base_recur(elem);
+
+      bool all_chars = true;
+      tree_t *lits LOCAL = NULL;
+      if (type_is_enum(elem)) {
+         const int nlits = type_enum_literals(base);
+         lits = xcalloc_array(nlits, sizeof(tree_t));
+      }
+      else
+         all_chars = false;
+
+      int64_t length;
+      if (!type_const_bounds(type))
+         length = ffi_array_length(args[2].integer);
+      else if (!folded_length(range_of(type, 0), &length))
+         fatal_at(loc, "cannot determine static length of array");
+
+      const int bytes = (type_bit_width(elem) + 7) / 8;
+      tree_t *elts LOCAL = xmalloc_array(length, sizeof(tree_t));
+      for (int i = 0; i < length; i++) {
+#define UNPACK_VALUE(type) do {                                    \
+            value.integer = ((type *)args[0].pointer)[i];          \
+         } while (0);
+
+         jit_scalar_t value;
+         FOR_ALL_SIZES(bytes, UNPACK_VALUE);
+
+         if (lits != NULL) {
+            assert(value.integer >= 0);
+
+            if (lits[value.integer] == NULL) {
+               tree_t li = type_enum_literal(base, value.integer);
+               lits[value.integer] = make_ref(li);
+               all_chars &= ident_char(tree_ident(li), 0) == '\'';
+            }
+
+            elts[i] = lits[value.integer];
+         }
+         else
+            elts[i] = eval_value_to_tree(value, elem, loc);
+      }
+
+      if (all_chars) {
+         tree_t tree = tree_new(T_STRING);
+
+         for (int i = 0; i < length; i++)
+            tree_add_char(tree, elts[i]);
+
+         tree_set_loc(tree, loc);
+         tree_set_type(tree, subtype_for_string(tree, type));
+         return tree;
+      }
+      else {
+         tree_t tree = tree_new(T_AGGREGATE);
+         tree_set_type(tree, type);
+         tree_set_loc(tree, loc);
+
+         for (int i = 0; i < length; i++) {
+            tree_t a = tree_new(T_ASSOC);
+            tree_set_loc(a, loc);
+            tree_set_subkind(a, A_POS);
+            tree_set_pos(a, i);
+            tree_set_value(a, elts[i]);
+
+            tree_add_assoc(tree, a);
+         }
+
+         return tree;
+      }
+   }
+   else
+      return eval_value_to_tree(args[0], tree_type(expr), tree_loc(expr));
+}
+
 static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                            void *context)
 {
@@ -110,24 +183,23 @@ static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
 
    const bool verbose = opt_get_verbose(OPT_EVAL_VERBOSE, NULL);
 
-   jit_scalar_t result;
-   const bool finished = jit_call_thunk(jit, thunk, &result, context);
+   tree_t result = jit_call_thunk(jit, thunk, context, thunk_result_cb, expr);
 
    vcode_unit_unref(thunk);
    thunk = NULL;
 
-   if (finished) {
+   if (result != NULL) {
       if (verbose) {
-         diag_t *d = diag_new(DIAG_DEBUG, tree_loc(expr));
-         diag_printf(d, "evaluating %s returned ", eval_expr_name(expr));
-         if (llabs(result.integer) < 1024)
-            diag_printf(d, "%"PRIi64, result.integer);
-         else
-            diag_printf(d, "0x%"PRIx64, result.integer);
-         diag_emit(d);
+         LOCAL_TEXT_BUF tb = tb_new();
+         capture_syntax(tb);
+         dump(result);
+         capture_syntax(NULL);
+         tb_strip(tb);
+
+         debugf("evaluating %s returned %s", eval_expr_name(expr), tb_get(tb));
       }
 
-      return eval_value_to_tree(result, tree_type(expr), tree_loc(expr));
+      return result;
    }
    else if (verbose) {
       diag_t *d = diag_new(DIAG_DEBUG, tree_loc(expr));
@@ -274,6 +346,13 @@ bool eval_possible(tree_t t, unit_registry_t *ur)
    }
 }
 
+static void *case_result_cb(jit_scalar_t *args, void *user)
+{
+   jit_scalar_t *result = user;
+   result->integer = args[0].integer;
+   return result;
+}
+
 tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context)
 {
    assert(tree_kind(stmt) == T_CASE_GENERATE);
@@ -281,7 +360,7 @@ tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context)
    vcode_unit_t thunk = lower_case_generate_thunk(parent, stmt);
 
    jit_scalar_t result = { .integer = -1 };
-   if (!jit_call_thunk(jit, thunk, &result, context))
+   if (jit_call_thunk(jit, thunk, context, case_result_cb, &result) == NULL)
       error_at(tree_loc(tree_value(stmt)), "generate expression is not static");
 
    vcode_unit_unref(thunk);

@@ -1494,6 +1494,12 @@ void tb_trim(text_buf_t *tb, size_t newlen)
    tb->buf[tb->len] = '\0';
 }
 
+void tb_strip(text_buf_t *tb)
+{
+   while (tb->len > 0 && isspace_iso88591(tb->buf[tb->len - 1]))
+      tb->buf[--(tb->len)] = '\0';
+}
+
 void tb_downcase(text_buf_t *tb)
 {
    for (size_t i = 0; i < tb->len; i++)

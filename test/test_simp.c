@@ -1554,6 +1554,58 @@ START_TEST(test_length)
 }
 END_TEST
 
+START_TEST(test_casearray1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/casearray1.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t b = tree_decl(tree_stmt(a, 0), 0);
+   fail_unless(tree_kind(b) == T_CONST_DECL);
+   fail_unless(tree_kind(tree_value(b)) == T_AGGREGATE);
+
+   tree_t s0 = tree_stmt(tree_stmt(a, 0), 0);
+   fail_unless(tree_kind(s0) == T_CASE);
+
+   for (int i = 0; i < 4; i++) {
+      tree_t n0 = tree_name(tree_assoc(tree_stmt(s0, i), 0));
+      fail_unless(tree_kind(n0) == T_STRING);
+      fail_unless(tree_chars(n0) == 8);
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_conv1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/conv1.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t p1 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+
+   tree_t c1 = tree_decl(p1, 0);
+   fail_unless(tree_kind(tree_value(c1)) == T_AGGREGATE);
+
+   tree_t c2 = tree_decl(p1, 1);
+   fail_unless(tree_kind(tree_value(c2)) == T_AGGREGATE);
+
+   tree_t c3 = tree_decl(p1, 2);
+   fail_unless(tree_kind(tree_value(c3)) == T_TYPE_CONV);
+
+   tree_t c4 = tree_decl(p1, 3);
+   fail_unless(tree_kind(tree_value(c4)) == T_TYPE_CONV);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1614,6 +1666,8 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue742);
    tcase_add_test(tc_core, test_cpcall);
    tcase_add_test(tc_core, test_length);
+   tcase_add_test(tc_core, test_casearray1);
+   tcase_add_test(tc_core, test_conv1);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -75,12 +75,14 @@ int32_t *jit_get_cover_mem(jit_t *j, int mintags);
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
 jit_stack_trace_t *jit_stack_trace(void);
 
+typedef void *(*thunk_result_fn_t)(jit_scalar_t *, void *);
+
 bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...);
 bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
                          void *input, size_t insz, void *output, size_t outsz);
 jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...);
-bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result,
-                    void *context);
+void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
+                     thunk_result_fn_t fn, void *arg);
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
 

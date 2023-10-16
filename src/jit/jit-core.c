@@ -798,8 +798,8 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
    return true;
 }
 
-bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result,
-                    void *context)
+void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
+                     thunk_result_fn_t fn, void *arg)
 {
    vcode_select_unit(unit);
    assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
@@ -815,13 +815,15 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result,
 
    jit_irgen(f);
 
-   jit_scalar_t args[JIT_MAX_ARGS];
+   jit_scalar_t args[JIT_MAX_ARGS], result;
    args[0].pointer = context;
 
-   bool ok = jit_try_vcall(j, f, result, args);
+   void *user = NULL;
+   if (jit_try_vcall(j, f, &result, args))
+      user = (*fn)(args, arg);
 
    jit_free_func(f);
-   return ok;
+   return user;
 }
 
 tlab_t jit_null_tlab(jit_t *j)
