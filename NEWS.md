@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.
 - Fixed an intermittent crash when using the `--jit` elaboration option.
 - Improved overload resolution when subprogram argument is known to have

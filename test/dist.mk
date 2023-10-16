@@ -41,6 +41,7 @@ EXTRA_DIST += \
 	test/elab/bounds21.vhd \
 	test/elab/bounds40.vhd \
 	test/elab/bounds41.vhd \
+	test/elab/bounds42.vhd \
 	test/elab/comp2.vhd \
 	test/elab/comp3.vhd \
 	test/elab/comp4.vhd \
@@ -252,6 +253,7 @@ EXTRA_DIST += \
 	test/lower/issue662.vhd \
 	test/lower/issue725.vhd \
 	test/lower/issue756.vhd \
+	test/lower/issue768.vhd \
 	test/lower/issue94.vhd \
 	test/lower/link1.vhd \
 	test/lower/loop1.vhd \
@@ -1188,6 +1190,7 @@ EXTRA_DIST += \
 	test/regress/issue747.vhd \
 	test/regress/issue751.vhd \
 	test/regress/issue752.sh \
+	test/regress/issue769.sh \
 	test/regress/issue79.vhd \
 	test/regress/issue82.vhd \
 	test/regress/issue83.vhd \
@@ -1583,6 +1586,7 @@ EXTRA_DIST += \
 	test/sem/issue659.vhd \
 	test/sem/issue660.vhd \
 	test/sem/issue713.vhd \
+	test/sem/issue770.vhd \
 	test/sem/issue88.vhd \
 	test/sem/issue89.vhd \
 	test/sem/jcore1.vhd \
