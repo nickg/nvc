@@ -883,3 +883,4 @@ attr20          normal,2019,work=lib
 protected13     normal,2019
 vlog5           verilog,gold
 issue769        shell
+bounds42        fail,gold,2008

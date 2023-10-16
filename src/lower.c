@@ -4130,17 +4130,17 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
 
-      vcode_reg_t value_reg = VCODE_INVALID_REG;
-      if (tree_kind(value) != T_AGGREGATE)
-         value_reg = lower_rvalue(lu, value);
-
-      vcode_reg_t count_reg = VCODE_INVALID_REG;
+      vcode_reg_t value_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
       type_t value_type = tree_type(value);
       if (!multidim && type_eq(type, value_type)) {
          // Element has same type as whole aggregate
          assert(standard() >= STD_08);
+         value_reg = lower_rvalue(lu, value);
          count_reg = lower_array_len(lu, value_type, 0, value_reg);
       }
+      else if (tree_kind(value) != T_AGGREGATE)
+         value_reg = lower_rvalue(lu, value);
+
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
@@ -4209,11 +4209,15 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             vcode_reg_t r_right_reg = lower_range_right(lu, r);
             vcode_reg_t r_dir_reg   = lower_range_dir(lu, r);
 
-            vcode_reg_t locus = lower_debug_locus(r);
+            vcode_reg_t locus = lower_debug_locus(a);
             emit_index_check(r_left_reg, left_reg, right_reg, dir_reg,
                              locus, locus);
             emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
                              locus, locus);
+
+            vcode_reg_t expect_reg =
+               emit_range_length(r_left_reg, r_right_reg, r_dir_reg);
+            emit_length_check(expect_reg, count_reg, locus, VCODE_INVALID_REG);
 
             vcode_reg_t dir_cmp_reg =
                emit_cmp(VCODE_CMP_EQ, dir_reg, r_dir_reg);
