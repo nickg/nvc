@@ -23,6 +23,19 @@
   the console.  The new `--vhpi-debug` option restores the old
   behaviour.
 
+## Version 1.10.4 - 2023-10-16
+- Fixed compatibility with LLVM 17.
+- Fixed an intermittent crash when using the `--jit` elaboration option.
+- Improved overload resolution when subprogram argument is known to have
+  character type.
+- Improved bounds checking for port map actuals.
+- Fixed a crash with aggregates for record types that contain an
+  unconstrained field (#768).
+- Fix spurious "checksum 00000000" error when analysing multiple design
+  units and one contains `use work.all` (#769).
+- Fix crash when using the `--relaxed` analysis option and multiple
+  warnings are printed (#770).
+
 ## Version 1.10.3 - 2023-09-17
 - Fixed memory corruption in rare circumstances with functions declared
   in process declarative regions (#751).
