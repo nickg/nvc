@@ -2211,7 +2211,7 @@ unsigned nvc_nprocs(void)
    if (count == -1)
       fatal_errno("sysconf(_SC_NPROCESSORS_ONLN)");
 
-#ifdef __linux__
+#if defined __linux__ && defined HAVE_GETTID
    // Restrict to the number of CPUs we are allowed to run on
    cpu_set_t s;
    if (sched_getaffinity(gettid(), sizeof(cpu_set_t), &s) == 0)
