@@ -59,4 +59,15 @@ begin
         (1 to 2 => a) := v;             -- Error
     end process;
 
+    -- Changes to closely related types
+    process is
+        variable i : integer_vector(1 to 3);
+        variable r : real_vector(1 to 3);
+        variable b : boolean_vector(1 to 3);
+    begin
+        i := integer_vector(i);         -- OK
+        r := real_vector(i);            -- OK
+        b := boolean_vector(i);         -- Error
+    end process;
+
 end architecture;

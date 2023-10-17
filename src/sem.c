@@ -2763,11 +2763,21 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
       type_t from_e = type_elem(from);
       type_t to_e = type_elem(to);
 
-      // Element types must be the same
-      if (!type_eq(from_e, to_e)) {
-         reason = xasprintf("element type %s does not match %s",
-                            type_pp2(from_e, to_e), type_pp2(to_e, from_e));
-         goto not_closely_related;
+      if (standard() >= STD_08) {
+         // Element types must be closely related
+         if (!sem_check_closely_related(from_e, to_e, NULL)) {
+            reason = xasprintf("element type %s is not closely related to %s",
+                               type_pp2(from_e, to_e), type_pp2(to_e, from_e));
+            goto not_closely_related;
+         }
+      }
+      else {
+         // Element types must be the same
+         if (!type_eq(from_e, to_e)) {
+            reason = xasprintf("element type %s does not match %s",
+                               type_pp2(from_e, to_e), type_pp2(to_e, from_e));
+            goto not_closely_related;
+         }
       }
 
       return true;

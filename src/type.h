@@ -160,6 +160,8 @@ bool type_matches_class(type_t t, gtype_class_t class);
 type_t type_base_recur(type_t t);
 type_kind_t type_base_kind(type_t t);
 
+type_t type_elem_recur(type_t t);
+
 // Helper function to find number of sub-elemets
 unsigned type_width(type_t type);
 

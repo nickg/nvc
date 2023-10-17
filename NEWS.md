@@ -22,6 +22,8 @@
 - VHPI error messages are no longer reported as diagnostic messages on
   the console.  The new `--vhpi-debug` option restores the old
   behaviour.
+- Support for type conversions between arrays with closely related
+  element types.
 
 ## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.

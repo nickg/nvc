@@ -135,7 +135,6 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     type_t rtype, vcode_reg_t lval,
                                     vcode_reg_t rval, vcode_reg_t locus);
 static vcode_type_t lower_alias_type(tree_t alias);
-static type_t lower_elem_recur(type_t type);
 static void lower_predef(lower_unit_t *lu, object_t *obj);
 static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_generics(lower_unit_t *lu, tree_t block);
@@ -269,7 +268,7 @@ static bool lower_trivially_copyable(type_t type)
    if (type_is_record(type))
       return type_const_bounds(type);
    else if (type_is_array(type))
-      return lower_trivially_copyable(lower_elem_recur(type));
+      return lower_trivially_copyable(type_elem_recur(type));
    else
       return true;
 }
@@ -577,16 +576,9 @@ static int lower_array_const_size(type_t type)
    return type_is_array(elem) ? size * lower_array_const_size(elem) : size;
 }
 
-static type_t lower_elem_recur(type_t type)
-{
-   while (type_is_array(type))
-      type = type_elem(type);
-   return type;
-}
-
 static vcode_type_t lower_array_type(type_t type)
 {
-   type_t elem = lower_elem_recur(type);
+   type_t elem = type_elem_recur(type);
 
    vcode_type_t elem_type   = lower_type(elem);
    vcode_type_t elem_bounds = lower_bounds(elem);
@@ -652,7 +644,7 @@ static vcode_type_t lower_type(type_t type)
       {
          type_t access = type_designated(type);
          if (type_is_array(access) && type_const_bounds(access))
-            return vtype_access(lower_type(lower_elem_recur(access)));
+            return vtype_access(lower_type(type_elem_recur(access)));
          else
             return vtype_access(lower_type(access));
       }
@@ -703,14 +695,14 @@ static vcode_type_t lower_signal_type(type_t type)
 {
    if (type_is_array(type)) {
       if (type_is_homogeneous(type)) {
-         vcode_type_t base = vtype_signal(lower_type(lower_elem_recur(type)));
+         vcode_type_t base = vtype_signal(lower_type(type_elem_recur(type)));
          if (type_const_bounds(type))
             return base;
          else
             return vtype_uarray(dims_for_type(type), base, base);
       }
       else {
-         vcode_type_t base = lower_signal_type(lower_elem_recur(type));
+         vcode_type_t base = lower_signal_type(type_elem_recur(type));
          if (type_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base, base);
          else
@@ -870,7 +862,7 @@ static void lower_for_each_field(lower_unit_t *lu, type_t type,
          ptr2_reg = emit_array_ref(data2_reg, i_reg);
       }
 
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
       lower_for_each_field(lu, elem, ptr1_reg, ptr2_reg, locus, fn, context);
 
       vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
@@ -957,7 +949,7 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
          vcode_reg_t field_reg = emit_load_indirect(field_ptr);
          vcode_reg_t count_reg = lower_array_total_len(lu, ftype, field_reg);
 
-         type_t elem = lower_elem_recur(ftype);
+         type_t elem = type_elem_recur(ftype);
          vcode_type_t vtype = lower_type(elem);
          vcode_type_t vbounds = lower_bounds(elem);
 
@@ -2145,7 +2137,7 @@ static vcode_reg_t lower_concat(lower_unit_t *lu, tree_t expr, vcode_reg_t hint,
    type_t elem = type_elem(type);
    assert(type_is_unconstrained(type));
 
-   type_t scalar_elem = lower_elem_recur(elem);
+   type_t scalar_elem = type_elem_recur(elem);
 
    vcode_type_t voffset = vtype_offset();
 
@@ -2404,7 +2396,7 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
 static vcode_type_t lower_func_result_type(type_t result)
 {
    if (type_is_array(result) && type_const_bounds(result))
-      return vtype_pointer(lower_type(lower_elem_recur(result)));
+      return vtype_pointer(lower_type(type_elem_recur(result)));
    else if (type_is_record(result))
       return vtype_pointer(lower_type(result));
    else
@@ -2420,7 +2412,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
          return lower_signal_type(type);
       else if (type_is_array(type)) {
          if (type_const_bounds(type))
-            return vtype_pointer(lower_signal_type(lower_elem_recur(type)));
+            return vtype_pointer(lower_signal_type(type_elem_recur(type)));
          else
             return lower_signal_type(type);
       }
@@ -2433,7 +2425,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
       {
          if (type_is_array(type)) {
             if (type_const_bounds(type))
-               return vtype_pointer(lower_type(lower_elem_recur(type)));
+               return vtype_pointer(lower_type(type_elem_recur(type)));
             else
                return lower_type(type);
          }
@@ -2614,7 +2606,7 @@ static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
       if (type_is_array(type)) {
          if (bounds_reg == VCODE_INVALID_REG
              || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
-            vcode_type_t velem = lower_type(lower_elem_recur(type));
+            vcode_type_t velem = lower_type(type_elem_recur(type));
             vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
             bounds_reg = lower_wrap(lu, type, null_reg);
          }
@@ -2755,7 +2747,7 @@ static vcode_type_t lower_var_type(tree_t decl)
       if (class_of(decl) == C_SIGNAL)
          return lower_signal_type(type);
       else if (type_is_array(type) && type_const_bounds(type))
-         return lower_type(lower_elem_recur(type));
+         return lower_type(type_elem_recur(type));
       else
          return lower_type(type);
    }
@@ -3942,7 +3934,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
 
    type_t elem_type = type_elem(type);
-   type_t scalar_elem_type = lower_elem_recur(type);
+   type_t scalar_elem_type = type_elem_recur(type);
 
    const bool array_of_array = type_is_array(elem_type);
 
@@ -4443,7 +4435,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
 
    if (type_is_array(type)) {
       type_t value_type = type, result_type = type_designated(tree_type(expr));
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
 
       const bool wrap_result = !type_const_bounds(result_type);
       const bool wrap_value = !type_const_bounds(type);
@@ -4633,30 +4625,80 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
    type_kind_t to_k   = type_kind(type_base_recur(to));
 
    if (from_k == T_REAL && to_k == T_INTEGER) {
-      vcode_type_t to_vtype = lower_type(to);
-      vcode_reg_t cast = emit_cast(to_vtype, to_vtype, value_reg);
+      vcode_type_t vtype = lower_type(to);
+      vcode_type_t vbounds = vtype_int(INT64_MIN, INT64_MAX);
+      vcode_reg_t cast = emit_cast(vtype, vbounds, value_reg);
       lower_check_scalar_bounds(lu, cast, to, where, NULL);
       return cast;
    }
-   else if (from_k == T_INTEGER && to_k == T_REAL)
-      return emit_cast(lower_type(to), lower_bounds(to), value_reg);
-   else if (to_k == T_ARRAY && !type_const_bounds(to)) {
-      // Need to wrap in metadata
-      vcode_reg_t wrap_reg = lower_wrap(lu, from, value_reg);
+   else if (from_k == T_INTEGER && to_k == T_REAL) {
+      vcode_type_t vtype = lower_type(to);
+      vcode_type_t vbounds = vtype_real((double)INT64_MIN, (double)INT64_MAX);
+      return emit_cast(vtype, vbounds, value_reg);
+   }
+   else if (from_k == T_ARRAY && to_k == T_ARRAY) {
+      type_t from_e = type_elem_recur(from);
+      type_t to_e = type_elem_recur(to);
+
+      vcode_reg_t result_reg = value_reg;
+
+      if (standard() >= STD_08 && !type_eq(from_e, to_e)) {
+         // VHDL-2008 allows closely related element types which might
+         // need conversion and/or bounds checks
+
+         vcode_type_t velem = lower_type(to_e);
+         vcode_type_t vbounds = lower_bounds(from_e);
+         vcode_type_t voffset = vtype_offset();
+
+         vcode_reg_t count_reg = lower_array_total_len(lu, from, value_reg);
+         vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
+         vcode_reg_t zero_reg = emit_const(voffset, 0);
+         vcode_reg_t data_reg = lower_array_data(value_reg);
+
+         vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+         emit_store(zero_reg, i_var);
+
+         vcode_block_t body_bb = emit_block();
+         vcode_block_t exit_bb = emit_block();
+
+         vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, count_reg, zero_reg);
+         emit_cond(null_reg, exit_bb, body_bb);
+
+         vcode_select_block(body_bb);
+
+         vcode_reg_t i_reg = emit_load(i_var);
+         vcode_reg_t src_reg = emit_array_ref(data_reg, i_reg);
+         vcode_reg_t elem_reg = emit_load_indirect(src_reg);
+
+         vcode_reg_t conv_reg =
+            lower_conversion(lu, elem_reg, where, from_e, to_e);
+
+         vcode_reg_t dest_reg = emit_array_ref(mem_reg, i_reg);
+         emit_store_indirect(conv_reg, dest_reg);
+
+         vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
+         vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_reg, count_reg);
+         emit_store(next_reg, i_var);
+         emit_cond(done_reg, exit_bb, body_bb);
+
+         vcode_select_block(exit_bb);
+
+         lower_release_temp(lu, i_var);
+
+         result_reg = mem_reg;
+      }
+
+      if (!type_const_bounds(to))   // Need to wrap in metadata
+         result_reg = lower_wrap(lu, from, result_reg);
+
       if (type_is_unconstrained(to))
-         lower_check_indexes(lu, from, to, wrap_reg, where);
+         lower_check_indexes(lu, from, to, result_reg, where);
       else {
          vcode_reg_t locus = lower_debug_locus(where);
-         lower_check_array_sizes(lu, to, from, VCODE_INVALID_REG,
-                                 wrap_reg, locus);
+         lower_check_array_sizes(lu, to, from, value_reg, result_reg, locus);
       }
-      return wrap_reg;
-   }
-   else if (to_k == T_ARRAY && !type_is_unconstrained(from)) {
-      vcode_reg_t locus = lower_debug_locus(where);
-      lower_check_array_sizes(lu, to, from, VCODE_INVALID_REG,
-                              VCODE_INVALID_REG, locus);
-      return value_reg;
+
+      return result_reg;
    }
    else if ((from_k == T_INTEGER && to_k == T_INTEGER)
             || (from_k == T_REAL && to_k == T_REAL)) {
@@ -4843,7 +4885,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       {
          vcode_reg_t array_reg = lower_attr_prefix(lu, name);
          type_t type = tree_type(name);
-         type_t elem = lower_elem_recur(type);
+         type_t elem = type_elem_recur(type);
          vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
          return lower_wrap_element(lu, type, array_reg, null_reg);
       }
@@ -5218,7 +5260,7 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
       return lower_range_left(lu, range_of(type, 0));
    else if (type_is_array(type)) {
       assert(type_const_bounds(type));
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
       vcode_reg_t elem_reg = lower_nested_default_value(lu, elem);
       const int size = lower_array_const_size(type);
 
@@ -5259,7 +5301,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
    else if (type_is_array(type)) {
       assert(!type_is_unconstrained(type));
 
-      type_t elem_type = lower_elem_recur(type);
+      type_t elem_type = type_elem_recur(type);
 
       if (type_const_bounds(type)) {
          if (type_is_scalar(elem_type)) {
@@ -5363,7 +5405,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
          else if (type_is_array(ftype)) {
             if (have_uarray_ptr(ptr_reg)) {
                // Need to allocate memory for the array
-               type_t elem_type = lower_elem_recur(ftype);
+               type_t elem_type = type_elem_recur(ftype);
                vcode_type_t vtype = lower_type(elem_type);
                vcode_type_t vbounds = lower_bounds(elem_type);
 
@@ -7463,7 +7505,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       bounds_reg = lower_get_type_bounds(lu, type);
       count_reg = lower_array_total_len(lu, type, bounds_reg);
 
-      vcode_type_t velem = lower_type(lower_elem_recur(type));
+      vcode_type_t velem = lower_type(type_elem_recur(type));
       mem_reg = emit_alloc(velem, vbounds, count_reg);
 
       dest_reg = lower_rewrap(mem_reg, bounds_reg);
@@ -7503,7 +7545,7 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       else if (type_is_unconstrained(type)) {
          count_reg = lower_array_total_len(lu, value_type, value_reg);
 
-         type_t scalar_elem = lower_elem_recur(type);
+         type_t scalar_elem = type_elem_recur(type);
          dest_reg = emit_alloc(lower_type(scalar_elem),
                                lower_bounds(scalar_elem),
                                count_reg);
@@ -7648,12 +7690,12 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       vcode_type_t voffset = vtype_offset();
       vcode_reg_t size_reg = emit_const(voffset, type_byte_width(type));
       vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
-      vcode_type_t vtype = lower_type(lower_elem_recur(type));
+      vcode_type_t vtype = lower_type(type_elem_recur(type));
 
       vcode_reg_t locus = lower_debug_locus(where);
 
       if (init_reg == VCODE_INVALID_REG) {
-         type_t elem = lower_elem_recur(type);
+         type_t elem = type_elem_recur(type);
          init_reg = lower_range_left(lu, range_of(elem, 0));
       }
       else {
@@ -7693,7 +7735,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       // Array of non-homogeneous type (e.g. records). Need a loop to
       // initialise each sub-signal.
 
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
 
       if (null_reg == VCODE_INVALID_REG || have_uarray_ptr(null_reg))
          null_reg = emit_null(vtype_pointer(lower_type(elem)));
@@ -8103,11 +8145,11 @@ static vcode_type_t lower_alias_type(tree_t alias)
    vcode_type_t velem;
    switch (class_of(tree_value(alias))) {
    case C_SIGNAL:
-      velem = lower_signal_type(lower_elem_recur(type));
+      velem = lower_signal_type(type_elem_recur(type));
       break;
    case C_VARIABLE:
    case C_CONSTANT:
-      velem = lower_type(lower_elem_recur(type));
+      velem = lower_type(type_elem_recur(type));
       break;
    default:
       return VCODE_INVALID_TYPE;
@@ -9020,7 +9062,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    ident_t bad_char_fn = ident_new("NVC.TEXT_UTIL.REPORT_BAD_CHAR(SC)");
    vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
 
-   type_t elem = type_base_recur(lower_elem_recur(type));
+   type_t elem = type_base_recur(type_elem_recur(type));
    vcode_type_t velem = lower_type(elem);
    vcode_type_t vbounds = lower_bounds(elem);
 
@@ -9259,7 +9301,7 @@ static void lower_resolved_helper(lower_unit_t *lu, object_t *obj)
 
    vcode_reg_t data_reg, result_reg;
    if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
       vcode_reg_t count_reg = lower_array_total_len(lu, type, p_reg);
       data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
                             count_reg);
@@ -9326,7 +9368,7 @@ static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
    else {
       assert(type_is_array(type));
 
-      type_t elem = lower_elem_recur(type);
+      type_t elem = type_elem_recur(type);
       lower_check_array_sizes(lu, type, type, pdst_reg, psrc_reg, plocus);
 
       vcode_reg_t count_reg = lower_array_total_len(lu, type, psrc_reg);
@@ -9406,7 +9448,7 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
          vcode_reg_t dst_reg = dst_ptr;
 
          if (have_uarray_ptr(dst_reg)) {
-            type_t scalar_elem = lower_elem_recur(ftype);
+            type_t scalar_elem = type_elem_recur(ftype);
             vcode_type_t vtype = lower_type(scalar_elem);
             vcode_reg_t mem_reg = emit_new(vtype, count_reg);
             vcode_reg_t all_reg = emit_all(mem_reg);
@@ -9473,7 +9515,7 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
    vcode_type_t vtype = lower_type(type);
    assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
 
-   type_t elem = lower_elem_recur(type);
+   type_t elem = type_elem_recur(type);
    vcode_type_t velem = lower_type(elem);
    vcode_type_t vbounds = lower_bounds(elem);
 
@@ -11067,7 +11109,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    }
    else {
       if (p0_uarray) {
-         type_t elem = lower_elem_recur(atype);
+         type_t elem = type_elem_recur(atype);
          *vatype = vtype_pointer(lower_type(elem));
          vabounds = lower_bounds(elem);
       }
@@ -11077,7 +11119,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       }
 
       if (r_uarray) {
-         type_t elem = lower_elem_recur(rtype);
+         type_t elem = type_elem_recur(rtype);
          *vrtype = vtype_pointer(lower_type(elem));
          vrbounds = lower_bounds(elem);
       }

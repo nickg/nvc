@@ -2498,6 +2498,7 @@ START_TEST(test_vhdl2008)
       { 41, "SUBTYPE attribute is only allowed in a type mark" },
       { 49, "case choice must be globally static" },
       { 59, "range choice expression must have same type as aggregate" },
+      { 70, "conversion only allowed between closely related types" },
       { -1, NULL }
    };
    expect_errors(expect);

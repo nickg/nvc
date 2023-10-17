@@ -884,3 +884,4 @@ protected13     normal,2019
 vlog5           verilog,gold
 issue769        shell
 bounds42        fail,gold,2008
+conv10          fail,gold,2008

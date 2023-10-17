@@ -108,10 +108,7 @@ const jit_layout_t *layout_of(type_t type)
          l->parts[1].align  = l->parts[1].size;
       }
       else {
-         type_t elem = type_elem(type);
-         while (type_is_array(elem))
-            elem = type_elem(elem);
-
+         type_t elem = type_elem_recur(type);
          const jit_layout_t *el = layout_of(elem);
 
          l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));

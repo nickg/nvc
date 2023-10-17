@@ -235,7 +235,8 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
 void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                   tree_t where, tree_t hint)
 {
-   type_t type = tree_type(hint);
+   // Hint tree may be an array type conversion
+   type_t type = type_elem_recur(tree_type(hint));
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_cat(tb, "value ");

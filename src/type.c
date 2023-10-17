@@ -879,6 +879,13 @@ type_t type_base_recur(type_t t)
    return t;
 }
 
+type_t type_elem_recur(type_t type)
+{
+   while (type_is_array(type))
+      type = type_elem(type);
+   return type;
+}
+
 const char *type_kind_str(type_kind_t t)
 {
    assert(t < T_LAST_TYPE_KIND);
