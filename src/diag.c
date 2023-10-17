@@ -435,6 +435,7 @@ static const struct {
         [STD_93] = "2.1.1" } },
    { "Protected type declarations", { [STD_08] = "5.6.2",
         [STD_02] = "3.5.1" } },
+   { "Type conversions", { [STD_93] = "7.3.5", [STD_08] = "9.3.6" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
@@ -509,11 +510,8 @@ void diag_message(diag_t *d, text_buf_t *tb)
    tb_move(d->msg, tb);
 }
 
-void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
+void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
    char *text;
    if (strchr(fmt, '$') != 0) {
       if (d->color)
@@ -523,8 +521,6 @@ void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
    }
    else
       text = xvasprintf(fmt, ap);
-
-   va_end(ap);
 
    if (!loc_invalid_p(loc)) {
       for (int i = 0; i < d->hints.count; i++) {
@@ -544,6 +540,16 @@ void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
       .kind     = HINT_NOTE,
    };
    APUSH(d->hints, h);
+}
+
+void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   diag_vhint(d, loc, fmt, ap);
+
+   va_end(ap);
 }
 
 void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)

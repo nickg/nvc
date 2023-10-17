@@ -665,9 +665,11 @@ START_TEST(test_conv)
    input_from_file(TESTDIR "/sem/conv.vhd");
 
    const error_t expect[] = {
-      { 28, "conversion only allowed between closely related types" },
-      { 29, "type of value B does not match type of target A" },
-      { 31, "conversion only allowed between closely related types" },
+      { 32, "conversion only allowed between closely related types" },
+      { 33, "type of value B does not match type of target A" },
+      { 35, "conversion only allowed between closely related types" },
+      { 42, "conversion only allowed between closely related types" },
+      { 43, "conversion only allowed between closely related types" },
       { -1, NULL }
    };
    expect_errors(expect);

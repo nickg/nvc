@@ -2730,17 +2730,47 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
    if (from_k == T_NONE || to_k == T_NONE)
       return true;
 
-   if (from_k == T_ARRAY && to_k == T_ARRAY) {
-      // Types must have same dimensionality
-      bool same_dim = (dimension_of(from) == dimension_of(to));
+   char *reason = NULL;
 
-      // TODO: index types the same or closely related
+   if (from_k == T_ARRAY && to_k == T_ARRAY) {
+      const int from_dims = dimension_of(from);
+      const int to_dims = dimension_of(to);
+
+      // Types must have same dimensionality
+      if (from_dims != to_dims) {
+         reason = xasprintf("%s has %d dimension%s but %s has %d",
+                            type_pp2(from, to), from_dims,
+                            from_dims == 1 ? "" : "s",
+                            type_pp2(to, from), to_dims);
+         goto not_closely_related;
+      }
+
+      // Index types the same or closely related
+      for (int i = 0; i < from_dims; i++) {
+         type_t from_index = index_type_of(from, i);
+         type_t to_index = index_type_of(to, i);
+
+         if (!sem_check_closely_related(from_index, to_index, NULL)) {
+            reason = xasprintf("%s index type of %s is %s which is not closely "
+                               "related to the %s index type of %s",
+                               ordinal_str(i + 1), type_pp2(from, to),
+                               type_pp(from_index), ordinal_str(i + 1),
+                               type_pp2(to, from));
+            goto not_closely_related;
+         }
+      }
+
+      type_t from_e = type_elem(from);
+      type_t to_e = type_elem(to);
 
       // Element types must be the same
-      bool same_elem = type_eq(type_elem(from), type_elem(to));
+      if (!type_eq(from_e, to_e)) {
+         reason = xasprintf("element type %s does not match %s",
+                            type_pp2(from_e, to_e), type_pp2(to_e, from_e));
+         goto not_closely_related;
+      }
 
-      if (same_dim && same_elem)
-         return true;
+      return true;
    }
 
    if (from_k == T_RECORD && to_k == T_RECORD && standard() >= STD_19) {
@@ -2766,29 +2796,32 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
             from_f = f;
          }
 
-         if (from_f == NULL && where != NULL) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(where));
-            diag_printf(d, "conversion only allowed between closely "
-                        "related types");
-            diag_hint(d, tree_loc(to_f), "field %s in record type %s has no "
-                      "matching element in type %s", istr(tree_ident(to_f)),
-                      type_pp2(to, from), type_pp2(from, to));
-            diag_emit(d);
-            return false;
-         }
-         else if (from_f == NULL)
-            return false;
+         if (from_f != NULL)
+            continue;
+
+         reason = xasprintf("field %s in record type %s has no matching "
+                            "element in type %s", istr(tree_ident(to_f)),
+                            type_pp2(to, from), type_pp2(from, to));
+         goto not_closely_related;
       }
 
       return true;
    }
 
+ not_closely_related:
    if (where != NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(where));
+      const loc_t *loc = tree_loc(where);
+      diag_t *d = diag_new(DIAG_ERROR, loc);
       diag_printf(d, "conversion only allowed between closely related types");
-      diag_hint(d, tree_loc(where), "%s and %s are not closely related",
-                type_pp2(from, to), type_pp2(to, from));
+      if (reason != NULL)
+         diag_hint(d, loc, "%s", reason);
+      else
+         diag_hint(d, loc, "%s and %s are not closely related",
+                   type_pp2(from, to), type_pp2(to, from));
+      diag_lrm(d, STD_93, "7.3.5");
       diag_emit(d);
+
+      free(reason);
    }
 
    return false;
