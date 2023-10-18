@@ -48,13 +48,16 @@ typedef struct {
    loc_t    loc;
 } tokenq_t;
 
+typedef bool (*look_fn_t)(token_t);
+
 typedef struct {
-   token_t look[4];
-   token_t stop[4];
-   token_t abort;
-   token_t nest_in;
-   token_t nest_out;
-   int     depth;
+   token_t   look[4];
+   token_t   stop[4];
+   token_t   abort;
+   token_t   nest_in;
+   token_t   nest_out;
+   look_fn_t lookfn;
+   int       depth;
 } look_params_t;
 
 typedef A(tree_t) tree_list_t;
@@ -302,6 +305,11 @@ static bool look_for(const look_params_t *params)
                found = true;
                goto stop_looking;
             }
+         }
+
+         if (params->lookfn != NULL && (*params->lookfn)(tok)) {
+            found = true;
+            goto stop_looking;
          }
 
          for (int i = 0; i < ARRAY_LEN(params->stop); i++) {
@@ -2466,6 +2474,12 @@ static void add_generic_type_op(tree_t parent, int nargs, type_t type,
    insert_name(nametab, p, NULL);
 }
 
+static bool is_psl_infix_op(token_t tok)
+{
+   return tok == tIFIMPL || tok == tUNTIL || tok == tUNTIL_ || tok == tUNTIL1
+      || tok == tUNTIL_1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -4311,8 +4325,7 @@ static tree_t p_primary(void)
    case tNONDET:
    case tNONDETV:
       assert(is_scanned_as_psl());
-      tree_t t = p_psl_builtin_function_call();
-      return t;
+      return p_psl_builtin_function_call();
 
    default:
       expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING, tNEW);
@@ -11664,6 +11677,10 @@ static psl_node_t p_psl_fl_property(void)
    //   | FL_Property -> FL_Property
    //   | FL_Property <-> FL_Property
    //   | Sequence [ ! ]
+   //   | FL_Property until! FL_Property
+   //   | FL_Property until!_ FL_Property
+   //   | FL_Property until FL_Property
+   //   | FL_Property until_ FL_Property
 
    BEGIN("FL property");
 
@@ -11703,7 +11720,9 @@ static psl_node_t p_psl_fl_property(void)
          consume(tok);
 
          p = psl_new(P_NEXT);
-         psl_set_subkind(p, tok == tNEXT1 ? PSL_STRONG : PSL_WEAK);
+
+         if (tok == tNEXT1)
+            psl_set_flag(p, PSL_F_STRONG);
 
          if (optional(tLSQUARE)) {
             scan_as_vhdl();
@@ -11730,7 +11749,9 @@ static psl_node_t p_psl_fl_property(void)
          consume(tok);
 
          p = psl_new(P_NEXT_A);
-         psl_set_subkind(p, tok == tNEXTA1 ? PSL_STRONG : PSL_WEAK);
+
+         if (tok == tNEXTA1)
+            psl_set_flag(p, PSL_F_STRONG);
 
          consume(tLSQUARE);
 
@@ -11750,7 +11771,9 @@ static psl_node_t p_psl_fl_property(void)
          consume(tok);
 
          p = psl_new(P_NEXT_E);
-         psl_set_subkind(p, tok == tNEXTE1 ? PSL_STRONG : PSL_WEAK);
+
+         if (tok == tNEXTE1)
+            psl_set_flag(p, PSL_F_STRONG);
 
          consume(tLSQUARE);
 
@@ -11770,7 +11793,9 @@ static psl_node_t p_psl_fl_property(void)
          consume(tok);
 
          p = psl_new(P_NEXT_EVENT);
-         psl_set_subkind(p, tok == tNEXTEVENT1 ? PSL_STRONG : PSL_WEAK);
+
+         if (tok == tNEXTEVENT1)
+            psl_set_flag(p, PSL_F_STRONG);
 
          consume(tLPAREN);
          (void)p_psl_fl_property();
@@ -11800,7 +11825,7 @@ static psl_node_t p_psl_fl_property(void)
    case tLPAREN:
       {
          const look_params_t lookp = {
-            .look     = { tIFIMPL },
+            .lookfn   = is_psl_infix_op,
             .stop     = { tRPAREN },
             .abort    = tSEMI,
             .nest_in  = tLPAREN,
@@ -11829,7 +11854,8 @@ static psl_node_t p_psl_fl_property(void)
 
    psl_set_loc(p, CURRENT_LOC);
 
-   switch (peek()) {
+   const token_t infix = peek();
+   switch (infix) {
    case tIFIMPL:
       {
          consume(tIFIMPL);
@@ -11842,6 +11868,29 @@ static psl_node_t p_psl_fl_property(void)
 
          return impl;
       }
+
+   case tUNTIL:
+   case tUNTIL_:
+   case tUNTIL1:
+   case tUNTIL_1:
+      {
+         consume(infix);
+
+         psl_flags_t flags = 0;
+         if (infix == tUNTIL1 || infix == tUNTIL_1)
+            flags |= PSL_F_STRONG;
+         if (infix == tUNTIL_ || infix == tUNTIL_1)
+            flags |= PSL_F_INCLUSIVE;
+
+         psl_node_t until = psl_new(P_UNTIL);
+         psl_set_flag(until, flags);
+         psl_add_operand(until, p);
+         psl_add_operand(until, p_psl_fl_property());
+         psl_set_loc(until, CURRENT_LOC);
+
+         return until;
+      }
+
    default:
       return p;
    }
@@ -11956,16 +12005,14 @@ static psl_node_t p_psl_fairness(void)
 
    BEGIN("fairness statement");
 
-   psl_strength_t strength = PSL_WEAK;
-   if (peek() == tSTRONG) {
-      consume(tSTRONG);
-      strength = PSL_STRONG;
-   }
+   psl_flags_t flags = 0;
+   if (optional(tSTRONG))
+      flags |= PSL_F_STRONG;
 
    consume(tFAIRNESS);
 
    psl_node_t a = psl_new(P_FAIRNESS);
-   psl_set_subkind(a, strength);
+   psl_set_flag(a, flags);
 
    tree_t e1 = p_expression();
    solve_psl_condition(nametab, e1);
@@ -11975,7 +12022,7 @@ static psl_node_t p_psl_fairness(void)
 
    psl_add_operand(a, p1);
 
-   if (strength == PSL_STRONG) {
+   if (flags & PSL_F_STRONG) {
       consume(tCOMMA);
 
       tree_t e2 = p_expression();

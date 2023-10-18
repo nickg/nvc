@@ -286,5 +286,8 @@ bool is_scanned_as_psl(void);
 #define tUNION         393
 #define tTRANSLATEON   394
 #define tTRANSLATEOFF  395
+#define tUNTIL1        396
+#define tUNTIL_        397
+#define tUNTIL_1       398
 
 #endif  // _SCAN_H

@@ -886,3 +886,4 @@ issue769        shell
 bounds42        fail,gold,2008
 conv10          fail,gold,2008
 psl5            fail,gold,psl
+psl6            fail,gold,psl

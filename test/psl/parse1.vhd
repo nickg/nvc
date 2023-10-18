@@ -27,4 +27,8 @@ begin
     -- psl foo: assert x;                          -- OK
     -- psl foo: assert not x;                      -- Error
 
+    -- psl assert x -> (x until y);                -- OK
+    -- psl assert x -> (x until_ y);               -- OK
+    -- psl assert x -> (x until! y);               -- OK
+    -- psl assert x -> (x until_! y);              -- OK
 end architecture;

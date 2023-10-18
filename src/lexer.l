@@ -513,6 +513,9 @@ UNION         ?i:union
 <PSL>{NONDET}            { TOKEN(tNONDET); }
 <PSL>{NONDET_V}          { TOKEN(tNONDETV); }
 <PSL>{UNION}             { TOKEN(tUNION); }
+<PSL>{UNTIL}!            { TOKEN(tUNTIL1); }
+<PSL>{UNTIL}_            { TOKEN(tUNTIL_); }
+<PSL>{UNTIL}_!           { TOKEN(tUNTIL_1); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
@@ -553,6 +556,9 @@ UNION         ?i:union
 "[+]"                    { TOKEN(tPLUSRPT); }
 "[="                     { TOKEN(tGOTORPT); }
 "[->"                    { TOKEN(tARROWRPT); }
+{UNTIL}!                 { TOKEN(tUNTIL1); }
+{UNTIL}_                 { TOKEN(tUNTIL_); }
+{UNTIL}_!                { TOKEN(tUNTIL_1); }
 
 % /* These VHDL tokens must be scanned in PSL mode for look-ahead */
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }

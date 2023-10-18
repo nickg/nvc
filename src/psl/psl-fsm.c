@@ -28,10 +28,8 @@
 #include <inttypes.h>
 
 #define CANNOT_HANDLE(p) do {                                   \
-      psl_dump(p);                                              \
-      printf("\n");                                             \
-      fatal_trace("cannot handle PSL kind %s in %s",            \
-                  psl_kind_str(psl_kind(p)),  __FUNCTION__);    \
+      fatal_at(psl_loc(p), "cannot handle PSL kind %s in %s",   \
+               psl_kind_str(psl_kind(p)),  __FUNCTION__);       \
    } while (0)
 
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state,
@@ -51,13 +49,16 @@ static fsm_state_t *add_state(psl_fsm_t *fsm)
 static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
                      psl_node_t guard)
 {
+   fsm_edge_t **p = &(from->edges);
+   for (; *p; p = &((*p)->next));
+
    fsm_edge_t *e = xcalloc(sizeof(fsm_edge_t));
-   e->next  = from->edges;
+   e->next  = NULL;
    e->kind  = kind;
    e->dest  = to;
    e->guard = guard;
 
-   from->edges = e;
+   *p = e;
 }
 
 static int64_t get_number(tree_t t)
@@ -107,6 +108,31 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
    }
 }
 
+static fsm_state_t *build_until(psl_fsm_t *fsm, fsm_state_t *state,
+                                psl_node_t p)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   if (psl_flags(p) & PSL_F_INCLUSIVE) {
+      fsm_state_t *test = add_state(fsm);
+      add_edge(state, test, EDGE_EPSILON, lhs);
+
+      fsm_state_t *new = add_state(fsm);
+      add_edge(test, new, EDGE_NEXT, rhs);
+      add_edge(test, state, EDGE_NEXT, NULL);
+
+      return new;
+   }
+   else {
+      fsm_state_t *new = add_state(fsm);
+      add_edge(state, new, EDGE_NEXT, rhs);
+      add_edge(state, state, EDGE_NEXT, lhs);
+
+      return new;
+   }
+}
+
 static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    int ops = psl_operands(p);
@@ -144,6 +170,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_sere(fsm, state, p);
    case P_IMPLICATION:
       return build_implication(fsm, state, p);
+   case P_UNTIL:
+      return build_until(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }

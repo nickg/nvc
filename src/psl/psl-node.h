@@ -46,6 +46,7 @@ typedef enum {
    P_BUILTIN_FUNC,
    P_VALUE_SET,
    P_PARAM,
+   P_UNTIL,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -65,11 +66,6 @@ typedef enum {
    PSL_TYPE_SEQUENCE,
    PSL_TYPE_PROPERTY
 } psl_type_t;
-
-typedef enum {
-   PSL_WEAK,
-   PSL_STRONG,
-} psl_strength_t;
 
 typedef enum {
    PSL_GUARANTEE,
@@ -110,6 +106,11 @@ typedef enum {
    PSL_VALUE_SET_BOOLEAN,
    PSL_VALUE_SET_EXPLICIT
 } psl_value_set_kind_t;
+
+typedef enum {
+   PSL_F_STRONG    = (1 << 0),
+   PSL_F_INCLUSIVE = (1 << 1),
+} psl_flags_t;
 
 psl_node_t psl_new(psl_kind_t kind);
 psl_kind_t psl_kind(psl_node_t p);
@@ -164,6 +165,9 @@ psl_node_t psl_ref(psl_node_t p);
 void psl_set_repeat(psl_node_t p, psl_node_t r);
 psl_node_t psl_repeat(psl_node_t p);
 bool psl_has_repeat(psl_node_t p);
+
+psl_flags_t psl_flags(psl_node_t p);
+void psl_set_flag(psl_node_t p, psl_flags_t mask);
 
 void psl_locus(psl_node_t p, ident_t *unit, ptrdiff_t *offset);
 

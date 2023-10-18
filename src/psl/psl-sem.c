@@ -156,6 +156,17 @@ static void psl_check_next(psl_node_t p)
    psl_check(psl_value(p));
 }
 
+static void psl_check_until(psl_node_t p)
+{
+   assert(psl_operands(p) == 2);
+
+   psl_node_t left = psl_operand(p, 0);
+   psl_check(left);
+
+   psl_node_t right = psl_operand(p, 1);
+   psl_check(right);
+}
+
 void psl_check(psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -209,6 +220,9 @@ void psl_check(psl_node_t p)
       break;
    case P_NEXT:
       psl_check_next(p);
+      break;
+   case P_UNTIL:
+      psl_check_until(p);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

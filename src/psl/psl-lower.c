@@ -61,6 +61,11 @@ static vcode_reg_t psl_debug_locus(psl_node_t p)
    return emit_debug_locus(unit, offset);
 }
 
+static vcode_reg_t psl_assert_severity(void)
+{
+   return emit_const(vtype_int(0, 3), 2);
+}
+
 static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
                             vcode_block_t *state_bb)
 {
@@ -70,7 +75,7 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
 
    if (state->test != NULL) {
       vcode_reg_t test_reg = psl_lower_boolean(lu, state->test);
-      vcode_reg_t severity_reg = emit_const(vtype_int(0, 3), 2);
+      vcode_reg_t severity_reg = psl_assert_severity();
 
       vcode_reg_t locus = psl_debug_locus(state->test);
       emit_assert(test_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, severity_reg,
@@ -79,6 +84,8 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
 
    if (state->repeating)
       emit_enter_state(emit_const(vint32, state->id));
+
+   vcode_block_t pass_bb = emit_block();
 
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
       if (e->guard != NULL) {
@@ -94,16 +101,32 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
             emit_jump(state_bb[e->dest->id]);
          else {
             emit_enter_state(emit_const(vint32, e->dest->id));
-            emit_jump(skip_bb);
+            emit_jump(pass_bb);
          }
 
          vcode_select_block(skip_bb);
+
+         if (e->next == NULL && !state->repeating) {
+            vcode_reg_t severity_reg = psl_assert_severity();
+            vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
+            vcode_reg_t locus = psl_debug_locus(e->guard);
+            emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                        severity_reg, locus, VCODE_INVALID_REG,
+                        VCODE_INVALID_REG);
+         }
       }
-      else if (e->kind == EDGE_EPSILON)
+      else if (e->kind == EDGE_EPSILON) {
+         assert(e->next == NULL);
          emit_jump(state_bb[e->dest->id]);
-      else
+      }
+      else {
+         assert(e->next == NULL);
          emit_enter_state(emit_const(vint32, e->dest->id));
+         emit_jump(pass_bb);
+      }
    }
+
+   vcode_select_block(pass_bb);
 
    emit_return(VCODE_INVALID_REG);
 }

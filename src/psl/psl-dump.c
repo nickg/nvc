@@ -50,10 +50,10 @@ static void psl_dump_restrict(psl_node_t p)
 
 static void psl_dump_fairness(psl_node_t p)
 {
-   if (psl_subkind(p) == PSL_STRONG)
-      print_syntax("#strong fairness");
-   else
-      print_syntax("#fairness");
+   if (psl_flags(p) & PSL_F_STRONG)
+      print_syntax("#strong ");
+
+   print_syntax("#fairness");
 
    for (int i = 0; i < psl_operands(p); i++)
       psl_dump(psl_operand(p, i));
@@ -102,6 +102,18 @@ static void psl_dump_next_event(psl_node_t p)
    print_syntax("#next_event (");
    psl_dump(psl_value(p));
    print_syntax(")");
+}
+
+static void psl_dump_until(psl_node_t p)
+{
+   psl_dump(psl_operand(p, 0));
+   print_syntax(" #until");
+   if (psl_flags(p) & PSL_F_INCLUSIVE)
+      print_syntax("_");
+   if (psl_flags(p) & PSL_F_STRONG)
+      print_syntax("!");
+   print_syntax(" ");
+   psl_dump(psl_operand(p, 1));
 }
 
 static void psl_dump_sere(psl_node_t p)
@@ -161,6 +173,9 @@ void psl_dump(psl_node_t p)
       break;
    case P_NEXT_EVENT:
       psl_dump_next_event(p);
+      break;
+   case P_UNTIL:
+      psl_dump_until(p);
       break;
    case P_CLOCK_DECL:
       psl_dump_clock_decl(p);

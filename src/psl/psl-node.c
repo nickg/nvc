@@ -30,7 +30,7 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_VALUE | I_MESSAGE),
 
    // P_FAIRNESS
-   (I_SUBKIND | I_PARAMS | I_MESSAGE),
+   (I_PARAMS | I_MESSAGE | I_FLAGS),
 
    // P_COVER
    (I_VALUE | I_MESSAGE),
@@ -51,7 +51,7 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_FOREIGN),
 
    // P_NEXT
-   (I_SUBKIND | I_VALUE | I_DELAY),
+   (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_NEVER
    (I_VALUE | I_CLOCK),
@@ -60,13 +60,13 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_CLOCK),
 
    // P_NEXT_A
-   (I_SUBKIND | I_VALUE | I_DELAY),
+   (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_NEXT_E
-   (I_SUBKIND | I_VALUE | I_DELAY),
+   (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_NEXT_EVENT
-   (I_SUBKIND | I_VALUE | I_DELAY),
+   (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_SERE
    (I_SUBKIND | I_PARAMS | I_CLOCK | I_REPEAT | I_DECLS),
@@ -93,7 +93,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_SUBKIND | I_PARAMS),
 
    // P_PARAM
-   (I_FOREIGN | I_VALUE)
+   (I_FOREIGN | I_VALUE),
+
+   // P_UNTIL
+   (I_PARAMS | I_CLOCK | I_FLAGS),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -101,7 +104,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_HDL_EXPR", "P_PROPERTY_DECL", "P_SEQUENCE_DECL", "P_CLOCK_DECL", "P_NEXT",
    "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
    "P_SERE", "P_IMPLICATION", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST",
-   "P_UNION", "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM"
+   "P_UNION", "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM", "P_UNTIL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -386,6 +389,16 @@ psl_node_t psl_repeat(psl_node_t p)
 bool psl_has_repeat(psl_node_t p)
 {
    return lookup_item(&psl_object, p, I_REPEAT)->object != NULL;
+}
+
+psl_flags_t psl_flags(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_FLAGS)->ival;
+}
+
+void psl_set_flag(psl_node_t p, psl_flags_t mask)
+{
+   lookup_item(&psl_object, p, I_FLAGS)->ival |= mask;
 }
 
 object_t *psl_to_object(psl_node_t p)
