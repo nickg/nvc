@@ -22,6 +22,7 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-node.h"
+#include "psl/psl-phase.h"
 #include "scan.h"
 #include "tree.h"
 #include "vlog/vlog-node.h"
@@ -402,6 +403,41 @@ START_TEST(test_vhdl5)
 }
 END_TEST
 
+START_TEST(test_psl1)
+{
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/dump/psl1.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 0)));
+   diff_dump(tb_get(tb), "default clock is \"and\"(CLK'EVENT, \"=\"(CLK, '1'))");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 1)));
+   diff_dump(tb_get(tb), "assert never B");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 2)));
+   diff_dump(tb_get(tb), "assert always A -> (next_a [3 to 5] B)");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 3)));
+   diff_dump(tb_get(tb), "assert {A; \"and\"(B, C)}");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 4)));
+   diff_dump(tb_get(tb), "assert A -> (next [2] (B until! C))");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+END_TEST
+
 #ifdef ENABLE_VERILOG
 START_TEST(test_vlog1)
 {
@@ -459,6 +495,7 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_vhdl3);
    tcase_add_test(tc_core, test_vhdl4);
    tcase_add_test(tc_core, test_vhdl5);
+   tcase_add_test(tc_core, test_psl1);
 #ifdef ENABLE_VERILOG
    tcase_add_test(tc_core, test_vlog1);
 #endif

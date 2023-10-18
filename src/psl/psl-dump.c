@@ -88,12 +88,26 @@ static void psl_dump_implication(psl_node_t p)
 static void psl_dump_next(psl_node_t p)
 {
    print_syntax("#next ");
+
+   if (psl_has_delay(p)) {
+      print_syntax("[");
+      vhdl_dump(psl_delay(p), 0);
+      print_syntax("] ");
+   }
+
    psl_dump(psl_value(p));
 }
 
 static void psl_dump_next_a(psl_node_t p)
 {
    print_syntax("#next_a ");
+
+   if (psl_has_delay(p)) {
+      print_syntax("[");
+      vhdl_dump(psl_delay(p), 0);
+      print_syntax("] ");
+   }
+
    psl_dump(psl_value(p));
 }
 
@@ -106,6 +120,7 @@ static void psl_dump_next_event(psl_node_t p)
 
 static void psl_dump_until(psl_node_t p)
 {
+   print_syntax("(");
    psl_dump(psl_operand(p, 0));
    print_syntax(" #until");
    if (psl_flags(p) & PSL_F_INCLUSIVE)
@@ -114,6 +129,7 @@ static void psl_dump_until(psl_node_t p)
       print_syntax("!");
    print_syntax(" ");
    psl_dump(psl_operand(p, 1));
+   print_syntax(")");
 }
 
 static void psl_dump_sere(psl_node_t p)
