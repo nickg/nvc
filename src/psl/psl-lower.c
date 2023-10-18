@@ -61,7 +61,8 @@ static vcode_reg_t psl_debug_locus(psl_node_t p)
    return emit_debug_locus(unit, offset);
 }
 
-static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
+static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
+                            vcode_block_t *state_bb)
 {
    emit_comment("Property state %d", state->id);
 
@@ -89,11 +90,17 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state)
 
          vcode_select_block(enter_bb);
 
-         emit_enter_state(emit_const(vint32, e->dest->id));
-         emit_jump(skip_bb);
+         if (e->kind == EDGE_EPSILON)
+            emit_jump(state_bb[e->dest->id]);
+         else {
+            emit_enter_state(emit_const(vint32, e->dest->id));
+            emit_jump(skip_bb);
+         }
 
          vcode_select_block(skip_bb);
       }
+      else if (e->kind == EDGE_EPSILON)
+         emit_jump(state_bb[e->dest->id]);
       else
          emit_enter_state(emit_const(vint32, e->dest->id));
    }
@@ -178,7 +185,7 @@ void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
    int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[pos++]);
-      psl_lower_state(lu, s);
+      psl_lower_state(lu, s, state_bb);
    }
    assert(pos == fsm->next_id);
 

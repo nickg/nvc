@@ -11707,9 +11707,16 @@ static psl_node_t p_psl_fl_property(void)
 
          if (optional(tLSQUARE)) {
             scan_as_vhdl();
-            (void)p_expression();
-            scan_as_psl();
 
+            type_t std_int = std_type(NULL, STD_INTEGER);
+
+            tree_t expr = p_expression();
+            solve_types(nametab, expr, std_int);
+            sem_check(expr, nametab);
+
+            psl_set_delay(p, expr);
+
+            scan_as_psl();
             consume(tRSQUARE);
          }
 
@@ -11728,7 +11735,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tLSQUARE);
 
          scan_as_vhdl();
-         (void)p_discrete_range(NULL);
+         psl_set_delay(p, p_discrete_range(NULL));
          scan_as_psl();
 
          consume(tRSQUARE);
@@ -11748,7 +11755,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tLSQUARE);
 
          scan_as_vhdl();
-         (void)p_discrete_range(NULL);
+         psl_set_delay(p, p_discrete_range(NULL));
          scan_as_psl();
 
          consume(tRSQUARE);
@@ -11771,7 +11778,14 @@ static psl_node_t p_psl_fl_property(void)
 
          if (optional(tLSQUARE)) {
             scan_as_vhdl();
-            (void)p_expression();
+
+            type_t std_int = std_type(NULL, STD_INTEGER);
+
+            tree_t expr = p_expression();
+            solve_types(nametab, expr, std_int);
+            sem_check(expr, nametab);
+
+            psl_set_delay(p, expr);
             scan_as_psl();
 
             consume(tRSQUARE);
@@ -12059,6 +12073,9 @@ static tree_t p_psl_directive(void)
 
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
+
+   if (label)
+     insert_name(nametab, t, NULL);
 
    psl_check(p);
    return t;

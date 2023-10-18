@@ -24,4 +24,7 @@ begin
     -- psl assert never x and y;                   -- OK
     -- psl assert eventually! x and y;             -- OK
 
+    -- psl foo: assert x;                          -- OK
+    -- psl foo: assert not x;                      -- Error
+
 end architecture;

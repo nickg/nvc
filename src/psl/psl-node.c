@@ -51,7 +51,7 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_FOREIGN),
 
    // P_NEXT
-   (I_SUBKIND | I_VALUE),
+   (I_SUBKIND | I_VALUE | I_DELAY),
 
    // P_NEVER
    (I_VALUE | I_CLOCK),
@@ -60,13 +60,13 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_CLOCK),
 
    // P_NEXT_A
-   (I_SUBKIND | I_VALUE),
+   (I_SUBKIND | I_VALUE | I_DELAY),
 
    // P_NEXT_E
-   (I_SUBKIND | I_VALUE),
+   (I_SUBKIND | I_VALUE | I_DELAY),
 
    // P_NEXT_EVENT
-   (I_SUBKIND | I_VALUE),
+   (I_SUBKIND | I_VALUE | I_DELAY),
 
    // P_SERE
    (I_SUBKIND | I_PARAMS | I_CLOCK | I_REPEAT | I_DECLS),
@@ -226,6 +226,24 @@ void psl_set_value(psl_node_t p, psl_node_t v)
 {
    lookup_item(&psl_object, p, I_VALUE)->object = &(v->object);
    object_write_barrier(&(p->object), &(v->object));
+}
+
+tree_t psl_delay(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_DELAY);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
+}
+
+void psl_set_delay(psl_node_t p, tree_t d)
+{
+   lookup_item(&psl_object, p, I_DELAY)->object = &(d->object);
+   object_write_barrier(&(p->object), &(d->object));
+}
+
+bool psl_has_delay(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_DELAY)->object != NULL;
 }
 
 unsigned psl_operands(psl_node_t p)

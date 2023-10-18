@@ -130,6 +130,10 @@ void psl_set_tree(psl_node_t p, tree_t t);
 psl_node_t psl_value(psl_node_t p);
 void psl_set_value(psl_node_t p, psl_node_t v);
 
+tree_t psl_delay(psl_node_t p);
+void psl_set_delay(psl_node_t p, tree_t d);
+bool psl_has_delay(psl_node_t p);
+
 unsigned psl_operands(psl_node_t p);
 psl_node_t psl_operand(psl_node_t p, unsigned n);
 void psl_add_operand(psl_node_t p, psl_node_t o);

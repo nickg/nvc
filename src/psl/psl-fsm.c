@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #define CANNOT_HANDLE(p) do {                                   \
       psl_dump(p);                                              \
@@ -33,7 +34,8 @@
                   psl_kind_str(psl_kind(p)),  __FUNCTION__);    \
    } while (0)
 
-static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p);
+static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state,
+                               psl_node_t p);
 
 static fsm_state_t *add_state(psl_fsm_t *fsm)
 {
@@ -58,17 +60,46 @@ static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
    from->edges = e;
 }
 
+static int64_t get_number(tree_t t)
+{
+   int64_t result = 0;
+   if (!folded_int(t, &result))
+      error_at(tree_loc(t), "static value of PSL Number is not known");
+   else if (result < 0)
+      warn_at(tree_loc(t), "PSL Number %"PRIi64" is negative", result);
+
+   return result;
+}
+
 static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
                                       psl_node_t p)
 {
+   psl_node_t lhs = psl_operand(p, 0);
    psl_node_t rhs = psl_operand(p, 1);
 
    switch (psl_kind(rhs)) {
    case P_NEXT:
       {
-         fsm_state_t *new = add_state(fsm);
-         add_edge(state, new, EDGE_NEXT, psl_operand(p, 0));
-         return build_node(fsm, new, psl_value(rhs));
+         if (psl_has_delay(rhs)) {
+            const int cycles = get_number(psl_delay(rhs));
+
+            fsm_state_t *new = add_state(fsm);
+            add_edge(state, new, EDGE_EPSILON, lhs);
+            state = new;
+
+            for (int i = 0; i < cycles; i++) {
+               fsm_state_t *new = add_state(fsm);
+               add_edge(state, new, EDGE_NEXT, NULL);
+               state = new;
+            }
+         }
+         else {
+            fsm_state_t *new = add_state(fsm);
+            add_edge(state, new, EDGE_NEXT, lhs);
+            state = new;
+         }
+
+         return build_node(fsm, state, psl_value(rhs));
       }
 
    default:
@@ -189,13 +220,15 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
       }
 
       for (fsm_edge_t *e = s->edges; e; e = e->next) {
-         fprintf(f, "%d -> %d", s->id, e->dest->id);
+         fprintf(f, "%d -> %d [", s->id, e->dest->id);
          if (e->guard != NULL) {
-            fprintf(f, " [label=\"");
+            fprintf(f, "label=\"");
             psl_dump_label(f, e->guard);
-            fputs("\"]", f);
+            fputs("\",", f);
          }
-         fprintf(f, ";\n");
+         if (e->kind == EDGE_EPSILON)
+            fputs("style=dashed,", f);
+         fprintf(f, "];\n");
       }
    }
 

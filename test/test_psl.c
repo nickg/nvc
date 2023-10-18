@@ -33,6 +33,7 @@ START_TEST(test_parse1)
    const error_t expect[] = {
       { 12, "no visible declaration for E" },
       { 19, "no visible declaration for FFF" },
+      { 28, "FOO already declared in this region" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -99,6 +100,8 @@ START_TEST(test_sem1)
    input_from_file(TESTDIR "/psl/sem1.vhd");
 
    const error_t expect[] = {
+      { 16, "expression must be a PSL Number but have type BIT" },
+      { 17, "expression must be static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -278,7 +281,6 @@ START_TEST(test_parse5)
    fail_if_errors();
 }
 END_TEST
-
 
 START_TEST(test_dump)
 {
