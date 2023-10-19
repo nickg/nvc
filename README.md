@@ -20,9 +20,9 @@ simulation behaviour of the language as described by the [IEEE
 1076](https://standards.ieee.org/standard/1076-2019.html) standard.
 
 NVC supports popular verification frameworks including
-[OSVVM](https://osvvm.org/), [UVVM](https://www.uvvm.org/), and
-[VUnit](https://vunit.github.io/).  See [below](#vendor-libraries) for
-installation instructions.
+[OSVVM](https://osvvm.org/), [UVVM](https://www.uvvm.org/),
+[VUnit](https://vunit.github.io/) and [cocotb](https://www.cocotb.org/).
+See [below](#vendor-libraries) for installation instructions.
 
 ### Usage
 
@@ -183,7 +183,8 @@ page.
 
 The VHDL standard contains a comprehensive API called VHPI for
 interfacing with foreign code written in C or another language.  NVC
-currently has very limited support for VHPI.  Refer to the
+implements a subset of VHPI sufficient for running
+[cocotb](https://www.cocotb.org/).  Refer to the
 [manual](https://www.nickg.me.uk/nvc/manual.html#VHPI) for more
 information.
 

@@ -408,8 +408,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: nickg/cocotb
-          ref: nvc-revert
+          repository: cocotb/cocotb
+          ref: master
           path: cocotb
           submodules: recursive
           fetch-depth: 1
