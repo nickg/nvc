@@ -907,9 +907,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
             return;   // Called during constant folding
 
          sig_shared_t *shared = args[0].pointer;
-         int32_t      *mem    = args[1].pointer;
+         int32_t      tag     = args[1].integer;
 
-         x_cover_setup_state_cb(shared, mem);
+         x_cover_setup_state_cb(shared, tag);
       }
       break;
 

@@ -1239,40 +1239,33 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    model_set_event_cb(m, s, fn, (void *)(uintptr_t)tag, false);
 }
 
+#define READ_STATE(type) tag_index = *((type *)signal_value(s));
+
 static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)
 {
    // I-th enum literal is encoded in i-th tag from first tag, that corresponds to enum value.
    int size = signal_size(s);
-   uint32_t tag_index = 0;
+   int32_t tag_index = 0;
+   FOR_ALL_SIZES(size, READ_STATE);
 
-   switch (size) {
-   case 1:
-      tag_index = *((uint8_t*)signal_value(s));
-      break;
-   case 2:
-      tag_index = *((uint16_t*)signal_value(s));
-      break;
-   case 4:
-      tag_index = *((uint32_t*)signal_value(s));
-      break;
-   default:
-      fatal("Unsupported signal size: %d\n", size);
-   }
+   rt_model_t *m = get_model();
+   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + tag_index);
 
-   uint32_t *mask = ((uint32_t*) user) + tag_index;
    *mask |= COV_FLAG_STATE;
 }
 
-void x_cover_setup_state_cb(sig_shared_t *ss, int32_t *mask)
+void x_cover_setup_state_cb(sig_shared_t *ss, int32_t tag)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
 
+   int32_t *mask = get_cover_counter(m, tag);
+
    // TYPE'left is a default value of enum type that does not
-   // cause an event. Needs to be flagged as covered manually.
+   // cause an event. First tag eeds to be flagged as covered manually.
    *mask |= COV_FLAG_STATE;
 
-   model_set_event_cb(m, s, cover_state_cb, mask, false);
+   model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)tag, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
