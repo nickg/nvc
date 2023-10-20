@@ -35,7 +35,7 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 
-#if !defined ENABLE_LLVM || defined ENABLE_JIT
+#if !defined ENABLE_LLVM
 #include "vcode.h"
 #endif
 
@@ -2185,7 +2185,7 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
    lib_t work = lib_work();
    lib_put(work, e);
 
-#if !defined ENABLE_LLVM || defined ENABLE_JIT
+#if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
    lib_put_vcode(work, e, vu);
 #endif
@@ -2238,7 +2238,7 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
    lib_t work = lib_work();
    lib_put(work, e);
 
-#if !defined ENABLE_LLVM || defined ENABLE_JIT
+#if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
    lib_put_vcode(work, e, vu);
 #endif

@@ -478,7 +478,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    }
 
    if (!use_jit) {
-      AOT_ONLY(cgen(top, state->registry, state->jit));
+      LLVM_ONLY(cgen(top, state->registry, state->jit));
 
       // Must discard current JIT state to load AOT library later
       jit_free(state->jit);
@@ -770,7 +770,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->jit == NULL)
       state->jit = get_jit(state->registry);
 
-   AOT_ONLY(jit_load_dll(state->jit, tree_ident(top)));
+   LLVM_ONLY(jit_load_dll(state->jit, tree_ident(top)));
 
    jit_reset(state->jit);
    jit_enable_runtime(state->jit, true);
