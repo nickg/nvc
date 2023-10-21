@@ -341,7 +341,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
    cover_spec_t *spc = tagging->spec;
 
    // Type should be included
-   if (spc)
+   if (spc) {
       for (int i = 0; i < spc->fsm_type_include.count; i++)
          if (ident_glob(name, AGET(spc->fsm_type_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
@@ -350,6 +350,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
 #endif
             return false;
          }
+   }
 
    // By default enums should not included
    if (tagging->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
