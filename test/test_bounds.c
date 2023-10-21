@@ -646,6 +646,22 @@ START_TEST(test_initial)
 }
 END_TEST
 
+START_TEST(test_case5)
+{
+   input_from_file(TESTDIR "/bounds/case5.vhd");
+
+   const error_t expect[] = {
+      { 22, "missing choice for element BAZ of type T_TYPE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -679,6 +695,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue734);
    tcase_add_test(tc_core, test_case4);
    tcase_add_test(tc_core, test_initial);
+   tcase_add_test(tc_core, test_case5);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -95,6 +95,8 @@ bool folded_int(tree_t t, int64_t *l)
          case T_ENUM_LIT:
             *l = tree_pos(decl);
             return true;
+         case T_ALIAS:
+            return folded_int(tree_value(decl), l);
          default:
             return false;
          }
@@ -516,7 +518,6 @@ class_t class_of(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_VAR_DECL:
-   case T_PROT_REF:
       return C_VARIABLE;
    case T_SIGNAL_DECL:
    case T_IMPLICIT_SIGNAL:
@@ -570,6 +571,7 @@ class_t class_of(tree_t t)
    case T_COMPONENT:
       return C_COMPONENT;
    case T_REF:
+   case T_PROT_REF:
       return tree_has_ref(t) ? class_of(tree_ref(t)) : C_DEFAULT;
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:

@@ -127,7 +127,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_DELAY),
 
    // T_ALIAS
-   (I_IDENT | I_VALUE | I_TYPE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
 
    // T_FOR
    (I_IDENT | I_STMTS | I_RANGES | I_DECLS),

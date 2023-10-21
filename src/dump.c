@@ -795,9 +795,11 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_ALIAS:
-      print_syntax("#alias %s ", istr(tree_ident(t)));
+      if (tree_flags(t) & TREE_F_PREDEFINED)
+         print_syntax("-- predefined ");
+      print_syntax("#alias %s", istr(tree_ident(t)));
       if (tree_has_type(t)) {
-         print_syntax(": ");
+         print_syntax(" : ");
          dump_type(tree_type(t));
       }
       print_syntax(" #is ");

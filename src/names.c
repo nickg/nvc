@@ -340,20 +340,34 @@ static bool type_set_contains(nametab_t *tab, type_t type)
 
 static bool can_overload(tree_t t)
 {
-   const tree_kind_t kind = tree_kind(t);
-   if ((kind == T_ALIAS || kind == T_GENERIC_DECL) && tree_has_type(t)) {
-      type_t type = tree_type(t);
-      return type_is_subprogram(type) || type_is_none(type);
+   switch (tree_kind(t)) {
+   case T_ALIAS:
+      {
+         tree_t alias = tree_value(t);
+         if (tree_kind(alias) != T_REF)
+            return false;
+         else if (!tree_has_ref(alias))
+            return true;   // Suppress cascading errors
+         else
+            return can_overload(tree_ref(alias));
+      }
+   case T_GENERIC_DECL:
+      {
+         const class_t class = tree_class(t);
+         return class == C_FUNCTION || class == C_PROCEDURE;
+      }
+   case T_ENUM_LIT:
+   case T_UNIT_DECL:
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+   case T_PROC_INST:
+   case T_FUNC_INST:
+      return true;
+   default:
+      return false;
    }
-   else
-      return kind == T_ENUM_LIT
-         || kind == T_UNIT_DECL
-         || kind == T_FUNC_DECL
-         || kind == T_FUNC_BODY
-         || kind == T_PROC_DECL
-         || kind == T_PROC_BODY
-         || kind == T_PROC_INST
-         || kind == T_FUNC_INST;
 }
 
 nametab_t *nametab_new(void)
@@ -680,29 +694,27 @@ static name_mask_t name_mask_for(tree_t t)
    case T_PROT_DECL:
       return N_TYPE;
    case T_GENERIC_DECL:
-      switch (class_of(t)) {
-      case C_TYPE: return N_TYPE;
-      case C_FUNCTION: return N_FUNC;
-      case C_PROCEDURE: return N_PROC;
-      default: return N_OBJECT;
+      {
+         switch (class_of(t)) {
+         case C_TYPE: return N_TYPE;
+         case C_FUNCTION: return N_FUNC;
+         case C_PROCEDURE: return N_PROC;
+         default: return N_OBJECT;
+         }
       }
    case T_ALIAS:
       {
-         if (tree_has_type(t)) {
-            const type_kind_t kind = type_kind(tree_type(t));
-            if (kind == T_FUNC) return N_FUNC;
-            else if (kind == T_PROC) return N_PROC;
-         }
-
          switch (class_of(tree_value(t))) {
-         case C_TYPE: case C_SUBTYPE: return N_TYPE;
+         case C_TYPE:
+         case C_SUBTYPE: return N_TYPE;
          case C_FUNCTION: return N_FUNC;
          case C_PROCEDURE: return N_PROC;
          case C_LABEL: return N_LABEL;
-         default: return N_OBJECT;
+         case C_SIGNAL:
+         case C_CONSTANT:
+         case C_VARIABLE: return N_OBJECT;
+         default: return 0;
          }
-
-         return 0;
       }
    case T_PSL:
       return N_PSL;
@@ -733,13 +745,8 @@ static bool signature_has_error(tree_t sub)
    return false;
 }
 
-static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
+static void add_type_literals(scope_t *s, type_t type, make_visible_t fn)
 {
-   tree_t type_decl = aliased_type_decl(decl);
-   if (type_decl == NULL)
-      return;
-
-   type_t type = tree_type(type_decl);
    switch (type_kind(type)) {
    case T_ENUM:
       {
@@ -788,7 +795,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       decl_t *dd = get_decl_mutable(sym, i);
 
       if (dd->tree == decl)
-         return sym;   // Ignore duplicates
+         return sym;
       else if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
          continue;
       else if (dd->kind == T_LIBRARY) {
@@ -831,8 +838,6 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       }
       else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)
          kind = HIDDEN;
-      else if (kind == POTENTIAL && denotes_same_object(dd->tree, decl))
-         return sym;   // Same object visible through different aliases
       else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
                && type_eq(tree_type(dd->tree), type)
                && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
@@ -876,6 +881,11 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             return sym;
          }
       }
+      else if (denotes_same_object(dd->tree, decl) && standard() >= STD_08) {
+         // According LRM 08 section 12.3 two declarations are not
+         // homographs if they denote different named entities
+         return sym;
+      }
    }
 
    *add_decl(sym) = (decl_t) {
@@ -888,8 +898,8 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
 
    sym->mask |= mask;
 
-   if (kind == DIRECT)
-      add_type_literals(s, decl, make_visible_slow);
+   if (kind == DIRECT && is_type_decl(decl))
+      add_type_literals(s, tree_type(decl), make_visible_slow);
 
    return sym;
 }
@@ -989,7 +999,13 @@ static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
 
    sym->mask |= mask;
 
-   add_type_literals(s, d, make_visible_fast);
+   if (is_type_decl(d))
+      add_type_literals(s, tree_type(d), make_visible_fast);
+}
+
+static void make_potentially_visible(scope_t *s, ident_t id, tree_t d)
+{
+   make_visible(s, id, d, POTENTIAL, s);
 }
 
 static ident_t unit_bare_name(tree_t unit)
@@ -1166,13 +1182,55 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
 
 psl_node_t find_default_clock(nametab_t *tab)
 {
-   const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_DEFAULT_CLOCK));
+   ident_t id = well_known(W_DEFAULT_CLOCK);
+
+   const symbol_t *sym = symbol_for(tab->top_scope, id);
    if (sym == NULL)
       return NULL;
 
    const decl_t *dd = get_decl(sym, 0);
    assert(dd->kind == T_PSL);
    return tree_psl(dd->tree);
+}
+
+static bool is_predef_for_type(tree_t d, type_t type)
+{
+   if (!is_subprogram(d))
+      return false;
+   else if (!is_operator_symbol(tree_ident(d))
+            && !(tree_flags(d) & TREE_F_PREDEFINED))
+      return false;
+   else if (tree_ports(d) == 0)
+      return false;
+   else
+      return type_strict_eq(tree_type(tree_port(d, 0)), type);
+}
+
+void walk_predefs(nametab_t *tab, ident_t name, predef_cb_t fn, void *context)
+{
+   const symbol_t *sym = iterate_symbol_for(tab, name);
+   assert(sym != NULL);
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (!is_type_decl(dd->tree))
+         continue;
+
+      tree_t region = NULL;
+      for (scope_t *s = dd->origin;
+           (region = s->container) == NULL;
+           s = s->parent)
+         ;
+
+      type_t type = tree_type(dd->tree);
+
+      const int ndecls = tree_decls(region);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(region, i);
+         if (is_predef_for_type(d, type))
+            (*fn)(d, context);
+      }
+   }
 }
 
 void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
@@ -1364,20 +1422,15 @@ tree_t query_spec(nametab_t *tab, tree_t object)
 
 static bool denotes_same_object(tree_t a, tree_t b)
 {
-   if (standard() >= STD_08) {
-      // According LRM 08 section 12.3 two declarations are not
-      // homographs if they denote different named entities
-
-      if (tree_kind(a) == T_ALIAS) {
-         tree_t value = tree_value(a);
-         if (tree_kind(value) == T_REF && tree_has_ref(value))
-            return denotes_same_object(tree_ref(value), b);
-      }
-      else if (tree_kind(b) == T_ALIAS) {
-         tree_t value = tree_value(b);
-         if (tree_kind(value) == T_REF && tree_has_ref(value))
-            return denotes_same_object(a, tree_ref(value));
-      }
+   if (tree_kind(a) == T_ALIAS) {
+      tree_t value = tree_value(a);
+      if (tree_kind(value) == T_REF && tree_has_ref(value))
+         return denotes_same_object(tree_ref(value), b);
+   }
+   else if (tree_kind(b) == T_ALIAS) {
+      tree_t value = tree_value(b);
+      if (tree_kind(value) == T_REF && tree_has_ref(value))
+         return denotes_same_object(a, tree_ref(value));
    }
 
    return a == b;
@@ -1581,6 +1634,23 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          ATRIM(m, wptr);
       }
 
+      if (m.count > 1) {
+         // Remove any duplicates from aliases
+         unsigned wptr = 0;
+         for (int i = 0; i < m.count; i++) {
+            bool is_dup = false;
+            for (int j = 0; !is_dup && j < i; j++) {
+               if (denotes_same_object(m.items[i], m.items[j]))
+                  is_dup = true;
+            }
+
+            if (!is_dup)
+               m.items[wptr++] = m.items[i];
+         }
+         assert(wptr >= 1);
+         ATRIM(m, wptr);
+      }
+
       if (m.count > 1 && tab->top_type_set != NULL) {
          unsigned wptr = 0;
          for (unsigned i = 0; i < m.count; i++) {
@@ -1634,7 +1704,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       if (type != NULL && !is_type_decl(dd->tree))
          tb_printf(tb, " as %s", type_pp(tree_type(dd->tree)));
 
-      if (dd->origin->container != NULL)
+      const bool has_named_origin =
+         dd->origin->container != NULL
+         && (tree_kind(dd->origin->container) != T_PROCESS
+             || !(tree_flags(dd->origin->container) & TREE_F_SYNTHETIC_NAME));
+
+      if (has_named_origin)
          tb_printf(tb, " from %s", istr(tree_ident(dd->origin->container)));
 
       diag_hint(d, tree_loc(dd->tree), "%s", tb_get(tb));
@@ -1861,35 +1936,14 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
                continue;
 
             type_t type = type_base_recur(tree_type(dd->tree));
-            if (type_is_enum(type)) {
-               const int nlits = type_enum_literals(type);
-               for (int i = 0; i < nlits; i++) {
-                  tree_t lit = type_enum_literal(type, i);
-                  make_visible(tab->top_scope, tree_ident(lit), lit,
-                               POTENTIAL, s);
-               }
-            }
-            else if (type_is_physical(type)) {
-               const int nunits = type_units(type);
-               for (int i = 0; i < nunits; i++) {
-                  tree_t u = type_unit(type, i);
-                  make_visible(tab->top_scope, tree_ident(u), u,
-                               POTENTIAL, s);
-               }
-            }
+            add_type_literals(tab->top_scope, type, make_potentially_visible);
 
             const int ndecls = tree_decls(unit);
             for (int i = 0; i < ndecls; i++) {
                tree_t d = tree_decl(unit, i);
-               if (!is_subprogram(d) || !is_operator_symbol(tree_ident(d)))
-                  continue;
-               else if (tree_ports(d) == 0)
-                  continue;
-               else if (!type_eq(tree_type(tree_port(d, 0)), type))
-                  continue;
-
-               make_visible(tab->top_scope, tree_ident(d), d,
-                            POTENTIAL, s);
+               if (is_predef_for_type(d, type))
+                  make_visible(tab->top_scope, tree_ident(d), d,
+                               POTENTIAL, s);
             }
          }
       }
@@ -2951,14 +3005,19 @@ static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
 
    for (int i = 0; i < op_sym->ndecls; i++) {
       const decl_t *dd = get_decl(op_sym, i);
-      if (!(dd->mask & N_SUBPROGRAM) || tree_ports(dd->tree) == 0)
-         continue;
-      else if (!(tree_flags(dd->tree) & TREE_F_PREDEFINED))
+      if (!(dd->mask & N_SUBPROGRAM))
          continue;
 
-      type_t arg0 = tree_type(tree_port(dd->tree, 0));
-      if (type_eq(arg0, type))
-         return dd->tree;
+      tree_t sub = dd->tree;
+      if (dd->kind == T_ALIAS)
+         sub = get_aliased_subprogram(sub);
+
+      if (!is_predef_for_type(sub, type))
+         continue;
+      else if (!(tree_flags(sub) & TREE_F_PREDEFINED))
+         continue;    // Ignore user-defined operators
+
+      return dd->tree;
    }
 
    return NULL;
@@ -3527,7 +3586,7 @@ static type_t try_solve_literal(nametab_t *tab, tree_t lit)
          tree_t decl = resolve_name(tab, tree_loc(lit), id);
          if (decl == NULL)
             return NULL;
-         else if (tree_kind(decl) != T_UNIT_DECL) {
+         else if (class_of(decl) != C_UNITS) {
             error_at(tree_loc(lit), "%s is not a physical unit", istr(id));
             type = type_new(T_NONE);
          }

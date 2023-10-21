@@ -3859,7 +3859,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 {
    // Attribute names are in LRM 93 section 6.6
 
-   tree_t name = tree_name(t), decl = NULL;
+   tree_t name = tree_name(t), decl = NULL, type_decl = NULL;
    type_t named_type = NULL;
 
    ident_t attr = tree_ident(t);
@@ -3873,8 +3873,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          decl = tree_ref(name);
 
-         tree_t type_decl = aliased_type_decl(decl);
-         if (type_decl != NULL)
+         if ((type_decl = aliased_type_decl(decl)) != NULL)
             named_type = tree_type(type_decl);
       }
       break;
@@ -3905,7 +3904,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             sem_error(t, "range expression not allowed here");
 
          type_t name_type = tree_has_type(name) ? tree_type(name) : NULL;
-         const bool is_type = decl != NULL && is_type_decl(decl);
+         const bool is_type = type_decl != NULL;
          const bool is_discrete =
             name_type != NULL && type_is_discrete(name_type);
          const bool invalid =

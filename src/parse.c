@@ -165,7 +165,7 @@ static tree_t p_record_element_constraint(type_t base);
 static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject);
 static type_t p_index_subtype_definition(void);
 static type_t p_anonymous_type_indication(void);
-static tree_t p_alias_declaration(void);
+static void p_alias_declaration(tree_t parent);
 static void p_variable_declaration(tree_t parent);
 static tree_t p_psl_declaration(void);
 static psl_node_t p_psl_sequence(void);
@@ -2474,6 +2474,22 @@ static bool is_psl_infix_op(token_t tok)
 {
    return tok == tIFIMPL || tok == tUNTIL || tok == tUNTIL_ || tok == tUNTIL1
       || tok == tUNTIL_1;
+}
+
+static void add_predef_alias(tree_t t, void *context)
+{
+   tree_t parent = context;
+   assert(is_subprogram(t));
+
+   tree_t a = tree_new(T_ALIAS);
+   tree_set_loc(a, CURRENT_LOC);
+   tree_set_ident(a, tree_ident(t));
+   tree_set_value(a, make_ref(t));
+   tree_set_type(a, tree_type(t));
+   tree_set_flag(a, TREE_F_PREDEFINED);
+
+   insert_name(nametab, a, NULL);
+   tree_add_decl(parent, a);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -6233,7 +6249,7 @@ static void p_protected_type_declarative_item(tree_t decl)
       break;
 
    case tALIAS:
-      tree_add_decl(decl, p_alias_declaration());
+      p_alias_declaration(decl);
       break;
 
    default:
@@ -7079,7 +7095,7 @@ static type_t p_signature(void)
    return error ? type_new(T_NONE) : type;
 }
 
-static tree_t p_alias_declaration(void)
+static void p_alias_declaration(tree_t parent)
 {
    // alias alias_designator [ : subtype_indication ] is name [ signature ] ;
 
@@ -7147,10 +7163,60 @@ static tree_t p_alias_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
-   mangle_decl(nametab, t);
    insert_name(nametab, t, NULL);
    sem_check(t, nametab);
-   return t;
+
+   tree_add_decl(parent, t);
+
+   if (type_alias) {
+      // LRM 08 section 6.6.3 an implicit alias declaration exists for
+      // each enumeration literal, unit, and predefined operators
+
+      type_t type = tree_type(value);
+
+      switch (type_kind(type)) {
+      case T_ENUM:
+         {
+            const int nlits = type_enum_literals(type);
+            for (int i = 0; i < nlits; i++) {
+               tree_t lit = type_enum_literal(type, i);
+
+               tree_t a = tree_new(T_ALIAS);
+               tree_set_loc(a, CURRENT_LOC);
+               tree_set_ident(a, tree_ident(lit));
+               tree_set_value(a, make_ref(lit));
+               tree_set_type(a, type);
+               tree_set_flag(a, TREE_F_PREDEFINED);
+
+               insert_name(nametab, a, NULL);
+               tree_add_decl(parent, a);
+            }
+         }
+         break;
+
+      case T_PHYSICAL:
+         {
+            const int nunits = type_units(type);
+            for (int i = 0; i < nunits; i++) {
+               tree_t unit = type_unit(type, i);
+
+               tree_t a = tree_new(T_ALIAS);
+               tree_set_loc(a, CURRENT_LOC);
+               tree_set_ident(a, tree_ident(unit));
+               tree_set_value(a, make_ref(unit));
+               tree_set_type(a, type);
+               tree_set_flag(a, TREE_F_PREDEFINED);
+
+               insert_name(nametab, a, NULL);
+               tree_add_decl(parent, a);
+            }
+         }
+      default:
+         break;
+      }
+
+      walk_predefs(nametab, tree_ident(value), add_predef_alias, parent);
+   }
 }
 
 static void p_file_open_information(tree_t *mode, tree_t *name)
@@ -7372,7 +7438,7 @@ static void p_protected_type_body_declarative_item(tree_t body)
       break;
 
    case tALIAS:
-      tree_add_decl(body, p_alias_declaration());
+      p_alias_declaration(body);
       break;
 
    case tFUNCTION:
@@ -7717,7 +7783,7 @@ static void p_entity_declarative_item(tree_t entity)
       break;
 
    case tALIAS:
-      tree_add_decl(entity, p_alias_declaration());
+      p_alias_declaration(entity);
       break;
 
    case tFUNCTION:
@@ -7799,7 +7865,7 @@ static void p_subprogram_declarative_item(tree_t sub)
       break;
 
    case tALIAS:
-      tree_add_decl(sub, p_alias_declaration());
+      p_alias_declaration(sub);
       break;
 
    case tCONSTANT:
@@ -8032,7 +8098,7 @@ static void p_process_declarative_item(tree_t proc)
       break;
 
    case tALIAS:
-      tree_add_decl(proc, p_alias_declaration());
+      p_alias_declaration(proc);
       break;
 
    case tFILE:
@@ -8356,7 +8422,7 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    case tALIAS:
-      tree_add_decl(pack, p_alias_declaration());
+      p_alias_declaration(pack);
       break;
 
    case tUSE:
@@ -9107,7 +9173,7 @@ static void p_block_declarative_item(tree_t parent)
       break;
 
    case tALIAS:
-      tree_add_decl(parent, p_alias_declaration());
+      p_alias_declaration(parent);
       break;
 
    case tATTRIBUTE:
@@ -12540,7 +12606,7 @@ static void p_package_body_declarative_item(tree_t parent)
       break;
 
    case tALIAS:
-      tree_add_decl(parent, p_alias_declaration());
+      p_alias_declaration(parent);
       break;
 
    case tUSE:

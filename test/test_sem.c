@@ -1195,9 +1195,9 @@ START_TEST(test_alias)
 
    check_expected_errors();
 
-   tree_t x_decl = tree_decl(arch, 1);
+   tree_t x_decl = search_decls(arch, ident_new("X"), 0);
+   fail_if(x_decl == NULL);
    fail_unless(tree_kind(x_decl) == T_SIGNAL_DECL);
-   fail_unless(icmp(tree_ident(x_decl), "X"));
 }
 END_TEST
 
@@ -2805,6 +2805,8 @@ END_TEST
 
 START_TEST(test_issue482)
 {
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/sem/issue482.vhd");
 
    parse_and_check(T_PACKAGE);
@@ -3402,6 +3404,18 @@ START_TEST(test_issue770)
 }
 END_TEST
 
+START_TEST(test_genpack4)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/genpack4.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3564,6 +3578,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_33);
    tcase_add_test(tc_core, test_lcs2016_59);
    tcase_add_test(tc_core, test_issue770);
+   tcase_add_test(tc_core, test_genpack4);
    suite_add_tcase(s, tc_core);
 
    return s;
