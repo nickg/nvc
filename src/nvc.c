@@ -36,6 +36,7 @@
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-phase.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -93,7 +94,7 @@ static int scan_cmd(int start, int argc, char **argv)
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
       "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
-      "--cover-export"
+      "--cover-export", "--preprocess",
    };
 
    for (int i = start; i < argc; i++) {
@@ -1544,6 +1545,52 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    return argc > 1 ? process_command(argc, argv, state) : 0;
 }
 
+static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+
+   int c, index;
+   const char *spec = ":o";
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case ':':
+         missing_argument("preprocess", argv);
+      case '?':
+      default:
+         bad_option("preprocess", argv);
+      }
+   }
+
+   if (optind == next_cmd)
+      fatal("no input files");
+
+#ifdef ENABLE_VERILOG
+   LOCAL_TEXT_BUF tb = tb_new();
+   for (int i = optind; i < next_cmd; i++) {
+      FILE *f = fopen(argv[i], "r");
+      if (f == NULL)
+         fatal_errno("failed to open %s", argv[i]);
+
+      tb_rewind(tb);
+      vlog_preprocess(f, tb);
+
+      fputs(tb_get(tb), stdout);
+      fclose(f);
+   }
+#else
+   fatal("Verilog support not enabled");
+#endif
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv, state) : 0;
+}
+
 static void usage(void)
 {
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
@@ -1560,6 +1607,9 @@ static void usage(void)
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
           " --list\t\t\t\tPrint all units in the library\n"
+#ifdef ENABLE_VERILOG
+          " --preprocess FILE...\t\tExpand FILEs with Verilog preprocessor\n"
+#endif
           " --print-deps [UNIT]...\t\tPrint dependencies in Makefile format\n"
           " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"
@@ -1753,6 +1803,7 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       { "aotgen",       no_argument, 0, 'A' },
       { "do",           no_argument, 0, 'D' },
       { "cover-export", no_argument, 0, 'E' },
+      { "preprocess",   no_argument, 0, 'R' },
       { 0, 0, 0, 0 }
    };
 
@@ -1792,6 +1843,8 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return interact_cmd(argc, argv, state);
    case 'E':
       return cover_export_cmd(argc, argv, state);
+   case 'R':
+      return preprocess_cmd(argc, argv, state);
    default:
       fatal("missing command, try $bold$%s --help$$ for usage", PACKAGE);
       return EXIT_FAILURE;

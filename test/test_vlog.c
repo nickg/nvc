@@ -268,6 +268,25 @@ START_TEST(test_number2)
 }
 END_TEST
 
+START_TEST(test_pp1)
+{
+   FILE *f = fopen(TESTDIR "/vlog/pp1.v", "r");
+   ck_assert_ptr_nonnull(f);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(f, tb);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      " // comment\n"
+      "bar = 1\n");
+
+   fclose(f);
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -279,6 +298,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_parse1);
    tcase_add_test(tc, test_number1);
    tcase_add_test(tc, test_number2);
+   tcase_add_test(tc, test_pp1);
    suite_add_tcase(s, tc);
 
    return s;
