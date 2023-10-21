@@ -124,7 +124,7 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
             value.integer = ((type *)args[0].pointer)[i];          \
          } while (0);
 
-         jit_scalar_t value;
+         jit_scalar_t value = { .integer = 0 };
          FOR_ALL_SIZES(bytes, UNPACK_VALUE);
 
          if (lits != NULL) {
