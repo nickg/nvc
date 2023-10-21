@@ -356,7 +356,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
       return true;
 
    // Type should not be included
-   if (spc)
+   if (spc) {
       for (int i = 0; i < spc->fsm_type_exclude.count; i++)
          if (ident_glob(name, AGET(spc->fsm_type_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
@@ -365,6 +365,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
 #endif
             return true;
          }
+     }
 
    return false;
 }
