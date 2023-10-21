@@ -1,3 +1,6 @@
 # This happens inside LLVM, appears benign
 race:getValueTypeList
 race:llvm::TimerGroup::TimerGroup
+
+# Harmless race on jit->shutdown variable
+race_top:jit_async_cgen

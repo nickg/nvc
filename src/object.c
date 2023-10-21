@@ -23,6 +23,7 @@
 #include "lib.h"
 #include "object.h"
 #include "option.h"
+#include "thread.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -97,6 +98,7 @@ static uint32_t        format_digest;
 static generation_t    next_generation = 1;
 static arena_array_t   all_arenas;
 static object_arena_t *global_arena = NULL;
+static chash_t        *arena_lookup;
 
 static inline bool object_in_arena_p(object_arena_t *arena, object_t *object)
 {
@@ -360,29 +362,29 @@ static void check_frozen_object_fault(int sig, void *addr,
 
 void object_one_time_init(void)
 {
-   extern object_class_t tree_object;
-   extern object_class_t type_object;
-   extern object_class_t vlog_object;
-   extern object_class_t psl_object;
+   INIT_ONCE({
+         extern object_class_t tree_object;
+         object_init(&tree_object);
 
-   static bool done = false;
+         extern object_class_t type_object;
+         object_init(&type_object);
 
-   if (unlikely(!done)) {
-      object_init(&tree_object);
-      object_init(&type_object);
-      object_init(&vlog_object);
-      object_init(&psl_object);
+         extern object_class_t vlog_object;
+         object_init(&vlog_object);
 
-      // Increment this each time a incompatible change is made to the
-      // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 30;
+         extern object_class_t psl_object;
+         object_init(&psl_object);
 
-      format_digest += format_fudge * UINT32_C(2654435761);
+         // Increment this each time a incompatible change is made to
+         // the on-disk format not expressed in the object items table
+         const uint32_t format_fudge = 30;
 
-      add_fault_handler(check_frozen_object_fault, NULL);
+         format_digest += format_fudge * UINT32_C(2654435761);
 
-      done = true;
-   }
+         add_fault_handler(check_frozen_object_fault, NULL);
+
+         arena_lookup = chash_new(64);
+      });
 }
 
 static bool is_gc_root(const object_class_t *class, int kind)
@@ -1249,15 +1251,19 @@ object_arena_t *object_arena_new(size_t size, unsigned std)
 
 void object_arena_freeze(object_arena_t *arena)
 {
+   ident_t name = object_arena_name(arena);
+
    if (arena->frozen)
-      fatal_trace("arena %s already frozen", istr(object_arena_name(arena)));
+      fatal_trace("arena %s already frozen", istr(name));
 
    if (arena->source == OBJ_FRESH)
       object_arena_gc(arena);
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
-      debugf("arena %s frozen (%d bytes)", istr(object_arena_name(arena)),
+      debugf("arena %s frozen (%d bytes)", istr(name),
              (int)(arena->alloc - arena->base));
+
+   chash_put(arena_lookup, name, arena);
 
    void *next_page = ALIGN_UP(arena->alloc, OBJECT_PAGE_SZ);
    nvc_memprotect(arena->base, next_page - arena->base, MEM_RO);
@@ -1297,12 +1303,17 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 
 static object_arena_t *arena_by_name(ident_t module)
 {
-   // Search backwards to ensure we find the most recent arena with the
-   // given name
-   for (int j = all_arenas.count - 1; j > 0; j--) {
-      if (module == object_arena_name(all_arenas.items[j]))
-         return all_arenas.items[j];
-   }
+   if (global_arena != NULL && object_arena_name(global_arena) == module)
+      return global_arena;
+
+   object_arena_t *a = chash_get(arena_lookup, module);
+   if (a != NULL)
+      return a;
+
+#if defined DEBUG && !defined __SANITIZE_THREAD__
+   for (int i = 1; i < all_arenas.count; i++)
+      assert(module != object_arena_name(all_arenas.items[i]));
+#endif
 
    return NULL;
 }
