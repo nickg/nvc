@@ -1771,6 +1771,10 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
    if (cover_skip_type_state(lu->cover, type))
       return;
 
+   int64_t low, high;
+   if (!folded_bounds(range_of(type, 0), &low, &high))
+      return;
+
    cover_push_scope(lu->cover, decl);
 
    int hops = 0;
@@ -1779,16 +1783,23 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
 
    // Add single coverage tag per enum literal. This is to track literal string
    // in the identifier of the coverage tag.
-   for (int i = 0; i < type_enum_literals(type); i++) {
-      tree_t literal = type_enum_literal(type, i);
+   type_t base = type_base_recur(type);
+   for (int i = low; i <= high; i++) {
+      tree_t literal = type_enum_literal(base, i);
       ident_t suffix = ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
       cover_tag_t *tag = cover_add_tag(decl, tree_loc(decl), suffix,
                                        lu->cover, TAG_STATE, 0);
       if (tag == NULL)
          break;
-      if (i == 0) {
+      if (i == low) {
          vcode_reg_t nets_reg = emit_load(var);
-         emit_cover_state(nets_reg, tag->tag);
+
+         // If a type is sub-type, then lower bound may be non-zero. Then value of
+         // lower bound will correspond to first coverage tag. Need to remember the
+         // lower bound, so that run-time can subtract lower bound to get correct
+         // index of coverage data.
+         vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), low);
+         emit_cover_state(nets_reg, low_reg, tag->tag);
       }
    }
 

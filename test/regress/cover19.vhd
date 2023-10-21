@@ -21,8 +21,11 @@ architecture test of cover19 is
         S_1     ,S_2    ,S_3    ,S_4	,S_5
     );
 
+    subtype t_subset_fsm is t_fsm_state range ST_TWO to ST_WAITING;
+
     signal curr_state : t_fsm_state;
     signal state_reg  : t_second_fsm;
+    signal sub_fsm    : t_subset_fsm;
 
 begin
 
@@ -35,6 +38,10 @@ begin
         wait for 5 ns;
 
         state_reg <= S_4;
+        wait for 5 ns;
+
+        -- Subset FSM
+        sub_fsm <= ST_WAITING;
         wait for 5 ns;
 
         wait;

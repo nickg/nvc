@@ -91,7 +91,7 @@ void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
 void x_elab_order_fail(tree_t where);
 void x_unreachable(tree_t where);
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag);
-void x_cover_setup_state_cb(sig_shared_t *ss, int32_t tag);
+void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag);
 void x_process_init(jit_handle_t handle, tree_t where);
 void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_enter_state(int32_t state);

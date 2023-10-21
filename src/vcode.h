@@ -491,7 +491,7 @@ void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
-void emit_cover_state(vcode_reg_t signal, uint32_t tag);
+void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag);
 void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag);
 vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds);
 void emit_debug_info(const loc_t *loc);

@@ -5705,10 +5705,11 @@ void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_state(vcode_reg_t signal, uint32_t tag)
+void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_STATE);
    vcode_add_arg(op, signal);
+   vcode_add_arg(op, low);
    op->tag = tag;
 }
 

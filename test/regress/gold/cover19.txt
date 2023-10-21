@@ -5,4 +5,4 @@
 ** Note:      branch:        N.A.
 ** Note:      toggle:        N.A.
 ** Note:      expression:    N.A.
-** Note:      FSM state:     66.7 % (4/6)
+** Note:      FSM state:     66.7 % (6/9)

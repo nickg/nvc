@@ -443,7 +443,9 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
    if (kind == TAG_STATE) {
       type_t enum_type = tree_type(t);
       assert(type_is_enum(enum_type));
-      num = type_enum_literals(enum_type);
+      int64_t low, high;
+      folded_bounds(range_of(enum_type, 0), &low, &high);
+      num = high - low + 1;
    }
    else
       num = ctx->top_scope->sig_pos;
@@ -1256,7 +1258,7 @@ static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *us
    *mask |= COV_FLAG_STATE;
 }
 
-void x_cover_setup_state_cb(sig_shared_t *ss, int32_t tag)
+void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
@@ -1264,10 +1266,10 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int32_t tag)
    int32_t *mask = get_cover_counter(m, tag);
 
    // TYPE'left is a default value of enum type that does not
-   // cause an event. First tag eeds to be flagged as covered manually.
+   // cause an event. First tag needs to be flagged as covered manually.
    *mask |= COV_FLAG_STATE;
 
-   model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)tag, false);
+   model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)(tag - low), false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
