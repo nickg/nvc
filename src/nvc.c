@@ -294,11 +294,13 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
       { "toggle",                COVER_MASK_TOGGLE                      },
       { "branch",                COVER_MASK_BRANCH                      },
       { "expression",            COVER_MASK_EXPRESSION                  },
+      { "fsm-state",             COVER_MASK_STATE                       },
       { "all",                   COVER_MASK_ALL                         },
       { "count-from-undefined",  COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED },
       { "count-from-to-z",       COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      },
       { "include-mems",          COVER_MASK_TOGGLE_INCLUDE_MEMS         },
-      { "exclude-unreachable",   COVER_MASK_EXCLUDE_UNREACHABLE         }
+      { "exclude-unreachable",   COVER_MASK_EXCLUDE_UNREACHABLE         },
+      { "fsm-no-default-enums",  COVER_MASK_FSM_NO_DEFAULT_ENUMS        }
    };
 
    for (const char *start = str; ; str++) {

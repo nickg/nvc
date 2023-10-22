@@ -3433,6 +3433,19 @@ static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_COVER_TOGGLE);
 }
 
+static void irgen_op_cover_state(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t low = irgen_get_arg(g, op, 1);
+
+   uint32_t tag = vcode_get_tag(op);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, low);
+   j_send(g, 2, jit_value_from_int64(tag));
+   macro_exit(g, JIT_EXIT_COVER_STATE);
+}
+
 static void irgen_op_enter_state(jit_irgen_t *g, int op)
 {
    jit_value_t state = irgen_get_arg(g, op, 0);
@@ -3831,6 +3844,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_COVER_TOGGLE:
          irgen_op_cover_toggle(g, i);
+         break;
+      case VCODE_OP_COVER_STATE:
+         irgen_op_cover_state(g, i);
          break;
       case VCODE_OP_ENTER_STATE:
          irgen_op_enter_state(g, i);

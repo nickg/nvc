@@ -1,0 +1,13 @@
+** Warning: FSM state: 'ST_WAITING' of 'WORK.COVER18.CURR_STATE_FSM' already covered!
+   > data/cover18_ef.txt:2
+   |
+ 2 | exclude WORK.COVER18.CURR_STATE_FSM ST_WAITING
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK.COVER18
+** Note:      statement:     N.A.
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    N.A.
+** Note:      FSM state:     6.5 % (18/278)

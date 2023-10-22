@@ -887,3 +887,5 @@ bounds42        fail,gold,2008
 conv10          fail,gold,2008
 psl5            fail,gold,psl
 psl6            fail,gold,psl
+cover18         cover,shell
+cover19         cover,shell

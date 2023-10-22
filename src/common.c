@@ -1059,6 +1059,8 @@ void intern_strings(void)
 
    id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
    id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");
+
+   id_cache[W_VITAL] = ident_new("VITAL");
 }
 
 bool is_uninstantiated_package(tree_t pack)

@@ -73,7 +73,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
    (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_BRANCH              \
-    || x == VCODE_OP_COVER_TOGGLE || x == VCODE_OP_COVER_EXPR)
+    || x == VCODE_OP_COVER_TOGGLE || x == VCODE_OP_COVER_EXPR           \
+    || x == VCODE_OP_COVER_STATE)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_TARGET(x)                                                \
@@ -2167,6 +2168,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_COVER_TOGGLE:
          case VCODE_OP_COVER_BRANCH:
          case VCODE_OP_COVER_EXPR:
+         case VCODE_OP_COVER_STATE:
             {
                printf("%s %u ", vcode_op_string(op->kind), op->tag);
                vcode_dump_reg(op->args.items[0]);
@@ -5700,6 +5702,14 @@ void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_TOGGLE);
    vcode_add_arg(op, signal);
+   op->tag = tag;
+}
+
+void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_STATE);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, low);
    op->tag = tag;
 }
 

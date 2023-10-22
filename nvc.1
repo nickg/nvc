@@ -649,6 +649,12 @@ operand type.  NVC does not collect expression coverage for VHDL 2008
 overloaded operands for
 .Ql std_logic_vector
 type.
+.It
+.Cm fsm-state
+- NVC tracks if states of Finite State Machines (FSMs) are visited. NVC creates
+a coverage bin for each state of an FSM. NVC considers an inernal signals of
+all user-defined enum type as an FSM. NVC does not consider port signals or
+variables as an FSM.
 .El
 .Pp
 Collecting each coverage type can be enabled separately at elaboration time:
@@ -721,6 +727,12 @@ unreachable coverage items:
 .It
 Toggle coverage on instance ports driven by constant value.
 .El
+.It
+.Cm fsm-no-default-enums
+- When set, NVC by default does not consider signals of usr-define enum types
+as FSMs. With this option, NVC can be forced to recognize FSMs only via
+.Ql fsm-type
+directive in coverage specification file.
 .El
 .Pp
 All additional coverage options are passed comma separated to
@@ -765,6 +777,7 @@ Format of commands in coverage specification file is following:
 .Bd -literal -offset indent
 (+|-)block <ENTITY_NAME>
 (+|-)hierarchy <HIERARCHY>
+(+|-)fsm-type <TYPE>
 .Ed
 .Pp
 An example of coverage specification file is following:
@@ -782,6 +795,18 @@ An example of coverage specification file is following:
 
 # Example how to disable collecting code coverage on entity or block:
 -block clock_gate_model
+
+# Example how to force all signals of enum types named 'T_FSM_STATE'
+# to be recognized as FSM
++fsm_type T_FSM_STATE
+
+# Example how to force all signals of enum types with name matching
+# 'T_*_FSM' pattern to be recognized as FSM
++fsm_type T_*_FSM
+
+# Example how to force all signals of enum type named 'T_TRANSFER_TYPE'
+# not to be recognized as an FSM
+-fsm-type T_TRANSFER_TYPE
 .Ed
 .Pp
 In coverage specification file
@@ -877,8 +902,10 @@ exclude WORK.TOP.SUB_BLOCK_INST.PORT_NAME
 .Ss Additional Information
 In coverage specification file and Exclude file
 .Ql <ENTITY_NAME>
-and
+.
 .Ql <HIERARCHY>
+and
+.Ql <TYPE>
 are case-insensitive. You can get examples of
 .Ql <HIERARCHY>
 from generated Code coverage report by clicking on
