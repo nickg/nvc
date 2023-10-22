@@ -24,6 +24,7 @@
   behaviour.
 - Support for type conversions between arrays with closely related
   element types.
+- Added support for FSM state coverage collection (from @Blebowski).
 
 ## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.
