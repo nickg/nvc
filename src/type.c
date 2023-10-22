@@ -826,8 +826,14 @@ bool type_is_representable(type_t t)
 {
    if (type_is_scalar(t))
       return true;
-   else if (standard() < STD_19)
-      return false;
+   else if (standard() < STD_19) {
+      if (type_is_array(t)) {
+         type_t elem = type_elem(t);
+         return type_is_enum(elem) && all_character_literals(elem);
+      }
+      else
+         return false;
+   }
    else if (type_is_record(t)) {
       const int nfields = type_fields(t);
       for (int i = 0; i < nfields; i++) {

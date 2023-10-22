@@ -889,3 +889,4 @@ psl5            fail,gold,psl
 psl6            fail,gold,psl
 cover18         cover,shell
 cover19         cover,shell
+gentype6        normal,2008

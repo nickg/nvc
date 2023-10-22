@@ -950,10 +950,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
                declare_unary(container, min_i, t, elem, S_MINIMUM);
                declare_unary(container, max_i, t, elem, S_MAXIMUM);
             }
-
-            if (type_is_enum(elem) && all_character_literals(elem))
-               declare_unary(container, ident_new("TO_STRING"), t,
-                             std_type(std, STD_STRING), S_TO_STRING);
          }
       }
       break;

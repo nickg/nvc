@@ -4497,9 +4497,19 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
             sem_error(value, "found at least %d positional actuals but %s "
                       "has only %d generic%s", pos + 1, istr(tree_ident(unit)),
                       nformals, nformals == 1 ? "" : "s");
-         if (formals[pos].have)
+         else if (formals[pos].have)
             sem_error(value, "formal generic %s already has an actual",
                       istr(tree_ident(formals[pos].decl)));
+         else if (tree_flags(formals[pos].decl) & TREE_F_PREDEFINED) {
+            diag_t *d = diag_new(DIAG_WARN, tree_loc(param));
+            diag_printf(d, "positional generic actual is associated with "
+                        "implicit generic subprogram %s for type %s",
+                        istr(tree_ident(formals[pos].decl)),
+                        type_pp(tree_type(tree_port(formals[pos].decl, 0))));
+            diag_hint(d, NULL, "use a named association if this was intended");
+            diag_emit(d);
+         }
+
          formals[pos].have = true;
          decl = formals[pos].decl;
          type = get_type_or_null(decl);

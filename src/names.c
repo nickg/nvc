@@ -836,10 +836,8 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
                && type_eq(tree_type(dd->tree), type)
                && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
-         // Allow pre-defined operators be to hidden by
-         // user-defined subprograms in the same region
-         if (!tree_frozen(dd->tree))
-            tree_set_flag(dd->tree, TREE_F_HIDDEN);  // Will be deleted later
+         // Allow pre-defined operators be to hidden by user-defined
+         // subprograms in the same region
          dd->visibility = HIDDEN;
       }
       else if (is_forward_decl(decl, dd->tree)) {
@@ -2117,6 +2115,9 @@ void mangle_func(nametab_t *tab, tree_t decl)
    if (is_func)
       mangle_one_type(buf, type_result(tree_type(decl)));
 
+   if (tree_flags(decl) & TREE_F_PREDEFINED)
+      tb_cat(buf, "$predef");
+
    tree_set_ident2(decl, ident_new(tb_get(buf)));
 }
 
@@ -2952,9 +2953,8 @@ static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
       const decl_t *dd = get_decl(op_sym, i);
       if (!(dd->mask & N_SUBPROGRAM) || tree_ports(dd->tree) == 0)
          continue;
-
-      // TODO: according to the standard we should only allow
-      // TREE_F_PREDEFINED here
+      else if (!(tree_flags(dd->tree) & TREE_F_PREDEFINED))
+         continue;
 
       type_t arg0 = tree_type(tree_port(dd->tree, 0));
       if (type_eq(arg0, type))

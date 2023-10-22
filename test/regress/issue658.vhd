@@ -36,7 +36,7 @@ architecture test of issue658 is
     end function;
 
     package pint is new work.pack generic map ( integer );
-    package pstrange is new work.pack generic map ( integer, eq42 );
+    package pstrange is new work.pack generic map ( integer, "=" => eq42 );
     package pbv is new work.pack generic map ( bit_vector );
 
 begin

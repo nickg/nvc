@@ -2365,6 +2365,9 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
             if (is_func)
                mangle_one_type(tb, type_result(tree_type(decl)));
 
+            if (tree_flags(decl) & TREE_F_PREDEFINED)
+               tb_cat(tb, "$predef");
+
             ident_t mangled = ident_new(tb_get(tb));
             tree_set_ident2(decl, mangled);
 

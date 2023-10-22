@@ -7254,8 +7254,8 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                  VCODE_CC_VHDL, args, ARRAY_LEN(args));
    }
 
-   ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U"
-                            : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
+   ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U$predef"
+                            : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
    vcode_reg_t context_reg = lower_context_for_call(lu, func);
 
    vcode_type_t vscalar = lower_type(scalar);
@@ -9831,6 +9831,7 @@ static ident_t lower_predef_func_name(type_t type, const char *op)
    mangle_one_type(tb, base);
    tb_cat(tb, ")");
    mangle_one_type(tb, std_type(NULL, STD_BOOLEAN));
+   tb_cat(tb, "$predef");
 
    return ident_new(tb_get(tb));
 }
@@ -10613,7 +10614,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
       vcode_reg_t wrap_reg = emit_wrap(mem_reg, dims, 1);
 
       ident_t func = is_bit
-         ? ident_new("STD.STANDARD.\"and\"(Q)J")
+         ? ident_new("STD.STANDARD.\"and\"(Q)J$predef")
          : ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, wrap_reg };

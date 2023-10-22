@@ -1265,18 +1265,6 @@ static tree_t simp_cond_value(tree_t t)
    return t;
 }
 
-static tree_t simp_hidden_decl(tree_t decl, simp_ctx_t *ctx)
-{
-   // Remove predefined operators which are hidden by explicitly defined
-   // operators in the same region
-
-   const tree_flags_t flags = tree_flags(decl);
-   if ((flags & TREE_F_PREDEFINED) && (flags & TREE_F_HIDDEN))
-      return NULL;
-
-   return decl;
-}
-
 static void simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
@@ -1450,10 +1438,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_literal(t);
    case T_RANGE:
       return simp_range(t);
-   case T_FUNC_DECL:
-   case T_PROC_DECL:
-   case T_GENERIC_DECL:
-      return simp_hidden_decl(t, ctx);
    case T_INSTANCE:
    case T_BINDING:
    case T_PACKAGE_MAP:
