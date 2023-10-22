@@ -298,6 +298,29 @@ START_TEST(test_empty1)
 }
 END_TEST
 
+START_TEST(test_timescale1)
+{
+   input_from_file(TESTDIR "/vlog/timescale1.v");
+
+   const error_t expect[] = {
+      {  2, "invalid time unit name 'hello'" },
+      {  3, "invalid order of magniture in `timescale directive" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -311,6 +334,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_number2);
    tcase_add_test(tc, test_pp1);
    tcase_add_test(tc, test_empty1);
+   tcase_add_test(tc, test_timescale1);
    suite_add_tcase(s, tc);
 
    return s;

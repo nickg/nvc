@@ -290,5 +290,6 @@ bool is_scanned_as_psl(void);
 #define tUNTIL1        396
 #define tUNTIL_        397
 #define tUNTIL_1       398
+#define tTIMESCALE     399
 
 #endif  // _SCAN_H

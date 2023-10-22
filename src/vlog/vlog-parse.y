@@ -57,6 +57,10 @@ static void node_list_concat(node_list_t **a, node_list_t *b);
 static node_list_t *node_list_single(vlog_node_t v);
 static void node_list_free(node_list_t *l);
 
+static void set_timescale(const char *unit_value, const char *unit_name,
+                          const char *prec_value, const char *prec_name,
+                          const loc_t *loc);
+
 #define YYLLOC_DEFAULT(Current, Rhs, N) {                            \
    if (N) {                                                          \
       (Current) = get_loc(YYRHSLOC(Rhs, 1).first_line,               \
@@ -147,6 +151,7 @@ static bool is_decl(vlog_node_t v)
 %token                  tASSIGN 227 "assign"
 %token                  tIF 234 "if"
 %token                  tELSE 255 "else"
+%token                  tTIMESCALE 399 "`timescale"
 %token                  tEOF 0 "end of file"
 
 %left                   '|'
@@ -159,6 +164,20 @@ static bool is_decl(vlog_node_t v)
 %expect 0
 
 %%
+
+source_text:    directive_list description
+        ;
+
+directive_list: directive_list timescale_compiler_directive
+        |       /* empty */
+                ;
+
+timescale_compiler_directive:
+                tTIMESCALE tUNSIGNED tID '/' tUNSIGNED tID
+                {
+                   set_timescale($2, $3, $5, $6, &@$);
+                }
+        ;
 
 description:    { root = vlog_new(V_MODULE); } module_declaration { YYACCEPT; }
         |       tEOF { root = NULL; }
@@ -760,6 +779,60 @@ static node_list_t *node_list_single(vlog_node_t v)
    new->tail  = new;
 
    return new;
+}
+
+static void set_timescale(const char *unit_value, const char *unit_name,
+                          const char *prec_value, const char *prec_name,
+                          const loc_t *loc)
+{
+   // See IEEE 1800-2017 section 22.7 for rules
+
+   struct {
+      const char *value;
+      const char *name;
+      int64_t     parsed;
+   } args[] = {
+      { unit_value, unit_name },
+      { prec_value, prec_name },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(args); i++) {
+      static const struct {
+         const char *name;
+         int64_t value;
+      } valid_units[] = {
+         { "s", INT64_C(60000000000000) },
+         { "ms", 1000000000000 },
+         { "us", 1000000000 },
+         { "ns", 1000000 },
+         { "ps", 1000 },
+         { "fs", 1 },
+      };
+
+      bool name_valid = false;
+      for (int j = 0; j < ARRAY_LEN(valid_units); j++) {
+         if (strcmp(valid_units[j].name, args[i].name) == 0) {
+            args[i].parsed = valid_units[j].value;
+            name_valid = true;
+            break;
+         }
+      }
+
+      if (!name_valid)
+         error_at(loc, "invalid time unit name '%s'", args[i].name);
+
+      const int scale = atoi(args[i].value);
+      if (scale != 1 && scale != 10 && scale != 100) {
+         diag_t *d = diag_new(DIAG_ERROR, loc);
+         diag_printf(d, "invalid order of magniture in `timescale directive");
+         diag_hint(d, NULL, "the valid values are 1, 10, and 100");
+         diag_emit(d);
+      }
+
+      args[i].parsed *= scale;
+   }
+
+   // TODO: do something with parsed scale/precision
 }
 
 vlog_node_t vlog_parse(void)

@@ -73,6 +73,9 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
 `define[ \t]*           { BEGIN(MACRO_NAME); }
 
+`timescale              |
+`resetall               |
+`pragma                 { tb_cat(output, vlogpp_text); }
 `{ID}                   { const char *text = shash_get(macros, vlogpp_text + 1);
                           if (text != NULL)
                              tb_cat(output, text);

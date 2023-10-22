@@ -532,6 +532,7 @@ UNION         ?i:union
 <VLOG>"assign"           { return tASSIGN; }
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
+<VLOG>"`timescale"       { return tTIMESCALE; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
