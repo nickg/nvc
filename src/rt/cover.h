@@ -23,15 +23,14 @@
 #include "fbuf.h"
 #include "diag.h"
 #include "rt.h"
-
-typedef struct _cover_tagging cover_tagging_t;
+#include "prim.h"
 
 typedef enum {
    // Statement/Line coverage
    //
    // Each execution of a statement increments counter. If counter is bigger
    // than 0, statement is covered.
-   TAG_STMT,
+   COV_ITEM_STMT,
 
    // Branch / Decision coverage
    //
@@ -40,14 +39,14 @@ typedef enum {
    // flow is taken/executed, a flag is set. If both flags are set, decision /
    // branch is 100% covered. If only one is taken it is 50% covered. If none,
    // decision / branch is not covered.
-   TAG_BRANCH,
+   COV_ITEM_BRANCH,
 
    // Toggle coverage
    //
    // Each logic signal contains two flags. Upon 0->1 transition, one flag is
    // set. Upon 1 -> 0 transition, the other flag is set. If both flags are set,
    // signal is 100% covered. Ports and internal signals are flagged.
-   TAG_TOGGLE,
+   COV_ITEM_TOGGLE,
 
    // Expression coverage
    //
@@ -60,72 +59,72 @@ typedef enum {
    //    NOR   - Flags for operand values: 00, 01, 10
    //    XOR   - Flags for operand values: 01, 10, 11, 00
    //    XNOR  - Flags for operand values: 01, 10, 11, 00
-   TAG_EXPRESSION,
+   COV_ITEM_EXPRESSION,
 
    // FSM state coverage
    //
    // Signal of user defined enum type is tracked to see if all enum values were
    // reached.
-   TAG_STATE
-} tag_kind_t;
+   COV_ITEM_STATE
+} cover_item_kind_t;
 
-typedef struct _cover_tag {
+typedef struct _cover_item {
    // Type of coverage
-   tag_kind_t     kind;
+   cover_item_kind_t kind;
 
    // Index of the tag of given kind.
    //    - 0 ... 2^31 - 1 - Valid tag entry, Index to run-time arrays with
    //            coverage data
    //    - -1 - Invalid tag
-   int32_t        tag;
+   int32_t           tag;
 
    // Coverage data:
-   //    TAG_STMT       - Number of times statement was executed
-   //    TAG_BRANCH     - Bit COV_FLAG_TRUE:        Branch evaluated to True
-   //                   - Bit COV_FLAG_FALSE:       Branch evaluated to False
-   //                   - Bit COV_FLAG_CHOICE:      Case/Select choice was selected
-   //    TAG_TOOGLE     - Bit COV_FLAG_TOGGLE_TO_1: 0 -> 1 transition
-   //                   - Bit COV_FLAG_TOGGLE_TO_0: 1 -> 0 transition
-   //    TAG_EXPRESSION - Bit COV_FLAG_TRUE:        Expression evaluated to True
-   //                     Bit COV_FLAG_FALSE:       Expression evaluated to False
-   //                     Bit COV_FLAG_00:          LHS = 0/False and RHS = 0/False
-   //                     Bit COV_FLAG_01:          LHS = 0/False and RHS = 1/True
-   //                     Bit COV_FLAG_10:          LHS = 1/True  and RHS = 0/False
-   //                     Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
-   //    TAG_STATE      - Each bit corresponds to FSM state reached value.
-   //                     N = (N_LITERALS-1) / 32 + 1
-   int32_t        data;
+   //    COV_ITEM_STMT        - Number of times statement was executed
+   //    COV_ITEM_BRANCH      - Bit COV_FLAG_TRUE:        Branch evaluated to True
+   //                           Bit COV_FLAG_FALSE:       Branch evaluated to False
+   //                           Bit COV_FLAG_CHOICE:      Case/Select choice was selected
+   //    COV_ITEM_TOOGLE      - Bit COV_FLAG_TOGGLE_TO_1: 0 -> 1 transition
+   //                           Bit COV_FLAG_TOGGLE_TO_0: 1 -> 0 transition
+   //    COV_ITEM_EXPRESSION  - Bit COV_FLAG_TRUE:        Expression evaluated to True
+   //                           Bit COV_FLAG_FALSE:       Expression evaluated to False
+   //                           Bit COV_FLAG_00:          LHS = 0/False and RHS = 0/False
+   //                           Bit COV_FLAG_01:          LHS = 0/False and RHS = 1/True
+   //                           Bit COV_FLAG_10:          LHS = 1/True  and RHS = 0/False
+   //                           Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
+   //    COV_ITEM_STATE       - Each bit corresponds to FSM state reached value.
+   //                              N = (N_LITERALS-1) / 32 + 1
+   int32_t           data;
 
-   // Flags for coverage tag
-   int32_t        flags;
+   // Flags for coverage item
+   int32_t           flags;
 
    // Exclude mask - Bit corresponding to a bin excludes it
-   int32_t        excl_msk;
+   int32_t           excl_msk;
 
    // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
-   int32_t        unrc_msk;
+   int32_t           unrc_msk;
 
-   // Location of the tag in the source file
-   loc_t          loc;
+   // Location of the item in the source file
+   loc_t             loc;
 
    // Locations of LHS/RHS operands
-   loc_t          loc_rhs;
-   loc_t          loc_lhs;
+   loc_t             loc_rhs;
+   loc_t             loc_lhs;
 
    // Hierarchy path of the covered object
-   ident_t        hier;
+   ident_t           hier;
 
    // Name of the function for expression coverage
-   ident_t        func_name;
+   ident_t           func_name;
 
    // Type of underlying tree object
-   tree_kind_t    tree_kind;
+   tree_kind_t       tree_kind;
 
-   // Numeric data related to the cover tag:
-   //    TAG_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.
-   //    TAG_TOGGLE - Start position for signal name
-   int            num;
-} cover_tag_t;
+   // Numeric data related to the cover item:
+   //    COV_ITEM_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.
+   //    COV_ITEM_TOGGLE - Start position for signal name
+   int               num;
+} cover_item_t;
 
 typedef enum {
    COV_FLAG_TRUE           = (1 << 0),
@@ -179,43 +178,43 @@ typedef enum {
 #define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | \
                         COVER_MASK_EXPRESSION | COVER_MASK_STATE)
 
-cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit);
-bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask);
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit);
+bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
-void cover_push_scope(cover_tagging_t *tagging, tree_t t);
-void cover_pop_scope(cover_tagging_t *tagging);
+void cover_push_scope(cover_data_t *data, tree_t t);
+void cover_pop_scope(cover_data_t *data);
 
-void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit);
-void cover_load_spec_file(cover_tagging_t *tagging, const char *path);
+void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit);
+void cover_load_spec_file(cover_data_t *data, const char *path);
 
-void cover_inc_array_depth(cover_tagging_t *tagging);
-void cover_dec_array_depth(cover_tagging_t *tagging);
+void cover_inc_array_depth(cover_data_t *data);
+void cover_dec_array_depth(cover_data_t *data);
 
 bool cover_is_stmt(tree_t t);
-bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size);
-bool cover_skip_type_state(cover_tagging_t *tagging, type_t type);
+bool cover_skip_array_toggle(cover_data_t *data, int a_size);
+bool cover_skip_type_state(cover_data_t *data, type_t type);
 
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
 
-cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
-                           cover_tagging_t *ctx, tag_kind_t kind,
-                           uint32_t flags);
+cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
+                             cover_data_t *data, cover_item_kind_t kind,
+                             uint32_t flags);
 
-void cover_load_exclude_file(const char *path, cover_tagging_t *tagging);
-void cover_report(const char *path, cover_tagging_t *tagging, int item_limit);
+void cover_load_exclude_file(const char *path, cover_data_t *data);
+void cover_report(const char *path, cover_data_t *data, int item_limit);
 
-unsigned cover_count_tags(cover_tagging_t *tagging);
+unsigned cover_count_items(cover_data_t *data);
 
-void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
-                     const int32_t *counts);
+void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
+                      const int32_t *counts);
 
-cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask);
+cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
 
-void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging);
+void cover_merge_items(fbuf_t *f, cover_data_t *data);
 
-void cover_export_cobertura(cover_tagging_t *tagging, FILE *f,
+void cover_export_cobertura(cover_data_t *data, FILE *f,
                             const char *relative);
 
 #endif  // _COVER_H

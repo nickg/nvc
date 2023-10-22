@@ -66,7 +66,7 @@ typedef struct _elab_ctx {
    unit_registry_t  *registry;
    lower_unit_t     *lowered;
    bool              external_names;
-   cover_tagging_t  *cover;
+   cover_data_t     *cover;
    void             *context;
    driver_set_t     *drivers;
 } elab_ctx_t;
@@ -2128,7 +2128,7 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
+tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
 {
    make_new_arena();
 
@@ -2194,7 +2194,7 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_tagging_t *cover)
 }
 
 tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
-                    cover_tagging_t *cover)
+                    cover_data_t *cover)
 {
    make_new_arena();
 

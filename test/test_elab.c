@@ -1633,9 +1633,9 @@ START_TEST(test_issue759)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
+   cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0);
 
-   tree_t e = elab(a, jit, ur, tagging);
+   tree_t e = elab(a, jit, ur, cover);
    fail_if(e == NULL);
 
    jit_free(jit);
