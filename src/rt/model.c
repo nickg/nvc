@@ -304,6 +304,17 @@ static const char *fmt_values(const void *values, uint32_t len)
    return fmt_values_r(values, len, buf, sizeof(buf));
 }
 
+static const char *fmt_jit_value(jit_scalar_t value, bool scalar, uint32_t len)
+{
+   static char buf[FMT_VALUES_SZ*2 + 2];
+   if (scalar) {
+      checked_sprintf(buf, sizeof(buf), "%"PRIx64, value.integer);
+      return buf;
+   }
+   else
+      return fmt_values_r(value.pointer, len, buf, sizeof(buf));
+}
+
 static model_thread_t *model_thread(rt_model_t *m)
 {
    const int my_id = thread_id();
@@ -3525,43 +3536,26 @@ int32_t *get_cover_counter(rt_model_t *m, int32_t tag)
 {
    assert(tag >= 0);
    assert(m->cover != NULL);
-   //   assert(tag <= cover_c
    return jit_get_cover_mem(m->jit, tag + 1) + tag;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
-sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
-                            const uint8_t *values, sig_flags_t flags,
-                            tree_t where, int32_t offset)
+sig_shared_t *x_init_signal(int64_t count, uint32_t size, jit_scalar_t value,
+                            bool scalar, sig_flags_t flags, tree_t where,
+                            int32_t offset)
 {
-   TRACE("init signal %s count=%d size=%d values=%s flags=%x offset=%d",
+   TRACE("init signal %s count=%"PRIi64" size=%d value=%s flags=%x offset=%d",
          istr(tree_ident(where)), count, size,
-         fmt_values(values, size * count), flags, offset);
+         fmt_jit_value(value, scalar, size * count), flags, offset);
 
    rt_model_t *m = get_model();
 
-   const size_t datasz = MAX(3 * count * size, 8);
-   rt_signal_t *s = static_alloc(m, sizeof(rt_signal_t) + datasz);
-   setup_signal(m, s, where, count, size, flags, offset);
-
-   memcpy(s->shared.data, values, s->shared.size);
-
-   // The driving value area is also used to save the default value
-   void *driving = s->shared.data + 2*s->shared.size;
-   memcpy(driving, values, s->shared.size);
-
-   return &(s->shared);
-}
-
-sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
-                              sig_flags_t flags, tree_t where, int32_t offset)
-{
-   TRACE("init signal %s count=%d size=%d value=%"PRIx64" flags=%x offset=%d",
-         istr(tree_ident(where)), count, size, value, flags, offset);
-
-   rt_model_t *m = get_model();
+   if (count > INT32_MAX)
+      jit_msg(tree_loc(where), DIAG_FATAL, "signal %s has %"PRIi64
+              " sub-elements which is greater than the maximum supported %d",
+              istr(tree_ident(where)), count, INT32_MAX);
 
    const size_t datasz = MAX(3 * count * size, 8);
    rt_signal_t *s = static_alloc(m, sizeof(rt_signal_t) + datasz);
@@ -3570,14 +3564,20 @@ sig_shared_t *x_init_signal_s(uint32_t count, uint32_t size, uint64_t value,
    // The driving value area is also used to save the default value
    void *driving = s->shared.data + 2*s->shared.size;
 
+   if (scalar) {
 #define COPY_SCALAR(type) do {                  \
-      type *pi = (type *)s->shared.data;        \
-      type *pd = (type *)driving;               \
-      for (int i = 0; i < count; i++)           \
-         pi[i] = pd[i] = value;                 \
-   } while (0)
+         type *pi = (type *)s->shared.data;     \
+         type *pd = (type *)driving;            \
+         for (int i = 0; i < count; i++)        \
+            pi[i] = pd[i] = value.integer;      \
+      } while (0)
 
-   FOR_ALL_SIZES(size, COPY_SCALAR);
+      FOR_ALL_SIZES(size, COPY_SCALAR);
+   }
+   else {
+      memcpy(s->shared.data, value.pointer, s->shared.size);
+      memcpy(driving, value.pointer, s->shared.size);
+   }
 
    return &(s->shared);
 }

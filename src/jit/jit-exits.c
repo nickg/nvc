@@ -445,7 +445,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_INIT_SIGNAL:
       {
-         int32_t      count  = args[0].integer;
+         int64_t      count  = args[0].integer;
          int32_t      size   = args[1].integer;
          jit_scalar_t value  = { .integer = args[2].integer };
          int32_t      flags  = args[3].integer;
@@ -456,11 +456,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          sig_shared_t *ss;
          if (!jit_has_runtime(thread->jit))
             ss = NULL;
-         else if (scalar)
-            ss = x_init_signal_s(count, size, value.integer,
-                                 flags, where, offset);
          else
-            ss = x_init_signal(count, size, value.pointer,
+            ss = x_init_signal(count, size, value, scalar,
                                flags, where, offset);
 
          args[0].pointer = ss;
