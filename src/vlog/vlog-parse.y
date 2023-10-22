@@ -139,6 +139,7 @@ static bool is_decl(vlog_node_t v)
 %token                  tENDMODULE 351 "endmodule"
 %token                  tINPUT 352 "input"
 %token                  tOUTPUT 353 "output"
+%token                  tINOUT 231 "inout"
 %token                  tREG 354 "reg"
 %token                  tALWAYS 336 "always"
 %token                  tINITIAL 357 "initial"
@@ -270,6 +271,14 @@ port_declaration:
                    vlog_set_ident($$, $2.left);
                    vlog_set_ident2($$, $2.right);
                    vlog_set_subkind($$, V_PORT_OUTPUT);
+                }
+        |       tINOUT external_identifier
+                {
+                   $$ = vlog_new(V_PORT_DECL);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, $2.left);
+                   vlog_set_ident2($$, $2.right);
+                   vlog_set_subkind($$, V_PORT_INOUT);
                 }
         |       tOUTPUT tREG external_identifier
                 {

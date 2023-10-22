@@ -521,6 +521,7 @@ UNION         ?i:union
 <VLOG>"endmodule"        { return tENDMODULE; }
 <VLOG>"input"            { return tINPUT; }
 <VLOG>"output"           { return tOUTPUT; }
+<VLOG>"inout"            { return tINOUT; }
 <VLOG>"reg"              { return tREG; }
 <VLOG>"always"           { return tALWAYS; }
 <VLOG>"posedge"          { return tPOSEDGE; }

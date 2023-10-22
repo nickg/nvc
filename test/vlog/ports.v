@@ -4,8 +4,9 @@ module ports1 (x, y, z, y);  // Error
   output     y;  // Error
 endmodule
 
-module ports2 (x, y);
+module ports2 (x, y, z);
   input x;
   always @(x) y <= x; // OK
   output reg y;
+  inout      z;   // OK
 endmodule // ports2
