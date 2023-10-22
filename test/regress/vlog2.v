@@ -1,7 +1,9 @@
 module vlog2;
 
+  `define MSG "hello, world!"
+
   initial begin
-    $display("hello, world!");
+    $display(`MSG);
     $write("string=%s\n", "foo");
     $display("%s %d %x %d", "foo", 42, 5, 0);
     $finish;

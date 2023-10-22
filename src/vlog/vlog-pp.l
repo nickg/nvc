@@ -26,9 +26,18 @@
 #include "util.h"
 #include "diag.h"
 #include "hash.h"
+#include "scan.h"
 #include "vlog/vlog-phase.h"
 
 #include <assert.h>
+
+#define YY_INPUT(buf, result, max_size) {    \
+      result = get_next_char(buf, max_size); \
+      if (result <= 0)                       \
+         result = YY_NULL;                   \
+   }
+
+#define YY_USER_ACTION begin_token(vlogpp_text, vlogpp_leng);
 
 static int         comment_caller = 0;
 static shash_t    *macros;
@@ -37,6 +46,8 @@ static text_buf_t *macro_text;
 static text_buf_t *output;
 
 static void define_macro(void);
+
+extern loc_t yylloc;
 %}
 
 ID    [a-zA-Z_]([a-zA-Z0-9_$])*
@@ -66,7 +77,8 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                           if (text != NULL)
                              tb_cat(output, text);
                           else
-                             warnf("macro %s undefined", vlogpp_text + 1);
+                             warn_at(&yylloc, "macro %s undefined",
+                                     vlogpp_text + 1);
                         }
 
 <MACRO_NAME>{ID}[ \t]*  { macro_name = xstrdup(vlogpp_text);
@@ -111,7 +123,7 @@ static void define_macro(void)
    tb_rewind(macro_text);
 }
 
-void vlog_preprocess(FILE *f, text_buf_t *tb)
+void vlog_preprocess(text_buf_t *tb)
 {
    assert(macros == NULL);
    macros = shash_new(64);
@@ -122,9 +134,10 @@ void vlog_preprocess(FILE *f, text_buf_t *tb)
    assert(output == NULL);
    output = tb;
 
-   vlogpp_in = f;
+   YY_FLUSH_BUFFER;
+   BEGIN(INITIAL);
+
    vlogpp_lex();
-   vlogpp_in = NULL;
    output = NULL;
 
    shash_free(macros);

@@ -1573,15 +1573,12 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 #ifdef ENABLE_VERILOG
    LOCAL_TEXT_BUF tb = tb_new();
    for (int i = optind; i < next_cmd; i++) {
-      FILE *f = fopen(argv[i], "r");
-      if (f == NULL)
-         fatal_errno("failed to open %s", argv[i]);
+      input_from_file(argv[i]);
 
       tb_rewind(tb);
-      vlog_preprocess(f, tb);
+      vlog_preprocess(tb);
 
       fputs(tb_get(tb), stdout);
-      fclose(f);
    }
 #else
    fatal("Verilog support not enabled");

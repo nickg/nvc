@@ -2274,6 +2274,11 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
    case SOURCE_VERILOG:
 #ifdef ENABLE_VERILOG
       {
+         LOCAL_TEXT_BUF tb = tb_new();
+         vlog_preprocess(tb);
+
+         input_from_buffer(tb_get(tb), tb_len(tb), SOURCE_VERILOG);
+
          lib_t work = lib_work();
          vlog_node_t module;
          while ((module = vlog_parse())) {

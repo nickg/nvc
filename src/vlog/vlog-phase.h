@@ -20,9 +20,7 @@
 
 #include "prim.h"
 
-#include <stdio.h>
-
-void vlog_preprocess(FILE *f, text_buf_t *tb);
+void vlog_preprocess(text_buf_t *tb);
 vlog_node_t vlog_parse(void);
 void vlog_check(vlog_node_t v);
 void vlog_dump(vlog_node_t v, int indent);

@@ -64,9 +64,42 @@ yylval_t yylval;
 loc_t yylloc;
 #endif
 
-void input_from_file(const char *file)
+void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
 {
    pp_defines_init();
+
+   reset_scanner();
+
+   yylloc = LOC_INVALID;
+
+   file_start = buf;
+   file_sz    = len;
+   src_kind   = kind;
+   read_ptr   = buf;
+   lineno     = 1;
+   colno      = 0;
+   lookahead  = -1;
+   pperrors   = 0;
+
+   switch (kind) {
+   case SOURCE_VERILOG:
+#ifdef ENABLE_VERILOG
+      reset_verilog_parser();
+#endif
+      break;
+   case SOURCE_VHDL:
+      reset_vhdl_parser();
+      break;
+   }
+}
+
+void input_from_file(const char *file)
+{
+   // TODO: need a more sophisticated mechanism to determine HDL type
+   hdl_kind_t kind = SOURCE_VHDL;
+   size_t len = strlen(file);
+   if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v')
+      kind = SOURCE_VERILOG;
 
    int fd;
    if (strcmp(file, "-") == 0)
@@ -83,58 +116,36 @@ void input_from_file(const char *file)
 
    if (info.type == FILE_FIFO) {
       // Read all the data from the pipe into a buffer
-      size_t bufsz = 16384;
+      size_t bufsz = 16384, total = 0;
       char *buf = xmalloc(bufsz);
       int nbytes;
       do {
          if (bufsz - 1 - file_sz == 0)
             buf = xrealloc(buf, bufsz *= 2);
 
-         nbytes = read(fd, buf + file_sz, bufsz - 1 - file_sz);
+         nbytes = read(fd, buf + total, bufsz - 1 - total);
          if (nbytes < 0)
             fatal_errno("read");
 
-         file_sz += nbytes;
-         buf[file_sz] = '\0';
+         total += nbytes;
+         buf[total] = '\0';
       } while (nbytes > 0);
 
-      file_start = buf;
+      input_from_buffer(buf, total, kind);
    }
    else if (info.type == FILE_REGULAR) {
-      file_sz = info.size;
+      void *map = NULL;
+      if (info.size > 0)
+         map = map_file(fd, info.size);
 
-      if (file_sz > 0)
-         file_start = map_file(fd, file_sz);
-      else
-         file_start = NULL;
+      file_ref = loc_file_ref(file, map);
+
+      input_from_buffer(map, info.size, kind);
    }
    else
       fatal("opening %s: not a regular file", file);
 
    close(fd);
-
-   reset_scanner();
-
-   size_t len = strlen(file);
-   if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v') {
-      src_kind = SOURCE_VERILOG;
-#ifdef ENABLE_VERILOG
-      reset_verilog_parser();
-#endif
-   }
-   else {
-      src_kind = SOURCE_VHDL;
-      reset_vhdl_parser();
-   }
-
-   yylloc = LOC_INVALID;
-
-   read_ptr  = file_start;
-   file_ref  = loc_file_ref(file, file_start);
-   lineno    = 1;
-   colno     = 0;
-   lookahead = -1;
-   pperrors  = 0;
 }
 
 hdl_kind_t source_kind(void)

@@ -1371,6 +1371,8 @@ void object_fixup_locus(ident_t module, ptrdiff_t *offset)
 
 void freeze_global_arena(void)
 {
+   object_one_time_init();
+
    if (global_arena != NULL) {
       object_arena_freeze(global_arena);
       global_arena = NULL;

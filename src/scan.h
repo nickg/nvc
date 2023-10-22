@@ -41,6 +41,7 @@ typedef enum { SOURCE_VHDL, SOURCE_VERILOG } hdl_kind_t;
 typedef int token_t;
 
 void input_from_file(const char *file);
+void input_from_buffer(const char *buf, size_t len, hdl_kind_t hdl);
 hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);

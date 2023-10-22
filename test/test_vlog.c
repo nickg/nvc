@@ -18,6 +18,8 @@
 #include "phase.h"
 #include "common.h"
 #include "ident.h"
+#include "lib.h"
+#include "object.h"
 #include "prim.h"
 #include "scan.h"
 #include "test_util.h"
@@ -270,11 +272,10 @@ END_TEST
 
 START_TEST(test_pp1)
 {
-   FILE *f = fopen(TESTDIR "/vlog/pp1.v", "r");
-   ck_assert_ptr_nonnull(f);
+   input_from_file(TESTDIR "/vlog/pp1.v");
 
    LOCAL_TEXT_BUF tb = tb_new();
-   vlog_preprocess(f, tb);
+   vlog_preprocess(tb);
 
    ck_assert_str_eq(
       tb_get(tb),
@@ -282,8 +283,18 @@ START_TEST(test_pp1)
       "\n"
       " // comment\n"
       "bar = 1\n");
+}
+END_TEST
 
-   fclose(f);
+START_TEST(test_empty1)
+{
+   input_from_buffer("", 0, SOURCE_VERILOG);
+
+   fail_unless(vlog_parse() == NULL);
+
+   freeze_global_arena();   // Should not crash
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -299,6 +310,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_number1);
    tcase_add_test(tc, test_number2);
    tcase_add_test(tc, test_pp1);
+   tcase_add_test(tc, test_empty1);
    suite_add_tcase(s, tc);
 
    return s;
