@@ -18,7 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
-#include "cover.h"
+#include "cov/cov-api.h"
 #include "debug.h"
 #include "eval.h"
 #include "hash.h"

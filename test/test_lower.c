@@ -17,12 +17,12 @@
 
 #include "test_util.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "jit/jit.h"
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
-#include "rt/cover.h"
 #include "scan.h"
 #include "vcode.h"
 

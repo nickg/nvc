@@ -15,15 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _COVER_H
-#define _COVER_H
+#ifndef _COV_API_H
+#define _COV_API_H
 
-#include "util.h"
-#include "tree.h"
-#include "fbuf.h"
-#include "diag.h"
-#include "rt.h"
 #include "prim.h"
+#include "diag.h"
+#include "fbuf.h"
 
 typedef enum {
    // Statement/Line coverage
@@ -175,17 +172,45 @@ typedef enum {
    COVER_MASK_DONT_PRINT_EXCLUDED         = (1 << 18)
 } cover_mask_t;
 
-#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH | COVER_MASK_TOGGLE | \
-                        COVER_MASK_EXPRESSION | COVER_MASK_STATE)
+#define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH             \
+                        | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION     \
+                        | COVER_MASK_STATE)
 
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
-void cover_push_scope(cover_data_t *data, tree_t t);
-void cover_pop_scope(cover_data_t *data);
+unsigned cover_count_items(cover_data_t *data);
+
+void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
+                      const int32_t *counts);
+cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
+
+fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
+
+void cover_merge_items(fbuf_t *f, cover_data_t *data);
+
+//
+// Spec and exclude file handling
+//
 
 void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit);
 void cover_load_spec_file(cover_data_t *data, const char *path);
+void cover_load_exclude_file(const char *path, cover_data_t *data);
+
+//
+// Report generation and export
+//
+
+void cover_report(const char *path, cover_data_t *data, int item_limit);
+void cover_export_cobertura(cover_data_t *data, FILE *f,
+                            const char *relative);
+
+//
+// Interface to code generator
+//
+
+void cover_push_scope(cover_data_t *data, tree_t t);
+void cover_pop_scope(cover_data_t *data);
 
 void cover_inc_array_depth(cover_data_t *data);
 void cover_dec_array_depth(cover_data_t *data);
@@ -196,25 +221,8 @@ bool cover_skip_type_state(cover_data_t *data, type_t type);
 
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
-fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
-
 cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
                              cover_data_t *data, cover_item_kind_t kind,
                              uint32_t flags);
 
-void cover_load_exclude_file(const char *path, cover_data_t *data);
-void cover_report(const char *path, cover_data_t *data, int item_limit);
-
-unsigned cover_count_items(cover_data_t *data);
-
-void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
-                      const int32_t *counts);
-
-cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
-
-void cover_merge_items(fbuf_t *f, cover_data_t *data);
-
-void cover_export_cobertura(cover_data_t *data, FILE *f,
-                            const char *relative);
-
-#endif  // _COVER_H
+#endif   // _COV_API_H

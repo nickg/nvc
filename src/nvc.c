@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "eval.h"
 #include "jit/jit-llvm.h"
@@ -25,7 +26,6 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
-#include "rt/cover.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
@@ -38,7 +38,6 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 
-#include <unistd.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>

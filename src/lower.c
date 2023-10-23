@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "driver.h"
 #include "hash.h"
@@ -27,13 +28,13 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
-#include "rt/cover.h"
 #include "rt/rt.h"
 #include "type.h"
 #include "vcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <inttypes.h>
 #include <string.h>
 #include <ctype.h>

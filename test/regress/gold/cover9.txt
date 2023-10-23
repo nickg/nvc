@@ -271,11 +271,13 @@
    |
  5 | exducles HALO.HALO
    | ^^^^^^^^^^^^^^^^^^
-** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'. Valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
+** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'
    > data/cover9_ef3.txt:3
    |
  3 | exclude WORK.COVER9._P0._S0._E0 WTF_BIN
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = Note: valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
 ** Fatal: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
    > data/cover9_ef4.txt:3
    |

@@ -78,6 +78,7 @@ typedef struct sens_list sens_list_t;
 typedef struct _vcode_unit *vcode_unit_t;
 
 typedef struct _cover_data cover_data_t;
+typedef struct _cover_item cover_item_t;
 
 typedef struct loc_wr_ctx loc_wr_ctx_t;
 typedef struct loc_rd_ctx loc_rd_ctx_t;
