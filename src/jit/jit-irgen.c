@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit-ffi.h"
@@ -23,7 +24,6 @@
 #include "lib.h"
 #include "mask.h"
 #include "option.h"
-#include "rt/cover.h"
 #include "tree.h"
 #include "vcode.h"
 

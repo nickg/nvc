@@ -25,11 +25,8 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
-#include "object.h"
 #include "option.h"
 #include "phase.h"
-#include "rt/cover.h"
-#include "rt/rt.h"
 #include "thread.h"
 #include "type.h"
 #include "vcode.h"
@@ -39,8 +36,6 @@
 #include <limits.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <libgen.h>
-#include <sys/stat.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/ExecutionEngine.h>

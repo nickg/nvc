@@ -1,0 +1,7 @@
+lib_libnvc_a_SOURCES += \
+	src/cov/cov-api.h \
+	src/cov/cov-data.h \
+	src/cov/cov-data.c \
+	src/cov/cov-export.c \
+	src/cov/cov-report.c \
+	src/cov/cov-exclude.c
