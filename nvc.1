@@ -652,19 +652,19 @@ type.
 .It
 .Cm fsm-state
 - NVC tracks if states of Finite State Machines (FSMs) are visited. NVC creates
-a coverage bin for each state of an FSM. NVC considers an inernal signals of
-all user-defined enum type as an FSM. NVC does not consider port signals or
+a coverage bin for each state of an FSM. NVC considers internal signals of
+all user-defined enum types as FSMs. NVC does not consider port signals or
 variables as an FSM.
 .El
 .Pp
-Collecting each coverage type can be enabled separately at elaboration time:
+Collection for each coverage type can be enabled separately at elaboration time:
 .Bd -literal -offset indent
 $ nvc -e --cover=statement,branch,toggle,expression <top>
 .Ed
 .Pp
-If no coverage type is specified as argument of
-.Fl \-cover
-,all coverage types are collected. After
+If no coverage type is specified as an argument of
+.Fl \-cover ,
+all coverage types are collected. After
 simulation is executed, NVC dumps coverage data into coverage database file
 (*.covdb). To merge coverage databases from multiple simulations, and generate
 hierarchy coverage report in HTML format, run:
@@ -673,7 +673,7 @@ $ nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> \\
       first.covdb second.covdb third.covdb ...
 .Ed
 .Ss Additional code coverage options
-NVC supports following additional options to control coverage collection:
+NVC supports the following additional options to control coverage collection:
 .Bl -bullet
 .It
 .Cm count-from-undefined
@@ -773,7 +773,7 @@ NVC can collect code coverage only on part of the simulated design.
 When coverage specification file is passed during elaboration time,
 NVC collects code coverage only as specified in this file. If
 the file is ommited, NVC collects code coverage on whole design.
-Format of commands in coverage specification file is following:
+The format of commands in the coverage specification file is as follows:
 .Bd -literal -offset indent
 (+|-)block <ENTITY_NAME>
 (+|-)hierarchy <HIERARCHY>
