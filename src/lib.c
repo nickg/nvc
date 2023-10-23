@@ -108,22 +108,13 @@ static ident_t upcase_name(const char *name)
 {
    char *name_copy LOCAL = xstrdup(name);
 
-   char *last_slash = strrchr(name_copy, '/');
-   while ((last_slash != NULL) && (*(last_slash + 1) == '\0')) {
-      *last_slash = '\0';
-      last_slash = strrchr(name_copy, '/');
-   }
-
-   char *name_up = (last_slash != NULL) ? last_slash + 1 : name_copy;
+   char *name_up = name_copy;
    for (char *p = name_up; *p != '\0'; p++)
-      *p = toupper((int)*p);
+      *p = toupper_iso88591(*p);
 
    char *last_dot = strrchr(name_up, '.');
    if (last_dot != NULL)
       *last_dot = '\0';
-
-   if (*name_up == '\0')
-      fatal("invalid library name %s", name);
 
    return ident_new(name_up);
 }
@@ -450,14 +441,8 @@ lib_t lib_new(const char *spec)
       path = split + 1;
    }
 
-   ident_t name_i = upcase_name(name);
-   lib_t lib = lib_loaded(name_i);
-   if (lib != NULL)
-      return lib;
-   else if (search != NULL && (lib = lib_find_at(name, search)) != NULL)
-      return lib;
-   else if (search == NULL && (lib = lib_open_at(name, path)) != NULL)
-      return lib;
+   if (*name == '\0')
+      fatal("library name cannot be empty");
 
    const char *last_dot = strrchr(name, '.');
    if (last_dot != NULL) {
@@ -467,9 +452,18 @@ lib_t lib_new(const char *spec)
    }
 
    for (const char *p = name; *p && p != last_dot; p++) {
-      if (!isalnum((int)*p) && (*p != '_'))
+      if (!isalnum_iso88591(*p) && (*p != '_'))
          fatal("invalid character '%c' in library name", *p);
    }
+
+   ident_t name_i = upcase_name(name);
+   lib_t lib = lib_loaded(name_i);
+   if (lib != NULL)
+      return lib;
+   else if (search != NULL && (lib = lib_find_at(name, search)) != NULL)
+      return lib;
+   else if (search == NULL && (lib = lib_open_at(name, path)) != NULL)
+      return lib;
 
    char *lockf LOCAL = xasprintf("%s" DIR_SEP "%s", path, "_NVC_LIB");
 

@@ -17,6 +17,8 @@ ls -l other
 
 nvc --work=/foo/bar:baz && exit 1    # Invalid character in lib name
 
+nvc --work= foo && exit 1   # Empty library name (issue #778)
+
 nvc --work $(pwd)/somelib -a $TESTDIR/regress/wait2.vhd
 
 ls -l somelib
