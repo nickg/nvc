@@ -1930,8 +1930,8 @@ START_TEST(test_cover)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, jit, ur, tagging);
+   cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0);
+   elab(a, jit, ur, data);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");
    vcode_select_unit(v0);
@@ -2421,8 +2421,8 @@ START_TEST(test_choice1)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_BRANCH, 0);
-   elab(a, jit, ur, tagging);
+   cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0);
+   elab(a, jit, ur, data);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -4850,8 +4850,8 @@ START_TEST(test_issue582)
 
    unit_registry_t *ur = unit_registry_new();
    jit_t *jit = jit_new(ur);
-   cover_tagging_t *tagging = cover_tags_init(COVER_MASK_ALL, 0);
-   elab(a, jit, ur, tagging);
+   cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0);
+   elab(a, jit, ur, data);
 
    jit_free(jit);
    unit_registry_free(ur);

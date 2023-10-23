@@ -53,7 +53,7 @@ typedef struct {
    char            *obj_path;
    char            *module_name;
    unsigned         index;
-   cover_tagging_t *cover;
+   cover_data_t    *cover;
    llvm_obj_t      *obj;
 } cgen_job_t;
 

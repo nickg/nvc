@@ -54,7 +54,7 @@ typedef struct {
    int end;
 } line_range_t;
 
-typedef A(cover_tag_t) tag_array_t;
+typedef A(cover_item_t) cov_item_array_t;
 typedef A(line_range_t) range_array_t;
 typedef A(char*) char_array_t;
 
@@ -71,20 +71,20 @@ typedef enum {
 } scope_type_t;
 
 typedef struct _cover_scope {
-   scope_type_t   type;
-   ident_t        name;
-   ident_t        hier;
-   loc_t          loc;
-   int            branch_label;
-   int            stmt_label;
-   int            expression_label;
-   cover_scope_t *parent;
-   ptr_list_t     children;
-   tag_array_t    tags;
-   range_array_t  ignore_lines;
-   ident_t        block_name;
-   int            sig_pos;
-   bool           emit;
+   scope_type_t      type;
+   ident_t           name;
+   ident_t           hier;
+   loc_t             loc;
+   int               branch_label;
+   int               stmt_label;
+   int               expression_label;
+   cover_scope_t    *parent;
+   ptr_list_t        children;
+   cov_item_array_t  items;
+   range_array_t     ignore_lines;
+   ident_t           block_name;
+   int               sig_pos;
+   bool              emit;
 } cover_scope_t;
 
 struct _cover_rpt_buf {
@@ -101,7 +101,7 @@ struct _cover_spec {
    char_array_t fsm_type_exclude;
 };
 
-struct _cover_tagging {
+struct _cover_data {
    int               next_tag;
    cover_mask_t      mask;
    int               array_limit;
@@ -133,7 +133,7 @@ typedef struct {
 
 typedef struct {
    cover_line_t *line;
-   cover_tag_t *tag;
+   cover_item_t *item;
    int flags;
 } cover_pair_t;
 
@@ -159,7 +159,7 @@ struct _cover_file {
 };
 
 struct _cover_report_ctx {
-   cover_tagging_t      *tagging;
+   cover_data_t         *data;
    cover_stats_t        flat_stats;
    cover_stats_t        nested_stats;
    cover_report_ctx_t   *parent;
@@ -187,7 +187,7 @@ struct _cover_exclude_ctx {
    loc_t    loc;
 };
 
-static const char* tag_kind_str[] = {
+static const char* item_kind_str[] = {
    "statement",
    "branch",
    "toggle",
@@ -308,23 +308,22 @@ unsigned cover_get_std_log_expr_flags(tree_t decl)
    return flags;
 }
 
-bool cover_skip_array_toggle(cover_tagging_t *tagging, int a_size)
+bool cover_skip_array_toggle(cover_data_t *data, int a_size)
 {
-   assert (tagging);
+   assert (data);
 
    // Array is equal to or than configured limit
-   if (tagging->array_limit != 0 && a_size >= tagging->array_limit)
+   if (data->array_limit != 0 && a_size >= data->array_limit)
       return true;
 
    // Array is multi-dimensional or nested
-   if ((!cover_enabled(tagging, COVER_MASK_TOGGLE_INCLUDE_MEMS)) &&
-       tagging->array_depth > 0)
+   if ((!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS)) && data->array_depth > 0)
       return true;
 
    return false;
 }
 
-bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
+bool cover_skip_type_state(cover_data_t *data, type_t type)
 {
    if (!type_is_enum(type))
       return true;
@@ -338,7 +337,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
       return true;
 
    ident_t name = ident_rfrom(full_name, '.');
-   cover_spec_t *spc = tagging->spec;
+   cover_spec_t *spc = data->spec;
 
    // Type should be included
    if (spc) {
@@ -353,7 +352,7 @@ bool cover_skip_type_state(cover_tagging_t *tagging, type_t type)
    }
 
    // By default enums should not included
-   if (tagging->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
+   if (data->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
       return true;
 
    // Type should not be included
@@ -382,16 +381,16 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
    return f;
 }
 
-cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
-                           cover_tagging_t *ctx, tag_kind_t kind,
-                           uint32_t flags)
+cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
+                             cover_data_t *data, cover_item_kind_t kind,
+                             uint32_t flags)
 {
-   assert(ctx != NULL);
+   assert(data != NULL);
 
-   if (!ctx->top_scope->emit)
+   if (!data->top_scope->emit)
       return NULL;
 
-   cover_scope_t *ignore_scope = ctx->top_scope;
+   cover_scope_t *ignore_scope = data->top_scope;
    for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
         ignore_scope = ignore_scope->parent)
       ;
@@ -402,18 +401,18 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
          return NULL;
    }
 
-   // Everything creates scope, so name of current tag is already given
+   // Everything creates scope, so name of current item is already given
    // by scope in hierarchy.
-   ident_t hier = ctx->top_scope->hier;
+   ident_t hier = data->top_scope->hier;
    if (suffix)
       hier = ident_prefix(hier, suffix, '\0');
 
-   // Expression tags do not nest scope, expression name must be created
-   if (kind == TAG_EXPRESSION) {
+   // Expression items do not nest scope, expression name must be created
+   if (kind == COV_ITEM_EXPRESSION) {
       char buf[16];
-      checked_sprintf(buf, sizeof(buf), "_E%d", ctx->top_scope->expression_label);
+      checked_sprintf(buf, sizeof(buf), "_E%d", data->top_scope->expression_label);
       hier = ident_prefix(hier, ident_new(buf), '.');
-      ctx->top_scope->expression_label++;
+      data->top_scope->expression_label++;
    }
 
    // Query LHS/RHS operand locations of binary expressions
@@ -425,13 +424,13 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
    }
 
    ident_t func_name = NULL;
-   if (kind == TAG_EXPRESSION)
+   if (kind == COV_ITEM_EXPRESSION)
       func_name = tree_ident(t);
-   else if (kind == TAG_STATE)
+   else if (kind == COV_ITEM_STATE)
       func_name = ident_rfrom(type_ident(tree_type(t)), '.');
 
 #ifdef COVER_DEBUG_EMIT
-   printf("Tag: %s\n", istr(hier));
+   printf("Item: %s\n", istr(hier));
    printf("    First line: %d\n", tree_loc(t)->first_line);
    printf("    First column: %d\n", tree_loc(t)->first_column);
    printf("    Line delta: %d\n", tree_loc(t)->line_delta);
@@ -440,7 +439,7 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
 #endif
 
    int num = 0;
-   if (kind == TAG_STATE) {
+   if (kind == COV_ITEM_STATE) {
       type_t enum_type = tree_type(t);
       assert(type_is_enum(enum_type));
       int64_t low, high;
@@ -448,11 +447,11 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
       num = high - low + 1;
    }
    else
-      num = ctx->top_scope->sig_pos;
+      num = data->top_scope->sig_pos;
 
-   cover_tag_t new = {
+   cover_item_t new = {
       .kind       = kind,
-      .tag        = ctx->next_tag++,
+      .tag        = data->next_tag++,
       .data       = 0,
       .flags      = flags,
       .excl_msk   = 0,
@@ -466,9 +465,9 @@ cover_tag_t *cover_add_tag(tree_t t, const loc_t *loc, ident_t suffix,
       .num        = num,
    };
 
-   APUSH(ctx->top_scope->tags, new);
+   APUSH(data->top_scope->items, new);
 
-   return AREF(ctx->top_scope->tags, ctx->top_scope->tags.count - 1);
+   return AREF(data->top_scope->items, data->top_scope->items.count - 1);
 }
 
 LCOV_EXCL_START
@@ -481,13 +480,13 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
    }
    color_printf("$$\n");
 
-   for (int i = 0; i < s->tags.count; i++) {
-      cover_tag_t *tag = &(s->tags.items[i]);
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
 
-      char *path LOCAL = xstrdup(loc_file_str(&tag->loc));
-      printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", tag->tag,
-             tag_kind_str[tag->kind], istr(tag->hier),
-             basename(path), tag->loc.first_line, tag->data);
+      char *path LOCAL = xstrdup(loc_file_str(&item->loc));
+      printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
+             item_kind_str[item->kind], istr(item->hier),
+             basename(path), item->loc.first_line, item->data);
    }
 
    for (list_iter(cover_scope_t *, c, s->children))
@@ -495,17 +494,17 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
 }
 LCOV_EXCL_STOP
 
-static void cover_merge_one_tag(cover_tag_t *tag, int32_t data)
+static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
-   switch (tag->kind) {
-   case TAG_STMT:
-      tag->data += data;
+   switch (item->kind) {
+   case COV_ITEM_STMT:
+      item->data += data;
       break;
-   case TAG_TOGGLE:
-   case TAG_BRANCH:
-   case TAG_EXPRESSION:
-   case TAG_STATE:
-      tag->data |= data;
+   case COV_ITEM_TOGGLE:
+   case COV_ITEM_BRANCH:
+   case COV_ITEM_EXPRESSION:
+   case COV_ITEM_STATE:
+      item->data |= data;
       break;
    default:
       break;
@@ -514,11 +513,11 @@ static void cover_merge_one_tag(cover_tag_t *tag, int32_t data)
 
 static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
 {
-   for (int i = 0; i < s->tags.count; i++) {
-      cover_tag_t *tag = &(s->tags.items[i]);
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
 
-      const int32_t data = counts ? counts[tag->tag] : 0;
-      cover_merge_one_tag(tag, data);
+      const int32_t data = counts ? counts[item->tag] : 0;
+      cover_merge_one_item(item, data);
    }
 
    for (list_iter(cover_scope_t *, it, s->children))
@@ -538,30 +537,30 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
    if (s->type == CSCOPE_INSTANCE)
       ident_write(s->block_name, ident_ctx);
 
-   fbuf_put_uint(f, s->tags.count);
-   for (int i = 0; i < s->tags.count; i++) {
-      cover_tag_t *tag = &(s->tags.items[i]);
+   fbuf_put_uint(f, s->items.count);
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
 
-      write_u8(tag->kind, f);
-      write_u32(tag->tag, f);
-      write_u32(tag->data, f);
-      write_u32(tag->flags, f);
-      write_u32(tag->tree_kind, f);
+      write_u8(item->kind, f);
+      write_u32(item->tag, f);
+      write_u32(item->data, f);
+      write_u32(item->flags, f);
+      write_u32(item->tree_kind, f);
       // Do not dump "excl_msk" since it is only filled at
       // report generation time
-      write_u32(tag->unrc_msk, f);
+      write_u32(item->unrc_msk, f);
 
-      loc_write(&(tag->loc), loc_ctx);
-      if (tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_write(&(tag->loc_lhs), loc_ctx);
-         loc_write(&(tag->loc_rhs), loc_ctx);
+      loc_write(&(item->loc), loc_ctx);
+      if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_write(&(item->loc_lhs), loc_ctx);
+         loc_write(&(item->loc_rhs), loc_ctx);
       }
 
-      ident_write(tag->hier, ident_ctx);
-      if (tag->kind == TAG_EXPRESSION || tag->kind == TAG_STATE)
-         ident_write(tag->func_name, ident_ctx);
+      ident_write(item->hier, ident_ctx);
+      if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+         ident_write(item->func_name, ident_ctx);
 
-      write_u32(tag->num, f);
+      write_u32(item->num, f);
    }
 
    for (list_iter(cover_scope_t *, it, s->children))
@@ -570,23 +569,23 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
    write_u8(CTRL_POP_SCOPE, f);
 }
 
-void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
-                     const int32_t *counts)
+void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
+                      const int32_t *counts)
 {
    if (dt == COV_DUMP_RUNTIME)
-      cover_update_counts(ctx->root_scope, counts);
+      cover_update_counts(data->root_scope, counts);
 
    if (opt_get_int(OPT_COVER_VERBOSE))
-      cover_debug_dump(ctx->root_scope, 0);
+      cover_debug_dump(data->root_scope, 0);
 
-   write_u32(ctx->mask, f);
-   write_u32(ctx->array_limit, f);
-   write_u32(ctx->next_tag, f);
+   write_u32(data->mask, f);
+   write_u32(data->array_limit, f);
+   write_u32(data->next_tag, f);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
 
-   cover_write_scope(ctx->root_scope, f, ident_ctx, loc_wr);
+   cover_write_scope(data->root_scope, f, ident_ctx, loc_wr);
 
    write_u8(CTRL_END_OF_FILE, f);
 
@@ -594,24 +593,24 @@ void cover_dump_tags(cover_tagging_t *ctx, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_tagging_t *cover_tags_init(cover_mask_t mask, int array_limit)
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit)
 {
-   cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->mask = mask;
-   ctx->array_limit = array_limit;
+   cover_data_t *data = xcalloc(sizeof(cover_data_t));
+   data->mask = mask;
+   data->array_limit = array_limit;
 
-   return ctx;
+   return data;
 }
 
-bool cover_enabled(cover_tagging_t *tagging, cover_mask_t mask)
+bool cover_enabled(cover_data_t *data, cover_mask_t mask)
 {
-   return tagging != NULL && (tagging->mask & mask);
+   return data != NULL && (data->mask & mask);
 }
 
-static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
+static bool cover_should_emit_scope(cover_data_t *data, tree_t t)
 {
-   cover_scope_t *ts = tagging->top_scope;
-   cover_spec_t *spc = tagging->spec;
+   cover_scope_t *ts = data->top_scope;
+   cover_spec_t *spc = data->spec;
 
    // Block (entity, package instance or block) name
    if (ts->block_name) {
@@ -627,7 +626,7 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
             return false;
          }
 
-      for (int i = 0; i < tagging->spec->block_include.count; i++)
+      for (int i = 0; i < data->spec->block_include.count; i++)
          if (ident_glob(ename, AGET(spc->block_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
@@ -659,15 +658,15 @@ static bool cover_should_emit_scope(cover_tagging_t *tagging, tree_t t)
    return false;
 }
 
-void cover_push_scope(cover_tagging_t *tagging, tree_t t)
+void cover_push_scope(cover_data_t *data, tree_t t)
 {
-   if (tagging == NULL)
+   if (data == NULL)
       return;
-   else if (tagging->root_scope == NULL) {
+   else if (data->root_scope == NULL) {
       cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
       s->name = s->hier = lib_name(lib_work());
 
-      tagging->top_scope = tagging->root_scope = s;
+      data->top_scope = data->root_scope = s;
    }
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
@@ -680,8 +679,8 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       if (tree_kind(t) == T_ASSOC && tree_subkind(t) == A_OTHERS)
          checked_sprintf(prefix, sizeof(prefix), "_B_OTHERS");
       else {
-         assert(tagging->top_scope);
-         cnt = &tagging->top_scope->branch_label;
+         assert(data->top_scope);
+         cnt = &data->top_scope->branch_label;
          c = 'B';
       }
    }
@@ -690,7 +689,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    else if (cover_is_toggle_first(t)) {
       assert(tree_has_ident(t));
       name = tree_ident(t);
-      s->sig_pos = ident_len(tagging->top_scope->hier) + 1;
+      s->sig_pos = ident_len(data->top_scope->hier) + 1;
    }
    else if (tree_has_ident(t))
       name = tree_ident(t);
@@ -698,8 +697,8 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
    // Expressions do not get scope pushed, so if scope for e.g.
    // T_FCALL is pushed it will be concurent function call -> Label as statement
    else {
-      assert(tagging->top_scope);
-      cnt = &tagging->top_scope->stmt_label;
+      assert(data->top_scope);
+      cnt = &data->top_scope->stmt_label;
       c = 'S';
    }
 
@@ -711,17 +710,17 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       name = ident_new(prefix);
 
    s->name       = name;
-   s->parent     = tagging->top_scope;
+   s->parent     = data->top_scope;
    s->block_name = s->parent->block_name;
    s->loc        = *tree_loc(t);
    s->hier       = ident_prefix(s->parent->hier, name, '.');
 
    if (s->sig_pos == 0)
-      s->sig_pos = tagging->top_scope->sig_pos;
+      s->sig_pos = data->top_scope->sig_pos;
 
-   list_add(&tagging->top_scope->children, s);
+   list_add(&data->top_scope->children, s);
 
-   tagging->top_scope = s;
+   data->top_scope = s;
 
    if (tree_kind(t) == T_BLOCK) {
       tree_t hier = tree_decl(t, 0);
@@ -734,7 +733,7 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
       }
    }
 
-   s->emit = (tagging->spec == NULL) ? true : cover_should_emit_scope(tagging, t);
+   s->emit = (data->spec == NULL) ? true : cover_should_emit_scope(data, t);
 
 #ifdef COVER_DEBUG_SCOPE
    printf("Pushing cover scope: %s\n", istr(s->hier));
@@ -743,31 +742,31 @@ void cover_push_scope(cover_tagging_t *tagging, tree_t t)
 #endif
 }
 
-void cover_pop_scope(cover_tagging_t *tagging)
+void cover_pop_scope(cover_data_t *data)
 {
-   if (tagging == NULL)
+   if (data == NULL)
       return;
 
-   assert(tagging->top_scope != NULL);
+   assert(data->top_scope != NULL);
 
-   ACLEAR(tagging->top_scope->ignore_lines);
+   ACLEAR(data->top_scope->ignore_lines);
 
 #ifdef COVER_DEBUG_SCOPE
-   printf("Popping cover scope: %s\n", istr(tagging->top_scope->hier));
+   printf("Popping cover scope: %s\n", istr(data->top_scope->hier));
 #endif
 
-   tagging->top_scope = tagging->top_scope->parent;
+   data->top_scope = data->top_scope->parent;
 
 }
 
-void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
+void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit)
 {
-   assert(tagging->top_scope != NULL);
+   assert(data->top_scope != NULL);
 
    if (!is_design_unit(unit))
       return;   // Generate block, etc.
 
-   range_array_t *excl = &(tagging->top_scope->ignore_lines);
+   range_array_t *excl = &(data->top_scope->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
    for (int i = 0; i < npragmas; i++) {
@@ -790,57 +789,57 @@ void cover_ignore_from_pragmas(cover_tagging_t *tagging, tree_t unit)
    }
 }
 
-void cover_inc_array_depth(cover_tagging_t *tagging)
+void cover_inc_array_depth(cover_data_t *data)
 {
-   assert(tagging != NULL);
-   tagging->array_depth++;
+   assert(data != NULL);
+   data->array_depth++;
 #ifdef COVER_DEBUG_SCOPE
-   printf("Adding dimension: %d\n", tagging->array_depth);
+   printf("Adding dimension: %d\n", data->array_depth);
 #endif
 }
 
-void cover_dec_array_depth(cover_tagging_t *tagging)
+void cover_dec_array_depth(cover_data_t *data)
 {
-   assert(tagging != NULL);
-   assert(tagging->array_depth > 0);
-   tagging->array_depth--;
+   assert(data != NULL);
+   assert(data->array_depth > 0);
+   data->array_depth--;
 #ifdef COVER_DEBUG_SCOPE
-   printf("Subtracting dimension: %d\n", tagging->array_depth);
+   printf("Subtracting dimension: %d\n", data->array_depth);
 #endif
 }
 
-static void cover_read_header(fbuf_t *f, cover_tagging_t *tagging)
+static void cover_read_header(fbuf_t *f, cover_data_t *data)
 {
-   assert(tagging != NULL);
+   assert(data != NULL);
 
-   tagging->mask = read_u32(f);
-   tagging->array_limit = read_u32(f);
-   tagging->next_tag = read_u32(f);
+   data->mask = read_u32(f);
+   data->array_limit = read_u32(f);
+   data->next_tag = read_u32(f);
 }
 
-static void cover_read_one_tag(fbuf_t *f, loc_rd_ctx_t *loc_rd,
-                               ident_rd_ctx_t ident_ctx, cover_tag_t *tag)
+static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
+                                ident_rd_ctx_t ident_ctx, cover_item_t *item)
 {
-   tag->kind = read_u8(f);
+   item->kind = read_u8(f);
 
-   tag->tag = read_u32(f);
-   tag->data = read_u32(f);
-   tag->flags = read_u32(f);
-   tag->tree_kind = read_u32(f);
-   tag->unrc_msk = read_u32(f);
-   tag->excl_msk = 0;
+   item->tag = read_u32(f);
+   item->data = read_u32(f);
+   item->flags = read_u32(f);
+   item->tree_kind = read_u32(f);
+   item->unrc_msk = read_u32(f);
+   item->excl_msk = 0;
 
-   loc_read(&(tag->loc), loc_rd);
-   if (tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
-      loc_read(&(tag->loc_lhs), loc_rd);
-      loc_read(&(tag->loc_rhs), loc_rd);
+   loc_read(&(item->loc), loc_rd);
+   if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+      loc_read(&(item->loc_lhs), loc_rd);
+      loc_read(&(item->loc_rhs), loc_rd);
    }
 
-   tag->hier = ident_read(ident_ctx);
-   if (tag->kind == TAG_EXPRESSION || tag->kind == TAG_STATE)
-      tag->func_name = ident_read(ident_ctx);
+   item->hier = ident_read(ident_ctx);
+   if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+      item->func_name = ident_read(ident_ctx);
 
-   tag->num = read_u32(f);
+   item->num = read_u32(f);
 }
 
 static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
@@ -856,12 +855,12 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
    if (s->type == CSCOPE_INSTANCE)
       s->block_name = ident_read(ident_ctx);
 
-   const int ntags = fbuf_get_uint(f);
-   for (int i = 0; i < ntags; i++) {
-      cover_tag_t new;
-      cover_read_one_tag(f, loc_ctx, ident_ctx, &new);
+   const int nitems = fbuf_get_uint(f);
+   for (int i = 0; i < nitems; i++) {
+      cover_item_t new;
+      cover_read_one_item(f, loc_ctx, ident_ctx, &new);
 
-      APUSH(s->tags, new);
+      APUSH(s->items, new);
    }
 
    for (;;) {
@@ -881,11 +880,11 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
    }
 }
 
-cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
+cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
 {
-   cover_tagging_t *tagging = xcalloc(sizeof(cover_tagging_t));
-   cover_read_header(f, tagging);
-   tagging->mask |= pre_mask;
+   cover_data_t *data = xcalloc(sizeof(cover_data_t));
+   cover_read_header(f, data);
+   data->mask |= pre_mask;
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -895,7 +894,7 @@ cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
-         tagging->root_scope = cover_read_scope(f, ident_ctx, loc_rd);
+         data->root_scope = cover_read_scope(f, ident_ctx, loc_rd);
          break;
       case CTRL_END_OF_FILE:
          eof = true;
@@ -907,38 +906,39 @@ cover_tagging_t *cover_read_tags(fbuf_t *f, uint32_t pre_mask)
 
    ident_read_end(ident_ctx);
    loc_read_end(loc_rd);
-   return tagging;
+
+   return data;
 }
 
 static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
 {
    // TODO: Could merging be done more efficiently?
    bool found = false;
-   for (int i = 0; i < new_s->tags.count; i++) {
-      cover_tag_t *new = AREF(new_s->tags, i);
+   for (int i = 0; i < new_s->items.count; i++) {
+      cover_item_t *new = AREF(new_s->items, i);
 
-      for (int j = 0; j < old_s->tags.count; j++) {
-         cover_tag_t *old = AREF(old_s->tags, j);
+      for (int j = 0; j < old_s->items.count; j++) {
+         cover_item_t *old = AREF(old_s->items, j);
 
          // Compare based on hierarchical path, each
          // statement / branch / signal has unique hierarchical name
          if (new->hier == old->hier) {
             assert(new->kind == old->kind);
 #ifdef COVER_DEBUG_MERGE
-            printf("Merging coverage tag: %s\n", istr(old->hier));
+            printf("Merging coverage item: %s\n", istr(old->hier));
 #endif
-            cover_merge_one_tag(old, new->data);
+            cover_merge_one_item(old, new->data);
 
             found = true;
             break;
          }
 
-         // TODO: Append the new tag just before popping hierarchy tag
-         //       with longest common prefix of new tag. That will allow to
+         // TODO: Append the new item just before popping hierarchy item
+         //       with longest common prefix of new item. That will allow to
          //       merge coverage of IPs from different configurations of
          //       generics which form hierarchy differently!
          if (!found)
-            warnf("dropping coverage tag: %s", istr(new->hier));
+            warnf("dropping coverage item: %s", istr(new->hier));
       }
    }
 
@@ -957,11 +957,11 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
    }
 }
 
-void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
+void cover_merge_items(fbuf_t *f, cover_data_t *data)
 {
-   assert (tagging != NULL);
+   assert (data != NULL);
 
-   cover_read_header(f, tagging);
+   cover_read_header(f, data);
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -973,7 +973,7 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *new = cover_read_scope(f, ident_ctx, loc_rd);
-            cover_merge_scope(tagging->root_scope, new);
+            cover_merge_scope(data->root_scope, new);
          }
          break;
       case CTRL_END_OF_FILE:
@@ -988,15 +988,15 @@ void cover_merge_tags(fbuf_t *f, cover_tagging_t *tagging)
    loc_read_end(loc_rd);
 }
 
-unsigned cover_count_tags(cover_tagging_t *tagging)
+unsigned cover_count_items(cover_data_t *data)
 {
-   if (tagging == NULL)
+   if (data == NULL)
       return 0;
    else
-      return tagging->next_tag;
+      return data->next_tag;
 }
 
-void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
+void cover_load_spec_file(cover_data_t *data, const char *path)
 {
    cover_exclude_ctx_t ctx = {};
 
@@ -1004,7 +1004,7 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
    if (ctx.ef == NULL)
       fatal_errno("failed to open coverage specification file: %s\n", path);
 
-   tagging->spec = xcalloc(sizeof(cover_spec_t));
+   data->spec = xcalloc(sizeof(cover_spec_t));
 
    const char *delim = " ";
    ssize_t read;
@@ -1036,21 +1036,21 @@ void cover_load_spec_file(cover_tagging_t *tagging, const char *path)
          char_array_t *arr;
          if (!strcmp(tok, "hierarchy")) {
             if (include)
-               arr = &(tagging->spec->hier_include);
+               arr = &(data->spec->hier_include);
             else
-               arr = &(tagging->spec->hier_exclude);
+               arr = &(data->spec->hier_exclude);
          }
          else if (!strcmp(tok, "block")) {
             if (include)
-               arr = &(tagging->spec->block_include);
+               arr = &(data->spec->block_include);
             else
-               arr = &(tagging->spec->block_exclude);
+               arr = &(data->spec->block_exclude);
          }
          else if (!strcmp(tok, "fsm_type")) {
             if (include)
-               arr = &(tagging->spec->fsm_type_include);
+               arr = &(data->spec->fsm_type_include);
             else
-               arr = &(tagging->spec->fsm_type_exclude);
+               arr = &(data->spec->fsm_type_exclude);
          }
          else
             fatal_at(&ctx.loc, "invalid command: $bold$%s$$", tok);
@@ -1243,17 +1243,17 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    model_set_event_cb(m, s, fn, (void *)(uintptr_t)tag, false);
 }
 
-#define READ_STATE(type) tag_index = *((type *)signal_value(s));
+#define READ_STATE(type) offset = *((type *)signal_value(s));
 
 static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)
 {
    // I-th enum literal is encoded in i-th tag from first tag, that corresponds to enum value.
    int size = signal_size(s);
-   int32_t tag_index = 0;
+   int32_t offset = 0;
    FOR_ALL_SIZES(size, READ_STATE);
 
    rt_model_t *m = get_model();
-   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + tag_index);
+   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset);
 
    *mask |= COV_FLAG_STATE;
 }
@@ -1291,15 +1291,15 @@ static char* cover_bmask_to_bin_list(uint32_t bmask)
 }
 
 static uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin,
-                                       cover_tag_t *tag)
+                                       cover_item_t *item)
 {
-   uint32_t allowed = tag->flags & COVER_FLAGS_ALL_BINS;
+   uint32_t allowed = item->flags & COVER_FLAGS_ALL_BINS;
 
-   // If bin is not given, exclude all bins of a tag
+   // If bin is not given, exclude all bins of a item
    if (!bin)
       return allowed;
 
-   // Check if bin is valid for given coverage tag kind
+   // Check if bin is valid for given coverage item kind
    for (int i = 0; i < ARRAY_LEN(bin_map); i++) {
       if (strcmp(bin, bin_map[i].name))
          continue;
@@ -1309,71 +1309,71 @@ static uint32_t cover_bin_str_to_bmask(cover_exclude_ctx_t *ctx, const char *bin
 
    char LOCAL *bin_list = cover_bmask_to_bin_list(allowed);
    fatal_at(&ctx->loc, "invalid bin: $bold$'%s'$$ for %s: '%s'."
-            " Valid bins are: %s", bin, tag_kind_str[tag->kind],
-            istr(tag->hier), bin_list);
+            " Valid bins are: %s", bin, item_kind_str[item->kind],
+            istr(item->hier), bin_list);
 
    return 0;
 }
 
-static int cover_exclude_tags(cover_exclude_ctx_t *ctx, cover_tag_t *tag,
+static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
                               const char *bin, ident_t hier)
 {
-   int kind = tag->kind;
+   int kind = item->kind;
 
    switch (kind) {
-   case TAG_STMT:
+   case COV_ITEM_STMT:
       if (bin)
          fatal_at(&ctx->loc, "statements do not contain bins, but bin '%s' "
                              "was given for statement: '%s'", bin, istr(hier));
 
       note_at(&ctx->loc, "excluding statement: '%s'", istr(hier));
-      if (tag->data)
+      if (item->data)
          warn_at(&ctx->loc, "statement: '%s' already covered!", istr(hier));
 
-      tag->excl_msk |= 0xFFFFFFFF;
+      item->excl_msk |= 0xFFFFFFFF;
       return 1;
 
-   case TAG_BRANCH:
-   case TAG_TOGGLE:
-   case TAG_EXPRESSION:
+   case COV_ITEM_BRANCH:
+   case COV_ITEM_TOGGLE:
+   case COV_ITEM_EXPRESSION:
    {
-      int32_t bmask = cover_bin_str_to_bmask(ctx, bin, tag);
+      int32_t bmask = cover_bin_str_to_bmask(ctx, bin, item);
 
       char LOCAL *blist = cover_bmask_to_bin_list(bmask);
       note_at(&ctx->loc, "excluding %s: '%s' bins: %s",
-               tag_kind_str[tag->kind], istr(hier), blist);
+               item_kind_str[item->kind], istr(hier), blist);
 
-      uint32_t excl_cov = bmask & tag->data;
+      uint32_t excl_cov = bmask & item->data;
       if (excl_cov) {
          char LOCAL *blist = cover_bmask_to_bin_list(excl_cov);
          warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
-                  tag_kind_str[tag->kind], istr(hier), blist);
+                  item_kind_str[item->kind], istr(hier), blist);
       }
 
-      tag->excl_msk |= bmask;
+      item->excl_msk |= bmask;
       return 1;
    }
 
-   case TAG_STATE:
+   case COV_ITEM_STATE:
    {
-      int n_states = tag->num;
-      cover_tag_t* curr_tag = tag;
+      int n_states = item->num;
+      cover_item_t* curr_item = item;
       for (int i = 0; i < n_states; i++) {
-         ident_t state_name = ident_rfrom(curr_tag->hier, '.');
+         ident_t state_name = ident_rfrom(curr_item->hier, '.');
          if (!bin || !strcmp(istr(state_name), bin)) {
-            if (curr_tag->data & COV_FLAG_STATE)
+            if (curr_item->data & COV_FLAG_STATE)
                warn_at(&ctx->loc, "%s: '%s' of '%s' already covered!",
-                       tag_kind_str[tag->kind], istr(state_name), istr(hier));
-            curr_tag->excl_msk |= COV_FLAG_STATE;
+                       item_kind_str[item->kind], istr(state_name), istr(hier));
+            curr_item->excl_msk |= COV_FLAG_STATE;
          }
-         curr_tag++;
+         curr_item++;
       }
 
       return n_states;
    }
 
    default:
-      fatal("Unsupported tag kind: %d", kind);
+      fatal("Unsupported cover item kind: %d", kind);
    }
 
    return 1;
@@ -1386,23 +1386,23 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
    int len = strlen(excl_hier);
    int step;
 
-   for (int i = 0; i < s->tags.count; i += step) {
-      cover_tag_t *tag = AREF(s->tags, i);
-      ident_t hier = tag->hier;
+   for (int i = 0; i < s->items.count; i += step) {
+      cover_item_t *item = AREF(s->items, i);
+      ident_t hier = item->hier;
 
-      // FSM state tags contain bin name as part of hierarchy -> Strip it
-      if (tag->kind == TAG_STATE)
+      // FSM state items contain bin name as part of hierarchy -> Strip it
+      if (item->kind == COV_ITEM_STATE)
          hier = ident_runtil(hier, '.');
 
       if (ident_glob(hier, excl_hier, len)) {
 #ifdef COVER_DEBUG_EXCLUDE
          printf("Applying matching exclude:\n");
-         printf("    Tag:        %s\n", istr(hier));
-         printf("    Tag flags:  %x\n", tag->flags);
-         printf("    Tag data:   %x\n", tag->data);
+         printf("    Item:        %s\n", istr(hier));
+         printf("    Item flags:  %x\n", item->flags);
+         printf("    Item data:   %x\n", item->data);
 #endif
          match = true;
-         step = cover_exclude_tags(ctx, tag, bin, hier);
+         step = cover_exclude_item(ctx, item, bin, hier);
       }
       else
          step = 1;
@@ -1414,7 +1414,7 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
    return match;
 }
 
-void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
+void cover_load_exclude_file(const char *path, cover_data_t *data)
 {
    cover_exclude_ctx_t ctx = {};
 
@@ -1452,7 +1452,7 @@ void cover_load_exclude_file(const char *path, cover_tagging_t *tagging)
                i++;
             }
 
-            if (!cover_exclude_hier(tagging->root_scope, &ctx, excl_hier, bin))
+            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier, bin))
                warn_at(&ctx.loc, "exluded hierarchy does not match any "
                        "coverage item: '%s'", excl_hier);
          }
@@ -1820,8 +1820,8 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
 
       cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
       new->tb = tb_new();
-      new->prev = ctx->tagging->rpt_buf;
-      ctx->tagging->rpt_buf = new;
+      new->prev = ctx->data->rpt_buf;
+      ctx->data->rpt_buf = new;
 
       tb_printf(new->tb,
          "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) "
@@ -1870,15 +1870,15 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
    int curr = 0;
 
    // Offset by line number width
-   int digits = pair->tag->loc.first_line;
+   int digits = pair->item->loc.first_line;
    do {
       digits /= 10;
       fprintf(f, "&nbsp");
    } while (digits > 0);
    fprintf(f, "&nbsp");
 
-   loc_t *loc_lhs = &(pair->tag->loc_lhs);
-   loc_t *loc_rhs = &(pair->tag->loc_rhs);
+   loc_t *loc_lhs = &(pair->item->loc_lhs);
+   loc_t *loc_rhs = &(pair->item->loc_rhs);
 
    int lhs_beg = loc_lhs->first_column;
    int rhs_beg = loc_rhs->first_column;
@@ -1925,18 +1925,18 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
    }
 }
 
-static void cover_print_tag_title(FILE *f, cover_pair_t *pair)
+static void cover_print_item_title(FILE *f, cover_pair_t *pair)
 {
-   tree_kind_t kind = pair->tag->tree_kind;
+   tree_kind_t kind = pair->item->tree_kind;
 
    fprintf(f, "<h3>");
 
-   switch (pair->tag->kind) {
-   case TAG_STMT:
+   switch (pair->item->kind) {
+   case COV_ITEM_STMT:
       fprintf(f, "\"%s\" ", tree_kind_str(kind));
       fprintf(f, "statement:");
       break;
-   case TAG_BRANCH:
+   case COV_ITEM_BRANCH:
       switch (kind) {
       case T_COND_STMT:
       case T_COND_ASSIGN:
@@ -1955,12 +1955,12 @@ static void cover_print_tag_title(FILE *f, cover_pair_t *pair)
          break;
       };
       break;
-   case TAG_EXPRESSION:
-      fprintf(f, "%s expression", istr(pair->tag->func_name));
+   case COV_ITEM_EXPRESSION:
+      fprintf(f, "%s expression", istr(pair->item->func_name));
       break;
-   case TAG_STATE:
-      fprintf(f, "\"%s\" FSM with total %d states", istr(pair->tag->func_name),
-              pair->tag->num);
+   case COV_ITEM_STATE:
+      fprintf(f, "\"%s\" FSM with total %d states", istr(pair->item->func_name),
+              pair->item->num);
       break;
    default:
       break;
@@ -1970,18 +1970,18 @@ static void cover_print_tag_title(FILE *f, cover_pair_t *pair)
 
 static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
 {
-   loc_t loc = pair->tag->loc;
+   loc_t loc = pair->item->loc;
    cover_line_t *curr_line = pair->line;
    cover_line_t *last_line = pair->line + loc.line_delta;
 
-   cover_print_tag_title(f, pair);
+   cover_print_item_title(f, pair);
 
    if (loc.line_delta == 0) {
       fprintf(f, "<code>");
       fprintf(f, "%d:", loc.first_line);
 
       cover_print_single_code_line(f, loc, curr_line);
-      if (pair->tag->flags & COVER_FLAGS_LHS_RHS_BINS) {
+      if (pair->item->flags & COVER_FLAGS_LHS_RHS_BINS) {
          fprintf(f, "<br>");
          cover_print_lhs_rhs_arrows(f, pair);
       }
@@ -2016,7 +2016,7 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
    }
 }
 
-static void cover_print_get_exclude_button(FILE *f, cover_tag_t *tag,
+static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
                                            uint32_t flag, bool add_td)
 {
 
@@ -2031,18 +2031,18 @@ static void cover_print_get_exclude_button(FILE *f, cover_tag_t *tag,
    if (add_td)
       fprintf(f, "<td>");
 
-   ident_t hier = tag->hier;
+   ident_t hier = item->hier;
 
    // State coverage contains bin name (state name) appended to hierarchical path
-   if (tag->kind == TAG_STATE) {
+   if (item->kind == COV_ITEM_STATE) {
       bin_name = istr(ident_rfrom(hier, '.'));
       hier = ident_runtil(hier, '.');
    }
 
    fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
               "Copy %sto Clipoard</button>", istr(hier), bin_name,
-           (tag->kind == TAG_STMT) ? "style=\"float: right;\"" : "",
-           (tag->kind == TAG_STMT) ? "Exclude Command " : "");
+           (item->kind == COV_ITEM_STMT) ? "style=\"float: right;\"" : "",
+           (item->kind == COV_ITEM_STMT) ? "Exclude Command " : "");
 
    if (add_td)
       fprintf(f, "</td>");
@@ -2063,10 +2063,10 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
       }
 
       if (pkind == PAIR_UNCOVERED)
-         cover_print_get_exclude_button(f, pair->tag, flag, true);
+         cover_print_get_exclude_button(f, pair->item, flag, true);
 
       if (pkind == PAIR_EXCLUDED) {
-         const char *er = (flag & pair->tag->unrc_msk) ?
+         const char *er = (flag & pair->item->unrc_msk) ?
             "Unreachable" : "Exclude file";
          fprintf(f, "<td>%s</td>", er);
       }
@@ -2098,12 +2098,12 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
 
 static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
-   loc_t loc = pair->tag->loc;
+   loc_t loc = pair->item->loc;
 
    fprintf(f, "<br><table class=\"cbt\">");
 
-   switch (pair->tag->kind) {
-   case TAG_BRANCH:
+   switch (pair->item->kind) {
+   case COV_ITEM_BRANCH:
       cover_print_bin_header(f, pkind, 1, (pair->flags & COV_FLAG_CHOICE) ?
                               "Choice of" : "Evaluated to");
       cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
@@ -2126,16 +2126,16 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       }
       break;
 
-   case TAG_TOGGLE:
+   case COV_ITEM_TOGGLE:
       cover_print_bin_header(f, pkind, 2, "From", "To");
       cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
       cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
       break;
 
-   case TAG_EXPRESSION:
+   case COV_ITEM_EXPRESSION:
       {
-      char *t_str = (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
-      char *f_str = (pair->tag->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
+      char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
+      char *f_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
 
       if ((pair->flags & COV_FLAG_TRUE) || (pair->flags & COV_FLAG_FALSE)) {
          cover_print_bin_header(f, pkind, 1, "Evaluated to");
@@ -2155,7 +2155,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
       }
       break;
    default:
-      fatal("unsupported type of code coverage: %d !", pair->tag->kind);
+      fatal("unsupported type of code coverage: %d !", pair->item->kind);
    }
    fprintf(f, "</table>");
 }
@@ -2166,7 +2166,7 @@ static int cover_print_fsm_table(FILE *f, cover_pair_t *pair, cov_pair_kind_t pk
 {
    // All pairs of a single FSM are consequent. Group them together and print them
    // in a single table.
-   ident_t first_prefix = ident_runtil(pair->tag->hier, '.');
+   ident_t first_prefix = ident_runtil(pair->item->hier, '.');
 
    fprintf(f, "<br><table class=\"cbt\">");
 
@@ -2174,7 +2174,7 @@ static int cover_print_fsm_table(FILE *f, cover_pair_t *pair, cov_pair_kind_t pk
 
    int n_pairs = 0;
    do {
-      ident_t state_name = ident_rfrom(pair->tag->hier, '.');
+      ident_t state_name = ident_rfrom(pair->item->hier, '.');
       cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
       n_pairs++;
 
@@ -2183,8 +2183,8 @@ static int cover_print_fsm_table(FILE *f, cover_pair_t *pair, cov_pair_kind_t pk
          break;
       pair++;
 
-      // A tag with different prefix -> Not the same FSM.
-      ident_t curr_prefix = ident_runtil(pair->tag->hier, '.');
+      // A item with different prefix -> Not the same FSM.
+      ident_t curr_prefix = ident_runtil(pair->item->hier, '.');
       if (!ident_starts_with(curr_prefix, first_prefix))
          break;
 
@@ -2210,49 +2210,49 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
       step = 1;
       fprintf(f, "    <p>");
 
-      switch (curr->tag->kind) {
-      case TAG_STMT:
+      switch (curr->item->kind) {
+      case COV_ITEM_STMT:
          if (pkind == PAIR_UNCOVERED)
-            cover_print_get_exclude_button(f, curr->tag, 0, false);
+            cover_print_get_exclude_button(f, curr->item, 0, false);
          if (pkind == PAIR_EXCLUDED) {
             // No un-reachability on statements so far
-            assert(curr->tag->unrc_msk == 0);
+            assert(curr->item->unrc_msk == 0);
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
          }
 
          cover_print_code_loc(f, curr);
          break;
 
-      case TAG_BRANCH:
+      case COV_ITEM_BRANCH:
          cover_print_code_loc(f, curr);
          cover_print_bins(f, curr, pkind);
          break;
 
-      case TAG_TOGGLE:
-         if (curr->tag->flags & COV_FLAG_TOGGLE_SIGNAL)
+      case COV_ITEM_TOGGLE:
+         if (curr->item->flags & COV_FLAG_TOGGLE_SIGNAL)
             fprintf(f, "<h3>Signal:</h3>");
-         else if (curr->tag->flags & COV_FLAG_TOGGLE_PORT)
+         else if (curr->item->flags & COV_FLAG_TOGGLE_PORT)
             fprintf(f, "<h3>Port:</h3>");
 
-         const char *sig_name = istr(curr->tag->hier);
-         sig_name += curr->tag->num;
+         const char *sig_name = istr(curr->item->hier);
+         sig_name += curr->item->num;
          fprintf(f, "&nbsp;<code>%s</code>", sig_name);
 
          cover_print_bins(f, curr, pkind);
          break;
 
-      case TAG_EXPRESSION:
+      case COV_ITEM_EXPRESSION:
          cover_print_code_loc(f, curr);
          cover_print_bins(f, curr, pkind);
          break;
 
-      case TAG_STATE:
+      case COV_ITEM_STATE:
          cover_print_code_loc(f, curr);
          step = cover_print_fsm_table(f, curr, pkind, last);
          break;
 
       default:
-         fatal("unsupported type of code coverage: %d !", curr->tag->kind);
+         fatal("unsupported type of code coverage: %d !", curr->item->kind);
       }
 
       fprintf(f, "<hr>");
@@ -2263,20 +2263,20 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
    } while (curr <= last);
 }
 
-static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
-                              cover_chain_t *chn, tag_kind_t kind)
+static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
+                              cover_item_kind_t kind)
 {
    // HTML TAB
    fprintf(f, "<div id=\"");
-   if (kind == TAG_STMT)
+   if (kind == COV_ITEM_STMT)
       fprintf(f, "Statement");
-   else if (kind == TAG_BRANCH)
+   else if (kind == COV_ITEM_BRANCH)
       fprintf(f, "Branch");
-   else if (kind == TAG_TOGGLE)
+   else if (kind == COV_ITEM_TOGGLE)
       fprintf(f, "Toggle");
-   else if (kind == TAG_EXPRESSION)
+   else if (kind == COV_ITEM_EXPRESSION)
       fprintf(f, "Expression");
-   else if (kind == TAG_STATE)
+   else if (kind == COV_ITEM_STATE)
       fprintf(f, "FSM state");
 
    fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
@@ -2287,19 +2287,19 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
       cover_pair_t *first_pair;
 
       if (pkind == PAIR_UNCOVERED) {
-         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_UNCOVERED))
+         if (cover_enabled(data, COVER_MASK_DONT_PRINT_UNCOVERED))
             continue;
          first_pair = chn->miss;
          n = chn->n_miss;
       }
       else if (pkind == PAIR_EXCLUDED) {
-         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_EXCLUDED))
+         if (cover_enabled(data, COVER_MASK_DONT_PRINT_EXCLUDED))
             continue;
          first_pair = chn->excl;
          n = chn->n_excl;
       }
       else {
-         if (cover_enabled(tagging, COVER_MASK_DONT_PRINT_COVERED))
+         if (cover_enabled(data, COVER_MASK_DONT_PRINT_COVERED))
             continue;
          first_pair = chn->hits;
          n = chn->n_hits;
@@ -2321,15 +2321,15 @@ static void cover_print_chain(FILE *f, cover_tagging_t *tagging,
       else
          fprintf(f, "Covered ");
 
-      if (kind == TAG_STMT)
+      if (kind == COV_ITEM_STMT)
          fprintf(f, "statements:");
-      else if (kind == TAG_BRANCH)
+      else if (kind == COV_ITEM_BRANCH)
          fprintf(f, "branches:");
-      else if (kind == TAG_TOGGLE)
+      else if (kind == COV_ITEM_TOGGLE)
          fprintf(f, "toggles:");
-      else if (kind == TAG_EXPRESSION)
+      else if (kind == COV_ITEM_EXPRESSION)
          fprintf(f, "expressions:");
-      else if (kind == TAG_STATE)
+      else if (kind == COV_ITEM_STATE)
          fprintf(f, "FSM states:");
       fprintf(f, "</h2>\n");
 
@@ -2351,11 +2351,11 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'FSM state')\">FSM state</button>\n"
               "</div>\n\n");
 
-   cover_print_chain(f, ctx->tagging, &(ctx->ch_stmt), TAG_STMT);
-   cover_print_chain(f, ctx->tagging, &(ctx->ch_branch), TAG_BRANCH);
-   cover_print_chain(f, ctx->tagging, &(ctx->ch_toggle), TAG_TOGGLE);
-   cover_print_chain(f, ctx->tagging, &(ctx->ch_expression), TAG_EXPRESSION);
-   cover_print_chain(f, ctx->tagging, &(ctx->ch_state), TAG_STATE);
+   cover_print_chain(f, ctx->data, &(ctx->ch_stmt), COV_ITEM_STMT);
+   cover_print_chain(f, ctx->data, &(ctx->ch_branch), COV_ITEM_BRANCH);
+   cover_print_chain(f, ctx->data, &(ctx->ch_toggle), COV_ITEM_TOGGLE);
+   cover_print_chain(f, ctx->data, &(ctx->ch_expression), COV_ITEM_EXPRESSION);
+   cover_print_chain(f, ctx->data, &(ctx->ch_state), COV_ITEM_STATE);
 
    fprintf(f, "<script>\n"
               "   document.getElementById(\"defaultOpen\").click();"
@@ -2378,7 +2378,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "</script>\n");
 }
 
-static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
+static int cover_append_to_chain(cover_chain_t *chain, cover_item_t *item,
                                  cover_line_t *line, unsigned hits,
                                  unsigned misses, unsigned excludes,
                                  int limit)
@@ -2391,7 +2391,7 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
             chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
                                        sizeof(cover_pair_t));
          }
-         chain->hits[chain->n_hits].tag = tag;
+         chain->hits[chain->n_hits].item = item;
          chain->hits[chain->n_hits].line = line;
          chain->hits[chain->n_hits].flags = hits;
          chain->n_hits++;
@@ -2407,7 +2407,7 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
             chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
                                        sizeof(cover_pair_t));
          }
-         chain->miss[chain->n_miss].tag = tag;
+         chain->miss[chain->n_miss].item = item;
          chain->miss[chain->n_miss].line = line;
          chain->miss[chain->n_miss].flags = misses;
          chain->n_miss++;
@@ -2423,7 +2423,7 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
             chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
                                        sizeof(cover_pair_t));
          }
-         chain->excl[chain->n_excl].tag = tag;
+         chain->excl[chain->n_excl].item = item;
          chain->excl[chain->n_excl].line = line;
          chain->excl[chain->n_excl].flags = excludes;
          chain->n_excl++;
@@ -2435,72 +2435,72 @@ static int cover_append_to_chain(cover_chain_t *chain, cover_tag_t *tag,
    return rv;
 }
 
-static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_tag_t *tag,
+static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item,
                                   unsigned flag)
 {
-   if ((ctx->tagging->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
+   if ((ctx->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
 
-   // Toggle tags remember unreachability in run-time data. Must check tag kind
-   // not to get false unreachability on statement tags. Excludes both bins
+   // Toggle items remember unreachability in run-time data. Must check item kind
+   // not to get false unreachability on statement items. Excludes both bins
    // automatically!
-   if (tag->kind == TAG_TOGGLE && ((tag->data & COV_FLAG_CONST_DRIVEN) != 0))
+   if (item->kind == COV_ITEM_TOGGLE && ((item->data & COV_FLAG_CONST_DRIVEN) != 0))
       return true;
 
-   // Expression tags remembed unreachability via dedicated mask
-   if (tag->kind == TAG_EXPRESSION && ((flag & tag->unrc_msk) != 0))
+   // Expression items remembed unreachability via dedicated mask
+   if (item->kind == COV_ITEM_EXPRESSION && ((flag & item->unrc_msk) != 0))
       return true;
 
    return false;
 }
 
-static void cover_tag_to_chain(cover_report_ctx_t *ctx, cover_tag_t *tag,
-                               cover_flags_t flag, unsigned *hits,
-                               unsigned *misses, unsigned *excludes)
+static void cover_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *item,
+                                cover_flags_t flag, unsigned *hits,
+                                unsigned *misses, unsigned *excludes)
 {
    unsigned *flat_total;
    unsigned *nested_total;
    unsigned *flat_hits;
    unsigned *nested_hits;
 
-   switch (tag->kind) {
-   case TAG_BRANCH:
+   switch (item->kind) {
+   case COV_ITEM_BRANCH:
       flat_total = &(ctx->flat_stats.total_branches);
       nested_total = &(ctx->nested_stats.total_branches);
       flat_hits = &(ctx->flat_stats.hit_branches);
       nested_hits = &(ctx->nested_stats.hit_branches);
       break;
-   case TAG_TOGGLE:
+   case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);
       nested_total = &(ctx->nested_stats.total_toggles);
       flat_hits = &(ctx->flat_stats.hit_toggles);
       nested_hits = &(ctx->nested_stats.hit_toggles);
       break;
-   case TAG_EXPRESSION:
+   case COV_ITEM_EXPRESSION:
       flat_total = &(ctx->flat_stats.total_expressions);
       nested_total = &(ctx->nested_stats.total_expressions);
       flat_hits = &(ctx->flat_stats.hit_expressions);
       nested_hits = &(ctx->nested_stats.hit_expressions);
       break;
-   case TAG_STATE:
+   case COV_ITEM_STATE:
       flat_total = &(ctx->flat_stats.total_states);
       nested_total = &(ctx->nested_stats.total_states);
       flat_hits = &(ctx->flat_stats.hit_states);
       nested_hits = &(ctx->nested_stats.hit_states);
       break;
    default:
-      fatal("unsupported type of code coverage: %d !", tag->kind);
+      fatal("unsupported type of code coverage: %d !", item->kind);
    }
 
    (*flat_total)++;
    (*nested_total)++;
 
-   if (tag->data & flag) {
+   if (item->data & flag) {
       (*flat_hits)++;
       (*nested_hits)++;
       (*hits) |= flag;
    }
-   else if ((tag->excl_msk & flag) || cover_bin_unreachable(ctx, tag, flag)) {
+   else if ((item->excl_msk & flag) || cover_bin_unreachable(ctx, item, flag)) {
       (*flat_hits)++;
       (*nested_hits)++;
       (*excludes) |= flag;
@@ -2515,98 +2515,98 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
                                cover_scope_t *s, const char *dir,
                                FILE *summf, int *skipped)
 {
-   for (int i = 0; i < s->tags.count; i++) {
-      cover_tag_t *tag = &(s->tags.items[i]);
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
 
-      cover_file_t *f_src = cover_file(&(tag->loc));
+      cover_file_t *f_src = cover_file(&(item->loc));
       if (f_src == NULL)
          continue;
 
-      cover_line_t *line = &(f_src->lines[tag->loc.first_line-1]);
+      cover_line_t *line = &(f_src->lines[item->loc.first_line-1]);
 
       unsigned hits = 0;
       unsigned misses = 0;
       unsigned excludes = 0;
-      int limit = ctx->tagging->report_item_limit;
+      int limit = ctx->data->report_item_limit;
 
-      switch (tag->kind) {
-      case TAG_STMT:
+      switch (item->kind) {
+      case COV_ITEM_STMT:
          (ctx->flat_stats.total_stmts)++;
          (ctx->nested_stats.total_stmts)++;
 
-         hits = (tag->data != 0);
-         misses = (tag->data == 0) && (tag->excl_msk == 0);
-         excludes = (tag->data == 0) && (tag->excl_msk != 0);
+         hits = (item->data != 0);
+         misses = (item->data == 0) && (item->excl_msk == 0);
+         excludes = (item->data == 0) && (item->excl_msk != 0);
 
          if (hits | excludes) {
             (ctx->flat_stats.hit_stmts)++;
             (ctx->nested_stats.hit_stmts)++;
          }
-         *skipped += cover_append_to_chain(&(ctx->ch_stmt), tag, line,
+         *skipped += cover_append_to_chain(&(ctx->ch_stmt), item, line,
                                            hits, misses, excludes, limit);
          break;
 
-      case TAG_BRANCH:
+      case COV_ITEM_BRANCH:
          // If/else, when else
-         if (tag->flags & COV_FLAG_TRUE && tag->flags & COV_FLAG_FALSE) {
-            cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE,
-                               &hits, &misses, &excludes);
-            cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
-                               &hits, &misses, &excludes);
-            *skipped += cover_append_to_chain(&(ctx->ch_branch), tag, line,
+         if (item->flags & COV_FLAG_TRUE && item->flags & COV_FLAG_FALSE) {
+            cover_item_to_chain(ctx, item, COV_FLAG_TRUE,
+                                &hits, &misses, &excludes);
+            cover_item_to_chain(ctx, item, COV_FLAG_FALSE,
+                                &hits, &misses, &excludes);
+            *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
                                               hits, misses, excludes, limit);
          }
 
          // Case, with select
-         if (tag->flags & COV_FLAG_CHOICE) {
-            cover_tag_to_chain(ctx, tag, COV_FLAG_CHOICE,
-                               &hits, &misses, &excludes);
-            *skipped += cover_append_to_chain(&(ctx->ch_branch), tag, line,
+         if (item->flags & COV_FLAG_CHOICE) {
+            cover_item_to_chain(ctx, item, COV_FLAG_CHOICE,
+                                &hits, &misses, &excludes);
+            *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
                                               hits, misses, excludes, limit);
          }
          break;
 
-      case TAG_TOGGLE:
-         cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_1,
-                            &hits, &misses, &excludes);
-         cover_tag_to_chain(ctx, tag, COV_FLAG_TOGGLE_TO_0,
-                            &hits, &misses, &excludes);
-         *skipped += cover_append_to_chain(&(ctx->ch_toggle), tag, line,
+      case COV_ITEM_TOGGLE:
+         cover_item_to_chain(ctx, item, COV_FLAG_TOGGLE_TO_1,
+                             &hits, &misses, &excludes);
+         cover_item_to_chain(ctx, item, COV_FLAG_TOGGLE_TO_0,
+                             &hits, &misses, &excludes);
+         *skipped += cover_append_to_chain(&(ctx->ch_toggle), item, line,
                                            hits, misses, excludes, limit);
          break;
 
-      case TAG_EXPRESSION:
-         if (tag->flags & COV_FLAG_00)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_00,
-                               &hits, &misses, &excludes);
-         if (tag->flags & COV_FLAG_01)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_01,
-                               &hits, &misses, &excludes);
-         if (tag->flags & COV_FLAG_10)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_10,
-                               &hits, &misses, &excludes);
-         if (tag->flags & COV_FLAG_11)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_11,
-                               &hits, &misses, &excludes);
-         if (tag->flags & COV_FLAG_TRUE)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_TRUE,
-                               &hits, &misses, &excludes);
-         if (tag->flags & COV_FLAG_FALSE)
-            cover_tag_to_chain(ctx, tag, COV_FLAG_FALSE,
-                               &hits, &misses, &excludes);
+      case COV_ITEM_EXPRESSION:
+         if (item->flags & COV_FLAG_00)
+            cover_item_to_chain(ctx, item, COV_FLAG_00,
+                                &hits, &misses, &excludes);
+         if (item->flags & COV_FLAG_01)
+            cover_item_to_chain(ctx, item, COV_FLAG_01,
+                                &hits, &misses, &excludes);
+         if (item->flags & COV_FLAG_10)
+            cover_item_to_chain(ctx, item, COV_FLAG_10,
+                                &hits, &misses, &excludes);
+         if (item->flags & COV_FLAG_11)
+            cover_item_to_chain(ctx, item, COV_FLAG_11,
+                                &hits, &misses, &excludes);
+         if (item->flags & COV_FLAG_TRUE)
+            cover_item_to_chain(ctx, item, COV_FLAG_TRUE,
+                                &hits, &misses, &excludes);
+         if (item->flags & COV_FLAG_FALSE)
+            cover_item_to_chain(ctx, item, COV_FLAG_FALSE,
+                                &hits, &misses, &excludes);
 
-         *skipped += cover_append_to_chain(&(ctx->ch_expression), tag, line,
+         *skipped += cover_append_to_chain(&(ctx->ch_expression), item, line,
                                            hits, misses, excludes, limit);
          break;
 
-      case TAG_STATE:
-         cover_tag_to_chain(ctx, tag, COV_FLAG_STATE, &hits, &misses, &excludes);
-         *skipped += cover_append_to_chain(&(ctx->ch_state), tag, line,
+      case COV_ITEM_STATE:
+         cover_item_to_chain(ctx, item, COV_FLAG_STATE, &hits, &misses, &excludes);
+         *skipped += cover_append_to_chain(&(ctx->ch_state), item, line,
                                            hits, misses, excludes, limit);
          break;
 
       default:
-         fatal("unsupported type of code coverage: %d !", tag->kind);
+         fatal("unsupported type of code coverage: %d !", item->kind);
       }
    }
 
@@ -2648,7 +2648,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    if (skipped)
       fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
-                 "displayed.</h3>\n\n", ctx->tagging->report_item_limit, skipped);
+                 "displayed.</h3>\n\n", ctx->data->report_item_limit, skipped);
    cover_print_hierarchy_guts(f, ctx);
    cover_print_timestamp(f);
 
@@ -2664,7 +2664,7 @@ static void cover_report_children(cover_report_ctx_t *ctx,
          // Collect coverage of sub-block
          cover_report_ctx_t sub_ctx = {};
          sub_ctx.parent = ctx;
-         sub_ctx.tagging = ctx->tagging;
+         sub_ctx.data = ctx->data;
          sub_ctx.lvl = ctx->lvl + 2;
 
          cover_report_hierarchy(&sub_ctx, it, dir);
@@ -2689,7 +2689,7 @@ static void cover_report_children(cover_report_ctx_t *ctx,
    }
 }
 
-void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
+void cover_report(const char *path, cover_data_t *data, int item_limit)
 {
    char *subdir LOCAL = xasprintf("%s/hier", path);
    make_dir(path);
@@ -2709,7 +2709,7 @@ void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
 
    bool first = true;
    for (int i = 0; i < ARRAY_LEN(lst); i++)
-      if (!cover_enabled(tagging, lst[i].mask)) {
+      if (!cover_enabled(data, lst[i].mask)) {
          if (first)
             first = false;
          else
@@ -2721,11 +2721,11 @@ void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
    notef("Code coverage report folder: %s.", path);
    notef("%s", tb_get(tb));
 
-   cover_scope_t *child0 = list_get(tagging->root_scope->children, 0);
+   cover_scope_t *child0 = list_get(data->root_scope->children, 0);
 
    cover_report_ctx_t top_ctx = {};
-   top_ctx.tagging = tagging;
-   tagging->report_item_limit = item_limit;
+   top_ctx.data = data;
+   data->report_item_limit = item_limit;
    cover_report_hierarchy(&top_ctx, child0, subdir);
 
    char *top LOCAL = xasprintf("%s/index.html", path);
@@ -2741,13 +2741,13 @@ void cover_report(const char *path, cover_tagging_t *tagging, int item_limit)
       notef("Coverage for sub-hierarchies:");
       printf("%-55s %-20s %-20s %-20s %-20s %-20s\n",
              "Hierarchy", "Statement", "Branch", "Toggle", "Expression", "FSM state");
-      cover_rpt_buf_t *buf = tagging->rpt_buf;
+      cover_rpt_buf_t *buf = data->rpt_buf;
       while (buf) {
          printf("%s\n", tb_get(buf->tb));
          tb_free(buf->tb);
-         tagging->rpt_buf = buf->prev;
+         data->rpt_buf = buf->prev;
          free(buf);
-         buf = tagging->rpt_buf;
+         buf = data->rpt_buf;
       };
    }
 
@@ -2841,16 +2841,16 @@ static void cobertura_export_scope(cobertura_report_t *report,
    if (s->block_name != NULL)
       class = cobertura_get_class(report, s->block_name, &s->loc);
 
-   for (int i = 0; i < s->tags.count; i++) {
-      cover_tag_t *t = &(s->tags.items[i]);
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *t = &(s->items.items[i]);
       switch (t->kind) {
-      case TAG_STMT:
+      case COV_ITEM_STMT:
          {
             cobertura_line_t *l = cobertura_get_line(class, &(t->loc));
             l->hits += t->data;
          }
          break;
-      case TAG_BRANCH:
+      case COV_ITEM_BRANCH:
          {
             cobertura_line_t *l = cobertura_get_line(class, &(t->loc));
             l->branch = true;
@@ -2925,15 +2925,14 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
    fprintf(f, "</class>\n");
 }
 
-void cover_export_cobertura(cover_tagging_t *tagging, FILE *f,
-                            const char *relative)
+void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 {
    cobertura_report_t report = {
       .class_map = hash_new(64),
       .relative = relative ? realpath(relative, NULL) : NULL,
    };
 
-   cobertura_export_scope(&report, NULL, tagging->root_scope);
+   cobertura_export_scope(&report, NULL, data->root_scope);
 
    fprintf(f, "<?xml version='1.0' encoding='UTF-8'?>\n");
    fprintf(f, "<!DOCTYPE coverage SYSTEM "
@@ -2966,7 +2965,7 @@ void cover_export_cobertura(cover_tagging_t *tagging, FILE *f,
    fprintf(f, "<packages>\n");
    fprintf(f, "<package name=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\">\n",
-           istr(tagging->root_scope->name), line_rate, branch_rate);
+           istr(data->root_scope->name), line_rate, branch_rate);
 
    fprintf(f, "<classes>\n");
    for (cobertura_class_t *it = report.classes; it; it = it->next)

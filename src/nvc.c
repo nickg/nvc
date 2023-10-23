@@ -428,9 +428,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("loading top-level unit");
 
-   cover_tagging_t *cover = NULL;
+   cover_data_t *cover = NULL;
    if (cover_mask != 0) {
-      cover = cover_tags_init(cover_mask, cover_array_limit);
+      cover = cover_data_init(cover_mask, cover_array_limit);
 
       if (cover_spec_file)
          cover_load_spec_file(cover, cover_spec_file);
@@ -467,7 +467,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    if (cover != NULL) {
       fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
-      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL);
+      cover_dump_items(cover, covdb, COV_DUMP_ELAB, NULL);
       fbuf_close(covdb, NULL);
       progress("dumping coverage data");
    }
@@ -1424,7 +1424,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind == argc)
       fatal("no input coverage database FILE specified");
 
-   cover_tagging_t *cover = NULL;
+   cover_data_t *cover = NULL;
 
    // Rest of inputs are coverage input files
    for (int i = optind; i < argc; i++) {
@@ -1433,9 +1433,9 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
       if (f != NULL) {
          progress("Loading input coverage database: %s", argv[i]);
          if (i == optind)
-            cover = cover_read_tags(f, rpt_mask);
+            cover = cover_read_items(f, rpt_mask);
          else
-            cover_merge_tags(f, cover);
+            cover_merge_items(f, cover);
       }
       else
          fatal("Could not open coverage database: %s", argv[i]);
@@ -1446,7 +1446,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL);
+      cover_dump_items(cover, f, COV_DUMP_PROCESSING, NULL);
       fbuf_close(f, NULL);
    }
 
@@ -1529,7 +1529,7 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
       fatal("no coverage database for %s", istr(top_level));
 
    int rpt_mask = 0;
-   cover_tagging_t *cover = cover_read_tags(f, rpt_mask);
+   cover_data_t *cover = cover_read_items(f, rpt_mask);
    fbuf_close(f, NULL);
 
    FILE *file = stdout;
@@ -1677,7 +1677,7 @@ static void usage(void)
           "                   \tto OUTPUT coverage database\n"
           "     --exclude-file=\tApply exclude file when generating report\n"
           "     --export=FILE\tEquivalent to `--cover-export -o FILE'\n"
-          "     --dont-print=\tDo not include specified tags in generated "
+          "     --dont-print=\tDo not include specified items in generated "
           "code\n"
           "                  \tcoverage report. Argument is a list of:\n"
           "                  \t  covered\n"

@@ -71,7 +71,7 @@ typedef struct _lower_unit {
    tree_t           container;
    var_list_t       free_temps;
    vcode_unit_t     vunit;
-   cover_tagging_t *cover;
+   cover_data_t    *cover;
    bool             finished;
    bool             elaborating;
    lower_mode_t     mode;
@@ -1599,13 +1599,14 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
    const loc_t *loc = (tree_kind(b) == T_ASSOC) ?
                         tree_loc(b) : tree_loc(tree_value(b));
 
-   cover_tag_t *tag = cover_add_tag(b, loc, NULL, lu->cover, TAG_BRANCH, flags);
-   if (tag != NULL)
-      emit_cover_branch(hit_reg, tag->tag, flags);
+   cover_item_t *item = cover_add_item(b, loc, NULL, lu->cover,
+                                       COV_ITEM_BRANCH, flags);
+   if (item != NULL)
+      emit_cover_branch(hit_reg, item->tag, flags);
 }
 
-static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
-                                    ident_t prefix, int curr_dim)
+static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type, tree_t where,
+                                     ident_t prefix, int curr_dim)
 {
    type_t root = type;
 
@@ -1628,7 +1629,7 @@ static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
    if (type_is_array(type)) {
       int t_dims = dimension_of(type);
       tree_t r = range_of(type, t_dims - curr_dim);
-      int32_t first_tag = -1;
+      int32_t first_item = -1;
       int64_t low, high;
 
       if (folded_bounds(r, &low, &high)) {
@@ -1671,22 +1672,22 @@ static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
             if (curr_dim == 1) {
                type_t e_type = type_elem(type);
                if (type_is_array(e_type))
-                  tmp = lower_toggle_tag_for(lu, e_type, where, arr_suffix,
-                                             dimension_of(e_type));
+                  tmp = lower_toggle_item_for(lu, e_type, where, arr_suffix,
+                                              dimension_of(e_type));
                else {
-                  cover_tag_t *tag = cover_add_tag(where, tree_loc(where),
-                                                   arr_suffix, lu->cover,
-                                                   TAG_TOGGLE, flags);
-                  if (tag)
-                     tmp = tag->tag;
+                  cover_item_t *item = cover_add_item(where, tree_loc(where),
+                                                      arr_suffix, lu->cover,
+                                                      COV_ITEM_TOGGLE, flags);
+                  if (item)
+                     tmp = item->tag;
                }
             }
             else   // Recurse to lower dimension
-               tmp = lower_toggle_tag_for(lu, type, where, arr_suffix,
-                                          curr_dim - 1);
+               tmp = lower_toggle_item_for(lu, type, where, arr_suffix,
+                                           curr_dim - 1);
 
             if (i == first)
-               first_tag = tmp;
+               first_item = tmp;
             if (i == last)
                break;
 
@@ -1695,12 +1696,12 @@ static int32_t lower_toggle_tag_for(lower_unit_t *lu, type_t type, tree_t where,
 
          cover_dec_array_depth(lu->cover);
       }
-      return first_tag;
+      return first_item;
    }
    else {
-      cover_tag_t *tag = cover_add_tag(where, tree_loc(where), NULL, lu->cover,
-                                       TAG_TOGGLE, flags);
-      return tag ? tag->tag : -1;
+      cover_item_t *item = cover_add_item(where, tree_loc(where), NULL, lu->cover,
+                                          COV_ITEM_TOGGLE, flags);
+      return item ? item->tag : -1;
    }
 }
 
@@ -1718,7 +1719,7 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
                            locus, lower_toggle_coverage_cb, NULL);
    else {
       const int ndims = dimension_of(ftype);
-      int32_t tag = lower_toggle_tag_for(lu, ftype, field, NULL, ndims);
+      int32_t tag = lower_toggle_item_for(lu, ftype, field, NULL, ndims);
       if (tag == -1) {
          cover_pop_scope(lu->cover);
          return;
@@ -1750,7 +1751,7 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl)
    }
    else {
       const int ndims = dimension_of(type);
-      int32_t tag = lower_toggle_tag_for(lu, type, decl, NULL, ndims);
+      int32_t tag = lower_toggle_item_for(lu, type, decl, NULL, ndims);
       if (tag == -1) {
          cover_pop_scope(lu->cover);
          return;
@@ -1781,15 +1782,15 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   // Add single coverage tag per enum literal. This is to track literal string
-   // in the identifier of the coverage tag.
+   // Add single coverage item per enum literal. This is to track literal string
+   // in the identifier of the coverage item.
    type_t base = type_base_recur(type);
    for (int i = low; i <= high; i++) {
       tree_t literal = type_enum_literal(base, i);
       ident_t suffix = ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
-      cover_tag_t *tag = cover_add_tag(decl, tree_loc(decl), suffix,
-                                       lu->cover, TAG_STATE, 0);
-      if (tag == NULL)
+      cover_item_t *item = cover_add_item(decl, tree_loc(decl), suffix,
+                                          lu->cover, COV_ITEM_STATE, 0);
+      if (item == NULL)
          break;
       if (i == low) {
          vcode_reg_t nets_reg = emit_load(var);
@@ -1799,7 +1800,7 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
          // lower bound, so that run-time can subtract lower bound to get correct
          // index of coverage data.
          vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), low);
-         emit_cover_state(nets_reg, low_reg, tag->tag);
+         emit_cover_state(nets_reg, low_reg, item->tag);
       }
    }
 
@@ -1812,11 +1813,11 @@ static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
-   cover_tag_t *tag = cover_add_tag(fcall, tree_loc(fcall), NULL, lu->cover,
-                                    TAG_EXPRESSION, flags);
-   if (tag != NULL) {
-      emit_cover_expr(mask, tag->tag);
-      tag->unrc_msk = unrc_msk;
+   cover_item_t *item = cover_add_item(fcall, tree_loc(fcall), NULL, lu->cover,
+                                       COV_ITEM_EXPRESSION, flags);
+   if (item != NULL) {
+      emit_cover_expr(mask, item->tag);
+      item->unrc_msk = unrc_msk;
    }
 }
 
@@ -7389,10 +7390,10 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    cover_push_scope(lu->cover, stmt);
    if (cover_enabled(lu->cover, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
-      cover_tag_t *tag = cover_add_tag(stmt, tree_loc(stmt), NULL,
-                                       lu->cover, TAG_STMT, 0);
-      if (tag != NULL)
-         emit_cover_stmt(tag->tag);
+      cover_item_t *item = cover_add_item(stmt, tree_loc(stmt), NULL,
+                                          lu->cover, COV_ITEM_STMT, 0);
+      if (item != NULL)
+         emit_cover_stmt(item->tag);
    }
 
    emit_debug_info(tree_loc(stmt));
@@ -12406,7 +12407,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 }
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             driver_set_t *ds, cover_tagging_t *cover,
+                             driver_set_t *ds, cover_data_t *cover,
                              tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
@@ -12444,7 +12445,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 }
 
 lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
-                             vcode_unit_t vunit, cover_tagging_t *cover,
+                             vcode_unit_t vunit, cover_data_t *cover,
                              tree_t container)
 {
    lower_unit_t *new = xcalloc(sizeof(lower_unit_t));
@@ -12505,7 +12506,7 @@ typedef struct {
    lower_fn_t       fn;
    ident_t          arena;
    ptrdiff_t        offset;
-   cover_tagging_t *cover;
+   cover_data_t     *cover;
 } deferred_unit_t;
 
 unit_registry_t *unit_registry_new(void)
@@ -12737,7 +12738,7 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
 
 void unit_registry_defer(unit_registry_t *ur, ident_t ident,
                          lower_unit_t *parent, emit_fn_t emit_fn,
-                         lower_fn_t fn, cover_tagging_t *cover,
+                         lower_fn_t fn, cover_data_t *cover,
                          object_t *object)
 {
    void *ptr = hash_get(ur->map, ident);

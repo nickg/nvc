@@ -123,7 +123,7 @@ typedef struct _rt_model {
    deferq_t           postponedq;
    deferq_t           implicitq;
    rt_callback_t     *global_cbs[RT_LAST_EVENT];
-   cover_tagging_t   *cover;
+   cover_data_t      *cover;
    nvc_rusage_t       ready_rusage;
    nvc_lock_t         memlock;
    memblock_t        *memblocks;
@@ -2060,10 +2060,10 @@ static void reset_coverage(rt_model_t *m)
    if (f == NULL)
       return;
 
-   m->cover = cover_read_tags(f, 0);
+   m->cover = cover_read_items(f, 0);
 
    // Pre-allocate coverage counters
-   const int n_tags = cover_count_tags(m->cover);
+   const int n_tags = cover_count_items(m->cover);
    jit_get_cover_mem(m->jit, n_tags);
 
    fbuf_close(f, NULL);
@@ -2080,16 +2080,16 @@ static void reset_asserts(rt_model_t *m)
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
-      const int n_tags = cover_count_tags(m->cover);
+      const int n_tags = cover_count_items(m->cover);
 
       const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
       fbuf_t *covdb = cover_open_lib_file(m->top, FBUF_OUT, true);
-      cover_dump_tags(m->cover, covdb, COV_DUMP_RUNTIME, counts);
+      cover_dump_items(m->cover, covdb, COV_DUMP_RUNTIME, counts);
       fbuf_close(covdb, NULL);
    }
 }
 
-cover_tagging_t *get_coverage(rt_model_t *m)
+cover_data_t *get_coverage(rt_model_t *m)
 {
    return m->cover;
 }
