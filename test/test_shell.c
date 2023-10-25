@@ -419,6 +419,35 @@ START_TEST(test_force1)
 }
 END_TEST
 
+static void echo_stdout_handler(const char *buf, size_t nchars, void *ctx)
+{
+   int *state = ctx;
+   ck_assert_str_eq(buf, "hello 3\n");
+   ck_assert_int_eq(nchars, 8);
+   (*state)++;
+}
+
+START_TEST(test_echo)
+{
+   tcl_shell_t *sh = shell_new(NULL);
+
+   int state = 0;
+   shell_handler_t handler = {
+      .stdout_write = echo_stdout_handler,
+      .context = &state,
+   };
+   shell_set_handler(sh, &handler);
+
+   const char *result = NULL;
+   fail_unless(shell_eval(sh, "echo hello [expr 1 + 2]", &result));
+   ck_assert_str_eq(result, "");
+
+   ck_assert_int_eq(state, 1);
+
+   shell_free(sh);
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -431,6 +460,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_redirect);
    tcase_add_test(tc, test_force1);
    tcase_add_exit_test(tc, test_exit, 5);
+   tcase_add_test(tc, test_echo);
    suite_add_tcase(s, tc);
 
    return s;

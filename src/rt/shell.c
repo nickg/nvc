@@ -886,9 +886,31 @@ static const char copyright_help[] = "Display copyright information";
 static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
                                int objc, Tcl_Obj *const objv[])
 {
-   tcl_shell_t *sh = cd;
+   Tcl_Channel channel = Tcl_GetStdChannel(TCL_STDOUT);
+
    extern char copy_string[];
-   shell_printf(sh, "%s\n", copy_string);
+   Tcl_WriteChars(channel, copy_string, -1);
+   Tcl_WriteChars(channel, "\n", 1);
+   Tcl_Flush(channel);
+
+   return TCL_OK;
+}
+
+static const char echo_help[] = "Display value of arguments";
+
+static int shell_cmd_echo(ClientData cd, Tcl_Interp *interp,
+                          int objc, Tcl_Obj *const objv[])
+{
+   Tcl_Channel channel = Tcl_GetStdChannel(TCL_STDOUT);
+
+   for (int i = 1; i < objc; i++) {
+      if (i > 1) Tcl_WriteChars(channel, " ", 1);
+      Tcl_WriteObj(channel, objv[i]);
+   }
+
+   Tcl_WriteChars(channel, "\n", 1);
+   Tcl_Flush(channel);
+
    return TCL_OK;
 }
 
@@ -1068,6 +1090,7 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    shell_add_cmd(sh, "quit", shell_cmd_quit, quit_help);
    shell_add_cmd(sh, "force", shell_cmd_force, force_help);
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
+   shell_add_cmd(sh, "echo", shell_cmd_echo, echo_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
