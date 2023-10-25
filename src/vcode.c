@@ -953,7 +953,7 @@ const char *vcode_op_string(vcode_op_t op)
       "memset", "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover branch",
-      "cover toggle", "cover expr", "uarray len", "undefined",
+      "cover toggle", "cover expr", "cover state", "uarray len", "undefined",
       "range null", "var upref", "resolved", "last value", "init signal",
       "map signal", "drive signal", "link var", "resolution wrapper",
       "last active", "driving", "driving value", "address of", "closure",

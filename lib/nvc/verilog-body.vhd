@@ -46,7 +46,27 @@ package body verilog is
         return r;
     end function;
 
-    function "&" (l, r : t_logic) return t_logic is
+    function to_vhdl (value : t_logic) return std_ulogic is
+    begin
+        case value is
+            when '1' => return '1';
+            when '0' => return '0';
+            when 'Z' => return 'Z';
+            when others => return 'U';
+        end case;
+    end function;
+
+    function to_verilog (value : std_ulogic) return t_logic is
+    begin
+        case value is
+            when '1' | 'H' => return '1';
+            when '0' | 'L' => return '0';
+            when 'Z' => return 'Z';
+            when others => return 'X';
+        end case;
+    end function;
+
+    function "and" (l, r : t_logic) return t_logic is
     begin
         if l = '1' and r = '1' then
             return '1';
@@ -57,7 +77,7 @@ package body verilog is
         end if;
     end function;
 
-    function "&" (l, r : t_packed_logic) return t_packed_logic is
+    function "and" (l, r : t_packed_logic) return t_packed_logic is
         constant llen   : natural := l'length;
         constant rlen   : natural := r'length;
         constant len    : natural := maximum(llen, rlen);
@@ -67,7 +87,7 @@ package body verilog is
     begin
         for i in result'range loop
             if i < llen and i < rlen then
-                result(i) := la(i) & ra(i);
+                result(i) := la(i) and ra(i);
             else
                 result(i) := '0';
             end if;

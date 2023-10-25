@@ -891,3 +891,4 @@ cover18         cover,shell
 cover19         cover,shell
 gentype6        normal,2008
 signal34        fail,gold,2008
+mixed1          mixed

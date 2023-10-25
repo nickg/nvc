@@ -14,7 +14,7 @@ lib/nvc/NVC.TEXT_UTIL-body: lib/std/STD.STANDARD lib/nvc/NVC.TEXT_UTIL lib/nvc/N
 
 lib/nvc/NVC.TEXT_UTIL: lib/std/STD.STANDARD $(top_srcdir)/lib/nvc/text_util.vhd
 
-lib/nvc/NVC.VERILOG-body: lib/std/STD.STANDARD lib/nvc/NVC.VERILOG $(top_srcdir)/lib/nvc/verilog-body.vhd
+lib/nvc/NVC.VERILOG-body: lib/std/STD.STANDARD lib/nvc/NVC.VERILOG lib/nvc/NVC.POLYFILL lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc/verilog-body.vhd
 
-lib/nvc/NVC.VERILOG: lib/std/STD.STANDARD $(top_srcdir)/lib/nvc/verilog.vhd
+lib/nvc/NVC.VERILOG: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/nvc/verilog.vhd
 

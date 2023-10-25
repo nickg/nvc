@@ -18,6 +18,9 @@
 -- This package provides support routines for Verilog simulation
 -------------------------------------------------------------------------------
 
+library ieee;
+use ieee.std_logic_1164.all;
+
 package verilog is
 
     type t_int64 is range -9223372036854775807 - 1 to 9223372036854775807;
@@ -30,7 +33,11 @@ package verilog is
 
     function to_time (value : t_packed_logic) return delay_length;
 
-    function "&" (l, r : t_logic) return t_logic;
-    function "&" (l, r : t_packed_logic) return t_packed_logic;
+    function to_vhdl (value : t_logic) return std_ulogic;
+
+    function to_verilog (value : std_ulogic) return t_logic;
+
+    function "and" (l, r : t_logic) return t_logic;
+    function "and" (l, r : t_packed_logic) return t_packed_logic;
 
 end package;

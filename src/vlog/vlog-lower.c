@@ -39,6 +39,10 @@
    const loc_t _old_loc = *vcode_last_loc();             \
    emit_debug_info(vlog_loc((v)));                       \
 
+#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
+#define T_PACKED_LOGIC "26NVC.VERILOG.T_PACKED_LOGIC"
+#define T_INT64 "19NVC.VERILOG.T_INT64"
+
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);
 
@@ -104,7 +108,7 @@ static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
    vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
    vcode_reg_t args[] = { context_reg, wrap_reg };
    vcode_type_t vtime = vtype_time();
-   ident_t func = ident_new("NVC.VERILOG.TO_TIME(26NVC.VERILOG.T_PACKED_LOGIC)"
+   ident_t func = ident_new("NVC.VERILOG.TO_TIME(" T_PACKED_LOGIC ")"
                             "25STD.STANDARD.DELAY_LENGTH");
    return emit_fcall(func, vtime, vtime, VCODE_CC_VHDL, args, ARRAY_LEN(args));
 }
@@ -115,9 +119,8 @@ static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
    vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
    vcode_reg_t args[] = { context_reg, wrap_reg };
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   ident_t func = ident_new("NVC.VERILOG.TO_INTEGER"
-                            "(26NVC.VERILOG.T_PACKED_LOGIC)"
-                            "19NVC.VERILOG.T_INT64");
+   ident_t func = ident_new("NVC.VERILOG.TO_INTEGER("
+                            T_PACKED_LOGIC ")" T_INT64);
    return emit_fcall(func, vint64, vint64, VCODE_CC_VHDL,
                      args, ARRAY_LEN(args));
 }
@@ -214,6 +217,19 @@ static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
 {
    const int nparams = tree_params(wrap);
 
+   ident_t to_vhdl_name = ident_new("NVC.VERILOG.TO_VHDL(" T_LOGIC ")U");
+   ident_t to_verilog_name = ident_new("NVC.VERILOG.TO_VERILOG(U)" T_LOGIC);
+
+   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+
+   vcode_type_t vt_verilog = vlog_logic_type();
+   vcode_type_t vt_vhdl = vtype_int(0, 8);
+
+   vcode_reg_t to_vhdl =
+      emit_closure(to_vhdl_name, context_reg, vt_verilog, vt_vhdl);
+   vcode_reg_t to_verilog =
+      emit_closure(to_verilog_name, context_reg, vt_vhdl, vt_verilog);
+
    for (int i = 0, pos = 0; i < nparams; i++) {
       tree_t map = tree_param(wrap, i);
       assert(tree_subkind(map) == P_POS);
@@ -232,14 +248,10 @@ static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
 
       vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
 
-      if (vlog_subkind(port) == V_PORT_INPUT) {
-         vcode_reg_t conv_reg = VCODE_INVALID_REG;   // TODO
-         emit_map_signal(vhdl_reg, vlog_reg, count_reg, count_reg, conv_reg);
-      }
-      else {
-         vcode_reg_t conv_reg = VCODE_INVALID_REG;   // TODO
-         emit_map_signal(vlog_reg, vhdl_reg, count_reg, count_reg, conv_reg);
-      }
+      if (vlog_subkind(port) == V_PORT_INPUT)
+         emit_map_signal(vhdl_reg, vlog_reg, count_reg, count_reg, to_verilog);
+      else
+         emit_map_signal(vlog_reg, vhdl_reg, count_reg, count_reg, to_vhdl);
    }
 }
 
@@ -354,9 +366,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(v));
          vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(v));
 
-         ident_t func = ident_new(
-            "NVC.VERILOG.\"&\"(26NVC.VERILOG.T_PACKED_LOGIC"
-            "26NVC.VERILOG.T_PACKED_LOGIC)26NVC.VERILOG.T_PACKED_LOGIC");
+         ident_t func = ident_new("NVC.VERILOG.\"and\"(" T_PACKED_LOGIC
+                                  T_PACKED_LOGIC ")" T_PACKED_LOGIC);
 
          vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
 
