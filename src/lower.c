@@ -2814,38 +2814,18 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
                      istr(tree_ident(decl)));
       }
    }
-   else if (lu->mode == LOWER_THUNK && lu->parent == NULL
-            && tree_has_value(decl)) {
-      // Handle a special case of simplifying locally static expressions
-      // that reference constant declarations
+   else if (lu->mode == LOWER_THUNK && container == lu->container) {
+      // Must avoid circular references to the current package but for
+      // simple constants we can just regenerate the value inline
       assert(tree_kind(decl) == T_CONST_DECL);
 
-      type_t type = tree_type(decl);
-      tree_t value = tree_value(decl);
-      vcode_reg_t value_reg = lower_rvalue(lu, value), ptr_reg;
-
-      switch (vcode_reg_kind(value_reg)) {
-      case VCODE_TYPE_POINTER:
-      case VCODE_TYPE_UARRAY:
-         ptr_reg = value_reg;
-         break;
-      default:
-         {
-            vcode_type_t vtype = lower_type(type);
-            vcode_type_t vbounds = lower_bounds(type);
-            vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl), 0);
-            lower_put_vcode_obj(decl, var, lu);
-            emit_store(value_reg, var);
-
-            ptr_reg = emit_index(var, VCODE_INVALID_REG);
-         }
-         break;
+      if (tree_has_value(decl)) {
+         tree_t value = tree_value(decl);
+         if (lower_is_const(value))
+            return lower_rvalue(lu, value);
       }
 
-      if (type_is_array(type))
-         return lower_coerce_arrays(lu, tree_type(value), type, ptr_reg);
-      else
-         return ptr_reg;
+      return emit_undefined(vtype_pointer(vtype), vtype);
    }
 
    assert(!is_uninstantiated_package(container));
@@ -12358,10 +12338,12 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
       context_id = vcode_unit_name();
    }
 
+   tree_t container = primary_unit_of(tree_container(t));
+
    vcode_unit_t context = parent ? parent->vunit : NULL;
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
    lower_unit_t *lu = lower_unit_new(parent ? parent->registry : NULL,
-                                     parent, thunk, NULL, NULL);
+                                     parent, thunk, NULL, container);
 
    type_t to_type = tree_type(t), from_type = to_type;
 

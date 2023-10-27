@@ -2659,9 +2659,8 @@ START_TEST(test_thunk)
       vcode_select_unit(t0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST_ARRAY, .length = 4 },
-         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
+         { VCODE_OP_LINK_VAR, .name = "C" },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_LOAD_INDIRECT },

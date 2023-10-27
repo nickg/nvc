@@ -1606,6 +1606,44 @@ START_TEST(test_conv1)
 }
 END_TEST
 
+START_TEST(test_issue782)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue782.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t b_block = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(b_block) == T_BLOCK);
+
+   tree_t s = tree_decl(b_block, 1);
+   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
+
+   tree_t left = tree_left(range_of(tree_type(s), 0));
+   fail_unless(tree_kind(left) == T_LITERAL);
+   fail_unless(tree_ival(left) == 7);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_order2)
+{
+   input_from_file(TESTDIR "/simp/order2.vhd");
+
+   tree_t b = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   tree_t p = tree_primary(b);
+
+   fail_unless(tree_kind(tree_value(tree_decl(p, 0))) == T_STRING);
+   fail_unless(tree_kind(tree_value(tree_decl(p, 1))) == T_STRING);
+
+   fail_unless(tree_kind(tree_value(tree_decl(b, 0))) == T_STRING);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1668,6 +1706,8 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_length);
    tcase_add_test(tc_core, test_casearray1);
    tcase_add_test(tc_core, test_conv1);
+   tcase_add_test(tc_core, test_issue782);
+   tcase_add_test(tc_core, test_order2);
    suite_add_tcase(s, tc_core);
 
    return s;
