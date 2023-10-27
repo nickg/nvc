@@ -2923,7 +2923,7 @@ START_TEST(test_config)
       { 29, "no visible declaration for X" },
       { 38, "design unit CONF is not an entity" },
       { 39, "no visible declaration for ARCH" },
-      { 45, "design unit ENT-BAD not found in library WORK" },
+      { 45, "cannot find architecture BAD of entity WORK.ENT" },
       { 52, "P is not a block that can be configured" },
       { 55, "instance P not found" },
       { -1, NULL }
@@ -5862,6 +5862,33 @@ START_TEST(test_error10)
 }
 END_TEST
 
+START_TEST(test_issue783)
+{
+   input_from_file(TESTDIR "/parse/issue783.vhd");
+
+   lib_t foo = lib_tmp("foo");
+   lib_set_work(foo);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
+
+   tree_t c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -5988,6 +6015,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue776);
    tcase_add_test(tc_core, test_visibility10);
    tcase_add_test(tc_core, test_error10);
+   tcase_add_test(tc_core, test_issue783);
    suite_add_tcase(s, tc_core);
 
    return s;

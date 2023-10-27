@@ -8914,7 +8914,10 @@ static tree_t p_block_configuration(tree_t of)
       case T_ENTITY:
          {
             ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
-            sub = resolve_name(nametab, CURRENT_LOC, qual);
+            if ((sub = lib_get_qualified(qual)) == NULL)
+               parse_error(CURRENT_LOC, "cannot find architecture %s of "
+                           "entity %s", istr(tree_ident(b)),
+                           istr(tree_ident(of)));
          }
          break;
       case T_ARCH:
