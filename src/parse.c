@@ -505,7 +505,8 @@ static ident_t error_marker(void)
 
 static tree_t error_expr(void)
 {
-   tree_t t = tree_new(T_OPEN);
+   tree_t t = tree_new(T_REF);
+   tree_set_ident(t, error_marker());
    tree_set_type(t, type_new(T_NONE));
    return t;
 }
