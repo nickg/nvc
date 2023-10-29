@@ -158,6 +158,30 @@ static void dump_waveform(tree_t w)
    }
 }
 
+static void dump_external_name(tree_t t)
+{
+   print_syntax("<< #%s ", class_str(tree_class(t)));
+   const int nparts = tree_parts(t);
+   for (int i = 0; i < nparts; i++) {
+      tree_t part = tree_part(t, i);
+      switch (tree_subkind(part)) {
+      case PE_ABSOLUTE:
+         print_syntax("^.");
+         break;
+      case PE_SIMPLE:
+         print_syntax("%s%s", istr(tree_ident(part)),
+                      i + 1 < nparts ? "." : "");
+         break;
+      case PE_CARET:
+         print_syntax("^.");
+         break;
+      }
+   }
+   print_syntax(" : ");
+   dump_type(tree_type(t));
+   print_syntax(" >>");
+}
+
 static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -300,29 +324,7 @@ static void dump_expr(tree_t t)
       break;
 
    case T_EXTERNAL_NAME:
-      {
-         print_syntax("<< #%s ", class_str(tree_class(t)));
-         const int nparts = tree_parts(t);
-         for (int i = 0; i < nparts; i++) {
-            tree_t part = tree_part(t, i);
-            if (i > 0 || tree_subkind(part) == PE_SIMPLE)
-               print_syntax(".");
-            switch (tree_subkind(part)) {
-            case PE_SIMPLE:
-               print_syntax("%s", istr(tree_ident(part)));
-               break;
-            case PE_ABSOLUTE:
-               print_syntax(".");
-               break;
-            case PE_CARET:
-               print_syntax("^");
-               break;
-            }
-         }
-         print_syntax(" : ");
-         dump_type(tree_type(t));
-         print_syntax(" >>");
-      }
+      dump_external_name(t);
       break;
 
    case T_ARRAY_REF:
@@ -1273,11 +1275,18 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_CASE_GENERATE:
-      print_syntax("#case ");
-      dump_expr(tree_value(t));
-      print_syntax(" #generate\n");
-      dump_stmts(t, indent + 2);
-      print_syntax("#end #generate");
+      {
+         print_syntax("#case ");
+         dump_expr(tree_value(t));
+         print_syntax(" #generate\n");
+
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            dump_alternative(tree_stmt(t, i), indent + 2);
+
+         print_syntax("#end #generate");
+         tab(indent);
+      }
       break;
 
    case T_IF_GENERATE:
