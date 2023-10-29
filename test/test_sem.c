@@ -2673,12 +2673,12 @@ START_TEST(test_ename)
    input_from_file(TESTDIR "/sem/ename.vhd");
 
    const error_t expect[] = {
-      {  2, "sorry, external names in packages are not supported" },
-      { 15, "initial value BIT does not match type of declaration INTEGER" },
-      { 21, "target of variable assignment must be a variable name or " },
-      { 24, "external name Y is not a valid target of simple release " },
-      { 25, "generate index must be a static expression" },
-      { 14, "cannot reference signal BAR during static elaboration" },
+      {  3, "relative pathname has no enclosing concurrent region" },
+      { 16, "initial value BIT does not match type of declaration INTEGER" },
+      { 22, "target of variable assignment must be a variable name or " },
+      { 25, "external name Y is not a valid target of simple release " },
+      { 26, "generate index must be a static expression" },
+      { 15, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -236,7 +236,7 @@ START_TEST(test_vhdl3)
              "\n"
              "package body WORK.VHDL3-body is\n"
              "  constant C1 : BIT_VECTOR(1 to G) := (others => '1');\n"
-             "  constant C2 : INTEGER := << constant UUT.X : INTEGER >>;\n"
+             "  constant C2 : INTEGER := << constant .UUT.X : INTEGER >>;\n"
              "end package body;\n"
              "\n");
    tb_rewind(tb);

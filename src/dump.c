@@ -166,7 +166,7 @@ static void dump_external_name(tree_t t)
       tree_t part = tree_part(t, i);
       switch (tree_subkind(part)) {
       case PE_ABSOLUTE:
-         print_syntax("^.");
+         print_syntax(".");
          break;
       case PE_SIMPLE:
          print_syntax("%s%s", istr(tree_ident(part)),

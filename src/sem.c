@@ -6111,9 +6111,6 @@ static bool sem_check_concurrent(tree_t t, nametab_t *tab)
 
 static bool sem_check_external_name(tree_t t, nametab_t *tab)
 {
-   if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) == T_PACKAGE)
-      sem_error(t, "sorry, external names in packages are not supported");
-
    const int nparts = tree_parts(t);
    for (int i = 0; i < nparts; i++) {
       tree_t pe = tree_part(t, i);
@@ -6125,6 +6122,16 @@ static bool sem_check_external_name(tree_t t, nametab_t *tab)
                sem_error(value, "generate index must be a static expression");
          }
          break;
+      case PE_RELATIVE:
+         // Relative pathnames must have enclosing concurrent region
+         if (find_enclosing(tab, S_CONCURRENT_BLOCK) == NULL) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "relative pathname has no enclosing "
+                        "concurrent region");
+            diag_lrm(d, STD_08, "8.7");
+            diag_emit(d);
+            return false;
+         }
       }
    }
 

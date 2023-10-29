@@ -1,5 +1,6 @@
 package ename_pack is
-    constant c : integer := << constant .top.foo : integer >>;  -- Not supported
+    constant c1 : integer := << constant .top.foo : integer >>;  -- OK
+    constant c2 : integer := << constant foo.bar : integer >>;  -- Error
 end package;
 
 -------------------------------------------------------------------------------
