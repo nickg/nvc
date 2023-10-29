@@ -762,6 +762,10 @@ static tree_t simp_case(tree_t t)
             else if (tree_has_ident(t))
                tree_set_ident(seq, tree_ident(t));
 
+            const int ndecls = tree_decls(alt);
+            for (int i = 0; i < ndecls; i++)
+               tree_add_decl(seq, tree_decl(alt, i));
+
             const int nstmts = tree_stmts(alt);
             for (int i = 0; i < nstmts; i++)
                tree_add_stmt(seq, tree_stmt(alt, i));
