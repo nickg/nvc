@@ -3172,7 +3172,8 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
    }
 }
 
-static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
+static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref,
+                                       expr_ctx_t ctx)
 {
    if (!tree_has_ref(ref))
       fatal_at(tree_loc(ref), "sorry, external names in packages are not "
@@ -3191,16 +3192,31 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
    vcode_reg_t context = emit_link_instance(path, locus);
 
    tree_t decl = tree_ref(ref);
-   type_t type = tree_type(decl);
+   type_t decl_type = tree_type(decl);
    vcode_type_t vtype = lower_var_type(decl);
 
    vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
+
+   vcode_reg_t result_reg;
    if (have_uarray_ptr(ptr_reg))
-      return emit_load_indirect(ptr_reg);
-   else if (tree_class(ref) == C_SIGNAL && type_is_homogeneous(type))
-      return emit_load_indirect(ptr_reg);
+      result_reg = emit_load_indirect(ptr_reg);
+   else if (tree_class(ref) == C_SIGNAL && type_is_homogeneous(decl_type))
+      result_reg = emit_load_indirect(ptr_reg);
    else
-      return ptr_reg;
+      result_reg = ptr_reg;
+
+   if (type_is_array(decl_type)) {
+      // The external name subtype indication does not have to exactly
+      // match the subtype of the referenced object
+      type_t name_type = tree_type(ref);
+      if (!type_is_unconstrained(name_type))
+         lower_check_array_sizes(lu, name_type, decl_type, VCODE_INVALID_REG,
+                                 result_reg, locus);
+
+      return lower_coerce_arrays(lu, decl_type, name_type, result_reg);
+   }
+   else
+      return result_reg;
 }
 
 static type_t lower_base_type(type_t type)
@@ -5248,7 +5264,7 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
    case T_REF:
       return lower_ref(lu, expr, ctx);
    case T_EXTERNAL_NAME:
-      return lower_external_name(expr, ctx);
+      return lower_external_name(lu, expr, ctx);
    case T_AGGREGATE:
       return lower_aggregate(lu, expr, VCODE_INVALID_VAR);
    case T_ARRAY_REF:

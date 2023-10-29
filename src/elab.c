@@ -1642,7 +1642,6 @@ static void elab_external_name_cb(tree_t t, void *__ctx)
    }
 
    tree_set_ref(t, where);
-   tree_set_type(t, tree_type(where));
 }
 
 static void elab_external_names(tree_t t, const elab_ctx_t *ctx)

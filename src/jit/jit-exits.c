@@ -165,17 +165,34 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
    const tree_kind_t kind = tree_kind(where);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL
-       || kind == T_PARAM)
+   switch (kind) {
+   case T_PORT_DECL:
+   case T_GENERIC_DECL:
+   case T_PARAM_DECL:
+   case T_PARAM:
       tb_cat(tb, "actual");
-   else if (kind == T_CASE || kind == T_MATCH_CASE)
+      break;
+   case T_CASE:
+   case T_MATCH_CASE:
       tb_cat(tb, "expression");
-   else if (kind == T_ASSOC)
+      break;
+   case T_ASSOC:
       tb_cat(tb, "choice");
-   else if (kind == T_AGGREGATE)
+      break;
+   case T_AGGREGATE:
       tb_cat(tb, "aggregate");
-   else
+      break;
+   case T_EXTERNAL_NAME:
+      {
+         tree_t last = tree_part(where, tree_parts(where) - 1);
+         tb_printf(tb, "object %s", istr(tree_ident(last)));
+      }
+      break;
+   default:
       tb_cat(tb, "value");
+      break;
+   }
+
    tb_printf(tb, " length %"PRIi64, right);
    if (dim > 0)
       tb_printf(tb, " for dimension %d", dim);
@@ -216,6 +233,9 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
       break;
    case T_PARAM:
       tb_cat(tb, "formal");
+      break;
+   case T_EXTERNAL_NAME:
+      tb_cat(tb, "external name subtype indication");
       break;
    case T_TYPE_CONV:
    case T_ATTR_REF:
