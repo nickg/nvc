@@ -135,7 +135,7 @@ bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)
 
    while (*now < h->size) {
       const unsigned old = (*now)++;
-      if (h->keys[old] != NULL) {
+      if (h->keys[old] != NULL && h->values[old] != NULL) {
          *key   = h->keys[old];
          *value = h->values[old];
          return true;
