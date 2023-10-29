@@ -112,7 +112,6 @@ static inline jit_reg_t jit_value_as_reg(jit_value_t value)
    return value.reg;
 }
 
-#ifdef DEBUG
 static inline bool jit_value_is_addr(jit_value_t value)
 {
    switch (value.kind) {
@@ -124,7 +123,6 @@ static inline bool jit_value_is_addr(jit_value_t value)
       return false;
    }
 }
-#endif
 
 static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
 {
@@ -1700,6 +1698,9 @@ static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
                              jit_value_t value, jit_value_t ptr)
 {
    jit_value_t addr = jit_addr_from_value(ptr, 0);
+
+   if (jit_value_is_addr(value))
+      value = irgen_lea(g, value);   // Storing an address
 
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_OFFSET:

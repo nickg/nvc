@@ -25,6 +25,8 @@ begin
     uut: entity work.bot;
 
     p2: process is
+        alias a1 is <<signal uut.z : integer>>;  -- Error (once)
+        alias a2 is <<signal uut.x : bit>>;  -- Error
     begin
         assert <<signal uut.x : integer>> = 0;  -- OK
         assert <<variable uut.x : integer>> = 0;  -- Error
@@ -37,6 +39,9 @@ begin
         assert <<signal .foo.x : integer>> = 0;  -- Error
         assert <<signal .ename1.uut : bit>> = '0';  -- Error
         assert <<signal uut.x.y : integer>> = 0;  -- Error
+        assert a1 = 1;
+        assert a1 = 2;
+        assert a2 = '1';
         wait;
     end process;
 

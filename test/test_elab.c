@@ -1033,15 +1033,17 @@ START_TEST(test_ename1)
    input_from_file(TESTDIR "/elab/ename1.vhd");
 
    const error_t expect[] = {
-      { 30, "class of object X is not variable" },
-      { 31, "external name X not found" },
-      { 33, "type of signal X is not BIT" },
-      { 34, "relative pathname has no containing declarative region" },
-      { 35, "external name X not found" },
+      { 28, "external name Z not found" },
+      { 29, "type of signal X is not BIT" },
+      { 32, "class of object X is not variable" },
+      { 33, "external name X not found" },
+      { 35, "type of signal X is not BIT" },
       { 36, "relative pathname has no containing declarative region" },
-      { 37, "FOO is not the name of the root of the design hierarchy" },
-      { 38, "class of object UUT is not signal" },
-      { 39, "X is not a concurrent region" },
+      { 37, "external name X not found" },
+      { 38, "relative pathname has no containing declarative region" },
+      { 39, "FOO is not the name of the root of the design hierarchy" },
+      { 40, "class of object UUT is not signal" },
+      { 41, "X is not a concurrent region" },
       { -1, NULL }
    };
    expect_errors(expect);

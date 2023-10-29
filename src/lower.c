@@ -3066,7 +3066,7 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
    tree_t value = tree_value(alias);
    type_t type = tree_type(tree_has_type(alias) ? alias : value);
 
-   if (!type_is_array(type))
+   if (!type_is_array(type) && tree_kind(value) != T_EXTERNAL_NAME)
       return lower_expr(lu, value, ctx);
 
    int hops = 0;
@@ -3172,8 +3172,7 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
    }
 }
 
-static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref,
-                                       expr_ctx_t ctx)
+static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
 {
    int caret = 0;
    const int nparts = tree_parts(ref);
@@ -3200,7 +3199,7 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref,
       if (tree_class(ref) == C_SIGNAL)
          return emit_undefined(lower_signal_type(type), vbounds);
       else
-         return emit_undefined(lower_type(type), vbounds);
+         return emit_undefined(vtype_pointer(lower_type(type)), vbounds);
    }
 
    vcode_reg_t locus = lower_debug_locus(ref);
@@ -5278,7 +5277,7 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
    case T_REF:
       return lower_ref(lu, expr, ctx);
    case T_EXTERNAL_NAME:
-      return lower_external_name(lu, expr, ctx);
+      return lower_external_name(lu, expr);
    case T_AGGREGATE:
       return lower_aggregate(lu, expr, VCODE_INVALID_VAR);
    case T_ARRAY_REF:
@@ -8193,28 +8192,39 @@ static void lower_file_decl(lower_unit_t *lu, tree_t decl)
 
 static vcode_type_t lower_alias_type(tree_t alias)
 {
-   type_t type = tree_has_type(alias)
-      ? tree_type(alias)
-      : tree_type(tree_value(alias));
+   tree_t value = tree_value(alias);
+   const class_t class = class_of(value);
 
-   if (!type_is_array(type))
-      return VCODE_INVALID_TYPE;
+   type_t type = tree_has_type(alias) ? tree_type(alias) : tree_type(value);
 
-   vcode_type_t velem;
-   switch (class_of(tree_value(alias))) {
-   case C_SIGNAL:
-      velem = lower_signal_type(type_elem_recur(type));
-      break;
-   case C_VARIABLE:
-   case C_CONSTANT:
-      velem = lower_type(type_elem_recur(type));
-      break;
-   default:
-      return VCODE_INVALID_TYPE;
+   if (type_is_array(type)) {
+      vcode_type_t velem;
+      switch (class) {
+      case C_SIGNAL:
+         velem = lower_signal_type(type_elem_recur(type));
+         break;
+      case C_VARIABLE:
+      case C_CONSTANT:
+         velem = lower_type(type_elem_recur(type));
+         break;
+      default:
+         return VCODE_INVALID_TYPE;
+      }
+
+      vcode_type_t vbounds = lower_bounds(type);
+      return vtype_uarray(dims_for_type(type), velem, vbounds);
    }
-
-   vcode_type_t vbounds = lower_bounds(type);
-   return vtype_uarray(dims_for_type(type), velem, vbounds);
+   else if (tree_kind(value) == T_EXTERNAL_NAME) {
+      // Always create variables to cache external name
+      if (class == C_SIGNAL && type_is_record(type))
+         return vtype_pointer(lower_signal_type(type));
+      else if (class == C_SIGNAL)
+         return lower_signal_type(type);
+      else
+         return vtype_pointer(lower_type(type));
+   }
+   else
+      return VCODE_INVALID_TYPE;
 }
 
 static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
@@ -8227,30 +8237,39 @@ static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
    type_t value_type = tree_type(value);
    type_t type = tree_has_type(decl) ? tree_type(decl) : value_type;
 
+   vcode_reg_t value_reg;
    vcode_var_flags_t flags = 0;
-   if (class_of(value) == C_SIGNAL)
+   if (tree_kind(value) == T_EXTERNAL_NAME)
+      value_reg = lower_external_name(lu, value);
+   else if (class_of(value) == C_SIGNAL) {
       flags |= VAR_SIGNAL;
+      value_reg = lower_lvalue(lu, value);
+   }
+   else
+      value_reg = lower_rvalue(lu, value);
 
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl), flags);
    lower_put_vcode_obj(decl, var, lu);
 
-   vcode_reg_t value_reg =
-      (flags & VAR_SIGNAL) ? lower_lvalue(lu, value) : lower_rvalue(lu, value);
-   vcode_reg_t data_reg  = lower_array_data(value_reg);
+   if (type_is_array(type)) {
+      vcode_reg_t data_reg = lower_array_data(value_reg);
 
-   vcode_reg_t wrap_reg;
-   if (tree_has_type(decl) && !type_is_unconstrained(type)) {
-      vcode_reg_t locus = lower_debug_locus(decl);
-      lower_check_array_sizes(lu, type, value_type, VCODE_INVALID_REG,
-                              value_reg, locus);
-      wrap_reg = lower_wrap(lu, type, data_reg);
+      vcode_reg_t wrap_reg;
+      if (tree_has_type(decl) && !type_is_unconstrained(type)) {
+         vcode_reg_t locus = lower_debug_locus(decl);
+         lower_check_array_sizes(lu, type, value_type, VCODE_INVALID_REG,
+                                 value_reg, locus);
+         wrap_reg = lower_wrap(lu, type, data_reg);
+      }
+      else
+         wrap_reg = lower_wrap_with_new_bounds(lu, value_type, value_type,
+                                               value_reg, data_reg);
+
+      emit_store(wrap_reg, var);
    }
    else
-      wrap_reg = lower_wrap_with_new_bounds(lu, value_type, value_type,
-                                            value_reg, data_reg);
-
-   emit_store(wrap_reg, var);
+      emit_store(value_reg, var);
 }
 
 static void lower_enum_image_helper(type_t type, vcode_reg_t preg)
