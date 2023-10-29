@@ -74,6 +74,7 @@ int32_t *jit_get_cover_mem(jit_t *j, int mintags);
 
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
 jit_stack_trace_t *jit_stack_trace(void);
+jit_t *jit_for_thread(void);
 
 typedef void *(*thunk_result_fn_t)(jit_scalar_t *, void *);
 

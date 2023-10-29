@@ -1431,3 +1431,13 @@ void jit_reset(jit_t *j)
 
    jit_reset_exit_status(j);
 }
+
+jit_t *jit_for_thread(void)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+
+   if (unlikely(thread->jit == NULL))
+      fatal_trace("thread not attached to JIT");
+
+   return thread->jit;
+}
