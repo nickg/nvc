@@ -2316,7 +2316,7 @@ static void type_copy_cb(type_t type, void *__ctx)
 
 void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
                         type_copy_pred_t type_pred, void *context,
-                        ident_t dotted, ident_t *prefixes, int nprefix)
+                        ident_t dotted, const ident_t *prefixes, int nprefix)
 {
    copy_ctx_t copy_ctx = {};
 

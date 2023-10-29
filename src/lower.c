@@ -3175,23 +3175,37 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref,
                                        expr_ctx_t ctx)
 {
-   if (!tree_has_ref(ref))
-      fatal_at(tree_loc(ref), "sorry, external names in packages are not "
-               "yet supported");
-
-   ident_t path = NULL;
+   int caret = 0;
    const int nparts = tree_parts(ref);
-   for (int i = 0; i < nparts - 1; i++) {
-      tree_t pe = tree_part(ref, i);
-      assert(tree_subkind(pe) == PE_SIMPLE);
-      if (tree_has_ident(pe))
-         path = ident_prefix(path, tree_ident(pe), '.');
+   for (int i = 0; i < nparts; i++) {
+      if (tree_subkind(tree_part(ref, i)) == PE_CARET)
+         caret++;
+   }
+
+   tree_t root = NULL;
+   ident_t path = NULL;
+   for (lower_unit_t *it = lu; it; it = it->parent) {
+      if (is_concurrent_block(it->container) && caret-- == 0) {
+         root = it->container;
+         path = it->name;
+         break;
+      }
+   }
+
+   tree_t decl = elab_external_name(ref, root, &path);
+
+   if (decl == NULL) {
+      type_t type = tree_type(ref);
+      vcode_type_t vbounds = lower_bounds(type);
+      if (tree_class(ref) == C_SIGNAL)
+         return emit_undefined(lower_signal_type(type), vbounds);
+      else
+         return emit_undefined(lower_type(type), vbounds);
    }
 
    vcode_reg_t locus = lower_debug_locus(ref);
    vcode_reg_t context = emit_link_instance(path, locus);
 
-   tree_t decl = tree_ref(ref);
    type_t decl_type = tree_type(decl);
    vcode_type_t vtype = lower_var_type(decl);
 

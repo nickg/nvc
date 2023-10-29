@@ -44,6 +44,9 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover);
 tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
                     cover_data_t *cover);
 
+// Callback from code generator to elaborate external names
+tree_t elab_external_name(tree_t name, tree_t root, ident_t *path);
+
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 

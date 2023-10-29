@@ -16,7 +16,7 @@ begin
         wait for 1 ns;
         assert << signal b1.s1 : bit_vector >> = "101";  -- OK
         assert << constant b1.c1 : string(1 to 5) >> = "hello";  -- OK
-        assert << constant b1.c1 : string(1 to 6) >> = "helloX";  -- Error
+        assert << constant b1.c1 : string(1 to 6) >> = "hello";  -- Error
         wait;
     end process;
 

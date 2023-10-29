@@ -34,6 +34,9 @@ begin
         assert <<signal ^.x : bit>> = '0';  -- Error
         assert <<signal uut(1).x : integer>> = 0;  -- Error
         assert <<signal ^.^.^.^.x : bit>> = '0';  -- Error
+        assert <<signal .foo.x : integer>> = 0;  -- Error
+        assert <<signal .ename1.uut : bit>> = '0';  -- Error
+        assert <<signal uut.x.y : integer>> = 0;  -- Error
         wait;
     end process;
 

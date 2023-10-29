@@ -65,7 +65,6 @@ typedef struct _elab_ctx {
    jit_t            *jit;
    unit_registry_t  *registry;
    lower_unit_t     *lowered;
-   bool              external_names;
    cover_data_t     *cover;
    void             *context;
    driver_set_t     *drivers;
@@ -94,8 +93,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
 static void elab_block_config(tree_t config, const elab_ctx_t *ctx);
-static tree_t elab_copy(tree_t t, elab_ctx_t *ctx);
-static void elab_external_names(tree_t t, const elab_ctx_t *ctx);
+static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -202,13 +200,8 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
 
 static bool elab_should_copy_tree(tree_t t, void *__ctx)
 {
-   bool *have_external = __ctx;
-
    switch (tree_kind(t)) {
    case T_INSTANCE:
-      return true;
-   case T_EXTERNAL_NAME:
-      *have_external = true;
       return true;
    case T_FUNC_DECL:
    case T_PROC_DECL:
@@ -218,8 +211,6 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
    case T_FUNC_INST:
    case T_PROC_INST:
       return true;
-   case T_PATH_ELT:
-      return tree_subkind(t) != PE_SIMPLE;
    case T_FCALL:
       if ((tree_flags(t) & TREE_F_GLOBALLY_STATIC)
           && type_is_scalar(tree_type(t)))
@@ -285,7 +276,7 @@ static void elab_find_config_roots(tree_t t, tree_list_t *roots)
    }
 }
 
-static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
+static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 {
    type_copy_pred_t type_pred = NULL;
    if (standard() >= STD_08)
@@ -304,15 +295,12 @@ static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
    }
    APUSH(roots, t);    // Architecture must be processed last
 
-   bool have_external = false;
    copy_with_renaming(roots.items, roots.count, elab_should_copy_tree,
-                      type_pred, &have_external, ctx->dotted,
+                      type_pred, NULL, ctx->dotted,
                       ctx->prefix, ARRAY_LEN(ctx->prefix));
 
    tree_t copy = roots.items[roots.count - 1];
    ACLEAR(roots);
-
-   ctx->external_names = have_external;
 
    return copy;
 }
@@ -380,7 +368,7 @@ static void elab_block_config(tree_t config, const elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_root_config(tree_t top, elab_ctx_t *ctx)
+static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
 {
    tree_t copy = elab_copy(top, ctx);
 
@@ -1262,6 +1250,9 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                  elab_driver_set(ctx), ctx->cover, b);
 
+   if (error_count() > 0)
+      return;   // Could be errors resolving external names
+
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
 
@@ -1477,10 +1468,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
    }
 
-   if (error_count() == 0) {
+   if (error_count() == 0)
       elab_decls(arch_copy, &new_ctx);
-      elab_external_names(b, &new_ctx);
-   }
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
@@ -1527,129 +1516,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          break;
       }
    }
-}
-
-static void elab_external_name_cb(tree_t t, void *__ctx)
-{
-   const elab_ctx_t *ctx = __ctx;
-
-   tree_t where = ctx->root, next = NULL;
-   const int nparts = tree_parts(t);
-   for (int i = 0; i < nparts; i++, where = next, next = NULL) {
-      tree_t pe = tree_part(t, i);
-
-      switch (tree_subkind(pe)) {
-      case PE_RELATIVE:
-         assert(i == 0);
-         next = ctx->out;
-         tree_set_subkind(pe, PE_SIMPLE);
-         tree_set_ident(pe, ctx->dotted);
-         continue;
-      case PE_ABSOLUTE:
-         assert(i == 0);
-         next = ctx->root;
-         tree_set_subkind(pe, PE_SIMPLE);
-         tree_set_ident(pe, ident_until(tree_ident(ctx->root), '.'));
-         continue;
-      case PE_SIMPLE:
-         break;
-      case PE_GENERATE:
-         {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_istr(tb, tree_ident(pe));
-            tb_printf(tb, "(%"PRIi64")", assume_int(tree_value(pe)));
-
-            tree_set_subkind(pe, PE_SIMPLE);
-            tree_set_ident(pe, ident_new(tb_get(tb)));
-         }
-         break;
-      case PE_CARET:
-         {
-            if ((ctx = ctx->parent) == NULL) {
-               error_at(tree_loc(pe), "relative pathname has no containing "
-                        "declarative region");
-               return;
-            }
-            next = ctx->out;
-
-            for (int j = 0; j < i; j++)
-               tree_set_ident(tree_part(t, j), NULL);
-
-            tree_set_subkind(pe, PE_SIMPLE);
-            tree_set_ident(pe, ctx->dotted);
-         }
-         continue;
-      default:
-         error_at(tree_loc(pe), "sorry, this form of external name is not "
-                  "yet supported");
-         return;
-      }
-
-      ident_t id = tree_ident(pe);
-
-      if (is_container(where)) {
-         next = search_decls(where, id, 0);
-
-         if (next == NULL) {
-            const int nstmts = tree_stmts(where);
-            for (int i = 0; i < nstmts; i++) {
-               tree_t s = tree_stmt(where, i);
-               if (tree_ident(s) == id) {
-                  next = s;
-                  break;
-               }
-            }
-         }
-      }
-
-      if (next == NULL) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
-         diag_printf(d, "external name %s not found",
-                     istr(tree_ident(tree_part(t, nparts - 1))));
-         diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
-                   istr(tree_ident(where)));
-         if (where == ctx->out)
-            diag_hint(d, NULL, "an object cannot be referenced by an external "
-                      "name until it has been elaborated");
-         diag_emit(d);
-         return;
-      }
-   }
-
-   assert(where != NULL);
-
-   if (class_of(where) != tree_class(t)) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "class of object %s is not %s", istr(tree_ident(where)),
-                  class_str(tree_class(t)));
-      diag_hint(d, tree_loc(t), "external name with class %s",
-                class_str(tree_class(t)));
-      diag_hint(d, tree_loc(where), "declaration of %s as %s",
-                istr(tree_ident(where)), class_str(class_of(where)));
-      diag_emit(d);
-      return;
-   }
-   else if (!type_eq(tree_type(where), tree_type(t))) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "type of %s %s is not %s",
-                  class_str(tree_class(t)), istr(tree_ident(where)),
-                  type_pp(tree_type(t)));
-      diag_hint(d, tree_loc(t), "external name with type %s",
-                type_pp(tree_type(t)));
-      diag_hint(d, tree_loc(where), "declaration of %s with type %s",
-                istr(tree_ident(where)), type_pp(tree_type(where)));
-      diag_emit(d);
-   }
-
-   tree_set_ref(t, where);
-}
-
-static void elab_external_names(tree_t t, const elab_ctx_t *ctx)
-{
-   if (!ctx->external_names)
-      return;
-
-   tree_visit_only(t, elab_external_name_cb, (void *)ctx, T_EXTERNAL_NAME);
 }
 
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
@@ -1790,10 +1656,8 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       new_ctx.drivers = find_drivers(copy);
 
-      if (error_count() == 0) {
+      if (error_count() == 0)
          elab_decls(copy, &new_ctx);
-         elab_external_names(b, &new_ctx);
-      }
 
       if (error_count() == 0) {
          elab_lower(b, &new_ctx);
@@ -1889,7 +1753,6 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
-   elab_external_names(b, &new_ctx);
 
    new_ctx.drivers = find_drivers(chosen);
 
@@ -1903,8 +1766,6 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_external_names(t, ctx);
-
    if (error_count() == 0)
       lower_process(ctx->lowered, t, elab_driver_set(ctx));
 
@@ -1913,8 +1774,6 @@ static void elab_process(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_psl(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_external_names(t, ctx);
-
    if (error_count() == 0)
       psl_lower_assert(ctx->registry, ctx->lowered, tree_psl(t), tree_ident(t));
 
@@ -1984,7 +1843,6 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_generics(t, t, t, &new_ctx);
    elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
-   elab_external_names(b, &new_ctx);
 
    if (error_count() == base_errors) {
       elab_lower(b, &new_ctx);
@@ -2096,10 +1954,8 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
 
    new_ctx.drivers = find_drivers(arch_copy);
 
-   if (error_count() == 0) {
+   if (error_count() == 0)
       elab_decls(arch_copy, &new_ctx);
-      elab_external_names(b, &new_ctx);
-   }
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
@@ -2135,13 +1991,18 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    tree_set_ident(e, ident_prefix(tree_ident(top), well_known(W_ELAB), '.'));
    tree_set_loc(e, tree_loc(top));
 
+   // Put in work library eagerly so absolute external names can find
+   // the root of the design hierarchy
+   lib_t work = lib_work();
+   lib_put(work, e);
+
    elab_ctx_t ctx = {
       .out       = e,
       .root      = e,
       .path_name = NULL,
       .inst_name = NULL,
       .cover     = cover,
-      .library   = lib_work(),
+      .library   = work,
       .jit       = jit,
       .registry  = ur,
    };
@@ -2166,8 +2027,10 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
-   if (error_count() > 0)
+   if (error_count() > 0) {
+      lib_put_error(work, e);
       return NULL;
+   }
 
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
@@ -2180,9 +2043,6 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    unit_registry_flush(ur, vu_name);
 
    freeze_global_arena();
-
-   lib_t work = lib_work();
-   lib_put(work, e);
 
 #if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
@@ -2200,6 +2060,9 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(vlog_ident(top), well_known(W_ELAB), '.'));
    tree_set_loc(e, vlog_loc(top));
+
+   lib_t work = lib_work();
+   lib_put(work, e);
 
    elab_ctx_t ctx = {
       .out       = e,
@@ -2219,8 +2082,10 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
 
    elab_verilog_module(wrap, NULL, &ctx);
 
-   if (error_count() > 0)
+   if (error_count() > 0) {
+      lib_put_error(work, e);
       return NULL;
+   }
 
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
@@ -2234,13 +2099,148 @@ tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
 
    freeze_global_arena();
 
-   lib_t work = lib_work();
-   lib_put(work, e);
-
 #if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
    lib_put_vcode(work, e, vu);
 #endif
 
    return e;
+}
+
+tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
+{
+   tree_t where = root, next = NULL;
+   const int nparts = tree_parts(name);
+
+   for (int i = 0; i < nparts; i++, where = next, next = NULL) {
+      tree_t pe = tree_part(name, i);
+      ident_t id = NULL;
+
+      switch (tree_subkind(pe)) {
+      case PE_ABSOLUTE:
+         {
+            assert(i == 0);
+            tree_t first = tree_part(name, 1);
+            assert(tree_subkind(first) == PE_SIMPLE);
+
+            lib_t work = lib_work();
+            ident_t work_name = lib_name(work);
+            ident_t qual = ident_prefix(work_name, tree_ident(first), '.');
+            ident_t elab = ident_prefix(qual, well_known(W_ELAB), '.');
+
+            if ((next = lib_get(work, elab)) == NULL) {
+               error_at(tree_loc(first), "%s is not the name of the root of "
+                        "the design hierarchy", istr(tree_ident(first)));
+               return NULL;
+            }
+
+            *path = work_name;
+         }
+         continue;
+      case PE_SIMPLE:
+         id = tree_ident(pe);
+         break;
+      case PE_GENERATE:
+         {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_istr(tb, tree_ident(pe));
+            tb_printf(tb, "(%"PRIi64")", assume_int(tree_value(pe)));
+
+            id = ident_new(tb_get(tb));
+         }
+         break;
+      case PE_RELATIVE:
+         next = where;
+         continue;
+      case PE_CARET:
+         if ((next = where) == NULL) {
+            error_at(tree_loc(pe), "relative pathname has no containing "
+                     "declarative region");
+            return NULL;
+         }
+         continue;
+      default:
+         error_at(tree_loc(pe), "sorry, this form of external name is not "
+                  "yet supported");
+         return NULL;
+      }
+
+      if (!is_concurrent_block(where) && tree_kind(where) != T_ELAB) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
+         diag_printf(d, "%s is not a concurrent region",
+                     istr(tree_ident(where)));
+         diag_hint(d, tree_loc(where), "location of %s",
+                   istr(tree_ident(where)));
+         diag_emit(d);
+         return NULL;
+      }
+
+      const int nstmts = tree_stmts(where);
+      for (int i = 0; i < nstmts; i++) {
+         tree_t s = tree_stmt(where, i);
+         if (tree_ident(s) == id) {
+            next = s;
+            break;
+         }
+      }
+
+      if (next == NULL)
+         next = search_decls(where, id, 0);
+
+      if (next == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
+         diag_printf(d, "external name %s not found",
+                     istr(tree_ident(tree_part(name, nparts - 1))));
+         diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
+                   istr(tree_ident(where)));
+
+         if (tree_kind(where) == T_BLOCK) {
+            tree_t hier = tree_decl(where, 0);
+            assert(tree_kind(hier) == T_HIER);
+
+            tree_t unit = tree_ref(hier);
+            const int nstmts = tree_stmts(unit);
+            for (int i = 0; i < nstmts; i++) {
+               tree_t s = tree_stmt(unit, i);
+               if (tree_ident(s) == id) {
+                  diag_hint(d, NULL, "an object cannot be referenced by an "
+                            "external name until it has been elaborated");
+                  break;
+               }
+            }
+         }
+
+         diag_emit(d);
+         return NULL;
+      }
+
+      if (i + 1 < nparts)
+         *path = ident_prefix(*path, id, '.');
+   }
+
+   if (class_of(where) != tree_class(name)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+      diag_printf(d, "class of object %s is not %s", istr(tree_ident(where)),
+                  class_str(tree_class(name)));
+      diag_hint(d, tree_loc(name), "external name with class %s",
+                class_str(tree_class(name)));
+      diag_hint(d, tree_loc(where), "declaration of %s as %s",
+                istr(tree_ident(where)), class_str(class_of(where)));
+      diag_emit(d);
+      return NULL;
+   }
+   else if (!type_eq(tree_type(where), tree_type(name))) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+      diag_printf(d, "type of %s %s is not %s",
+                  class_str(tree_class(name)), istr(tree_ident(where)),
+                  type_pp(tree_type(name)));
+      diag_hint(d, tree_loc(name), "external name with type %s",
+                type_pp(tree_type(name)));
+      diag_hint(d, tree_loc(where), "declaration of %s with type %s",
+                istr(tree_ident(where)), type_pp(tree_type(where)));
+      diag_emit(d);
+      return NULL;
+   }
+
+   return where;
 }
