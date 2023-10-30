@@ -305,6 +305,8 @@ jobs:
         run: ./vhdl-projects/mega65/test.sh
       - name: Test NetWiz
         run: ./vhdl-projects/netwiz/test.sh
+      - name: Test real_matrix package
+        run: ./vhdl-projects/realmatrix/test.sh
 
   vunit:
     name: VUnit

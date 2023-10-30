@@ -1015,10 +1015,58 @@ static void ieee_math_cos(jit_func_t *func, jit_anchor_t *anchor,
    args[0].real = cos(args[1].real);
 }
 
+static void ieee_math_log(jit_func_t *func, jit_anchor_t *anchor,
+                          jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = log(args[1].real);
+}
+
 static void ieee_math_log2(jit_func_t *func, jit_anchor_t *anchor,
                           jit_scalar_t *args, tlab_t *tlab)
 {
    args[0].real = log2(args[1].real);
+}
+
+static void ieee_math_log10(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = log10(args[1].real);
+}
+
+static void ieee_math_round(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = round(args[1].real);
+}
+
+static void ieee_math_trunc(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = trunc(args[1].real);
+}
+
+static void ieee_math_floor(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = floor(args[1].real);
+}
+
+static void ieee_math_pow_real(jit_func_t *func, jit_anchor_t *anchor,
+                               jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = pow(args[1].real, args[2].real);
+}
+
+static void ieee_math_pow_integer(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = pow((double)args[1].integer, args[2].real);
+}
+
+static void ieee_math_exp(jit_func_t *func, jit_anchor_t *anchor,
+                          jit_scalar_t *args, tlab_t *tlab)
+{
+   args[0].real = exp(args[1].real);
 }
 
 static void std_textio_consume(jit_func_t *func, jit_anchor_t *anchor,
@@ -1113,7 +1161,15 @@ static jit_intrinsic_t intrinsic_list[] = {
    { ST "\"=\"(SS)B$predef", byte_vector_equal },
    { MR "SIN(R)R", ieee_math_sin },
    { MR "COS(R)R", ieee_math_cos },
+   { MR "LOG(R)R", ieee_math_log },
    { MR "LOG2(R)R", ieee_math_log2 },
+   { MR "LOG10(R)R", ieee_math_log10 },
+   { MR "ROUND(R)R", ieee_math_round },
+   { MR "TRUNC(R)R", ieee_math_trunc },
+   { MR "FLOOR(R)R", ieee_math_floor },
+   { MR "\"**\"(RR)R", ieee_math_pow_real },
+   { MR "\"**\"(IR)R", ieee_math_pow_integer },
+   { MR "EXP(R)R", ieee_math_exp },
    { TI "CONSUME(" LN "N)", std_textio_consume },
    { TI "SHRINK(" LN "N)", std_textio_shrink },
    { NULL, NULL }
