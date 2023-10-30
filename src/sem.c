@@ -1638,8 +1638,8 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
      return false;
    }
 
-   bool bmode_explicit = !!(bflags & TREE_F_EXPLICIT_MODE);
-   bool dmode_explicit = !!(dflags & TREE_F_EXPLICIT_MODE);
+   const bool bmode_explicit = !!(bflags & TREE_F_EXPLICIT_MODE);
+   const bool dmode_explicit = !!(dflags & TREE_F_EXPLICIT_MODE);
 
    if (bmode_explicit != dmode_explicit) {
       diag_t *d = pedantic_diag(bport);
@@ -1650,9 +1650,9 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
                      istr(dname), istr(tree_ident(body)));
 
          diag_hint(d, tree_loc(dport), "%s mode %sdeclared explicitly",
-                   what, (bmode_explicit) ? "" : "not ");
+                   what, dmode_explicit ? "" : "not ");
          diag_hint(d, tree_loc(bport), "%s mode %sdeclared explicitly",
-                   what, (dmode_explicit) ? "" : "not ");
+                   what, bmode_explicit ? "" : "not ");
          diag_emit(d);
       }
       return false;
@@ -1666,16 +1666,17 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
      diag_printf(d, "class %s of subprogram body %s %s %s does not "
                  "match class %s in specification", class_str(bclass),
                  istr(tree_ident(body)), what, istr(dname), class_str(dclass));
-     diag_hint(d, tree_loc(dport), "%s %s declared with class %s",
-               what, istr(dname), class_str(dclass));
-     diag_hint(d, tree_loc(bport), "%s %s declared with class %s",
-               what, istr(bname), class_str(bclass));
+     diag_hint(d, tree_loc(dport), "%s %s declared with class %s in "
+               "subprogram specification", what, istr(dname),
+               class_str(dclass));
+     diag_hint(d, tree_loc(bport), "%s %s declared with class %s in "
+               "subprogram body", what, istr(bname), class_str(bclass));
      diag_emit(d);
      return false;
    }
 
-   bool bclass_explicit = !!(bflags & TREE_F_EXPLICIT_CLASS);
-   bool dclass_explicit = !!(dflags & TREE_F_EXPLICIT_CLASS);
+   const bool bclass_explicit = !!(bflags & TREE_F_EXPLICIT_CLASS);
+   const bool dclass_explicit = !!(dflags & TREE_F_EXPLICIT_CLASS);
 
    if (bclass_explicit != dclass_explicit) {
       diag_t *d = pedantic_diag(bport);
@@ -1685,10 +1686,11 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
                      "subprogram body", class_str(dclass), what,
                      istr(dname), istr(tree_ident(body)));
 
-         diag_hint(d, tree_loc(dport), "%s class %sdeclared explicitly",
-                   what, (bclass_explicit) ? "" : "not ");
-         diag_hint(d, tree_loc(bport), "%s class %sdeclared explicitly",
-                   what, (dclass_explicit) ? "" : "not ");
+         diag_hint(d, tree_loc(dport), "%s class %sdeclared explicitly in "
+                   "subprogram specification", what,
+                   dclass_explicit ? "" : "not ");
+         diag_hint(d, tree_loc(bport), "%s class %sdeclared explicitly in "
+                   "subprogram body", what, bclass_explicit ? "" : "not ");
          diag_emit(d);
       }
       return false;

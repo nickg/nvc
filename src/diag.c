@@ -892,7 +892,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       fputc('\n', f);
 
       if (!loc_invalid_p(&(hint->loc))) {
-         fprintf(f, "\t ");
+         color_fprintf(f, "\t $blue$>$$ ");
          diag_emit_loc(&(hint->loc), f);
       }
    }
