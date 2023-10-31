@@ -427,9 +427,6 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
    if (free->size < reqsz) {
       SCOPED_LOCK(code->lock);
 
-      if (code->globalfree->size == 0)
-         return NULL;
-
 #ifdef DEBUG
       if (free->size > 0)
          debugf("thread %d needs new code cache from global free list "
@@ -439,6 +436,13 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
 
       const size_t chunksz = MAX(reqsz, THREAD_CACHE_SIZE);
       const size_t alignedsz = ALIGN_UP(chunksz, CODE_BLOB_ALIGN);
+
+      if (alignedsz > code->globalfree->size) {
+         DEBUG_ONLY(debugf("requesting new %d byte code page", CODE_PAGE_SIZE));
+         code_page_new(code);
+         assert(code->globalfree->size == CODE_PAGE_SIZE);
+      }
+
       const size_t take = MIN(code->globalfree->size, alignedsz);
 
       free->size = take;
@@ -446,12 +450,6 @@ code_blob_t *code_blob_new(code_cache_t *code, ident_t name, size_t hint)
 
       code->globalfree->base += take;
       code->globalfree->size -= take;
-
-      if (code->globalfree->size == 0) {
-         DEBUG_ONLY(debugf("requesting new %d byte code page", CODE_PAGE_SIZE));
-         code_page_new(code);
-         assert(code->globalfree->size == CODE_PAGE_SIZE);
-      }
    }
 
    assert(reqsz <= free->size);

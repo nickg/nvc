@@ -2049,11 +2049,13 @@ START_TEST(test_code1)
    code_blob_finalise(blob, &entry);
    ck_assert_ptr_null(entry);
 
-   for (int i = 0; i < 200; i++) {
-      blob = code_blob_new(code, ident_new("loop"), 32 * 1024);
+   for (int i = 0; i < 50; i++) {
+      const size_t size = rand() % (1024 * 1024);
+
+      blob = code_blob_new(code, ident_new("loop"), size);
       ck_assert_ptr_nonnull(blob);
 
-      code_blob_emit(blob, mem, 32 * 1024);
+      code_blob_emit(blob, mem, size);
       fail_if(blob->overflow);
 
       code_blob_finalise(blob, &entry);
