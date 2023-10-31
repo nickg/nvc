@@ -73,6 +73,7 @@
   __nvc_do_exit;
   __nvc_do_fficall;
   __nvc_get_object;
+  __nvc_last_event;
   __nvc_mspace_alloc;
   __nvc_putpriv;
   __nvc_sched_waveform;

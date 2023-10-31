@@ -376,10 +376,7 @@ DLLEXPORT
 void __nvc_sched_waveform(jit_anchor_t *anchor, jit_scalar_t *args,
                           tlab_t *tlab)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-   thread->anchor = anchor;
-
-   jit_check_interrupt(thread->jit);
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
 
    sig_shared_t *shared = args[0].pointer;
    int32_t       offset = args[1].integer;
@@ -401,10 +398,7 @@ void __nvc_sched_waveform(jit_anchor_t *anchor, jit_scalar_t *args,
 DLLEXPORT
 void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-   thread->anchor = anchor;
-
-   jit_check_interrupt(thread->jit);
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
 
    sig_shared_t *shared = args[0].pointer;
    int32_t       offset = args[1].integer;
@@ -416,13 +410,24 @@ void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
 }
 
 DLLEXPORT
+void __nvc_last_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   sig_shared_t *shared = args[0].pointer;
+   uint32_t      offset = args[1].integer;
+   uint32_t      count  = args[2].integer;
+
+   args[0].integer = x_last_event(shared, offset, count);
+
+   thread->anchor = NULL;
+}
+
+DLLEXPORT
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-   thread->anchor = anchor;
-
-   jit_check_interrupt(thread->jit);
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
 
    switch (which) {
    case JIT_EXIT_ASSERT_FAIL:
@@ -579,7 +584,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_CONST:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          sig_shared_t *dst_ss     = args[0].pointer;
@@ -620,7 +625,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_IMPLICIT_EVENT:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          sig_shared_t *shared  = args[0].pointer;
@@ -634,7 +639,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_ALIAS_SIGNAL:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          sig_shared_t *ss    = args[0].pointer;
@@ -733,7 +738,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PUSH_SCOPE:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          tree_t  where = args[0].pointer;
@@ -745,7 +750,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_POP_SCOPE:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          x_pop_scope();
@@ -847,13 +852,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_LAST_EVENT:
-      {
-         sig_shared_t *shared = args[0].pointer;
-         uint32_t      offset = args[1].integer;
-         uint32_t      count  = args[2].integer;
-
-         args[0].integer = x_last_event(shared, offset, count);
-      }
+      __nvc_last_event(anchor, args, tlab);
       break;
 
    case JIT_EXIT_LAST_ACTIVE:
@@ -933,7 +932,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PROCESS_INIT:
       {
-         if (!jit_has_runtime(jit_thread_local()->jit))
+         if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
          jit_handle_t handle = args[0].integer;
@@ -985,7 +984,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          jit_handle_t  handle  = args[0].integer;
          void         *context = args[1].pointer;
 
-         if (jit_has_runtime(jit_thread_local()->jit)) {
+         if (jit_has_runtime(thread->jit)) {
             ffi_closure_t closure = { handle, context };
             args[0].pointer = x_function_trigger(&closure);
          }
@@ -1014,8 +1013,7 @@ DLLEXPORT
 void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
                       jit_scalar_t *args)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-   thread->anchor = anchor;
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
 
    jit_ffi_call(ff, args);
 
@@ -1050,8 +1048,7 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 DLLEXPORT
 void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-   thread->anchor = anchor;
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
 
    if (unlikely(size > UINT32_MAX)) {
       jit_msg(NULL, DIAG_FATAL, "attempting to allocate %zu byte object "
@@ -1071,7 +1068,7 @@ void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor)
 DLLEXPORT
 void __nvc_putpriv(jit_handle_t handle, void *data)
 {
-   jit_t *j = jit_thread_local()->jit;
+   jit_t *j = jit_for_thread();
    jit_func_t *f = jit_get_func(j, handle);
 
    store_release(jit_get_privdata_ptr(j, f), data);

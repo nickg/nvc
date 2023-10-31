@@ -1441,3 +1441,17 @@ jit_t *jit_for_thread(void)
 
    return thread->jit;
 }
+
+jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor)
+{
+   jit_thread_local_t *thread = jit_thread_local();
+
+   if (thread->anchor == anchor)
+      return thread;
+
+   thread->anchor = anchor;
+
+   jit_check_interrupt(thread->jit);
+
+   return thread;
+}

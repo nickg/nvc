@@ -131,6 +131,7 @@ typedef enum {
    LLVM_TLAB_ALLOC,
    LLVM_SCHED_WAVEFORM,
    LLVM_TEST_EVENT,
+   LLVM_LAST_EVENT,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -820,6 +821,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
 
    case LLVM_SCHED_WAVEFORM:
    case LLVM_TEST_EVENT:
+   case LLVM_LAST_EVENT:
       {
          LLVMTypeRef args[] = {
             obj->types[LLVM_PTR],
@@ -837,8 +839,13 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
                                                 ARRAY_LEN(args), false);
 
-         const char *sym = which == LLVM_SCHED_WAVEFORM
-            ? "__nvc_sched_waveform" : "__nvc_test_event";
+         const char *sym = NULL;
+         switch (which) {
+         case LLVM_SCHED_WAVEFORM: sym = "__nvc_sched_waveform"; break;
+         case LLVM_TEST_EVENT: sym = "__nvc_test_event"; break;
+         case LLVM_LAST_EVENT: sym = "__nvc_last_event"; break;
+         default: break;
+         }
 
          fn = llvm_add_fn(obj, sym, obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
