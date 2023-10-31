@@ -1957,7 +1957,8 @@ static struct {
    { ']', "_rs_"   },
    { '*', "_mult_" },
    { '+', "_plus_" },
-   { '=', "_eq_"   }
+   { '=', "_eq_"   },
+   { '\\', "_bs_"  },
 };
 
 static text_buf_t *safe_symbol_win32(const char *text)
@@ -1991,7 +1992,7 @@ text_buf_t *safe_symbol(ident_t id)
    tb_istr(tb, id);
 
 #if defined _WIN32 || defined __CYGWIN__
-   if (strpbrk(tb_get(tb), "()\"[]*+=") == NULL)
+   if (strpbrk(tb_get(tb), "()\"[]*+=\\") == NULL)
       return tb;
    else {
       text_buf_t *new = safe_symbol_win32(tb_get(tb));
