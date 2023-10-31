@@ -64,6 +64,7 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct _ident_list ident_list_t;
+typedef struct _spec_list spec_list_t;
 
 struct _ident_list {
    ident_list_t *next;
@@ -73,6 +74,16 @@ struct _ident_list {
 
 #define LOCAL_IDENT_LIST \
    __attribute__((cleanup(_ident_list_cleanup))) ident_list_t *
+
+struct _spec_list {
+   spec_list_t *next;
+   ident_t      ident;
+   loc_t        loc;
+   type_t       signature;
+};
+
+#define LOCAL_SPEC_LIST \
+   __attribute__((cleanup(_spec_list_cleanup))) spec_list_t *
 
 static loc_t          start_loc;
 static loc_t          last_loc;
@@ -1576,46 +1587,6 @@ static tree_t external_reference(tree_t t)
    }
 }
 
-static void apply_foreign_attribute(tree_t decl, tree_t value)
-{
-   // See LRM 08 section 20.2.4.3
-
-   if (tree_kind(value) != T_STRING) {
-      error_at(tree_loc(value), "foreign attribute must have string "
-               "literal value");
-      return;
-   }
-
-   const int nchars = tree_chars(value);
-   char *buf LOCAL = xmalloc(nchars + 1);
-   for (int i = 0; i < nchars; i++)
-      buf[i] = tree_pos(tree_ref(tree_char(value, i)));
-   buf[nchars] = '\0';
-
-   subprogram_kind_t kind = S_FOREIGN;
-   char *p = strtok(buf, " ");
-   if (strcmp(p, "VHPIDIRECT") == 0) {
-      p = strtok(NULL, " ");
-      if (p != NULL) {
-         // The object library specifier is silently ignored
-         char *p2 = strtok(NULL, " ");
-         if (p2 != NULL) p = p2;
-      }
-   }
-   else if (strcmp(p, "INTERNAL") == 0) {
-      p = strtok(NULL, " ");
-      kind = S_INTERNAL;
-   }
-   else if (strtok(NULL, " ") != NULL)
-      error_at(tree_loc(value), "failed to parse foreign attribute");
-
-   ident_t name = ident_new(p);
-   tree_set_ident2(decl, name);
-
-   tree_set_subkind(decl, kind);
-   tree_set_flag(decl, TREE_F_NEVER_WAITS);
-}
-
 static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
 {
    ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
@@ -2019,29 +1990,40 @@ static void ident_list_push(ident_list_t **list, ident_t i, loc_t loc)
    c->loc   = loc;
    c->next  = NULL;
 
-   if (*list == NULL)
-      *list = c;
-   else {
-      ident_list_t *it;
-      for (it = *list; it->next != NULL; it = it->next)
-         ;
-      it->next = c;
-   }
-}
-
-static void ident_list_free(ident_list_t *list)
-{
-   ident_list_t *it = list;
-   while (it != NULL) {
-      ident_list_t *next = it->next;
-      free(it);
-      it = next;
-   }
+   ident_list_t **it;
+   for (it = list; *it; it = &((*it)->next));
+   *it = c;
 }
 
 static void _ident_list_cleanup(ident_list_t **list)
 {
-   ident_list_free(*list);
+   for (ident_list_t *it = *list, *tmp; it; it = tmp) {
+      tmp = it->next;
+      free(it);
+   }
+   *list = NULL;
+}
+
+static void spec_list_push(spec_list_t **list, ident_t id, type_t signature,
+                           loc_t loc)
+{
+   spec_list_t *c = xmalloc(sizeof(spec_list_t));
+   c->ident     = id;
+   c->loc       = loc;
+   c->signature = signature;
+   c->next      = NULL;
+
+   spec_list_t **it;
+   for (it = list; *it; it = &((*it)->next));
+   *it = c;
+}
+
+static void _spec_list_cleanup(spec_list_t **list)
+{
+   for (spec_list_t *it = *list, *tmp; it; it = tmp) {
+      tmp = it->next;
+      free(it);
+   }
    *list = NULL;
 }
 
@@ -5694,23 +5676,23 @@ static class_t p_entity_class(void)
    }
 }
 
-static ident_t p_entity_designator()
+static ident_t p_entity_designator(type_t *signature)
 {
    // entity_tag [ signature ]
+
    ident_t id = p_identifier();
 
-   if (peek() == tLSQUARE) {
-      // XXX: Review what to do here
-      (void)p_signature();
-      warn_at(CURRENT_LOC, "sorry, signature in attribute entity name list is not yet supported");
-   }
+   if (peek() == tLSQUARE)
+      *signature = p_signature();
+
    return id;
 }
 
-static ident_list_t *p_entity_name_list(void)
+static spec_list_t *p_entity_name_list(void)
 {
    // entity_designator { , entity_designator } | others | all
-   ident_list_t *result = NULL;
+
+   spec_list_t *result = NULL;
 
    switch (peek()) {
    case tOTHERS:
@@ -5718,24 +5700,27 @@ static ident_list_t *p_entity_name_list(void)
       break;
    case tALL:
       consume(tALL);
-      ident_list_push(&result, well_known(W_ALL), last_loc);
+      spec_list_push(&result, well_known(W_ALL), NULL, last_loc);
       break;
    default:
-      ident_list_push(&result, p_entity_designator(), last_loc);
+      do {
+         type_t signature = NULL;
+         ident_t id = p_entity_designator(&signature);
 
-      while (optional(tCOMMA))
-         ident_list_push(&result, p_entity_designator(), last_loc);
+         spec_list_push(&result, id, signature, last_loc);
+      } while (optional(tCOMMA));
    }
+
    return result;
 }
 
-static ident_list_t *p_entity_specification(class_t *class)
+static spec_list_t *p_entity_specification(class_t *class)
 {
    // entity_name_list : entity_class
 
    BEGIN("entity specification");
 
-   ident_list_t *ids = p_entity_name_list();
+   spec_list_t *ids = p_entity_name_list();
 
    consume(tCOLON);
 
@@ -5767,7 +5752,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
    consume(tOF);
 
    class_t class;
-   LOCAL_IDENT_LIST ids = p_entity_specification(&class);
+   LOCAL_SPEC_LIST ids = p_entity_specification(&class);
 
    consume(tIS);
 
@@ -5778,25 +5763,25 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
 
    const loc_t *loc = CURRENT_LOC;
 
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+   for (spec_list_t *it = ids; it != NULL; it = it->next) {
       tree_t t = tree_new(T_ATTR_SPEC);
-      tree_set_loc(t, loc);
+      tree_set_loc(t, &(it->loc));
       tree_set_class(t, class);
       tree_set_ident(t, head);
       tree_set_ident2(t, it->ident);
       tree_set_value(t, value);
-      tree_set_ref(t, attr_decl);
+      tree_set_type(t, type);
 
-      if (class != C_LITERAL && class != C_LABEL) {
-         tree_t d = resolve_name(nametab, loc, it->ident);
-         if (d != NULL && class_of(d) != class)
-            parse_error(loc, "class of object %s is %s not %s",
-                        istr(it->ident), class_str(class_of(d)),
-                        class_str(class));
+      if (it->signature != NULL) {
+         tree_t tmp = tree_new(T_REF);
+         tree_set_ident(tmp, it->ident);
+         tree_set_loc(tmp, &(it->loc));
 
-         if (d != NULL && head == well_known(W_FOREIGN))
-            apply_foreign_attribute(d, value);
+         tree_t d = resolve_subprogram_name(nametab, tmp, it->signature);
+         tree_set_ref(t, d);
       }
+      else if (class != C_LITERAL && class != C_LABEL)
+         tree_set_ref(t, resolve_name(nametab, loc, it->ident));
 
       insert_name(nametab, t, NULL);
       (*addf)(parent, t);

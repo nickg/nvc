@@ -126,4 +126,32 @@ package textio is
                      field     : in width := 0;
                      unit      : in time := ns );
 
+    attribute never_waits : boolean;
+    attribute never_waits of readline [text, line] : procedure is true;
+    attribute never_waits of read [line, bit, boolean] : procedure is true;
+    attribute never_waits of read [line, bit] : procedure is true;
+    attribute never_waits of read [line, bit_vector, boolean] : procedure is true;
+    attribute never_waits of read [line, bit_vector] : procedure is true;
+    attribute never_waits of read [line, boolean, boolean] : procedure is true;
+    attribute never_waits of read [line, boolean] : procedure is true;
+    attribute never_waits of read [line, character, boolean] : procedure is true;
+    attribute never_waits of read [line, character] : procedure is true;
+    attribute never_waits of read [line, integer, boolean] : procedure is true;
+    attribute never_waits of read [line, integer] : procedure is true;
+    attribute never_waits of read [line, real, boolean] : procedure is true;
+    attribute never_waits of read [line, real] : procedure is true;
+    attribute never_waits of read [line, string, boolean] : procedure is true;
+    attribute never_waits of read [line, string] : procedure is true;
+    attribute never_waits of read [line, time, boolean] : procedure is true;
+    attribute never_waits of read [line, time] : procedure is true;
+    attribute never_waits of writeline [text, line] : procedure is true;
+    attribute never_waits of write [line, bit, side, width] : procedure is true;
+    attribute never_waits of write [line, bit_vector, side, width] : procedure is true;
+    attribute never_waits of write [line, boolean, side, width] : procedure is true;
+    attribute never_waits of write [line, character, side, width] : procedure is true;
+    attribute never_waits of write [line, integer, side, width] : procedure is true;
+    attribute never_waits of write [line, real, side, width, natural] : procedure is true;
+    attribute never_waits of write [line, string, side, width] : procedure is true;
+    attribute never_waits of write [line, time, side, width, time] : procedure is true;
+
 end package;

@@ -687,8 +687,10 @@ START_TEST(test_attr)
    const error_t expect[] = {
       {  30, "Z has no attribute FOO" },
       {  54, "prefix of user defined attribute reference cannot denote" },
-      {  65, "expected attribute type INTEGER" },
-      {  66, "expected attribute type STRING" },
+      {  65, "expected attribute specification for FOO to have type INTEGER "
+         "but found STRING" },
+      {  66, "expected attribute specification for BAR to have type STRING "
+         "but found universal_integer" },
       {  67, "no visible declaration for Q" },
       {  85, "dimension of attribute LEFT must be locally static" },
       { 101, "prefix of SIMPLE_NAME attribute must be a named entity" },
@@ -704,12 +706,16 @@ START_TEST(test_attr)
       { 221, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 222, "BASE attribute is allowed only as the prefix of the name" },
       { 228, "no visible declaration for NOT_HERE" },
+      { 288, "expression must be a BOOLEAN literal" },
+      { 290, "NEVER_WAITS attribute can only be applied to procedures" },
+      { 294, "failed to parse FOREIGN attribute" },
+      { 295, "FOREIGN attribute must have string literal value" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_PACKAGE, T_PACK_BODY,
-                   T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH);
+                   T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH);
 
    check_expected_errors();
 }

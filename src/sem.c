@@ -5629,18 +5629,83 @@ static bool sem_check_attr_decl(tree_t t)
 
 static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
 {
-   if (!tree_has_ref(t))
-      return false;
-
-   tree_t attr_decl = tree_ref(t);
-   type_t type = tree_type(attr_decl);
-
    tree_t value = tree_value(t);
    if (!sem_check(value, tab))
       return false;
 
+   type_t type = tree_type(t);
    if (!sem_check_type(value, type))
-      sem_error(t, "expected attribute type %s", type_pp(type));
+      sem_error(t, "expected attribute specification for %s to have type %s "
+                "but found %s", istr(tree_ident(t)), type_pp(type),
+                type_pp(tree_type(value)));
+
+   if (!tree_has_ref(t))
+      return false;
+
+   tree_t decl = tree_ref(t);
+   const class_t class = tree_class(t);
+
+   if (class_of(decl) != class)
+      sem_error(t, "class of object %s is %s not %s",
+                istr(tree_ident(decl)), class_str(class_of(decl)),
+                class_str(class));
+
+   switch (is_well_known(tree_ident(t))) {
+   case W_NEVER_WAITS:
+      {
+         bool flag;
+         if (!folded_bool(value, &flag))
+            sem_error(value, "expression must be a BOOLEAN literal");
+         else if (class != C_PROCEDURE)
+            sem_error(t, "NEVER_WAITS attribute can only be applied to "
+                      "procedures");
+         else if (flag)
+            tree_set_flag(decl, TREE_F_NEVER_WAITS);
+      }
+      break;
+
+   case W_FOREIGN:
+      {
+         // See LRM 08 section 20.2.4.3
+
+         if (tree_kind(value) != T_STRING)
+            sem_error(value, "FOREIGN attribute must have string "
+                      "literal value");
+
+         const int nchars = tree_chars(value);
+         char *buf LOCAL = xmalloc(nchars + 1);
+         for (int i = 0; i < nchars; i++)
+            buf[i] = tree_pos(tree_ref(tree_char(value, i)));
+         buf[nchars] = '\0';
+
+         subprogram_kind_t kind = S_FOREIGN;
+         char *p = strtok(buf, " ");
+         if (strcmp(p, "VHPIDIRECT") == 0) {
+            p = strtok(NULL, " ");
+            if (p != NULL) {
+               // The object library specifier is silently ignored
+               char *p2 = strtok(NULL, " ");
+               if (p2 != NULL) p = p2;
+            }
+         }
+         else if (strcmp(p, "INTERNAL") == 0) {
+            p = strtok(NULL, " ");
+            kind = S_INTERNAL;
+         }
+         else if (strtok(NULL, " ") != NULL)
+            sem_error(value, "failed to parse FOREIGN attribute");
+
+         ident_t name = ident_new(p);
+         tree_set_ident2(decl, name);
+
+         tree_set_subkind(decl, kind);
+         tree_set_flag(decl, TREE_F_NEVER_WAITS);
+      }
+      break;
+
+   default:
+      break;
+   }
 
    return true;
 }

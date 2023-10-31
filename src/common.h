@@ -233,6 +233,7 @@ typedef enum {
    W_STD_REFLECTION,
    W_NVC_PSL_SUPPORT,
    W_VITAL,
+   W_NEVER_WAITS,
 
    NUM_WELL_KNOWN
 } well_known_t;

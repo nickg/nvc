@@ -279,3 +279,20 @@ begin
     wait;
   END PROCESS TESTING;
 END c07s04b01x00p08n01i02565arch;
+
+architecture builtins of e is
+    procedure p;
+    attribute never_waits : boolean;
+    attribute never_waits of p : procedure is true;  -- OK
+    attribute never_waits of p : procedure is false;  -- OK
+    attribute never_waits of p : procedure is 1 = 1;  -- Error
+    function f return integer;
+    attribute never_waits of f : function is true;   -- Error
+    procedure q (x : integer);
+    procedure q (x : boolean);
+    attribute never_waits of q [integer] : procedure is true;  -- OK
+    attribute foreign of f [return integer] : function is "bad string";  -- Error
+    attribute foreign of f [return integer] : function is e'path_name;  -- Error
+begin
+
+end architecture;

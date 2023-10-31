@@ -138,4 +138,38 @@ package TEXTIO is
   alias OCTAL_WRITE is OWRITE [LINE, BIT_VECTOR, SIDE, WIDTH];
   procedure HWRITE (L: inout LINE; VALUE: in BIT_VECTOR; JUSTIFIED: in SIDE := RIGHT; FIELD: in WIDTH := 0);
   alias HEX_WRITE is HWRITE [LINE, BIT_VECTOR, SIDE, WIDTH];
+
+  attribute never_waits : boolean;
+  attribute never_waits of readline [text, line] : procedure is true;
+  attribute never_waits of read [line, bit, boolean] : procedure is true;
+  attribute never_waits of read [line, bit] : procedure is true;
+  attribute never_waits of read [line, bit_vector, boolean] : procedure is true;
+  attribute never_waits of read [line, bit_vector] : procedure is true;
+  attribute never_waits of read [line, boolean, boolean] : procedure is true;
+  attribute never_waits of read [line, boolean] : procedure is true;
+  attribute never_waits of read [line, character, boolean] : procedure is true;
+  attribute never_waits of read [line, character] : procedure is true;
+  attribute never_waits of read [line, integer, boolean] : procedure is true;
+  attribute never_waits of read [line, integer] : procedure is true;
+  attribute never_waits of read [line, real, boolean] : procedure is true;
+  attribute never_waits of read [line, real] : procedure is true;
+  attribute never_waits of read [line, string, boolean] : procedure is true;
+  attribute never_waits of read [line, string] : procedure is true;
+  attribute never_waits of read [line, time, boolean] : procedure is true;
+  attribute never_waits of read [line, time] : procedure is true;
+  attribute never_waits of sread [line, string, natural] : procedure is true;
+  attribute never_waits of oread [line, bit_vector, boolean] : procedure is true;
+  attribute never_waits of oread [line, bit_vector] : procedure is true;
+  attribute never_waits of hread [line, bit_vector, boolean] : procedure is true;
+  attribute never_waits of hread [line, bit_vector] : procedure is true;
+  attribute never_waits of writeline [text, line] : procedure is true;
+  attribute never_waits of write [line, bit, side, width] : procedure is true;
+  attribute never_waits of write [line, bit_vector, side, width] : procedure is true;
+  attribute never_waits of write [line, boolean, side, width] : procedure is true;
+  attribute never_waits of write [line, character, side, width] : procedure is true;
+  attribute never_waits of write [line, integer, side, width] : procedure is true;
+  attribute never_waits of write [line, real, side, width, natural] : procedure is true;
+  attribute never_waits of write [line, string, side, width] : procedure is true;
+  attribute never_waits of write [line, time, side, width, time] : procedure is true;
+
 end package TEXTIO;

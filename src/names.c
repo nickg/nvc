@@ -4002,7 +4002,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
 
             if (a != NULL) {
                tree_set_value(aref, tree_value(a));
-               type = tree_type(tree_ref(a));
+               type = tree_type(a);
             }
             else {
                error_at(tree_loc(prefix), "object %s has no attribute %s",

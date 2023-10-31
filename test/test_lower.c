@@ -5569,6 +5569,24 @@ START_TEST(test_issue768)
 }
 END_TEST
 
+START_TEST(test_proc4)
+{
+   input_from_file(TESTDIR "/lower/proc4.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.PROC4.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+      { VCODE_OP_FCALL, .func = "WORK.PACK.DOES_NOT_WAIT" },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5703,6 +5721,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_subtype1);
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_issue768);
+   tcase_add_test(tc, test_proc4);
    suite_add_tcase(s, tc);
 
    return s;
