@@ -19,6 +19,7 @@
 #include "jit/jit.h"
 #include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"
+#include "rt/model.h"
 #include "rt/rt.h"
 
 #include <assert.h>
@@ -51,9 +52,10 @@ static ffi_uarray_t bit_vec_to_string(const uint8_t *vec, size_t vec_len,
 }
 
 DLLEXPORT
-int64_t _std_standard_now(void)
+void _std_standard_now(jit_scalar_t *args)
 {
-   return x_now();
+   rt_model_t *m = get_model_or_null();
+   args[0].integer = m ? model_now(m, NULL) : 0;
 }
 
 DLLEXPORT

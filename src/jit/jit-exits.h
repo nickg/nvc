@@ -41,8 +41,6 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_implicit_event(sig_shared_t *ss, uint32_t offset, int32_t count,
                       sig_shared_t *wake_ss);
 void x_alias_signal(sig_shared_t *ss, tree_t where);
-int64_t x_now(void);
-int x_current_delta(void);
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
                         int64_t after, int64_t reject);
 void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,

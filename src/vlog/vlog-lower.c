@@ -515,7 +515,7 @@ static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
          }
 
          emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, VCODE_CC_VARIADIC, args, nparams);
+                    VCODE_INVALID_TYPE, VCODE_CC_INTERNAL, args, nparams);
       }
       break;
 

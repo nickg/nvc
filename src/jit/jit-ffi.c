@@ -36,11 +36,16 @@
 #include <dlfcn.h>
 #endif
 
+typedef enum {
+   FFI_GENERIC, FFI_INTERNAL
+} ffi_kind_t;
+
 typedef struct _jit_foreign {
-   ffi_cif     cif;
-   void       *ptr;
    ident_t     sym;
+   void       *ptr;
    ffi_spec_t  spec;
+   ffi_kind_t  kind;
+   ffi_cif     cif;
    int         nargs;
    ffi_type   *args[];
 } jit_foreign_t;
@@ -69,6 +74,11 @@ jit_foreign_t *jit_ffi_get(ident_t sym)
    return hash_get(cache, sym);
 }
 
+static bool ffi_spec_is_internal(ffi_spec_t spec)
+{
+   return spec.count == 2 && ffi_spec_get(spec, 1) == FFI_ARGARRAY;
+}
+
 static ffi_type *libffi_type_for(ffi_type_t type)
 {
    switch (type) {
@@ -77,7 +87,6 @@ static ffi_type *libffi_type_for(ffi_type_t type)
    case FFI_INT32:   return &ffi_type_sint32;
    case FFI_INT64:   return &ffi_type_sint64;
    case FFI_FLOAT:   return &ffi_type_double;
-   case FFI_VARIADIC:
    case FFI_POINTER: return &ffi_type_pointer;
    case FFI_UARRAY:
    case FFI_VOID:
@@ -97,6 +106,16 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
          return exist;
    }
 
+   if (ffi_spec_is_internal(spec)) {
+      jit_foreign_t *ff = xcalloc(sizeof(jit_foreign_t));
+      ff->kind = FFI_INTERNAL;
+      ff->ptr  = ptr;
+      ff->sym  = sym;
+      ff->spec = spec;
+
+      return ff;
+   }
+
    ffi_spec_t copy = spec;
    if (spec.count == 0)
       copy.ext = xstrdup(spec.ext);
@@ -112,6 +131,7 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
 
    jit_foreign_t *ff = xcalloc_flex(sizeof(jit_foreign_t),
                                     adj_nargs, sizeof(ffi_type *));
+   ff->kind  = FFI_GENERIC;
    ff->ptr   = ptr;
    ff->sym   = sym;
    ff->spec  = copy;
@@ -144,24 +164,28 @@ jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
 
 void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
 {
+   if (ff->ptr == NULL) {
+      const char *sym = istr(ff->sym);
+      if ((ff->ptr = ffi_find_symbol(NULL, sym)) == NULL)
+         jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", sym);
+   }
+
+   if (ff->kind == FFI_INTERNAL) {
+      // Fast calling convention for internal routines
+      void (*entry)(jit_scalar_t *) = ff->ptr;
+      (*entry)(args);
+      return;
+   }
+
    void *aptrs[ff->nargs + 1];
    for (int i = 0; i < ff->nargs; i++)
       aptrs[i] = &(args[i].integer);
-
-   if (ffi_spec_get(ff->spec, ff->nargs) == FFI_VARIADIC)
-      aptrs[ff->nargs - 1] = &args;
 
    const ffi_type_t rtype = ffi_spec_get(ff->spec, 0);
 
    ffi_uarray_t u, *up = &u;
    if (rtype == FFI_UARRAY)
       aptrs[ff->nargs] = &up;
-
-   if (ff->ptr == NULL) {
-      const char *sym = istr(ff->sym);
-      if ((ff->ptr = ffi_find_symbol(NULL, sym)) == NULL)
-         jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", sym);
-   }
 
    intmax_t result;
    ffi_call(&ff->cif, ff->ptr, &result, aptrs);
@@ -356,7 +380,7 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
 
 #ifdef DEBUG
    for (int i = 0; i < count; i++)
-      assert(islower(types[i]) || types[i] == FFI_VARIADIC);
+      assert(islower(types[i]) || types[i] == FFI_ARGARRAY);
 #endif
 
    ffi_spec_t spec = {};

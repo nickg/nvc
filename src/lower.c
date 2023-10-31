@@ -2498,6 +2498,8 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
 
    if (skind == S_FOREIGN)
       return VCODE_CC_FOREIGN;
+   else if (skind == S_INTERNAL)
+      return VCODE_CC_INTERNAL;
    else if (is_builtin(skind))
       return VCODE_CC_PREDEF;
    else
@@ -2609,7 +2611,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 
    if (tree_kind(fcall) == T_PROT_FCALL && tree_has_name(fcall))
       APUSH(args, lower_rvalue(lu, tree_name(fcall)));
-   else if (cc != VCODE_CC_FOREIGN)
+   else if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
       APUSH(args, lower_context_for_call(lu, name));
 
    for (int i = 0; i < nparams; i++) {
@@ -5660,6 +5662,13 @@ static void lower_clear_event(lower_unit_t *lu, tree_t on)
    }
 }
 
+static vcode_reg_t lower_call_now(void)
+{
+   ident_t func = ident_new("_std_standard_now");
+   vcode_type_t rtype = vtype_time();
+   return emit_fcall(func, rtype, rtype, VCODE_CC_INTERNAL, NULL, 0);
+}
+
 static void lower_wait(lower_unit_t *lu, tree_t wait)
 {
    const bool is_static = !!(tree_flags(wait) & TREE_F_STATIC_WAIT);
@@ -5689,9 +5698,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
          remain = emit_var(time, time, remain_i, 0);
       }
 
-      vcode_type_t rtype = vtype_time();
-      vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
-                                       rtype, rtype, VCODE_CC_FOREIGN, NULL, 0);
+      vcode_reg_t now_reg = lower_call_now();
       vcode_reg_t abs_reg = emit_add(now_reg, delay);
       emit_store(abs_reg, remain);
    }
@@ -5714,11 +5721,8 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
       vcode_reg_t timeout_reg = VCODE_INVALID_REG;
       vcode_reg_t done_reg = until_reg;
       if (has_delay) {
-         vcode_type_t rtype = vtype_time();
          vcode_reg_t remain_reg = emit_load(remain);
-         vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
-                                          rtype, rtype, VCODE_CC_FOREIGN,
-                                          NULL, 0);
+         vcode_reg_t now_reg = lower_call_now();
          timeout_reg = emit_sub(remain_reg, now_reg);
 
          vcode_reg_t expired_reg = emit_cmp(VCODE_CMP_EQ, timeout_reg,
@@ -6568,7 +6572,7 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
 
    if (tree_kind(pcall) == T_PROT_PCALL && tree_has_name(pcall))
       APUSH(args, lower_rvalue(lu, tree_name(pcall)));
-   else if (cc != VCODE_CC_FOREIGN)
+   else if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
       APUSH(args, lower_context_for_call(lu, name));
 
    const int arg0 = args.count;
@@ -9788,9 +9792,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_FUNC_DECL:
         {
            const subprogram_kind_t kind = tree_subkind(d);
-           if (kind == S_USER || kind == S_FOREIGN)
-              continue;
-           else if (is_open_coded_builtin(kind))
+           if (!is_builtin(kind) || is_open_coded_builtin(kind))
               continue;
 
            unit_registry_defer(lu->registry, tree_ident2(d),
@@ -10782,7 +10784,7 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
 
    const subprogram_kind_t kind = tree_subkind(decl);
-   assert(kind != S_USER && kind != S_FOREIGN);
+   assert(is_builtin(kind));
    assert(!is_open_coded_builtin(kind));
 
    type_t type = tree_type(decl);

@@ -808,7 +808,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          continue;
       else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
          if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
-            if ((mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
+            if ((mask & N_SUBPROGRAM) && is_foreign(tree_subkind(dd->tree))) {
                // Ignore redundant bodies of foreign subprograms
                return sym;
             }
@@ -846,7 +846,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          dd->visibility = HIDDEN;
       }
       else if (is_forward_decl(decl, dd->tree)) {
-         if ((dd->mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
+         if ((dd->mask & N_SUBPROGRAM) && is_foreign(tree_subkind(dd->tree))) {
             // Hide bodies of subprograms declared with 'FOREIGN attribute
             return sym;
          }

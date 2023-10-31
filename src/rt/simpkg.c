@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2023  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,20 +18,29 @@
 #include "util.h"
 #include "option.h"
 #include "jit/jit.h"
-#include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"
+#include "rt/model.h"
 #include "rt/rt.h"
 
 DLLEXPORT
-bool _nvc_ieee_warnings(void)
+void _nvc_ieee_warnings(jit_scalar_t *args)
 {
-   return opt_get_int(OPT_IEEE_WARNINGS);
+   args[0].integer = opt_get_int(OPT_IEEE_WARNINGS);
 }
 
 DLLEXPORT
-int _nvc_current_delta(void)
+void _nvc_current_delta(jit_scalar_t *args)
 {
-   return x_current_delta();
+   rt_model_t *m = get_model_or_null();
+
+   if (m == NULL)
+      args[0].integer = 0;
+   else {
+      unsigned delta;
+      model_now(m, &delta);
+
+      args[0].integer = delta;
+   }
 }
 
 void _nvc_sim_pkg_init(void)

@@ -3611,16 +3611,6 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 }
 
-int64_t x_now(void)
-{
-   return __model ? __model->now : 0;
-}
-
-int x_current_delta(void)
-{
-   return __model ? __model->iteration : 0;
-}
-
 void x_sched_process(int64_t delay)
 {
    rt_proc_t *proc = get_active_proc();

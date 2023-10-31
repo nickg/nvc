@@ -1592,6 +1592,7 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
       buf[i] = tree_pos(tree_ref(tree_char(value, i)));
    buf[nchars] = '\0';
 
+   subprogram_kind_t kind = S_FOREIGN;
    char *p = strtok(buf, " ");
    if (strcmp(p, "VHPIDIRECT") == 0) {
       p = strtok(NULL, " ");
@@ -1601,13 +1602,17 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
          if (p2 != NULL) p = p2;
       }
    }
+   else if (strcmp(p, "INTERNAL") == 0) {
+      p = strtok(NULL, " ");
+      kind = S_INTERNAL;
+   }
    else if (strtok(NULL, " ") != NULL)
-      error_at(tree_loc(value), "failed to parse foregin attribute");
+      error_at(tree_loc(value), "failed to parse foreign attribute");
 
    ident_t name = ident_new(p);
    tree_set_ident2(decl, name);
 
-   tree_set_subkind(decl, S_FOREIGN);
+   tree_set_subkind(decl, kind);
    tree_set_flag(decl, TREE_F_NEVER_WAITS);
 }
 

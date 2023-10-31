@@ -120,6 +120,6 @@ package STANDARD is
 
     attribute FOREIGN : STRING;
 
-    attribute FOREIGN of NOW : function is "_std_standard_now";
+    attribute FOREIGN of NOW : function is "INTERNAL _std_standard_now";
 
 end package;

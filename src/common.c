@@ -1115,7 +1115,7 @@ bool package_needs_body(tree_t pack)
       case T_PROC_DECL:
          if (tree_flags(d) & TREE_F_PREDEFINED)
             continue;
-         else if (tree_subkind(d) == S_FOREIGN)
+         else if (is_foreign(tree_subkind(d)))
             continue;
          return true;
 
@@ -1317,7 +1317,12 @@ type_t reflection_type(reflect_type_t which)
 
 bool is_builtin(subprogram_kind_t kind)
 {
-   return kind != S_USER && kind != S_FOREIGN;
+   return kind != S_USER && kind != S_FOREIGN && kind != S_INTERNAL;
+}
+
+bool is_foreign(subprogram_kind_t kind)
+{
+   return kind == S_FOREIGN || kind == S_INTERNAL;
 }
 
 bool is_open_coded_builtin(subprogram_kind_t kind)
@@ -1325,6 +1330,7 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    switch (kind) {
    case S_USER:
    case S_FOREIGN:
+   case S_INTERNAL:
    case S_ARRAY_EQ:
    case S_ARRAY_NEQ:
    case S_ARRAY_LT:

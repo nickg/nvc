@@ -311,9 +311,9 @@ START_TEST(test_record3)
 END_TEST
 
 DLLEXPORT
-int _nvc_ieee_warnings(void)
+void _nvc_ieee_warnings(jit_scalar_t *args)
 {
-   return 1;
+   args[0].integer = 1;
 }
 
 START_TEST(test_ieee_warnings)
