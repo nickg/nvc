@@ -380,6 +380,18 @@ case $host_os in
 esac
 AC_SUBST(VHPI_LDFLAGS)
 
+NVC_CHECK_EMUTLS
+if test "$nvc_cv_use_emutls" = "yes"; then
+  AC_MSG_WARN(m4_normalize(
+                [this system uses emulated thread-local storage which
+                 has a significant performance overhead]))
+  case $host_os in
+    msys*|mingw32*)
+      AC_MSG_NOTICE([try building in the MSYS2 Clang x64 environment instead])
+      ;;
+  esac
+fi
+
 AC_ARG_ENABLE([vital],
   [AS_HELP_STRING([--enable-vital], [Build VITAL packages])],
   [enable_vital=$enableval],
