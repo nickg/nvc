@@ -895,3 +895,4 @@ mixed1          mixed
 ename5          fail,gold,2008
 ename6          normal,2008
 cover20         cover,shell
+issue787        normal

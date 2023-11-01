@@ -3700,17 +3700,21 @@ void x_transfer_signal(sig_shared_t *target_ss, uint32_t toffset,
 
    t->wakeable.kind      = W_TRANSFER;
    t->wakeable.postponed = false;
-   t->wakeable.pending   = true;   // Scheduled immediately
+   t->wakeable.pending   = false;
    t->wakeable.delayed   = false;
 
    for (rt_nexus_t *n = t->source; count > 0; n = n->chain) {
       sched_event(m, n, &(t->wakeable));
 
+      if (!t->wakeable.pending) {
+         // Schedule initial update immediately
+         deferq_do(&m->delta_procq, async_transfer_signal, t);
+         t->wakeable.pending = true;
+      }
+
       count -= n->width;
       assert(count >= 0);
    }
-
-   deferq_do(&m->delta_procq, async_transfer_signal, t);
 }
 
 int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
