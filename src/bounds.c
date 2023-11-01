@@ -744,7 +744,7 @@ static void bounds_check_subtype(type_t type)
    }
 }
 
-static void bounds_check_decl(tree_t t)
+static void bounds_check_object_decl(tree_t t)
 {
    if (tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
@@ -763,8 +763,12 @@ static void bounds_check_alias_decl(tree_t t)
    bounds_check_subtype(tree_type(t));
 }
 
-static void bounds_check_port_decl(tree_t t)
+static void bounds_check_interface_decl(tree_t t)
 {
+   const class_t class = tree_class(t);
+   if (class == C_FUNCTION || class == C_PROCEDURE || class == C_PACKAGE)
+      return;
+
    const port_mode_t mode = tree_subkind(t);
    if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW && tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
@@ -1303,18 +1307,15 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_CONST_DECL:
    case T_VAR_DECL:
-   case T_PARAM_DECL:
-      bounds_check_decl(t);
+      bounds_check_object_decl(t);
       break;
    case T_PORT_DECL:
-      bounds_check_port_decl(t);
+   case T_PARAM_DECL:
+   case T_GENERIC_DECL:
+      bounds_check_interface_decl(t);
       break;
    case T_ALIAS:
       bounds_check_alias_decl(t);
-      break;
-   case T_GENERIC_DECL:
-      if (tree_class(t) == C_CONSTANT)
-         bounds_check_decl(t);
       break;
    case T_SIGNAL_ASSIGN:
       bounds_check_signal_assign(t);

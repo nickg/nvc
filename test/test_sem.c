@@ -3036,6 +3036,13 @@ START_TEST(test_lcs2016_45a)
         "compatible with actual" },
       { 167, "actual associated with port P with mode view indication must "
         "be a static signal name" },
+      { 172, "name in mode view indication of parameter X does not denote a "
+        "mode view" },
+      { 173, "parameter X with array mode view indication has non-array "
+        "type REC_T" },
+      { 174, "subtype INTEGER is not compatible with mode view MASTER_REC_T" },
+      { 177, "mode view indication of formal parameter X element A is not "
+        "compatible with actual" },
       { -1, NULL }
    };
    expect_errors(expect);

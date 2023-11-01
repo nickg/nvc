@@ -166,4 +166,15 @@ begin
 
     u3: component comp1 port map ( ( '1', '0' ) );  -- Error
 
+    p2: process is
+        procedure proc1 ( signal x : view slave_rec_t of rec_t );  -- OK
+        procedure proc2 ( signal x : view slave_rec_t'converse of rec_t );  -- OK
+        procedure proc3 ( signal x : view integer of rec_t );  -- Error
+        procedure proc4 ( signal x : view (slave_rec_t) of rec_t );  -- Error
+        procedure proc4 ( signal x : view slave_rec_t of integer );  -- Error
+    begin
+        proc1(r);                       -- OK
+        proc2(r);                       -- Error
+    end process;
+
 end architecture;

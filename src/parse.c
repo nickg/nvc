@@ -5504,7 +5504,8 @@ static void p_interface_declaration(tree_t parent, tree_kind_t kind,
       break;
 
    default:
-      expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID, tTYPE);
+      expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID, tTYPE,
+             STD(08, tFUNCTION), tPROCEDURE, tPACKAGE);
    }
 }
 
