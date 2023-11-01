@@ -701,16 +701,16 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
 
 static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
 {
-   // TODO: Could merging be done more efficiently?
-   bool found = false;
+
    for (int i = 0; i < new_s->items.count; i++) {
       cover_item_t *new = AREF(new_s->items, i);
 
+      bool found = false;
       for (int j = 0; j < old_s->items.count; j++) {
          cover_item_t *old = AREF(old_s->items, j);
 
          // Compare based on hierarchical path, each
-         // statement / branch / signal has unique hierarchical name
+         // coverage item has unique hierarchical name
          if (new->hier == old->hier) {
             assert(new->kind == old->kind);
 #ifdef COVER_DEBUG_MERGE
@@ -721,14 +721,11 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
             found = true;
             break;
          }
-
-         // TODO: Append the new item just before popping hierarchy item
-         //       with longest common prefix of new item. That will allow to
-         //       merge coverage of IPs from different configurations of
-         //       generics which form hierarchy differently!
-         if (!found)
-            warnf("dropping coverage item: %s", istr(new->hier));
       }
+
+      // Append the new item to the common scope
+      if (!found)
+         APUSH(old_s->items, *new);
    }
 
    for (list_iter(cover_scope_t *, new_c, new_s->children)) {
@@ -742,7 +739,7 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
       }
 
       if (!found)
-         warnf("scope %s not found in original database", istr(new_c->name));
+         list_add(&old_s->children, new_c);
    }
 }
 
