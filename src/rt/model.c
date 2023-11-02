@@ -148,7 +148,11 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
+#if USE_EMUTLS
+static rt_model_t *__model = NULL;
+#else
 static __thread rt_model_t *__model = NULL;
+#endif
 
 static bool __trace_on = false;
 
@@ -317,12 +321,17 @@ static const char *fmt_jit_value(jit_scalar_t value, bool scalar, uint32_t len)
 
 static model_thread_t *model_thread(rt_model_t *m)
 {
+#if RT_MULTITHREADED
    const int my_id = thread_id();
 
    if (unlikely(m->threads[my_id] == NULL))
       return (m->threads[my_id] = xcalloc(sizeof(model_thread_t)));
 
    return m->threads[my_id];
+#else
+   assert(thread_id() == 0);
+   return m->threads[0];
+#endif
 }
 
 __attribute__((cold, noinline))
@@ -562,6 +571,8 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->where    = top;
    m->root->privdata = MPTR_INVALID;
 
+   m->threads[thread_id()] = xcalloc(sizeof(model_thread_t));
+
    rt_scope_t *s = NULL;
    tree_t s0 = tree_stmt(top, 0);
    if (tree_kind(s0) == T_VERILOG)
@@ -581,6 +592,9 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
 rt_model_t *get_model(void)
 {
    assert(__model != NULL);
+#ifdef USE_EMUTLS
+   assert(thread_id() == 0);
+#endif
    return __model;
 }
 

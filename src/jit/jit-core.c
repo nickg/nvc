@@ -125,7 +125,12 @@ static void jit_oom_cb(mspace_t *m, size_t size)
 
 jit_thread_local_t *jit_thread_local(void)
 {
+#ifdef USE_EMUTLS
+   static jit_thread_local_t *local = NULL;
+   assert(thread_id() == 0);
+#else
    static __thread jit_thread_local_t *local = NULL;
+#endif
 
    if (unlikely(local == NULL)) {
       local = xcalloc(sizeof(jit_thread_local_t));
