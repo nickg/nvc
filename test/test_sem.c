@@ -3043,6 +3043,9 @@ START_TEST(test_lcs2016_45a)
       { 174, "subtype INTEGER is not compatible with mode view MASTER_REC_T" },
       { 177, "mode view indication of formal parameter X element A is not "
         "compatible with actual" },
+      { 178, "missing actual for formal parameter X with mode view indication "
+        "MASTER_REC_T" },
+      { 181, "actual for port P with mode view indication MASTER_REC_T" },
       { -1, NULL }
    };
    expect_errors(expect);

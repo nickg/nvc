@@ -175,6 +175,9 @@ begin
     begin
         proc1(r);                       -- OK
         proc2(r);                       -- Error
+        proc2;                          -- Error
     end process;
+
+    u4: component comp1;                -- Error
 
 end architecture;

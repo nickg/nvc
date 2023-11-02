@@ -28,6 +28,7 @@ typedef struct _driver_info {
    tree_t         decl;
    tree_t         where;
    tree_t         prefix;
+   tree_t         view;
    bool           tentative;
 } driver_info_t;
 

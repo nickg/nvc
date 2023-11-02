@@ -94,7 +94,7 @@ many of the new features, please consult the table below.
   </tr>
   <tr>
     <td>External names</td>
-    <td class="feature-partial">1.7</td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>Array slices in aggregates</td>
@@ -304,7 +304,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045a">
         LCS2016-045a</td>
     <td>Interface - defines new mode view construct for composite interface objects</td>
-    <td class="feature-partial">1.10</td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045c">

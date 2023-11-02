@@ -3094,7 +3094,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 
       // Check IN and INOUT parameters can be read
       if (tree_kind(t) != T_ATTR_REF) {
-         port_mode_t mode = tree_subkind(port);
+         const port_mode_t mode = tree_subkind(port);
          if (mode == PORT_IN || mode == PORT_INOUT) {
             if (!sem_readable(value))
                return false;
@@ -3108,6 +3108,13 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
          if (!tree_has_value(port))
             sem_error(t, "missing actual for formal parameter %s without "
                       "default value", istr(tree_ident(port)));
+         else {
+            const port_mode_t mode = tree_subkind(port);
+            if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
+               sem_error(t, "missing actual for formal parameter %s with "
+                         "mode view indication %s", istr(tree_ident(port)),
+                         type_pp(tree_type(tree_value(port))));
+         }
       }
    }
 
@@ -4509,6 +4516,11 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
                      "mode IN without a default expression",
                      istr(tree_ident(formals[i].decl)));
          }
+         else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
+            error_at(tree_loc(t), "missing actual for port %s with "
+                     "mode view indication %s",
+                     istr(tree_ident(formals[i].decl)),
+                     type_pp(tree_type(tree_value(formals[i].decl))));
 
          type_t ftype = tree_type(formals[i].decl);
          if (mode != PORT_IN && type_is_unconstrained(ftype)) {

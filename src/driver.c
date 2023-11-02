@@ -65,12 +65,14 @@ static driver_info_t *alloc_driver_info(driver_set_t *ds)
 }
 
 static void drives_signal(driver_set_t *ds, tree_t where, tree_t expr,
-                          bool tentative)
+                          tree_t view, bool tentative)
 {
    if (tree_kind(expr) == T_AGGREGATE) {
       const int nassocs = tree_assocs(expr);
-      for (int i = 0; i < nassocs; i++)
-         drives_signal(ds, where, tree_value(tree_assoc(expr, i)), tentative);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t e = tree_value(tree_assoc(expr, i));
+         drives_signal(ds, where, e, NULL, tentative);
+      }
 
       return;
    }
@@ -105,6 +107,7 @@ static void drives_signal(driver_set_t *ds, tree_t where, tree_t expr,
    di->decl       = decl;
    di->prefix     = prefix;
    di->where      = where;
+   di->view       = view;
    di->tentative  = tentative;
 
    if (last == NULL)
@@ -128,7 +131,7 @@ static void driver_proc_cb(tree_t t, void *ctx)
    switch (tree_kind(t)) {
    case T_SIGNAL_ASSIGN:
       drives_signal(params->ds, params->proc, tree_target(t),
-                    params->tentative);
+                    NULL, params->tentative);
       break;
 
    case T_PCALL:
@@ -149,7 +152,13 @@ static void driver_proc_cb(tree_t t, void *ctx)
                tree_t arg = tree_param(t, i);
                assert(tree_subkind(arg) == P_POS);
                drives_signal(params->ds, params->proc, tree_value(arg),
-                             params->tentative);
+                             NULL, params->tentative);
+            }
+            else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+               tree_t arg = tree_param(t, i);
+               assert(tree_subkind(arg) == P_POS);
+               drives_signal(params->ds, params->proc, tree_value(arg),
+                             tree_value(p), params->tentative);
             }
          }
       }
@@ -160,10 +169,9 @@ static void driver_proc_cb(tree_t t, void *ctx)
    }
 }
 
-static void visit_instance(driver_set_t *ds, tree_t inst, bool tentative)
+static void visit_port_map(driver_set_t *ds, tree_t unit, tree_t inst,
+                           bool tentative)
 {
-   tree_t unit = primary_unit_of(tree_ref(inst));
-
    const int nparams = tree_params(inst);
    for (int i = 0; i < nparams; i++) {
       tree_t map = tree_param(inst, i);
@@ -188,10 +196,20 @@ static void visit_instance(driver_set_t *ds, tree_t inst, bool tentative)
       switch (tree_subkind(port)) {
       case PORT_OUT:
       case PORT_INOUT:
-         drives_signal(ds, inst, tree_value(map), tentative);
+         drives_signal(ds, inst, tree_value(map), NULL, tentative);
+         break;
+      case PORT_ARRAY_VIEW:
+      case PORT_RECORD_VIEW:
+         drives_signal(ds, inst, tree_value(map), tree_value(port), tentative);
          break;
       }
    }
+}
+
+static void visit_instance(driver_set_t *ds, tree_t inst, bool tentative)
+{
+   tree_t unit = primary_unit_of(tree_ref(inst));
+   visit_port_map(ds, unit, inst, tentative);
 }
 
 static void visit_block(driver_set_t *ds, tree_t b, bool tentative)
@@ -211,6 +229,7 @@ static void visit_block(driver_set_t *ds, tree_t b, bool tentative)
          }
          break;
       case T_BLOCK:
+         visit_port_map(ds, s, s, tentative);
          visit_block(ds, s, tentative);
          break;
       case T_FOR_GENERATE:

@@ -2037,9 +2037,17 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
          for (int i = 0; i < nparams; i++) {
             tree_t p = tree_param(expr, i);
             assert(tree_subkind(p) == P_POS);
-            const port_mode_t mode = tree_subkind(tree_port(decl, tree_pos(p)));
-            if (mode == PORT_IN || mode == PORT_INOUT)
+
+            switch (tree_subkind(tree_port(decl, tree_pos(p)))) {
+            case PORT_IN:
+            case PORT_INOUT:
+            case PORT_ARRAY_VIEW:
+            case PORT_RECORD_VIEW:
                build_wait(tree_value(p), fn, ctx);
+               break;
+            default:
+               break;
+            }
          }
       }
       break;

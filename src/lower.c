@@ -10946,15 +10946,32 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                                   vcode_reg_t ptr, vcode_reg_t unused,
                                   vcode_reg_t locus, void *__ctx)
 {
+   tree_t view = untag_pointer(__ctx, void), elem = NULL;
+   bool converse = !!pointer_tag(__ctx);
+
    type_t type = tree_type(field);
+
+   if (view != NULL) {
+      elem = find_element_mode_indication(view, field, &converse);
+      assert(elem != NULL);
+
+      const port_mode_t mode = converse_mode(elem, converse);
+      if (mode != PORT_OUT && mode != PORT_INOUT)
+         return;
+   }
+
    if (type_is_homogeneous(type)) {
       vcode_reg_t nets_reg = emit_load_indirect(ptr);
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
-      emit_drive_signal(lower_array_data(nets_reg), count_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+      emit_drive_signal(data_reg, count_reg);
    }
-   else
+   else {
+      void *new_ctx = tag_pointer(elem ? tree_value(elem) : NULL, converse);
       lower_for_each_field(lu, type, ptr, VCODE_INVALID_REG,
-                           VCODE_INVALID_REG, lower_driver_field_cb, NULL);
+                           VCODE_INVALID_REG, lower_driver_field_cb, new_ctx);
+   }
 }
 
 static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
@@ -11040,8 +11057,10 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
       if (!type_is_homogeneous(prefix_type))
          lower_for_each_field(lu, prefix_type, nets_reg, VCODE_INVALID_REG,
-                              VCODE_INVALID_REG, lower_driver_field_cb, NULL);
+                              VCODE_INVALID_REG, lower_driver_field_cb,
+                              di->view);
       else {
+         assert(di->view == NULL);
          vcode_reg_t count_reg = lower_type_width(lu, prefix_type, nets_reg);
          emit_drive_signal(lower_array_data(nets_reg), count_reg);
       }

@@ -192,6 +192,28 @@ START_TEST(test_unique2)
 }
 END_TEST
 
+START_TEST(test_unique3)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/driver/unique3.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   driver_set_t *ds = find_drivers(a);
+
+   tree_t s1 = get_decl(a, "S1");
+   ck_assert(!has_unique_driver(ds, s1));
+
+   tree_t s2 = get_decl(a, "S2");
+   ck_assert(!has_unique_driver(ds, s2));
+
+   free_drivers(ds);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_driver_tests(void)
 {
    Suite *s = suite_create("driver");
@@ -201,6 +223,7 @@ Suite *get_driver_tests(void)
    tcase_add_test(tc, test_sanity2);
    tcase_add_test(tc, test_unique1);
    tcase_add_test(tc, test_unique2);
+   tcase_add_test(tc, test_unique3);
    suite_add_tcase(s, tc);
 
    return s;
