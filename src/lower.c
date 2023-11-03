@@ -5056,7 +5056,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          if (lower_have_signal(value_reg))
             value_reg = emit_resolved(value_reg);
 
-         if (type_const_bounds(value_type))
+         if (vcode_reg_kind(value_reg) != VCODE_TYPE_UARRAY)
             value_reg = lower_wrap(lu, value_type, value_reg);
 
          type_t base = type_base_recur(name_type);
