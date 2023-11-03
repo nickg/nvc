@@ -1198,5 +1198,20 @@ PACKAGE VITAL_Timing IS
         SIGNAL   Trigger           : INOUT  std_ulogic
     );
 
+    attribute never_waits : boolean;
+
+    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType] : procedure is true;
+    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType01] : procedure is true;
+    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType01Z] : procedure is true;
+
+    attribute never_waits of VitalSetupHoldCheck
+	[X01, VitalTimingDataType, std_ulogic, string, time, std_ulogic, string, time,
+	 time, time, time, time, boolean, VitalEdgeSymbolType, string, boolean, boolean,
+	 severity_level, boolean, boolean, boolean, boolean] : procedure is true;
+    attribute never_waits of VitalSetupHoldCheck
+	[X01, VitalTimingDataType, std_logic_vector, string, time, std_ulogic, string,
+	 time, time, time, time, time, boolean, VitalEdgeSymbolType, string, boolean,
+	 boolean, severity_level, boolean, boolean, boolean, boolean] : procedure is true;
+
 
 END VITAL_Timing;

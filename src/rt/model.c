@@ -2108,6 +2108,7 @@ cover_data_t *get_coverage(rt_model_t *m)
    return m->cover;
 }
 
+#if TRACE_SIGNALS
 static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
                             tree_t alias)
 {
@@ -2177,6 +2178,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
          dump_signals(m, c);
    }
 }
+#endif   // TRACE_SIGNALS
 
 static text_buf_t *signal_full_name(rt_signal_t *s)
 {
