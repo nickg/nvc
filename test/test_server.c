@@ -140,8 +140,8 @@ static int open_connection(void)
          break;
    }
 
-   fail_unless(strstr(resp, "HTTP/1.1 101 Switching Protocols\r\n"));
-   fail_unless(strstr(resp, "Connection: Upgrade\r\n"));
+   fail_unless(strstr(resp, "HTTP/1.1 101\r\n"));
+   fail_unless(strstr(resp, "Connection: upgrade\r\n"));
 
    return sock;
 }

@@ -56,7 +56,6 @@ bin_unit_test_LDADD = \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
 	$(libzstd_LIBS) \
-	$(libmicrohttpd_LIBS) \
 	$(TCL_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)

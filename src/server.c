@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "hash.h"
 #include "ident.h"
 #include "jit/jit.h"
 #include "option.h"
@@ -30,12 +31,22 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/fcntl.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <microhttpd.h>
+#include <time.h>
+
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
 #define WS_UPGRADE_VALUE     "websocket"
 #define WS_WEBSOCKET_VERSION "13"
@@ -44,13 +55,22 @@
 #define WS_KEY_LEN           24
 #define WS_KEY_GUID_LEN      (WS_KEY_LEN + WS_GUID_LEN)
 
+#define HTTP_SWITCHING_PROTOCOLS   101
+#define HTTP_OK                    200
+#define HTTP_BAD_REQUEST           400
+#define HTTP_NOT_FOUND             404
+#define HTTP_METHOD_NOT_ALLOWED    405
+#define HTTP_UPGRADE_REQUIRED      426
+#define HTTP_INTERNAL_SERVER_ERROR 500
+
 #define WS_OPCODE_TEXT_FRAME   0x1
 #define WS_OPCODE_BINARY_FRAME 0x2
 #define WS_OPCODE_CLOSE_FRAME  0x8
 #define WS_OPCODE_PING_FRAME   0xa
 #define WS_OPCODE_PONG_FRAME   0xb
 
-#define PORT 8888
+#define PORT             8888
+#define MAX_HTTP_REQUEST 1024
 
 typedef struct _web_socket {
    int           sock;
@@ -74,15 +94,12 @@ typedef struct _packet_buf {
    size_t rptr;
 } packet_buf_t;
 
-typedef struct MHD_UpgradeResponseHandle mhd_urh_t;
-
 typedef struct {
    tcl_shell_t  *shell;
    bool          shutdown;
    bool          banner;
-   mhd_urh_t    *urh;
    web_socket_t *websocket;
-   MHD_socket    closesock;
+   int           sock;
    tree_t        top;
    packet_buf_t *packetbuf;
    const char   *init_cmd;
@@ -206,7 +223,7 @@ void ws_poll(web_socket_t *ws)
    if (ws->rx_size - ws->rx_wptr < 1024)
       ws->rx_buf = xrealloc(ws->rx_buf, (ws->rx_size += 1024));
 
-   const ssize_t nbytes = recv(ws->sock, ws->rx_buf + ws->rx_wptr,
+   const ssize_t nbytes = recv(ws->sock, (char *)ws->rx_buf + ws->rx_wptr,
                                ws->rx_size - ws->rx_wptr - 1, 0);
    if (nbytes == -1 && errno == EAGAIN)
       return;
@@ -300,7 +317,7 @@ void ws_poll(web_socket_t *ws)
          break;
 
       default:
-         debugf("unhandled WebSocket opcode %02x", opcode);
+         DEBUG_ONLY(fatal_trace("unhandled WebSocket opcode %02x", opcode));
          break;
       }
 
@@ -416,83 +433,106 @@ typedef enum {
 __attribute__((format(printf, 2, 3)))
 static void server_log(log_level_t level, const char *fmt, ...)
 {
+   if (opt_get_int(OPT_UNIT_TEST))
+      return;
+   else if (DEBUG_ONLY(false &&) level < LOG_INFO)
+      return;
+
    va_list ap;
    va_start(ap, fmt);
 
-   char *buf LOCAL = xvasprintf(fmt, ap);
-   debugf("%s", buf);
+   switch (level) {
+   case LOG_DEBUG: color_printf("$#8$D: "); break;
+   case LOG_INFO: printf("I: "); break;
+   case LOG_WARN: color_printf("$yellow$W: "); break;
+   case LOG_ERROR: color_printf("$red$E: "); break;
+   }
+
+   vprintf(fmt, ap);
+   color_printf("$$\n");
 
    va_end(ap);
 }
 
-static enum MHD_Result send_page(struct MHD_Connection *connection,
-                                 int status, const char *page)
+static void write_fully(int fd, const void *data, size_t len)
 {
-   struct MHD_Response *response =
-      MHD_create_response_from_buffer(strlen(page), (void *)page,
-                                      MHD_RESPMEM_PERSISTENT);
+   while (len > 0) {
+      ssize_t nbytes = write(fd, data, len);
+      if (nbytes <= 0) {
+         server_log(LOG_ERROR, "write: %s", strerror(errno));
+         return;
+      }
 
-   enum MHD_Result ret = MHD_queue_response(connection, status, response);
-   MHD_destroy_response(response);
-
-   return ret;
+      data += nbytes;
+      len -= nbytes;
+   }
 }
 
-#if 0
-static enum MHD_Result send_buffer(struct MHD_Connection *connection,
-                                   int status, text_buf_t *tb)
+static void send_http_headers(int fd, int status, const char *type, size_t len,
+                              const char *headers)
 {
-   const size_t len = tb_len(tb);
-   char *buf = tb_claim(tb);
-
-   struct MHD_Response *response =
-      MHD_create_response_from_buffer(len, buf, MHD_RESPMEM_MUST_FREE);
-
-   enum MHD_Result ret = MHD_queue_response(connection, status, response);
-   MHD_destroy_response(response);
-
-   return ret;
-}
+   char date[128];
+   time_t now = time(0);
+   struct tm tm;
+#ifdef __MINGW32__
+   gmtime_s(&tm, &now);
+#else
+   gmtime_r(&now, &tm);
 #endif
+   strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S %Z", &tm);
 
-#if 0
-static enum MHD_Result send_file(struct MHD_Connection *connection,
-                                 const char *file, const char *mime)
+   char buf[512];
+   const int nbytes = checked_sprintf(buf, sizeof(buf),
+                                      "HTTP/1.1 %d\r\n"
+                                      "Date: %s\r\n"
+                                      "Content-Type: %s; charset=UTF-8\r\n"
+                                      "Content-Length: %zu\r\n"
+                                      "%s\r\n",
+                                      status, date, type, len, headers);
+
+   write_fully(fd, buf, nbytes);
+}
+
+static void send_page(int fd, int status, const char *page)
 {
-   int fd = open(file, O_RDONLY);
-   if (fd == -1)
-      return send_page(connection, MHD_HTTP_NOT_FOUND, "File not found");
+   const size_t len = strlen(page);
+   send_http_headers(fd, status, "text/html", len, "");
+   write_fully(fd, page, len);
+}
 
-   struct stat st;
-   if (fstat(fd, &st) != 0) {
-      close(fd);
-      return send_page(connection, MHD_HTTP_INTERNAL_SERVER_ERROR,
-                       "Cannot stat file");
+#ifdef ENABLE_GUI
+static void send_file(int fd, const char *file, const char *mime)
+{
+   FILE *f = fopen(file, "r");
+   if (f == NULL) {
+      send_page(fd, HTTP_NOT_FOUND, "File not found");
+      return;
    }
 
-   struct MHD_Response *response = MHD_create_response_from_fd(st.st_size, fd);
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, mime);
+   file_info_t info;
+   if (!get_handle_info(fileno(f), &info)) {
+      send_page(fd, HTTP_INTERNAL_SERVER_ERROR, "Cannot stat file");
+      goto out_close;
+   }
 
-   enum MHD_Result ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-   MHD_destroy_response(response);
+   send_http_headers(fd, HTTP_OK, mime, info.size, "");
 
-   return ret;
+   char buf[1024];
+   for (ssize_t remain = info.size, nbytes; remain > 0; remain -= nbytes) {
+      memset(buf, '\0', sizeof(buf));
+
+      if ((nbytes = fread(buf, 1, MIN(remain, sizeof(buf)), f)) == 0) {
+         server_log(LOG_ERROR, "fread: %s: %s", file, strerror(errno));
+         goto out_close;
+      }
+
+      write_fully(fd, buf, nbytes);
+   }
+
+ out_close:
+   fclose(f);
 }
 #endif
-
-static bool is_websocket_request(struct MHD_Connection *connection)
-{
-   const char *upg_header =
-      MHD_lookup_connection_value(connection, MHD_HEADER_KIND,
-                                  MHD_HTTP_HEADER_UPGRADE);
-   const char *con_header =
-      MHD_lookup_connection_value(connection, MHD_HEADER_KIND,
-                                  MHD_HTTP_HEADER_CONNECTION);
-
-   return (upg_header != NULL && con_header != NULL)
-          && (strcmp(upg_header, WS_UPGRADE_VALUE) == 0)
-          && (strstr(con_header, "Upgrade") != NULL);
-}
 
 static void handle_text_frame(web_socket_t *ws, const char *text, void *context)
 {
@@ -526,16 +566,12 @@ static void handle_binary_frame(web_socket_t *ws, const void *data,
 
 static void kill_connection(web_server_t *server)
 {
-   if (MHD_upgrade_action(server->urh,
-                          MHD_UPGRADE_ACTION_CLOSE) != MHD_YES)
-      server_log(LOG_ERROR, "MHD_UPGRADE_ACTION_CLOSE failed on socket %d",
-                 server->websocket->sock);
-
    diag_set_consumer(NULL, NULL);
+
+   close(server->websocket->sock);
 
    ws_free(server->websocket);
    server->websocket = NULL;
-   server->urh = NULL;
 }
 
 static void tunnel_diag(diag_t *d, void *context)
@@ -616,13 +652,8 @@ static void next_time_step_handler(uint64_t now, void *user)
    ws_send_packet(server->websocket, pb);
 }
 
-static void upgrade_handler(void *cls, struct MHD_Connection *con,
-                            void *con_cls, const char *extra_in,
-                            size_t extra_in_size, MHD_socket sock,
-                            struct MHD_UpgradeResponseHandle *urh)
+static void open_websocket(web_server_t *server, int fd)
 {
-   web_server_t *server = cls;
-
    if (server->websocket != NULL) {
       ws_send_close(server->websocket);
       ws_flush(server->websocket);
@@ -635,8 +666,7 @@ static void upgrade_handler(void *cls, struct MHD_Connection *con,
       .context      = server
    };
 
-   server->websocket = ws_new(sock, &handler, false);
-   server->urh = urh;
+   server->websocket = ws_new(fd, &handler, false);
 
    diag_set_consumer(tunnel_diag, server);
 
@@ -709,76 +739,245 @@ static bool get_websocket_accept_value(const char *key, text_buf_t *tb)
    return true;
 }
 
-static enum MHD_Result websocket_upgrade(web_server_t *server,
-                                         struct MHD_Connection *connection,
-                                         const char *method,
-                                         const char *version)
+static void websocket_upgrade(web_server_t *server, int fd, const char *method,
+                              const char *version, shash_t *headers)
 {
-   if (strcmp(method, MHD_HTTP_METHOD_GET) != 0
-       || strcmp(version, MHD_HTTP_VERSION_1_1) != 0)
-      return send_page(connection, MHD_HTTP_BAD_REQUEST, "Bad request");
+   LOCAL_TEXT_BUF tb = tb_new();
 
-   const char *ws_version_header =
-      MHD_lookup_connection_value(connection, MHD_HEADER_KIND,
-                                  MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
+   if (strcmp(method, "GET") != 0 || strcmp(version, "HTTP/1.1") != 0) {
+      send_page(fd, HTTP_BAD_REQUEST, "Bad request");
+      goto out_close;
+   }
+
+   const char *ws_version_header = shash_get(headers, "Sec-WebSocket-Version");
 
    if (ws_version_header == NULL
        || strcmp(ws_version_header, WS_WEBSOCKET_VERSION) != 0) {
+
       static const char page[] = "Upgrade required";
-      struct MHD_Response *response =
-         MHD_create_response_from_buffer(sizeof(page), (void *)page,
-                                         MHD_RESPMEM_PERSISTENT);
-      MHD_add_response_header(response, MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION,
-                              WS_WEBSOCKET_VERSION);
+      static const char header[] =
+         "Sec-WebSocket-Version:" WS_WEBSOCKET_VERSION;
 
-      enum MHD_Result ret =
-         MHD_queue_response(connection, MHD_HTTP_UPGRADE_REQUIRED, response);
-      MHD_destroy_response(response);
+      send_http_headers(fd, HTTP_UPGRADE_REQUIRED, "text/html",
+                        sizeof(page), header);
+      write_fully(fd, page, sizeof(page));
 
-      return ret;
+      goto out_close;
    }
 
-   const char *ws_key_header = NULL;
-   size_t key_size = 0;
-   enum MHD_Result ret =
-      MHD_lookup_connection_value_n(connection, MHD_HEADER_KIND,
-                                    MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY,
-                                    strlen(MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY),
-                                    &ws_key_header, &key_size);
-   if (ret == MHD_NO || key_size != WS_KEY_LEN)
-      return send_page(connection, MHD_HTTP_BAD_REQUEST, "Bad request");
+   const char *ws_key_header = shash_get(headers, "Sec-WebSocket-Key");
 
-   LOCAL_TEXT_BUF ws_ac_value = tb_new();
-   if (!get_websocket_accept_value(ws_key_header, ws_ac_value))
-      return MHD_NO;
+   if (ws_key_header == NULL || strlen(ws_key_header) != WS_KEY_LEN) {
+      send_page(fd, HTTP_BAD_REQUEST, "Bad request");
+      goto out_close;
+   }
 
-   struct MHD_Response *response =
-      MHD_create_response_for_upgrade(upgrade_handler, server);
-   MHD_add_response_header(response, MHD_HTTP_HEADER_UPGRADE, WS_UPGRADE_VALUE);
-   MHD_add_response_header(response, MHD_HTTP_HEADER_SEC_WEBSOCKET_ACCEPT,
-                           tb_get(ws_ac_value));
+   tb_cat(tb, "Connection: upgrade\r\n"
+          "Upgrade: websocket\r\n"
+          "Sec-WebSocket-Accept: ");
 
-   ret = MHD_queue_response(connection, MHD_HTTP_SWITCHING_PROTOCOLS, response);
-   MHD_destroy_response(response);
+   if (!get_websocket_accept_value(ws_key_header, tb))
+      goto out_close;
 
-   return ret;
+   tb_cat(tb, "\r\n");
+
+   send_http_headers(fd, HTTP_SWITCHING_PROTOCOLS, "text/html", 0, tb_get(tb));
+
+   open_websocket(server, fd);
+
+   return;   // Socket left open
+
+ out_close:
+   close(fd);
 }
 
-static enum MHD_Result handle_connection(void *cls,
-                                         struct MHD_Connection *connection,
-                                         const char *url,
-                                         const char *method,
-                                         const char *version,
-                                         const char *upload_data,
-                                         size_t *upload_data_size,
-                                         void **con_cls)
+static bool is_websocket_request(shash_t *headers)
 {
-   server_log(LOG_INFO, "%s %s", method, url);
+   const char *upg_header = shash_get(headers, "Upgrade");
+   const char *con_header = shash_get(headers, "Connection");
 
-   if (is_websocket_request(connection))
-      return websocket_upgrade(cls, connection, method, version);
+   return (upg_header != NULL && con_header != NULL)
+          && (strcmp(upg_header, WS_UPGRADE_VALUE) == 0)
+          && (strstr(con_header, "Upgrade") != NULL);
+}
 
-   return send_page(connection, MHD_HTTP_NOT_FOUND, "Not found");
+#ifdef ENABLE_GUI
+static void serve_gui_static_files(int fd, const char *url)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_data_dir(tb);
+   tb_cat(tb, "/gui");
+
+   if (strcmp(url, "/") == 0) {
+      tb_cat(tb, "/index.html");
+      send_file(fd, tb_get(tb), "text/html");
+      return;
+   }
+
+   const char *mime = "application/octet-stream";
+   const char *dot = strrchr(url, '.');
+   if (dot != NULL) {
+      static const char *mime_map[][2] = {
+         { ".js",  "text/javascript" },
+         { ".css", "text/css" },
+         {" .map", "application/json" },
+      };
+
+      for (int i = 0; i < ARRAY_LEN(mime_map); i++) {
+         if (strcmp(dot, mime_map[i][0]) == 0) {
+            mime = mime_map[i][1];
+            break;
+         }
+      }
+   }
+
+   tb_cat(tb, url);
+   send_file(fd, tb_get(tb), mime);
+}
+#endif
+
+static void handle_http_request(web_server_t *server, int fd,
+                                const char *method, const char *url,
+                                const char *version, shash_t *headers)
+{
+   server_log(LOG_DEBUG, "%s %s", method, url);
+
+   if (is_websocket_request(headers)) {
+      websocket_upgrade(server, fd, method, version, headers);
+      return;    // Socket left open
+   }
+   else if (strcmp(method, "GET") != 0) {
+      send_page(fd, HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+      goto out_close;
+   }
+
+#ifdef ENABLE_GUI
+   serve_gui_static_files(fd, url);
+#else
+   send_page(fd, HTTP_NOT_FOUND, "Not found");
+#endif
+
+ out_close:
+   close(fd);
+}
+
+static void handle_new_connection(web_server_t *server)
+{
+   int fd = accept(server->sock, NULL, NULL);
+   if (fd < 0) {
+      server_log(LOG_ERROR, "accept: %s", last_os_error());
+      return;
+   }
+
+#ifdef __MINGW32__
+   if (ioctlsocket(fd, FIONBIO, &(unsigned long){1})) {
+      server_log(LOG_ERROR, "ioctlsocket: %s", last_os_error());
+      goto out_close;
+   }
+#else
+   const int flags = fcntl(fd, F_GETFL, 0);
+   if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+      server_log(LOG_ERROR, "fcntl: %s", last_os_error());
+      goto out_close;
+   }
+#endif
+
+   char buf[MAX_HTTP_REQUEST + 1];
+   size_t reqlen = 0;
+   do {
+      ssize_t n = read(fd, buf + reqlen, MAX_HTTP_REQUEST - reqlen);
+
+#ifdef __MINGW32__
+      const bool would_block =
+         (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK);
+#else
+      const bool would_block = (n == -1 && errno == EWOULDBLOCK);
+#endif
+
+      if (would_block) {
+         fd_set rfd;
+         FD_ZERO(&rfd);
+         FD_SET(fd, &rfd);
+
+         struct timeval tv = {
+            .tv_sec = 1,
+            .tv_usec = 0
+         };
+
+         if (select(fd + 1, &rfd, NULL, NULL, &tv) == -1) {
+            server_log(LOG_ERROR, "select: %s", last_os_error());
+            goto out_close;
+         }
+
+         if (FD_ISSET(fd, &rfd))
+            continue;
+
+         server_log(LOG_ERROR, "timeout waiting for HTTP request");
+         goto out_close;
+      }
+      else if (n <= 0) {
+         server_log(LOG_ERROR, "read: %s", last_os_error());
+         goto out_close;
+      }
+
+      reqlen += n;
+      assert(reqlen <= MAX_HTTP_REQUEST);
+
+      if (reqlen == MAX_HTTP_REQUEST) {
+         server_log(LOG_ERROR, "HTTP request too big");
+         goto out_close;
+      }
+
+      buf[reqlen] = '\0';
+   } while (strstr(buf, "\r\n\r\n") == NULL);
+
+   const char *method = "GET";
+   const char *url = "/";
+   const char *version = "";
+
+   char *saveptr, *saveptr2;
+   char *line = strtok_r(buf, "\r\n", &saveptr);
+   if (line == NULL) {
+      server_log(LOG_ERROR, "malformed HTTP request");
+      goto out_close;
+   }
+
+   method = strtok_r(line, " ", &saveptr2);
+   if (method == NULL)
+      goto malformed;
+
+   url = strtok_r(NULL, " ", &saveptr2);
+   if (url == NULL)
+      goto malformed;
+
+   version = strtok_r(NULL, " ", &saveptr2);
+   if (version == NULL)
+      goto malformed;
+
+   shash_t *headers = shash_new(64);
+
+   while ((line = strtok_r(NULL, "\r\n", &saveptr)) && line[0] != '\0') {
+      char *colon = strchr(line, ':');
+      if (colon != NULL) {
+         *colon = '\0';
+
+         char *value = colon + 1;
+         while (*value == ' ')
+            value++;
+
+         shash_put(headers, line, value);
+      }
+   }
+
+   handle_http_request(server, fd, method, url, version, headers);
+   shash_free(headers);
+   return;
+
+ malformed:
+   server_log(LOG_ERROR, "malformed HTTP request");
+
+ out_close:
+   close(fd);
 }
 
 static void tunnel_output(const char *buf, size_t nchars, void *user)
@@ -787,12 +986,40 @@ static void tunnel_output(const char *buf, size_t nchars, void *user)
    ws_send(server->websocket, WS_OPCODE_TEXT_FRAME, buf, nchars);
 }
 
+static int open_server_socket(void)
+{
+   int sock = socket(AF_INET, SOCK_STREAM, 0);
+   if (sock < 0)
+      fatal_errno("socket");
+
+   if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                  (char *)&(int){1}, sizeof(int)) < 0)
+      fatal_errno("setsockopt");
+
+   struct sockaddr_in addr;
+   addr.sin_family = AF_INET;
+   addr.sin_port = htons(PORT);
+   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+   if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+      fatal_errno("bind");
+
+   if (listen(sock, 10) < 0)
+      fatal_errno("listen");
+
+   char host[64];
+   inet_ntop(AF_INET, &addr.sin_addr, host, sizeof(host));
+
+   server_log(LOG_INFO, "listening on %s:%d", host, PORT);
+
+   return sock;
+}
+
 void start_server(jit_factory_t make_jit, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd)
 {
    web_server_t *server = xcalloc(sizeof(web_server_t));
    server->shell     = shell_new(make_jit);
-   server->closesock = MHD_INVALID_SOCKET;
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;
@@ -811,27 +1038,23 @@ void start_server(jit_factory_t make_jit, tree_t top,
    };
    shell_set_handler(server->shell, &handler);
 
-   const int flags = MHD_ALLOW_UPGRADE | MHD_USE_ERROR_LOG;
-   struct MHD_Daemon *daemon = MHD_start_daemon(flags, PORT, NULL, NULL,
-                                                handle_connection, server,
-                                                MHD_OPTION_END);
-   if (daemon == NULL)
-      fatal("failed to start microhttpd daemon");
-
-   server_log(LOG_INFO, "listening on localhost:%d", PORT);
+   server->sock = open_server_socket();
 
    if (cb != NULL)
       (*cb)(arg);
 
    for (;;) {
-      MHD_socket max_fd = -1;
       fd_set rfd, wfd, efd;
       FD_ZERO(&rfd);
       FD_ZERO(&wfd);
       FD_ZERO(&efd);
 
-      if (MHD_get_fdset(daemon, &rfd, &wfd, &efd, &max_fd) != MHD_YES)
-         fatal("MHD_get_fdset failed");
+      int max_fd = -1;
+
+      if (server->sock != -1) {
+         FD_SET(server->sock, &rfd);
+         max_fd = MAX(max_fd, server->sock);
+      }
 
       if (server->websocket != NULL) {
          FD_SET(server->websocket->sock, &rfd);
@@ -845,17 +1068,16 @@ void start_server(jit_factory_t make_jit, tree_t top,
       if (max_fd == -1)
          break;
 
-      unsigned long long timeout;
-      if (MHD_get_timeout(daemon, &timeout) != MHD_YES)
-         timeout = 1000;
-
       struct timeval tv = {
-         .tv_sec = timeout / 1000,
-         .tv_usec = (timeout % 1000) * 1000
+         .tv_sec = 1,
+         .tv_usec = 0
       };
 
       if (select(max_fd + 1, &rfd, &wfd, &efd, &tv) == -1)
          fatal_errno("select");
+
+      if (FD_ISSET(server->sock, &rfd))
+         handle_new_connection(server);
 
       if (server->websocket != NULL) {
          if (FD_ISSET(server->websocket->sock, &rfd))
@@ -868,22 +1090,18 @@ void start_server(jit_factory_t make_jit, tree_t top,
             kill_connection(server);
       }
 
-      if (MHD_run_from_select(daemon, &rfd, &wfd, &efd) != MHD_YES)
-         fatal("MHD_run_from_select failed");
+      if (server->shutdown && server->sock != -1) {
+         server_log(LOG_INFO, "stopping server");
 
-      if (server->shutdown && server->closesock == MHD_INVALID_SOCKET) {
-         server->closesock = MHD_quiesce_daemon(daemon);
+         close(server->sock);
+         server->sock = -1;
 
          if (server->websocket != NULL)
             ws_send_close(server->websocket);
       }
    }
 
-   server_log(LOG_INFO, "stopping server");
-   MHD_stop_daemon(daemon);
-
-   assert(server->closesock != MHD_INVALID_SOCKET);
-   close(server->closesock);
+   assert(server->sock == -1);
 
    pb_free(server->packetbuf);
    free(server);

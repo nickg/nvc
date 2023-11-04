@@ -226,8 +226,7 @@ AC_ARG_ENABLE([server],
   [enable_server=no])
 
 AS_IF([test x$enable_server = xyes],
-      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])
-       PKG_CHECK_MODULES([libmicrohttpd], [libmicrohttpd >= 0.9])])
+      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])])
 
 AM_CONDITIONAL([ENABLE_SERVER], [test x$enable_server = xyes])
 

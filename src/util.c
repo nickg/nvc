@@ -550,6 +550,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    diag_vprintf(d, fmt, ap);
    va_end(ap);
 
+   diag_set_consumer(NULL, NULL);
    diag_emit(d);
    fatal_exit(EXIT_FAILURE);
 }
@@ -564,6 +565,7 @@ void fatal(const char *fmt, ...)
    diag_vprintf(d, fmt, ap);
    va_end(ap);
 
+   diag_set_consumer(NULL, NULL);
    diag_emit(d);
    fatal_exit(EXIT_FAILURE);
 }
@@ -571,6 +573,8 @@ void fatal(const char *fmt, ...)
 void fatal_trace(const char *fmt, ...)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_suppress(d, false);
+   diag_stacktrace(d, true);
 
    va_list ap;
    va_start(ap, fmt);
@@ -578,8 +582,6 @@ void fatal_trace(const char *fmt, ...)
    va_end(ap);
 
    diag_set_consumer(NULL, NULL);
-   diag_suppress(d, false);
-   diag_stacktrace(d, true);
    diag_emit(d);
    fatal_exit(EXIT_FAILURE);
 }
@@ -595,6 +597,7 @@ void fatal_errno(const char *fmt, ...)
    diag_printf(d, ": %s", last_os_error());
    va_end(ap);
 
+   diag_set_consumer(NULL, NULL);
    diag_emit(d);
    fatal_exit(EXIT_FAILURE);
 }
