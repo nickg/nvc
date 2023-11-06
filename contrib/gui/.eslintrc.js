@@ -30,6 +30,7 @@ module.exports = {
     "@typescript-eslint",
     "@stylistic",
   ],
+  "ignorePatterns": ["node_modules/", "dist/"],
   "rules": {
     "linebreak-style": [ "error", "unix"],
     "@typescript-eslint/no-explicit-any": [ "off" ],
