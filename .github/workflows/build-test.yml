@@ -28,7 +28,7 @@ jobs:
           mkdir build && cd build
           ../configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug \
-               --enable-verilog --enable-tcl
+               --enable-verilog --enable-tcl --enable-gui
       - name: Build
         run: ASAN_OPTIONS=detect_leaks=0 make -C build
       - name: Test

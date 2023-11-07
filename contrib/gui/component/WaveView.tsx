@@ -143,7 +143,7 @@ function WaveView(props: IProps) {
   const viewportHeight = size[1] - toolbarHeight;
   const viewportWidth = size[0];
   const visibleTime = BigInt(Math.ceil(viewportWidth)) * scale;
-  const leftTime = BigInt(scrollLeft) * scale;
+  const leftTime = BigInt(Math.round(scrollLeft)) * scale;
   const rightTime = leftTime + visibleTime;
 
   const handleResize = (entries: ResizeEntry[]) => {
@@ -201,16 +201,14 @@ function WaveView(props: IProps) {
     const s = props.model.signal(path);
     const points: React.ReactElement[] = [];
 
-    const start = BigInt(scrollLeft) * scale;
-    const end = start + visibleTime > props.model.now
-      ? props.model.now : start + visibleTime;
+    const end = rightTime > props.model.now ? props.model.now : rightTime;
     const dataType = s.trace.dataType;
     const starWidth = measureText.getTextWidth("*");
 
-    let last = s.trace.valueAt(start);
+    let last = s.trace.valueAt(leftTime);
 
-    s.trace.mapWaveform(start, end, (when, next, value, i) => {
-      const leftClip = start - 600n * scale;
+    s.trace.mapWaveform(leftTime, end, (when, next, value, i) => {
+      const leftClip = leftTime - 600n * scale;
       const clipWhen = when < leftClip ? leftClip : when;
       const width = Math.ceil(Number((next - clipWhen)) / Number(scale));
       const xPos = clipWhen / scale;

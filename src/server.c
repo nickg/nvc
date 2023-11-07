@@ -70,6 +70,10 @@
 #define PORT             8888
 #define MAX_HTTP_REQUEST 1024
 
+#ifndef __MINGW32__
+#define closesocket close
+#endif
+
 typedef struct _web_socket {
    int           sock;
    bool          mask;
@@ -201,7 +205,7 @@ void ws_flush(web_socket_t *ws)
    while (ws->tx_wptr != ws->tx_rptr) {
       const size_t chunksz = ws->tx_wptr - ws->tx_rptr;
       const ssize_t nbytes =
-         send(ws->sock, ws->tx_buf + ws->tx_rptr, chunksz, 0);
+         send(ws->sock, (char *)ws->tx_buf + ws->tx_rptr, chunksz, 0);
 
       if (nbytes == 0)
          break;
@@ -276,6 +280,7 @@ void ws_poll(web_socket_t *ws)
          goto read_more;   // Not enough for full frame
 
       assert(fin);
+      (void)fin;
 
       if (mask) {
          for (int i = 0; i < flength; i++)
@@ -569,7 +574,7 @@ static void kill_connection(web_server_t *server)
 {
    diag_set_consumer(NULL, NULL);
 
-   close(server->websocket->sock);
+   closesocket(server->websocket->sock);
 
    ws_free(server->websocket);
    server->websocket = NULL;
@@ -789,7 +794,7 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
    return;   // Socket left open
 
  out_close:
-   close(fd);
+   closesocket(fd);
 }
 
 static bool is_websocket_request(shash_t *headers)
@@ -859,7 +864,7 @@ static void handle_http_request(web_server_t *server, int fd,
 #endif
 
  out_close:
-   close(fd);
+   closesocket(fd);
 }
 
 static void handle_new_connection(web_server_t *server)
@@ -978,7 +983,7 @@ static void handle_new_connection(web_server_t *server)
    server_log(LOG_ERROR, "malformed HTTP request");
 
  out_close:
-   close(fd);
+   closesocket(fd);
 }
 
 static void tunnel_output(const char *buf, size_t nchars, void *user)
@@ -989,7 +994,13 @@ static void tunnel_output(const char *buf, size_t nchars, void *user)
 
 static int open_server_socket(void)
 {
-   int sock = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef __MINGW32__
+   WSADATA wsaData;
+   if (WSAStartup(MAKEWORD(2, 2), &wsaData))
+      fatal_errno("WSAStartup failed");
+#endif
+
+   int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
    if (sock < 0)
       fatal_errno("socket");
 
@@ -1005,7 +1016,7 @@ static int open_server_socket(void)
    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
       fatal_errno("bind");
 
-   if (listen(sock, 10) < 0)
+   if (listen(sock, SOMAXCONN) < 0)
       fatal_errno("listen");
 
    server_log(LOG_INFO, "listening on 127.0.0.1:%d", PORT);
@@ -1074,7 +1085,7 @@ void start_server(jit_factory_t make_jit, tree_t top,
       if (select(max_fd + 1, &rfd, &wfd, &efd, &tv) == -1)
          fatal_errno("select");
 
-      if (FD_ISSET(server->sock, &rfd))
+      if (server->sock != -1 && FD_ISSET(server->sock, &rfd))
          handle_new_connection(server);
 
       if (server->websocket != NULL) {
@@ -1091,7 +1102,7 @@ void start_server(jit_factory_t make_jit, tree_t top,
       if (server->shutdown && server->sock != -1) {
          server_log(LOG_INFO, "stopping server");
 
-         close(server->sock);
+         closesocket(server->sock);
          server->sock = -1;
 
          if (server->websocket != NULL)

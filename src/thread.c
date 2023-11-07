@@ -84,8 +84,8 @@ STATIC_ASSERT(sizeof(lock_stats_t) == 64)
          workq_stats[my_thread->id].what += (n);  \
    } while (0)
 #else
-#define LOCK_EVENT(what, n)
-#define WORKQ_EVENT(what, n)
+#define LOCK_EVENT(what, n) (void)(n)
+#define WORKQ_EVENT(what, n) (void)(n)
 #endif
 
 #ifdef __SANITIZE_THREAD__

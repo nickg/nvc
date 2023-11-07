@@ -32,7 +32,6 @@ module.exports = {
   ],
   "ignorePatterns": ["node_modules/", "dist/"],
   "rules": {
-    "linebreak-style": [ "error", "unix"],
     "@typescript-eslint/no-explicit-any": [ "off" ],
     "@stylistic/indent": [
       "error", 2, {

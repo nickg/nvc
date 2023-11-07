@@ -420,11 +420,11 @@ void pack_writer_string_table(pack_writer_t *pw, const char **tab,
                               size_t *size);
 void pack_writer_free(pack_writer_t *pw);
 
-void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
-                   tlab_t *tlab);
-void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
-                      jit_scalar_t *args);
-void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor);
-void _debug_out(intptr_t val, int32_t reg);
+DLLEXPORT void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor,
+                             jit_scalar_t *args, tlab_t *tlab);
+DLLEXPORT void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
+                                jit_scalar_t *args);
+DLLEXPORT void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor);
+DLLEXPORT void _debug_out(intptr_t val, int32_t reg);
 
 #endif  // _JIT_PRIV_H
