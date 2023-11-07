@@ -319,6 +319,9 @@ case $target_cpu in
   aarch64)
     AC_DEFINE_UNQUOTED([ARCH_ARM64], [1], [Target is arm64])
     ;;
+  i*86)
+    AC_DEFINE_UNQUOTED([ARCH_I386], [1], [Target is i386])
+    ;;
 esac
 
 AM_CONDITIONAL([ARCH_X86_64],

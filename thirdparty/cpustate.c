@@ -191,6 +191,7 @@ void fill_cpu_state(struct cpu_state *cpu, PCONTEXT context)
 {
    memset(cpu, '\0', sizeof(struct cpu_state));
 
+#if defined __x86_64__
    cpu->pc = context->Rip;
    cpu->sp = context->Rsp;
 
@@ -210,9 +211,21 @@ void fill_cpu_state(struct cpu_state *cpu, PCONTEXT context)
    cpu->regs[13] = context->R13;
    cpu->regs[14] = context->R14;
    cpu->regs[15] = context->R15;
+#elif defined __i386__
+   cpu->pc = context->Eip;
+   cpu->sp = context->Esp;
 
-   for (int i = 16; i < MAX_CPU_REGS; i++)
-      cpu->regs[i] = 0;
+   cpu->regs[0]  = context->Eax;
+   cpu->regs[1]  = context->Ecx;
+   cpu->regs[2]  = context->Edx;
+   cpu->regs[3]  = context->Ebx;
+   cpu->regs[4]  = context->Esp;
+   cpu->regs[5]  = context->Ebp;
+   cpu->regs[6]  = context->Esi;
+   cpu->regs[7]  = context->Edi;
+#else
+#error Windows not supported on this architecture
+#endif
 }
 
 #else

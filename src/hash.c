@@ -35,7 +35,7 @@ struct _hash {
 static inline int hash_slot(unsigned size, const void *key)
 {
    assert(key != NULL);
-   return mix_bits_64(key) & (size - 1);
+   return mix_bits_64((uintptr_t)key) & (size - 1);
 }
 
 hash_t *hash_new(int size)
