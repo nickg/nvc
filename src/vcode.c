@@ -212,10 +212,8 @@ struct _vcode_unit {
 #define VCODE_VERSION      31
 #define VCODE_CHECK_UNIONS 0
 
-static __thread vcode_unit_t     active_unit   = NULL;
-static __thread vcode_block_t    active_block  = VCODE_INVALID_BLOCK;
-static __thread vcode_dump_fn_t  dump_callback = NULL;
-static __thread void            *dump_arg      = NULL;
+static __thread vcode_unit_t  active_unit  = NULL;
+static __thread vcode_block_t active_block = VCODE_INVALID_BLOCK;
 
 static inline int64_t sadd64(int64_t a, int64_t b)
 {
@@ -979,16 +977,10 @@ const char *vcode_op_string(vcode_op_t op)
 LCOV_EXCL_START
 static int vcode_dump_reg(vcode_reg_t reg)
 {
-   int printed;
    if (reg == VCODE_INVALID_REG)
-      printed = color_printf("$red$invalid$$");
+      return color_printf("$red$invalid$$");
    else
-      printed = color_printf("$green$r%d$$", reg);
-
-   if (dump_callback != NULL)
-      printed += (*dump_callback)(VCODE_DUMP_REG, reg, dump_arg);
-
-   return printed;
+      return color_printf("$green$r%d$$", reg);
 }
 
 static int vcode_pretty_print_int(int64_t n)
@@ -1170,9 +1162,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 {
    assert(active_unit != NULL);
 
-   dump_callback = callback;
-   dump_arg = arg;
-
    const vcode_unit_t vu = active_unit;
    vcode_block_t old_block = active_block;
 
@@ -1248,7 +1237,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          const param_t *p = &(vu->params.items[i]);
          int col = printf("  ");
          col += vcode_dump_reg(p->reg);
-         while (col < (dump_callback ? 12 : 8))
+         while (col < 8)
             col += printf(" ");
          col += color_printf("$magenta$%s$$", istr(p->name));
          vcode_dump_type(col, p->type, p->bounds);
@@ -2307,7 +2296,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          color_printf("$$\n");
 
          if (callback != NULL)
-            (*callback)(VCODE_DUMP_OP, j, arg);
+            (*callback)(j, arg);
       }
 
       if (b->ops.count == 0)

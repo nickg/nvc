@@ -305,11 +305,8 @@ void jit_dump(jit_func_t *f)
    jit_dump_with_mark(f, JIT_LABEL_INVALID, true);
 }
 
-static int jit_interleaved_cb(vcode_dump_reason_t reason, int op, void *ctx)
+static int jit_interleaved_cb(int op, void *ctx)
 {
-   if (reason != VCODE_DUMP_OP)
-      return 0;
-
    jit_dump_t *d = ctx;
 
    const vcode_block_t block = vcode_active_block();
@@ -350,7 +347,7 @@ void jit_dump_interleaved(jit_func_t *f)
    vcode_dump_with_mark(-1, jit_interleaved_cb, &d);
 
    vcode_select_block(0);
-   jit_interleaved_cb(VCODE_DUMP_OP, -1, &d);
+   jit_interleaved_cb(-1, &d);
 
    ihash_free(d.labels);
 

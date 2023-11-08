@@ -236,12 +236,7 @@ typedef enum {
 #define VCODE_INVALID_VAR    -1
 #define VCODE_INVALID_TYPE   -1
 
-typedef enum {
-   VCODE_DUMP_OP,
-   VCODE_DUMP_REG,
-} vcode_dump_reason_t;
-
-typedef int (*vcode_dump_fn_t)(vcode_dump_reason_t, int, void *);
+typedef int (*vcode_dump_fn_t)(int, void *);
 typedef void (*vcode_dep_fn_t)(ident_t, void *);
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
