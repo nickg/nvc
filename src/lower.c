@@ -3696,30 +3696,54 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
 
 static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
 {
-   if (tree_kind(expr) != T_AGGREGATE)
+   switch (tree_kind(expr)) {
+   case T_AGGREGATE:
+      {
+         type_t type = tree_type(expr);
+         assert(type_const_bounds(type));
+
+         tree_t a0 = tree_assoc(expr, 0);
+         if (tree_subkind(a0) != A_OTHERS)
+            return false;
+
+         tree_t others = tree_value(a0);
+         type_t elem_type = tree_type(others);
+
+         if (type_is_array(elem_type)) {
+            if (!lower_can_use_const_rep(others, length, elem))
+               return false;
+         }
+         else if (type_is_scalar(elem_type))
+            *elem = others;
+         else
+            return false;
+
+         *length = lower_array_const_size(type);
+         return true;
+      }
+
+   case T_STRING:
+      {
+         const int nchars = tree_chars(expr);
+         if (nchars == 0)
+            return false;
+
+         tree_t c0 = tree_char(expr, 0);
+         tree_t d0 = tree_ref(c0);
+
+         for (int i = 1; i < nchars; i++) {
+            if (tree_ref(tree_char(expr, i)) != d0)
+               return false;
+         }
+
+         *elem = c0;
+         *length = nchars;
+         return true;
+      }
+
+   default:
       return false;
-
-   type_t type = tree_type(expr);
-   assert(type_const_bounds(type));
-
-   tree_t a0 = tree_assoc(expr, 0);
-   if (tree_subkind(a0) != A_OTHERS)
-      return false;
-
-   tree_t others = tree_value(a0);
-   type_t elem_type = tree_type(others);
-
-   if (type_is_array(elem_type)) {
-      if (!lower_can_use_const_rep(others, length, elem))
-         return false;
    }
-   else if (type_is_scalar(elem_type))
-      *elem = others;
-   else
-      return false;
-
-   *length = lower_array_const_size(type);
-   return true;
 }
 
 static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
