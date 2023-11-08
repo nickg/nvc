@@ -36,7 +36,8 @@
 typedef struct _irgen_label irgen_label_t;
 typedef struct _patch_list  patch_list_t;
 
-#define PATCH_CHUNK_SZ 4
+#define PATCH_CHUNK_SZ  4
+#define MAX_STACK_ALLOC 65536
 
 struct _patch_list {
    patch_list_t *next;
@@ -3891,7 +3892,7 @@ static void irgen_locals(jit_irgen_t *g)
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
          const int sz = irgen_size_bytes(vtype);
-         if (vcode_var_flags(i) & VAR_HEAP)
+         if ((vcode_var_flags(i) & VAR_HEAP) || sz > MAX_STACK_ALLOC)
             g->vars[i] = macro_lalloc(g, jit_value_from_int64(sz));
          else
             g->vars[i] = macro_salloc(g, sz);
