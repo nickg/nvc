@@ -460,12 +460,12 @@ static void server_log(log_level_t level, const char *fmt, ...)
    va_end(ap);
 }
 
-static void write_fully(int fd, const void *data, size_t len)
+static void send_fully(int fd, const void *data, size_t len)
 {
    while (len > 0) {
       ssize_t nbytes = send(fd, data, len, 0);
       if (nbytes <= 0) {
-         server_log(LOG_ERROR, "write: %s", strerror(errno));
+         server_log(LOG_ERROR, "send: %s", strerror(errno));
          return;
       }
 
@@ -496,20 +496,20 @@ static void send_http_headers(int fd, int status, const char *type, size_t len,
                                       "%s\r\n",
                                       status, date, type, len, headers);
 
-   write_fully(fd, buf, nbytes);
+   send_fully(fd, buf, nbytes);
 }
 
 static void send_page(int fd, int status, const char *page)
 {
    const size_t len = strlen(page);
    send_http_headers(fd, status, "text/html", len, "");
-   write_fully(fd, page, len);
+   send_fully(fd, page, len);
 }
 
 #ifdef ENABLE_GUI
 static void send_file(int fd, const char *file, const char *mime)
 {
-   FILE *f = fopen(file, "r");
+   FILE *f = fopen(file, "rb");
    if (f == NULL) {
       send_page(fd, HTTP_NOT_FOUND, "File not found");
       return;
@@ -532,7 +532,7 @@ static void send_file(int fd, const char *file, const char *mime)
          goto out_close;
       }
 
-      write_fully(fd, buf, nbytes);
+      send_fully(fd, buf, nbytes);
    }
 
  out_close:
@@ -766,7 +766,7 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
 
       send_http_headers(fd, HTTP_UPGRADE_REQUIRED, "text/html",
                         sizeof(page), header);
-      write_fully(fd, page, sizeof(page));
+      send_fully(fd, page, sizeof(page));
 
       goto out_close;
    }
@@ -922,7 +922,7 @@ static void handle_new_connection(web_server_t *server)
          goto out_close;
       }
       else if (n <= 0) {
-         server_log(LOG_ERROR, "read: %s", last_os_error());
+         server_log(LOG_ERROR, "recv: %s", last_os_error());
          goto out_close;
       }
 
