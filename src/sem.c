@@ -1474,7 +1474,7 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    else
       type = tree_type(value);
 
-   if (standard() < STD_08 && dimension_of(type) > 1) {
+   if (standard() < STD_08 && type_is_array(type) && dimension_of(type) > 1) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
       diag_printf(d, "object alias may not have multidimensional array type "
                   "in VHDL-%s", standard_text(standard()));
