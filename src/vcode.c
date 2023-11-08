@@ -397,11 +397,14 @@ void vcode_heap_allocate(vcode_reg_t reg)
 
    case VCODE_OP_VAR_UPREF:
       {
+         vcode_unit_t vu = vcode_active_unit();
+         for (int i = 0; i < defn->hops; i++)
+            vu = vcode_unit_context(vu);
+
          vcode_state_t state;
          vcode_state_save(&state);
 
-         for (int i = 0; i < defn->hops; i++)
-            vcode_select_unit(vcode_unit_context());
+         vcode_select_unit(vu);
 
          vcode_var_data(defn->address)->flags |= VAR_HEAP;
          active_unit->flags |= UNIT_ESCAPING_TLAB;
@@ -2929,16 +2932,16 @@ vcode_unit_t vcode_active_unit(void)
    return active_unit;
 }
 
-ident_t vcode_unit_name(void)
+ident_t vcode_unit_name(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return active_unit->name;
+   assert(vu != NULL);
+   return vu->name;
 }
 
-bool vcode_unit_has_undefined(void)
+bool vcode_unit_has_undefined(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return !!(active_unit->flags & UNIT_UNDEFINED);
+   assert(vu != NULL);
+   return !!(vu->flags & UNIT_UNDEFINED);
 }
 
 bool vcode_unit_has_escaping_tlab(vcode_unit_t vu)
@@ -2946,10 +2949,10 @@ bool vcode_unit_has_escaping_tlab(vcode_unit_t vu)
    return !!(vu->flags & UNIT_ESCAPING_TLAB);
 }
 
-int vcode_unit_depth(void)
+int vcode_unit_depth(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return active_unit->depth;
+   assert(vu != NULL);
+   return vu->depth;
 }
 
 void vcode_set_result(vcode_type_t type)
@@ -2961,24 +2964,23 @@ void vcode_set_result(vcode_type_t type)
    active_unit->result = type;
 }
 
-vcode_type_t vcode_unit_result(void)
+vcode_type_t vcode_unit_result(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_FUNCTION
-          || active_unit->kind == VCODE_UNIT_THUNK);
-   return active_unit->result;
+   assert(vu != NULL);
+   assert(vu->kind == VCODE_UNIT_FUNCTION || vu->kind == VCODE_UNIT_THUNK);
+   return vu->result;
 }
 
-vunit_kind_t vcode_unit_kind(void)
+vunit_kind_t vcode_unit_kind(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return active_unit->kind;
+   assert(vu != NULL);
+   return vu->kind;
 }
 
-vcode_unit_t vcode_unit_context(void)
+vcode_unit_t vcode_unit_context(vcode_unit_t vu)
 {
-   assert(active_unit != NULL);
-   return active_unit->context;
+   assert(vu != NULL);
+   return vu->context;
 }
 
 void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset)
@@ -5893,12 +5895,8 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
    ident_write(unit->module, ident_wr_ctx);
    fbuf_put_uint(f, unit->offset);
 
-   if (unit->context != NULL) {
-      vcode_select_unit(unit);
-      vcode_select_unit(vcode_unit_context());
-      ident_write(vcode_unit_name(), ident_wr_ctx);
-      vcode_close();
-   }
+   if (unit->context != NULL)
+      ident_write(unit->context->name, ident_wr_ctx);
    else
       ident_write(NULL, ident_wr_ctx);
 

@@ -144,9 +144,9 @@ void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
    }
 
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(get_vcode(parent));
+   vcode_select_unit(context);
 
-   ident_t prefix = vcode_unit_name();
+   ident_t prefix = vcode_unit_name(context);
    ident_t name = ident_prefix(prefix, label, '.');
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
@@ -224,9 +224,9 @@ static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
    vcode_state_save(&state);
 
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(get_vcode(parent));
+   vcode_select_unit(context);
 
-   ident_t prefix = vcode_unit_name();
+   ident_t prefix = vcode_unit_name(context);
    ident_t name = ident_prefix(prefix, label, '.');
 
    vcode_unit_t vu = emit_function(name, psl_to_object(p), context);

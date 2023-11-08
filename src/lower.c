@@ -2508,84 +2508,49 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
 
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
-   vcode_unit_t caller = vcode_active_unit();
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
    if (lu->registry != NULL && unit_registry_query(lu->registry, unit_name)) {
       vcode_unit_t vu = unit_registry_get(lu->registry, unit_name);
 
-      vcode_select_unit(vu);
-      vcode_unit_t context = vcode_unit_context();
+      vcode_unit_t context = vcode_unit_context(vu);
+      assert(context != NULL);
 
-      if (context == caller) {
-         vcode_state_restore(&state);
-         return emit_context_upref(0);
-      }
-      else if (context == NULL) {
-         assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
-         vcode_state_restore(&state);
-         return emit_null(vtype_context(unit_name));
-      }
+      vcode_unit_t ancestor = lu->vunit;
+      int hops = 0;
+      for (; ancestor && ancestor != context;
+           hops++, ancestor = vcode_unit_context(ancestor))
+         ;
 
-      vcode_select_unit(context);
-
-      ident_t context_name = vcode_unit_name();
-      vunit_kind_t context_kind = vcode_unit_kind();
-      vcode_state_restore(&state);
-
-      if (context_kind == VCODE_UNIT_PACKAGE) {
-         if (vcode_unit_kind() == VCODE_UNIT_THUNK)
+      if (ancestor != NULL)
+         return emit_context_upref(hops);
+      else if (vcode_unit_kind(context) == VCODE_UNIT_PACKAGE) {
+         ident_t context_name = vcode_unit_name(context);
+         if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
             return emit_package_init(context_name, VCODE_INVALID_REG);
-         else if (context == vcode_unit_context())
-            return emit_context_upref(1);
          else
             return emit_link_package(context_name);
       }
-      else {
-         int hops = 0;
-         for (; vcode_active_unit() != context; hops++) {
-            vcode_unit_t up = vcode_unit_context();
-            if (up == NULL) {
-               vcode_state_restore(&state);
-               return emit_null(vtype_context(context_name));
-            }
-
-            vcode_select_unit(up);
-         }
-
-         vcode_state_restore(&state);
-         return emit_context_upref(hops);
-      }
    }
 
-   vcode_state_restore(&state);
-
    int hops = 0;
-   for (; ; hops++) {
-      ident_t this = vcode_unit_name();
+   for (vcode_unit_t it = lu->vunit; ; hops++) {
+      ident_t this = vcode_unit_name(it);
       assert(this != unit_name);
       if (ident_starts_with(unit_name, this)
-          && ident_char(unit_name, ident_len(this)) == '.') {
-         vcode_state_restore(&state);
+          && ident_char(unit_name, ident_len(this)) == '.')
          return emit_context_upref(hops);
-      }
 
-      vcode_unit_t context = vcode_unit_context();
+      vcode_unit_t context = vcode_unit_context(it);
       if (context == NULL)
          break;
 
-      vcode_select_unit(context);
+      it = context;
    }
-
-   vcode_state_restore(&state);
 
    ident_t scope_name = ident_runtil(ident_until(unit_name, '('), '.');
    tree_t pack = lib_get_qualified(scope_name);
    if (pack != NULL && is_package(pack)) {
       assert(!is_uninstantiated_package(pack));
-      if (vcode_unit_kind() == VCODE_UNIT_THUNK)
+      if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
          return emit_package_init(scope_name, VCODE_INVALID_REG);
       else
          return emit_link_package(scope_name);
@@ -3023,7 +2988,7 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
          vcode_reg_t context = emit_link_package(tree_ident(unit));
          ptr_reg = emit_link_var(context, tree_ident(decl), lower_type(type));
       }
-      else if (vcode_unit_kind() == VCODE_UNIT_INSTANCE) {
+      else if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_INSTANCE) {
          // This can happen when a type contains a reference to a
          // component generic. The elaborator does not currently rewrite
          // it to point at the corresponding entity generic.
@@ -6554,7 +6519,7 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    }
 
    bool use_fcall;
-   switch (vcode_unit_kind()) {
+   switch (vcode_unit_kind(lu->vunit)) {
    case VCODE_UNIT_FUNCTION:
    case VCODE_UNIT_THUNK:
       use_fcall = true;
@@ -6642,9 +6607,9 @@ static void lower_wait_free_cb(tree_t t, void *ctx)
       (*count)++;
 }
 
-static bool lower_is_wait_free(tree_t stmt)
+static bool lower_is_wait_free(lower_unit_t *lu, tree_t stmt)
 {
-   switch (vcode_unit_kind()) {
+   switch (vcode_unit_kind(lu->vunit)) {
    case VCODE_UNIT_PROCEDURE:
    case VCODE_UNIT_PROCESS:
       {
@@ -6688,7 +6653,7 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    // If the body of the loop may wait we need to store the bounds in a
    // variable as the range is evaluated only on entry to the loop
-   const bool is_wait_free = lower_is_wait_free(stmt);
+   const bool is_wait_free = lower_is_wait_free(lu, stmt);
    vcode_var_t right_var = VCODE_INVALID_VAR, step_var = VCODE_INVALID_VAR;
    if (!is_wait_free) {
       right_var = lower_temp_var(lu, "right", vtype, vtype);
@@ -8015,8 +7980,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
       {
          tree_t expr = tree_value(decl);
 
-         ident_t context_id = vcode_unit_name();
-         ident_t qual = ident_prefix(context_id, name, '.');
+         ident_t qual = ident_prefix(parent->name, name, '.');
          ident_t func = ident_prefix(qual, ident_new("guard"), '$');
 
          vcode_state_t state;
@@ -8026,7 +7990,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_unit_t vu = emit_function(func, obj, parent->vunit);
          vcode_set_result(vtype);
 
-         vcode_type_t vcontext = vtype_context(context_id);
+         vcode_type_t vcontext = vtype_context(parent->name);
          emit_param(vcontext, vcontext, ident_new("context"));
 
          lower_unit_t *lu = lower_unit_new(parent->registry, parent,
@@ -8072,7 +8036,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_state_save(&state);
 
          object_t *obj = tree_to_object(decl);
-         ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
+         ident_t name = ident_prefix(parent->name, tree_ident(decl), '.');
          vcode_unit_t vu = emit_process(name, obj, parent->vunit);
 
          lower_unit_t *lu = lower_unit_new(parent->registry, parent,
@@ -8124,18 +8088,17 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
    case IMPLICIT_TRANSACTION:
       {
-         ident_t context_id = vcode_unit_name();
-         ident_t func = ident_prefix(context_id, name, '.');
 
          vcode_state_t state;
          vcode_state_save(&state);
 
          tree_t expr = tree_value(decl);
          object_t *obj = tree_to_object(expr);
+         ident_t func = ident_prefix(parent->name, name, '.');
          vcode_unit_t vu = emit_function(func, obj, parent->vunit);
          vcode_set_result(vtype);
 
-         vcode_type_t vcontext = vtype_context(context_id);
+         vcode_type_t vcontext = vtype_context(parent->name);
          emit_param(vcontext, vcontext, ident_new("context"));
 
          lower_unit_t *lu = lower_unit_new(parent->registry, parent,
@@ -9559,7 +9522,8 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
 
    vcode_select_unit(parent->vunit);
 
-   ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
+   ident_t context_id = vcode_unit_name(parent->vunit);
+   ident_t name = ident_prefix(context_id, tree_ident(decl), '.');
 
    vcode_unit_t vu = emit_package(name, tree_to_object(decl), parent->vunit);
 
@@ -9719,7 +9683,7 @@ void lower_finished(lower_unit_t *lu)
    vcode_select_unit(lu->vunit);
    vcode_opt();
 
-   if (opt_get_verbose(OPT_DUMP_VCODE, istr(vcode_unit_name())))
+   if (opt_get_verbose(OPT_DUMP_VCODE, istr(lu->name)))
       vcode_dump();
 
    lu->finished = true;
@@ -10878,17 +10842,15 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(!is_uninstantiated_subprogram(body));
 
-   ident_t context_id = vcode_unit_name();
-
    cover_push_scope(lu->cover, body);
 
-   vcode_type_t vcontext = vtype_context(context_id);
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
 
    if (tree_kind(body) == T_PROC_INST)
       lower_generics(lu, body);
 
-   const bool never_waits = vcode_unit_kind() == VCODE_UNIT_FUNCTION;
+   const bool never_waits = vcode_unit_kind(lu->vunit) == VCODE_UNIT_FUNCTION;
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms || !never_waits);
 
@@ -11030,9 +10992,8 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 {
    assert(tree_kind(proc) == T_PROCESS);
 
-   vcode_select_unit(parent->vunit);
    ident_t label = tree_ident(proc);
-   ident_t name = ident_prefix(vcode_unit_name(), label, '.');
+   ident_t name = ident_prefix(parent->name, label, '.');
    vcode_unit_t vu = emit_process(name, tree_to_object(proc), parent->vunit);
 
    // The code generator assumes the first state starts at block number
@@ -11179,11 +11140,8 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       }
    }
 
-   vcode_unit_t context = vcode_active_unit();
-   ident_t context_id = vcode_unit_name();
-
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%s.", istr(context_id));
+   tb_printf(tb, "%s.", istr(parent->name));
    if (kind == T_TYPE_CONV)
       tb_printf(tb, "convert_%s_%s", type_pp(atype), type_pp(rtype));
    else {
@@ -11228,14 +11186,14 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       }
    }
 
-   vcode_unit_t vu = emit_function(name, tree_to_object(expr), context);
+   vcode_unit_t vu = emit_function(name, tree_to_object(expr), parent->vunit);
    vcode_set_result(*vrtype);
    emit_debug_info(tree_loc(expr));
 
    lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
    unit_registry_put(parent->registry, lu);
 
-   vcode_type_t vcontext = vtype_context(context_id);
+   vcode_type_t vcontext = vtype_context(parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
 
    vcode_reg_t p0 = emit_param(*vatype, vabounds, ident_new("p0"));
@@ -11472,7 +11430,7 @@ static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
    vcode_state_t state;
    vcode_state_save(&state);
 
-   ident_t pname = ident_prefix(vcode_unit_name(), name, '.');
+   ident_t pname = ident_prefix(parent->name, name, '.');
    vcode_unit_t vu = emit_process(pname, tree_to_object(wave), parent->vunit);
 
    lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
@@ -12007,13 +11965,8 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
 static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
 {
    ident_t iname = tree_ident(inst);
-   if (ident_runtil(iname, '.') == iname) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-      vcode_select_unit(vcode_unit_context());
-      iname = ident_prefix(vcode_unit_name(), iname, '.');
-      vcode_state_restore(&state);
-   }
+   if (ident_runtil(iname, '.') == iname)
+      iname = ident_prefix(lu->parent->name, iname, '.');
 
    vcode_reg_t context = emit_link_package(iname);
 
@@ -12164,12 +12117,12 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
 
 static void lower_deps_cb(ident_t unit_name, void *__ctx)
 {
+   lower_unit_t *lu = __ctx;
+
    lib_t lib = lib_require(ident_until(unit_name, '.'));
 
-   ident_t this_unit = vcode_unit_name();
-
    const tree_kind_t kind = lib_index_kind(lib, unit_name);
-   if (kind != T_ENTITY && unit_name == this_unit)
+   if (kind != T_ENTITY && unit_name == lu->name)
       return;   // Package body depends on package
 
    if (kind == T_PACKAGE && standard() >= STD_08) {
@@ -12182,14 +12135,14 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
       emit_package_init(unit_name, VCODE_INVALID_REG);
 }
 
-static void lower_dependencies(tree_t unit)
+static void lower_dependencies(lower_unit_t *lu, tree_t unit)
 {
-   tree_walk_deps(unit, lower_deps_cb, NULL);
+   tree_walk_deps(unit, lower_deps_cb, lu);
 
    switch (tree_kind(unit)) {
    case T_ARCH:
    case T_PACK_BODY:
-      lower_dependencies(tree_primary(unit));
+      lower_dependencies(lu, tree_primary(unit));
       break;
    case T_BLOCK:
       {
@@ -12198,7 +12151,7 @@ static void lower_dependencies(tree_t unit)
 
          tree_t src = tree_ref(hier);
          if (is_design_unit(src))
-            lower_dependencies(src);
+            lower_dependencies(lu, src);
       }
       break;
    default:
@@ -12235,7 +12188,7 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
       emit_package_init(ieee_support, VCODE_INVALID_REG);
    }
 
-   lower_dependencies(body);
+   lower_dependencies(lu, body);
 
    const bool has_scope =
       lower_push_package_scope(pack) || lower_push_package_scope(body);
@@ -12254,7 +12207,7 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_from_object(obj);
    assert(!is_uninstantiated_package(pack));
 
-   lower_dependencies(pack);
+   lower_dependencies(lu, pack);
 
    const bool has_scope = lower_push_package_scope(pack);
 
@@ -12310,12 +12263,6 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 {
    // TODO: this should really be in eval.c
 
-   ident_t context_id = NULL;
-   if (parent != NULL) {
-      vcode_select_unit(parent->vunit);
-      context_id = vcode_unit_name();
-   }
-
    vcode_unit_t context = parent ? parent->vunit : NULL;
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
    lower_unit_t *lu = lower_unit_new(parent->registry, parent, thunk, NULL, NULL);
@@ -12325,7 +12272,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
    vcode_set_result(vint);
 
    if (parent != NULL) {
-      vcode_type_t vcontext = vtype_context(context_id);
+      vcode_type_t vcontext = vtype_context(parent->name);
       emit_param(vcontext, vcontext, ident_new("context"));
    }
 
@@ -12402,12 +12349,6 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 
 vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 {
-   ident_t context_id = NULL;
-   if (parent != NULL) {
-      vcode_select_unit(parent->vunit);
-      context_id = vcode_unit_name();
-   }
-
    tree_t container = primary_unit_of(tree_container(t));
 
    vcode_unit_t context = parent ? parent->vunit : NULL;
@@ -12434,7 +12375,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    vcode_set_result(vtype);
 
    if (parent != NULL) {
-      vcode_type_t vcontext = vtype_context(context_id);
+      vcode_type_t vcontext = vtype_context(parent->name);
       emit_param(vcontext, vcontext, ident_new("context"));
    }
 
@@ -12450,7 +12391,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    lower_finished(lu);
    lower_unit_free(lu);
 
-   if (vcode_unit_has_undefined()) {
+   if (vcode_unit_has_undefined(thunk)) {
       vcode_unit_unref(thunk);
       return NULL;
    }
@@ -12467,7 +12408,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    vcode_select_unit(parent ? parent->vunit : NULL);
 
-   ident_t prefix = parent ? vcode_unit_name() : lib_name(lib_work());
+   ident_t prefix = parent ? parent->name : lib_name(lib_work());
    ident_t label = tree_ident(block);
    ident_t name = ident_prefix(prefix, label, '.');
 
@@ -12486,7 +12427,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
       cover_ignore_from_pragmas(lu->cover, tree_ref(hier));
    }
 
-   lower_dependencies(block);
+   lower_dependencies(lu, block);
    lower_generics(lu, block);
    lower_ports(lu, ds, block);
    lower_decls(lu, block);
@@ -12509,16 +12450,10 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
    new->cover     = cover;
    new->registry  = ur;
 
-   vcode_state_t state;
-   vcode_state_save(&state);
+   const vunit_kind_t kind = vcode_unit_kind(vunit);
 
-   vcode_select_unit(vunit);
-   const vunit_kind_t kind = vcode_unit_kind();
-
-   new->name = vcode_unit_name();
+   new->name = vcode_unit_name(vunit);
    new->mode = (kind == VCODE_UNIT_THUNK) ? LOWER_THUNK : LOWER_NORMAL;
-
-   vcode_state_restore(&state);
 
    // Prevent access to resolved signals during static elaboration
    new->elaborating = kind == VCODE_UNIT_INSTANCE
@@ -12671,9 +12606,8 @@ void unit_registry_flush(unit_registry_t *ur, ident_t name)
    for (vcode_unit_t it = vcode_unit_child(vu);
         it != NULL;
         it = vcode_unit_next(it)) {
-      vcode_select_unit(it);
-      assert(vcode_unit_kind() != VCODE_UNIT_THUNK);
-      unit_registry_flush(ur, vcode_unit_name());
+      assert(vcode_unit_kind(it) != VCODE_UNIT_THUNK);
+      unit_registry_flush(ur, vcode_unit_name(it));
    }
 }
 
@@ -12694,9 +12628,7 @@ void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
 
 void unit_registry_put_all(unit_registry_t *ur, vcode_unit_t vu)
 {
-   vcode_select_unit(vu);
-
-   ident_t ident = vcode_unit_name();
+   ident_t ident = vcode_unit_name(vu);
    assert(hash_get(ur->map, ident) == NULL);
    hash_put(ur->map, ident, tag_pointer(vu, UNIT_FINALISED));
 

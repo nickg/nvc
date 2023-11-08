@@ -64,9 +64,7 @@ static A(char *) cleanup_files = AINIT;
 
 static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
 {
-   vcode_select_unit(root);
-
-   const vunit_kind_t kind = vcode_unit_kind();
+   const vunit_kind_t kind = vcode_unit_kind(root);
    if (kind != VCODE_UNIT_INSTANCE && kind != VCODE_UNIT_PROCESS
        && kind != VCODE_UNIT_PROPERTY)
       return;
@@ -267,9 +265,8 @@ static void cgen_async_work(void *context, void *arg)
 
    for (int i = 0; i < job->units.count; i++) {
       vcode_unit_t vu = job->units.items[i];
-      vcode_select_unit(vu);
 
-      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
+      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name(vu));
       assert(handle != JIT_HANDLE_INVALID);
 
       llvm_aot_compile(obj, jit, handle);
@@ -514,7 +511,7 @@ void aotgen(const char *outfile, char **argv, int argc)
       vcode_unit_t vu = units.items[i];
       vcode_select_unit(vu);
 
-      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name());
+      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name(vu));
       assert(handle != JIT_HANDLE_INVALID);
 
       llvm_aot_compile(obj, jit, handle);

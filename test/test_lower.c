@@ -265,8 +265,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
             vcode_var_t address = vcode_get_address(i);
             int hops = vcode_get_hops(i);
-            while (hops--)
-               vcode_select_unit(vcode_unit_context());
+            for (vcode_unit_t vu = vcode_active_unit(); hops > 0; hops--)
+               vcode_select_unit((vu = vcode_unit_context(vu)));
 
             ident_t actual = vcode_var_name(address);
             vcode_state_restore(&state);
@@ -1048,7 +1048,7 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit_for(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), "WORK.NEST1.LINE_7.ADD_TO_X(I)I"));
+      fail_unless(icmp(vcode_unit_name(v0), "WORK.NEST1.LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_STORE, .name = "Y" },
@@ -1067,7 +1067,7 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit_for(f2);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(),
+      fail_unless(icmp(vcode_unit_name(v0),
                        "WORK.NEST1.LINE_7.ADD_TO_X(I)I.DO_IT()I"));
 
       EXPECT_BB(0) = {
@@ -1082,7 +1082,6 @@ START_TEST(test_nest1)
 
       CHECK_BB(0);
    }
-
 }
 END_TEST
 
@@ -2264,11 +2263,11 @@ START_TEST(test_issue164)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   vcode_select_unit(find_unit_for(tree_decl(p, 0)));
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME(I)"));
+   vcode_unit_t v0 = find_unit_for(tree_decl(p, 0));
+   fail_unless(icmp(vcode_unit_name(v0), "WORK.ISSUE164.SAME_NAME(I)"));
 
-   vcode_select_unit(find_unit_for(tree_decl(p, 1)));
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME()I"));
+   vcode_unit_t v1 = find_unit_for(tree_decl(p, 1));
+   fail_unless(icmp(vcode_unit_name(v1), "WORK.ISSUE164.SAME_NAME()I"));
 }
 END_TEST
 
@@ -3739,7 +3738,7 @@ START_TEST(test_instance1)
    vcode_unit_t vu = find_unit("WORK.INSTANCE1.SUB_I");
    vcode_select_unit(vu);
 
-   fail_unless(vcode_unit_kind() == VCODE_UNIT_INSTANCE);
+   fail_unless(vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE);
 
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
@@ -4761,31 +4760,55 @@ START_TEST(test_predef1)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.PREDEF1.F(III)I");
-   vcode_select_unit(vu);
+   {
+      vcode_unit_t vu = find_unit("WORK.PREDEF1.F(III)I");
+      vcode_select_unit(vu);
 
-   // The type declaration creates nested subprograms
-   EXPECT_BB(0) = {
-      { VCODE_OP_STORE, .name = "A_WIDTH" },
-      { VCODE_OP_STORE, .name = "B_WIDTH" },
-      { VCODE_OP_STORE, .name = "DEPTH" },
-      { VCODE_OP_NULL },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_SUB },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_ADD },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_SUB },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_WRAP },
-      { VCODE_OP_STORE, .name = "WORK.PREDEF1-TEST.F(III)I.A" },
-      { VCODE_OP_RETURN },
-   };
+      // The type declaration creates nested subprograms
+      EXPECT_BB(0) = {
+         { VCODE_OP_STORE, .name = "A_WIDTH" },
+         { VCODE_OP_STORE, .name = "B_WIDTH" },
+         { VCODE_OP_STORE, .name = "DEPTH" },
+         { VCODE_OP_NULL },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_TRAP_SUB },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_TRAP_ADD },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_TRAP_SUB },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "WORK.PREDEF1-TEST.F(III)I.A" },
+         { VCODE_OP_RETURN },
+      };
 
-   CHECK_BB(0);
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.PREDEF1.U2.B1.P1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_NULL },
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST_RECORD },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_FCALL, .func = "WORK.SUB-TEST.B1.\"=\"("
+           "22WORK.SUB-TEST.B1.T_REC22WORK.SUB-TEST.B1.T_REC)B$predef" },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_WAIT, .target = 2},
+      };
+
+      CHECK_BB(1);
+   }
 
    fail_if_errors();
 }

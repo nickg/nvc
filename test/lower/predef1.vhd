@@ -1,3 +1,28 @@
+entity sub is
+end entity;
+
+architecture test of sub is
+begin
+
+    b1: block is
+        type t_rec is record
+            x, y : integer;
+        end record;
+    begin
+
+        p1: process is
+            variable v : t_rec;
+        begin
+            assert v = (1, 2);
+            wait;
+        end process;
+
+    end block;
+
+end architecture;
+
+-------------------------------------------------------------------------------
+
 entity predef1 is
 end entity;
 
@@ -9,6 +34,10 @@ architecture test of predef1 is
         return 0;
     end function;
 
+
 begin
+
+    u1: entity work.sub;
+    u2: entity work.sub;                -- Only one "=" predef generated
 
 end architecture;

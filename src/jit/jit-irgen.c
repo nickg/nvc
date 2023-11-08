@@ -1228,7 +1228,7 @@ static void irgen_send_args(jit_irgen_t *g, int op, int first)
 
 static void irgen_op_return(jit_irgen_t *g, int op)
 {
-   switch (vcode_unit_kind()) {
+   switch (vcode_unit_kind(g->func->unit)) {
    case VCODE_UNIT_PROCESS:
       if (g->statereg.kind != JIT_VALUE_INVALID) {
          // Set up for first call to process after reset
@@ -1992,15 +1992,15 @@ static void irgen_op_var_upref(jit_irgen_t *g, int op)
    vcode_state_t state;
    vcode_state_save(&state);
 
-   vcode_select_unit(vcode_unit_context());
+   vcode_unit_t vu = vcode_unit_context(g->func->unit);
 
    for (int i = 1; i < hops; i++) {
       context = j_load(g, JIT_SZ_PTR, jit_addr_from_value(context, 0));
-      vcode_select_unit(vcode_unit_context());
+      vu = vcode_unit_context(vu);
    }
 
    // TODO: maybe we should cache these somewhere?
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_unit_name());
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_unit_name(vu));
    jit_func_t *cf = jit_get_func(g->func->jit, handle);
 
    // Handle potential circular dependency
@@ -2241,7 +2241,7 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
          g->used_tlab |= vkind == VCODE_TYPE_UARRAY
             || vkind == VCODE_TYPE_POINTER;
       }
-      else if (vcode_unit_kind() == VCODE_UNIT_FUNCTION) {
+      else if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_FUNCTION) {
          irgen_label_t *cont = irgen_alloc_label(g);
          jit_value_t state = j_recv(g, 0);
          j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
@@ -2261,7 +2261,7 @@ static void irgen_pcall_suspend(jit_irgen_t *g, jit_value_t state,
    j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
    j_jump(g, JIT_CC_T, cont);
 
-   if (vcode_unit_kind() == VCODE_UNIT_PROCESS)
+   if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCESS)
       j_send(g, 0, jit_null_ptr());
    else
       j_send(g, 0, g->statereg);
@@ -2325,7 +2325,7 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
       j_store(g, JIT_SZ_32, jit_value_from_int64(target), ptr);
    }
 
-   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+   if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCEDURE) {
       macro_exit(g, JIT_EXIT_CLAIM_TLAB);
       j_send(g, 0, g->statereg);
    }
@@ -3870,7 +3870,7 @@ static void irgen_locals(jit_irgen_t *g)
    g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
 
    bool on_stack;
-   const vunit_kind_t kind = vcode_unit_kind();
+   const vunit_kind_t kind = vcode_unit_kind(g->func->unit);
    switch (kind) {
    case VCODE_UNIT_PROCESS:
       on_stack = g->stateless;
@@ -3968,9 +3968,9 @@ static void irgen_params(jit_irgen_t *g, int first)
          types[i + first + 1] = irgen_ffi_type(vtype);
    }
 
-   vunit_kind_t kind = vcode_unit_kind();
+   vunit_kind_t kind = vcode_unit_kind(g->func->unit);
    if (kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_THUNK) {
-      vcode_type_t rtype = vcode_unit_result();
+      vcode_type_t rtype = vcode_unit_result(g->func->unit);
       if (rtype != VCODE_INVALID_TYPE)
          types[0] = irgen_ffi_type(rtype);
    }
@@ -3990,7 +3990,8 @@ static void irgen_jump_table(jit_irgen_t *g)
    jit_value_t state = j_load(g, JIT_SZ_32, state_ptr);
    jit_reg_t state_reg = jit_value_as_reg(state);
 
-   const bool is_process = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
+   const bool is_process =
+      (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCESS);
    const int nblocks = vcode_count_blocks();
 
    bit_mask_t have;
@@ -4025,15 +4026,15 @@ static void irgen_jump_table(jit_irgen_t *g)
    mask_free(&have);
 }
 
-static bool irgen_is_procedure(void)
+static bool irgen_is_procedure(jit_irgen_t *g)
 {
-   switch (vcode_unit_kind()) {
+   switch (vcode_unit_kind(g->func->unit)) {
    case VCODE_UNIT_PROCEDURE:
       return true;
    case VCODE_UNIT_FUNCTION:
    case VCODE_UNIT_THUNK:
       // Procedure compiled as function
-      return vcode_unit_result() == VCODE_INVALID_TYPE;
+      return vcode_unit_result(g->func->unit) == VCODE_INVALID_TYPE;
    default:
       return false;
    }
@@ -4043,7 +4044,7 @@ static void irgen_analyse(jit_irgen_t *g)
 {
    // A process is stateless if it has no non-temporary variables and
    // all wait statements resume at the initial block
-   g->stateless = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
+   g->stateless = (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCESS);
 
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
@@ -4100,7 +4101,7 @@ void jit_irgen(jit_func_t *f)
 
    irgen_analyse(g);
 
-   const vunit_kind_t kind = vcode_unit_kind();
+   const vunit_kind_t kind = vcode_unit_kind(g->func->unit);
    const bool has_privdata =
       kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
    const bool has_params =
@@ -4122,7 +4123,7 @@ void jit_irgen(jit_func_t *f)
       irgen_bind_label(g, cont);
    }
 
-   const int first_param = irgen_is_procedure() || has_jump_table ? 1 : 0;
+   const int first_param = irgen_is_procedure(g) || has_jump_table ? 1 : 0;
    if (has_params)
       irgen_params(g, first_param);
    else if (kind == VCODE_UNIT_PROCESS) {

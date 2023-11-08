@@ -636,9 +636,8 @@ static void vlog_lower_always(unit_registry_t *ur, lower_unit_t *parent,
                               vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(context);
 
-   ident_t name = ident_prefix(vcode_unit_name(), vlog_ident(stmt), '.');
+   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
    vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
 
    vcode_block_t start_bb = emit_block();
@@ -673,9 +672,8 @@ static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
                                vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(context);
 
-   ident_t name = ident_prefix(vcode_unit_name(), vlog_ident(stmt), '.');
+   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
    vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
 
    vcode_block_t start_bb = emit_block();
@@ -702,9 +700,8 @@ static void vlog_lower_continuous_assign(unit_registry_t *ur,
                                          vlog_node_t stmt)
 {
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(context);
 
-   ident_t name = ident_prefix(vcode_unit_name(), vlog_ident(stmt), '.');
+   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
    vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
 
    vcode_block_t start_bb = emit_block();
@@ -758,9 +755,8 @@ void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent)
    assert(vlog_kind(root) == V_ROOT);
 
    vcode_unit_t context = parent ? get_vcode(parent) : NULL;
-   vcode_select_unit(context);
 
-   ident_t prefix = parent ? vcode_unit_name() : lib_name(lib_work());
+   ident_t prefix = parent ? vcode_unit_name(context) : lib_name(lib_work());
    ident_t label = tree_ident(wrap);
    ident_t name = ident_prefix(prefix, label, '.');
 

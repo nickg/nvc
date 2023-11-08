@@ -459,8 +459,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    vcode_state_t state;
    vcode_state_save(&state);
 
-   vcode_select_unit(f->unit);
-   const vunit_kind_t kind = vcode_unit_kind();
+   const vunit_kind_t kind = vcode_unit_kind(f->unit);
    if (kind != VCODE_UNIT_PACKAGE && kind != VCODE_UNIT_INSTANCE)
       fatal_trace("cannot link unit %s", istr(f->name));
 
@@ -806,8 +805,7 @@ bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
 void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
                      thunk_result_fn_t fn, void *arg)
 {
-   vcode_select_unit(unit);
-   assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
+   assert(vcode_unit_kind(unit) == VCODE_UNIT_THUNK);
 
    jit_func_t *f = xcalloc(sizeof(jit_func_t));
    f->state  = JIT_FUNC_COMPILING;
