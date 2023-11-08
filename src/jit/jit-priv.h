@@ -320,10 +320,20 @@ typedef enum {
    JIT_RUNNING
 } jit_state_t;
 
+#ifdef HAVE___BUILTIN_SETJMP
+typedef void *jit_jmpbuf_t[5];
+#define jit_setjmp(buf) __builtin_setjmp((buf))
+#define jit_longjmp(buf, arg) __builtin_longjmp((buf), (arg))
+#else
+typedef sigjmp_buf jit_jmpbuf_t;
+#define jit_setjmp(buf) sigsetjmp((buf), 0)
+#define jit_longjmp(buf, arg) siglongjmp((buf), arg)
+#endif
+
 typedef struct {
    jit_t                 *jit;
    jit_state_t            state;
-   sigjmp_buf             abort_env;
+   jit_jmpbuf_t           abort_env;
    volatile sig_atomic_t  jmp_buf_valid;
    jit_anchor_t          *anchor;
 } jit_thread_local_t;

@@ -132,6 +132,7 @@ case $target_cpu in
 esac
 
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
+AX_GCC_BUILTIN([__builtin_setjmp])
 
 AC_ARG_ENABLE([verilog],
   [AS_HELP_STRING([--enable-verilog], [Experimental Verilog support])],
