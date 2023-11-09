@@ -66,6 +66,7 @@ typedef enum {
    OPT_VECTOR_INTRINSICS,
    OPT_SHUFFLE_PROCS,
    OPT_VHPI_DEBUG,
+   OPT_SERVER_PORT,
 
    OPT_LAST_NAME
 } opt_name_t;

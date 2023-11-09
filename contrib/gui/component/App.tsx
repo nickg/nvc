@@ -28,13 +28,10 @@ import WaveView from "./WaveView";
 import Sidebar from "./Sidebar";
 import { bindEvents } from "../lib/react-util";
 
-function makeWebSocket(url: string) {
-  const ws = new WebSocket(url);
-  ws.binaryType = "arraybuffer";
-  return ws;
-}
+const socket = new WebSocket(`ws://${window.location.host}/socket`);
+socket.binaryType = "arraybuffer";
 
-const conduit = new Conduit(makeWebSocket);
+const conduit = new Conduit(socket);
 const model = new Model(conduit);
 const toaster: Toaster = OverlayToaster.create({ position: "top-right" });
 

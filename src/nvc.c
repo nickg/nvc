@@ -1478,6 +1478,7 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "init", required_argument, 0, 'i' },
+      { "port", required_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
 
@@ -1488,6 +1489,15 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
       switch (c) {
       case 0: break;  // Set a flag
       case 'i': init_cmd = optarg; break;
+      case 'p':
+         {
+            const int port = parse_int(optarg);
+            if (port < 0 || port > UINT16_MAX)
+               fatal("invalid port number %d", port);
+
+            opt_set_int(OPT_SERVER_PORT, port);
+         }
+         break;
       case '?': bad_option("gui", argv);
       case ':': missing_argument("gui", argv);
       default: abort();
@@ -1647,7 +1657,7 @@ static void usage(void)
           " --do SCRIPT\t\t\tEvaluate TCL script\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
 #ifdef ENABLE_GUI
-          "  --gui\t\t\t\tLaunch browser-based GUI\n"
+          " --gui\t\t\t\tLaunch browser-based GUI\n"
 #endif
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
@@ -1718,6 +1728,12 @@ static void usage(void)
           "     --vhpi-trace\tTrace VHPI calls and events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
           "\n"
+#ifdef ENABLE_GUI
+          "GUI options:\n"
+          "     --init=CMDS\tEvaluate TCL commands on startup\n"
+          "     --port=PORT\tSpecify port for HTTP server\n"
+          "\n"
+#endif
           "Coverage processing options:\n"
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
           "                   \tto OUTPUT coverage database\n"

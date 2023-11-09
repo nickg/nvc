@@ -15,4 +15,12 @@ export default defineConfig({
       },
     },
   },
+  server: {
+    proxy: {
+      "/socket": {
+        target: "ws://localhost:8888",
+        ws: true,
+      },
+    },
+  },
 });

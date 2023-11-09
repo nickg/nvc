@@ -90,8 +90,8 @@ class Conduit {
   onQuitSim: (() => void) | null = null;
   onNextTimeStep: (now: bigint) => void = () => {};
 
-  constructor(makeWebSocket: (url: string) => IWebSocket) {
-    this.socket = makeWebSocket("ws://localhost:8888");
+  constructor(socket: IWebSocket) {
+    this.socket = socket;
 
     this.socket.onmessage = (e) => {
       if (typeof e.data == "string")

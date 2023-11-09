@@ -170,4 +170,5 @@ void set_default_options(void)
    opt_set_int(OPT_VECTOR_INTRINSICS, get_int_env("NVC_VECTOR_INTRINSICS", 1));
    opt_set_int(OPT_SHUFFLE_PROCS, 0);
    opt_set_int(OPT_VHPI_DEBUG, 0);
+   opt_set_int(OPT_SERVER_PORT, 8888);
 }

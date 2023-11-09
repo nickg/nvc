@@ -56,7 +56,8 @@ class BrowserWebSocket {
 }
 
 test("sanity", (done) => {
-  const c = new Conduit((url) => new BrowserWebSocket(url));
+  const ws = new BrowserWebSocket("ws://localhost:8888");
+  const c = new Conduit(ws);
 
   c.onOpen = () => {};
 

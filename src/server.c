@@ -67,7 +67,6 @@
 #define WS_OPCODE_PING_FRAME   0x9
 #define WS_OPCODE_PONG_FRAME   0xa
 
-#define PORT             8888
 #define MAX_HTTP_REQUEST 1024
 
 #ifndef __MINGW32__
@@ -755,10 +754,10 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
       goto out_close;
    }
 
-   const char *ws_version_header = shash_get(headers, "Sec-WebSocket-Version");
+   const char *ws_version_header = shash_get(headers, "sec-websocket-version");
 
    if (ws_version_header == NULL
-       || strcmp(ws_version_header, WS_WEBSOCKET_VERSION) != 0) {
+       || strcasecmp(ws_version_header, WS_WEBSOCKET_VERSION) != 0) {
 
       static const char page[] = "Upgrade required";
       static const char header[] =
@@ -771,7 +770,7 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
       goto out_close;
    }
 
-   const char *ws_key_header = shash_get(headers, "Sec-WebSocket-Key");
+   const char *ws_key_header = shash_get(headers, "sec-websocket-key");
 
    if (ws_key_header == NULL || strlen(ws_key_header) != WS_KEY_LEN) {
       send_page(fd, HTTP_BAD_REQUEST, "Bad request");
@@ -799,12 +798,12 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
 
 static bool is_websocket_request(shash_t *headers)
 {
-   const char *upg_header = shash_get(headers, "Upgrade");
-   const char *con_header = shash_get(headers, "Connection");
+   const char *upg_header = shash_get(headers, "upgrade");
+   const char *con_header = shash_get(headers, "connection");
 
    return (upg_header != NULL && con_header != NULL)
-          && (strcmp(upg_header, WS_UPGRADE_VALUE) == 0)
-          && (strstr(con_header, "Upgrade") != NULL);
+          && (strcasecmp(upg_header, WS_UPGRADE_VALUE) == 0)
+          && (strcasestr(con_header, "Upgrade") != NULL);
 }
 
 #ifdef ENABLE_GUI
@@ -971,6 +970,9 @@ static void handle_new_connection(web_server_t *server)
          while (*value == ' ')
             value++;
 
+         for (char *p = line; *p; p++)
+            *p = tolower_iso88591(*p);
+
          shash_put(headers, line, value);
       }
    }
@@ -1008,9 +1010,11 @@ static int open_server_socket(void)
                   (char *)&(int){1}, sizeof(int)) < 0)
       fatal_errno("setsockopt");
 
+   const uint16_t port = opt_get_int(OPT_SERVER_PORT);
+
    struct sockaddr_in addr;
    addr.sin_family = AF_INET;
-   addr.sin_port = htons(PORT);
+   addr.sin_port = htons(port);
    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
@@ -1019,7 +1023,7 @@ static int open_server_socket(void)
    if (listen(sock, SOMAXCONN) < 0)
       fatal_errno("listen");
 
-   server_log(LOG_INFO, "listening on 127.0.0.1:%d", PORT);
+   server_log(LOG_INFO, "listening on 127.0.0.1:%u", port);
 
    return sock;
 }

@@ -20,6 +20,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "option.h"
 #include "rt/shell.h"
 #include "scan.h"
 #include "server.h"
@@ -98,11 +99,13 @@ static int open_connection(void)
    if (sock == -1)
       fatal_errno("socket");
 
+   const int port = opt_get_int(OPT_SERVER_PORT);
+
    struct sockaddr_in addr;
    bzero(&addr, sizeof(addr));
    addr.sin_family = AF_INET;
    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-   addr.sin_port = htons(8888);
+   addr.sin_port = htons(port);
 
    if (connect(sock, &addr, sizeof(addr)) == -1)
       fatal_errno("connect");
