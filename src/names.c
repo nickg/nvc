@@ -3636,9 +3636,27 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
       tree_set_type(ref, (type = type_new(T_NONE)));
       return type;
    }
-   else if (!class_has_type(class_of(decl))) {
-      error_at(tree_loc(ref), "invalid use of %s %s",
-               class_str(class_of(decl)), istr(tree_ident(ref)));
+
+   const class_t class = class_of(decl);
+   if (!class_has_type(class)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
+      diag_printf(d, "invalid use of %s %s", class_str(class_of(decl)),
+                  istr(tree_ident(ref)));
+
+      // Try to provide a more helpful error if an object with the same
+      // name is hidden
+      const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN && get_type_or_null(dd->tree) != NULL)
+            diag_hint(d, tree_loc(dd->tree), "declaration of %s %s is hidden",
+                      class_str(class_of(dd->tree)), istr(sym->name));
+      }
+
+      diag_hint(d, tree_loc(decl), "name %s refers to this %s",
+                istr(sym->name), class_str(class));
+      diag_emit(d);
+
       tree_set_ref(ref, NULL);
       tree_set_type(ref, (type = type_new(T_NONE)));
       return type;

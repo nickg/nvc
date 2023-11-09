@@ -59,6 +59,21 @@ static void test_error_fn(diag_t *d, void *context)
 
    error_lines++;
    errors_seen++;
+
+   for (int hint = 0; error_lines->line == 0; hint++, error_lines++) {
+      if (error_lines->snippet == NULL)
+         ck_assert_int_eq(hint, diag_hints(d));   // Test for absence of hint
+      else {
+         ck_assert_int_lt(hint, diag_hints(d));
+
+         if (strstr(diag_get_hint(d, hint), error_lines->snippet) == NULL) {
+            diag_set_consumer(NULL, NULL);
+            diag_emit(d);
+            printf("expected hint '%s'\n", error_lines->snippet);
+            ck_abort_msg("expected hint '%s'", error_lines->snippet);
+         }
+      }
+   }
 }
 
 static void setup_per_test(void)

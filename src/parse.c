@@ -10302,6 +10302,7 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    tree_t t = p_instantiated_unit(name);
    tree_set_ident(t, label);
+   tree_set_loc(t, CURRENT_LOC);
 
    tree_t ref = find_binding(t);
    tree_set_ref(t, ref);

@@ -4925,50 +4925,28 @@ START_TEST(test_issue479)
 }
 END_TEST
 
-static void typo_diag_fn(diag_t *d, void *context)
-{
-   static int state = 0;
-   switch (state++) {
-   case 0:
-      ck_assert_str_eq(diag_get_text(d), "no visible declaration for BOLEAN");
-      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean BOOLEAN?");
-      break;
-   case 1:
-      ck_assert_str_eq(diag_get_text(d), "no visible declaration for RSET");
-      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean RESET?");
-      break;
-   case 2:
-      ck_assert_str_eq(diag_get_text(d), "no visible declaration for NOEW");
-      ck_assert_int_eq(diag_hints(d), 0);
-      break;
-   case 3:
-      ck_assert_str_eq(diag_get_text(d),
-                       "no visible subprogram declaration for MY_FUNC");
-      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean MYFUNC?");
-      break;
-   case 4:
-      ck_assert_str_eq(diag_get_text(d),
-                       "record type REC has no field named FRODO");
-      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean FOO?");
-      break;
-   case 5:
-      ck_assert_str_eq(diag_get_text(d),
-                       "protected type PT has no method named ONN");
-      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean ONE?");
-      break;
-   default:
-      ck_abort_msg("too many diagnostics");
-      break;
-   }
-}
-
 START_TEST(test_typo)
 {
    set_standard(STD_02);
 
    input_from_file(TESTDIR "/parse/typo.vhd");
 
-   diag_set_consumer(typo_diag_fn, NULL);
+   const error_t expect[] = {
+      {  6, "no visible declaration for BOLEAN" },
+      {  0, "did you mean BOOLEAN?" },
+      { 23, "no visible declaration for RSET" },
+      {  0, "did you mean RESET?" },
+      { 31, "no visible declaration for NOEW" },
+      {  0, NULL },
+      { 32, "no visible subprogram declaration for MY_FUNC" },
+      {  0, "did you mean MYFUNC?" },
+      { 38, "record type REC has no field named FRODO" },
+      {  0, "did you mean FOO?" },
+      { 44, "protected type PT has no method named ONN" },
+      {  0, "did you mean ONE?" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -4981,7 +4959,7 @@ START_TEST(test_typo)
 
    fail_unless(parse() == NULL);
 
-   fail_unless(error_count() == 6);
+   check_expected_errors();
 }
 END_TEST
 
@@ -5915,6 +5893,51 @@ START_TEST(test_issue792)
 }
 END_TEST
 
+START_TEST(test_issue789)
+{
+   input_from_file(TESTDIR "/parse/issue789.vhd");
+
+   const error_t expect[] = {
+      { 15, "invalid use of architecture RTL" },
+      {  0, "declaration of literal RTL is hidden" },
+      {  0, "name RTL refers to this architecture" },
+      { 31, "design unit WORK.TEST1 is not a component declaration" },
+      { 32, "invalid use of architecture RTL" },
+      {  0, "declaration of literal RTL is hidden" },
+      {  0, "name RTL refers to this architecture" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   tree_t e1 = parse();
+   fail_if(e1 == NULL);
+   fail_unless(tree_kind(e1) == T_ENTITY);
+   lib_put(lib_work(), e1);
+
+   tree_t a1 = parse();
+   fail_if(a1 == NULL);
+   fail_unless(tree_kind(a1) == T_ARCH);
+
+   tree_t e2 = parse();
+   fail_if(e2 == NULL);
+   fail_unless(tree_kind(e2) == T_ENTITY);
+   lib_put(lib_work(), e2);
+
+   tree_t a2 = parse();
+   fail_if(a2 == NULL);
+   fail_unless(tree_kind(a2) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6043,6 +6066,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error10);
    tcase_add_test(tc_core, test_issue783);
    tcase_add_test(tc_core, test_issue792);
+   tcase_add_test(tc_core, test_issue789);
    suite_add_tcase(s, tc_core);
 
    return s;
