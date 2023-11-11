@@ -193,7 +193,7 @@ static void check_header_item(sdf_header_item_kind_t kind)
 %token                  tVOLTAGE 508 "voltage"
 %token                  tPROCESS 223 "process"
 %token                  tTEMPERATURE 510 "temperature"
-%token                  tTIMESCALE 511 "timescale"
+%token                  tTIMESCALE 399 "timescale"
 %token                  tCELL 512 "cell"
 %token                  tCELLTYPE 513 "celltype"
 %token                  tINSTANCE 514 "instance"
@@ -225,12 +225,12 @@ static void check_header_item(sdf_header_item_kind_t kind)
 %token                  tNETDELAY 527 "netdelay"
 %token                  tDEVICE 528 "device"
 %token                  tCOND 540 "cond"
-%token                  tCONDELSE 556 "condelse"
+%token                  tCONDELSE 312 "condelse"
 
-%token                  tDEQ 398 "=="
-%token                  tDNEQ 399 "!="
-%token                  tCEQ 396 "==="
-%token                  tCNEQ 397 "!=="
+%token                  tCEQ  600 "==="
+%token                  tCNEQ 601 "!=="
+%token                  tDEQ  602 "=="
+%token                  tDNEQ 603 "!="
 
 %token  <str>           tID 200 "identifier"
 %token  <str>           tSTRING 229 "string"
@@ -238,8 +238,8 @@ static void check_header_item(sdf_header_item_kind_t kind)
 %token  <str>           tREAL 282 "real"
 
 
-// %define parse.error verbose
-// %expect 0
+%define parse.error verbose
+%expect 0
 
 %%
 

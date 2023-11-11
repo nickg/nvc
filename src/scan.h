@@ -298,10 +298,13 @@ bool is_scanned_as_psl(void);
 #define tUNTIL_        397
 #define tUNTIL_1       398
 #define tTIMESCALE     399
-#define tCEQ           400
-#define tCNEQ          401
-#define tDEQ           402
-#define tDNEQ          403
+
+
+// TODO: These will be appended to common tokens
+#define tCEQ           600
+#define tCNEQ          601
+#define tDEQ           602
+#define tDNEQ          603
 
 #define tDELAYFILE     500
 #define tSDFVERSION    501
@@ -313,7 +316,6 @@ bool is_scanned_as_psl(void);
 #define tDIVIDER       507
 #define tVOLTAGE       508
 #define tTEMPERATURE   510
-#define tTIMESCALE     511
 #define tCELL          512
 #define tCELLTYPE      513
 #define tINSTANCE      514
@@ -356,6 +358,5 @@ bool is_scanned_as_psl(void);
 #define tWAVEFORM      553
 #define tINCREMENT     554
 #define tABSOLUTE      555
-#define tCONDELSE      556
 
 #endif  // _SCAN_H
