@@ -2327,9 +2327,14 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
 
    case SOURCE_SDF:
       {
+#ifdef ENABLE_SDF
          sdf_node_t sdf_file = sdf_parse();
          sdf_dump(sdf_file, 2);
+#else
+         fatal("SDF not supported!");
+#endif
       }
+
 
       break;
    }

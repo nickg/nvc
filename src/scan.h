@@ -63,6 +63,7 @@ int get_next_char(char *b, int max_buffer);
 
 void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
+void reset_sdf_parser(void);
 
 bool is_scanned_as_psl(void);
 

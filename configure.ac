@@ -145,6 +145,17 @@ AS_IF([test x$enable_verilog = xyes],
       [AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
        AC_DEFINE_UNQUOTED([ENABLE_VERILOG], [1], [Verilog support enabled])])
 
+AC_ARG_ENABLE([sdf],
+  [AS_HELP_STRING([--enable-sdf], [SDF annotation support])],
+  [enable_sdf=$enableval],
+  [enable_sdf=no])
+
+AM_CONDITIONAL([ENABLE_SDF], [test x$enable_sdf = xyes])
+
+AS_IF([test x$enable_sdf = xyes],
+      [AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
+       AC_DEFINE_UNQUOTED([ENABLE_SDF], [1], [SDF support enabled])])
+
 AS_IF([test "$ax_cv_prog_bison" = "yes"],
       [AC_MSG_CHECKING([if ${YACC%% *} supports -Wcounterexamples])
        AS_IF([$YACC -Wcounterexamples --version 2>/dev/null >/dev/null],
