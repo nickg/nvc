@@ -1983,13 +1983,26 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
 {
    make_new_arena();
 
+   ident_t name = NULL;
+
+   tree_t vhdl = tree_from_object(top);
+   if (vhdl != NULL)
+      name = ident_prefix(tree_ident(vhdl), well_known(W_ELAB), '.');
+
+   vlog_node_t vlog = vlog_from_object(top);
+   if (vlog != NULL)
+      name = ident_prefix(vlog_ident(vlog), well_known(W_ELAB), '.');
+
+   if (vhdl == NULL && vlog == NULL)
+      fatal("top level is not a VHDL design unit or Verilog module");
+
    tree_t e = tree_new(T_ELAB);
-   tree_set_ident(e, ident_prefix(tree_ident(top), well_known(W_ELAB), '.'));
-   tree_set_loc(e, tree_loc(top));
+   tree_set_ident(e, name);
+   tree_set_loc(e, &(top->loc));
 
    // Put in work library eagerly so absolute external names can find
    // the root of the design hierarchy
@@ -2007,80 +2020,35 @@ tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       .registry  = ur,
    };
 
-   switch (tree_kind(top)) {
-   case T_ENTITY:
-      {
-         tree_t arch = elab_pick_arch(tree_loc(top), top, &ctx);
-         elab_top_level(arch, tree_ident2(arch), &ctx);
+   if (vhdl != NULL) {
+      switch (tree_kind(vhdl)) {
+      case T_ENTITY:
+         {
+            tree_t arch = elab_pick_arch(&(top->loc), vhdl, &ctx);
+            elab_top_level(arch, tree_ident2(arch), &ctx);
+         }
+         break;
+      case T_ARCH:
+         elab_top_level(vhdl, tree_ident2(vhdl), &ctx);
+         break;
+      case T_CONFIGURATION:
+         {
+            tree_t arch = elab_root_config(vhdl, &ctx);
+            elab_top_level(arch, ident_from(tree_ident(vhdl), '.'), &ctx);
+         }
+         break;
+      default:
+         fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
       }
-      break;
-   case T_ARCH:
-      elab_top_level(top, tree_ident2(top), &ctx);
-      break;
-   case T_CONFIGURATION:
-      {
-         tree_t arch = elab_root_config(top, &ctx);
-         elab_top_level(arch, ident_from(tree_ident(top), '.'), &ctx);
-      }
-      break;
-   default:
-      fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+   else {
+      tree_t wrap = tree_new(T_VERILOG);
+      tree_set_loc(wrap, vlog_loc(vlog));
+      tree_set_ident(wrap, vlog_ident(vlog));
+      tree_set_vlog(wrap, vlog);
 
-   if (error_count() > 0) {
-      lib_put_error(work, e);
-      return NULL;
+      elab_verilog_module(wrap, NULL, &ctx);
    }
-
-   if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
-      dump(e);
-
-   for (generic_list_t *it = generic_override; it != NULL; it = it->next)
-      warnf("generic value for %s not used", istr(it->name));
-
-   ident_t b0_name = tree_ident(tree_stmt(e, 0));
-   ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');
-   unit_registry_flush(ur, vu_name);
-
-   freeze_global_arena();
-
-#if !defined ENABLE_LLVM
-   vcode_unit_t vu = unit_registry_get(ur, vu_name);
-   lib_put_vcode(work, e, vu);
-#endif
-
-   return e;
-}
-
-tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
-                    cover_data_t *cover)
-{
-   make_new_arena();
-
-   tree_t e = tree_new(T_ELAB);
-   tree_set_ident(e, ident_prefix(vlog_ident(top), well_known(W_ELAB), '.'));
-   tree_set_loc(e, vlog_loc(top));
-
-   lib_t work = lib_work();
-   lib_put(work, e);
-
-   elab_ctx_t ctx = {
-      .out       = e,
-      .root      = e,
-      .path_name = NULL,
-      .inst_name = NULL,
-      .cover     = cover,
-      .library   = lib_work(),
-      .jit       = jit,
-      .registry  = ur,
-   };
-
-   tree_t wrap = tree_new(T_VERILOG);
-   tree_set_loc(wrap, vlog_loc(top));
-   tree_set_ident(wrap, vlog_ident(top));
-   tree_set_vlog(wrap, top);
-
-   elab_verilog_module(wrap, NULL, &ctx);
 
    if (error_count() > 0) {
       lib_put_error(work, e);

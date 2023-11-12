@@ -37,12 +37,9 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
 // Perform static bounds checking
 void bounds_check(tree_t top);
 
-// Elaborate a top level entity
-tree_t elab(tree_t top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover);
-
-// Elaborate a Verilog top level
-tree_t elab_verilog(vlog_node_t top, jit_t *jit, unit_registry_t *ur,
-                    cover_data_t *cover);
+// Elaborate a top level design unit
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur,
+            cover_data_t *cover);
 
 // Callback from code generator to elaborate external names
 tree_t elab_external_name(tree_t name, tree_t root, ident_t *path);

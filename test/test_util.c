@@ -157,7 +157,7 @@ tree_t run_elab(void)
          last_ent = t;
    }
 
-   tree_t top = elab(last_ent, j, ur, NULL);
+   tree_t top = elab(tree_to_object(last_ent), j, ur, NULL);
 
    jit_free(j);
 

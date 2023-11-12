@@ -450,15 +450,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    jit_enable_runtime(state->jit, false);
 
-   tree_t unit, top;
-   vlog_node_t module;
-   if ((unit = tree_from_object(obj)))
-      top = elab(unit, state->jit, state->registry, cover);
-   else if ((module = vlog_from_object(obj)))
-      top = elab_verilog(module, state->jit, state->registry, cover);
-   else
-      fatal("%s is not a VHDL design unit or Verilog module", istr(top_level));
-
+   tree_t top = elab(obj, state->jit, state->registry, cover);
    if (top == NULL)
       return EXIT_FAILURE;
 
