@@ -448,6 +448,48 @@ START_TEST(test_echo)
 }
 END_TEST
 
+START_TEST(test_describe1)
+{
+   const error_t expect[] = {
+      { LINE_INVALID, "cannot find name '/not/here'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tcl_shell_t *sh = shell_new(jit_new);
+
+   const char *result = NULL;
+
+   shell_eval(sh, "analyse " TESTDIR "/shell/describe1.vhd", &result);
+   ck_assert_str_eq(result, "");
+
+   shell_eval(sh, "elaborate describe1", &result);
+   ck_assert_str_eq(result, "");
+
+   const char *tests[][2] = {
+      { "/x", "name x path /x kind signal type INTEGER" },
+      { "/", "name describe1 path / kind region" },
+      { "/b1/", "name b1 path /b1/ kind region" },
+      { "/b1/y", "name y path /b1/y kind signal type BIT" },
+      { "/not/here", "cannot find name '/not/here'" },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(tests); i++) {
+      char script[128];
+      checked_sprintf(script, ARRAY_LEN(script), "describe %s", tests[i][0]);
+
+      shell_eval(sh, script, &result);
+      ck_assert_msg(strcmp(result, tests[i][1]) == 0,
+                    "'%s' ==> '%s' (expected '%s')", script, result,
+                    tests[i][1]);
+   }
+
+   shell_free(sh);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_shell_tests(void)
 {
    Suite *s = suite_create("shell");
@@ -461,6 +503,7 @@ Suite *get_shell_tests(void)
    tcase_add_test(tc, test_force1);
    tcase_add_exit_test(tc, test_exit, 5);
    tcase_add_test(tc, test_echo);
+   tcase_add_test(tc, test_describe1);
    suite_add_tcase(s, tc);
 
    return s;

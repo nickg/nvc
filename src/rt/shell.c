@@ -54,14 +54,29 @@ typedef struct {
    const char     *help;
 } shell_cmd_t;
 
+typedef enum {
+   SHELL_SIGNAL,
+   SHELL_REGION,
+} object_kind_t;
+
 typedef struct {
-   rt_signal_t  *signal;
+   object_kind_t kind;
    ident_t       name;
    ident_t       path;
-   print_func_t *printer;
-   rt_watch_t   *watch;
-   tcl_shell_t  *owner;
+} shell_object_t;
+
+typedef struct {
+   shell_object_t  obj;
+   rt_signal_t    *signal;
+   print_func_t   *printer;
+   rt_watch_t     *watch;
+   tcl_shell_t    *owner;
 } shell_signal_t;
+
+typedef struct {
+   shell_object_t  obj;
+   rt_scope_t     *scope;
+} shell_region_t;
 
 typedef char *(*get_line_fn_t)(tcl_shell_t *);
 
@@ -76,6 +91,8 @@ typedef struct _tcl_shell {
    rt_scope_t      *root;
    shell_signal_t  *signals;
    unsigned         nsignals;
+   shell_region_t  *regions;
+   unsigned         nregions;
    hash_t          *namemap;
    jit_t           *jit;
    int64_t          now_var;
@@ -100,6 +117,17 @@ static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
 
    Tcl_SetObjResult(sh->interp, Tcl_NewStringObj(buf, -1));
    return TCL_ERROR;
+}
+
+static void tcl_dict_put(tcl_shell_t *sh, Tcl_Obj *dict, const char *key,
+                         Tcl_Obj *value)
+{
+   Tcl_DictObjPut(sh->interp, dict, Tcl_NewStringObj(key, -1), value);
+}
+
+static Tcl_Obj *tcl_ident_string(ident_t ident)
+{
+   return Tcl_NewStringObj(istr(ident), ident_len(ident));
 }
 
 static int syntax_error(tcl_shell_t *sh, Tcl_Obj *const objv[])
@@ -222,16 +250,20 @@ static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
 
    if (h->signal_update != NULL) {
       const char *enc = print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
-      (*h->signal_update)(ss->path, now, s, enc, h->context);
+      (*h->signal_update)(ss->obj.path, now, s, enc, h->context);
    }
 }
 
-static void recreate_signals(tcl_shell_t *sh, rt_scope_t *scope,
-                             shell_signal_t **wptr)
+static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
+                             shell_signal_t **sptr, shell_region_t **rptr)
 {
+   shell_region_t *r = (*rptr)++;
+   assert(r->obj.name == ident_downcase(tree_ident(scope->where)));
+   r->scope = scope;
+
    for (list_iter(rt_signal_t *, s, scope->signals)) {
-      shell_signal_t *ss = (*wptr)++;
-      assert(ss->name == ident_downcase(tree_ident(s->where)));
+      shell_signal_t *ss = (*sptr)++;
+      assert(ss->obj.name == ident_downcase(tree_ident(s->where)));
       ss->signal = s;
 
       if (ss->watch != NULL)
@@ -240,8 +272,8 @@ static void recreate_signals(tcl_shell_t *sh, rt_scope_t *scope,
    }
 
    for (list_iter(rt_alias_t *, a, scope->aliases)) {
-      shell_signal_t *ss = (*wptr)++;
-      assert(ss->name == ident_downcase(tree_ident(a->where)));
+      shell_signal_t *ss = (*sptr)++;
+      assert(ss->obj.name == ident_downcase(tree_ident(a->where)));
       ss->signal = a->signal;
 
       if (ss->watch != NULL)
@@ -250,7 +282,42 @@ static void recreate_signals(tcl_shell_t *sh, rt_scope_t *scope,
    }
 
    for (list_iter(rt_scope_t *, child, scope->children))
-      recreate_signals(sh, child, wptr);
+      recreate_objects(sh, child, sptr, rptr);
+}
+
+const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
+{
+   if (*pos >= objc)
+      return NULL;
+
+   const char *opt = Tcl_GetString(objv[*pos]);
+   if (opt[0] != '-')
+      return NULL;
+
+   (*pos)++;
+   return opt;
+}
+
+static shell_object_t *get_object(tcl_shell_t *sh, const char *name)
+{
+   shell_object_t *obj = hash_get(sh->namemap, ident_new(name));
+   if (obj == NULL)
+      tcl_error(sh, "cannot find name '%s'", name);
+
+   return obj;
+}
+
+static shell_signal_t *get_signal(tcl_shell_t *sh, const char *name)
+{
+   shell_object_t *obj = get_object(sh, name);
+   if (obj == NULL)
+      return NULL;
+   else if (obj->kind != SHELL_SIGNAL) {
+      tcl_error(sh, "'%s' is not a signal", name);
+      return NULL;
+   }
+
+   return container_of(obj, shell_signal_t, obj);
 }
 
 static const char restart_help[] =
@@ -272,8 +339,10 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
    shell_create_model(sh);
 
    shell_signal_t *wptr = sh->signals;
-   recreate_signals(sh, sh->root, &wptr);
+   shell_region_t *rptr = sh->regions;
+   recreate_objects(sh, sh->root, &wptr, &rptr);
    assert(wptr == sh->signals + sh->nsignals);
+   assert(rptr == sh->regions + sh->nregions);
 
    shell_update_now(sh);
 
@@ -334,31 +403,71 @@ static const char find_help[] =
    "Find signals and other objects in the design\n"
    "\n"
    "Syntax:\n"
-   "  find signals <name>\n"
+   "  find signals [options] <pattern>\n"
+   "  find regions [options] <pattern>\n"
+   "\n"
+   "Options:\n"
+   "  -r, -recursive\tInclude subregions in wildcard search.\n"
    "\n"
    "Examples:\n"
-   "  find signals /*\tList all signals in the design\n"
-   "  find signals /uut/x*\tAll signals in instance UUT that start with X\n";
+   "  find signals -r /*\tList all signals in the design\n"
+   "  find signals /uut/x*\tAll signals in instance UUT that start with X\n"
+   "  find regions -r *\tList all regions in the design\n";
 
 static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
    tcl_shell_t *sh = cd;
 
-   if (objc != 3 || strcmp(Tcl_GetString(objv[1]), "signals") != 0)
-      goto usage;
-   else if (!shell_has_model(sh))
+   enum { SIGNALS, REGIONS } what;
+   if (!shell_has_model(sh))
       return TCL_ERROR;
+   else if (objc < 3)
+      goto usage;
+   else if (strcmp(Tcl_GetString(objv[1]), "signals") == 0)
+      what = SIGNALS;
+   else if (strcmp(Tcl_GetString(objv[1]), "regions") == 0)
+      what = REGIONS;
+   else
+      goto usage;
 
-   const char *glob = Tcl_GetString(objv[2]);
+   int pos = 2;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-recursive") == 0 || strcmp(opt, "-r") == 0) {
+         // Always recursive for now...
+      }
+      else
+         goto usage;
+   }
+
+   const char *glob = Tcl_GetString(objv[pos]);
    Tcl_Obj *result = Tcl_NewListObj(0, NULL);
 
-   for (int i = 0; i < sh->nsignals; i++) {
-      if (!ident_glob(sh->signals[i].path, glob, -1))
-         continue;
+   switch (what) {
+   case SIGNALS:
+      {
+         for (int i = 0; i < sh->nsignals; i++) {
+            if (!ident_glob(sh->signals[i].obj.path, glob, -1))
+               continue;
 
-      Tcl_Obj *obj = Tcl_NewStringObj(istr(sh->signals[i].path), -1);
-      Tcl_ListObjAppendElement(interp, result, obj);
+            Tcl_Obj *obj = tcl_ident_string(sh->signals[i].obj.path);
+            Tcl_ListObjAppendElement(interp, result, obj);
+         }
+      }
+      break;
+
+   case REGIONS:
+      {
+         for (int i = 0; i < sh->nregions; i++) {
+            if (!ident_glob(sh->regions[i].obj.path, glob, -1))
+               continue;
+
+            Tcl_Obj *obj = tcl_ident_string(sh->regions[i].obj.path);
+            Tcl_ListObjAppendElement(interp, result, obj);
+         }
+         break;
+      }
+      break;
    }
 
    Tcl_SetObjResult(interp, result);
@@ -511,19 +620,6 @@ static bool parse_radix(const char *str, print_flags_t *flags)
       return false;
 }
 
-const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
-{
-   if (*pos >= objc)
-      return NULL;
-
-   const char *opt = Tcl_GetString(objv[*pos]);
-   if (opt[0] != '-')
-      return NULL;
-
-   (*pos)++;
-   return opt;
-}
-
 static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
@@ -557,15 +653,88 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
 
    for (int i = 0; pos < objc; pos++, i++) {
       const char *name = Tcl_GetString(objv[pos]);
-      shell_signal_t *ss = hash_get(sh->namemap, ident_new(name));
+      shell_signal_t *ss = get_signal(sh, name);
       if (ss == NULL)
-         return tcl_error(sh, "cannot find name '%s'", name);
+         return TCL_ERROR;
 
       if (!shell_get_printer(sh, ss))
          return TCL_ERROR;
 
       const char *str = print_signal(ss->printer, ss->signal, flags);
       result[i] = Tcl_NewStringObj(str, -1);
+   }
+
+   if (count > 1) {
+      Tcl_Obj *list = Tcl_NewListObj(count, result);
+      Tcl_SetObjResult(interp, list);
+      free(result);
+   }
+   else
+      Tcl_SetObjResult(interp, result[0]);
+
+   return TCL_OK;
+
+ usage:
+   return syntax_error(sh, objv);
+}
+
+static const char describe_help[] =
+   "Return information about an object or region\n"
+   "\n"
+   "Syntax:\n"
+   "  describe <name>...\n"
+   "\n"
+   "Examples:\n"
+   "  describe /uut/foo\n"
+   "  describe /uut\n";
+
+static int shell_cmd_describe(ClientData cd, Tcl_Interp *interp,
+                              int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      goto usage;
+   }
+
+   if (pos == objc)
+      goto usage;
+
+   const int count = objc - pos;
+   Tcl_Obj *single[1], **result = single;
+
+   if (count > 1)
+      result = xmalloc_array(count, sizeof(Tcl_Obj *));
+
+   for (int i = 0; pos < objc; pos++, i++) {
+      const char *name = Tcl_GetString(objv[pos]);
+      shell_object_t *obj = get_object(sh, name);
+      if (obj == NULL)
+         return TCL_ERROR;
+
+      Tcl_Obj *d = result[i] = Tcl_NewDictObj();
+
+      tcl_dict_put(sh, d, "name", tcl_ident_string(obj->name));
+      tcl_dict_put(sh, d, "path", tcl_ident_string(obj->path));
+
+      switch (obj->kind) {
+      case SHELL_SIGNAL:
+         {
+            tcl_dict_put(sh, d, "kind", Tcl_NewStringObj("signal", -1));
+
+            shell_signal_t *ss = container_of(obj, shell_signal_t, obj);
+            type_t type = tree_type(ss->signal->where);
+            tcl_dict_put(sh, d, "type", Tcl_NewStringObj(type_pp(type), -1));
+         }
+         break;
+      case SHELL_REGION:
+         tcl_dict_put(sh, d, "kind", Tcl_NewStringObj("region", -1));
+         break;
+      }
    }
 
    if (count > 1) {
@@ -620,7 +789,7 @@ static int shell_cmd_force(ClientData cd, Tcl_Interp *interp,
          uint8_t *value LOCAL = xmalloc(nbytes);
          get_forcing_value(ss->signal, value);
 
-         shell_printf(sh, "force %s %s\n", istr(ss->path),
+         shell_printf(sh, "force %s %s\n", istr(ss->obj.path),
                       print_raw(ss->printer, value, nbytes, 0));
       }
 
@@ -630,9 +799,9 @@ static int shell_cmd_force(ClientData cd, Tcl_Interp *interp,
    const char *signame = Tcl_GetString(objv[1]);
    const char *valstr = Tcl_GetString(objv[2]);
 
-   shell_signal_t *ss = hash_get(sh->namemap, ident_new(signame));
+   shell_signal_t *ss = get_signal(sh, signame);
    if (ss == NULL)
-      return tcl_error(sh, "cannot find signal '%s'", signame);
+      return TCL_ERROR;
 
    type_t type = tree_type(ss->signal->where);
 
@@ -694,9 +863,9 @@ static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
          }
       }
       else {
-         shell_signal_t *ss = hash_get(sh->namemap, ident_new(signame));
+         shell_signal_t *ss = get_signal(sh, signame);
          if (ss == NULL)
-            return tcl_error(sh, "cannot find signal '%s'", signame);
+            return TCL_ERROR;
 
          if (!(ss->signal->nexus.flags & NET_F_FORCED))
             return tcl_error(sh, "signal %s is not forced", signame);
@@ -712,10 +881,10 @@ static const char add_help[] =
    "Add signals and other objects to the display\n"
    "\n"
    "Syntax:\n"
-   "  add wave <name>...\n"
+   "  add wave [options] <name>...\n"
    "\n"
    "Options:\n"
-   "  -recursive\tInclude subregions in wildcard search.\n"
+   "  -r, -recursive\tInclude subregions in wildcard search.\n"
    "\n"
    "Examples:\n"
    "  add wave /*\tAdd all signals to waveform\n";
@@ -750,7 +919,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
 
       bool match = false;
       for (int j = 0; j < nglobs; j++)
-         match |= ident_glob(ss->path, globs[j], -1);
+         match |= ident_glob(ss->obj.path, globs[j], -1);
 
       if (!match || !shell_get_printer(sh, ss))
          continue;
@@ -758,7 +927,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
       if (sh->handler.add_wave != NULL) {
          const char *enc =
             print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
-         (*sh->handler.add_wave)(ss->path, enc, sh->handler.context);
+         (*sh->handler.add_wave)(ss->obj.path, enc, sh->handler.context);
       }
 
       if (ss->watch == NULL)
@@ -1101,6 +1270,7 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    shell_add_cmd(sh, "force", shell_cmd_force, force_help);
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
    shell_add_cmd(sh, "echo", shell_cmd_echo, echo_help);
+   shell_add_cmd(sh, "describe", shell_cmd_describe, describe_help);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 
@@ -1113,6 +1283,7 @@ void shell_free(tcl_shell_t *sh)
       model_free(sh->model);
       hash_free(sh->namemap);
       free(sh->signals);
+      free(sh->regions);
    }
 
    if (sh->jit != NULL)
@@ -1147,45 +1318,56 @@ bool shell_eval(tcl_shell_t *sh, const char *script, const char **result)
    }
 }
 
-static int count_signals(rt_scope_t *scope)
+static void count_objects(rt_scope_t *scope, unsigned *nsignals,
+                          unsigned *nregions)
 {
-   int total = list_size(scope->signals) + list_size(scope->aliases);
+   *nsignals += list_size(scope->signals) + list_size(scope->aliases);
+   *nregions += 1;
 
    list_foreach(rt_scope_t *, child, scope->children)
-      total += count_signals(child);
-
-   return total;
+      count_objects(child, nsignals, nregions);
 }
 
-static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
-                            text_buf_t *path, shell_signal_t **wptr)
+static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
+                            text_buf_t *path, shell_signal_t **sptr,
+                            shell_region_t **rptr)
 {
    const int base = tb_len(path);
 
+   shell_region_t *r = (*rptr)++;
+   r->scope = scope;
+   r->obj.kind = SHELL_REGION;
+   r->obj.name = ident_downcase(tree_ident(scope->where));
+   r->obj.path = ident_new(tb_get(path));
+
+   hash_put(sh->namemap, r->obj.path, &(r->obj));
+
    list_foreach(rt_signal_t *, s, scope->signals) {
-      shell_signal_t *ss = (*wptr)++;
+      shell_signal_t *ss = (*sptr)++;
       ss->signal = s;
-      ss->name = ident_downcase(tree_ident(s->where));
+      ss->obj.kind = SHELL_SIGNAL;
+      ss->obj.name = ident_downcase(tree_ident(s->where));
       ss->owner = sh;
 
-      tb_istr(path, ss->name);
-      ss->path = ident_new(tb_get(path));
+      tb_istr(path, ss->obj.name);
+      ss->obj.path = ident_new(tb_get(path));
       tb_trim(path, base);
 
-      hash_put(sh->namemap, ss->path, ss);
+      hash_put(sh->namemap, ss->obj.path, &(ss->obj));
    }
 
    list_foreach(rt_alias_t *, a, scope->aliases) {
-      shell_signal_t *ss = (*wptr)++;
+      shell_signal_t *ss = (*sptr)++;
       ss->signal = a->signal;
-      ss->name = ident_downcase(tree_ident(a->where));
+      ss->obj.kind = SHELL_SIGNAL;
+      ss->obj.name = ident_downcase(tree_ident(a->where));
       ss->owner = sh;
 
-      tb_istr(path, ss->name);
-      ss->path = ident_new(tb_get(path));
+      tb_istr(path, ss->obj.name);
+      ss->obj.path = ident_new(tb_get(path));
       tb_trim(path, base);
 
-      hash_put(sh->namemap, ss->path, ss);
+      hash_put(sh->namemap, ss->obj.path, &(ss->obj));
    }
 
    list_foreach(rt_scope_t *, child, scope->children) {
@@ -1193,7 +1375,7 @@ static void recurse_signals(tcl_shell_t *sh, rt_scope_t *scope,
 
       tb_istr(path, name);
       tb_append(path, '/');
-      recurse_signals(sh, child, path, wptr);
+      recurse_objects(sh, child, path, sptr, rptr);
       tb_trim(path, base);
    }
 }
@@ -1216,15 +1398,20 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
 
    shell_create_model(sh);
 
-   sh->nsignals = count_signals(sh->root);
+   sh->nsignals = sh->nregions = 0;
+   count_objects(sh->root, &sh->nsignals, &sh->nregions);
+
    sh->signals = xcalloc_array(sh->nsignals, sizeof(shell_signal_t));
+   sh->regions = xcalloc_array(sh->nregions, sizeof(shell_region_t));
    sh->namemap = hash_new(sh->nsignals * 2);
 
    text_buf_t *path = tb_new();
-   shell_signal_t *wptr = sh->signals;
+   shell_signal_t *sptr = sh->signals;
+   shell_region_t *rptr = sh->regions;
    tb_cat(path, "/");
-   recurse_signals(sh, sh->root, path, &wptr);
-   assert(wptr == sh->signals + sh->nsignals);
+   recurse_objects(sh, sh->root, path, &sptr, &rptr);
+   assert(sptr == sh->signals + sh->nsignals);
+   assert(rptr == sh->regions + sh->nregions);
    tb_free(path);
 
    shell_update_now(sh);
