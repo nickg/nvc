@@ -734,7 +734,9 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
    DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
    PVOID addr = ExceptionInfo->ExceptionRecord->ExceptionAddress;
 
-#ifdef __WIN64
+#if defined ARCH_ARM64
+   DWORD64 ip = ExceptionInfo->ContextRecord->Pc;
+#elif defined ARCH_X86_64
    DWORD64 ip = ExceptionInfo->ContextRecord->Rip;
 #else
    DWORD ip = ExceptionInfo->ContextRecord->Eip;

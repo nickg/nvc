@@ -791,10 +791,17 @@ static void debug_walk_frames(debug_info_t *di)
    UNWIND_HISTORY_TABLE UnwindHistoryTable;
    RtlZeroMemory(&UnwindHistoryTable, sizeof(UNWIND_HISTORY_TABLE));
 
+#ifdef ARCH_ARM64
+#define PC_REG Pc
+#else
+#define PC_REG Rip
+#endif
+
    for (ULONG n = 0; n < MAX_TRACE_DEPTH; n++) {
       ULONG64 ImageBase;
       PRUNTIME_FUNCTION RuntimeFunction =
-         RtlLookupFunctionEntry(Context.Rip, &ImageBase, &UnwindHistoryTable);
+         RtlLookupFunctionEntry(Context.PC_REG, &ImageBase,
+                                &UnwindHistoryTable);
 
       if (RuntimeFunction == NULL)
          break;
@@ -803,20 +810,20 @@ static void debug_walk_frames(debug_info_t *di)
       ULONG64 EstablisherFrame;
       RtlVirtualUnwind(UNW_FLAG_NHANDLER,
                        ImageBase,
-                       Context.Rip,
+                       Context.PC_REG,
                        RuntimeFunction,
                        &Context,
                        &HandlerData,
                        &EstablisherFrame,
                        NULL);
 
-      if (!Context.Rip)
+      if (!Context.PC_REG)
          break;
 
       debug_frame_t *frame;
-      if (!di_lru_get(Context.Rip, &frame)
-          && !custom_fill_frame(Context.Rip, frame))
-         platform_fill_frame(Context.Rip, frame);
+      if (!di_lru_get(Context.PC_REG, &frame)
+           && !custom_fill_frame(Context.PC_REG, frame))
+         platform_fill_frame(Context.PC_REG, frame);
 
       APUSH(di->frames, frame);
    }

@@ -787,10 +787,12 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             assert(sym->SectionNumber - 1 < imghdr->NumberOfSections);
             ptr = load_addr[sym->SectionNumber - 1];
          }
+#ifdef ARCH_X86_64
          else if (strcmp(name, "___chkstk_ms") == 0) {
             extern void ___chkstk_ms(void);
             ptr = &___chkstk_ms;
          }
+#endif
          else
             ptr = ffi_find_symbol(NULL, name);
 
@@ -802,12 +804,14 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
          assert((uint8_t *)patch < blob->span->base + blob->span->size);
 
          switch (relocs[j].Type) {
+#ifdef ARCH_X86_64
          case IMAGE_REL_AMD64_ADDR64:
             *(uint64_t *)patch += (uint64_t)ptr;
             break;
          case IMAGE_REL_AMD64_ADDR32NB:
             *(uint32_t *)patch += (uint32_t)(ptr - (void *)blob->span->base);
             break;
+#endif
          default:
             blob->span->size = blob->wptr - blob->span->base;
             code_disassemble(blob->span, (uintptr_t)patch, NULL);

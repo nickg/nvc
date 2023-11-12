@@ -223,6 +223,12 @@ void fill_cpu_state(struct cpu_state *cpu, PCONTEXT context)
    cpu->regs[5]  = context->Ebp;
    cpu->regs[6]  = context->Esi;
    cpu->regs[7]  = context->Edi;
+#elif defined __aarch64__
+   cpu->pc = context->Pc;
+   cpu->sp = context->Sp;
+
+   for (int i = 0; i < 31; i++)
+      cpu->regs[i] = context->X[i];
 #else
 #error Windows not supported on this architecture
 #endif
