@@ -62,10 +62,36 @@ test("sanity", (done) => {
   c.onOpen = () => {};
 
   c.onConsoleOutput = () => {};
+  c.onInitCommand = () => {};
 
   c.onStartSim = (top) => {
     expect(top).toBe("WORK.LFSR.elab");
     c.close();
+  };
+
+  c.onClose = done;
+});
+
+test("backchannel", (done) => {
+  const ws = new BrowserWebSocket("ws://localhost:8888");
+  const c = new Conduit(ws);
+
+  c.onConsoleOutput = () => {};
+  c.onInitCommand = () => {};
+
+  c.onStartSim = () => {
+    c.evalTcl("puts backchannel {[1,2,3]}");
+    c.evalTcl("puts backchannel {{\"foo\": 123}}");
+    c.evalTcl("flush backchannel");
+
+    c.onBackchannel = (obj) => {
+      expect(obj).toStrictEqual([1, 2, 3]);
+
+      c.onBackchannel = (obj) => {
+        expect(obj).toStrictEqual({"foo": 123});
+        c.close();
+      };
+    };
   };
 
   c.onClose = done;

@@ -375,7 +375,6 @@ static void pb_pack_u16(packet_buf_t *pb, uint16_t value)
    pb->buf[pb->wptr++] = value & 0xff;
 }
 
-#if 0
 static void pb_pack_u32(packet_buf_t *pb, uint32_t value)
 {
    pb_grow(pb, 4);
@@ -384,7 +383,6 @@ static void pb_pack_u32(packet_buf_t *pb, uint32_t value)
    pb->buf[pb->wptr++] = (value >> 8) & 0xff;
    pb->buf[pb->wptr++] = value & 0xff;
 }
-#endif
 
 static void pb_pack_u64(packet_buf_t *pb, uint64_t value)
 {
@@ -994,6 +992,17 @@ static void tunnel_output(const char *buf, size_t nchars, void *user)
    ws_send(server->websocket, WS_OPCODE_TEXT_FRAME, buf, nchars);
 }
 
+static void tunnel_backchannel(const char *buf, size_t nchars, void *user)
+{
+   web_server_t *server = user;
+
+   packet_buf_t *pb = fresh_packet_buffer(server);
+   pb_pack_u8(pb, S2C_BACKCHANNEL);
+   pb_pack_u32(pb, nchars);
+   pb_pack_bytes(pb, buf, nchars);
+   ws_send_packet(server->websocket, pb);
+}
+
 static int open_server_socket(void)
 {
 #ifdef __MINGW32__
@@ -1043,6 +1052,7 @@ void start_server(jit_factory_t make_jit, tree_t top,
       .signal_update = signal_update_handler,
       .stderr_write = tunnel_output,
       .stdout_write = tunnel_output,
+      .backchannel_write = tunnel_backchannel,
       .start_sim = start_sim_handler,
       .restart_sim = restart_sim_handler,
       .quit_sim = quit_sim_handler,

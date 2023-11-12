@@ -87,6 +87,14 @@ export class Model {
   constructor(conduit: Conduit) {
     this._now = 0n;
 
+    conduit.onOpen = () => {
+      conduit.evalTcl("source $nvc_dataDir/gui/guilib.tcl");
+    };
+
+    conduit.onBackchannel = (obj: any) => {
+      console.log(obj);
+    };
+
     conduit.onNextTimeStep = (now: bigint) => {
       this._now = now;
       this._events.nextTimeStep.notify(now);
@@ -131,6 +139,8 @@ export class Model {
 
       this._events.startSim.notify(top);
       this._events.nextTimeStep.notify(0n);
+
+      conduit.evalTcl("::nvc::RefreshRegions");
     };
   }
 

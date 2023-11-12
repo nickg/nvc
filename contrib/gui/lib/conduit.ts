@@ -23,6 +23,7 @@ enum ServerOpcode {
   S2C_RESTART_SIM = 0x04,
   S2C_QUIT_SIM = 0x05,
   S2C_NEXT_TIME_STEP = 0x06,
+  S2C_BACKCHANNEL = 0x07,
 }
 
 class PacketBuffer {
@@ -78,6 +79,7 @@ interface IWebSocket {
 
 class Conduit {
   private socket: IWebSocket;
+  private jsonBuffer: string = "";
 
   onConsoleOutput: (data: string) => void = console.log;
   onAddWave: (path: string, value: string) => void = () => {};
@@ -89,6 +91,7 @@ class Conduit {
   onRestartSim: (() => void) | null = null;
   onQuitSim: (() => void) | null = null;
   onNextTimeStep: (now: bigint) => void = () => {};
+  onBackchannel: ((data: any) => void) | null = null;
 
   constructor(socket: IWebSocket) {
     this.socket = socket;
@@ -135,6 +138,9 @@ class Conduit {
       case ServerOpcode.S2C_NEXT_TIME_STEP:
         this.parseNextTimeStep(packet);
         break;
+      case ServerOpcode.S2C_BACKCHANNEL:
+        this.parseBackchannel(packet);
+        break;
       default:
         console.log("unhandled message " + op);
         break;
@@ -163,6 +169,25 @@ class Conduit {
     const path = packet.unpackString();
     const value = packet.unpackString();
     this.onSignalUpdate(path, value);
+  }
+
+  private parseBackchannel(packet: PacketBuffer) {
+    const len = packet.unpackU32();
+    const decoder = new TextDecoder();
+    const str = decoder.decode(packet.unpackRaw(len));
+
+    this.jsonBuffer += str;
+
+    for (;;) {
+      const nl = this.jsonBuffer.indexOf("\n");
+      if (nl == -1)
+        break;
+
+      const obj = JSON.parse(this.jsonBuffer.slice(0, nl));
+      this.onBackchannel?.(obj);
+
+      this.jsonBuffer = this.jsonBuffer.slice(nl + 1);
+    }
   }
 
   public evalTcl(script: string) {

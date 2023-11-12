@@ -28,6 +28,7 @@ typedef struct {
                          const char *enc, void *ctx);
    void (*stdout_write)(const char *buf, size_t nchars, void *ctx);
    void (*stderr_write)(const char *buf, size_t nchars, void *ctx);
+   void (*backchannel_write)(const char *buf, size_t nchars, void *ctx);
    void (*start_sim)(ident_t top, void *ctx);
    void (*restart_sim)(void *ctx);
    void (*quit_sim)(void *ctx);

@@ -13,7 +13,7 @@ if ENABLE_GUI
 guidir = $(pkgdatadir)/gui
 assetsdir = $(guidir)/assets
 
-gui_DATA = gui/index.html
+gui_DATA = gui/index.html contrib/gui/guilib.tcl
 assets_DATA = $(BUNDLE_ASSETS)
 
 CLEANFILES += gui/index.html $(BUNDLE_ASSETS) .stamp-npm

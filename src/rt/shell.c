@@ -103,6 +103,7 @@ typedef struct _tcl_shell {
    unit_registry_t *registry;
    shell_handler_t  handler;
    bool             quit;
+   char            *datadir;
 } tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
@@ -1249,6 +1250,14 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    Tcl_LinkVar(sh->interp, "deltas", (char *)&sh->deltas_var,
                TCL_LINK_UINT | TCL_LINK_READ_ONLY);
 
+   {
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_data_dir(tb);
+      sh->datadir = tb_claim(tb);
+   }
+   Tcl_LinkVar(sh->interp, "nvc_dataDir", (char *)&sh->datadir,
+               TCL_LINK_READ_ONLY | TCL_LINK_STRING);
+
    atexit(Tcl_Finalize);
 
    Tcl_DeleteCommand(sh->interp, "exit");
@@ -1293,6 +1302,7 @@ void shell_free(tcl_shell_t *sh)
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
 
+   free(sh->datadir);
    free(sh->prompt);
    free(sh->cmds);
    free(sh);
@@ -1467,10 +1477,19 @@ static int shell_redirect_output(ClientData cd, const char *buf, int nchars,
                                  int *error)
 {
    tcl_shell_t *sh = untag_pointer(cd, tcl_shell_t);
-   if (pointer_tag(cd) == 0)
+   switch (pointer_tag(cd)) {
+   case 0:
       (*sh->handler.stdout_write)(buf, nchars, sh->handler.context);
-   else
+      break;
+   case 1:
       (*sh->handler.stderr_write)(buf, nchars, sh->handler.context);
+      break;
+   case 2:
+      (*sh->handler.backchannel_write)(buf, nchars, sh->handler.context);
+      break;
+   default:
+      fatal_trace("invalid channel number %ld", pointer_tag(cd));
+   }
 
    return nchars;
 }
@@ -1507,5 +1526,15 @@ void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h)
 
       Tcl_RegisterChannel(sh->interp, chan);
       Tcl_SetStdChannel(chan, TCL_STDERR);
+   }
+
+   if (h->backchannel_write != NULL) {
+      Tcl_Channel chan = Tcl_CreateChannel(&redirect_funcs, "backchannel",
+                                           tag_pointer(sh, 2), TCL_WRITABLE);
+      Tcl_SetChannelOption(NULL, chan, "-translation", "lf");
+      Tcl_SetChannelOption(NULL, chan, "-buffering", "full");
+      Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
+
+      Tcl_RegisterChannel(sh->interp, chan);
    }
 }
