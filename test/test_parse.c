@@ -5938,6 +5938,32 @@ START_TEST(test_issue789)
 }
 END_TEST
 
+START_TEST(test_issue793)
+{
+   input_from_file(TESTDIR "/parse/issue793.vhd");
+
+   const error_t expect[] = {
+      { 41, "no possible overload of CHECK_SETUP has formal POL1" },
+      {  0, "did you mean POL?" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6067,6 +6093,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue783);
    tcase_add_test(tc_core, test_issue792);
    tcase_add_test(tc_core, test_issue789);
+   tcase_add_test(tc_core, test_issue793);
    suite_add_tcase(s, tc_core);
 
    return s;

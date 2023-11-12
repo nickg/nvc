@@ -619,8 +619,6 @@ START_TEST(test_procedure)
       {  98, "formal parameter X with access type must have class VARIABLE" },
       {  99, "formal parameter X with access type must have class VARIABLE" },
       { 100, "formal parameter X with access type must have class VARIABLE" },
-      { 137, "ambiguous use of enumeration literal '0'" },
-      { 137, "ambiguous use of enumeration literal '1'" },
       { 142, "cannot read OUT parameter X" },
       { 148, "X is not a valid target of signal assignment" },
       { 157, "formal parameter ARG with type containing an access type " },
@@ -632,6 +630,8 @@ START_TEST(test_procedure)
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { 201, "formal parameter X already has an associated actual" },
       { 202, "no possible overload of TEST17_A has formal Z" },
+      {   0, "did you mean X?" },
+      {   0, "subprogram TEST17_A [INTEGER, INTEGER] has arguments X, Y" },
       { 207, "cannot assign to input parameter X" },
       { -1, NULL }
    };

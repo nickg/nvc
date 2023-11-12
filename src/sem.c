@@ -2996,7 +2996,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                }
             }
 
-            if (index == -1) {
+            if (index == -1 || !tree_has_ref(ref)) {
                // Should have generated an error during overload
                // resolution
                assert(error_count() > 0);

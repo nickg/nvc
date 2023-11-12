@@ -134,7 +134,7 @@ package body p is
 
     procedure test7b is
     begin
-        test7a(x(1) => '0', x(2) => '1');
+        test7a(x(1) => '0', x(2) => '1');  -- OK
     end procedure;
 
     procedure test8(x : out int_ptr) is

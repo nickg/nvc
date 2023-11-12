@@ -1509,6 +1509,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          diag_printf(d, "no possible overload of %s has formal %s",
                      istr(tab->top_scope->overload->name), istr(name));
          diag_hint(d, loc, "formal argument name %s", istr(name));
+         hint_for_typo(tab->top_scope, d, name, N_OBJECT);
 
          const unsigned count = tab->top_scope->overload->candidates.count;
          for (unsigned i = 0; i < count; i++) {
@@ -2661,30 +2662,6 @@ static tree_t finish_overload_resolution(overload_t *o)
    return count == 1 ? result : NULL;
 }
 
-static void overload_push_names(overload_t *o)
-{
-   if (o == NULL)
-      return;
-
-   assert(o->state == O_IDLE);
-
-   push_scope(o->nametab);
-   o->nametab->top_scope->formal_kind = F_SUBPROGRAM;
-   o->nametab->top_scope->overload = o;
-
-   for (unsigned i = 0; i < o->candidates.count; i++) {
-      if (o->candidates.items[i]) {
-         const int nports = tree_ports(o->candidates.items[i]);
-         for (int j = 0; j < nports; j++) {
-            tree_t p = tree_port(o->candidates.items[i], j);
-            make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
-         }
-      }
-   }
-
-   o->state = O_NAMED;
-}
-
 static void overload_add_argument_type(overload_t *o, type_t type, tree_t d)
 {
    type_set_t *ts = o->nametab->top_type_set;
@@ -2700,9 +2677,6 @@ static void overload_add_argument_type(overload_t *o, type_t type, tree_t d)
 
 static void overload_positional_argument(overload_t *o, int pos)
 {
-   if (o == NULL)
-      return;
-
    assert(o->state == O_IDLE);
 
    type_set_push(o->nametab);
@@ -2729,15 +2703,65 @@ static void overload_positional_argument(overload_t *o, int pos)
    o->state = O_POS;
 }
 
+static type_t overload_get_name_type(tree_t port, ident_t ident, tree_t name)
+{
+   if (tree_ident(port) != ident)
+      return NULL;
+
+   switch (tree_kind(name)) {
+   case T_RECORD_REF:
+      {
+         type_t ptype = tree_type(port);
+         if (!type_is_record(ptype))
+            return NULL;
+
+         const int nfields = type_fields(ptype);
+         ident_t fname = tree_ident(name);
+         tree_t field = NULL;
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(ptype, i);
+            if (tree_ident(f) == fname) {
+               field = f;
+               break;
+            }
+         }
+
+         if (field == NULL)
+            return NULL;   // Argument does not have this field name
+
+         return tree_type(field);
+      }
+   case T_ARRAY_REF:
+      {
+         type_t ptype = tree_type(port);
+         if (!type_is_array(ptype))
+            return false;
+
+         return type_elem(ptype);
+      }
+   case T_ARRAY_SLICE:
+      {
+         type_t ptype = tree_type(port);
+         if (!type_is_array(ptype))
+            return false;
+
+         return ptype;
+      }
+   default:
+      return tree_type(port);
+   }
+}
+
 static void overload_named_argument(overload_t *o, tree_t name)
 {
-   if (o == NULL)
-      return;
+   assert(o->state == O_IDLE);
 
-   assert(o->state == O_NAMED);
-
-   pop_scope(o->nametab);
    type_set_push(o->nametab);
+
+   push_scope(o->nametab);
+
+   o->nametab->top_scope->formal_kind = F_SUBPROGRAM;
+   o->nametab->top_scope->overload = o;
 
    tree_t ref = name_to_ref(name);
    if (ref == NULL)
@@ -2748,56 +2772,80 @@ static void overload_named_argument(overload_t *o, tree_t name)
    if (o->trace)
       printf("%s: named argument %s\n", istr(o->name), istr(ident));
 
-   // Prune any overloads which do not have this named argument
-   unsigned wptr = 0;
-   for (unsigned i = 0; i < o->candidates.count; i++) {
+   // See if any possible overload matches this argument name
+   int first_match = -1;
+   for (unsigned i = 0; first_match < 0 && i < o->candidates.count; i++) {
       const int nports = tree_ports(o->candidates.items[i]);
-      tree_t port = NULL;
       for (int j = 0; j < nports; j++) {
          tree_t p = tree_port(o->candidates.items[i], j);
-         if (tree_ident(p) == ident) {
-            switch (tree_kind(name)) {
-            case T_RECORD_REF:
-               {
-                  type_t ptype = tree_type(p);
-                  if (!type_is_record(ptype))
-                     continue;
 
-                  const int nfields = type_fields(ptype);
-                  ident_t fname = tree_ident(name);
-                  tree_t field = NULL;
-                  for (int i = 0; i < nfields; i++) {
-                     tree_t f = type_field(ptype, i);
-                     if (tree_ident(f) == fname) {
-                        field = f;
-                        break;
-                     }
-                  }
+         type_t ntype = overload_get_name_type(p, ident, name);
+         if (ntype == NULL)
+            continue;
 
-                  if (field == NULL)
-                     continue;   // Argument does not have this field name
+         for (int j = 0; j < nports; j++) {
+            tree_t p = tree_port(o->candidates.items[i], j);
+            make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
+         }
 
-                  overload_add_argument_type(o, tree_type(field),
-                                             o->candidates.items[i]);
-               }
-               break;
-            default:
-               overload_add_argument_type(o, tree_type(p),
-                                          o->candidates.items[i]);
-               break;
-            }
+         overload_add_argument_type(o, ntype, o->candidates.items[i]);
+         first_match = i;
+         break;
+      }
+   }
+
+   if (first_match == -1) {
+      // No possible matches so make every parameter visible to improve
+      // error messages later
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         const int nports = tree_ports(o->candidates.items[i]);
+
+         for (int j = 0; j < nports; j++) {
+            tree_t p = tree_port(o->candidates.items[i], j);
+            make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
+         }
+      }
+   }
+   else {
+      // Prune all overloads up to first_match
+      for (int i = 0; i < first_match; i++)
+         overload_prune_candidate(o, i);
+
+      unsigned wptr = 0;
+      o->candidates.items[wptr++] = o->candidates.items[first_match];
+
+      // Prune any remaining overloads which do not have this named argument
+      for (unsigned i = first_match + 1; i < o->candidates.count; i++) {
+         const int nports = tree_ports(o->candidates.items[i]);
+         tree_t port = NULL;
+         for (int j = 0; j < nports; j++) {
+            tree_t p = tree_port(o->candidates.items[i], j);
+
+            type_t ntype = overload_get_name_type(p, ident, name);
+            if (ntype == NULL)
+               continue;
+
+            overload_add_argument_type(o, ntype, o->candidates.items[i]);
+
             port = p;
             break;
          }
-      }
 
-      if (port == NULL && o->initial > 1)
-         overload_prune_candidate(o, i);
-      else {
-         o->candidates.items[wptr++] = o->candidates.items[i];
+         if (port == NULL)
+            overload_prune_candidate(o, i);
+         else {
+            o->candidates.items[wptr++] = o->candidates.items[i];
+
+            for (int j = 0; j < nports; j++) {
+               tree_t p = tree_port(o->candidates.items[i], j);
+               make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
+            }
+         }
       }
+      ATRIM(o->candidates, wptr);
    }
-   ATRIM(o->candidates, wptr);
+
+   o->state = O_NAMED;
 }
 
 static tree_t overload_find_port(tree_t decl, tree_t param)
@@ -2832,9 +2880,6 @@ static tree_t overload_find_port(tree_t decl, tree_t param)
 
 static void overload_next_argument(overload_t *o, tree_t p)
 {
-   if (o == NULL)
-      return;
-
    assert(tree_kind(p) == T_PARAM);
    assert(o->state != O_IDLE);
 
@@ -3145,10 +3190,9 @@ static bool solve_one_param(nametab_t *tab, tree_t p, overload_t *o, bool trial)
    case P_NAMED:
       {
          tree_t name = tree_name(p);
-         overload_push_names(o);
-         solve_types(tab, name, NULL);
-         assert(tree_has_type(name));
          overload_named_argument(o, name);
+         solve_types(tab, name, NULL);
+         pop_scope(o->nametab);
       }
       break;
    }

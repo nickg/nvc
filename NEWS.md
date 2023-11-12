@@ -27,6 +27,8 @@
 - Added support for FSM state coverage collection (from @Blebowski).
 - An alias of a type now correctly creates implicit aliases for each
   predefined operator of that type (#776).
+- Improve overload resolution where a partial named association implies
+  the formal parameter must be an array (#793).
 
 ## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.
