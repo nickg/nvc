@@ -89,6 +89,7 @@ begin
         wait until b xor '0';           -- OK
         assert b nor '1';               -- OK
         assert ?? 1;                    -- OK
+        assert b and b and (not b);     -- OK
     end process;
 
     /* This is a comment */

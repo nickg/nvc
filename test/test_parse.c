@@ -3610,19 +3610,19 @@ START_TEST(test_vhdl2008)
 
    const error_t expect[] = {
       {  84, "no matching operator \"+\" [DELAY_LENGTH, TIME" },
-      { 110, "excess non-zero digits in bit string literal" },
       { 111, "excess non-zero digits in bit string literal" },
-      { 120, "excess significant digits in bit string literal" },
-      { 123, "invalid digit 'C' in decimal bit string" },
-      { 126, "excess non-zero digits in decimal bit string literal" },
-      { 170, "unexpected ; while parsing case statement, expecting ?" },
-      { 180, "prefix of 'SUBTYPE attribute does not have a type" },
-      { 182, "prefix of 'ELEMENT attribute must be an array type" },
-      { 183, "prefix of 'ELEMENT attribute does not have a type" },
-      { 229, "unexpected trailing label for generate statement body without" },
-      { 231, "expected trailing generate statement body label to match FOO" },
-      { 248, "expected trailing case generate statement label to match G3" },
-      { 263, "signed bit string literal cannot be an empty string" },
+      { 112, "excess non-zero digits in bit string literal" },
+      { 121, "excess significant digits in bit string literal" },
+      { 124, "invalid digit 'C' in decimal bit string" },
+      { 127, "excess non-zero digits in decimal bit string literal" },
+      { 171, "unexpected ; while parsing case statement, expecting ?" },
+      { 181, "prefix of 'SUBTYPE attribute does not have a type" },
+      { 183, "prefix of 'ELEMENT attribute must be an array type" },
+      { 184, "prefix of 'ELEMENT attribute does not have a type" },
+      { 230, "unexpected trailing label for generate statement body without" },
+      { 232, "expected trailing generate statement body label to match FOO" },
+      { 249, "expected trailing case generate statement label to match G3" },
+      { 264, "signed bit string literal cannot be an empty string" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -5964,6 +5964,25 @@ START_TEST(test_issue793)
 }
 END_TEST
 
+START_TEST(test_slow1)
+{
+   input_from_file(TESTDIR "/parse/slow1.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6094,6 +6113,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue792);
    tcase_add_test(tc_core, test_issue789);
    tcase_add_test(tc_core, test_issue793);
+   tcase_add_test(tc_core, test_slow1);
    suite_add_tcase(s, tc_core);
 
    return s;

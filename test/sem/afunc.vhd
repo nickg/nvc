@@ -51,4 +51,36 @@ begin
             q(1) := func1(3)(1);        -- OK
         end process;
     end block;
+
+    -- Seen in OSVVM
+    process is
+        function get (prefix : string := ""; n : integer := 0) return string is
+        begin
+            return prefix;
+        end function;
+
+        constant s1 : string := "foo" & get("hello") & '1';  -- OK
+--        constant s2 : string := "foo" & get(1) & '1';  -- OK
+        constant s3 : string := get(n => 5) & "1";  -- OK
+
+        type pt is protected
+            function get1 (prefix : string := "") return string;
+            procedure test;
+        end protected;
+
+        type pt is protected body
+            function get1 (prefix : string := "") return string is
+            begin
+                return prefix;
+            end function;
+
+            procedure test is
+                constant c1 : string := "foo" & get1("hello") & '1';  -- OK
+                constant c2 : string := "foo" & get1(1) & '1';  -- OK
+            begin
+            end procedure;
+        end protected body;
+    begin
+    end process;
+
 end architecture;

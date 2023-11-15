@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "debug.h"
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
@@ -154,11 +155,12 @@ typedef struct {
 
 typedef A(tracked_type_t) tracked_type_list_t;
 
+typedef bool (*type_pred_t)(type_t);
+
 struct type_set {
    tracked_type_list_t  members;
    type_set_t          *down;
-   bool                 cconv;
-   bool                 composite;
+   type_pred_t          pred;
    bool                 known_subtype;
 };
 
@@ -196,7 +198,7 @@ static void type_set_pop(nametab_t *tab)
 }
 
 static void type_set_describe(nametab_t *tab, diag_t *d, const loc_t *loc,
-                              bool (*pred)(type_t), const char *hint)
+                              type_pred_t pred, const char *hint)
 {
    if (tab->top_type_set == NULL || tab->top_type_set->members.count == 0)
       return;
@@ -255,7 +257,7 @@ static void type_set_add(nametab_t *tab, type_t t, tree_t src)
    APUSH(tab->top_type_set->members, ((tracked_type_t){t, src}));
 }
 
-static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
+static bool type_set_restrict(nametab_t *tab, type_pred_t pred)
 {
    if (tab->top_type_set == NULL)
       return false;
@@ -271,7 +273,7 @@ static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
    return j > 0;
 }
 
-static int type_set_satisfies(nametab_t *tab, bool (*pred)(type_t), type_t *out)
+static int type_set_satisfies(nametab_t *tab, type_pred_t pred, type_t *out)
 {
    if (tab->top_type_set == NULL)
       return 0;
@@ -1483,8 +1485,126 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
       diag_hint(d, diag_get_loc(d), "did you mean %s?", istr(best->name));
 }
 
+static type_t get_result_type(nametab_t *tab, tree_t decl)
+{
+   type_t type = tree_type(decl);
+   if (type_kind(type) != T_FUNC)
+      return type;
+
+   type_t rtype = type_result(type);
+   if (type_is_incomplete(rtype))
+      return resolve_type(tab, rtype);
+
+   return rtype;
+}
+
+static tree_t try_resolve_name(nametab_t *tab, ident_t name)
+{
+   const symbol_t *sym = iterate_symbol_for(tab, name);
+   if (sym == NULL)
+      return NULL;
+
+   if (sym->ndecls == 1) {
+      const decl_t *dd = get_decl(sym, 0);
+      if (dd->visibility != HIDDEN)
+         return dd->tree;
+   }
+
+   // Check if all but one declaration is hidden
+   int hidden = 0, overload = 0, subprograms = 0;
+   tree_t result = NULL;
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+         hidden++;
+      else if (dd->kind == T_PROT_BODY)
+         hidden++;
+      else
+         result = dd->tree;
+
+      if (dd->visibility == OVERLOAD) {
+         overload++;
+         if (dd->mask & N_SUBPROGRAM)
+            subprograms++;
+      }
+   }
+
+   if (hidden == sym->ndecls - 1)
+      return result;
+   else if (overload == 0)
+      return NULL;
+
+   // Use the context to determine the correct overload
+
+   SCOPED_A(tree_t) m = AINIT;
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->visibility == OVERLOAD)
+         APUSH(m, dd->tree);
+   }
+
+   if (m.count > 1 && subprograms > 0) {
+      unsigned wptr = 0;
+      for (int i = 0; i < m.count; i++) {
+         if (is_subprogram(m.items[i])) {
+            // Remove subprograms that cannot be called with zero
+            // arguments
+            if (!can_call_no_args(tab, m.items[i]))
+               continue;
+
+            // Remove subprograms where the result does not satisfy the
+            // required predicate
+            type_pred_t p = tab->top_type_set->pred;
+            if (p != NULL && !(*p)(get_result_type(tab, m.items[i])))
+               continue;
+         }
+
+         m.items[wptr++] = m.items[i];
+      }
+      ATRIM(m, wptr);
+   }
+
+   if (m.count > 1) {
+      // Remove any duplicates from aliases
+      unsigned wptr = 0;
+      for (int i = 0; i < m.count; i++) {
+         bool is_dup = false;
+         for (int j = 0; !is_dup && j < i; j++) {
+            if (denotes_same_object(m.items[i], m.items[j]))
+               is_dup = true;
+         }
+
+         if (!is_dup)
+            m.items[wptr++] = m.items[i];
+      }
+      assert(wptr >= 1);
+      ATRIM(m, wptr);
+   }
+
+   if (m.count > 1 && tab->top_type_set != NULL) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < m.count; i++) {
+         if (class_has_type(class_of(m.items[i]))) {
+            type_t type = get_result_type(tab, m.items[i]);
+            if (type_set_contains(tab, type))
+               m.items[wptr++] = m.items[i];
+         }
+      }
+      if (wptr > 0) ATRIM(m, wptr);
+   }
+
+   if (m.count == 1)
+      return m.items[0];
+
+   return NULL;
+}
+
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
+   tree_t decl = try_resolve_name(tab, name);
+   if (decl != NULL)
+      return decl;
+
    const symbol_t *sym = iterate_symbol_for(tab, name);
    if (sym == NULL) {
       if (tab->top_scope->suppress) {
@@ -1567,33 +1687,22 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
       return NULL;
    }
-   else if (sym->ndecls == 1) {
-      const decl_t *dd = get_decl(sym, 0);
-      if (dd->visibility != HIDDEN)
-         return dd->tree;
-   }
 
-   // Check if all but one declartion is hidden
-   int hidden = 0, overload = 0, subprograms = 0;
-   tree_t result = NULL;
+   int hidden = 0, overload = 0;
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
       if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
          hidden++;
       else if (dd->kind == T_PROT_BODY)
          hidden++;
-      else
-         result = dd->tree;
-
-      if (dd->visibility == OVERLOAD) {
+      else if (dd->visibility == OVERLOAD)
          overload++;
-         if (dd->mask & N_SUBPROGRAM)
-            subprograms++;
-      }
    }
 
-   if (hidden == sym->ndecls - 1)
-      return result;
+   if (type_set_error(tab))
+      return NULL;  // Suppress cascading errors
+   else if ((sym->mask & N_ERROR) || tab->top_scope->suppress)
+      return NULL;    // Was an earlier error
 
    tree_kind_t what = T_LAST_TREE_KIND;
    for (unsigned i = 0; i < sym->ndecls; i++) {
@@ -1603,78 +1712,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if (what != kind)
          what = T_REF;
    }
-
-   if (overload > 0) {
-      // Use the context to determine the correct overload
-
-      SCOPED_A(tree_t) m = AINIT;
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == OVERLOAD)
-            APUSH(m, dd->tree);
-      }
-
-      if (m.count > 1 && subprograms > 0) {
-         unsigned wptr = 0;
-         for (int i = 0; i < m.count; i++) {
-            if (is_subprogram(m.items[i])) {
-               // Remove subprograms that cannot be called with zero
-               // arguments
-               if (!can_call_no_args(tab, m.items[i]))
-                  continue;
-
-               // Remove subprograms with non-composite results when we
-               // know the type must be composite
-               if (tab->top_type_set->composite
-                   && type_is_composite(type_result(tree_type(m.items[i]))))
-                  continue;
-            }
-
-            m.items[wptr++] = m.items[i];
-         }
-         ATRIM(m, wptr);
-      }
-
-      if (m.count > 1) {
-         // Remove any duplicates from aliases
-         unsigned wptr = 0;
-         for (int i = 0; i < m.count; i++) {
-            bool is_dup = false;
-            for (int j = 0; !is_dup && j < i; j++) {
-               if (denotes_same_object(m.items[i], m.items[j]))
-                  is_dup = true;
-            }
-
-            if (!is_dup)
-               m.items[wptr++] = m.items[i];
-         }
-         assert(wptr >= 1);
-         ATRIM(m, wptr);
-      }
-
-      if (m.count > 1 && tab->top_type_set != NULL) {
-         unsigned wptr = 0;
-         for (unsigned i = 0; i < m.count; i++) {
-            if (class_has_type(class_of(m.items[i]))) {
-               type_t type = tree_type(m.items[i]);
-               if (type_kind(type) == T_FUNC)
-                  type = type_result(type);
-
-               if (type_set_contains(tab, type))
-                  m.items[wptr++] = m.items[i];
-            }
-         }
-         if (wptr > 0) ATRIM(m, wptr);
-      }
-
-      if (m.count == 1)
-         return m.items[0];
-      else if (type_set_error(tab))
-         return NULL;  // Suppress cascading errors
-   }
-
-   if ((sym->mask & N_ERROR) || tab->top_scope->suppress)
-      return NULL;    // Was an earlier error
 
    diag_t *d = diag_new(DIAG_ERROR, loc);
    if (hidden > 0 && hidden == sym->ndecls)
@@ -2450,16 +2487,15 @@ static void begin_overload_resolution(overload_t *o)
       ATRIM(o->candidates, wptr);
    }
 
-   // If this call is on the RHS of an assignment to an aggregate then
-   // it can only have composite type
-   if (o->candidates.count > 1 && o->nametab->top_type_set->composite) {
+   // Filter based on required type predicate if available
+   if (o->candidates.count > 1 && o->nametab->top_type_set->pred) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          type_t rtype = type_result(tree_type(o->candidates.items[i]));
-         if (!type_is_composite(rtype))
-            overload_prune_candidate(o, i);
-         else
+         if ((*o->nametab->top_type_set->pred)(rtype))
             o->candidates.items[wptr++] = o->candidates.items[i];
+         else
+            overload_prune_candidate(o, i);
       }
       ATRIM(o->candidates, wptr);
    }
@@ -2489,33 +2525,6 @@ static tree_t finish_overload_resolution(overload_t *o)
    assert(o->state == O_IDLE);
 
    overload_trace_candidates(o, "before final pruning");
-
-   // If this call appears in a context that allows condition
-   // conversion, and there are multiple candidates at least one of
-   // which returns BOOLEAN, then prune the others that were only
-   // considered due to condition conversion.
-   if (o->candidates.count > 1 && o->nametab->top_type_set->cconv) {
-      type_t boolean = std_type(NULL, STD_BOOLEAN);
-
-      int nboolean = 0;
-      for (unsigned i = 0; i < o->candidates.count; i++) {
-         type_t rtype = type_result(tree_type(o->candidates.items[i]));
-         if (type_eq(rtype, boolean))
-            nboolean++;
-      }
-
-      if (nboolean > 0) {
-         unsigned wptr = 0;
-         for (unsigned i = 0; i < o->candidates.count; i++) {
-            type_t rtype = type_result(tree_type(o->candidates.items[i]));
-            if (!type_eq(rtype, boolean))
-               overload_prune_candidate(o, i);
-            else
-               o->candidates.items[wptr++] = o->candidates.items[i];
-         }
-         ATRIM(o->candidates, wptr);
-      }
-   }
 
    // Allow explicitly defined operators to hide implicitly defined ones
    // in different scopes. This is required behaviour in VHDL-2008 (see
@@ -2664,14 +2673,6 @@ static tree_t finish_overload_resolution(overload_t *o)
 
 static void overload_add_argument_type(overload_t *o, type_t type, tree_t d)
 {
-   type_set_t *ts = o->nametab->top_type_set;
-   if (ts->down && ts->down->cconv && !ts->cconv) {
-      // Boolean interpretation should be preferred in case of ambiguity
-      type_t boolean = std_type(NULL, STD_BOOLEAN);
-      if (type_eq(type, boolean))
-         ts->cconv = true;
-   }
-
    type_set_add(o->nametab, type, d);
 }
 
@@ -2958,51 +2959,7 @@ static void overload_cancel_argument(overload_t *o)
 }
 
 static void overload_restrict_argument(overload_t *o, tree_t p,
-                                       const type_t *types, unsigned ntypes)
-{
-   assert(tree_kind(p) == T_PARAM);
-   assert(o->state == O_IDLE);
-
-   if (o->trace) {
-      printf("%s: restrict argument ", istr(o->name));
-      if (tree_subkind(p) == P_POS)
-         printf("%d to", tree_pos(p));
-      else if (tree_kind(tree_name(p)) == T_REF)
-         printf("%s to", istr(tree_ident(tree_name(p))));
-      for (unsigned i = 0; i < ntypes; i++)
-         printf(" %s", type_pp(types[i]));
-      printf("\n");
-   }
-
-   if (o->initial > 1 && tree_subkind(p) == P_POS) {
-      unsigned wptr = 0;
-      for (unsigned i = 0; i < o->candidates.count; i++) {
-         tree_t port = overload_find_port(o->candidates.items[i], p);
-         if (port != NULL) {
-            type_t ptype = tree_type(port);
-
-            int matches = 0;
-            for (unsigned j = 0; matches == 0 && j < ntypes; j++) {
-               if (type_eq(ptype, types[j])
-                   || type_is_convertible(types[j], ptype))
-                  matches++;
-            }
-
-            if (matches == 0) {
-               overload_prune_candidate(o, i);
-               continue;
-            }
-         }
-
-         o->candidates.items[wptr++] = o->candidates.items[i];
-      }
-      ATRIM(o->candidates, wptr);
-   }
-}
-
-static void overload_restrict_argument_type(overload_t *o, tree_t p,
-                                            bool (*pred)(type_t),
-                                            const char *trace)
+                                       type_pred_t pred)
 {
    assert(tree_kind(p) == T_PARAM);
    assert(o->state == O_IDLE);
@@ -3013,7 +2970,7 @@ static void overload_restrict_argument_type(overload_t *o, tree_t p,
          printf("%d to", tree_pos(p));
       else if (tree_kind(tree_name(p)) == T_REF)
          printf("%s to ", istr(tree_ident(tree_name(p))));
-      printf(" %s\n", trace);
+      printf(" %s\n", debug_symbol_name(pred));
    }
 
    if (o->initial > 1 && tree_subkind(p) == P_POS) {
@@ -3180,35 +3137,6 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
 ////////////////////////////////////////////////////////////////////////////////
 // Type solver
 
-static bool solve_one_param(nametab_t *tab, tree_t p, overload_t *o, bool trial)
-{
-   param_kind_t subkind = tree_subkind(p);
-   switch (subkind) {
-   case P_POS:
-      overload_positional_argument(o, tree_pos(p));
-      break;
-   case P_NAMED:
-      {
-         tree_t name = tree_name(p);
-         overload_named_argument(o, name);
-         solve_types(tab, name, NULL);
-         pop_scope(o->nametab);
-      }
-      break;
-   }
-
-   tree_t value = tree_value(p);
-   if (trial && !try_solve_type(o->nametab, value)) {
-      overload_cancel_argument(o);
-      return false;
-   }
-   else {
-      _solve_types(o->nametab, value);
-      overload_next_argument(o, p);
-      return true;
-   }
-}
-
 static bool is_unambiguous(tree_t t)
 {
    if (tree_has_type(t))
@@ -3223,6 +3151,38 @@ static bool is_unambiguous(tree_t t)
       || kind == T_RECORD_REF
       || kind == T_ALL
       || (kind == T_REF && tree_has_ref(t));
+}
+
+static bool solve_one_param(nametab_t *tab, tree_t p, overload_t *o, bool trial)
+{
+   switch (tree_subkind(p)) {
+   case P_POS:
+      overload_positional_argument(o, tree_pos(p));
+      break;
+   case P_NAMED:
+      {
+         tree_t name = tree_name(p);
+         overload_named_argument(o, name);
+         solve_types(tab, name, NULL);
+         pop_scope(o->nametab);
+      }
+      break;
+   }
+
+   tree_t value = tree_value(p);
+   if (!trial || is_unambiguous(value)) {
+      _solve_types(o->nametab, value);
+      overload_next_argument(o, p);
+      return true;
+   }
+   else if (!try_solve_type(o->nametab, value)) {
+      overload_cancel_argument(o);
+      return false;
+   }
+   else {
+      overload_next_argument(o, p);
+      return true;
+   }
 }
 
 static type_list_t possible_types(nametab_t *tab, tree_t value)
@@ -3268,7 +3228,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 {
    const int nparams = tree_params(call);
 
-   bit_mask_t pmask;
+   LOCAL_BIT_MASK pmask;
    mask_init(&pmask, nparams);
 
    // Make an initial pass over the parameters and solve the "easy" ones
@@ -3291,22 +3251,15 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
-      tree_kind_t kind = tree_kind(value);
 
-      if (kind == T_REF || kind == T_FCALL) {
-         type_list_t possible = possible_types(tab, value);
-         if (possible.count > 0)
-            overload_restrict_argument(o, p, possible.items, possible.count);
-         ACLEAR(possible);
-      }
-      else if (kind == T_AGGREGATE) {
-         // Argument must be a compsoite type
-         overload_restrict_argument_type(o, p, type_is_composite, "composite");
+      const tree_kind_t kind = tree_kind(value);
+      if (kind == T_AGGREGATE) {
+         // Argument must be a composite type
+         overload_restrict_argument(o, p, type_is_composite);
       }
       else if (kind == T_STRING) {
          // Argument must be a character array type
-         overload_restrict_argument_type(o, p, type_is_character_array,
-                                         "character array");
+         overload_restrict_argument(o, p, type_is_character_array);
       }
    }
 
@@ -3319,8 +3272,8 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
 
-      const bool trial = o->candidates.count > 1
-         && mask_popcount(&pmask) + 1 < nparams;
+      const bool trial = o->trial
+         || (o->candidates.count > 1 && mask_popcount(&pmask) + 1 < nparams);
 
       if (o->error && o->initial == 0) {
          // Avoid cascading errors from an undefined subprogram
@@ -3331,6 +3284,11 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
          mask_set(&pmask, i);
    }
 
+   if (o->trial && mask_popcount(&pmask) < nparams) {
+      ATRIM(o->candidates, 0);
+      return;   // Cannot identify the overload yet
+   }
+
    // Catch-all pass for remaining parameters
 
    for (int i = 0; i < nparams; i++) {
@@ -3339,10 +3297,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 
       tree_t p = tree_param(call, i);
       solve_one_param(tab, p, o, false);
-      mask_set(&pmask, i);
    }
-
-   mask_free(&pmask);
 }
 
 static bool can_call_no_args(nametab_t *tab, tree_t decl)
@@ -3371,21 +3326,42 @@ static type_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, type_t ftype,
    if (!type_is_array(rtype))
       return rtype;
 
-   if (tree_params(fcall) == 0)
+   const int nparams = tree_params(fcall);
+   if (nparams == 0)
       return rtype;
 
    if (!can_call_no_args(tab, decl))
       return rtype;
+
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(fcall, i);
+      if (tree_subkind(p) != P_POS)
+         return rtype;   // Cannot be an indexed name
+   }
 
    type_t etype = type_elem(rtype);
 
    bool match_elem = false;
    for (int i = 0; i < tab->top_type_set->members.count; i++) {
       type_t itype = tab->top_type_set->members.items[i].type;
-      if (type_eq(itype, rtype))
-         return rtype;
-      else if (type_eq(itype, etype))
+      if (type_eq(itype, rtype)) {
+         // Prefer calling the function if the argument types match
+         bool match_args = true;
+         const int nports = tree_ports(decl);
+         for (int i = 0; i < MIN(nparams, nports); i++) {
+            type_t ftype = tree_type(tree_port(decl, i));
+            type_t atype = tree_type(tree_value(tree_param(fcall, i)));
+
+            match_args &= type_eq(ftype, atype);
+         }
+
+         if (match_args)
+            return rtype;
+      }
+      else if (type_eq(itype, etype)) {
          match_elem = true;
+         break;
+      }
    }
 
    if (!match_elem)
@@ -3399,7 +3375,7 @@ static type_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, type_t ftype,
    tree_set_loc(new, tree_loc(fcall));
    tree_set_type(new, rtype);
 
-   if (kind == T_PROT_FCALL)
+   if (kind == T_PROT_FCALL && tree_has_name(fcall))
       tree_set_name(new, tree_name(fcall));
 
    tree_change_kind(fcall, T_ARRAY_REF);
@@ -3664,8 +3640,18 @@ static type_t try_solve_ref(nametab_t *tab, tree_t ref)
 {
    if (tree_has_type(ref))
       return tree_type(ref);
-   else
+
+   tree_t decl = try_resolve_name(tab, tree_ident(ref));
+   if (decl == NULL)
       return NULL;
+
+   type_t type = get_type_or_null(decl);
+   if (type == NULL || type_is_subprogram(type))
+      return NULL;
+
+   tree_set_ref(ref, decl);
+   tree_set_type(ref, type);
+   return type;
 }
 
 static type_t solve_ref(nametab_t *tab, tree_t ref)
@@ -4674,7 +4660,7 @@ type_t solve_target(nametab_t *tab, tree_t target, tree_t value)
    type_t value_type = NULL;
    if (tree_kind(target) == T_AGGREGATE) {
       type_set_push(tab);
-      tab->top_type_set->composite = true;
+      tab->top_type_set->pred = type_is_composite;
 
       value_type = _solve_types(tab, value);
 
@@ -4691,30 +4677,36 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
 
    type_t type;
    if (standard() >= STD_08) {
-      const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_CCONV));
-      if (sym != NULL) {
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
-            if ((dd->mask & N_FUNC) && tree_ports(dd->tree) == 1) {
-               type_t p0_type = tree_type(tree_port(dd->tree, 0));
-               type_set_add(tab, p0_type, dd->tree);
-            }
-
-            tab->top_type_set->cconv = true;
-         }
-      }
-
-      type = _solve_types(tab, *expr);
+      if (is_unambiguous(*expr))
+         type = _solve_types(tab, *expr);
+      else
+         type = try_solve_type(tab, *expr);
 
       type_t boolean = std_type(NULL, STD_BOOLEAN);
-      if (!type_eq(type, boolean) && type_set_contains(tab, type)) {
-         tree_t fcall = tree_new(T_FCALL);
-         tree_set_loc(fcall, tree_loc(*expr));
-         tree_set_ident(fcall, well_known(W_CCONV));
-         add_param(fcall, *expr, P_POS, NULL);
+      if (type == NULL || !type_eq(type, boolean)) {
+          const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_CCONV));
+          if (sym != NULL) {
+             for (int i = 0; i < sym->ndecls; i++) {
+                const decl_t *dd = get_decl(sym, i);
+                if ((dd->mask & N_FUNC) && tree_ports(dd->tree) == 1) {
+                   type_t p0_type = tree_type(tree_port(dd->tree, 0));
+                   type_set_add(tab, p0_type, dd->tree);
+                }
+             }
+          }
 
-         type = solve_fcall(tab, fcall);
-         *expr = fcall;
+          if (type == NULL)
+             type = _solve_types(tab, *expr);
+
+          if (!type_eq(type, boolean) && type_set_contains(tab, type)) {
+             tree_t fcall = tree_new(T_FCALL);
+             tree_set_loc(fcall, tree_loc(*expr));
+             tree_set_ident(fcall, well_known(W_CCONV));
+             add_param(fcall, *expr, P_POS, NULL);
+
+             type = solve_fcall(tab, fcall);
+             *expr = fcall;
+          }
       }
    }
    else

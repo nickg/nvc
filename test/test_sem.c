@@ -1474,6 +1474,8 @@ END_TEST
 
 START_TEST(test_afunc)
 {
+   set_standard(STD_02);
+
    input_from_file(TESTDIR "/sem/afunc.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
