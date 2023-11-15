@@ -863,7 +863,7 @@ START_TEST(test_tc846)
    fail_if(e == NULL);
 
    tree_t b0 = tree_stmt(e, 0);
-   fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846CFG"));
+   fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846ENT"));
    fail_unless(tree_stmts(b0) == 2);
 
    tree_t a1 = tree_stmt(b0, 0);
@@ -911,7 +911,7 @@ START_TEST(test_issue442)
    fail_if(e == NULL);
 
    tree_t b0 = tree_stmt(e, 0);
-   fail_unless(tree_ident(b0) == ident_new("ISSUE442_1"));
+   fail_unless(tree_ident(b0) == ident_new("ISSUE442"));
    fail_unless(tree_stmts(b0) == 1);
 
    tree_t dut = tree_stmt(b0, 0);

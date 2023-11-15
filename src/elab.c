@@ -2004,18 +2004,13 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    tree_set_ident(e, name);
    tree_set_loc(e, &(top->loc));
 
-   // Put in work library eagerly so absolute external names can find
-   // the root of the design hierarchy
-   lib_t work = lib_work();
-   lib_put(work, e);
-
    elab_ctx_t ctx = {
       .out       = e,
       .root      = e,
       .path_name = NULL,
       .inst_name = NULL,
       .cover     = cover,
-      .library   = work,
+      .library   = lib_work(),
       .jit       = jit,
       .registry  = ur,
    };
@@ -2034,7 +2029,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       case T_CONFIGURATION:
          {
             tree_t arch = elab_root_config(vhdl, &ctx);
-            elab_top_level(arch, ident_from(tree_ident(vhdl), '.'), &ctx);
+            elab_top_level(arch, tree_ident2(arch), &ctx);
          }
          break;
       default:
@@ -2050,10 +2045,8 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       elab_verilog_module(wrap, NULL, &ctx);
    }
 
-   if (error_count() > 0) {
-      lib_put_error(work, e);
+   if (error_count() > 0)
       return NULL;
-   }
 
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
@@ -2066,6 +2059,8 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    unit_registry_flush(ur, vu_name);
 
    freeze_global_arena();
+
+   lib_put(ctx.library, e);
 
 #if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
@@ -2087,22 +2082,16 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
       switch (tree_subkind(pe)) {
       case PE_ABSOLUTE:
          {
-            assert(i == 0);
-            tree_t first = tree_part(name, 1);
-            assert(tree_subkind(first) == PE_SIMPLE);
+            tree_t entity = tree_part(name, ++i);
+            assert(tree_subkind(entity) == PE_SIMPLE);
 
-            lib_t work = lib_work();
-            ident_t work_name = lib_name(work);
-            ident_t qual = ident_prefix(work_name, tree_ident(first), '.');
-            ident_t elab = ident_prefix(qual, well_known(W_ELAB), '.');
-
-            if ((next = lib_get(work, elab)) == NULL) {
-               error_at(tree_loc(first), "%s is not the name of the root of "
-                        "the design hierarchy", istr(tree_ident(first)));
+            if (root == NULL || tree_ident(root) != tree_ident(entity)) {
+               error_at(tree_loc(entity), "%s is not the name of the root of "
+                        "the design hierarchy", istr(tree_ident(entity)));
                return NULL;
             }
 
-            *path = work_name;
+            next = root;
          }
          continue;
       case PE_SIMPLE:
@@ -2133,7 +2122,7 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
          return NULL;
       }
 
-      if (!is_concurrent_block(where) && tree_kind(where) != T_ELAB) {
+      if (!is_concurrent_block(where)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "%s is not a concurrent region",
                      istr(tree_ident(where)));
