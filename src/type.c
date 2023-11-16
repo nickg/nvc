@@ -923,42 +923,6 @@ unsigned type_width(type_t type)
       return 1;
 }
 
-bool type_is_convertible_map(type_t from, type_t to, hash_t *map)
-{
-   // LRM 08 section 9.3.6 final paragraph lists rules for implicit
-   // conversion from universal operands to other integer/real types.
-
-   type_kind_t fromk = type_base_kind(from);
-   type_kind_t tok   = type_base_kind(to);
-
-   if (fromk == T_NONE)
-      return true;  // Suppress cascading errors
-   else if (!type_is_universal(from))
-      return false;
-   else if (type_is_universal(to))
-      return false;
-   else if (fromk == T_INTEGER && tok == T_INTEGER)
-      return true;
-   else if (fromk == T_REAL && tok == T_REAL)
-      return true;
-   else if (tok == T_GENERIC && map != NULL) {
-      type_t to_map = hash_get(map, to);
-      return to_map ? type_is_convertible_map(from, to_map, map) : false;
-   }
-   else if (tok == T_GENERIC) {
-      // Handle VHDL-2019 anonymous type classes
-      return (fromk == T_INTEGER && type_subkind(to) == GTYPE_INTEGER)
-         || (fromk == T_REAL && type_subkind(to) == GTYPE_FLOATING);
-   }
-   else
-      return false;
-}
-
-bool type_is_convertible(type_t from, type_t to)
-{
-   return type_is_convertible_map(from, to, NULL);
-}
-
 bool type_is_composite(type_t t)
 {
    const type_kind_t base = type_base_kind(t);

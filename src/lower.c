@@ -1576,6 +1576,7 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
       break;
    case S_MOD: result = emit_mod(r0, r1); break;
    case S_REM: result = emit_rem(r0, r1); break;
+   case S_DIV_PP:
    case S_DIV: result = emit_div(r0, r1); break;
    case S_EXP:
       if (type_is_integer(type))
@@ -2311,6 +2312,7 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
    case S_MOD:
    case S_REM:
    case S_DIV:
+   case S_DIV_PP:
       if (type_is_integer(r1_type)) {
          vcode_reg_t locus = lower_debug_locus(fcall);
          emit_zero_check(r1, locus);

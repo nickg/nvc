@@ -175,8 +175,8 @@ START_TEST(test_vhdl2)
         "  S1 <= reject 1 NS inertial \"101010\" after 1 NS, (others => '1') after 2 NS;\n"
         "end process;\n" },
       { "G1",
-        "G1: for I in 5 downto 2 generate\n"
-        "  /* loop variable */ I : INTEGER range 5 downto 2;\n"
+        "G1: for I in INTEGER(5) downto INTEGER(2) generate\n"
+        "  /* loop variable */ I : INTEGER range INTEGER(5) downto INTEGER(2);\n"
         "  attribute A : INTEGER;\n"
         "  signal R : REAL := 1.234500;\n"
         "  attribute A of R : signal is 5;\n"

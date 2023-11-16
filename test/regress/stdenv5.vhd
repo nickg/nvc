@@ -24,7 +24,7 @@ begin
         assert gmtime(t2) = t1;
 
         assert epoch(t1) > 0.0;
-        assert abs(epoch(t2) - epoch(t1)) < 24 * 3600.0;
+        assert abs(epoch(t2) - epoch(t1)) < real(24 * 3600.0);
 
         t3 := t1 + 1.0;
         report to_string(t1) & " + 1.0 ==> " & to_string(t3);

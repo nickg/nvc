@@ -345,7 +345,8 @@ static void dump_expr(tree_t t)
       break;
 
    case T_TYPE_CONV:
-      print_syntax("%s(", istr(type_ident(tree_type(t))));
+      dump_type(tree_type(t));
+      print_syntax("(");
       dump_expr(tree_value(t));
       print_syntax(")");
       break;
@@ -1635,6 +1636,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_PSL:
    case T_VAR_ASSIGN:
    case T_RETURN:
+   case T_ASSERT:
       dump_stmt(t, indent);
       break;
    case T_CONST_DECL:

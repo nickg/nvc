@@ -38,8 +38,7 @@ START_TEST(test_integer)
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "no visible declaration for NOTHING" },
-      { 48, "no matching operator \"+\" [ANOTHER_ONE, universal_integer " },
-      { 48, "no matching operator \"+\" [MY_INT1, universal_integer return "},
+      { 48, "no matching operator \"*\" [MY_INT2, MY_INT1 return MY_INT2]" },
       { 57, "MY_INT2 has no attribute CAKE" },
       { 61, "right bound must be of some integer type but have universal" },
       { 63, "range bounds must be of some integer type but have BOOLEAN" },
@@ -191,8 +190,14 @@ START_TEST(test_ambiguous)
       {  56, "type of aggregate cannot be determined" },
       {  56, "type of aggregate cannot be determined" },
       {  86, "ambiguous use of enumeration literal FALSE" },
+      {  86, "ambiguous use of enumeration literal FALSE" },
+      {  93, "ambiguous use of name NOW" },
       {  93, "ambiguous use of name NOW" },
       { 103, "ambiguous use of name FALSE" },
+      { 103, "ambiguous use of name FALSE" },
+      {   0, "use of name FALSE here" },
+      {   0, "visible declaration of FALSE as BOOLEAN from STD.STANDARD" },
+      {   0, "visible declaration of FALSE as FALSE [return INTEGER]" },
       { 141, "ambiguous use of operator \"<\"" },
       { 222, "type of aggregate cannot be determined" },
       { 222, "type of aggregate cannot be determined" },
@@ -434,6 +439,7 @@ START_TEST(test_array)
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "a choice that is not locally static is allowed" },
       { 119, "type of aggregate cannot be determined from the surrounding" },
+      {   0, "context contains type INTEGER which is not a composite type" },
       { 119, "type of slice prefix INTEGER is not an array" },
       { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "index range of array aggregate with others choice cannot" },
@@ -460,12 +466,14 @@ START_TEST(test_array)
       { 391, "index type REAL is not discrete" },
       { 392, "index type BIT_VECTOR is not discrete" },
       { 399, "type of array aggregate choice BOOLEAN does not match INT_" },
-      { 400, "in range: left is universal_integer, right is BOOLEAN" },
+      { 400, "in range: left is INTEGER, right is BOOLEAN" },
       { 401, "expected type of range bounds to be INTEGER but have BOOLEAN" },
       { 403, "a choice that is not locally static is allowed" },
       { 404, "a choice that is not locally static is allowed" },
       { 424, "ambiguous call to function F" },
+      { 424, "type of string literal cannot be determined from the " },
       { 436, "type mismatch in range: left is universal_real, right is" },
+      { 442, "dimension index 5 out of range for type INT_ARRAY" },
       { 446, "no visible declaration for FOO" },
       { 480, "cannot index non-array type MY_RECORD" },
       { -1, NULL }
@@ -692,7 +700,9 @@ START_TEST(test_attr)
       {  66, "expected attribute specification for BAR to have type STRING "
          "but found universal_integer" },
       {  67, "no visible declaration for Q" },
-      {  85, "dimension of attribute LEFT must be locally static" },
+      {  85, "dimension parameter of attribute LEFT must be a locally "
+         "static expression of type universal_integer" },
+      {   0, "expression has type INTEGER" },
       { 101, "prefix of SIMPLE_NAME attribute must be a named entity" },
       { 103, "prefix of PATH_NAME attribute must be a named entity" },
       { 133, "cannot index non-array type INTEGER" },
@@ -706,10 +716,13 @@ START_TEST(test_attr)
       { 221, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 222, "BASE attribute is allowed only as the prefix of the name" },
       { 228, "no visible declaration for NOT_HERE" },
-      { 288, "expression must be a BOOLEAN literal" },
-      { 290, "NEVER_WAITS attribute can only be applied to procedures" },
-      { 294, "failed to parse FOREIGN attribute" },
-      { 295, "FOREIGN attribute must have string literal value" },
+      { 251, "parameter of attribute VAL must have an integer type but "
+        "found universal_real" },
+      { 252, "attribute VAL requires a parameter" },
+      { 297, "expression must be a BOOLEAN literal" },
+      { 299, "NEVER_WAITS attribute can only be applied to procedures" },
+      { 303, "failed to parse FOREIGN attribute" },
+      { 304, "FOREIGN attribute must have string literal value" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -825,7 +838,8 @@ START_TEST(test_access)
 
    const error_t expect[] = {
       {   5, "no visible declaration for FOO" },
-      {  34, "null expression must have access type" },
+      {  34, "type of null expression cannot be determined from the "
+         "surrounding context" },
       {  38, "unexpected integer while parsing name, expecting" },
       {  39, "type mark I does not denote a type or a subtype" },
       {  41, "does not match type of target INT_PTR" },
@@ -900,6 +914,7 @@ START_TEST(test_signal)
       { 17, "others association not allowed in aggregate target" },
       { 18, "cannot assign to input port P" },
       { 22, "cannot be determined from the surrounding context" },
+      {  0, "context contains type BIT which is not a composite type" },
       { 23, "target of signal assignment must be a signal name" },
       { 24, "others association not allowed in aggregate target" },
       { 25, "cannot assign to input port P" },
@@ -988,8 +1003,11 @@ START_TEST(test_universal)
    input_from_file(TESTDIR "/sem/universal.vhd");
 
    const error_t expect[] = {
+      { 11, "operator \"*\" [REAL, universal_integer return REAL]" },
       { 12, "operator \"*\" [REAL, universal_integer return REAL]" },
+      { 13, "operator \"*\" [universal_integer, universal_real return REAL]" },
       { 14, "operator \"*\" [INTEGER, universal_real return REAL]" },
+      { 15, "operator \"/\" [REAL, universal_integer return REAL]" },
       { 16, "operator \"/\" [universal_real, INTEGER return REAL]" },
       { -1, NULL }
    };

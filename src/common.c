@@ -881,7 +881,6 @@ unsigned dimension_of(type_t type)
    case T_ARRAY:
       return type_indexes(type);
    case T_NONE:
-   case T_ACCESS:
    case T_RECORD:
       return 0;
    case T_INTEGER:
@@ -889,6 +888,8 @@ unsigned dimension_of(type_t type)
    case T_PHYSICAL:
    case T_ENUM:
       return type_dims(type);
+   case T_ACCESS:
+      return dimension_of(type_designated(type));
    default:
       fatal_trace("invalid type kind %s in dimension_of",
                   type_kind_str(type_kind(type)));
@@ -979,6 +980,8 @@ type_t index_type_of(type_t type, unsigned dim)
       return type_index(base, dim);
    else if (base_kind == T_RECORD || base_kind == T_GENERIC)
       return NULL;
+   else if (base_kind == T_ACCESS)
+      return index_type_of(type_designated(type), dim);
    else
       return tree_type(range_of(base, dim));
 }

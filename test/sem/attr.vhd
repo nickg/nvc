@@ -245,6 +245,15 @@ begin
         assert a'converse = 4;          -- OK
     end process;
 
+    process is
+    begin
+        assert integer'val(1) = 1;      -- OK
+        assert integer'val(1.2) = 1;    -- Error
+        assert integer'val;             -- Error
+        assert integer'pred(15) = 14;   -- OK
+        assert integer'succ(15) = 16;   -- OK
+    end process;
+
 end architecture;
 
 use work.pack.all;

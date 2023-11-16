@@ -573,12 +573,6 @@ static bool sem_check_mapped_type(tree_t t, type_t expect, hash_t *map)
    if (type_eq_map(actual, expect, map))
       return true;
 
-   // LRM 08 section 9.3.6 rules for implicit conversion
-   if (type_is_convertible_map(actual, expect, map)) {
-      tree_set_type(t, expect);
-      return true;
-   }
-
    // Supress cascading errors
    if (type_is_none(actual) || type_is_none(expect))
       return true;
@@ -598,16 +592,6 @@ static bool sem_check_same_type(tree_t left, tree_t right)
 
    if (type_eq(left_type, right_type))
       return true;
-
-   if (type_is_convertible(left_type, right_type)) {
-      tree_set_type(left, right_type);
-      return true;
-   }
-
-   if (type_is_convertible(right_type, left_type)) {
-      tree_set_type(right, left_type);
-      return true;
-   }
 
    // Supress cascading errors
    if (type_is_none(left_type) || type_is_none(right_type))
@@ -3340,20 +3324,9 @@ static bool sem_check_string_literal(tree_t t)
 
 static bool sem_check_literal(tree_t t)
 {
-   switch (tree_subkind(t)) {
-   case L_INT:
-   case L_REAL:
-   case L_PHYSICAL:
-      break;
-
-   case L_NULL:
-      if (!type_is_access(tree_type(t)))
-         sem_error(t, "null expression must have access type");
-      break;
-
-   default:
-      assert(false);
-   }
+   type_t type = tree_type(t);
+   if (type_is_none(type))
+      return false;
 
    return true;
 }
@@ -3903,19 +3876,38 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max,
 
 static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_attr_param(t, std_type(NULL, STD_INTEGER), 0, 1, tab))
+   const int nparams = tree_params(t);
+   if (nparams == 0)
+      return true;
+
+   assert(nparams == 1);   // Enforced by parser
+
+   tree_t dim = tree_value(tree_param(t, 0));
+   if (!sem_check(dim, tab))
       return false;
 
-   if (tree_params(t) > 0) {
-      if (!type_is_array(tree_type(tree_name(t))))
-         sem_error(t, "prefix of attribute %s with dimension is not an array",
-                   istr(tree_ident(t)));
+   // The parameter must be a locally static expression of type
+   // universal_integer
 
-      tree_t dim = tree_value(tree_param(t, 0));
-      if (!sem_locally_static(dim))
-         sem_error(dim, "dimension of attribute %s must be locally "
-                   "static", istr(tree_ident(t)));
+   type_t uint = std_type(NULL, STD_UNIVERSAL_INTEGER);
+   if (!type_eq(tree_type(dim), uint)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(dim));
+      diag_printf(d, "dimension parameter of attribute %s must be a locally "
+                  "static expression of type universal_integer",
+                  istr(tree_ident(t)));
+      diag_hint(d, tree_loc(dim), "expression has type %s",
+                type_pp(tree_type(dim)));
+      diag_emit(d);
+      return false;
    }
+
+   if (!sem_locally_static(dim))
+      sem_error(dim, "dimension parameter of attribute %s must be a locally "
+                "static expression", istr(tree_ident(t)));
+
+   if (!type_is_array(tree_type(tree_name(t))))
+      sem_error(t, "prefix of attribute %s with dimension is not an array",
+                istr(tree_ident(t)));
 
    return true;
 }
@@ -4011,8 +4003,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
                   sem_error(t, "object %s does not have a range",
                             istr(tree_ident(decl)));
             }
-            else
-               sem_error(t, "prefix does not have a range");
+            else {
+               assert(error_count() > 0);  // Checked in parser
+               return false;
+            }
          }
 
          if (is_type && type_is_unconstrained(name_type))
@@ -4171,10 +4165,17 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             sem_error(t, "prefix of attribute %s must be a discrete or "
                       "physical type", istr(attr));
 
-         type_t std_int = std_type(NULL, STD_INTEGER);
-         type_t arg_type = predef == ATTR_VAL ? std_int : name_type;
+         if (predef == ATTR_VAL) {
+            // Parameter may be any integer type
+            if (tree_params(t) != 1)
+               sem_error(t, "attribute VAL requires a parameter");
 
-         if (!sem_check_attr_param(t, arg_type, 1, 1, tab))
+            type_t ptype = tree_type(tree_value(tree_param(t, 0)));
+            if (!type_is_integer(ptype))
+               sem_error(t, "parameter of attribute VAL must have an integer "
+                         "type but found %s", type_pp(ptype));
+         }
+         else if (!sem_check_attr_param(t, name_type, 1, 1, tab))
             return false;
 
          return true;

@@ -36,7 +36,7 @@ begin
         constant i : integer := 5;
         constant r : real := 252.4;
         type t is range r to i;         -- Error
-        type t2 is range i to r;         -- Error
+        type t2 is range i to r;        -- Error
     begin
     end process;
 
@@ -44,7 +44,7 @@ begin
         variable t : time;
         variable r : real;
     begin
-        r := (t / 1 ps) * 1.0;          -- OK
+        r := real(t / 1 ps) * 1.0;      -- OK
     end process;
 
 end architecture;

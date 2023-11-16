@@ -866,9 +866,6 @@ static void declare_binary(tree_t container, ident_t name, type_t lhs,
    mangle_func(nametab, d);
    insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
-
-   if (bootstrapping && type_is_universal(lhs))
-      tree_set_flag(d, TREE_F_UNIVERSAL);
 }
 
 static void declare_unary(tree_t container, ident_t name, type_t operand,
@@ -878,9 +875,6 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
    mangle_func(nametab, d);
    insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
-
-   if (bootstrapping && type_is_universal(operand))
-      tree_set_flag(d, TREE_F_UNIVERSAL);
 }
 
 static bool is_bit_or_std_ulogic(type_t type)
@@ -986,7 +980,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Division
       declare_binary(container, div, t, std_int, t, S_DIV);
       declare_binary(container, div, t, std_real, t, S_DIV_PR);
-      declare_binary(container, div, t, t, std_uint, S_DIV);
+      declare_binary(container, div, t, t, std_uint, S_DIV_PP);
 
       // Addition
       declare_binary(container, plus, t, t, t, S_ADD);
@@ -1083,11 +1077,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
                     std_type(NULL, STD_STRING), S_TO_STRING);
    }
 
-   // Universal integers and reals have some additional overloaded operators
-   // that are not valid for regular integer and real types
+   // Universal integers and reals have some additional overloaded
+   // operators that are not valid for regular integer and real types
    // See LRM 93 section 7.5
 
-   if (bootstrapping && type_kind(t) == T_REAL
+   if (bootstrapping && kind == T_REAL
        && t == std_type(std, STD_UNIVERSAL_REAL)) {
       type_t uint = std_type(std, STD_UNIVERSAL_INTEGER);
 
@@ -1910,6 +1904,9 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
    for (int i = 0; i < nports; i++)
       tree_add_port(new, tree_port(body_copy, i));
 
+   tree_set_flag(new, tree_flags(decl));
+   tree_set_flag(new, tree_flags(body));
+
    // Allow recursive calls to the uninstantiated subprogram
    map_generic_subprogram(nametab, decl_copy, new);
    map_generic_subprogram(nametab, body_copy, new);
@@ -2083,7 +2080,7 @@ static type_t get_subtype_for(tree_t expr)
             tree_set_subkind(p, L_INT);
             tree_set_ival(p, i + 1);
             tree_set_loc(p, loc);
-            tree_set_type(p, std_type(NULL, STD_INTEGER));
+            tree_set_type(p, std_type(NULL, STD_UNIVERSAL_INTEGER));
 
             add_param(rref, p, P_POS, NULL);
          }
@@ -2317,7 +2314,7 @@ static void implicit_signal_attribute(tree_t aref)
          tree_set_delay(w, delay ?: get_time(0, CURRENT_LOC));
 
          tree_set_subkind(imp, IMPLICIT_DELAYED);
-         tree_set_type(imp, tree_type(aref));
+         tree_set_type(imp, solve_types(nametab, aref, NULL));
          tree_set_value(imp, w);
       }
       break;
@@ -2478,6 +2475,46 @@ static void add_predef_alias(tree_t t, void *context)
 
    insert_name(nametab, a, NULL);
    tree_add_decl(parent, a);
+}
+
+static void convert_universal_bounds(tree_t r)
+{
+   // LRM 08 section 5.3.2.2: an implicit conversion to the predefined
+   // type INTEGER is assumed if the type of both bounds is the type
+   // universal_integer
+
+   assert(tree_kind(r) == T_RANGE);
+
+   const range_kind_t kind = tree_subkind(r);
+   if (kind != RANGE_TO && kind != RANGE_DOWNTO)
+      return;
+
+   tree_t left = tree_left(r);
+   tree_t right = tree_right(r);
+
+   type_t ltype = tree_type(left);
+   type_t rtype = tree_type(right);
+
+   type_t uint = std_type(NULL, STD_UNIVERSAL_INTEGER);
+   if (!type_eq(ltype, uint) || !type_eq(rtype, uint))
+      return;
+
+   type_t std_int = std_type(NULL, STD_INTEGER);
+   tree_set_type(r, std_int);
+
+   tree_t lconv = tree_new(T_TYPE_CONV);
+   tree_set_loc(lconv, tree_loc(left));
+   tree_set_type(lconv, std_int);
+   tree_set_value(lconv, left);
+
+   tree_set_left(r, lconv);
+
+   tree_t rconv = tree_new(T_TYPE_CONV);
+   tree_set_loc(rconv, tree_loc(right));
+   tree_set_type(rconv, std_int);
+   tree_set_value(rconv, right);
+
+   tree_set_right(r, rconv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2879,24 +2916,6 @@ static tree_t p_discrete_range(tree_t head)
    }
 }
 
-static tree_t p_constrained_discrete_range(type_t index_type)
-{
-   tree_t r = p_discrete_range(NULL);
-
-   if (tree_has_type(r))
-      return r;   // Already constrained e.g. from INTEGER range X to Y
-
-   type_t type = solve_types(nametab, r, index_type);
-
-   // LRM 08 section 5.3.2.2: an implicit conversion to the predefined
-   // type INTEGER is assumed if the type of both bounds is the type
-   // universal_integer
-   if (type_eq(type, std_type(NULL, STD_UNIVERSAL_INTEGER)))
-      tree_set_type(r, index_type ?: std_type(NULL, STD_INTEGER));
-
-   return r;
-}
-
 static tree_t p_slice_name(tree_t prefix, tree_t head)
 {
    // prefix ( discrete_range )
@@ -2919,6 +2938,7 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
 
    tree_t r = p_discrete_range(head);
    solve_types(nametab, r, index_type);
+   convert_universal_bounds(r);
 
    tree_add_range(t, r);
    consume(tRPAREN);
@@ -3203,10 +3223,7 @@ static tree_t p_attribute_name(tree_t prefix)
 
    if (is_type_attribute(kind))
       tree_set_type(t, apply_type_attribute(t));
-   else
-      solve_types(nametab, t, NULL);
-
-   if (kind == ATTR_DELAYED || kind == ATTR_TRANSACTION)
+   else if (kind == ATTR_DELAYED || kind == ATTR_TRANSACTION)
       implicit_signal_attribute(t);
 
    return t;
@@ -3364,16 +3381,10 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
    tree_t t = tree_new(T_ARRAY_REF);
    tree_set_value(t, prefix);
 
-   int n = 0;
    do {
       tree_t index = head ?: p_expression();
       head = NULL;
       add_param(t, index, P_POS, NULL);
-
-      type_t index_type = NULL;
-      if (type != NULL && type_is_array(type))
-         index_type = index_type_of(type, n++);
-      solve_types(nametab, index, index_type);
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
@@ -3723,7 +3734,9 @@ static tree_t p_index_constraint(type_t base)
    tree_set_subkind(t, C_INDEX);
    do {
       type_t index_type = base ? index_type_of(base, n++) : NULL;
-      tree_add_range(t, p_constrained_discrete_range(index_type));
+      tree_t r = p_discrete_range(NULL);
+      solve_types(nametab, r, index_type);
+      tree_add_range(t, r);
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
@@ -3949,13 +3962,11 @@ static tree_t p_abstract_literal(void)
    case tINT:
       tree_set_subkind(t, L_INT);
       tree_set_ival(t, last_lval.i64);
-      tree_set_type(t, std_type(NULL, STD_UNIVERSAL_INTEGER));
       break;
 
    case tREAL:
       tree_set_subkind(t, L_REAL);
       tree_set_dval(t, last_lval.real);
-      tree_set_type(t, std_type(NULL, STD_UNIVERSAL_REAL));
       break;
    }
 
@@ -5229,6 +5240,26 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    }
 }
 
+static void p_formal_parameter_list(tree_t decl, type_t type)
+{
+   // interface_list
+
+   BEGIN("formal parameter list");
+
+   p_interface_list(decl, T_PARAM_DECL, standard() >= STD_19);
+
+   tree_t p0 = tree_port(decl, 0);
+   type_add_param(type, tree_type(p0));
+
+   if (tree_has_value(p0))
+      tree_set_flag(decl, TREE_F_CALL_NO_ARGS);
+
+   const int nports = tree_ports(decl);
+   assert(nports >= 1);
+   for (int i = 1; i < nports; i++)
+      type_add_param(type, tree_type(tree_port(decl, i)));
+}
+
 static tree_t p_interface_function_specification(void)
 {
    // [ pure | impure ] function designator
@@ -5256,16 +5287,12 @@ static tree_t p_interface_function_specification(void)
 
    if (optional(tLPAREN)) {
       push_scope(nametab);
-
-      p_interface_list(d, T_PARAM_DECL, false);
+      p_formal_parameter_list(d, type);
       consume(tRPAREN);
-
-      const int nports = tree_ports(d);
-      for (int i = 0; i < nports; i++)
-         type_add_param(type, tree_type(tree_port(d, i)));
-
       pop_scope(nametab);
    }
+   else
+      tree_set_flag(d, TREE_F_CALL_NO_ARGS);
 
    consume(tRETURN);
 
@@ -5309,16 +5336,12 @@ static tree_t p_interface_procedure_specification(void)
 
    if (optional(tLPAREN)) {
       push_scope(nametab);
-
-      p_interface_list(d, T_PARAM_DECL, false);
+      p_formal_parameter_list(d, type);
       consume(tRPAREN);
-
-      const int nports = tree_ports(d);
-      for (int i = 0; i < nports; i++)
-         type_add_param(type, tree_type(tree_port(d, i)));
-
       pop_scope(nametab);
    }
+   else
+      tree_set_flag(d, TREE_F_CALL_NO_ARGS);
 
    tree_set_loc(d, CURRENT_LOC);
    return d;
@@ -6141,7 +6164,8 @@ static type_t p_constrained_array_definition(ident_t id)
    consume(tLPAREN);
    do {
       type_t index_type = std_type(NULL, STD_INTEGER);
-      tree_t r = p_constrained_discrete_range(index_type);
+      tree_t r = p_discrete_range(NULL);
+      solve_types(nametab, r, index_type);
       tree_add_range(constraint, r);
       type_add_index(base, tree_type(r));
    } while (optional(tCOMMA));
@@ -6799,13 +6823,11 @@ static tree_t p_subprogram_specification(void)
    }
 
    if (has_param_list) {
-      p_interface_list(t, T_PARAM_DECL, standard() >= STD_19);
+      p_formal_parameter_list(t, type);
       consume(tRPAREN);
-
-      const int nports = tree_ports(t);
-      for (int i = 0; i < nports; i++)
-         type_add_param(type, tree_type(tree_port(t, i)));
    }
+   else
+      tree_set_flag(t, TREE_F_CALL_NO_ARGS);
 
    if (tree_kind(t) == T_FUNC_DECL) {
       consume(tRETURN);
@@ -9779,7 +9801,9 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
 
    consume(tIN);
 
-   tree_t r = p_constrained_discrete_range(NULL);
+   tree_t r = p_discrete_range(NULL);
+   solve_types(nametab, r, NULL);
+   convert_universal_bounds(r);
    tree_add_range(loop, r);
 
    type_t base = tree_type(r);

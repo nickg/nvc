@@ -313,7 +313,7 @@ END_TEST
 
 START_TEST(test_seq)
 {
-   tree_t a, p, s, e, b, c;
+   tree_t a, p, s, e, b, c, r;
 
    set_standard(STD_08);
 
@@ -568,9 +568,11 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_FOR);
    fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_subkind(tree_range(s, 0)) == RANGE_TO);
-   fail_unless(tree_kind(tree_left(tree_range(s, 0))) == T_LITERAL);
-   fail_unless(tree_kind(tree_left(tree_range(s, 0))) == T_LITERAL);
+
+   r = tree_range(s, 0);
+   fail_unless(tree_subkind(r) == RANGE_TO);
+   fail_unless(tree_kind(tree_left(r)) == T_TYPE_CONV);
+   fail_unless(tree_kind(tree_left(r)) == T_TYPE_CONV);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_FOR);
@@ -3477,8 +3479,12 @@ START_TEST(test_names)
       {  46, "ambiguous use of enumeration literal '1'" },
       {  47, "type of string literal cannot be determined from the" },
       {  50, "type of aggregate cannot be determined from the surrounding" },
+      {   0, "could be BIT_VECTOR or BOOL_VECTOR" },
+      {   0, "context contains overload FUNC6 [BIT_VECTOR return INTEGER]" },
+      {   0, "context contains overload FUNC6 [BOOL_VECTOR return INTEGER]" },
       {  51, "type of aggregate cannot be determined from the surrounding" },
-      {  54, "ambiguous call to function FUNC7" },
+      {  54, "no matching subprogram FUNC7 [universal_integer return INT" },
+      {   0, "no implicit conversion was performed on the first argument" },
       {  56, "type of string literal cannot be determined from the" },
       {  69, "PROC4 [INTEGER] already declared in this region" },
       {  84, "PROC8 already declared in this region" },
@@ -3488,8 +3494,10 @@ START_TEST(test_names)
       {  97, "type of string literal cannot be determined from the" },
       { 100, "type of aggregate cannot be determined from the surrounding" },
       { 101, "type of aggregate cannot be determined from the surrounding" },
-      { 104, "ambiguous call to procedure PROC7" },
+      { 104, "no matching subprogram PROC7 [universal_integer]" },
+      {   0, "no implicit conversion was performed on the first argument" },
       { 106, "type of string literal cannot be determined from the" },
+      {   0, "could be BIT_VECTOR or STRING" },
       { 107, "expected procedure name" },
       { 108, "no visible subprogram declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
@@ -4291,6 +4299,7 @@ START_TEST(test_vunit7)
 
    const error_t expect[] = {
       { 23, "ambiguous use of enumeration literal ERROR" },
+      { 23, "ambiguous use of enumeration literal FAILURE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -4674,10 +4683,10 @@ START_TEST(test_range1)
    input_from_file(TESTDIR "/parse/range1.vhd");
 
    const error_t expect[] = {
-      { 16, "object X does not have a range" },
-      { 18, "name X in discrete range does not refer to a type" },
-      { 20, "expecting a discrete range" },
-      { 24, "expected type mark while parsing discrete range" },
+      { 17, "object X does not have a range" },
+      { 19, "name X in discrete range does not refer to a type" },
+      { 21, "expecting a discrete range" },
+      { 25, "expected type mark while parsing discrete range" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -51,9 +51,7 @@ static void psl_check_number(tree_t t)
    type_t type = tree_type(t);
    type_t std_int = std_type(NULL, STD_INTEGER);
 
-   if (type_is_convertible_map(type, std_int, NULL))
-      tree_set_type(t, std_int);   // Allow implicit conversion
-   else if (!type_eq(type, std_int)) {
+   if (!type_eq(type, std_int)) {
       error_at(tree_loc(t), "expression must be a PSL Number but have type %s",
                type_pp(type));
       return;

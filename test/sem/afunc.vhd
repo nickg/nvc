@@ -12,6 +12,11 @@ architecture test of afunc is
     begin
         return "01";
     end function;
+
+    function get3(x, y : integer := 0) return bit_vector is
+    begin
+        return "01";
+    end function;
 begin
 
     process is
@@ -22,6 +27,7 @@ begin
         assert "01" = get2(0);          -- OK
         assert get2(0) = '0';           -- OK
         assert '0' = get2(0);           -- OK
+        assert get3(1, 2) & '1' = "01"; -- OK
         wait;
     end process;
 

@@ -145,8 +145,6 @@ bool type_is_physical(type_t t);
 bool type_is_discrete(type_t t);
 bool type_is_subprogram(type_t t);
 bool type_is_universal(type_t t);
-bool type_is_convertible(type_t from, type_t to);
-bool type_is_convertible_map(type_t from, type_t to, hash_t *map);
 bool type_is_composite(type_t t);
 bool type_is_homogeneous(type_t t);
 bool type_is_resolved(type_t t);

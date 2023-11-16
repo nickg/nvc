@@ -16,7 +16,7 @@ begin
     -- psl assert always (x or y) ->
     --        (y xor x) = '1';                     -- OK
     -- psl assert always (x or y) ->               -- A comment inside PSL
-    --        (y xor fff) = '1';                   -- Error
+    --        (y xor fff) = x;                     -- Error
     -- psl assert                                  -- Also OK
     -- psl     x -> y;                             -- OK
     -- psl assert x -> next y;                     -- OK
