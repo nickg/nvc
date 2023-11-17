@@ -4428,17 +4428,6 @@ static type_t solve_assoc(nametab_t *tab, tree_t assoc)
    return _solve_types(tab, tree_value(assoc));
 }
 
-static type_t solve_param(nametab_t *tab, tree_t param)
-{
-   switch (tree_subkind(param)) {
-   case P_NAMED:
-      _solve_types(tab, tree_name(param));
-      break;
-   }
-
-   return _solve_types(tab, tree_value(param));
-}
-
 static type_t solve_qualified(nametab_t *tab, tree_t qual)
 {
    assert(tree_has_type(qual));
@@ -4685,8 +4674,6 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_array_slice(tab, expr);
    case T_ASSOC:
       return solve_assoc(tab, expr);
-   case T_PARAM:
-      return solve_param(tab, expr);
    case T_ATTR_REF:
       return solve_attr_ref(tab, expr);
    case T_QUALIFIED:
