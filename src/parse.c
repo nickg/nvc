@@ -972,13 +972,13 @@ static void declare_predefined_ops(tree_t container, type_t t)
       std_uint = std_type(std, STD_UNIVERSAL_INTEGER);
 
       // Multiplication
-      declare_binary(container, mult, t, std_int, t, S_MUL);
+      declare_binary(container, mult, t, std_int, t, S_MUL_PI);
       declare_binary(container, mult, t, std_real, t, S_MUL_PR);
-      declare_binary(container, mult, std_int, t, t, S_MUL);
+      declare_binary(container, mult, std_int, t, t, S_MUL_IP);
       declare_binary(container, mult, std_real, t, t, S_MUL_RP);
 
       // Division
-      declare_binary(container, div, t, std_int, t, S_DIV);
+      declare_binary(container, div, t, std_int, t, S_DIV_PI);
       declare_binary(container, div, t, std_real, t, S_DIV_PR);
       declare_binary(container, div, t, t, std_uint, S_DIV_PP);
 

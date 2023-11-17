@@ -1519,76 +1519,38 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
    }
 }
 
-static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
-{
-   // Resize arithmetic result to width of target type
-
-   vcode_type_t vtype = lower_type(result);
-   if (!vtype_eq(vtype, vcode_reg_type(reg)))
-      return emit_cast(vtype, vcode_reg_bounds(reg), reg);
-   else
-      return reg;
-}
-
-static void lower_coerce_scalar(vcode_reg_t *r0, vcode_reg_t *r1)
-{
-   vcode_type_t r0_type = vcode_reg_type(*r0);
-   vcode_type_t r1_type = vcode_reg_type(*r1);
-   if (!vtype_eq(r0_type, r1_type)) {
-      const unsigned r0_bits = bits_for_range(vtype_low(r0_type),
-                                              vtype_high(r0_type));
-      const unsigned r1_bits = bits_for_range(vtype_low(r1_type),
-                                              vtype_high(r1_type));
-
-      if (r1_bits > r0_bits)
-         *r0 = emit_cast(r1_type, vcode_reg_bounds(*r0), *r0);
-      else
-         *r1 = emit_cast(r0_type, vcode_reg_bounds(*r1), *r1);
-   }
-}
-
 static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
                                vcode_reg_t r0, vcode_reg_t r1)
 {
-   lower_coerce_scalar(&r0, &r1);
-
    type_t type = tree_type(fcall);
 
-   vcode_reg_t result = VCODE_INVALID_REG;
    switch (kind) {
    case S_ADD:
       if (type_is_integer(type))
-         result = emit_trap_add(r0, r1, lower_debug_locus(fcall));
+         return emit_trap_add(r0, r1, lower_debug_locus(fcall));
       else
-         result = emit_add(r0, r1);
-      break;
+         return emit_add(r0, r1);
    case S_MUL:
       if (type_is_integer(type))
-         result = emit_trap_mul(r0, r1, lower_debug_locus(fcall));
+         return emit_trap_mul(r0, r1, lower_debug_locus(fcall));
       else
-         result = emit_mul(r0, r1);
-      break;
+         return emit_mul(r0, r1);
    case S_SUB:
       if (type_is_integer(type))
-         result = emit_trap_sub(r0, r1, lower_debug_locus(fcall));
+         return emit_trap_sub(r0, r1, lower_debug_locus(fcall));
       else
-         result = emit_sub(r0, r1);
-      break;
-   case S_MOD: result = emit_mod(r0, r1); break;
-   case S_REM: result = emit_rem(r0, r1); break;
-   case S_DIV_PP:
-   case S_DIV: result = emit_div(r0, r1); break;
+         return emit_sub(r0, r1);
+   case S_MOD: return emit_mod(r0, r1);
+   case S_REM: return emit_rem(r0, r1);
+   case S_DIV: return emit_div(r0, r1);
    case S_EXP:
       if (type_is_integer(type))
-         result = emit_trap_exp(r0, r1, lower_debug_locus(fcall));
+         return emit_trap_exp(r0, r1, lower_debug_locus(fcall));
       else
-         result = emit_exp(r0, r1);
-      break;
+         return emit_exp(r0, r1);
    default:
       fatal_trace("invalid subprogram kind %d in lower_arith", kind);
    }
-
-   return lower_narrow(tree_type(fcall), result);
 }
 
 static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
@@ -2262,8 +2224,6 @@ static vcode_reg_t lower_comparison(lower_unit_t *lu, tree_t fcall,
                                     subprogram_kind_t builtin,
                                     vcode_reg_t r0, vcode_reg_t r1)
 {
-   lower_coerce_scalar(&r0, &r1);
-
    vcode_cmp_t cmp;
    switch (builtin) {
    case S_SCALAR_EQ:  cmp = VCODE_CMP_EQ; break;
@@ -2312,7 +2272,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
    case S_MOD:
    case S_REM:
    case S_DIV:
-   case S_DIV_PP:
       if (type_is_integer(r1_type)) {
          vcode_reg_t locus = lower_debug_locus(fcall);
          emit_zero_check(r1, locus);
@@ -2338,7 +2297,7 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       {
          if (type_is_integer(r0_type)) {
             vcode_reg_t locus = lower_debug_locus(fcall);
-            return lower_narrow(tree_type(fcall), emit_trap_neg(r0, locus));
+            return emit_trap_neg(r0, locus);
          }
          else
             return emit_neg(r0);
@@ -2419,6 +2378,18 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          return emit_cast(rtype, rtype,
                           emit_mul(emit_cast(vreal, vreal, r0), r1));
       }
+   case S_MUL_IP:
+      {
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r0);
+         return emit_mul(cast_reg, r1);
+      }
+   case S_MUL_PI:
+      {
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r1);
+         return emit_mul(r0, cast_reg);
+      }
    case S_DIV_PR:
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
@@ -2434,6 +2405,22 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          emit_zero_check(r1, locus);
          return emit_cast(rtype, rtype,
                           emit_div(r0, emit_cast(vreal, vreal, r1)));
+      }
+   case S_DIV_PP:
+      {
+         vcode_reg_t locus = lower_debug_locus(fcall);
+         emit_zero_check(r1, locus);
+         vcode_reg_t div_reg = emit_div(r0, r1);
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype, div_reg);
+      }
+   case S_DIV_PI:
+      {
+         vcode_reg_t locus = lower_debug_locus(fcall);
+         emit_zero_check(r1, locus);
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r1);
+         return emit_div(r0, cast_reg);
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
