@@ -126,6 +126,7 @@ psl_type_t psl_type(psl_node_t p);
 void psl_set_type(psl_node_t p, psl_type_t type);
 
 tree_t psl_tree(psl_node_t p);
+bool psl_has_tree(psl_node_t p);
 void psl_set_tree(psl_node_t p, tree_t t);
 
 psl_node_t psl_value(psl_node_t p);

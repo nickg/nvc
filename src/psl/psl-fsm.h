@@ -38,7 +38,6 @@ typedef struct _fsm_state {
    unsigned     id;
    fsm_state_t *next;
    fsm_edge_t  *edges;
-   psl_node_t   test;
    bool         initial;
    bool         repeating;
    bool         accept;
@@ -47,6 +46,7 @@ typedef struct _fsm_state {
 typedef struct {
    fsm_state_t  *states;
    fsm_state_t **tail;
+   psl_node_t    src;
    unsigned      next_id;
 } psl_fsm_t;
 

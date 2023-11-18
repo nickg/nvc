@@ -204,6 +204,11 @@ void psl_set_type(psl_node_t p, psl_type_t type)
    lookup_item(&psl_object, p, I_CLASS)->ival = type;
 }
 
+bool psl_has_tree(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_FOREIGN)->object != NULL;
+}
+
 tree_t psl_tree(psl_node_t p)
 {
    item_t *item = lookup_item(&psl_object, p, I_FOREIGN);

@@ -521,7 +521,9 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
       case T_PSL:
          {
             psl_node_t psl = tree_psl(t);
-            if (psl_kind(psl) != P_ASSERT)
+
+            const psl_kind_t kind = psl_kind(psl);
+            if (kind != P_ASSERT && kind != P_COVER)
                continue;
 
             ident_t name = tree_ident(t);

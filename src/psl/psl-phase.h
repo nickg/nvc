@@ -26,9 +26,9 @@ void psl_check(psl_node_t p);
 // Print PSL expression for debugging.
 void psl_dump(psl_node_t p);
 
-// Convert PSL assertion to vcode unit.
-void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
-                      ident_t name);
+// Convert PSL verification directive to vcode unit.
+void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
+                         psl_node_t p, ident_t name);
 
 // Convert PSL declaration to vcode variable
 void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,

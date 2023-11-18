@@ -453,10 +453,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_REPORT:
       {
-         uint8_t *msg      = args[0].pointer;
-         int32_t  len      = args[1].integer;
-         int32_t  severity = args[2].integer;
-         tree_t   where    = args[3].pointer;
+         uint8_t  *msg      = args[0].pointer;
+         int32_t   len      = args[1].integer;
+         int32_t   severity = args[2].integer;
+         object_t *where    = args[3].pointer;
 
          if (jit_has_runtime(thread->jit)) {
             if (!get_vhdl_assert_enable(severity))

@@ -171,20 +171,19 @@ START_TEST(test_parse4)
    psl_node_t p7_v_r_1 = psl_repeat(p7_v);
 
    fail_unless(psl_kind(p7_v) == P_SERE);
-   fail_unless(tree_ival(tree_left(psl_tree(p7_v_r_1))) == 3);
+   fail_unless(tree_ival(psl_tree(p7_v_r_1)) == 3);
 
    psl_node_t p7_v_2 = psl_operand(p7_v, 0);
    psl_node_t p7_v_r_2 = psl_repeat(p7_v_2);
 
    fail_unless(psl_kind(p7_v_2) == P_SERE);
-   fail_unless(tree_ival(tree_left(psl_tree(p7_v_r_2))) == 2);
+   fail_unless(tree_ival(psl_tree(p7_v_r_2)) == 2);
 
    psl_node_t p7_v_3 = psl_operand(p7_v_2, 0);
    psl_node_t p7_v_r_3 = psl_repeat(p7_v_3);
 
    fail_unless(psl_kind(p7_v_3) == P_SERE);
-   fail_unless(tree_ival(tree_left(psl_tree(p7_v_r_3))) == 1);
-
+   fail_unless(tree_ival(psl_tree(p7_v_r_3)) == 1);
 
    psl_node_t p11 = tree_psl(tree_stmt(a, 11));
    psl_node_t p11_v = psl_value(p11);

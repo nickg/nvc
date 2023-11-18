@@ -45,6 +45,7 @@ static void dump_package(tree_t t, int indent);
 static void dump_package_body(tree_t t, int indent);
 static void dump_constraint(tree_t t);
 static void dump_elem_constraints(type_t type);
+static void dump_psl(tree_t t, int indent);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -951,6 +952,11 @@ static void dump_decl(tree_t t, int indent)
 
    case T_PACK_BODY:
       dump_package_body(t, indent);
+      return;
+
+   case T_PSL:
+      dump_psl(t, 0);
+      print_syntax(";\n");
       return;
 
    default:

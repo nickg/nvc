@@ -61,8 +61,13 @@ static void psl_dump_fairness(psl_node_t p)
 
 static void psl_dump_cover(psl_node_t p)
 {
-   print_syntax("#cover");
+   print_syntax("#cover ");
    psl_dump(psl_value(p));
+
+   if (psl_has_message(p)) {
+      print_syntax(" #report ");
+      vhdl_dump(psl_message(p), 0);
+   }
 }
 
 static void psl_dump_always(psl_node_t p)
@@ -143,6 +148,18 @@ static void psl_dump_sere(psl_node_t p)
    }
 
    print_syntax("}");
+
+   if (psl_has_repeat(p)) {
+      psl_node_t r = psl_repeat(p);
+      switch (psl_subkind(r)) {
+      case PSL_TIMES_REPEAT:
+         print_syntax("[*");
+         if (psl_has_tree(r))
+            vhdl_dump(psl_tree(r), 0);
+         print_syntax("]");
+         break;
+      }
+   }
 }
 
 static void psl_dump_clock_decl(psl_node_t p)

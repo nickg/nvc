@@ -359,22 +359,29 @@ static void apply_format(diag_t *d, format_part_t *p, vhdl_severity_t severity,
 }
 
 void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
-              tree_t where)
+              object_t *where)
 {
    assert(severity <= SEVERITY_FAILURE);
 
    const diag_level_t level = diag_severity(severity);
 
-   diag_t *d = diag_new(level, tree_loc(where));
+   diag_t *d = diag_new(level, &(where->loc));
 
-   if (format[severity] != NULL)
+   psl_node_t p = psl_from_object(where);
+   if (p != NULL && psl_kind(p) == P_COVER) {
+      diag_printf(d, "PSL cover: ");
+      diag_write(d, (const char *)msg, msg_len);
+   }
+   else if (format[severity] != NULL) {
       apply_format(d, format[severity], severity, msg, msg_len);
+      diag_show_source(d, false);
+   }
    else {
       diag_printf(d, "Report %s: ", get_severity_string(severity));
       diag_write(d, (const char *)msg, msg_len);
+      diag_show_source(d, false);
    }
 
-   diag_show_source(d, false);
    diag_emit(d);
 
    if (level == DIAG_FATAL)

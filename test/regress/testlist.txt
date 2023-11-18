@@ -900,3 +900,4 @@ view6           normal,2019
 issue790        normal
 issue791        normal,2008
 issue794        normal,2008
+psl7            normal,gold,psl

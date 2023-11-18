@@ -11283,6 +11283,7 @@ static psl_node_t p_psl_parametrized_sere(void)
    psl_add_operand(p, p_psl_sere());
    consume(tRBRACE);
 
+   psl_set_loc(p, CURRENT_LOC);
    return p;
 }
 
@@ -11334,6 +11335,7 @@ static psl_node_t p_psl_compound_sere(void)
       psl_add_operand(p, p_psl_compound_sere());
    }
 
+   psl_set_loc(p, CURRENT_LOC);
    return p;
 }
 
@@ -11368,6 +11370,7 @@ static psl_node_t p_psl_sere(void)
       prev = tok;
    };
 
+   psl_set_loc(p, CURRENT_LOC);
    return p;
 }
 
@@ -11395,27 +11398,19 @@ static tree_t p_psl_count(void)
 
    BEGIN("PSL Count");
 
-   tree_t range = tree_new(T_RANGE);
-
    scan_as_vhdl();
 
-   tree_set_subkind(range, RANGE_TO);
+   tree_t count = p_expression();
 
-   tree_t l = p_expression();
-   solve_types(nametab, l, std_type(NULL, STD_INTEGER));
-   tree_set_left(range, l);
+   if (peek() == tTO)
+      count = p_range(count);
 
-   if (optional(tTO)) {
-      tree_t r = p_expression();
-      solve_types(nametab, r, std_type(NULL, STD_INTEGER));
-      tree_set_right(range, r);
-   }
+   solve_types(nametab, count, std_type(NULL, STD_INTEGER));
 
    scan_as_psl();
 
-   return range;
+   return count;
 }
-
 
 static psl_node_t p_psl_repeat_scheme(void)
 {
@@ -11436,7 +11431,8 @@ static psl_node_t p_psl_repeat_scheme(void)
 
    case tTIMESRPT:
       psl_set_subkind(rpt, PSL_TIMES_REPEAT);
-      psl_set_tree(rpt, p_psl_count());
+      if (peek() != tRSQUARE)
+         psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
       break;
 
@@ -11448,11 +11444,13 @@ static psl_node_t p_psl_repeat_scheme(void)
 
    case tARROWRPT:
       psl_set_subkind(rpt, PSL_ARROW_REPEAT);
-      psl_set_tree(rpt, p_psl_count());
+      if (peek() != tRSQUARE)
+         psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
       break;
    }
 
+   psl_set_loc(rpt, CURRENT_LOC);
    return rpt;
 }
 

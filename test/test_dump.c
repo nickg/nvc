@@ -435,6 +435,10 @@ START_TEST(test_psl1)
    diff_dump(tb_get(tb), "assert A -> (next [2] (B until! C))");
    tb_rewind(tb);
 
+   psl_dump(tree_psl(tree_stmt(a, 5)));
+   diff_dump(tb_get(tb), "cover {{}[*]; {A}[*4]} report \"msg\"");
+   tb_rewind(tb);
+
    fail_if_errors();
 }
 END_TEST

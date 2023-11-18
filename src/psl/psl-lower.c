@@ -66,24 +66,34 @@ static vcode_reg_t psl_assert_severity(void)
    return emit_const(vtype_int(0, 3), 2);
 }
 
-static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
-                            vcode_block_t *state_bb)
+static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
+{
+   if (psl_has_message(p)) {
+      tree_t m = psl_message(p);
+      vcode_reg_t msg_reg = lower_rvalue(lu, m);
+
+      vcode_type_t voffset = vtype_offset();
+      vcode_reg_t count_reg = emit_const(voffset, type_width(tree_type(m)));
+
+      vcode_reg_t severity_reg = emit_const(vtype_int(0, 3), 0);
+      vcode_reg_t locus = psl_debug_locus(p);
+
+      emit_report(msg_reg, count_reg, severity_reg, locus);
+   }
+}
+
+static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
+                            fsm_state_t *state, vcode_block_t *state_bb)
 {
    emit_comment("Property state %d", state->id);
 
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
 
-   if (state->test != NULL) {
-      vcode_reg_t test_reg = psl_lower_boolean(lu, state->test);
-      vcode_reg_t severity_reg = psl_assert_severity();
-
-      vcode_reg_t locus = psl_debug_locus(state->test);
-      emit_assert(test_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, severity_reg,
-                  locus, VCODE_INVALID_REG, VCODE_INVALID_REG);
-   }
-
    if (state->repeating)
       emit_enter_state(emit_const(vint32, state->id));
+
+   if (state->accept && psl_kind(fsm->src) == P_COVER)
+      psl_lower_cover(lu, fsm->src);
 
    vcode_block_t pass_bb = emit_block();
 
@@ -106,7 +116,7 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
 
          vcode_select_block(skip_bb);
 
-         if (e->next == NULL && !state->repeating) {
+         if (e->next == NULL && psl_kind(fsm->src) == P_ASSERT) {
             vcode_reg_t severity_reg = psl_assert_severity();
             vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
             vcode_reg_t locus = psl_debug_locus(e->guard);
@@ -131,12 +141,10 @@ static void psl_lower_state(lower_unit_t *lu, fsm_state_t *state,
    emit_return(VCODE_INVALID_REG);
 }
 
-void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
-                      ident_t label)
+void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
+                         psl_node_t p, ident_t label)
 {
-   assert(psl_kind(p) == P_ASSERT);
-
-   psl_fsm_t *fsm = psl_fsm_new(psl_value(p));
+   psl_fsm_t *fsm = psl_fsm_new(p);
 
    if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label))) {
       char *fname LOCAL = xasprintf("%s.dot", istr(label));
@@ -208,7 +216,7 @@ void psl_lower_assert(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
    int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[pos++]);
-      psl_lower_state(lu, s, state_bb);
+      psl_lower_state(lu, fsm, s, state_bb);
    }
    assert(pos == fsm->next_id);
 

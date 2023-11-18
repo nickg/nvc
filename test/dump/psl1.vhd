@@ -14,5 +14,6 @@ begin
     -- psl assert always (a -> next_a[3 to 5] (b));
     -- psl assert {a;b and c};
     -- psl assert a -> next [2] (b until! c);
+    -- psl cover {[*]; a[*4]} report "msg";
 
 end architecture;

@@ -1775,7 +1775,8 @@ static void elab_process(tree_t t, const elab_ctx_t *ctx)
 static void elab_psl(tree_t t, const elab_ctx_t *ctx)
 {
    if (error_count() == 0)
-      psl_lower_assert(ctx->registry, ctx->lowered, tree_psl(t), tree_ident(t));
+      psl_lower_directive(ctx->registry, ctx->lowered,
+                          tree_psl(t), tree_ident(t));
 
    tree_add_stmt(ctx->out, t);
 }

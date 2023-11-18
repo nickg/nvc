@@ -16,8 +16,11 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "ident.h"
+#include "mask.h"
 #include "psl/psl-fsm.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
@@ -50,10 +53,10 @@ static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
                      psl_node_t guard)
 {
    fsm_edge_t **p = &(from->edges);
-   for (; *p; p = &((*p)->next));
+   for (; *p && (guard == NULL || (*p)->guard != NULL); p = &((*p)->next));
 
    fsm_edge_t *e = xcalloc(sizeof(fsm_edge_t));
-   e->next  = NULL;
+   e->next  = *p;
    e->kind  = kind;
    e->dest  = to;
    e->guard = guard;
@@ -81,12 +84,16 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
    switch (psl_kind(rhs)) {
    case P_NEXT:
       {
+         fsm_state_t *initial = state;
+
          if (psl_has_delay(rhs)) {
             const int cycles = get_number(psl_delay(rhs));
 
-            fsm_state_t *new = add_state(fsm);
-            add_edge(state, new, EDGE_EPSILON, lhs);
-            state = new;
+            if (cycles > 0) {
+               fsm_state_t *new = add_state(fsm);
+               add_edge(state, new, EDGE_EPSILON, lhs);
+               state = new;
+            }
 
             for (int i = 0; i < cycles; i++) {
                fsm_state_t *new = add_state(fsm);
@@ -100,7 +107,13 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
             state = new;
          }
 
-         return build_node(fsm, state, psl_value(rhs));
+         if (state != initial) {
+            fsm_state_t *final = build_node(fsm, state, psl_value(rhs));
+            add_edge(initial, final, EDGE_EPSILON, NULL);
+            return final;
+         }
+         else
+            return state;
       }
 
    default:
@@ -135,24 +148,36 @@ static fsm_state_t *build_until(psl_fsm_t *fsm, fsm_state_t *state,
 
 static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
-   int ops = psl_operands(p);
-   assert(ops > 0);
+   const int nops = psl_operands(p);
 
-   psl_node_t prev = psl_operand(p, 0);
-   build_node(fsm, state, prev);
+   fsm_state_t *initial = state;
 
-   for (int i = 1; i < ops; i++) {
+   for (int i = 0; i < nops; i++) {
       psl_node_t rhs = psl_operand(p, i);
       switch (psl_subkind(p)) {
       case PSL_SERE_CONCAT:
-         {
-            fsm_state_t *new = add_state(fsm);
-            add_edge(state, new, EDGE_NEXT, prev);
-            state = build_node(fsm, new, (prev = rhs));
+         if (i + 1 < nops) {
+            fsm_state_t *lhs = build_node(fsm, state, rhs);
+            state = add_state(fsm);
+            add_edge(lhs, state, EDGE_NEXT, NULL);
          }
+         else
+            state = build_node(fsm, state, rhs);
          break;
       default:
          CANNOT_HANDLE(p);
+      }
+   }
+
+   if (psl_has_repeat(p)) {
+      psl_node_t r = psl_repeat(p);
+      switch (psl_subkind(r)) {
+      case PSL_TIMES_REPEAT:
+         if (initial != state)
+            add_edge(initial, state, EDGE_EPSILON, NULL);
+         break;
+      default:
+         CANNOT_HANDLE(r);
       }
    }
 
@@ -163,9 +188,11 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
    case P_HDL_EXPR:
-      assert(state->test == NULL);
-      state->test = p;
-      return state;
+      {
+         fsm_state_t *new = add_state(fsm);
+         add_edge(state, new, EDGE_EPSILON, p);
+         return new;
+      }
    case P_SERE:
       return build_sere(fsm, state, p);
    case P_IMPLICATION:
@@ -177,28 +204,69 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    }
 }
 
+#ifdef DEBUG
+static void psl_detect_loops(psl_fsm_t *fsm)
+{
+   LOCAL_BIT_MASK mask;
+   mask_init(&mask, fsm->next_id);
+
+   for (fsm_state_t *it = fsm->states; it; it = it->next) {
+      mask_clearall(&mask);
+
+      SCOPED_A(fsm_state_t *) worklist = AINIT;
+      APUSH(worklist, it);
+
+      while (worklist.count > 0) {
+         fsm_state_t *s = APOP(worklist);
+
+         if (mask_test(&mask, s->id)) {
+            psl_fsm_dump(fsm, "loop.dot");
+            fatal_trace("detected loop in PSL state machine ");
+         }
+
+         mask_set(&mask, s->id);
+
+         for (fsm_edge_t *e = s->edges; e; e = e->next) {
+            if (e->kind == EDGE_EPSILON)
+               APUSH(worklist, e->dest);
+         }
+      }
+   }
+}
+#endif
+
 psl_fsm_t *psl_fsm_new(psl_node_t p)
 {
    psl_fsm_t *fsm = xcalloc(sizeof(psl_fsm_t));
    fsm->tail = &(fsm->states);
+   fsm->src  = p;
 
    fsm_state_t *initial = add_state(fsm), *final = initial;
    initial->initial = true;
 
-   switch (psl_kind(p)) {
+   psl_node_t top = psl_value(p);
+
+   switch (psl_kind(top)) {
    case P_ALWAYS:
       initial->repeating = true;
-      final = build_node(fsm, initial, psl_value(p));
+      final = build_node(fsm, initial, psl_value(top));
       break;
 
    case P_HDL_EXPR:
    case P_SERE:
-      final = build_node(fsm, initial, p);
+      final = build_node(fsm, initial, top);
       break;
 
    default:
-      CANNOT_HANDLE(p);
+      CANNOT_HANDLE(top);
    }
+
+   if (psl_kind(p) == P_COVER) {
+      // A cover directive starts with an implicit [*]
+      initial->repeating = true;
+   }
+
+   DEBUG_ONLY(psl_detect_loops(fsm));
 
    final->accept = true;
    return fsm;
@@ -235,17 +303,8 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
    fprintf(f, "digraph psl {\n");
 
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
-      if (s->test != NULL || s->accept) {
-         fprintf(f, "%d [", s->id);
-         if (s->test != NULL) {
-            fprintf(f, "label=\"%d: ", s->id);
-            psl_dump_label(f, s->test);
-            fputs(s->accept ? "\", " : "\"", f);
-         }
-         if (s->accept)
-            fputs("peripheries=2", f);
-         fputs("];\n", f);
-      }
+      if (s->accept)
+         fprintf(f, "%d [peripheries=2];\n", s->id);
 
       for (fsm_edge_t *e = s->edges; e; e = e->next) {
          fprintf(f, "%d -> %d [", s->id, e->dest->id);
