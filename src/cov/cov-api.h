@@ -237,8 +237,7 @@ bool cover_skip_type_state(cover_data_t *data, type_t type);
 
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
-cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
-                             cover_data_t *data, cover_item_kind_t kind,
-                             uint32_t flags);
+cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
+                             cover_item_kind_t kind, uint32_t flags);
 
 #endif   // _COV_API_H

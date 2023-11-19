@@ -21,6 +21,7 @@
 #include "cov/cov-data.h"
 #include "ident.h"
 #include "lib.h"
+#include "object.h"
 #include "option.h"
 #include "tree.h"
 #include "type.h"
@@ -245,9 +246,21 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
    return COV_SRC_UNKNOWN;
 }
 
-cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
-                             cover_data_t *data, cover_item_kind_t kind,
-                             uint32_t flags)
+const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
+{
+   tree_t t = tree_from_object(obj);
+   if (t != NULL) {
+      // Refer location of test condition instead of branch statement to
+      // get accurate test condition location in the coverage report
+      if (kind == COV_ITEM_BRANCH && tree_kind(t) != T_ASSOC)
+         return tree_loc(tree_value(t));
+   }
+
+   return &(obj->loc);
+}
+
+cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
+                             cover_item_kind_t kind, uint32_t flags)
 {
    assert(data != NULL);
 
@@ -258,6 +271,8 @@ cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
    for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
         ignore_scope = ignore_scope->parent)
       ;
+
+   const loc_t *loc = get_cover_loc(kind, obj);
 
    for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
       line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
@@ -271,27 +286,28 @@ cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
    if (suffix)
       hier = ident_prefix(hier, suffix, '\0');
 
+   ident_t func_name = NULL;
+   loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
+
    // Expression items do not nest scope, expression name must be created
    if (kind == COV_ITEM_EXPRESSION) {
       char buf[16];
       checked_sprintf(buf, sizeof(buf), "_E%d", data->top_scope->expression_label);
       hier = ident_prefix(hier, ident_new(buf), '.');
       data->top_scope->expression_label++;
-   }
 
-   // Query LHS/RHS operand locations of binary expressions
-   loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
-   if (flags & COVER_FLAGS_LHS_RHS_BINS) {
-      assert(tree_params(t) > 1);
-      loc_lhs = *tree_loc(tree_param(t, 0));
-      loc_rhs = *tree_loc(tree_param(t, 1));
-   }
+      tree_t t = tree_from_object(obj);
+      assert(t != NULL);
 
-   ident_t func_name = NULL;
-   if (kind == COV_ITEM_EXPRESSION)
+      // Query LHS/RHS operand locations of binary expressions
+      if (flags & COVER_FLAGS_LHS_RHS_BINS) {
+         assert(tree_params(t) > 1);
+         loc_lhs = *tree_loc(tree_param(t, 0));
+         loc_rhs = *tree_loc(tree_param(t, 1));
+      }
+
       func_name = tree_ident(t);
-   else if (kind == COV_ITEM_STATE)
-      func_name = ident_rfrom(type_ident(tree_type(t)), '.');
+   }
 
 #ifdef COVER_DEBUG_EMIT
    printf("Item: %s\n", istr(hier));
@@ -304,11 +320,16 @@ cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
 
    int num = 0;
    if (kind == COV_ITEM_STATE) {
+      tree_t t = tree_from_object(obj);
+      assert(t != NULL);
+
       type_t enum_type = tree_type(t);
       assert(type_is_enum(enum_type));
       int64_t low, high;
       folded_bounds(range_of(enum_type, 0), &low, &high);
       num = high - low + 1;
+
+      func_name = ident_rfrom(type_ident(tree_type(t)), '.');
    }
    else
       num = data->top_scope->sig_pos;
@@ -326,7 +347,7 @@ cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
       .hier       = hier,
       .func_name  = func_name,
       .num        = num,
-      .source     = get_cover_source(kind, tree_to_object(t)),
+      .source     = get_cover_source(kind, obj),
    };
 
    APUSH(data->top_scope->items, new);

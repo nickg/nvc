@@ -1558,19 +1558,14 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   // Refer location of test condition instead of branch statement to
-   // get accurate test condition location in the coverage report
-   const loc_t *loc = (tree_kind(b) == T_ASSOC) ?
-                        tree_loc(b) : tree_loc(tree_value(b));
-
-   cover_item_t *item = cover_add_item(b, loc, NULL, lu->cover,
+   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(b), NULL,
                                        COV_ITEM_BRANCH, flags);
    if (item != NULL)
       emit_cover_branch(hit_reg, item->tag, flags);
 }
 
-static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type, tree_t where,
-                                     ident_t prefix, int curr_dim)
+static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type,
+                                     tree_t where, ident_t prefix, int curr_dim)
 {
    type_t root = type;
 
@@ -1639,8 +1634,9 @@ static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type, tree_t where
                   tmp = lower_toggle_item_for(lu, e_type, where, arr_suffix,
                                               dimension_of(e_type));
                else {
-                  cover_item_t *item = cover_add_item(where, tree_loc(where),
-                                                      arr_suffix, lu->cover,
+                  cover_item_t *item = cover_add_item(lu->cover,
+                                                      tree_to_object(where),
+                                                      arr_suffix,
                                                       COV_ITEM_TOGGLE, flags);
                   if (item)
                      tmp = item->tag;
@@ -1663,8 +1659,8 @@ static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type, tree_t where
       return first_item;
    }
    else {
-      cover_item_t *item = cover_add_item(where, tree_loc(where), NULL, lu->cover,
-                                          COV_ITEM_TOGGLE, flags);
+      cover_item_t *item = cover_add_item(lu->cover, tree_to_object(where),
+                                          NULL, COV_ITEM_TOGGLE, flags);
       return item ? item->tag : -1;
    }
 }
@@ -1746,23 +1742,24 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   // Add single coverage item per enum literal. This is to track literal string
-   // in the identifier of the coverage item.
+   // Add single coverage item per enum literal. This is to track
+   // literal string in the identifier of the coverage item.
    type_t base = type_base_recur(type);
    for (int i = low; i <= high; i++) {
       tree_t literal = type_enum_literal(base, i);
-      ident_t suffix = ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
-      cover_item_t *item = cover_add_item(decl, tree_loc(decl), suffix,
-                                          lu->cover, COV_ITEM_STATE, 0);
+      ident_t suffix =
+         ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
+      cover_item_t *item = cover_add_item(lu->cover,  tree_to_object(decl),
+                                          suffix, COV_ITEM_STATE, 0);
       if (item == NULL)
          break;
       if (i == low) {
          vcode_reg_t nets_reg = emit_load(var);
 
-         // If a type is sub-type, then lower bound may be non-zero. Then value of
-         // lower bound will correspond to first coverage tag. Need to remember the
-         // lower bound, so that run-time can subtract lower bound to get correct
-         // index of coverage data.
+         // If a type is sub-type, then lower bound may be non-zero.
+         // Then value of lower bound will correspond to first coverage
+         // tag.  Need to remember the lower bound, so that run-time can
+         // subtract lower bound to get correct index of coverage data.
          vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), low);
          emit_cover_state(nets_reg, low_reg, item->tag);
       }
@@ -1777,7 +1774,7 @@ static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
-   cover_item_t *item = cover_add_item(fcall, tree_loc(fcall), NULL, lu->cover,
+   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(fcall), NULL,
                                        COV_ITEM_EXPRESSION, flags);
    if (item != NULL) {
       emit_cover_expr(mask, item->tag);
@@ -7405,8 +7402,8 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    cover_push_scope(lu->cover, stmt);
    if (cover_enabled(lu->cover, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
-      cover_item_t *item = cover_add_item(stmt, tree_loc(stmt), NULL,
-                                          lu->cover, COV_ITEM_STMT, 0);
+      cover_item_t *item = cover_add_item(lu->cover, tree_to_object(stmt), NULL,
+                                          COV_ITEM_STMT, 0);
       if (item != NULL)
          emit_cover_stmt(item->tag);
    }
