@@ -573,33 +573,28 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
 
 static void cover_print_item_title(FILE *f, cover_pair_t *pair)
 {
-   tree_kind_t kind = pair->item->tree_kind;
+   static const char *text[] = {
+      [COV_SRC_IF_CONDITION] = "\"if\" / \"when\" / \"else\" condition",
+      [COV_SRC_CASE_CHOICE] = "\"case\" / \"with\" / \"select\" choice",
+      [COV_SRC_LOOP_CONTROL] = "Loop control condition",
+      [COV_SRC_ASSERT] = "Assertion statement",
+      [COV_SRC_REPORT] = "Report statement",
+      [COV_SRC_IF_STMT] = "If statement",
+      [COV_SRC_SIGNAL_ASSIGN] = "Signal assignment statement",
+      [COV_SRC_VAR_ASSIGN] = "Variable assignment statement",
+      [COV_SRC_WAIT] = "Wait statement",
+      [COV_SRC_LOOP_STMT] = "Loop statement",
+      [COV_SRC_STATEMENT] = "Sequential statement",
+      [COV_SRC_CONDITION] = "Condition",
+      [COV_SRC_UNKNOWN] = "",
+   };
 
    fprintf(f, "<h3>");
 
    switch (pair->item->kind) {
    case COV_ITEM_STMT:
-      fprintf(f, "\"%s\" ", tree_kind_str(kind));
-      fprintf(f, "statement:");
-      break;
    case COV_ITEM_BRANCH:
-      switch (kind) {
-      case T_COND_STMT:
-      case T_COND_ASSIGN:
-         fprintf(f, "\"if\" / \"when\" / \"else\" condition:");
-         break;
-      case T_ASSOC:
-         fprintf(f, "\"case\" / \"with\" / \"select\" choice:");
-         break;
-      case T_WHILE:
-      case T_EXIT:
-      case T_NEXT:
-         fprintf(f, "Loop control condition:");
-         break;
-      default:
-         fprintf(f, "Condition:");
-         break;
-      };
+      fprintf(f, "%s:", text[pair->item->source]);
       break;
    case COV_ITEM_EXPRESSION:
       fprintf(f, "%s expression", istr(pair->item->func_name));

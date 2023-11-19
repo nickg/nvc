@@ -65,6 +65,22 @@ typedef enum {
    COV_ITEM_STATE
 } cover_item_kind_t;
 
+typedef enum {
+   COV_SRC_IF_CONDITION,
+   COV_SRC_CASE_CHOICE,
+   COV_SRC_LOOP_CONTROL,
+   COV_SRC_ASSERT,
+   COV_SRC_REPORT,
+   COV_SRC_IF_STMT,
+   COV_SRC_WAIT,
+   COV_SRC_VAR_ASSIGN,
+   COV_SRC_SIGNAL_ASSIGN,
+   COV_SRC_LOOP_STMT,
+   COV_SRC_CONDITION,
+   COV_SRC_STATEMENT,
+   COV_SRC_UNKNOWN,
+} cover_src_t;
+
 typedef struct _cover_item {
    // Type of coverage
    cover_item_kind_t kind;
@@ -114,8 +130,8 @@ typedef struct _cover_item {
    // Name of the function for expression coverage
    ident_t           func_name;
 
-   // Type of underlying tree object
-   tree_kind_t       tree_kind;
+   // Type of source statement or expression
+   cover_src_t       source;
 
    // Numeric data related to the cover item:
    //    COV_ITEM_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.

@@ -200,6 +200,51 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
    return f;
 }
 
+static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
+{
+   tree_t t = tree_from_object(obj);
+   if (t != NULL) {
+      switch (kind) {
+      case COV_ITEM_STMT:
+         switch (tree_kind(t)) {
+         case T_ASSERT:
+            return tree_has_value(t) ? COV_SRC_ASSERT : COV_SRC_REPORT;
+         case T_WAIT:
+            return COV_SRC_WAIT;
+         case T_FOR:
+         case T_WHILE:
+            return COV_SRC_LOOP_STMT;
+         case T_SIGNAL_ASSIGN:
+            return COV_SRC_SIGNAL_ASSIGN;
+         case T_VAR_ASSIGN:
+            return COV_SRC_VAR_ASSIGN;
+         case T_IF:
+            return COV_SRC_IF_STMT;
+         default:
+            return COV_SRC_STATEMENT;
+         }
+      case COV_ITEM_BRANCH:
+         switch (tree_kind(t)) {
+         case T_COND_STMT:
+         case T_COND_ASSIGN:
+            return COV_SRC_IF_CONDITION;
+         case T_ASSOC:
+            return COV_SRC_CASE_CHOICE;
+         case T_WHILE:
+         case T_EXIT:
+         case T_NEXT:
+            return COV_SRC_LOOP_CONTROL;
+         default:
+            return COV_SRC_CONDITION;
+         }
+      default:
+         return COV_SRC_UNKNOWN;
+      }
+   }
+
+   return COV_SRC_UNKNOWN;
+}
+
 cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
                              cover_data_t *data, cover_item_kind_t kind,
                              uint32_t flags)
@@ -279,9 +324,9 @@ cover_item_t *cover_add_item(tree_t t, const loc_t *loc, ident_t suffix,
       .loc_lhs    = loc_lhs,
       .loc_rhs    = loc_rhs,
       .hier       = hier,
-      .tree_kind  = tree_kind(t),
       .func_name  = func_name,
       .num        = num,
+      .source     = get_cover_source(kind, tree_to_object(t)),
    };
 
    APUSH(data->top_scope->items, new);
@@ -364,7 +409,7 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       write_u32(item->tag, f);
       write_u32(item->data, f);
       write_u32(item->flags, f);
-      write_u32(item->tree_kind, f);
+      fbuf_put_uint(f, item->source);
       // Do not dump "excl_msk" since it is only filled at
       // report generation time
       write_u32(item->unrc_msk, f);
@@ -614,7 +659,7 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    item->tag = read_u32(f);
    item->data = read_u32(f);
    item->flags = read_u32(f);
-   item->tree_kind = read_u32(f);
+   item->source = fbuf_get_uint(f);
    item->unrc_msk = read_u32(f);
    item->excl_msk = 0;
 
