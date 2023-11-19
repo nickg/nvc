@@ -882,7 +882,7 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
       "toggle",
       "expression",
       "FSM state",
-      "functional",
+      "cover point",
    };
    assert(kind < ARRAY_LEN(item_kind_str));
    return item_kind_str[kind];
