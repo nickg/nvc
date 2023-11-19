@@ -688,10 +688,11 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    else if (flag)
       cover_bmask_to_bin_list(flag, tb);
 
+   bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
    fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
            "Copy %sto Clipoard</button>", istr(hier), tb_get(tb),
-           (item->kind == COV_ITEM_STMT) ? "style=\"float: right;\"" : "",
-           (item->kind == COV_ITEM_STMT) ? "Exclude Command " : "");
+           out_of_table ? "style=\"float: right;\"" : "",
+           out_of_table ? "Exclude Command " : "");
 
    if (add_td)
       fprintf(f, "</td>");
@@ -901,6 +902,8 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       case COV_ITEM_FUNCTIONAL:
+         if (pkind == PAIR_UNCOVERED)
+            cover_print_get_exclude_button(f, curr->item, 0, false);
          cover_print_code_loc(f, curr);
          break;
 

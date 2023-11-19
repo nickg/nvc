@@ -40,16 +40,19 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
                               const char *bin, ident_t hier)
 {
    int kind = item->kind;
+   const char *kind_str = cover_item_kind_str(kind);
 
    switch (kind) {
    case COV_ITEM_STMT:
+   case COV_ITEM_FUNCTIONAL:
       if (bin)
-         fatal_at(&ctx->loc, "statements do not contain bins, but bin '%s' "
-                             "was given for statement: '%s'", bin, istr(hier));
+         fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
+                             "was given for %s: '%s'",
+                             kind_str, bin, kind_str, istr(hier));
 
-      note_at(&ctx->loc, "excluding statement: '%s'", istr(hier));
+      note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
       if (item->data)
-         warn_at(&ctx->loc, "statement: '%s' already covered!", istr(hier));
+         warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
 
       item->excl_msk |= 0xFFFFFFFF;
       return 1;
@@ -70,7 +73,7 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
 
             diag_t *d = diag_new(DIAG_FATAL, &ctx->loc);
             diag_printf(d, "invalid bin: $bold$'%s'$$ for %s: '%s'", bin,
-                        cover_item_kind_str(item->kind), istr(item->hier));
+                           kind_str, istr(item->hier));
             diag_hint(d, NULL, "valid bins are: %s", tb_get(tb));
             diag_emit(d);
 
@@ -79,15 +82,15 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
 
          LOCAL_TEXT_BUF tb = tb_new();
          cover_bmask_to_bin_list(bmask, tb);
-         note_at(&ctx->loc, "excluding %s: '%s' bins: %s",
-                 cover_item_kind_str(item->kind), istr(hier), tb_get(tb));
+         note_at(&ctx->loc, "excluding %s: '%s' bins: %s", kind_str,
+                 istr(hier), tb_get(tb));
 
          uint32_t excl_cov = bmask & item->data;
          if (excl_cov) {
             tb_rewind(tb);
             cover_bmask_to_bin_list(excl_cov, tb);
             warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
-                    cover_item_kind_str(item->kind), istr(hier), tb_get(tb));
+                    kind_str, istr(hier), tb_get(tb));
          }
 
          item->excl_msk |= bmask;
@@ -103,8 +106,7 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
             if (!bin || !strcmp(istr(state_name), bin)) {
                if (curr_item->data & COV_FLAG_STATE)
                   warn_at(&ctx->loc, "%s: '%s' of '%s' already covered!",
-                          cover_item_kind_str(item->kind), istr(state_name),
-                          istr(hier));
+                          kind_str, istr(state_name), istr(hier));
                curr_item->excl_msk |= COV_FLAG_STATE;
             }
             curr_item++;
