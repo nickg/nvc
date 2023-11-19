@@ -383,6 +383,7 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
    switch (item->kind) {
    case COV_ITEM_STMT:
+   case COV_ITEM_FUNCTIONAL:
       item->data += data;
       break;
    case COV_ITEM_TOGGLE:
@@ -880,7 +881,8 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
       "branch",
       "toggle",
       "expression",
-      "FSM state"
+      "FSM state",
+      "functional",
    };
    assert(kind < ARRAY_LEN(item_kind_str));
    return item_kind_str[kind];

@@ -46,6 +46,8 @@ typedef struct {
    unsigned    hit_expressions;
    unsigned    total_states;
    unsigned    hit_states;
+   unsigned    total_functional;
+   unsigned    hit_functional;
 } cover_stats_t;
 
 typedef struct {
@@ -90,6 +92,7 @@ struct _cover_report_ctx {
    cover_chain_t        ch_toggle;
    cover_chain_t        ch_expression;
    cover_chain_t        ch_state;
+   cover_chain_t        ch_functional;
    int                  lvl;
 };
 
@@ -203,7 +206,7 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "   }\n"
               "   h2 {\n"
               "      word-wrap: break-word;\n"
-              "      width:70%%\n"
+              "      width:75%%\n"
               "   }\n"
               "   h3 {\n"
               "      word-wrap: break-word;\n"
@@ -350,7 +353,7 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 
 static void cover_print_hierarchy_header(FILE *f)
 {
-   fprintf(f, "<table style=\"width:70%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+   fprintf(f, "<table style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
               "  <tr>\n"
               "    <th class=\"cbg\" style=\"width:30%%\">Instance</th>\n"
               "    <th class=\"cbg\" style=\"width:8%%\">Statement</th>\n"
@@ -358,6 +361,7 @@ static void cover_print_hierarchy_header(FILE *f)
               "    <th class=\"cbg\" style=\"width:8%%\">Toggle</th>\n"
               "    <th class=\"cbg\" style=\"width:8%%\">Expression</th>\n"
               "    <th class=\"cbg\" style=\"width:8%%\">FSM state</th>\n"
+              "    <th class=\"cbg\" style=\"width:8%%\">Functional</th>\n"
               "    <th class=\"cbg\" style=\"width:8%%\">Average</th>\n"
               "  </tr>\n");
 }
@@ -400,13 +404,14 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
    cover_print_percents_cell(f, stats->hit_toggles, stats->total_toggles);
    cover_print_percents_cell(f, stats->hit_expressions, stats->total_expressions);
    cover_print_percents_cell(f, stats->hit_states, stats->total_states);
+   cover_print_percents_cell(f, stats->hit_functional, stats->total_functional);
 
    int avg_total = stats->total_stmts + stats->total_branches +
                    stats->total_toggles + stats->total_expressions +
-                   stats->total_states;
+                   stats->total_states + stats->total_functional;
    int avg_hit = stats->hit_stmts + stats->hit_branches +
                  stats->hit_toggles + stats->hit_expressions +
-                 stats->hit_states;
+                 stats->hit_states + stats->total_functional;
 
    cover_print_percents_cell(f, avg_hit, avg_total);
 
@@ -417,6 +422,7 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
    float perc_toggle = 0.0f;
    float perc_expr = 0.0f;
    float perc_state = 0.0f;
+   float perc_functional = 0.0f;
 
    if (stats->total_stmts > 0)
       perc_stmt = 100.0 * ((float)stats->hit_stmts) / stats->total_stmts;
@@ -428,6 +434,8 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
       perc_expr = 100.0 * ((float)stats->hit_expressions) / stats->total_expressions;
    if (stats->total_states > 0)
       perc_state = 100.0 * ((float)stats->hit_states) / stats->total_states;
+   if (stats->total_functional > 0)
+      perc_functional = 100.0 * ((float)stats->hit_functional) / stats->total_functional;
 
    if (top) {
       notef("code coverage results for: %s", istr(hier));
@@ -461,6 +469,12 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
                stats->hit_states, stats->total_states);
       else
          notef("     FSM state:     N.A.");
+
+      if (perc_functional > 0)
+         notef("     functional:    %.1f %% (%d/%d)", perc_functional,
+               stats->hit_functional, stats->total_functional);
+      else
+         notef("     functional:    N.A.");
    }
    else if (opt_get_int(OPT_VERBOSE) && !flat) {
 
@@ -886,6 +900,10 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          step = cover_print_fsm_table(f, curr, pkind, last);
          break;
 
+      case COV_ITEM_FUNCTIONAL:
+         cover_print_code_loc(f, curr);
+         break;
+
       default:
          fatal("unsupported type of code coverage: %d !", curr->item->kind);
       }
@@ -913,6 +931,8 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
       fprintf(f, "Expression");
    else if (kind == COV_ITEM_STATE)
       fprintf(f, "FSM state");
+   else if (kind == COV_ITEM_FUNCTIONAL)
+      fprintf(f, "Functional");
 
    fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
                           "margin-right:auto; margin-top:10px; border: 2px solid black;\">\n");
@@ -966,6 +986,8 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
          fprintf(f, "expressions:");
       else if (kind == COV_ITEM_STATE)
          fprintf(f, "FSM states:");
+      else if (kind == COV_ITEM_FUNCTIONAL)
+         fprintf(f, "sequences:");
       fprintf(f, "</h2>\n");
 
       fprintf(f, "  <section style=\"padding:0px 10px;\">\n");
@@ -984,6 +1006,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'FSM state')\">FSM state</button>\n"
+              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Functional')\">Functional</button>\n"
               "</div>\n\n");
 
    cover_print_chain(f, ctx->data, &(ctx->ch_stmt), COV_ITEM_STMT);
@@ -991,6 +1014,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
    cover_print_chain(f, ctx->data, &(ctx->ch_toggle), COV_ITEM_TOGGLE);
    cover_print_chain(f, ctx->data, &(ctx->ch_expression), COV_ITEM_EXPRESSION);
    cover_print_chain(f, ctx->data, &(ctx->ch_state), COV_ITEM_STATE);
+   cover_print_chain(f, ctx->data, &(ctx->ch_functional), COV_ITEM_FUNCTIONAL);
 
    fprintf(f, "<script>\n"
               "   document.getElementById(\"defaultOpen\").click();"
@@ -1240,6 +1264,22 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
                                            hits, misses, excludes, limit);
          break;
 
+      case COV_ITEM_FUNCTIONAL:
+         (ctx->flat_stats.total_functional)++;
+         (ctx->nested_stats.total_functional)++;
+
+         hits = (item->data != 0);
+         misses = (item->data == 0) && (item->excl_msk == 0);
+         excludes = (item->data == 0) && (item->excl_msk != 0);
+
+         if (hits | excludes) {
+            (ctx->flat_stats.hit_functional)++;
+            (ctx->nested_stats.hit_functional)++;
+         }
+         *skipped += cover_append_to_chain(&(ctx->ch_functional), item, line,
+                                           hits, misses, excludes, limit);
+         break;
+
       default:
          fatal("unsupported type of code coverage: %d !", item->kind);
       }
@@ -1263,6 +1303,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    INIT_CHAIN(ctx, ch_toggle);
    INIT_CHAIN(ctx, ch_expression);
    INIT_CHAIN(ctx, ch_state);
+   INIT_CHAIN(ctx, ch_functional);
 
    cover_print_html_header(f, ctx, false, s, "NVC code coverage report");
 

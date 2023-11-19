@@ -6,6 +6,7 @@
 ** Note:      toggle:        50.0 % (2/4)
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
 ** Note: Coverage for sub-hierarchies:
 Hierarchy                                               Statement            Branch               Toggle               Expression           FSM state           
    LEVEL_1_INST                                          100.0 % (4/4)         0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)

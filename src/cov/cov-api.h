@@ -62,7 +62,12 @@ typedef enum {
    //
    // Signal of user defined enum type is tracked to see if all enum values were
    // reached.
-   COV_ITEM_STATE
+   COV_ITEM_STATE,
+
+   // Functional coverage
+   //
+   // Count of how many times the assertion passed.
+   COV_ITEM_FUNCTIONAL,
 } cover_item_kind_t;
 
 typedef enum {
@@ -106,6 +111,7 @@ typedef struct _cover_item {
    //                           Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
    //    COV_ITEM_STATE       - Each bit corresponds to FSM state reached value.
    //                              N = (N_LITERALS-1) / 32 + 1
+   //    COV_ITEM_FUNCTIONAL  - Count of passes
    int32_t           data;
 
    // Flags for coverage item
@@ -178,6 +184,7 @@ typedef enum {
    COVER_MASK_TOGGLE                      = (1 << 2),
    COVER_MASK_EXPRESSION                  = (1 << 3),
    COVER_MASK_STATE                       = (1 << 4),
+   COVER_MASK_FUNCTIONAL                  = (1 << 5),
    COVER_MASK_TOGGLE_COUNT_FROM_UNDEFINED = (1 << 8),
    COVER_MASK_TOGGLE_COUNT_FROM_TO_Z      = (1 << 9),
    COVER_MASK_TOGGLE_INCLUDE_MEMS         = (1 << 10),
@@ -190,7 +197,7 @@ typedef enum {
 
 #define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH             \
                         | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION     \
-                        | COVER_MASK_STATE)
+                        | COVER_MASK_STATE | COVER_MASK_FUNCTIONAL)
 
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);

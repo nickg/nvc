@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "lib.h"
 #include "lower.h"
 #include "option.h"
@@ -28,6 +29,7 @@
 #include "vcode.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 static void psl_wait_cb(tree_t t, void *ctx)
 {
@@ -66,7 +68,7 @@ static vcode_reg_t psl_assert_severity(void)
    return emit_const(vtype_int(0, 3), 2);
 }
 
-static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
+static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
 {
    if (psl_has_message(p)) {
       tree_t m = psl_message(p);
@@ -80,10 +82,21 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
 
       emit_report(msg_reg, count_reg, severity_reg, locus);
    }
+
+   if (!cover_enabled(cover, COVER_MASK_FUNCTIONAL))
+      return;
+
+   cover_item_t *item = cover_add_item(cover, psl_to_object(p), NULL,
+                                       COV_ITEM_FUNCTIONAL, 0);
+   if (item == NULL)
+      return;
+
+   emit_cover_stmt(item->tag);
 }
 
 static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
-                            fsm_state_t *state, vcode_block_t *state_bb)
+                            fsm_state_t *state, vcode_block_t *state_bb,
+                            cover_data_t *cover)
 {
    emit_comment("Property state %d", state->id);
 
@@ -93,7 +106,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       emit_enter_state(emit_const(vint32, state->id));
 
    if (state->accept && psl_kind(fsm->src) == P_COVER)
-      psl_lower_cover(lu, fsm->src);
+      psl_lower_cover(lu, fsm->src, cover);
 
    vcode_block_t pass_bb = emit_block();
 
@@ -136,14 +149,22 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       }
    }
 
+   if (!vcode_block_finished())
+      emit_jump(pass_bb);
+
    vcode_select_block(pass_bb);
 
    emit_return(VCODE_INVALID_REG);
 }
 
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
-                         psl_node_t p, ident_t label)
+                         cover_data_t *cover, tree_t wrapper)
 {
+   psl_node_t p = tree_psl(wrapper);
+   ident_t label = tree_ident(wrapper);
+
+   cover_push_scope(cover, wrapper);
+
    psl_fsm_t *fsm = psl_fsm_new(p);
 
    if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label))) {
@@ -152,7 +173,6 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    }
 
    vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(context);
 
    ident_t prefix = vcode_unit_name(context);
    ident_t name = ident_prefix(prefix, label, '.');
@@ -216,11 +236,13 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[pos++]);
-      psl_lower_state(lu, fsm, s, state_bb);
+      psl_lower_state(lu, fsm, s, state_bb, cover);
    }
    assert(pos == fsm->next_id);
 
    unit_registry_finalise(ur, lu);
+
+   cover_pop_scope(cover);
 
    psl_fsm_free(fsm);
 }

@@ -135,11 +135,7 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
    case JIT_ADDR_ABS:
       return printf("[#%016"PRIx64"]", value.int64);
    case JIT_ADDR_COVER:
-      {
-         const char *kind[] = { "STMT", "BRANCH", "TOGGLE", "EXPR" };
-         return printf("[$%s:%"PRIi64"]", kind[value.int64 & 3],
-                       value.int64 >> 2);
-      }
+      return printf("[$TAG:%"PRIi64"]", value.int64);
    case JIT_VALUE_LABEL:
       if (value.label == JIT_LABEL_INVALID)
          return printf("???");

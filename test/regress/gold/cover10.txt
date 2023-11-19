@@ -11,6 +11,7 @@
 ** Note:      toggle:        66.7 % (4/6)
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
 ** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED' bins: BIN_0_TO_1, BIN_1_TO_0
    > data/cover10_ef1.txt:2
    |
@@ -24,6 +25,7 @@
 ** Note:      toggle:        66.7 % (4/6)
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
 ** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED' bins: BIN_0_TO_1, BIN_1_TO_0
    > data/cover10_ef1.txt:2
    |
@@ -37,3 +39,4 @@
 ** Note:      toggle:        66.7 % (4/6)
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.

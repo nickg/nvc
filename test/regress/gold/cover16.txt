@@ -6,3 +6,4 @@
 ** Note:      toggle:        N.A.
 ** Note:      expression:    33.3 % (1/3)
 ** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
