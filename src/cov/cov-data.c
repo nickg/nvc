@@ -311,10 +311,10 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
 #ifdef COVER_DEBUG_EMIT
    printf("Item: %s\n", istr(hier));
-   printf("    First line: %d\n", tree_loc(t)->first_line);
-   printf("    First column: %d\n", tree_loc(t)->first_column);
-   printf("    Line delta: %d\n", tree_loc(t)->line_delta);
-   printf("    Column delta: %d\n", tree_loc(t)->column_delta);
+   printf("    First line: %d\n", loc->first_line);
+   printf("    First column: %d\n", loc->first_column);
+   printf("    Line delta: %d\n", loc->line_delta);
+   printf("    Column delta: %d\n", loc->column_delta);
    printf("\n\n");
 #endif
 
