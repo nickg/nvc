@@ -35,6 +35,7 @@ static void tab(int indent)
 
 void sdf_dump_number(sdf_node_t number)
 {
+
    int kind = sdf_subkind(number);
    switch (kind) {
    case S_NUMBER_DOUBLE:
@@ -409,13 +410,20 @@ void sdf_dump_delay_file(sdf_node_t s, int indent)
    print_syntax(")\n");
 }
 
-void sdf_dump(sdf_node_t s, int indent)
+void sdf_dump(sdf_file_t *sdf, int indent)
 {
-   switch (sdf_kind(s)) {
+   if (sdf == NULL)
+      return;
+
+   sdf_node_t root = sdf->root;
+   if (root == NULL)
+      return;
+
+   switch (sdf_kind(root)) {
    case S_DELAY_FILE:
-      sdf_dump_delay_file(s, indent);
+      sdf_dump_delay_file(root, indent);
       break;
    default:
-      fatal_trace("cannot dump: %s", sdf_kind_str(sdf_kind(s)));
+      fatal_trace("cannot dump: %s", sdf_kind_str(sdf_kind(root)));
    }
 }

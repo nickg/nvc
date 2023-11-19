@@ -19,6 +19,7 @@
 #define _SDF_NODE_H
 
 #include "prim.h"
+#include "common.h"
 
 typedef enum {
    S_HEADER_SDF_VESION     = (1 << 0),
@@ -93,6 +94,29 @@ typedef enum {
 
    S_LAST_NODE_KIND
 } sdf_kind_t;
+
+struct _sdf_file {
+   // Top SDF node
+   sdf_node_t  root;
+
+   // SDF standard
+   sdf_std_t   std;
+
+   // Hierarchy separator
+   char        hchar;
+
+   // Hierarchy -> Node list map
+   shash_t    *hmap;
+
+   // Cell name -> Node list map (for wildcards)
+   shash_t    *nmap;
+
+   // Auxiliarly context for parsing
+   unsigned    header_mask;
+   sdf_node_t  curr_cell;
+   sdf_flags_t curr_valtype;
+   sdf_node_t  curr_delay;
+};
 
 sdf_node_t sdf_new(sdf_kind_t kind);
 sdf_kind_t sdf_kind(sdf_node_t v);
@@ -176,21 +200,5 @@ sdf_node_t sdf_cond(sdf_node_t s, unsigned int n);
 void sdf_set_expr(sdf_node_t s, sdf_node_t e);
 bool sdf_has_expr(sdf_node_t s);
 sdf_node_t sdf_expr(sdf_node_t s);
-
-/*
-void make_new_vlog_arena(void);
-
-typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
-
-void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context);
-void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
-                     vlog_kind_t kind);
-
-void vlog_locus(vlog_node_t v, ident_t *unit, ptrdiff_t *offset);
-
-object_t *vlog_to_object(vlog_node_t v);
-vlog_node_t vlog_from_object(object_t *obj);
-
-*/
 
 #endif  // _SDF_NODE_H

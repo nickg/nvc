@@ -22,7 +22,9 @@
 #include "ident.h"
 #include "object.h"
 #include "scan.h"
+#include "hash.h"
 #include "sdf/sdf-node.h"
+#include "sdf/sdf-phase.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -46,6 +48,8 @@
 // #define yylex processed_yylex
 
 static void yyerror(const char *s);
+
+static sdf_file_t *ctx;
 
 #define YYLLOC_DEFAULT(Current, Rhs, N) {                               \
    if (N) {                                                             \
@@ -80,40 +84,41 @@ static void check_delval_list_len(sdf_node_t del)
       yyerror("'delval_list' shall have at most 12 'delval' entries");
 }
 
-typedef struct {
-   // SDF standard
-   sdf_std_t std;
-
-   // Mask of already parsed header items
-   unsigned header_mask;
-
-   // Hierarchy separator
-   char hchar;
-
-   // Cell being currently parsed
-   sdf_node_t cell;
-
-   // Value type being currently parsed
-   sdf_flags_t valtype_flag;
-
-   // Delay object being parsed
-   sdf_node_t delay;
-
-} sdf_parse_ctx_t;
-
-static sdf_parse_ctx_t  ctx;
-static sdf_node_t       sdf_root;
-
 static void check_header_item(sdf_header_item_kind_t kind)
 {
-   if (ctx.header_mask & kind)
+   if (ctx->header_mask & kind)
       yyerror("Duplicit header item");
-   else if (ctx.header_mask > kind)
+   else if (ctx->header_mask > kind)
       yyerror("Invalid header item order. SDF header items shall have strict order:\n"
               "\tSDFVERSION, DESIGN, DATE, VENDOR, PROGRAM, VERSION, DIVIDER, VOLTAGE, "
               "PROCESS, TEMPERATURE, TIMESCALE");
 
-   ctx.header_mask |= kind;
+   ctx->header_mask |= kind;
+}
+
+static void insert_sdf_cell(sdf_node_t cell)
+{
+   assert(sdf_kind(cell) = S_CELL);
+
+   sdf_add_cell(ctx->root, cell);
+
+   const char *cell_instance = istr(sdf_ident2(cell));
+   const char *cell_type = istr(sdf_ident(cell));
+
+   shash_t *hash = (!strcmp(cell_instance, "*")) ? ctx->nmap : ctx->hmap;
+   ptr_list_t *l = (ptr_list_t*)(shash_get(hash, cell_type));
+
+   if (l == NULL) {
+      l = (ptr_list_t*) xcalloc(sizeof(ptr_list_t));
+      shash_put(hash, cell_type, l);
+   }
+
+   // TODO: Here it might be better to store only index of the cell in
+   //       sdf_cells(ctx->root). At the time of adding the cell, the
+   //       index is known. Then, if the root sdf_node is serialized together
+   //       with the hash table, we are able to deserialize back the hash
+   //       table with valid data pointing into the list of cells!
+   list_add(l, cell);
 }
 
 %}
@@ -244,12 +249,12 @@ static void check_header_item(sdf_header_item_kind_t kind)
 %%
 
 delay_file:                {
-                              sdf_root = sdf_new(S_DELAY_FILE);
-                              ctx.hchar = '.';
-                              ctx.cell = NULL;
-                              ctx.delay = NULL;
-                              ctx.valtype_flag = 0;
-                              ctx.header_mask = 0;
+                              ctx->root = sdf_new(S_DELAY_FILE);
+                              ctx->hchar = '.';
+                              ctx->curr_cell = NULL;
+                              ctx->curr_delay = NULL;
+                              ctx->curr_valtype = 0;
+                              ctx->header_mask = 0;
                            }
                            '(' tDELAYFILE sdf_header sdf_cell_list ')'
                            {
@@ -257,7 +262,7 @@ delay_file:                {
                            }
          |                 tEOF
                            {
-                              sdf_root = NULL;
+                              ctx->root = NULL;
                            }
          ;
 
@@ -285,28 +290,28 @@ sdf_version:               '(' tSDFVERSION tSTRING ')'
                                  }
 
                                  if (!strncmp(start, "1.0", 3)){
-                                    ctx.std = SDF_STD_1_0;
+                                    ctx->std = SDF_STD_1_0;
                                     break;
                                  }
                                  else if (!strncmp(start, "2.0", 3)) {
-                                    ctx.std = SDF_STD_2_0;
+                                    ctx->std = SDF_STD_2_0;
                                     break;
                                  }
                                  else if (!strncmp(start, "2.1", 3)) {
-                                    ctx.std = SDF_STD_2_1;
+                                    ctx->std = SDF_STD_2_1;
                                     break;
                                  }
                                  else if (!strncmp(start, "3.0", 3)) {
-                                    ctx.std = SDF_STD_3_0;
+                                    ctx->std = SDF_STD_3_0;
                                     break;
                                  }
                                  else if (!strncmp(start, "4.0", 3)) {
-                                    ctx.std = SDF_STD_4_0;
+                                    ctx->std = SDF_STD_4_0;
                                     break;
                                  }
                               }
-                              sdf_set_subkind(sdf_root, ctx.std);
-                              sdf_add_decl(sdf_root, s);
+                              sdf_set_subkind(ctx->root, ctx->std);
+                              sdf_add_decl(ctx->root, s);
                            }
          ;
 
@@ -315,14 +320,14 @@ sdf_header_qstring:        '(' qstring_header_entry tSTRING ')'
                               sdf_node_t s = sdf_new(S_HEADER_ITEM);
                               sdf_set_subkind(s, $2);
                               sdf_set_ident(s, ident_new($3));
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                               check_header_item($2);
                            }
          |                 '(' qstring_header_entry ')'
                            {
                               sdf_node_t s = sdf_new(S_HEADER_ITEM);
                               sdf_set_subkind(s, $2);
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                               check_header_item($2);
                            }
          ;
@@ -340,7 +345,7 @@ voltage:                   '(' tVOLTAGE signed_real_or_rtripple ')'
                               sdf_node_t s = sdf_new(S_HEADER_ITEM);
                               sdf_set_subkind(s, S_HEADER_VOLTAGE);
                               sdf_set_number(s, $3);
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                               check_header_item(S_HEADER_VOLTAGE);
                            }
          ;
@@ -350,7 +355,7 @@ temperature:               '(' tTEMPERATURE signed_real_or_rtripple ')'
                               sdf_node_t s = sdf_new(S_HEADER_ITEM);
                               sdf_set_subkind(s, S_HEADER_TEMPERATURE);
                               sdf_set_number(s, $3);
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                               check_header_item(S_HEADER_TEMPERATURE);
                            }
          ;
@@ -362,10 +367,10 @@ hierarchy_divider:         '(' tDIVIDER hchar ')'
                               char div[2];
                               sprintf(div, "%c", $3);
                               sdf_set_ident(s, ident_new(div));
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                               check_header_item(S_HEADER_DIVIDER);
 
-                              ctx.hchar = $3;
+                              ctx->hchar = $3;
 
                            }
          ;
@@ -388,7 +393,7 @@ time_scale:                '(' tTIMESCALE timescale_number timescale_unit ')'
                               sdf_set_number(s, $3);
                               sdf_set_ident(s, $4);
 
-                              sdf_add_decl(sdf_root, s);
+                              sdf_add_decl(ctx->root, s);
                            }
          ;
 
@@ -420,11 +425,11 @@ timescale_unit:            tID
 
 sdf_cell_list:             sdf_cell_list sdf_cell
                            {
-                              sdf_add_cell(sdf_root, $2);
+                              insert_sdf_cell($2);
                            }
          |                 sdf_cell
                            {
-                              sdf_add_cell(sdf_root, $1);
+                              insert_sdf_cell($1);
                            }
          ;
 
@@ -434,11 +439,11 @@ sdf_cell:                  sdf_cell_head ')'
 
 sdf_cell_head:             '(' tCELL
                            {
-                              ctx.cell = sdf_new(S_CELL);
+                              ctx->curr_cell = sdf_new(S_CELL);
                            }
                            celltype cell_instance
                            {
-                              $$ = ctx.cell;
+                              $$ = ctx->curr_cell;
                               sdf_set_ident($$, $4);
                               sdf_set_ident2($$, $5);
                            }
@@ -468,9 +473,9 @@ hierarchical_identifier:   identifier
                               // the same as rest of NVC
                               $$ = ident_prefix($1, $3, '.');
 
-                              if ($2 != ctx.hchar)
+                              if ($2 != ctx->hchar)
                                  warn_at(&yyloc, "Hierarchy separator: %c different than "
-                                          "hierarchy separator in SDF header: %c", $2, ctx.hchar);
+                                          "hierarchy separator in SDF header: %c", $2, ctx->hchar);
 
                            }
          ;
@@ -500,11 +505,11 @@ lbl_type:                  '(' lbl_type_kind lbl_def_list ')'
 
 lbl_type_kind:             tABSOLUTE
                            {
-                              ctx.valtype_flag = S_F_VALUE_ABSOLUTE;
+                              ctx->curr_valtype = S_F_VALUE_ABSOLUTE;
                            }
          |                 tINCREMENT
                            {
-                              ctx.valtype_flag = S_F_VALUE_INCREMENT;
+                              ctx->curr_valtype = S_F_VALUE_INCREMENT;
                            }
          ;
 
@@ -516,11 +521,11 @@ lbl_def:                   '(' identifier
                            {
                               sdf_node_t lbl = sdf_new(S_LABEL);
                               sdf_set_ident(lbl, $2);
-                              sdf_set_flag(lbl, ctx.valtype_flag);
-                              sdf_add_label(ctx.cell, lbl);
+                              sdf_set_flag(lbl, ctx->curr_valtype);
+                              sdf_add_label(ctx->curr_cell, lbl);
                               // Reuse current delay for current label. Delvals are
                               // both "value" for these
-                              ctx.delay = lbl;
+                              ctx->curr_delay = lbl;
                            }
                            delval_list ')'
 
@@ -531,11 +536,11 @@ tc_spec:                   '(' tTIMINGCHECK tchk_def_list ')'
 
 tchk_def_list:             tchk_def_list tchk_def
                            {
-                              sdf_add_tcheck(ctx.cell, $2);
+                              sdf_add_tcheck(ctx->curr_cell, $2);
                            }
          |                 tchk_def
                            {
-                              sdf_add_tcheck(ctx.cell, $1);
+                              sdf_add_tcheck(ctx->curr_cell, $1);
                            }
          ;
 
@@ -662,74 +667,74 @@ deltype:                   absolute_deltype
 
 absolute_deltype:          '(' tABSOLUTE
                            {
-                              ctx.valtype_flag = S_F_VALUE_ABSOLUTE;
+                              ctx->curr_valtype = S_F_VALUE_ABSOLUTE;
                            }
                            del_def_list ')'
          ;
 
 increment_deltype:         '(' tINCREMENT
                            {
-                              ctx.valtype_flag = S_F_VALUE_INCREMENT;
+                              ctx->curr_valtype = S_F_VALUE_INCREMENT;
                            }
                            del_def_list ')'
          ;
 
 pathpulse_deltype:         '(' tPATHPULSE
                            {
-                              ctx.delay = sdf_new(S_DELAY);
-                              sdf_set_subkind(ctx.delay, S_DELAY_KIND_PATHPULSE);
+                              ctx->curr_delay = sdf_new(S_DELAY);
+                              sdf_set_subkind(ctx->curr_delay, S_DELAY_KIND_PATHPULSE);
                            }
                            input_output_path pp_values ')'
                            {
-                              sdf_add_delay(ctx.cell, ctx.delay);
+                              sdf_add_delay(ctx->curr_cell, ctx->curr_delay);
                            }
          ;
 
 pathpulsepercent_deltype:  '(' tPATHPULSEP
                            {
-                              ctx.delay = sdf_new(S_DELAY);
-                              sdf_set_subkind(ctx.delay, S_DELAY_KIND_PATHPULSEP);
+                              ctx->curr_delay = sdf_new(S_DELAY);
+                              sdf_set_subkind(ctx->curr_delay, S_DELAY_KIND_PATHPULSEP);
                            }
                            input_output_path pp_values ')'
                            {
-                              sdf_add_delay(ctx.cell, ctx.delay);
+                              sdf_add_delay(ctx->curr_cell, ctx->curr_delay);
                            }
          ;
 
 input_output_path:         port_instance port_instance
                            {
-                              sdf_add_port(ctx.delay, $1);
-                              sdf_add_port(ctx.delay, $2);
+                              sdf_add_port(ctx->curr_delay, $1);
+                              sdf_add_port(ctx->curr_delay, $2);
                            }
          |
          ;
 
 pp_values:                 value
                            {
-                              sdf_add_value(ctx.delay, $1);
+                              sdf_add_value(ctx->curr_delay, $1);
                            }
          |                 value value
                            {
-                              sdf_add_value(ctx.delay, $1);
-                              sdf_add_value(ctx.delay, $2);
+                              sdf_add_value(ctx->curr_delay, $1);
+                              sdf_add_value(ctx->curr_delay, $2);
                            }
          ;
 
 del_def_list:              del_def_list
                            {
-                              ctx.delay = sdf_new(S_DELAY);
+                              ctx->curr_delay = sdf_new(S_DELAY);
                            }
                            del_def
                            {
-                              sdf_add_delay(ctx.cell, $3);
+                              sdf_add_delay(ctx->curr_cell, $3);
                            }
 
          |                 {
-                              ctx.delay = sdf_new(S_DELAY);
+                              ctx->curr_delay = sdf_new(S_DELAY);
                            }
                            del_def
                            {
-                              sdf_add_delay(ctx.cell, $2);
+                              sdf_add_delay(ctx->curr_cell, $2);
                            }
          ;
 
@@ -745,8 +750,8 @@ del_def:                   iopath_def
 // TODO: Add retain_def for IOPATHs
 iopath_def:                '(' tIOPATH port_spec port_instance delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_IOPATH);
                               sdf_add_port($$, $3);
                               sdf_add_port($$, $4);
@@ -757,7 +762,7 @@ iopath_def:                '(' tIOPATH port_spec port_instance delval_list ')'
 // TODO: Add optional qstring
 cond_def:                  '(' tCOND conditional_port_expr iopath_def ')'
                            {
-                              $$ = ctx.delay;
+                              $$ = ctx->curr_delay;
                               sdf_node_t c = sdf_new(S_COND);
                               sdf_set_expr(c, $3);
                               sdf_add_cond($$, c);
@@ -770,7 +775,7 @@ conditional_port_expr:     port
 
 condelse_def:              '(' tCONDELSE iopath_def ')'
                            {
-                              $$ = ctx.delay;
+                              $$ = ctx->curr_delay;
                               sdf_node_t c = sdf_new(S_COND);
                               sdf_add_cond($$, c);
                            }
@@ -778,8 +783,8 @@ condelse_def:              '(' tCONDELSE iopath_def ')'
 
 port_def:                  '(' tPORT port_instance delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_PORT);
                               sdf_add_port($$, $3);
                               check_delval_list_len($$);
@@ -788,8 +793,8 @@ port_def:                  '(' tPORT port_instance delval_list ')'
 
 interconnect_def:          '(' tINTERCONNECT port_instance port_instance delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_INTERCONNECT);
                               sdf_add_port($$, $3);
                               sdf_add_port($$, $4);
@@ -803,8 +808,8 @@ interconnect_def:          '(' tINTERCONNECT port_instance port_instance delval_
 //       for "net" is applied to something of type "port" and vice-versa?
 netdelay_def:              '(' tNETDELAY port_spec delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_NETDELAY);
                               sdf_add_port($$, $3);
                               check_delval_list_len($$);
@@ -813,8 +818,8 @@ netdelay_def:              '(' tNETDELAY port_spec delval_list ')'
 
 device_def:                '(' tDEVICE port_spec delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_DEVICE);
                               sdf_add_port($$, $3);
                               check_delval_list_len($$);
@@ -822,8 +827,8 @@ device_def:                '(' tDEVICE port_spec delval_list ')'
 
          |                 '(' tDEVICE delval_list ')'
                            {
-                              $$ = ctx.delay;
-                              sdf_set_flag($$, ctx.valtype_flag);
+                              $$ = ctx->curr_delay;
+                              sdf_set_flag($$, ctx->curr_valtype);
                               sdf_set_subkind($$, S_DELAY_KIND_DEVICE);
                               check_delval_list_len($$);
                            }
@@ -923,11 +928,11 @@ port_name:                 hierarchical_identifier
 
 delval_list:               delval_list delval
                            {
-                              sdf_add_value(ctx.delay, $2);
+                              sdf_add_value(ctx->curr_delay, $2);
                            }
          |                 delval
                            {
-                              sdf_add_value(ctx.delay, $1);
+                              sdf_add_value(ctx->curr_delay, $1);
                            }
          ;
 
@@ -1090,19 +1095,26 @@ static void yyerror(const char *s)
 }
 
 
-sdf_node_t sdf_parse(void)
+sdf_file_t* sdf_parse(void)
 {
    make_new_arena();
-   sdf_root = NULL;
+
+   ctx = xcalloc(sizeof(struct _sdf_file));
+   ctx->hmap = shash_new(4096);
+   ctx->nmap = shash_new(1024);
 
    scan_as_sdf();
 
    if (yyparse())
       return NULL;
    else
-      return sdf_root;
+      return ctx;
 }
 
+void sdf_free(sdf_file_t *sdf)
+{
+   // TODO: Walk the hash maps and free both hmap and cmap!
+}
 
 void reset_sdf_parser(void)
 {

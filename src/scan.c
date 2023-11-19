@@ -92,11 +92,6 @@ void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
    case SOURCE_VHDL:
       reset_vhdl_parser();
       break;
-   case SOURCE_SDF:
-#ifdef ENABLE_SDF
-      reset_sdf_parser();
-#endif
-      break;
    }
 }
 
@@ -107,10 +102,6 @@ void input_from_file(const char *file)
    size_t len = strlen(file);
    if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v')
       kind = SOURCE_VERILOG;
-
-   else if (len > 4 && !strcmp(&(file[len - 4]), ".sdf")) {
-      src_kind = SOURCE_SDF;
-   }
 
    int fd;
    if (strcmp(file, "-") == 0)

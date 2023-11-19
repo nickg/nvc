@@ -37,7 +37,7 @@ typedef union {
 
 // Functions shared between VHDL and Verilog scanners
 
-typedef enum { SOURCE_VHDL, SOURCE_VERILOG, SOURCE_SDF} hdl_kind_t;
+typedef enum { SOURCE_VHDL, SOURCE_VERILOG} hdl_kind_t;
 
 typedef int token_t;
 

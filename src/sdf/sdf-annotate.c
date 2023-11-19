@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022 Nick Gasson
+//  Copyright (C) 2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,17 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _SDF_PHASE_H
-#define _SDF_PHASE_H
+#include <assert.h>
 
-#include "prim.h"
-#include "sdf-node.h"
-#include "common.h"
-#include "hash.h"
+#include "sdf/sdf-node.h"
 
-sdf_file_t* sdf_parse(void);
-void sdf_free(sdf_file_t *sdf);
-void sdf_dump(sdf_file_t *sdf, int indent);
-void sdf_annotate(sdf_file_t *sdf, tree_t inst);
 
-#endif  // _SDF_PHASE_H
+void sdf_annotate(sdf_file_t *sdf, tree_t inst)
+{
+   assert (tree_kind(inst) = T_INSTANCE);
+
+
+}

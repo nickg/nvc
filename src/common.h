@@ -91,6 +91,7 @@ bool is_operator_symbol(ident_t ident);
 bool same_tree(tree_t a, tree_t b);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur);
+sdf_file_t* analyse_sdf_file(const char *file);
 
 void print_syntax(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
