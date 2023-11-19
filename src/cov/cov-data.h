@@ -65,6 +65,7 @@ typedef struct {
 
 typedef A(line_range_t) range_array_t;
 typedef A(cover_item_t) cov_item_array_t;
+typedef A(cover_scope_t *) scope_array_t;
 
 typedef struct _cover_scope {
    scope_type_t      type;
@@ -75,7 +76,7 @@ typedef struct _cover_scope {
    int               stmt_label;
    int               expression_label;
    cover_scope_t    *parent;
-   ptr_list_t        children;
+   scope_array_t     children;
    cov_item_array_t  items;
    range_array_t     ignore_lines;
    ident_t           block_name;

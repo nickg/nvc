@@ -149,8 +149,8 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
          step = 1;
    }
 
-   for (list_iter(cover_scope_t *, it, s->children))
-      match |= cover_exclude_hier(it, ctx, excl_hier, bin);
+   for (int i = 0; i < s->children.count; i++)
+      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier, bin);
 
    return match;
 }

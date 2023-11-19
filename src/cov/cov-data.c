@@ -374,8 +374,8 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
              basename(path), item->loc.first_line, item->data);
    }
 
-   for (list_iter(cover_scope_t *, c, s->children))
-      cover_debug_dump(c, indent + 2);
+   for (int i = 0; i < s->children.count; i++)
+      cover_debug_dump(s->children.items[i], indent + 2);
 }
 LCOV_EXCL_STOP
 
@@ -405,8 +405,8 @@ static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
       cover_merge_one_item(item, data);
    }
 
-   for (list_iter(cover_scope_t *, it, s->children))
-      cover_update_counts(it, counts);
+   for (int i = 0; i < s->children.count; i++)
+      cover_update_counts(s->children.items[i], counts);
 }
 
 static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
@@ -448,8 +448,8 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       write_u32(item->num, f);
    }
 
-   for (list_iter(cover_scope_t *, it, s->children))
-      cover_write_scope(it, f, ident_ctx, loc_ctx);
+   for (int i = 0; i < s->children.count; i++)
+      cover_write_scope(s->children.items[i], f, ident_ctx, loc_ctx);
 
    write_u8(CTRL_POP_SCOPE, f);
 }
@@ -603,7 +603,7 @@ void cover_push_scope(cover_data_t *data, tree_t t)
    if (s->sig_pos == 0)
       s->sig_pos = data->top_scope->sig_pos;
 
-   list_add(&data->top_scope->children, s);
+   APUSH(data->top_scope->children, s);
 
    data->top_scope = s;
 
@@ -724,7 +724,7 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *child = cover_read_scope(f, ident_ctx, loc_ctx);
-            list_add(&s->children, child);
+            APUSH(s->children, child);
          }
          break;
       case CTRL_POP_SCOPE:
@@ -794,9 +794,11 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
          APUSH(old_s->items, *new);
    }
 
-   for (list_iter(cover_scope_t *, new_c, new_s->children)) {
+   for (int i = 0; i < new_s->children.count; i++) {
+      cover_scope_t *new_c = new_s->children.items[i];
       bool found = false;
-      for (list_iter(cover_scope_t *, old_c, old_s->children)) {
+      for (int j = 0; j < old_s->children.count; j++) {
+         cover_scope_t *old_c = old_s->children.items[j];
          if (new_c->name == old_c->name) {
             cover_merge_scope(old_c, new_c);
             found = true;
@@ -805,7 +807,7 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
       }
 
       if (!found)
-         list_add(&old_s->children, new_c);
+         APUSH(old_s->children, new_c);
    }
 }
 

@@ -134,8 +134,8 @@ static void cobertura_export_scope(cobertura_report_t *report,
       }
    }
 
-   for (list_iter(cover_scope_t *, it, s->children))
-      cobertura_export_scope(report, class, it);
+   for (int i = 0; i < s->children.count; i++)
+      cobertura_export_scope(report, class, s->children.items[i]);
 }
 
 static void cobertura_class_stats(const cobertura_class_t *class,

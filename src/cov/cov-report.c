@@ -1294,7 +1294,8 @@ static void cover_report_children(cover_report_ctx_t *ctx,
                                   cover_scope_t *s, const char *dir,
                                   FILE *summf, int *skipped)
 {
-   for (list_iter(cover_scope_t *, it, s->children)) {
+   for (int i = 0; i < s->children.count; i++) {
+      cover_scope_t *it = s->children.items[i];
       if (it->type == CSCOPE_INSTANCE) {
          // Collect coverage of sub-block
          cover_report_ctx_t sub_ctx = {};
@@ -1356,7 +1357,7 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    notef("Code coverage report folder: %s.", path);
    notef("%s", tb_get(tb));
 
-   cover_scope_t *child0 = list_get(data->root_scope->children, 0);
+   cover_scope_t *child0 = AGET(data->root_scope->children, 0);
 
    cover_report_ctx_t top_ctx = {};
    top_ctx.data = data;
