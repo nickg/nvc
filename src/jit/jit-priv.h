@@ -320,7 +320,7 @@ typedef enum {
    JIT_RUNNING
 } jit_state_t;
 
-#ifdef HAVE___BUILTIN_SETJMP
+#if defined HAVE___BUILTIN_SETJMP && !defined __clang__
 typedef void *jit_jmpbuf_t[5];
 #define jit_setjmp(buf) __builtin_setjmp((buf))
 #define jit_longjmp(buf, arg) __builtin_longjmp((buf), (arg))

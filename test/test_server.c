@@ -29,9 +29,15 @@
 #include <assert.h>
 #include <unistd.h>
 #include <stdlib.h>
+
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
+#endif
 
 static void server_ready_cb(void *arg)
 {
@@ -45,6 +51,9 @@ static void server_ready_cb(void *arg)
 
 static pid_t fork_server(tree_t top, const char *init_cmd)
 {
+#ifdef __MINGW32__
+   ck_abort_msg("not supported on Windows");
+#else
    int rfd, wfd;
    open_pipe(&rfd, &wfd);
 
@@ -70,15 +79,20 @@ static pid_t fork_server(tree_t top, const char *init_cmd)
 
       return pid;
    }
+#endif
 }
 
 static void join_server(pid_t pid)
 {
+#ifdef __MINGW32__
+   ck_abort_msg("not supported on Windows");
+#else
    int status;
    if (waitpid(pid, &status, 0) != pid)
       fatal_errno("waitpid");
 
    ck_assert_int_eq(WEXITSTATUS(status), 0);
+#endif
 }
 
 static void write_fully(int fd, const void *data, size_t len)
@@ -102,7 +116,7 @@ static int open_connection(void)
    const int port = opt_get_int(OPT_SERVER_PORT);
 
    struct sockaddr_in addr;
-   bzero(&addr, sizeof(addr));
+   memset(&addr, '\0', sizeof(addr));
    addr.sin_family = AF_INET;
    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
    addr.sin_port = htons(port);

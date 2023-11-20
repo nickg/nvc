@@ -640,10 +640,10 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
 static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
                           jit_scalar_t *args, tlab_t *tlab)
 {
-   volatile jit_thread_local_t *thread = jit_thread_local();
+   jit_thread_local_t *volatile thread = jit_thread_local();
    volatile const jit_state_t oldstate = thread->state;
 
-   const int rc = jit_setjmp(((jit_thread_local_t *)thread)->abort_env);
+   const int rc = jit_setjmp(thread->abort_env);
    if (rc == 0) {
       thread->jmp_buf_valid = 1;
       jit_transition(j, oldstate, JIT_RUNNING);
