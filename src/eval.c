@@ -111,11 +111,23 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
       else
          all_chars = false;
 
-      int64_t length;
-      if (!type_const_bounds(type))
+      range_kind_t dir;
+      int64_t length, ileft, iright;
+      if (!type_const_bounds(type)) {
          length = ffi_array_length(args[2].integer);
-      else if (!folded_length(range_of(type, 0), &length))
-         fatal_at(loc, "cannot determine static length of array");
+         dir = ffi_array_dir(args[2].integer);
+         ileft = args[1].integer;
+         iright = ffi_array_right(args[1].integer, args[2].integer);
+      }
+      else {
+         tree_t r = range_of(type, 0);
+         if (!folded_length(r, &length))
+            fatal_at(loc, "cannot determine static length of array");
+
+         dir = tree_subkind(r);
+         ileft = assume_int(tree_left(r));
+         iright = assume_int(tree_right(r));
+      }
 
       const int bytes = (type_bit_width(elem) + 7) / 8;
       tree_t *elts LOCAL = xmalloc_array(length, sizeof(tree_t));
@@ -142,6 +154,35 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
             elts[i] = eval_value_to_tree(value, elem, loc);
       }
 
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, type);
+
+      type_t index_type = index_type_of(type, 0);
+
+      tree_t left = NULL, right = NULL;
+      if (type_is_enum(index_type)) {
+         left = get_enum_lit(expr, index_type, ileft);
+         right = get_enum_lit(expr, index_type, iright);
+      }
+      else {
+         left = get_int_lit(expr, index_type, ileft);
+         right = get_int_lit(expr, index_type, iright);
+      }
+
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, dir);
+      tree_set_left(r, left);
+      tree_set_right(r, right);
+      tree_set_loc(r, loc);
+      tree_set_type(r, index_type);
+
+      tree_t c = tree_new(T_CONSTRAINT);
+      tree_set_subkind(c, C_INDEX);
+      tree_add_range(c, r);
+      tree_set_loc(c, loc);
+
+      type_add_constraint(sub, c);
+
       if (all_chars) {
          tree_t tree = tree_new(T_STRING);
 
@@ -149,12 +190,12 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
             tree_add_char(tree, elts[i]);
 
          tree_set_loc(tree, loc);
-         tree_set_type(tree, subtype_for_string(tree, type));
+         tree_set_type(tree, sub);
          return tree;
       }
       else {
          tree_t tree = tree_new(T_AGGREGATE);
-         tree_set_type(tree, type);
+         tree_set_type(tree, sub);
          tree_set_loc(tree, loc);
 
          for (int i = 0; i < length; i++) {

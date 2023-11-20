@@ -902,3 +902,4 @@ issue791        normal,2008
 issue794        normal,2008
 psl7            normal,gold,psl
 cover21         shell
+issue799        normal,2008
