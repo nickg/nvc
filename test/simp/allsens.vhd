@@ -31,7 +31,7 @@ begin
 
     p8: assert z(n)(1 to 2) = "00";     -- z, n
 
-    p9: assert z(1 to 2)(n) = "00";     -- z(1 to 2), n
+    p9: assert z(1 to 2)(n) = "000";    -- z(1 to 2), n
 
     p10: process (all) is               -- n, y
     begin

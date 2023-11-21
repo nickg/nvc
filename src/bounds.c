@@ -131,6 +131,8 @@ static tree_t bounds_check_call_args(tree_t t)
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
 
+   bool known_arg_length = true;
+
    for (int i = 0; (i < nparams) && (i < nports); i++) {
       tree_t param = tree_param(t, i);
       assert(tree_subkind(param) == P_POS);
@@ -144,7 +146,11 @@ static tree_t bounds_check_call_args(tree_t t)
       if (type_is_array(ftype)) {
          // Check bounds of constrained array parameters
 
-         if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
+         if (type_is_unconstrained(atype)) {
+            known_arg_length = false;
+            continue;
+         }
+         else if (type_is_unconstrained(ftype))
             continue;
 
          const int ndims = dimension_of(ftype);
@@ -154,13 +160,12 @@ static tree_t bounds_check_call_args(tree_t t)
             tree_t actual_r = range_of(atype, j);
 
             int64_t f_len, a_len;
-
-            const bool folded =
-               folded_length(formal_r, &f_len)
-               && folded_length(actual_r, &a_len);
-
-            if (!folded)
+            if (!folded_length(formal_r, &f_len))
                continue;
+            else if (!folded_length(actual_r, &a_len)) {
+               known_arg_length = false;
+               continue;
+            }
 
             if (f_len != a_len)
                bounds_error(param, "actual length %"PRIi64"%s does not match "
@@ -171,6 +176,40 @@ static tree_t bounds_check_call_args(tree_t t)
       }
       else if (type_is_scalar(ftype))
          bounds_check_scalar(value, ftype, port);
+   }
+
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (known_arg_length && (kind == S_ARRAY_EQ || kind == S_ARRAY_NEQ)) {
+      // Warn if calling the predefined array equality operators and the
+      // left and right hand sides have different lengths as this always
+      // returns FALSE
+
+      type_t ltype = tree_type(tree_value(tree_param(t, 0)));
+      type_t rtype = tree_type(tree_value(tree_param(t, 1)));
+
+      const int ndims = dimension_of(ltype);
+      for (int i = 0; i < ndims; i++) {
+         tree_t left_r = range_of(ltype, i);
+         tree_t right_r = range_of(rtype, i);
+
+         int64_t left_len;
+         if (!folded_length(left_r, &left_len))
+            continue;
+
+         int64_t right_len;
+         if (!folded_length(right_r, &right_len))
+            continue;
+
+         if (left_len != right_len) {
+            diag_t *d = diag_new(DIAG_WARN, tree_loc(t));
+            diag_printf(d, "call to predefined operator %s always returns "
+                        "FALSE", istr(tree_ident(t)));
+            diag_hint(d, tree_loc(t), "left length is %"PRIi64" but right "
+                      "length is %"PRIi64, left_len, right_len);
+            diag_emit(d);
+            break;
+         }
+      }
    }
 
    return t;

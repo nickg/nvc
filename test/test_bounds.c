@@ -662,6 +662,27 @@ START_TEST(test_case5)
 }
 END_TEST
 
+START_TEST(test_issue800)
+{
+   input_from_file(TESTDIR "/bounds/issue800.vhd");
+
+   const error_t expect[] = {
+      { 10, "call to predefined operator \"=\" always returns FALSE" },
+      {  0, "left length is 3 but right length is 2" },
+      { 11, "call to predefined operator \"/=\" always returns FALSE" },
+      {  0, "left length is 3 but right length is 9" },
+      { 14, "call to predefined operator \"=\" always returns FALSE" },
+      {  0, "left length is 3 but right length is 1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -696,6 +717,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_case4);
    tcase_add_test(tc_core, test_initial);
    tcase_add_test(tc_core, test_case5);
+   tcase_add_test(tc_core, test_issue800);
    suite_add_tcase(s, tc_core);
 
    return s;
