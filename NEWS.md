@@ -31,6 +31,8 @@
   the formal parameter must be an array (#793).
 - Handling of implicit conversion for universal types has been reworked
   to better comply with the LRM.
+- Fixed a crash when string literal characters have a type which is an
+  alias to another type (#801).
 
 ## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.

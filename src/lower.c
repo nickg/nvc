@@ -2633,7 +2633,7 @@ static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
    vcode_reg_t *tmp = xmalloc_array(*nchars, sizeof(vcode_reg_t));
 
    for (int i = 0; i < *nchars; i++)
-      tmp[i] = emit_const(vtype, tree_pos(tree_ref(tree_char(lit, i))));
+      tmp[i] = emit_const(vtype, assume_int(tree_char(lit, i)));
 
    return tmp;
 }
