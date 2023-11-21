@@ -86,7 +86,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Install dependencies
-        run: brew install llvm check automake libffi pkg-config zstd
+        run: brew install --force --overwrite llvm check automake libffi pkg-config zstd
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
