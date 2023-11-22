@@ -3106,8 +3106,8 @@ static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
          continue;
 
       tree_t sub = dd->tree;
-      if (dd->kind == T_ALIAS)
-         sub = get_aliased_subprogram(sub);
+      if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)) )
+         continue;
 
       if (!is_predef_for_type(sub, type))
          continue;
@@ -4764,8 +4764,13 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
           if (sym != NULL) {
              for (int i = 0; i < sym->ndecls; i++) {
                 const decl_t *dd = get_decl(sym, i);
-                if ((dd->mask & N_FUNC) && tree_ports(dd->tree) == 1) {
-                   type_t p0_type = tree_type(tree_port(dd->tree, 0));
+
+                tree_t sub = dd->tree;
+                if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
+                   continue;
+
+                if ((dd->mask & N_FUNC) && tree_ports(sub) == 1) {
+                   type_t p0_type = tree_type(tree_port(sub, 0));
                    type_set_add(tab, p0_type, dd->tree);
                 }
              }
