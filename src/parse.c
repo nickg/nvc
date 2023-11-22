@@ -12400,83 +12400,93 @@ static tree_t p_concurrent_statement(void)
       consume(tCOLON);
    }
 
-   if (peek() == tID || (peek() == tPOSTPONED && peek_nth(2) == tID)) {
-      const token_t p2 = peek_nth(2);
-      if ((label != NULL && p2 == tSEMI) || p2 == tGENERIC || p2 == tPORT)
-         return p_component_instantiation_statement(label, NULL);
-      else {
-         const bool postponed = optional(tPOSTPONED);
-         tree_t name = p_name(N_SUBPROGRAM), conc;
-         if (peek() == tLE)
-            conc = p_concurrent_signal_assignment_statement(label, name);
-         else if (scan(tGENERIC, tPORT))
-            return p_component_instantiation_statement(label, name);
+   switch (peek()) {
+   case tPROCESS:
+      return p_process_statement(label);
+
+   case tCOMPONENT:
+   case tENTITY:
+   case tCONFIGURATION:
+      return p_component_instantiation_statement(label, NULL);
+
+   case tWITH:
+      return p_concurrent_signal_assignment_statement(label, NULL);
+
+   case tASSERT:
+      if (standard() >= STD_08)
+         return p_psl_or_concurrent_assert(label);
+      else
+         return p_concurrent_assertion_statement(label);
+
+   case tBLOCK:
+      return p_block_statement(label);
+
+   case tIF:
+   case tFOR:
+   case tCASE:
+      return p_generate_statement(label);
+
+   case tLPAREN:
+      return p_concurrent_signal_assignment_statement(label, NULL);
+
+   case tID:
+      {
+         const token_t p2 = peek_nth(2);
+         if ((label != NULL && p2 == tSEMI) || p2 == tGENERIC || p2 == tPORT)
+            return p_component_instantiation_statement(label, NULL);
          else {
-            switch (tree_kind(name)) {
-            case T_REF:
-               if (tree_has_ref(name)) {
-                  tree_t decl = tree_ref(name);
-                  if (tree_kind(decl) == T_COMPONENT)
-                     return p_component_instantiation_statement(label, name);
+            tree_t name = p_name(N_SUBPROGRAM), conc;
+            if (peek() == tLE)
+               return p_concurrent_signal_assignment_statement(label, name);
+            else if (scan(tGENERIC, tPORT))
+               return p_component_instantiation_statement(label, name);
+            else {
+               switch (tree_kind(name)) {
+               case T_REF:
+                  if (tree_has_ref(name)) {
+                     tree_t decl = tree_ref(name);
+                     if (tree_kind(decl) == T_COMPONENT)
+                        return p_component_instantiation_statement(label, name);
+                  }
+                  // Fall-through
+               case T_PROT_REF:
+                  return p_concurrent_procedure_call_statement(label, name);
+               default:
+                  parse_error(CURRENT_LOC, "expected concurrent statement");
+                  drop_tokens_until(tSEMI);
+                  return ensure_labelled(tree_new(T_CONCURRENT), label);
                }
-               // Fall-through
-            case T_PROT_REF:
-               conc = p_concurrent_procedure_call_statement(label, name);
-               break;
-            default:
-               parse_error(CURRENT_LOC, "expected concurrent statement");
-               drop_tokens_until(tSEMI);
-               conc = tree_new(T_CONCURRENT);
             }
+
+            return conc;
          }
-
-         if (postponed)
-            tree_set_flag(conc, TREE_F_POSTPONED);
-         return conc;
       }
-   }
-   else {
-      switch (peek()) {
-      case tPROCESS:
-         return p_process_statement(label);
 
-      case tCOMPONENT:
-      case tENTITY:
-      case tCONFIGURATION:
-         return p_component_instantiation_statement(label, NULL);
-
-      case tWITH:
-         return p_concurrent_signal_assignment_statement(label, NULL);
-
-      case tASSERT:
-         if (standard() >= STD_08)
-            return p_psl_or_concurrent_assert(label);
-         else
+   case tPOSTPONED:
+      {
+         const token_t tok2 = peek_nth(2);
+         if (tok2 == tASSERT)
             return p_concurrent_assertion_statement(label);
+         else if (tok2 == tID || tok2 == tLPAREN) {
+            consume(tPOSTPONED);
 
-      case tPOSTPONED:
-         if (peek_nth(2) == tASSERT)
-            return p_concurrent_assertion_statement(label);
+            tree_t name = p_name(N_SUBPROGRAM), conc;
+            if (peek() == tLE)
+               conc = p_concurrent_signal_assignment_statement(label, name);
+            else
+               conc = p_concurrent_procedure_call_statement(label, name);
+
+            tree_set_flag(conc, TREE_F_POSTPONED);
+            return conc;
+         }
          else
             return p_process_statement(label);
-
-      case tBLOCK:
-         return p_block_statement(label);
-
-      case tIF:
-      case tFOR:
-      case tCASE:
-         return p_generate_statement(label);
-
-      case tLPAREN:
-         return p_concurrent_signal_assignment_statement(label, NULL);
-
-      default:
-         expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
-                tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE);
-         drop_tokens_until(tSEMI);
-         return ensure_labelled(tree_new(T_BLOCK), label);
       }
+   default:
+      expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
+             tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE, tLPAREN, tID);
+      drop_tokens_until(tSEMI);
+      return ensure_labelled(tree_new(T_BLOCK), label);
    }
 }
 
