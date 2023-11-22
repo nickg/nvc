@@ -183,6 +183,7 @@ static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
 static tree_t p_psl_builtin_function_call(void);
 static psl_node_t p_psl_sere(void);
+static tree_t p_psl_directive(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -10610,6 +10611,23 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    return conc;
 }
 
+static void p_concurrent_statement_or_psl(tree_t parent)
+{
+   // Allow PSL declarations in concurrent statement part when using
+   // "--psl" comments
+
+   if (peek() == tSTARTPSL) {
+      consume(tSTARTPSL);
+
+      if (scan(tDEFAULT, tSEQUENCE, tPROPERTY))
+         tree_add_decl(parent, p_psl_declaration());
+      else
+         tree_add_stmt(parent, p_psl_directive());
+   }
+   else
+      tree_add_stmt(parent, p_concurrent_statement());
+}
+
 static void p_block_statement_part(tree_t arch)
 {
    // { concurrent_statement }
@@ -10617,7 +10635,7 @@ static void p_block_statement_part(tree_t arch)
    BEGIN("block statement part");
 
    while (not_at_token(tEND))
-      tree_add_stmt(arch, p_concurrent_statement());
+      p_concurrent_statement_or_psl(arch);
 }
 
 static void p_block_declarative_part(tree_t arch)
@@ -10725,7 +10743,7 @@ static void p_generate_statement_body(tree_t container, ident_t alt_label)
    }
 
    while (not_at_token(tEND, tELSIF, tELSE, tWHEN))
-      tree_add_stmt(container, p_concurrent_statement());
+      p_concurrent_statement_or_psl(container);
 
    if (peek() == tEND && (peek_nth(2) == tID || peek_nth(2) == tSEMI)) {
       consume(tEND);
@@ -12453,14 +12471,6 @@ static tree_t p_concurrent_statement(void)
       case tLPAREN:
          return p_concurrent_signal_assignment_statement(label, NULL);
 
-      case tSTARTPSL:
-         consume(tSTARTPSL);
-
-         if (scan(tDEFAULT, tSEQUENCE, tPROPERTY))
-            return p_psl_declaration();
-         else
-            return p_psl_directive();
-
       default:
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
                 tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE);
@@ -12487,7 +12497,7 @@ static void p_architecture_statement_part(tree_t arch)
    BEGIN("architecture statement part");
 
    while (not_at_token(tEND))
-      tree_add_stmt(arch, p_concurrent_statement());
+      p_concurrent_statement_or_psl(arch);
 }
 
 static void p_architecture_body(tree_t unit)

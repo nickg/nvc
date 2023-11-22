@@ -415,27 +415,27 @@ START_TEST(test_psl1)
    LOCAL_TEXT_BUF tb = tb_new();
    capture_syntax(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 0)));
+   psl_dump(tree_psl(tree_decl(a, 4)));
    diff_dump(tb_get(tb), "default clock is \"and\"(CLK'EVENT, \"=\"(CLK, '1'))");
    tb_rewind(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 1)));
+   psl_dump(tree_psl(tree_stmt(a, 0)));
    diff_dump(tb_get(tb), "assert never B");
    tb_rewind(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 2)));
+   psl_dump(tree_psl(tree_stmt(a, 1)));
    diff_dump(tb_get(tb), "assert always A -> (next_a [3 to 5] B)");
    tb_rewind(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 3)));
+   psl_dump(tree_psl(tree_stmt(a, 2)));
    diff_dump(tb_get(tb), "assert {A; \"and\"(B, C)}");
    tb_rewind(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 4)));
+   psl_dump(tree_psl(tree_stmt(a, 3)));
    diff_dump(tb_get(tb), "assert A -> (next [2] (B until! C))");
    tb_rewind(tb);
 
-   psl_dump(tree_psl(tree_stmt(a, 5)));
+   psl_dump(tree_psl(tree_stmt(a, 4)));
    diff_dump(tb_get(tb), "cover {{}[*]; {A}[*4]} report \"msg\"");
    tb_rewind(tb);
 
