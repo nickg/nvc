@@ -827,7 +827,7 @@ bool type_is_representable(type_t t)
    if (type_is_scalar(t))
       return true;
    else if (standard() < STD_19) {
-      if (type_is_array(t)) {
+      if (type_is_array(t) && dimension_of(t) == 1) {
          type_t elem = type_elem(t);
          return type_is_enum(elem) && all_character_literals(elem);
       }

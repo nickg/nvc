@@ -4133,10 +4133,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
          else if (!type_is_representable(named_type))
-            sem_error(t, "cannot use attribute %s with non-%s type %s",
-                      istr(attr),
-                      standard() < STD_19 ? "scalar" : "representable",
-                      type_pp(named_type));
+            sem_error(t, "cannot use attribute %s with non-representable "
+                      "type %s", istr(attr), type_pp(named_type));
 
          type_t std_string = std_type(NULL, STD_STRING);
          type_t arg_type = predef == ATTR_IMAGE ? named_type : std_string;

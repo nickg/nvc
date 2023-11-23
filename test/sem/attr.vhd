@@ -254,6 +254,12 @@ begin
         assert integer'succ(15) = 16;   -- OK
     end process;
 
+    process is
+        type bit2d is array (1 to 2, 1 to 2) of bit;
+    begin
+        assert bit2d'value("1010") = (('1','0'),('1','0'));  -- Error
+    end process;
+
 end architecture;
 
 use work.pack.all;
