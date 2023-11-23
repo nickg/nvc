@@ -2089,6 +2089,17 @@ static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       }
       break;
 
+   case JIT_EXIT_LAST_EVENT:
+      {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            cgb->func->args,
+            cgb->func->tlab,
+         };
+         llvm_call_fn(obj, LLVM_LAST_EVENT, args, ARRAY_LEN(args));
+      }
+      break;
+
    default:
       {
          LLVMValueRef which = cgen_get_value(obj, cgb, ir->arg1);
