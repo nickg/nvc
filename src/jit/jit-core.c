@@ -123,7 +123,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
    jit_abort_with_status(EXIT_FAILURE);
 }
 
-jit_thread_local_t *jit_thread_local(void)
+static inline jit_thread_local_t **jit_thread_local_ptr(void)
 {
 #ifdef USE_EMUTLS
    static jit_thread_local_t *local = NULL;
@@ -132,12 +132,19 @@ jit_thread_local_t *jit_thread_local(void)
    static __thread jit_thread_local_t *local = NULL;
 #endif
 
-   if (unlikely(local == NULL)) {
-      local = xcalloc(sizeof(jit_thread_local_t));
-      local->state = JIT_IDLE;
+   return &local;
+}
+
+jit_thread_local_t *jit_thread_local(void)
+{
+   jit_thread_local_t **ptr = jit_thread_local_ptr();
+
+   if (unlikely(*ptr == NULL)) {
+      *ptr = xcalloc(sizeof(jit_thread_local_t));
+      (*ptr)->state = JIT_IDLE;
    }
 
-   return local;
+   return *ptr;
 }
 
 jit_t *jit_new(unit_registry_t *ur)
@@ -1437,10 +1444,8 @@ jit_t *jit_for_thread(void)
 
 jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor)
 {
-   jit_thread_local_t *thread = jit_thread_local();
-
-   if (thread->anchor == anchor)
-      return thread;
+   jit_thread_local_t *thread = *jit_thread_local_ptr();
+   assert(thread != NULL);
 
    thread->anchor = anchor;
 
