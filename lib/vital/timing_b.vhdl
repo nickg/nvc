@@ -618,102 +618,102 @@ PACKAGE BODY VITAL_Timing IS
         ELSE
           -- Glitch Processing ---
           -- If nothing currently scheduled
-          IF GlitchData.SchedTime <= NOW THEN		  -- NOW >= last event
+          IF GlitchData.SchedTime <= NOW_TIME THEN		  -- NOW >= last event
             -- Note: NewValue is always /= OldValue when called from VPPD
             IF (NewValue = GlitchData.SchedValue) THEN RETURN; END IF;
   		  NewGlitch := FALSE;
-          GlitchData.GlitchTime := NOW+dly;
-     
+          GlitchData.GlitchTime := NOW_TIME+dly;
+
           -- New value earlier than the earliest previous value scheduled
           --  (negative preemptive)
-          ELSIF (NOW+dly <= GlitchData.GlitchTime)
-             AND (NOW+dly <= GlitchData.SchedTime)  THEN
-      
+          ELSIF (NOW_TIME+dly <= GlitchData.GlitchTime)
+             AND (NOW_TIME+dly <= GlitchData.SchedTime)  THEN
+
             -- Glitch is negative preemptive - check if same value and
-            -- NegPreempt is on IR225 
+            -- NegPreempt is on IR225
             IF (GlitchData.SchedValue /= NewValue) AND (NegPreemptOn) AND
-               (NOW > 0 NS) THEN
+               (NOW_TIME > 0 NS) THEN
               NewGlitch := TRUE;
               NegPreemptGlitch :=TRUE;	-- Set preempt Glitch condition
-            ELSE 
+            ELSE
               NewGlitch := FALSE;    	-- No new glitch, save time for
                                         -- possible future glitch
             END IF;
-            GlitchData.GlitchTime := NOW+dly;
-                  
+            GlitchData.GlitchTime := NOW_TIME+dly;
+
             -- Transaction currently scheduled - if glitch already happened
-            ELSIF GlitchData.GlitchTime <= NOW THEN
+            ELSIF GlitchData.GlitchTime <= NOW_TIME THEN
                IF (GlitchData.SchedValue = NewValue) THEN
-                   dly := Minimum( GlitchData.SchedTime-NOW, NewDelay );
+                   dly := Minimum( GlitchData.SchedTime-NOW_TIME, NewDelay );
                END IF;
                NewGlitch := FALSE;
-     
+
             -- Transaction currently scheduled (no glitch if same value)
             ELSIF (GlitchData.SchedValue = NewValue)
                   AND (GlitchData.SchedTime = GlitchData.GlitchTime) THEN
                 -- revise scheduled output time if new delay is sooner
-                dly := Minimum( GlitchData.SchedTime-NOW, NewDelay );
+                dly := Minimum( GlitchData.SchedTime-NOW_TIME, NewDelay );
                 -- No new glitch, save time for possable future glitch
                 NewGlitch := FALSE;
-                GlitchData.GlitchTime := NOW+dly;
+                GlitchData.GlitchTime := NOW_TIME+dly;
 
             -- Transaction currently scheduled represents a glitch
             ELSE
               NewGlitch := TRUE; -- A new glitch has been detected
             END IF;
-     
+
             IF NewGlitch THEN
               -- If  messages requested, report the glitch
-              IF MsgOn THEN 
+              IF MsgOn THEN
                 IF NegPreemptGlitch THEN	  --IR225
                   ReportGlitch ("VitalGlitch-Neg", OutSignalName,
                                  GlitchData.GlitchTime, GlitchData.SchedValue,
-                                 (dly + NOW), NewValue,
+                                 (dly + NOW_TIME), NewValue,
                                  MsgSeverity=>MsgSeverity  );
                 ELSE
 	              ReportGlitch ("VitalGlitch", OutSignalName,
                                  GlitchData.GlitchTime, GlitchData.SchedValue,
-                                 (dly + NOW), NewValue,
+                                 (dly + NOW_TIME), NewValue,
                                  MsgSeverity=>MsgSeverity  );
 		        END IF;
 	        END IF;
-              
-            -- If 'X' generation is requested, schedule the new value 
+
+            -- If 'X' generation is requested, schedule the new value
             --  preceeded by a glitch pulse.
             -- Otherwise just schedule the new value (inertial mode).
-            IF XOn THEN 
+            IF XOn THEN
               IF (Mode = OnDetect) THEN
                 OutSignal <= 'X';
               ELSE
-                OutSignal <= 'X' AFTER GlitchData.GlitchTime-NOW;
+                OutSignal <= 'X' AFTER GlitchData.GlitchTime-NOW_TIME;
             END IF;
-		                             	
+
             IF NegPreemptGlitch THEN -- IR225
-               OutSignal <= TRANSPORT NewValue AFTER GlitchData.SchedTime-NOW;	
+               OutSignal <= TRANSPORT NewValue AFTER GlitchData.SchedTime-NOW_TIME;
             ELSE
-              OutSignal <= TRANSPORT NewValue AFTER dly;    
-            END IF; 
+              OutSignal <= TRANSPORT NewValue AFTER dly;
+            END IF;
             ELSE
               OutSignal <= NewValue AFTER dly; -- no glitch regular prop delay
             END IF;
-     
+
             -- If there no new glitch was detected, just schedule the new value.
             ELSE
               OutSignal <= NewValue AFTER dly;
             END IF;
         END IF;
- 
+
        -- Record the new value and time depending on glitch type just scheduled.
        IF NOT NegPreemptGlitch THEN -- 5/2/96 for "x-pulse" IR225
-          GlitchData.SchedValue := NewValue; 
-          GlitchData.SchedTime  := NOW+dly;	   -- pulse timing.
+          GlitchData.SchedValue := NewValue;
+          GlitchData.SchedTime  := NOW_TIME+dly;	   -- pulse timing.
 	   ELSE
          GlitchData.SchedValue := 'X';
          -- leave GlitchData.SchedTime to old value since glitch is negative
        END IF;
       RETURN;
     END;
- 
+
     ---------------------------------------------------------------------------
    PROCEDURE VitalPathDelay (
         SIGNAL   OutSignal          : OUT   std_logic;
