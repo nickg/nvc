@@ -1200,10 +1200,6 @@ PACKAGE VITAL_Timing IS
 
     attribute never_waits : boolean;
 
-    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType] : procedure is true;
-    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType01] : procedure is true;
-    attribute never_waits of VitalWireDelay [std_ulogic, std_ulogic, VitalDelayType01Z] : procedure is true;
-
     attribute never_waits of VitalSetupHoldCheck
 	[X01, VitalTimingDataType, std_ulogic, string, time, std_ulogic, string, time,
 	 time, time, time, time, boolean, VitalEdgeSymbolType, string, boolean, boolean,
@@ -1213,5 +1209,24 @@ PACKAGE VITAL_Timing IS
 	 time, time, time, time, time, boolean, VitalEdgeSymbolType, string, boolean,
 	 boolean, severity_level, boolean, boolean, boolean, boolean] : procedure is true;
 
+    attribute never_waits of VitalPathDelay
+	[std_logic, VitalGlitchDataType, string, std_logic, VitalPathArrayType,
+	 VitalDelayType, VitalGlitchKindType, boolean, boolean, severity_level,
+	 boolean, boolean] : procedure is true;
+    attribute never_waits of VitalPathDelay01
+	[std_logic, VitalGlitchDataType, string, std_logic, VitalPathArray01Type,
+	 VitalDelayType01, VitalGlitchKindType, boolean, boolean, severity_level,
+	 boolean, boolean, boolean] : procedure is true;
+    attribute never_waits of VitalPathDelay01Z
+	[std_logic, VitalGlitchDataType, string, std_logic, VitalPathArray01ZType,
+	 VitalDelayType01Z, VitalGlitchKindType, boolean, boolean, severity_level,
+	 VitalOutputMapType, boolean, boolean, boolean] : procedure is true;
+
+    attribute never_waits of VitalWireDelay
+	[std_ulogic, std_ulogic, VitalDelayType] : procedure is true;
+    attribute never_waits of VitalWireDelay
+	[std_ulogic, std_ulogic, VitalDelayType01] : procedure is true;
+    attribute never_waits of VitalWireDelay
+	[std_ulogic, std_ulogic, VitalDelayType01Z] : procedure is true;
 
 END VITAL_Timing;
