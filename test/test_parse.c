@@ -6023,6 +6023,25 @@ START_TEST(test_issue802)
 }
 END_TEST
 
+START_TEST(test_issue805)
+{
+   input_from_file(TESTDIR "/parse/issue805.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6155,6 +6174,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue793);
    tcase_add_test(tc_core, test_slow1);
    tcase_add_test(tc_core, test_issue802);
+   tcase_add_test(tc_core, test_issue805);
    suite_add_tcase(s, tc_core);
 
    return s;

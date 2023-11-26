@@ -4398,30 +4398,31 @@ static tree_t p_factor(void)
       break;
    }
 
+   tree_t operand;
    if (op != NULL) {
       tree_t t = tree_new(T_FCALL);
       tree_set_ident(t, op);
       unary_op(t, p_primary);
       tree_set_loc(t, CURRENT_LOC);
+
+      operand = t;
+   }
+   else
+      operand = p_primary();
+
+   if (optional(tPOWER)) {
+      tree_t second = p_primary();
+
+      tree_t t = tree_new(T_FCALL);
+      tree_set_loc(t, CURRENT_LOC);
+      tree_set_ident(t, ident_new("\"**\""));
+      add_param(t, operand, P_POS, NULL);
+      add_param(t, second, P_POS, NULL);
+
       return t;
    }
-   else {
-      tree_t operand = p_primary();
 
-      if (optional(tPOWER)) {
-         tree_t second = p_primary();
-
-         tree_t t = tree_new(T_FCALL);
-         tree_set_loc(t, CURRENT_LOC);
-         tree_set_ident(t, ident_new("\"**\""));
-         add_param(t, operand, P_POS, NULL);
-         add_param(t, second, P_POS, NULL);
-
-         return t;
-      }
-      else
-         return operand;
-   }
+   return operand;
 }
 
 static ident_t p_multiplying_operator(void)

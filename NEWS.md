@@ -35,6 +35,7 @@
   alias to another type (#801).
 - Added a warning when calling the predefined `"="` and `"/="` operators
   on arrays and the left and right hand sides have different lengths.
+- Expressions like `abs(x)**2.0` are now parsed correctly (#805).
 
 ## Version 1.10.4 - 2023-10-16
 - Fixed compatibility with LLVM 17.
