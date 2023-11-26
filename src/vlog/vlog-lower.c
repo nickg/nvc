@@ -66,6 +66,11 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
    return emit_debug_locus(unit, offset);
 }
 
+static vcode_reg_t vlog_helper_package(void)
+{
+   return emit_link_package(ident_new("NVC.VERILOG"));
+}
+
 static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
 {
    vcode_type_t voffset = vtype_offset();
@@ -102,9 +107,37 @@ static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
    return emit_wrap(data_reg, dims, 1);
 }
 
+static vcode_reg_t vlog_lower_resize(lower_unit_t *lu, vcode_reg_t value_reg,
+                                     vcode_reg_t count_reg)
+{
+   vcode_reg_t arg_reg;
+   ident_t fn;
+   switch (vcode_reg_kind(value_reg)) {
+   case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_CARRAY:
+      arg_reg = vlog_lower_wrap(lu, value_reg);
+      fn = ident_new("NVC.VERILOG.RESIZE(" T_PACKED_LOGIC "N)" T_PACKED_LOGIC);
+      break;
+   case VCODE_TYPE_INT:
+      arg_reg = value_reg;
+      fn = ident_new("NVC.VERILOG.RESIZE(" T_LOGIC "N)" T_PACKED_LOGIC);
+      break;
+   default:
+      vcode_dump();
+      fatal_trace("cannot resize r%d", value_reg);
+   }
+
+   vcode_type_t vlogic = vlog_logic_type();
+   vcode_type_t vpacked = vlog_packed_logic_type();
+
+   vcode_reg_t context_reg = vlog_helper_package();
+   vcode_reg_t args[] = { context_reg, arg_reg, count_reg };
+   return emit_fcall(fn, vpacked, vlogic, VCODE_CC_VHDL, args, ARRAY_LEN(args));
+}
+
 static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
 {
-   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+   vcode_reg_t context_reg = vlog_helper_package();
    vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
    vcode_reg_t args[] = { context_reg, wrap_reg };
    vcode_type_t vtime = vtype_time();
@@ -115,7 +148,7 @@ static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
 
 static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
 {
-   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+   vcode_reg_t context_reg = vlog_helper_package();
    vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
    vcode_reg_t args[] = { context_reg, wrap_reg };
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
@@ -220,7 +253,7 @@ static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
    ident_t to_vhdl_name = ident_new("NVC.VERILOG.TO_VHDL(" T_LOGIC ")U");
    ident_t to_verilog_name = ident_new("NVC.VERILOG.TO_VERILOG(U)" T_LOGIC);
 
-   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+   vcode_reg_t context_reg = vlog_helper_package();
 
    vcode_type_t vt_verilog = vlog_logic_type();
    vcode_type_t vt_vhdl = vtype_int(0, 8);
@@ -276,6 +309,50 @@ static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
    default:
       CANNOT_HANDLE(v);
    }
+}
+
+static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
+                                    vcode_reg_t reg)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "NVC.VERILOG.");
+
+   switch (op) {
+   case V_UNARY_BITNEG:
+   case V_UNARY_NOT:
+      tb_cat(tb, "\"not\"(");
+      break;
+   }
+
+   vcode_type_t vlogic = vlog_logic_type();
+   vcode_type_t vpacked = vlog_packed_logic_type();
+
+   vcode_type_t rtype;
+   if (vcode_reg_kind(reg) == VCODE_TYPE_INT) {
+      tb_cat(tb, T_LOGIC ")" T_LOGIC);
+      rtype = vlogic;
+   }
+   else {
+      reg = vlog_lower_wrap(lu, reg);
+      tb_cat(tb, T_PACKED_LOGIC ")");
+
+      if (op == V_UNARY_NOT) {
+         tb_cat(tb, T_LOGIC);
+         rtype = vlogic;
+      }
+      else {
+         tb_cat(tb, T_PACKED_LOGIC);
+         rtype = vpacked;
+      }
+   }
+
+   vcode_reg_t context_reg = vlog_helper_package();
+
+   ident_t func = ident_new(tb_get(tb));
+
+   vcode_reg_t args[] = { context_reg, reg };
+   return emit_fcall(func, rtype, vlogic, VCODE_CC_VHDL,
+                     args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
@@ -369,7 +446,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          ident_t func = ident_new("NVC.VERILOG.\"and\"(" T_PACKED_LOGIC
                                   T_PACKED_LOGIC ")" T_PACKED_LOGIC);
 
-         vcode_reg_t context_reg = emit_link_package(ident_new("NVC.VERILOG"));
+         vcode_reg_t context_reg = vlog_helper_package();
 
          vcode_reg_t args[] = {
             context_reg,
@@ -382,6 +459,11 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 
          return emit_fcall(func, vpacked, vlogic, VCODE_CC_VHDL,
                            args, ARRAY_LEN(args));
+      }
+   case V_UNARY:
+      {
+         vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
+         return vlog_lower_unary(lu, vlog_subkind(v), value_reg);
       }
    default:
       CANNOT_HANDLE(v);
@@ -406,6 +488,9 @@ static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
    case V_BINARY:
       vlog_lower_sensitivity(lu, vlog_left(v));
       vlog_lower_sensitivity(lu, vlog_right(v));
+      break;
+   case V_UNARY:
+      vlog_lower_sensitivity(lu, vlog_value(v));
       break;
    default:
       CANNOT_HANDLE(v);
@@ -459,23 +544,20 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
    if (vcode_reg_kind(target_reg) == VCODE_TYPE_UARRAY) {
       nets_reg = emit_unwrap(target_reg);
       count_reg = emit_uarray_len(target_reg, 0);
-
-      if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
-         value_reg = emit_address_of(value_reg);    // XXX
    }
    else {
       nets_reg = target_reg;
       count_reg = emit_const(vtype_offset(), 1);
-
-      if (vcode_reg_kind(value_reg) == VCODE_TYPE_CARRAY)
-         value_reg = emit_load_indirect(emit_address_of(value_reg));  // XXX
    }
+
+   vcode_reg_t resize_reg = vlog_lower_resize(lu, value_reg, count_reg);
+   vcode_reg_t data_reg = emit_unwrap(resize_reg);
 
    vcode_type_t vtime = vtype_time();
    vcode_reg_t reject_reg = emit_const(vtime, 0);
    vcode_reg_t after_reg = emit_const(vtime, 0);
 
-   emit_sched_waveform(nets_reg, count_reg, value_reg, reject_reg, after_reg);
+   emit_sched_waveform(nets_reg, count_reg, data_reg, reject_reg, after_reg);
 }
 
 static void vlog_lower_bassign(lower_unit_t *lu, vlog_node_t v)

@@ -134,6 +134,11 @@ static void vlog_check_binary(vlog_node_t op)
    vlog_check(vlog_right(op));
 }
 
+static void vlog_check_unary(vlog_node_t op)
+{
+   vlog_check(vlog_value(op));
+}
+
 static void vlog_check_variable_target(vlog_node_t target)
 {
    if (is_net(target)) {
@@ -355,6 +360,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_BINARY:
       vlog_check_binary(v);
+      break;
+   case V_UNARY:
+      vlog_check_unary(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

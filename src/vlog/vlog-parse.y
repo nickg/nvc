@@ -157,6 +157,7 @@ static bool is_decl(vlog_node_t v)
 
 %left                   '|'
 %left                   '&'
+%left                   '~' '!'
 
 %precedence "then"
 %precedence tELSE
@@ -674,6 +675,20 @@ expression:     primary
                    vlog_set_subkind($$, V_BINARY_AND);
                    vlog_set_left($$, $1);
                    vlog_set_right($$, $3);
+                }
+        |       '~' expression
+                {
+                   $$ = vlog_new(V_UNARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_UNARY_BITNEG);
+                   vlog_set_value($$, $2);
+                }
+        |       '!' expression
+                {
+                   $$ = vlog_new(V_UNARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_UNARY_NOT);
+                   vlog_set_value($$, $2);
                 }
         ;
 

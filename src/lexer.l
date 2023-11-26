@@ -440,11 +440,14 @@ UNION         ?i:union
 <*>"."                   { TOKEN(tDOT); }
 <*>"&"                   { TOKEN(tAMP); }
 <*>"|"                   { TOKEN(tBAR); }
-<*>"!"                   { TOKEN(tBAR); }
 <*>"["                   { TOKEN(tLSQUARE); }
 <*>"]"                   { TOKEN(tRSQUARE); }
 <*>"="                   { TOKEN(tEQ); }
 <*>"#"                   { TOKEN(tHASH); }
+<*>"~"                   { TOKEN(tTILDE); }
+
+<INITIAL,PSL>"!"         { TOKEN(tBAR); }
+<VLOG>"!"                { TOKEN(tBANG); }
 
 <INITIAL,PSL>"**"        { TOKEN(tPOWER); }
 <INITIAL,PSL>":="        { TOKEN(tASSIGN); }

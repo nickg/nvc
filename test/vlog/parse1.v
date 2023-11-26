@@ -11,6 +11,8 @@ module parse1;
     else if (z);
     else $display("no");
     z = 0;
+    z = ~x;
+    z = !x;
   end
   assign x = x | y;
 endmodule // parse1

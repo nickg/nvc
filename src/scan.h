@@ -90,6 +90,8 @@ bool is_scanned_as_psl(void);
 #define tRSQUARE       ']'
 #define tOVER          '/'
 #define tHASH          '#'
+#define tTILDE         '~'
+#define tBANG          '!'
 
 #define tID            200
 #define tENTITY        201

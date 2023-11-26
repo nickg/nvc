@@ -904,3 +904,4 @@ psl7            normal,gold,psl
 cover21         shell
 issue799        normal,2008
 issue801        normal,gold,2008
+vlog6           verilog,gold

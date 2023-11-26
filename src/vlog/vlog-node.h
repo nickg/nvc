@@ -66,6 +66,7 @@ typedef enum {
    V_DELAY_CONTROL,
    V_BINARY,
    V_BASSIGN,
+   V_UNARY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -85,6 +86,11 @@ typedef enum {
    V_BINARY_OR,
    V_BINARY_AND,
 } vlog_binary_t;
+
+typedef enum {
+   V_UNARY_BITNEG,
+   V_UNARY_NOT,
+} vlog_unary_t;
 
 typedef enum {
    V_ASSIGN_EQUALS,

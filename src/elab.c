@@ -2064,7 +2064,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
 
 #if !defined ENABLE_LLVM
    vcode_unit_t vu = unit_registry_get(ur, vu_name);
-   lib_put_vcode(work, e, vu);
+   lib_put_vcode(lib_work(), e, vu);
 #endif
 
    return e;

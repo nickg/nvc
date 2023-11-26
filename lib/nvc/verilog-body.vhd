@@ -66,6 +66,25 @@ package body verilog is
         end case;
     end function;
 
+    function resize (value : t_packed_logic; length : natural) return t_packed_logic is
+        constant orig : natural := value'length;
+        alias a_value : t_packed_logic(1 to orig) is value;
+    begin
+        if length = orig then
+            return value;
+        elsif length < orig then
+            return a_value(1 to length);
+        else
+            return (1 to length - orig => '0') & value;
+        end if;
+    end function;
+
+    function resize (value : t_logic; length : natural) return t_packed_logic is
+        subtype rtype is t_packed_logic(1 to length);
+    begin
+        return rtype'(1 => value, others => '0');
+    end function;
+
     function "and" (l, r : t_logic) return t_logic is
     begin
         if l = '1' and r = '1' then
@@ -95,4 +114,36 @@ package body verilog is
         return result;
     end function;
 
+    function "not" (x : t_logic) return t_logic is
+    begin
+        case x is
+            when '0' => return '1';
+            when '1' => return '0';
+            when others => return 'X';
+        end case;
+    end function;
+
+    function "not" (x : t_packed_logic) return t_packed_logic is
+        constant len    : natural := x'length;
+        alias xa        : t_packed_logic(0 to len - 1) is x;
+        variable result : t_packed_logic(0 to len - 1);
+    begin
+        for i in result'range loop
+            result(i) := not xa(i);
+        end loop;
+        return result;
+    end function;
+
+    function "not" (x : t_packed_logic) return t_logic is
+        variable result : t_logic := '1';
+    begin
+        for i in x'range loop
+            case x(i) is
+                when '1' => result := '0';
+                when '0' => null;
+                when others => return 'X';
+            end case;
+        end loop;
+        return result;
+    end function;
 end package body;

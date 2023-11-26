@@ -234,6 +234,7 @@ typedef enum {
    W_NVC_PSL_SUPPORT,
    W_VITAL,
    W_NEVER_WAITS,
+   W_NVC_VERILOG,
 
    NUM_WELL_KNOWN
 } well_known_t;
