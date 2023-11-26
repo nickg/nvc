@@ -135,8 +135,10 @@ static void parse_pp_define(char *optarg)
 
 static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
 {
-   FILE *f = fopen(file, "r");
-   if (f == NULL)
+   FILE *f;
+   if (strcmp(file, "-") == 0)
+      f = stdin;
+   else if ((f = fopen(file, "r")) == NULL)
       fatal_errno("failed to open %s", file);
 
    char *line = NULL;
@@ -146,7 +148,7 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
       *stop = '\0';
 
       // Trim trailing whitespace
-      while (stop > line && isspace((int)*--stop))
+      while (stop > line && isspace_iso88591(*--stop))
          *stop = '\0';
 
       if (strlen(line) == 0)

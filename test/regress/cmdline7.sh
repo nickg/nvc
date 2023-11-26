@@ -19,3 +19,9 @@ rm -r work
 nvc -a @compile_list.txt
 nvc -e --jit --no-save wait1 -r
 nvc -e --jit --no-save signal1 -r
+
+rm -r work
+
+nvc -a -f - < compile_list.txt
+nvc -e --jit --no-save wait1 -r
+nvc -e --jit --no-save signal1 -r
