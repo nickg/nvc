@@ -363,6 +363,7 @@ typedef enum tree_kind {
    T_VIEW_ELEMENT,
    T_MATCH_SELECT,
    T_PROT_DECL,
+   T_DUMMY_DRIVER,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

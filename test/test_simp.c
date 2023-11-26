@@ -125,14 +125,14 @@ START_TEST(test_cfold)
    fail_unless(tree_stmts(p) == 4);
 
    s = tree_stmt(p, 0);
-   fail_unless(tree_kind(s) == T_IF);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    s = tree_stmt(p, 1);
-   fail_unless(tree_kind(s) == T_IF);
+   fail_unless(tree_kind(s) == T_DUMMY_DRIVER);
    s = tree_stmt(p, 2);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    s = tree_stmt(p, 3);
-   fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_conds(s) == 1);
+   fail_unless(tree_kind(s) == T_SEQUENCE);
+   fail_unless(tree_stmts(s) == 2);
 
    p = tree_stmt(a, 2);
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 1.0));
@@ -148,7 +148,8 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 4)), true));
 
    p = tree_stmt(a, 5);
-   fail_unless(tree_stmts(p) == 0);
+   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_kind(tree_stmt(p, 0)) == T_DUMMY_DRIVER);
 
    p = tree_stmt(a, 6);
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 3.0));
@@ -1389,7 +1390,7 @@ START_TEST(test_casefold1)
    fail_unless(tree_ident(casep) == ident_new("CASEP"));
 
    tree_t seq = tree_stmt(casep, 0);
-   fail_unless(tree_kind(seq) == T_SEQUENCE);
+   fail_unless(tree_kind(seq) == T_ASSERT);
 
    fail_if_errors();
 }

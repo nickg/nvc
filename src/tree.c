@@ -117,7 +117,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_RETURN
    (I_IDENT | I_VALUE),
 
-   // T_COND_SIGNAL_ASSIGN
+   // T_COND_ASSIGN
    (I_IDENT | I_TARGET | I_CONDS),
 
    // T_WHILE
@@ -359,6 +359,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PROT_DECL
    (I_IDENT | I_DECLS | I_TYPE),
+
+   // T_DUMMY_DRIVER
+   (I_TARGET | I_IDENT),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -398,7 +401,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ALTERNATIVE",     "T_PSL",             "T_VERILOG",
    "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
-   "T_MATCH_SELECT",    "T_PROT_DECL",
+   "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
 };
 
 static const change_allowed_t change_allowed[] = {

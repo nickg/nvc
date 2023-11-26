@@ -2577,17 +2577,17 @@ START_TEST(test_iffold)
 
    CHECK_BB(0);
 
-   EXPECT_BB(2) = {
+   EXPECT_BB(1) = {
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_JUMP, .target = 4 }
+      { VCODE_OP_JUMP, .target = 1 }
    };
 
-   CHECK_BB(2);
+   CHECK_BB(1);
 }
 END_TEST
 

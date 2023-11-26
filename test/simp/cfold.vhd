@@ -100,6 +100,7 @@ begin
     begin
         case 1 is
             when 1 => null;
+            when 2 => x <= 1;
             when others => report "bang";
         end case;
     end process;

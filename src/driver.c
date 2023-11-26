@@ -130,6 +130,7 @@ static void driver_proc_cb(tree_t t, void *ctx)
 
    switch (tree_kind(t)) {
    case T_SIGNAL_ASSIGN:
+   case T_DUMMY_DRIVER:
       drives_signal(params->ds, params->proc, tree_target(t),
                     NULL, params->tentative);
       break;

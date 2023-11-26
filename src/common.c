@@ -2077,6 +2077,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
 
    case T_LITERAL:
    case T_STRING:
+   case T_DUMMY_DRIVER:
       break;
 
    case T_IF:

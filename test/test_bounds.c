@@ -548,8 +548,8 @@ START_TEST(test_driver1)
    input_from_file(TESTDIR "/bounds/driver1.vhd");
 
    const error_t expect[] = {
-      { 11, "array S index 5 outside of NATURAL range 1 to 3" },
       { 13, "array S index 7 outside of NATURAL range 1 to 3" },
+      { 11, "array S index 5 outside of NATURAL range 1 to 3" },
       { 16, "array S index -1 outside of NATURAL range 1 to 3" },
       { -1, NULL }
    };
@@ -683,6 +683,16 @@ START_TEST(test_issue800)
 }
 END_TEST
 
+START_TEST(test_issue806)
+{
+   input_from_file(TESTDIR "/bounds/issue806.vhd");
+
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -718,6 +728,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_initial);
    tcase_add_test(tc_core, test_case5);
    tcase_add_test(tc_core, test_issue800);
+   tcase_add_test(tc_core, test_issue806);
    suite_add_tcase(s, tc_core);
 
    return s;

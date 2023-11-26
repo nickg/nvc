@@ -38,6 +38,8 @@ typedef struct {
    hash_t          *generics;
 } simp_ctx_t;
 
+typedef A(tree_t) tree_list_t;
+
 static tree_t simp_tree(tree_t t, void *context);
 
 static tree_t simp_call_args(tree_t t)
@@ -57,7 +59,6 @@ static tree_t simp_call_args(tree_t t)
 
    if (last_pos == nports - 1)
       return t;
-
 
    tree_t new = tree_new(tree_kind(t));
    tree_set_loc(new, tree_loc(t));
@@ -711,6 +712,96 @@ static tree_t simp_wait(tree_t t)
    return t;
 }
 
+static bool simp_find_drivers(tree_t t, tree_list_t *list)
+{
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      APUSH(*list, longest_static_prefix(tree_target(t)));
+      return true;
+   case T_DUMMY_DRIVER:
+      APUSH(*list, tree_target(t));
+      return true;
+   case T_VAR_ASSIGN:
+   case T_WAIT:
+   case T_NEXT:
+   case T_EXIT:
+   case T_FORCE:
+   case T_RELEASE:
+   case T_RETURN:
+   case T_ASSERT:
+      return true;
+   case T_IF:
+      {
+         const int nconds = tree_conds(t);
+         for (int i = 0; i < nconds; i++) {
+            if (!simp_find_drivers(tree_cond(t, i), list))
+               return false;
+         }
+         return true;
+      }
+   case T_CASE:
+   case T_MATCH_CASE:
+   case T_WHILE:
+   case T_COND_STMT:
+   case T_SEQUENCE:
+   case T_ALTERNATIVE:
+      {
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++) {
+            if (!simp_find_drivers(tree_stmt(t, i), list))
+               return false;
+         }
+         return true;
+      }
+   default:
+      return false;   // Conservative
+   }
+}
+
+static void simp_make_dummy_drivers(tree_t container, tree_list_t *list)
+{
+   for (int i = 0; i < list->count; i++) {
+      tree_t d = tree_new(T_DUMMY_DRIVER);
+      tree_set_loc(d, tree_loc(list->items[i]));
+      tree_set_target(d, list->items[i]);
+
+      tree_add_stmt(container, d);
+   }
+
+   ACLEAR(*list);
+}
+
+static bool simp_match_case_choice(tree_t alt, int64_t ival)
+{
+   const int nassocs = tree_assocs(alt);
+   for (int j = 0; j < nassocs; j++) {
+      tree_t a = tree_assoc(alt, j);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         {
+            int64_t aval;
+            if (folded_int(tree_name(a), &aval) && ival == aval)
+               return true;
+         }
+         break;
+
+      case A_RANGE:
+         {
+            int64_t low, high;
+            if (!folded_bounds(tree_range(a, 0), &low, &high))
+               continue;
+            else if (ival >= low && ival <= high)
+               return true;
+         }
+
+      case A_OTHERS:
+         return true;
+      }
+   }
+
+   return false;
+}
+
 static tree_t simp_case(tree_t t)
 {
    const int nstmts = tree_stmts(t);
@@ -723,152 +814,163 @@ static tree_t simp_case(tree_t t)
 
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
+      if (!simp_match_case_choice(alt, ival))
+         continue;
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               int64_t aval;
-               if (!folded_int(tree_name(a), &aval))
-                  continue;
-               else if (ival != aval)
-                  continue;
-            }
-            break;
+      // This choice is always executed
 
-         case A_RANGE:
-            {
-               int64_t low, high;
-               if (!folded_bounds(tree_range(a, 0), &low, &high))
-                  continue;
-               else if (ival < low || ival > high)
-                  continue;
-            }
-
-         case A_OTHERS:
-            break;
+      tree_list_t drivers = AINIT;
+      for (int k = 0; k < nstmts; k++) {
+         if (i != k && !simp_find_drivers(tree_stmt(t, k), &drivers)) {
+            ACLEAR(drivers);
+            return t;
          }
-
-         // This choice is always executed
-         if (tree_stmts(alt) > 0) {
-            const tree_kind_t kind =
-               tree_kind(t) == T_CASE_GENERATE ? T_BLOCK : T_SEQUENCE;
-            tree_t seq = tree_new(kind);
-            tree_set_loc(seq, tree_loc(alt));
-            if (tree_has_ident(alt))
-               tree_set_ident(seq, tree_ident(alt));
-            else if (tree_has_ident(t))
-               tree_set_ident(seq, tree_ident(t));
-
-            const int ndecls = tree_decls(alt);
-            for (int i = 0; i < ndecls; i++)
-               tree_add_decl(seq, tree_decl(alt, i));
-
-            const int nstmts = tree_stmts(alt);
-            for (int i = 0; i < nstmts; i++)
-               tree_add_stmt(seq, tree_stmt(alt, i));
-
-            return seq;
-         }
-         else
-            return NULL;
       }
+
+      if (tree_stmts(alt) == 0 && drivers.count == 0)
+         return NULL;
+
+      tree_t seq = tree_new(T_SEQUENCE);
+      tree_set_loc(seq, tree_loc(alt));
+      if (tree_has_ident(t))
+         tree_set_ident(seq, tree_ident(t));
+
+      const int nstmts = tree_stmts(alt);
+      for (int i = 0; i < nstmts; i++)
+         tree_add_stmt(seq, tree_stmt(alt, i));
+
+      simp_make_dummy_drivers(seq, &drivers);
+      return seq;
    }
 
    return NULL;  // No choices can be executed
 }
 
-static bool simp_has_drivers(tree_t t)
+static tree_t simp_case_generate(tree_t t)
 {
-   switch (tree_kind(t)) {
-   case T_SIGNAL_ASSIGN:
-      return true;
-   case T_VAR_ASSIGN:
-   case T_WAIT:
-   case T_NEXT:
-   case T_EXIT:
-   case T_FORCE:
-   case T_RELEASE:
-   case T_RETURN:
-      return false;
-   case T_IF:
-      {
-         const int nconds = tree_conds(t);
-         for (int i = 0; i < nconds; i++) {
-            if (simp_has_drivers(tree_cond(t, i)))
-               return true;
-         }
-         return false;
-      }
-   case T_CASE:
-   case T_MATCH_CASE:
-   case T_WHILE:
-   case T_COND_STMT:
-   case T_SEQUENCE:
-      {
-         const int nstmts = tree_stmts(t);
-         for (int i = 0; i < nstmts; i++) {
-            if (simp_has_drivers(tree_stmt(t, i)))
-               return true;
-         }
-         return false;
-      }
-   default:
-      return true;   // Conservative
-   }
-}
+   const int nstmts = tree_stmts(t);
+   if (nstmts == 0)
+      return NULL;    // All choices are unreachable
 
-static tree_t simp_cond(tree_t t)
-{
-   if (tree_has_value(t)) {
-      bool value_b;
-      if (folded_bool(tree_value(t), &value_b)) {
-         if (!tree_has_ident(t) && simp_has_drivers(t)) {
-            // The statement part contains drivers that we cannot remove
-            // without changing the behaviour
-            return t;
-         }
-         else if (value_b) {
-            // Always true, remove the test
-            tree_set_value(t, NULL);
-            return t;
-         }
-         else {
-            // Always false, delete the condition
-            return NULL;
-         }
-      }
+   int64_t ival;
+   if (!folded_int(tree_value(t), &ival))
+      return t;
+
+   for (int i = 0; i < nstmts; i++) {
+      tree_t alt = tree_stmt(t, i);
+      if (!simp_match_case_choice(alt, ival))
+         continue;
+
+      // This choice is always executed
+
+      if (tree_stmts(alt) == 0)
+         return NULL;
+
+      tree_t seq = tree_new(T_BLOCK);
+      tree_set_loc(seq, tree_loc(alt));
+      if (tree_has_ident(alt))
+         tree_set_ident(seq, tree_ident(alt));
+      else if (tree_has_ident(t))
+         tree_set_ident(seq, tree_ident(t));
+
+      const int ndecls = tree_decls(alt);
+      for (int i = 0; i < ndecls; i++)
+         tree_add_decl(seq, tree_decl(alt, i));
+
+      const int nstmts = tree_stmts(alt);
+      for (int i = 0; i < nstmts; i++)
+         tree_add_stmt(seq, tree_stmt(alt, i));
+
+      return seq;
    }
 
-   return t;
+   return NULL;  // No choices can be executed
 }
 
 static tree_t simp_if(tree_t t)
 {
-   if (tree_conds(t) == 0)
-      return NULL;   // All conditions were false
+   const int nconds = tree_conds(t);
 
-   tree_t c0 = tree_cond(t, 0);
-   if (!tree_has_value(c0)) {
-      // If statement always executes so replace with then part
-      if (tree_stmts(c0) == 1)
-         return tree_stmt(c0, 0);
-      else {
-         tree_t b = tree_new(T_SEQUENCE);
-         tree_set_loc(b, tree_loc(t));
-         if (tree_has_ident(t))
-            tree_set_ident(b, tree_ident(t));
+   bool any_folded = false, trivial_true = false;
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
 
-         const int nstmts = tree_stmts(c0);
-         for (int i = 0; i < nstmts; i++)
-            tree_add_stmt(b, tree_stmt(c0, i));
-         return b;
+      bool bval;
+      if (!tree_has_value(c))
+         continue;
+      else if (folded_bool(tree_value(c), &bval)) {
+         any_folded = true;
+         trivial_true |= (i == 0 && bval);
       }
    }
 
-   return t;
+   if (!any_folded)
+      return t;
+
+   tree_t new = NULL;
+   if (!trivial_true) {
+      new = tree_new(T_IF);
+      tree_set_loc(new, tree_loc(t));
+      if (tree_has_ident(t))
+         tree_set_ident(new, tree_ident(t));
+   }
+
+   tree_list_t drivers = AINIT;
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
+
+      bool bval = true;
+      if (tree_has_value(c) && !folded_bool(tree_value(c), &bval)) {
+         tree_add_cond(new, c);
+         continue;
+      }
+      else if (bval) {
+         for (int j = i + 1; j < nconds; j++) {
+            if (!simp_find_drivers(tree_cond(t, j), &drivers)) {
+               ACLEAR(drivers);
+               return t;
+            }
+         }
+
+         if (new != NULL && tree_conds(new) > 0) {
+            tree_set_value(c, NULL);
+            tree_add_cond(new, c);
+            break;
+         }
+         else if (tree_stmts(c) == 1 && drivers.count == 0)
+            return tree_stmt(c, 0);
+         else {
+            tree_t b = tree_new(T_SEQUENCE);
+            tree_set_loc(b, tree_loc(t));
+            if (tree_has_ident(t))
+               tree_set_ident(b, tree_ident(t));
+
+            const int nstmts = tree_stmts(c);
+            for (int i = 0; i < nstmts; i++)
+               tree_add_stmt(b, tree_stmt(c, i));
+
+            simp_make_dummy_drivers(b, &drivers);
+            return b;
+         }
+      }
+      else
+         simp_find_drivers(c, &drivers);
+   }
+
+   if (drivers.count > 0 && tree_conds(new) > 0)
+      simp_make_dummy_drivers(tree_cond(new, 0), &drivers);
+   else if (drivers.count > 0) {
+       tree_t b = tree_new(T_SEQUENCE);
+       tree_set_loc(b, tree_loc(t));
+       if (tree_has_ident(t))
+          tree_set_ident(b, tree_ident(t));
+
+
+       simp_make_dummy_drivers(b, &drivers);
+       return b;
+   }
+
+   return tree_conds(new) > 0 ? new : NULL;
 }
 
 static tree_t simp_while(tree_t t)
@@ -876,10 +978,24 @@ static tree_t simp_while(tree_t t)
    bool value_b;
    if (!tree_has_value(t))
       return t;
-   else if (folded_bool(tree_value(t), &value_b) && !value_b
-            && !simp_has_drivers(t)) {
+   else if (folded_bool(tree_value(t), &value_b) && !value_b) {
       // Condition is false so loop never executes
-      return NULL;
+      tree_list_t drivers = AINIT;
+      if (!simp_find_drivers(t, &drivers)) {
+         ACLEAR(drivers);
+         return t;
+      }
+
+      if (drivers.count == 0)
+         return NULL;
+
+      tree_t seq = tree_new(T_SEQUENCE);
+      tree_set_loc(seq, tree_loc(t));
+      if (tree_has_ident(t))
+         tree_set_ident(seq, tree_ident(t));
+
+      simp_make_dummy_drivers(seq, &drivers);
+      return seq;
    }
    else
       return t;
@@ -1028,28 +1144,65 @@ static tree_t simp_assert(tree_t t)
 
 static tree_t simp_if_generate(tree_t t)
 {
-   if (tree_conds(t) == 0)
-      return NULL;   // All conditions were false
+   const int nconds = tree_conds(t);
 
-   tree_t c0 = tree_cond(t, 0);
-   if (!tree_has_value(c0)) {
-      // First condition is always true
-      tree_t b = tree_new(T_BLOCK);
-      tree_set_loc(b, tree_loc(c0));
-      tree_set_ident(b, tree_ident(c0));
+   bool any_folded = false, trivial_true = false;
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
 
-      const int ndecls = tree_decls(c0);
-      for (int i = 0; i < ndecls; i++)
-         tree_add_decl(b, tree_decl(c0, i));
-
-      const int nstmts = tree_stmts(c0);
-      for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(b, tree_stmt(c0, i));
-
-      return b;
+      bool bval;
+      if (!tree_has_value(c))
+         continue;
+      else if (folded_bool(tree_value(c), &bval)) {
+         any_folded = true;
+         trivial_true |= (i == 0 && bval);
+      }
    }
 
-   return t;
+   if (!any_folded)
+      return t;
+
+   tree_t new = NULL;
+   if (!trivial_true) {
+      new = tree_new(T_IF_GENERATE);
+      tree_set_loc(new, tree_loc(t));
+      tree_set_ident(new, tree_ident(t));
+   }
+
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
+
+      bool bval = true;
+      if (tree_has_value(c) && !folded_bool(tree_value(c), &bval)) {
+         tree_add_cond(new, c);
+         continue;
+      }
+      else if (bval) {
+         if (new != NULL && tree_conds(new) > 0) {
+            tree_set_value(c, NULL);
+            tree_add_cond(new, c);
+            break;
+         }
+         else {
+            tree_t b = tree_new(T_BLOCK);
+            tree_set_loc(b, tree_loc(t));
+            if (tree_has_ident(t))
+               tree_set_ident(b, tree_ident(t));
+
+            const int ndecls = tree_decls(c);
+            for (int i = 0; i < ndecls; i++)
+               tree_add_decl(b, tree_decl(c, i));
+
+            const int nstmts = tree_stmts(c);
+            for (int i = 0; i < nstmts; i++)
+               tree_add_stmt(b, tree_stmt(c, i));
+
+            return b;
+         }
+      }
+   }
+
+   return tree_conds(new) > 0 ? new : NULL;
 }
 
 static tree_t simp_signal_assign(tree_t t)
@@ -1236,6 +1389,14 @@ static tree_t simp_range(tree_t t)
       return range_of(type, dim);
 }
 
+static tree_t simp_sequence(tree_t t)
+{
+   if (tree_stmts(t) == 1 && tree_decls(t) == 0)
+      return tree_stmt(t, 0);
+   else
+      return t;
+}
+
 static tree_t simp_cond_expr(tree_t t)
 {
    if (!tree_has_result(t))
@@ -1405,8 +1566,9 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
-   case T_CASE_GENERATE:
       return simp_case(t);
+   case T_CASE_GENERATE:
+      return simp_case_generate(t);
    case T_WHILE:
       return simp_while(t);
    case T_CONCURRENT:
@@ -1442,6 +1604,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_literal(t);
    case T_RANGE:
       return simp_range(t);
+   case T_SEQUENCE:
+      return simp_sequence(t);
    case T_INSTANCE:
    case T_BINDING:
    case T_PACKAGE_MAP:
@@ -1450,8 +1614,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_BLOCK:
       simp_generic_map(t, t);
       return t;
-   case T_COND_STMT:
-      return simp_cond(t);
    case T_COND_EXPR:
       return simp_cond_expr(t);
    case T_COND_VALUE:

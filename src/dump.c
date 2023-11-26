@@ -1375,6 +1375,12 @@ static void dump_stmt(tree_t t, int indent)
       print_syntax("#end #block");
       break;
 
+   case T_DUMMY_DRIVER:
+      print_syntax("-- dummy driver for ");
+      dump_expr(tree_target(t));
+      print_syntax("\n");
+      return;
+
    default:
       cannot_dump(t, "stmt");
    }
@@ -1643,6 +1649,8 @@ void vhdl_dump(tree_t t, int indent)
    case T_VAR_ASSIGN:
    case T_RETURN:
    case T_ASSERT:
+   case T_WHILE:
+   case T_SEQUENCE:
       dump_stmt(t, indent);
       break;
    case T_CONST_DECL:

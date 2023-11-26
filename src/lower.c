@@ -7458,6 +7458,8 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    case T_MATCH_CASE:
       lower_match_case(lu, stmt, loops);
       break;
+   case T_DUMMY_DRIVER:
+      break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
                tree_kind_str(tree_kind(stmt)));
