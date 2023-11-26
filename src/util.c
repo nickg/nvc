@@ -1293,6 +1293,17 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 #endif
 }
 
+void nvc_decommit(void *ptr, size_t length)
+{
+#if defined __MINGW32__
+   if (!VirtualFree(ptr, length, MEM_DECOMMIT))
+      fatal_errno("VirtualFree");
+#elif defined __linux__
+   if (madvise(ptr, length, MADV_DONTNEED) != 0)
+      fatal_errno("madvise: MADV_DONTNEED");
+#endif
+}
+
 void *map_huge_pages(size_t align, size_t sz)
 {
 #ifdef __linux__

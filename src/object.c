@@ -1274,6 +1274,7 @@ void object_arena_freeze(object_arena_t *arena)
       arena->limit = next_page;
 #else
       // This can be useful for debugging use-after-free
+      nvc_decommit(next_page, arena->limit - next_page);
       nvc_memprotect(next_page, arena->limit - next_page, MEM_NONE);
 #endif
    }

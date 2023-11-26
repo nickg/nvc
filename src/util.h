@@ -262,6 +262,7 @@ typedef enum {
 void *nvc_memalign(size_t align, size_t sz);
 void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
+void nvc_decommit(void *ptr, size_t length);
 void *map_huge_pages(size_t align, size_t sz);
 void *map_jit_pages(size_t align, size_t sz);
 
