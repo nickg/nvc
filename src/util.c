@@ -1276,7 +1276,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
       PAGE_EXECUTE_READWRITE
    };
    DWORD old_prot;
-   if (!VirtualProtect(ptr, length, map[prot], &old_prot))
+   if (length > 0 && !VirtualProtect(ptr, length, map[prot], &old_prot))
       fatal_errno("VirtualProtect");
 #else
 #if __SANITIZE_ADDRESS__
@@ -1296,7 +1296,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 void nvc_decommit(void *ptr, size_t length)
 {
 #if defined __MINGW32__
-   if (!VirtualFree(ptr, length, MEM_DECOMMIT))
+   if (length > 0 && !VirtualFree(ptr, length, MEM_DECOMMIT))
       fatal_errno("VirtualFree");
 #elif defined __linux__
    if (madvise(ptr, length, MADV_DONTNEED) != 0)
