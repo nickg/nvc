@@ -69,7 +69,7 @@ include contrib/gui/Makemodule.am
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean
-	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) \
+	bear -- $(MAKE) -j$$(nproc) -C $(top_builddir) $(bin_PROGRAMS) \
 	  $(check_PROGRAMS) $(EXTRA_PROGRAMS) $(pkglibexec_PROGRAMS)
 
 release: update-test-dist

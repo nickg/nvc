@@ -95,6 +95,7 @@
 #define F_NOCOLL  (1 << 22)
 #define F_EXPORT  (1 << 23)
 #define F_SHUFFLE (1 << 24)
+#define F_NOTBSD  (1 << 25)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -392,6 +393,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_SLOW;
          else if (strcmp(opt, "!windows") == 0)
             test->flags |= F_NOTWIN;
+         else if (strcmp(opt, "!freebsd") == 0)
+            test->flags |= F_NOTBSD;
          else if (strcmp(opt, "mixed") == 0)
             test->flags |= F_MIXED;
          else if (strcmp(opt, "verilog") == 0)
@@ -761,13 +764,16 @@ static bool run_test(test_t *test)
    skip |= (test->flags & F_NOTWIN);
    skip |= (test->flags & F_WAVE);   // XXX: needs debugging
 #endif
+#ifdef __FreeBSD__
+   skip |= (test->flags & F_NOTBSD);
+#endif
 #ifndef HAVE_LLVM
    skip |= (test->flags & F_SLOW);
 #else
    if (force_jit) skip |= (test->flags & F_SLOW);
 #endif
 #ifndef ENABLE_VERILOG
-   skip |= (test->flags & F_VERILOG) || (test->flags & F_MIXED);
+   skip |= (test->flags & F_VERILOG) | (test->flags & F_MIXED);
 #endif
 #ifndef ENABLE_TCL
    skip |= (test->flags & F_TCL);
@@ -776,12 +782,14 @@ static bool run_test(test_t *test)
    if (skip) {
       if (skip & F_SLOW)
          skipped("slow with interpreter");
-      else if (skip & F_VERILOG)
+      else if (skip & (F_VERILOG | F_MIXED))
          skipped("verilog not enabled");
       else if (skip & F_TCL)
          skipped("tcl not enabled");
       else if (skip & (F_NOTWIN | F_WAVE))
          skipped("disabled on windows");
+      else if (skip & F_NOTBSD)
+         skipped("disabled on freebsd");
       else
          skipped(NULL);
 
