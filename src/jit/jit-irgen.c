@@ -2262,10 +2262,7 @@ static void irgen_pcall_suspend(jit_irgen_t *g, jit_value_t state,
    j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
    j_jump(g, JIT_CC_T, cont);
 
-   if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCESS)
-      j_send(g, 0, jit_null_ptr());
-   else
-      j_send(g, 0, g->statereg);
+   j_send(g, 0, g->statereg);
 
    j_ret(g);
 }
@@ -2326,10 +2323,8 @@ static void irgen_op_wait(jit_irgen_t *g, int op)
       j_store(g, JIT_SZ_32, jit_value_from_int64(target), ptr);
    }
 
-   if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCEDURE) {
-      macro_exit(g, JIT_EXIT_CLAIM_TLAB);
+   if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCEDURE)
       j_send(g, 0, g->statereg);
-   }
    else
       j_send(g, 0, jit_value_from_int64(0));
 

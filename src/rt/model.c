@@ -1043,21 +1043,25 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    thread->active_obj = NULL;
    thread->active_scope = NULL;
 
-   if (tlab_valid(thread->tlab)) {
-      // The TLAB is still valid which means the process finished
-      // instead of suspending at a wait statement and none of the data
-      // inside it can be live anymore
+   assert(tlab_valid(thread->tlab));
+
+   if (result.pointer != NULL) {
+      // Suspended inside a procedure so need to preseve the TLAB
+      tlab_move(thread->tlab, proc->tlab);
+
+      TRACE("claiming TLAB for private use (used %u/%u)",
+            tlab->alloc, tlab->limit);
+
+      if (tlab_valid(thread->spare_tlab))
+         tlab_move(thread->spare_tlab, thread->tlab);
+   }
+   else {
+      // All data inside the TLAB is dead
       assert(!tlab_valid(proc->tlab));
       tlab_reset(thread->tlab);
 
       if (tlab_valid(thread->spare_tlab))   // Surplus TLAB
          tlab_release(&thread->spare_tlab);
-   }
-   else {
-      // Process must have claimed TLAB or otherwise it would be lost
-      assert(tlab_valid(proc->tlab));
-      if (tlab_valid(thread->spare_tlab))
-         tlab_move(thread->spare_tlab, thread->tlab);
    }
 }
 
@@ -3872,17 +3876,6 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
 
    model_thread_t *thread = model_thread(get_model());
    list_add(&thread->active_scope->aliases, a);
-}
-
-void x_claim_tlab(tlab_t *tlab)
-{
-   TRACE("claiming TLAB for private use (used %u/%u)",
-         tlab->alloc, tlab->limit);
-
-   if (tlab_valid(*tlab)) {
-      assert(tlab->alloc <= tlab->limit);
-      tlab_move(*tlab, get_active_proc()->tlab);
-   }
 }
 
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)

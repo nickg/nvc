@@ -899,12 +899,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_CLAIM_TLAB:
-      {
-         x_claim_tlab(tlab);
-      }
-      break;
-
    case JIT_EXIT_COVER_TOGGLE:
       {
          if (!jit_has_runtime(thread->jit))
