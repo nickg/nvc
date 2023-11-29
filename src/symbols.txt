@@ -77,6 +77,7 @@
   __nvc_mspace_alloc;
   __nvc_putpriv;
   __nvc_sched_waveform;
+  __nvc_sched_process;
   __nvc_test_event;
   _debug_dump;
   _debug_out;

@@ -424,6 +424,18 @@ void __nvc_last_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
 }
 
 DLLEXPORT
+void __nvc_sched_process(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   int64_t after = args[0].integer;
+
+   x_sched_process(after);
+
+   thread->anchor = NULL;
+}
+
+DLLEXPORT
 void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
                    tlab_t *tlab)
 {
@@ -604,8 +616,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          if (!jit_has_runtime(thread->jit))
             return;   // TODO: this should not be necessary
 
-         int64_t after = args[0].integer;
-         x_sched_process(after);
+         __nvc_sched_process(anchor, args, tlab);
       }
       break;
 

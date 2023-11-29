@@ -132,6 +132,7 @@ typedef enum {
    LLVM_SCHED_WAVEFORM,
    LLVM_TEST_EVENT,
    LLVM_LAST_EVENT,
+   LLVM_SCHED_PROCESS,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -822,6 +823,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
    case LLVM_SCHED_WAVEFORM:
    case LLVM_TEST_EVENT:
    case LLVM_LAST_EVENT:
+   case LLVM_SCHED_PROCESS:
       {
          LLVMTypeRef args[] = {
             obj->types[LLVM_PTR],
@@ -844,6 +846,7 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
          case LLVM_SCHED_WAVEFORM: sym = "__nvc_sched_waveform"; break;
          case LLVM_TEST_EVENT: sym = "__nvc_test_event"; break;
          case LLVM_LAST_EVENT: sym = "__nvc_last_event"; break;
+         case LLVM_SCHED_PROCESS: sym = "__nvc_sched_process"; break;
          default: break;
          }
 
@@ -2097,6 +2100,17 @@ static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
             cgb->func->tlab,
          };
          llvm_call_fn(obj, LLVM_LAST_EVENT, args, ARRAY_LEN(args));
+      }
+      break;
+
+   case JIT_EXIT_SCHED_PROCESS:
+      {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            cgb->func->args,
+            cgb->func->tlab,
+         };
+         llvm_call_fn(obj, LLVM_SCHED_PROCESS, args, ARRAY_LEN(args));
       }
       break;
 
