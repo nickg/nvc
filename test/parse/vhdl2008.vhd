@@ -266,4 +266,14 @@ begin
     begin
     end block;
 
+    b10: block is
+        type t_rec is record
+            x : integer_vector;
+        end record;
+        type t_rec_array is array (natural range <>) of t_rec;
+        function f return t_rec_array;
+        constant c1 : t_rec_array := f;  -- OK
+        constant c2 : c1'subtype := c1;  -- OK
+    begin
+    end block;
 end architecture;

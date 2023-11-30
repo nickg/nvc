@@ -2097,12 +2097,22 @@ static type_t get_subtype_for(tree_t expr)
 
       type_t elem = type_elem(type);
       if (type_is_unconstrained(elem)) {
-         tree_t aref = tree_new(T_ATTR_REF);
-         tree_set_name(aref, expr);
-         tree_set_ident(aref, ident_new("ELEMENT"));
-         tree_set_loc(aref, tree_loc(expr));
-         tree_set_subkind(aref, ATTR_ELEMENT);
+         tree_t aref = tree_new(T_ARRAY_REF);
+         tree_set_value(aref, expr);
          tree_set_type(aref, elem);
+         tree_set_loc(aref, tree_loc(expr));
+
+         const int ndims = dimension_of(type);
+         for (int i = 0; i < ndims; i++) {
+            tree_t left = tree_new(T_ATTR_REF);
+            tree_set_loc(left, tree_loc(expr));
+            tree_set_name(left, expr);
+            tree_set_subkind(left, ATTR_LEFT);
+            tree_set_ident(left, ident_new("LEFT"));
+            tree_set_type(left, index_type_of(type, i));
+
+            add_param(aref, left, P_POS, NULL);
+         }
 
          type_set_elem(sub, get_subtype_for(aref));
       }
@@ -3702,7 +3712,7 @@ static type_t p_type_mark(void)
    const tree_kind_t namek = tree_kind(name);
 
    if (namek == T_ATTR_REF)
-      return apply_type_attribute(name);
+      return type;
 
    tree_t decl = NULL;
    if (namek == T_REF && tree_has_ref(name))
