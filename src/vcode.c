@@ -3825,16 +3825,19 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst)
-       && rconst >= 0)
-      return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
-
    return emit_arith(VCODE_OP_EXP, lhs, rhs, VCODE_INVALID_REG);
 }
 
 vcode_reg_t emit_trap_exp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
 {
+   int64_t rconst;
+   if (vcode_reg_const(rhs, &rconst)) {
+      if (rconst == 0)
+         return emit_const(vcode_reg_type(lhs), 1);
+      else if (rconst == 1)
+         return lhs;
+   }
+
    vcode_reg_t result = emit_arith(VCODE_OP_TRAP_EXP, lhs, rhs, locus);
 
    VCODE_ASSERT(vcode_reg_kind(result) == VCODE_TYPE_INT,
