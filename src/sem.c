@@ -5344,24 +5344,22 @@ static bool sem_globally_static(tree_t t)
          // is not of an access type, or a variable of an access type
          // whose designated subtype is fully constrained.
 
-         switch (tree_kind(name)) {
-         case T_REF:
-            {
-               tree_t decl = tree_ref(name);
-               const tree_kind_t dkind = tree_kind(decl);
-               if (dkind == T_VAR_DECL && type_is_access(tree_type(name)))
-                  return false;
-               else
-                  return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
-                     || dkind == T_TYPE_DECL || dkind == T_VAR_DECL
-                     || dkind == T_SUBTYPE_DECL || dkind == T_PORT_DECL
-                     || dkind == T_GENERIC_DECL;
-            }
-         case T_FCALL:
+         if (tree_kind(name) == T_FCALL)
             return sem_globally_static(name);
-         default:
-            break;
-         }
+
+         tree_t ref = name_to_ref(name);
+         if (ref == NULL)
+            return false;
+
+         tree_t decl = tree_ref(ref);
+         const tree_kind_t dkind = tree_kind(decl);
+         if (dkind == T_VAR_DECL && type_is_access(tree_type(name)))
+            return false;
+
+         return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
+            || dkind == T_TYPE_DECL || dkind == T_VAR_DECL
+            || dkind == T_SUBTYPE_DECL || dkind == T_PORT_DECL
+            || dkind == T_GENERIC_DECL;
       }
 
       type_t type = get_type_or_null(name);

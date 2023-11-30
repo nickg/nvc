@@ -2525,6 +2525,7 @@ START_TEST(test_vhdl2008)
       { 49, "case choice must be globally static" },
       { 59, "range choice expression must have same type as aggregate" },
       { 70, "conversion only allowed between closely related types" },
+      { 86, "no visible declaration for Q" },
       { -1, NULL }
    };
    expect_errors(expect);

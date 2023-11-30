@@ -70,4 +70,22 @@ begin
         b := boolean_vector(i);         -- Error
     end process;
 
+    -- Changes to globally static attribute rules
+    b1: block is
+        type t_rec is record
+            x : bit_vector;
+        end record;
+        signal s : t_rec(x(1 to 5));
+    begin
+        b2: block is
+            port ( p : t_rec );
+            port map ( s );
+        begin
+            g1: for i in p.x'range generate  -- OK
+            end generate;
+            g2: for i in q.x'range generate  -- Error
+            end generate;
+        end block;
+    end block;
+
 end architecture;
