@@ -11769,8 +11769,8 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
    }
    else if (field == -1 && type_is_array(type)) {
       vcode_reg_t locus = lower_debug_locus(map);
-      lower_check_array_sizes(lu, port_type, type, src_reg,
-                              VCODE_INVALID_REG, locus);
+      lower_check_array_sizes(lu, port_type, type, VCODE_INVALID_REG,
+                              src_reg, locus);
 
       vcode_reg_t data_reg = lower_array_data(src_reg);
       emit_alias_signal(data_reg, lower_debug_locus(port));
