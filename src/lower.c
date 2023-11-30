@@ -11657,9 +11657,9 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    }
 }
 
-static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
+static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
                                      tree_t block, tree_t map, hset_t *direct,
-                                     hset_t **poison)
+                                     hset_t **poison, vcode_reg_t src_reg)
 {
    tree_t port = NULL;
    int field = -1;
@@ -11678,14 +11678,13 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
             kind  = tree_kind(name);
          }
 
-         if (kind == T_REF)
-            port = tree_ref(name);
+         if (kind != T_REF)
+            return;
+
+         port = tree_ref(name);
       }
       break;
    }
-
-   if (port == NULL)
-      return false;
 
    assert(tree_kind(port) == T_PORT_DECL);
 
@@ -11696,10 +11695,10 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
          break;   // Always safe
       case PORT_OUT:
          if (!has_unique_driver(ds, port))
-            return false;
+            return;
          break;
       default:
-         return false;
+         return;
       }
    }
 
@@ -11717,7 +11716,7 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 
       hset_insert(direct, map);
       hset_insert(direct, port);
-      return true;
+      return;
    }
    else if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV) {
       if (field != -1) {
@@ -11727,12 +11726,10 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
             *poison = hset_new(32);
          hset_insert(*poison, port);
       }
-      return false;
+      return;
    }
    else if (*poison != NULL && hset_contains(*poison, port))
-      return false;
-
-   vcode_reg_t src_reg = lower_lvalue(lu, value);
+      return;
 
    int hops = 0;
    vcode_var_t var = VCODE_INVALID_VAR;
@@ -11783,9 +11780,8 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
          emit_store(data_reg, var);
    }
    else if (field == -1) {
-      vcode_reg_t data_reg = lower_array_data(src_reg);
-      emit_alias_signal(data_reg, lower_debug_locus(port));
-      emit_store(data_reg, var);
+      emit_alias_signal(src_reg, lower_debug_locus(port));
+      emit_store(src_reg, var);
    }
    else {
       vcode_reg_t data_reg = lower_array_data(src_reg);
@@ -11801,7 +11797,6 @@ static bool lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 
    hset_insert(direct, map);
    hset_insert(direct, port);
-   return true;
 }
 
 static void lower_port_signal(lower_unit_t *lu, tree_t port,
@@ -11884,26 +11879,25 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
    hset_t *direct = hset_new(nports * 2), *poison = NULL;
    vcode_reg_t *map_regs LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
 
-   const bool collapse = !opt_get_int(OPT_NO_COLLAPSE);
-
-   // Filter out "direct mapped" inputs which can be aliased to signals
-   // in the scope above
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(block, i);
 
-      if (collapse && lower_direct_mapped_port(lu, ds, block,
-                                               p, direct, &poison))
+      tree_t value = tree_value(p);
+      const tree_kind_t kind = tree_kind(value);
+      if (kind == T_TYPE_CONV || kind == T_CONV_FUNC || kind == T_WAVEFORM)
          map_regs[i] = VCODE_INVALID_REG;
-      else {
-         tree_t value = tree_value(p);
-         const tree_kind_t kind = tree_kind(value);
-         if (kind == T_TYPE_CONV || kind == T_CONV_FUNC || kind == T_WAVEFORM)
-            map_regs[i] = VCODE_INVALID_REG;
-         else if (lower_is_signal_ref(value))
-            map_regs[i] = lower_lvalue(lu, value);
-         else
-            map_regs[i] = lower_rvalue(lu, value);
-      }
+      else if (lower_is_signal_ref(value))
+         map_regs[i] = lower_lvalue(lu, value);
+      else
+         map_regs[i] = lower_rvalue(lu, value);
+   }
+
+   if (!opt_get_int(OPT_NO_COLLAPSE)) {
+      // Filter out "direct mapped" inputs which can be aliased to
+      // signals in the scope above
+      for (int i = 0; i < nparams; i++)
+         lower_direct_mapped_port(lu, ds, block, tree_param(block, i), direct,
+                                  &poison, map_regs[i]);
    }
 
    for (int i = 0; i < nports; i++) {
