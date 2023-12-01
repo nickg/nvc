@@ -423,6 +423,15 @@ static void fst_get_array_range(type_t type, tree_t cons, rt_signal_t *s,
       r = range_of(tree_type(cons), 0);
    else if (cons != NULL)
       r = tree_range(cons, 0);
+   else if (type_is_unconstrained(type)) {
+      const int signal_w = s->shared.size / s->nexus.size;
+
+      *lsb = 0;
+      *msb = signal_w - 1;
+      *length = signal_w;
+      *dir = RANGE_TO;
+      return;
+   }
    else
       r = range_of(type, 0);
 

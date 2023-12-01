@@ -1,5 +1,7 @@
 entity sub is
     port ( x : in bit_vector );
+begin
+    assert x'length = 1;
 end entity;
 
 architecture test of sub is

@@ -430,7 +430,6 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    case T_UNIT_DECL:
       return tree_value(decl);
 
-   case T_PORT_DECL:
    case T_GENERIC_DECL:
       if (ctx->generics != NULL) {
          tree_t map = hash_get(ctx->generics, decl);
@@ -454,10 +453,6 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
                if (tree_flags(t) & TREE_F_FORMAL_NAME)
                   break;
                return map;
-            case T_PORT_DECL:
-               tree_set_ref(t, map);
-               tree_set_type(t, tree_type(map));
-               return t;
             default:
                fatal_trace("cannot rewrite generic %s to tree kind %s",
                            istr(tree_ident(t)), tree_kind_str(tree_kind(map)));

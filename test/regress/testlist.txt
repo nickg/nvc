@@ -905,3 +905,5 @@ cover21         shell
 issue799        normal,2008
 issue801        normal,gold,2008
 vlog6           verilog,gold
+issue809        normal,2008
+range3          normal,2008

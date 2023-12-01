@@ -314,15 +314,31 @@ static bool lower_is_reverse_range(tree_t r, int *dim)
    return tree_subkind(value) == ATTR_REVERSE_RANGE;
 }
 
+static vcode_reg_t lower_range_expr(lower_unit_t *lu, tree_t r)
+{
+   assert(tree_subkind(r) == RANGE_EXPR);
+
+   tree_t array = tree_name(tree_value(r));
+   assert(!type_const_bounds(tree_type(array)));
+
+   if (lower_is_signal_ref(array)) {
+      // Must use lower_lvalue here to avoid getting the resolved value
+      vcode_reg_t array_reg = lower_lvalue(lu, array);
+      if (have_uarray_ptr(array_reg))
+         return emit_load_indirect(array_reg);
+      else
+         return array_reg;
+   }
+   else
+      return lower_rvalue(lu, array);
+}
+
 static vcode_reg_t lower_range_left(lower_unit_t *lu, tree_t r)
 {
    assert(tree_kind(r) == T_RANGE);
 
    if (tree_subkind(r) == RANGE_EXPR) {
-      tree_t array = tree_name(tree_value(r));
-      assert(!type_const_bounds(tree_type(array)));
-
-      vcode_reg_t array_reg = lower_rvalue(lu, array), left_reg;
+      vcode_reg_t array_reg = lower_range_expr(lu, r), left_reg;
 
       int dim;
       if (lower_is_reverse_range(r, &dim))
@@ -330,9 +346,9 @@ static vcode_reg_t lower_range_left(lower_unit_t *lu, tree_t r)
       else
          left_reg = emit_uarray_left(array_reg, dim);
 
-      type_t index_type = index_type_of(tree_type(array), 0);
-      vcode_type_t vtype = lower_type(index_type);
-      vcode_type_t vbounds = lower_bounds(index_type);
+      type_t type = tree_type(r);
+      vcode_type_t vtype = lower_type(type);
+      vcode_type_t vbounds = lower_bounds(type);
       return emit_cast(vtype, vbounds, left_reg);
    }
    else
@@ -344,10 +360,7 @@ static vcode_reg_t lower_range_right(lower_unit_t *lu, tree_t r)
    assert(tree_kind(r) == T_RANGE);
 
    if (tree_subkind(r) == RANGE_EXPR) {
-      tree_t array = tree_name(tree_value(r));
-      assert(!type_const_bounds(tree_type(array)));
-
-      vcode_reg_t array_reg = lower_rvalue(lu, array), right_reg;
+      vcode_reg_t array_reg = lower_range_expr(lu, r), right_reg;
 
       int dim;
       if (lower_is_reverse_range(r, &dim))
@@ -355,9 +368,9 @@ static vcode_reg_t lower_range_right(lower_unit_t *lu, tree_t r)
       else
          right_reg = emit_uarray_right(array_reg, dim);
 
-      type_t index_type = index_type_of(tree_type(array), 0);
-      vcode_type_t vtype = lower_type(index_type);
-      vcode_type_t vbounds = lower_bounds(index_type);
+      type_t type = tree_type(r);
+      vcode_type_t vtype = lower_type(type);
+      vcode_type_t vbounds = lower_bounds(type);
       return emit_cast(vtype, vbounds, right_reg);
    }
    else
@@ -375,10 +388,7 @@ static vcode_reg_t lower_range_dir(lower_unit_t *lu, tree_t r)
 
    case RANGE_EXPR:
       {
-         tree_t array = tree_name(tree_value(r));
-         assert(!type_const_bounds(tree_type(array)));
-
-         vcode_reg_t array_reg = lower_rvalue(lu, array);
+         vcode_reg_t array_reg = lower_range_expr(lu, r);
 
          int dim;
          if (lower_is_reverse_range(r, &dim))
@@ -2844,9 +2854,6 @@ static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
 {
    type_t type = tree_type(decl);
 
-   if (lu->mode == LOWER_THUNK)
-      return emit_undefined(lower_signal_type(type), lower_bounds(type));
-
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
 
@@ -2892,12 +2899,7 @@ static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
    int hops = 0;
    int obj = lower_search_vcode_obj(decl, lu, &hops);
 
-   if (lu->mode == LOWER_THUNK) {
-      type_t type = tree_type(decl);
-      emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
-      return emit_undefined(lower_signal_type(type), lower_bounds(type));
-   }
-   else if (obj != VCODE_INVALID_VAR) {
+   if (obj != VCODE_INVALID_VAR) {
       vcode_var_t var = obj;
       if (!type_is_homogeneous(tree_type(decl))) {
          if (hops == 0)
@@ -4796,7 +4798,13 @@ static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix)
 {
    switch (class_of(prefix)) {
    case C_SIGNAL:
-      return lower_lvalue(lu, prefix);
+      {
+         vcode_reg_t reg = lower_lvalue(lu, prefix);
+         if (have_uarray_ptr(reg))
+            return emit_load_indirect(reg);
+         else
+            return reg;
+      }
    case C_TYPE:
    case C_SUBTYPE:
       return VCODE_INVALID_REG;
@@ -7807,7 +7815,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
                                  init_reg, locus);
       }
 
-      vcode_reg_t len_reg = lower_array_total_len(lu, type, VCODE_INVALID_REG);
+      vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
 
       if (have_uarray_ptr(sig_ptr)) {
          // Need to allocate separate memory for the array
@@ -7853,9 +7861,13 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       if (init_reg != VCODE_INVALID_REG)
          data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
 
+      vcode_reg_t ebounds_reg = VCODE_INVALID_REG;
+      if (bounds_reg != VCODE_INVALID_REG && type_is_unconstrained(elem))
+         ebounds_reg = emit_unwrap(bounds_reg);
+
       lower_sub_signals(lu, elem, elem, elem, where, view, VCODE_INVALID_VAR,
                         ptr_reg, data_reg, resolution, null_off_reg,
-                        flags, VCODE_INVALID_REG);
+                        flags, ebounds_reg);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -7925,7 +7937,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
          }
 
          vcode_reg_t fbounds_reg = VCODE_INVALID_REG;
-         if (bounds_reg != VCODE_INVALID_REG) {
+         if (bounds_reg != VCODE_INVALID_REG && type_is_unconstrained(ft)) {
             fbounds_reg = emit_record_ref(bounds_reg, i);
 
             if (have_uarray_ptr(fbounds_reg))
@@ -11731,12 +11743,15 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
    else if (*poison != NULL && hset_contains(*poison, port))
       return;
 
+   type_t type = tree_type(value);
+   type_t port_type = tree_type(port);
+
+   if (type_is_unconstrained(port_type))
+      return;   // Not supported for now
+
    int hops = 0;
    vcode_var_t var = VCODE_INVALID_VAR;
    if (field != -1) var = lower_search_vcode_obj(port, lu, &hops);
-
-   type_t type = tree_type(value);
-   type_t port_type = tree_type(port);
 
    if (var == VCODE_INVALID_VAR || hops > 0) {
       vcode_type_t vtype = lower_signal_type(port_type);
@@ -11840,10 +11855,20 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
 static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                                         tree_t block, vcode_reg_t *map_regs)
 {
-   ident_t pname = tree_ident(port);
+   vcode_reg_t left_reg = VCODE_INVALID_REG, right_reg = VCODE_INVALID_REG;
+   type_t port_type = tree_type(port);
+
+   vcode_reg_t rptr_reg = VCODE_INVALID_VAR;
+   if (type_is_record(port_type)) {
+      vcode_type_t vtype = lower_signal_type(port_type);
+      ident_t name = ident_prefix(tree_ident(port), ident_new("cons"), '$');
+      vcode_var_t rec_var = emit_var(vtype, vtype, name, 0);
+      rptr_reg = emit_index(rec_var, VCODE_INVALID_REG);
+   }
+
    const int nparams = tree_params(block);
    for (int i = 0; i < nparams; i++) {
-      tree_t map = tree_param(block, i);
+      tree_t map = tree_param(block, i), name = NULL;
       switch (tree_subkind(map)) {
       case P_POS:
          if (tree_pos(map) != pos)
@@ -11852,23 +11877,91 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
 
       case P_NAMED:
          {
-            tree_t name = tree_name(map);
-            if (tree_kind(name) != T_REF || tree_ident(name) != pname)
+            tree_t ref = name_to_ref((name = tree_name(map)));
+            if (ref == NULL || tree_ref(ref) != port)
                continue;
          }
          break;
       }
 
       assert(map_regs[i] != VCODE_INVALID_REG);
-      assert(vcode_reg_kind(map_regs[i]) == VCODE_TYPE_UARRAY);
 
-      return map_regs[i];
+      if (name == NULL || tree_kind(name) == T_REF) {
+         type_t value_type = tree_type(tree_value(map));
+         if (type_is_array(port_type))
+            return lower_coerce_arrays(lu, value_type, port_type, map_regs[i]);
+         else
+            return map_regs[i];
+      }
+
+      switch (tree_kind(name)) {
+      case T_ARRAY_REF:
+         {
+            // The name is of the form X(I) so use this to derive
+            // the bounds of a single-element array
+            tree_t value = tree_value(tree_param(name, 0));
+
+            if (left_reg == VCODE_INVALID_REG)
+               left_reg = right_reg = lower_rvalue(lu, value);
+            else {
+               vcode_reg_t value_reg = lower_rvalue(lu, value);
+               vcode_reg_t below_reg =
+                  emit_cmp(VCODE_CMP_LT, value_reg, left_reg);
+               vcode_reg_t above_reg =
+                  emit_cmp(VCODE_CMP_GT, value_reg, right_reg);
+
+               left_reg = emit_select(below_reg, value_reg, left_reg);
+               right_reg = emit_select(above_reg, value_reg, right_reg);
+            }
+         }
+         break;
+
+      case T_RECORD_REF:
+         {
+            tree_t f = find_record_field(name);
+            assert(f != NULL);
+
+            type_t ftype = tree_type(f);
+            if (!type_is_unconstrained(ftype))
+               continue;
+
+            type_t value_type = tree_type(tree_value(map));
+
+            vcode_reg_t value_reg;
+            if (type_is_array(ftype))
+               value_reg = lower_coerce_arrays(lu, value_type, ftype,
+                                               map_regs[i]);
+            else
+               value_reg = map_regs[i];
+
+            vcode_reg_t field_reg = emit_record_ref(rptr_reg, tree_pos(f));
+            emit_store_indirect(value_reg, field_reg);
+         }
+         break;
+
+      default:
+         // TODO: this should be an assert and a proper error generated
+         //       during sem/elab
+         fatal_at(tree_loc(name), "invalid formal name for unconstrained "
+                 "port %s", istr(tree_ident(port)));
+      }
    }
 
-   // TODO: this should be an assert and a proper error generated
-   //       during sem/elab
-   fatal_at(tree_loc(block), "cannot infer bounds for port %s",
-            istr(tree_ident(port)));
+   if (rptr_reg != VCODE_INVALID_REG)
+      return rptr_reg;
+   else {
+      assert(left_reg != VCODE_INVALID_REG);
+
+      type_t elem = type_elem_recur(port_type);
+      vcode_type_t velem = lower_type(elem);
+
+      vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
+      vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+      vcode_dim_t dims[] = {
+         { left_reg, right_reg, dir_reg },
+      };
+      return emit_wrap(null_reg, dims, 1);
+   }
 }
 
 static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)

@@ -2283,10 +2283,10 @@ START_TEST(test_sigvar)
 
       EXPECT_BB(0) = {
          { VCODE_OP_UARRAY_LEFT },
+         { VCODE_OP_CAST },
          { VCODE_OP_UARRAY_RIGHT },
+         { VCODE_OP_CAST },
          { VCODE_OP_UARRAY_DIR },
-         { VCODE_OP_CAST },
-         { VCODE_OP_CAST },
          { VCODE_OP_RANGE_LENGTH },
          { VCODE_OP_ALLOC },
          { VCODE_OP_WRAP },
@@ -3604,10 +3604,10 @@ START_TEST(test_vital2)
       { VCODE_OP_ALL },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_DIR },
-      { VCODE_OP_CAST },
-      { VCODE_OP_CAST },
       { VCODE_OP_RANGE_NULL },
       { VCODE_OP_RANGE_LENGTH },
       { VCODE_OP_ALLOC },
@@ -3619,10 +3619,10 @@ START_TEST(test_vital2)
 
    EXPECT_BB(1) = {
       { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_DIR },
-      { VCODE_OP_CAST },
-      { VCODE_OP_CAST },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INDEX_CHECK },    // TODO: redundant
       { VCODE_OP_INDEX_CHECK },    // TODO: redundant
@@ -4935,9 +4935,11 @@ START_TEST(test_issue613)
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_FCALL, .func = "WORK.PACK.GET_BITS(N)Q" },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "P" },
       { VCODE_OP_UARRAY_LEN, .dim = 0 },
       { VCODE_OP_DEBUG_LOCUS },

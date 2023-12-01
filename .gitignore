@@ -46,6 +46,7 @@ compile_commands.json
 www/*.html
 /debian
 /compile_flags.txt
+.cache
 
 # Generated GUI files
 contrib/gui/node_modules
