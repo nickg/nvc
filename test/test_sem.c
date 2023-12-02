@@ -329,7 +329,7 @@ START_TEST(test_wait)
       { 17, "type of delay must be TIME" },
       { 26, "name V in sensitivity list is not a signal" },
       { 35, "invalid use of entity A" },
-      { 40, "wait statement not allowed in process" },
+      { 43, "wait statement not allowed in process" },
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
       { 66, "name in sensitivity list is not a static signal name" },
@@ -1545,11 +1545,11 @@ START_TEST(test_varinit)
    input_from_file(TESTDIR "/sem/varinit.vhd");
 
    const error_t expect[] = {
-      { 32, "cannot reference signal SIZE during static elaboration" },
       { 43, "cannot reference signal SIZE during static elaboration" },
       { 45, "cannot reference signal SIZE during static elaboration" },
       { 53, "cannot reference signal N during static elaboration" },
       { 54, "cannot reference signal N during static elaboration" },
+      { 56, "cannot reference signal N during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);

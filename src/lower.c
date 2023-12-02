@@ -3059,6 +3059,7 @@ static vcode_reg_t lower_signal_dummy_rvalue(lower_unit_t *lu, tree_t decl)
       return lower_expr(lu, tree_value(decl), EXPR_RVALUE);
    else {
       type_t type = tree_type(decl);
+      assert(!type_is_unconstrained(type));
       return lower_default_value(lu, type, VCODE_INVALID_REG);
    }
 }
@@ -12228,8 +12229,11 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
 
       if (mem_reg != VCODE_INVALID_REG)
          emit_copy(mem_reg, lower_array_data(value_reg), count_reg);
-      else if (is_array)
-         emit_store(lower_wrap(lu, tree_type(value), value_reg), var);
+      else if (is_array) {
+         vcode_reg_t wrap_reg = lower_coerce_arrays(lu, tree_type(value),
+                                                    type, value_reg);
+         emit_store(wrap_reg, var);
+      }
       else
          emit_store(value_reg, var);
 

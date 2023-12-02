@@ -1909,17 +1909,36 @@ static void sem_check_static_elab(tree_t t)
    // been elaborated: "The value of any object denoted by a primary in
    // such an expression must be defined at the time the primary is read"
 
-   switch (tree_kind(t)) {
+   const tree_kind_t kind = tree_kind(t);
+
+   switch (kind) {
    case T_REF:
    case T_EXTERNAL_NAME:
-      if (class_of(t) == C_SIGNAL) {
-         ident_t id;
-         if (tree_kind(t) == T_EXTERNAL_NAME)
-            id = tree_ident(tree_part(t, tree_parts(t) - 1));
-         else
-            id = tree_ident(t);
+      {
+         if (class_of(t) != C_SIGNAL)
+            return;
 
-         diag_t *d = pedantic_diag(t);
+         ident_t id;
+         diag_t *d;
+         if (kind == T_EXTERNAL_NAME) {
+            id = tree_ident(tree_part(t, tree_parts(t) - 1));
+            d = diag_new(DIAG_ERROR, tree_loc(t));
+         }
+         else if (!tree_has_ref(t))
+            return;   // Was earlier error
+         else {
+            tree_t decl = tree_ref(t);
+            id = tree_ident(decl);
+            if (tree_has_value(decl) || !type_is_unconstrained(tree_type(decl)))
+               d = pedantic_diag(t);
+            else {
+               d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_hint(d, NULL, "the $bold$--relaxed$$ option would "
+                         "downgrade this to a warning if %s had an initial "
+                         "value or its type was fully constrained", istr(id));
+            }
+         }
+
          if (d != NULL) {
             diag_printf(d, "cannot reference signal %s during static "
                         "elaboration", istr(id));
@@ -1934,6 +1953,11 @@ static void sem_check_static_elab(tree_t t)
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_CONST_DECL:
+      if (tree_has_value(t))
+         sem_check_static_elab(tree_value(t));
+      // Fall-through
+   case T_TYPE_DECL:
+   case T_SUBTYPE_DECL:
       {
          type_t type = tree_type(t);
          if (type_is_generic(type))
@@ -1945,9 +1969,6 @@ static void sem_check_static_elab(tree_t t)
             for (int i = 0; i < ndims; i++)
                sem_check_static_elab(range_of(type, i));
          }
-
-         if (tree_has_value(t))
-            sem_check_static_elab(tree_value(t));
       }
       break;
 
@@ -2013,22 +2034,10 @@ static void sem_check_static_elab(tree_t t)
 
 static bool sem_check_process(tree_t t, nametab_t *tab)
 {
-   bool ok = sem_check_sensitivity(t, tab);
+   if (!sem_check_sensitivity(t, tab))
+      return false;
 
-   const int ndecls = tree_decls(t);
-   for (int n = 0; n < ndecls; n++) {
-      tree_t d = tree_decl(t, n);
-      sem_check_static_elab(d);
-   }
-
-   if (tree_triggers(t) > 0) {
-      // No wait statements allowed in process with sensitivity list
-      if (tree_visit_only(t, NULL, NULL, T_WAIT) > 0)
-         sem_error(t, "wait statement not allowed in process "
-                   "with sensitvity list");
-   }
-
-   return ok;
+   return true;
 }
 
 static bool sem_check_package(tree_t t, nametab_t *tab)
@@ -3241,6 +3250,13 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
 
       tree_clear_flag(sub, TREE_F_NEVER_WAITS);
       tree_set_flag(sub, TREE_F_HAS_WAIT);
+   }
+
+   tree_t proc = find_enclosing(tab, S_PROCESS);
+   if (proc != NULL && tree_triggers(proc) > 0) {
+      // No wait statements allowed in process with sensitivity list
+      sem_error(t, "wait statement not allowed in process with "
+                "sensitvity list");
    }
 
    return sem_check_sensitivity(t, tab);

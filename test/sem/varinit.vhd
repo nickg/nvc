@@ -53,5 +53,6 @@ architecture bar of computation is
     signal bad : bit_vector(1 to N);    -- Error
     signal x : integer range 1 to N;    -- Error
     signal y : bit_vector(1 to bad'length);  -- OK
+    subtype my_int is integer range 1 to N;  -- Error
 begin
 end architecture;
