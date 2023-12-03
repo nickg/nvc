@@ -1,5 +1,7 @@
 entity sub is
-    generic ( g0 : integer );
+    generic ( g0 : integer;
+              g1 : string );
+    port ( p0 : bit_vector );
 end entity;
 
 architecture test of sub is
@@ -32,7 +34,8 @@ architecture test of vhpi10 is
     constant c1 : real := 1.5;
 
     component sub is
-        generic ( g0 : integer );
+        generic ( g0 : integer; g1 : string );
+        port ( p0 : bit_vector );
     end component;
 begin
 
@@ -48,6 +51,7 @@ begin
     end block;
 
     i0: component sub
-        generic map ( g0 => 100 );
+        generic map ( g0 => 100, g1 => "world" )
+        port map ( p0 => "101" );
 
 end architecture;

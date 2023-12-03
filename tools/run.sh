@@ -4,7 +4,7 @@ export NVC_LIBPATH=./lib/
 export NVC_IMP_LIB=./lib/
 root=$(git rev-parse --show-toplevel)
 if [ -e $root/test/vhpi/$1.c ]; then
-  vhpi="--load lib/vhpi_test.so --vhpi-trace"
+  vhpi="--load lib/vhpi_test.so --vhpi-trace --vhpi-debug"
   export TEST_NAME=$1
 fi
 regress=$root/test/regress
