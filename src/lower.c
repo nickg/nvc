@@ -2798,11 +2798,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
    else
       context = emit_link_package(tree_ident(container));
 
-   vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
-   if (have_uarray_ptr(ptr_reg))
-      return emit_load_indirect(ptr_reg);
-   else
-      return ptr_reg;
+   return emit_link_var(context, tree_ident(decl), vtype);
 }
 
 static vcode_reg_t lower_var_ref(lower_unit_t *lu, tree_t decl, expr_ctx_t ctx)
@@ -2852,16 +2848,14 @@ static vcode_reg_t lower_var_ref(lower_unit_t *lu, tree_t decl, expr_ctx_t ctx)
 
 static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
 {
-   type_t type = tree_type(decl);
-
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
 
+   vcode_reg_t ptr_reg;
    if (var == VCODE_INVALID_VAR || (var & INSTANCE_BIT)) {
       // Link to external package signal
-      vcode_reg_t ptr;
       if (var == VCODE_INVALID_VAR)
-         ptr = lower_link_var(lu, decl);
+         ptr_reg = lower_link_var(lu, decl);
       else {
          // This signal is declared in an instantiated package
          vcode_var_t pkg_var = var & ~INSTANCE_BIT;
@@ -2871,51 +2865,45 @@ static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
          else
             pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
 
-         vcode_type_t vtype = lower_signal_type(type);
-         ptr = emit_link_var(pkg_reg, tree_ident(decl), vtype);
+         vcode_type_t vtype = lower_signal_type(tree_type(decl));
+         ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
       }
-
-      if (!type_is_homogeneous(type))
-         return ptr;
-      else if (vcode_reg_kind(ptr) == VCODE_TYPE_UARRAY)
-         return ptr;
-      else
-         return emit_load_indirect(ptr);
    }
-   else if (hops == 0) {
-      if (!type_is_homogeneous(type))
-         return emit_index(var, VCODE_INVALID_REG);
-      else
-         return emit_load(var);
-   }
-   else if (!type_is_homogeneous(type))
-      return emit_var_upref(hops, var);
+   else if (hops == 0 && vtype_kind(vcode_var_type(var)) != VCODE_TYPE_RECORD)
+      return emit_load(var);
+   else if (hops == 0)
+      ptr_reg = emit_index(var, VCODE_INVALID_REG);
    else
-      return emit_load_indirect(emit_var_upref(hops, var));
+      ptr_reg = emit_var_upref(hops, var);
+
+   if (vtype_kind(vtype_pointed(vcode_reg_type(ptr_reg))) == VCODE_TYPE_RECORD)
+      return ptr_reg;
+
+   return emit_load_indirect(ptr_reg);
 }
 
 static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
 {
    int hops = 0;
-   int obj = lower_search_vcode_obj(decl, lu, &hops);
-
-   if (obj != VCODE_INVALID_VAR) {
-      vcode_var_t var = obj;
-      if (!type_is_homogeneous(tree_type(decl))) {
-         if (hops == 0)
-            return emit_index(var, VCODE_INVALID_REG);
-         else
-            return emit_var_upref(hops, var);
-      }
-      else if (hops == 0)
-         return emit_load(var);
-      else
-         return emit_load_indirect(emit_var_upref(hops, var));
-   }
-   else {
+   vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
+   if (var == VCODE_INVALID_VAR) {
       vcode_dump();
       fatal_trace("missing variable for port %s", istr(tree_ident(decl)));
    }
+
+   if (hops == 0 && vtype_kind(vcode_var_type(var)) != VCODE_TYPE_RECORD)
+      return emit_load(var);
+
+   vcode_reg_t ptr_reg;
+   if (hops == 0)
+      ptr_reg = emit_index(var, VCODE_INVALID_REG);
+   else
+      ptr_reg = emit_var_upref(hops, var);
+
+   if (vtype_kind(vtype_pointed(vcode_reg_type(ptr_reg))) == VCODE_TYPE_RECORD)
+      return ptr_reg;
+
+   return emit_load_indirect(ptr_reg);
 }
 
 static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)

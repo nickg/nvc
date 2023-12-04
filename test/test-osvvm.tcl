@@ -14,6 +14,7 @@ if {[info exists env(OSVVM_DIR)]} {
 source $OsvvmDir/Scripts/StartNVC.tcl
 
 set ::osvvm::AnalyzeErrorStopCount 1
+set ::osvvm::SimulateErrorStopCount 1
 
 if {[info exists env(OSVVM_MUST_BUILD)]} {
     build $OsvvmDir/OsvvmLibraries

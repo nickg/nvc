@@ -5065,8 +5065,7 @@ START_TEST(test_attr2)
 
    EXPECT_BB(3) = {
       { VCODE_OP_POP_SCOPE },
-      { VCODE_OP_INDEX, .name = "R" },
-      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD, .name = "R" },
       { VCODE_OP_LOAD, .name = "K" },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
@@ -5642,6 +5641,30 @@ START_TEST(test_issue791)
 }
 END_TEST
 
+START_TEST(test_osvvm3)
+{
+   input_from_file(TESTDIR "/lower/osvvm3.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.OSVVM3.B1.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_FCALL, .func = "*PROC" },
+      { VCODE_OP_VAR_UPREF, .name = "T", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_FCALL, .func = "*PROC" },
+      { VCODE_OP_WAIT, .target = 4 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5778,6 +5801,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue768);
    tcase_add_test(tc, test_proc4);
    tcase_add_test(tc, test_issue791);
+   tcase_add_test(tc, test_osvvm3);
    suite_add_tcase(s, tc);
 
    return s;
