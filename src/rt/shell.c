@@ -1245,6 +1245,9 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
    else
       sh->getline = shell_raw_get_line;
 
+   if (Tcl_Init(sh->interp) != 0)
+      fatal("%s", Tcl_GetStringResult(sh->interp));
+
    Tcl_LinkVar(sh->interp, "now", (char *)&sh->now_var,
                TCL_LINK_WIDE_INT | TCL_LINK_READ_ONLY);
    Tcl_LinkVar(sh->interp, "deltas", (char *)&sh->deltas_var,
