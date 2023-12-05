@@ -769,7 +769,9 @@ static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu,
       assert(vtype_dims(vcode_reg_type(array)) == udims);
    }
 
-   for (; dptr < ncons; from_type = type_elem(from_type)) {
+   for (; dptr < ncons; from_type = type_elem(from_type),
+           to_type = type_elem(to_type)) {
+
       const int ndims = dimension_of(from_type);
       for (int i = 0; i < ndims; i++, dptr++) {
          if (dptr < udims) {
@@ -778,7 +780,9 @@ static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu,
             dims[dptr].dir   = emit_uarray_dir(array, dptr);
          }
          else {
-            tree_t r = range_of(from_type, i);
+            type_t src_type =
+               type_is_unconstrained(to_type) ? from_type : to_type;
+            tree_t r = range_of(src_type, i);
             dims[dptr].left  = lower_range_left(lu, r);
             dims[dptr].right = lower_range_right(lu, r);
             dims[dptr].dir   = lower_range_dir(lu, r);
@@ -2654,22 +2658,23 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool nest)
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
 
    type_t type = tree_type(lit);
-   if (type_is_array(type) && !type_const_bounds(type)) {
-      vcode_type_t elem = lower_type(type_elem(type));
-      vcode_type_t array_type = vtype_carray(nchars, elem, elem);
-      vcode_reg_t data = emit_const_array(array_type, tmp, nchars);
+   vcode_type_t elem = lower_type(type_elem(type));
+   vcode_type_t array_type = vtype_carray(nchars, elem, elem);
 
+   vcode_reg_t array_reg = emit_const_array(array_type, tmp, nchars);
+
+   if (type_is_array(type) && !type_const_bounds(type)) {
       vcode_dim_t dim0 = {
          .left  = emit_const(vtype_offset(), 1),
          .right = emit_const(vtype_offset(), nchars),
          .dir   = emit_const(vtype_bool(), RANGE_TO)
       };
-      return emit_wrap(emit_address_of(data), &dim0, 1);
+      return emit_wrap(emit_address_of(array_reg), &dim0, 1);
    }
-   else {
-      vcode_reg_t array = emit_const_array(lower_type(type), tmp, nchars);
-      return nest ? array : emit_address_of(array);
-   }
+   else if (nest)
+      return array_reg;
+   else
+      return emit_address_of(array_reg);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
@@ -3580,7 +3585,7 @@ static vcode_reg_t lower_record_sub_aggregate(lower_unit_t *lu, tree_t value,
          lower_check_array_sizes(lu, ftype, tree_type(value),
                                  VCODE_INVALID_REG, value_reg, locus);
       }
-      return value_reg;
+      return lower_coerce_arrays(lu, tree_type(value), ftype, value_reg);
    }
    else
       return lower_rvalue(lu, value);

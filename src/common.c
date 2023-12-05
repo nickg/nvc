@@ -1846,8 +1846,10 @@ type_t get_type_or_null(tree_t t)
 
 type_t subtype_for_string(tree_t str, type_t base)
 {
-   if (!type_is_unconstrained(base))
-      return base;
+   if (type_const_bounds(base))
+      return base;    // Can be checked statically
+   else if (!type_is_unconstrained(base))
+      base = type_base_recur(base);
 
    // Construct a new constrained array subtype: the direction and
    // bounds are the same as those for a positional array aggregate

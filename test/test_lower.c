@@ -3746,9 +3746,9 @@ START_TEST(test_instance1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "WIDTH" },
       { VCODE_OP_CONST_ARRAY, .length = 5 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
@@ -5577,14 +5577,14 @@ START_TEST(test_issue768)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_CONST_ARRAY, .length = 8 },
-      { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_WRAP },
+      { VCODE_OP_CONST_ARRAY, .length = 8 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_RECORD_REF, .field = 1 },
-      { VCODE_OP_WRAP },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_RETURN },
    };
@@ -5659,6 +5659,35 @@ START_TEST(test_osvvm3)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_FCALL, .func = "*PROC" },
       { VCODE_OP_WAIT, .target = 4 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
+START_TEST(test_bounds2)
+{
+   input_from_file(TESTDIR "/lower/bounds2.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.BOUNDS2.P");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .name = "VID_DATA_IN", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 24 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST_ARRAY, .length = 12 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 12 },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
@@ -5802,6 +5831,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_proc4);
    tcase_add_test(tc, test_issue791);
    tcase_add_test(tc, test_osvvm3);
+   tcase_add_test(tc, test_bounds2);
    suite_add_tcase(s, tc);
 
    return s;
