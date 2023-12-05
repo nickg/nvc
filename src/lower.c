@@ -3349,7 +3349,7 @@ static vcode_reg_t lower_array_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
    vcode_reg_t data_reg = lower_array_data(array);
    vcode_reg_t ptr_reg = emit_array_ref(data_reg, offset_reg);
 
-   type_t elem_type = tree_type(ref);
+   type_t elem_type = type_elem(value_type);
    if (type_is_array(elem_type) && !type_const_bounds(elem_type))
       return lower_wrap_element(lu, value_type, array, ptr_reg);
    else

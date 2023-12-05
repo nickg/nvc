@@ -908,3 +908,4 @@ vlog6           verilog,gold
 issue809        normal,2008
 range3          normal,2008
 issue810        normal,2008
+elab40          normal,2008
