@@ -2725,7 +2725,9 @@ static vcode_var_t lower_get_var(lower_unit_t *lu, tree_t decl, int *hops)
 
 static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
 {
-   if (type_has_ident(type)) {
+   if (type_is_record(type))
+      return VCODE_INVALID_REG;  // TODO
+   else if (type_has_ident(type)) {
       int hops = 0;
       vcode_var_t var = lower_search_vcode_obj(type, lu, &hops);
       if (var == VCODE_INVALID_VAR) {
@@ -11994,6 +11996,8 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
       if (type_is_unconstrained(type))
          bounds_reg = lower_constrain_port(lu, port, i, block, map_regs);
+      else if (!type_const_bounds(type))
+         bounds_reg = lower_get_type_bounds(lu, type);
 
       if (!hset_contains(direct, port))
          lower_port_signal(lu, port, bounds_reg);

@@ -5722,6 +5722,47 @@ START_TEST(test_directmap4)
 }
 END_TEST
 
+START_TEST(test_subtype2)
+{
+   input_from_file(TESTDIR "/lower/subtype2.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.SUBTYPE2.B1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST_ARRAY, .length = 5 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+         { VCODE_OP_LINK_VAR, .name = "WORK.PACK.T_SUB1" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_UARRAY_LEFT },
+         { VCODE_OP_UARRAY_RIGHT },
+         { VCODE_OP_UARRAY_DIR },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "P" },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_RANGE_LENGTH },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_LENGTH_CHECK },
+         { VCODE_OP_MAP_CONST },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5861,6 +5902,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_osvvm3);
    tcase_add_test(tc, test_bounds2);
    tcase_add_test(tc, test_directmap4);
+   tcase_add_test(tc, test_subtype2);
    suite_add_tcase(s, tc);
 
    return s;
