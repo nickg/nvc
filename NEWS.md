@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.11.0 - 2023-12-06
 - New command `--cover-export` exports coverage data in the Cobertura
   XML format which is supported by most CI environments such as GitLab.
 - Generics on internal instances can now be overridden with the `-g`

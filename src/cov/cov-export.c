@@ -224,13 +224,15 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    else
       timestamp = time(NULL);
 
-   fprintf(f, "<coverage version=\"" PACKAGE_STRING "\" "
+   const char *version = opt_get_str(OPT_COVER_VERSION) ?: PACKAGE_STRING;
+
+   fprintf(f, "<coverage version=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\" "
            "lines-valid=\"%d\" lines-covered=\"%d\" "
            "branches-valid=\"%d\" branches-covered=\"%d\" "
            "timestamp=\"%lu\">\n",
-           line_rate, branch_rate, nlines, hitlines, nbranches, hitbranches,
-           timestamp);
+           version, line_rate, branch_rate, nlines, hitlines, nbranches,
+           hitbranches, timestamp);
    fprintf(f, "<sources>\n");
    fprintf(f, "<source>.</source>\n");
    fprintf(f, "</sources>\n");

@@ -87,9 +87,9 @@ release: update-test-dist
 	  esac; \
 	  sed -i "s/\(Unreleased changes\)/\1\n\n## Version $$v - $$d/" $(top_srcdir)/NEWS.md; \
 	  sed -i "s/\bmaster\b/$$b/" $(top_srcdir)/www/features.html.in; \
-	  sed -i -e "/define(__version,/cdefine(__version, \`$$v')dnl/" \
-	    -e "/define(__release_date,/cdefine(__release_date, \`$$n $$l')dnl/" \
-	    -e "/define(__release_date_short,/cdefine(__release_date_short, \`$$d')dnl/" \
+	  sed -i -e "/define(__version,/cdefine(__version, \`$$v')dnl" \
+	    -e "/define(__release_date,/cdefine(__release_date, \`$$n $$l')dnl" \
+	    -e "/define(__release_date_short,/cdefine(__release_date_short, \`$$d')dnl" \
 	    $(top_srcdir)/www/defs.m4; \
 	  $(MAKE) -C $(top_builddir) distcheck; \
 	  gpg -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \

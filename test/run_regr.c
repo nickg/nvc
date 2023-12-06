@@ -1209,6 +1209,7 @@ int main(int argc, char **argv)
 #endif
 
    setenv("NVC_COVER_TIMESTAMP", "0", 1);
+   setenv("NVC_COVER_VERSION", "TEST", 1);
 
    if (getenv("QUICK"))
       return 0;

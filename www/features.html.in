@@ -73,7 +73,7 @@ many of the new features, please consult the table below.
   <tr>
     <td><code>'INSTANCE_NAME</code> etc. extended for package and
     subprogram instantiation</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td>New standard environment package</td>
@@ -94,7 +94,7 @@ many of the new features, please consult the table below.
   </tr>
   <tr>
     <td>External names</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td>Array slices in aggregates</td>
@@ -136,19 +136,19 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_001">
         LCS2016-001</td>
     <td>Partially connected vectors on port map</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_002">
         LCS2016-002</td>
     <td>Allow access to protected type parameters on function interfaces</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_004">
         LCS2016-004</td>
     <td>Allow PT methods with AT and FT parameters</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006a">
@@ -160,7 +160,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
         LCS2016-006c</td>
     <td>Directory API</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_006e">
@@ -178,7 +178,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_007">
         LCS2016-007</td>
     <td>Sequential declaration regions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_011">
@@ -190,7 +190,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_012">
         LCS2016-012</td>
     <td><code>'IMAGE</code> and <code>TO_STRING</code> for composite types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_014">
@@ -226,7 +226,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018">
         LCS2016-018</td>
     <td>Attributes for enumerated types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_018a">
@@ -250,7 +250,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_023">
         LCS2016-023</td>
     <td>Relax library requirement on configurations</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_026c">
@@ -268,13 +268,13 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_032">
         LCS2016-032</td>
     <td><code>PATH_NAME</code> and <code>INSTANCE_NAME</code> and protected types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_033">
         LCS2016-033</td>
     <td>Composition with protected types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_034">
@@ -292,7 +292,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_041">
         LCS2016-041</td>
     <td>Record introspection/type reflection</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_043">
@@ -304,7 +304,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045a">
         LCS2016-045a</td>
     <td>Interface - defines new mode view construct for composite interface objects</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_045c">
@@ -328,7 +328,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_050">
         LCS2016-050</td>
     <td>API for assert</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_055a">
@@ -340,7 +340,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_059">
         LCS2016-059</td>
     <td>Array type generics</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_059a">
@@ -370,7 +370,7 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_075">
         LCS2016_075</td>
     <td>Closely related record types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.11</td>
   </tr>
   <tr>
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_082">

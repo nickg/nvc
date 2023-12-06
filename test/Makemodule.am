@@ -6,6 +6,8 @@ check_PROGRAMS += $(TESTS) bin/fstdump
 
 EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench bin/mtstress
 
+EXTRA_DIST += test/cobertura.dtd
+
 bin_unit_test_SOURCES = \
 	test/test_util.c \
 	test/test_util.h \
@@ -162,7 +164,7 @@ update-test-dist:
 	  echo "EXTRA_DIST += \\" ; \
 	  cd $(top_srcdir) ; \
 	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' \
-	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' \
+	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' 'test/*.xml' \
 	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
 
