@@ -928,8 +928,14 @@ static tree_t simp_if(tree_t t)
          }
 
          if (new != NULL && tree_conds(new) > 0) {
-            tree_set_value(c, NULL);
-            tree_add_cond(new, c);
+            tree_t c2 = tree_new(T_COND_STMT);
+            tree_set_loc(c2, tree_loc(c));
+
+            const int nstmts = tree_stmts(c);
+            for (int i = 0; i < nstmts; i++)
+               tree_add_stmt(c2, tree_stmt(c, i));
+
+            tree_add_cond(new, c2);
             break;
          }
          else if (tree_stmts(c) == 1 && drivers.count == 0)
