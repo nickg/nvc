@@ -2874,14 +2874,14 @@ static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
          ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
       }
    }
-   else if (hops == 0 && vtype_kind(vcode_var_type(var)) != VCODE_TYPE_RECORD)
+   else if (hops == 0 && vtype_is_scalar(vcode_var_type(var)))
       return emit_load(var);
    else if (hops == 0)
       ptr_reg = emit_index(var, VCODE_INVALID_REG);
    else
       ptr_reg = emit_var_upref(hops, var);
 
-   if (vtype_kind(vtype_pointed(vcode_reg_type(ptr_reg))) == VCODE_TYPE_RECORD)
+   if (!vtype_is_scalar(vtype_pointed(vcode_reg_type(ptr_reg))))
       return ptr_reg;
 
    return emit_load_indirect(ptr_reg);
@@ -2896,7 +2896,7 @@ static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
       fatal_trace("missing variable for port %s", istr(tree_ident(decl)));
    }
 
-   if (hops == 0 && vtype_kind(vcode_var_type(var)) != VCODE_TYPE_RECORD)
+   if (hops == 0 && vtype_is_scalar(vcode_var_type(var)))
       return emit_load(var);
 
    vcode_reg_t ptr_reg;
@@ -2905,7 +2905,7 @@ static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
    else
       ptr_reg = emit_var_upref(hops, var);
 
-   if (vtype_kind(vtype_pointed(vcode_reg_type(ptr_reg))) == VCODE_TYPE_RECORD)
+   if (!vtype_is_scalar(vtype_pointed(vcode_reg_type(ptr_reg))))
       return ptr_reg;
 
    return emit_load_indirect(ptr_reg);

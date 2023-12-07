@@ -5694,6 +5694,34 @@ START_TEST(test_bounds2)
 }
 END_TEST
 
+START_TEST(test_directmap4)
+{
+   input_from_file(TESTDIR "/lower/directmap4.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.DIRECTMAP4.B");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_LOAD, .name = "i1" },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_MAP_CONST },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE, .name = "i1" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -5832,6 +5860,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue791);
    tcase_add_test(tc, test_osvvm3);
    tcase_add_test(tc, test_bounds2);
+   tcase_add_test(tc, test_directmap4);
    suite_add_tcase(s, tc);
 
    return s;
