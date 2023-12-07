@@ -1645,6 +1645,16 @@ START_TEST(test_order2)
 }
 END_TEST
 
+START_TEST(test_issue812)
+{
+   input_from_file(TESTDIR "/simp/issue812.vhd");
+
+   run_elab();
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1709,6 +1719,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_conv1);
    tcase_add_test(tc_core, test_issue782);
    tcase_add_test(tc_core, test_order2);
+   tcase_add_test(tc_core, test_issue812);
    suite_add_tcase(s, tc_core);
 
    return s;

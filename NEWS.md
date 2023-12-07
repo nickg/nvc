@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fix crash during elaboration when an if-statement branch is always
+  taken (#812).
 
 ## Version 1.11.0 - 2023-12-06
 - New command `--cover-export` exports coverage data in the Cobertura
