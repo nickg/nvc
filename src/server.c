@@ -1037,11 +1037,11 @@ static int open_server_socket(void)
    return sock;
 }
 
-void start_server(jit_factory_t make_jit, tree_t top,
+void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd)
 {
    web_server_t *server = xcalloc(sizeof(web_server_t));
-   server->shell     = shell_new(make_jit);
+   server->shell     = shell_new(make_jit, registry);
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;

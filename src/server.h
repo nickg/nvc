@@ -58,7 +58,7 @@ bool ws_closing(web_socket_t *ws);
 
 typedef void (*server_ready_fn_t)(void *);
 
-void start_server(jit_factory_t make_jit, tree_t top,
+void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd);
 
 #endif   // _SERVER_H

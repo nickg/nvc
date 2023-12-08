@@ -25,7 +25,7 @@
 
 START_TEST(test_sanity)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL);
 
    const char *result = NULL;
    fail_unless(shell_eval(sh, "expr 1 + 2", &result));
@@ -43,7 +43,7 @@ START_TEST(test_analyse)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new);
+   tcl_shell_t *sh = shell_new(jit_new, NULL);
 
    const char *result = NULL;
    fail_if(shell_eval(sh, "analyse " TESTDIR "/parse/entity.vhd", &result));
@@ -66,7 +66,7 @@ START_TEST(test_examine1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new);
+   tcl_shell_t *sh = shell_new(jit_new, NULL);
 
    const char *result = NULL;
 
@@ -214,7 +214,7 @@ static void wave1_next_time_step(uint64_t now, void *user)
 
 START_TEST(test_wave1)
 {
-   tcl_shell_t *sh = shell_new(jit_new);
+   tcl_shell_t *sh = shell_new(jit_new, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -298,7 +298,7 @@ static void backchannel_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_redirect)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -337,7 +337,7 @@ static void exit_handler(int status, void *ctx)
 
 START_TEST(test_exit)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL);
 
    shell_handler_t handler = {
       .exit = exit_handler
@@ -375,7 +375,7 @@ START_TEST(test_force1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new);
+   tcl_shell_t *sh = shell_new(jit_new, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -444,7 +444,7 @@ static void echo_stdout_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_echo)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -471,7 +471,7 @@ START_TEST(test_describe1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new);
+   tcl_shell_t *sh = shell_new(jit_new, NULL);
 
    const char *result = NULL;
 

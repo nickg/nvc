@@ -91,10 +91,6 @@ tlab_t jit_null_tlab(jit_t *j);
 
 jit_pack_t *jit_pack_new(void);
 void jit_pack_free(jit_pack_t *jp);
-void jit_pack_encode(jit_pack_t *jp, jit_t *j, jit_handle_t handle);
-void jit_pack_emit(jit_pack_t *jp, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
-                   loc_wr_ctx_t *loc_ctx);
-void jit_pack_vcode(jit_pack_t *jp, jit_t *j, vcode_unit_t vu);
 
 __attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);

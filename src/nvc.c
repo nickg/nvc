@@ -1252,17 +1252,14 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    }
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(get_jit);
+   tcl_shell_t *sh = shell_new(get_jit, state->registry);
+   state->registry = NULL;   // Shell takes ownership
 
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(lib_work(), ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(top_level));
-
-      // XXX: temporary hack
-      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
-      lib_put_vcode(lib_work(), top, vu);
 
       shell_reset(sh, top);
    }
@@ -1310,17 +1307,14 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    }
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(get_jit);
+   tcl_shell_t *sh = shell_new(get_jit, state->registry);
+   state->registry = NULL;   // Shell takes ownership
 
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(lib_work(), ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(top_level));
-
-      // XXX: temporary hack
-      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
-      lib_put_vcode(lib_work(), top, vu);
 
       shell_reset(sh, top);
    }
@@ -1507,13 +1501,10 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       if ((top = lib_get(lib_work(), ename)) == NULL)
          fatal("%s not elaborated", istr(top_level));
-
-      // XXX: temporary hack
-      vcode_unit_t vu = unit_registry_get(state->registry, top_level);
-      lib_put_vcode(lib_work(), top, vu);
    }
 
-   start_server(get_jit, top, NULL, NULL, init_cmd);
+   start_server(get_jit, state->registry, top, NULL, NULL, init_cmd);
+   state->registry = NULL;   // Shell takes ownership
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

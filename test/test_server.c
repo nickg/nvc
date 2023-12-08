@@ -60,7 +60,7 @@ static pid_t fork_server(tree_t top, const char *init_cmd)
    pid_t pid = fork();
    if (pid == 0) {
       close(rfd);
-      start_server(jit_new, top, server_ready_cb,
+      start_server(jit_new, get_registry(), top, server_ready_cb,
                    (void *)(intptr_t)wfd, init_cmd);
       exit(0);
    }
@@ -351,9 +351,6 @@ START_TEST(test_wave)
    input_from_file(TESTDIR "/shell/wave1.vhd");
 
    tree_t top = run_elab();
-
-   vcode_unit_t vu = unit_registry_get(get_registry(), ident_new("WORK.WAVE1"));
-   lib_put_vcode(lib_work(), top, vu);
 
    pid_t pid = fork_server(top, "hello");
    int sock = open_connection();

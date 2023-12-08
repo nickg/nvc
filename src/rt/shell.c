@@ -1226,7 +1226,7 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-tcl_shell_t *shell_new(jit_factory_t make_jit)
+tcl_shell_t *shell_new(jit_factory_t make_jit, unit_registry_t *registry)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
 #ifdef RL_VERSION_MAJOR
@@ -1236,7 +1236,7 @@ tcl_shell_t *shell_new(jit_factory_t make_jit)
 #endif
    sh->interp   = Tcl_CreateInterp();
    sh->make_jit = make_jit;
-   sh->registry = unit_registry_new();
+   sh->registry = registry ?: unit_registry_new();
    sh->jit      = make_jit ? (*make_jit)(sh->registry) : NULL;
    sh->printer  = printer_new();
 
@@ -1416,7 +1416,7 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
 
    sh->signals = xcalloc_array(sh->nsignals, sizeof(shell_signal_t));
    sh->regions = xcalloc_array(sh->nregions, sizeof(shell_region_t));
-   sh->namemap = hash_new(sh->nsignals * 2);
+   sh->namemap = hash_new(1 + sh->nsignals * 2);
 
    text_buf_t *path = tb_new();
    shell_signal_t *sptr = sh->signals;
