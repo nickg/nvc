@@ -1402,13 +1402,6 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
 
    sh->top = top;
 
-   vcode_unit_t vu = lib_get_vcode(lib_work(), top);
-   if (vu != NULL) {
-      ident_t unit_name = ident_runtil(tree_ident(top), '.');
-      if (!unit_registry_query(sh->registry, unit_name))
-         unit_registry_put_all(sh->registry, vu);
-   }
-
    shell_create_model(sh);
 
    sh->nsignals = sh->nregions = 0;

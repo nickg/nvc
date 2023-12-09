@@ -20,11 +20,11 @@
 #include "diag.h"
 #include "fbuf.h"
 #include "hash.h"
+#include "ident.h"
 #include "lib.h"
 #include "object.h"
 #include "option.h"
 #include "tree.h"
-#include "vcode.h"
 #include "vlog/vlog-node.h"
 
 #include <assert.h>
@@ -55,7 +55,6 @@ struct _lib_unit {
    bool          dirty;
    bool          error;
    uint64_t      mtime;
-   vcode_unit_t  vcode;
    lib_unit_t   *next;
 };
 
@@ -284,14 +283,8 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
       where = xcalloc(sizeof(lib_unit_t));
       fresh = true;
    }
-   else {
+   else
       hash_delete(lib->lookup, object);
-
-      if (where->vcode != NULL) {
-         vcode_unit_unref(where->vcode);
-         where->vcode = NULL;
-      }
-   }
 
    where->object = object;
    where->name   = name;
@@ -299,7 +292,6 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
    where->error  = error;
    where->mtime  = mtime;
    where->kind   = kind;
-   where->vcode  = vu;
 
    if (fresh) {
       lib_unit_t **it;
@@ -744,36 +736,6 @@ void lib_put_error(lib_t lib, tree_t unit)
    lib_put_aux(lib, obj, true, true, get_real_time(), NULL);
 }
 
-static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
-{
-   lib_unit_t *lu = hash_get(lib->lookup, unit);
-   if (lu == NULL)
-      fatal_trace("unit %s not stored in library %s", istr(tree_ident(unit)),
-                  istr(lib->name));
-
-   return lu;
-}
-
-void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
-{
-   lib_unit_t *where = lib_find_unit(lib, unit);
-
-   if (where->vcode != NULL)
-      fatal_trace("vcode already stored for %s", istr(tree_ident(unit)));
-
-   where->vcode = vu;
-   where->dirty = true;
-}
-
-vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
-{
-   lib_unit_t *where = lib_find_unit(lib, unit);
-   if (where == NULL)
-      return NULL;
-
-   return where->vcode;
-}
-
 static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 {
    fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN, FBUF_CS_ADLER32);
@@ -793,14 +755,11 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
-      case 'S':
-         // Ignore it (remove after 1.10 release)
-         break;
       case 'T':
          obj = object_read(f, lib_load_handler, ident_ctx, loc_ctx);
          break;
       case 'V':
-         vu = vcode_read(f, ident_ctx, loc_ctx);
+         // Ignore it (remove after 1.12 release)
          break;
       default:
          fatal_trace("unhandled tag %c in %s", tag, fname);
@@ -994,11 +953,6 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
    object_arena_t *arena = object_arena(unit->object);
 
    object_write(unit->object, f, ident_ctx, loc_ctx);
-
-   if (unit->vcode != NULL) {
-      write_u8('V', f);
-      vcode_write(unit->vcode, f, ident_ctx, loc_ctx);
-   }
 
    write_u8('\0', f);
 

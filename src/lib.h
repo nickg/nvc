@@ -67,7 +67,4 @@ int lib_index_kind(lib_t lib, ident_t ident);
 typedef void (*lib_index_fn_t)(lib_t lib, ident_t ident, int kind, void *ctx);
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);
 
-void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu);
-vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit);
-
 #endif // _LIB_H

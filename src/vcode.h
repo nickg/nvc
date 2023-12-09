@@ -309,11 +309,6 @@ vcode_unit_t vcode_unit_context(vcode_unit_t vu);
 void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset);
 void vcode_set_result(vcode_type_t type);
 
-void vcode_write(vcode_unit_t unit, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
-                 loc_wr_ctx_t *loc_ctx);
-vcode_unit_t vcode_read(fbuf_t *fbuf, ident_rd_ctx_t ident_ctx,
-                        loc_rd_ctx_t *loc_ctx);
-
 void vcode_state_save(vcode_state_t *state);
 void vcode_state_restore(const vcode_state_t *state);
 
