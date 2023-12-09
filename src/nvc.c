@@ -362,7 +362,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { 0, 0, 0, 0 }
    };
 
-   bool use_jit = false;
+   bool use_jit = false, no_save = false;
    cover_mask_t cover_mask = 0;
    char *cover_spec_file = NULL;
    int cover_array_limit = 0;
@@ -391,6 +391,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'N':
          opt_set_int(OPT_NO_SAVE, 1);
+         no_save = true;
          break;
       case 'C':
          opt_set_int(OPT_NO_COLLAPSE, 1);
@@ -415,9 +416,6 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          abort();
       }
    }
-
-   if (use_jit && !opt_get_int(OPT_NO_SAVE))
-      fatal("$bold$--jit$$ option requires $bold$--no-save$$");
 
    set_top_level(argv, next_cmd);
 
@@ -471,15 +469,25 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   if (!opt_get_int(OPT_NO_SAVE)) {
+   const bool aot_codegen = !use_jit NOT_LLVM_ONLY(&& false);
+
+   char *pack_name LOCAL = xasprintf("_%s.pack", istr(top_level));
+   char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
+
+   // Delete any existing generated code to avoid accidentally loading
+   // the wrong version later
+   lib_delete(work, pack_name);
+   lib_delete(work, dll_name);
+
+   if (!no_save) {
       lib_save(work);
       progress("saving library");
+   }
 
-#ifndef ENABLE_LLVM
-      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
-      FILE *f = lib_fopen(work, name, "wb");
+   if (!no_save && !aot_codegen) {
+      FILE *f = lib_fopen(work, pack_name, "wb");
       if (f == NULL)
-         fatal_errno("fopen: %s", name);
+         fatal_errno("fopen: %s", pack_name);
 
       ident_t b0 = tree_ident(tree_stmt(top, 0));
       ident_t root = ident_prefix(lib_name(work), b0, '.');
@@ -489,10 +497,11 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
       jit_write_pack(state->jit, vu, f);
       fclose(f);
-#endif
+
+      progress("writing JIT pack");
    }
 
-   if (!use_jit) {
+   if (aot_codegen) {
       LLVM_ONLY(cgen(top, state->registry, state->jit));
 
       // Must discard current JIT state to load AOT library later
@@ -787,14 +796,14 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
 #ifdef ENABLE_LLVM
    jit_load_dll(state->jit, tree_ident(top));
-#else
+#endif
+
    char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
    FILE *f = lib_fopen(lib_work(), name, "rb");
    if (f != NULL) {
       jit_load_pack(state->jit, f);
       fclose(f);
    }
-#endif
 
    jit_reset(state->jit);
    jit_enable_runtime(state->jit, true);

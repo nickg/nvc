@@ -896,6 +896,9 @@ static bool run_test(test_t *test)
          }
       }
 
+      if (force_jit)
+         push_arg(&args, "--jit");
+
       if ((test->flags & F_FAIL) || broken_libc) {
          if (run_cmd(outf, &args) != RUN_OK) {
             failed(NULL);
@@ -909,10 +912,8 @@ static bool run_test(test_t *test)
          if (test->heapsz != NULL)
             push_arg(&args, "-H%s", test->heapsz);
       }
-      else if (force_jit) {
+      else
          push_arg(&args, "--no-save");
-         push_arg(&args, "--jit");
-      }
 
       push_arg(&args, "-r");
 

@@ -1,4 +1,5 @@
 ## Unreleased changes
+- The `--jit` elaboration option no longer requires `--no-save`.
 
 ## Version 1.11.0 - 2023-12-06
 - New command `--cover-export` exports coverage data in the Cobertura
