@@ -423,10 +423,12 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("initialising");
 
-   object_t *obj = lib_get_generic(lib_work(), top_level);
+   lib_t work = lib_work();
+
+   object_t *obj = lib_get_generic(work, top_level);
    if (obj == NULL)
       fatal("cannot find unit %s in library %s",
-            istr(top_level), istr(lib_name(lib_work())));
+            istr(top_level), istr(lib_name(work)));
 
    progress("loading top-level unit");
 
@@ -460,7 +462,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    progress("elaborating design");
 
    if (cover != NULL) {
-      fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
+      fbuf_t *covdb = cover_open_lib_file(top, FBUF_OUT, true);
       cover_dump_items(cover, covdb, COV_DUMP_ELAB, NULL);
       fbuf_close(covdb, NULL);
       progress("dumping coverage data");
@@ -470,8 +472,24 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       return EXIT_FAILURE;
 
    if (!opt_get_int(OPT_NO_SAVE)) {
-      lib_save(lib_work());
+      lib_save(work);
       progress("saving library");
+
+#ifndef ENABLE_LLVM
+      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
+      FILE *f = lib_fopen(work, name, "wb");
+      if (f == NULL)
+         fatal_errno("fopen: %s", name);
+
+      ident_t b0 = tree_ident(tree_stmt(top, 0));
+      ident_t root = ident_prefix(lib_name(work), b0, '.');
+
+      vcode_unit_t vu = unit_registry_get(state->registry, root);
+      assert(vu != NULL);
+
+      jit_write_pack(state->jit, vu, f);
+      fclose(f);
+#endif
    }
 
    if (!use_jit) {
@@ -767,7 +785,16 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->jit == NULL)
       state->jit = get_jit(state->registry);
 
-   LLVM_ONLY(jit_load_dll(state->jit, tree_ident(top)));
+#ifdef ENABLE_LLVM
+   jit_load_dll(state->jit, tree_ident(top));
+#else
+   char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
+   FILE *f = lib_fopen(lib_work(), name, "rb");
+   if (f != NULL) {
+      jit_load_pack(state->jit, f);
+      fclose(f);
+   }
+#endif
 
    jit_reset(state->jit);
    jit_enable_runtime(state->jit, true);

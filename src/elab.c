@@ -35,10 +35,6 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 
-#if !defined ENABLE_LLVM
-#include "vcode.h"
-#endif
-
 #include <ctype.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -1925,11 +1921,6 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    freeze_global_arena();
 
    lib_put(ctx.library, e);
-
-#if !defined ENABLE_LLVM
-   vcode_unit_t vu = unit_registry_get(ur, vu_name);
-   lib_put_vcode(lib_work(), e, vu);
-#endif
 
    return e;
 }

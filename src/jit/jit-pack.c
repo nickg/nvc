@@ -31,17 +31,19 @@
 #include <zstd.h>
 
 typedef struct {
-   ident_t      name;
-   const char  *strtab;
-   uint8_t     *buf;
-   uint8_t     *rptr;
-   uint8_t     *cpool;
-   loc_t        last_loc;
+   ident_t        name;
+   const char    *strtab;
+   const uint8_t *buf;
+   const uint8_t *rptr;
+   const uint8_t *cpool;
+   loc_t          last_loc;
 } pack_func_t;
 
 struct _jit_pack {
-   chash_t   *funcs;
-   ZSTD_DCtx *zstd;
+   chash_t    *funcs;
+   ZSTD_DCtx  *zstd;
+   const void *mmap;
+   size_t      map_size;
 };
 
 typedef struct _pack_writer {
@@ -55,6 +57,39 @@ typedef struct _pack_writer {
 
 ////////////////////////////////////////////////////////////////////////////////
 // JIT bytecode serialisation
+
+static inline int encode_number(uint64_t value, uint8_t buf[10])
+{
+   int num = 0;
+   do {
+      uint8_t byte = value & 0x7f;
+      value >>= 7;
+      if (value) byte |= 0x80;
+      buf[num++] = byte;
+   } while (value);
+
+   assert(num <= 10);
+   return num;
+}
+
+static inline uint64_t decode_number(const uint8_t **buf)
+{
+   const uint8_t b0 = *((*buf)++);
+   if (!(b0 & 0x80))
+      return b0;
+
+   uint64_t val = b0 & 0x7f;
+   int shift = 7;
+
+   uint8_t byte;
+   do {
+      byte = *((*buf)++);
+      val |= (uint64_t)(byte & 0x7f) << shift;
+      shift += 7;
+   } while (byte & 0x80);
+
+   return val;
+}
 
 static inline void pack_grow(pack_writer_t *pw, size_t minsz)
 {
@@ -82,12 +117,7 @@ static inline void pack_u16(pack_writer_t *pw, uint16_t value)
 static void pack_uint(pack_writer_t *pw, uint64_t value)
 {
    pack_grow(pw, 10);
-   do {
-      uint8_t byte = value & 0x7f;
-      value >>= 7;
-      if (value) byte |= 0x80;
-      *pw->wptr++ = byte;
-   } while (value);
+   pw->wptr += encode_number(value, pw->wptr);
 }
 
 static inline void pack_int(pack_writer_t *pw, int64_t value)
@@ -174,7 +204,7 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
       pack_uint(pw, value.disp);
       break;
    case JIT_ADDR_CPOOL:
-      pack_uint(pw, value.disp);
+      pack_uint(pw, value.int64);
       break;
    case JIT_ADDR_ABS:
    case JIT_ADDR_COVER:
@@ -196,6 +226,7 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
       pack_locus(pw, value.ident, value.disp);
       break;
    case JIT_VALUE_FOREIGN:
+      pack_uint(pw, ffi_get_spec(value.foreign).bits);
       pack_str(pw, istr(ffi_get_sym(value.foreign)));
       break;
    default:
@@ -211,7 +242,7 @@ static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
    pack_uint(pw, f->nregs);
    pack_uint(pw, f->nvars);
    pack_uint(pw, f->cpoolsz);
-   pack_uint(pw, f->spec.bits);   // XXX: need a function to pack jit_foreign_t
+   pack_uint(pw, f->spec.bits);
    pack_uint(pw, f->framesz);
 
    for (int i = 0; i < f->nvars; i++) {
@@ -342,6 +373,9 @@ static void pack_func_free(const void *key, void *value)
 
 void jit_pack_free(jit_pack_t *jp)
 {
+   if (jp->mmap != NULL)
+      unmap_file((void *)jp->mmap, jp->map_size);
+
    ZSTD_freeDCtx(jp->zstd);
    chash_iter(jp->funcs, pack_func_free);
    chash_free(jp->funcs);
@@ -354,8 +388,8 @@ void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
    assert(chash_get(jp->funcs, name) == NULL);
 
    pack_func_t *pf = xcalloc(sizeof(pack_func_t));
-   pf->buf    = (uint8_t *)buf;
-   pf->cpool  = (uint8_t *)cpool;
+   pf->buf    = buf;
+   pf->cpool  = cpool;
    pf->strtab = strtab;
 
    chash_put(jp->funcs, name, pf);
@@ -363,21 +397,7 @@ void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
 
 static uint64_t unpack_uint(pack_func_t *pf)
 {
-   const uint8_t b0 = *pf->rptr++;
-   if (!(b0 & 0x80))
-      return b0;
-
-   uint64_t val = b0 & 0x7f;
-   int shift = 7;
-
-   uint8_t byte;
-   do {
-      byte = *pf->rptr++;
-      val |= (uint64_t)(byte & 0x7f) << shift;
-      shift += 7;
-   } while (byte & 0x80);
-
-   return val;
+   return decode_number(&pf->rptr);
 }
 
 static int64_t unpack_int(pack_func_t *pf)
@@ -398,7 +418,7 @@ static inline jit_reg_t unpack_reg(pack_func_t *pf)
 {
    const uint64_t enc = unpack_uint(pf);
    assert(enc < JIT_REG_INVALID - 1);
-   return enc == 0 ? JIT_REG_INVALID : enc + 1;
+   return enc == 0 ? JIT_REG_INVALID : enc - 1;
 }
 
 static inline double unpack_double(pack_func_t *pf)
@@ -464,7 +484,7 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
       value.disp = unpack_uint(pf);
       break;
    case JIT_ADDR_CPOOL:
-      value.disp = unpack_uint(pf);
+      value.int64 = unpack_uint(pf);
       break;
    case JIT_ADDR_ABS:
    case JIT_ADDR_COVER:
@@ -487,7 +507,11 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
       value.disp = unpack_uint(pf);
       break;
    case JIT_VALUE_FOREIGN:
-      value.foreign = jit_ffi_get(ident_new(unpack_str(pf)));
+      {
+         const ffi_spec_t spec = { .bits = unpack_uint(pf) };
+         ident_t sym = ident_new(unpack_str(pf));
+         value.foreign = jit_ffi_bind(sym, spec, NULL);
+      }
       break;
    default:
       fatal_trace("cannot handle value kind %d in unpack_value", value.kind);
@@ -538,7 +562,7 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
    f->spec.bits = unpack_uint(pf);
    f->framesz   = unpack_uint(pf);
 
-   f->cpool = pf->cpool;
+   f->cpool = (unsigned char *)pf->cpool;
    f->irbuf = xmalloc_array(f->nirs, sizeof(jit_ir_t));
 
    if (f->nvars > 0) {
@@ -567,10 +591,114 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       ir->arg2 = unpack_value(pf, j);
    }
 
-   f->cpool = pf->cpool;
-
    pf->rptr = NULL;
 
    store_release(&(f->state), JIT_FUNC_READY);
    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Disk storage
+
+typedef struct {
+   char     magic[4];
+   uint32_t strtab;
+} pack_header_t;
+
+#define PACK_MAGIC "JIT1"
+
+static void write_fully(const void *buf, size_t size, FILE *f)
+{
+   if (fwrite(buf, size, 1, f) != 1)
+      fatal_errno("fwrite");
+}
+
+static void write_children(jit_t *j, vcode_unit_t vu, pack_writer_t *pw,
+                           FILE *file)
+{
+   ident_t ident = vcode_unit_name(vu);
+   jit_handle_t handle = jit_compile(j, ident);
+
+   uint8_t bytes[10];
+
+   const uint32_t name = pack_writer_get_string(pw, istr(ident));
+   const int name_nbytes = encode_number(name, bytes);
+   write_fully(bytes, name_nbytes, file);
+
+   uint8_t *buf;
+   size_t size;
+   pack_writer_emit(pw, j, handle, &buf, &size);
+
+   const int size_nbytes = encode_number(size, bytes);
+   write_fully(bytes, size_nbytes, file);
+
+   jit_func_t *f = jit_get_func(j, handle);
+
+   const int cpool_nbytes = encode_number(f->cpoolsz, bytes);
+   write_fully(bytes, cpool_nbytes, file);
+
+   write_fully(buf, size, file);
+
+   if (f->cpoolsz > 0)
+      write_fully(f->cpool, f->cpoolsz, file);
+
+   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
+      write_children(j, it, pw, file);
+}
+
+void jit_write_pack(jit_t *j, vcode_unit_t root, FILE *f)
+{
+   pack_writer_t *pw = pack_writer_new();
+
+   pack_header_t header = {};
+   write_fully(&header, sizeof(header), f);
+
+   write_children(j, root, pw, f);
+
+   memcpy(header.magic, PACK_MAGIC, sizeof(header.magic));
+   header.strtab = ftell(f);
+
+   const char *tab;
+   size_t size;
+   pack_writer_string_table(pw, &tab, &size);
+
+   write_fully(tab, size, f);
+
+   rewind(f);
+
+   write_fully(&header, sizeof(header), f);
+
+   pack_writer_free(pw);
+}
+
+jit_pack_t *jit_read_pack(FILE *f)
+{
+   jit_pack_t *jp = jit_pack_new();
+
+   file_info_t info;
+   if (!get_handle_info(fileno(f), &info))
+      fatal("cannot get info for pack file");
+
+   jp->mmap = map_file(fileno(f), info.size);
+   jp->map_size = info.size;
+
+   const pack_header_t *header = jp->mmap;
+   if (memcmp(header->magic, PACK_MAGIC, sizeof(header->magic)) != 0)
+      fatal("bad JIT pack magic");
+
+   const char *strtab = jp->mmap + header->strtab;
+
+   const uint8_t *rptr = jp->mmap + sizeof(pack_header_t);
+   while (rptr < (uint8_t *)jp->mmap + header->strtab) {
+      const uint32_t str = decode_number(&rptr);
+      const uint32_t size = decode_number(&rptr);
+      const uint32_t cpool = decode_number(&rptr);
+
+      ident_t ident = ident_new(strtab + str);
+      jit_pack_put(jp, ident, rptr + size, strtab, rptr);
+
+      rptr += size + cpool;
+   }
+
+   return jp;
 }

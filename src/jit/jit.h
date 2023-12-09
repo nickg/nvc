@@ -61,6 +61,7 @@ void jit_set_silent(jit_t *j, bool silent);
 void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
+void jit_load_pack(jit_t *j, FILE *f);
 void jit_preload(jit_t *j);
 bool jit_exit_status(jit_t *j, int *status);
 void jit_reset_exit_status(jit_t *j);
@@ -91,6 +92,9 @@ tlab_t jit_null_tlab(jit_t *j);
 
 jit_pack_t *jit_pack_new(void);
 void jit_pack_free(jit_pack_t *jp);
+
+void jit_write_pack(jit_t *j, vcode_unit_t root, FILE *f);
+jit_pack_t *jit_read_pack(FILE *f);
 
 __attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);
