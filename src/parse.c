@@ -802,7 +802,7 @@ static tree_t add_port(tree_t d, const char *name, type_t type,
 {
    type_t ftype = tree_type(d);
 
-   tree_t port = tree_new(T_PORT_DECL);
+   tree_t port = tree_new(T_PARAM_DECL);
    tree_set_ident(port, ident_new(name));
    tree_set_loc(port, tree_loc(d));
    tree_set_type(port, type);
@@ -2318,7 +2318,7 @@ static void add_generic_type_op(tree_t parent, int nargs, type_t type,
    }
 
    for (int j = 0; j < nargs; j++) {
-      tree_t arg = tree_new(T_PORT_DECL);
+      tree_t arg = tree_new(T_PARAM_DECL);
       tree_set_ident(arg, ident_new(j == 0 ? "L" : "R"));
       tree_set_type(arg, type);
       tree_set_subkind(arg, PORT_IN);
@@ -5099,7 +5099,7 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
 
          tree_set_value(p, box);
 
-         tree_t arg = tree_new(T_PORT_DECL);
+         tree_t arg = tree_new(T_PARAM_DECL);
          tree_set_ident(arg, ident_new("PTR"));
          tree_set_type(arg, type);
          tree_set_subkind(arg, PORT_INOUT);

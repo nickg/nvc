@@ -309,7 +309,7 @@ static type_t rewrite_generic_types_cb(type_t type, void *__ctx)
    return hash_get(map, type) ?: type;
 }
 
-static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
+static tree_t instance_fixup_cb(tree_t t, void *__ctx)
 {
    hash_t *map = __ctx;
 
@@ -329,6 +329,18 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
       }
       break;
 
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_CONST_DECL:
+      {
+         type_t type = tree_type(t);
+         if (type_is_unconstrained(type) && !tree_has_value(t))
+            error_at(tree_loc(t), "declaration of %s %s cannot have "
+                     "unconstrained type %s", class_str(class_of(t)),
+                     istr(tree_ident(t)), type_pp(type));
+      }
+      break;
+
    default:
       break;
    }
@@ -338,6 +350,6 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
 
 void instance_fixup(tree_t inst, hash_t *map)
 {
-   tree_rewrite(inst, NULL, rewrite_generic_refs_cb,
+   tree_rewrite(inst, NULL, instance_fixup_cb,
                 rewrite_generic_types_cb, map);
 }
