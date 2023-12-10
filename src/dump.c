@@ -1633,6 +1633,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_EXTERNAL_NAME:
    case T_STRING:
    case T_PACKAGE_MAP:
+   case T_TYPE_REF:
       dump_expr(t);
       break;
    case T_INSTANCE:

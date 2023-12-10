@@ -52,7 +52,9 @@ lib_libnvc_a_SOURCES = \
 	src/thread.h \
 	src/thread.c \
 	src/driver.h \
-	src/driver.c
+	src/driver.c \
+	src/inst.h \
+	src/inst.c
 
 if ENABLE_SERVER
 lib_libnvc_a_SOURCES += src/server.c src/server.h

@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "inst.h"
 #include "lib.h"
 #include "names.h"
 #include "object.h"
@@ -1759,98 +1760,6 @@ static tree_t fcall_to_conv_func(tree_t value)
    return conv;
 }
 
-static bool instantiate_should_copy_type(type_t type, void *__ctx)
-{
-   hset_t *decls = __ctx;
-   return (type_kind(type) != T_SUBTYPE) && hset_contains(decls, type);
-}
-
-static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
-{
-   hset_t *decls = __ctx;
-
-   switch (tree_kind(t)) {
-   case T_FCALL:
-      // Globally static expressions should be copied and folded
-      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
-   case T_PACKAGE:
-   case T_PACK_BODY:
-      return true;
-   case T_FUNC_DECL:
-   case T_PROC_DECL:
-      if (tree_flags(t) & TREE_F_PREDEFINED)
-         return false;
-      // Fall-through
-   case T_FUNC_BODY:
-   case T_PROC_BODY:
-   case T_CONST_DECL:
-   case T_VAR_DECL:
-   case T_GENERIC_DECL:
-   case T_SIGNAL_DECL:
-      // Make a unique copy of all public declarations in the package
-      return hset_contains(decls, t);
-   default:
-      return false;
-   }
-}
-
-static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots)
-{
-   const tree_kind_t kind = tree_kind(t);
-
-   if (kind != T_PACK_BODY && kind != T_PROT_BODY && kind != T_PROT_DECL) {
-      const int ngenerics = tree_generics(t);
-      for (int i = 0; i < ngenerics; i++) {
-         tree_t g = tree_generic(t, i);
-         hset_insert(decls, g);
-
-         // If the uninstantiated unit has any package generics then we
-         // need to copy those too in order to fix up the types
-         switch (tree_class(g)) {
-         case C_PACKAGE:
-            {
-               tree_t ref = tree_value(g);
-               if (tree_has_ref(ref)) {
-                  tree_t pack = tree_ref(ref);
-                  assert(is_uninstantiated_package(pack));
-                  collect_decls(pack, decls, roots);
-                  APUSH(*roots, pack);
-               }
-            }
-            break;
-         case C_TYPE:
-            hset_insert(decls, tree_type(g));
-            break;
-         default:
-            break;
-         }
-      }
-   }
-
-   if (kind != T_PROC_DECL && kind != T_FUNC_DECL) {
-      const int ndecls = tree_decls(t);
-      for (int i = 0 ; i < ndecls; i++) {
-         tree_t d = tree_decl(t, i);
-         hset_insert(decls, d);
-
-         switch (tree_kind(d)) {
-         case T_PROT_DECL:
-         case T_PROT_BODY:
-         case T_PACKAGE:
-         case T_PACK_BODY:
-         case T_PACK_INST:
-            collect_decls(d, decls, roots);
-            break;
-         case T_TYPE_DECL:
-            hset_insert(decls, type_base_recur(tree_type(d)));
-            break;
-         default:
-            break;
-         }
-      }
-   }
-}
-
 static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
 {
    tree_list_t roots = AINIT;
@@ -1858,24 +1767,14 @@ static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
    if (*pbody != NULL)
       APUSH(roots, *pbody);
 
-   hset_t *decls = hset_new(256);
-
-   collect_decls(*pdecl, decls, &roots);
-   if (*pbody != NULL)
-      collect_decls(*pbody, decls, &roots);
-
    ident_t prefixes[] = { tree_ident(*pdecl) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
-   copy_with_renaming(roots.items, roots.count,
-                      instantiate_should_copy_tree,
-                      instantiate_should_copy_type,
-                      decls, dotted, prefixes, 1);
+   new_instance(roots.items, roots.count, dotted, prefixes, 1);
 
    *pdecl = roots.items[0];
    *pbody = *pbody != NULL ? roots.items[1] : NULL;
 
-   hset_free(decls);
    ACLEAR(roots);
 }
 
@@ -1938,39 +1837,6 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
       for (int i = 0; i < ndecls; i++)
          tree_add_decl(new, tree_decl(body_copy, i));
    }
-}
-
-static type_t rewrite_generic_types_cb(type_t type, void *__ctx)
-{
-   hash_t *map = __ctx;
-   return hash_get(map, type) ?: type;
-}
-
-static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
-{
-   hash_t *map = __ctx;
-
-   switch (tree_kind(t)) {
-   case T_REF:
-      if (tree_flags(t) & TREE_F_FORMAL_NAME)
-         return t;   // Do not rewrite names in generic maps
-      // Fall-through
-   case T_FCALL:
-   case T_PCALL:
-   case T_PROT_FCALL:
-   case T_PROT_PCALL:
-      if (tree_has_ref(t)) {
-         tree_t new = hash_get(map, tree_ref(t));
-         if (new != NULL)
-            tree_set_ref(t, new);
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   return t;
 }
 
 static void add_interface(tree_t container, tree_t decl, tree_kind_t kind)
@@ -6973,8 +6839,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
 
    hash_t *map = get_generic_map(nametab);
    if (map != NULL)
-      tree_rewrite(inst, NULL, rewrite_generic_refs_cb,
-                   rewrite_generic_types_cb, map);
+      instance_fixup(inst, map);
 
    mangle_func(nametab, inst);
    insert_name(nametab, inst, NULL);
@@ -7632,8 +7497,7 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
 
    hash_t *map = get_generic_map(nametab);
    if (map != NULL)
-      tree_rewrite(new, NULL, rewrite_generic_refs_cb,
-                   rewrite_generic_types_cb, map);
+      instance_fixup(new, map);
 
    return new;
 }

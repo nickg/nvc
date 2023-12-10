@@ -23,6 +23,7 @@
 #include "driver.h"
 #include "eval.h"
 #include "hash.h"
+#include "inst.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
@@ -42,7 +43,6 @@
 #include <inttypes.h>
 
 typedef A(tree_t) tree_list_t;
-typedef A(type_t) type_list_t;
 
 typedef struct _elab_ctx elab_ctx_t;
 typedef struct _generic_list generic_list_t;
@@ -194,56 +194,6 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    return lib_get(lib, params.chosen);
 }
 
-static bool elab_should_copy_tree(tree_t t, void *__ctx)
-{
-   switch (tree_kind(t)) {
-   case T_INSTANCE:
-      return true;
-   case T_FUNC_DECL:
-   case T_PROC_DECL:
-      return !(tree_flags(t) & TREE_F_PREDEFINED);
-   case T_FUNC_BODY:
-   case T_PROC_BODY:
-   case T_FUNC_INST:
-   case T_PROC_INST:
-      return true;
-   case T_FCALL:
-      if ((tree_flags(t) & TREE_F_GLOBALLY_STATIC)
-          && type_is_scalar(tree_type(t)))
-         return true;   // Globally static expression
-      else if (tree_kind(tree_ref(t)) == T_GENERIC_DECL)
-         return true;   // Call to generic subprogram
-      else
-         return false;
-   case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         switch (tree_kind(decl)) {
-         case T_GENERIC_DECL:
-            return true;
-         case T_ENTITY:
-         case T_ARCH:
-         case T_BLOCK:
-            // These may appear in attribute references like 'PATH_NAME
-            // which need to get rewritten to point at the corresponding
-            // block in the elaborated design
-            return true;
-         default:
-            return false;
-         }
-      }
-   case T_VAR_DECL:
-      return !!(tree_flags(t) & TREE_F_SHARED);
-   default:
-      return false;
-   }
-}
-
-static bool elab_should_copy_type(type_t type, void *__ctx)
-{
-   return type_kind(type) == T_GENERIC;
-}
-
 static void elab_find_config_roots(tree_t t, tree_list_t *roots)
 {
    switch (tree_kind(t)) {
@@ -272,10 +222,6 @@ static void elab_find_config_roots(tree_t t, tree_list_t *roots)
 
 static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 {
-   type_copy_pred_t type_pred = NULL;
-   if (standard() >= STD_08)
-      type_pred = elab_should_copy_type;
-
    tree_list_t roots = AINIT;
    switch (tree_kind(t)) {
    case T_ARCH:
@@ -289,9 +235,8 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    }
    APUSH(roots, t);    // Architecture must be processed last
 
-   copy_with_renaming(roots.items, roots.count, elab_should_copy_tree,
-                      type_pred, NULL, ctx->dotted,
-                      ctx->prefix, ARRAY_LEN(ctx->prefix));
+   new_instance(roots.items, roots.count, ctx->dotted, ctx->prefix,
+                ARRAY_LEN(ctx->prefix));
 
    tree_t copy = roots.items[roots.count - 1];
    ACLEAR(roots);
@@ -600,6 +545,9 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
    case T_TYPE_CONV:
    case T_QUALIFIED:
       elab_write_generic(tb, tree_value(value));
+      break;
+   case T_TYPE_REF:
+      tb_printf(tb, "%s", type_pp(tree_type(value)));
       break;
    default:
       tb_printf(tb, "...");
@@ -1044,28 +992,79 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
 
       tree_add_genmap(ctx->out, map);
 
-      switch (tree_kind(value)) {
-      case T_REF:
-         {
-            tree_t decl = tree_ref(value);
-            if (tree_kind(decl) != T_ENUM_LIT && !is_subprogram(decl))
-               break;
-         }
-         // Fall-through
-      case T_LITERAL:
+      if (is_literal(value)) {
          // These values can be safely substituted for all references to
          // the generic name
          hash_put(ctx->generics, eg, value);
          if (eg != cg) hash_put(ctx->generics, cg, value);
+      }
+   }
+}
+
+static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
+{
+   if (standard() < STD_08)
+      return;
+
+   hash_t *map = NULL;
+
+   const int ngenerics = tree_generics(ctx->out);
+   assert(tree_genmaps(ctx->out) == ngenerics);
+
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(ctx->out, i);
+
+      const class_t class = tree_class(g);
+      if (class == C_CONSTANT)
+         continue;
+      else if (map == NULL)
+         map = hash_new(64);
+
+      tree_t value = tree_value(tree_genmap(ctx->out, i));
+
+      switch (class) {
+      case C_TYPE:
+         hash_put(map, tree_type(g), tree_type(value));
          break;
+
+      case C_PACKAGE:
+         {
+            tree_t formal = tree_ref(tree_value(g));
+            tree_t actual = tree_ref(value);
+
+            const int ndecls = tree_decls(formal);
+            for (int i = 0; i < ndecls; i++) {
+               tree_t gd = tree_decl(formal, i);
+               tree_t ad = tree_decl(actual, i);
+               assert(tree_kind(gd) == tree_kind(ad));
+
+               hash_put(map, gd, ad);
+
+               if (is_type_decl(gd))
+                  hash_put(map, tree_type(gd), tree_type(ad));
+            }
+
+            const int ngenerics = tree_generics(formal);
+            for (int i = 0; i < ngenerics; i++)
+               hash_put(map, tree_generic(formal, i), tree_generic(actual, i));
+         }
+         break;
+
+      case C_FUNCTION:
+      case C_PROCEDURE:
+         hash_put(map, g, tree_ref(value));
+         break;
+
       default:
-         // Preserve the reference to the generic name
          break;
       }
-
-      if (tree_class(eg) == C_TYPE)
-         hash_put(ctx->generics, tree_type(eg), tree_type(value));
    }
+
+   if (map == NULL)
+      return;
+
+   instance_fixup(arch, map);
+   hash_free(map);
 }
 
 static void elab_context(tree_t t)
@@ -1317,6 +1316,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_context(entity);
    elab_context(arch_copy);
    elab_generics(entity, comp, t, &new_ctx);
+   elab_instance_fixup(arch_copy, &new_ctx);
    simplify_global(entity, new_ctx.generics, ctx->jit, ctx->registry);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);

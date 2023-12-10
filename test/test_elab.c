@@ -176,7 +176,7 @@ START_TEST(test_copy1)
    tree_t var2 = search_decls(sub2_i, ident_new("GLOBAL"), 0);
    fail_if(var1 == NULL);
    fail_if(var2 == NULL);
-   fail_if(var1 == var2);   // Should copy variables
+   fail_unless(var1 == var2);   // Should not copy variables
 
    fail_if_errors();
 }

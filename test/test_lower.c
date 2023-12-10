@@ -328,7 +328,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          if (!fuzzy_cmp(vcode_get_func(i), e->name)) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to initialise package %s "
-                 "instead of %s", i, bb, e->func, istr(vcode_get_func(i)));
+                 "instead of %s", i, bb, e->name, istr(vcode_get_func(i)));
          }
          break;
 

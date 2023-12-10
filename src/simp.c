@@ -409,20 +409,12 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    case T_CONST_DECL:
       if (tree_flags(t) & TREE_F_FORMAL_NAME)
          return t;
-      else if (!type_is_scalar(tree_type(decl)))
-         return t;
       else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);
-         switch (tree_kind(value)) {
-         case T_LITERAL:
+         if (is_literal(value) && tree_kind(value) != T_STRING)
             return value;
-         case T_REF:
-            if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
-               return value;
-            // Fall-through
-         default:
+         else
             return t;
-         }
       }
       else
          return t;
@@ -436,18 +428,10 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          if (map != NULL) {
             switch (tree_kind(map)) {
             case T_LITERAL:
-            case T_STRING:
             case T_AGGREGATE:
-            case T_ARRAY_SLICE:
-            case T_ARRAY_REF:
-            case T_FCALL:
-            case T_RECORD_REF:
+            case T_STRING:
             case T_OPEN:
-            case T_QUALIFIED:
-            case T_TYPE_CONV:
-            case T_ATTR_REF:
             case T_REF:
-            case T_TYPE_REF:
                // Do not rewrite references to non-references if they appear
                // as formal names
                if (tree_flags(t) & TREE_F_FORMAL_NAME)
@@ -1633,22 +1617,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
-static type_t simp_type(type_t type, void *__ctx)
-{
-   simp_ctx_t *ctx = __ctx;
-
-   // Replace generic types with the concrete type from the generic map
-
-   if (type_kind(type) != T_GENERIC)
-      return type;
-
-   type_t map = NULL;
-   if (ctx->generics != NULL)
-      map = hash_get(ctx->generics, type);
-
-   return map ?: type;
-}
-
 static void simp_generics(tree_t t, simp_ctx_t *ctx)
 {
    const int ngenerics = tree_generics(t);
@@ -1662,9 +1630,20 @@ static void simp_generics(tree_t t, simp_ctx_t *ctx)
       if (tree_kind(map) == T_OPEN)
          map = tree_value(g);
 
+      if (ctx->generics != NULL && tree_kind(map) == T_REF) {
+         tree_t remap;
+         if ((remap = hash_get(ctx->generics, tree_ref(map))))
+            map = remap;
+      }
+
+      if (!is_literal(map))
+         continue;
+
       if (ctx->generics == NULL)
          ctx->generics = hash_new(128);
 
+      // This value can be safely substituted for all references to
+      // the generic name
       hash_put(ctx->generics, g, map);
    }
 }
@@ -1713,11 +1692,7 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
       .generics  = generics,
    };
 
-   type_rewrite_post_fn_t type_cb = NULL;
-   if (standard() >= STD_08)
-      type_cb = simp_type;
-
-   tree_rewrite(top, simp_pre_cb, simp_tree, type_cb, &ctx);
+   tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
 
    if (generics == NULL && ctx.generics != NULL)
       hash_free(ctx.generics);

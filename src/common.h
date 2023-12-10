@@ -63,6 +63,7 @@ bool is_type_decl(tree_t t);
 tree_t aliased_type_decl(tree_t decl);
 bool is_loop_stmt(tree_t t);
 bool is_design_unit(tree_t t);
+bool is_literal(tree_t t);
 bool is_uninstantiated_package(tree_t pack);
 bool is_uninstantiated_subprogram(tree_t decl);
 tree_t search_decls(tree_t container, ident_t name, int nth);
@@ -88,10 +89,6 @@ tree_t change_ref(tree_t name, tree_t new);
 bool all_character_literals(type_t type);
 bool is_operator_symbol(ident_t ident);
 bool same_tree(tree_t a, tree_t b);
-
-void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
-                        type_copy_pred_t type_pred, void *context,
-                        ident_t dotted, const ident_t *prefixes, int nprefix);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur);
 
