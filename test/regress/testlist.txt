@@ -867,7 +867,7 @@ ieee14          normal,gold
 ieee15          fail,gold
 issue752        shell
 predef5         normal,2008
-vhpi10          normal,vhpi
+vhpi10          normal,vhpi,2008
 bounds40        fail,gold
 bounds41        fail,gold
 ieee16          normal
