@@ -3183,6 +3183,13 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
             next = s;
       }
 
+      const int ndecls = tree_decls(unit);
+      for (int i = 0; next == NULL && i < ndecls; i++) {
+         tree_t d = tree_decl(unit, i);
+         if (tree_ident(d) == b)
+            next = d;
+      }
+
       if (next == NULL)
          fatal_trace("cannot find %s within %s", istr(b),
                      istr(tree_ident(unit)));

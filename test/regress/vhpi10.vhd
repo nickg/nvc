@@ -1,3 +1,8 @@
+package counter is
+   generic (MAX: bit_vector);
+   subtype counter_t is bit_vector(MAX'range);
+end;
+
 entity sub is
     generic ( g0 : integer;
               g1 : string );
@@ -37,6 +42,9 @@ architecture test of vhpi10 is
         generic ( g0 : integer; g1 : string );
         port ( p0 : bit_vector );
     end component;
+
+   package pkg is new work.counter generic map (MAX => 10D"999");
+   signal s0: pkg.counter_t;
 begin
 
     b0: block is

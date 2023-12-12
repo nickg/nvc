@@ -46,6 +46,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(vhpi_scan(it2) == NULL);
    vhpi_release_handle(it2);
 
+   vhpiHandleT s0 = vhpi_handle_by_name("s0", root);
+   check_error();
+   fail_if(s0 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, s0) == vhpiSigDeclK);
+
    vhpiHandleT b0 = vhpi_handle_by_name("b0", root);
    check_error();
    fail_if(b0 == NULL);
