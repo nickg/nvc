@@ -9130,7 +9130,9 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t voffset = vtype_offset();
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
-   vcode_type_t vnat = vtype_int(0, INT64_MAX);
+
+   // TODO: this should not be called before 2019
+   vcode_type_t vnat = vtype_int(0, standard() < STD_19 ? INT32_MAX : INT64_MAX);
 
    vcode_reg_t locus = lower_debug_locus(decl);
 
@@ -9142,9 +9144,8 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
    ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
    ident_t count_delim_fn = ident_new("NVC.TEXT_UTIL.COUNT_DELIMITERS(S)N");
+   ident_t trim_ws_fn = ident_new("NVC.TEXT_UTIL.TRIM_WS(SNN)");
    ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
-   ident_t find_quote_fn = ident_new("NVC.TEXT_UTIL.FIND_QUOTE(S)N");
-   ident_t find_unquote_fn = ident_new("NVC.TEXT_UTIL.FIND_UNQUOTE(SN)N");
    ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
    ident_t bad_char_fn = ident_new("NVC.TEXT_UTIL.REPORT_BAD_CHAR(SC)");
    vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
@@ -9154,35 +9155,30 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t vbounds = lower_bounds(elem);
 
    if (type_is_character_array(type)) {
-      vcode_block_t quote_bb = emit_block();
       vcode_block_t body_bb = emit_block();
       vcode_block_t bad_bb = emit_block();
       vcode_block_t good_bb = emit_block();
       vcode_block_t exit_bb = emit_block();
       vcode_block_t paren_bb = emit_block();
 
-      vcode_reg_t quote_args[] = { text_util_reg, preg };
-      vcode_reg_t quote_result_reg = emit_fcall(find_quote_fn, vnat, vnat,
-                                                VCODE_CC_VHDL, quote_args, 2);
-      vcode_reg_t quote_pos_reg = emit_cast(voffset, voffset, quote_result_reg);
+      vcode_var_t first_var = emit_var(vnat, vnat, ident_new("first"), 0);
+      vcode_var_t last_var = emit_var(vnat, vnat, ident_new("last"), 0);
 
-      vcode_reg_t quoted_reg = emit_cmp(VCODE_CMP_EQ, quote_pos_reg, zero_reg);
-      emit_cond(quoted_reg, paren_bb, quote_bb);
+      vcode_reg_t first_ptr = emit_index(first_var, VCODE_INVALID_REG);
+      vcode_reg_t last_ptr = emit_index(last_var, VCODE_INVALID_REG);
 
-      vcode_select_block(quote_bb);
+      vcode_reg_t trim_args[] = { text_util_reg, preg, first_ptr, last_ptr };
+      emit_fcall(trim_ws_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                 VCODE_CC_VHDL, trim_args, ARRAY_LEN(trim_args));
 
-      vcode_reg_t unquote_args[] = { text_util_reg, preg, quote_result_reg };
-      vcode_reg_t unquote_result_reg = emit_fcall(find_unquote_fn, vnat, vnat,
-                                                  VCODE_CC_VHDL, unquote_args,
-                                                  ARRAY_LEN(unquote_args));
-      vcode_reg_t unquote_pos_reg =
-         emit_cast(voffset, voffset, unquote_result_reg);
+      vcode_reg_t first_reg = emit_cast(voffset, voffset, emit_load(first_var));
+      vcode_reg_t last_reg = emit_cast(voffset, voffset, emit_load(last_var));
 
-      vcode_reg_t count_reg = emit_sub(unquote_pos_reg, quote_pos_reg);
+      vcode_reg_t count_reg = emit_add(emit_sub(last_reg, first_reg), one_reg);
       vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
 
       vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
-      emit_store(emit_cast(voffset, voffset, quote_pos_reg), pos_var);
+      emit_store(emit_cast(voffset, voffset, first_reg), pos_var);
 
       const int nlits = type_enum_literals(elem);
       vcode_reg_t entry_vtype = vtype_int(0, nlits);

@@ -84,6 +84,24 @@ package body text_util is
             severity failure;
     end function;
 
+    procedure trim_ws (s : in string; first, last : out natural) is
+        constant len : integer := s'length;
+        alias ss     : string(1 to len) is s;
+    begin
+        for i in 1 to len loop
+            first := i - 1;
+            if ss(i) /= ' ' then
+                exit;
+            end if;
+        end loop;
+        for i in len downto 1 loop
+            last := i - 1;
+            if ss(i) /= ' ' then
+                exit;
+            end if;
+        end loop;
+    end procedure;
+
     function find_quote (s : string) return natural is
         constant len : integer := s'length;
         alias ss     : string(1 to len) is s;
@@ -128,7 +146,7 @@ package body text_util is
     procedure report_bad_char (s : string; c : character) is
     begin
         report "invalid character " & character'image(c)
-            & " in string " & s severity failure;
+            & " in string """ & s & """" severity failure;
     end procedure;
 
     function toupper (x : in character) return character is

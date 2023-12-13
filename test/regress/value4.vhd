@@ -8,7 +8,7 @@ begin
 
     process is
     begin
-        assert t_abc_vec'value("""abX""") = "abc";  -- Error
+        assert t_abc_vec'value("abX") = "abc";  -- Error
         wait;
     end process;
 

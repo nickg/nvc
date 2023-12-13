@@ -43,9 +43,8 @@ package text_util is
     -- Used to implement 'VALUE for composite types
     function next_delimiter (s : string; pos : natural) return string;
     function count_delimiters (s : string) return natural;
+    procedure trim_ws (s : in string; first, last : out natural);
     function find_open (s : string) return natural;
-    function find_quote (s : string) return natural;
     procedure find_close (s : string; pos : natural);
-    function find_unquote (s : string; pos : natural) return natural;
     procedure report_bad_char (s : string; c : character);
 end package;
