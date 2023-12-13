@@ -911,3 +911,4 @@ issue810        normal,2008
 elab40          normal,2008
 cmdline9        shell,slow
 genpack16       normal,2008
+issue815        normal,2019

@@ -160,6 +160,7 @@ static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
                                 vcode_reg_t array, tree_t where);
 static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
                                     tree_t where, type_t from, type_t to);
+static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -479,20 +480,22 @@ static vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim,
 {
    assert(type_is_array(type));
 
-   if (have_array_metadata(type, reg))
-      return emit_uarray_len(reg, dim);
-   else {
+   if (type_const_bounds(type)) {
       tree_t r = range_of(type, dim);
 
       int64_t low, high;
-      if (folded_bounds(r, &low, &high))
-         return emit_const(vtype_offset(), MAX(high - low + 1, 0));
+      if (!folded_bounds(r, &low, &high))
+         fatal_trace("type %s bounds not constant", type_pp(type));
 
-      vcode_reg_t left_reg  = lower_range_left(lu, r);
-      vcode_reg_t right_reg = lower_range_right(lu, r);
-      vcode_reg_t dir_reg   = lower_range_dir(lu, r);
-
-      return emit_range_length(left_reg, right_reg, dir_reg);
+      return emit_const(vtype_offset(), MAX(high - low + 1, 0));
+   }
+   else if (reg != VCODE_INVALID_REG
+            // TODO: fix lower_default_value to not pass garbage
+            && vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
+      return emit_uarray_len(reg, dim);
+   else {
+      vcode_reg_t bounds_reg = lower_get_type_bounds(lu, type);
+      return emit_uarray_len(bounds_reg, dim);
    }
 }
 
@@ -525,6 +528,8 @@ static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
             int64_t low, high;
             if (folded_bounds(r, &low, &high))
                len_reg = emit_const(vtype_offset(), MAX(high - low + 1, 0));
+
+            // TODO: this should use lower_get_type_bounds
 
             vcode_reg_t left_reg  = lower_range_left(lu, r);
             vcode_reg_t right_reg = lower_range_right(lu, r);
@@ -2725,6 +2730,8 @@ static vcode_var_t lower_get_var(lower_unit_t *lu, tree_t decl, int *hops)
 
 static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
 {
+   assert(!type_is_unconstrained(type));
+
    if (type_is_record(type))
       return VCODE_INVALID_REG;  // TODO
    else if (type_has_ident(type)) {
@@ -2859,22 +2866,21 @@ static vcode_reg_t lower_signal_ref(lower_unit_t *lu, tree_t decl)
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
 
    vcode_reg_t ptr_reg;
-   if (var == VCODE_INVALID_VAR || (var & INSTANCE_BIT)) {
+   if (var == VCODE_INVALID_VAR) {
       // Link to external package signal
-      if (var == VCODE_INVALID_VAR)
-         ptr_reg = lower_link_var(lu, decl);
-      else {
-         // This signal is declared in an instantiated package
-         vcode_var_t pkg_var = var & ~INSTANCE_BIT;
-         vcode_reg_t pkg_reg;
-         if (hops == 0)
-            pkg_reg = emit_load(pkg_var);
-         else
-            pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+      ptr_reg = lower_link_var(lu, decl);
+   }
+   else if (var & INSTANCE_BIT) {
+      // This signal is declared in an instantiated package
+      vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+      vcode_reg_t pkg_reg;
+      if (hops == 0)
+         pkg_reg = emit_load(pkg_var);
+      else
+         pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
 
-         vcode_type_t vtype = lower_signal_type(tree_type(decl));
-         ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
-      }
+      vcode_type_t vtype = lower_signal_type(tree_type(decl));
+      ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
    }
    else if (hops == 0 && vtype_is_scalar(vcode_var_type(var)))
       return emit_load(var);
