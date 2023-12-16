@@ -4,6 +4,7 @@ package pack is
     type t_rec is record
         f : t_sub1;
     end record;
+    type t_nest1 is array (natural range <>) of t_sub1;
 end package;
 
 package body pack is
@@ -34,5 +35,12 @@ begin
     --     port map ( ( f => "10101" ) );
     -- begin
     -- end block;
+
+    p1: process is
+        variable a : t_nest1(1 to 3);
+    begin
+        a(1) := "101";
+        wait;
+    end process;
 
 end architecture;

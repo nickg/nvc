@@ -502,7 +502,8 @@ static vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim,
 static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
                                       vcode_reg_t reg)
 {
-   vcode_reg_t stride = emit_const(vtype_offset(), 1);
+   vcode_type_t voffset = vtype_offset();
+   vcode_reg_t stride = emit_const(voffset, 1);
 
    type_t elem = type_elem(type);
    if (!type_is_array(elem))
@@ -526,16 +527,20 @@ static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
             tree_t r = range_of(elem, i);
 
             int64_t low, high;
-            if (folded_bounds(r, &low, &high))
-               len_reg = emit_const(vtype_offset(), MAX(high - low + 1, 0));
+            if (!folded_bounds(r, &low, &high)) {
+               // TODO: this should be a fatal error but lower_type_bounds
+               //       does not work for records
 
-            // TODO: this should use lower_get_type_bounds
+               emit_comment("Workaround for missing record type bounds");
 
-            vcode_reg_t left_reg  = lower_range_left(lu, r);
-            vcode_reg_t right_reg = lower_range_right(lu, r);
-            vcode_reg_t dir_reg   = lower_range_dir(lu, r);
+               vcode_reg_t left_reg  = lower_range_left(lu, r);
+               vcode_reg_t right_reg = lower_range_right(lu, r);
+               vcode_reg_t dir_reg   = lower_range_dir(lu, r);
 
-            len_reg = emit_range_length(left_reg, right_reg, dir_reg);
+               len_reg = emit_range_length(left_reg, right_reg, dir_reg);
+            }
+            else
+               len_reg = emit_const(voffset, MAX(high - low + 1, 0));
          }
 
          stride = emit_mul(stride, len_reg);
@@ -2755,8 +2760,32 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
       vcode_type_t vtype = lower_type(type);
       assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
 
+      const int ndims = vtype_dims(vtype);
+      int dptr = 0;
+      vcode_dim_t dims[ndims];
+
+      const int tdims = dimension_of(type);
+      for (int i = 0; i < tdims; i++, dptr++) {
+         tree_t r = range_of(type, i);
+         dims[dptr].left  = lower_range_left(lu, r);
+         dims[dptr].right = lower_range_right(lu, r);
+         dims[dptr].dir   = lower_range_dir(lu, r);
+      }
+
+      if (dptr < ndims) {
+         type_t elem = type_elem(type);
+         vcode_reg_t bounds_reg = lower_get_type_bounds(lu, elem);
+         assert(dptr + vtype_dims(vcode_reg_type(bounds_reg)) == ndims);
+
+         for (int i = 0; dptr < ndims; i++, dptr++) {
+            dims[dptr].left  = emit_uarray_left(bounds_reg, i);
+            dims[dptr].right = emit_uarray_right(bounds_reg, i);
+            dims[dptr].dir   = emit_uarray_dir(bounds_reg, i);
+         }
+      }
+
       vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_elem(vtype)));
-      return lower_wrap(lu, type, null_reg);
+      return emit_wrap(null_reg, dims, ndims);
    }
 }
 
