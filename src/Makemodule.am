@@ -111,7 +111,7 @@ nodist_EXTRA_bin_nvc_SOURCES += gitsha.h
 CLEANFILES += gitsha.h
 BUILT_SOURCES += gitsha.h
 
-GIT_SHA_CMD = git describe --long | sed 's/^r\(.*\)/\1/; s/\([^-]*-g\)/r\1/;s/-/./g'
+GIT_SHA_CMD = git describe --always --long | sed 's/^r\(.*\)/\1/; s/\([^-]*-g\)/r\1/;s/-/./g'
 
 gitsha.h: .git/logs/HEAD
 	$(AM_V_GEN)echo "#define GIT_SHA \"$$(GIT_DIR=$(top_srcdir)/.git $(GIT_SHA_CMD))\"" > gitsha.h
