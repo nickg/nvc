@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.11.1 - 2023-12-16
 - Fix crash during elaboration when an if-statement branch is always
   taken (#812).
 - VHPI plugins can now access types in instantiated packages (from

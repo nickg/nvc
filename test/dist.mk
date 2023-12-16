@@ -227,6 +227,7 @@ EXTRA_DIST += \
 	test/lower/dealloc.vhd \
 	test/lower/directmap2.vhd \
 	test/lower/directmap3.vhd \
+	test/lower/directmap4.vhd \
 	test/lower/directmap.vhd \
 	test/lower/driver1.vhd \
 	test/lower/event1.vhd \
@@ -1847,6 +1848,7 @@ EXTRA_DIST += \
 	test/simp/issue574.vhd \
 	test/simp/issue742.vhd \
 	test/simp/issue782.vhd \
+	test/simp/issue812.vhd \
 	test/simp/length.vhd \
 	test/simp/order1.vhd \
 	test/simp/order2.vhd \
