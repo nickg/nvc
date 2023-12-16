@@ -1,5 +1,15 @@
 ## Unreleased changes
 - The `--jit` elaboration option no longer requires `--no-save`.
+- Fixed a crash when subtype bounds depend on a package instance generic
+  (#815).
+
+## Version 1.11.1 - 2023-12-16
+- Fix crash during elaboration when an if-statement branch is always
+  taken (#812).
+- VHPI plugins can now access types in instantiated packages (from
+  @sean-anderson-seco).
+- The `--version` output now includes the bare Git commit SHA if the
+  program is built from a shallow clone with no tags (#813).
 
 ## Version 1.11.0 - 2023-12-06
 - New command `--cover-export` exports coverage data in the Cobertura

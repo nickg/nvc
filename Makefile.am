@@ -67,6 +67,10 @@ include lib/synopsys/Makemodule.am
 include contrib/Makemodule.am
 include contrib/gui/Makemodule.am
 
+clean-local: clean-test clean-libs
+
+if MAINTAINER_MODE
+
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean
 	bear -- $(MAKE) -j$$(nproc) -C $(top_builddir) $(bin_PROGRAMS) \
@@ -108,7 +112,18 @@ sync-branch:
 	git checkout $$branch $(top_srcdir)/www/defs.m4; \
 	sed -i 's/'$$last'/'$$new'/g' $(top_srcdir)/README.md
 
-clean-local: clean-test clean-libs
+upload-artifacts:
+	tag=$$(git describe) && \
+	gh release upload $$tag $(top_builddir)/$(DIST_ARCHIVES){,.sig} && \
+	run_id=$$(gh run list -w "Build MSYS2 and Ubuntu packages" \
+		  -L 1 --json headBranch,databaseId \
+		  --jq '.[0] | select(.headBranch == "'$$tag'").databaseId') && \
+	echo "Run ID : $$run_id" && \
+	mkdir -p /tmp/artifacts && \
+	gh run download $$run_id --dir /tmp/artifacts && \
+	find /tmp/artifacts -type f -print -exec gh release upload $$tag \{\} \;
+
+endif  # MAINTAINER_MODE
 
 .PHONY: cov-reset cov-report clean-test compile-commands
-.PHONY: release sync-branch
+.PHONY: release sync-branch upload-artifacts
