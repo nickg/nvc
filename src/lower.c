@@ -2622,30 +2622,31 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
                                        type_t type, vcode_reg_t bounds_reg)
 {
-   if (tree_kind(value) == T_FCALL
-       && (tree_flags(tree_ref(value)) & TREE_F_KNOWS_SUBTYPE)) {
-
-      if (type_is_array(type)) {
-         if (bounds_reg == VCODE_INVALID_REG
-             || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
-            vcode_type_t velem = lower_type(type_elem_recur(type));
-            vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-            bounds_reg = lower_wrap(lu, type, null_reg);
-         }
-      }
-      else if (type_is_record(type)) {
-         if (bounds_reg == VCODE_INVALID_REG) {
-            // This is inefficient but should only occur in declarations
-            bounds_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
-         }
-         else if (vtype_is_signal(vcode_reg_type(bounds_reg)))
-            bounds_reg = lower_resolved(lu, type, bounds_reg);
-      }
-
-      return lower_fcall(lu, value, bounds_reg);
-   }
-   else
+   if (tree_kind(value) != T_FCALL)
       return lower_rvalue(lu, value);
+
+   tree_t decl = tree_ref(value);
+   if (!(tree_flags(decl) & TREE_F_KNOWS_SUBTYPE))
+      return lower_rvalue(lu, value);
+
+   if (type_is_array(type)) {
+      if (bounds_reg == VCODE_INVALID_REG
+          || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
+         vcode_type_t velem = lower_type(type_elem_recur(type));
+         vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+         bounds_reg = lower_wrap(lu, type, null_reg);
+      }
+   }
+   else if (type_is_record(type)) {
+      if (bounds_reg == VCODE_INVALID_REG) {
+         // This is inefficient but should only occur in declarations
+         bounds_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
+      }
+      else if (vtype_is_signal(vcode_reg_type(bounds_reg)))
+         bounds_reg = lower_resolved(lu, type, bounds_reg);
+   }
+
+   return lower_fcall(lu, value, bounds_reg);
 }
 
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
@@ -4541,10 +4542,8 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
          if (!in_place_aggregate)
             init_reg = bounds_reg = lower_rvalue(lu, qual);
       }
-      else if (wrap_value) {
-         vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
-         bounds_reg = lower_wrap(lu, type, null_reg);
-      }
+      else if (wrap_value)
+         bounds_reg = lower_get_type_bounds(lu, type);
 
       vcode_reg_t length_reg =
          lower_array_total_len(lu, value_type, bounds_reg);
@@ -6109,7 +6108,7 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
       assert(ptr == parts + nparts);
    }
    else if (type_is_array(type)) {
-      vcode_reg_t target_reg  = lower_lvalue(lu, target);
+      vcode_reg_t target_reg = lower_lvalue(lu, target);
 
       vcode_reg_t value_reg;
       if (lower_can_hint_aggregate(target, value))
