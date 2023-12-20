@@ -913,3 +913,4 @@ cmdline9        shell,slow
 genpack16       normal,2008
 issue815        normal,2019
 issue817        fail,gold,2008
+issue816        fail,gold
