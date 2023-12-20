@@ -774,15 +774,37 @@ vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
    return where->vcode;
 }
 
-static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
+static void lib_encode_file_name(ident_t id, text_buf_t *tb)
 {
-   fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN, FBUF_CS_ADLER32);
+   // Encode extended identifiers in file names using the hexadecimal
+   // value of the ISO-8859-1 code points to avoid illegal characters
+   // and case sensitivity issues on Windows and macOS
+
+   bool esc = false;
+   for (const char *p = istr(id); *p; p++) {
+      if (*p == '\\') {
+         esc = !esc;
+         tb_append(tb, '+');
+      }
+      else if (esc)
+         tb_printf(tb, "%02x", *p);
+      else
+         tb_append(tb, *p);
+   }
+}
+
+static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   lib_encode_file_name(id, tb);
+
+   fbuf_t *f = lib_fbuf_open(lib, tb_get(tb), FBUF_IN, FBUF_CS_ADLER32);
    if (f == NULL)
       return NULL;
 
    file_info_t info;
    if (!get_handle_info(fbuf_file_handle(f), &info))
-      fatal_errno("%s", fname);
+      fatal_errno("%s", tb_get(tb));
 
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
@@ -803,7 +825,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
          vu = vcode_read(f, ident_ctx, loc_ctx);
          break;
       default:
-         fatal_trace("unhandled tag %c in %s", tag, fname);
+         fatal_trace("unhandled tag %c in %s", tag, tb_get(tb));
       }
    }
 
@@ -814,7 +836,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
    fbuf_close(f, &checksum);
 
    if (obj == NULL)
-      fatal_trace("%s did not HDL design unit", fname);
+      fatal_trace("%s did not contain a HDL design unit", tb_get(tb));
 
    arena_set_checksum(object_arena(obj), checksum);
 
@@ -843,7 +865,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    file_read_lock(lib->lock_fd);
 
    // Otherwise search in the filesystem if not in the cache
-   lu = lib_read_unit(lib, istr(ident));
+   lu = lib_read_unit(lib, ident);
 
    file_unlock(lib->lock_fd);
 
@@ -981,10 +1003,12 @@ ident_t lib_name(lib_t lib)
 
 static void lib_save_unit(lib_t lib, lib_unit_t *unit)
 {
-   fbuf_t *f = lib_fbuf_open(lib, istr(unit->name), FBUF_OUT, FBUF_CS_ADLER32);
+   LOCAL_TEXT_BUF tb = tb_new();
+   lib_encode_file_name(unit->name, tb);
+
+   fbuf_t *f = lib_fbuf_open(lib, tb_get(tb), FBUF_OUT, FBUF_CS_ADLER32);
    if (f == NULL)
-      fatal("failed to create %s in library %s", istr(unit->name),
-            istr(lib->name));
+      fatal("failed to create %s in library %s", tb_get(tb), istr(lib->name));
 
    write_u8('T', f);
 

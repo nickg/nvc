@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Fixed an incorrect length check in the equivalent process for
   non-static port map actuals (#817).
+- Library file names for design units that contain extended identifiers
+  such as `/Foo/` are now encoded in a way that avoids illegal
+  characters and case sensitivity issues on Windows and macOS (#816).
 
 ## Version 1.11.1 - 2023-12-16
 - Fix crash during elaboration when an if-statement branch is always
