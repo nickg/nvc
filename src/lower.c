@@ -11447,8 +11447,8 @@ static void lower_map_signal(lower_unit_t *lu, vcode_reg_t src_reg,
 }
 
 static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
-                                    type_t type, vcode_reg_t port_reg,
-                                    tree_t wave)
+                                    tree_t target, type_t type,
+                                    vcode_reg_t port_reg, tree_t wave)
 {
    // Construct the equivalent process according the procedure in LRM 08
    // section 6.5.6.3
@@ -11501,7 +11501,7 @@ static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
       { .kind = PART_ALL,
         .reg = nets_reg,
         .off = VCODE_INVALID_REG,
-        .target = port },
+        .target = target },
       { .kind = PART_POP,
         .reg = VCODE_INVALID_REG,
         .off = VCODE_INVALID_REG,
@@ -11509,7 +11509,7 @@ static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
    };
 
    target_part_t *ptr = parts;
-   lower_signal_assign_target(lu, &ptr, port, value_reg, type,
+   lower_signal_assign_target(lu, &ptr, target, value_reg, tree_type(expr),
                               zero_time_reg, zero_time_reg);
 
    emit_return(VCODE_INVALID_REG);
@@ -11654,8 +11654,10 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type,
                        conv_func, map);
    }
-   else if (tree_kind(value) == T_WAVEFORM)
-      lower_non_static_actual(lu, port, name_type, port_reg, value);
+   else if (tree_kind(value) == T_WAVEFORM) {
+      tree_t name = tree_subkind(map) == P_NAMED ? tree_name(map) : port;
+      lower_non_static_actual(lu, port, name, name_type, port_reg, value);
+   }
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
       lower_map_signal(lu, value_reg, port_reg, value_type, name_type,
