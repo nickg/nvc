@@ -4133,8 +4133,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_IMAGE:
    case ATTR_VALUE:
       {
-         if (named_type == NULL && standard() >= STD_19
-             && tree_params(t) == 0) {
+         const bool std_2019 = standard() >= STD_19;
+
+         if (named_type == NULL && std_2019 && tree_params(t) == 0) {
             // LCS2016-18 allows attribute with object prefix
             named_type = get_type_or_null(name);
             add_param(t, name, P_POS, NULL);
@@ -4142,7 +4143,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
-         else if (!type_is_representable(named_type))
+         if (!std_2019 && !type_is_scalar(named_type))
+            sem_error(t, "cannot use attribute %s with non-scalar type %s",
+                      istr(attr), type_pp(named_type));
+         else if (std_2019 && !type_is_representable(named_type))
             sem_error(t, "cannot use attribute %s with non-representable "
                       "type %s", istr(attr), type_pp(named_type));
 

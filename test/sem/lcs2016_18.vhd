@@ -38,6 +38,7 @@ begin
         report p3'image;                -- Error
         assert x'left = integer'left;   -- OK
         report y'length;                -- Error
+        report file_of_int'image(3);    -- Error
     end process;
 
 end architecture;

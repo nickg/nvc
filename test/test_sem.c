@@ -712,14 +712,14 @@ START_TEST(test_attr)
       { 159, "object B does not have a range" },
       { 160, "prefix does not have a range" },
       { 204, "prefix does not have LENGTH attribute" },
-      { 212, "cannot use attribute IMAGE with non-representable type INT2_" },
+      { 212, "cannot use attribute IMAGE with non-scalar type INT2_" },
       { 221, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 222, "BASE attribute is allowed only as the prefix of the name" },
       { 228, "no visible declaration for NOT_HERE" },
       { 251, "parameter of attribute VAL must have an integer type but "
         "found universal_real" },
       { 252, "attribute VAL requires a parameter" },
-      { 260, "cannot use attribute VALUE with non-representable type BIT2D" },
+      { 260, "cannot use attribute VALUE with non-scalar type BIT2D" },
       { 303, "expression must be a BOOLEAN literal" },
       { 305, "NEVER_WAITS attribute can only be applied to procedures" },
       { 309, "failed to parse FOREIGN attribute" },
@@ -3099,6 +3099,8 @@ START_TEST(test_lcs2016_18)
       { 38, "prefix of attribute IMAGE must be a type" },
       { 40, "prefix of attribute LENGTH must be an array or a discrete "
         "type but have type REAL" },
+      { 41, "cannot use attribute IMAGE with non-representable type "
+        "FILE_OF_INT" },
       { -1, NULL }
    };
    expect_errors(expect);

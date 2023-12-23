@@ -9164,9 +9164,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t voffset = vtype_offset();
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
-
-   // TODO: this should not be called before 2019
-   vcode_type_t vnat = vtype_int(0, standard() < STD_19 ? INT32_MAX : INT64_MAX);
+   vcode_type_t vnat = vtype_int(0, INT64_MAX);
 
    vcode_reg_t locus = lower_debug_locus(decl);
 
