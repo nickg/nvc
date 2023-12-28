@@ -96,6 +96,8 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    fail_unless(vhpi_get(vhpiLeftBoundP, s3f_range) == 1);
    fail_unless(vhpi_get(vhpiRightBoundP, s3f_range) == 4);
    fail_unless(vhpi_get(vhpiIsUpP, s3f_range));
+   fail_if(vhpi_get(vhpiIsNullP, s3f_range));
+   fail_unless(vhpi_get(vhpiIsDiscreteP, s3f_range));
 
    vhpiHandleT s3g = vhpi_handle_by_name("s3.g", root);
    check_error();

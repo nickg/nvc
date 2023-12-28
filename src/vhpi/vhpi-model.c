@@ -855,9 +855,12 @@ static void init_enumLiteral(c_enumLiteral *el, tree_t t, c_enumTypeDecl *Type)
    el->Position = tree_pos(t);
 }
 
-static void init_range(c_range *r, vhpiBooleanT IsUp)
+static void init_range(c_range *r, vhpiBooleanT IsUp, vhpiBooleanT IsNull,
+                       vhpiBooleanT IsDiscrete)
 {
    r->IsUp = IsUp;
+   r->IsNull = IsNull;
+   r->IsDiscrete = IsDiscrete;
    r->LeftExpr = NULL;
    r->RightExpr = NULL;
 }
@@ -2117,12 +2120,19 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
 
    case vhpiIsUpP:
+   case vhpiIsNullP:
+   case vhpiIsDiscreteP:
       {
          c_range *r = is_range(obj);
          if (r == NULL)
             goto missing_property;
 
-         return r->IsUp;
+         if (property == vhpiIsUpP)
+            return r->IsUp;
+         else if (property == vhpiIsNullP)
+            return r->IsNull;
+         else
+            return r->IsDiscrete;
       }
 
    case vhpiStaticnessP:
@@ -2973,11 +2983,16 @@ static c_expr *build_expr(tree_t t)
 
 static c_physRange *build_phys_range(tree_t t)
 {
-   c_physRange *pr = new_object(sizeof(c_physRange), vhpiPhysRangeK);
-   init_range(&(pr->range), tree_subkind(t) == RANGE_TO);
+   const int64_t left = assume_int(tree_left(t));
+   const int64_t right = assume_int(tree_right(t));
+   const range_kind_t dir = tree_subkind(t) == RANGE_TO;
+   const bool null = dir == RANGE_TO ? left > right : right > left;
 
-   pr->PhysLeftBound  = vhpi_phys_from_native(assume_int(tree_left(t)));
-   pr->PhysRightBound = vhpi_phys_from_native(assume_int(tree_right(t)));
+   c_physRange *pr = new_object(sizeof(c_physRange), vhpiPhysRangeK);
+   init_range(&(pr->range), dir, null, true);
+
+   pr->PhysLeftBound  = vhpi_phys_from_native(left);
+   pr->PhysRightBound = vhpi_phys_from_native(right);
 
    return pr;
 }
@@ -3020,8 +3035,10 @@ static c_intRange *build_int_range(tree_t r, type_t parent, int dim,
       }
    }
 
+   const bool null = dir == RANGE_TO ? left > right : right > left;
+
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
-   init_range(&(ir->range), dir == RANGE_TO);
+   init_range(&(ir->range), dir == RANGE_TO, null, true);
 
    ir->LeftBound  = vhpi_int_from_native(left);
    ir->RightBound = vhpi_int_from_native(right);
@@ -3107,9 +3124,10 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
          const int64_t left = bounds[i].left;
          const int64_t right =
             ffi_array_right(bounds[i].left, bounds[i].length);
+         const bool null = dir == RANGE_TO ? left > right : right > left;
 
          c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
-         init_range(&(ir->range), dir == RANGE_TO);
+         init_range(&(ir->range), dir == RANGE_TO, null, true);
 
          ir->LeftBound  = vhpi_int_from_native(left);
          ir->RightBound = vhpi_int_from_native(right);
