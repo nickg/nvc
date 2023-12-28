@@ -772,6 +772,17 @@ bool type_is_discrete(type_t t)
       return base == T_INTEGER || base == T_ENUM;
 }
 
+bool type_is_numeric(type_t t)
+{
+   const type_kind_t base = type_base_kind(t);
+   if (base == T_GENERIC) {
+      const gtype_class_t class = type_subkind(type_base_recur(t));
+      return class == GTYPE_INTEGER || class == GTYPE_FLOATING;
+   }
+   else
+      return base == T_INTEGER || base == T_REAL;
+}
+
 bool type_is_subprogram(type_t t)
 {
    return t->object.kind == T_FUNC || t->object.kind == T_PROC;

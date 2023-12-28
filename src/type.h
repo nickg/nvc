@@ -149,6 +149,7 @@ bool type_is_composite(type_t t);
 bool type_is_homogeneous(type_t t);
 bool type_is_resolved(type_t t);
 bool type_is_character_array(type_t t);
+bool type_is_numeric(type_t t);
 
 bool type_const_bounds(type_t t);
 

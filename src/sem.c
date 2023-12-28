@@ -42,7 +42,7 @@ static bool sem_locally_static(tree_t t);
 static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_same_type(tree_t left, tree_t right);
-static bool sem_check_type(tree_t t, type_t expect);
+static bool sem_check_type(tree_t t, type_t expect, nametab_t *tab);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
 static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
 static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
@@ -164,7 +164,7 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
          if (!sem_check_attr_ref(expr, true, tab))
             return false;
 
-         if (expect && !sem_check_type(expr, expect))
+         if (expect && !sem_check_type(expr, expect, tab))
             sem_error(expr, "expected type of range bound to be %s but is %s",
                       type_pp(expect), type_pp(tree_type(expr)));
 
@@ -195,15 +195,15 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
                          " right is %s", type_pp(tree_type(left)),
                          type_pp(tree_type(right)));
 
-            if (!sem_check_type(left, expect))
+            if (!sem_check_type(left, expect, tab))
                sem_error(r, "expected type of range bounds to be %s but"
                          " have %s", type_pp(expect), type_pp(tree_type(left)));
 
             // This cannot fail because we know left and right have the
             // same type and left is equal to expect, but we still need
             // to call sem_check_type for the implicit conversion
-            sem_check_type(right, expect);
-            sem_check_type(r, expect);
+            sem_check_type(right, expect, tab);
+            sem_check_type(r, expect, tab);
          }
 
          if (kind != T_LAST_TYPE_KIND) {
@@ -557,7 +557,7 @@ static bool sem_check_array_dims(type_t type, type_t constraint, nametab_t *tab)
       if (index_type == NULL)
          index_type = tree_type(r);
 
-      if (!sem_check_type(r, index_type))
+      if (!sem_check_type(r, index_type, tab))
          sem_error(r, "type of bound %s does not match type of index %s",
                    type_pp(tree_type(r)),
                    type_pp(index_type));
@@ -566,11 +566,11 @@ static bool sem_check_array_dims(type_t type, type_t constraint, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_mapped_type(tree_t t, type_t expect, hash_t *map)
+static bool sem_check_type(tree_t t, type_t expect, nametab_t *tab)
 {
    type_t actual = tree_type(t);
 
-   if (type_eq_map(actual, expect, map))
+   if (type_eq_map(actual, expect, get_generic_map(tab)))
       return true;
 
    // Supress cascading errors
@@ -578,11 +578,6 @@ static bool sem_check_mapped_type(tree_t t, type_t expect, hash_t *map)
       return true;
 
    return false;
-}
-
-static inline bool sem_check_type(tree_t t, type_t expect)
-{
-   return sem_check_mapped_type(t, expect, NULL);
 }
 
 static bool sem_check_same_type(tree_t left, tree_t right)
@@ -704,7 +699,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                sem_error(value, "the abstract literal portion of a secondary "
                          "unit declaration must be an integer literal");
 
-            if (i > 0 && !sem_check_type(value, type))
+            if (i > 0 && !sem_check_type(value, type, tab))
                sem_error(value, "secondary unit %s must have type %s",
                          istr(tree_ident(u)), type_pp(type));
          }
@@ -919,7 +914,7 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
@@ -990,7 +985,7 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
@@ -1043,7 +1038,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
@@ -1145,7 +1140,7 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
@@ -1275,7 +1270,7 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
       if (mode == PORT_LINKAGE)
          sem_error(t, "port with mode LINKAGE cannot have a default value");
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
@@ -1370,7 +1365,7 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
@@ -1435,7 +1430,7 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       if (!sem_check_subtype(t, type, tab))
          return false;
 
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(t, "type of aliased object %s does not match expected "
                    "type %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
@@ -2383,7 +2378,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
          if (!sem_readable(value))
             return false;
 
-         if (!sem_check_type(value, expect))
+         if (!sem_check_type(value, expect, tab))
             sem_error(t, "type of value %s does not match type of target %s",
                       type_pp2(tree_type(value), expect),
                       type_pp2(expect, tree_type(value)));
@@ -2400,7 +2395,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
          if (!sem_check(delay, tab))
             return false;
 
-         if (!sem_check_type(delay, std_time))
+         if (!sem_check_type(delay, std_time, tab))
             sem_error(delay, "type of delay must be %s but have %s",
                       type_pp(std_time), type_pp(tree_type(delay)));
       }
@@ -2646,11 +2641,11 @@ static bool sem_check_signal_assign(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_guard(tree_t t)
+static bool sem_check_guard(tree_t t, nametab_t *tab)
 {
    assert(tree_kind(t) == T_REF);
 
-   if (!sem_check_type(t, std_type(NULL, STD_BOOLEAN)))
+   if (!sem_check_type(t, std_type(NULL, STD_BOOLEAN), tab))
       sem_error(t, "guard signal must have BOOLEAN type but found %s",
                 type_pp(tree_type(t)));
 
@@ -2725,27 +2720,17 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
    if (type_eq(to, from))
       return true;
 
-   // Resolve both types to their base types
-   from = type_base_recur(from);
-   to   = type_base_recur(to);
-
-   type_kind_t from_k = type_kind(from);
-   type_kind_t to_k   = type_kind(to);
-
-   const bool from_num = (from_k == T_INTEGER) || (from_k == T_REAL);
-   const bool to_num   = (to_k == T_INTEGER) || (to_k == T_REAL);
-
    // Conversions are allowed between any abstract numeric types
-   if (from_num && to_num)
+   if (type_is_numeric(from) && type_is_numeric(to))
       return true;
 
    // Suppress cascading errors
-   if (from_k == T_NONE || to_k == T_NONE)
+   if (type_is_none(from) || type_is_none(to))
       return true;
 
    char *reason = NULL;
 
-   if (from_k == T_ARRAY && to_k == T_ARRAY) {
+   if (type_is_array(from) && type_is_array(to)) {
       const int from_dims = dimension_of(from);
       const int to_dims = dimension_of(to);
 
@@ -2796,7 +2781,7 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
       return true;
    }
 
-   if (from_k == T_RECORD && to_k == T_RECORD && standard() >= STD_19) {
+   if (type_is_record(from) && type_is_record(to) && standard() >= STD_19) {
       // Each element of the target type must have a matching element in
       // the from type
       const int from_nf = type_fields(from);
@@ -3012,7 +2997,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, port_type))
+      if (!sem_check_type(value, port_type, tab))
          sem_error(value, "type of actual %s does not match formal %s type %s",
                    type_pp2(tree_type(value), port_type),
                    istr(tree_ident(port)),
@@ -3223,7 +3208,7 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
       if (!sem_check(delay, tab))
          return false;
 
-      if (!sem_check_type(delay, std_time))
+      if (!sem_check_type(delay, std_time, tab))
          sem_error(delay, "type of delay must be %s but have %s",
                    type_pp(std_time), type_pp(tree_type(delay)));
    }
@@ -3235,7 +3220,7 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, std_bool))
+      if (!sem_check_type(value, std_bool, tab))
          sem_error(value, "type of condition must be BOOLEAN but have %s",
                    type_pp(tree_type(value)));
    }
@@ -3283,17 +3268,17 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
    if (message != NULL && !sem_check(message, tab))
       return false;
 
-   if (value != NULL && !sem_check_type(value, std_bool))
+   if (value != NULL && !sem_check_type(value, std_bool, tab))
       sem_error(value, "type of assertion expression must "
                 "be %s but is %s", type_pp(std_bool),
                 type_pp(tree_type(value)));
 
-   if (!sem_check_type(severity, std_severity))
+   if (!sem_check_type(severity, std_severity, tab))
       sem_error(severity, "type of severity must be %s but is %s",
                 type_pp(std_severity),
                 type_pp(tree_type(severity)));
 
-   if (message != NULL && !sem_check_type(message, std_string))
+   if (message != NULL && !sem_check_type(message, std_string, tab))
       sem_error(message, "type of message be %s but is %s",
                 type_pp(std_string),
                 type_pp(tree_type(message)));
@@ -3400,7 +3385,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
             if (!sem_check(name, tab))
                return false;
 
-            if (!sem_check_type(name, index_type))
+            if (!sem_check_type(name, index_type, tab))
                sem_error(name, "type of array aggregate choice %s does not "
                          "match %s index type %s", type_pp(tree_type(name)),
                          type_pp(composite_type), type_pp(index_type));
@@ -3425,14 +3410,14 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, elem_type)) {
+      if (!sem_check_type(value, elem_type, tab)) {
          // LRM 08 section 9.3.3.3 allows the association to be of the
          // base aggregate type as well
          const bool allow_slice =
             ndims == 1 && standard() >= STD_08
             && (akind == A_POS || akind == A_RANGE);
 
-         if (allow_slice && !sem_check_type(value, composite_type))
+         if (allow_slice && !sem_check_type(value, composite_type, tab))
             sem_error(value, "type of %s association %s does not match "
                       "aggregate element type %s or the aggregate type "
                       "itself %s", assoc_kind_str(akind),
@@ -3565,7 +3550,7 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
          if (!sem_check(value, tab))
             return false;
 
-         if (!sem_check_type(value, field_type))
+         if (!sem_check_type(value, field_type, tab))
             sem_error(value, "type of value %s does not match type %s"
                       " of field %s",
                       type_pp2(tree_type(value), field_type),
@@ -3762,7 +3747,7 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 
       ok = sem_check(value, tab) && ok;
 
-      if (ok && !sem_check_type(value, expect))
+      if (ok && !sem_check_type(value, expect, tab))
          sem_error(value, "type of index %s does not match type of "
                    "array dimension %s",
                    type_pp(tree_type(value)),
@@ -3875,7 +3860,7 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max,
          return false;
 
       tree_t value = tree_value(tree_param(t, 0));
-      if (!sem_check_type(value, expect))
+      if (!sem_check_type(value, expect, tab))
          sem_error(t, "expected type %s for attribute %s parameter but "
                    "have %s", type_pp(expect), istr(tree_ident(t)),
                    type_pp(tree_type(value)));
@@ -4111,7 +4096,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             if (!sem_check(value, tab))
                return false;
 
-            if (!sem_check_type(value, std_time))
+            if (!sem_check_type(value, std_time, tab))
                sem_error(value, "attribute %s parameter must have type %s",
                          istr(attr), type_pp(std_time));
          }
@@ -4247,7 +4232,7 @@ static bool sem_check_qualified(tree_t t, nametab_t *tab)
       // LRM 08 section 9.3.5 qualified expressions: the operand shall have
       // the same type as the base type of the type mark
       type_t base = type_base_recur(tree_type(t));
-      if (!sem_check_type(value, base)) {
+      if (!sem_check_type(value, base, tab)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
          diag_printf(d, "operand of qualified expression must have type %s",
                      type_pp(base));
@@ -4376,7 +4361,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    type_t value_type = tree_type(value);
 
-   if (!sem_check_mapped_type(value, type, get_generic_map(tab)))
+   if (!sem_check_type(value, type, tab))
       sem_error(value, "type of actual %s does not match type %s of formal "
                 "port %s", type_pp(value_type), type_pp(type),
                 istr(tree_ident(decl)));
@@ -4768,7 +4753,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_mapped_type(value, type, get_generic_map(tab)))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "type of actual %s does not match type %s of formal "
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));
@@ -4892,7 +4877,7 @@ static bool sem_check_cond(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, std_bool))
+      if (!sem_check_type(value, std_bool, tab))
          sem_error(value, "type of condition must be %s but have %s",
                    type_pp(std_bool), type_pp(tree_type(value)));
 
@@ -5499,7 +5484,7 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                if (!sem_check(name, tab))
                   return false;
 
-               if (!sem_check_type(name, type))
+               if (!sem_check_type(name, type, tab))
                   sem_error(name, "case choice must have type %s but found %s",
                             type_pp(type), type_pp(tree_type(name)));
                else if (!(*static_fn)(name))
@@ -5587,7 +5572,7 @@ static bool sem_check_return(tree_t t, nametab_t *tab)
       if (!sem_check(tree_value(t), tab))
          return false;
 
-      if (!sem_check_type(tree_value(t), expect))
+      if (!sem_check_type(tree_value(t), expect, tab))
          sem_error(t, "expected return type %s but have %s",
                    type_pp(expect), type_pp(tree_type(tree_value(t))));
    }
@@ -5611,7 +5596,7 @@ static bool sem_check_cond_return(tree_t t, nametab_t *tab)
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
-   if (!sem_check_type(value, std_bool))
+   if (!sem_check_type(value, std_bool, tab))
       sem_error(value, "type of condition must be %s but have %s",
                 type_pp(std_bool), type_pp(tree_type(value)));
 
@@ -5626,7 +5611,7 @@ static bool sem_check_while(tree_t t, nametab_t *tab)
    if (!sem_check(value, tab))
       return false;
 
-   if (!sem_check_type(value, std_bool))
+   if (!sem_check_type(value, std_bool, tab))
       sem_error(value, "type of loop condition must be %s but is %s",
                 type_pp(std_bool), type_pp(tree_type(value)));
 
@@ -5695,7 +5680,7 @@ static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
       return false;
 
    type_t type = tree_type(t);
-   if (!sem_check_type(value, type))
+   if (!sem_check_type(value, type, tab))
       sem_error(t, "expected attribute specification for %s to have type %s "
                 "but found %s", istr(tree_ident(t)), type_pp(type),
                 type_pp(tree_type(value)));
@@ -5827,14 +5812,14 @@ static bool sem_check_file_decl(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, std_type(NULL, STD_STRING)))
+      if (!sem_check_type(value, std_type(NULL, STD_STRING), tab))
          sem_error(value, "file name must have type STRING");
 
       tree_t mode = tree_file_mode(t);
       if (!sem_check(mode, tab))
          return false;
 
-      if (!sem_check_type(mode, std_type(NULL, STD_FILE_OPEN_KIND)))
+      if (!sem_check_type(mode, std_type(NULL, STD_FILE_OPEN_KIND), tab))
          sem_error(mode, "open mode must have type FILE_OPEN_KIND");
    }
 
@@ -6146,7 +6131,7 @@ static bool sem_check_implicit_signal(tree_t t, nametab_t *tab)
 
    switch (tree_subkind(t)) {
    case IMPLICIT_GUARD:
-      if (!sem_check_type(value, type))
+      if (!sem_check_type(value, type, tab))
          sem_error(value, "guard expression must have type %s but "
                    "found %s", type_pp2(type, tree_type(value)),
                    type_pp2(tree_type(value), type));
@@ -6183,7 +6168,7 @@ static bool sem_check_context_ref(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_disconnect(tree_t t)
+static bool sem_check_disconnect(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
       return false;
@@ -6201,7 +6186,7 @@ static bool sem_check_disconnect(tree_t t)
 
    tree_t delay = tree_delay(t);
    type_t std_time = std_type(NULL, STD_TIME);
-   if (!sem_check_type(delay, std_time))
+   if (!sem_check_type(delay, std_time, tab))
       sem_error(delay, "time expression in disconnection specification must "
                 "have type %s but found %s", type_pp(std_time),
                 type_pp(tree_type(delay)));
@@ -6228,7 +6213,7 @@ static bool sem_check_conv_func(tree_t t, nametab_t *tab)
 
 static bool sem_check_concurrent(tree_t t, nametab_t *tab)
 {
-   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
+   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t), tab))
       return false;
 
    if (tree_stmts(t) == 0)
@@ -6374,7 +6359,7 @@ static bool sem_check_force(tree_t t, nametab_t *tab)
 
    type_t expect = tree_type(target);
 
-   if (!sem_check_type(value, expect))
+   if (!sem_check_type(value, expect, tab))
       sem_error(t, "type of force expression %s does not match type of "
                 "target %s", type_pp2(tree_type(value), expect),
                 type_pp2(expect, tree_type(value)));
@@ -6520,7 +6505,7 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
          if (!sem_check(value, tab))
             return false;
 
-         if (!sem_check_type(value, std_bool))
+         if (!sem_check_type(value, std_bool, tab))
             sem_error(value, "type of condition must be %s but have %s",
                       type_pp(std_bool), type_pp(tree_type(value)));
       }
@@ -6532,7 +6517,7 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
          if (!sem_check(result, tab))
             return false;
 
-         if (!sem_check_type(result, type))
+         if (!sem_check_type(result, type, tab))
             sem_error(result, "expected type of conditional expression to be "
                       "%s but is %s", type_pp(type),
                       type_pp(tree_type(result)));
@@ -6717,7 +6702,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_IMPLICIT_SIGNAL:
       return sem_check_implicit_signal(t, tab);
    case T_DISCONNECT:
-      return sem_check_disconnect(t);
+      return sem_check_disconnect(t, tab);
    case T_GROUP:
    case T_GROUP_TEMPLATE:
    case T_BOX:

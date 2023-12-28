@@ -3157,7 +3157,7 @@ void map_generic_predef(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 
    tree_t map = tree_new(T_PARAM);
    tree_set_loc(ref, tree_loc(inst));
-   tree_set_subkind(map,  P_POS);
+   tree_set_subkind(map, P_POS);
    tree_set_pos(map, pos);
    tree_set_value(map, ref);
 
@@ -3172,23 +3172,48 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 
    assert(tree_kind(g) == T_GENERIC_DECL);
    type_t type = tree_type(g);
+   ident_t func = type_ident(type);
 
    tree_t ref = tree_new(T_REF);
    tree_set_loc(ref, tree_loc(inst));
-   tree_set_ident(ref, type_ident(type));
+   tree_set_ident(ref, func);
 
-   solve_types(tab, ref, type);
+   tree_t decl = NULL;
+   const symbol_t *sym = iterate_symbol_for(tab, func);
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN || !(dd->mask & N_SUBPROGRAM))
+            continue;
+
+         type_t signature = tree_type(dd->tree);
+         if (!type_eq_map(type, signature, tab->top_scope->gmap))
+            continue;
+
+         decl = dd->tree;
+         break;
+      }
+   }
+
+   if (decl != NULL) {
+      tree_set_ref(ref, decl);
+      tree_set_type(ref, tree_type(decl));
+
+      map_generic_subprogram(tab, g, decl);
+   }
+   else if (!tab->top_scope->suppress) {
+      const char *signature = strchr(type_pp(type), '[');
+      error_at(tree_loc(ref), "no visible subprogram %s matches "
+               "signature %s", istr(func), signature);
+   }
 
    tree_t map = tree_new(T_PARAM);
    tree_set_loc(ref, tree_loc(inst));
-   tree_set_subkind(map,  P_POS);
+   tree_set_subkind(map, P_POS);
    tree_set_pos(map, pos);
    tree_set_value(map, ref);
 
    tree_add_genmap(inst, map);
-
-   if (tree_has_ref(ref))
-      map_generic_subprogram(tab, g, tree_ref(ref));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

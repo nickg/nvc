@@ -10595,10 +10595,14 @@ static tree_t p_block_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   pop_scope(nametab);
-
    tree_set_loc(b, CURRENT_LOC);
    sem_check(b, nametab);
+
+   hash_t *map = get_generic_map(nametab);
+   if (map != NULL)
+      instance_fixup(b, map);
+
+   pop_scope(nametab);
    return b;
 }
 

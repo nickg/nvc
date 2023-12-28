@@ -350,6 +350,5 @@ static tree_t instance_fixup_cb(tree_t t, void *__ctx)
 
 void instance_fixup(tree_t inst, hash_t *map)
 {
-   tree_rewrite(inst, NULL, instance_fixup_cb,
-                rewrite_generic_types_cb, map);
+   tree_rewrite(inst, NULL, instance_fixup_cb, rewrite_generic_types_cb, map);
 }
