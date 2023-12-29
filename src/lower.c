@@ -3772,6 +3772,8 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
 
    const int nassocs = tree_assocs(expr);
 
+   const bool pos_concat = (standard() >= STD_08 && dimension_of(type) == 1);
+   int64_t pos = 0;
    bool known_elem_count = true;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
@@ -3818,7 +3820,25 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          break;
 
       case A_POS:
-         ihigh = ilow = (dir == RANGE_TO ? low + i : high - i);
+         {
+            int64_t length = 1;
+            if (pos_concat) {
+               type_t value_type = tree_type(tree_value(a));
+               if (type_eq(type, value_type))
+                  length = lower_array_const_size(value_type);
+            }
+
+            if (dir == RANGE_TO) {
+               ilow = low + pos;
+               ihigh = ilow + length - 1;
+            }
+            else {
+               ihigh = high - pos;
+               ilow = ihigh - length + 1;
+            }
+
+            pos += length;
+         }
          break;
       }
 
