@@ -1487,10 +1487,8 @@ unsigned get_case_choice_char(tree_t value, int depth)
 {
    switch (tree_kind(value)) {
    case T_STRING:
-      if (depth < tree_chars(value)) {
-         tree_t ch = tree_char(value, depth);
-         return tree_pos(tree_ref(ch));
-      }
+      if (depth < tree_chars(value))
+         return assume_int(tree_char(value, depth));
       else
          return ~0;   // Out of bounds
 
