@@ -123,6 +123,12 @@ case $target_cpu in
       [], [-Werror])
 
     AX_CHECK_COMPILE_FLAG(
+      [-msha],
+      [AC_DEFINE_UNQUOTED([HAVE_SSE_SHA], [1],
+                          [Target supports SHA instructions])],
+      [], [-Werror])
+
+    AX_CHECK_COMPILE_FLAG(
       [-mpopcnt],
       [AX_APPEND_FLAG([-mpopcnt], [EXTRA_CFLAGS])
        AC_DEFINE_UNQUOTED([HAVE_POPCNT], [1],

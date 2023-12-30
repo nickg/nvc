@@ -35,3 +35,9 @@ endif
 if GNULIB_STRNDUP
 lib_libgnulib_a_SOURCES += thirdparty/strndup.c
 endif
+
+EXTRA_PROGRAMS += bin/sha1test
+
+bin_sha1test_SOURCES = thirdparty/sha1.c
+
+bin_sha1test_CFLAGS = -DSHA1TEST
