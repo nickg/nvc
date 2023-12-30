@@ -765,8 +765,11 @@ tree_t aliased_type_decl(tree_t decl)
    case T_ALIAS:
       {
          tree_t value = tree_value(decl);
-         if (tree_kind(value) == T_REF && tree_has_ref(value))
+         const tree_kind_t kind = tree_kind(value);
+         if (kind == T_REF && tree_has_ref(value))
             return aliased_type_decl(tree_ref(value));
+         else if (kind == T_ATTR_REF && is_type_attribute(tree_subkind(value)))
+             return value;
          else
             return NULL;
       }

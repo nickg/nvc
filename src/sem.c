@@ -5805,9 +5805,7 @@ static bool sem_check_file_decl(tree_t t, nametab_t *tab)
 {
    // Rules for file declarations are in LRM 93 section 4.3.1.4
 
-   type_t type = tree_type(t);
-
-   if (type_kind(type) != T_FILE)
+   if (!type_is_file(tree_type(t)))
       sem_error(t, "file declarations must have file type");
 
    if (tree_has_value(t)) {

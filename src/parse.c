@@ -8411,8 +8411,9 @@ static tree_t p_package_declaration(tree_t unit)
    tree_set_ident(pack, name);
    tree_set_loc(pack, CURRENT_LOC);
 
-   push_scope(nametab);
    insert_name(nametab, pack, NULL);
+
+   push_scope(nametab);
 
    consume(tIS);
 

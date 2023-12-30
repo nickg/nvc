@@ -243,4 +243,29 @@ begin
     begin
     end block;
 
+    b5: block is
+        generic ( type ft is file of type is private );
+        generic map ( ft => t8 );
+        file f : ft;                    -- OK
+    begin
+    end block;
+
+    b7: block is
+        package gp is
+            generic (
+                type array_type is array (type is (<>)) of type is private );
+            alias index_type   is array_type'INDEX;
+            alias element_type is array_type'ELEMENT;
+        end package;
+
+        package p is new gp
+            generic map ( array_type => bit_vector );
+
+        signal x : p.array_type(1 to 3);  -- OK
+        signal y : p.index_type := 5;  -- OK (TODO)
+        signal z : p.element_type := '1';  -- OK (TODO)
+    begin
+
+    end block;
+
 end architecture;

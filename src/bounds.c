@@ -705,13 +705,10 @@ static void bounds_check_aggregate(tree_t t)
 
 static void bounds_check_subtype(type_t type)
 {
-   const bool is_constrained_array_subtype =
-      type_is_array(type)
-      && !type_is_unconstrained(type)
-      && type_kind(type) == T_SUBTYPE;
-
-   if (!is_constrained_array_subtype)
-      return;
+   if (type_kind(type) != T_SUBTYPE || type_has_ident(type))
+      return;   // Not an anonymous subtype
+   else if (!type_is_array(type) || type_is_unconstrained(type))
+      return;   // Not a fully constrained array
 
    // Check folded range does not violate index constraints of base type
 
@@ -722,8 +719,10 @@ static void bounds_check_subtype(type_t type)
       tree_t dim = range_of(type, i);
 
       type_t cons = index_type_of(base, i);
-      type_t cons_base  = type_base_recur(cons);
+      if (type_kind(cons) == T_GENERIC)
+         continue;   // Cannot check
 
+      type_t cons_base = type_base_recur(cons);
       const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
       tree_t bounds = range_of(cons, 0);
