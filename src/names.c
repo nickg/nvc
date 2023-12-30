@@ -566,6 +566,18 @@ tree_t find_enclosing(nametab_t *tab, scope_kind_t what)
       return NULL;
 }
 
+bool is_enclosing(nametab_t *tab, tree_t container)
+{
+   assert(is_container(container));
+
+   for (scope_t *s = tab->top_scope; s; s = s->parent) {
+      if (s->container == container)
+         return true;
+   }
+
+   return false;
+}
+
 formal_kind_t scope_formal_kind(nametab_t *tab)
 {
    return tab->top_scope->formal_kind;

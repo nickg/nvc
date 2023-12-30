@@ -3178,8 +3178,31 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       }
       else if (kind == T_GENERIC_DECL && tree_class(decl) == C_PACKAGE)
          return select_decl(tree_value(decl), suffix, mask);
-      else if (is_container(decl))
-         return select_decl(prefix, suffix, mask);
+      else if (is_container(decl)) {
+         tree_t ref = select_decl(prefix, suffix, mask);
+         if (!tree_has_ref(ref))
+            return ref;   // Was error
+
+         // LRM 08 section 8.3 rules for expanded names
+         tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
+         if (du == decl || (kind == T_ENTITY && primary_unit_of(du) == decl))
+            return ref;
+         else if (kind == T_PACKAGE && is_uninstantiated_package(decl))
+            parse_error(CURRENT_LOC, "cannot reference %s in uninstantiated "
+                        "package %s outside of the package itself",
+                        istr(suffix), istr(tree_ident(decl)));
+         else if (kind != T_PACKAGE && kind != T_PACK_INST
+                  && !is_enclosing(nametab, decl)) {
+            diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+            diag_printf(d, "expanded name cannot reference %s in %s %s "
+                        "outside of the construct itself", istr(suffix),
+                        class_str(class_of(decl)), istr(tree_ident(decl)));
+            diag_lrm(d, STD_08, "8.3");
+            diag_emit(d);
+         }
+
+         return ref;
+      }
    }
 
    if (scope_formal_kind(nametab) == F_SUBPROGRAM) {
