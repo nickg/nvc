@@ -216,6 +216,7 @@ begin
         subtype my_int is integer range 1 to 20;
         subtype my_bool is boolean range true to true;
         variable x : integer;
+        alias my_int_base is my_int'base;  -- OK
     begin
         assert my_int'base'left = 1;    -- OK
         assert x'base'left = 2;         -- Error

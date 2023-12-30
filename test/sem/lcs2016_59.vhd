@@ -233,4 +233,14 @@ begin
 
     end block;
 
+    b4: block is
+        generic (
+            type array_type is array(type is (<>)) of type is private );
+        generic map ( array_type => integer_vector );
+
+        alias index_type   is array_type'INDEX;  -- OK
+        alias element_type is array_type'ELEMENT;  -- OK
+    begin
+    end block;
+
 end architecture;

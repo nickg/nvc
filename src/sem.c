@@ -1406,6 +1406,8 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       else if (tree_kind(decl) == T_VIEW_DECL)
          return true;   // Alias of view declaration
    }
+   else if (value_kind == T_ATTR_REF && is_type_attribute(tree_subkind(value)))
+      return true;   // Alias of type
 
    // Alias of object
    if (!sem_check(value, tab))
@@ -4184,6 +4186,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    case ATTR_ELEMENT:
    case ATTR_SUBTYPE:
+   case ATTR_INDEX:
       sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
    case ATTR_CONVERSE:

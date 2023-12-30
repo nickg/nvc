@@ -713,17 +713,17 @@ START_TEST(test_attr)
       { 160, "prefix does not have a range" },
       { 204, "prefix does not have LENGTH attribute" },
       { 212, "cannot use attribute IMAGE with non-scalar type INT2_" },
-      { 221, "prefix of 'BASE attribute must be a type or subtype declara" },
-      { 222, "BASE attribute is allowed only as the prefix of the name" },
-      { 228, "no visible declaration for NOT_HERE" },
-      { 251, "parameter of attribute VAL must have an integer type but "
+      { 222, "prefix of 'BASE attribute must be a type or subtype declara" },
+      { 223, "BASE attribute is allowed only as the prefix of the name" },
+      { 229, "no visible declaration for NOT_HERE" },
+      { 252, "parameter of attribute VAL must have an integer type but "
         "found universal_real" },
-      { 252, "attribute VAL requires a parameter" },
-      { 260, "cannot use attribute VALUE with non-scalar type BIT2D" },
-      { 303, "expression must be a BOOLEAN literal" },
-      { 305, "NEVER_WAITS attribute can only be applied to procedures" },
-      { 309, "failed to parse FOREIGN attribute" },
-      { 310, "FOREIGN attribute must have string literal value" },
+      { 253, "attribute VAL requires a parameter" },
+      { 261, "cannot use attribute VALUE with non-scalar type BIT2D" },
+      { 304, "expression must be a BOOLEAN literal" },
+      { 306, "NEVER_WAITS attribute can only be applied to procedures" },
+      { 310, "failed to parse FOREIGN attribute" },
+      { 311, "FOREIGN attribute must have string literal value" },
       { -1, NULL }
    };
    expect_errors(expect);
