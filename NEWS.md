@@ -9,6 +9,8 @@
   choice expression (#819).
 - Fixed calculation of longest static prefix with indexes and slices of
   a constant array (#820).
+- Fixed a crash during elaboration when simplifying an if-statement that
+  depends on a generate parameter (#821).
 
 ## Version 1.11.1 - 2023-12-16
 - Fix crash during elaboration when an if-statement branch is always

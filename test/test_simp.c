@@ -1655,6 +1655,25 @@ START_TEST(test_issue812)
 }
 END_TEST
 
+START_TEST(test_issue821)
+{
+   input_from_file(TESTDIR "/simp/issue821.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t g1 = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(g1) == T_BLOCK);
+
+   tree_t seq = tree_stmt(tree_stmt(g1, 0), 0);
+   fail_unless(tree_kind(seq) == T_SEQUENCE);
+   fail_unless(tree_stmts(seq) == 2);
+   fail_unless(tree_kind(tree_stmt(seq, 0)) == T_IF);
+   fail_unless(tree_kind(tree_stmt(seq, 1)) == T_DUMMY_DRIVER);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1720,6 +1739,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue782);
    tcase_add_test(tc_core, test_order2);
    tcase_add_test(tc_core, test_issue812);
+   tcase_add_test(tc_core, test_issue821);
    suite_add_tcase(s, tc_core);
 
    return s;
