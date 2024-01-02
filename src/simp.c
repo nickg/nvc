@@ -942,20 +942,22 @@ static tree_t simp_if(tree_t t)
          simp_find_drivers(c, &drivers);
    }
 
-   if (drivers.count > 0 && tree_conds(new) > 0)
-      simp_make_dummy_drivers(tree_cond(new, 0), &drivers);
-   else if (drivers.count > 0) {
+   if (drivers.count > 0) {
        tree_t b = tree_new(T_SEQUENCE);
        tree_set_loc(b, tree_loc(t));
-       if (tree_has_ident(t))
-          tree_set_ident(b, tree_ident(t));
 
+       if (tree_conds(new) > 0)
+          tree_add_stmt(b, new);
+       else if (tree_has_ident(new))
+          tree_set_ident(b, tree_ident(new));
 
        simp_make_dummy_drivers(b, &drivers);
        return b;
    }
-
-   return tree_conds(new) > 0 ? new : NULL;
+   else if (tree_conds(new) > 0)
+      return new;
+   else
+      return NULL;
 }
 
 static tree_t simp_while(tree_t t)
