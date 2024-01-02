@@ -11,6 +11,8 @@
   a constant array (#820).
 - Fixed a crash during elaboration when simplifying an if-statement that
   depends on a generate parameter (#821).
+- Increased the limit on the number of subprogram arguments to allow
+  compiling some Lattice IPs (from @sean-anderson-seco).
 
 ## Version 1.11.1 - 2023-12-16
 - Fix crash during elaboration when an if-statement branch is always
