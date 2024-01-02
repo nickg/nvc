@@ -1661,6 +1661,34 @@ static bool is_static(tree_t expr)
    case T_RECORD_REF:
       return is_static(tree_value(expr));
 
+   case T_ARRAY_REF:
+      {
+         if (!is_static(tree_value(expr)))
+            return false;
+
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++) {
+            if (!is_static(tree_value(tree_param(expr, i))))
+               return false;
+         }
+
+         return true;
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         if (!is_static(tree_value(expr)))
+            return false;
+
+         assert(tree_ranges(expr) == 1);
+
+         tree_t r = tree_range(expr, 0);
+         if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
+            return false;
+
+         return true;
+      }
+
    default:
       return false;
    }
@@ -1694,14 +1722,13 @@ tree_t longest_static_prefix(tree_t expr)
          if (prefix != value)
             return prefix;
 
-         const int nranges = tree_ranges(expr);
-         for (int i = 0; i < nranges; i++) {
-            tree_t r = tree_range(expr, i);
-            if (tree_subkind(r) == RANGE_EXPR)
-               return prefix;
-            else if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
-               return prefix;
-         }
+         assert(tree_ranges(expr) == 1);
+
+         tree_t r = tree_range(expr, 0);
+         if (tree_subkind(r) == RANGE_EXPR)
+            return prefix;
+         else if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
+            return prefix;
 
          return expr;
       }
