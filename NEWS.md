@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
   non-static port map actuals (#817).
 - Library file names for design units that contain extended identifiers

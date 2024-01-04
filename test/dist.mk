@@ -25,6 +25,7 @@ EXTRA_DIST += \
 	test/bounds/issue734.vhd \
 	test/bounds/issue800.vhd \
 	test/bounds/issue806.vhd \
+	test/bounds/issue819.vhd \
 	test/bounds/issue98.vhd \
 	test/bounds/issue99.vhd \
 	test/bounds/nullrange.vhd \
@@ -1042,6 +1043,8 @@ EXTRA_DIST += \
 	test/regress/gold/issue734.txt \
 	test/regress/gold/issue747.txt \
 	test/regress/gold/issue801.txt \
+	test/regress/gold/issue816.txt \
+	test/regress/gold/issue817.txt \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1316,6 +1319,10 @@ EXTRA_DIST += \
 	test/regress/issue801.vhd \
 	test/regress/issue809.vhd \
 	test/regress/issue810.vhd \
+	test/regress/issue816.vhd \
+	test/regress/issue817.vhd \
+	test/regress/issue819.vhd \
+	test/regress/issue820.vhd \
 	test/regress/issue82.vhd \
 	test/regress/issue83.vhd \
 	test/regress/issue84.vhd \
@@ -1849,6 +1856,7 @@ EXTRA_DIST += \
 	test/simp/issue742.vhd \
 	test/simp/issue782.vhd \
 	test/simp/issue812.vhd \
+	test/simp/issue821.vhd \
 	test/simp/length.vhd \
 	test/simp/order1.vhd \
 	test/simp/order2.vhd \
