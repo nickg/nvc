@@ -24,4 +24,4 @@ following people:
   module.
 
 Special thank you to @bpadalino, @tmeissner, @Blebowski, @amb5l,
-@m42uko, and @a-panella for sponsoring me!
+@m42uko, @a-panella, and @cmarqu for sponsoring me!

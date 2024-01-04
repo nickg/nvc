@@ -3,6 +3,22 @@
 - Fixed a crash when subtype bounds depend on a package instance generic
   (#815).
 
+## Version 1.11.2 - 2024-01-04
+- Fixed an incorrect length check in the equivalent process for
+  non-static port map actuals (#817).
+- Library file names for design units that contain extended identifiers
+  such as `/Foo/` are now encoded in a way that avoids illegal
+  characters and case sensitivity issues on Windows and macOS (#816).
+- Implemented `vhpiIsNullP` and `vhpiIsDiscreteP` for ranges.
+- Fixed a crash when an aliased enumeration literal appears in a case
+  choice expression (#819).
+- Fixed calculation of longest static prefix with indexes and slices of
+  a constant array (#820).
+- Fixed a crash during elaboration when simplifying an if-statement that
+  depends on a generate parameter (#821).
+- Increased the limit on the number of subprogram arguments to allow
+  compiling some Lattice IPs (from @sean-anderson-seco).
+
 ## Version 1.11.1 - 2023-12-16
 - Fix crash during elaboration when an if-statement branch is always
   taken (#812).
