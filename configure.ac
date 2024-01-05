@@ -135,6 +135,15 @@ case $target_cpu in
                           [Target supports POPCNT instructions])],
       [], [-Werror])
     ;;
+
+  aarch64)
+    AX_CHECK_COMPILE_FLAG(
+      [-march=armv8-a+crypto],
+      [AC_DEFINE_UNQUOTED([HAVE_ARM_CRYPTO], [1],
+                          [Target supports ARMv8 crypto instructions])],
+      [], [-Werror])
+    AC_CHECK_HEADERS([arm_neon.h])
+    ;;
 esac
 
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
