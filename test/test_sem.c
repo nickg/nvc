@@ -3458,6 +3458,23 @@ START_TEST(test_genpack4)
 }
 END_TEST
 
+START_TEST(test_lcs2016_16)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_16.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3621,6 +3638,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_59);
    tcase_add_test(tc_core, test_issue770);
    tcase_add_test(tc_core, test_genpack4);
+   tcase_add_test(tc_core, test_lcs2016_16);
    suite_add_tcase(s, tc_core);
 
    return s;

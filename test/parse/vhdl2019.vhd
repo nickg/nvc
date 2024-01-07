@@ -91,3 +91,8 @@ entity E is
         type t9 is file of t1;
         );
 end E;
+
+-- LCS-2015-016
+entity E is
+    port ( p : type is private );
+end entity;

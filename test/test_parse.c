@@ -3780,6 +3780,14 @@ START_TEST(test_vhdl2019)
    fail_unless(tree_class(e059g18) == C_TYPE);
    fail_unless(type_subkind(tree_type(e059g18)) == GTYPE_ARRAY);
 
+   tree_t e016 = parse();
+   fail_if(e016 == NULL);
+   fail_unless(tree_kind(e016) == T_ENTITY);
+   fail_unless(tree_generics(e016) == 1);
+
+   tree_t e016g0 = tree_generic(e016, 0);
+   fail_unless(tree_class(e016g0) == C_TYPE);
+
    fail_unless(parse() == NULL);
 
    fail_if_errors();

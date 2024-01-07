@@ -4554,6 +4554,32 @@ static tree_t p_expression(void)
    return expr;
 }
 
+static type_t p_interface_type_indication(tree_t parent)
+{
+   // subtype_indication | anonymous_type_indication
+
+   BEGIN("interface type indication");
+
+   if (peek() == tTYPE) {
+      require_std(STD_19, "anonymous type indication");
+
+      type_t type = p_anonymous_type_indication();
+
+      tree_t g = tree_new(T_GENERIC_DECL);
+      tree_set_loc(g, CURRENT_LOC);
+      tree_set_ident(g, ident_uniq("anonymous"));
+      tree_set_subkind(g, PORT_IN);
+      tree_set_class(g, C_TYPE);
+      tree_set_type(g, type);
+
+      tree_add_generic(parent, g);
+
+      return type;
+   }
+   else
+      return p_subtype_indication();
+}
+
 static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
                                              bool ordered)
 {
@@ -4581,7 +4607,7 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
    if ((mode == PORT_OUT || mode == PORT_INOUT) && !explicit_constant)
       class = C_VARIABLE;
 
-   type_t type = p_subtype_indication();
+   type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
@@ -4693,7 +4719,7 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind,
          flags |= TREE_F_EXPLICIT_MODE;
       }
 
-      type = p_subtype_indication();
+      type = p_interface_type_indication(parent);
 
       if (optional(tBUS))
          flags |= TREE_F_BUS;
@@ -4741,7 +4767,7 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
       flags |= TREE_F_EXPLICIT_MODE;
    }
 
-   type_t type = p_subtype_indication();
+   type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
