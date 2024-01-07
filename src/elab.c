@@ -1317,21 +1317,15 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_context(arch_copy);
    elab_generics(entity, comp, t, &new_ctx);
    elab_instance_fixup(arch_copy, &new_ctx);
-   simplify_global(entity, new_ctx.generics, ctx->jit, ctx->registry);
+   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
-
-   if (error_count() == 0) {
-      diag_add_hint_fn(elab_hint_fn, t);
-      simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
-      new_ctx.drivers = find_drivers(arch_copy);
-      diag_remove_hint_fn(elab_hint_fn);
-   }
 
    if (error_count() == 0)
       elab_decls(arch_copy, &new_ctx);
 
    if (error_count() == 0) {
+      new_ctx.drivers = find_drivers(arch_copy);
       elab_lower(b, &new_ctx);
       elab_stmts(entity, &new_ctx);
       elab_stmts(arch_copy, &new_ctx);
