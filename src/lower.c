@@ -11764,6 +11764,23 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 
    if (type_is_unconstrained(port_type))
       return;   // Not supported for now
+   else if (tree_subkind(port) == PORT_OUT) {
+      tree_t ref = name_to_ref(value);
+      assert(ref != NULL);
+
+      tree_t signal = tree_ref(ref);
+
+      // Ensure that the default value of the port is the same as the
+      // signal it is connected to
+
+      tree_t def1 = tree_has_value(signal) ? tree_value(signal) : NULL;
+      tree_t def2 = tree_has_value(port) ? tree_value(port) : NULL;
+
+      if (def1 != NULL && def2 != NULL && !same_tree(def1, def2))
+         return;
+      else if ((def1 != NULL) ^ (def2 != NULL))
+         return;
+   }
 
    int hops = 0;
    vcode_var_t var = VCODE_INVALID_VAR;

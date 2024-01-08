@@ -913,3 +913,4 @@ issue817        fail,gold,2008
 issue816        fail,gold
 issue819        normal,2008
 issue820        normal
+issue824        normal

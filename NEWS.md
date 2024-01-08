@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed incorrect effective value when a signal has multiple sources due
+  to port-collapsing optimisation (#824).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
