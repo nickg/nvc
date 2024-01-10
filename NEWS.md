@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Fixed incorrect effective value when a signal has multiple sources due
   to port-collapsing optimisation (#824).
+- Signals that appear in aggregate choice expressions like `(S downto 0
+  => '0')` are now included in the sensitivity list for concurrent
+  statement equivalent processes, and in `process (all)` (#825).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for

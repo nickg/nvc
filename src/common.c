@@ -2085,8 +2085,19 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(expr);
-         for (int i = 0; i < nassocs; i++)
-            build_wait(tree_value(tree_assoc(expr, i)), fn, ctx);
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(expr, i);
+            build_wait(tree_value(a), fn, ctx);
+
+            switch (tree_subkind(a)) {
+            case A_RANGE:
+               build_wait(tree_range(a, 0), fn, ctx);
+               break;
+            case A_NAMED:
+               build_wait(tree_name(a), fn, ctx);
+               break;
+            }
+         }
       }
       break;
 
