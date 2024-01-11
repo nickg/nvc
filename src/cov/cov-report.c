@@ -321,8 +321,9 @@ static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx, cover_sc
 
    cover_file_t *src = cover_file(&(s->loc));
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
-               src->name, src->name);
+   if (src != NULL)
+      fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
+                  src->name, src->name);
    fprintf(f, "</h2>\n\n");
 }
 
@@ -1178,9 +1179,14 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = &(s->items.items[i]);
 
-      cover_file_t *f_src = cover_file(&(item->loc));
-      if (f_src == NULL)
+      loc_t *loc = &(item->loc);
+      cover_file_t *f_src = cover_file(loc);
+      if (f_src == NULL) {
+         warnf("Could not locate source file: %s that NVC used to collect "
+               "coverage for: %s. Dropping coverage for this hierarchy/item "
+               "from coverage report." , loc_file_str(loc), istr(s->hier));
          continue;
+      }
 
       cover_line_t *line = &(f_src->lines[item->loc.first_line-1]);
 
