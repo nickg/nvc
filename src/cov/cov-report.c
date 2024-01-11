@@ -113,6 +113,8 @@ typedef enum {
 
 static cover_file_t  *files;
 
+#define COV_RPT_TITLE "NVC code coverage report"
+
 static void cover_report_children(cover_report_ctx_t *ctx,
                                   cover_scope_t *s, const char *dir,
                                   FILE *summf, int *skipped);
@@ -184,18 +186,14 @@ static cover_file_t *cover_file(const loc_t *loc)
 }
 
 
-static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
-                                    cover_scope_t *s, const char *title, ...)
+static void cover_print_html_header(FILE *f)
 {
    fprintf(f, "<!DOCTYPE html>\n"
               "<html>\n"
               "  <head>\n"
               "  <title>");
 
-   va_list ap;
-   va_start(ap, title);
-   vfprintf(f, title, ap);
-   va_end(ap);
+   fprintf(f, COV_RPT_TITLE "\n");
 
    fprintf(f, "</title>\n"
               "  <style>\n"
@@ -284,50 +282,50 @@ static void cover_print_html_header(FILE *f, cover_report_ctx_t *ctx, bool top,
               "  </head>\n"
               "  <section>\n\n");
 
-   if (!top) {
-      fprintf(f, "<nav>\n"
-                 "<b>Hierarchy:</b><br>\n");
-      int offset = 0;
-
-      ident_t full_hier = s->hier;
-      ident_t curr_id;
-      ident_t curr_hier = NULL;
-      const char *link = "../index";
-      do {
-         curr_id = ident_walk_selected(&full_hier);
-         curr_hier = ident_prefix(curr_hier, curr_id, '.');
-         if (offset > 0)
-            link = istr(curr_hier);
-         if (curr_id)
-            fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
-                        offset * 10, link, istr(curr_id));
-         offset++;
-      } while (curr_id != NULL);
-      fprintf(f, "</nav>\n\n");
-   }
-
    fprintf(f, "<header>");
-   va_start(ap, title);
-   vfprintf(f, title, ap);
-   va_end(ap);
+   fprintf(f, COV_RPT_TITLE "\n");
    fprintf(f, "</header>\n\n");
+}
 
+static void cover_print_navigation_tree(FILE *f, cover_report_ctx_t *ctx, cover_scope_t *s, ...)
+{
+   fprintf(f, "<nav>\n"
+               "<b>Hierarchy:</b><br>\n");
+   int offset = 0;
+
+   ident_t full_hier = s->hier;
+   ident_t curr_id;
+   ident_t curr_hier = NULL;
+   const char *link = "../index";
+
+   do {
+      curr_id = ident_walk_selected(&full_hier);
+      curr_hier = ident_prefix(curr_hier, curr_id, '.');
+      if (offset > 0)
+         link = istr(curr_hier);
+      if (curr_id)
+         fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
+                     offset * 10, link, istr(curr_id));
+      offset++;
+   } while (curr_id != NULL);
+
+   fprintf(f, "</nav>\n\n");
+
+}
+
+static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx, cover_scope_t *s)
+{
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   if (!top)
-      fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
-   else
-      fprintf(f, "   Instance:");
+   fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    fprintf(f, "</h2>\n\n");
 
    cover_file_t *src = cover_file(&(s->loc));
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   if (!top)
-      fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
+   fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
                src->name, src->name);
-   else
-      fprintf(f, "   File:");
    fprintf(f, "</h2>\n\n");
 }
+
 
 static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 {
@@ -1308,7 +1306,9 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    INIT_CHAIN(ctx, ch_state);
    INIT_CHAIN(ctx, ch_functional);
 
-   cover_print_html_header(f, ctx, false, s, "NVC code coverage report");
+   cover_print_html_header(f);
+   cover_print_navigation_tree(f, ctx, s);
+   cover_print_file_and_inst(f, ctx, s);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
    cover_print_hierarchy_header(f);
@@ -1401,19 +1401,23 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    notef("Code coverage report folder: %s.", path);
    notef("%s", tb_get(tb));
 
-   cover_scope_t *child0 = AGET(data->root_scope->children, 0);
-
-   cover_report_ctx_t top_ctx = {};
-   top_ctx.data = data;
-   data->report_item_limit = item_limit;
-   cover_report_hierarchy(&top_ctx, child0, subdir);
-
    char *top LOCAL = xasprintf("%s/index.html", path);
    FILE *f = fopen(top, "w");
 
-   cover_print_html_header(f, &top_ctx, true, child0, "NVC code coverage report");
+   cover_print_html_header(f);
    cover_print_hierarchy_header(f);
-   cover_print_hierarchy_summary(f, &top_ctx, child0->hier, true, true, false);
+
+   for (int i = 0; i < data->root_scope->children.count; i++) {
+      cover_scope_t *child = AGET(data->root_scope->children, i);
+      cover_report_ctx_t top_ctx = {};
+
+      top_ctx.data = data;
+      data->report_item_limit = item_limit;
+
+      cover_report_hierarchy(&top_ctx, child, subdir);
+      cover_print_hierarchy_summary(f, &top_ctx, child->hier, true, true, false);
+   }
+
    cover_print_hierarchy_footer(f);
    cover_print_timestamp(f);
 
