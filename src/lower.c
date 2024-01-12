@@ -3810,7 +3810,9 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
 
    const int nassocs = tree_assocs(expr);
 
-   const bool pos_concat = (standard() >= STD_08 && dimension_of(type) == 1);
+   const bool vhdl2008_slice =
+      standard() >= STD_08 && dimension_of(type) == 1;
+
    int64_t pos = 0;
    bool known_elem_count = true;
    for (int i = 0; i < nassocs; i++) {
@@ -3843,10 +3845,14 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
                else
                   known_elem_count = false;
 
-               // VHDL-2008 range association determines index direction
-               // for unconstrained aggregate
-               if (standard() >= STD_08)
-                  dir = rkind;
+               if (vhdl2008_slice) {
+                  // VHDL-2008 range association determines index
+                  // direction for unconstrained aggregate when the
+                  // expression type matches the array type
+                  type_t value_type = tree_type(tree_value(a));
+                  if (type_eq(type, value_type))
+                     dir = rkind;
+               }
             }
             else
                known_elem_count = false;
@@ -3860,7 +3866,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       case A_POS:
          {
             int64_t length = 1;
-            if (pos_concat) {
+            if (vhdl2008_slice) {
                type_t value_type = tree_type(tree_value(a));
                if (type_eq(type, value_type))
                   length = lower_array_const_size(value_type);
