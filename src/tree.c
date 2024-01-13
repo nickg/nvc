@@ -440,6 +440,21 @@ struct _vlog_node {
    object_t object;
 };
 
+object_class_t tree_object = {
+   .name           = "tree",
+   .change_allowed = change_allowed,
+   .has_map        = has_map,
+   .kind_text_map  = kind_text_map,
+   .tag            = OBJECT_TAG_TREE,
+   .last_kind      = T_LAST_TREE_KIND,
+   .has_loc        = true,
+   .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
+                       T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT,
+                       T_PACK_INST },
+   .gc_num_roots   = 9
+};
+
+#ifdef DEBUG
 static tree_kind_t expr_kinds[] = {
    T_FCALL,     T_LITERAL,       T_REF,        T_QUALIFIED,
    T_AGGREGATE, T_ATTR_REF,      T_ARRAY_REF,  T_ARRAY_SLICE,
@@ -461,32 +476,19 @@ static tree_kind_t decl_kinds[] = {
    T_PROT_DECL,
 };
 
-object_class_t tree_object = {
-   .name           = "tree",
-   .change_allowed = change_allowed,
-   .has_map        = has_map,
-   .kind_text_map  = kind_text_map,
-   .tag            = OBJECT_TAG_TREE,
-   .last_kind      = T_LAST_TREE_KIND,
-   .has_loc        = true,
-   .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
-                       T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT,
-                       T_PACK_INST },
-   .gc_num_roots   = 9
-};
-
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
-#ifndef NDEBUG
    for (size_t i = 0; i < len; i++) {
       if (t->object.kind == list[i])
          return;
    }
 
    fatal_trace("tree kind %s is not %s", tree_kind_str(t->object.kind), what);
-#endif
 }
+#else
+#define tree_assert_kind(t, list, len, what)
+#endif
 
 static inline void tree_assert_expr(tree_t t)
 {
