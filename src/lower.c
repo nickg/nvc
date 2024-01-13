@@ -3463,6 +3463,7 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
    const bool is_downto = (tree_subkind(r) == RANGE_DOWNTO);
    const bool multidim = dim > 0 || dimension_of(type) > 1;
 
+   int pos = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
@@ -3491,7 +3492,8 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
 
       switch (tree_subkind(a)) {
       case A_POS:
-         lower_copy_vals(vals + (i * nsub), sub, nsub);
+         lower_copy_vals(vals + pos, sub, nsub);
+         pos += nsub;
          break;
 
       case A_NAMED:
