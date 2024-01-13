@@ -2427,7 +2427,7 @@ START_TEST(test_error1)
    const error_t expect[] = {
       { 25, "unexpected ; while parsing port map aspect, expecting" },
       { 23, "missing actual for port Y of mode IN without a default" },
-      { 26, "expected concurrent statement" },
+      { 26, "type of aggregate cannot be determined from the surrounding " },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2470,9 +2470,9 @@ START_TEST(test_error2)
    input_from_file(TESTDIR "/sem/error2.vhd");
 
    const error_t expect[] = {
-      {  2, "unexpected to while parsing primary, expecting one of ** or )" },
-      {  2, "invalid expression in range constraint" },
-      {  5, "no visible subprogram declaration for IFELSE" },
+      {  2, "unexpected ) while parsing element association, expecting one of "
+         "**, | or =>" },
+      {  2, "type of aggregate cannot be determined from the surrounding " },
       { -1, NULL }
    };
    expect_errors(expect);

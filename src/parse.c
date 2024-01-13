@@ -175,7 +175,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
 static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject);
-static type_t p_index_subtype_definition(void);
+static type_t p_index_subtype_definition(tree_t head);
 static type_t p_anonymous_type_indication(void);
 static void p_alias_declaration(tree_t parent);
 static void p_variable_declaration(tree_t parent);
@@ -1481,18 +1481,18 @@ static void declare_additional_standard_operators(tree_t unit)
    declare_alias(unit, d6, ident_new("TO_BINARY_STRING"));
 }
 
-static void unary_op(tree_t expr, tree_t (*arg_fn)(void))
+static void unary_op(tree_t expr, tree_t (*arg_fn)(tree_t))
 {
-   tree_t right = (*arg_fn)();
+   tree_t right = (*arg_fn)(NULL);
    tree_set_loc(expr, CURRENT_LOC);
    add_param(expr, right, P_POS, NULL);
 }
 
-static void binary_op(tree_t expr, tree_t left, tree_t (*right_fn)(void))
+static void binary_op(tree_t expr, tree_t left, tree_t (*right_fn)(tree_t))
 {
    add_param(expr, left, P_POS, NULL);
 
-   tree_t right = (*right_fn)();
+   tree_t right = (*right_fn)(NULL);
    tree_set_loc(expr, CURRENT_LOC);
    add_param(expr, right, P_POS, NULL);
 }
@@ -2332,10 +2332,11 @@ static void add_generic_type_op(tree_t parent, int nargs, type_t type,
    insert_name(nametab, p, NULL);
 }
 
-static bool is_psl_infix_op(token_t tok)
+static bool is_vhdl_infix_op(token_t tok)
 {
-   return tok == tIFIMPL || tok == tUNTIL || tok == tUNTIL_ || tok == tUNTIL1
-      || tok == tUNTIL_1;
+   return tok == tEQ || tok == tNEQ || tok == tLT || tok == tGT
+      || tok == tLE || tok == tGE || tok == tAND || tok == tOR || tok == tNAND
+      || tok == tNOR || tok == tXOR;
 }
 
 static void add_predef_alias(tree_t t, void *context)
@@ -2392,6 +2393,37 @@ static void convert_universal_bounds(tree_t r)
    tree_set_value(rconv, right);
 
    tree_set_right(r, rconv);
+}
+
+static type_t name_to_type_mark(tree_t name)
+{
+   type_t type = solve_types(nametab, name, NULL);
+
+   if (type_is_none(type))
+      return type;
+
+   const tree_kind_t namek = tree_kind(name);
+   assert(namek == T_REF || namek == T_ATTR_REF);
+
+   if (namek == T_ATTR_REF)
+      return type;
+
+   tree_t decl = NULL;
+   if (namek == T_REF && tree_has_ref(name))
+      decl = aliased_type_decl(tree_ref(name));
+
+   if (decl == NULL) {
+      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
+      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
+                  id ? " " : "", id ?: "");
+      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
+                class_str(class_of(name)));
+      diag_emit(d);
+      return type_new(T_NONE);
+   }
+
+   return tree_type(decl);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3593,32 +3625,7 @@ static type_t p_type_mark(void)
    BEGIN("type mark");
 
    tree_t name = p_name(N_TYPE);
-   type_t type = solve_types(nametab, name, NULL);
-
-   if (type_is_none(type))
-      return type;
-
-   const tree_kind_t namek = tree_kind(name);
-
-   if (namek == T_ATTR_REF)
-      return type;
-
-   tree_t decl = NULL;
-   if (namek == T_REF && tree_has_ref(name))
-      decl = aliased_type_decl(tree_ref(name));
-
-   if (decl == NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
-      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
-                  id ? " " : "", id ?: "");
-      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
-                class_str(class_of(name)));
-      diag_emit(d);
-      return type_new(T_NONE);
-   }
-
-   return tree_type(decl);
+   return name_to_type_mark(name);
 }
 
 static tree_t p_index_constraint(type_t base)
@@ -3973,7 +3980,7 @@ static tree_t p_literal(void)
    }
 }
 
-static void p_choice(tree_t parent, type_t constraint)
+static void p_choice(tree_t parent, tree_t head, type_t constraint)
 {
    // simple_expression | discrete_range | simple_name | others
 
@@ -3981,10 +3988,10 @@ static void p_choice(tree_t parent, type_t constraint)
 
    tree_t t = tree_new(T_ASSOC);
 
-   if (optional(tOTHERS))
+   if (head == NULL && optional(tOTHERS))
       tree_set_subkind(t, A_OTHERS);
    else {
-      tree_t name = p_expression();
+      tree_t name = head ?: p_expression();
       const tree_kind_t name_kind = tree_kind(name);
 
       bool is_range = false;
@@ -4016,39 +4023,31 @@ static void p_choice(tree_t parent, type_t constraint)
    tree_add_assoc(parent, t);
 }
 
-static void p_choices(tree_t parent, type_t constraint)
+static void p_choices(tree_t parent, tree_t head, type_t constraint)
 {
    // choices ::= choice { | choice }
 
    BEGIN("choices");
 
-   p_choice(parent, constraint);
+   p_choice(parent, head, constraint);
 
    while (optional(tBAR))
-      p_choice(parent, constraint);
+      p_choice(parent, NULL, constraint);
 }
 
-static void p_element_association(tree_t agg)
+static void p_element_association(tree_t agg, tree_t head)
 {
    // [ choices => ] expression
 
    BEGIN("element association");
 
-   const look_params_t lookp = {
-      .look     = { tASSOC },
-      .stop     = { tCOMMA, tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 0
-   };
+   if (head == NULL && peek() != tOTHERS)
+      head = p_expression();
 
-   if (look_for(&lookp)) {
-      const int nstart = tree_assocs(agg);
+   const int nstart = tree_assocs(agg);
 
-      do {
-         p_choice(agg, NULL);
-      } while (optional(tBAR));
+   if (scan(tBAR, tASSOC, tTO, tDOWNTO, tOTHERS)) {
+      p_choices(agg, head, NULL);
 
       consume(tASSOC);
 
@@ -4063,9 +4062,9 @@ static void p_element_association(tree_t agg)
    else {
       tree_t t = tree_new(T_ASSOC);
       tree_set_subkind(t, A_POS);
-      tree_set_value(t, p_expression());
+      tree_set_value(t, head ?: p_expression());
       tree_set_loc(t, CURRENT_LOC);
-      tree_set_pos(t, tree_assocs(agg));
+      tree_set_pos(t, nstart);
 
       tree_add_assoc(agg, t);
    }
@@ -4082,13 +4081,56 @@ static tree_t p_aggregate(void)
    consume(tLPAREN);
 
    do {
-      p_element_association(t);
+      p_element_association(t, NULL);
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
+}
+
+static tree_t p_aggregate_or_expression(void)
+{
+   // aggregate | expression
+
+   BEGIN("aggregate or expression");
+
+   if (peek_nth(2) == tOTHERS)
+      return p_aggregate();
+
+   consume(tLPAREN);
+
+   tree_t head = p_expression();
+
+   switch (peek()) {
+   case tRPAREN:
+      consume(tRPAREN);
+      return head;
+
+   case tASSOC:
+   case tCOMMA:
+   case tTO:
+   case tDOWNTO:
+   case tBAR:
+      {
+         tree_t t = tree_new(T_AGGREGATE);
+
+         p_element_association(t, head);
+         while (optional(tCOMMA))
+            p_element_association(t, NULL);
+
+         consume(tRPAREN);
+
+         tree_set_loc(t, CURRENT_LOC);
+         return t;
+      }
+
+   default:
+      expect(tRPAREN, tASSOC, tCOMMA, tTO, tDOWNTO, tBAR);
+      drop_tokens_until(tRPAREN);
+      return head;
+   }
 }
 
 static tree_t p_qualified_expression(tree_t prefix)
@@ -4120,23 +4162,7 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    consume(tTICK);
 
-   const look_params_t lookp = {
-      .look     = { tCOMMA, tASSOC },
-      .stop     = { tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 1
-   };
-
-   tree_t value;
-   if (look_for(&lookp))
-      value = p_aggregate();
-   else {
-      consume(tLPAREN);
-      value = p_expression();
-      consume(tRPAREN);
-   }
+   tree_t value = p_aggregate_or_expression();
 
    tree_set_value(qual, value);
    solve_types(nametab, value, type);
@@ -4172,7 +4198,7 @@ static tree_t p_allocator(void)
    return new;
 }
 
-static tree_t p_primary(void)
+static tree_t p_primary(tree_t head)
 {
    // name | literal | aggregate | function_call | qualified_expression
    //   | type_conversion | allocator | ( expression ) |
@@ -4180,27 +4206,11 @@ static tree_t p_primary(void)
 
    BEGIN("primary");
 
+   assert(head == NULL);
+
    switch (peek()) {
    case tLPAREN:
-      {
-         const look_params_t lookp = {
-            .look     = { tCOMMA, tASSOC },
-            .stop     = { tRPAREN },
-            .abort    = tSEMI,
-            .nest_in  = tLPAREN,
-            .nest_out = tRPAREN,
-            .depth    = 1
-         };
-
-         if (look_for(&lookp))
-            return p_aggregate();
-         else {
-            consume(tLPAREN);
-            tree_t sub = p_expression();
-            consume(tRPAREN);
-            return sub;
-         }
-      }
+      return p_aggregate_or_expression();
 
    case tINT:
    case tREAL:
@@ -4264,12 +4274,15 @@ static ident_t p_logical_operator(void)
    }
 }
 
-static tree_t p_factor(void)
+static tree_t p_factor(tree_t head)
 {
    // primary [ ** primary ] | abs primary | not primary
    //   2008: logical_operator primary
 
    BEGIN("factor");
+
+   if (head != NULL)
+      return head;    // Injected from mis-parsed PSL property
 
    ident_t op = NULL;
    switch (peek()) {
@@ -4307,10 +4320,10 @@ static tree_t p_factor(void)
       operand = t;
    }
    else
-      operand = p_primary();
+      operand = p_primary(NULL);
 
    if (optional(tPOWER)) {
-      tree_t second = p_primary();
+      tree_t second = p_primary(NULL);
 
       tree_t t = tree_new(T_FCALL);
       tree_set_loc(t, CURRENT_LOC);
@@ -4340,13 +4353,13 @@ static ident_t p_multiplying_operator(void)
    }
 }
 
-static tree_t p_term(void)
+static tree_t p_term(tree_t head)
 {
    // factor { multiplying_operator factor }
 
    BEGIN("term");
 
-   tree_t term = p_factor();
+   tree_t term = p_factor(head);
 
    while (scan(tTIMES, tOVER, tMOD, tREM)) {
       ident_t op  = p_multiplying_operator();
@@ -4386,14 +4399,14 @@ static ident_t p_sign(void)
    }
 }
 
-static tree_t p_simple_expression(void)
+static tree_t p_simple_expression(tree_t head)
 {
    // [ sign ] term { adding_operator term }
 
    BEGIN("simple expression");
 
    tree_t expr = NULL;
-   if (scan(tPLUS, tMINUS)) {
+   if (head == NULL && scan(tPLUS, tMINUS)) {
       ident_t sign = p_sign();
       expr = tree_new(T_FCALL);
       tree_set_ident(expr, sign);
@@ -4401,7 +4414,7 @@ static tree_t p_simple_expression(void)
       tree_set_loc(expr, CURRENT_LOC);
    }
    else
-      expr = p_term();
+      expr = p_term(head);
 
    while (scan(tPLUS, tMINUS, tAMP)) {
       tree_t left = expr;
@@ -4433,18 +4446,18 @@ static ident_t p_shift_operator(void)
    }
 }
 
-static tree_t p_shift_expression(void)
+static tree_t p_shift_expression(tree_t head)
 {
    // simple_expression [ shift_operator simple_expression ]
 
    BEGIN("shift expression");
 
-   tree_t shift = p_simple_expression();
+   tree_t shift = p_simple_expression(head);
 
    while (scan(tSLL, tSRL, tSLA, tSRA, tROL, tROR)) {
       ident_t op   = p_shift_operator();
       tree_t left  = shift;
-      tree_t right = p_simple_expression();
+      tree_t right = p_simple_expression(NULL);
 
       shift = tree_new(T_FCALL);
       tree_set_ident(shift, op);
@@ -4490,13 +4503,13 @@ static ident_t p_relational_operator(void)
    }
 }
 
-static tree_t p_relation(void)
+static tree_t p_relation(tree_t head)
 {
    // shift_expression [ relational_operator shift_expression ]
 
    BEGIN("relation");
 
-   tree_t rel = p_shift_expression();
+   tree_t rel = p_shift_expression(head);
 
    while (scan(tEQ, tNEQ, tLT, tLE, tGT, tGE,
                tMEQ, tMNEQ, tMLT, tMLE, tMGT, tMGE)) {
@@ -4511,7 +4524,7 @@ static tree_t p_relation(void)
    return rel;
 }
 
-static tree_t p_expression(void)
+static tree_t p_expression_with_head(tree_t head)
 {
    // relation { and relation } | relation { or relation }
    //   | relation { xor relation } | relation [ nand relation ]
@@ -4520,15 +4533,7 @@ static tree_t p_expression(void)
 
    BEGIN("expression");
 
-   if (optional(tCCONV)) {
-      // VHDL-2008 condition conversion
-      tree_t expr = tree_new(T_FCALL);
-      tree_set_ident(expr, ident_new("\"??\""));
-      unary_op(expr, p_primary);
-      return expr;
-   }
-
-   tree_t expr = p_relation();
+   tree_t expr = p_relation(head);
 
    int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
 
@@ -4552,6 +4557,21 @@ static tree_t p_expression(void)
    }
 
    return expr;
+}
+
+static inline tree_t p_expression(void)
+{
+   // expression | 2008: condition_operator primary
+
+   if (optional(tCCONV)) {
+      // VHDL-2008 condition conversion
+      tree_t expr = tree_new(T_FCALL);
+      tree_set_ident(expr, ident_new("\"??\""));
+      unary_op(expr, p_primary);
+      return expr;
+   }
+   else
+      return p_expression_with_head(NULL);
 }
 
 static type_t p_interface_type_indication(tree_t parent)
@@ -4907,7 +4927,7 @@ static type_t p_array_index_incomplete_type(void)
    if (peek() == tTYPE)
       return p_anonymous_type_indication();
    else
-      return p_index_subtype_definition();
+      return p_index_subtype_definition(NULL);
 }
 
 static void p_array_index_incomplete_type_list(type_t type)
@@ -6027,55 +6047,50 @@ static type_t p_record_type_definition(ident_t id)
    return r;
 }
 
-static type_t p_index_subtype_definition(void)
+static type_t p_index_subtype_definition(tree_t head)
 {
    // type_mark range <>
 
-   BEGIN("index subtype definition");
+   BEGIN_WITH_HEAD("index subtype definition", head);
 
-   type_t t = p_type_mark();
+   type_t type;
+   if (head != NULL)
+      type = name_to_type_mark(head);
+   else
+      type = p_type_mark();
 
    consume(tRANGE);
    consume(tBOX);
 
-   return t;
+   return type;
 }
 
-static type_t p_unconstrained_array_definition(ident_t id)
+static type_t p_unconstrained_array_definition(type_t base, tree_t head)
 {
    // array ( index_subtype_definition { , index_subtype_definition } )
    //   of subtype_indication
 
-   BEGIN("unconstrained array definition");
+   EXTEND("unconstrained array definition");
 
-   consume(tARRAY);
-   consume(tLPAREN);
+   type_add_index(base, p_index_subtype_definition(head));
 
-   type_t t = type_new(T_ARRAY);
-   type_set_ident(t, id);
-   do {
-      type_add_index(t, p_index_subtype_definition());
-   } while (optional(tCOMMA));
+   while (optional(tCOMMA))
+      type_add_index(base, p_index_subtype_definition(NULL));
 
-   mangle_type(nametab, t);
+   mangle_type(nametab, base);
 
    consume(tRPAREN);
    consume(tOF);
 
-   type_set_elem(t, p_subtype_indication());
-   return t;
+   type_set_elem(base, p_subtype_indication());
+   return base;
 }
 
-static type_t p_constrained_array_definition(ident_t id)
+static type_t p_constrained_array_definition(type_t base, tree_t head)
 {
    // array index_constraint of element_subtype_indication
 
-   BEGIN("constrained array definition");
-
-   consume(tARRAY);
-
-   type_t base = type_new(T_ARRAY);
-   type_set_ident(base, id);
+   EXTEND("constrained array definition");
 
    tree_t constraint = tree_new(T_CONSTRAINT);
    tree_set_loc(constraint, CURRENT_LOC);
@@ -6084,20 +6099,20 @@ static type_t p_constrained_array_definition(ident_t id)
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
    type_add_constraint(sub, constraint);
-   type_set_ident(sub, id);
+   type_set_ident(sub, type_ident(base));
 
    mangle_type(nametab, sub);
 
-   consume(tLPAREN);
+   type_t index_type = std_type(NULL, STD_INTEGER);
    do {
-      type_t index_type = std_type(NULL, STD_INTEGER);
-      tree_t r = p_discrete_range(NULL);
+      tree_t r = p_discrete_range(head);
       solve_types(nametab, r, index_type);
       tree_add_range(constraint, r);
       type_add_index(base, tree_type(r));
+      head = NULL;
    } while (optional(tCOMMA));
-   consume(tRPAREN);
 
+   consume(tRPAREN);
    consume(tOF);
 
    type_set_elem(base, p_subtype_indication());
@@ -6110,19 +6125,18 @@ static type_t p_array_type_definition(ident_t id)
 
    BEGIN("array type definition");
 
-   const look_params_t lookp = {
-      .look     = { tBOX },
-      .stop     = { tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 1
-   };
+   type_t base = type_new(T_ARRAY);
+   type_set_ident(base, id);
 
-   if (look_for(&lookp))
-      return p_unconstrained_array_definition(id);
+   consume(tARRAY);
+   consume(tLPAREN);
+
+   tree_t head = p_expression();
+
+   if (peek_nth(2) == tBOX)
+      return p_unconstrained_array_definition(base, head);
    else
-      return p_constrained_array_definition(id);
+      return p_constrained_array_definition(base, head);
 }
 
 static type_t p_composite_type_definition(ident_t id)
@@ -8798,25 +8812,16 @@ static void p_configuration_item(tree_t unit)
       tree_add_decl(unit, p_block_configuration(NULL));
 }
 
-static void p_index_specification(void)
+static tree_t p_index_specification(void)
 {
    // discrete_range | expression
 
-   const look_params_t lookp = {
-      .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-      .stop     = { tRPAREN, tCOMMA, tASSOC, tBAR },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 0
-   };
+   tree_t head = p_expression();
 
-   if (look_for(&lookp)) {
-      p_discrete_range(NULL);
-   }
-   else {
-      p_expression();
-   }
+   if (scan(tTO, tDOWNTO))
+      return p_discrete_range(head);
+   else
+      return head;
 }
 
 static void p_block_specification(tree_t b)
@@ -8829,7 +8834,7 @@ static void p_block_specification(tree_t b)
    tree_set_ident(b, id);
 
    if (optional(tLPAREN)) {
-      p_index_specification();    // XXX: not used
+      (void)p_index_specification();    // XXX: not used
       consume(tRPAREN);
    }
 }
@@ -9263,7 +9268,7 @@ static void p_selected_expressions(tree_t stmt, tree_t target)
       tree_t alt = tree_new(T_ALTERNATIVE);
       tree_add_stmt(alt, a);
 
-      p_choices(alt, with_type);
+      p_choices(alt, NULL, with_type);
 
       tree_set_loc(alt, CURRENT_LOC);
       tree_add_stmt(stmt, alt);
@@ -9980,7 +9985,7 @@ static tree_t p_case_statement_alternative(type_t type)
 
    tree_t alt = tree_new(T_ALTERNATIVE);
 
-   p_choices(alt, type);
+   p_choices(alt, NULL, type);
 
    consume(tASSOC);
 
@@ -10407,7 +10412,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
       tree_t alt = tree_new(T_ALTERNATIVE);
       tree_add_stmt(alt, a);
 
-      p_choices(alt, with_type);
+      p_choices(alt, NULL, with_type);
 
       tree_set_loc(alt, CURRENT_LOC);
       tree_add_stmt(stmt, alt);
@@ -10840,7 +10845,7 @@ static tree_t p_case_generate_alternative(type_t type)
 
    tree_t alt = tree_new(T_ALTERNATIVE);
    tree_set_ident(alt, alt_label);
-   p_choices(alt, type);
+   p_choices(alt, NULL, type);
 
    consume(tASSOC);
 
@@ -11851,26 +11856,17 @@ static psl_node_t p_psl_fl_property(void)
 
    case tLPAREN:
       {
-         const look_params_t lookp = {
-            .lookfn   = is_psl_infix_op,
-            .stop     = { tRPAREN },
-            .abort    = tSEMI,
-            .nest_in  = tLPAREN,
-            .nest_out = tRPAREN,
-            .depth    = 1
-         };
+         consume(tLPAREN);
+         p = p_psl_fl_property();
+         consume(tRPAREN);
 
-         scan_as_vhdl();
-         const bool is_psl = look_for(&lookp);
-         scan_as_psl();
-
-         if (is_psl) {
-            consume(tok);
-            p = p_psl_fl_property();
-            consume(tRPAREN);
+         if (psl_kind(p) == P_HDL_EXPR && is_vhdl_infix_op(peek())) {
+            // Handle awkward cases like "always x -> (x or y) = '1'"
+            // where we cannot determine ahead-of-time whether (x or y)
+            // is a VHDL expression or PSL property
+            tree_t expr = p_expression_with_head(psl_tree(p));
+            psl_set_tree(p, expr);
          }
-         else
-            p = p_psl_or_hdl_expression();
       }
       break;
 

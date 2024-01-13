@@ -192,7 +192,7 @@ const char *token_str(token_t tok)
 {
    if (tok == tEOF)
       return "end of file";
-   else if (tok < 100) {
+   else if (tok < 128) {
       static char buf[2];
       buf[0] = tok;
       return buf;
@@ -230,7 +230,7 @@ const char *token_str(token_t tok)
          "translate off", "until!", "until_", "until_!", "`timescale"
       };
 
-      if (tok > 0 && tok - 200 < ARRAY_LEN(token_strs))
+      if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
          return token_strs[tok - 200];
    }
 

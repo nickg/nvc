@@ -158,6 +158,10 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
       {
          tree_t expr = tree_value(r);
 
+         type_t type = tree_type(expr);
+         if (type_is_none(type))
+            return false;   // Was earlier error
+
          if (tree_kind(expr) != T_ATTR_REF)
             sem_error(expr, "invalid expression in range constraint");
 
@@ -166,14 +170,14 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
 
          if (expect && !sem_check_type(expr, expect, tab))
             sem_error(expr, "expected type of range bound to be %s but is %s",
-                      type_pp(expect), type_pp(tree_type(expr)));
+                      type_pp(expect), type_pp(type));
 
          if (kind != T_LAST_TYPE_KIND) {
             assert(kind == T_INTEGER || kind == T_REAL);
-            if (type_base_kind(tree_type(expr)) != kind)
+            if (type_base_kind(type) != kind)
                sem_error(expr, "type of range bounds must be of some %s type "
                          "but have %s", kind == T_INTEGER ? "integer" : "real",
-                         type_pp(tree_type(expr)));
+                         type_pp(type));
          }
       }
       break;
