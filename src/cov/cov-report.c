@@ -287,7 +287,8 @@ static void cover_print_html_header(FILE *f)
    fprintf(f, "</header>\n\n");
 }
 
-static void cover_print_navigation_tree(FILE *f, cover_report_ctx_t *ctx, cover_scope_t *s, ...)
+static void cover_print_navigation_tree(FILE *f, cover_report_ctx_t *ctx,
+                                        cover_scope_t *s)
 {
    fprintf(f, "<nav>\n"
                "<b>Hierarchy:</b><br>\n");
@@ -313,7 +314,8 @@ static void cover_print_navigation_tree(FILE *f, cover_report_ctx_t *ctx, cover_
 
 }
 
-static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx, cover_scope_t *s)
+static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx,
+                                      cover_scope_t *s)
 {
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
