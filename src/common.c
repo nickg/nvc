@@ -2104,6 +2104,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
 
             switch (tree_subkind(a)) {
             case A_RANGE:
+            case A_SLICE:
                build_wait(tree_range(a, 0), fn, ctx);
                break;
             case A_NAMED:
