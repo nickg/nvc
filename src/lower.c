@@ -3477,14 +3477,11 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
       return emit_wrap(ptr_reg, &dim0, 1);
 }
 
-static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
-                            unsigned n, bool backwards)
+static inline void lower_copy_vals(vcode_reg_t *restrict dst,
+                                   const vcode_reg_t *restrict src, int n)
 {
-   while (n--) {
-      *dst = *src;
-      ++src;
-      dst += (backwards ? -1 : 1);
-   }
+   assert(n >= 0);
+   memcpy(dst, src, n * sizeof(vcode_reg_t));
 }
 
 static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
@@ -3497,7 +3494,7 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
    vcode_reg_t *vals = xmalloc_array(*n_elems, sizeof(vcode_reg_t));
 
    for (int i = 0; i < *n_elems; i++)
-      vals[i] = VCODE_INVALID_VAR;
+      vals[i] = VCODE_INVALID_REG;
 
    tree_t r = range_of(type, dim);
    const int64_t left = assume_int(tree_left(r));
@@ -3532,14 +3529,14 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
 
       switch (tree_subkind(a)) {
       case A_POS:
-         lower_copy_vals(vals + (i * nsub), sub, nsub, false);
+         lower_copy_vals(vals + (i * nsub), sub, nsub);
          break;
 
       case A_NAMED:
          {
             const int64_t name = assume_int(tree_name(a));
             const int64_t off  = is_downto ? left - name : name - left;
-            lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+            lower_copy_vals(vals + (off * nsub), sub, nsub);
          }
          break;
 
@@ -3547,26 +3544,28 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
          assert((*n_elems % nsub) == 0);
          for (int j = 0; j < (*n_elems / nsub); j++) {
             if (vals[j * nsub] == VCODE_INVALID_REG)
-               lower_copy_vals(vals + (j * nsub), sub, nsub, false);
+               lower_copy_vals(vals + (j * nsub), sub, nsub);
          }
          break;
 
       case A_RANGE:
          {
-            int64_t r_low, r_high;
-            range_bounds(tree_range(a, 0), &r_low, &r_high);
+            tree_t r = tree_range(a, 0);
 
             if (!multidim && type_eq(type, value_type)) {
                // Element has same type as whole aggregate
                assert(standard() >= STD_08);
-               assert(nsub == r_high - r_low + 1);
-               const int64_t off = is_downto ? left - r_low : r_low - left;
-               lower_copy_vals(vals + off * 1, sub, nsub, false);
+               const int64_t r_left = assume_int(tree_left(r));
+               const int64_t off = is_downto ? left - r_left : r_left - left;
+               lower_copy_vals(vals + off * 1, sub, nsub);
             }
             else {
+               int64_t r_low, r_high;
+               range_bounds(r, &r_low, &r_high);
+
                for (int j = r_low; j <= r_high; j++) {
                   const int64_t off = is_downto ? left - j : j - left;
-                  lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+                  lower_copy_vals(vals + (off * nsub), sub, nsub);
                }
             }
          }
@@ -3577,20 +3576,14 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
          free(sub);
    }
 
-   if (lu->mode == LOWER_THUNK DEBUG_ONLY(|| true)) {
-      // We may attempt to evaluate a locally static expression that
-      // references this array before the bounds checker has run
-      for (int i = 0; i < *n_elems; i++) {
-         if (vals[i] != VCODE_INVALID_REG)
-            continue;
-         else if (lu->mode == LOWER_THUNK) {
-            type_t elem = type_elem(type);
-            vals[i] = emit_undefined(lower_type(elem), lower_bounds(elem));
-         }
-         else
-            fatal_trace("missing constant array element %d", i);
+#ifdef DEBUG
+   for (int i = 0; i < *n_elems; i++) {
+      if (vals[i] == VCODE_INVALID_REG) {
+         vcode_dump();
+         fatal_trace("missing constant array element %d", i);
       }
    }
+#endif
 
    return vals;
 }

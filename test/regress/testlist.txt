@@ -920,3 +920,4 @@ issue820        normal
 issue824        normal
 issue825        normal
 issue826        normal,2008
+issue827        normal,2008
