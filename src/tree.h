@@ -66,7 +66,9 @@ typedef enum assoc_kind {
    A_POS,
    A_NAMED,
    A_RANGE,
-   A_OTHERS
+   A_OTHERS,
+   A_SLICE,
+   A_CONCAT,
 } assoc_kind_t;
 
 typedef enum literal_kind {

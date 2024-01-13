@@ -4212,7 +4212,7 @@ static void solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
       type_set_push(tab);
       tree_t a = tree_assoc(agg, i);
 
-      switch ((assoc_kind_t)tree_subkind(a)) {
+      switch (tree_subkind(a)) {
       case A_POS:
          {
             int pos = tree_pos(a);
@@ -4302,7 +4302,9 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       const assoc_kind_t kind = tree_subkind(a);
       switch (kind) {
       case A_POS:
+      case A_CONCAT:
       case A_OTHERS:
+      case A_SLICE:
          break;
       case A_NAMED:
          {
@@ -4344,9 +4346,16 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       type_set_add(tab, t0, NULL);
       type_set_add(tab, t1, NULL);
 
-      if (kind != A_POS)
+      if (t1 != NULL && type_eq(etype, t1)) {
+         // VHDL-2008 slice in aggregate
+         switch (kind) {
+         case A_RANGE: tree_set_subkind(a, A_SLICE); break;
+         case A_POS: tree_set_subkind(a, A_CONCAT); break;
+         default: break;
+         }
          all_simple_pos = false;
-      else if (all_simple_pos && t1 != NULL && type_eq(etype, t1))
+      }
+      else if (kind != A_POS)
          all_simple_pos = false;
    }
 

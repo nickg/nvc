@@ -188,6 +188,7 @@ static bool lower_is_const(tree_t t)
                   return false;
                break;
             case A_RANGE:
+            case A_SLICE:
                {
                   tree_t r = tree_range(a, 0);
                   if (tree_subkind(r) == RANGE_EXPR)
@@ -3499,8 +3500,8 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
    tree_t r = range_of(type, dim);
    const int64_t left = assume_int(tree_left(r));
    const bool is_downto = (tree_subkind(r) == RANGE_DOWNTO);
-   const bool multidim = dim > 0 || dimension_of(type) > 1;
 
+   int pos = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
@@ -3529,7 +3530,9 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
 
       switch (tree_subkind(a)) {
       case A_POS:
-         lower_copy_vals(vals + (i * nsub), sub, nsub);
+      case A_CONCAT:
+         lower_copy_vals(vals + pos, sub, nsub);
+         pos += nsub;
          break;
 
       case A_NAMED:
@@ -3552,22 +3555,25 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
          {
             tree_t r = tree_range(a, 0);
 
-            if (!multidim && type_eq(type, value_type)) {
-               // Element has same type as whole aggregate
-               assert(standard() >= STD_08);
-               const int64_t r_left = assume_int(tree_left(r));
-               const int64_t off = is_downto ? left - r_left : r_left - left;
-               lower_copy_vals(vals + off * 1, sub, nsub);
-            }
-            else {
-               int64_t r_low, r_high;
-               range_bounds(r, &r_low, &r_high);
+            int64_t r_low, r_high;
+            range_bounds(r, &r_low, &r_high);
 
-               for (int j = r_low; j <= r_high; j++) {
-                  const int64_t off = is_downto ? left - j : j - left;
-                  lower_copy_vals(vals + (off * nsub), sub, nsub);
-               }
+            for (int j = r_low; j <= r_high; j++) {
+               const int64_t off = is_downto ? left - j : j - left;
+               lower_copy_vals(vals + (off * nsub), sub, nsub);
             }
+         }
+         break;
+
+      case A_SLICE:
+         {
+            assert(standard() >= STD_08);
+
+            tree_t r = tree_range(a, 0);
+            const int64_t r_left = assume_int(tree_left(r));
+            const int64_t off = is_downto ? left - r_left : r_left - left;
+
+            lower_copy_vals(vals + off, sub, nsub);
          }
          break;
       }
@@ -3669,7 +3675,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
          }
          break;
 
-      case A_RANGE:
+      default:
          fatal_trace("unexpected range association in record aggregate");
       }
    }
@@ -3803,16 +3809,14 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
 
    const int nassocs = tree_assocs(expr);
 
-   const bool vhdl2008_slice =
-      standard() >= STD_08 && dimension_of(type) == 1;
-
    int64_t pos = 0;
    bool known_elem_count = true;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
       int64_t ilow = 0, ihigh = 0;
+      const assoc_kind_t akind = tree_subkind(a);
 
-      switch (tree_subkind(a)) {
+      switch (akind) {
       case A_NAMED:
          {
             tree_t name = tree_name(a);
@@ -3824,6 +3828,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          break;
 
       case A_RANGE:
+      case A_SLICE:
          {
             tree_t r = tree_range(a, 0);
             const range_kind_t rkind = tree_subkind(r);
@@ -3838,13 +3843,11 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
                else
                   known_elem_count = false;
 
-               if (vhdl2008_slice) {
+               if (akind == A_SLICE) {
                   // VHDL-2008 range association determines index
                   // direction for unconstrained aggregate when the
                   // expression type matches the array type
-                  type_t value_type = tree_type(tree_value(a));
-                  if (type_eq(type, value_type))
-                     dir = rkind;
+                  dir = rkind;
                }
             }
             else
@@ -3857,13 +3860,20 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          break;
 
       case A_POS:
+         if (dir == RANGE_TO) {
+            ilow = low + pos++;
+            ihigh = ilow;
+         }
+         else {
+            ihigh = high - pos++;
+            ilow = ihigh;
+         }
+         break;
+
+      case A_CONCAT:
          {
-            int64_t length = 1;
-            if (vhdl2008_slice) {
-               type_t value_type = tree_type(tree_value(a));
-               if (type_eq(type, value_type))
-                  length = lower_array_const_size(value_type);
-            }
+            type_t value_type = tree_type(tree_value(a));
+            const int64_t length = lower_array_const_size(value_type);
 
             if (dir == RANGE_TO) {
                ilow = low + pos;
@@ -3914,6 +3924,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          dir_reg = emit_const(vtype_bool(), dir);
          break;
       case A_RANGE:
+      case A_SLICE:
          {
             tree_t a0r = tree_range(a0, 0);
             left_reg = lower_range_left(lu, a0r);
@@ -4229,17 +4240,15 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
 
+      const assoc_kind_t akind = tree_subkind(a);
+
       vcode_reg_t value_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
-      type_t value_type = tree_type(value);
-      if (!multidim && type_eq(type, value_type)) {
-         // Element has same type as whole aggregate
-         assert(standard() >= STD_08);
+      if (akind == A_CONCAT || akind == A_SLICE) {
          value_reg = lower_rvalue(lu, value);
-         count_reg = lower_array_len(lu, value_type, 0, value_reg);
+         count_reg = lower_array_len(lu, tree_type(value), 0, value_reg);
       }
       else if (tree_kind(value) != T_AGGREGATE)
          value_reg = lower_rvalue(lu, value);
-
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
@@ -4249,33 +4258,53 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
       switch (tree_subkind(a)) {
       case A_POS:
-         if (next_pos == VCODE_INVALID_REG) {
-            off_reg = emit_const(voffset, tree_pos(a));
-            next_pos = count_reg;
+         {
+            if (next_pos == VCODE_INVALID_REG)
+               off_reg = emit_const(voffset, tree_pos(a));
+            else {
+               off_reg = next_pos;
+               next_pos = emit_add(next_pos, emit_const(voffset, 1));
+            }
+
+            vcode_reg_t locus = lower_debug_locus(a);
+            vcode_reg_t hint = lower_debug_locus(index_r);
+
+            vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+
+            vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
+            vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
+            vcode_reg_t left_index_reg =
+               emit_select(dir_reg, down_left_reg, up_left_reg);
+
+            emit_index_check(left_index_reg, left_reg, right_reg,
+                             dir_reg, locus, hint);
          }
-         else if (count_reg == VCODE_INVALID_REG) {
-            off_reg = next_pos;
-            next_pos = emit_add(next_pos, emit_const(voffset, 1));
-         }
-         else {
-            off_reg = next_pos;
-            next_pos = emit_add(next_pos, count_reg);
-         }
+         break;
 
-         vcode_reg_t locus = lower_debug_locus(a);
-         vcode_reg_t hint = lower_debug_locus(index_r);
+      case A_CONCAT:
+         {
+            if (next_pos == VCODE_INVALID_REG) {
+               off_reg = emit_const(voffset, tree_pos(a));
+               next_pos = count_reg;
+            }
+            else {
+               off_reg = next_pos;
+               next_pos = emit_add(next_pos, count_reg);
+            }
 
-         vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+            vcode_reg_t locus = lower_debug_locus(a);
+            vcode_reg_t hint = lower_debug_locus(index_r);
 
-         vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
-         vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
-         vcode_reg_t left_index_reg =
-            emit_select(dir_reg, down_left_reg, up_left_reg);
+            vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
 
-         emit_index_check(left_index_reg, left_reg, right_reg,
-                          dir_reg, locus, hint);
+            vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
+            vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
+            vcode_reg_t left_index_reg =
+               emit_select(dir_reg, down_left_reg, up_left_reg);
 
-         if (count_reg != VCODE_INVALID_REG) {
+            emit_index_check(left_index_reg, left_reg, right_reg,
+                             dir_reg, locus, hint);
+
             vcode_reg_t one_reg = emit_const(voffset, 1);
             vcode_reg_t right_off_reg =
                emit_sub(emit_add(index_off_reg, count_reg), one_reg);
@@ -4301,31 +4330,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
          break;
 
       case A_RANGE:
-         if (count_reg != VCODE_INVALID_REG) {
-            tree_t r = tree_range(a, 0);
-
-            vcode_reg_t r_left_reg  = lower_range_left(lu, r);
-            vcode_reg_t r_right_reg = lower_range_right(lu, r);
-            vcode_reg_t r_dir_reg   = lower_range_dir(lu, r);
-
-            vcode_reg_t locus = lower_debug_locus(a);
-            emit_index_check(r_left_reg, left_reg, right_reg, dir_reg,
-                             locus, locus);
-            emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
-                             locus, locus);
-
-            vcode_reg_t expect_reg =
-               emit_range_length(r_left_reg, r_right_reg, r_dir_reg);
-            emit_length_check(expect_reg, count_reg, locus, VCODE_INVALID_REG);
-
-            vcode_reg_t dir_cmp_reg =
-               emit_cmp(VCODE_CMP_EQ, dir_reg, r_dir_reg);
-            vcode_reg_t base_reg =
-               emit_select(dir_cmp_reg, r_left_reg, r_right_reg);
-
-            off_reg = lower_array_off(lu, base_reg, wrap_reg, type, 0);
-         }
-         else {
+         {
             loop_bb = emit_block();
             exit_bb = emit_block();
 
@@ -4357,6 +4362,33 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
             vcode_reg_t i_reg = emit_load(tmp_var);
             off_reg = lower_array_off(lu, i_reg, wrap_reg, type, 0);
+         }
+         break;
+
+      case A_SLICE:
+         {
+            tree_t r = tree_range(a, 0);
+
+            vcode_reg_t r_left_reg  = lower_range_left(lu, r);
+            vcode_reg_t r_right_reg = lower_range_right(lu, r);
+            vcode_reg_t r_dir_reg   = lower_range_dir(lu, r);
+
+            vcode_reg_t locus = lower_debug_locus(a);
+            emit_index_check(r_left_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
+            emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
+
+            vcode_reg_t expect_reg =
+               emit_range_length(r_left_reg, r_right_reg, r_dir_reg);
+            emit_length_check(expect_reg, count_reg, locus, VCODE_INVALID_REG);
+
+            vcode_reg_t dir_cmp_reg =
+               emit_cmp(VCODE_CMP_EQ, dir_reg, r_dir_reg);
+            vcode_reg_t base_reg =
+               emit_select(dir_cmp_reg, r_left_reg, r_right_reg);
+
+            off_reg = lower_array_off(lu, base_reg, wrap_reg, type, 0);
          }
          break;
 
@@ -12516,13 +12548,13 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
             }
             break;
 
-         case A_RANGE:
-            fatal_at(tree_loc(a), "sorry, this form of choice is not "
-                     "yet supported");
-
          case A_OTHERS:
             emit_return(emit_const(vint, i));
             break;
+
+         default:
+            fatal_at(tree_loc(a), "sorry, this form of choice is not "
+                     "yet supported");
          }
       }
    }

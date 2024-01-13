@@ -284,6 +284,7 @@ static void dump_expr(tree_t t)
          tree_t value = tree_value(a);
          switch (tree_subkind(a)) {
          case A_POS:
+         case A_CONCAT:
             dump_expr(value);
             break;
          case A_NAMED:
@@ -296,6 +297,7 @@ static void dump_expr(tree_t t)
             dump_expr(value);
             break;
          case A_RANGE:
+         case A_SLICE:
             dump_range(tree_range(a, 0));
             print_syntax(" => ");
             dump_expr(value);

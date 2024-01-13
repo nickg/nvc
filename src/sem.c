@@ -2252,19 +2252,15 @@ static bool sem_check_aggregate_target_element(tree_t a, type_t type)
          // LRM 08 section 10.6.2.1: it is an error if the element
          // association contains a choice that is a discrete range and
          // an expression of a type other than the aggregate type.
-         if (type_eq(tree_type(value), type))
-            break;
-         else {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-            diag_printf(d, "range choice expression must have same type "
-                        "as aggregate");
-            diag_hint(d, tree_loc(value), "expression type is %s but "
-                      "aggregate is %s", type_pp(tree_type(value)),
-                      type_pp(type));
-            diag_lrm(d, STD_08, "10.6.2");
-            diag_emit(d);
-            return false;
-         }
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "range choice expression must have same type "
+                     "as aggregate");
+         diag_hint(d, tree_loc(value), "expression type is %s but "
+                   "aggregate is %s", type_pp(tree_type(value)),
+                   type_pp(type));
+         diag_lrm(d, STD_08, "10.6.2");
+         diag_emit(d);
+         return false;
       }
       // Fall-through
    case A_OTHERS:
@@ -2272,6 +2268,8 @@ static bool sem_check_aggregate_target_element(tree_t a, type_t type)
                 assoc_kind_str(kind));
    case A_NAMED:
    case A_POS:
+   case A_SLICE:
+   case A_CONCAT:
       break;
    }
 
@@ -3375,6 +3373,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       const assoc_kind_t akind = tree_subkind(a);
       switch (akind) {
       case A_RANGE:
+      case A_SLICE:
          {
             tree_t r = tree_range(a, 0);
             if (!sem_check_discrete_range(r, index_type, tab))
@@ -3401,6 +3400,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
          break;
 
       case A_POS:
+      case A_CONCAT:
          have_pos = true;
          break;
 
@@ -3420,8 +3420,9 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
          // LRM 08 section 9.3.3.3 allows the association to be of the
          // base aggregate type as well
          const bool allow_slice =
-            ndims == 1 && standard() >= STD_08
-            && (akind == A_POS || akind == A_RANGE);
+            (akind == A_CONCAT || akind == A_SLICE)
+            || (ndims == 1 && standard() >= STD_08
+                && (akind == A_POS || akind == A_RANGE));
 
          if (allow_slice && !sem_check_type(value, composite_type, tab))
             sem_error(value, "type of %s association %s does not match "
@@ -3433,6 +3434,8 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
             sem_error(value, "type of %s association %s does not match "
                       "aggregate element type %s", assoc_kind_str(akind),
                       type_pp(tree_type(value)), type_pp(elem_type));
+         else
+            assert(akind == A_CONCAT || akind == A_SLICE);
       }
    }
 
@@ -3451,6 +3454,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
          tree_t choice = NULL;
          switch (tree_subkind(a)) {
          case A_NAMED: choice = tree_name(a); break;
+         case A_SLICE:
          case A_RANGE: choice = tree_range(a, 0); break;
          }
 
@@ -3516,6 +3520,10 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
 
       case A_RANGE:
          sem_error(a, "range association invalid in record aggregate");
+
+      case A_SLICE:
+      case A_CONCAT:
+         fatal_trace("illegal association type in record aggregate");
       }
 
       int nmatched = 0;
@@ -3603,6 +3611,7 @@ static bool sem_check_aggregate(tree_t t, nametab_t *tab)
 
       switch (tree_subkind(a)) {
       case A_POS:
+      case A_CONCAT:
          if (state > POS)
             sem_error(a, "positional associations must appear "
                       "first in aggregate");
@@ -3610,6 +3619,7 @@ static bool sem_check_aggregate(tree_t t, nametab_t *tab)
 
       case A_NAMED:
       case A_RANGE:
+      case A_SLICE:
          if (state > NAMED)
             sem_error(a, "named association must not follow "
                       "others association in aggregate");

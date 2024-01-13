@@ -632,8 +632,10 @@ const char *assoc_kind_str(assoc_kind_t akind)
 {
    switch (akind) {
    case A_NAMED:  return "named";
+   case A_CONCAT:
    case A_POS:    return "positional";
    case A_OTHERS: return "others";
+   case A_SLICE:
    case A_RANGE:  return "range";
    default:       return "??";
    }

@@ -568,19 +568,17 @@ static void bounds_check_aggregate(tree_t t)
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
       int64_t ilow = 0, ihigh = 0, count = 1;
+      const assoc_kind_t akind = tree_subkind(a);
 
-      if (ndims == 1 && standard() >= STD_08) {
-         // Element type may also have the same type as the aggregate
+      if (akind == A_SLICE || akind == A_CONCAT) {
          type_t value_type = tree_type(tree_value(a));
-         if (type_eq(value_type, type)) {
-            if (type_is_unconstrained(value_type))
-               known_elem_count = false;
-            else if (!folded_length(range_of(value_type, 0), &count))
-               known_elem_count = false;
-         }
+         if (type_is_unconstrained(value_type))
+            known_elem_count = false;
+         else if (!folded_length(range_of(value_type, 0), &count))
+            known_elem_count = false;
       }
 
-      switch (tree_subkind(a)) {
+      switch (akind) {
       case A_NAMED:
          {
             tree_t name = tree_name(a);
@@ -595,6 +593,7 @@ static void bounds_check_aggregate(tree_t t)
          break;
 
       case A_RANGE:
+      case A_SLICE:
          {
             tree_t r = tree_range(a, 0);
             const range_kind_t rkind = tree_subkind(r);
@@ -620,7 +619,7 @@ static void bounds_check_aggregate(tree_t t)
                   bounds_error(a, "discrete range has %"PRIi64" elements but "
                                "length of expression is %"PRIi64,
                                ihigh - ilow + 1, count);
-               else if (unconstrained && count > 1) {
+               else if (unconstrained && akind == A_SLICE && count > 1) {
                   // VHDL-2008 range association determines index
                   // direction for unconstrained aggregate
                   assert(standard() >= STD_08);
@@ -637,6 +636,7 @@ static void bounds_check_aggregate(tree_t t)
          break;
 
       case A_POS:
+      case A_CONCAT:
          if (dir == RANGE_TO) {
             ilow = low + next_pos;
             ihigh = ilow + count - 1;

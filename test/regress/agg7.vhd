@@ -20,6 +20,8 @@ begin
         assert x = (7, 8, 1, 2);
         x := ( y, 9, 8 );
         assert x = (5, 6, 9, 8);
+        x := (9, 8, (1, 2 ));
+        assert x = (9, 8, 1, 2);
         wait;
     end process;
 
