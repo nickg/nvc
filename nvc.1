@@ -680,6 +680,13 @@ hierarchy coverage report in HTML format, run:
 $ nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> \\
       first.covdb second.covdb third.covdb ...
 .Ed
+When NVC merges multiple coverage databse files, coverage items/bins with equal
+hierarchical paths in the elaborated design are merged together. If a coverage
+item/bin is covered in at least one of input coverage databases, it is covered
+in the merged coverage database. NVC creates union of all coverage items from
+all input coverage databases in the merged coverage database. This allows merging
+together coverage from different designs (e.g. where part of the hierarchy
+is formed by "if-generate" statement).
 .Ss Additional code coverage options
 NVC supports the following additional options to control coverage collection:
 .Bl -bullet
