@@ -175,7 +175,7 @@ static void make_enum_map(print_func_t *f, type_t type)
 {
    int stride = 0;
 
-   const int nlits = type_enum_literals(type);
+   const unsigned nlits = type_enum_literals(type);
    for (int i = 0; i < nlits; i++)
       stride = MAX(stride, ident_len(tree_ident(type_enum_literal(type, i))));
 
