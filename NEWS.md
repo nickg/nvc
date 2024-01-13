@@ -6,6 +6,8 @@
   statement equivalent processes, and in `process (all)` (#825).
 - The direction of aggregates with range choices is now calculated
   correctly in VHDL-2008 mode (#826).
+- Fixed a memory corruption bug when evaluating certain aggregates that
+  contain a range association (#827).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
