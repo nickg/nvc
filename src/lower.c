@@ -11853,6 +11853,12 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       lower_put_vcode_obj(port, var, lu);
    }
 
+   if (type_is_array(type)) {
+      vcode_reg_t locus = lower_debug_locus(map);
+      lower_check_array_sizes(lu, port_type, type, VCODE_INVALID_REG,
+                              src_reg, locus);
+   }
+
    if (!type_is_homogeneous(type)) {
       vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
       if (field != -1)
@@ -11874,10 +11880,6 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       }
    }
    else if (field == -1 && type_is_array(type)) {
-      vcode_reg_t locus = lower_debug_locus(map);
-      lower_check_array_sizes(lu, port_type, type, VCODE_INVALID_REG,
-                              src_reg, locus);
-
       vcode_reg_t data_reg = lower_array_data(src_reg);
       emit_alias_signal(data_reg, lower_debug_locus(port));
 
