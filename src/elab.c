@@ -549,6 +549,9 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
    case T_TYPE_REF:
       tb_printf(tb, "%s", type_pp(tree_type(value)));
       break;
+   case T_OPEN:
+      tb_cat(tb, "OPEN");
+      break;
    default:
       tb_printf(tb, "...");
       DEBUG_ONLY(tb_cat(tb, tree_kind_str(tree_kind(value))));

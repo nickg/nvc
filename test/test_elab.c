@@ -1717,6 +1717,25 @@ START_TEST(test_bounds7)
 }
 END_TEST
 
+START_TEST(test_bounds11)
+{
+   input_from_file(TESTDIR "/elab/bounds11.vhd");
+
+   const error_t expect[] = {
+      { 35, "actual length 3 does not match formal length 5" },
+      {  0, "while elaborating instance U" },
+      {  0, "generic G => OPEN" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1811,6 +1830,7 @@ Suite *get_elab_tests(void)
    tcase_add_loop_test(tc, test_block2, STD_02, STD_19 + 1);
    tcase_add_test(tc, test_gentype1);
    tcase_add_test(tc, test_bounds7);
+   tcase_add_test(tc, test_bounds11);
    suite_add_tcase(s, tc);
 
    return s;
