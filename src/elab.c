@@ -986,6 +986,20 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          }
          break;
 
+      case T_OPEN:
+         // Make sure the default value comes from the component
+         // declaration rather than the entity
+         // XXX: if we followed LRM 93 section 9.6.1 correctly this
+         //      wouldn't be necessary
+         if (tree_kind(comp) == T_COMPONENT && tree_has_value(cg)) {
+            map = tree_new(T_PARAM);
+            tree_set_loc(map, tree_loc(cg));
+            tree_set_subkind(map, P_POS);
+            tree_set_pos(map, tree_pos(map));
+            tree_set_value(map, tree_value(cg));
+         }
+         break;
+
       default:
          break;
       }
@@ -1767,7 +1781,8 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
       tree_add_generic(ctx->out, g);
       tree_add_genmap(ctx->out, map);
 
-      hash_put(ctx->generics, g, value);
+      if (is_literal(value))
+         hash_put(ctx->generics, g, value);
    }
 }
 

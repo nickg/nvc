@@ -1501,14 +1501,18 @@ static void simp_generic_map(tree_t t, tree_t unit)
          }
       }
 
+      if (value == NULL && kind != T_BINDING && tree_has_value(g)) {
+         // If the default value is a non-literal expression we may get
+         // the wrong result during elaboration of a recursive instantiation
+         tree_t def = tree_value(g);
+         if (is_literal(def))
+            value = def;
+      }
+
       if (value == NULL) {
-         if (kind == T_BINDING || !tree_has_value(g)) {
-            value = tree_new(T_OPEN);
-            tree_set_loc(value, tree_loc(t));
-            tree_set_type(value, tree_type(g));
-         }
-         else
-            value = tree_value(g);
+         value = tree_new(T_OPEN);
+         tree_set_loc(value, tree_loc(t));
+         tree_set_type(value, tree_type(g));
       }
 
       APUSH(values, value);
