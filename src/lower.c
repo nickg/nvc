@@ -11853,58 +11853,58 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       lower_put_vcode_obj(port, var, lu);
    }
 
+   vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+   if (!type_const_bounds(port_type))
+      bounds_reg = lower_get_type_bounds(lu, port_type);
+
    if (type_is_array(type)) {
       vcode_reg_t locus = lower_debug_locus(map);
-      lower_check_array_sizes(lu, port_type, type, VCODE_INVALID_REG,
-                              src_reg, locus);
+      lower_check_array_sizes(lu, port_type, type, bounds_reg, src_reg, locus);
    }
 
-   if (!type_is_homogeneous(type)) {
-      vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
-      if (field != -1)
-         ptr = emit_record_ref(ptr, field);
+   if (field == -1 && vcode_reg_kind(src_reg) == VCODE_TYPE_SIGNAL)
+      emit_alias_signal(src_reg, lower_debug_locus(port));
 
-      if (have_uarray_ptr(ptr)) {
-         assert(have_uarray_ptr(src_reg));
-         vcode_reg_t meta_reg = emit_load_indirect(src_reg);
-         emit_store_indirect(meta_reg, ptr);
-      }
-      else {
-         vcode_reg_t count_reg = VCODE_INVALID_REG;
-         if (type_is_array(type)) {
-            count_reg = lower_array_total_len(lu, type, src_reg);
-            src_reg   = lower_array_data(src_reg);
-         }
+   if (field != -1) {
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      vcode_reg_t field_reg = emit_record_ref(ptr_reg, field);
 
-         emit_copy(ptr, src_reg, count_reg);
+      if (have_uarray_ptr(field_reg)) {
+         vcode_reg_t data_reg = lower_array_data(src_reg);
+         vcode_reg_t meta_reg = lower_rewrap(data_reg, bounds_reg);
+         emit_store_indirect(meta_reg, field_reg);
       }
+      else if (type_is_record(type))
+         emit_copy(field_reg, src_reg, VCODE_INVALID_REG);
+      else if (!type_is_homogeneous(type)) {
+         vcode_reg_t data_reg = lower_array_data(src_reg);
+         vcode_reg_t count_reg = lower_array_total_len(lu, type, bounds_reg);
+         emit_copy(field_reg, data_reg, count_reg);
+      }
+      else
+         emit_store_indirect(src_reg, field_reg);
    }
-   else if (field == -1 && type_is_array(type)) {
+   else if (type_is_record(type)) {
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      emit_copy(ptr_reg, src_reg, VCODE_INVALID_REG);
+   }
+   else if (type_is_array(type)) {
       vcode_reg_t data_reg = lower_array_data(src_reg);
-      emit_alias_signal(data_reg, lower_debug_locus(port));
 
-      if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY) {
-         vcode_reg_t wrap_reg = lower_wrap(lu, port_type, data_reg);
+      if (bounds_reg != VCODE_INVALID_REG) {
+         vcode_reg_t wrap_reg = lower_rewrap(data_reg, bounds_reg);
          emit_store(wrap_reg, var);
+      }
+      else if (!type_is_homogeneous(type)) {
+         vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+         vcode_reg_t count_reg = lower_array_total_len(lu, type, src_reg);
+         emit_copy(ptr_reg, data_reg, count_reg);
       }
       else
          emit_store(data_reg, var);
    }
-   else if (field == -1) {
-      emit_alias_signal(src_reg, lower_debug_locus(port));
+   else
       emit_store(src_reg, var);
-   }
-   else {
-      vcode_reg_t data_reg = lower_array_data(src_reg);
-      vcode_reg_t port_reg = emit_index(var, VCODE_INVALID_REG);
-      vcode_reg_t field_reg = emit_record_ref(port_reg, field);
-      if (have_uarray_ptr(field_reg)) {
-         vcode_reg_t wrap_reg = lower_wrap(lu, type, data_reg);
-         emit_store_indirect(wrap_reg, field_reg);
-      }
-      else
-         emit_store_indirect(data_reg, field_reg);
-   }
 
    hset_insert(direct, map);
    hset_insert(direct, port);
