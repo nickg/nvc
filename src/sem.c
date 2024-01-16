@@ -2647,7 +2647,7 @@ static bool sem_check_signal_assign(tree_t t, nametab_t *tab)
 
 static bool sem_check_guard(tree_t t, nametab_t *tab)
 {
-   assert(tree_kind(t) == T_REF);
+   assert(tree_kind(t) == T_GUARD);
 
    if (!sem_check_type(t, std_type(NULL, STD_BOOLEAN), tab))
       sem_error(t, "guard signal must have BOOLEAN type but found %s",

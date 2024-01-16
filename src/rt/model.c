@@ -53,7 +53,6 @@ typedef enum {
    EVENT_TIMEOUT,
    EVENT_DRIVER,
    EVENT_PROCESS,
-   EVENT_DISCONNECT,
 } event_kind_t;
 
 #define MEMBLOCK_LINE_SZ 64
@@ -167,7 +166,6 @@ static void async_update_driver(rt_model_t *m, void *arg);
 static void async_fast_driver(rt_model_t *m, void *arg);
 static void async_fast_all_drivers(rt_model_t *m, void *arg);
 static void async_update_driving(rt_model_t *m, void *arg);
-static void async_disconnect(rt_model_t *m, void *arg);
 static void async_deposit(rt_model_t *m, void *arg);
 static void async_transfer_signal(rt_model_t *m, void *arg);
 
@@ -902,7 +900,7 @@ static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 }
 
 static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
-                                 rt_nexus_t *nexus, rt_source_t *source)
+                                 rt_source_t *source)
 {
    if (delta == 0) {
       deferq_do(&m->delta_driverq, async_update_driver, source);
@@ -924,19 +922,6 @@ static void deltaq_insert_deposit(rt_model_t *m, rt_deposit_t *deposit)
 {
    deferq_do(&m->delta_driverq, async_deposit, deposit);
    m->next_is_delta = true;
-}
-
-static void deltaq_insert_disconnect(rt_model_t *m, uint64_t delta,
-                                     rt_source_t *source)
-{
-   if (delta == 0) {
-      deferq_do(&m->delta_driverq, async_disconnect, source);
-      m->next_is_delta = true;
-   }
-   else {
-      void *e = tag_pointer(source, EVENT_DISCONNECT);
-      heap_insert(m->eventq_heap, m->now + delta, e);
-   }
 }
 
 static void reset_process(rt_model_t *m, rt_proc_t *proc)
@@ -1555,7 +1540,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
             split_value(nexus, &w_new->value, &w_old->value, offset);
 
             assert(w_old->when >= m->now);
-            deltaq_insert_driver(m, w_new->when - m->now, nexus, new);
+            deltaq_insert_driver(m, w_new->when - m->now, new);
          }
       }
       break;
@@ -2452,7 +2437,7 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
       // delete the current transaction
       assert(it->when >= m->now);
       if (it->when >= when - reject
-          && (w == NULL || !cmp_values(nexus, it->value, w->value))) {
+          && !cmp_values(nexus, it->value, w->value)) {
          waveform_t *next = it->next;
          last->next = next;
          free_value(nexus, it->value);
@@ -2543,7 +2528,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       copy_value_ptr(nexus, &w->value, value);
 
       if (!insert_transaction(m, nexus, d, w, w->when, reject))
-         deltaq_insert_driver(m, after, nexus, d);
+         deltaq_insert_driver(m, after, d);
    }
 }
 
@@ -2555,8 +2540,16 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
 
    const uint64_t when = m->now + after;
 
-   insert_transaction(m, nexus, d, NULL, when, reject);
-   deltaq_insert_disconnect(m, after, d);
+   // Need update_driver to clear disconnected flag
+   nexus->flags &= ~NET_F_FAST_DRIVER;
+
+   waveform_t *w = alloc_waveform(m);
+   w->when = -when;   // Use sign bit to represent null
+   w->next = NULL;
+   w->value.qword = 0;
+
+   if (!insert_transaction(m, nexus, d, w, when, reject))
+      deltaq_insert_driver(m, after, d);
 }
 
 static void async_watch_callback(rt_model_t *m, void *arg)
@@ -2807,15 +2800,20 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
       waveform_t *w_now  = &(source->u.driver.waveforms);
       waveform_t *w_next = w_now->next;
 
-      if (likely((w_next != NULL) && (w_next->when == m->now))) {
+      if (likely(w_next != NULL && w_next->when == m->now)) {
          free_value(nexus, w_now->value);
          *w_now = *w_next;
          free_waveform(m, w_next);
          source->disconnected = 0;
          update_driving(m, nexus, driving_value(nexus));
       }
-      else
-         assert(w_now != NULL);
+      else if (unlikely(w_next != NULL && w_next->when == -m->now)) {
+         // Disconnect source due to null transaction
+         *w_now = *w_next;
+         free_waveform(m, w_next);
+         source->disconnected = 1;
+         update_driving(m, nexus, driving_value(nexus));
+      }
    }
    else  // Update due to force/release
       update_driving(m, nexus, driving_value(nexus));
@@ -2888,14 +2886,6 @@ static void async_fast_all_drivers(rt_model_t *m, void *arg)
 {
    rt_signal_t *signal = arg;
    fast_update_all_drivers(m, signal);
-}
-
-static void async_disconnect(rt_model_t *m, void *arg)
-{
-   rt_source_t *src = arg;
-
-   src->disconnected = 1;
-   update_driver(m, src->u.driver.nexus, NULL);
 }
 
 static void async_update_driving(rt_model_t *m, void *arg)
@@ -3064,12 +3054,6 @@ static void model_cycle(rt_model_t *m)
             {
                rt_callback_t *cb = untag_pointer(e, rt_callback_t);
                deferq_do(&m->driverq, async_timeout_callback, cb);
-            }
-            break;
-         case EVENT_DISCONNECT:
-            {
-               rt_source_t *source = untag_pointer(e, rt_source_t);
-               deferq_do(&m->driverq, async_disconnect, source);
             }
             break;
          }

@@ -2426,6 +2426,25 @@ static type_t name_to_type_mark(tree_t name)
    return tree_type(decl);
 }
 
+static void find_disconnect_specification(tree_t guard, tree_t target)
+{
+   if (tree_kind(target) != T_REF)
+      return;
+   else if (!tree_has_ref(target))
+      return;
+
+   tree_t decl = tree_ref(target);
+
+   // TODO: use insert_spec for this
+   ident_t name = ident_prefix(tree_ident(decl), ident_new("disconnect"), '$');
+
+   tree_t spec = NULL;
+   query_name(nametab, name, &spec);
+
+   if (spec != NULL)
+      tree_set_spec(guard, spec);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -7276,6 +7295,10 @@ static void p_disconnection_specification(tree_t container)
       tree_set_delay(d, delay);
       tree_set_ref(d, resolve_name(nametab, CURRENT_LOC, it->ident));
 
+      // TODO: we should use insert_spec for this
+      ident_t name = ident_prefix(it->ident, ident_new("disconnect"), '$');
+      insert_name(nametab, d, name);
+
       tree_add_decl(container, d);
       sem_check(d, nametab);
    }
@@ -10305,8 +10328,12 @@ static void p_options(tree_t *reject, tree_t *guard)
       tree_t decl = NULL;
       name_mask_t mask = query_name(nametab, ident_new("GUARD"), &decl);
       if ((mask & N_OBJECT) && decl != NULL) {
-         *guard = make_ref(decl);
-         tree_set_loc(*guard, CURRENT_LOC);
+         tree_t g = tree_new(T_GUARD);
+         tree_set_loc(g, CURRENT_LOC);
+         tree_set_ref(g, decl);
+         tree_set_type(g, tree_type(decl));
+
+         *guard = g;
       }
       else
          parse_error(CURRENT_LOC, "guarded assignment has no visible "
@@ -10370,8 +10397,10 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    tree_t reject = NULL, guard = NULL;
    p_options(&reject, &guard);
 
-   if (guard != NULL)
+   if (guard != NULL) {
       tree_set_guard(conc, guard);
+      find_disconnect_specification(guard, target);
+   }
 
    p_conditional_waveforms(stmt, target, NULL);
 
@@ -10452,8 +10481,10 @@ static tree_t p_selected_signal_assignment(void)
    tree_t reject = NULL, guard = NULL;
    p_options(&reject, &guard);
 
-   if (guard != NULL)
+   if (guard != NULL) {
       tree_set_guard(conc, guard);
+      find_disconnect_specification(guard, target);
+   }
 
    p_selected_waveforms(stmt, target, reject);
    consume(tSEMI);

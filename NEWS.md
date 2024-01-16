@@ -2,6 +2,8 @@
 - The `--jit` elaboration option no longer requires `--no-save`.
 - Fixed a crash when subtype bounds depend on a package instance generic
   (#815).
+- Fixed various issues in the implementation of guarded blocks and
+  disconnection specifications (#829).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for

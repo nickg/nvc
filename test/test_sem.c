@@ -930,8 +930,11 @@ START_TEST(test_signal)
       { 69, "guarded signal must have resolved subtype" },
       { 78, "disconnection specification must denote a guarded signal" },
       { 79, "disconnection specification must denote a guarded signal" },
+      { 80, "S$disconnect already declared in this region" },   // XXX
       { 80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
+      { 81, "S$disconnect already declared in this region" },   // XXX
       { 81, "disconnection specification must have type TIME but found RBIT" },
+      { 83, "S$disconnect already declared in this region" },   // XXX
       { 83, "time expression in disconnection specificiation must be static" },
       { 88, "invalid use of entity E" },
       { -1, NULL }

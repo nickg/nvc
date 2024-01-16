@@ -362,6 +362,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_DUMMY_DRIVER
    (I_TARGET | I_IDENT),
+
+   // T_GUARD
+   (I_REF | I_SPEC | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -402,6 +405,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
+   "T_GUARD",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -1198,7 +1202,7 @@ tree_t tree_guard(tree_t t)
 
 void tree_set_guard(tree_t t, tree_t g)
 {
-   assert(g->object.kind == T_REF);
+   assert(g->object.kind == T_GUARD);
    lookup_item(&tree_object, t, I_GUARD)->object = &(g->object);
    object_write_barrier(&(t->object), &(g->object));
 }

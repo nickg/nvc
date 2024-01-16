@@ -999,13 +999,12 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
    tree_t c0 = tree_new(T_COND_STMT);
    tree_add_cond(g_if, c0);
 
-   tree_t guard_ref = tree_guard(t);
+   tree_t guard = tree_guard(t);
+   assert(tree_kind(guard) == T_GUARD);
+
+   tree_t guard_ref = make_ref(tree_ref(guard));
    tree_set_value(c0, guard_ref);
    tree_add_trigger(wait, guard_ref);
-
-   // TODO: handle disconnection specifications here
-   //
-   // For now just use the default "disconnect S : T after 0 ns;"
 
    if (tree_kind(s0) == T_SIGNAL_ASSIGN) {
       tree_t target = tree_target(s0);
@@ -1017,6 +1016,12 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
 
          tree_t w0 = tree_new(T_WAVEFORM);
          tree_set_loc(w0, tree_loc(t));
+
+         if (tree_has_spec(guard)) {
+            tree_t spec = tree_spec(guard);
+            assert(tree_kind(spec) == T_DISCONNECT);
+            tree_set_delay(w0, tree_delay(spec));
+         }
 
          tree_add_waveform(d, w0);
 
