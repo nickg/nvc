@@ -129,7 +129,7 @@ unsigned cover_get_std_log_expr_flags(tree_t decl)
    return flags;
 }
 
-bool cover_skip_array_toggle(cover_data_t *data, int a_size)
+static bool cover_skip_array_toggle(cover_data_t *data, int a_size)
 {
    assert (data);
 
@@ -142,6 +142,25 @@ bool cover_skip_array_toggle(cover_data_t *data, int a_size)
       return true;
 
    return false;
+}
+
+static void cover_inc_array_depth(cover_data_t *data)
+{
+   assert(data != NULL);
+   data->array_depth++;
+#ifdef COVER_DEBUG_SCOPE
+   printf("Adding dimension: %d\n", data->array_depth);
+#endif
+}
+
+static void cover_dec_array_depth(cover_data_t *data)
+{
+   assert(data != NULL);
+   assert(data->array_depth > 0);
+   data->array_depth--;
+#ifdef COVER_DEBUG_SCOPE
+   printf("Subtracting dimension: %d\n", data->array_depth);
+#endif
 }
 
 bool cover_skip_type_state(cover_data_t *data, type_t type)
@@ -205,6 +224,7 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
 {
    tree_t t = tree_from_object(obj);
+
    if (t != NULL) {
       switch (kind) {
       case COV_ITEM_STMT:
@@ -260,26 +280,13 @@ const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
    return &(obj->loc);
 }
 
-cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
-                             cover_item_kind_t kind, uint32_t flags)
+static cover_item_t *cover_add_one_item(cover_data_t *data, object_t *obj,
+                                        ident_t suffix, cover_item_kind_t kind,
+                                       uint32_t flags, uint32_t def_num)
 {
    assert(data != NULL);
 
-   if (!data->top_scope->emit)
-      return NULL;
-
-   cover_scope_t *ignore_scope = data->top_scope;
-   for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
-        ignore_scope = ignore_scope->parent)
-      ;
-
    const loc_t *loc = get_cover_loc(kind, obj);
-
-   for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
-      line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
-      if (loc->first_line > lr->start && loc->first_line <= lr->end)
-         return NULL;
-   }
 
    // Everything creates scope, so name of current item is already given
    // by scope in hierarchy.
@@ -310,16 +317,7 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       func_name = tree_ident(t);
    }
 
-#ifdef COVER_DEBUG_EMIT
-   printf("Item: %s\n", istr(hier));
-   printf("    First line: %d\n", loc->first_line);
-   printf("    First column: %d\n", loc->first_column);
-   printf("    Line delta: %d\n", loc->line_delta);
-   printf("    Column delta: %d\n", loc->column_delta);
-   printf("\n\n");
-#endif
-
-   int num = 0;
+   int num = def_num;
    if (kind == COV_ITEM_STATE) {
       tree_t t = tree_from_object(obj);
       assert(t != NULL);
@@ -332,8 +330,18 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
       func_name = ident_rfrom(type_ident(tree_type(t)), '.');
    }
-   else
+   else if (kind == COV_ITEM_TOGGLE)
       num = data->top_scope->sig_pos;
+
+
+#ifdef COVER_DEBUG_EMIT
+   printf("Item: %s\n", istr(hier));
+   printf("    First line: %d\n", loc->first_line);
+   printf("    First column: %d\n", loc->first_column);
+   printf("    Line delta: %d\n", loc->line_delta);
+   printf("    Column delta: %d\n", loc->column_delta);
+   printf("\n\n");
+#endif
 
    cover_item_t new = {
       .kind       = kind,
@@ -354,6 +362,158 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
    APUSH(data->top_scope->items, new);
 
    return AREF(data->top_scope->items, data->top_scope->items.count - 1);
+}
+
+
+static cover_item_t* cover_add_toggle_items_for(cover_data_t *cover, type_t type,
+                                         tree_t where, ident_t prefix, int curr_dim)
+{
+   type_t root = type;
+
+   // Gets well known type for scalar and vectorized version of
+   // standard types (std_[u]logic[_vector], signed, unsigned)
+   while (type_base_kind(root) == T_ARRAY)
+      root = type_elem(root);
+   root = type_base_recur(root);
+
+   well_known_t known = is_well_known(type_ident(root));
+   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
+      return NULL;
+
+   unsigned int flags = (tree_kind(where) == T_SIGNAL_DECL) ? COV_FLAG_TOGGLE_SIGNAL :
+                                                              COV_FLAG_TOGGLE_PORT;
+
+   if (type_is_array(type)) {
+      int t_dims = dimension_of(type);
+      tree_t r = range_of(type, t_dims - curr_dim);
+      cover_item_t* first_item = NULL;
+      int64_t low, high;
+
+      if (folded_bounds(r, &low, &high)) {
+         assert(low <= high);
+
+         int64_t first, last, i;
+         int inc;
+
+         if (cover_skip_array_toggle(cover, high - low + 1))
+            return NULL;
+
+         cover_inc_array_depth(cover);
+
+         switch (tree_subkind(r)) {
+         case RANGE_DOWNTO:
+            i = high;
+            first = high;
+            last = low;
+            inc = -1;
+            break;
+         case RANGE_TO:
+            i = low;
+            first = low;
+            last = high;
+            inc = +1;
+            break;
+         default:
+            fatal("Invalid subkind for range: %d", tree_subkind(r));
+         }
+
+         while (1) {
+            char arr_index[16];
+            cover_item_t* tmp = NULL;
+            checked_sprintf(arr_index, sizeof(arr_index), "(%"PRIi64")", i);
+            ident_t arr_suffix =
+               ident_prefix(prefix, ident_new(arr_index), '\0');
+
+            // On lowest dimension walk through elements, if elements
+            // are arrays, then start new (nested) recursion.
+            if (curr_dim == 1) {
+               type_t e_type = type_elem(type);
+               if (type_is_array(e_type))
+                  tmp = cover_add_toggle_items_for(cover, e_type, where, arr_suffix,
+                                                  dimension_of(e_type));
+               else {
+                  tmp = cover_add_one_item(cover, tree_to_object(where), arr_suffix,
+                                           COV_ITEM_TOGGLE, flags | COV_FLAG_TOGGLE_TO_1, 2);
+                  cover_add_one_item(cover, tree_to_object(where), arr_suffix,
+                                       COV_ITEM_TOGGLE, flags | COV_FLAG_TOGGLE_TO_0, 1);
+               }
+            }
+            else   // Recurse to lower dimension
+               tmp = cover_add_toggle_items_for(cover, type, where, arr_suffix,
+                                               curr_dim - 1);
+
+            if (i == first)
+               first_item = tmp;
+            if (i == last)
+               break;
+
+            i += inc;
+         }
+
+         cover_dec_array_depth(cover);
+      }
+
+      return first_item;
+   }
+
+   // Single bit signal
+   cover_item_t *first = cover_add_one_item(cover, tree_to_object(where), NULL,
+                                            COV_ITEM_TOGGLE, flags | COV_FLAG_TOGGLE_TO_1, 2);
+   cover_add_one_item(cover, tree_to_object(where), NULL, COV_ITEM_TOGGLE,
+                      flags | COV_FLAG_TOGGLE_TO_0, 2);
+
+   return first;
+
+}
+
+cover_item_t *cover_add_items(cover_data_t *data, object_t *obj,
+                              cover_item_kind_t kind)
+{
+   assert(data != NULL);
+
+   // Handle ignores of this object for coverage
+   cover_scope_t *ignore_scope = data->top_scope;
+
+   if (!data->top_scope->emit)
+      return NULL;
+
+   const loc_t *loc = get_cover_loc(kind, obj);
+
+   for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
+      line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
+      if (loc->first_line > lr->start && loc->first_line <= lr->end)
+         return NULL;
+   }
+
+   tree_t t = tree_from_object(obj);
+   if (t == NULL)
+      return NULL;
+
+   // Handle cov_item(s) creation
+   switch (kind) {
+   case COV_ITEM_STMT:
+      return cover_add_one_item(data, obj, NULL, kind, 0, 1);
+
+   case COV_ITEM_BRANCH:
+      if (tree_kind(t) == T_ASSOC)
+         return cover_add_one_item(data, obj, NULL, kind, COV_FLAG_CHOICE, 1);
+
+      cover_item_t *item_true = cover_add_one_item(data, obj, NULL, kind, COV_FLAG_TRUE, 2);
+      cover_add_one_item(data, obj, NULL, kind, COV_FLAG_FALSE, 1);
+
+      return item_true;
+
+   case COV_ITEM_TOGGLE:
+   {
+      const type_t tt = tree_type(t);
+      const int ndims = dimension_of(tt);
+      return cover_add_toggle_items_for(data, tt, t, NULL, ndims);
+   }
+
+   default:
+      fatal("unsupported type of code coverage: %d !", kind);
+   }
+
 }
 
 LCOV_EXCL_START
@@ -386,9 +546,9 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
    case COV_ITEM_BRANCH:
+   case COV_ITEM_TOGGLE:
       item->data += data;
       break;
-   case COV_ITEM_TOGGLE:
    case COV_ITEM_EXPRESSION:
    case COV_ITEM_STATE:
       item->data |= data;
@@ -644,25 +804,6 @@ void cover_pop_scope(cover_data_t *data)
 
    data->top_scope = data->top_scope->parent;
 
-}
-
-void cover_inc_array_depth(cover_data_t *data)
-{
-   assert(data != NULL);
-   data->array_depth++;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Adding dimension: %d\n", data->array_depth);
-#endif
-}
-
-void cover_dec_array_depth(cover_data_t *data)
-{
-   assert(data != NULL);
-   assert(data->array_depth > 0);
-   data->array_depth--;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Subtracting dimension: %d\n", data->array_depth);
-#endif
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)

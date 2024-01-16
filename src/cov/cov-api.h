@@ -235,16 +235,12 @@ void cover_export_cobertura(cover_data_t *data, FILE *f,
 void cover_push_scope(cover_data_t *data, tree_t t);
 void cover_pop_scope(cover_data_t *data);
 
-void cover_inc_array_depth(cover_data_t *data);
-void cover_dec_array_depth(cover_data_t *data);
-
 bool cover_is_stmt(tree_t t);
-bool cover_skip_array_toggle(cover_data_t *data, int a_size);
 bool cover_skip_type_state(cover_data_t *data, type_t type);
 
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
-cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
-                             cover_item_kind_t kind, uint32_t flags);
+cover_item_t *cover_add_items(cover_data_t *data, object_t *obj,
+                              cover_item_kind_t kind);
 
 #endif   // _COV_API_H
