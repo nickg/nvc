@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -693,6 +693,11 @@ void show_stacktrace(void)
 #if defined __linux__ && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
    color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
                  "installing the libdw-dev package and reconfiguring$$\n");
+#endif
+
+#ifndef DEBUG
+   color_fprintf(stderr, "\n$!red$Please report this bug at "
+                 PACKAGE_BUGREPORT "$$\n");
 #endif
 
    fflush(stderr);

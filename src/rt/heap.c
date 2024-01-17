@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "rt/heap.h"
 #include "rt/rt.h"
 
+#include <assert.h>
 #include <inttypes.h>
 #include <stdlib.h>
 
@@ -67,8 +68,7 @@ static void min_heapify(heap_t *h, size_t i)
 
 static inline void heap_decrease_key(heap_t *h, size_t i, uint64_t key)
 {
-   if (unlikely(key > KEY(h, i)))
-      fatal("new key is larger than current key") LCOV_EXCL_LINE;
+   assert(key <= KEY(h, i));
 
    KEY(h, i) = key;
    while (i > 1 && KEY(h, PARENT(i)) > KEY(h, i)) {
@@ -96,8 +96,7 @@ void *heap_extract_min(heap_t *h)
 {
    RT_LOCK(h->lock);
 
-   if (unlikely(h->size < 1))
-      fatal_trace("heap underflow") LCOV_EXCL_LINE;
+   assert(h->size >= 1);
 
    void *min = USER(h, 1);
    NODE(h, 1) = NODE(h, h->size);
@@ -109,20 +108,14 @@ void *heap_extract_min(heap_t *h)
 void *heap_min(heap_t *h)
 {
    RT_LOCK(h->lock);
-
-   if (unlikely(h->size < 1))
-      fatal_trace("heap underflow") LCOV_EXCL_LINE;
-
+   assert(h->size >= 1);
    return USER(h, 1);
 }
 
 uint64_t heap_min_key(heap_t *h)
 {
    RT_LOCK(h->lock);
-
-   if (unlikely(h->size < 1))
-      fatal_trace("heap underflow") LCOV_EXCL_LINE;
-
+   assert(h->size >= 1);
    return KEY(h, 1);
 }
 

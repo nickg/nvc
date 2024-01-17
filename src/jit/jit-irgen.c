@@ -3855,7 +3855,8 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          irgen_op_add_trigger(g, i);
          break;
       default:
-         fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
+         fatal_trace("cannot generate JIT IR for vcode op %s",
+                     vcode_op_string(op));
       }
    }
 }

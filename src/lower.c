@@ -1641,7 +1641,7 @@ static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type,
             inc = +1;
             break;
          default:
-            fatal("Invalid subkind for range: %d", tree_subkind(r));
+            fatal_trace("invalid subkind for range: %d", tree_subkind(r));
          }
 
          while (1) {

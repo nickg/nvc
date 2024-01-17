@@ -106,7 +106,7 @@ static void cgen_add_dependency(ident_t name, unit_registry_t *ur,
 {
    vcode_unit_t vu = unit_registry_get(ur, name);
    if (vu == NULL)
-      fatal("missing vcode unit %s", istr(name));
+      fatal_trace("missing vcode unit %s", istr(name));
 
    unsigned pos = 0;
    for (; pos < list->count; pos++) {

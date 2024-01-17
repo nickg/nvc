@@ -689,8 +689,8 @@ void vcode_opt(void)
             case VCODE_OP_ALLOC:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
-                  fatal("defintion of r%d does not dominate all uses",
-                        o->result);
+                  fatal_trace("definition of r%d does not dominate all uses",
+                              o->result);
                }
                else if (uses[o->result] == 0) {
                   if (false DEBUG_ONLY(|| o->kind != VCODE_OP_CONST)) {
