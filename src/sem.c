@@ -44,6 +44,7 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_same_type(tree_t left, tree_t right);
 static bool sem_check_type(tree_t t, type_t expect, nametab_t *tab);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
+static bool sem_static_subtype(type_t type, static_fn_t fn);
 static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
 static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
 static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
@@ -4463,6 +4464,20 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
       // signal assignment to an anonymous signal that is then
       // associated with the formal
       if (!is_static && standard() >= STD_08) {
+         // The rules listed for unconstrained ports in 6.5.6.3 should
+         // be covered by the check for a globally static subtype in
+         // addition to the checks above
+         if (type_is_unconstrained(type)
+             && !sem_static_subtype(value_type, sem_globally_static)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+            diag_printf(d, "expression associated with unconstrained formal "
+                        "port %s must have a globally static subtype",
+                        istr(tree_ident(decl)));
+            diag_lrm(d, STD_08, "6.5.6.3");
+            diag_emit(d);
+            return false;
+         }
+
          tree_t w = tree_new(T_WAVEFORM);
          tree_set_loc(w, tree_loc(value));
          tree_set_value(w, value);

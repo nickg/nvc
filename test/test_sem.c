@@ -2522,16 +2522,18 @@ START_TEST(test_vhdl2008)
    input_from_file(TESTDIR "/sem/vhdl2008.vhd");
 
    const error_t expect[] = {
-      { 13, "type of condition must be BOOLEAN but have INTEGER" },
-      { 14, "expected type of conditional expression to be INTEGER "
-        "but is BOOLEAN" },
-      { 31, "case choice must be locally static" },
-      { 40, "no visible declaration for BAZ" },
-      { 41, "SUBTYPE attribute is only allowed in a type mark" },
-      { 49, "case choice must be globally static" },
-      { 59, "range choice expression must have same type as aggregate" },
-      { 70, "conversion only allowed between closely related types" },
-      { 86, "no visible declaration for Q" },
+      {  13, "type of condition must be BOOLEAN but have INTEGER" },
+      {  14, "expected type of conditional expression to be INTEGER "
+         "but is BOOLEAN" },
+      {  31, "case choice must be locally static" },
+      {  40, "no visible declaration for BAZ" },
+      {  41, "SUBTYPE attribute is only allowed in a type mark" },
+      {  49, "case choice must be globally static" },
+      {  59, "range choice expression must have same type as aggregate" },
+      {  70, "conversion only allowed between closely related types" },
+      {  86, "no visible declaration for Q" },
+      { 102, "expression associated with unconstrained formal port P1 "
+        "must have a globally static subtype" },
       { -1, NULL }
    };
    expect_errors(expect);

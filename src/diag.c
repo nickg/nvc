@@ -437,6 +437,7 @@ static const struct {
         [STD_02] = "3.5.1" } },
    { "Type conversions", { [STD_93] = "7.3.5", [STD_08] = "9.3.6" } },
    { "External names", { [STD_08] = "8.7" } },
+   { "Port clauses", { [STD_08] = "6.5.6.3" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

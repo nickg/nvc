@@ -88,4 +88,20 @@ begin
         end block;
     end block;
 
+    -- Port maps with non-globally-static expressions
+    b2: block is
+        type t_array is array (natural range <>) of integer;
+        signal s : integer;
+        function get_array (signal s : integer; constant x : integer) return t_array is
+        begin
+            return (1 to 3 => s + x);
+        end function;
+    begin
+        sub1: block is
+            port ( p1 : t_array );
+            port map ( p1 => get_array(s, 5) );  -- Error
+        begin
+        end block;
+    end block;
+
 end architecture;

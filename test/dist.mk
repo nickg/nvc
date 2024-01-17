@@ -1771,7 +1771,6 @@ EXTRA_DIST += \
 	test/sem/osvvm4.vhd \
 	test/sem/osvvm5.vhd \
 	test/sem/physical.vhd \
-	test/sem/ports2008.vhd \
 	test/sem/ports.vhd \
 	test/sem/procedure.vhd \
 	test/sem/protected2.vhd \
