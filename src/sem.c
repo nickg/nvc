@@ -3717,12 +3717,45 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_record_ref(tree_t t, nametab_t *tab)
+static bool sem_check_name_prefix(tree_t t, nametab_t *tab, const char *what)
 {
    tree_t value = tree_value(t);
    if (!sem_check(value, tab))
       return false;
 
+   // The prefix of a name may only be function call or another name
+   switch (tree_kind(value)) {
+   case T_FCALL:
+   case T_PROT_FCALL:
+   case T_REF:
+   case T_ATTR_REF:
+   case T_ALL:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_RECORD_REF:
+   case T_EXTERNAL_NAME:
+      break;
+
+   default:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "the prefix of %s must be a name or a "
+                     "function call", what);
+         diag_lrm(d, STD_08, "8.1");
+         diag_emit(d);
+         return false;
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_record_ref(tree_t t, nametab_t *tab)
+{
+   if (!sem_check_name_prefix(t, tab, "a selected name"))
+      return false;
+
+   tree_t value = tree_value(t);
    type_t value_type = tree_type(value);
 
    if (type_is_none(value_type))
@@ -3737,8 +3770,7 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 {
-   tree_t value = tree_value(t);
-   if (!sem_check(value, tab))
+   if (!sem_check_name_prefix(t, tab, "an indexed name"))
       return false;
 
    type_t type = tree_type(tree_value(t));
@@ -3750,8 +3782,8 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
    const int nparams = tree_params(t);
 
    if (nparams != nindex)
-      sem_error(t, "array %s has %d dimensions but %d indices given",
-                istr(tree_ident(value)), nindex, nparams);
+      sem_error(t, "prefix of indexed name has %d dimensions but %d "
+                "indices given", nindex, nparams);
 
    bool ok = true;
    for (int i = 0; i < nparams; i++) {
@@ -3775,7 +3807,7 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_array_slice(tree_t t, nametab_t *tab)
 {
-   if (!sem_check(tree_value(t), tab))
+   if (!sem_check_name_prefix(t, tab, "a slice name"))
       return false;
 
    type_t array_type = tree_type(tree_value(t));
@@ -5901,10 +5933,10 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
 
 static bool sem_check_all(tree_t t, nametab_t *tab)
 {
-   tree_t value = tree_value(t);
-   if (!sem_check(value, tab))
+   if (!sem_check_name_prefix(t, tab, "a selected name"))
       return false;
 
+   tree_t value = tree_value(t);
    type_t value_type = tree_type(value);
 
    if (type_is_none(value_type))

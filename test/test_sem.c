@@ -433,8 +433,8 @@ START_TEST(test_array)
       { 55,  "type of value universal_integer does not match type of" },
       { 57,  "type of value INT_ARRAY does not match type" },
       { 65,  "operator \"=\" [INT_ARRAY, TEN_INTS return BOOLEAN]" },
-      { 88,  "array W has 2 dimensions but 1 indices given" },
-      { 89,  "array W has 2 dimensions but 3 indices given" },
+      { 88,  "prefix of indexed name has 2 dimensions but 1 indices given" },
+      { 89,  "prefix of indexed name has 2 dimensions but 3 indices given" },
       { 98,  "type of index universal_integer does not match type" },
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "a choice that is not locally static is allowed" },
@@ -476,6 +476,9 @@ START_TEST(test_array)
       { 442, "dimension index 5 out of range for type INT_ARRAY" },
       { 446, "no visible declaration for FOO" },
       { 480, "cannot index non-array type MY_RECORD" },
+      { 488, "the prefix of an indexed name must be a name or a function" },
+      { 489, "the prefix of a slice name must be a name or a function call" },
+      { 497, "prefix of indexed name has 2 dimensions but 1 indices given" },
       { -1, NULL }
    };
    expect_errors(expect);

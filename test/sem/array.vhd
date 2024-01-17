@@ -480,4 +480,21 @@ begin
         report to_hstring(MY_CONST(0));  -- Error
     end process;
 
+    issue835: process is
+        type t_my_bv is array (natural range <>) of bit;
+        variable x : bit_vector(1 to 7);
+        variable y : t_my_bv(1 to 4);
+    begin
+        y(1) := t_my_bv(x)(1);          -- Error
+        y := t_my_bv(x)(1 to 4);        -- Error
+    end process;
+
+    process is
+        type t_int2d is array (natural range <>, natural range <>) of integer;
+        type t_int2d_ptr is access t_int2d;
+        variable p : t_int2d_ptr;
+    begin
+        p.all(1) := 2;             -- Error
+    end process;
+
 end architecture;
