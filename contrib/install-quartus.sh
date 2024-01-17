@@ -32,7 +32,7 @@ elif [ -d "$QUARTUS_ROOTDIR/eda/sim_lib" ]; then
   # Old Quartus directory layout
   #
 
-  for STD in 1993 2008; do
+  for STD in ${NVC_STD:-1993 2008}; do
 
     analyse_list altera$(std_suffix $STD) <<EOF
 $src/altera_primitives_components.vhd
@@ -129,7 +129,7 @@ elif [ -d "$QUARTUS_ROOTDIR/questa_fse/intel/vhdl/src/altera" ]; then
   # Quartus 22.1 and later
   #
 
-  for STD in 1993 2008; do
+  for STD in ${NVC_STD:-1993 2008}; do
 
     analyse_list altera$(std_suffix $STD) <<EOF
 $src/altera/altera_primitives_components.vhd

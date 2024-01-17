@@ -13,7 +13,7 @@ fi
 
 git_wrapper https://github.com/VUnit/vunit $tag
 
-for STD in 2008 2019; do
+for STD in ${NVC_STD:-2008 2019}; do
   analyse_list vunit_lib$(std_suffix $STD) <<EOF
 vunit/vhdl/data_types/src/types.vhd
 vunit/vhdl/data_types/src/api/external_string_pkg.vhd

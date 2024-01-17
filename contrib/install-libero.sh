@@ -35,7 +35,7 @@ src=$LIBERO/Designer/lib/
 GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed"
 
-for STD in 1993 2008; do
+for STD in ${NVC_STD:-1993 2008}; do
   WORK=axcelerator$(std_suffix $STD)
   analyse $src/vtl/95/axcelerator.vhd
 done

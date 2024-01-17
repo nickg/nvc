@@ -58,6 +58,7 @@
 typedef struct {
    jit_t           *jit;
    unit_registry_t *registry;
+   bool             user_set_std;
 } cmd_state_t;
 
 const char copy_string[] =
@@ -1091,6 +1092,9 @@ static int install_cmd(int argc, char **argv, cmd_state_t *state)
    if (get_exe_path(tb))
       setenv("NVC", tb_get(tb), 1);
 
+   if (state->user_set_std)
+      setenv("NVC_STD", standard_text(standard()), 1);
+
    for (int i = optind; i < next_cmd; i++) {
       tb_rewind(tb);
       get_libexec_dir(tb);
@@ -1971,6 +1975,7 @@ int main(int argc, char **argv)
    opterr = 0;
 
    const char *work_name = "work";
+   cmd_state_t state = {};
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
@@ -1994,6 +1999,7 @@ int main(int argc, char **argv)
          break;
       case 's':
          set_standard(parse_standard(optarg));
+         state.user_set_std = true;
          break;
       case 'I':
          set_message_style(parse_message_style(optarg));
@@ -2038,7 +2044,6 @@ int main(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   cmd_state_t state = {};
    const int ret = process_command(argc, argv, &state);
 
    if (state.jit != NULL)

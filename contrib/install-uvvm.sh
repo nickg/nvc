@@ -13,7 +13,6 @@ fi
 
 git_wrapper https://github.com/UVVM/UVVM $branch
 
-STD=2008
 A_OPTS="--relaxed"
 
 component_list=$(tr -d '\r' <script/component_list.txt | tr '\n' ' ')
@@ -29,6 +28,8 @@ for component_name in $component_list; do
         library_name=${first_line[2]}
         unset compile_order[0]
         lines=$( IFS=$'\n'; echo "${compile_order[*]}" )
-        analyse_list $component_name <<<$lines
+        for STD in ${NVC_STD:-2008 2019}; do
+          analyse_list $component_name$(std_suffix $STD) <<<$lines
+        done
     cd ../..
 done

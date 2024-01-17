@@ -7,7 +7,7 @@
 
 git_wrapper https://github.com/fransschreuder/xpm_vhdl.git master
 
-for STD in 2008; do
+for STD in ${NVC_STD:-2008 2019}; do
   analyse_list xpm$(std_suffix $STD) <<EOF
 src/xpm/xpm_VCOMP.vhd
 src/xpm/xpm_cdc/hdl/xpm_cdc_single.vhd

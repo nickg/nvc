@@ -35,7 +35,7 @@ src=$ICECUBE2/vhdl
 GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed"
 
-for STD in 1993 2008; do
+for STD in ${NVC_STD:-1993 2008}; do
   WORK=ice$(std_suffix $STD)
   analyse $src/vcomponent_vital.vhd
   analyse $src/sb_ice_syn_vital.vhd

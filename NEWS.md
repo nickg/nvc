@@ -4,6 +4,8 @@
   (#815).
 - Fixed various issues in the implementation of guarded blocks and
   disconnection specifications (#829).
+- The `--std` option now controls which VHDL standard the `--install`
+  command uses to compile third-party libraries (#836).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
