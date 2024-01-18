@@ -3204,17 +3204,6 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
       return result_reg;
 }
 
-static type_t lower_base_type(type_t type)
-{
-   for (type_t base; type_kind(type) == T_SUBTYPE; type = base) {
-      base = type_base(type);
-      if (type_ident(base) == type_ident(type))
-         break;   // Subtype created for constrained array definition
-   }
-
-   return type;
-}
-
 static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
                                   vcode_reg_t reg)
 {
@@ -3239,9 +3228,8 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
       // Use a helper function to convert a record signal into a record
       // containing the resolved values
 
-      type_t base = lower_base_type(type);
-      ident_t helper_func =
-         ident_prefix(type_ident(base), ident_new("resolved"), '$');
+      ident_t base_id = type_ident(type_base_recur(type));
+      ident_t helper_func = ident_prefix(base_id, ident_new("resolved"), '$');
 
       vcode_reg_t arg_reg = reg;
       if (type_is_array(type)) {
@@ -3251,7 +3239,7 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
             arg_reg = lower_wrap(lu, type, reg);
       }
 
-      vcode_type_t vrtype = lower_func_result_type(base);
+      vcode_type_t vrtype = lower_func_result_type(type);
 
       vcode_reg_t args[] = { lower_context_for_call(lu, helper_func), arg_reg };
       return emit_fcall(helper_func, vrtype, vrtype, VCODE_CC_VHDL, args, 2);
@@ -4483,9 +4471,8 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
    else if (type_const_bounds(type))
       emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
    else {
-      type_t base = lower_base_type(type);
-      ident_t helper_func =
-         ident_prefix(type_ident(base), ident_new("new"), '$');
+      ident_t base_id = type_ident(type_base_recur(type));
+      ident_t helper_func = ident_prefix(base_id, ident_new("new"), '$');
 
       vcode_reg_t args[] = {
          lower_context_for_call(lu, helper_func),
@@ -5925,9 +5912,8 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
    else if (lower_trivially_copyable(type))
       emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
    else {
-      type_t base = lower_base_type(type);
-      ident_t helper_func =
-         ident_prefix(type_ident(base), ident_new("copy"), '$');
+      ident_t base_id = type_ident(type_base_recur(type));
+      ident_t helper_func = ident_prefix(base_id, ident_new("copy"), '$');
 
       vcode_reg_t args[] = {
          lower_context_for_call(lu, helper_func),
@@ -5957,9 +5943,8 @@ static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
       emit_copy(dst_data, src_data, count_reg);
    }
    else {
-      type_t base = lower_base_type(dst_type);
-      ident_t helper_func =
-         ident_prefix(type_ident(base), ident_new("copy"), '$');
+      ident_t base_id = type_ident(type_base_recur(dst_type));
+      ident_t helper_func = ident_prefix(base_id, ident_new("copy"), '$');
 
       assert(vcode_reg_kind(dst_array) == VCODE_TYPE_UARRAY);
       assert(vcode_reg_kind(src_array) == VCODE_TYPE_UARRAY);
