@@ -8,6 +8,8 @@
   correctly in VHDL-2008 mode (#826).
 - Fixed a memory corruption bug when evaluating certain aggregates that
   contain a range association (#827).
+- Fixed a crash when using the `'subtype` attribute with a constrained
+  port declaration (#837).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
