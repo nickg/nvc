@@ -924,3 +924,4 @@ issue827        normal,2008
 cover22         shell
 issue831        normal,2008
 issue829        normal
+issue839        normal
