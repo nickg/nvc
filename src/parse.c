@@ -1894,10 +1894,10 @@ static void _spec_list_cleanup(spec_list_t **list)
 static type_t get_subtype_for(tree_t expr)
 {
    type_t type = tree_type(expr);
-   assert(type_is_unconstrained(type));
+   assert(type_is_composite(type));
 
    type_t sub = type_new(T_SUBTYPE);
-   type_set_base(sub, type);
+   type_set_base(sub, type_base_recur(type));
 
    const loc_t *loc = tree_loc(expr);
 
@@ -1982,6 +1982,8 @@ static type_t get_subtype_for(tree_t expr)
 
          type_set_elem(sub, get_subtype_for(aref));
       }
+      else
+         type_set_elem(sub, elem);
    }
 
    return sub;
@@ -1999,12 +2001,12 @@ static type_t apply_subtype_attribute(tree_t aref)
                   "have a type");
       return type_new(T_NONE);
    }
-   else if (type_is_unconstrained(type)) {
+   else if (type_const_bounds(type))
+      return type;
+   else {
       // Construct a new subtype using the constraints from the prefix
       return get_subtype_for(name);
    }
-   else
-      return type;
 }
 
 static type_t apply_element_attribute(tree_t aref)

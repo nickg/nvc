@@ -6085,6 +6085,35 @@ START_TEST(test_visibility11)
 }
 END_TEST
 
+START_TEST(test_issue837)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue837.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t s = tree_decl(a, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
+
+   type_t t = tree_type(s);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+
+   tree_t r = range_of(t, 0);
+   fail_unless(tree_subkind(r) == RANGE_EXPR);
+   fail_unless(tree_kind(tree_value(r)) == T_ATTR_REF);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6219,6 +6248,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue802);
    tcase_add_test(tc_core, test_issue805);
    tcase_add_test(tc_core, test_visibility11);
+   tcase_add_test(tc_core, test_issue837);
    suite_add_tcase(s, tc_core);
 
    return s;
