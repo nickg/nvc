@@ -270,7 +270,11 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    switch (type_kind(type)) {
    case T_SUBTYPE:
       {
-         *ft = *fst_type_for(type_base(type), loc);
+         fst_type_t *baseft = fst_type_for(type_base(type), loc);
+         if (baseft == NULL)
+            goto poison;
+
+         *ft = *baseft;
 
          switch (is_well_known(type_ident(type))) {
          case W_STD_NATURAL:  ft->sdt = FST_SDT_VHDL_NATURAL; break;
