@@ -107,8 +107,10 @@ START_TEST(test_comp)
    input_from_file(TESTDIR "/elab/comp.vhd");
 
    const error_t expect[] = {
-      { 55, "port Y not found in entity WORK.E2" },
-      { 62, "type of port X in component declaration E3 is BIT" },
+      { 77, "port X in entity WORK.E2 without a default value has no "
+        "corresponding port in component E2" },
+      { 83, "port X in component E3 has type BIT which is incompatible "
+        "with type INTEGER in entity WORK.E3" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -678,7 +680,17 @@ START_TEST(test_issue373)
 
    tree_t e = run_elab();
 
-   tree_t p0 = tree_stmt(tree_stmt(tree_stmt(e, 0), 0), 0);
+   tree_t unit = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(unit) == T_BLOCK);
+   fail_unless(tree_ident(unit) == ident_new("UNIT"));
+   fail_unless(tree_stmts(unit) == 1);
+
+   tree_t sub = tree_stmt(unit, 0);
+   fail_unless(tree_kind(sub) == T_BLOCK);
+   fail_unless(tree_ident(sub) == ident_new("SUB"));
+   fail_unless(tree_stmts(sub) == 1);
+
+   tree_t p0 = tree_stmt(sub, 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_ASSERT);
@@ -767,8 +779,15 @@ START_TEST(test_comp2)
    fail_unless(tree_kind(top) == T_BLOCK);
    fail_unless(tree_stmts(top) == 2);
 
-   tree_t sub1 = tree_stmt(top, 0);
+   tree_t sub1_i = tree_stmt(top, 0);
+   fail_unless(tree_kind(sub1_i) == T_BLOCK);
+   fail_unless(tree_ident(sub1_i) == ident_new("SUB1_I"));
+   fail_unless(tree_generics(sub1_i) == 0);
+   fail_unless(tree_genmaps(sub1_i) == 0);
+
+   tree_t sub1 = tree_stmt(sub1_i, 0);
    fail_unless(tree_kind(sub1) == T_BLOCK);
+   fail_unless(tree_ident(sub1) == ident_new("SUB1"));
    fail_unless(tree_generics(sub1) == 1);
    fail_unless(tree_genmaps(sub1) == 1);
 
@@ -780,8 +799,15 @@ START_TEST(test_comp2)
    fail_unless(tree_kind(sub1_y) == T_LITERAL);
    fail_unless(tree_ival(sub1_y) == 4);
 
-   tree_t sub2 = tree_stmt(top, 1);
+   tree_t sub2_i = tree_stmt(top, 1);
+   fail_unless(tree_kind(sub2_i) == T_BLOCK);
+   fail_unless(tree_ident(sub2_i) == ident_new("SUB2_I"));
+   fail_unless(tree_generics(sub2_i) == 2);
+   fail_unless(tree_genmaps(sub2_i) == 2);
+
+   tree_t sub2 = tree_stmt(sub2_i, 0);
    fail_unless(tree_kind(sub2) == T_BLOCK);
+   fail_unless(tree_ident(sub2) == ident_new("SUB2"));
    fail_unless(tree_generics(sub2) == 2);
    fail_unless(tree_genmaps(sub2) == 2);
 
@@ -802,9 +828,13 @@ START_TEST(test_comp3)
    input_from_file(TESTDIR "/elab/comp3.vhd");
 
    const error_t expect[] = {
-      { 36, "missing value for generic X with no default" },
-      { 31, "type of generic X in component declaration SUB2 is BOOLEAN which"
-        " does not match type INTEGER in entity WORK.SUB2" },
+      { 36, "generic X in entity WORK.SUB1 without a default value has no "
+        "corresponding generic in component SUB1" },
+      {  0, "declaration of generic X in entity" },
+      { 38, "generic X in component SUB2 has type BOOLEAN which is "
+        "incompatible with type INTEGER in entity WORK.SUB2" },
+      {  0, "declaration of generic X in component" },
+      {  0, "declaration of generic X in entity" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -870,11 +900,20 @@ START_TEST(test_tc846)
    fail_unless(tree_ident(a1) == ident_new("A1"));
    fail_unless(tree_stmts(a1) == 1);
 
-   tree_t c1 = tree_stmt(a1, 0);
+   tree_t fa = tree_stmt(a1, 0);
+   fail_unless(tree_ident(fa) == ident_new("FULL_ADDER"));
+   fail_unless(tree_stmts(fa) == 1);
+
+   tree_t c1 = tree_stmt(fa, 0);
    fail_unless(tree_ident(c1) == ident_new("C1"));
-   fail_unless(tree_stmts(c1) == 0);
-   fail_unless(tree_decls(c1) == 2);
-   fail_unless(tree_ident(tree_decl(c1, 1)) == ident_new("X"));
+   fail_unless(tree_stmts(c1) == 1);
+
+   tree_t and2g = tree_stmt(c1, 0);
+   fail_unless(tree_ident(and2g) == ident_new("AND2G"));
+   fail_unless(tree_stmts(and2g) == 0);
+
+   fail_unless(tree_decls(and2g) == 2);
+   fail_unless(tree_ident(tree_decl(and2g, 1)) == ident_new("X"));
 
    fail_if_errors();
 }
@@ -917,10 +956,15 @@ START_TEST(test_issue442)
    tree_t dut = tree_stmt(b0, 0);
    fail_unless(tree_ident(dut) == ident_new("DUT"));
    fail_unless(tree_kind(dut) == T_BLOCK);
-   fail_unless(tree_stmts(dut) == 0);
+   fail_unless(tree_stmts(dut) == 1);
    fail_unless(tree_genmaps(dut) == 2);
 
-   tree_t m1 = tree_value(tree_genmap(dut, 1));
+   tree_t sample = tree_stmt(dut, 0);
+   fail_unless(tree_ident(sample) == ident_new("SAMPLE"));
+   fail_unless(tree_kind(sample) == T_BLOCK);
+   fail_unless(tree_genmaps(sample) == 2);
+
+   tree_t m1 = tree_value(tree_genmap(sample, 1));
    fail_unless(tree_kind(m1) == T_LITERAL);
    fail_unless(tree_ival(m1) == 4);
 
@@ -942,10 +986,16 @@ START_TEST(test_issue448)
    tree_t tb = tree_stmt(b0, 0);
    fail_unless(tree_ident(tb) == ident_new("TB"));
    fail_unless(tree_kind(tb) == T_BLOCK);
-   fail_unless(tree_stmts(tb) == 0);
-   fail_unless(tree_genmaps(tb) == 6);
+   fail_unless(tree_stmts(tb) == 1);
+   fail_unless(tree_genmaps(tb) == 5);
 
-   tree_t m1 = tree_value(tree_genmap(tb, 2));
+   tree_t inner = tree_stmt(tb, 0);
+   fail_unless(tree_ident(inner) ==
+               ident_new("IMAGE_STREAM_BUFFER_TEST_BENCH"));
+   fail_unless(tree_kind(inner) == T_BLOCK);
+   fail_unless(tree_genmaps(inner) == 6);
+
+   tree_t m1 = tree_value(tree_genmap(inner, 2));
    fail_unless(tree_kind(m1) == T_LITERAL);
    fail_unless(tree_ival(m1) == 8192);
 
@@ -1736,6 +1786,17 @@ START_TEST(test_bounds11)
 }
 END_TEST
 
+START_TEST(test_jcore2)
+{
+   input_from_file(TESTDIR "/elab/jcore2.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1831,6 +1892,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_gentype1);
    tcase_add_test(tc, test_bounds7);
    tcase_add_test(tc, test_bounds11);
+   tcase_add_test(tc, test_jcore2);
    suite_add_tcase(s, tc);
 
    return s;

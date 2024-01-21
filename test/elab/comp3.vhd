@@ -33,8 +33,8 @@ architecture test of top is
     end component;
 begin
 
-    sub1_i: component sub1;
+    sub1_i: component sub1;             -- Error
 
-    sub2_i: component sub2;
+    sub2_i: component sub2;             -- Error
 
 end architecture;

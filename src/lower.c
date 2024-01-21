@@ -2995,14 +2995,6 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
          vcode_reg_t context = emit_link_package(tree_ident(unit));
          ptr_reg = emit_link_var(context, tree_ident(decl), lower_type(type));
       }
-      else if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_INSTANCE) {
-         // This can happen when a type contains a reference to a
-         // component generic. The elaborator does not currently rewrite
-         // it to point at the corresponding entity generic.
-
-         var = vcode_find_var(tree_ident(decl));
-         assert(var != VCODE_INVALID_VAR);
-      }
       else if (lu->mode == LOWER_THUNK) {
          type_t type = tree_type(decl);
          emit_comment("Cannot resolve generic %s", istr(tree_ident(decl)));

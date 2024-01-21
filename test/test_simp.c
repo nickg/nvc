@@ -1383,9 +1383,14 @@ START_TEST(test_casefold1)
    tree_t uut = tree_stmt(b0, 1);
    fail_unless(tree_kind(uut) == T_BLOCK);
    fail_unless(tree_ident(uut) == ident_new("UUT"));
-   fail_unless(tree_stmts(uut) == 2);
+   fail_unless(tree_stmts(uut) == 1);
 
-   tree_t casep = tree_stmt(uut, 1);
+   tree_t mycomp = tree_stmt(uut, 0);
+   fail_unless(tree_kind(mycomp) == T_BLOCK);
+   fail_unless(tree_ident(mycomp) == ident_new("MYCOMP"));
+   fail_unless(tree_stmts(mycomp) == 2);
+
+   tree_t casep = tree_stmt(mycomp, 1);
    fail_unless(tree_kind(casep) == T_PROCESS);
    fail_unless(tree_ident(casep) == ident_new("CASEP"));
 

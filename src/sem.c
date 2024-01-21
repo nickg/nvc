@@ -6009,9 +6009,6 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
       return false;
 
    tree_t unit = tree_ref(bind);
-   if (tree_kind(unit) == T_CONFIGURATION)
-      return true;
-
    tree_t entity = primary_unit_of(unit);
    assert(tree_kind(entity) == T_ENTITY);
 

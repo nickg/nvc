@@ -337,68 +337,6 @@ static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
    return arch;
 }
 
-static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
-                                tree_t inst, tree_formals_t tree_Fs,
-                                tree_formal_t tree_F)
-{
-   const int comp_nf   = (*tree_Fs)(comp);
-   const int entity_nf = (*tree_Fs)(entity);
-
-   for (int i = 0; i < comp_nf; i++) {
-      tree_t comp_f = (*tree_F)(comp, i);
-
-      bool found = false;
-      for (int j = 0; !found && j < entity_nf; j++) {
-         tree_t entity_f = (*tree_F)(entity, j);
-
-         if (tree_ident(comp_f) != tree_ident(entity_f))
-            continue;
-
-         found = true;
-
-         type_t entity_type = tree_type(entity_f);
-         type_t comp_type   = tree_type(comp_f);
-
-         if (!type_eq(entity_type, comp_type)) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(comp_f));
-            diag_printf(d, "type of %s %s in component declaration %s is "
-                        "%s which does not match type %s in entity %s",
-                        what, istr(tree_ident(comp_f)),
-                        istr(tree_ident(comp)), type_pp(comp_type),
-                        type_pp(entity_type), istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(comp), "in component declaration of %s",
-                      istr(tree_ident(comp)));
-            diag_hint(d, tree_loc(comp_f), "port declared as %s",
-                      type_pp(comp_type));
-            diag_hint(d, tree_loc(entity_f), "entity port declared as %s",
-                      type_pp(entity_type));
-            diag_hint(d, tree_loc(inst), "while elaborating instance %s here",
-                      istr(tree_ident(inst)));
-            diag_emit(d);
-            return false;
-         }
-      }
-
-      if (!found) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(comp_f));
-         diag_printf(d, "%s %s not found in entity %s",
-                     what, istr(tree_ident(comp_f)), istr(tree_ident(entity)));
-         diag_hint(d, tree_loc(comp), "in component declaration of %s",
-                      istr(tree_ident(comp)));
-         diag_hint(d, tree_loc(comp_f), "declaration of port %s",
-                   istr(tree_ident(comp_f)));
-         diag_hint(d, tree_loc(inst), "while elaborating instance %s here",
-                   istr(tree_ident(inst)));
-         diag_hint(d, tree_loc(entity), "entity %s has no port named %s",
-                   istr(tree_ident(entity)), istr(tree_ident(comp_f)));
-         diag_emit(d);
-         return false;
-      }
-   }
-
-   return true;
-}
-
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
 {
    synth_binding_params_t *params = __ctx;
@@ -468,17 +406,150 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 
    // Check entity is compatible with component declaration
 
-   if (!elab_compatible_map(comp, entity, "generic", inst,
-                            tree_generics, tree_generic))
-      return NULL;
+   tree_t bind = tree_new(T_BINDING);
+   tree_set_ident(bind, tree_ident(arch));
+   tree_set_loc(bind, tree_loc(arch));
+   tree_set_ref(bind, arch);
+   tree_set_class(bind, C_ENTITY);
 
-   if (!elab_compatible_map(comp, entity, "port", inst, tree_ports, tree_port))
-      return NULL;
+   const int c_ngenerics = tree_generics(comp);
+   const int e_ngenerics = tree_generics(entity);
 
-   return arch;
+   for (int i = 0; i < e_ngenerics; i++) {
+      tree_t eg = tree_generic(entity, i);
+
+      tree_t match = NULL;
+      for (int j = 0; j < c_ngenerics; j++) {
+         tree_t cg = tree_generic(comp, j);
+         if (tree_ident(eg) == tree_ident(cg)) {
+            match = cg;
+            break;
+         }
+      }
+
+      tree_t value;
+      if (match != NULL) {
+         type_t ctype = tree_type(match);
+         type_t etype = tree_type(eg);
+         if (!type_eq(ctype, etype)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+            diag_printf(d, "generic %s in component %s has type %s which is "
+                        "incompatible with type %s in entity %s",
+                        istr(tree_ident(match)), istr(tree_ident(comp)),
+                        type_pp2(ctype, etype), type_pp2(etype, ctype),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(match), "declaration of generic %s in "
+                      "component", istr(tree_ident(match)));
+            diag_hint(d, tree_loc(eg), "declaration of generic %s in entity",
+                      istr(tree_ident(eg)));
+            diag_emit(d);
+            return NULL;
+         }
+
+         value = make_ref(match);
+      }
+      else if (tree_has_value(eg)) {
+         tree_t def = tree_value(eg);
+         if (is_literal(def) && tree_kind(def) != T_STRING)
+            value = def;
+         else {
+            tree_t open = tree_new(T_OPEN);
+            tree_set_loc(open, tree_loc(eg));
+            tree_set_type(open, tree_type(eg));
+
+            value = open;
+         }
+      }
+      else {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+         diag_printf(d, "generic %s in entity %s without a default value "
+                     "has no corresponding generic in component %s",
+                     istr(tree_ident(eg)),  istr(tree_ident(entity)),
+                     istr(tree_ident(comp)));
+         diag_hint(d, tree_loc(eg), "declaration of generic %s in entity",
+                   istr(tree_ident(eg)));
+         diag_emit(d);
+         return NULL;
+      }
+
+      tree_t map = tree_new(T_PARAM);
+      tree_set_loc(map, tree_loc(inst));
+      tree_set_value(map, value);
+      tree_set_subkind(map, P_POS);
+      tree_set_pos(map, i);
+
+      tree_add_genmap(bind, map);
+   }
+
+   const int c_nports = tree_ports(comp);
+   const int e_nports = tree_ports(entity);
+
+   for (int i = 0; i < e_nports; i++) {
+      tree_t ep = tree_port(entity, i);
+
+      tree_t match = NULL;
+      for (int j = 0; j < c_nports; j++) {
+         tree_t cp = tree_port(comp, j);
+         if (tree_ident(ep) == tree_ident(cp)) {
+            match = cp;
+            break;
+         }
+      }
+
+      tree_t value;
+      if (match != NULL) {
+         type_t ctype = tree_type(match);
+         type_t etype = tree_type(ep);
+         if (!type_eq(ctype, etype)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+            diag_printf(d, "port %s in component %s has type %s which is "
+                        "incompatible with type %s in entity %s",
+                        istr(tree_ident(match)), istr(tree_ident(comp)),
+                        type_pp2(ctype, etype), type_pp2(etype, ctype),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(match), "declaration of port %s in component",
+                      istr(tree_ident(match)));
+            diag_hint(d, tree_loc(ep), "declaration of port %s in entity",
+                      istr(tree_ident(ep)));
+            diag_emit(d);
+            return NULL;
+         }
+
+         value = make_ref(match);
+      }
+      else {
+         const bool open_ok =
+            tree_has_value(ep)
+            || (tree_subkind(ep) == PORT_OUT
+                && !type_is_unconstrained(tree_type(ep)));
+
+          if (open_ok) {
+             tree_t open = tree_new(T_OPEN);
+             tree_set_loc(open, tree_loc(ep));
+             tree_set_type(open, tree_type(ep));
+
+             value = open;
+          }
+          else {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+            diag_printf(d, "port %s in entity %s without a default value "
+                        "has no corresponding port in component %s",
+                        istr(tree_ident(ep)), istr(tree_ident(entity)),
+                        istr(tree_ident(comp)));
+            diag_hint(d, tree_loc(ep), "port %s declared here",
+                      istr(tree_ident(ep)));
+            diag_emit(d);
+            return NULL;
+         }
+      }
+
+      add_param(bind, value, P_POS, NULL);
+   }
+
+   return bind;
 }
 
-static tree_t elab_binding(tree_t inst, tree_t spec, elab_ctx_t *ctx)
+static tree_t elab_binding(tree_t inst, tree_t spec, const elab_ctx_t *ctx)
 {
    if (!tree_has_value(spec))
       return NULL;
@@ -592,77 +663,28 @@ static void elab_hint_fn(diag_t *d, void *arg)
    }
 }
 
-static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
+static void elab_ports(tree_t entity, tree_t bind, const elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
-   const int nparams = tree_params(inst);
+   const int nparams = tree_params(bind);
    bool have_named = false;
 
-   int binding_nparams = 0;
-   tree_t binding = NULL;
-   if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
-      tree_t spec = tree_spec(inst);
-      if (tree_has_value(spec)) {
-         binding = tree_value(spec);
-         binding_nparams = tree_params(binding);
-      }
-   }
-
    for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(entity, i), bp = p, map = NULL;
+      tree_t p = tree_port(entity, i), map = NULL;
       ident_t pname = tree_ident(p);
 
-      if (i < nparams && !have_named && entity == comp) {
-         tree_t m = tree_param(inst, i);
+      if (i < nparams && !have_named) {
+         tree_t m = tree_param(bind, i);
          if (tree_subkind(m) == P_POS) {
-            tree_t m2 = tree_new(T_PARAM);
-            tree_set_loc(m2, tree_loc(m));
-            tree_set_subkind(m2, P_POS);
-            tree_set_pos(m2, i);
-            tree_set_value(m2, tree_value(m));
-
-            tree_add_param(ctx->out, m2);
-            map = m2;
-         }
-      }
-      else if (binding != NULL && binding_nparams) {
-         // Binding may add another level of port map
-         tree_t remap = NULL;
-         if (i < binding_nparams) {
-            tree_t m = tree_param(binding, i);
-            if (tree_subkind(m) == P_POS)
-               remap = tree_value(m);
-         }
-
-         if (remap == NULL) {
-            for (int j = 0; j < binding_nparams; j++) {
-               tree_t m = tree_param(binding, j);
-               if (tree_subkind(m) == P_NAMED) {
-                  tree_t name = tree_name(m);
-                  tree_t ref = name_to_ref(name);
-                  assert(ref != NULL);
-
-                  if (tree_ident(ref) == pname) {
-                     remap = tree_value(m);
-                     break;
-                  }
-               }
-            }
-         }
-
-         if (remap != NULL) {
-            assert(tree_kind(remap) == T_REF);
-
-            bp = tree_ref(remap);
-            assert(tree_kind(bp) == T_PORT_DECL);
-
-            pname = tree_ident(bp);
+            assert(tree_pos(m) == i);
+            tree_add_param(ctx->out, m);
+            map = m;
          }
       }
 
       if (map == NULL) {
          for (int j = 0; j < nparams; j++) {
-            tree_t m = tree_param(inst, j);
+            tree_t m = tree_param(bind, j);
             if (tree_subkind(m) == P_NAMED) {
                tree_t name = tree_name(m), ref;
                bool is_conv = false;
@@ -698,24 +720,6 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
                   tree_set_name(map, change_ref(tree_name(m), p));
                   have_named = true;
                }
-            }
-            else if (tree_ident(tree_port(comp, tree_pos(m))) == pname) {
-               map = tree_new(T_PARAM);
-               tree_set_loc(map, tree_loc(m));
-               tree_set_value(map, tree_value(m));
-
-               if (!have_named) {
-                  tree_set_subkind(map, P_POS);
-                  tree_set_pos(map, i);
-               }
-               else {
-                  tree_set_subkind(map, P_NAMED);
-                  tree_set_name(map, make_ref(p));
-                  have_named = true;
-               }
-
-               tree_add_param(ctx->out, map);
-               break;
             }
          }
       }
@@ -848,102 +852,30 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
    return value;
 }
 
-static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
-                          elab_ctx_t *ctx)
+static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
 {
    const int ngenerics = tree_generics(entity);
-   const int ngenmaps = tree_genmaps(inst);
-
-   int binding_ngenmaps = 0;
-   tree_t binding = NULL;
-   if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
-      tree_t spec = tree_spec(inst);
-      if (tree_has_value(spec)) {
-         binding = tree_value(spec);
-         binding_ngenmaps = tree_genmaps(binding);
-      }
-   }
-
-   if (ctx->generics == NULL && ngenerics > 0)
-      ctx->generics = hash_new(ngenerics * 2);
+   const int ngenmaps = tree_genmaps(bind);
 
    for (int i = 0; i < ngenerics; i++) {
-      tree_t eg = tree_generic(entity, i), cg = eg;
-      unsigned pos = i;
-      tree_t map = NULL, bind_expr = NULL;
+      tree_t g = tree_generic(entity, i);
+      tree_add_generic(ctx->out, g);
 
-      if (entity != comp) {
-         // Component generics may be in different order to entity
-         pos = UINT_MAX;
-
-         const int ngenerics_comp = tree_generics(comp);
-         for (int j = 0; j < ngenerics_comp; j++) {
-            tree_t g = tree_generic(comp, j);
-            if (tree_ident(g) == tree_ident(eg)) {
-               cg = g;
-               pos = j;
-               break;
-            }
-         }
-
-         if (binding_ngenmaps > 0) {
-            for (int j = 0; j < binding_ngenmaps; j++) {
-               tree_t m = tree_genmap(binding, j);
-               assert(tree_subkind(m) == P_POS);
-               if (tree_pos(m) != i)
-                  continue;
-
-               tree_t value = tree_value(m);
-               if (tree_kind(value) == T_OPEN)
-                  break;
-               else if (tree_kind(value) == T_REF) {
-                  tree_t decl = tree_ref(value);
-                  if (tree_kind(decl) == T_GENERIC_DECL) {
-                     cg = tree_ref(value);
-                     pos = i;
-                     break;
-                  }
-               }
-
-               bind_expr = value;
-               break;
-            }
-         }
-      }
-
-      tree_add_generic(ctx->out, eg);
-
-      if (pos < ngenmaps) {
-         map = tree_genmap(inst, pos);
+      tree_t map = NULL;
+      if (i < ngenmaps) {
+         map = tree_genmap(bind, i);
          assert(tree_subkind(map) == P_POS);
+         assert(tree_pos(map) == i);
       }
-      else if (tree_has_value(cg)) {
+      else if (tree_has_value(g)) {
          map = tree_new(T_PARAM);
-         tree_set_loc(map, tree_loc(cg));
+         tree_set_loc(map, tree_loc(g));
          tree_set_subkind(map, P_POS);
          tree_set_pos(map, i);
-         tree_set_value(map, tree_value(cg));
+         tree_set_value(map, tree_value(g));
       }
 
-      if (bind_expr != NULL) {
-         tree_t m = tree_new(T_PARAM);
-         tree_set_loc(m, tree_loc(cg));
-         tree_set_subkind(m, P_POS);
-         tree_set_pos(m, i);
-         tree_set_value(m, bind_expr);
-
-         // The binding expression may contain references to component
-         // generics that need to be folded
-         if (map != NULL) {
-            hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(bind_expr, ctx->generics, ctx->jit, ctx->registry);
-            cg = eg;
-         }
-
-         map = m;
-      }
-
-      tree_t override = elab_find_generic_override(cg, ctx);
+      tree_t override = elab_find_generic_override(g, ctx);
       if (override != NULL) {
          map = tree_new(T_PARAM);
          tree_set_subkind(map, P_POS);
@@ -952,8 +884,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       }
 
       if (map == NULL) {
-         error_at(tree_loc(inst), "missing value for generic %s with no "
-                  "default", istr(tree_ident(cg)));
+         error_at(tree_loc(bind), "missing value for generic %s with no "
+                  "default", istr(tree_ident(g)));
          continue;
       }
 
@@ -963,7 +895,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       case T_REF:
          if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
             break;
-         else if (tree_class(eg) == C_PACKAGE)
+         else if (tree_class(g) == C_PACKAGE)
             break;
          // Fall-through
       case T_ARRAY_REF:
@@ -974,9 +906,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                                           ctx->parent->lowered,
                                           ctx->parent->context);
 
-            if (folded == value)
-               break;
-            else if (tree_arena(map) != tree_arena(ctx->out)) {
+            if (folded != value) {
                tree_t m = tree_new(T_PARAM);
                tree_set_loc(m, tree_loc(map));
                tree_set_subkind(m, P_POS);
@@ -985,22 +915,6 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
 
                map = m;
             }
-            else
-               tree_set_value(map, (value = folded));
-         }
-         break;
-
-      case T_OPEN:
-         // Make sure the default value comes from the component
-         // declaration rather than the entity
-         // XXX: if we followed LRM 93 section 9.6.1 correctly this
-         //      wouldn't be necessary
-         if (tree_kind(comp) == T_COMPONENT && tree_has_value(cg)) {
-            map = tree_new(T_PARAM);
-            tree_set_loc(map, tree_loc(cg));
-            tree_set_subkind(map, P_POS);
-            tree_set_pos(map, tree_pos(map));
-            tree_set_value(map, tree_value(cg));
          }
          break;
 
@@ -1013,8 +927,9 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       if (is_literal(value)) {
          // These values can be safely substituted for all references to
          // the generic name
-         hash_put(ctx->generics, eg, value);
-         if (eg != cg) hash_put(ctx->generics, cg, value);
+         if (ctx->generics == NULL)
+            ctx->generics = hash_new(ngenerics * 2);
+         hash_put(ctx->generics, g, value);
       }
    }
 }
@@ -1140,12 +1055,10 @@ static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
-static void elab_mixed_port_map(tree_t block, tree_t inst, vlog_node_t mod)
+static void elab_mixed_port_map(tree_t block, vlog_node_t mod,
+                                const elab_ctx_t *ctx)
 {
-   tree_t comp = tree_ref(inst);
-   assert(tree_kind(comp) == T_COMPONENT);
-
-   const int nports = tree_ports(comp);
+   const int nports = tree_ports(block);
    const int ndecls = vlog_decls(mod);
 
    bit_mask_t have;
@@ -1168,86 +1081,79 @@ static void elab_mixed_port_map(tree_t block, tree_t inst, vlog_node_t mod)
 
       ident_t name = vlog_ident2(mport);
 
-      int cpos = 0;
-      tree_t cport = NULL, bport = NULL;
-      for (; cpos < nports; cpos++) {
-         tree_t pj = tree_port(comp, cpos);
+      tree_t vport = tree_port(ctx->out, i);
+      assert(tree_ident(vport) == vlog_ident(mport));
+
+      int bpos = 0;
+      tree_t bport = NULL;
+      for (; bpos < nports; bpos++) {
+         tree_t pj = tree_port(block, bpos);
          if (tree_ident(pj) == name) {
-            cport = pj;
-            mask_set(&have, cpos);
-            bport = tree_port(block, cpos);   // XXX: need two levels of block
+            bport = pj;
+            mask_set(&have, bpos);
             break;
          }
       }
 
-      if (cport == NULL) {
+      if (bport == NULL) {
+         tree_t comp = tree_ref(ctx->inst);
+         assert(tree_kind(comp) == T_COMPONENT);
+
          error_at(tree_loc(comp), "missing matching VHDL port declaration for "
                   "Verilog port %s in component %s", istr(vlog_ident(mport)),
                   istr(tree_ident(comp)));
          return;
       }
 
-      if (vlog_ident2(mport) != tree_ident(cport)) {
-         error_at(tree_loc(cport), "expected VHDL port name %s to match "
+      if (vlog_ident2(mport) != tree_ident(bport)) {
+         tree_t comp = tree_ref(ctx->inst);
+         assert(tree_kind(comp) == T_COMPONENT);
+
+         error_at(tree_loc(bport), "expected VHDL port name %s to match "
                   "Verilog port name %s in component %s",
-                  istr(tree_ident(cport)), istr(vlog_ident(mport)),
+                  istr(tree_ident(bport)), istr(vlog_ident(mport)),
                   istr(tree_ident(comp)));
          return;
       }
 
-      type_t type = tree_type(cport);
+      type_t type = tree_type(bport);
       if (!type_eq(type, std_logic)) {
-         error_at(tree_loc(cport), "Verilog module ports must have "
+         error_at(tree_loc(bport), "Verilog module ports must have "
                   "type STD_LOGIC or STD_LOGIC_VECTOR");
-         return;
-      }
-
-      tree_t map = tree_param(inst, cpos);
-      if (tree_subkind(map) != P_POS) {
-         error_at(tree_loc(map), "this form of port map is not supported when "
-                  "instantiating a Verilog module");
-         return;
-      }
-
-      tree_t value = tree_value(map);
-      const tree_kind_t value_kind = tree_kind(value);
-      if (value_kind == T_TYPE_CONV || value_kind == T_CONV_FUNC) {
-         error_at(tree_loc(map), "type conversions are not supported in port "
-                  "maps when instantiating a Verilog module");
          return;
       }
 
       if (vlog_subkind(mport) == V_PORT_INPUT) {
          tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, tree_loc(map));
+         tree_set_loc(conv, tree_loc(bport));
          tree_set_ref(conv, to_verilog);
          tree_set_ident(conv, tree_ident(to_verilog));
          tree_set_type(conv, type_result(tree_type(to_verilog)));
-         tree_set_value(conv, value);
+         tree_set_value(conv, make_ref(bport));
 
          if (have_named)
-            add_param(block, conv, P_NAMED, make_ref(bport));
+            add_param(ctx->out, conv, P_NAMED, make_ref(vport));
          else
-            add_param(block, conv, P_POS, NULL);
+            add_param(ctx->out, conv, P_POS, NULL);
       }
       else {
          tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, tree_loc(map));
+         tree_set_loc(conv, tree_loc(bport));
          tree_set_ref(conv, to_vhdl);
          tree_set_ident(conv, tree_ident(to_vhdl));
          tree_set_type(conv, type_result(tree_type(to_vhdl)));
-         tree_set_value(conv, make_ref(bport));
+         tree_set_value(conv, make_ref(vport));
 
-         add_param(block, value, P_NAMED, conv);
+         add_param(ctx->out, make_ref(bport), P_NAMED, conv);
          have_named = true;
       }
 
-      cpos++;
+      bpos++;
    }
 
    for (int i = 0; i < nports; i++) {
       if (!mask_test(&have, i)) {
-         tree_t p = tree_port(comp, i);
+         tree_t p = tree_port(block, i);
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
          diag_printf(d, "port %s not found in Verilog module %s",
                      istr(tree_ident(p)), istr(vlog_ident2(mod)));
@@ -1258,7 +1164,7 @@ static void elab_mixed_port_map(tree_t block, tree_t inst, vlog_node_t mod)
    mask_free(&have);
 }
 
-static void elab_verilog_module(tree_t wrap, tree_t inst, elab_ctx_t *ctx)
+static void elab_verilog_module(tree_t wrap, const elab_ctx_t *ctx)
 {
    vlog_node_t mod = tree_vlog(wrap);
 
@@ -1268,7 +1174,29 @@ static void elab_verilog_module(tree_t wrap, tree_t inst, elab_ctx_t *ctx)
       hash_put(ctx->shapes, mod, shape);
    }
 
-   vlog_trans(mod, ctx->out);
+   ident_t label = ident_rfrom(vlog_ident(mod), '.');
+
+   const char *label_str = istr(label);
+   ident_t npath = hpathf(ctx->path_name, ':', "%s", label_str);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label_str);
+   ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
+
+   elab_ctx_t new_ctx = {
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, label);
+   tree_set_loc(b, tree_loc(ctx->out));
+
+   tree_add_stmt(ctx->out, b);
+   new_ctx.out = b;
+
+   elab_push_scope(wrap, &new_ctx);
+   vlog_trans(mod, b);
 
    const int nstmts = vlog_stmts(mod);
    for (int i = 0; i < nstmts; i++) {
@@ -1279,88 +1207,57 @@ static void elab_verilog_module(tree_t wrap, tree_t inst, elab_ctx_t *ctx)
       tree_set_loc(w, vlog_loc(s));
       tree_set_vlog(w, s);
 
-      tree_add_stmt(ctx->out, w);
+      tree_add_stmt(b, w);
    }
 
-   if (inst != NULL)
-      elab_mixed_port_map(ctx->out, inst, mod);
+   if (ctx->inst != NULL)
+      elab_mixed_port_map(ctx->out, mod, &new_ctx);
 
-   elab_lower(ctx->out, shape, ctx);
+   if (error_count() == 0)
+      elab_lower(b, shape, &new_ctx);
+
+   elab_pop_scope(&new_ctx);
 }
 
-static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
 {
-   tree_t arch = NULL, config = NULL;
+   tree_t inst = NULL;
+   ident_t label, ninst = NULL, npath = NULL;
+   switch (tree_kind(bind)) {
+   case T_BINDING:
+      label = ident_rfrom(tree_ident(tree_primary(arch)), '.');
+      break;
+   case T_INSTANCE:
+      {
+         label = tree_ident(bind);
+         inst = bind;
 
-   const char *label = istr(tree_ident(t));
-   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
-   ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(t), '.');
+         const char *label_str = istr(label);
+         npath = hpathf(ctx->path_name, ':', "%s", label_str);
+         ninst = hpathf(ctx->inst_name, ':', "%s", label_str);
+      }
+      break;
+   default:
+      fatal_trace("unexpected binding kind %s in elab_architecture",
+                  tree_kind_str(tree_kind(bind)));
+   }
+
+   ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
       .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
-      .inst      = t,
+      .inst      = inst,
    };
    elab_inherit_context(&new_ctx, ctx);
 
-   tree_t ref = tree_ref(t);
-   switch (tree_kind(ref)) {
-   case T_ENTITY:
-      arch = elab_pick_arch(tree_loc(t), ref, &new_ctx);
-      break;
-
-   case T_ARCH:
-      arch = ref;
-      break;
-
-   case T_COMPONENT:
-      if (tree_has_spec(t))
-         arch = elab_binding(t, tree_spec(t), &new_ctx);
-      else
-         arch = elab_default_binding(t, &new_ctx);
-      break;
-
-   case T_CONFIGURATION:
-      {
-         config = ref;
-         arch = tree_ref(tree_decl(ref, 0));
-         assert(tree_kind(arch) == T_ARCH);
-      }
-      break;
-
-   default:
-      fatal_trace("unexpected tree kind %s in elab_instance",
-                  tree_kind_str(tree_kind(ref)));
-   }
-
    tree_t b = tree_new(T_BLOCK);
-   tree_set_ident(b, tree_ident(t));
-   tree_set_loc(b, tree_loc(t));
+   tree_set_ident(b, label);
+   tree_set_loc(b, tree_loc(bind));
 
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
-
-   if (arch == NULL) {
-      assert(tree_kind(ref) == T_COMPONENT);
-
-      elab_push_scope(ref, &new_ctx);
-      elab_generics(ref, ref, t, &new_ctx);
-      elab_ports(ref, ref, t, &new_ctx);
-
-      if (error_count() == 0)
-         elab_lower(b, NULL, &new_ctx);
-
-      elab_pop_scope(&new_ctx);
-      return;
-   }
-   else if (tree_kind(arch) == T_VERILOG) {
-      elab_push_scope(arch, &new_ctx);
-      elab_verilog_module(arch, t, &new_ctx);
-      elab_pop_scope(&new_ctx);
-      return;
-   }
 
    new_ctx.inst_name = hpathf(new_ctx.inst_name, '@', "%s(%s)",
                               simple_name(istr(tree_ident2(arch))),
@@ -1369,22 +1266,16 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    elab_subprogram_prefix(arch, &new_ctx);
 
-   tree_t arch_copy;
-   if (config != NULL)
-      arch_copy = elab_root_config(config, &new_ctx);
-   else
-      arch_copy = elab_copy(arch, &new_ctx);
-
+   tree_t arch_copy = elab_copy(arch, &new_ctx);
    tree_t entity = tree_primary(arch_copy);
-   tree_t comp = primary_unit_of(tree_ref(t));
 
    elab_push_scope(arch, &new_ctx);
    elab_context(entity);
    elab_context(arch_copy);
-   elab_generics(entity, comp, t, &new_ctx);
+   elab_generics(entity, bind, &new_ctx);
    elab_instance_fixup(arch_copy, &new_ctx);
    simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
-   elab_ports(entity, comp, t, &new_ctx);
+   elab_ports(entity, bind, &new_ctx);
    elab_decls(entity, &new_ctx);
 
    if (error_count() == 0)
@@ -1398,6 +1289,93 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    }
 
    elab_pop_scope(&new_ctx);
+}
+
+static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
+{
+   tree_t arch, bind;
+   if (tree_has_spec(inst)) {
+      tree_t spec = tree_spec(inst);
+      arch = elab_binding(inst, spec, ctx);
+      bind = arch ? tree_value(spec) : NULL;
+   }
+   else {
+      bind = elab_default_binding(inst, ctx);
+      if (bind == NULL)
+         arch = NULL;
+      else if (tree_kind(bind) == T_VERILOG)
+         arch = bind;   // XXX: generate binding for Verilog module too
+      else
+         arch = tree_ref(bind);
+   }
+
+   const char *label = istr(tree_ident(inst));
+   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
+   ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(inst), '.');
+
+   elab_ctx_t new_ctx = {
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = ndotted,
+      .inst      = inst,
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, tree_ident(inst));
+   tree_set_loc(b, tree_loc(inst));
+
+   tree_add_stmt(ctx->out, b);
+   new_ctx.out = b;
+
+   elab_push_scope(comp, &new_ctx);
+   elab_generics(comp, inst, &new_ctx);
+   elab_ports(comp, inst, &new_ctx);
+
+   if (error_count() == 0)
+      elab_lower(b, NULL, &new_ctx);
+
+   if (arch == NULL)
+      ;   // Unbound architecture
+   else if (tree_kind(arch) == T_VERILOG)
+      elab_verilog_module(arch, &new_ctx);
+   else if (error_count() == 0)
+      elab_architecture(bind, arch, &new_ctx);
+
+   elab_pop_scope(&new_ctx);
+}
+
+static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+{
+   tree_t ref = tree_ref(t);
+   switch (tree_kind(ref)) {
+   case T_ENTITY:
+      {
+         tree_t arch = elab_pick_arch(tree_loc(t), ref, ctx);
+         elab_architecture(t, arch, ctx);
+      }
+      break;
+
+   case T_ARCH:
+      elab_architecture(t, ref, ctx);
+      break;
+
+   case T_COMPONENT:
+      elab_component(t, ref, ctx);
+      break;
+
+   case T_CONFIGURATION:
+      {
+         tree_t arch = elab_root_config(ref, ctx);
+         elab_architecture(t, arch, ctx);
+      }
+      break;
+
+   default:
+      fatal_trace("unexpected tree kind %s in elab_instance",
+                  tree_kind_str(tree_kind(ref)));
+   }
 }
 
 static void elab_decls(tree_t t, const elab_ctx_t *ctx)
@@ -1760,8 +1738,8 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    const int base_errors = error_count();
 
    elab_push_scope(t, &new_ctx);
-   elab_generics(t, t, t, &new_ctx);
-   elab_ports(t, t, t, &new_ctx);
+   elab_generics(t, t, &new_ctx);
+   elab_ports(t, t, &new_ctx);
    elab_decls(t, &new_ctx);
 
    if (error_count() == base_errors) {
@@ -1844,7 +1822,7 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
-   ident_t ndotted = ident_prefix(lib_name(ctx->library), ename, '.');
+   ident_t ndotted = ident_prefix(ctx->dotted, ename, '.');
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, ename);
@@ -1887,38 +1865,6 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_verilog_top_level(vlog_node_t mod, const elab_ctx_t *ctx)
-{
-   tree_t wrap = tree_new(T_VERILOG);
-   tree_set_loc(wrap, vlog_loc(mod));
-   tree_set_ident(wrap, vlog_ident(mod));
-   tree_set_vlog(wrap, mod);
-
-   ident_t base = ident_rfrom(vlog_ident(mod), '.');
-
-   const char *name = simple_name(istr(base));
-   ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(verilog)", name);
-   ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
-
-   tree_t b = tree_new(T_BLOCK);
-   tree_set_ident(b, base);
-   tree_set_loc(b, vlog_loc(mod));
-
-   tree_add_stmt(ctx->out, b);
-
-   elab_ctx_t new_ctx = {
-      .out       = b,
-      .path_name = npath,
-      .inst_name = ninst,
-      .dotted    = vlog_ident(mod),
-   };
-   elab_inherit_context(&new_ctx, ctx);
-
-   elab_push_scope(wrap, &new_ctx);
-   elab_verilog_module(wrap, NULL, &new_ctx);
-   elab_pop_scope(&new_ctx);
-}
-
 void elab_set_generic(const char *name, const char *value)
 {
    ident_t id = ident_new(name);
@@ -1957,16 +1903,19 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    tree_set_ident(e, name);
    tree_set_loc(e, &(top->loc));
 
+   lib_t work = lib_work();
+
    elab_ctx_t ctx = {
       .out       = e,
       .root      = e,
       .path_name = NULL,
       .inst_name = NULL,
       .cover     = cover,
-      .library   = lib_work(),
+      .library   = work,
       .jit       = jit,
       .registry  = ur,
       .shapes    = hash_new(16),
+      .dotted    = lib_name(work),
    };
 
    if (vhdl != NULL) {
@@ -1990,8 +1939,14 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
          fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
       }
    }
-   else
-      elab_verilog_top_level(vlog, &ctx);
+   else {
+      tree_t wrap = tree_new(T_VERILOG);
+      tree_set_loc(wrap, vlog_loc(vlog));
+      tree_set_ident(wrap, vlog_ident(vlog));
+      tree_set_vlog(wrap, vlog);
+
+      elab_verilog_module(wrap, &ctx);
+   }
 
    hash_free(ctx.shapes);
 

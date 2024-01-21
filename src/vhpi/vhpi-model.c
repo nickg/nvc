@@ -439,6 +439,7 @@ static void vhpi_lazy_block(c_abstractRegion *r);
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
+static void vhpi_build_stmts(tree_t container, c_abstractRegion *region);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -3474,6 +3475,17 @@ static void vhpi_build_generics(tree_t unit, c_abstractRegion *region)
    }
 }
 
+static void vhpi_lazy_component(c_abstractRegion *r)
+{
+   tree_t inner = tree_stmt(r->tree, 0);
+   assert(tree_kind(inner) == T_BLOCK);
+
+   vhpi_build_generics(r->tree, r);
+   vhpi_build_ports(r->tree, r);
+   vhpi_build_decls(inner, r);
+   vhpi_build_stmts(inner, r);
+}
+
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
 {
    const int nstmts = tree_stmts(container);
@@ -3489,9 +3501,15 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
             switch (tree_subkind(h)) {
             case T_BLOCK:
                r = build_blockStmt(s, region);
+               r->lazyfn = vhpi_lazy_block;
                break;
             case T_ARCH:
                r = build_compInstStmt(s, tree_ref(h), region);
+               r->lazyfn = vhpi_lazy_block;
+               break;
+            case T_COMPONENT:
+               r = build_compInstStmt(s, tree_ref(h), region);
+               r->lazyfn = vhpi_lazy_component;
                break;
             case T_FOR_GENERATE:
                r = build_forGenerate(s, region);
@@ -3499,8 +3517,6 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
             default:
                continue;
             }
-
-            r->lazyfn = vhpi_lazy_block;
          }
          break;
       default:

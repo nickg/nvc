@@ -3711,12 +3711,12 @@ START_TEST(test_issue426)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.TEST_1_1.U");
+   vcode_unit_t vu = find_unit("WORK.TEST_1_1.U.TEST_1");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_PACKAGE_INIT, .name = "WORK.CORE" },
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "EXP_STATUS" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "EXP_STATUS" },
       { VCODE_OP_COPY },
@@ -3733,29 +3733,57 @@ START_TEST(test_instance1)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.INSTANCE1.SUB_I");
-   vcode_select_unit(vu);
+   {
+      vcode_unit_t vu = find_unit("WORK.INSTANCE1.SUB_I");
+      vcode_select_unit(vu);
 
-   fail_unless(vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE);
+      fail_unless(vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE);
 
-   EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-      { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "WIDTH" },
-      { VCODE_OP_CONST_ARRAY, .length = 5 },
-      { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_INIT_SIGNAL },
-      { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_MAP_CONST },
-      { VCODE_OP_RETURN }
-   };
+      EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_STORE, .name = "WIDTH" },
+         { VCODE_OP_CONST_ARRAY, .length = 5 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_MAP_CONST },
+         { VCODE_OP_RETURN }
+      };
 
-   CHECK_BB(0);
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.INSTANCE1.SUB_I.SUB");
+      vcode_select_unit(vu);
+
+      fail_unless(vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_STORE, .name = "WIDTH" },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_LENGTH_CHECK },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
 }
 END_TEST
 
@@ -5057,7 +5085,7 @@ START_TEST(test_link1)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.LINK1.U");
+   vcode_unit_t vu = find_unit("WORK.LINK1.U.SUB");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {

@@ -760,6 +760,7 @@ static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
    case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
    case T_IF_GENERATE: st = FST_ST_VHDL_IF_GENERATE; break;
    case T_PACKAGE: st = FST_ST_VHDL_PACKAGE; break;
+   case T_COMPONENT: st = FST_ST_VHDL_ARCHITECTURE; break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
       warn_at(tree_loc(h), "no FST scope type for %s",
@@ -796,6 +797,13 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    fst_process_hier(wd, h, block);
 
    ident_t hpath = tree_ident(h);
+
+   if (tree_subkind(h) == T_COMPONENT) {
+      // Skip over implicit block statement created for component
+      // instantiation
+      block = tree_stmt(block, 0);
+      assert(tree_kind(block) == T_BLOCK);
+   }
 
    rt_scope_t *scope = find_scope(wd->model, block);
    if (scope == NULL)
