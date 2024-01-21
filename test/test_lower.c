@@ -3940,6 +3940,8 @@ END_TEST
 
 START_TEST(test_array2)
 {
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/lower/array2.vhd");
 
    run_elab();
@@ -3950,8 +3952,8 @@ START_TEST(test_array2)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "V" },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
@@ -3969,10 +3971,10 @@ START_TEST(test_array2)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "V" },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_MEMSET },
          { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_MEMSET },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
@@ -4029,8 +4031,8 @@ START_TEST(test_array2)
          { VCODE_OP_ADD },
          { VCODE_OP_STORE, .name = "*i" },
          { VCODE_OP_ARRAY_REF },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "Y" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
@@ -4045,8 +4047,8 @@ START_TEST(test_array2)
       EXPECT_BB(3) = {
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF, .value = 0 },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF, .value = 0 },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_ARRAY_REF },
@@ -4064,12 +4066,12 @@ START_TEST(test_array2)
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "V" },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
-         { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_CONST, .value = 2 },
@@ -4091,8 +4093,8 @@ START_TEST(test_array2)
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INDEX, .name = "*tmp" },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
@@ -4143,8 +4145,8 @@ START_TEST(test_array2)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_WRAP },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
@@ -4156,6 +4158,55 @@ START_TEST(test_array2)
       };
 
       CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P9");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+         { VCODE_OP_FCALL,
+           .func = "WORK.ARRAY2.P9.F()24WORK.ARRAY2-TEST.INT_VEC" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_SUB },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+         { VCODE_OP_RANGE_LENGTH },
+         { VCODE_OP_ALLOC },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_COND, .target = 3, .target_else = 2 },
+      };
+
+      CHECK_BB(1);
+
+      EXPECT_BB(2) = {
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_INDEX_CHECK },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CAST },
+         { VCODE_OP_SUB },
+         { VCODE_OP_INDEX_CHECK },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_COPY },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_INDEX_CHECK },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_JUMP, .target = 3 },
+      };
+
+      CHECK_BB(2);
    }
 }
 END_TEST

@@ -70,4 +70,15 @@ begin
         wait;
     end process;
 
+    p9: process is
+        function f return int_vec is
+        begin
+            return (1, 2, 3);
+        end function;
+        variable p : int_vec_ptr;
+        variable v : int_vec(1 to 2);
+    begin
+        p := new int_vec'(f, 1);
+    end process;
+
 end architecture;

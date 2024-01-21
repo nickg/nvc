@@ -3777,7 +3777,7 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
 }
 
 static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
-                                          vcode_reg_t *a0_reg)
+                                          vcode_reg_t *value_regs)
 {
    // Calculate the direction and bounds of an unconstrained array
    // aggregate using the rules in LRM 93 7.3.2.2
@@ -3861,18 +3861,25 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       case A_CONCAT:
          {
             type_t value_type = tree_type(tree_value(a));
-            const int64_t length = lower_array_const_size(value_type);
 
-            if (dir == RANGE_TO) {
-               ilow = low + pos;
-               ihigh = ilow + length - 1;
-            }
-            else {
-               ihigh = high - pos;
-               ilow = ihigh - length + 1;
-            }
+            int64_t length;
+            if (type_is_unconstrained(value_type))
+               known_elem_count = false;
+            else if (folded_length(range_of(value_type, 0), &length)) {
+               if (dir == RANGE_TO) {
+                  ilow = low + pos;
+                  ihigh = ilow + length - 1;
+               }
+               else {
+                  ihigh = high - pos;
+                  ilow = ihigh - length + 1;
+               }
 
-            pos += length;
+               pos += length;
+            }
+            else
+               known_elem_count = false;
+
          }
          break;
       }
@@ -3881,60 +3888,76 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       chigh = MAX(chigh, ihigh);
    }
 
+   const int64_t ileft = dir == RANGE_TO ? clow : chigh;
+   const int64_t iright = dir == RANGE_TO ? chigh : clow;
+
    vcode_reg_t left_reg, right_reg, dir_reg;
    if (known_elem_count) {
-      const int64_t ileft = dir == RANGE_TO ? clow : chigh;
-      const int64_t iright = dir == RANGE_TO ? chigh : clow;
-
       vcode_type_t vindex = lower_type(index_type);
-
-      if (type_is_enum(index_type)) {
-         left_reg = emit_const(vindex, ileft);
-         right_reg = emit_const(vindex, iright);
-      }
-      else if (type_is_integer(index_type)) {
-         left_reg = emit_const(vindex, ileft);
-         right_reg = emit_const(vindex, iright);
-      }
-      else
-         fatal_trace("cannot handle aggregate index type %s",
-                     type_pp(index_type));
-
+      left_reg = emit_const(vindex, ileft);
+      right_reg = emit_const(vindex, iright);
       dir_reg = emit_const(vtype_bool(), dir);
    }
    else {
-      // Must have a single association
-      assert(nassocs == 1);
-      tree_t a0 = tree_assoc(expr, 0);
-      switch (tree_subkind(a0)) {
-      case A_NAMED:
-         left_reg = right_reg = lower_rvalue(lu, tree_name(a0));
-         dir_reg = emit_const(vtype_bool(), dir);
-         break;
-      case A_RANGE:
-      case A_SLICE:
-         {
-            tree_t a0r = tree_range(a0, 0);
-            left_reg = lower_range_left(lu, a0r);
-            right_reg = lower_range_right(lu, a0r);
-            dir_reg = lower_range_dir(lu, a0r);
+      vcode_type_t voffset = vtype_offset();
+      vcode_reg_t length_reg = VCODE_INVALID_REG;
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(expr, i);
+         const assoc_kind_t akind = tree_subkind(a);
+
+         switch (akind) {
+         case A_NAMED:
+            assert(nassocs == 1);    // Must have a single association
+            left_reg = right_reg = lower_rvalue(lu, tree_name(a));
+            dir_reg = emit_const(vtype_bool(), dir);
+            break;
+         case A_RANGE:
+         case A_SLICE:
+            {
+               tree_t r = tree_range(a, 0);
+               left_reg = lower_range_left(lu, r);
+               right_reg = lower_range_right(lu, r);
+               dir_reg = lower_range_dir(lu, r);
+            }
+            break;
+         case A_POS:
+         case A_CONCAT:
+            {
+               vcode_reg_t count_reg;
+               if (akind == A_CONCAT) {
+                  type_t value_type = tree_type(tree_value(a));
+                  count_reg = lower_array_len(lu, value_type, 0, value_regs[i]);
+               }
+               else
+                  count_reg = emit_const(voffset, 1);
+
+               if (length_reg == VCODE_INVALID_REG)
+                  length_reg = count_reg;
+               else
+                  length_reg = emit_add(length_reg, count_reg);
+            }
+            break;
+         default:
+            fatal_trace("unexpected association kind %d in unconstrained "
+                        "aggregate", tree_subkind(a));
          }
-         break;
-      default:
-         fatal_trace("unexpected association kind %d in unconstrained "
-                     "aggregate", tree_subkind(a0));
+      }
+
+      if (length_reg != VCODE_INVALID_REG) {
+         vcode_type_t vindex = lower_type(index_type);
+         vcode_reg_t delta_reg = emit_sub(length_reg, emit_const(voffset, 1));
+         vcode_reg_t cast_reg = emit_cast(vindex, vindex, delta_reg);
+
+         left_reg = emit_const(vindex, ileft);
+         dir_reg = emit_const(vtype_bool(), dir);
+         right_reg = emit_add(left_reg, cast_reg);
       }
    }
 
    vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
 
-   type_t elem = type_elem(type);
-   const bool expand_a0 =
-      dimension_of(type) > 1
-      || (type_is_array(elem) && !type_const_bounds(elem));
-
-   if (expand_a0) {
-      const int ndims = dims_for_type(type);
+   const int ndims = dims_for_type(type);
+   if (ndims > 1) {
       vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
 
       dims[0].left  = left_reg;
@@ -3942,21 +3965,22 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       dims[0].dir   = dir_reg;
 
       tree_t a0 = tree_value(tree_assoc(expr, 0));
-      *a0_reg = lower_rvalue(lu, a0);
+      vcode_reg_t a0_reg = value_regs[0];
+      assert(a0_reg != VCODE_INVALID_REG);
 
-      if (vcode_reg_kind(*a0_reg) == VCODE_TYPE_UARRAY) {
+      if (vcode_reg_kind(a0_reg) == VCODE_TYPE_UARRAY) {
          for (int i = 1; i < ndims; i++) {
-            dims[i].left  = emit_uarray_left(*a0_reg, i - 1);
-            dims[i].right = emit_uarray_right(*a0_reg, i - 1);
-            dims[i].dir   = emit_uarray_dir(*a0_reg, i - 1);
+            dims[i].left  = emit_uarray_left(a0_reg, i - 1);
+            dims[i].right = emit_uarray_right(a0_reg, i - 1);
+            dims[i].dir   = emit_uarray_dir(a0_reg, i - 1);
          }
       }
       else {
          type_t a0_type = tree_type(a0);
          for (int i = 1; i < ndims; i++) {
-            dims[i].left  = lower_array_left(lu, a0_type, i - 1, *a0_reg);
-            dims[i].right = lower_array_right(lu, a0_type, i - 1, *a0_reg);
-            dims[i].dir   = lower_array_dir(lu, a0_type, i - 1, *a0_reg);
+            dims[i].left  = lower_array_left(lu, a0_type, i - 1, a0_reg);
+            dims[i].right = lower_array_right(lu, a0_type, i - 1, a0_reg);
+            dims[i].dir   = lower_array_dir(lu, a0_type, i - 1, a0_reg);
          }
       }
 
@@ -3976,6 +4000,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    emit_debug_info(tree_loc(expr));
 
    type_t type = tree_type(expr);
+   type_t elem_type = type_elem(type);
+   type_t scalar_elem_type = type_elem_recur(type);
 
    if (type_const_bounds(type) && lower_is_const(expr)) {
       int rep_size = -1;
@@ -4024,9 +4050,30 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    assert(hint == VCODE_INVALID_REG || !have_uarray_ptr(hint));
 
-   vcode_reg_t bounds_reg = VCODE_INVALID_REG, a0_reg = VCODE_INVALID_REG;
-   if (type_is_unconstrained(type))
-      bounds_reg = lower_aggregate_bounds(lu, expr, &a0_reg);
+   const int ndims = dimension_of(type);
+   const bool multidim = ndims > 1;
+   const bool array_of_array = type_is_array(elem_type);
+   const bool is_unconstrained = type_is_unconstrained(type);
+
+   vcode_reg_t *value_regs LOCAL = xmalloc_array(nassocs, sizeof(vcode_reg_t));
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+      tree_t value = tree_value(a);
+      const assoc_kind_t akind = tree_subkind(a);
+
+      if (akind == A_CONCAT || akind == A_SLICE)
+         value_regs[i] = lower_rvalue(lu, value);   // Always need length
+      else if (is_unconstrained && i == 0 && (array_of_array || multidim))
+         value_regs[i] = lower_rvalue(lu, value);
+      else if (tree_kind(value) == T_AGGREGATE)
+         value_regs[i] = VCODE_INVALID_REG;   // Prefer to generate in-place
+      else
+         value_regs[i] = lower_rvalue(lu, value);
+   }
+
+   vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+   if (is_unconstrained)
+      bounds_reg = lower_aggregate_bounds(lu, expr, value_regs);
    else if (hint != VCODE_INVALID_REG
             && vcode_reg_kind(hint) == VCODE_TYPE_UARRAY)
       bounds_reg = hint;
@@ -4039,11 +4086,6 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
 
-   type_t elem_type = type_elem(type);
-   type_t scalar_elem_type = type_elem_recur(type);
-
-   const bool array_of_array = type_is_array(elem_type);
-
    vcode_type_t velem   = lower_type(scalar_elem_type);
    vcode_type_t vbounds = lower_bounds(scalar_elem_type);
    vcode_type_t voffset = vtype_offset();
@@ -4051,17 +4093,11 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    if (all_literals) {
       // The array has non-constant bounds but the elements are all
       // constants so just create a constant array and wrap it
-      vcode_reg_t *values LOCAL = xmalloc_array(nassocs, sizeof(vcode_reg_t));
-      for (int i = 0; i < nassocs; i++)
-         values[i] = lower_literal(tree_value(tree_assoc(expr, i)));
-
-      type_t elem = type_elem(type);
-
-      vcode_type_t velem   = lower_type(elem);
-      vcode_type_t vbounds = lower_bounds(elem);
+      vcode_type_t velem = lower_type(elem_type);
+      vcode_type_t vbounds = lower_bounds(elem_type);
       vcode_type_t vtype = vtype_carray(nassocs, velem, vbounds);
 
-      vcode_reg_t array_reg = emit_const_array(vtype, values, nassocs);
+      vcode_reg_t array_reg = emit_const_array(vtype, value_regs, nassocs);
       vcode_reg_t mem_reg = emit_address_of(array_reg);
 
       vcode_reg_t nassocs_reg = emit_const(voffset, nassocs);
@@ -4098,9 +4134,6 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       stride = lower_array_stride(lu, type, bounds_reg);
    else
       stride = emit_const(voffset, 1);
-
-   const int ndims = dimension_of(type);
-   const bool multidim = ndims > 1;
 
    if (multidim) {
       for (int i = 1; i < ndims; i++)
@@ -4224,19 +4257,17 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    vcode_type_t vindex = lower_type(index_type);
 
+   vcode_reg_t low_reg =  emit_select(dir_reg, right_reg, left_reg);
+
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
 
       const assoc_kind_t akind = tree_subkind(a);
 
-      vcode_reg_t value_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
-      if (akind == A_CONCAT || akind == A_SLICE) {
-         value_reg = lower_rvalue(lu, value);
-         count_reg = lower_array_len(lu, tree_type(value), 0, value_reg);
-      }
-      else if (tree_kind(value) != T_AGGREGATE)
-         value_reg = lower_rvalue(lu, value);
+      vcode_reg_t count_reg = VCODE_INVALID_REG;
+      if (akind == A_CONCAT || akind == A_SLICE)
+         count_reg = lower_array_len(lu, tree_type(value), 0, value_regs[i]);
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
@@ -4257,14 +4288,10 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             vcode_reg_t locus = lower_debug_locus(a);
             vcode_reg_t hint = lower_debug_locus(index_r);
 
-            vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+            vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
+            vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
 
-            vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
-            vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
-            vcode_reg_t left_index_reg =
-               emit_select(dir_reg, down_left_reg, up_left_reg);
-
-            emit_index_check(left_index_reg, left_reg, right_reg,
+            emit_index_check(index_reg, left_reg, right_reg,
                              dir_reg, locus, hint);
          }
          break;
@@ -4284,24 +4311,18 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             vcode_reg_t hint = lower_debug_locus(index_r);
 
             vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+            vcode_reg_t low_index_reg = emit_add(low_reg, index_off_reg);
 
-            vcode_reg_t up_left_reg = emit_add(left_reg, index_off_reg);
-            vcode_reg_t down_left_reg = emit_add(right_reg, index_off_reg);
-            vcode_reg_t left_index_reg =
-               emit_select(dir_reg, down_left_reg, up_left_reg);
-
-            emit_index_check(left_index_reg, left_reg, right_reg,
+            emit_index_check(low_index_reg, left_reg, right_reg,
                              dir_reg, locus, hint);
 
-            vcode_reg_t one_reg = emit_const(voffset, 1);
-            vcode_reg_t right_off_reg =
-               emit_sub(emit_add(index_off_reg, count_reg), one_reg);
-            vcode_reg_t up_right_reg = emit_add(left_reg, right_off_reg);
-            vcode_reg_t down_right_reg = emit_add(right_reg, right_off_reg);
-            vcode_reg_t right_index_reg =
-               emit_select(dir_reg, down_right_reg, up_right_reg);
+            vcode_reg_t one_reg = emit_const(vindex, 1);
+            vcode_reg_t next_index_reg =
+               emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
+            vcode_reg_t high_index_reg =
+               emit_add(low_index_reg, next_index_reg);
 
-            emit_index_check(right_index_reg, left_reg, right_reg,
+            emit_index_check(high_index_reg, left_reg, right_reg,
                              dir_reg, locus, hint);
          }
          break;
@@ -4390,33 +4411,33 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
       vcode_reg_t ptr_reg = emit_array_ref(mem_reg, off_reg);
 
-      if (value_reg == VCODE_INVALID_REG) {
+      if (value_regs[i] == VCODE_INVALID_REG) {
          // Prefer generating aggregates in-place
          assert(tree_kind(value) == T_AGGREGATE);
-         value_reg = lower_aggregate(lu, value, ptr_reg);
+         value_regs[i] = lower_aggregate(lu, value, ptr_reg);
       }
 
-      if (a0_reg != VCODE_INVALID_REG && i > 0 && ndims == 1
-          && vcode_reg_kind(a0_reg) == VCODE_TYPE_UARRAY) {
+      if (array_of_array && i > 0 && ndims == 1
+          && vcode_reg_kind(value_regs[0]) == VCODE_TYPE_UARRAY) {
          // Element type is unconstrained so we need a length check here
          vcode_reg_t locus = lower_debug_locus(a);
          lower_check_array_sizes(lu, elem_type, elem_type,
-                                 a0_reg, value_reg, locus);
+                                 value_regs[0], value_regs[i], locus);
       }
 
       if (count_reg != VCODE_INVALID_REG) {
-         vcode_reg_t src_reg = lower_array_data(value_reg);
+         vcode_reg_t src_reg = lower_array_data(value_regs[i]);
          emit_copy(ptr_reg, src_reg, count_reg);
       }
       else if (array_of_array || multidim) {
          assert(stride != VCODE_INVALID_REG);
-         vcode_reg_t src_reg = lower_array_data(value_reg);
+         vcode_reg_t src_reg = lower_array_data(value_regs[i]);
          emit_copy(ptr_reg, src_reg, stride);
       }
       else if (type_is_record(elem_type))
-         emit_copy(ptr_reg, value_reg, VCODE_INVALID_REG);
+         emit_copy(ptr_reg, value_regs[i], VCODE_INVALID_REG);
       else
-         emit_store_indirect(value_reg, ptr_reg);
+         emit_store_indirect(value_regs[i], ptr_reg);
 
       if (loop_bb != VCODE_INVALID_BLOCK) {
          assert(tree_subkind(a) == A_RANGE);
