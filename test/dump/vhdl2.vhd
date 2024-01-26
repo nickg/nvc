@@ -35,6 +35,8 @@ architecture test of vhdl2 is
 begin
 
     b1: block is
+        port ( p : integer );
+        port map ( p => inertial 1 );
     begin
     end block;
 

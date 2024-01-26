@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3631,6 +3631,8 @@ START_TEST(test_vhdl2008)
       { 232, "expected trailing generate statement body label to match FOO" },
       { 249, "expected trailing case generate statement label to match G3" },
       { 264, "signed bit string literal cannot be an empty string" },
+      { 282, "the reserved word INERTIAL can only be used in port map " },
+      { 290, "the reserved word INERTIAL can only be used in port map " },
       { -1, NULL }
    };
    expect_errors(expect);

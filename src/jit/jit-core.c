@@ -554,7 +554,7 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
       case T_PACK_INST:
          diag_trace(d, loc, "Package$$ %s", istr(tree_ident(tree)));
          break;
-      case T_WAVEFORM:
+      case T_INERTIAL:
          diag_trace(d, loc, "Equivalent process");
          break;
       case T_TYPE_CONV:

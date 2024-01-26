@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -163,6 +163,8 @@ START_TEST(test_vhdl2)
    const char *stmt_cases[][2] = {
       { "B1",
         "B1: block is\n"
+        "  port ( signal P : in INTEGER );\n"
+        "  port map (P => inertial 1);\n"
         "begin\n"
         "end block;\n" },
       { "U1",

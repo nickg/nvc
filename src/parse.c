@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2893,7 +2893,7 @@ static tree_t p_formal_part(void)
    return name;
 }
 
-static tree_t p_actual_part(class_t class)
+static tree_t p_actual_part(class_t class, formal_kind_t kind)
 {
    // actual_designator
    //   | name ( actual_designator )
@@ -2917,6 +2917,25 @@ static tree_t p_actual_part(class_t class)
       tree_set_type(ref, type);
       tree_set_loc(ref, CURRENT_LOC);
       return ref;
+   }
+
+   if (optional(tINERTIAL)) {
+      require_std(STD_08, "inertial in actual designator");
+
+      tree_t expr = p_expression();
+
+      if (kind == F_PORT_MAP) {
+         tree_t w = tree_new(T_INERTIAL);
+         tree_set_loc(w, CURRENT_LOC);
+         tree_set_value(w, expr);
+
+         return w;
+      }
+      else {
+         parse_error(CURRENT_LOC, "the reserved word INERTIAL can only be "
+                     "used in port map association elements");
+         return expr;
+      }
    }
 
    // If the actual part takes either the second or third form above then the
@@ -3009,7 +3028,7 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
          type = tree_type(formal);
    }
 
-   tree_t value = p_actual_part(class);
+   tree_t value = p_actual_part(class, kind);
 
    if (kind == F_PORT_MAP)
       solve_types(nametab, value, type);

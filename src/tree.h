@@ -367,6 +367,7 @@ typedef enum tree_kind {
    T_PROT_DECL,
    T_DUMMY_DRIVER,
    T_GUARD,
+   T_INERTIAL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

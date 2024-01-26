@@ -10,6 +10,7 @@
   function call, as required by the LRM (#835).
 - The implementation of conversions in port maps has been reworked and
   fixes a number of long-standing issues (#843).
+- Added support for `inertial` keyword in port maps (#843). 
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for

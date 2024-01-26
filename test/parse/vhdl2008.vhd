@@ -276,4 +276,17 @@ begin
         constant c2 : c1'subtype := c1;  -- OK
     begin
     end block;
+
+    b11: block is
+        generic ( g : in integer );
+        generic map ( g => inertial 5 + 1 );  -- Error
+        port ( x : in integer );
+        port map ( x => inertial 3 + 4 );  -- OK
+
+        procedure proc ( signal x : integer ) is
+        begin
+        end procedure;
+    begin
+        proc(x => inertial x);          -- Error
+    end block;
 end architecture;

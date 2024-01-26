@@ -1873,6 +1873,7 @@ type_t get_type_or_null(tree_t t)
    case T_USE:
    case T_CONTEXT:
    case T_PSL:
+   case T_WAVEFORM:
       return NULL;
    default:
       if (tree_has_type(t))
@@ -2051,6 +2052,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
    case T_QUALIFIED:
    case T_TYPE_CONV:
    case T_ASSERT:
+   case T_INERTIAL:
       if (tree_has_value(expr))
          build_wait(tree_value(expr), fn, ctx);
       break;

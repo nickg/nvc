@@ -931,3 +931,4 @@ conv11          normal
 conv12          normal
 issue843        normal,2008
 bounds43        fail,gold
+signal35        normal,2008

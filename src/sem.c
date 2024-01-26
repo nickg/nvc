@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -4409,9 +4409,12 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    if (!sem_check(value, tab))
       return false;
 
-   type_t value_type = tree_type(value);
+   const tree_kind_t kind = tree_kind(value);
+   tree_t expr = kind == T_INERTIAL ? tree_value(value) : value;
 
-   if (!sem_check_type(value, type, tab))
+   type_t value_type = tree_type(expr);
+
+   if (!sem_check_type(expr, type, tab))
       sem_error(value, "type of actual %s does not match type %s of formal "
                 "port %s", type_pp(value_type), type_pp(type),
                 istr(tree_ident(decl)));
@@ -4432,7 +4435,6 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    // These only apply if the class of the formal is not constant
 
    tree_t actual = NULL;
-   const tree_kind_t kind = tree_kind(value);
    if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) {
       // Conversion functions are in LRM 93 section 4.3.2.2
       actual = tree_value(value);
@@ -4452,7 +4454,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    else
       actual = value;    // No conversion
 
-   if (mode == PORT_IN) {
+   if (mode == PORT_IN && kind != T_INERTIAL) {
       tree_t ref = name_to_ref(actual);
       bool is_static = true;
       if (ref != NULL && class_of(ref) == C_SIGNAL)
@@ -4478,7 +4480,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
             return false;
          }
 
-         tree_t w = tree_new(T_WAVEFORM);
+         tree_t w = tree_new(T_INERTIAL);
          tree_set_loc(w, tree_loc(value));
          tree_set_value(w, value);
 
@@ -6622,6 +6624,14 @@ static bool sem_check_prot_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_inertial(tree_t t, nametab_t *tab)
+{
+   if (!sem_check(tree_value(t), tab))
+      return false;
+
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -6798,6 +6808,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_sequence(t, tab);
    case T_PROT_DECL:
       return sem_check_prot_decl(t, tab);
+   case T_INERTIAL:
+      return sem_check_inertial(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

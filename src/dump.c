@@ -407,6 +407,11 @@ static void dump_expr(tree_t t)
       }
       break;
 
+   case T_INERTIAL:
+      print_syntax("#inertial ");
+      dump_expr(tree_value(t));
+      break;
+
    default:
       cannot_dump(t, "expr");
    }

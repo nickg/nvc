@@ -1202,8 +1202,8 @@ START_TEST(test_ports2008)
 
    tree_t inst = tree_stmt(b, 0);
    fail_unless(tree_kind(inst) == T_INSTANCE);
-   fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_WAVEFORM);
-   fail_unless(tree_kind(tree_value(tree_param(inst, 1))) == T_WAVEFORM);
+   fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_INERTIAL);
+   fail_unless(tree_kind(tree_value(tree_param(inst, 1))) == T_INERTIAL);
 }
 END_TEST
 

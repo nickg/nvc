@@ -4617,6 +4617,13 @@ static type_t solve_view_element(nametab_t *tab, tree_t elem)
    }
 }
 
+static type_t solve_inertial(nametab_t *tab, tree_t expr)
+{
+   type_t type = _solve_types(tab, tree_value(expr));
+   tree_set_type(expr, type);
+   return type;
+}
+
 static type_t solve_range(nametab_t *tab, tree_t r)
 {
    if (tree_has_type(r))
@@ -4746,6 +4753,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_cond_expr(tab, expr);
    case T_VIEW_ELEMENT:
       return solve_view_element(tab, expr);
+   case T_INERTIAL:
+      return solve_inertial(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

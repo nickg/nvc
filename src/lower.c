@@ -11500,9 +11500,9 @@ static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
    }
 }
 
-static void lower_non_static_actual(lower_unit_t *parent, tree_t port,
-                                    tree_t target, type_t type,
-                                    vcode_reg_t port_reg, tree_t wave)
+static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
+                                  tree_t target, type_t type,
+                                  vcode_reg_t port_reg, tree_t wave)
 {
    // Construct the equivalent process according the procedure in LRM 08
    // section 6.5.6.3
@@ -11715,9 +11715,9 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       else
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
-   else if (tree_kind(value) == T_WAVEFORM) {
+   else if (tree_kind(value) == T_INERTIAL) {
       tree_t name = tree_subkind(map) == P_NAMED ? tree_name(map) : port;
-      lower_non_static_actual(lu, port, name, name_type, port_reg, value);
+      lower_inertial_actual(lu, port, name, name_type, port_reg, value);
    }
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
@@ -12052,7 +12052,7 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
 
       tree_t value = tree_value(p);
       const tree_kind_t kind = tree_kind(value);
-      if (kind == T_TYPE_CONV || kind == T_CONV_FUNC || kind == T_WAVEFORM)
+      if (kind == T_TYPE_CONV || kind == T_CONV_FUNC || kind == T_INERTIAL)
          map_regs[i] = VCODE_INVALID_REG;
       else if (lower_is_signal_ref(value))
          map_regs[i] = lower_lvalue(lu, value);
