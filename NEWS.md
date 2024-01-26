@@ -8,6 +8,8 @@
   command uses to compile third-party libraries (#836).
 - The prefix of an indexed or slice name now must be another name or
   function call, as required by the LRM (#835).
+- The implementation of conversions in port maps has been reworked and
+  fixes a number of long-standing issues (#843).
 
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for

@@ -966,6 +966,7 @@ const char *vcode_op_string(vcode_op_t op)
       "unreachable", "package init", "trap neg", "process init", "clear event",
       "trap exp", "implicit event", "enter state", "reflect value",
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
+      "port conversion", "convert in", "convert out",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1103,6 +1104,10 @@ static int vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_TRIGGER:
       col += printf("T<>");
+      break;
+
+   case VCODE_TYPE_CONVERSION:
+      col += printf("X<>");
       break;
    }
 
@@ -1342,20 +1347,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" to ");
                vcode_dump_reg(op->args.items[1]);
-               if (op->args.items[2] == op->args.items[3]) {
-                  printf(" count ");
-                  vcode_dump_reg(op->args.items[2]);
-               }
-               else {
-                  printf(" src count ");
-                  vcode_dump_reg(op->args.items[2]);
-                  printf(" dst count ");
-                  vcode_dump_reg(op->args.items[3]);
-               }
-               if (op->args.count > 4) {
-                  printf(" conv ");
-                  vcode_dump_reg(op->args.items[4]);
-               }
+               printf(" count ");
+               vcode_dump_reg(op->args.items[2]);
             }
             break;
 
@@ -2287,6 +2280,27 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
             }
             break;
+
+         case VCODE_OP_PORT_CONVERSION:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_CONVERT_IN:
+         case VCODE_OP_CONVERT_OUT:
+            {
+               color_printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" signal ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[2]);
+            }
+            break;
          }
 
          if (j == mark_op && i == old_block)
@@ -2338,6 +2352,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_OPAQUE:
       case VCODE_TYPE_DEBUG_LOCUS:
       case VCODE_TYPE_TRIGGER:
+      case VCODE_TYPE_CONVERSION:
          return true;
       case VCODE_TYPE_RESOLUTION:
       case VCODE_TYPE_CLOSURE:
@@ -2622,6 +2637,16 @@ vcode_type_t vtype_trigger(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_TRIGGER;
+
+   return vtype_new(n);
+}
+
+vcode_type_t vtype_conversion(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_CONVERSION;
 
    return vtype_new(n);
 }
@@ -4745,28 +4770,19 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
    return (op->result = vcode_add_reg(vtype_signal(type)));
 }
 
-void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
-                     vcode_reg_t dst_count, vcode_reg_t conv)
+void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
 {
    op_t *op = vcode_add_op(VCODE_OP_MAP_SIGNAL);
    vcode_add_arg(op, src);
    vcode_add_arg(op, dst);
-   vcode_add_arg(op, src_count);
-   vcode_add_arg(op, dst_count);
-   if (conv != VCODE_INVALID_REG)
-      vcode_add_arg(op, conv);
+   vcode_add_arg(op, count);
 
    VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
                 "src argument to map signal is not a signal");
    VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
                 "dst argument to map signal is not a signal");
-   VCODE_ASSERT(vcode_reg_kind(src_count) == VCODE_TYPE_OFFSET,
-                "src count argument type to map signal is not offset");
-   VCODE_ASSERT(vcode_reg_kind(dst_count) == VCODE_TYPE_OFFSET,
-                "dst count argument type to map signal is not offset");
-   VCODE_ASSERT(conv == VCODE_INVALID_REG
-                || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
-                "conv argument type to map signal is not closure");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument type to map signal is not offset");
 }
 
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
@@ -5866,6 +5882,47 @@ void emit_add_trigger(vcode_reg_t trigger)
 
    VCODE_ASSERT(vcode_reg_kind(trigger) == VCODE_TYPE_TRIGGER,
                 "add trigger argument must be trigger");
+}
+
+vcode_reg_t emit_port_conversion(vcode_reg_t closure)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PORT_CONVERSION);
+   vcode_add_arg(op, closure);
+
+   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+                "port conversion argument must be a closure");
+
+   return (op->result = vcode_add_reg(vtype_conversion()));
+}
+
+void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CONVERT_IN);
+   vcode_add_arg(op, conv);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, count);
+
+   VCODE_ASSERT(vcode_reg_kind(conv) == VCODE_TYPE_CONVERSION,
+                "conv argument to convert must be a port conversion");
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to convert must be a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument to convert must be offset");
+}
+
+void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CONVERT_OUT);
+   vcode_add_arg(op, conv);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, count);
+
+   VCODE_ASSERT(vcode_reg_kind(conv) == VCODE_TYPE_CONVERSION,
+                "conv argument to convert must be a port conversion");
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to convert must be a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument to convert must be offset");
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)

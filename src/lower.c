@@ -103,20 +103,13 @@ typedef struct {
 } concat_param_t;
 
 typedef struct {
-   vcode_reg_t conv_func;
-   vcode_reg_t conv_reg;
-   vcode_reg_t conv_count;
-   bool        reverse;
-   bool        is_const;
-} map_signal_param_t;
-
-typedef struct {
    lower_unit_t *lu;
    vcode_reg_t   wake;
 } wait_param_t;
 
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
+typedef void (*convert_emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
 
 typedef A(concat_param_t) concat_list_t;
 
@@ -11379,16 +11372,14 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
       vcode_reg_t src_nets = lower_array_data(src_reg);
       vcode_reg_t dst_nets = lower_array_data(dst_reg);
 
-      vcode_reg_t conv_reg = VCODE_INVALID_REG;   // Not valid for interfaces
-
       switch (converse_mode(elem, converse)) {
       case PORT_IN:
-         emit_map_signal(dst_nets, src_nets, count_reg, count_reg, conv_reg);
+         emit_map_signal(dst_nets, src_nets, count_reg);
          break;
       case PORT_OUT:
       case PORT_INOUT:
       case PORT_BUFFER:
-         emit_map_signal(src_nets, dst_nets, count_reg, count_reg, conv_reg);
+         emit_map_signal(src_nets, dst_nets, count_reg);
          break;
       default:
          fatal_trace("unhandled port mode in lower_map_view_field_cb");
@@ -11405,131 +11396,107 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
 
 static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,
                                       vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
-                                      vcode_reg_t locus, void *__ctx)
+                                      vcode_reg_t locus, void *ctx)
 {
    type_t ftype = tree_type(field);
-   map_signal_param_t *args = __ctx;
 
    if (type_is_homogeneous(ftype)) {
-      vcode_reg_t dst_reg, dst_count = VCODE_INVALID_REG;
-      if (!args->reverse && args->conv_func != VCODE_INVALID_REG) {
-         dst_reg = args->conv_reg;
-         dst_count = args->conv_count;
-      }
-      else if (args->reverse)
-         dst_reg = emit_load_indirect(src_ptr);
-      else
-         dst_reg = emit_load_indirect(dst_ptr);
+      vcode_reg_t dst_reg = emit_load_indirect(dst_ptr);
 
-      vcode_reg_t src_reg, src_count = VCODE_INVALID_REG;
-      if (args->reverse && args->conv_func != VCODE_INVALID_REG) {
-         src_reg = args->conv_reg;
-         src_count = args->conv_count;
-      }
-      else if (args->reverse && !args->is_const)
-         src_reg = emit_load_indirect(dst_ptr);
-      else if (!args->is_const)
+      vcode_reg_t src_reg;
+      if (lower_have_signal(src_ptr))
          src_reg = emit_load_indirect(src_ptr);
       else if (have_uarray_ptr(src_ptr))
          src_reg = emit_load_indirect(src_ptr);
       else
          src_reg = src_ptr;
 
-      if (type_is_array(ftype) && args->conv_func == VCODE_INVALID_REG)
+      if (type_is_array(ftype))
          lower_check_array_sizes(lu, ftype, ftype, src_reg, dst_reg, locus);
 
-      if (src_count == VCODE_INVALID_REG)
-         src_count = lower_type_width(lu, ftype, src_reg);
-
-      if (dst_count == VCODE_INVALID_REG)
-         dst_count = lower_type_width(lu, ftype, dst_reg);
+      vcode_reg_t count_reg = lower_type_width(lu, ftype, dst_reg);
 
       src_reg = lower_array_data(src_reg);
       dst_reg = lower_array_data(dst_reg);
 
-      if (args->is_const)
-         emit_map_const(src_reg, dst_reg, src_count);
+      if (lower_have_signal(src_reg))
+         emit_map_signal(src_reg, dst_reg, count_reg);
       else
-         emit_map_signal(src_reg, dst_reg, src_count, dst_count,
-                         args->conv_func);
+         emit_map_const(src_reg, dst_reg, count_reg);
    }
    else
       lower_for_each_field(lu, ftype, src_ptr, dst_ptr, locus,
-                           lower_map_signal_field_cb, __ctx);
+                           lower_map_signal_field_cb, ctx);
 }
 
 static void lower_map_signal(lower_unit_t *lu, vcode_reg_t src_reg,
                              vcode_reg_t dst_reg, type_t src_type,
-                             type_t dst_type, vcode_reg_t conv_func,
-                             tree_t where)
+                             type_t dst_type, tree_t where)
 {
    if (!type_is_homogeneous(src_type)) {
-      map_signal_param_t args = {
-         .conv_func = conv_func,
-         .conv_reg  = dst_reg,
-         .is_const  = !lower_have_signal(src_reg),
-      };
-
-      if (conv_func != VCODE_INVALID_REG) {
-         args.conv_count = lower_type_width(lu, dst_type, dst_reg);
-         dst_reg = VCODE_INVALID_REG;
-      }
-
       vcode_reg_t locus = lower_debug_locus(where);
       lower_for_each_field(lu, src_type, src_reg, dst_reg, locus,
-                           lower_map_signal_field_cb, &args);
-   }
-   else if (!type_is_homogeneous(dst_type)) {
-      map_signal_param_t args = {
-         .conv_func = conv_func,
-         .conv_reg  = src_reg,
-         .reverse   = true,
-         .is_const  = !lower_have_signal(src_reg),
-      };
-
-      if (conv_func != VCODE_INVALID_REG) {
-         args.conv_count = lower_type_width(lu, src_type, src_reg);
-         src_reg = VCODE_INVALID_REG;
-      }
-
-      vcode_reg_t locus = lower_debug_locus(where);
-      lower_for_each_field(lu, dst_type, dst_reg, src_reg, locus,
-                           lower_map_signal_field_cb, &args);
-   }
-   else if (conv_func != VCODE_INVALID_REG) {
-      vcode_reg_t src_count = lower_type_width(lu, src_type, src_reg);
-      vcode_reg_t dst_count = lower_type_width(lu, dst_type, dst_reg);
-
-      assert(lower_have_signal(src_reg));
-
-      vcode_reg_t src_nets = lower_array_data(src_reg);
-      vcode_reg_t dst_nets = lower_array_data(dst_reg);
-
-      emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
+                           lower_map_signal_field_cb, NULL);
    }
    else if (type_is_array(src_type)) {
-      vcode_reg_t src_count = lower_array_total_len(lu, src_type, src_reg);
-      vcode_reg_t dst_count = lower_array_total_len(lu, dst_type, dst_reg);
-
       vcode_reg_t locus = lower_debug_locus(where);
       lower_check_array_sizes(lu, dst_type, src_type, dst_reg, src_reg, locus);
 
       vcode_reg_t src_nets = lower_array_data(src_reg);
       vcode_reg_t dst_nets = lower_array_data(dst_reg);
 
+      vcode_reg_t count_reg = lower_array_total_len(lu, dst_type, dst_reg);
+
       if (lower_have_signal(src_reg))
-         emit_map_signal(src_nets, dst_nets, src_count, dst_count, conv_func);
+         emit_map_signal(src_nets, dst_nets, count_reg);
       else
-         emit_map_const(src_nets, dst_nets, src_count);
+         emit_map_const(src_nets, dst_nets, count_reg);
    }
    else {
       vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
       vcode_reg_t dst_nets = lower_array_data(dst_reg);
 
       if (lower_have_signal(src_reg))
-         emit_map_signal(src_reg, dst_nets, count_reg, count_reg, conv_func);
+         emit_map_signal(src_reg, dst_nets, count_reg);
       else
          emit_map_const(src_reg, dst_nets, count_reg);
+   }
+}
+
+static void lower_convert_signal_field_cb(lower_unit_t *lu, tree_t field,
+                                          vcode_reg_t src_ptr,
+                                          vcode_reg_t dst_ptr,
+                                          vcode_reg_t conv_func, void *ctx)
+{
+   type_t ftype = tree_type(field);
+   void (*emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t) = ctx;
+
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t nets_reg = emit_load_indirect(src_ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
+      (*emit_fn)(conv_func, nets_reg, count_reg);
+   }
+   else
+      lower_for_each_field(lu, ftype, src_ptr, dst_ptr, conv_func,
+                           lower_convert_signal_field_cb, ctx);
+}
+
+static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
+                                 type_t type, vcode_reg_t conv_func,
+                                 convert_emit_fn emit_fn)
+{
+    if (!type_is_homogeneous(type))
+      lower_for_each_field(lu, type, src_reg, VCODE_INVALID_REG, conv_func,
+                           lower_convert_signal_field_cb, emit_fn);
+    else if (type_is_array(type)) {
+      vcode_reg_t count_reg = lower_array_total_len(lu, type, src_reg);
+      vcode_reg_t nets_reg = lower_array_data(src_reg);
+      (*emit_fn)(conv_func, nets_reg, count_reg);
+   }
+   else {
+      vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+      vcode_reg_t nets_reg = lower_array_data(src_reg);
+      (*emit_fn)(conv_func, nets_reg, count_reg);
    }
 }
 
@@ -11738,8 +11705,15 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       type_t src_type = mode == PORT_IN ? value_type : name_type;
       type_t dst_type = mode == PORT_IN ? name_type : value_type;
 
-      lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type,
-                       conv_func, map);
+      if (conv_func != VCODE_INVALID_REG) {
+         vcode_reg_t conv_reg = emit_port_conversion(conv_func);
+         lower_convert_signal(lu, dst_reg, dst_type,
+                              conv_reg, emit_convert_out);
+         lower_convert_signal(lu, src_reg, src_type,
+                              conv_reg, emit_convert_in);
+      }
+      else
+         lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
    else if (tree_kind(value) == T_WAVEFORM) {
       tree_t name = tree_subkind(map) == P_NAMED ? tree_name(map) : port;
@@ -11747,8 +11721,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    }
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
-      lower_map_signal(lu, value_reg, port_reg, value_type, name_type,
-                       in_conv, map);
+      lower_map_signal(lu, value_reg, port_reg, value_type, name_type, map);
    }
 }
 
@@ -12119,8 +12092,7 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
             def_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
 
          vcode_reg_t nets_reg = lower_port_ref(lu, port);
-         lower_map_signal(lu, def_reg, nets_reg, type, type,
-                          VCODE_INVALID_REG, port);
+         lower_map_signal(lu, def_reg, nets_reg, type, type, port);
       }
    }
 

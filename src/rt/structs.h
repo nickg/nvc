@@ -105,9 +105,14 @@ typedef struct {
 
 typedef struct {
    ffi_closure_t closure;
-   unsigned      refcnt;
-   size_t        bufsz;
-   uint8_t       buffer[0];
+   unsigned      ninputs;
+   unsigned      maxinputs;
+   rt_nexus_t  **inputs;
+   rt_source_t  *outputs;
+   size_t        insz;
+   size_t        outsz;
+   void         *outbuf;
+   void         *inbuf;
 } rt_conv_func_t;
 
 typedef struct {

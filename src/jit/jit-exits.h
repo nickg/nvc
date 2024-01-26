@@ -66,9 +66,7 @@ void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count);
 int64_t x_last_active(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
-                  sig_shared_t *dst_ss, uint32_t dst_offset,
-                  uint32_t src_count, uint32_t dst_count,
-                  ffi_closure_t *closure);
+                  sig_shared_t *dst_ss, uint32_t dst_offset, uint32_t count);
 void x_map_const(sig_shared_t *ss, uint32_t offset,
                  const uint8_t *values, uint32_t count);
 void x_push_scope(tree_t where, int32_t size);
@@ -96,5 +94,8 @@ void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
 void *x_function_trigger(const ffi_closure_t *closure);
 void x_add_trigger(void *ptr);
+void *x_port_conversion(const ffi_closure_t *closure);
+void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 
 #endif  // _JIT_EXITS_H

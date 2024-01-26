@@ -162,6 +162,9 @@ typedef enum {
    VCODE_OP_FUNCTION_TRIGGER,
    VCODE_OP_ADD_TRIGGER,
    VCODE_OP_TRANSFER_SIGNAL,
+   VCODE_OP_PORT_CONVERSION,
+   VCODE_OP_CONVERT_IN,
+   VCODE_OP_CONVERT_OUT,
 } vcode_op_t;
 
 typedef enum {
@@ -181,6 +184,7 @@ typedef enum {
    VCODE_TYPE_CONTEXT,
    VCODE_TYPE_DEBUG_LOCUS,
    VCODE_TYPE_TRIGGER,
+   VCODE_TYPE_CONVERSION,
 } vtype_kind_t;
 
 typedef enum {
@@ -492,8 +496,7 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
 vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
 vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
-void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
-                     vcode_reg_t dst_count, vcode_reg_t conv);
+void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
@@ -522,5 +525,8 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
                                  vcode_reg_t locus, vcode_reg_t bounds);
 vcode_reg_t emit_function_trigger(vcode_reg_t closure);
 void emit_add_trigger(vcode_reg_t trigger);
+vcode_reg_t emit_port_conversion(vcode_reg_t closure);
+void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
+void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 
 #endif  // _VCODE_H

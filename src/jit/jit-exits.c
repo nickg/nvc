@@ -578,19 +578,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          uint32_t       src_offset = args[1].integer;
          sig_shared_t  *dst_ss     = args[2].pointer;
          uint32_t       dst_offset = args[3].integer;
-         uint32_t       src_count  = args[4].integer;
-         uint32_t       dst_count  = args[5].integer;
-         jit_handle_t   handle     = args[6].integer;
-         void          *context    = args[7].pointer;
+         uint32_t       count      = args[4].integer;
 
-         if (handle != JIT_HANDLE_INVALID) {
-            ffi_closure_t closure = { handle, context };
-            x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
-                         dst_count, &closure);
-         }
-         else
-            x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
-                         dst_count, NULL);
+         x_map_signal(src_ss, src_offset, dst_ss, dst_offset, count);
       }
       break;
 
@@ -1004,6 +994,44 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
          if (trigger != NULL)
             x_add_trigger(trigger);
+      }
+      break;
+
+   case JIT_EXIT_PORT_CONVERSION:
+      {
+         jit_handle_t  handle  = args[0].integer;
+         void         *context = args[1].pointer;
+
+         if (jit_has_runtime(thread->jit)) {
+            ffi_closure_t closure = { handle, context };
+            args[0].pointer = x_port_conversion(&closure);
+         }
+         else
+            args[0].pointer = NULL;   // Called during constant folding
+      }
+      break;
+
+   case JIT_EXIT_CONVERT_IN:
+      {
+         void         *conv   = args[0].pointer;
+         sig_shared_t *shared = args[1].pointer;
+         int32_t       offset = args[2].integer;
+         int32_t       count  = args[3].integer;
+
+         if (conv != NULL)
+            x_convert_in(conv, shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_CONVERT_OUT:
+      {
+         void         *conv   = args[0].pointer;
+         sig_shared_t *shared = args[1].pointer;
+         int32_t       offset = args[2].integer;
+         int32_t       count  = args[3].integer;
+
+         if (conv != NULL)
+            x_convert_out(conv, shared, offset, count);
       }
       break;
 

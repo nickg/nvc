@@ -557,6 +557,9 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
       case T_WAVEFORM:
          diag_trace(d, loc, "Equivalent process");
          break;
+      case T_TYPE_CONV:
+         diag_trace(d, loc, "Type conversion %s", type_pp(tree_type(tree)));
+         break;
       default:
          diag_trace(d, loc, "$$%s", istr(tree_ident(tree)));
          break;

@@ -281,10 +281,16 @@ static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
 
       vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
 
-      if (vlog_subkind(port) == V_PORT_INPUT)
-         emit_map_signal(vhdl_reg, vlog_reg, count_reg, count_reg, to_verilog);
-      else
-         emit_map_signal(vlog_reg, vhdl_reg, count_reg, count_reg, to_vhdl);
+      if (vlog_subkind(port) == V_PORT_INPUT) {
+         vcode_reg_t conv_reg = emit_port_conversion(to_verilog);
+         emit_convert_out(conv_reg, vlog_reg, count_reg);
+         emit_convert_in(conv_reg, vhdl_reg, count_reg);
+      }
+      else {
+         vcode_reg_t conv_reg = emit_port_conversion(to_vhdl);
+         emit_convert_out(conv_reg, vhdl_reg, count_reg);
+         emit_convert_in(conv_reg, vlog_reg, count_reg);
+      }
    }
 }
 

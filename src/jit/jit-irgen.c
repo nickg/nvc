@@ -2791,31 +2791,17 @@ static void irgen_op_alias_signal(jit_irgen_t *g, int op)
 
 static void irgen_op_map_signal(jit_irgen_t *g, int op)
 {
-   jit_value_t src_ss    = irgen_get_arg(g, op, 0);
-   jit_value_t src_off   = jit_value_from_reg(jit_value_as_reg(src_ss) + 1);
-   jit_value_t dst_ss    = irgen_get_arg(g, op, 1);
-   jit_value_t dst_off   = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
-   jit_value_t src_count = irgen_get_arg(g, op, 2);
-   jit_value_t dst_count = irgen_get_arg(g, op, 3);
-
-   jit_value_t closure, context;
-   if (vcode_count_args(op) == 5) {
-      closure = irgen_get_arg(g, op, 4);
-      context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
-   }
-   else {
-      closure = jit_value_from_handle(JIT_HANDLE_INVALID);
-      context = jit_null_ptr();
-   }
+   jit_value_t src_ss  = irgen_get_arg(g, op, 0);
+   jit_value_t src_off = jit_value_from_reg(jit_value_as_reg(src_ss) + 1);
+   jit_value_t dst_ss  = irgen_get_arg(g, op, 1);
+   jit_value_t dst_off = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
+   jit_value_t count   = irgen_get_arg(g, op, 2);
 
    j_send(g, 0, src_ss);
    j_send(g, 1, src_off);
    j_send(g, 2, dst_ss);
    j_send(g, 3, dst_off);
-   j_send(g, 4, src_count);
-   j_send(g, 5, dst_count);
-   j_send(g, 6, closure);
-   j_send(g, 7, context);
+   j_send(g, 4, count);
 
    macro_exit(g, JIT_EXIT_MAP_SIGNAL);
 }
@@ -3471,6 +3457,46 @@ static void irgen_op_add_trigger(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_ADD_TRIGGER);
 }
 
+static void irgen_op_port_conversion(jit_irgen_t *g, int op)
+{
+   jit_value_t closure = irgen_get_arg(g, op, 0);
+   jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+
+   j_send(g, 0, closure);
+   j_send(g, 1, context);
+   macro_exit(g, JIT_EXIT_PORT_CONVERSION);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_convert_in(jit_irgen_t *g, int op)
+{
+   jit_value_t conv   = irgen_get_arg(g, op, 0);
+   jit_value_t shared = irgen_get_arg(g, op, 1);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 2);
+
+   j_send(g, 0, conv);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   macro_exit(g, JIT_EXIT_CONVERT_IN);
+}
+
+static void irgen_op_convert_out(jit_irgen_t *g, int op)
+{
+   jit_value_t conv   = irgen_get_arg(g, op, 0);
+   jit_value_t shared = irgen_get_arg(g, op, 1);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 2);
+
+   j_send(g, 0, conv);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   macro_exit(g, JIT_EXIT_CONVERT_OUT);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3853,6 +3879,15 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_ADD_TRIGGER:
          irgen_op_add_trigger(g, i);
+         break;
+      case VCODE_OP_PORT_CONVERSION:
+         irgen_op_port_conversion(g, i);
+         break;
+      case VCODE_OP_CONVERT_IN:
+         irgen_op_convert_in(g, i);
+         break;
+      case VCODE_OP_CONVERT_OUT:
+         irgen_op_convert_out(g, i);
          break;
       default:
          fatal_trace("cannot generate JIT IR for vcode op %s",
