@@ -267,15 +267,10 @@ static void vlog_dump_string(vlog_node_t v)
 
 static void vlog_dump_number(vlog_node_t v)
 {
-   number_t n = vlog_number(v);
+   LOCAL_TEXT_BUF tb = tb_new();
+   number_print(vlog_number(v), tb);
 
-   const int width = number_width(n);
-   print_syntax("%d'b", width);
-
-   for (int i = width - 1; i >= 0; i--) {
-      const char tab[] = "01zx";
-      print_syntax("%c", tab[number_bit(n, i)]);
-   }
+   print_syntax("%s", tb_get(tb));
 }
 
 static void vlog_dump_binary(vlog_node_t v)

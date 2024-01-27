@@ -24,10 +24,10 @@
 #include <stdint.h>
 
 typedef enum {
-   LOGIC_0,
-   LOGIC_1,
-   LOGIC_Z,
-   LOGIC_X,
+   LOGIC_X = 0b00,
+   LOGIC_Z = 0b01,
+   LOGIC_0 = 0b10,
+   LOGIC_1 = 0b11,
 } vlog_logic_t;
 
 typedef struct _bignum bignum_t;

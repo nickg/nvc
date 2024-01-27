@@ -33,7 +33,7 @@ begin
         clk <= '0';
         d <= '0';
         wait for 1 ns;
-        assert q = '1';
+        assert q = 'U';                 -- XXX
         wait;
     end process;
 

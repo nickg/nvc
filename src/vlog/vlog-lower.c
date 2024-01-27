@@ -195,7 +195,7 @@ static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t decl)
 
    vcode_reg_t size = emit_const(voffset, 1);
    vcode_reg_t count = emit_const(voffset, 1);
-   vcode_reg_t init = emit_const(vlogic, 3);
+   vcode_reg_t init = emit_const(vlogic, 0);
    vcode_reg_t flags = emit_const(voffset, 0);
    vcode_reg_t locus = vlog_debug_locus(decl);
 

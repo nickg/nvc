@@ -37,6 +37,8 @@ typedef struct _bignum {
    uint64_t packed[0];
 } bignum_t;
 
+#define PACKED_ZERO UINT64_C(0xaaaaaaaaaaaaaa)
+
 number_t number_new(const char *str)
 {
    int width = -1;
@@ -74,7 +76,7 @@ number_t number_new(const char *str)
 
       assert(width <= EMBED_WIDTH);
 
-      uint64_t packed = 0;
+      uint64_t packed = PACKED_ZERO;
       for (int i = width; i >= 0; i--) {
          packed <<= 2;
          if (bits & (1 << i))
@@ -91,7 +93,7 @@ number_t number_new(const char *str)
       };
    }
    else if (width <= EMBED_WIDTH) {
-      uint64_t packed = 0;
+      uint64_t packed = PACKED_ZERO;
       for (; *p; p++) {
          switch (radix) {
          case RADIX_BIN:
@@ -139,20 +141,25 @@ void number_print(number_t val, text_buf_t *tb)
 {
    tb_printf(tb, "%u'b", val.width);
 
+   static const char map[] = "xz01";
+
    bool leading = true;
    for (int i = val.width - 1; i >= 0; i--) {
       const int bit = (val.packed >> (i * 2)) & 3;
-      if (leading && bit > 0)
+      if (leading && bit != LOGIC_0)
          leading = false;
       else if (leading)
          continue;
-      tb_printf(tb, "%d", bit);
+      tb_append(tb, map[bit]);
    }
+
+   if (leading)
+      tb_append(tb, '0');
 }
 
 bool number_is_defined(number_t val)
 {
-   return !(val.packed & UINT64_C(0xaaaaaaaaaaaaaa));
+   return (val.packed & PACKED_ZERO) == PACKED_ZERO;
 }
 
 int64_t number_integer(number_t val)
@@ -195,9 +202,9 @@ number_t number_pack(const uint8_t *bits, unsigned width)
 {
    assert(width <= EMBED_WIDTH);
 
-   uint64_t packed = 0;
+   uint64_t packed = PACKED_ZERO;
    for (int i = width - 1; i >= 0; i--) {
-      assert(bits[i] <= LOGIC_X);
+      assert(bits[i] <= 0b11);
       packed <<= 2;
       packed |= bits[i];
    }
