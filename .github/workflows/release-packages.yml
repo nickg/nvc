@@ -48,7 +48,7 @@ jobs:
       - name: Install UVVM
         run: nvc --install uvvm
       - name: 'Upload artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: 'MSYS2 ${{matrix.sys}} package'
           path: contrib/msys2/${{ env.MSYS2_PKG }}
@@ -79,7 +79,7 @@ jobs:
           dpkg-buildpackage -uc -us -b
           mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb
       - name: 'Upload artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: '${{matrix.os}} package'
           path: nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb

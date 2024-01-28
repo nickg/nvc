@@ -27,7 +27,7 @@ jobs:
             mingw-w64-x86_64-tcllib
       - name: Download MSYS2 mingw64 package
         id: download-artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v4
         with:
           workflow: build-test.yml
           workflow_conclusion: success
