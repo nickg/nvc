@@ -3631,28 +3631,45 @@ vcode_reg_t emit_load(vcode_var_t var)
 {
    // Try scanning backwards through the block for another load or store to
    // this variable
+   enum { EAGER, CONSERVATIVE, UNSAFE } state = EAGER;
    vcode_reg_t fold = VCODE_INVALID_REG;
-   bool aliased = false;
    VCODE_FOR_EACH_OP(other) {
-      if (fold == VCODE_INVALID_REG) {
+      switch (state) {
+      case EAGER:
          if (other->kind == VCODE_OP_LOAD && other->address == var)
-            fold = other->result;
+            return other->result;
          else if (other->kind == VCODE_OP_STORE && other->address == var)
-            fold = other->args.items[0];
-      }
+            return other->args.items[0];
+         else if (other->kind == VCODE_OP_FCALL
+                  || other->kind == VCODE_OP_PCALL
+                  || other->kind == VCODE_OP_FILE_READ
+                  || other->kind == VCODE_OP_STORE_INDIRECT
+                  || other->kind == VCODE_OP_DEALLOCATE)
+            state = CONSERVATIVE;   // May write to variable
+         break;
 
-      if (other->kind == VCODE_OP_INDEX && other->address == var)
-         aliased = true;
-      else if (other->kind == VCODE_OP_FCALL || other->kind == VCODE_OP_PCALL)
-         break;   // Nested call captures variables
-      else if (other->kind == VCODE_OP_FILE_READ)
-         break;   // May write to variable
+      case CONSERVATIVE:
+         if (other->kind == VCODE_OP_LOAD && other->address == var
+             && fold == VCODE_INVALID_REG)
+            fold = other->result;
+         else if (other->kind == VCODE_OP_STORE && other->address == var
+                  && fold == VCODE_INVALID_REG)
+            fold = other->args.items[0];
+         else if (other->kind == VCODE_OP_INDEX && other->address == var)
+            state = UNSAFE;
+         else if (other->kind == VCODE_OP_CONTEXT_UPREF && other->hops == 0)
+            state = UNSAFE;   // Nested call captures variables
+         break;
+
+      case UNSAFE:
+         break;
+      }
    }
 
-   var_t *v = vcode_var_data(var);
-
-   if (fold != VCODE_INVALID_REG && !aliased)
+   if (fold != VCODE_INVALID_REG && state != UNSAFE)
       return fold;
+
+   var_t *v = vcode_var_data(var);
 
    op_t *op = vcode_add_op(VCODE_OP_LOAD);
    op->address = var;
