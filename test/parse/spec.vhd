@@ -1,8 +1,8 @@
 entity b is end entity;
 
 entity foo is
-    generic ( a : integer );
-    port ( b : in integer );
+    generic ( a : integer := 2 );
+    port ( b : in integer := 5 );
 end entity;
 
 architecture arch of foo is

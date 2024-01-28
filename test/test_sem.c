@@ -1046,9 +1046,9 @@ START_TEST(test_issue58)
 }
 END_TEST
 
-START_TEST(test_spec)
+START_TEST(test_spec1)
 {
-   input_from_file(TESTDIR "/sem/spec.vhd");
+   input_from_file(TESTDIR "/sem/spec1.vhd");
 
    const error_t expect[] = {
       { 24, "E does not name a component" },
@@ -3253,16 +3253,25 @@ START_TEST(test_config2)
    input_from_file(TESTDIR "/sem/config2.vhd");
 
    const error_t expect[] = {
-      { 55, "generic G in component COMP without a default value has no "
-        "corresponding generic in entity WORK.OTHER" },
+      { 55, "generic G in component COMP has no corresponding generic in "
+        "entity WORK.OTHER" },
       { 55, "generic G2 in component COMP has type BIT which is incompatible "
         "with type REAL in entity WORK.OTHER" },
-      { 55, "port I in component COMP without a default value has no "
-        "corresponding port in entity WORK.OTHER" },
-      { 55, "port O in component COMP without a default value has no "
-        "corresponding port in entity WORK.OTHER" },
+      { 55, "generic GG in entity WORK.OTHER without a default value has no "
+        "corresponding generic in component COMP" },
+      { 55, "port I in component COMP has no corresponding port in entity "
+        "WORK.OTHER" },
+      { 55, "port O in component COMP has no corresponding port in entity " },
+      { 55, "port K in component COMP has no corresponding port in entity " },
       { 55, "port ZZ in component COMP has type REAL which is incompatible "
         "with type INTEGER in entity WORK.OTHER" },
+      { 55, "port II in entity WORK.OTHER without a default value has no "
+        "corresponding port in component COMP" },
+      { 55, "port OO in entity WORK.OTHER without a default value has no "
+        "corresponding port in component COMP" },
+      { 58, "port K in component COMP has no corresponding port in entity "
+        "WORK.SUB" },
+      { 58, "port ZZ in component COMP has no corresponding port in entity " },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3483,6 +3492,27 @@ START_TEST(test_lcs2016_16)
 }
 END_TEST
 
+START_TEST(test_spec2)
+{
+   input_from_file(TESTDIR "/sem/spec2.vhd");
+
+   const error_t expect[] = {
+      { 33, "generic G1 in entity WORK.ENT1 without a default value has no "
+        "corresponding generic in component COMP1" },
+      { 44, "generic G3 in component COMP2 has no corresponding generic in "
+        "entity WORK.ENT1" },
+      { 44, "generic G1 in entity WORK.ENT1 without a default value has no "
+        "corresponding generic in component COMP2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_CONFIGURATION, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3518,7 +3548,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_universal);
    tcase_add_test(tc_core, test_issue52);
    tcase_add_test(tc_core, test_issue58);
-   tcase_add_test(tc_core, test_spec);
+   tcase_add_test(tc_core, test_spec1);
    tcase_add_test(tc_core, test_issue53);
    tcase_add_test(tc_core, test_supersede);
    tcase_add_test(tc_core, test_implicit);
@@ -3647,6 +3677,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue770);
    tcase_add_test(tc_core, test_genpack4);
    tcase_add_test(tc_core, test_lcs2016_16);
+   tcase_add_test(tc_core, test_spec2);
    suite_add_tcase(s, tc_core);
 
    return s;

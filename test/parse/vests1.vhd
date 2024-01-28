@@ -33,7 +33,7 @@ begin
         sigout7 : out time ;
         sigin8  : in  natural := 0 ;
         sigout8 : out natural ;
-        sigin9  : in  positive := 0 ;
+        sigin9  : in  positive := 1 ;
         sigout9 : out positive
         );
     end component;

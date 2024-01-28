@@ -4864,9 +4864,6 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
          break;   // Prevent useless repeated errors
    }
 
-   if (tree_kind(t) == T_BINDING)
-      return ok;
-
    for (int i = 0; i < nformals; i++) {
       if (formals[i].have)
          continue;
@@ -5979,10 +5976,10 @@ static bool sem_check_binding(tree_t t, nametab_t *tab)
 
    tree_t unit = primary_unit_of(tree_ref(t));
    if (tree_kind(unit) == T_ENTITY) {
-      if (!sem_check_generic_map(t, unit, tab))
+      if (tree_genmaps(t) > 0 && !sem_check_generic_map(t, unit, tab))
          return false;
 
-      if (!sem_check_port_map(t, unit, tab))
+      if (tree_params(t) > 0 && !sem_check_port_map(t, unit, tab))
          return false;
    }
 
@@ -6011,133 +6008,192 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
    if (!sem_check(bind, tab))
       return false;
 
-   tree_t entity = primary_unit_of(tree_ref(bind));
+   tree_t unit = tree_ref(bind);
+   if (tree_kind(unit) == T_CONFIGURATION)
+      return true;
+
+   tree_t entity = primary_unit_of(unit);
    assert(tree_kind(entity) == T_ENTITY);
 
    bool ok = true;
 
-   const int c_ngenerics = tree_generics(comp);
-   const int e_ngenerics = tree_generics(entity);
-   const int b_genmaps = tree_genmaps(bind);
+   if (tree_genmaps(bind) == 0) {
+      const int c_ngenerics = tree_generics(comp);
+      const int e_ngenerics = tree_generics(entity);
 
-   for (int i = 0; i < c_ngenerics; i++) {
-      tree_t cg = tree_generic(comp, i);
+      bit_mask_t have;
+      mask_init(&have, e_ngenerics);
 
-      tree_t rebind = NULL;
-      for (int j = 0; rebind == NULL && j < b_genmaps; j++) {
-         tree_t value = tree_value(tree_genmap(bind, j));
-         if (tree_kind(value) == T_REF && tree_ref(value) == cg)
-            rebind = value;
-      }
+      bool have_named = false;
+      for (int i = 0; i < c_ngenerics; i++) {
+         tree_t cg = tree_generic(comp, i);
 
-      if (rebind != NULL)
-         continue;   // Ignore for now
+         int epos = 0;
+         tree_t match = NULL;
+         for (; epos < e_ngenerics; epos++) {
+            tree_t eg = tree_generic(entity, epos);
+            if (tree_ident(eg) == tree_ident(cg)) {
+               match = eg;
+               mask_set(&have, epos);
+               break;
+            }
+         }
 
-      tree_t match = NULL;
-      for (int j = 0; match == NULL && j < e_ngenerics; j++) {
-         tree_t eg = tree_generic(entity, j);
-         if (tree_ident(eg) == tree_ident(cg))
-            match = eg;
-      }
-
-      if (match == NULL) {
-         if (!tree_has_value(cg)) {
+         if (match == NULL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "generic %s in component %s without a default value "
-                        "has no corresponding generic in entity %s",
-                        istr(tree_ident(cg)), istr(tree_ident(comp)),
-                        istr(tree_ident(entity)));
+            diag_printf(d, "generic %s in component %s has no corresponding "
+                        "generic in entity %s", istr(tree_ident(cg)),
+                        istr(tree_ident(comp)), istr(tree_ident(entity)));
             diag_hint(d, tree_loc(cg), "generic %s declared here",
                       istr(tree_ident(cg)));
             diag_emit(d);
+
+            ok = false;
+            continue;
          }
 
-         ok = false;
-         continue;
+         type_t ctype = tree_type(cg);
+         type_t etype = tree_type(match);
+         if (!type_eq(ctype, etype)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "generic %s in component %s has type %s which is "
+                        "incompatible with type %s in entity %s",
+                        istr(tree_ident(cg)), istr(tree_ident(comp)),
+                        type_pp2(ctype, etype), type_pp2(etype, ctype),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(cg), "declaration of generic %s in component",
+                      istr(tree_ident(cg)));
+            diag_hint(d, tree_loc(match), "declaration of generic %s in entity",
+                      istr(tree_ident(match)));
+            diag_emit(d);
+
+            ok = false;
+            continue;
+         }
+
+         tree_t map = tree_new(T_PARAM);
+         tree_set_loc(map, tree_loc(t));
+         tree_set_value(map, make_ref(cg));
+
+         if (!have_named && epos == i) {
+            tree_set_subkind(map, P_POS);
+            tree_set_pos(map, epos);
+         }
+         else {
+            tree_set_subkind(map, P_NAMED);
+            tree_set_name(map, make_ref(match));
+            have_named = true;
+         }
+
+         tree_add_genmap(bind, map);
       }
 
-      type_t ctype = tree_type(cg);
-      type_t etype = tree_type(match);
-      if (!type_eq(ctype, etype)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "generic %s in component %s has type %s which is "
-                     "incompatible with type %s in entity %s",
-                     istr(tree_ident(cg)), istr(tree_ident(comp)),
-                     type_pp2(ctype, etype), type_pp2(etype, ctype),
-                     istr(tree_ident(entity)));
-         diag_hint(d, tree_loc(cg), "declaration of generic %s in component",
-                   istr(tree_ident(cg)));
-         diag_hint(d, tree_loc(match), "declaration of generic %s in entity",
-                   istr(tree_ident(match)));
-         diag_emit(d);
+      for (int i = 0; i < e_ngenerics; i++) {
+         tree_t eg = tree_generic(entity, i);
+         if (!mask_test(&have, i) && !tree_has_value(eg)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "generic %s in entity %s without a default value "
+                        "has no corresponding generic in component %s",
+                        istr(tree_ident(eg)),  istr(tree_ident(entity)),
+                        istr(tree_ident(comp)));
+            diag_hint(d, tree_loc(eg), "generic %s declared here",
+                      istr(tree_ident(eg)));
+            diag_emit(d);
 
-         ok = false;
-         continue;
+            ok = false;
+            continue;
+         }
       }
+
+      mask_free(&have);
    }
 
-   const int c_nports = tree_ports(comp);
-   const int e_nports = tree_ports(entity);
-   const int b_nparams = tree_params(bind);
+   if (tree_params(bind) == 0) {
+      const int c_nports = tree_ports(comp);
+      const int e_nports = tree_ports(entity);
 
-   for (int i = 0; i < c_nports; i++) {
-      tree_t cp = tree_port(comp, i);
+      bit_mask_t have;
+      mask_init(&have, e_nports);
 
-      tree_t rebind = NULL;
-      for (int j = 0; rebind == NULL && j < b_nparams; j++) {
-         tree_t value = tree_value(tree_param(bind, j));
-         if (tree_kind(value) == T_REF && tree_ref(value) == cp)
-            rebind = value;
-      }
+      bool have_named = false;
+      for (int i = 0; i < c_nports; i++) {
+         tree_t cp = tree_port(comp, i);
 
-      if (rebind != NULL)
-         continue;   // Ignore for now
+         int epos = 0;
+         tree_t match = NULL;
+         for (; match == NULL && epos < e_nports; epos++) {
+            tree_t ep = tree_port(entity, epos);
+            if (tree_ident(ep) == tree_ident(cp)) {
+               match = ep;
+               mask_set(&have, epos);
+               break;
+            }
+         }
 
-      tree_t match = NULL;
-      for (int j = 0; match == NULL && j < e_nports; j++) {
-         tree_t ep = tree_port(entity, j);
-         if (tree_ident(ep) == tree_ident(cp))
-            match = ep;
-      }
-
-      if (match == NULL) {
-         const bool open_ok =
-            tree_has_value(cp)
-            || (tree_subkind(cp) == PORT_OUT
-                && !type_is_unconstrained(tree_type(cp)));
-
-         if (!open_ok) {
+         if (match == NULL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "port %s in component %s without a default value "
-                        "has no corresponding port in entity %s",
-                        istr(tree_ident(cp)), istr(tree_ident(comp)),
-                        istr(tree_ident(entity)));
+            diag_printf(d, "port %s in component %s has no corresponding port "
+                        "in entity %s", istr(tree_ident(cp)),
+                        istr(tree_ident(comp)), istr(tree_ident(entity)));
             diag_hint(d, tree_loc(cp), "port %s declared here",
                       istr(tree_ident(cp)));
             diag_emit(d);
+
+            ok = false;
+            continue;
          }
 
-         ok = false;
-         continue;
+         type_t ctype = tree_type(cp);
+         type_t etype = tree_type(match);
+         if (!type_eq(ctype, etype)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "port %s in component %s has type %s which is "
+                        "incompatible with type %s in entity %s",
+                        istr(tree_ident(cp)), istr(tree_ident(comp)),
+                        type_pp2(ctype, etype), type_pp2(etype, ctype),
+                        istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(cp), "declaration of port %s in component",
+                      istr(tree_ident(cp)));
+            diag_hint(d, tree_loc(match), "declaration of port %s in entity",
+                      istr(tree_ident(match)));
+            diag_emit(d);
+
+            ok = false;
+            continue;
+         }
+
+         if (!have_named && epos == i)
+            add_param(bind, make_ref(cp), P_POS, NULL);
+         else {
+            add_param(bind, make_ref(cp), P_NAMED, make_ref(match));
+            have_named = true;
+         }
       }
 
-      type_t ctype = tree_type(cp);
-      type_t etype = tree_type(match);
-      if (!type_eq(ctype, etype)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "port %s in component %s has type %s which is "
-                     "incompatible with type %s in entity %s",
-                     istr(tree_ident(cp)), istr(tree_ident(comp)),
-                     type_pp2(ctype, etype), type_pp2(etype, ctype),
-                     istr(tree_ident(entity)));
-         diag_hint(d, tree_loc(cp), "declaration of port %s in component",
-                   istr(tree_ident(cp)));
-         diag_hint(d, tree_loc(match), "declaration of port %s in entity",
-                   istr(tree_ident(match)));
-         diag_emit(d);
+      for (int i = 0; i < e_nports; i++) {
+         if (mask_test(&have, i))
+            continue;
 
-         ok = false;
-         continue;
+         tree_t ep = tree_port(entity, i);
+
+         const bool open_ok =
+            tree_has_value(ep)
+            || (tree_subkind(ep) == PORT_OUT
+                && !type_is_unconstrained(tree_type(ep)));
+
+         if (!open_ok) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "port %s in entity %s without a default value "
+                        "has no corresponding port in component %s",
+                        istr(tree_ident(ep)), istr(tree_ident(entity)),
+                        istr(tree_ident(comp)));
+            diag_hint(d, tree_loc(ep), "port %s declared here",
+                      istr(tree_ident(ep)));
+            diag_emit(d);
+
+            ok = false;
+            continue;
+         }
       }
    }
 

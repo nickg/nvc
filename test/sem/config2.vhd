@@ -44,7 +44,7 @@ begin
 
     u2: component comp                  -- OK
         generic map (5, '1')
-        port map (x, y);
+        port map (y, x);
 
 end architecture;
 
@@ -53,7 +53,7 @@ end architecture;
 configuration conf of top is
     for test
         for u1 : comp
-            use entity work.other(test);
+            use entity work.other(test);  -- Error
         end for;
         for u2 : comp
             use entity work.sub(test);
