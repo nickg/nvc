@@ -52,7 +52,7 @@ package body verilog is
             when '1' => return '1';
             when '0' => return '0';
             when 'Z' => return 'Z';
-            when others => return 'U';
+            when 'X' => return 'U';
         end case;
     end function;
 

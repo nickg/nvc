@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023 Nick Gasson
+//  Copyright (C) 2023-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@ static inline vcode_type_t vlog_packed_logic_type(void)
    return vtype_uarray(1, vlogic, vlogic);
 }
 
+#if 0
 static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 {
    ident_t unit;
@@ -65,6 +66,7 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 
    return emit_debug_locus(unit, offset);
 }
+#endif
 
 static vcode_reg_t vlog_helper_package(void)
 {
@@ -165,7 +167,7 @@ static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
    case VCODE_TYPE_INT:
       {
          vcode_type_t vlogic = vlog_logic_type();
-         vcode_reg_t one_reg = emit_const(vlogic, 1);
+         vcode_reg_t one_reg = emit_const(vlogic, LOGIC_1);
          assert(vtype_eq(vcode_reg_type(reg), vlogic));
          return emit_cmp(VCODE_CMP_EQ, reg, one_reg);
       }
@@ -176,122 +178,39 @@ static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
    }
 }
 
-static void vlog_lower_signal_decl(lower_unit_t *lu, vlog_node_t decl)
+static vcode_reg_t vlog_lower_integer(lower_unit_t *lu, vlog_node_t expr)
 {
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vsignal = vtype_signal(vlogic);
-   vcode_type_t voffset = vtype_offset();
-
-   const int nranges = vlog_ranges(decl);
-
-   vcode_dim_t *dims = NULL;
-   if (nranges > 0) {
-      dims = xmalloc_array(nranges, sizeof(vcode_dim_t));
-      vsignal = vtype_uarray(nranges, vsignal, vsignal);
+   if (vlog_kind(expr) == V_NUMBER) {
+      number_t n = vlog_number(expr);
+      if (number_is_defined(n)) {
+         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+         return emit_const(vint64, number_integer(n));
+      }
    }
 
-   vcode_var_t var = emit_var(vsignal, vlogic, vlog_ident(decl), VAR_SIGNAL);
-   lower_put_vcode_obj(decl, var, lu);
+   return vlog_lower_to_integer(lu, vlog_lower_rvalue(lu, expr));
+}
 
-   vcode_reg_t size = emit_const(voffset, 1);
-   vcode_reg_t count = emit_const(voffset, 1);
-   vcode_reg_t init = emit_const(vlogic, 0);
-   vcode_reg_t flags = emit_const(voffset, 0);
-   vcode_reg_t locus = vlog_debug_locus(decl);
+static vcode_reg_t vlog_lower_decl_bounds(lower_unit_t *lu, vlog_node_t decl,
+                                          vcode_reg_t data)
+{
+   const int nranges = vlog_ranges(decl);
+   vcode_dim_t *dims LOCAL = xmalloc_array(nranges, sizeof(vcode_dim_t));
 
    for (int i = 0; i < nranges; i++) {
       vlog_node_t r = vlog_range(decl, i);
-      vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(r));
-      vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(r));
 
-      vcode_reg_t ileft_reg = vlog_lower_to_integer(lu, left_reg);
-      vcode_reg_t iright_reg = vlog_lower_to_integer(lu, right_reg);
+      vcode_reg_t left_reg = vlog_lower_integer(lu, vlog_left(r));
+      vcode_reg_t right_reg = vlog_lower_integer(lu, vlog_right(r));
 
-      vcode_reg_t dir_reg = emit_cmp(VCODE_CMP_GT, ileft_reg, iright_reg);
-      vcode_reg_t length_reg =
-         emit_range_length(ileft_reg, iright_reg, dir_reg);
+      vcode_reg_t dir_reg = emit_cmp(VCODE_CMP_GT, left_reg, right_reg);
 
-      count = emit_mul(count, length_reg);
-
+      dims[i].left = left_reg;
+      dims[i].right = right_reg;
       dims[i].dir = dir_reg;
-      dims[i].left = ileft_reg;
-      dims[i].right = iright_reg;
-   }
+   };
 
-   vcode_reg_t nets_reg = emit_init_signal(vlogic, count, size, init, flags,
-                                           locus, VCODE_INVALID_REG);
-
-   if (nranges > 0) {
-      vcode_reg_t wrap_reg = emit_wrap(nets_reg, dims, nranges);
-      emit_store(wrap_reg, var);
-   }
-   else
-      emit_store(nets_reg, var);
-}
-
-static void vlog_lower_decls(lower_unit_t *lu, vlog_node_t scope)
-{
-   const int ndecls = vlog_decls(scope);
-   for (int i = 0; i < ndecls; i++) {
-      vlog_node_t d = vlog_decl(scope, i);
-      switch (vlog_kind(d)) {
-      case V_PORT_DECL:
-      case V_VAR_DECL:
-      case V_NET_DECL:
-         vlog_lower_signal_decl(lu, d);
-         break;
-      default:
-         CANNOT_HANDLE(d);
-      }
-   }
-}
-
-static void vlog_lower_port_map(lower_unit_t *lu, vlog_node_t root, tree_t wrap)
-{
-   const int nparams = tree_params(wrap);
-
-   ident_t to_vhdl_name = ident_new("NVC.VERILOG.TO_VHDL(" T_LOGIC ")U");
-   ident_t to_verilog_name = ident_new("NVC.VERILOG.TO_VERILOG(U)" T_LOGIC);
-
-   vcode_reg_t context_reg = vlog_helper_package();
-
-   vcode_type_t vt_verilog = vlog_logic_type();
-   vcode_type_t vt_vhdl = vtype_int(0, 8);
-
-   vcode_reg_t to_vhdl =
-      emit_closure(to_vhdl_name, context_reg, vt_verilog, vt_vhdl);
-   vcode_reg_t to_verilog =
-      emit_closure(to_verilog_name, context_reg, vt_vhdl, vt_verilog);
-
-   for (int i = 0, pos = 0; i < nparams; i++) {
-      tree_t map = tree_param(wrap, i);
-      assert(tree_subkind(map) == P_POS);
-
-      vlog_node_t port = NULL;
-      while (vlog_kind((port = vlog_decl(root, pos++))) != V_PORT_DECL)
-         ;
-
-      int hops;
-      vcode_var_t var = lower_search_vcode_obj(port, lu, &hops);
-      assert(var != VCODE_INVALID_VAR);
-      assert(hops == 0);
-
-      vcode_reg_t vhdl_reg = lower_lvalue(lu, tree_value(map));
-      vcode_reg_t vlog_reg = emit_load(var);
-
-      vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-
-      if (vlog_subkind(port) == V_PORT_INPUT) {
-         vcode_reg_t conv_reg = emit_port_conversion(to_verilog);
-         emit_convert_out(conv_reg, vlog_reg, count_reg);
-         emit_convert_in(conv_reg, vhdl_reg, count_reg);
-      }
-      else {
-         vcode_reg_t conv_reg = emit_port_conversion(to_vhdl);
-         emit_convert_out(conv_reg, vhdl_reg, count_reg);
-         emit_convert_in(conv_reg, vlog_reg, count_reg);
-      }
-   }
+   return emit_wrap(data, dims, nranges);
 }
 
 static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
@@ -307,10 +226,17 @@ static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
          assert(var != VCODE_INVALID_VAR);
 
+         vcode_reg_t nets_reg;
          if (hops == 0)
-            return emit_load(var);
+            nets_reg = emit_load(var);
          else
-            return emit_load_indirect(emit_var_upref(hops, var));
+            nets_reg = emit_load_indirect(emit_var_upref(hops, var));
+
+         if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY
+             && vlog_ranges(decl) > 0)
+            return vlog_lower_decl_bounds(lu, decl, nets_reg);
+         else
+            return nets_reg;
       }
    default:
       CANNOT_HANDLE(v);
@@ -389,8 +315,13 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
             };
             return emit_wrap(data_reg, dims, 1);
          }
-         else
-            return emit_load_indirect(emit_resolved(nets_reg));
+         else {
+            vcode_reg_t resolved_reg = emit_resolved(nets_reg);
+            if (vlog_ranges(decl) > 0)
+               return vlog_lower_decl_bounds(lu, decl, resolved_reg);
+            else
+               return emit_load_indirect(resolved_reg);
+         }
       }
    case V_EVENT:
       {
@@ -406,7 +337,10 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 
          vcode_type_t vlogic = vlog_logic_type();
 
-         vcode_reg_t const_reg = emit_const(vlogic, ekind == V_EVENT_POSEDGE);
+         const vlog_logic_t level =
+            ekind == V_EVENT_POSEDGE ? LOGIC_1 : LOGIC_0;
+
+         vcode_reg_t const_reg = emit_const(vlogic, level);
          vcode_reg_t value_reg = vlog_lower_rvalue(lu, value);
          vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, value_reg, const_reg);
 
@@ -835,32 +769,47 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
    }
 }
 
-void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent)
+vcode_unit_t vlog_lower(unit_registry_t *ur, tree_t wrap)
 {
    assert(tree_kind(wrap) == T_VERILOG);
 
-   vlog_node_t root = tree_vlog(wrap);
-   assert(vlog_kind(root) == V_ROOT);
+   vlog_node_t mod = tree_vlog(wrap);
+   assert(vlog_kind(mod) == V_MODULE);
 
-   vcode_unit_t context = parent ? get_vcode(parent) : NULL;
+   ident_t name = ident_prefix(vlog_ident(mod), well_known(W_SHAPE), '.');
 
-   ident_t prefix = parent ? vcode_unit_name(context) : lib_name(lib_work());
-   ident_t label = tree_ident(wrap);
-   ident_t name = ident_prefix(prefix, label, '.');
+   vcode_unit_t vu = emit_shape(name, tree_to_object(wrap), NULL);
 
-   vcode_unit_t vu = emit_instance(name, tree_to_object(wrap), context);
-
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   lower_unit_t *lu = lower_unit_new(ur, NULL, vu, NULL, NULL);
    unit_registry_put(ur, lu);
 
-   vlog_lower_decls(lu, root);
-   vlog_lower_port_map(lu, root, wrap);
+   vcode_type_t vlogic = vlog_logic_type();
+   vcode_type_t vsignal = vtype_signal(vlogic);
+
+   const int ndecls = vlog_decls(mod);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(mod, i);
+      switch (vlog_kind(d)) {
+      case V_PORT_DECL:
+      case V_VAR_DECL:
+      case V_NET_DECL:
+         {
+            vcode_var_t var =
+               emit_var(vsignal, vsignal, vlog_ident(d), VAR_SIGNAL);
+            lower_put_vcode_obj(d, var, lu);
+         }
+         break;
+      default:
+         CANNOT_HANDLE(d);
+      }
+   }
 
    emit_return(VCODE_INVALID_REG);
 
-   lower_finished(lu);
+   lower_finished(lu, NULL);
 
-   vlog_lower_concurrent(ur, lu, root);
+   vlog_lower_concurrent(ur, lu, mod);
 
    unit_registry_finalise(ur, lu);
+   return vu;
 }

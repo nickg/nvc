@@ -208,6 +208,7 @@ typedef enum {
    VCODE_UNIT_PACKAGE,
    VCODE_UNIT_PROTECTED,
    VCODE_UNIT_PROPERTY,
+   VCODE_UNIT_SHAPE,
 } vunit_kind_t;
 
 typedef enum {
@@ -312,6 +313,7 @@ vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(vcode_unit_t vu);
 void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset);
 void vcode_set_result(vcode_type_t type);
+void vcode_check_shape(vcode_unit_t vu, vcode_unit_t shape);
 
 void vcode_state_save(vcode_state_t *state);
 void vcode_state_restore(const vcode_state_t *state);
@@ -361,6 +363,7 @@ vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context);
+vcode_unit_t emit_shape(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context);

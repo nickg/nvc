@@ -1064,6 +1064,17 @@ static void dump_instance(tree_t t, int indent)
 
 static void dump_stmt(tree_t t, int indent)
 {
+   switch (tree_kind(t)) {
+   case T_PSL:
+      dump_psl(t, indent);
+      return;
+   case T_VERILOG:
+      vlog_dump(tree_vlog(t), indent);
+      return;
+   default:
+      break;
+   }
+
    tab(indent);
 
    if (tree_has_ident(t)) {
@@ -1366,21 +1377,6 @@ static void dump_stmt(tree_t t, int indent)
          print_syntax("#guarded ");
       dump_stmt(tree_stmt(t, 0), 0);
       return;
-
-   case T_PSL:
-      dump_psl(t, 0);
-      break;
-
-   case T_VERILOG:
-      print_syntax("#block #is\n");
-      dump_generic_map(t, indent + 2, ";\n");
-      dump_port_map(t, indent + 2, ";\n");
-      tab(indent);
-      print_syntax("#begin\n");
-      vlog_dump(tree_vlog(t), indent + 2);
-      tab(indent);
-      print_syntax("#end #block");
-      break;
 
    case T_DUMMY_DRIVER:
       print_syntax("-- dummy driver for ");

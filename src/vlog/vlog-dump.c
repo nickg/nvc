@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023 Nick Gasson
+//  Copyright (C) 2022-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -54,17 +54,6 @@ static void vlog_dump_module(vlog_node_t v, int indent)
       vlog_dump(vlog_stmt(v, i), indent + 2);
 
    print_syntax("#endmodule // %s\n\n", istr(vlog_ident2(v)));
-}
-
-static void vlog_dump_root(vlog_node_t v, int indent)
-{
-   const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
-      vlog_dump(vlog_decl(v, i), indent);
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_dump(vlog_stmt(v, i), indent);
 }
 
 static void vlog_dump_port_decl(vlog_node_t v, int indent)
@@ -158,24 +147,24 @@ static void vlog_dump_seq_block(vlog_node_t v, int indent)
 
 static void vlog_dump_timing(vlog_node_t v, int indent)
 {
-   print_syntax("@(");
-   vlog_dump(vlog_value(v), 0);
-   print_syntax(")\n");
+   vlog_dump(vlog_value(v), indent);
 
    if (vlog_stmts(v) > 0)
-      vlog_dump(vlog_stmt(v, 0), indent + 2);
+      vlog_dump(vlog_stmt(v, 0), 0);
    else
       print_syntax(";\n");
 }
 
 static void vlog_dump_event(vlog_node_t v)
 {
+   print_syntax("@(");
    switch (vlog_subkind(v)) {
    case V_EVENT_POSEDGE: print_syntax("#posedge "); break;
    case V_EVENT_NEGEDGE: print_syntax("#negedge "); break;
    }
 
    vlog_dump(vlog_value(v), 0);
+   print_syntax(") ");
 }
 
 static void vlog_dump_nbassign(vlog_node_t v, int indent)
@@ -285,14 +274,19 @@ static void vlog_dump_binary(vlog_node_t v)
    vlog_dump(vlog_right(v), 0);
 }
 
+static void vlog_dump_delay_control(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("##");
+   vlog_dump(vlog_value(v), 0);
+   print_syntax(" ");
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
    case V_MODULE:
       vlog_dump_module(v, indent);
-      break;
-   case V_ROOT:
-      vlog_dump_root(v, indent);
       break;
    case V_REF:
       print_syntax("%s", istr(vlog_ident(v)));
@@ -344,6 +338,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_BINARY:
       vlog_dump_binary(v);
+      break;
+   case V_DELAY_CONTROL:
+      vlog_dump_delay_control(v, indent);
       break;
    default:
       print_syntax("\n");

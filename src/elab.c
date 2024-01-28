@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -64,6 +64,7 @@ typedef struct _elab_ctx {
    cover_data_t     *cover;
    void             *context;
    driver_set_t     *drivers;
+   hash_t           *shapes;
 } elab_ctx_t;
 
 typedef struct {
@@ -1109,6 +1110,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->out       = ctx->out ?: parent->out;
    ctx->cover     = parent->cover;
    ctx->inst      = ctx->inst ?: parent->inst;
+   ctx->shapes    = parent->shapes;
 }
 
 static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
@@ -1121,9 +1123,9 @@ static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
       return NULL;
 }
 
-static void elab_lower(tree_t b, elab_ctx_t *ctx)
+static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
 {
-   ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
+   ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered, shape,
                                  elab_driver_set(ctx), ctx->cover, b);
 
    if (error_count() > 0)
@@ -1138,7 +1140,7 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
-static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
+static void elab_mixed_port_map(tree_t block, tree_t inst, vlog_node_t mod)
 {
    tree_t comp = tree_ref(inst);
    assert(tree_kind(comp) == T_COMPONENT);
@@ -1151,6 +1153,14 @@ static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
 
    type_t std_logic = ieee_type(IEEE_STD_LOGIC);
 
+#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
+   ident_t to_vhdl_name = ident_new("NVC.VERILOG.TO_VHDL(" T_LOGIC ")U");
+   ident_t to_verilog_name = ident_new("NVC.VERILOG.TO_VERILOG(U)" T_LOGIC);
+
+   tree_t to_vhdl = verilog_func(to_vhdl_name);
+   tree_t to_verilog = verilog_func(to_verilog_name);
+
+   bool have_named = false;
    for (int i = 0; i < ndecls; i++) {
       vlog_node_t mport = vlog_decl(mod, i);
       if (vlog_kind(mport) != V_PORT_DECL)
@@ -1159,12 +1169,13 @@ static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
       ident_t name = vlog_ident2(mport);
 
       int cpos = 0;
-      tree_t cport = NULL;
+      tree_t cport = NULL, bport = NULL;
       for (; cpos < nports; cpos++) {
          tree_t pj = tree_port(comp, cpos);
          if (tree_ident(pj) == name) {
             cport = pj;
             mask_set(&have, cpos);
+            bport = tree_port(block, cpos);   // XXX: need two levels of block
             break;
          }
       }
@@ -1198,7 +1209,39 @@ static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
          return;
       }
 
-      tree_add_param(wrap, map);
+      tree_t value = tree_value(map);
+      const tree_kind_t value_kind = tree_kind(value);
+      if (value_kind == T_TYPE_CONV || value_kind == T_CONV_FUNC) {
+         error_at(tree_loc(map), "type conversions are not supported in port "
+                  "maps when instantiating a Verilog module");
+         return;
+      }
+
+      if (vlog_subkind(mport) == V_PORT_INPUT) {
+         tree_t conv = tree_new(T_CONV_FUNC);
+         tree_set_loc(conv, tree_loc(map));
+         tree_set_ref(conv, to_verilog);
+         tree_set_ident(conv, tree_ident(to_verilog));
+         tree_set_type(conv, type_result(tree_type(to_verilog)));
+         tree_set_value(conv, value);
+
+         if (have_named)
+            add_param(block, conv, P_NAMED, make_ref(bport));
+         else
+            add_param(block, conv, P_POS, NULL);
+      }
+      else {
+         tree_t conv = tree_new(T_CONV_FUNC);
+         tree_set_loc(conv, tree_loc(map));
+         tree_set_ref(conv, to_vhdl);
+         tree_set_ident(conv, tree_ident(to_vhdl));
+         tree_set_type(conv, type_result(tree_type(to_vhdl)));
+         tree_set_value(conv, make_ref(bport));
+
+         add_param(block, value, P_NAMED, conv);
+         have_named = true;
+      }
+
       cpos++;
    }
 
@@ -1215,29 +1258,34 @@ static void elab_mixed_port_map(tree_t wrap, tree_t inst, vlog_node_t mod)
    mask_free(&have);
 }
 
-static void elab_verilog_module(tree_t wrap, tree_t inst, const elab_ctx_t *ctx)
+static void elab_verilog_module(tree_t wrap, tree_t inst, elab_ctx_t *ctx)
 {
    vlog_node_t mod = tree_vlog(wrap);
 
-   vlog_node_t root = vlog_new(V_ROOT);
-   vlog_set_loc(root, tree_loc(wrap));
-   vlog_set_ident(root, tree_ident(wrap));
+   vcode_unit_t shape = hash_get(ctx->shapes, mod);
+   if (shape == NULL) {
+      shape = vlog_lower(ctx->registry, wrap);
+      hash_put(ctx->shapes, mod, shape);
+   }
 
-   const int ndecls = vlog_decls(mod);
-   for (int i = 0; i < ndecls; i++)
-      vlog_add_decl(root, vlog_decl(mod, i));
-
-   if (inst != NULL)
-      elab_mixed_port_map(wrap, inst, mod);
+   vlog_trans(mod, ctx->out);
 
    const int nstmts = vlog_stmts(mod);
-   for (int i = 0; i < nstmts; i++)
-      vlog_add_stmt(root, vlog_stmt(mod, i));
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(mod, i);
 
-   tree_set_vlog(wrap, root);
-   tree_add_stmt(ctx->out, wrap);
+      tree_t w = tree_new(T_VERILOG);
+      tree_set_ident(w, vlog_ident(s));
+      tree_set_loc(w, vlog_loc(s));
+      tree_set_vlog(w, s);
 
-   vlog_lower(ctx->registry, wrap, ctx->parent ? ctx->parent->lowered : NULL);
+      tree_add_stmt(ctx->out, w);
+   }
+
+   if (inst != NULL)
+      elab_mixed_port_map(ctx->out, inst, mod);
+
+   elab_lower(ctx->out, shape, ctx);
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1287,11 +1335,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                   tree_kind_str(tree_kind(ref)));
    }
 
-   if (arch != NULL && tree_kind(arch) == T_VERILOG) {
-      elab_verilog_module(arch, t, &new_ctx);
-      return;
-   }
-
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
    tree_set_loc(b, tree_loc(t));
@@ -1307,8 +1350,14 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       elab_ports(ref, ref, t, &new_ctx);
 
       if (error_count() == 0)
-         elab_lower(b, &new_ctx);
+         elab_lower(b, NULL, &new_ctx);
 
+      elab_pop_scope(&new_ctx);
+      return;
+   }
+   else if (tree_kind(arch) == T_VERILOG) {
+      elab_push_scope(arch, &new_ctx);
+      elab_verilog_module(arch, t, &new_ctx);
       elab_pop_scope(&new_ctx);
       return;
    }
@@ -1343,7 +1392,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    if (error_count() == 0) {
       new_ctx.drivers = find_drivers(arch_copy);
-      elab_lower(b, &new_ctx);
+      elab_lower(b, NULL, &new_ctx);
       elab_stmts(entity, &new_ctx);
       elab_stmts(arch_copy, &new_ctx);
    }
@@ -1531,7 +1580,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          elab_decls(copy, &new_ctx);
 
       if (error_count() == 0) {
-         elab_lower(b, &new_ctx);
+         elab_lower(b, NULL, &new_ctx);
          elab_stmts(copy, &new_ctx);
       }
 
@@ -1585,7 +1634,7 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          new_ctx.drivers = find_drivers(cond);
 
          if (error_count() == 0) {
-            elab_lower(b, &new_ctx);
+            elab_lower(b, NULL, &new_ctx);
             elab_stmts(cond, &new_ctx);
          }
 
@@ -1628,7 +1677,7 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    new_ctx.drivers = find_drivers(chosen);
 
    if (error_count() == 0) {
-      elab_lower(b, &new_ctx);
+      elab_lower(b, NULL, &new_ctx);
       elab_stmts(chosen, &new_ctx);
    }
 
@@ -1716,7 +1765,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_decls(t, &new_ctx);
 
    if (error_count() == base_errors) {
-      elab_lower(b, &new_ctx);
+      elab_lower(b, NULL, &new_ctx);
       elab_stmts(t, &new_ctx);
    }
 
@@ -1830,11 +1879,43 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
       elab_decls(arch_copy, &new_ctx);
 
    if (error_count() == 0) {
-      elab_lower(b, &new_ctx);
+      elab_lower(b, NULL, &new_ctx);
       elab_stmts(entity, &new_ctx);
       elab_stmts(arch_copy, &new_ctx);
    }
 
+   elab_pop_scope(&new_ctx);
+}
+
+static void elab_verilog_top_level(vlog_node_t mod, const elab_ctx_t *ctx)
+{
+   tree_t wrap = tree_new(T_VERILOG);
+   tree_set_loc(wrap, vlog_loc(mod));
+   tree_set_ident(wrap, vlog_ident(mod));
+   tree_set_vlog(wrap, mod);
+
+   ident_t base = ident_rfrom(vlog_ident(mod), '.');
+
+   const char *name = simple_name(istr(base));
+   ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(verilog)", name);
+   ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, base);
+   tree_set_loc(b, vlog_loc(mod));
+
+   tree_add_stmt(ctx->out, b);
+
+   elab_ctx_t new_ctx = {
+      .out       = b,
+      .path_name = npath,
+      .inst_name = ninst,
+      .dotted    = vlog_ident(mod),
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   elab_push_scope(wrap, &new_ctx);
+   elab_verilog_module(wrap, NULL, &new_ctx);
    elab_pop_scope(&new_ctx);
 }
 
@@ -1885,6 +1966,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
       .library   = lib_work(),
       .jit       = jit,
       .registry  = ur,
+      .shapes    = hash_new(16),
    };
 
    if (vhdl != NULL) {
@@ -1908,14 +1990,10 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
          fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
       }
    }
-   else {
-      tree_t wrap = tree_new(T_VERILOG);
-      tree_set_loc(wrap, vlog_loc(vlog));
-      tree_set_ident(wrap, vlog_ident(vlog));
-      tree_set_vlog(wrap, vlog);
+   else
+      elab_verilog_top_level(vlog, &ctx);
 
-      elab_verilog_module(wrap, NULL, &ctx);
-   }
+   hash_free(ctx.shapes);
 
    if (error_count() > 0)
       return NULL;

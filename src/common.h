@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -172,6 +172,15 @@ typedef enum {
 type_t ieee_type(ieee_type_t which);
 
 typedef enum {
+   VERILOG_LOGIC,
+   VERILOG_PACKED_LOGIC,
+   VERILOG_INT64,
+} verilog_type_t;
+
+type_t verilog_type(verilog_type_t which);
+tree_t verilog_func(ident_t mangled);
+
+typedef enum {
    REFLECT_VALUE_MIRROR,
    REFLECT_SUBTYPE_MIRROR,
 } reflect_type_t;
@@ -232,6 +241,7 @@ typedef enum {
    W_VITAL,
    W_NEVER_WAITS,
    W_NVC_VERILOG,
+   W_SHAPE,
 
    NUM_WELL_KNOWN
 } well_known_t;

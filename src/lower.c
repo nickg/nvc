@@ -9797,7 +9797,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    }
 }
 
-void lower_finished(lower_unit_t *lu)
+void lower_finished(lower_unit_t *lu, vcode_unit_t shape)
 {
    assert(!lu->finished);
 
@@ -9806,6 +9806,9 @@ void lower_finished(lower_unit_t *lu)
 
    if (opt_get_verbose(OPT_DUMP_VCODE, istr(lu->name)))
       vcode_dump();
+
+   if (shape != NULL)
+      vcode_check_shape(lu->vunit, shape);
 
    lu->finished = true;
 }
@@ -11211,7 +11214,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    cover_pop_scope(lu->cover);
 
-   lower_finished(lu);
+   lower_finished(lu, NULL);
    unit_registry_finalise(parent->registry, lu);
 }
 
@@ -12542,7 +12545,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
    if (!vcode_block_finished())
       emit_return(emit_const(vint, -1));
 
-   lower_finished(lu);
+   lower_finished(lu, NULL);
    lower_unit_free(lu);
 
    return thunk;
@@ -12589,7 +12592,7 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
    else
       emit_return(result_reg);
 
-   lower_finished(lu);
+   lower_finished(lu, NULL);
    lower_unit_free(lu);
 
    if (vcode_unit_has_undefined(thunk)) {
@@ -12602,8 +12605,8 @@ vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
 }
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             driver_set_t *ds, cover_data_t *cover,
-                             tree_t block)
+                             vcode_unit_t shape, driver_set_t *ds,
+                             cover_data_t *cover, tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
 
@@ -12635,7 +12638,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    emit_return(VCODE_INVALID_REG);
 
-   lower_finished(lu);
+   lower_finished(lu, shape);
    return lu;
 }
 
@@ -12817,7 +12820,7 @@ void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
    assert(pointer_tag(hash_get(ur->map, lu->name)) == UNIT_GENERATED);
 
    if (!lu->finished)
-      lower_finished(lu);
+      lower_finished(lu, NULL);
 
    if (lu->deferred > 0)
       return;

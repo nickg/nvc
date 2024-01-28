@@ -414,52 +414,6 @@ static void global_event(rt_model_t *m, rt_event_t kind)
    }
 }
 
-static rt_scope_t *scope_for_verilog(rt_model_t *m, vlog_node_t scope,
-                                     ident_t prefix)
-{
-   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where    = NULL;
-   s->name     = ident_prefix(prefix, vlog_ident(scope), '.');
-   s->kind     = SCOPE_INSTANCE;
-   s->privdata = mptr_new(m->mspace, "block privdata");
-
-   hash_put(m->scopes, scope, s);
-
-   const int nstmts = vlog_stmts(scope);
-   for (int i = 0; i < nstmts; i++) {
-      vlog_node_t v = vlog_stmt(scope, i);
-      switch (vlog_kind(v)) {
-      case V_ALWAYS:
-      case V_INITIAL:
-      case V_ASSIGN:
-         {
-            ident_t name = vlog_ident(v);
-            ident_t sym = ident_prefix(s->name, name, '.');
-
-            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
-            p->where     = NULL;
-            p->name      = ident_prefix(NULL, ident_downcase(name), ':');
-            p->handle    = jit_lazy_compile(m->jit, sym);
-            p->scope     = s;
-            p->privdata  = mptr_new(m->mspace, "process privdata");
-
-            p->wakeable.kind      = W_PROC;
-            p->wakeable.pending   = false;
-            p->wakeable.postponed = false;
-            p->wakeable.delayed   = false;
-
-            list_add(&s->procs, p);
-         }
-         break;
-
-      default:
-         break;
-      }
-   }
-
-   return s;
-}
-
 static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 {
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
@@ -489,9 +443,27 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
 
       case T_VERILOG:
          {
-            rt_scope_t *c = scope_for_verilog(m, tree_vlog(t), s->name);
-            c->parent = s;
-            list_add(&s->children, c);
+            vlog_node_t mod = tree_vlog(tree_ref(hier));
+            assert(vlog_kind(mod) == V_MODULE);
+
+            ident_t name = tree_ident(t);
+            ident_t suffix = well_known(W_SHAPE);
+            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
+            ident_t sym = ident_prefix(shape, name, '.');
+
+            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+            p->where     = t;
+            p->name      = ident_prefix(path, ident_downcase(name), ':');
+            p->handle    = jit_lazy_compile(m->jit, sym);
+            p->scope     = s;
+            p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = false;
+            p->wakeable.delayed   = false;
+
+            list_add(&s->procs, p);
          }
          break;
 
@@ -573,13 +545,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
 
    m->threads[thread_id()] = xcalloc(sizeof(model_thread_t));
 
-   rt_scope_t *s = NULL;
-   tree_t s0 = tree_stmt(top, 0);
-   if (tree_kind(s0) == T_VERILOG)
-      s = scope_for_verilog(m, tree_vlog(s0), lib_name(lib_work()));
-   else
-      s = scope_for_block(m, s0, lib_name(lib_work()));
-
+   rt_scope_t *s = scope_for_block(m, tree_stmt(top, 0), lib_name(lib_work()));
    list_add(&m->root->children, s);
 
    __trace_on = opt_get_int(OPT_RT_TRACE);

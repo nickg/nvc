@@ -1182,6 +1182,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    case VCODE_UNIT_PACKAGE:   printf("package"); break;
    case VCODE_UNIT_PROTECTED: printf("protected"); break;
    case VCODE_UNIT_PROPERTY:  printf("property"); break;
+   case VCODE_UNIT_SHAPE:     printf("shape"); break;
    }
    color_printf("$$\n");
    if (vu->context != NULL)
@@ -3068,7 +3069,8 @@ vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
 
 vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   assert(context->kind == VCODE_UNIT_INSTANCE);
+   assert(context->kind == VCODE_UNIT_INSTANCE
+          || context->kind == VCODE_UNIT_SHAPE);
 
    vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROCESS;
@@ -3094,6 +3096,29 @@ vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context)
 
    vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_INSTANCE;
+   vu->name     = name;
+   vu->context  = context;
+   vu->depth    = vcode_unit_calc_depth(vu);
+   vu->result   = VCODE_INVALID_TYPE;
+
+   object_locus(obj, &vu->module, &vu->offset);
+
+   if (context != NULL)
+      vcode_add_child(context, vu);
+
+   vcode_select_unit(vu);
+   vcode_select_block(emit_block());
+   emit_debug_info(&(obj->loc));
+
+   return vu;
+}
+
+vcode_unit_t emit_shape(ident_t name, object_t *obj, vcode_unit_t context)
+{
+   assert(context == NULL || context->kind == VCODE_UNIT_SHAPE);
+
+   vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
+   vu->kind     = VCODE_UNIT_SHAPE;
    vu->name     = name;
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
@@ -5955,6 +5980,61 @@ void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
          }
       }
    }
+}
+
+#ifdef DEBUG
+static void shape_mismatch(vcode_unit_t vu, vcode_unit_t shape,
+                           const char *fmt, ...)
+{
+   vcode_select_unit(vu);
+   vcode_dump();
+
+   vcode_select_unit(shape);
+   vcode_dump();
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "instance %s does not match shape %s", istr(vu->name),
+               istr(shape->name));
+   diag_stacktrace(d, true);
+   diag_vhint(d, NULL, fmt, ap);
+   diag_emit(d);
+
+   va_end(ap);
+
+   fatal_exit(1);
+}
+#endif
+
+void vcode_check_shape(vcode_unit_t vu, vcode_unit_t shape)
+{
+#ifdef DEBUG
+   assert(shape->kind == VCODE_UNIT_SHAPE);
+   assert(vu->kind == VCODE_UNIT_INSTANCE);
+
+   if (shape->vars.count <= vu->vars.count) {
+      for (int i = 0; i < shape->vars.count; i++) {
+         var_t *v = var_array_nth_ptr(&(vu->vars), i);
+         var_t *s = var_array_nth_ptr(&(shape->vars), i);
+
+         if (v->name != s->name)
+            shape_mismatch(vu, shape, "var %d name %s != %s", i, istr(v->name),
+                           istr(s->name));
+         else if (v->flags != s->flags)
+            shape_mismatch(vu, shape, "var %d flags %x != %x", i, v->flags,
+                           s->flags);
+         // XXX: not possible to compare types at the moment
+      }
+   }
+   else
+      shape_mismatch(vu, shape, "shape vars %d > unit vars %d",
+                     shape->vars.count, vu->vars.count);
+
+   if (shape->context != NULL)
+      vcode_check_shape(vu->context, shape->context);
+#endif
 }
 
 #if VCODE_CHECK_UNIONS

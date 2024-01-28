@@ -58,7 +58,6 @@ typedef enum {
    V_NUMBER,
    V_NET_DECL,
    V_ASSIGN,
-   V_ROOT,
    V_DIMENSION,
    V_IF,
    V_COND,

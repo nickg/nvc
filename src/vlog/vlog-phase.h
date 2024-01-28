@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022 Nick Gasson
+//  Copyright (C) 2022-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ void vlog_preprocess(text_buf_t *tb);
 vlog_node_t vlog_parse(void);
 void vlog_check(vlog_node_t v);
 void vlog_dump(vlog_node_t v, int indent);
-void vlog_lower(unit_registry_t *ur, tree_t wrap, lower_unit_t *parent);
+void vlog_trans(vlog_node_t mod, tree_t out);
+vcode_unit_t vlog_lower(unit_registry_t *ur, tree_t wrap);
 
 #endif  // _VLOG_PHASE_H

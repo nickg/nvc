@@ -463,8 +463,7 @@ START_TEST(test_vlog1)
              "  input clk;\n"
              "  input rstb;\n"
              "  output reg q;\n"
-             "  always @(posedge clk)\n"
-             "    q <= d;\n"
+             "  always @(posedge clk) q <= d;\n"
              "endmodule // dff\n\n");
    tb_rewind(tb);
 
@@ -482,6 +481,7 @@ START_TEST(test_vlog1)
              "      r <= 5'b1 | r;\n"
              "    $finish;\n"
              "    r = 5'b1;\n"
+             "    #5'b1 r <= 5'b0;\n"
              "  end\n"
              "  assign bus = 5'b11;\n"
              "endmodule // mod2\n\n");

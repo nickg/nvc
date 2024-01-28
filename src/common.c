@@ -1070,6 +1070,7 @@ void intern_strings(void)
    id_cache[W_NEVER_WAITS]     = ident_new("NEVER_WAITS");
    id_cache[W_NVC_VERILOG]     = ident_new("NVC.VERILOG");
    id_cache[W_NVC_PSL_SUPPORT] = ident_new("NVC.PSL_SUPPORT");
+   id_cache[W_SHAPE]           = ident_new("shape");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
@@ -1305,6 +1306,37 @@ type_t ieee_type(ieee_type_t which)
       return cache[which];
 }
 
+static tree_t cached_verilog(void)
+{
+   static tree_t verilog_cache[STD_19 + 1] = {};
+   return cached_unit(NULL, verilog_cache, W_NVC, W_NVC_VERILOG);
+}
+
+type_t verilog_type(verilog_type_t which)
+{
+   static type_t cache[VERILOG_INT64 + 1] = {};
+   assert(which < ARRAY_LEN(cache));
+
+   if (cache[which] == NULL) {
+      const char *names[] = {
+         "T_LOGIC",
+         "T_PACKED_LOGIC",
+         "T_INT64",
+      };
+
+      tree_t d = search_decls(cached_verilog(), ident_new(names[which]), 0);
+      if (d == NULL)
+         fatal_trace("cannot find NVC.VERILOG type %s", names[which]);
+
+      // STD.STANDARD cannot depend on NVC.VERILOG
+      assert(!opt_get_int(OPT_BOOTSTRAP));
+
+      return (cache[which] = tree_type(d));
+   }
+   else
+      return cache[which];
+}
+
 type_t reflection_type(reflect_type_t which)
 {
    static type_t cache[REFLECT_SUBTYPE_MIRROR + 1] = {};
@@ -1408,6 +1440,20 @@ tree_t std_func(ident_t mangled)
    }
 
    return NULL;
+}
+
+tree_t verilog_func(ident_t mangled)
+{
+   tree_t pack = cached_verilog();
+
+   const int ndecls = tree_decls(pack);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(pack, i);
+      if (is_subprogram(d) && tree_ident2(d) == mangled)
+         return d;
+   }
+
+   fatal_trace("missing Verilog helper function %s", istr(mangled));
 }
 
 tree_t name_to_ref(tree_t name)
@@ -2270,7 +2316,7 @@ void print_syntax(const char *fmt, ...)
             last_was_newline = true;
          }
       }
-      else if (*p == '#') {
+      else if (*p == '#' && *(p + 1) != '#') {
          tb_printf(tb, "$bold$$cyan$");
          last_was_newline = false;
          highlighting = true;

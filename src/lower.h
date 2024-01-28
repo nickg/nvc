@@ -43,7 +43,7 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t vunit, cover_data_t *cover,
                              tree_t container);
 void lower_unit_free(lower_unit_t *lu);
-void lower_finished(lower_unit_t *lu);
+void lower_finished(lower_unit_t *lu, vcode_unit_t shape);
 
 vcode_unit_t get_vcode(lower_unit_t *lu);
 
@@ -51,8 +51,8 @@ vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             driver_set_t *ds, cover_data_t *cover,
-                             tree_t block);
+                             vcode_unit_t shape, driver_set_t *ds,
+                             cover_data_t *cover, tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds);
 vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t fcall);
 vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t);

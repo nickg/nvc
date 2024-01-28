@@ -1266,7 +1266,9 @@ static void irgen_op_return(jit_irgen_t *g, int op)
 
       if (g->used_tlab && !vcode_unit_has_escaping_tlab(g->func->unit))
          macro_trim(g);
+      break;
 
+   case VCODE_UNIT_SHAPE:
       break;
    }
 
@@ -3911,6 +3913,7 @@ static void irgen_locals(jit_irgen_t *g)
    case VCODE_UNIT_PROCEDURE:
    case VCODE_UNIT_PACKAGE:
    case VCODE_UNIT_PROTECTED:
+   case VCODE_UNIT_SHAPE:
       on_stack = false;
       break;
    default:
