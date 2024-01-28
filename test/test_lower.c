@@ -5868,6 +5868,49 @@ START_TEST(test_directmap5)
 }
 END_TEST
 
+START_TEST(test_issue837)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue837.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE837.B");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "STR" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "WORK.PACK.EXPENSIVE(S)I" },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_CONST, .value = 12 },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ALIAS_SIGNAL },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "P" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "S" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6009,6 +6052,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap4);
    tcase_add_test(tc, test_subtype2);
    tcase_add_test(tc, test_directmap5);
+   tcase_add_test(tc, test_issue837);
    suite_add_tcase(s, tc);
 
    return s;
