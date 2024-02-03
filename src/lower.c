@@ -12284,8 +12284,8 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
          break;
       case T_OPEN:
          assert(tree_has_value(g));
-         value_reg = lower_rvalue(lu, tree_value(g));
-         break;
+         value = tree_value(g);
+         // Fall-through
       default:
          value_reg = lower_rvalue(lu, value);
          break;
