@@ -5939,6 +5939,63 @@ START_TEST(test_issue837)
 }
 END_TEST
 
+START_TEST(test_directmap6)
+{
+   input_from_file(TESTDIR "/lower/directmap6.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.DIRECTMAP6.U");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ALIAS_SIGNAL },
+         { VCODE_OP_STORE, .name = "I" },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ALIAS_SIGNAL },
+         { VCODE_OP_STORE, .name = "O" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_MAP_CONST },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.DIRECTMAP6.U.SUB");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "I" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "O" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ALIAS_SIGNAL },
+         { VCODE_OP_STORE, .name = "II" },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ALIAS_SIGNAL },
+         { VCODE_OP_STORE, .name = "OO" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_MAP_CONST },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6081,6 +6138,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_subtype2);
    tcase_add_test(tc, test_directmap5);
    tcase_add_test(tc, test_issue837);
+   tcase_add_test(tc, test_directmap6);
    suite_add_tcase(s, tc);
 
    return s;

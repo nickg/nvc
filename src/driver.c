@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -263,12 +263,25 @@ static void visit_block(driver_set_t *ds, tree_t b, bool tentative)
 
 }
 
-driver_set_t *find_drivers(tree_t block)
+driver_set_t *find_drivers(tree_t where)
 {
    driver_set_t *ds = xcalloc(sizeof(driver_set_t));
    ds->map = hash_new(128);
 
-   visit_block(ds, block, false);
+   switch (tree_kind(where)) {
+   case T_ARCH:
+   case T_BLOCK:
+   case T_FOR_GENERATE:
+   case T_COND_STMT:
+   case T_ALTERNATIVE:
+      visit_block(ds, where, false);
+      break;
+   case T_BINDING:
+      visit_port_map(ds, primary_unit_of(tree_ref(where)), where, false);
+      break;
+   default:
+      fatal_trace("cannot find drivers in %s", tree_kind_str(tree_kind(where)));
+   }
 
    if (opt_get_int(OPT_DRIVER_VERBOSE))
       dump_drivers(ds);

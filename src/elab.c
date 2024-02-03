@@ -1333,6 +1333,9 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_generics(comp, inst, &new_ctx);
    elab_ports(comp, inst, &new_ctx);
 
+   if (bind != NULL && tree_kind(bind) != T_VERILOG)   // XXX: temporary
+      new_ctx.drivers = find_drivers(bind);
+
    if (error_count() == 0)
       elab_lower(b, NULL, &new_ctx);
 
