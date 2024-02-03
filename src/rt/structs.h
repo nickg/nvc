@@ -104,7 +104,8 @@ typedef struct {
 } rt_driver_t;
 
 typedef struct {
-   ffi_closure_t closure;
+   ffi_closure_t driving;
+   ffi_closure_t effective;
    unsigned      ninputs;
    unsigned      maxinputs;
    rt_nexus_t  **inputs;

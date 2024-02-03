@@ -94,7 +94,8 @@ void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
 void *x_function_trigger(const ffi_closure_t *closure);
 void x_add_trigger(void *ptr);
-void *x_port_conversion(const ffi_closure_t *closure);
+void *x_port_conversion(const ffi_closure_t *driving,
+                        const ffi_closure_t *effective);
 void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 

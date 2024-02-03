@@ -933,3 +933,4 @@ issue843        normal,2008
 bounds43        fail,gold
 signal35        normal,2008
 comp3           normal
+conv13          normal

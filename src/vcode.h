@@ -528,7 +528,7 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
                                  vcode_reg_t locus, vcode_reg_t bounds);
 vcode_reg_t emit_function_trigger(vcode_reg_t closure);
 void emit_add_trigger(vcode_reg_t trigger);
-vcode_reg_t emit_port_conversion(vcode_reg_t closure);
+vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective);
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 

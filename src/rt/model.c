@@ -1700,7 +1700,7 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
       copy_sub_signal_sources(s, buf, stride);
 }
 
-static void *call_conversion(rt_conv_func_t *cf, value_fn_t fn)
+static void *convert_driving(rt_conv_func_t *cf)
 {
    rt_model_t *m = get_model();
 
@@ -1713,18 +1713,47 @@ static void *call_conversion(rt_conv_func_t *cf, value_fn_t fn)
    for (int i = 0; i < cf->ninputs; i++) {
       rt_nexus_t *n = cf->inputs[i];
       memcpy(cf->inbuf + n->signal->offset + n->offset,
-             (*fn)(n), n->size * n->width);
+             driving_value(n), n->size * n->width);
    }
 
    TRACE("call conversion function %s insz=%zu outsz=%zu",
-         istr(jit_get_name(m->jit, cf->closure.handle)), cf->insz, cf->outsz);
+         istr(jit_get_name(m->jit, cf->driving.handle)), cf->insz, cf->outsz);
 
-   jit_scalar_t context = { .pointer = cf->closure.context };
-   if (!jit_try_call_packed(m->jit, cf->closure.handle, context,
+   jit_scalar_t context = { .pointer = cf->driving.context };
+   if (!jit_try_call_packed(m->jit, cf->driving.handle, context,
                             cf->inbuf, cf->insz, cf->outbuf, cf->outsz))
       m->force_stop = true;
 
    return cf->outbuf;
+}
+
+static void *convert_effective(rt_conv_func_t *cf)
+{
+   rt_model_t *m = get_model();
+
+   if (unlikely(cf->inbuf == NULL))
+      cf->inbuf = static_alloc(m, cf->insz);
+
+   if (unlikely(cf->outbuf == NULL))
+      cf->outbuf = static_alloc(m, cf->outsz);
+
+   for (rt_source_t *o = cf->outputs;
+        o != NULL && o->u.port.conv_func == cf;
+        o = o->chain_output) {
+      rt_nexus_t *n = o->u.port.output;
+      memcpy(cf->inbuf + n->signal->offset + n->offset,
+             nexus_effective(n), n->size * n->width);
+   }
+
+   TRACE("call conversion function %s insz=%zu outsz=%zu",
+         istr(jit_get_name(m->jit, cf->effective.handle)), cf->insz, cf->outsz);
+
+   jit_scalar_t context = { .pointer = cf->effective.context };
+   if (!jit_try_call_packed(m->jit, cf->effective.handle, context,
+                            cf->outbuf, cf->outsz, cf->inbuf, cf->insz))
+      m->force_stop = true;
+
+   return cf->inbuf;
 }
 
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
@@ -1740,7 +1769,7 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
       if (likely(src->u.port.conv_func == NULL))
          return driving_value(src->u.port.input);
       else
-         return call_conversion(src->u.port.conv_func, driving_value)
+         return convert_driving(src->u.port.conv_func)
             + nexus->signal->offset + nexus->offset;
 
    case SOURCE_FORCING:
@@ -1893,7 +1922,7 @@ static void *driving_value(rt_nexus_t *nexus)
          if (likely(s->u.port.conv_func == NULL))
             return driving_value(s->u.port.input);
          else
-            return call_conversion(s->u.port.conv_func, driving_value)
+            return convert_driving(s->u.port.conv_func)
                + nexus->signal->offset + nexus->offset;
 
       case SOURCE_FORCING:
@@ -1943,7 +1972,8 @@ static const void *effective_value(rt_nexus_t *nexus)
             if (likely(s->u.port.conv_func == NULL))
                return effective_value(s->u.port.output);
             else
-               return nexus_effective(nexus);
+               return convert_effective(s->u.port.conv_func)
+                  + nexus->signal->offset + nexus->offset;
          }
       }
    }
@@ -4224,15 +4254,21 @@ void x_add_trigger(void *ptr)
    obj->trigger = ptr;
 }
 
-void *x_port_conversion(const ffi_closure_t *closure)
+void *x_port_conversion(const ffi_closure_t *driving,
+                        const ffi_closure_t *effective)
 {
    rt_model_t *m = get_model();
 
    TRACE("port conversion %s context %p",
-         istr(jit_get_name(m->jit, closure->handle)), closure->context);
+         istr(jit_get_name(m->jit, driving->handle)), driving->context);
+
+   if (effective->handle != JIT_HANDLE_INVALID)
+      TRACE("effective value conversion %s context %p",
+            istr(jit_get_name(m->jit, effective->handle)), effective->context);
 
    rt_conv_func_t *cf = static_alloc(m, sizeof(rt_conv_func_t));
-   cf->closure   = *closure;
+   cf->driving   = *driving;
+   cf->effective = *effective;
    cf->ninputs   = 0;
    cf->maxinputs = 0;
    cf->outputs   = NULL;

@@ -3461,11 +3461,23 @@ static void irgen_op_add_trigger(jit_irgen_t *g, int op)
 
 static void irgen_op_port_conversion(jit_irgen_t *g, int op)
 {
-   jit_value_t closure = irgen_get_arg(g, op, 0);
-   jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+   jit_value_t closure1 = irgen_get_arg(g, op, 0);
+   jit_value_t context1 = jit_value_from_reg(jit_value_as_reg(closure1) + 1);
 
-   j_send(g, 0, closure);
-   j_send(g, 1, context);
+   jit_value_t closure2, context2;
+   if (vcode_count_args(op) > 1) {
+      closure2 = irgen_get_arg(g, op, 1);
+      context2 = jit_value_from_reg(jit_value_as_reg(closure2) + 1);
+   }
+   else {
+      closure2 = jit_value_from_handle(JIT_HANDLE_INVALID);
+      context2 = jit_value_from_int64(0);
+   }
+
+   j_send(g, 0, closure1);
+   j_send(g, 1, context1);
+   j_send(g, 2, closure2);
+   j_send(g, 3, context2);
    macro_exit(g, JIT_EXIT_PORT_CONVERSION);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);

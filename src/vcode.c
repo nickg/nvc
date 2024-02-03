@@ -2287,6 +2287,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+               if (op->args.count > 1) {
+                  col += printf(" effective ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5926,12 +5930,17 @@ void emit_add_trigger(vcode_reg_t trigger)
                 "add trigger argument must be trigger");
 }
 
-vcode_reg_t emit_port_conversion(vcode_reg_t closure)
+vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
 {
    op_t *op = vcode_add_op(VCODE_OP_PORT_CONVERSION);
-   vcode_add_arg(op, closure);
+   vcode_add_arg(op, driving);
+   if (effective != VCODE_INVALID_REG && effective != driving)
+      vcode_add_arg(op, effective);
 
-   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+   VCODE_ASSERT(vcode_reg_kind(driving) == VCODE_TYPE_CLOSURE,
+                "port conversion argument must be a closure");
+   VCODE_ASSERT(effective == VCODE_INVALID_REG
+                || vcode_reg_kind(effective) == VCODE_TYPE_CLOSURE,
                 "port conversion argument must be a closure");
 
    return (op->result = vcode_add_reg(vtype_conversion()));

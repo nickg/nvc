@@ -999,12 +999,15 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PORT_CONVERSION:
       {
-         jit_handle_t  handle  = args[0].integer;
-         void         *context = args[1].pointer;
+         jit_handle_t  handle1  = args[0].integer;
+         void         *context1 = args[1].pointer;
+         jit_handle_t  handle2  = args[2].integer;
+         void         *context2 = args[3].pointer;
 
          if (jit_has_runtime(thread->jit)) {
-            ffi_closure_t closure = { handle, context };
-            args[0].pointer = x_port_conversion(&closure);
+            ffi_closure_t driving = { handle1, context1 };
+            ffi_closure_t effective = { handle2, context2 };
+            args[0].pointer = x_port_conversion(&driving, &effective);
          }
          else
             args[0].pointer = NULL;   // Called during constant folding

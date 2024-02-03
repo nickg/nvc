@@ -11703,7 +11703,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       type_t dst_type = mode == PORT_IN ? name_type : value_type;
 
       if (conv_func != VCODE_INVALID_REG) {
-         vcode_reg_t conv_reg = emit_port_conversion(conv_func);
+         vcode_reg_t conv_reg = emit_port_conversion(conv_func, in_conv);
          lower_convert_signal(lu, dst_reg, dst_type,
                               conv_reg, emit_convert_out);
          lower_convert_signal(lu, src_reg, src_type,
