@@ -113,12 +113,13 @@ sync-branch:
 	sed -i 's/'$$last'/'$$new'/g' $(top_srcdir)/README.md
 
 upload-artifacts:
-	tag=$$(git describe) && \
-	gh release upload $$tag $(top_builddir)/$(DIST_ARCHIVES){,.sig} && \
+	tag=$$(git describe --tags $$(git rev-list --tags --max-count=1)) && \
+	gh release upload $$tag $(top_builddir)/$(PACKAGE)-$$tag.tar.gz{,.sig} && \
 	run_id=$$(gh run list -w "Build MSYS2 and Ubuntu packages" \
 		  -L 1 --json headBranch,databaseId \
 		  --jq '.[0] | select(.headBranch == "'$$tag'").databaseId') && \
 	echo "Run ID : $$run_id" && \
+	rm -rf /tmp/artifacts && \
 	mkdir -p /tmp/artifacts && \
 	gh run download $$run_id --dir /tmp/artifacts && \
 	find /tmp/artifacts -type f -print -exec gh release upload $$tag \{\} \;

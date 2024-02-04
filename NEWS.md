@@ -12,6 +12,18 @@
   fixes a number of long-standing issues (#843).
 - Added support for `inertial` keyword in port maps (#843). 
 
+## Version 1.11.3 - 2024-02-04
+- Fixed incorrect effective value when a signal has multiple sources due
+  to port-collapsing optimisation (#824).
+- Signals that appear in aggregate choice expressions like `(S downto 0
+  => '0')` are now included in the sensitivity list for concurrent
+  statement equivalent processes, and in `process (all)` (#825).
+- The direction of aggregates with range choices is now calculated
+  correctly in VHDL-2008 mode (#826).
+- Fixed a memory corruption bug when evaluating certain aggregates that
+  contain a range association (#827).
+- Resolved several other minor issues (#837, #839, #840).
+
 ## Version 1.11.2 - 2024-01-04
 - Fixed an incorrect length check in the equivalent process for
   non-static port map actuals (#817).
