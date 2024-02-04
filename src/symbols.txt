@@ -59,7 +59,6 @@
   __nvc_file_size;
   __nvc_file_state;
   __nvc_flush;
-  __nvc_open3;
   __nvc_rewind;
   __nvc_seek;
   __nvc_truncate;

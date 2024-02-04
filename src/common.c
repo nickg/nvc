@@ -1422,6 +1422,16 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_MATCH_GE:
    case S_MINIMUM:
    case S_MAXIMUM:
+   case S_FILE_FLUSH:
+   case S_FILE_OPEN3:
+   case S_FILE_MODE:
+   case S_FILE_CANSEEK:
+   case S_FILE_SIZE:
+   case S_FILE_REWIND:
+   case S_FILE_SEEK:
+   case S_FILE_TRUNCATE:
+   case S_FILE_STATE:
+   case S_FILE_POSITION:
       return false;
    default:
       return true;

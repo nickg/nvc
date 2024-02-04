@@ -6620,7 +6620,7 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    tree_t decl = tree_ref(pcall);
 
    const subprogram_kind_t kind = tree_subkind(decl);
-   if (is_builtin(kind)) {
+   if (is_open_coded_builtin(kind)) {
       lower_builtin(lu, pcall, kind, NULL, NULL);
       return;
    }
@@ -9864,6 +9864,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
                              lu->cover, tree_to_object(d));
          break;
       case T_FUNC_DECL:
+      case T_PROC_DECL:
         {
            const subprogram_kind_t kind = tree_subkind(d);
            if (!is_builtin(kind) || is_open_coded_builtin(kind))
@@ -10853,6 +10854,50 @@ static void lower_predef_negate(tree_t decl, const char *op)
    emit_return(emit_not(eq_reg));
 }
 
+static void lower_predef_file_op(lower_unit_t *lu, tree_t decl, const char *fn)
+{
+   ident_t func = ident_new(fn);
+
+   vcode_type_t rtype = vcode_unit_result(lu->vunit);
+   vcode_var_t result_var = VCODE_INVALID_VAR;
+   if (rtype != VCODE_INVALID_TYPE)
+      result_var = emit_var(rtype, rtype, ident_new("result"), 0);
+
+   vcode_reg_t args[4];
+   const int nparams = vcode_count_params();
+
+   int nargs = 0;
+   for (int i = 1; i < nparams; i++)
+      args[nargs++] = vcode_param_reg(i);
+
+   if (result_var != VCODE_INVALID_VAR)
+      args[nargs++] = emit_index(result_var, VCODE_INVALID_REG);
+
+   assert(nargs < ARRAY_LEN(args));
+
+   emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE, VCODE_CC_INTERNAL,
+              args, nargs);
+
+   vcode_reg_t result_reg = VCODE_INVALID_REG;
+   if (result_var != VCODE_INVALID_VAR)
+      result_reg = emit_load(result_var);
+
+   emit_return(result_reg);
+}
+
+static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
+{
+   vcode_type_t rtype = vcode_unit_result(lu->vunit);
+   vcode_var_t status_var = emit_var(rtype, rtype, ident_new("status"), 0);
+
+   vcode_reg_t status_reg = emit_index(status_var, VCODE_INVALID_REG);
+   vcode_reg_t data_reg = emit_unwrap(2);
+   vcode_reg_t length_reg = emit_uarray_len(2, 0);
+
+   emit_file_open(1, data_reg, length_reg, 3, status_reg);
+   emit_return(emit_load(status_var));
+}
+
 static void lower_predef(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -10862,7 +10907,8 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    assert(!is_open_coded_builtin(kind));
 
    type_t type = tree_type(decl);
-   vcode_set_result(lower_func_result_type(type_result(type)));
+   if (type_kind(type) == T_FUNC)
+      vcode_set_result(lower_func_result_type(type_result(type)));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -10942,8 +10988,38 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_MINIMUM:
       lower_predef_min_max(lu, decl, VCODE_CMP_LT);
       break;
-   default:
+   case S_FILE_FLUSH:
+      lower_predef_file_op(lu, decl, "__nvc_flush");
       break;
+   case S_FILE_OPEN3:
+      lower_predef_file_open3(lu, decl);
+      break;
+   case S_FILE_MODE:
+      lower_predef_file_op(lu, decl, "__nvc_file_mode");
+      break;
+   case S_FILE_CANSEEK:
+      lower_predef_file_op(lu, decl, "__nvc_file_canseek");
+      break;
+   case S_FILE_SIZE:
+      lower_predef_file_op(lu, decl, "__nvc_file_size");
+      break;
+   case S_FILE_REWIND:
+      lower_predef_file_op(lu, decl, "__nvc_rewind");
+      break;
+   case S_FILE_SEEK:
+      lower_predef_file_op(lu, decl, "__nvc_seek");
+      break;
+   case S_FILE_TRUNCATE:
+      lower_predef_file_op(lu, decl, "__nvc_truncate");
+      break;
+   case S_FILE_STATE:
+      lower_predef_file_op(lu, decl, "__nvc_file_state");
+      break;
+   case S_FILE_POSITION:
+      lower_predef_file_op(lu, decl, "__nvc_file_position");
+      break;
+   default:
+      fatal_trace("cannot lower predefined function %s", type_pp(type));
    }
 }
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -57,8 +57,10 @@ typedef enum {
 } file_open_kind_t;
 
 DLLEXPORT
-void __nvc_flush(FILE **fp)
+void __nvc_flush(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FLUSH called on closed file");
 
@@ -66,8 +68,10 @@ void __nvc_flush(FILE **fp)
 }
 
 DLLEXPORT
-void __nvc_rewind(FILE **fp)
+void __nvc_rewind(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_REWIND called on closed file");
 
@@ -75,30 +79,29 @@ void __nvc_rewind(FILE **fp)
 }
 
 DLLEXPORT
-void __nvc_seek(FILE **fp, int32_t offset, int8_t origin)
+void __nvc_seek(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+   off_t offset = args[1].integer;
+   int8_t origin = args[2].integer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_SEEK called on closed file");
 
    const int whence[3] = { SEEK_SET, SEEK_CUR, SEEK_END };
    assert(origin >= 0 && origin < ARRAY_LEN(whence));
 
-   if (fseek(*fp, offset, whence[origin]) < 0)
+   if (fseeko(*fp, offset, whence[origin]) < 0)
       jit_msg(NULL, DIAG_FATAL, "FILE_SEEK failed: %s", strerror(errno));
 }
 
 DLLEXPORT
-int8_t __nvc_open3(FILE **fp, const uint8_t *name_ptr, int64_t name_len,
-                   int8_t open_kind)
+void __nvc_truncate(jit_scalar_t *args)
 {
-   int8_t status;
-   x_file_open(&status, (void **)fp, name_ptr, name_len, open_kind);
-   return status;
-}
+   FILE **fp = args[0].pointer;
+   int64_t size = args[1].integer;
+   int8_t origin = args[2].integer;
 
-DLLEXPORT
-void __nvc_truncate(FILE **fp, int32_t size, int8_t origin)
-{
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_TRUNCATE called on closed file");
 
@@ -148,72 +151,72 @@ void __nvc_truncate(FILE **fp, int32_t size, int8_t origin)
 }
 
 DLLEXPORT
-int8_t __nvc_file_state(FILE **fp)
+void __nvc_file_state(jit_scalar_t *args)
 {
-   return *fp == NULL ? STATE_CLOSED : STATE_OPEN;
+   FILE **fp = args[0].pointer;
+   int8_t *result = args[1].pointer;
+
+   *result = (*fp == NULL ? STATE_CLOSED : STATE_OPEN);
 }
 
 DLLEXPORT
-int8_t __nvc_file_mode(FILE **fp)
+void __nvc_file_mode(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+   int8_t *result = args[1].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_MODE called on closed file");
 
-#ifdef __MINGW32__
    fflush(*fp);
 
-   HANDLE handle = (HANDLE)_get_osfhandle(_fileno(*fp));
-   const bool can_read = ReadFile(handle, NULL, 0, NULL, NULL);
-   const bool can_write = WriteFile(handle, NULL, 0, NULL, NULL);
-
-   if (can_read && can_write)
-      return READ_WRITE_MODE;
-   else if (can_read)
-      return READ_MODE;
-   else if (can_write)
-      return WRITE_MODE;
-#else
-   const int mode = fcntl(fileno(*fp), F_GETFL);
-   if (mode < 0)
-      jit_msg(NULL, DIAG_FATAL, "FILE_MODE failed: %s", strerror(errno));
-
-   switch (mode & O_ACCMODE) {
-   case O_RDONLY: return READ_MODE;
-   case O_WRONLY: return (mode & O_APPEND) ? APPEND_MODE : WRITE_MODE;
-   case O_RDWR: return READ_WRITE_MODE;
+   file_mode_t mode;
+   if (!get_handle_mode(fileno(*fp), &mode)) {
+      jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
+      *result = READ_MODE;
    }
-#endif
-
-   jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
-   return READ_MODE;
+   else
+      *result = mode;
 }
 
 DLLEXPORT
-int64_t __nvc_file_position(FILE **fp, int8_t origin)
+void __nvc_file_position(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+   int8_t origin = args[1].integer;
+   int64_t *result = args[2].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_POSITION called on closed file");
-
-   if (origin == FILE_ORIGIN_CURRENT)
-      return 0;
 
    off_t off = ftello(*fp);
    if (off < 0)
       jit_msg(NULL, DIAG_FATAL, "FILE_POSITION failed: %s", strerror(errno));
 
-   if (origin == FILE_ORIGIN_END) {
-      fseeko(*fp, 0, SEEK_END);
-      off_t end = ftello(*fp);
-      fseeko(*fp, off, SEEK_SET);
-      return end - off;
+   switch (origin) {
+   case FILE_ORIGIN_BEGIN:
+      *result = off;
+      break;
+   case FILE_ORIGIN_END:
+      {
+         fseeko(*fp, 0, SEEK_END);
+         off_t end = ftello(*fp);
+         fseeko(*fp, off, SEEK_SET);
+         *result = end - off;
+      }
+      break;
+   case FILE_ORIGIN_CURRENT:
+      *result = 0;
+      break;
    }
-   else
-      return off;
 }
 
 DLLEXPORT
-int64_t __nvc_file_size(FILE **fp, int8_t origin)
+void __nvc_file_size(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+   int64_t *result = args[1].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_SIZE called on closed file");
 
@@ -223,16 +226,19 @@ int64_t __nvc_file_size(FILE **fp, int8_t origin)
    if (!get_handle_info(fileno(*fp), &info))
       jit_msg(NULL, DIAG_FATAL, "FILE_SIZE failed: %s", strerror(errno));
 
-   return info.size;
+   *result = info.size;
 }
 
 DLLEXPORT
-int8_t __nvc_file_canseek(FILE **fp)
+void __nvc_file_canseek(jit_scalar_t *args)
 {
+   FILE **fp = args[0].pointer;
+   int8_t *result = args[1].pointer;
+
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "FILE_CANSEEK called on closed file");
 
-   return fseek(*fp, 0, SEEK_CUR) == 0;
+   *result = fseek(*fp, 0, SEEK_CUR) == 0;
 }
 
 void _file_io_init(void)

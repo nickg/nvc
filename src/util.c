@@ -1762,6 +1762,42 @@ bool get_handle_path(int fd, text_buf_t *tb)
 #endif
 }
 
+bool get_handle_mode(int fd, file_mode_t *mode)
+{
+#ifdef __MINGW32__
+   HANDLE handle = (HANDLE)_get_osfhandle(fd);
+   const bool can_read = ReadFile(handle, NULL, 0, NULL, NULL);
+   const bool can_write = WriteFile(handle, NULL, 0, NULL, NULL);
+
+   if (can_read && can_write)
+      *mode = FILE_READ_WRITE;
+   else if (can_write)
+      *mode = FILE_WRITE;
+   else
+      *mode = FILE_READ;
+
+   return true;
+#else
+   const int rc = fcntl(fd, F_GETFL);
+   if (rc < 0)
+      return false;
+
+   switch (rc & O_ACCMODE) {
+   case O_RDONLY:
+      *mode = FILE_READ;
+      return true;
+   case O_WRONLY:
+      *mode = (rc & O_APPEND) ? FILE_APPEND : FILE_WRITE;
+      return true;
+   case O_RDWR:
+      *mode = FILE_READ_WRITE;
+      return true;
+   default:
+      return false;
+   }
+#endif
+}
+
 void run_program(const char *const *args)
 {
 #if defined __CYGWIN__ || defined __MINGW32__

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -632,9 +632,16 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       fvm->pt.f_subtype = vm->pt.f_subtype->pt.f_file;
 
       FILE *fp = value.pointer;
+      fflush(fp);
 
-      extern int8_t __nvc_file_mode(FILE **fp);
-      fvm->pt.f_open_kind = __nvc_file_mode(&fp);
+      file_mode_t mode;
+      if (!get_handle_mode(fileno(fp), &mode)) {
+         jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
+         fvm->pt.f_open_kind = 0;
+      }
+      else
+         fvm->pt.f_open_kind = mode;
+
       fvm->pt.f_logical_name = get_file_logical_name(fp);
 
       vm->pt.f_class = CLASS_FILE;

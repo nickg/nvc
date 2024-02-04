@@ -190,6 +190,16 @@ typedef enum {
    S_MATCH_EQ,
    S_MATCH_NEQ,
    S_INTERNAL,
+   S_FILE_FLUSH,
+   S_FILE_OPEN3,
+   S_FILE_MODE,
+   S_FILE_CANSEEK,
+   S_FILE_SIZE,
+   S_FILE_REWIND,
+   S_FILE_SEEK,
+   S_FILE_TRUNCATE,
+   S_FILE_STATE,
+   S_FILE_POSITION,
 } subprogram_kind_t;
 
 typedef enum {

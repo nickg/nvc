@@ -1230,9 +1230,9 @@ static void declare_predefined_ops(tree_t container, type_t t)
          if (standard() >= STD_08) {
             ident_t flush_i = ident_new("FLUSH");
 
-            tree_t flush = builtin_proc(flush_i, S_FOREIGN);
-            tree_set_ident2(flush, ident_new("__nvc_flush"));
+            tree_t flush = builtin_proc(flush_i, S_FILE_FLUSH);
             add_port(flush, "F", t, PORT_IN, NULL);
+            mangle_func(nametab, flush);
             insert_name(nametab, flush, flush_i);
             tree_add_decl(container, flush);
          }
@@ -1254,76 +1254,78 @@ static void declare_predefined_ops(tree_t container, type_t t)
             tree_t origin_begin = search_decls(std, begin_i, 0);
             assert(origin_begin != NULL);
 
-            tree_t file_open3 = builtin_fn(file_open_i, open_status, S_FOREIGN,
+            tree_t file_open3 = builtin_fn(file_open_i, open_status,
+                                           S_FILE_OPEN3,
                                            "F", t,
                                            "EXTERNAL_NAME", std_string,
                                            "OPEN_KIND", open_kind,
                                            NULL);
             tree_set_flag(file_open3, TREE_F_IMPURE);
-            tree_set_ident2(file_open3, ident_new("__nvc_open3"));
             tree_set_class(tree_port(file_open3, 0), C_FILE);
             tree_set_value(tree_port(file_open3, 2), make_ref(read_mode));
+            mangle_func(nametab, file_open3);
             insert_name(nametab, file_open3, file_open_i);
             tree_add_decl(container, file_open3);
 
-            tree_t rewind = builtin_proc(rewind_i, S_FOREIGN);
-            tree_set_ident2(rewind, ident_new("__nvc_rewind"));
+            tree_t rewind = builtin_proc(rewind_i, S_FILE_REWIND);
             add_port(rewind, "F", t, PORT_IN, NULL);
+            mangle_func(nametab, rewind);
             insert_name(nametab, rewind, rewind_i);
             tree_add_decl(container, rewind);
 
             std_int = std_type(std, STD_INTEGER);
 
-            tree_t seek = builtin_proc(seek_i, S_FOREIGN);
-            tree_set_ident2(seek, ident_new("__nvc_seek"));
+            tree_t seek = builtin_proc(seek_i, S_FILE_SEEK);
             add_port(seek, "F", t, PORT_IN, NULL);
             add_port(seek, "OFFSET", std_int, PORT_IN, NULL);
             add_port(seek, "ORIGIN", origin_kind, PORT_IN,
                      make_ref(origin_begin));
+            mangle_func(nametab, seek);
             insert_name(nametab, seek, seek_i);
             tree_add_decl(container, seek);
 
-            tree_t truncate = builtin_proc(truncate_i, S_FOREIGN);
-            tree_set_ident2(truncate, ident_new("__nvc_truncate"));
+            tree_t truncate = builtin_proc(truncate_i, S_FILE_TRUNCATE);
             add_port(truncate, "F", t, PORT_IN, NULL);
             add_port(truncate, "SIZE", std_int, PORT_IN, NULL);
             add_port(truncate, "ORIGIN", origin_kind, PORT_IN,
                      make_ref(origin_begin));
+            mangle_func(nametab, truncate);
             insert_name(nametab, truncate, truncate_i);
             tree_add_decl(container, truncate);
 
-            tree_t state = builtin_fn(state_i, open_state, S_FOREIGN,
+            tree_t state = builtin_fn(state_i, open_state, S_FILE_STATE,
                                       "F", t, NULL);
-            tree_set_ident2(state, ident_new("__nvc_file_state"));
             tree_set_class(tree_port(state, 0), C_FILE);
+            mangle_func(nametab, state);
             insert_name(nametab, state, state_i);
             tree_add_decl(container, state);
 
-            tree_t mode = builtin_fn(mode_i, open_kind, S_FOREIGN,
+            tree_t mode = builtin_fn(mode_i, open_kind, S_FILE_MODE,
                                      "F", t, NULL);
-            tree_set_ident2(mode, ident_new("__nvc_file_mode"));
             tree_set_class(tree_port(mode, 0), C_FILE);
+            mangle_func(nametab, mode);
             insert_name(nametab, mode, mode_i);
             tree_add_decl(container, mode);
 
-            tree_t position = builtin_fn(position_i, std_int, S_FOREIGN,
+            tree_t position = builtin_fn(position_i, std_int, S_FILE_POSITION,
                                          "F", t, "ORIGIN", origin_kind, NULL);
-            tree_set_ident2(position, ident_new("__nvc_file_position"));
             tree_set_class(tree_port(position, 0), C_FILE);
             tree_set_value(tree_port(position, 1), make_ref(origin_begin));
+            mangle_func(nametab, position);
             insert_name(nametab, position, position_i);
             tree_add_decl(container, position);
 
-            tree_t size = builtin_fn(size_i, std_int, S_FOREIGN, "F", t, NULL);
-            tree_set_ident2(size, ident_new("__nvc_file_size"));
+            tree_t size = builtin_fn(size_i, std_int, S_FILE_SIZE,
+                                     "F", t, NULL);
             tree_set_class(tree_port(size, 0), C_FILE);
+            mangle_func(nametab, size);
             insert_name(nametab, size, size_i);
             tree_add_decl(container, size);
 
-            tree_t canseek = builtin_fn(canseek_i, std_bool, S_FOREIGN,
+            tree_t canseek = builtin_fn(canseek_i, std_bool, S_FILE_CANSEEK,
                                         "F", t, NULL);
-            tree_set_ident2(canseek, ident_new("__nvc_file_canseek"));
             tree_set_class(tree_port(canseek, 0), C_FILE);
+            mangle_func(nametab, canseek);
             insert_name(nametab, canseek, canseek_i);
             tree_add_decl(container, canseek);
          }
