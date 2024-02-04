@@ -1,4 +1,4 @@
-AC_INIT([nvc], [1.11.2],
+AC_INIT([nvc], [1.11.3],
         [https://github.com/nickg/nvc/issues],
         [nvc],
         [https://www.nickg.me.uk/nvc/])

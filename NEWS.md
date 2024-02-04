@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due
   to port-collapsing optimisation (#824).
 - Signals that appear in aggregate choice expressions like `(S downto 0

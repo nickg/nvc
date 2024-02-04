@@ -58,6 +58,7 @@ EXTRA_DIST += \
 	test/elab/bounds40.vhd \
 	test/elab/bounds41.vhd \
 	test/elab/bounds42.vhd \
+	test/elab/bounds7.vhd \
 	test/elab/comp2.vhd \
 	test/elab/comp3.vhd \
 	test/elab/comp4.vhd \
@@ -425,6 +426,7 @@ EXTRA_DIST += \
 	test/parse/issue793.vhd \
 	test/parse/issue802.vhd \
 	test/parse/issue805.vhd \
+	test/parse/issue837.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names2.vhd \
@@ -1045,6 +1047,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue801.txt \
 	test/regress/gold/issue816.txt \
 	test/regress/gold/issue817.txt \
+	test/regress/gold/issue840.dump \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1323,8 +1326,14 @@ EXTRA_DIST += \
 	test/regress/issue817.vhd \
 	test/regress/issue819.vhd \
 	test/regress/issue820.vhd \
+	test/regress/issue824.vhd \
+	test/regress/issue825.vhd \
+	test/regress/issue826.vhd \
+	test/regress/issue827.vhd \
 	test/regress/issue82.vhd \
+	test/regress/issue839.vhd \
 	test/regress/issue83.vhd \
+	test/regress/issue840.vhd \
 	test/regress/issue84.vhd \
 	test/regress/issue86.vhd \
 	test/regress/issue8.vhd \
