@@ -1406,6 +1406,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PACKAGE:
       case T_PACK_INST:
       case T_PSL:
+      case T_ATTR_SPEC:
          tree_add_decl(ctx->out, d);
          break;
       case T_FUNC_DECL:

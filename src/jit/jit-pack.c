@@ -225,10 +225,6 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
    case JIT_VALUE_LOCUS:
       pack_locus(pw, value.ident, value.disp);
       break;
-   case JIT_VALUE_FOREIGN:
-      pack_uint(pw, ffi_get_spec(value.foreign).bits);
-      pack_str(pw, istr(ffi_get_sym(value.foreign)));
-      break;
    default:
       fatal_trace("cannot handle value kind %d in pack_value", value.kind);
    }
@@ -505,13 +501,6 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
    case JIT_VALUE_LOCUS:
       value.ident = ident_new(unpack_str(pf));
       value.disp = unpack_uint(pf);
-      break;
-   case JIT_VALUE_FOREIGN:
-      {
-         const ffi_spec_t spec = { .bits = unpack_uint(pf) };
-         ident_t sym = ident_new(unpack_str(pf));
-         value.foreign = jit_ffi_bind(sym, spec, NULL);
-      }
       break;
    default:
       fatal_trace("cannot handle value kind %d in unpack_value", value.kind);

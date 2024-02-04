@@ -13,11 +13,20 @@ architecture test of vhpi4 is
     function sum_array (a : int_vec; len : integer) return integer;
     attribute foreign of sum_array : function is "VHPIDIRECT __vhpi_sum_array";
 
-    function my_not (x : std_logic) return std_logic;
+    function my_not (x : std_logic) return std_logic is
+    begin
+        report "do not call this" severity failure;
+    end function;
+
     attribute foreign of my_not : function is "VHPIDIRECT __vhpi_my_not";
 
     procedure test_proc (x : out integer; arr : out int_vec);
     attribute foreign of test_proc : procedure is "VHPIDIRECT __vhpi_test_proc";
+
+    procedure test_proc (x : out integer; arr : out int_vec) is
+    begin
+        report "do not call this" severity failure;
+    end procedure;
 
 begin
 

@@ -289,9 +289,7 @@ bool eval_possible(tree_t t, unit_registry_t *ur)
 
          tree_t decl = tree_ref(t);
          const subprogram_kind_t kind = tree_subkind(decl);
-         if (is_foreign(kind))
-            return eval_not_possible(t, "call to foreign function");
-         else if (tree_flags(decl) & TREE_F_IMPURE)
+         if (tree_flags(decl) & TREE_F_IMPURE)
             return eval_not_possible(t, "call to impure function");
          else if (kind != S_USER && !is_open_coded_builtin(kind)
                   && unit_registry_get(ur, tree_ident2(decl)) == NULL)

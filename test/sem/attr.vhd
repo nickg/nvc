@@ -307,8 +307,8 @@ architecture builtins of e is
     procedure q (x : integer);
     procedure q (x : boolean);
     attribute never_waits of q [integer] : procedure is true;  -- OK
-    attribute foreign of f [return integer] : function is "bad string";  -- Error
-    attribute foreign of f [return integer] : function is e'path_name;  -- Error
+    attribute foreign of f [return integer] : function is "bad string";  -- OK
+    attribute foreign of f [return integer] : function is e'path_name;  -- OK
 begin
 
 end architecture;

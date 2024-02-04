@@ -631,9 +631,6 @@ static void code_blob_print_value(text_buf_t *tb, jit_value_t value)
    case JIT_VALUE_LOC:
       tb_printf(tb, "<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
       break;
-   case JIT_VALUE_FOREIGN:
-      tb_printf(tb, "$%s", istr(ffi_get_sym(value.foreign)));
-      break;
    case JIT_VALUE_LOCUS:
       tb_printf(tb, "%s%+d", istr(value.ident), value.disp);
       break;
@@ -795,6 +792,9 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
 #endif
          else
             ptr = ffi_find_symbol(NULL, name);
+
+         if (ptr == NULL && icmp(blob->span->name, name))
+            ptr = blob->span->base;
 
          if (ptr == NULL)
             fatal_trace("failed to resolve symbol %s", name);
@@ -1073,6 +1073,9 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
             ptr = load_addr[sym->st_shndx];
             break;
          }
+
+         if (ptr == NULL && icmp(blob->span->name, strtab + sym->st_name))
+            ptr = (char *)blob->span->base;
 
          if (ptr == NULL)
             fatal_trace("cannot resolve symbol %s type %d",

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ static bool cfg_is_terminator(jit_func_t *func, jit_ir_t *ir)
    if (ir->op == MACRO_CASE)
       return ir + 1 < func->irbuf + func->nirs && (ir + 1)->op != MACRO_CASE;
    else
-      return ir->op == J_JUMP || ir->op == J_RET;
+      return ir->op == J_JUMP || ir->op == J_RET || ir->op == MACRO_REEXEC;
 }
 
 static void cfg_add_one_edge(jit_edge_list_t *list, unsigned edge)

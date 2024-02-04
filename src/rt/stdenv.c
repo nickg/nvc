@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "jit/jit-ffi.h"
 #include "jit/jit-exits.h"
 #include "scan.h"
+#include "rt/mspace.h"
 #include "rt/rt.h"
 
 #include <assert.h>
@@ -96,14 +97,6 @@ typedef struct {
    ffi_uarray_t *file_path;
    int64_t       file_line;
 } call_path_element_t;
-
-static void copy_str(const char *str, ffi_uarray_t *u)
-{
-   const size_t len = strlen(str);
-   char *buf = rt_tlab_alloc(len);
-   memcpy(buf, str, len);
-   *u = ffi_wrap(buf, 1, len);
-}
 
 static ffi_uarray_t *to_line_n(const char *str, size_t len)
 {
@@ -223,37 +216,34 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _std_env_getenv(const uint8_t *name_ptr, int64_t name_len, ffi_uarray_t *u)
+void _std_env_getenv(jit_scalar_t *args, tlab_t *tlab)
 {
-   char *LOCAL cstr = null_terminate(name_ptr, name_len);
+   char *LOCAL cstr =
+      null_terminate(args[1].pointer, ffi_array_length(args[3].integer));
 
    // LRM19 section 16.5.6: conditional analysis identifiers are part of
    // the queried environment and take precedence over possibly
    // inherited environment variables of identical names.
    const char *pp = pp_defines_get(cstr);
    if (pp != NULL)
-      copy_str(pp, u);
+      ffi_return_string(pp, args, tlab);
    else {
       const char *env = getenv(cstr);
-      if (env == NULL)
-         *u = ffi_wrap(NULL, 1, 0);
-      else
-         copy_str(env, u);
+      ffi_return_string(env ?: "", args, tlab);
    }
 }
 
 DLLEXPORT
-void _std_env_vhdl_version(ffi_uarray_t *u)
+void _std_env_vhdl_version(jit_scalar_t *args, tlab_t *tlab)
 {
    const char *str = standard_text(standard());
-   *u = ffi_wrap((char *)str, 1, strlen(str));
+   ffi_return_string(str, args, tlab);
 }
 
 DLLEXPORT
-void _std_env_tool_version(ffi_uarray_t *u)
+void _std_env_tool_version(jit_scalar_t *args, tlab_t *tlab)
 {
-   const char *str = PACKAGE_VERSION;
-   *u = ffi_wrap((char *)str, 1, strlen(str));
+   ffi_return_string(PACKAGE_VERSION, args, tlab);
 }
 
 DLLEXPORT
@@ -375,13 +365,13 @@ double _std_env_diff_trec(const time_record_t *tr1, const time_record_t *tr2)
 }
 
 DLLEXPORT
-void _std_env_get_workingdir(ffi_uarray_t *u)
+void _std_env_get_workingdir(jit_scalar_t *args, tlab_t *tlab)
 {
    char buf[PATH_MAX];
    if (getcwd(buf, sizeof(buf)) == NULL)
       jit_msg(NULL, DIAG_FATAL, "getcwd failed: %s", strerror(errno));
 
-   copy_str(buf, u);
+   ffi_return_string(buf, args, tlab);
 }
 
 DLLEXPORT
@@ -579,7 +569,7 @@ void _std_env_dir_open(const uint8_t *path_ptr, int64_t path_len,
 }
 
 DLLEXPORT
-void _std_env_get_call_path(ffi_uarray_t **ptr)
+void _std_env_get_call_path(jit_scalar_t *args, tlab_t *tlab)
 {
    jit_stack_trace_t *stack LOCAL = jit_stack_trace();
 
@@ -611,7 +601,8 @@ void _std_env_get_call_path(ffi_uarray_t **ptr)
 
    ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
    *u = ffi_wrap(array, 0, stack->count - 2);
-   *ptr = u;
+
+   args[0].pointer = u;
 }
 
 DLLEXPORT
@@ -657,9 +648,10 @@ int64_t _std_env_seconds_to_time(double real)
 }
 
 DLLEXPORT
-int64_t _std_env_get_vhdl_assert_count(vhdl_severity_t severity_level)
+void _std_env_get_vhdl_assert_count(jit_scalar_t *args)
 {
-   return get_vhdl_assert_count(severity_level);
+   vhdl_severity_t severity_level = args[1].integer;
+   args[0].integer = get_vhdl_assert_count(severity_level);
 }
 
 DLLEXPORT
@@ -669,16 +661,19 @@ void _std_env_clear_vhdl_assert(void)
 }
 
 DLLEXPORT
-void _std_env_set_vhdl_assert_enable(vhdl_severity_t severity_level,
-                                     bool enable)
+void _std_env_set_vhdl_assert_enable(jit_scalar_t *args)
 {
+   vhdl_severity_t severity_level = args[2].integer;
+   bool enable = !!args[3].integer;
+
    set_vhdl_assert_enable(severity_level, enable);
 }
 
 DLLEXPORT
-bool _std_env_get_vhdl_assert_enable(vhdl_severity_t severity_level)
+void _std_env_get_vhdl_assert_enable(jit_scalar_t *args)
 {
-   return get_vhdl_assert_enable(severity_level);
+   vhdl_severity_t severity_level = args[1].integer;
+   args[0].integer = get_vhdl_assert_enable(severity_level);
 }
 
 void _std_env_init(void)

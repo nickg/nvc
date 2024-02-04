@@ -103,7 +103,6 @@ typedef enum {
 
 typedef enum {
    S_USER,
-   S_FOREIGN,
    S_ARRAY_EQ,
    S_ARRAY_NEQ,
    S_ARRAY_LT,
@@ -189,7 +188,6 @@ typedef enum {
    S_MATCH_GE,
    S_MATCH_EQ,
    S_MATCH_NEQ,
-   S_INTERNAL,
    S_FILE_FLUSH,
    S_FILE_OPEN3,
    S_FILE_MODE,
@@ -200,6 +198,11 @@ typedef enum {
    S_FILE_TRUNCATE,
    S_FILE_STATE,
    S_FILE_POSITION,
+   S_TO_STRING_TIME,
+   S_TO_STRING_REAL_DIGITS,
+   S_TO_STRING_REAL_FORMAT,
+   S_TO_HSTRING_BITVEC,
+   S_TO_OSTRING_BITVEC,
 } subprogram_kind_t;
 
 typedef enum {

@@ -47,4 +47,7 @@ package text_util is
     function find_open (s : string) return natural;
     procedure find_close (s : string; pos : natural);
     procedure report_bad_char (s : string; c : character);
+
+    attribute foreign of real_to_string [real return string]
+        : function is "INTERNAL _std_to_string_real";
 end package;

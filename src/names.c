@@ -808,15 +808,9 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          continue;
       else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
          if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
-            if ((mask & N_SUBPROGRAM) && is_foreign(tree_subkind(dd->tree))) {
-               // Ignore redundant bodies of foreign subprograms
-               return sym;
-            }
-            else {
-               // Replace forward declaration in same region with full
-               // definition
-               dd->visibility = HIDDEN;
-            }
+            // Replace forward declaration in same region with full
+            // definition
+            dd->visibility = HIDDEN;
          }
          else if (dd->origin == s && s->formal_kind == F_SUBPROGRAM)
             ;   // Resolving subprogram formal names
@@ -845,14 +839,8 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          // subprograms in the same region
          dd->visibility = HIDDEN;
       }
-      else if (is_forward_decl(decl, dd->tree)) {
-         if ((dd->mask & N_SUBPROGRAM) && is_foreign(tree_subkind(dd->tree))) {
-            // Hide bodies of subprograms declared with 'FOREIGN attribute
-            return sym;
-         }
-         else
-            dd->visibility = HIDDEN;
-      }
+      else if (is_forward_decl(decl, dd->tree))
+         dd->visibility = HIDDEN;
       else if (overload && (mask & dd->mask & (N_SUBPROGRAM | N_OBJECT))
                && kind == DIRECT && type_eq(type, tree_type(dd->tree))) {
          if (dd->origin != s) {

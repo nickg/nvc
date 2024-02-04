@@ -1535,13 +1535,6 @@ static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir)
    MOV(ADDR(__EAX, 0), __ECX, __QWORD);
 }
 
-static void jit_x86_macro_fficall(code_blob_t *blob, jit_x86_state_t *state,
-                                  jit_ir_t *ir)
-{
-   MOV(__EAX, PTR(ir->arg1.foreign), __QWORD);
-   CALL(PTR(state->stubs[FFI_STUB]));
-}
-
 static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
 {
    jit_x86_get(blob, __EAX, ir->arg1);
@@ -1739,9 +1732,6 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       break;
    case MACRO_PUTPRIV:
       jit_x86_macro_putpriv(blob, ir);
-      break;
-   case MACRO_FFICALL:
-      jit_x86_macro_fficall(blob, state, ir);
       break;
    case MACRO_CASE:
       jit_x86_macro_case(blob, ir);
@@ -1992,31 +1982,6 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[TLAB_STUB]));
 }
 
-static void jit_x86_gen_ffi_stub(jit_x86_state_t *state)
-{
-   ident_t name = ident_new("ffi stub");
-   code_blob_t *blob = code_blob_new(state->code, name, 0);
-
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
-
-   jit_x86_push_call_clobbered(blob);
-
-   MOV(CARG0_REG, __EAX, __QWORD);
-   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
-   MOV(CARG2_REG, ARGS_REG, __QWORD);
-
-   MOV(__EAX, PTR(__nvc_do_fficall), __QWORD);
-   CALL(__EAX);
-
-   jit_x86_pop_call_clobbered(blob);
-
-   LEAVE();
-   RET();
-
-   code_blob_finalise(blob, &(state->stubs[FFI_STUB]));
-}
-
 #if DEBUG
 static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
 {
@@ -2074,7 +2039,6 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_call_stub(state);
    jit_x86_gen_alloc_stub(state);
    jit_x86_gen_tlab_stub(state);
-   jit_x86_gen_ffi_stub(state);
    jit_x86_gen_fexp_stub(state);
    DEBUG_ONLY(jit_x86_gen_debug_stub(state));
 

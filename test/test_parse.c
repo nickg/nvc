@@ -3555,7 +3555,7 @@ START_TEST(test_names)
    fail_unless(tree_kind(b) == T_BLOCK);
    d = tree_decl(b, 0);
    fail_unless(tree_kind(d) == T_FUNC_DECL);
-   fail_unless(tree_ident2(d) == ident_new("_get_foo"));
+   fail_unless(tree_ident2(d) == ident_new("WORK.EE-AA.B8.GET_FOO()I"));
 
    p = tree_stmt(a, 8);
    fail_unless(tree_kind(p) == T_PROCESS);

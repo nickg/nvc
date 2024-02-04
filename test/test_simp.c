@@ -1276,7 +1276,7 @@ START_TEST(test_foreign1)
    input_from_file(TESTDIR "/simp/foreign1.vhd");
 
    const error_t expect[] = {
-      { 17, "foreign function symbol not found" },
+      {  8, "foreign function symbol not found" },
       { -1, NULL }
    };
    expect_errors(expect);

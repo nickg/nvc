@@ -126,7 +126,6 @@ typedef enum {
    LLVM_DO_EXIT,
    LLVM_PUTPRIV,
    LLVM_MSPACE_ALLOC,
-   LLVM_DO_FFICALL,
    LLVM_GET_OBJECT,
    LLVM_TLAB_ALLOC,
    LLVM_SCHED_WAVEFORM,
@@ -859,25 +858,6 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
       }
       break;
 
-   case LLVM_DO_FFICALL:
-      {
-         LLVMTypeRef args[] = {
-            obj->types[LLVM_PTR],
-            obj->types[LLVM_PTR],
-#ifdef LLVM_HAS_OPAQUE_POINTERS
-            obj->types[LLVM_PTR],
-#else
-            LLVMPointerType(obj->types[LLVM_INT64], 0),
-#endif
-         };
-         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
-                                                ARRAY_LEN(args), false);
-
-         fn = llvm_add_fn(obj, "__nvc_do_fficall", obj->fntypes[which]);
-         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
-      }
-      break;
-
    case LLVM_PUTPRIV:
       {
          LLVMTypeRef args[] = {
@@ -1228,12 +1208,6 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       }
       else
          return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source->jit, value));
-   case JIT_VALUE_FOREIGN:
-      if (cgb->func->mode == CGEN_AOT)
-         return cgen_load_from_reloc(obj, cgb->func, RELOC_FOREIGN,
-                                     (uintptr_t)value.foreign);
-      else
-         return llvm_ptr(obj, value.foreign);
    case JIT_VALUE_LOCUS:
       return cgen_rematerialise_object(obj, cgb->func, value.ident, value.disp);
    default:
@@ -2130,20 +2104,6 @@ static void cgen_macro_exit(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    }
 }
 
-static void cgen_macro_fficall(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
-{
-   cgen_sync_irpos(obj, cgb, ir);
-
-   LLVMValueRef ffptr = cgen_get_value(obj, cgb, ir->arg1);
-
-   LLVMValueRef args[] = {
-      ffptr,
-      PTR(cgb->func->anchor),
-      cgb->func->args
-   };
-   llvm_call_fn(obj, LLVM_DO_FFICALL, args, ARRAY_LEN(args));
-}
-
 static void cgen_macro_galloc(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    cgen_sync_irpos(obj, cgb, ir);
@@ -2289,6 +2249,34 @@ static void cgen_macro_trim(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMBuildStore(obj->builder, watermark, alloc_ptr);
 }
 
+static void cgen_macro_reexec(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef fptr = LLVMGetParam(cgb->func->llvmfn, 0);
+
+   // Must have acquire semantics to synchronise with installing new code
+   LLVMValueRef entry =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+   LLVMSetAlignment(entry, sizeof(void *));
+   LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
+   entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
+#endif
+
+   LLVMValueRef args[] = {
+      fptr,
+      LLVMGetParam(cgb->func->llvmfn, 1),
+      cgb->func->args,
+      cgb->func->tlab,
+   };
+   LLVMValueRef call = LLVMBuildCall2(obj->builder, obj->types[LLVM_ENTRY_FN],
+                                      entry, args, ARRAY_LEN(args), "");
+   LLVMSetTailCall(call, true);
+
+   LLVMBuildRetVoid(obj->builder);
+}
+
 static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -2425,9 +2413,6 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    case MACRO_EXIT:
       cgen_macro_exit(obj, cgb, ir);
       break;
-   case MACRO_FFICALL:
-      cgen_macro_fficall(obj, cgb, ir);
-      break;
    case MACRO_GALLOC:
       cgen_macro_galloc(obj, cgb, ir);
       break;
@@ -2448,6 +2433,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_TRIM:
       cgen_macro_trim(obj, cgb, ir);
+      break;
+   case MACRO_REEXEC:
+      cgen_macro_reexec(obj, cgb, ir);
       break;
    default:
       cgen_abort(cgb, ir, "cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -2608,28 +2596,6 @@ static void cgen_aot_descr(llvm_obj_t *obj, cgen_func_t *func)
                      .kind = RELOC_HANDLE,
                      .str  = cgen_reloc_str(obj, istr(name)),
                      .key  = args[j].handle,
-                     .nth  = relocs.count,
-                  };
-                  APUSH(relocs, r);
-               }
-            }
-            else if (args[j].kind == JIT_VALUE_FOREIGN) {
-               if (cgen_find_reloc(relocs.items, RELOC_FOREIGN, relocs.count,
-                                   (uintptr_t)args[j].foreign) == NULL) {
-                  // Encode spec in name string
-                  LOCAL_TEXT_BUF tb = tb_new();
-                  ffi_spec_t spec = ffi_get_spec(args[j].foreign);
-                  if (spec.count > 0)
-                     tb_catn(tb, spec.embed, spec.count);
-                  else
-                     tb_cat(tb, spec.ext);
-                  tb_append(tb, '\b');
-                  tb_istr(tb, ffi_get_sym(args[j].foreign));
-
-                  const cgen_reloc_t r = {
-                     .kind = RELOC_FOREIGN,
-                     .str  = cgen_reloc_str(obj, tb_get(tb)),
-                     .key  = (uintptr_t)args[j].foreign,
                      .nth  = relocs.count,
                   };
                   APUSH(relocs, r);
@@ -2809,6 +2775,63 @@ static void cgen_fix_liveout_types(llvm_obj_t *obj, cgen_block_t *cgb)
    }
 }
 
+static void cgen_reexecute_guard(llvm_obj_t *obj, cgen_func_t *func,
+                                 jit_cfg_t *cfg)
+{
+   // Jump to the real entry if it may be modified at runtime
+   // (e.g. bound to a foreign function)
+
+   bool has_reexec = false;
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *bb = &(cfg->blocks[i]);
+      if (func->source->irbuf[bb->last].op == MACRO_REEXEC) {
+         has_reexec = true;
+         break;
+      }
+   }
+
+   if (!has_reexec)
+      return;
+
+   LLVMValueRef fptr = LLVMGetParam(func->llvmfn, 0);
+
+   // Must have acquire semantics to synchronise with installing new code
+   LLVMValueRef entry =
+      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+   LLVMSetAlignment(entry, sizeof(void *));
+   LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
+
+   LLVMBasicBlockRef reexec_bb = llvm_append_block(obj, func->llvmfn, "reexec");
+   LLVMBasicBlockRef cont_bb = llvm_append_block(obj, func->llvmfn, "cont");
+
+   LLVMValueRef changed = LLVMBuildICmp(obj->builder, LLVMIntNE, entry,
+                                        PTR(func->llvmfn), "changed");
+   LLVMBuildCondBr(obj->builder, changed, reexec_bb, cont_bb);
+
+   LLVMPositionBuilderAtEnd(obj->builder, reexec_bb);
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
+   entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
+#endif
+
+   LLVMValueRef anchor = LLVMGetParam(func->llvmfn, 1);
+
+   LLVMValueRef args[] = {
+      fptr,
+      anchor,
+      func->args,
+      func->tlab,
+   };
+   LLVMValueRef call = LLVMBuildCall2(obj->builder, obj->types[LLVM_ENTRY_FN],
+                                      entry, args, ARRAY_LEN(args), "");
+   LLVMSetTailCall(call, true);
+
+   LLVMBuildRetVoid(obj->builder);
+
+   LLVMPositionBuilderAtEnd(obj->builder, cont_bb);
+}
+
 static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 {
    func->llvmfn = llvm_add_fn(obj, func->name, obj->types[LLVM_ENTRY_FN]);
@@ -2876,7 +2899,10 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    cgen_cache_args(obj, func);
 
    jit_cfg_t *cfg = func->cfg = jit_get_cfg(func->source);
+   cgen_reexecute_guard(obj, func, cfg);
    cgen_basic_blocks(obj, func, cfg);
+
+   entry_bb = LLVMGetInsertBlock(obj->builder);
 
    cgen_pointer_mask(func);
 
@@ -3395,7 +3421,6 @@ void jit_register_llvm_plugin(jit_t *j)
    else if (threshold < 0)
       warnf("invalid NVC_JIT_THRESOLD setting %d", threshold);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ahead-of-time code generation

@@ -407,16 +407,6 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
    }
 }
 
-static void mspace_mark_mptr(mspace_t *m, mptr_t ptr, gc_state_t *state)
-{
-#ifdef DEBUG
-   if (unlikely(ptr->ptr != NULL && !is_mspace_ptr(m, ptr->ptr)))
-      fatal_trace("mptr %s points to unknown address %p", ptr->name, ptr->ptr);
-#endif
-
-   mspace_mark_root(m, (intptr_t)ptr->ptr, state);
-}
-
 static void mspace_suspend_cb(int thread_id, struct cpu_state *cpu, void *arg)
 {
    struct cpu_state *array = arg;
@@ -467,7 +457,7 @@ static void mspace_gc(mspace_t *m)
    }
 
    for (mptr_t p = m->roots; p; p = p->next)
-      mspace_mark_mptr(m, p, &state);
+      mspace_mark_root(m, (intptr_t)p->ptr, &state);
 
    while (state.worklist.count > 0) {
       const uint64_t enc = APOP(state.worklist);

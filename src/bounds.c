@@ -178,6 +178,9 @@ static tree_t bounds_check_call_args(tree_t t)
          bounds_check_scalar(value, ftype, port);
    }
 
+   if (tree_kind(decl) == T_GENERIC_DECL)
+      return t;
+
    const subprogram_kind_t kind = tree_subkind(decl);
    if (known_arg_length && (kind == S_ARRAY_EQ || kind == S_ARRAY_NEQ)) {
       // Warn if calling the predefined array equality operators and the

@@ -97,7 +97,7 @@ void __nvc_sys_finish(void)
 DLLEXPORT
 void __nvc_sys_display(jit_scalar_t *args)
 {
-   verilog_printf(args);
+   verilog_printf(args + 2);
    fputc('\n', stdout);
    fflush(stdout);
 }
@@ -105,7 +105,7 @@ void __nvc_sys_display(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_sys_write(jit_scalar_t *args)
 {
-   verilog_printf(args);
+   verilog_printf(args + 2);
    fflush(stdout);
 }
 

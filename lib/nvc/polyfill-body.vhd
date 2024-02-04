@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2021  Nick Gasson
+--  Copyright (C) 2021-2024  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -16,30 +16,9 @@
 
 package body polyfill is
 
-    function to_string (value : real; spec : string) return string is
-        function impl (value : real; spec : string) return string;
-        attribute foreign of impl : function is "_std_to_string_real_format";
-    begin
-        return impl(value, spec);
-    end function;
-
     function to_string (value : integer) return string is
     begin
         return integer'image(value);
-    end function;
-
-    function to_hstring (value : bit_vector) return string is
-        function impl (value : bit_vector) return string;
-        attribute foreign of impl : function is "_std_to_hstring_bit_vec";
-    begin
-        return impl(value);
-    end function;
-
-    function to_ostring (value : bit_vector) return string is
-        function impl (value : bit_vector) return string;
-        attribute foreign of impl : function is "_std_to_ostring_bit_vec";
-    begin
-        return impl(value);
     end function;
 
     function maximum (x, y : integer) return integer is

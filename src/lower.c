@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -155,6 +155,8 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
                                     tree_t where, type_t from, type_t to);
 static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type);
 static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix);
+static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
+                                   bool params_as_vars);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -1949,7 +1951,7 @@ static bool lower_side_effect_free(tree_t expr)
             return false;
          else if (kind == S_CONCAT)
             return false;   // Allocates memory
-         else if (!is_builtin(kind))
+         else if (kind == S_USER || !is_open_coded_builtin(kind))
             return false;
 
          const int nparams = tree_params(expr);
@@ -2489,21 +2491,6 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
    }
 }
 
-static vcode_cc_t lower_cc_for_call(tree_t call)
-{
-   tree_t decl = tree_ref(call);
-   const subprogram_kind_t skind = tree_subkind(decl);
-
-   if (skind == S_FOREIGN)
-      return VCODE_CC_FOREIGN;
-   else if (skind == S_INTERNAL)
-      return VCODE_CC_INTERNAL;
-   else if (is_builtin(skind))
-      return VCODE_CC_PREDEF;
-   else
-      return VCODE_CC_VHDL;
-}
-
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
    if (lu->registry != NULL && unit_registry_query(lu->registry, unit_name)) {
@@ -2569,29 +2556,16 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    const int nparams = tree_params(fcall);
    SCOPED_A(vcode_reg_t) args = AINIT;
 
-   const vcode_cc_t cc = lower_cc_for_call(fcall);
    ident_t name = tree_ident2(decl);
 
    if (tree_kind(fcall) == T_PROT_FCALL && tree_has_name(fcall))
       APUSH(args, lower_rvalue(lu, tree_name(fcall)));
-   else if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
+   else
       APUSH(args, lower_context_for_call(lu, name));
 
    for (int i = 0; i < nparams; i++) {
       vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i);
-      if (kind == S_FOREIGN && vcode_reg_kind(arg_reg) == VCODE_TYPE_UARRAY) {
-         // Do not pass wrapped arrays into foreign functions
-         APUSH(args, emit_unwrap(arg_reg));
-
-         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-         const int ndims = vtype_dims(vcode_reg_type(arg_reg));
-         for (int i = 0; i < ndims; i++) {
-            vcode_reg_t len_reg = emit_uarray_len(arg_reg, 0);
-            APUSH(args, emit_cast(vint64, vint64, len_reg));
-         }
-      }
-      else
-         APUSH(args, arg_reg);
+      APUSH(args, arg_reg);
    }
 
    if (bounds_reg != VCODE_INVALID_REG)
@@ -2604,7 +2578,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    if (cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       lower_logic_expr_coverage(lu, fcall, decl, args.items);
 
-   return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
+   return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
 
 static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
@@ -3260,7 +3234,7 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
       vcode_type_t vrtype = lower_func_result_type(type);
 
       vcode_reg_t args[] = { lower_context_for_call(lu, helper_func), arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, VCODE_CC_VHDL, args, 2);
+      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
    }
 }
 
@@ -4548,7 +4522,7 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
          src_ptr,
       };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+                 args, ARRAY_LEN(args));
    }
 }
 
@@ -5116,7 +5090,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
             lower_context_for_call(lu, func),
             arg_reg,
          };
-         return emit_fcall(func, strtype, strtype, VCODE_CC_PREDEF, args, 2);
+         return emit_fcall(func, strtype, strtype, args, 2);
       }
 
    case ATTR_VALUE:
@@ -5140,8 +5114,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
             value_reg
          };
          vcode_reg_t reg = emit_fcall(func, lower_type(base),
-                                      lower_bounds(base),
-                                      VCODE_CC_PREDEF, args, 2);
+                                      lower_bounds(base), args, 2);
 
          if (type_is_scalar(name_type))
             lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
@@ -5738,9 +5711,11 @@ static void lower_clear_event(lower_unit_t *lu, tree_t on)
 
 static vcode_reg_t lower_call_now(void)
 {
-   ident_t func = ident_new("_std_standard_now");
+   ident_t func = ident_new("STD.STANDARD.NOW()25STD.STANDARD.DELAY_LENGTH");
    vcode_type_t rtype = vtype_time();
-   return emit_fcall(func, rtype, rtype, VCODE_CC_INTERNAL, NULL, 0);
+   vcode_reg_t context_reg = emit_link_package(well_known(W_STD_STANDARD));
+   vcode_reg_t args[1] = { context_reg };
+   return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
 }
 
 static void lower_wait(lower_unit_t *lu, tree_t wait)
@@ -5988,7 +5963,7 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
          locus
       };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+                 args, ARRAY_LEN(args));
    }
 }
 
@@ -6022,7 +5997,7 @@ static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
          locus
       };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+                 args, ARRAY_LEN(args));
    }
 }
 
@@ -6639,12 +6614,11 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    const int nparams = tree_params(pcall);
    SCOPED_A(vcode_reg_t) args = AINIT;
 
-   const vcode_cc_t cc = lower_cc_for_call(pcall);
    ident_t name = tree_ident2(decl);
 
    if (tree_kind(pcall) == T_PROT_PCALL && tree_has_name(pcall))
       APUSH(args, lower_rvalue(lu, tree_name(pcall)));
-   else if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
+   else
       APUSH(args, lower_context_for_call(lu, name));
 
    const int arg0 = args.count;
@@ -6653,24 +6627,12 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
       if (!use_fcall)
          vcode_heap_allocate(arg_reg);
 
-      if (kind == S_FOREIGN && vcode_reg_kind(arg_reg) == VCODE_TYPE_UARRAY) {
-         // Do not pass wrapped arrays into foreign functions
-         APUSH(args, emit_unwrap(arg_reg));
-
-         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-         const int ndims = vtype_dims(vcode_reg_type(arg_reg));
-         for (int i = 0; i < ndims; i++) {
-            vcode_reg_t len_reg = emit_uarray_len(arg_reg, 0);
-            APUSH(args, emit_cast(vint64, vint64, len_reg));
-         }
-      }
-      else
-         APUSH(args, arg_reg);
+      APUSH(args, arg_reg);
    }
 
    if (use_fcall)
       emit_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 cc, args.items, args.count);
+                 args.items, args.count);
    else {
       vcode_block_t resume_bb = emit_block();
 
@@ -7249,8 +7211,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
                vcode_reg_t context_reg = lower_context_for_call(lu, cmp_func);
                vcode_reg_t args[] = { context_reg, name_reg, val_reg };
-               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
-                                               VCODE_CC_PREDEF, args, 3);
+               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool, args, 3);
                emit_cond(eq_reg, hit_bb, chain_bb);
             }
 
@@ -7338,7 +7299,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
       vcode_reg_t args[] = { context_reg, value_reg };
       emit_fcall(func, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+                 args, ARRAY_LEN(args));
    }
 
    ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U$predef"
@@ -7427,8 +7388,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             test_reg,
          };
          vcode_reg_t result_reg = emit_fcall(func, vscalar, vscalar,
-                                             VCODE_CC_VHDL, args,
-                                             ARRAY_LEN(args));
+                                             args, ARRAY_LEN(args));
          vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, result_reg, true_reg);
 
          if (loop_bb != VCODE_INVALID_BLOCK)
@@ -8396,8 +8356,7 @@ static void lower_physical_image_helper(lower_unit_t *lu, type_t type,
       lower_context_for_call(lu, conv_fn),
       cast_reg
    };
-   vcode_reg_t num_reg = emit_fcall(conv_fn, vstring, vstring,
-                                    VCODE_CC_VHDL, conv_args, 2);
+   vcode_reg_t num_reg = emit_fcall(conv_fn, vstring, vstring, conv_args, 2);
 
    vcode_reg_t num_len = emit_uarray_len(num_reg, 0);
 
@@ -8452,8 +8411,7 @@ static void lower_numeric_image_helper(lower_unit_t *lu, type_t type,
       lower_context_for_call(lu, conv_fn),
       arg_reg
    };
-   vcode_reg_t str_reg = emit_fcall(conv_fn, vstring, vstring,
-                                    VCODE_CC_VHDL, conv_args, 2);
+   vcode_reg_t str_reg = emit_fcall(conv_fn, vstring, vstring, conv_args, 2);
    emit_return(str_reg);
 }
 
@@ -8481,7 +8439,7 @@ static void lower_record_image_helper(lower_unit_t *lu, type_t type,
          field_reg = emit_load_indirect(field_reg);
 
       vcode_reg_t args[] = { context_reg, field_reg };
-      regs[i] = emit_fcall(func, strtype, strtype, VCODE_CC_PREDEF, args, 2);
+      regs[i] = emit_fcall(func, strtype, strtype, args, 2);
       lengths[i] = emit_uarray_len(regs[i], 0);
 
       sum_reg = emit_add(sum_reg, lengths[i]);
@@ -8562,8 +8520,7 @@ static void lower_array_image_helper(lower_unit_t *lu, type_t type,
          elem_reg = emit_load_indirect(elem_reg);
 
       vcode_reg_t args[] = { context_reg, elem_reg };
-      vcode_reg_t str_reg = emit_fcall(func, strtype, strtype,
-                                       VCODE_CC_PREDEF, args, 2);
+      vcode_reg_t str_reg = emit_fcall(func, strtype, strtype, args, 2);
 
       vcode_reg_t edata_reg = emit_unwrap(str_reg);
       vcode_reg_t elen_reg = emit_uarray_len(str_reg, 0);
@@ -8782,7 +8739,7 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
       lower_context_for_call(lu, canon_fn),
       preg,
    };
-   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar, VCODE_CC_VHDL,
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar,
                                       canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
@@ -8852,10 +8809,10 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
    type_t std_string = std_type(NULL, STD_STRING);
    ident_t func = lower_predef_func_name(std_string, "=");
 
+   vcode_type_t vbool = vtype_bool();
    vcode_reg_t context_reg = lower_context_for_call(lu, func);
    vcode_reg_t str_cmp_args[] = { context_reg, str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
-                                   VCODE_CC_PREDEF, str_cmp_args, 3);
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args, 3);
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -8931,7 +8888,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
       used_ptr,
    };
    emit_fcall(conv_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-              VCODE_CC_VHDL, conv_args, ARRAY_LEN(conv_args));
+              conv_args, ARRAY_LEN(conv_args));
 
    vcode_reg_t int_reg = emit_load(int_var);
    vcode_reg_t used_reg = emit_cast(voffset, voffset, emit_load(used_var));
@@ -8955,7 +8912,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
       text_util_reg,
       tail_reg,
    };
-   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar, VCODE_CC_VHDL,
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar,
                                       canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg = emit_uarray_len(canon_reg, 0);
 
@@ -9039,9 +8996,9 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    ident_t func = lower_predef_func_name(std_string, "=");
 
    vcode_reg_t std_reg = emit_link_package(well_known(W_STD_STANDARD));
+   vcode_type_t vbool = vtype_bool();
    vcode_reg_t str_cmp_args[] = { std_reg, str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
-                                   VCODE_CC_PREDEF, str_cmp_args, 3);
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args, 3);
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -9102,7 +9059,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
 
-      result_reg = emit_fcall(conv_fn, vreal, vreal, VCODE_CC_VHDL,
+      result_reg = emit_fcall(conv_fn, vreal, vreal,
                               conv_args, ARRAY_LEN(conv_args));
    }
    else {
@@ -9114,7 +9071,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
 
-      result_reg = emit_fcall(conv_fn, vint64, vint64, VCODE_CC_VHDL,
+      result_reg = emit_fcall(conv_fn, vint64, vint64,
                               conv_args, ARRAY_LEN(conv_args));
    }
 
@@ -9145,8 +9102,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
-   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat,
-                                     VCODE_CC_VHDL, open_args, 2);
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat, open_args, 2);
 
    vcode_reg_t off_reg = emit_cast(voffset, voffset, open_reg);
    vcode_reg_t ptr_reg = emit_index(result_var, VCODE_INVALID_REG);
@@ -9155,7 +9111,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
    for (int i = 0; i < nfields; i++) {
       vcode_reg_t nd_args[] = { text_util_reg, preg, off_reg };
       vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype,
-                                      VCODE_CC_VHDL, nd_args, 3);
+                                      nd_args, 3);
 
       type_t ftype = type_base_recur(tree_type(type_field(type, i)));
 
@@ -9168,8 +9124,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
       vcode_type_t fvtype = lower_func_result_type(ftype);
       vcode_type_t fvbounds = lower_bounds(ftype);
 
-      vcode_reg_t value_reg = emit_fcall(func, fvtype, fvbounds,
-                                         VCODE_CC_PREDEF, args, 2);
+      vcode_reg_t value_reg = emit_fcall(func, fvtype, fvbounds, args, 2);
 
       vcode_reg_t vlen_reg = emit_uarray_len(nd_reg, 0);
       off_reg = emit_add(off_reg, vlen_reg);
@@ -9189,7 +9144,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_reg_t close_args[] = { text_util_reg, preg, off_reg };
    emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-              VCODE_CC_VHDL, close_args, ARRAY_LEN(close_args));
+              close_args, ARRAY_LEN(close_args));
 
    emit_return(ptr_reg);
 }
@@ -9237,7 +9192,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_reg_t trim_args[] = { text_util_reg, preg, first_ptr, last_ptr };
       emit_fcall(trim_ws_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, trim_args, ARRAY_LEN(trim_args));
+                 trim_args, ARRAY_LEN(trim_args));
 
       vcode_reg_t first_reg = emit_cast(voffset, voffset, emit_load(first_var));
       vcode_reg_t last_reg = emit_cast(voffset, voffset, emit_load(last_var));
@@ -9300,7 +9255,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_reg_t bad_char_args[] = { text_util_reg, preg, char_reg };
       emit_fcall(bad_char_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, bad_char_args, ARRAY_LEN(bad_char_args));
+                 bad_char_args, ARRAY_LEN(bad_char_args));
 
       emit_unreachable(locus);
 
@@ -9326,14 +9281,13 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_reg_t count_args[] = { text_util_reg, preg };
    vcode_reg_t count_result_reg = emit_fcall(count_delim_fn, vnat, vnat,
-                                             VCODE_CC_VHDL, count_args, 2);
+                                             count_args, 2);
    vcode_reg_t count_reg = emit_cast(voffset, voffset, count_result_reg);
 
    vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
-   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat,
-                                     VCODE_CC_VHDL, open_args, 2);
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat, open_args, 2);
 
    vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
    emit_store(emit_cast(voffset, voffset, open_reg), pos_var);
@@ -9347,8 +9301,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t pos_reg = emit_load(pos_var);
 
    vcode_reg_t nd_args[] = { text_util_reg, preg, pos_reg };
-   vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype,
-                                   VCODE_CC_VHDL, nd_args, 3);
+   vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype, nd_args, 3);
 
    ident_t func = ident_prefix(type_ident(elem), ident_new("value"), '$');
    vcode_reg_t args[] = {
@@ -9357,7 +9310,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    };
 
    vcode_reg_t value_reg = emit_fcall(func, lower_func_result_type(elem),
-                                      vbounds, VCODE_CC_PREDEF, args, 2);
+                                      vbounds, args, 2);
    vcode_reg_t ptr_reg = emit_array_ref(mem_reg, i_reg);
 
    if (type_is_record(elem))
@@ -9379,7 +9332,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_reg_t close_args[] = { text_util_reg, preg, emit_load(pos_var) };
    emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-              VCODE_CC_VHDL, close_args, ARRAY_LEN(close_args));
+              close_args, ARRAY_LEN(close_args));
 
    vcode_dim_t dims[] = {
       { .left  = emit_const(vtype_offset(), 1),
@@ -9680,6 +9633,35 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
    lower_put_vcode_obj(type, var, lu);
 }
 
+static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
+{
+   tree_t spec = tree_from_object(obj);
+   assert(tree_kind(spec) == T_ATTR_SPEC);
+
+   tree_t value = tree_value(spec);
+   type_t str_type = tree_type(value);
+
+   tree_t sub = tree_ref(spec);
+   assert(is_subprogram(sub));
+
+   type_t type = tree_type(sub);
+   if (type_kind(type) == T_FUNC)
+      vcode_set_result(lower_func_result_type(type_result(type)));
+
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   lower_subprogram_ports(lu, sub, false);
+
+   vcode_reg_t spec_reg = lower_rvalue(lu, value);
+   vcode_reg_t data_reg = lower_array_data(spec_reg);
+   vcode_reg_t length_reg = lower_array_len(lu, str_type, 0, spec_reg);
+   vcode_reg_t locus = lower_debug_locus(spec);
+
+   emit_bind_foreign(data_reg, length_reg, locus);
+   emit_unreachable(VCODE_INVALID_REG);
+}
+
 static void lower_decl(lower_unit_t *lu, tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -9755,7 +9737,6 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
 
    case T_FUNC_DECL:
    case T_PROC_DECL:
-   case T_ATTR_SPEC:
    case T_ATTR_DECL:
    case T_COMPONENT:
    case T_USE:
@@ -9765,6 +9746,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_VIEW_DECL:
    case T_PROT_DECL:
    case T_HIER:
+   case T_ATTR_SPEC:
       break;
 
    case T_PACKAGE:
@@ -9836,15 +9818,32 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 
 static void lower_decls(lower_unit_t *lu, tree_t scope)
 {
+   bool has_foreign = false;
    const int ndecls = tree_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(scope, i);
+      if (tree_kind(d) != T_ATTR_SPEC)
+         continue;
+      else if (is_well_known(tree_ident(d)) == W_FOREIGN) {
+         unit_registry_defer(lu->registry, tree_ident2(tree_ref(d)), lu,
+                             emit_function, lower_foreign_stub, NULL,
+                             tree_to_object(d));
+         has_foreign = true;
+      }
+   }
+
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       switch (tree_kind(d)) {
       case T_FUNC_INST:
       case T_FUNC_BODY:
-         unit_registry_defer(lu->registry, tree_ident2(d),
-                             lu, emit_function, lower_func_body,
-                             lu->cover, tree_to_object(d));
+         {
+            ident_t mangled = tree_ident2(d);
+            if (!has_foreign || !unit_registry_query(lu->registry, mangled))
+               unit_registry_defer(lu->registry, mangled, lu,
+                                   emit_function, lower_func_body,
+                                   lu->cover, tree_to_object(d));
+         }
          break;
       case T_PROC_INST:
       case T_PROC_BODY:
@@ -9852,10 +9851,12 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
             const bool never_waits = !!(tree_flags(d) & TREE_F_NEVER_WAITS)
                || (tree_flags(d) & TREE_F_PROTECTED);
             emit_fn_t emitfn = never_waits ? emit_function : emit_procedure;
+            ident_t mangled = tree_ident2(d);
 
-            unit_registry_defer(lu->registry, tree_ident2(d),
-                                lu, emitfn, lower_proc_body, lu->cover,
-                                tree_to_object(d));
+            if (!has_foreign || !unit_registry_query(lu->registry, mangled))
+               unit_registry_defer(lu->registry, tree_ident2(d),
+                                   lu, emitfn, lower_proc_body, lu->cover,
+                                   tree_to_object(d));
          }
          break;
       case T_PROT_BODY:
@@ -9867,7 +9868,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_PROC_DECL:
         {
            const subprogram_kind_t kind = tree_subkind(d);
-           if (!is_builtin(kind) || is_open_coded_builtin(kind))
+           if (kind == S_USER || is_open_coded_builtin(kind))
               continue;
 
            unit_registry_defer(lu->registry, tree_ident2(d),
@@ -10175,8 +10176,7 @@ static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
    vcode_type_t ctype = vtype_char();
    vcode_type_t rtype = vtype_uarray(1, ctype, ctype);
    vcode_reg_t args[] = { context_reg, r0 };
-   vcode_reg_t str_reg =
-      emit_fcall(func, rtype, ctype, VCODE_CC_PREDEF, args, 2);
+   vcode_reg_t str_reg = emit_fcall(func, rtype, ctype, args, 2);
 
    if (type_is_enum(arg_type)) {
       // If the result is a character literal return just the character
@@ -10701,7 +10701,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
          vcode_reg_t context_reg = lower_context_for_call(lu, func);
          vcode_reg_t args[] = { context_reg, r0_src_reg, r1_src_reg };
-         tmp = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 3);
+         tmp = emit_fcall(func, vtype, vbounds, args, 3);
       }
       emit_store_indirect(tmp, emit_array_ref(mem_reg, i_reg));
 
@@ -10726,7 +10726,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          : ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, wrap_reg };
-      result = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 2);
+      result = emit_fcall(func, vtype, vbounds, args, 2);
    }
    else if (is_bit)
       result = emit_cmp(cmp, r0, r1);
@@ -10750,7 +10750,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
       vcode_reg_t args[3] = { context_reg, r0, r1 };
 
       vcode_type_t rtype = lower_type(r0_type);
-      result = emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 3);
+      result = emit_fcall(func, rtype, rtype, args, 3);
    }
 
    if (invert && is_bit)
@@ -10761,7 +10761,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[2] = { context_reg, result };
       vcode_type_t rtype = vcode_reg_type(result);
-      emit_return(emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 2));
+      emit_return(emit_fcall(func, rtype, rtype, args, 2));
    }
    else
       emit_return(result);
@@ -10836,7 +10836,7 @@ static void lower_predef_min_max(lower_unit_t *lu, tree_t decl, vcode_cmp_t cmp)
          ident_t func = lower_predef_func_name(type, op);
          vcode_reg_t args[] = { context_reg, r0, r1 };
          vcode_type_t vbool = vtype_bool();
-         test_reg = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
+         test_reg = emit_fcall(func, vbool, vbool, args, 3);
       }
 
       emit_return(emit_select(test_reg, r0, r1));
@@ -10849,40 +10849,33 @@ static void lower_predef_negate(tree_t decl, const char *op)
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t args[] = { 0, 1, 2 };
    vcode_reg_t eq_reg = emit_fcall(lower_predef_func_name(type, op),
-                                   vbool, vbool, VCODE_CC_PREDEF, args, 3);
+                                   vbool, vbool, args, 3);
 
    emit_return(emit_not(eq_reg));
 }
 
-static void lower_predef_file_op(lower_unit_t *lu, tree_t decl, const char *fn)
+static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
 {
-   ident_t func = ident_new(fn);
+   static const char prefix[] = "INTERNAL ";
+   const size_t fnlen = strlen(fn);
+   const size_t nchars = fnlen + sizeof(prefix) - 1;
+   vcode_reg_t *chars LOCAL = xmalloc_array(nchars, sizeof(vcode_reg_t));
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t stype = vtype_carray(nchars, ctype, ctype);
 
-   vcode_type_t rtype = vcode_unit_result(lu->vunit);
-   vcode_var_t result_var = VCODE_INVALID_VAR;
-   if (rtype != VCODE_INVALID_TYPE)
-      result_var = emit_var(rtype, rtype, ident_new("result"), 0);
+   int pos = 0;
+   for (int i = 0; i < sizeof(prefix) - 1; i++)
+      chars[pos++] = emit_const(ctype, prefix[i]);
+   for (int i = 0; i < fnlen; i++)
+      chars[pos++] = emit_const(ctype, fn[i]);
+   assert(pos == nchars);
 
-   vcode_reg_t args[4];
-   const int nparams = vcode_count_params();
+   vcode_reg_t array_reg = emit_const_array(stype, chars, nchars);
+   vcode_reg_t data_reg = emit_address_of(array_reg);
+   vcode_reg_t length_reg = emit_const(vtype_offset(), nchars);
 
-   int nargs = 0;
-   for (int i = 1; i < nparams; i++)
-      args[nargs++] = vcode_param_reg(i);
-
-   if (result_var != VCODE_INVALID_VAR)
-      args[nargs++] = emit_index(result_var, VCODE_INVALID_REG);
-
-   assert(nargs < ARRAY_LEN(args));
-
-   emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE, VCODE_CC_INTERNAL,
-              args, nargs);
-
-   vcode_reg_t result_reg = VCODE_INVALID_REG;
-   if (result_var != VCODE_INVALID_VAR)
-      result_reg = emit_load(result_var);
-
-   emit_return(result_reg);
+   emit_bind_foreign(data_reg, length_reg, VCODE_INVALID_REG);
+   emit_unreachable(VCODE_INVALID_REG);
 }
 
 static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
@@ -10903,7 +10896,7 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
 
    const subprogram_kind_t kind = tree_subkind(decl);
-   assert(is_builtin(kind));
+   assert(kind != S_USER);
    assert(!is_open_coded_builtin(kind));
 
    type_t type = tree_type(decl);
@@ -10940,6 +10933,21 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       break;
    case S_TO_STRING:
       lower_predef_to_string(lu, decl);
+      break;
+   case S_TO_STRING_TIME:
+      lower_foreign_predef(lu, decl, "_std_to_string_time");
+      break;
+   case S_TO_STRING_REAL_DIGITS:
+      lower_foreign_predef(lu, decl, "_std_to_string_real_digits");
+      break;
+   case S_TO_STRING_REAL_FORMAT:
+      lower_foreign_predef(lu, decl, "_std_to_string_real_format");
+      break;
+   case S_TO_HSTRING_BITVEC:
+      lower_foreign_predef(lu, decl, "_std_to_hstring_bit_vec");
+      break;
+   case S_TO_OSTRING_BITVEC:
+      lower_foreign_predef(lu, decl, "_std_to_ostring_bit_vec");
       break;
    case S_SLL:
    case S_SRL:
@@ -10989,34 +10997,34 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       lower_predef_min_max(lu, decl, VCODE_CMP_LT);
       break;
    case S_FILE_FLUSH:
-      lower_predef_file_op(lu, decl, "__nvc_flush");
+      lower_foreign_predef(lu, decl, "__nvc_flush");
       break;
    case S_FILE_OPEN3:
       lower_predef_file_open3(lu, decl);
       break;
    case S_FILE_MODE:
-      lower_predef_file_op(lu, decl, "__nvc_file_mode");
+      lower_foreign_predef(lu, decl, "__nvc_file_mode");
       break;
    case S_FILE_CANSEEK:
-      lower_predef_file_op(lu, decl, "__nvc_file_canseek");
+      lower_foreign_predef(lu, decl, "__nvc_file_canseek");
       break;
    case S_FILE_SIZE:
-      lower_predef_file_op(lu, decl, "__nvc_file_size");
+      lower_foreign_predef(lu, decl, "__nvc_file_size");
       break;
    case S_FILE_REWIND:
-      lower_predef_file_op(lu, decl, "__nvc_rewind");
+      lower_foreign_predef(lu, decl, "__nvc_rewind");
       break;
    case S_FILE_SEEK:
-      lower_predef_file_op(lu, decl, "__nvc_seek");
+      lower_foreign_predef(lu, decl, "__nvc_seek");
       break;
    case S_FILE_TRUNCATE:
-      lower_predef_file_op(lu, decl, "__nvc_truncate");
+      lower_foreign_predef(lu, decl, "__nvc_truncate");
       break;
    case S_FILE_STATE:
-      lower_predef_file_op(lu, decl, "__nvc_file_state");
+      lower_foreign_predef(lu, decl, "__nvc_file_state");
       break;
    case S_FILE_POSITION:
-      lower_predef_file_op(lu, decl, "__nvc_file_position");
+      lower_foreign_predef(lu, decl, "__nvc_file_position");
       break;
    default:
       fatal_trace("cannot lower predefined function %s", type_pp(type));
@@ -11394,9 +11402,8 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
       ident_t func = tree_ident2(fdecl);
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, arg_reg };
-      vcode_reg_t result_reg = emit_fcall(func, lower_type(rtype), vrbounds,
-                                          VCODE_CC_VHDL, args, 2);
-
+      vcode_reg_t result_reg = emit_fcall(func, lower_type(rtype),
+                                          vrbounds, args, 2);
       if (r_uarray) {
          vcode_reg_t locus = lower_debug_locus(expr);
          lower_check_array_sizes(lu, check_type, rtype, VCODE_INVALID_REG,
@@ -12215,7 +12222,7 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, left_reg, right_reg };
       vcode_type_t vbool = vtype_bool();
-      test_reg = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 3);
+      test_reg = emit_fcall(func, vbool, vbool, args, 3);
    }
 
    vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
@@ -12577,7 +12584,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
                      lower_context_for_call(lu, cmp_func);
                   vcode_reg_t args[] = { context_reg, name_reg, value_reg };
                   vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
-                                                  VCODE_CC_PREDEF, args, 3);
+                                                  args, 3);
                   emit_cond(eq_reg, match_bb, skip_bb);
                }
                else {

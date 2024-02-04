@@ -1124,33 +1124,25 @@ bool package_needs_body(tree_t pack)
 {
    assert(tree_kind(pack) == T_PACKAGE);
 
+   int missing = 0;
    const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(pack, i);
-
-      switch (tree_kind(d)) {
-      case T_FUNC_DECL:
-      case T_PROC_DECL:
-         if (tree_flags(d) & TREE_F_PREDEFINED)
-            continue;
-         else if (is_foreign(tree_subkind(d)))
-            continue;
+      const tree_kind_t dkind = tree_kind(d);
+      if ((dkind == T_FUNC_DECL || dkind == T_PROC_DECL)
+          && !(tree_flags(d) & TREE_F_PREDEFINED))
+         missing++;
+      else if (dkind == T_ATTR_SPEC
+               && is_well_known(tree_ident(d)) == W_FOREIGN)
+         missing--;
+      else if (dkind == T_CONST_DECL && !tree_has_value(d))
          return true;
-
-      case T_CONST_DECL:
-         if (!tree_has_value(d))
-            return true;
-         continue;
-
-      case T_PROT_DECL:
+      else if (dkind == T_PROT_DECL)
          return true;
-
-      default:
-         continue;
-      }
    }
 
-   return false;
+   assert(missing >= 0);
+   return missing > 0;
 }
 
 tree_t search_decls(tree_t container, ident_t name, int nth)
@@ -1364,77 +1356,55 @@ type_t reflection_type(reflect_type_t which)
       return cache[which];
 }
 
-bool is_builtin(subprogram_kind_t kind)
-{
-   return kind != S_USER && kind != S_FOREIGN && kind != S_INTERNAL;
-}
-
-bool is_foreign(subprogram_kind_t kind)
-{
-   return kind == S_FOREIGN || kind == S_INTERNAL;
-}
-
 bool is_open_coded_builtin(subprogram_kind_t kind)
 {
    switch (kind) {
-   case S_USER:
-   case S_FOREIGN:
-   case S_INTERNAL:
-   case S_ARRAY_EQ:
-   case S_ARRAY_NEQ:
-   case S_ARRAY_LT:
-   case S_ARRAY_LE:
-   case S_ARRAY_GT:
-   case S_ARRAY_GE:
-   case S_RECORD_EQ:
-   case S_RECORD_NEQ:
-   case S_TO_STRING:
-   case S_SLL:
-   case S_SRL:
-   case S_SLA:
-   case S_SRA:
-   case S_ROL:
-   case S_ROR:
-   case S_ARRAY_NOT:
-   case S_ARRAY_AND:
-   case S_ARRAY_OR:
-   case S_ARRAY_XOR:
-   case S_ARRAY_XNOR:
-   case S_ARRAY_NAND:
-   case S_ARRAY_NOR:
-   case S_MIXED_AND:
-   case S_MIXED_OR:
-   case S_MIXED_XOR:
-   case S_MIXED_XNOR:
-   case S_MIXED_NAND:
-   case S_MIXED_NOR:
-   case S_REDUCE_OR:
-   case S_REDUCE_AND:
-   case S_REDUCE_NAND:
-   case S_REDUCE_NOR:
-   case S_REDUCE_XOR:
-   case S_REDUCE_XNOR:
-   case S_MATCH_EQ:
-   case S_MATCH_NEQ:
-   case S_MATCH_LT:
-   case S_MATCH_LE:
-   case S_MATCH_GT:
-   case S_MATCH_GE:
-   case S_MINIMUM:
-   case S_MAXIMUM:
-   case S_FILE_FLUSH:
-   case S_FILE_OPEN3:
-   case S_FILE_MODE:
-   case S_FILE_CANSEEK:
-   case S_FILE_SIZE:
-   case S_FILE_REWIND:
-   case S_FILE_SEEK:
-   case S_FILE_TRUNCATE:
-   case S_FILE_STATE:
-   case S_FILE_POSITION:
-      return false;
-   default:
+   case S_ADD:
+   case S_SUB:
+   case S_DIV:
+   case S_MUL:
+   case S_MUL_PR:
+   case S_MUL_RP:
+   case S_MUL_PI:
+   case S_MUL_IP:
+   case S_DIV_PR:
+   case S_DIV_PP:
+   case S_DIV_PI:
+   case S_IDENTITY:
+   case S_NEGATE:
+   case S_SCALAR_LT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GT:
+   case S_SCALAR_GE:
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_ABS:
+   case S_MOD:
+   case S_REM:
+   case S_EXP:
+   case S_MUL_RI:
+   case S_MUL_IR:
+   case S_DIV_RI:
+   case S_RISING_EDGE:
+   case S_FALLING_EDGE:
+   case S_CONCAT:
+   case S_SCALAR_AND:
+   case S_SCALAR_OR:
+   case S_SCALAR_NOT:
+   case S_SCALAR_NAND:
+   case S_SCALAR_NOR:
+   case S_SCALAR_XOR:
+   case S_SCALAR_XNOR:
+   case S_FILE_OPEN1:
+   case S_FILE_OPEN2:
+   case S_FILE_CLOSE:
+   case S_FILE_READ:
+   case S_FILE_WRITE:
+   case S_ENDFILE:
+   case S_DEALLOCATE:
       return true;
+   default:
+      return false;
    }
 }
 

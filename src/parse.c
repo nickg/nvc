@@ -1443,31 +1443,31 @@ static void declare_additional_standard_operators(tree_t unit)
 
    // The following special cases are implicitly defined
 
-   tree_t d1 = builtin_fn(to_string, std_string, S_FOREIGN,
+   tree_t d1 = builtin_fn(to_string, std_string, S_TO_STRING_TIME,
                           "VALUE", std_time, "UNIT", std_time, NULL);
-   tree_set_ident2(d1, ident_new("_std_to_string_time"));
+   mangle_func(nametab, d1);
    tree_add_decl(unit, d1);
 
-   tree_t d2 = builtin_fn(to_string, std_string, S_FOREIGN,
+   tree_t d2 = builtin_fn(to_string, std_string, S_TO_STRING_REAL_DIGITS,
                           "VALUE", std_real, "DIGITS", std_natural, NULL);
-   tree_set_ident2(d2, ident_new("_std_to_string_real_digits"));
+   mangle_func(nametab, d2);
    tree_add_decl(unit, d2);
 
-   tree_t d3 = builtin_fn(to_string, std_string, S_FOREIGN,
+   tree_t d3 = builtin_fn(to_string, std_string, S_TO_STRING_REAL_FORMAT,
                           "VALUE", std_real, "FORMAT", std_string, NULL);
-   tree_set_ident2(d3, ident_new("_std_to_string_real_format"));
+   mangle_func(nametab, d3);
    tree_add_decl(unit, d3);
 
-   tree_t d4 = builtin_fn(ident_new("TO_HSTRING"), std_string, S_FOREIGN,
-                          "VALUE", std_bit_vec, NULL);
-   tree_set_ident2(d4, ident_new("_std_to_hstring_bit_vec"));
+   tree_t d4 = builtin_fn(ident_new("TO_HSTRING"), std_string,
+                          S_TO_HSTRING_BITVEC, "VALUE", std_bit_vec, NULL);
+   mangle_func(nametab, d4);
    tree_add_decl(unit, d4);
 
    declare_alias(unit, d4, ident_new("TO_HEX_STRING"));
 
-   tree_t d5 = builtin_fn(ident_new("TO_OSTRING"), std_string, S_FOREIGN,
-                          "VALUE", std_bit_vec, NULL);
-   tree_set_ident2(d5, ident_new("_std_to_ostring_bit_vec"));
+   tree_t d5 = builtin_fn(ident_new("TO_OSTRING"), std_string,
+                          S_TO_OSTRING_BITVEC, "VALUE", std_bit_vec, NULL);
+   mangle_func(nametab, d5);
    tree_add_decl(unit, d5);
 
    declare_alias(unit, d5, ident_new("TO_OCTAL_STRING"));

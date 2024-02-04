@@ -439,11 +439,4 @@ package body text_util is
         return change_bounds(buf(pos + 1 to buf'right), 1, buf'right - pos);
     end function;
 
-    function real_to_string (x : real) return string is
-        function impl (x : real) return string;
-        attribute foreign of impl : function is "_std_to_string_real";
-    begin
-        return impl(x);
-    end function;
-
 end package body;

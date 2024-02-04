@@ -70,7 +70,6 @@
 
   # Exported from src/jit/jit-exits.c
   __nvc_do_exit;
-  __nvc_do_fficall;
   __nvc_get_object;
   __nvc_last_event;
   __nvc_mspace_alloc;
@@ -119,6 +118,4 @@
 
   # Unit test
   global_func;
-  test_ffi_add;
-  test_ffi_fma;
 };

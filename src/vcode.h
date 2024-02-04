@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -165,6 +165,7 @@ typedef enum {
    VCODE_OP_PORT_CONVERSION,
    VCODE_OP_CONVERT_IN,
    VCODE_OP_CONVERT_OUT,
+   VCODE_OP_BIND_FOREIGN,
 } vcode_op_t;
 
 typedef enum {
@@ -210,13 +211,6 @@ typedef enum {
    VCODE_UNIT_PROPERTY,
    VCODE_UNIT_SHAPE,
 } vunit_kind_t;
-
-typedef enum {
-   VCODE_CC_VHDL,
-   VCODE_CC_PREDEF,
-   VCODE_CC_FOREIGN,
-   VCODE_CC_INTERNAL,
-} vcode_cc_t;
 
 typedef struct {
    vcode_reg_t left;
@@ -398,7 +392,7 @@ void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
                  vcode_reg_t locus);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                       vcode_cc_t cc, const vcode_reg_t *args, int nargs);
+                       const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
@@ -531,5 +525,6 @@ void emit_add_trigger(vcode_reg_t trigger);
 vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective);
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
+void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 
 #endif  // _VCODE_H

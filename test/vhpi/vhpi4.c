@@ -26,8 +26,9 @@ uint8_t __vhpi_my_not(uint8_t x)
    }
 }
 
-void __vhpi_test_proc(int32_t *x, int32_t *arr)
+int __vhpi_test_proc(int32_t *x, int32_t *arr)
 {
    *x = 42;
    arr[1] = 5;
+   return 66;   // Should be ignored
 }

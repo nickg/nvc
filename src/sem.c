@@ -2086,6 +2086,8 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
       const tree_kind_t dkind = tree_kind(d);
       if (dkind != T_FUNC_DECL && dkind != T_PROC_DECL && dkind != T_PROT_DECL)
          continue;
+      else if (dkind != T_PROT_DECL && (tree_flags(d) & TREE_F_PREDEFINED))
+         continue;
 
       type_t dtype = tree_type(d);
 
@@ -2095,22 +2097,31 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
       for (int j = start; !found && (j < nbody_decls); j++) {
          tree_t b = tree_decl(body, j);
          const tree_kind_t bkind = tree_kind(b);
-         if (bkind != T_FUNC_BODY && bkind != T_PROC_BODY
-             && bkind != T_PROT_BODY)
+         if (bkind == T_ATTR_SPEC && is_well_known(tree_ident(b)) == W_FOREIGN
+             && tree_has_ref(b) && tree_ref(b) == d)
+            found = true;
+         else if (bkind != T_FUNC_BODY && bkind != T_PROC_BODY
+                  && bkind != T_PROT_BODY)
             continue;
          else if (type_eq(dtype, tree_type(b)))
             found = true;
       }
 
-      if (found)
-         continue;
+      if (!found && (dkind == T_FUNC_DECL || dkind == T_PROC_DECL)) {
+         // Check if there was a later foreign attribute declaration
+         for (int j = i + 1; j < ndecls; j++) {
+            tree_t d2 = tree_decl(spec, j);
+            if (tree_kind(d2) != T_ATTR_SPEC || !tree_has_ref(d2))
+               continue;
+            else if (tree_ref(d2) == d) {
+               found = true;
+               break;
+            }
+         }
+      }
 
-      const bool missing = dkind == T_PROT_DECL
-         || (!(tree_flags(d) & TREE_F_PREDEFINED)
-             && !is_foreign(tree_subkind(d)));
-
-      if (missing && opt_get_int(OPT_MISSING_BODY)) {
-         warn_at(tree_loc(d), "missing body for %s %s",
+      if (!found && opt_get_int(OPT_MISSING_BODY)) {
+         error_at(tree_loc(d), "missing body for %s %s",
                  (dkind == T_PROT_DECL) ? "protected type"
                  : (dkind == T_PROC_DECL ? "procedure" : "function"),
                  type_pp(dtype));
@@ -5094,8 +5105,7 @@ static bool sem_locally_static(tree_t t)
       tree_t decl = tree_ref(t);
       if (tree_kind(decl) == T_GENERIC_DECL)
          return false;   // Not known at this point
-      else if (!is_builtin(tree_subkind(decl))
-               && !sem_ieee_locally_static(decl))
+      else if (tree_subkind(decl) == S_USER && !sem_ieee_locally_static(decl))
          return false;
 
       const int nparams = tree_params(t);
@@ -5768,48 +5778,14 @@ static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
          else if (class != C_PROCEDURE)
             sem_error(t, "NEVER_WAITS attribute can only be applied to "
                       "procedures");
-         else if (flag)
+         else if (flag && !tree_frozen(decl))
             tree_set_flag(decl, TREE_F_NEVER_WAITS);
       }
       break;
 
    case W_FOREIGN:
-      {
-         // See LRM 08 section 20.2.4.3
-
-         if (tree_kind(value) != T_STRING)
-            sem_error(value, "FOREIGN attribute must have string "
-                      "literal value");
-
-         const int nchars = tree_chars(value);
-         char *buf LOCAL = xmalloc(nchars + 1);
-         for (int i = 0; i < nchars; i++)
-            buf[i] = tree_pos(tree_ref(tree_char(value, i)));
-         buf[nchars] = '\0';
-
-         subprogram_kind_t kind = S_FOREIGN;
-         char *p = strtok(buf, " ");
-         if (strcmp(p, "VHPIDIRECT") == 0) {
-            p = strtok(NULL, " ");
-            if (p != NULL) {
-               // The object library specifier is silently ignored
-               char *p2 = strtok(NULL, " ");
-               if (p2 != NULL) p = p2;
-            }
-         }
-         else if (strcmp(p, "INTERNAL") == 0) {
-            p = strtok(NULL, " ");
-            kind = S_INTERNAL;
-         }
-         else if (strtok(NULL, " ") != NULL)
-            sem_error(value, "failed to parse FOREIGN attribute");
-
-         ident_t name = ident_new(p);
-         tree_set_ident2(decl, name);
-
-         tree_set_subkind(decl, kind);
+      if (!tree_frozen(decl))
          tree_set_flag(decl, TREE_F_NEVER_WAITS);
-      }
       break;
 
    default:

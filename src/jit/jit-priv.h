@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -76,7 +76,6 @@ typedef enum {
    MACRO_FEXP,
    MACRO_EXP,
    MACRO_BZERO,
-   MACRO_FFICALL,
    MACRO_GETPRIV,
    MACRO_PUTPRIV,
    MACRO_LALLOC,
@@ -85,6 +84,7 @@ typedef enum {
    MACRO_TRIM,
    MACRO_MOVE,
    MACRO_MEMSET,
+   MACRO_REEXEC,
 } jit_op_t;
 
 typedef enum {
@@ -166,6 +166,7 @@ typedef enum {
    JIT_EXIT_PORT_CONVERSION,
    JIT_EXIT_CONVERT_IN,
    JIT_EXIT_CONVERT_OUT,
+   JIT_EXIT_BIND_FOREIGN,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -184,7 +185,6 @@ typedef enum {
    JIT_VALUE_HANDLE,
    JIT_VALUE_EXIT,
    JIT_VALUE_LOC,
-   JIT_VALUE_FOREIGN,
    JIT_VALUE_VPOS,
    JIT_VALUE_LOCUS,
 } jit_value_kind_t;
@@ -201,16 +201,15 @@ typedef struct {
    jit_value_kind_t kind : 8;
    int32_t          disp;
    union {
-      jit_reg_t      reg;
-      int64_t        int64;
-      double         dval;
-      jit_label_t    label;
-      jit_handle_t   handle;
-      jit_exit_t     exit;
-      loc_t          loc;
-      jit_foreign_t *foreign;
-      jit_vpos_t     vpos;
-      ident_t        ident;
+      jit_reg_t    reg;
+      int64_t      int64;
+      double       dval;
+      jit_label_t  label;
+      jit_handle_t handle;
+      jit_exit_t   exit;
+      loc_t        loc;
+      jit_vpos_t   vpos;
+      ident_t      ident;
    };
 } jit_value_t;
 
@@ -273,7 +272,6 @@ typedef enum {
    RELOC_NULL,
    RELOC_HANDLE,
    RELOC_FUNC,
-   RELOC_FOREIGN,
    RELOC_PRIVDATA,
    RELOC_COVER,
    RELOC_PROCESSED,
@@ -432,10 +430,11 @@ void pack_writer_string_table(pack_writer_t *pw, const char **tab,
                               size_t *size);
 void pack_writer_free(pack_writer_t *pw);
 
+void jit_bind_foreign(jit_func_t *f, const char *spec, size_t length,
+                      tree_t where);
+
 DLLEXPORT void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab);
-DLLEXPORT void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
-                                jit_scalar_t *args);
 DLLEXPORT void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor);
 DLLEXPORT void _debug_out(intptr_t val, int32_t reg);
 

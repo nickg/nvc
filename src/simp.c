@@ -242,7 +242,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 
    if (kind == S_CONCAT)
       return simp_concat(t);
-   else if (kind != S_USER && kind != S_FOREIGN) {
+   else if (kind != S_USER) {
       // Simplify basic operations on literals without the overhead of
       // generating code
       int64_t p0, p1, result;

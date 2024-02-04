@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2021  Nick Gasson
+--  Copyright (C) 2021-2024  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -32,5 +32,12 @@ package polyfill is
     function maximum (x, y : integer) return integer;
 
     function minimum (x, y : integer) return integer;
+
+    attribute foreign of to_hstring [bit_vector return string] : function
+        is "INTERNAL _std_to_hstring_bit_vec";
+    attribute foreign of to_ostring [bit_vector return string] : function
+        is "INTERNAL _std_to_ostring_bit_vec";
+    attribute foreign of to_string [real, string return string] : function
+        is "INTERNAL _std_to_string_real_format";
 
 end package;

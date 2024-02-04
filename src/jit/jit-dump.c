@@ -44,8 +44,8 @@ const char *jit_op_name(jit_op_t op)
    if (op >= __MACRO_BASE) {
       static const char *names[] = {
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
-         "$FFICALL", "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC",
-         "$CASE", "$TRIM", "$MOVE", "$MEMSET",
+         "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC", "$CASE",
+         "$TRIM", "$MOVE", "$MEMSET", "$REEXEC",
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];
@@ -87,7 +87,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "DRIVING_VALUE", "CLAIM_TLAB", "COVER_TOGGLE", "PROCESS_INIT",
       "CLEAR_EVENT", "IMPLICIT_EVENT", "ENTER_STATE", "REFLECT_VALUE",
       "REFLECT_SUBTYPE", "FUNCTION_TRIGGER", "ADD_TRIGGER", "TRANSFER_SIGNAL",
-      "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT",
+      "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
@@ -151,8 +151,6 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("%s", jit_exit_name(value.exit));
    case JIT_VALUE_LOC:
       return printf("<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
-   case JIT_VALUE_FOREIGN:
-      return printf("$%s", istr(ffi_get_sym(value.foreign)));
    case JIT_VALUE_LOCUS:
       {
          object_t *obj = jit_get_locus(value);

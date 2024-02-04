@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -294,17 +294,7 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
    if (descr != NULL) {
       for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
          const char *str = descr->strtab + r->off;
-         if (r->kind == RELOC_FOREIGN) {
-            const char *eptr = strchr(str, '\b');
-            if (eptr == NULL)
-               fatal_trace("invalid foreign reloc '%s'", str);
-
-            ffi_spec_t spec = ffi_spec_new(str, eptr - str);
-
-            ident_t id = ident_new(eptr + 1);
-            r->ptr = jit_ffi_get(id) ?: jit_ffi_bind(id, spec, NULL);
-         }
-         else if (r->kind == RELOC_COVER) {
+         if (r->kind == RELOC_COVER) {
             // TODO: get rid of the double indirection here by
             //       allocating coverage memory earlier
             r->ptr = &(j->cover_mem);
@@ -531,6 +521,11 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
             const char *name = istr(proc ? proc->name : tree_ident(tree));
             diag_trace(d, loc, "Process$$ %s", name);
          }
+         break;
+      case T_ATTR_SPEC:
+         assert(is_well_known(tree_ident(tree)) == W_FOREIGN);
+         diag_trace(d, loc, "Subprogram$$ %s",
+                    type_pp(tree_type(tree_ref(tree))));
          break;
       case T_FUNC_BODY:
       case T_FUNC_DECL:

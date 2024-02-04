@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2023  Nick Gasson
+//  Copyright (C) 2021-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,9 +19,11 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "option.h"
 #include "thread.h"
+#include "type.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -37,18 +39,18 @@
 #endif
 
 typedef enum {
-   FFI_GENERIC, FFI_INTERNAL
-} ffi_kind_t;
+   GHDL_ARG_DROP,
+   GHDL_ARG_PASS,
+   GHDL_ARG_LENGTH,
+} ghdl_arg_t;
 
-typedef struct _jit_foreign {
-   ident_t     sym;
-   void       *ptr;
-   ffi_spec_t  spec;
-   ffi_kind_t  kind;
-   ffi_cif     cif;
-   int         nargs;
-   ffi_type   *args[];
-} jit_foreign_t;
+typedef struct {
+   ffi_cif    cif;
+   void      *ptr;
+   unsigned   nvhdl;
+   unsigned   nforeign;
+   ghdl_arg_t args[0];
+} ghdl_ffi_t;
 
 typedef struct _jit_dll {
    jit_dll_t *next;
@@ -60,146 +62,7 @@ typedef struct _jit_dll {
 #endif
 } jit_dll_t;
 
-static hash_t     *cache;
-static jit_dll_t  *dlls;
-static nvc_lock_t  lock;
-
-jit_foreign_t *jit_ffi_get(ident_t sym)
-{
-   SCOPED_LOCK(lock);
-
-   if (cache == NULL)
-      cache = hash_new(128);
-
-   return hash_get(cache, sym);
-}
-
-static bool ffi_spec_is_internal(ffi_spec_t spec)
-{
-   return spec.count == 2 && ffi_spec_get(spec, 1) == FFI_ARGARRAY;
-}
-
-static ffi_type *libffi_type_for(ffi_type_t type)
-{
-   switch (type) {
-   case FFI_INT8:    return &ffi_type_sint8;
-   case FFI_INT16:   return &ffi_type_sint16;
-   case FFI_INT32:   return &ffi_type_sint32;
-   case FFI_INT64:   return &ffi_type_sint64;
-   case FFI_FLOAT:   return &ffi_type_double;
-   case FFI_POINTER: return &ffi_type_pointer;
-   case FFI_UARRAY:
-   case FFI_VOID:
-   default:          return &ffi_type_void;
-   }
-}
-
-jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr)
-{
-   SCOPED_LOCK(lock);
-
-   if (cache == NULL)
-      cache = hash_new(128);
-   else {
-      jit_foreign_t *exist = hash_get(cache, sym);
-      if (exist != NULL)
-         return exist;
-   }
-
-   if (ffi_spec_is_internal(spec)) {
-      jit_foreign_t *ff = xcalloc(sizeof(jit_foreign_t));
-      ff->kind = FFI_INTERNAL;
-      ff->ptr  = ptr;
-      ff->sym  = sym;
-      ff->spec = spec;
-
-      return ff;
-   }
-
-   ffi_spec_t copy = spec;
-   if (spec.count == 0)
-      copy.ext = xstrdup(spec.ext);
-
-   int nargs = 0;
-   for (int i = 1; ffi_spec_has(spec, i); i++) {
-      const ffi_type_t type = ffi_spec_get(spec, i);
-      nargs += (type == FFI_UARRAY) ? 3 : 1;
-   }
-
-   const ffi_type_t rtype = ffi_spec_get(spec, 0);
-   const int adj_nargs = (rtype == FFI_UARRAY) ? nargs + 1 : nargs;
-
-   jit_foreign_t *ff = xcalloc_flex(sizeof(jit_foreign_t),
-                                    adj_nargs, sizeof(ffi_type *));
-   ff->kind  = FFI_GENERIC;
-   ff->ptr   = ptr;
-   ff->sym   = sym;
-   ff->spec  = copy;
-   ff->nargs = nargs;
-
-   int wptr = 0;
-   for (int i = 1; ffi_spec_has(spec, i); i++) {
-      const ffi_type_t type = ffi_spec_get(spec, i);
-      if (type == FFI_UARRAY) {
-         ff->args[wptr++] = &ffi_type_pointer;
-         ff->args[wptr++] = &ffi_type_sint64;   // Left
-         ff->args[wptr++] = &ffi_type_sint64;   // Length
-      }
-      else
-         ff->args[wptr++] = libffi_type_for(type);
-   }
-   if (rtype == FFI_UARRAY)
-      ff->args[wptr++] = &ffi_type_pointer;
-   assert(wptr == adj_nargs);
-
-   ffi_type *ret = libffi_type_for(rtype);
-
-   if (ffi_prep_cif(&ff->cif, FFI_DEFAULT_ABI, adj_nargs,
-                    ret, ff->args) != FFI_OK)
-      fatal("ffi_prep_cif failed for %s", istr(sym));
-
-   hash_put(cache, sym, ff);
-   return ff;
-}
-
-void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args)
-{
-   if (ff->ptr == NULL) {
-      const char *sym = istr(ff->sym);
-      if ((ff->ptr = ffi_find_symbol(NULL, sym)) == NULL)
-         jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", sym);
-   }
-
-   if (ff->kind == FFI_INTERNAL) {
-      // Fast calling convention for internal routines
-      void (*entry)(jit_scalar_t *) = ff->ptr;
-      (*entry)(args);
-      return;
-   }
-
-   void *aptrs[ff->nargs + 1];
-   for (int i = 0; i < ff->nargs; i++)
-      aptrs[i] = &(args[i].integer);
-
-   const ffi_type_t rtype = ffi_spec_get(ff->spec, 0);
-
-   ffi_uarray_t u, *up = &u;
-   if (rtype == FFI_UARRAY)
-      aptrs[ff->nargs] = &up;
-
-   intmax_t result;
-   ffi_call(&ff->cif, ff->ptr, &result, aptrs);
-
-   if (rtype == FFI_UARRAY) {
-      args[0].pointer = u.ptr;
-      args[1].integer = u.dims[0].left;
-      args[2].integer = u.dims[0].length;
-   }
-   else if (ffi_is_integral(rtype))
-      args[0].integer = ffi_widen_int(rtype, &result);
-   else
-      args[0].integer = result;
-}
+static jit_dll_t *dlls;
 
 ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right)
 {
@@ -211,6 +74,18 @@ ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right)
       .dims = { [0] = { .left = left, .length = length } }
    };
    return u;
+}
+
+void ffi_return_string(const char *str, jit_scalar_t *args, tlab_t *tlab)
+{
+   const size_t len = strlen(str);
+
+   void *mem = tlab_alloc(tlab, len);
+   memcpy(mem, str, len);
+
+   args[0].pointer = mem;
+   args[1].integer = 1;
+   args[2].integer = len;
 }
 
 bool ffi_is_integral(ffi_type_t type)
@@ -319,11 +194,13 @@ jit_dll_t *ffi_load_dll(const char *path)
       ffi_load_exe();  // First time initialisation
 
    jit_dll_t *dll = xcalloc(sizeof(jit_dll_t));
-   dll->next   = dlls;
    dll->handle = handle;
    dll->path   = abs;
 
-   return (dlls = dll);
+   jit_dll_t **where;
+   for (where = &dlls; *where != NULL; where = &((*where)->next));
+
+   return (*where = dll);
 }
 
 void ffi_unload_dll(jit_dll_t *dll)
@@ -346,7 +223,9 @@ void ffi_unload_dll(jit_dll_t *dll)
 
 void *ffi_find_symbol(jit_dll_t *dll, const char *name)
 {
-   if (dll == NULL) {
+   if (name == NULL)
+      return NULL;
+   else if (dll == NULL) {
       for (jit_dll_t *it = dlls; it; it = it->next) {
          void *p = ffi_find_symbol(it, name);
          if (p != NULL)
@@ -364,23 +243,13 @@ void *ffi_find_symbol(jit_dll_t *dll, const char *name)
    }
 }
 
-ident_t ffi_get_sym(jit_foreign_t *ff)
-{
-   return ff->sym;
-}
-
-ffi_spec_t ffi_get_spec(jit_foreign_t *ff)
-{
-   return ff->spec;
-}
-
 ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
 {
    assert(count > 0);
 
 #ifdef DEBUG
    for (int i = 0; i < count; i++)
-      assert(islower(types[i]) || types[i] == FFI_ARGARRAY);
+      assert(islower(types[i]));
 #endif
 
    ffi_spec_t spec = {};
@@ -392,4 +261,233 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
       spec.ext = types;
 
    return spec;
+}
+
+static void jit_internal_entry(jit_func_t *f, jit_anchor_t *caller,
+                               jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_attach_thread(caller);
+
+   ffi_internal_t fn = *jit_get_privdata_ptr(f->jit, f);
+   if (unlikely(fn == NULL)) {
+      // JIT has been reset, need to elaborate again
+      f->entry = jit_interp;
+      jit_interp(f, caller, args, tlab);
+   }
+   else
+      (*fn)(args, tlab);
+
+   thread->anchor = NULL;
+}
+
+static void jit_ghdl_entry(jit_func_t *f, jit_anchor_t *caller,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_attach_thread(caller);
+
+   ghdl_ffi_t *gffi = *jit_get_privdata_ptr(f->jit, f);
+   if (unlikely(gffi == NULL)) {
+      // JIT has been reset, need to elaborate again
+      f->entry = jit_interp;
+      jit_interp(f, caller, args, tlab);
+   }
+   else {
+      void *aptrs[gffi->nforeign];
+      int opos = 0;
+      for (int ipos = 0; ipos < gffi->nvhdl; ipos++) {
+         switch (gffi->args[ipos]) {
+         case GHDL_ARG_DROP:
+            break;
+         case GHDL_ARG_PASS:
+            aptrs[opos++] = &(args[ipos].integer);
+            break;
+         case GHDL_ARG_LENGTH:
+            args[ipos].integer = ffi_array_length(args[ipos].integer);
+            aptrs[opos++] = &(args[ipos].integer);
+            break;
+         }
+      }
+
+      intmax_t result = 0;
+      ffi_call(&(gffi->cif), gffi->ptr, &result, aptrs);
+
+      args[0].integer = result;
+   }
+
+   thread->anchor = NULL;
+}
+
+static ffi_type *ghdl_ffi_result_type(type_t type)
+{
+   type_t base = type_base_recur(type);
+   switch (type_kind(base)) {
+   case T_INTEGER:
+   case T_ENUM:
+   case T_PHYSICAL:
+      {
+         switch (type_byte_width(base)) {
+         case 8: return &ffi_type_sint64;
+         case 4: return &ffi_type_sint32;
+         case 2: return &ffi_type_sint16;
+         case 1: return &ffi_type_sint8;
+         }
+      }
+      break;
+   case T_REAL:
+      return &ffi_type_double;
+   default:
+      break;
+   }
+
+   jit_msg(NULL, DIAG_FATAL, "cannot return type %s using GHDL "
+           "VHPIDIRECT calling convention", type_pp(type));
+   return &ffi_type_void;
+}
+
+static void ghdl_ffi_add_arg(ghdl_ffi_t *gffi, ffi_type **types, type_t type)
+{
+   type_t base = type_base_recur(type);
+   switch (type_kind(base)) {
+   case T_INTEGER:
+   case T_ENUM:
+   case T_PHYSICAL:
+      {
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
+
+         switch (type_byte_width(base)) {
+         case 8: types[gffi->nforeign++] = &ffi_type_sint64; return;
+         case 4: types[gffi->nforeign++] = &ffi_type_sint32; return;
+         case 2: types[gffi->nforeign++] = &ffi_type_sint16; return;
+         case 1: types[gffi->nforeign++] = &ffi_type_sint8; return;
+         }
+      }
+      break;
+   case T_REAL:
+      gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
+      types[gffi->nforeign++] = &ffi_type_double;
+      return;
+   case T_RECORD:
+      gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
+      types[gffi->nforeign++] = &ffi_type_pointer;
+      return;
+   case T_ARRAY:
+      if (dimension_of(type) > 1)
+         break;
+      else if (type_is_unconstrained(type)) {
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;    // Data pointer
+         types[gffi->nforeign++] = &ffi_type_pointer;
+
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_DROP;    // Left index
+
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_LENGTH;  // Array length
+         types[gffi->nforeign++] = &ffi_type_sint64;
+
+         return;
+      }
+      else {
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
+         types[gffi->nforeign++] = &ffi_type_pointer;
+         return;
+      }
+   default:
+      break;
+   }
+
+   jit_msg(NULL, DIAG_FATAL, "cannot pass type %s using GHDL "
+           "VHPIDIRECT calling convention", type_pp(type));
+}
+
+static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
+{
+   assert(tree_kind(decl) == T_ATTR_SPEC);
+
+   tree_t sub = tree_ref(decl);
+   const int nports = tree_ports(sub);
+
+   const size_t ghdl_ffi_sz =
+      sizeof(ghdl_ffi_t) + (1 + nports*3) * sizeof(ghdl_arg_t);
+   ghdl_ffi_t *gffi =
+      jit_mspace_alloc(ghdl_ffi_sz + nports * 2 * sizeof(ffi_type *));
+   ffi_type **types = (void *)gffi + ghdl_ffi_sz;
+
+   ffi_type *ret;
+   type_t type = tree_type(sub);
+   if (type_kind(type) == T_FUNC)
+      ret = ghdl_ffi_result_type(type_result(type));
+   else
+      ret = &ffi_type_void;
+
+   if ((gffi->ptr = ffi_find_symbol(NULL, symbol)) == NULL)
+      jit_msg(NULL, DIAG_FATAL, "foreign function %s not found", symbol);
+
+   gffi->nvhdl = gffi->nforeign = 0;
+
+   gffi->args[gffi->nvhdl++] = GHDL_ARG_DROP;   // Drop context argument
+
+   if (type_kind(type) == T_PROC)
+      gffi->args[gffi->nvhdl++] = GHDL_ARG_DROP;   // Drop state argument
+
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(sub, i);
+      if (tree_class(p) == C_SIGNAL)
+         jit_msg(tree_loc(p), DIAG_FATAL, "SIGNAL parameters are not "
+                 "supported for VHPIDIRECT subprograms using the GHDL "
+                 "calling convention");
+      else if (tree_subkind(p) != PORT_IN) {
+         types[gffi->nforeign++] = &ffi_type_pointer;
+         gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
+      }
+      else
+         ghdl_ffi_add_arg(gffi, types, tree_type(p));
+   }
+
+   assert(gffi->nvhdl <= 1 + nports * 3);
+   assert(gffi->nforeign <= nports * 2);
+
+   if (ffi_prep_cif(&(gffi->cif), FFI_DEFAULT_ABI, gffi->nforeign,
+                    ret, types) != FFI_OK)
+      fatal("ffi_prep_cif failed for %s", type_pp(type));
+
+   return gffi;
+}
+
+void jit_bind_foreign(jit_func_t *f, const char *spec, size_t length,
+                      tree_t where)
+{
+   char *tmp LOCAL = xstrndup(spec, length), *p = strtok(tmp, " ");
+   if (strcmp(p, "VHPIDIRECT") == 0 || strcmp(p, "GHDL") == 0) {
+      p = strtok(NULL, " ");
+      if (p != NULL) {
+         // The object library specifier is silently ignored
+         char *p2 = strtok(NULL, " ");
+         if (p2 != NULL) p = p2;
+      }
+
+      *jit_get_privdata_ptr(f->jit, f) = ffi_prepare_ghdl(where, p);
+
+      assert(f->entry != jit_ghdl_entry);   // Should only be called once
+      f->entry = jit_ghdl_entry;
+   }
+   else if (strcmp(p, "INTERNAL") == 0) {
+      p = strtok(NULL, " ");
+
+      jit_dll_t *exe = ffi_load_exe();
+      ffi_internal_t fn = ffi_find_symbol(exe, p);
+      if (fn == NULL)
+         jit_msg(NULL, DIAG_FATAL, "missing internal symbol %s", p);
+
+      *jit_get_privdata_ptr(f->jit, f) = fn;
+
+      assert(f->entry != jit_internal_entry);   // Should only be called once
+      f->entry = jit_internal_entry;
+   }
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "failed to parse FOREIGN attribute");
+      diag_hint(d, NULL, "expecting specification to start with "
+                "VHPIDIRECT or GHDL");
+      diag_emit(d);
+
+      jit_abort_with_status(1);
+   }
 }

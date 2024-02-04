@@ -393,7 +393,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
       case T_PROC_INST:
          {
             const subprogram_kind_t kind = tree_subkind(d);
-            if (!is_foreign(kind) && !is_open_coded_builtin(kind))
+            if (!is_open_coded_builtin(kind))
                cgen_add_dependency(tree_ident2(d), args->registry, args->units);
          }
          break;

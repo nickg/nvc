@@ -1038,20 +1038,19 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_BIND_FOREIGN:
+      {
+         const char *spec   = args[0].pointer;
+         size_t      length = args[1].integer;
+         tree_t      where  = args[2].pointer;
+
+         jit_bind_foreign(anchor->func, spec, length, where);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }
-
-   thread->anchor = NULL;
-}
-
-DLLEXPORT
-void __nvc_do_fficall(jit_foreign_t *ff, jit_anchor_t *anchor,
-                      jit_scalar_t *args)
-{
-   jit_thread_local_t *thread = jit_attach_thread(anchor);
-
-   jit_ffi_call(ff, args);
 
    thread->anchor = NULL;
 }

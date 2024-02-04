@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -177,11 +177,6 @@ static jit_value_t jit_value_from_handle(jit_handle_t handle)
 static jit_value_t jit_value_from_exit(jit_exit_t exit)
 {
    return (jit_value_t){ .kind = JIT_VALUE_EXIT, .exit = exit };
-}
-
-static jit_value_t jit_value_from_foreign(jit_foreign_t *ff)
-{
-   return (jit_value_t){ .kind = JIT_VALUE_FOREIGN, .foreign = ff };
 }
 
 static jit_ir_t *irgen_append(jit_irgen_t *g)
@@ -663,13 +658,6 @@ static jit_value_t macro_exp(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
    return jit_value_from_reg(r);
 }
 
-static void macro_fficall(jit_irgen_t *g, jit_value_t func)
-{
-   assert(func.kind == JIT_VALUE_FOREIGN);
-   irgen_emit_unary(g, MACRO_FFICALL, JIT_SZ_UNSPEC, JIT_CC_NONE,
-                    JIT_REG_INVALID, func);
-}
-
 static jit_value_t macro_getpriv(jit_irgen_t *g, jit_handle_t handle)
 {
    jit_reg_t r = irgen_alloc_reg(g);
@@ -695,6 +683,12 @@ static void macro_case(jit_irgen_t *g, jit_reg_t test, jit_value_t cmp,
 static void macro_trim(jit_irgen_t *g)
 {
    irgen_emit_nullary(g, MACRO_TRIM, JIT_CC_NONE, JIT_REG_INVALID);
+}
+
+static void macro_reexec(jit_irgen_t *g)
+{
+   irgen_emit_nullary(g, MACRO_REEXEC, JIT_CC_NONE, JIT_REG_INVALID);
+   g->flags = VCODE_INVALID_REG;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -985,35 +979,6 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
    default:
       fatal_trace("cannot handle type %d in irgen_ffi_type", vtype_kind(type));
    }
-}
-
-static jit_foreign_t *irgen_ffi_for_call(jit_irgen_t *g, int op, bool internal)
-{
-   ident_t func = vcode_get_func(op);
-   jit_foreign_t *ff = jit_ffi_get(func);
-   if (ff != NULL)
-      return ff;
-
-   LOCAL_TEXT_BUF tb = tb_new();
-
-   vcode_reg_t result = vcode_get_result(op);
-   if (result != VCODE_INVALID_REG)
-      tb_append(tb, irgen_ffi_type(vcode_reg_type(result)));
-   else
-      tb_append(tb, FFI_VOID);
-
-   if (internal)
-      tb_append(tb, FFI_ARGARRAY);
-   else {
-      const int nargs = vcode_count_args(op);
-      for (int i = 0; i < nargs; i++) {
-         vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, i));
-         tb_append(tb, irgen_ffi_type(vtype));
-      }
-   }
-
-   ffi_spec_t spec = ffi_spec_new(tb_get(tb), tb_len(tb));
-   return jit_ffi_bind(func, spec, NULL);
 }
 
 static jit_handle_t irgen_get_handle(jit_irgen_t *g, int op)
@@ -2206,52 +2171,35 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 {
    irgen_emit_debuginfo(g, op);   // For stack traces
 
-   const vcode_cc_t cc = vcode_get_subkind(op);
-   if (cc == VCODE_CC_FOREIGN || cc == VCODE_CC_INTERNAL) {
+   vcode_reg_t result = vcode_get_result(op);
+   if (result == VCODE_INVALID_REG) {
+      // Must call using procedure calling convention
+      j_send(g, 0, jit_value_from_int64(0));
+      irgen_send_args(g, op, 1);
+   }
+   else
       irgen_send_args(g, op, 0);
 
-      jit_foreign_t *ff = irgen_ffi_for_call(g, op, cc == VCODE_CC_INTERNAL);
-      macro_fficall(g, jit_value_from_foreign(ff));
+   j_call(g, irgen_get_handle(g, op));
 
-      vcode_reg_t result = vcode_get_result(op);
-      if (result != VCODE_INVALID_REG) {
-         const int slots = irgen_slots_for_type(vcode_reg_type(result));
-         g->map[result] = j_recv(g, 0);
-         for (int i = 1; i < slots; i++)
-            j_recv(g, i);
-      }
+   if (result != VCODE_INVALID_REG) {
+      vcode_type_t vtype = vcode_reg_type(result);
+      const int slots = irgen_slots_for_type(vtype);
+      g->map[result] = j_recv(g, 0);
+      for (int i = 1; i < slots; i++)
+         j_recv(g, i);   // Must be contiguous registers
+
+      const vtype_kind_t vkind = vtype_kind(vtype);
+      g->used_tlab |= vkind == VCODE_TYPE_UARRAY
+         || vkind == VCODE_TYPE_POINTER;
    }
-   else {
-      vcode_reg_t result = vcode_get_result(op);
-      if (result == VCODE_INVALID_REG) {
-         // Must call using procedure calling convention
-         j_send(g, 0, jit_value_from_int64(0));
-         irgen_send_args(g, op, 1);
-      }
-      else
-         irgen_send_args(g, op, 0);
-
-      j_call(g, irgen_get_handle(g, op));
-
-      if (result != VCODE_INVALID_REG) {
-         vcode_type_t vtype = vcode_reg_type(result);
-         const int slots = irgen_slots_for_type(vtype);
-         g->map[result] = j_recv(g, 0);
-         for (int i = 1; i < slots; i++)
-            j_recv(g, i);   // Must be contiguous registers
-
-         const vtype_kind_t vkind = vtype_kind(vtype);
-         g->used_tlab |= vkind == VCODE_TYPE_UARRAY
-            || vkind == VCODE_TYPE_POINTER;
-      }
-      else if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_FUNCTION) {
-         irgen_label_t *cont = irgen_alloc_label(g);
-         jit_value_t state = j_recv(g, 0);
-         j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
-         j_jump(g, JIT_CC_T, cont);
-         macro_exit(g, JIT_EXIT_FUNC_WAIT);
-         irgen_bind_label(g, cont);
-      }
+   else if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_FUNCTION) {
+      irgen_label_t *cont = irgen_alloc_label(g);
+      jit_value_t state = j_recv(g, 0);
+      j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+      j_jump(g, JIT_CC_T, cont);
+      macro_exit(g, JIT_EXIT_FUNC_WAIT);
+      irgen_bind_label(g, cont);
    }
 }
 
@@ -3511,6 +3459,38 @@ static void irgen_op_convert_out(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_CONVERT_OUT);
 }
 
+static void irgen_op_bind_foreign(jit_irgen_t *g, int op)
+{
+   jit_value_t spec   = irgen_get_arg(g, op, 0);
+   jit_value_t length = irgen_get_arg(g, op, 1);
+
+   jit_value_t locus;
+   if (vcode_count_args(op) > 2)
+      locus = irgen_get_arg(g, op, 2);
+   else
+      locus = jit_value_from_int64(0);
+
+   j_send(g, 0, spec);
+   j_send(g, 1, length);
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_BIND_FOREIGN);
+
+   int pslot = 0;
+   if (vcode_unit_result(g->func->unit) == VCODE_INVALID_TYPE)
+      j_send(g, pslot++, jit_value_from_int64(0));    // Procedure state
+
+   const int nparams = vcode_count_params();
+   for (int i = 0; i < nparams; i++) {
+      const int slots = irgen_slots_for_type(vcode_param_type(i));
+      jit_value_t p = irgen_get_value(g, vcode_param_reg(i));
+      j_send(g, pslot++, p);
+      for (int j = 1; j < slots; j++)
+         j_send(g, pslot++, jit_value_from_reg(jit_value_as_reg(p) + j));
+   }
+
+   macro_reexec(g);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3902,6 +3882,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_CONVERT_OUT:
          irgen_op_convert_out(g, i);
+         break;
+      case VCODE_OP_BIND_FOREIGN:
+         irgen_op_bind_foreign(g, i);
          break;
       default:
          fatal_trace("cannot generate JIT IR for vcode op %s",

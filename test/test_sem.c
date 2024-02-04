@@ -725,8 +725,6 @@ START_TEST(test_attr)
       { 261, "cannot use attribute VALUE with non-scalar type BIT2D" },
       { 304, "expression must be a BOOLEAN literal" },
       { 306, "NEVER_WAITS attribute can only be applied to procedures" },
-      { 310, "failed to parse FOREIGN attribute" },
-      { 311, "FOREIGN attribute must have string literal value" },
       { -1, NULL }
    };
    expect_errors(expect);

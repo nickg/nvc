@@ -134,7 +134,7 @@ static vcode_reg_t vlog_lower_resize(lower_unit_t *lu, vcode_reg_t value_reg,
 
    vcode_reg_t context_reg = vlog_helper_package();
    vcode_reg_t args[] = { context_reg, arg_reg, count_reg };
-   return emit_fcall(fn, vpacked, vlogic, VCODE_CC_VHDL, args, ARRAY_LEN(args));
+   return emit_fcall(fn, vpacked, vlogic, args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
@@ -145,7 +145,7 @@ static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
    vcode_type_t vtime = vtype_time();
    ident_t func = ident_new("NVC.VERILOG.TO_TIME(" T_PACKED_LOGIC ")"
                             "25STD.STANDARD.DELAY_LENGTH");
-   return emit_fcall(func, vtime, vtime, VCODE_CC_VHDL, args, ARRAY_LEN(args));
+   return emit_fcall(func, vtime, vtime, args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
@@ -156,8 +156,7 @@ static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    ident_t func = ident_new("NVC.VERILOG.TO_INTEGER("
                             T_PACKED_LOGIC ")" T_INT64);
-   return emit_fcall(func, vint64, vint64, VCODE_CC_VHDL,
-                     args, ARRAY_LEN(args));
+   return emit_fcall(func, vint64, vint64, args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
@@ -283,8 +282,7 @@ static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
    ident_t func = ident_new(tb_get(tb));
 
    vcode_reg_t args[] = { context_reg, reg };
-   return emit_fcall(func, rtype, vlogic, VCODE_CC_VHDL,
-                     args, ARRAY_LEN(args));
+   return emit_fcall(func, rtype, vlogic, args, ARRAY_LEN(args));
 }
 
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
@@ -397,8 +395,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_type_t vlogic = vlog_logic_type();
          vcode_type_t vpacked = vlog_packed_logic_type();
 
-         return emit_fcall(func, vpacked, vlogic, VCODE_CC_VHDL,
-                           args, ARRAY_LEN(args));
+         return emit_fcall(func, vpacked, vlogic, args, ARRAY_LEN(args));
       }
    case V_UNARY:
       {
@@ -518,32 +515,39 @@ static void vlog_lower_bassign(lower_unit_t *lu, vlog_node_t v)
 static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
 {
    const v_systask_kind_t kind = vlog_subkind(v);
-   const char *fns[] = {
-      "__nvc_sys_display",
-      "__nvc_sys_write",
-      "__nvc_sys_finish"
+   static const char *fns[] = {
+      "NVC.VERILOG.SYS_DISPLAY(S)",
+      "NVC.VERILOG.SYS_WRITE(S)",
+      "NVC.VERILOG.SYS_FINISH"
    };
    assert(kind < ARRAY_LEN(fns));
+
+   vcode_reg_t context_reg = vlog_helper_package();
 
    switch (kind) {
    case V_SYS_DISPLAY:
    case V_SYS_WRITE:
       {
          const int nparams = vlog_params(v);
-         vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+         vcode_reg_t *args LOCAL =
+            xmalloc_array(nparams + 1, sizeof(vcode_reg_t));
+         args[0] = context_reg;
          for (int i = 0; i < nparams; i++) {
             vcode_reg_t p_reg = vlog_lower_rvalue(lu, vlog_param(v, i));
-            args[i] = vlog_lower_wrap(lu, p_reg);
+            args[i + 1] = vlog_lower_wrap(lu, p_reg);
          }
 
          emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, VCODE_CC_INTERNAL, args, nparams);
+                    VCODE_INVALID_TYPE, args, nparams + 1);
       }
       break;
 
    case V_SYS_FINISH:
-      emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                 VCODE_INVALID_TYPE, VCODE_CC_FOREIGN, NULL, 0);
+      {
+         vcode_reg_t args[] = { context_reg };
+         emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
+                    VCODE_INVALID_TYPE, args, ARRAY_LEN(args));
+      }
       break;
 
    default:

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@ typedef char ffi_type_t;
 #define FFI_POINTER 'p'
 #define FFI_UARRAY 'u'
 #define FFI_SIGNAL 's'
-#define FFI_ARGARRAY '.'
 
 typedef union {
    struct {
@@ -48,8 +47,6 @@ STATIC_ASSERT(sizeof(ffi_spec_t) == 8);
 #define ffi_spec_get(s, n) ((s).count ? (s).embed[(n)] : s.ext[(n)])
 #define ffi_spec_has(s, n) \
    (((s).count == 0 && (s).ext && (s).ext[(n)]) || (n) < (s).count)
-
-typedef struct _jit_foreign jit_foreign_t;
 
 // The code generator knows the layout of this struct
 typedef struct {
@@ -73,21 +70,17 @@ typedef struct _ffi_closure {
    void         *context;
 } ffi_closure_t;
 
-jit_foreign_t *jit_ffi_bind(ident_t sym, ffi_spec_t spec, void *ptr);
-jit_foreign_t *jit_ffi_get(ident_t sym);
-void jit_ffi_call(jit_foreign_t *ff, jit_scalar_t *args);
-
-ident_t ffi_get_sym(jit_foreign_t *ff);
-ffi_spec_t ffi_get_spec(jit_foreign_t *ff);
-
 ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
 
 ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right);
+void ffi_return_string(const char *str, jit_scalar_t *args, tlab_t *tlab);
 bool ffi_is_integral(ffi_type_t type);
 int64_t ffi_widen_int(ffi_type_t type, const void *input);
 void ffi_store_int(ffi_type_t type, uint64_t value, void *output);
 
 typedef struct _jit_dll jit_dll_t;
+
+typedef void (*ffi_internal_t)(jit_scalar_t *, tlab_t *);
 
 jit_dll_t *ffi_load_dll(const char *path);
 void ffi_unload_dll(jit_dll_t *dll);

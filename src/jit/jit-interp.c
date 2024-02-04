@@ -200,8 +200,6 @@ static inline jit_scalar_t interp_get_scalar(jit_interp_t *state,
       return (jit_scalar_t){ .integer = value.label };
    case JIT_VALUE_HANDLE:
       return (jit_scalar_t){ .integer = value.handle };
-   case JIT_VALUE_FOREIGN:
-      return (jit_scalar_t){ .pointer = value.foreign };
    case JIT_VALUE_LOCUS:
       return (jit_scalar_t){ .pointer = jit_get_locus(value) };
    case JIT_ADDR_CPOOL:
@@ -834,13 +832,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
    __nvc_do_exit(ir->arg1.exit, state->anchor, state->args, state->tlab);
 }
 
-static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
-{
-   JIT_ASSERT(ir->arg1.kind == JIT_VALUE_FOREIGN);
-   state->anchor->irpos = ir - state->func->irbuf;
-   __nvc_do_fficall(ir->arg1.foreign, state->anchor, state->args);
-}
-
 static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)
 {
    JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
@@ -870,6 +861,12 @@ static void interp_trim(jit_interp_t *state, jit_ir_t *ir)
 {
    assert(state->tlab->alloc >= state->anchor->watermark);
    state->tlab->alloc = state->anchor->watermark;
+}
+
+static void interp_reexec(jit_interp_t *state, jit_ir_t *ir)
+{
+   jit_entry_fn_t entry = load_acquire(&state->func->entry);
+   (*entry)(state->func, state->anchor->caller, state->args, state->tlab);
 }
 
 static void interp_loop(jit_interp_t *state)
@@ -1021,9 +1018,6 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_EXP:
          interp_exp(state, ir);
          break;
-      case MACRO_FFICALL:
-         interp_fficall(state, ir);
-         break;
       case MACRO_GETPRIV:
          interp_getpriv(state, ir);
          break;
@@ -1036,6 +1030,9 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_TRIM:
          interp_trim(state, ir);
          break;
+      case MACRO_REEXEC:
+         interp_reexec(state, ir);
+         return;
       default:
          interp_dump(state);
          fatal_trace("cannot interpret opcode %s", jit_op_name(ir->op));

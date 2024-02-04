@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"
 #include "rt/model.h"
+#include "rt/mspace.h"
 #include "rt/rt.h"
 
 #include <assert.h>
@@ -28,19 +29,23 @@
 #include <string.h>
 #include <float.h>
 
-static ffi_uarray_t bit_vec_to_string(const uint8_t *vec, size_t vec_len,
-                                      int log_base)
+static void bit_vec_to_string(jit_scalar_t *args, tlab_t *tlab, int log_base)
 {
+   const uint8_t *vec_ptr = args[1].pointer;
+   int64_t vec_len = ffi_array_length(args[3].integer);
+
    const size_t result_len = (vec_len + log_base - 1) / log_base;
    const int left_pad = (log_base - (vec_len % log_base)) % log_base;
-   char *buf = rt_tlab_alloc(result_len);
+   char *buf = tlab_alloc(tlab, result_len);
+
+   printf("result_len=%zu\n", result_len);
 
    for (int i = 0; i < result_len; i++) {
       unsigned nibble = 0;
       for (int j = 0; j < log_base; j++) {
          if (i > 0 || j >= left_pad) {
             nibble <<= 1;
-            nibble |= !!(vec[i*log_base + j - left_pad]);
+            nibble |= !!(vec_ptr[i*log_base + j - left_pad]);
          }
       }
 
@@ -48,7 +53,9 @@ static ffi_uarray_t bit_vec_to_string(const uint8_t *vec, size_t vec_len,
       buf[i] = map[nibble];
    }
 
-   return ffi_wrap(buf, 1, result_len);
+   args[0].pointer = buf;
+   args[1].integer = 1;
+   args[2].integer = result_len;
 }
 
 DLLEXPORT
@@ -59,8 +66,11 @@ void _std_standard_now(jit_scalar_t *args)
 }
 
 DLLEXPORT
-void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
+void _std_to_string_time(jit_scalar_t *args, tlab_t *tlab)
 {
+   int64_t value = args[1].integer;
+   int64_t unit = args[2].integer;
+
    const char *unit_str = "";
    switch (unit) {
    case 1ll: unit_str = "fs"; break;
@@ -76,39 +86,39 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
               unit);
    }
 
-   size_t max_len = 32 + strlen(unit_str) + 1;
-   char *buf = rt_tlab_alloc(max_len);
-
-   size_t len;
+   static char buf[64];
    if (value % unit == 0)
-      len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
-                            value / unit, unit_str);
+      checked_sprintf(buf, sizeof(buf), "%"PRIi64" %s",
+                      value / unit, unit_str);
    else
-      len = checked_sprintf(buf, max_len, "%.*g %s", DBL_DIG,
-                            (double)value / (double)unit, unit_str);
+      checked_sprintf(buf, sizeof(buf), "%.*g %s", DBL_DIG,
+                      (double)value / (double)unit, unit_str);
 
-   *u = ffi_wrap(buf, 1, len);
+   ffi_return_string(buf, args, tlab);
 }
 
 DLLEXPORT
-void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
+void _std_to_string_real_digits(jit_scalar_t *args, tlab_t *tlab)
 {
-   size_t max_len = 32;
-   char *buf = rt_tlab_alloc(max_len);
+   double value = args[1].real;
+   int32_t digits = args[2].integer;
 
-   size_t len;
+   char buf[32];
    if (digits == 0)
-      len = checked_sprintf(buf, max_len, "%.17g", value);
+      checked_sprintf(buf, sizeof(buf), "%.17g", value);
    else
-      len = checked_sprintf(buf, max_len, "%.*f", digits, value);
+      checked_sprintf(buf, sizeof(buf), "%.*f", digits, value);
 
-   *u = ffi_wrap(buf, 1, len);
+   ffi_return_string(buf, args, tlab);
 }
 
 DLLEXPORT
-void _std_to_string_real_format(double value, const void *fmt_ptr,
-                                int64_t fmt_length, ffi_uarray_t *u)
+void _std_to_string_real_format(jit_scalar_t *args, tlab_t *tlab)
 {
+   double value = args[1].real;
+   const void *fmt_ptr = args[2].pointer;
+   size_t fmt_length = ffi_array_length(args[4].integer);
+
    char *fmt_cstr LOCAL = null_terminate(fmt_ptr, fmt_length);
 
    if (fmt_cstr[0] != '%')
@@ -130,33 +140,34 @@ void _std_to_string_real_format(double value, const void *fmt_ptr,
       }
    }
 
-   size_t max_len = 64;
-   char *buf = rt_tlab_alloc(max_len);
-   size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
-   *u = ffi_wrap(buf, 1, len);
+   char buf[64];
+   checked_sprintf(buf, sizeof(buf), fmt_cstr, value);
+
+   ffi_return_string(buf, args, tlab);
 }
 
 DLLEXPORT
-void _std_to_hstring_bit_vec(const uint8_t *vec_ptr, int64_t vec_len,
-                             ffi_uarray_t *u)
+void _std_to_hstring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
 {
-   *u = bit_vec_to_string(vec_ptr, vec_len, 4);
+   bit_vec_to_string(args, tlab, 4);
 }
 
 DLLEXPORT
-void _std_to_ostring_bit_vec(const uint8_t *vec_ptr, int64_t vec_len,
-                             ffi_uarray_t *u)
+void _std_to_ostring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
 {
-   *u = bit_vec_to_string(vec_ptr, vec_len, 3);
+   bit_vec_to_string(args, tlab, 3);
 }
 
 DLLEXPORT
-void _std_to_string_real(double value, ffi_uarray_t *u)
+void _std_to_string_real(jit_scalar_t *args, tlab_t *tlab)
 {
    const size_t max = 32;
-   char *buf = jit_mspace_alloc(max);
-   size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, value);
-   *u = ffi_wrap(buf, 1, len);
+   char *buf = tlab_alloc(tlab, max);
+   size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, args[1].real);
+
+   args[0].pointer = buf;
+   args[1].integer = 1;
+   args[2].integer = len;
 }
 
 void _std_standard_init(void)

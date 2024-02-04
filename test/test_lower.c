@@ -382,7 +382,8 @@ START_TEST(test_wait1)
    CHECK_BB(0);
 
    const check_bb_t bb1[] = {
-      { VCODE_OP_FCALL, .func = "_std_standard_now" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_FCALL, .func = "*STD.STANDARD.NOW()" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_CONST, .value = 2 },
@@ -395,7 +396,8 @@ START_TEST(test_wait1)
    CHECK_BB(1);
 
    const check_bb_t bb2[] = {
-      { VCODE_OP_FCALL, .func = "_std_standard_now" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_FCALL, .func = "*STD.STANDARD.NOW()" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_CONST, .value = 2 },
@@ -408,7 +410,8 @@ START_TEST(test_wait1)
    CHECK_BB(2);
 
    const check_bb_t bb3[] = {
-      { VCODE_OP_FCALL, .func = "_std_standard_now" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_FCALL, .func = "*STD.STANDARD.NOW()" },
       { VCODE_OP_CONST, .value = 1000001 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_CONST, .value = 2 },

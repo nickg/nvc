@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -45,11 +45,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_PCALL                                                 \
-    || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
-    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_COVER_BRANCH         \
-    || x == VCODE_OP_PROCESS_INIT)
+   (x == VCODE_OP_COVER_BRANCH)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
@@ -966,7 +962,7 @@ const char *vcode_op_string(vcode_op_t op)
       "unreachable", "package init", "trap neg", "process init", "clear event",
       "trap exp", "implicit event", "enter state", "reflect value",
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
-      "port conversion", "convert in", "convert out",
+      "port conversion", "convert in", "convert out", "bind foreign",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1315,10 +1311,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->result);
                   col += printf(" := ");
                }
-               if (op->subkind == VCODE_CC_FOREIGN)
-                  col += printf("foreign ");
-               else if (op->subkind == VCODE_CC_INTERNAL)
-                  col += printf("internal ");
                col += color_printf("%s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
@@ -2304,6 +2296,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[1]);
                printf(" count ");
                vcode_dump_reg(op->args.items[2]);
+            }
+            break;
+
+         case VCODE_OP_BIND_FOREIGN:
+            {
+               color_printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" length ");
+               vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 2) {
+                  printf(" locus ");
+                  vcode_dump_reg(op->args.items[1]);
+               }
             }
             break;
          }
@@ -3332,12 +3337,11 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 }
 
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                       vcode_cc_t cc, const vcode_reg_t *args, int nargs)
+                       const vcode_reg_t *args, int nargs)
 {
    op_t *o = vcode_add_op(VCODE_OP_FCALL);
-   o->func    = func;
-   o->type    = type;
-   o->subkind = cc;
+   o->func = func;
+   o->type = type;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
 
@@ -3345,9 +3349,8 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
       VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
                    "invalid argument to function");
 
-   if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
-      VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
-                   "first argument to VHDL function must be context pointer");
+   VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
+                "first argument to VHDL function must be context pointer");
 
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
@@ -3365,8 +3368,7 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb)
 {
    op_t *o = vcode_add_op(VCODE_OP_PCALL);
-   o->func    = func;
-   o->subkind = VCODE_CC_VHDL;
+   o->func = func;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
 
@@ -4897,7 +4899,6 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
    vcode_add_arg(op, closure);
    vcode_add_arg(op, ileft);
    vcode_add_arg(op, nlits);
-   op->subkind = VCODE_CC_VHDL;
 
    return (op->result = vcode_add_reg(vtype_resolution(type)));
 }
@@ -4906,16 +4907,14 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
                          vcode_type_t rtype)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CLOSURE) {
-      if (other->func == func && other->subkind == VCODE_CC_VHDL
-          && other->args.items[0] == context)
+      if (other->func == func && other->args.items[0] == context)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CLOSURE);
    vcode_add_arg(op, context);
-   op->func    = func;
-   op->subkind = VCODE_CC_VHDL;
-   op->type    = atype;
+   op->func = func;
+   op->type = atype;
 
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid closure context argument");
@@ -4926,13 +4925,12 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
 vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_PACKAGE_INIT) {
-      if (other->func == name && other->subkind == VCODE_CC_VHDL)
+      if (other->func == name)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_PACKAGE_INIT);
-   op->func    = name;
-   op->subkind = VCODE_CC_VHDL;
+   op->func = name;
    if (context != VCODE_INVALID_REG)
       vcode_add_arg(op, context);
 
@@ -4953,8 +4951,7 @@ vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
 {
    op_t *op = vcode_add_op(VCODE_OP_PROTECTED_INIT);
    vcode_add_arg(op, context);
-   op->func    = vtype_name(type);
-   op->subkind = VCODE_CC_VHDL;
+   op->func = vtype_name(type);
 
    if (path_name != VCODE_INVALID_REG && inst_name != VCODE_INVALID_REG) {
       vcode_add_arg(op, path_name);
@@ -4978,8 +4975,7 @@ void emit_process_init(ident_t name, vcode_reg_t locus)
 {
    op_t *op = vcode_add_op(VCODE_OP_PROCESS_INIT);
    vcode_add_arg(op, locus);
-   op->func    = name;
-   op->subkind = VCODE_CC_VHDL;
+   op->func = name;
 
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to process init must be a debug locus");
@@ -5976,6 +5972,23 @@ void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
                 "count argument to convert must be offset");
 }
 
+void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus)
+{
+   op_t *op = vcode_add_op(VCODE_OP_BIND_FOREIGN);
+   vcode_add_arg(op, spec);
+   vcode_add_arg(op, length);
+   if (locus != VCODE_INVALID_REG)
+      vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(spec) == VCODE_TYPE_POINTER,
+                "spec argument to bind foreign must be a pointer");
+   VCODE_ASSERT(vcode_reg_kind(length) == VCODE_TYPE_OFFSET,
+                "length argument to bind foreign must be offset");
+   VCODE_ASSERT(locus == VCODE_INVALID_REG
+                || vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to bind foreign value must be a debug locus");
+}
+
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
 {
    vcode_select_unit(vu);
@@ -5995,11 +6008,7 @@ void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
          case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
          case VCODE_OP_PACKAGE_INIT:
-            {
-               const vcode_cc_t cc = vcode_get_subkind(op);
-               if (cc != VCODE_CC_FOREIGN && cc != VCODE_CC_INTERNAL)
-                  (*fn)(vcode_get_func(op), ctx);
-            }
+            (*fn)(vcode_get_func(op), ctx);
             break;
          default:
             break;

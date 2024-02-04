@@ -5,7 +5,7 @@ architecture test of foreign1 is
 
     function f (x : integer) return integer;
 
-    attribute foreign of f : function is "symbol";
+    attribute foreign of f : function is "VHPIDIRECT symbol";
 
     function f (x : integer) return integer is
     begin

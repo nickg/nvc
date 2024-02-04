@@ -47,4 +47,15 @@ package verilog is
     function "not" (x : t_packed_logic) return t_packed_logic;
     function "not" (x : t_packed_logic) return t_logic;
 
+    procedure sys_finish;
+
+    -- These procedures are called with a special variadic calling convention
+    -- which cannot be represented in VHDL
+    procedure sys_display (format : string);
+    procedure sys_write (format : string);
+
+    attribute foreign of sys_finish : procedure is "INTERNAL __nvc_sys_finish";
+    attribute foreign of sys_write : procedure is "INTERNAL __nvc_sys_write";
+    attribute foreign of sys_display : procedure is "INTERNAL __nvc_sys_display";
+
 end package;

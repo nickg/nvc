@@ -187,9 +187,13 @@ static format_part_t *check_format(const char *str)
 }
 
 DLLEXPORT
-void _std_env_set_assert_format_valid(uint8_t level, const uint8_t *format_ptr,
-                                      int64_t format_len, int8_t *valid)
+void _std_env_set_assert_format_valid(jit_scalar_t *args)
 {
+   uint8_t level = args[2].integer;
+   const uint8_t *format_ptr = args[3].pointer;
+   int64_t format_len = ffi_array_length(args[5].integer);
+   int8_t *valid = args[6].pointer;
+
    assert(level <= SEVERITY_FAILURE);
 
    char *cstr LOCAL = null_terminate(format_ptr, format_len);
@@ -204,9 +208,12 @@ void _std_env_set_assert_format_valid(uint8_t level, const uint8_t *format_ptr,
 }
 
 DLLEXPORT
-void _std_env_set_assert_format(uint8_t level, const uint8_t *format_ptr,
-                                int64_t format_len)
+void _std_env_set_assert_format(jit_scalar_t *args)
 {
+   uint8_t level = args[2].integer;
+   const uint8_t *format_ptr = args[3].pointer;
+   int64_t format_len = ffi_array_length(args[5].integer);
+
    assert(level <= SEVERITY_FAILURE);
 
    char *cstr LOCAL = null_terminate(format_ptr, format_len);
@@ -220,12 +227,13 @@ void _std_env_set_assert_format(uint8_t level, const uint8_t *format_ptr,
 }
 
 DLLEXPORT
-void _std_env_get_assert_format(uint8_t level, ffi_uarray_t *u)
+void _std_env_get_assert_format(jit_scalar_t *args, tlab_t *tlab)
 {
+   uint8_t level = args[1].integer;
    assert(level <= SEVERITY_FAILURE);
 
    if (format[level] == NULL)
-      *u = ffi_wrap(NULL, 1, 0);
+      ffi_return_string("", args, tlab);
    else {
       LOCAL_TEXT_BUF tb = tb_new();
       for (format_part_t *p = format[level]; p; p = p->next) {
@@ -257,10 +265,7 @@ void _std_env_get_assert_format(uint8_t level, ffi_uarray_t *u)
          }
       }
 
-      const size_t nchars = tb_len(tb);
-      char *mem = rt_tlab_alloc(nchars);
-      memcpy(mem, tb_get(tb), nchars);
-      *u = ffi_wrap(mem, 1, nchars);
+      ffi_return_string(tb_get(tb), args, tlab);
    }
 }
 

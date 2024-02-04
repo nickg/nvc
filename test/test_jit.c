@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2023  Nick Gasson
+//  Copyright (C) 2021-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1138,120 +1138,6 @@ START_TEST(test_value1)
 }
 END_TEST
 
-DLLEXPORT
-int test_ffi_add(int x, int y)
-{
-   return x + y;
-}
-
-DLLEXPORT
-double test_ffi_fma(double x, double y, double z)
-{
-   return x * y + z;
-}
-
-static int test_ffi_arraylen(const void *ptr, int64_t len)
-{
-   return len;
-}
-
-static int test_ffi_arraysum(const void *ptr, int64_t len)
-{
-   int sum = 0;
-   for (int i = 0; i < len; i++)
-      sum += *((int *)ptr + i);
-   return sum;
-}
-
-START_TEST(test_ffi1)
-{
-   ffi_load_dll(NULL);
-
-   ident_t add_i = ident_new("test_ffi_add");
-
-   fail_unless(jit_ffi_get(add_i) == NULL);
-
-   const ffi_type_t add_types[] = { FFI_INT32, FFI_INT32, FFI_INT32 };
-   ffi_spec_t add_spec = ffi_spec_new(add_types, 3);
-
-   jit_foreign_t *add_ff = jit_ffi_bind(add_i, add_spec, NULL);
-   fail_if(add_ff == NULL);
-
-   fail_unless(jit_ffi_get(add_i) == add_ff);
-
-   {
-      jit_scalar_t args[] = { { .integer = 5 }, { .integer = 3 } };
-      jit_ffi_call(add_ff, args);
-      ck_assert_int_eq(args[0].integer, 8);
-   }
-
-   {
-      jit_scalar_t args[] = { { .integer = 5 }, { .integer = -7 } };
-      jit_ffi_call(add_ff, args);
-      ck_assert_int_eq(args[0].integer, -2);
-   }
-
-   ident_t fma_i = ident_new("test_ffi_fma");
-
-   const ffi_type_t fma_types[] = {
-      FFI_FLOAT, FFI_FLOAT, FFI_FLOAT, FFI_FLOAT
-   };
-   ffi_spec_t fma_spec = ffi_spec_new(fma_types, 4);
-
-   jit_foreign_t *fma_ff = jit_ffi_bind(fma_i, fma_spec, NULL);
-   fail_if(fma_ff == NULL);
-
-   {
-      jit_scalar_t args[] = { { .real = 2.0 },
-                              { .real = 3.0 },
-                              { .real = 1.0 } };
-      jit_ffi_call(fma_ff, args);
-      ck_assert_double_eq(args[0].real, 7.0);
-   }
-
-   {
-      jit_scalar_t args[] = { { .real = -2.0 },
-                              { .real = 3.0 },
-                              { .real = 1.0 } };
-      jit_ffi_call(fma_ff, args);
-      ck_assert_double_eq(args[0].real, -5.0);
-   }
-
-   ident_t len_i = ident_new("len");
-
-   const ffi_type_t len_types[] = { FFI_INT32, FFI_POINTER, FFI_INT64 };
-   ffi_spec_t len_spec = ffi_spec_new(len_types, 3);
-
-   jit_foreign_t *len_ff = jit_ffi_bind(len_i, len_spec, test_ffi_arraylen);
-   fail_if(len_ff == NULL);
-
-   {
-      jit_scalar_t args[] = {
-         { .pointer = NULL }, { .integer = 4 }
-      };
-      jit_ffi_call(len_ff, args);
-      ck_assert_int_eq(args[0].integer, 4);
-   }
-
-   ident_t sum_i = ident_new("sum");
-
-   const ffi_type_t sum_types[] = { FFI_INT32, FFI_POINTER, FFI_INT64 };
-   ffi_spec_t sum_spec = ffi_spec_new(sum_types, 3);
-
-   jit_foreign_t *sum_ff = jit_ffi_bind(sum_i, sum_spec, test_ffi_arraysum);
-   fail_if(sum_ff == NULL);
-
-   {
-      int data[4] = { 1, 2, 3, 4 };
-      jit_scalar_t args[] = {
-         { .pointer = data }, { .integer = 4 }
-      };
-      jit_ffi_call(sum_ff, args);
-      ck_assert_int_eq(args[0].integer, 10);
-   }
-}
-END_TEST
-
 START_TEST(test_assemble1)
 {
    jit_t *j = jit_new(NULL);
@@ -2099,7 +1985,6 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_issue496);
    tcase_add_test(tc, test_process1);
    tcase_add_test(tc, test_value1);
-   tcase_add_test(tc, test_ffi1);
    tcase_add_test(tc, test_assemble1);
    tcase_add_test(tc, test_assemble2);
    tcase_add_test(tc, test_cfg1);
