@@ -1543,7 +1543,7 @@ static bool is_range_expr(tree_t t)
    switch (tree_kind(t)) {
    case T_REF:
       if (tree_has_ref(t))
-         return is_type_decl(tree_ref(t));
+         return aliased_type_decl(tree_ref(t)) != NULL;
       else
          return !!(query_name(nametab, tree_ident(t), NULL) & N_TYPE);
 
