@@ -1254,7 +1254,7 @@ void *nvc_memalign(size_t align, size_t sz)
    void *ptr = mmap(NULL, mapsz, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANON, -1, 0);
    if (ptr == MAP_FAILED)
-      fatal_errno("mmap");
+      fatal_errno("mmap failed to allocate %zu bytes", sz);
 #endif
 
    void *aligned = ALIGN_UP(ptr, align);
@@ -1332,7 +1332,7 @@ void *map_jit_pages(size_t align, size_t sz)
    void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE | PROT_EXEC,
                     MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
    if (ptr == MAP_FAILED)
-      fatal_errno("mmap");
+      fatal_errno("mmap failed to allocate %zu bytes for executable code", sz);
 #else
    void *ptr = map_huge_pages(align, sz);
    nvc_memprotect(ptr, sz, MEM_RWX);
@@ -1917,7 +1917,7 @@ void *map_file(int fd, size_t size)
 #else
    void *ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
    if (ptr == MAP_FAILED)
-      fatal_errno("mmap");
+      fatal_trace("mmap failed to map %zu byte file", size);
 #endif
    return ptr;
 }
