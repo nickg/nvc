@@ -798,7 +798,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
 
    ident_t hpath = tree_ident(h);
 
-   if (tree_subkind(h) == T_COMPONENT) {
+   if (tree_subkind(h) == T_COMPONENT && tree_stmts(block) > 0) {
       // Skip over implicit block statement created for component
       // instantiation
       block = tree_stmt(block, 0);

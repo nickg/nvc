@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3781,6 +3781,8 @@ START_TEST(test_instance1)
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_LENGTH_CHECK },
          { VCODE_OP_UNWRAP },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_ALIAS_SIGNAL },
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_RETURN }
       };

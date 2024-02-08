@@ -1,0 +1,5 @@
+$comment wave10.u1.x[1:5] is aliased to s[1:5] $end
+$comment wave10.u2.x[1:5] is aliased to s[1:5] $end
+#0 wave10.s[1:5] 00000
+#1000000 wave10.s[1:5] 01000
+#2000000 wave10.s[1:5] 11100
