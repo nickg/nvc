@@ -1948,7 +1948,7 @@ static void *driving_value(rt_nexus_t *nexus)
       // If S is of signal kind register and all the sources of S have
       // values determined by the null transaction, then the driving
       // value of S is unchanged from its previous value.
-      if (nonnull == 0 && (nexus->flags & NET_F_REGISTER))
+      if (nonnull == 0 && (nexus->signal->shared.flags & SIG_F_REGISTER))
          return nexus_effective(nexus);
       else if (nonnull == 0 && released == nexus->n_sources)
          return nexus_driving(nexus);

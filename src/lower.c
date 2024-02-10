@@ -8009,7 +8009,7 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
 
    sig_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
-      flags |= NET_F_REGISTER;
+      flags |= SIG_F_REGISTER;
 
    lower_sub_signals(lu, type, type, value_type, decl, NULL, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
@@ -11989,7 +11989,7 @@ static void lower_port_signal(lower_unit_t *lu, tree_t port,
 
    sig_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
-      flags |= NET_F_REGISTER;
+      flags |= SIG_F_REGISTER;
 
    // Port signals will need separate driving/effective values if they
    // are inout or have conversion functions.

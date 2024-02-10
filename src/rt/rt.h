@@ -59,7 +59,7 @@ typedef enum {
 #define NET_F_CACHE_EVENT  (1 << 2)
 #define NET_F_R_IDENT      (1 << 3)
 // Unused                  (1 << 4)
-#define NET_F_REGISTER     (1 << 5)
+// Unused                  (1 << 5)
 #define NET_F_FAST_DRIVER  (1 << 6)
 #define NET_F_EFFECTIVE    (1 << 7)
 typedef uint8_t net_flags_t;
@@ -68,6 +68,7 @@ typedef uint8_t net_flags_t;
 #define SIG_F_STD_LOGIC    (1 << 9)
 #define SIG_F_CACHE_EVENT  (1 << 10)
 #define SIG_F_EVENT_FLAG   (1 << 11)
+#define SIG_F_REGISTER     (1 << 12)
 typedef uint32_t sig_flags_t;
 
 typedef enum {
