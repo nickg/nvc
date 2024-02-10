@@ -95,6 +95,7 @@ typedef enum {
    SOURCE_DRIVER,
    SOURCE_PORT,
    SOURCE_FORCING,
+   SOURCE_DEPOSIT,
 } source_kind_t;
 
 typedef struct {
@@ -122,6 +123,11 @@ typedef struct {
    rt_conv_func_t *conv_func;
 } rt_port_t;
 
+typedef struct {
+   rt_nexus_t *nexus;
+   rt_value_t  value;
+} rt_deposit_t;
+
 typedef struct _rt_source {
    rt_source_t    *chain_input;
    rt_source_t    *chain_output;
@@ -133,6 +139,7 @@ typedef struct _rt_source {
       rt_port_t    port;
       rt_driver_t  driver;
       rt_value_t   forcing;
+      rt_deposit_t deposit;
    } u;
 } rt_source_t;
 

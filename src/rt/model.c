@@ -66,11 +66,6 @@ typedef struct _memblock {
 } memblock_t;
 
 typedef struct {
-   rt_nexus_t *nexus;
-   uint8_t     data[0];
-} rt_deposit_t;
-
-typedef struct {
    waveform_t    *free_waveforms;
    tlab_t         tlab;
    tlab_t         spare_tlab;
@@ -165,7 +160,7 @@ static void async_update_property(rt_model_t *m, void *arg);
 static void async_update_driver(rt_model_t *m, void *arg);
 static void async_fast_driver(rt_model_t *m, void *arg);
 static void async_fast_all_drivers(rt_model_t *m, void *arg);
-static void async_update_driving(rt_model_t *m, void *arg);
+static void async_force_release(rt_model_t *m, void *arg);
 static void async_deposit(rt_model_t *m, void *arg);
 static void async_transfer_signal(rt_model_t *m, void *arg);
 
@@ -607,6 +602,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 
       case SOURCE_PORT:
       case SOURCE_FORCING:
+      case SOURCE_DEPOSIT:
          break;
       }
    }
@@ -873,7 +869,7 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
 
 static void deltaq_insert_force_release(rt_model_t *m, rt_nexus_t *nexus)
 {
-   deferq_do(&m->delta_driverq, async_update_driving, nexus);
+   deferq_do(&m->delta_driverq, async_force_release, nexus);
    m->next_is_delta = true;
 }
 
@@ -1274,6 +1270,11 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    case SOURCE_FORCING:
       src->u.forcing = alloc_value(m, n);
       break;
+
+   case SOURCE_DEPOSIT:
+      src->u.deposit.nexus = n;
+      src->u.deposit.value = alloc_value(m, n);
+      break;
    }
 
    return src;
@@ -1515,6 +1516,11 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
 
    case SOURCE_FORCING:
       split_value(nexus, &(new->u.forcing), &(old->u.forcing), offset);
+      break;
+
+   case SOURCE_DEPOSIT:
+      split_value(nexus, &(new->u.deposit.value), &(old->u.deposit.value),
+                  offset);
       break;
    }
 }
@@ -1773,6 +1779,7 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
             + nexus->signal->offset + nexus->offset;
 
    case SOURCE_FORCING:
+   case SOURCE_DEPOSIT:
       assert(src->disconnected);
       return NULL;
    }
@@ -1874,27 +1881,40 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    }
 }
 
-static rt_source_t *get_forcing_source(rt_model_t *m, rt_nexus_t *n)
+static rt_source_t *get_pseudo_source(rt_model_t *m, rt_nexus_t *n,
+                                      source_kind_t kind)
 {
+   assert(kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT);
+
    if (n->n_sources > 0) {
       for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_FORCING)
+         if (s->tag == kind)
             return s;
       }
    }
 
-   return add_source(m, n, SOURCE_FORCING);
+   return add_source(m, n, kind);
 }
 
 static void *driving_value(rt_nexus_t *nexus)
 {
-   // Algorithm for driving values is in LRM 08 section 14.7.7.2
+   // Algorithm for driving values is in LRM 08 section 14.7.3.2
 
    // If S is driving-value forced, the driving value of S is unchanged
    // from its previous value; no further steps are required.
    if (unlikely(nexus->flags & NET_F_FORCED)) {
-      rt_source_t *src = get_forcing_source(get_model(), nexus);
+      rt_source_t *src = get_pseudo_source(get_model(), nexus, SOURCE_FORCING);
       return value_ptr(nexus, &(src->u.forcing));
+   }
+
+   // If a driving-value deposit is scheduled for S or for a signal of
+   // which S is a subelement, the driving value of S is the driving
+   // deposit value for S or the element of the driving deposit value
+   // for the signal of which S is a subelement, as appropriate.
+   if (unlikely(nexus->flags & NET_F_DEPOSIT)) {
+      rt_source_t *src = get_pseudo_source(get_model(), nexus, SOURCE_DEPOSIT);
+      nexus->flags &= NET_F_DEPOSIT;
+      return value_ptr(nexus, &(src->u.deposit.value));
    }
 
    // If S has no source, then the driving value of S is given by the
@@ -1926,6 +1946,7 @@ static void *driving_value(rt_nexus_t *nexus)
                + nexus->signal->offset + nexus->offset;
 
       case SOURCE_FORCING:
+      case SOURCE_DEPOSIT:
          // An undriven signal that was previously forced
          assert(s->disconnected);
          return nexus_driving(nexus);
@@ -2863,7 +2884,7 @@ static void async_fast_all_drivers(rt_model_t *m, void *arg)
    fast_update_all_drivers(m, signal);
 }
 
-static void async_update_driving(rt_model_t *m, void *arg)
+static void async_force_release(rt_model_t *m, void *arg)
 {
    rt_nexus_t *nexus = arg;
    update_driver(m, nexus, NULL);
@@ -2872,12 +2893,7 @@ static void async_update_driving(rt_model_t *m, void *arg)
 static void async_deposit(rt_model_t *m, void *arg)
 {
    rt_deposit_t *deposit = arg;
-
-   // Force takes priority over deposit
-   if (!(deposit->nexus->flags & NET_F_FORCED))
-      update_driving(m, deposit->nexus, deposit->data);
-
-   free(deposit);
+   update_driving(m, deposit->nexus, driving_value(deposit->nexus));
 }
 
 static void async_transfer_signal(rt_model_t *m, void *arg)
@@ -3164,7 +3180,7 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 
       n->flags |= NET_F_FORCED;
 
-      rt_source_t *src = get_forcing_source(m, n);
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       copy_value_ptr(n, &(src->u.forcing), vptr);
 
       deltaq_insert_force_release(m, n);
@@ -3185,10 +3201,9 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
       count -= n->width;
       assert(count >= 0);
 
-      if (n->flags & NET_F_FORCED)
-         n->flags &= ~NET_F_FORCED;
+      n->flags &= ~NET_F_FORCED;
 
-      rt_source_t *src = get_forcing_source(m, n);
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       src->disconnected = 1;
 
       deltaq_insert_force_release(m, n);
@@ -3211,11 +3226,12 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       count -= n->width;
       assert(count >= 0);
 
-      rt_deposit_t *d = xmalloc_flex(sizeof(rt_deposit_t), n->width, n->size);
-      d->nexus = n;
-      memcpy(d->data, vptr, n->width * n->size);
+      n->flags |= NET_F_DEPOSIT;
 
-      deltaq_insert_deposit(m, d);
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
+      copy_value_ptr(n, &(src->u.deposit.value), vptr);
+
+      deltaq_insert_deposit(m, &(src->u.deposit));
       vptr += n->width * n->size;
    }
 }
