@@ -58,7 +58,7 @@ typedef enum {
 #define NET_F_INOUT        (1 << 1)
 #define NET_F_CACHE_EVENT  (1 << 2)
 #define NET_F_R_IDENT      (1 << 3)
-// Unused                  (1 << 4)
+#define NET_F_PENDING      (1 << 4)
 #define NET_F_DEPOSIT      (1 << 5)
 #define NET_F_FAST_DRIVER  (1 << 6)
 #define NET_F_EFFECTIVE    (1 << 7)

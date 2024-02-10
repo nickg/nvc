@@ -163,6 +163,7 @@ typedef struct _rt_nexus {
    net_flags_t    flags;
    uint8_t        size;
    uint8_t        n_sources;
+   uint8_t        rank;
    uint64_t       last_event;
    void          *pending;
    rt_source_t   *outputs;

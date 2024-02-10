@@ -1,4 +1,4 @@
-(init): signal S2.Y has 2 sources including port O2.Y which has initial value 'U' and no driver in instance U
 (init): signal S1 has 2 sources including port O1 which has initial value 'U' and no driver in instance U
 (init): sub-element of signal S4 has 2 sources including port O4 which has initial value 'U' and no driver in instance U
+(init): signal S2.Y has 2 sources including port O2.Y which has initial value 'U' and no driver in instance U
 (init): signal S2.R.X has 2 sources including port O2.R.X which has initial value 'U' and no driver in instance U

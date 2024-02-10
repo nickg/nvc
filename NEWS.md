@@ -11,6 +11,8 @@
 - The implementation of conversions in port maps has been reworked and
   fixes a number of long-standing issues (#843).
 - Added support for `inertial` keyword in port maps (#843). 
+- Fixed a bug where `'last_value` could give the wrong result if the
+  signal has multiple sources.
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due

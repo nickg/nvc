@@ -936,3 +936,5 @@ comp3           normal
 conv13          normal
 wave9           wave
 wave10          wave
+driver20        normal
+driver21        fail,gold

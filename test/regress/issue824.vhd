@@ -24,6 +24,7 @@ begin
         update(s);
         wait for 1 ns;
         assert s.x = 'Z';
+        assert s.y = '1';
         wait;
     end process;
 

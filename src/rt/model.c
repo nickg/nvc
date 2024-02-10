@@ -113,9 +113,10 @@ typedef struct _rt_model {
    deferq_t           delta_procq;
    deferq_t           driverq;
    deferq_t           delta_driverq;
-   deferq_t           effq;
    deferq_t           postponedq;
    deferq_t           implicitq;
+   heap_t            *driving_heap;
+   heap_t            *effective_heap;
    rt_callback_t     *global_cbs[RT_LAST_EVENT];
    cover_data_t      *cover;
    nvc_rusage_t       ready_rusage;
@@ -132,6 +133,7 @@ typedef struct _rt_model {
 #define TRACE_SIGNALS   1
 #define WAVEFORM_CHUNK  256
 #define PENDING_MIN     4
+#define MAX_RANK        UINT8_MAX
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -150,7 +152,6 @@ static __thread rt_model_t *__model = NULL;
 
 static bool __trace_on = false;
 
-static void *driving_value(rt_nexus_t *nexus);
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src);
 static void free_value(rt_nexus_t *n, rt_value_t v);
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset);
@@ -236,6 +237,26 @@ static const char *trace_states(bit_mask_t *mask)
       tb_printf(tb, "%s%d", tb_len(tb) > 1 ? "," : "", bit);
 
    tb_append(tb, '}');
+
+   return tb_get(tb);
+}
+
+static const char *trace_nexus(rt_nexus_t *n)
+{
+   static __thread text_buf_t *tb = NULL;
+
+   if (tb == NULL)
+      tb = tb_new();
+
+   tb_rewind(tb);
+
+   if (n->signal->parent->kind == SCOPE_SIGNAL)
+      tb_printf(tb, "%s.", istr(n->signal->parent->name));
+
+   tb_istr(tb, tree_ident(n->signal->where));
+
+   if (n->width * n->size < n->signal->shared.size)
+      tb_printf(tb, "[%d:%d]", n->offset, n->offset + n->width - 1);
 
    return tb_get(tb);
 }
@@ -531,6 +552,9 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->res_memo    = ihash_new(128);
    m->shuffle     = opt_get_int(OPT_SHUFFLE_PROCS);
 
+   m->driving_heap   = heap_new(64);
+   m->effective_heap = heap_new(64);
+
    m->can_create_delta = true;
 
    m->root = xcalloc(sizeof(rt_scope_t));
@@ -694,7 +718,6 @@ void model_free(rt_model_t *m)
    free(m->implicitq.tasks);
    free(m->driverq.tasks);
    free(m->delta_driverq.tasks);
-   free(m->effq.tasks);
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
@@ -714,6 +737,8 @@ void model_free(rt_model_t *m)
       free(mb);
    }
 
+   heap_free(m->effective_heap);
+   heap_free(m->driving_heap);
    heap_free(m->eventq_heap);
    hash_free(m->scopes);
    ihash_free(m->res_memo);
@@ -1546,6 +1571,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    new->active_delta = old->active_delta;
    new->event_delta  = old->event_delta;
    new->last_event   = old->last_event;
+   new->rank         = old->rank;
 
    old->chain = new;
    old->width = offset;
@@ -1719,7 +1745,7 @@ static void *convert_driving(rt_conv_func_t *cf)
    for (int i = 0; i < cf->ninputs; i++) {
       rt_nexus_t *n = cf->inputs[i];
       memcpy(cf->inbuf + n->signal->offset + n->offset,
-             driving_value(n), n->size * n->width);
+             nexus_driving(n), n->size * n->width);
    }
 
    TRACE("call conversion function %s insz=%zu outsz=%zu",
@@ -1772,8 +1798,12 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
          return value_ptr(nexus, &(src->u.driver.waveforms.value));
 
    case SOURCE_PORT:
-      if (likely(src->u.port.conv_func == NULL))
-         return driving_value(src->u.port.input);
+      if (likely(src->u.port.conv_func == NULL)) {
+         if (src->u.port.input->flags & NET_F_EFFECTIVE)
+            return nexus_driving(src->u.port.input);
+         else
+            return nexus_effective(src->u.port.input);
+      }
       else
          return convert_driving(src->u.port.conv_func)
             + nexus->signal->offset + nexus->offset;
@@ -1844,12 +1874,13 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 
       rt_model_t *m = get_model();
       jit_scalar_t result;
-      if (!jit_try_call(m->jit, r->closure.handle, &result,
-                        r->closure.context, inputs, r->ileft, nonnull))
-         m->force_stop = true;
+      if (jit_try_call(m->jit, r->closure.handle, &result,
+                       r->closure.context, inputs, r->ileft, nonnull))
+         return result.pointer + nexus->signal->offset
+            + nexus->offset - rscope->offset;
 
-      return result.pointer + nexus->signal->offset
-         + nexus->offset - rscope->offset;
+      m->force_stop = true;
+      return nexus_effective(nexus);   // Dummy result
    }
    else {
       void *resolved = local_alloc(nexus->width * nexus->size);
@@ -1896,60 +1927,64 @@ static rt_source_t *get_pseudo_source(rt_model_t *m, rt_nexus_t *n,
    return add_source(m, n, kind);
 }
 
-static void *driving_value(rt_nexus_t *nexus)
+static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
 {
    // Algorithm for driving values is in LRM 08 section 14.7.3.2
 
    // If S is driving-value forced, the driving value of S is unchanged
    // from its previous value; no further steps are required.
-   if (unlikely(nexus->flags & NET_F_FORCED)) {
-      rt_source_t *src = get_pseudo_source(get_model(), nexus, SOURCE_FORCING);
-      return value_ptr(nexus, &(src->u.forcing));
+   if (unlikely(n->flags & NET_F_FORCED)) {
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
+      return value_ptr(n, &(src->u.forcing));
    }
 
    // If a driving-value deposit is scheduled for S or for a signal of
    // which S is a subelement, the driving value of S is the driving
    // deposit value for S or the element of the driving deposit value
    // for the signal of which S is a subelement, as appropriate.
-   if (unlikely(nexus->flags & NET_F_DEPOSIT)) {
-      rt_source_t *src = get_pseudo_source(get_model(), nexus, SOURCE_DEPOSIT);
-      nexus->flags &= NET_F_DEPOSIT;
-      return value_ptr(nexus, &(src->u.deposit.value));
+   if (unlikely(n->flags & NET_F_DEPOSIT)) {
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
+      n->flags &= NET_F_DEPOSIT;
+      return value_ptr(n, &(src->u.deposit.value));
    }
 
    // If S has no source, then the driving value of S is given by the
    // default value associated with S
-   if (nexus->n_sources == 0)
-      return nexus_driving(nexus);
+   if (n->n_sources == 0)
+      return nexus_driving(n);
 
-   res_memo_t *r = nexus->signal->resolution;
+   res_memo_t *r = n->signal->resolution;
 
    if (r == NULL) {
-      rt_source_t *s = &(nexus->sources);
+      rt_source_t *s = &(n->sources);
       switch (s->tag) {
       case SOURCE_DRIVER:
          // If S has one source that is a driver and S is not a resolved
          // signal, then the driving value of S is the current value of
          // that driver.
          assert(!s->disconnected);
-         return value_ptr(nexus, &(s->u.driver.waveforms.value));
+         return value_ptr(n, &(s->u.driver.waveforms.value));
 
       case SOURCE_PORT:
          // If S has one source that is a port and S is not a resolved
          // signal, then the driving value of S is the driving value of
          // the formal part of the association element that associates S
          // with that port
-         if (likely(s->u.port.conv_func == NULL))
-            return driving_value(s->u.port.input);
+         if (likely(s->u.port.conv_func == NULL)) {
+            if (s->u.port.input->flags & NET_F_EFFECTIVE)
+               return nexus_driving(s->u.port.input);
+            else
+               return nexus_effective(s->u.port.input);
+         }
          else
             return convert_driving(s->u.port.conv_func)
-               + nexus->signal->offset + nexus->offset;
+               + n->signal->offset + n->offset;
 
       case SOURCE_FORCING:
       case SOURCE_DEPOSIT:
          // An undriven signal that was previously forced
          assert(s->disconnected);
-         return nexus_driving(nexus);
+         return nexus_driving(n);
       }
 
       return NULL;
@@ -1959,7 +1994,7 @@ static void *driving_value(rt_nexus_t *nexus)
       // driving values of the sources of S are examined.
 
       int nonnull = 0, released = 0;
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
          if (!s->disconnected)
             nonnull++;
          else if (s->tag == SOURCE_FORCING)
@@ -1969,18 +2004,18 @@ static void *driving_value(rt_nexus_t *nexus)
       // If S is of signal kind register and all the sources of S have
       // values determined by the null transaction, then the driving
       // value of S is unchanged from its previous value.
-      if (nonnull == 0 && (nexus->signal->shared.flags & SIG_F_REGISTER))
-         return nexus_effective(nexus);
-      else if (nonnull == 0 && released == nexus->n_sources)
-         return nexus_driving(nexus);
+      if (nonnull == 0 && (n->signal->shared.flags & SIG_F_REGISTER))
+         return nexus_effective(n);
+      else if (nonnull == 0 && released == n->n_sources)
+         return nexus_driving(n);
 
       // Otherwise, the driving value of S is obtained by executing the
       // resolution function associated with S
-      return call_resolution(nexus, r, nonnull);
+      return call_resolution(n, r, nonnull);
    }
 }
 
-static const void *effective_value(rt_nexus_t *nexus)
+static const void *calculate_effective_value(rt_nexus_t *nexus)
 {
    // Algorithm for effective values is in LRM 08 section 14.7.7.3
 
@@ -1991,7 +2026,7 @@ static const void *effective_value(rt_nexus_t *nexus)
       for (rt_source_t *s = nexus->outputs; s; s = s->chain_output) {
          if (s->tag == SOURCE_PORT) {
             if (likely(s->u.port.conv_func == NULL))
-               return effective_value(s->u.port.output);
+               return nexus_effective(s->u.port.output);
             else
                return convert_effective(s->u.port.conv_func)
                   + nexus->signal->offset + nexus->offset;
@@ -2011,23 +2046,56 @@ static const void *effective_value(rt_nexus_t *nexus)
       return nexus_effective(nexus);
 }
 
-static void propagate_nexus(rt_nexus_t *nexus, const void *resolved)
+static void calculate_initial_value(rt_model_t *m, rt_nexus_t *n)
 {
-   const size_t valuesz = nexus->size * nexus->width;
+   if (n->flags & NET_F_EFFECTIVE) {
+      // Driving and effective values must be calculated separately
+      void *driving = nexus_driving(n);
+      memcpy(driving, calculate_driving_value(m, n), n->width * n->size);
+
+      heap_insert(m->effective_heap, MAX_RANK - n->rank, n);
+
+      TRACE("%s initial driving value %s",
+            istr(tree_ident(n->signal->where)), fmt_nexus(n, driving));
+   }
+   else {
+      // Effective value is always the same as the driving value
+      const void *initial = nexus_effective(n);
+      if (n->n_sources > 0)
+         initial = calculate_driving_value(m, n);
+
+      const size_t valuesz = n->size * n->width;
+
+      memcpy(nexus_last_value(n), initial, valuesz);
+      memcpy(nexus_effective(n), initial, valuesz);
+
+      TRACE("%s initial value %s", istr(tree_ident(n->signal->where)),
+            fmt_nexus(n, initial));
+   }
+}
+
+static void propagate_nexus(rt_model_t *m, rt_nexus_t *n, const void *resolved)
+{
+   // Must only be called once per cycle
+   assert(n->last_event != m->now || n->event_delta != m->iteration);
+
+   const size_t valuesz = n->size * n->width;
 
    // LAST_VALUE is the same as the initial value when there have
    // been no events on the signal otherwise only update it when
    // there is an event
-   void *eff = nexus_effective(nexus);
-   memcpy(nexus_last_value(nexus), eff, valuesz);
+   void *eff = nexus_effective(n);
+   memcpy(nexus_last_value(n), eff, valuesz);
    memcpy(eff, resolved, valuesz);
 }
 
-static int nexus_rank(rt_nexus_t *nexus)
+static int nexus_rank(rt_nexus_t *n)
 {
-   if (nexus->n_sources > 0) {
+   if (n->rank > 0)
+      return n->rank;   // Already calculated
+   else if (n->n_sources > 0) {
       int rank = 0;
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
          if (s->tag != SOURCE_PORT)
             continue;
          else if (s->u.port.conv_func != NULL) {
@@ -2038,7 +2106,7 @@ static int nexus_rank(rt_nexus_t *nexus)
          else
             rank = MAX(rank, nexus_rank(s->u.port.input) + 1);
       }
-      return rank;
+      return (n->rank = rank);
    }
    else
       return 0;
@@ -2108,9 +2176,9 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
       if (n->flags & NET_F_EFFECTIVE)
          driving = nexus_driving(n);
 
-      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d ",
+      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d ",
               nth == 0 ? tb_get(tb) : "+",
-              n->width, n->size, n->n_sources, n_outputs);
+              n->width, n->size, n->n_sources, n_outputs, n->rank);
 
       if (n->event_delta == m->iteration && n->last_event == m->now)
          fprintf(stderr, "%s -> ", fmt_nexus(n, nexus_last_value(n)));
@@ -2136,8 +2204,8 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
          fputc('=', stderr);
       fputc('\n', stderr);
 
-      fprintf(stderr, "%-20s %5s %4s %7s %7s %s\n",
-              "Signal", "Width", "Size", "Sources", "Outputs", "Value");
+      fprintf(stderr, "%-20s %5s %4s %7s %7s %4s %s\n",
+              "Signal", "Width", "Size", "Sources", "Outputs", "Rank", "Value");
    }
 
    for (list_iter(rt_signal_t *, s, scope->signals))
@@ -2248,8 +2316,6 @@ void model_reset(rt_model_t *m)
    // signal S, then the current value of S is updated prior to the
    // updating of the current value of R.
 
-   heap_t *q = heap_new(MAX(m->n_signals + 1, 128));
-
    for (rt_nexus_t *n = m->nexuses; n != NULL; n = n->chain) {
       // The initial value of each driver is the default value of the signal
       if (n->n_sources > 0) {
@@ -2260,52 +2326,32 @@ void model_reset(rt_model_t *m)
          }
       }
 
-      heap_insert(q, nexus_rank(n), n);
+      const int rank = nexus_rank(n);
+      if (rank > MAX_RANK)
+         fatal_at(tree_loc(n->signal->where), "signal rank %d is greater "
+                  "than the maximum supported %d", rank, MAX_RANK);
+      else if (rank > 0 || n->n_sources > 1)
+         heap_insert(m->driving_heap, rank, n);
+      else {
+         calculate_initial_value(m, n);
+         check_undriven_std_logic(n);
+      }
    }
 
-   SCOPED_A(rt_nexus_t *) effq = AINIT;
-
-   while (heap_size(q) > 0) {
-      rt_nexus_t *n = heap_extract_min(q);
-
-      if (n->flags & NET_F_EFFECTIVE) {
-         // Driving and effective values must be calculated separately
-         void *driving = nexus_driving(n);
-         memcpy(driving, driving_value(n), n->width * n->size);
-
-         APUSH(effq, n);
-
-         TRACE("%s initial driving value %s",
-               istr(tree_ident(n->signal->where)), fmt_nexus(n, driving));
-      }
-      else {
-         // Effective value is always the same as the driving value
-         const void *initial = nexus_effective(n);
-         if (n->n_sources > 0)
-            initial = driving_value(n);
-
-         const size_t valuesz = n->size * n->width;
-
-         memcpy(nexus_last_value(n), initial, valuesz);
-         memcpy(nexus_effective(n), initial, valuesz);
-
-         TRACE("%s initial value %s", istr(tree_ident(n->signal->where)),
-               fmt_nexus(n, initial));
-      }
-
+   while (heap_size(m->driving_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(m->driving_heap);
+      calculate_initial_value(m, n);
       check_undriven_std_logic(n);
    }
 
-   heap_free(q);
-
    // Update effective values after all initial driving values calculated
-   for (int i = 0; i < effq.count; i++) {
-      rt_nexus_t *n = effq.items[i];
+   while (heap_size(m->effective_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(m->effective_heap);
 
-      const void *initial = effective_value(n);
-      propagate_nexus(n, initial);
+      const void *initial = calculate_effective_value(n);
+      propagate_nexus(m, n, initial);
 
-      TRACE("%s initial effective value %s", istr(tree_ident(n->signal->where)),
+      TRACE("%s initial effective value %s", trace_nexus(n),
             fmt_nexus(n, initial));
    }
 
@@ -2679,20 +2725,23 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
    set_pending(obj);
 }
 
-static void notify_event(rt_model_t *m, rt_nexus_t *nexus)
+static void notify_event(rt_model_t *m, rt_nexus_t *n)
 {
-   nexus->last_event = m->now;
-   nexus->event_delta = m->iteration;
+   // Must only be called once per cycle
+   assert(n->last_event != m->now || n->event_delta != m->iteration);
 
-   if (nexus->flags & NET_F_CACHE_EVENT)
-      nexus->signal->shared.flags |= SIG_F_EVENT_FLAG;
+   n->last_event = m->now;
+   n->event_delta = m->iteration;
 
-   if (pointer_tag(nexus->pending) == 1) {
-      rt_wakeable_t *wake = untag_pointer(nexus->pending, rt_wakeable_t);
+   if (n->flags & NET_F_CACHE_EVENT)
+      n->signal->shared.flags |= SIG_F_EVENT_FLAG;
+
+   if (pointer_tag(n->pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(n->pending, rt_wakeable_t);
       wakeup_one(m, wake);
    }
-   else if (nexus->pending != NULL) {
-      rt_pending_t *p = untag_pointer(nexus->pending, rt_pending_t);
+   else if (n->pending != NULL) {
+      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] != NULL)
             wakeup_one(m, p->wake[i]);
@@ -2711,33 +2760,31 @@ static bool is_event(rt_nexus_t *nexus, const void *new)
       return !cmp_bytes(effective, new, valuesz);
 }
 
-static void update_effective(rt_model_t *m, rt_nexus_t *nexus)
+static void enqueue_effective(rt_model_t *m, rt_nexus_t *n)
 {
-   const void *value = effective_value(nexus);
+   if (n->flags & NET_F_PENDING)
+      return;
 
-   TRACE("update %s effective value %s", istr(tree_ident(nexus->signal->where)),
-         fmt_nexus(nexus, value));
+   n->flags |= NET_F_PENDING;
+   heap_insert(m->effective_heap, MAX_RANK - n->rank, n);
+}
 
-   nexus->active_delta = m->iteration;
+static void update_effective(rt_model_t *m, rt_nexus_t *n)
+{
+   const void *value = calculate_effective_value(n);
 
-   if (is_event(nexus, value)) {
-      propagate_nexus(nexus, value);
-      notify_event(m, nexus);
+   TRACE("update %s effective value %s", trace_nexus(n), fmt_nexus(n, value));
+
+   n->active_delta = m->iteration;
+   n->flags &= ~NET_F_PENDING;
+
+   if (is_event(n, value)) {
+      propagate_nexus(m, n, value);
+      notify_event(m, n);
    }
-}
 
-static void async_update_effective(rt_model_t *m, void *arg)
-{
-   rt_nexus_t *nexus = arg;
-   update_effective(m, nexus);
-}
-
-static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
-{
-   deferq_do(&m->effq, async_update_effective, nexus);
-
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+   if (n->n_sources > 0) {
+      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
          if (s->tag != SOURCE_PORT)
             continue;
          else if (s->u.port.conv_func != NULL) {
@@ -2753,38 +2800,48 @@ static void enqueue_effective(rt_model_t *m, rt_nexus_t *nexus)
    }
 }
 
-static void update_driving(rt_model_t *m, rt_nexus_t *nexus, const void *value)
+static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 {
-   TRACE("update %s driving value %s", istr(tree_ident(nexus->signal->where)),
-         fmt_nexus(nexus, value));
+   if (n->n_sources == 1 || safe) {
+      const void *value = calculate_driving_value(m, n);
 
-   nexus->active_delta = m->iteration;
+      TRACE("update %s driving value %s", trace_nexus(n), fmt_nexus(n, value));
 
-   bool update_outputs = false;
-   if (nexus->flags & NET_F_EFFECTIVE) {
-      // The active and event flags will be set when we update the
-      // effective value later
-      update_outputs = true;
+      n->active_delta = m->iteration;
+      n->flags &= ~NET_F_PENDING;
 
-      memcpy(nexus_driving(nexus), value, nexus->size * nexus->width);
+      bool update_outputs = false;
+      if (n->flags & NET_F_EFFECTIVE) {
+         // The active and event flags will be set when we update the
+         // effective value later
+         update_outputs = true;
 
-      enqueue_effective(m, nexus);
-   }
-   else if (is_event(nexus, value)) {
-      propagate_nexus(nexus, value);
-      notify_event(m, nexus);
-      update_outputs = true;
-   }
+         memcpy(nexus_driving(n), value, n->size * n->width);
 
-   if (update_outputs) {
-      for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
-         assert(o->tag == SOURCE_PORT);
-         update_driving(m, o->u.port.output, driving_value(o->u.port.output));
+         n->flags |= NET_F_PENDING;
+         heap_insert(m->effective_heap, MAX_RANK - n->rank, n);
       }
+      else if (is_event(n, value)) {
+         propagate_nexus(m, n, value);
+         notify_event(m, n);
+         update_outputs = true;
+      }
+
+      if (update_outputs) {
+         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+            assert(o->tag == SOURCE_PORT);
+            update_driving(m, o->u.port.output, false);
+         }
+      }
+   }
+   else if (!(n->flags & NET_F_PENDING)) {
+      TRACE("defer %s driving value update", trace_nexus(n));
+      heap_insert(m->driving_heap, n->rank, n);
+      n->flags |= NET_F_PENDING;
    }
 }
 
-static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
+static void update_driver(rt_model_t *m, rt_nexus_t *n, rt_source_t *source)
 {
    model_thread_t *thread = model_thread(m);
 
@@ -2797,22 +2854,22 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
       waveform_t *w_next = w_now->next;
 
       if (likely(w_next != NULL && w_next->when == m->now)) {
-         free_value(nexus, w_now->value);
+         free_value(n, w_now->value);
          *w_now = *w_next;
          free_waveform(m, w_next);
          source->disconnected = 0;
-         update_driving(m, nexus, driving_value(nexus));
+         update_driving(m, n, false);
       }
       else if (unlikely(w_next != NULL && w_next->when == -m->now)) {
          // Disconnect source due to null transaction
          *w_now = *w_next;
          free_waveform(m, w_next);
          source->disconnected = 1;
-         update_driving(m, nexus, driving_value(nexus));
+         update_driving(m, n, false);
       }
    }
    else  // Update due to force/release
-      update_driving(m, nexus, driving_value(nexus));
+      update_driving(m, n, false);
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 }
@@ -2833,7 +2890,7 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
       assert(src->tag == SOURCE_DRIVER);
       assert(src->u.driver.waveforms.next == NULL);
 
-      update_driving(m, nexus, driving_value(nexus));
+      update_driving(m, nexus, false);
 
       tlab_reset(thread->tlab);   // No allocations can be live past here
    }
@@ -2893,7 +2950,7 @@ static void async_force_release(rt_model_t *m, void *arg)
 static void async_deposit(rt_model_t *m, void *arg)
 {
    rt_deposit_t *deposit = arg;
-   update_driving(m, deposit->nexus, driving_value(deposit->nexus));
+   update_driving(m, deposit->nexus, false);
 }
 
 static void async_transfer_signal(rt_model_t *m, void *arg)
@@ -2930,7 +2987,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
    n0->active_delta = m->iteration;
 
    if (*(int8_t *)nexus_effective(n0) != result.integer) {
-      propagate_nexus(n0, &result.integer);
+      propagate_nexus(m, n0, &result.integer);
       notify_event(m, n0);
    }
 }
@@ -3057,7 +3114,16 @@ static void model_cycle(rt_model_t *m)
    }
 
    deferq_run(m, &m->driverq);
-   deferq_run(m, &m->effq);
+
+   while (heap_size(m->driving_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(m->driving_heap);
+      update_driving(m, n, true);
+   }
+
+   while (heap_size(m->effective_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(m->effective_heap);
+      update_effective(m, n);
+   }
 
    // Update implicit signals
    deferq_run(m, &m->implicitq);
