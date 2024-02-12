@@ -3120,23 +3120,22 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
          return false;
    }
 
-   tree_t decl = tree_ref(t);
+   tree_t decl = tree_ref(t), sub;
+   const tree_flags_t flags = tree_flags(decl);
 
-   // Pure function may not call an impure function
-   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
-
-   const bool pure_call_to_impure =
-      sub != NULL && tree_kind(sub) == T_FUNC_BODY
-      && !(tree_flags(sub) & TREE_F_IMPURE)
-      && (tree_flags(decl) & TREE_F_IMPURE);
-
-   if (pure_call_to_impure) {
-      diag_t *d = pedantic_diag(t);
-      if (d != NULL) {
-         diag_printf(d, "pure function %s cannot call impure function %s",
-                     istr(tree_ident(sub)), istr(tree_ident(decl)));
-         diag_emit(d);
+   if ((flags & TREE_F_IMPURE) && (sub = find_enclosing(tab, S_SUBPROGRAM))) {
+      // Pure function may not call an impure function
+      if (tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE)) {
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "pure function %s cannot call impure function %s",
+                        istr(tree_ident(sub)), istr(tree_ident(decl)));
+            diag_emit(d);
+         }
       }
+
+      // Propagate impurity flags
+      tree_set_flag(sub, flags & (TREE_F_IMPURE_FILE | TREE_F_IMPURE_SHARED));
    }
 
    if (!sem_check_call_args(t, decl, tab))

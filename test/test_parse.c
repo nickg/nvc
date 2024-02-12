@@ -6133,6 +6133,37 @@ START_TEST(test_issue845)
 }
 END_TEST
 
+START_TEST(test_issue848)
+{
+   input_from_file(TESTDIR "/parse/issue848.vhd");
+
+   const error_t expect[] = {
+      { 37, "pure function TEST cannot call procedure PROC which references "
+        "a shared variable" },
+      { 44, "pure function TEST2 cannot call procedure PROC2 which references "
+        "a shared variable" },
+      { 51, "pure function TEST3 cannot call procedure PROC3 which references "
+        "a shared variable" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(lib_work(), b);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6269,6 +6300,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_visibility11);
    tcase_add_test(tc_core, test_issue837);
    tcase_add_test(tc_core, test_issue845);
+   tcase_add_test(tc_core, test_issue848);
    suite_add_tcase(s, tc_core);
 
    return s;
