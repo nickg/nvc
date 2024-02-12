@@ -3201,14 +3201,24 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
          sem_error(t, "function %s cannot call procedure %s which contains "
                    "a wait statement", istr(tree_ident(sub)),
                    istr(tree_ident(decl)));
-      else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func)
-         sem_error(t, "pure function %s cannot call procedure %s which "
-                   "references a file object", istr(tree_ident(sub)),
-                   istr(tree_ident(decl)));
-      else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func)
-         sem_error(t, "pure function %s cannot call procedure %s which "
-                   "references a shared variable", istr(tree_ident(sub)),
-                   istr(tree_ident(decl)));
+      else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func) {
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "pure function %s cannot call procedure %s which "
+                        "references a file object", istr(tree_ident(sub)),
+                        istr(tree_ident(decl)));
+            diag_emit(d);
+         }
+      }
+      else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func) {
+         diag_t *d = pedantic_diag(t);
+         if (d != NULL) {
+            diag_printf(d, "pure function %s cannot call procedure %s which "
+                        "references a shared variable", istr(tree_ident(sub)),
+                        istr(tree_ident(decl)));
+            diag_emit(d);
+         }
+      }
    }
 
    return true;
