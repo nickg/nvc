@@ -2036,6 +2036,17 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
          return NULL;
       }
 
+      tree_t hier = tree_decl(where, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      if (tree_subkind(hier) == T_COMPONENT) {
+         // Skip over implicit block for component declaration
+         where = tree_stmt(where, 0);
+         assert(tree_kind(where) == T_BLOCK);
+         hier = tree_decl(where, 0);
+         *path = ident_prefix(*path, tree_ident(where), '.');
+      }
+
       const int nstmts = tree_stmts(where);
       for (int i = 0; i < nstmts; i++) {
          tree_t s = tree_stmt(where, i);
@@ -2056,9 +2067,6 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
                    istr(tree_ident(where)));
 
          if (tree_kind(where) == T_BLOCK) {
-            tree_t hier = tree_decl(where, 0);
-            assert(tree_kind(hier) == T_HIER);
-
             tree_t unit = tree_ref(hier);
             const int nstmts = tree_stmts(unit);
             for (int i = 0; i < nstmts; i++) {

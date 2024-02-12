@@ -2567,7 +2567,7 @@ static void irgen_op_link_var(jit_irgen_t *g, int op)
          break;
    }
 
-   if (tab == NULL)
+   if (tab == f->linktab + f->nvars)
       fatal_trace("variable %s not found in unit %s", istr(var_name),
                   istr(unit_name));
 

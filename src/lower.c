@@ -3145,10 +3145,15 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
          }
 
          for (lower_unit_t *it = lu; it; it = it->parent) {
-            if (is_concurrent_block(it->container) && caret-- == 0) {
-               root = it->container;
-               path = it->name;
-               break;
+            if (is_concurrent_block(it->container)) {
+               tree_t hier = tree_decl(it->container, 0);
+               if (tree_subkind(hier) == T_COMPONENT)
+                  continue;   // Skip over implicit block for component
+               else if (caret-- == 0) {
+                  root = it->container;
+                  path = it->name;
+                  break;
+               }
             }
          }
       }

@@ -938,3 +938,4 @@ wave9           wave
 wave10          wave
 driver20        normal
 driver21        fail,gold
+ename7          normal,2008
