@@ -47,6 +47,7 @@ struct _patch_list {
 
 struct _irgen_label {
    jit_label_t    label;
+   unsigned       uses;
    patch_list_t   patchlist;
    irgen_label_t *next;
 };
@@ -300,6 +301,8 @@ static void irgen_patch_label(jit_irgen_t *g, jit_ir_t *ir, irgen_label_t *l)
       }
       p->offsets[p->count++] = ir - g->func->irbuf;
    }
+
+   l->uses++;
 }
 
 static jit_value_t j_recv(jit_irgen_t *g, int pos)
@@ -4216,7 +4219,8 @@ void jit_irgen(jit_func_t *f)
 
    for (irgen_label_t *it = g->labels, *tmp; it; it = tmp) {
       assert(it->label < g->func->nirs);
-      g->func->irbuf[it->label].target = 1;
+      if (it->uses > 0)
+         g->func->irbuf[it->label].target = 1;
       tmp = it->next;
       free(it);
    }
