@@ -1,3 +1,3 @@
-Note: A ~ :work:pack:func[integer return integer]:x
-Note: B ~ :work:pack:func[integer return integer]
-Note: C ~ :attr17(arch):report_instance_name[string]:val
+Note: 0ms+0: A ~ :work:pack:func[integer return integer]:x
+Note: 0ms+0: B ~ :work:pack:func[integer return integer]
+Note: 0ms+0: C ~ :attr17(arch):report_instance_name[string]:val

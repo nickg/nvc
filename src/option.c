@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "diag.h"
 #include "option.h"
 
 #include <stdlib.h>
@@ -172,4 +173,5 @@ void set_default_options(void)
    opt_set_int(OPT_SHUFFLE_PROCS, 0);
    opt_set_int(OPT_VHPI_DEBUG, 0);
    opt_set_int(OPT_SERVER_PORT, 8888);
+   opt_set_int(OPT_STDERR_LEVEL, DIAG_DEBUG);
 }

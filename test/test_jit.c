@@ -485,7 +485,7 @@ START_TEST(test_array1)
 
    const error_t expect[] = {
       { 14, "value length 2 does not match variable A length 3" },
-      { 40, "Report Note:" },
+      { 40, "" },
       { -1, NULL },
    };
    expect_errors(expect);
@@ -730,9 +730,9 @@ START_TEST(test_assert1)
    input_from_file(TESTDIR "/jit/assert1.vhd");
 
    const error_t expect[] = {
-      { 10, "Report Note: hello world" },
-      { 15, "Assertion Warning: -10 negative" },
-      { 16, "Assertion Failure: too big" },
+      { 10, "hello world" },
+      { 15, "-10 negative" },
+      { 16, "too big" },
       { -1, NULL },
    };
    expect_errors(expect);

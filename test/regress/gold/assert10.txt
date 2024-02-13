@@ -2,7 +2,7 @@
 0 fs foo error bar long message long message long message
 0ms+0: invalid string replacement variable 'Q'
 ** ERROR: message    at 0.005 ns : :assert10
-5ps+0: Assertion Warning: message
+5ps+0: message
 5ps+0: invalid precision 'foobar' in format string
 ** ERROR: report     at 0.005 ns : :assert10
 5ps+0: precision is only valid for 't' variable

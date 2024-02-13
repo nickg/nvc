@@ -76,6 +76,7 @@ typedef enum {
    DIAG_NOTE,
    DIAG_WARN,
    DIAG_ERROR,
+   DIAG_FAILURE,
    DIAG_FATAL,
 } diag_level_t;
 
@@ -120,17 +121,5 @@ const char *diag_get_trace(diag_t *d, int nth);
 const loc_t *diag_get_loc(diag_t *d);
 int diag_hints(diag_t *d);
 int diag_traces(diag_t *d);
-
-typedef enum {
-   SEVERITY_NOTE = 0,
-   SEVERITY_WARNING = 1,
-   SEVERITY_ERROR = 2,
-   SEVERITY_FAILURE = 3
-} vhdl_severity_t;
-
-// Conversion from VHDL severity
-vhdl_severity_t set_exit_severity(vhdl_severity_t severity);
-void set_stderr_severity(vhdl_severity_t severity);
-diag_level_t diag_severity(vhdl_severity_t severity);
 
 #endif  // _DIAG_H

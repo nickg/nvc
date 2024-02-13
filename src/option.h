@@ -68,6 +68,7 @@ typedef enum {
    OPT_SHUFFLE_PROCS,
    OPT_VHPI_DEBUG,
    OPT_SERVER_PORT,
+   OPT_STDERR_LEVEL,
 
    OPT_LAST_NAME
 } opt_name_t;

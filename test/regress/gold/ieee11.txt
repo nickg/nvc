@@ -1,4 +1,4 @@
-0ms+0: Assertion Warning: NUMERIC_STD.TO_01: null detected, returning NAU
-0ms+0: Assertion Warning: NUMERIC_STD.TO_UNSIGNED: vector truncated
-0ms+0: Assertion Warning: NUMERIC_STD.TO_SIGNED: vector truncated
-0ms+0: Assertion Warning: NUMERIC_STD.TO_SIGNED: vector truncated
+0ms+0: NUMERIC_STD.TO_01: null detected, returning NAU
+0ms+0: NUMERIC_STD.TO_UNSIGNED: vector truncated
+0ms+0: NUMERIC_STD.TO_SIGNED: vector truncated
+0ms+0: NUMERIC_STD.TO_SIGNED: vector truncated

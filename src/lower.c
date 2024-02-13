@@ -28,6 +28,7 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
+#include "rt/assert.h"
 #include "rt/rt.h"
 #include "type.h"
 #include "vcode.h"

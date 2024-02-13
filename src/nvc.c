@@ -26,6 +26,7 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"

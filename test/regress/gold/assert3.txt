@@ -1,1 +1,1 @@
-0ms+0: Assertion Note: should assert
+Note: 0ms+0: should assert

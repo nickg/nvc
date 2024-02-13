@@ -21,6 +21,7 @@
 #include "jit/jit-ffi.h"
 #include "jit/jit-exits.h"
 #include "scan.h"
+#include "rt/assert.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
 

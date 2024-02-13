@@ -1,1 +1,1 @@
-2ns+0: Report Failure: passed
+2ns+0: passed

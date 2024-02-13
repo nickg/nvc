@@ -19,7 +19,8 @@ lib_libnvc_a_SOURCES += \
 	src/rt/printer.c \
 	src/rt/verilog.c \
 	src/rt/reflect.c \
-	src/rt/assert.c
+	src/rt/assert.c \
+	src/rt/assert.h
 
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \

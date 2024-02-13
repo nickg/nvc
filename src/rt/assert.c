@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,9 @@
 #include "jit/jit-exits.h"
 #include "jit/jit.h"
 #include "object.h"
+#include "option.h"
 #include "psl/psl-node.h"
+#include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/rt.h"
 #include "rt/structs.h"
@@ -72,7 +74,8 @@ static const struct {
    { "hr", UINT64_C(3600000000000000000) },
 };
 
-static format_part_t *format[SEVERITY_FAILURE + 1];
+static format_part_t   *format[SEVERITY_FAILURE + 1];
+static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
 
 static void free_format(format_part_t *f)
 {
@@ -272,7 +275,7 @@ void _std_env_get_assert_format(jit_scalar_t *args, tlab_t *tlab)
 static const char *get_severity_string(vhdl_severity_t severity)
 {
    static const char *levels[] = {
-      "Note", "Warning", "Error", "Failure"
+      "note", "warning", "error", "failure"
    };
 
    assert(severity < ARRAY_LEN(levels));
@@ -363,34 +366,53 @@ static void apply_format(diag_t *d, format_part_t *p, vhdl_severity_t severity,
    }
 }
 
+static diag_level_t get_diag_severity(vhdl_severity_t severity)
+{
+   switch (severity) {
+   case SEVERITY_NOTE:    return DIAG_NOTE;
+   case SEVERITY_WARNING: return DIAG_WARN;
+   case SEVERITY_ERROR:   return DIAG_ERROR;
+   case SEVERITY_FAILURE: return DIAG_FAILURE;
+   }
+
+   return DIAG_ERROR;
+}
+
+static void emit_vhdl_diag(diag_t *d, vhdl_severity_t severity)
+{
+   if (severity >= exit_severity && severity < SEVERITY_FAILURE)
+      diag_hint(d, NULL, "this will be treated as a fatal error due to "
+                "$bold$--exit-severity=%s$$",
+                get_severity_string(exit_severity));
+
+   diag_emit(d);
+
+   if (severity >= exit_severity)
+      jit_abort_with_status(EXIT_FAILURE);
+}
+
 void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
               object_t *where)
 {
    assert(severity <= SEVERITY_FAILURE);
 
-   const diag_level_t level = diag_severity(severity);
+   const diag_level_t level = get_diag_severity(severity);
 
    diag_t *d = diag_new(level, &(where->loc));
 
    psl_node_t p = psl_from_object(where);
-   if (p != NULL && psl_kind(p) == P_COVER) {
-      diag_printf(d, "PSL cover: ");
+   if (p != NULL && psl_kind(p) == P_COVER)
       diag_write(d, (const char *)msg, msg_len);
-   }
    else if (format[severity] != NULL) {
       apply_format(d, format[severity], severity, msg, msg_len);
       diag_show_source(d, false);
    }
    else {
-      diag_printf(d, "Report %s: ", get_severity_string(severity));
       diag_write(d, (const char *)msg, msg_len);
       diag_show_source(d, false);
    }
 
-   diag_emit(d);
-
-   if (level == DIAG_FATAL)
-      jit_abort_with_status(EXIT_FAILURE);
+   emit_vhdl_diag(d, severity);
 }
 
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
@@ -406,7 +428,7 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
    assert(severity <= SEVERITY_FAILURE);
 
-   const diag_level_t level = diag_severity(severity);
+   const diag_level_t level = get_diag_severity(severity);
 
    diag_t *d = diag_new(level, &(where->loc));
 
@@ -415,13 +437,11 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    else if (msg == NULL) {
       psl_node_t p = psl_from_object(where);
       if (p == NULL)
-         diag_printf(d, "Assertion %s: Assertion violation.",
-                     get_severity_string(severity));
+         diag_printf(d, "Assertion violation.");
       else
          diag_printf(d, "PSL assertion failed");
    }
    else {
-      diag_printf(d, "Assertion %s: ", get_severity_string(severity));
       diag_write(d, (const char *)msg, msg_len);
 
       // Assume we don't want to dump the source code if the user
@@ -453,8 +473,17 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       diag_hint(d, &(where->loc), "%s", tb_get(tb));
    }
 
-   diag_emit(d);
+   emit_vhdl_diag(d, severity);
+}
 
-   if (level == DIAG_FATAL)
-      jit_abort_with_status(EXIT_FAILURE);
+vhdl_severity_t set_exit_severity(vhdl_severity_t severity)
+{
+   const vhdl_severity_t old = exit_severity;
+   exit_severity = severity;
+   return old;
+}
+
+void set_stderr_severity(vhdl_severity_t severity)
+{
+   opt_set_int(OPT_STDERR_LEVEL, get_diag_severity(severity));
 }

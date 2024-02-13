@@ -93,12 +93,6 @@ typedef uint16_t delta_cycle_t;
 
 void *rt_tlab_alloc(size_t size);
 
-int64_t get_vhdl_assert_count(int8_t severity);
-void increment_vhdl_assert_count(int8_t severity);
-void clear_vhdl_assert(void);
-void set_vhdl_assert_enable(int8_t severity, bool enable);
-bool get_vhdl_assert_enable(int8_t severity);
-
 void _std_standard_init(void);
 void _std_env_init(void);
 void _std_reflection_init(void);

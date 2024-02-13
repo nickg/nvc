@@ -1,11 +1,11 @@
-0ms+0: Assertion Note: First note
-0ms+0: Assertion Warning: First warning
-0ms+0: Assertion Error: First error
-0ms+0: Assertion Note: Second note
-0ms+0: Assertion Warning: Second warning
-0ms+0: Assertion Error: Second error
-0ms+0: Report Note: Clearing VHDL asserts
-0ms+0: Report Note: Note report
-0ms+0: Report Warning: Warning report
-0ms+0: Report Error: Error report
+Note: 0ms+0: First note
+Warning: 0ms+0: First warning
+Error: 0ms+0: First error
+Note: 0ms+0: Second note
+Warning: 0ms+0: Second warning
+Error: 0ms+0: Second error
+Note: 0ms+0: Clearing VHDL asserts
+Note: 0ms+0: Note report
+Warning: 0ms+0: Warning report
+Error: 0ms+0: Error report
 0ms+0: FINISH called

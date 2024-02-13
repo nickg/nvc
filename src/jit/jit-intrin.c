@@ -165,7 +165,7 @@ static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
    thread->anchor = &frame;
 
    diag_t *d = diag_new(DIAG_WARN, NULL);
-   diag_printf(d, "Assertion Warning: %s", msg);
+   diag_printf(d, "%s", msg);
    diag_show_source(d, false);
    diag_emit(d);
 

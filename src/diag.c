@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -91,12 +91,10 @@ typedef struct _hint_rec {
    void           *context;
 } hint_rec_t;
 
-static unsigned         n_errors = 0;
-static unsigned         error_limit = 0;
-static file_list_t      loc_files;
-static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
-static diag_level_t     stderr_level = DIAG_DEBUG;
-static nvc_lock_t       diag_lock = 0;
+static unsigned    n_errors    = 0;
+static unsigned    error_limit = 0;
+static file_list_t loc_files;
+static nvc_lock_t  diag_lock   = 0;
 
 static __thread diag_consumer_t  consumer_fn = NULL;
 static __thread void            *consumer_ctx = NULL;
@@ -389,6 +387,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define NOTE_PREFIX    "** Note: "
 #define WARNING_PREFIX "$yellow$** Warning:$$ "
 #define ERROR_PREFIX   "$red$** Error:$$ "
+#define FAILURE_PREFIX "$red$** Failure:$$ "
 #define FATAL_PREFIX   "$red$** Fatal:$$ "
 #define GUTTER_STYLE   "$blue$"
 #define HINT_STYLE     ""
@@ -401,6 +400,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define NOTE_PREFIX    "$bold$Note:$$ "
 #define WARNING_PREFIX "$!yellow$Warning:$$ "
 #define ERROR_PREFIX   "$!red$Error:$$ "
+#define FAILURE_PREFIX "$!red$Failure:$$ "
 #define FATAL_PREFIX   "$!red$Fatal:$$ "
 #define GUTTER_STYLE   "$!blue$"
 #define HINT_STYLE     "$bold$"
@@ -763,7 +763,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       linebuf = loc_get_source(&(d->hints.items[0].loc));
 
    if (linebuf == NULL)
-      fwidth = 1;
+      fwidth = 3;
    else {
       for (int n = line_max; n > 0; n /= 10, fwidth++)
       ;
@@ -775,7 +775,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 #endif
 
    if (linebuf == NULL) {
-      fprintf(f, "\t ");
+      color_fprintf(f, "      ");
       diag_emit_loc(&loc0, f);
       goto other_files;
    }
@@ -940,11 +940,12 @@ static void diag_format_compact(diag_t *d, FILE *f)
    }
 
    switch (d->level) {
-   case DIAG_DEBUG: fprintf(f, "debug: "); break;
-   case DIAG_NOTE:  fprintf(f, "note: "); break;
-   case DIAG_WARN:  fprintf(f, "warning: "); break;
-   case DIAG_ERROR: fprintf(f, "error: "); break;
-   case DIAG_FATAL: fprintf(f, "fatal: "); break;
+   case DIAG_DEBUG:   fprintf(f, "debug: "); break;
+   case DIAG_NOTE:    fprintf(f, "note: "); break;
+   case DIAG_WARN:    fprintf(f, "warning: "); break;
+   case DIAG_ERROR:   fprintf(f, "error: "); break;
+   case DIAG_FAILURE: fprintf(f, "failure: "); break;
+   case DIAG_FATAL:   fprintf(f, "fatal: "); break;
    }
 
    diag_print_utf8(tb_get(d->msg), tb_len(d->msg), f);
@@ -962,11 +963,12 @@ static void diag_format_full(diag_t *d, FILE *f)
       int col = 0;
       if (d->prefix) {
          switch (d->level) {
-         case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
-         case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
-         case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
-         case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
-         case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
+         case DIAG_DEBUG:   col = color_fprintf(f, DEBUG_PREFIX); break;
+         case DIAG_NOTE:    col = color_fprintf(f, NOTE_PREFIX); break;
+         case DIAG_WARN:    col = color_fprintf(f, WARNING_PREFIX); break;
+         case DIAG_ERROR:   col = color_fprintf(f, ERROR_PREFIX); break;
+         case DIAG_FAILURE: col = color_fprintf(f, FAILURE_PREFIX); break;
+         case DIAG_FATAL:   col = color_fprintf(f, FATAL_PREFIX); break;
          }
       }
 
@@ -1037,6 +1039,7 @@ void diag_femit(diag_t *d, FILE *f)
 
 void diag_emit(diag_t *d)
 {
+   const diag_level_t stderr_level = opt_get_int(OPT_STDERR_LEVEL);
    diag_femit(d, d->level >= stderr_level ? stderr : stdout);
 }
 
@@ -1153,38 +1156,6 @@ void fmt_loc(FILE *f, const loc_t *loc)
    consumer_fn = NULL;
    diag_femit(d, f);
    consumer_fn = old;
-}
-
-diag_level_t diag_severity(vhdl_severity_t severity)
-{
-   if (severity >= exit_severity)
-      return DIAG_FATAL;
-
-   switch (severity) {
-   case SEVERITY_NOTE:    return DIAG_NOTE;
-   case SEVERITY_WARNING: return DIAG_WARN;
-   case SEVERITY_ERROR:
-   case SEVERITY_FAILURE: return DIAG_ERROR;
-   }
-
-   return DIAG_ERROR;
-}
-
-vhdl_severity_t set_exit_severity(vhdl_severity_t severity)
-{
-   const vhdl_severity_t old = exit_severity;
-   exit_severity = severity;
-   return old;
-}
-
-void set_stderr_severity(vhdl_severity_t severity)
-{
-   switch (severity) {
-   case SEVERITY_NOTE:    stderr_level = DIAG_NOTE; break;
-   case SEVERITY_WARNING: stderr_level = DIAG_WARN; break;
-   case SEVERITY_ERROR:   stderr_level = DIAG_ERROR; break;
-   case SEVERITY_FAILURE: stderr_level = DIAG_FATAL; break;
-   }
 }
 
 void wrapped_vprintf(const char *fmt, va_list ap)

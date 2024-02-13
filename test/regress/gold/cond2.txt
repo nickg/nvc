@@ -1,2 +1,2 @@
-1ns+0: Report Note: y = 2
-1ns+0: Report Note: x /= 4
+1ns+0: y = 2
+1ns+0: x /= 4

@@ -1,1 +1,1 @@
-0ms+0: Report Failure: invalid character 'X' in string "abX"
+0ms+0: invalid character 'X' in string "abX"
