@@ -1953,6 +1953,36 @@ START_TEST(test_code1)
 }
 END_TEST
 
+START_TEST(test_lvn10)
+{
+   jit_t *j = jit_new(NULL);
+
+   const char *text1 =
+      "    RECV        R0, #0    \n"
+      "    RECV        R1, #1    \n"
+      "    RECV        R2, #2    \n"
+      "    SEND        #0, R0    \n"
+      "    SEND        #1, R1    \n"
+      "    SEND        #2, R2    \n"
+      "    $EXIT       #1        \n"
+      "    RECV        R3, #0    \n"
+      "    SEND        #0, R3    \n"
+      "    RET                   \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   ck_assert_int_eq(f->irbuf[3].op, J_NOP);
+   ck_assert_int_eq(f->irbuf[4].op, J_NOP);
+   ck_assert_int_eq(f->irbuf[5].op, J_NOP);
+   ck_assert_int_eq(f->irbuf[8].op, J_NOP);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2007,6 +2037,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_cfg3);
    tcase_add_test(tc, test_dce2);
    tcase_add_test(tc, test_code1);
+   tcase_add_test(tc, test_lvn10);
    suite_add_tcase(s, tc);
 
    return s;

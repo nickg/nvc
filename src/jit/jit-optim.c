@@ -284,6 +284,7 @@ typedef unsigned valnum_t;
 #define SMALL_CONST 100
 #define MAX_CONSTS  32
 #define FIRST_VN    (SMALL_CONST + MAX_CONSTS)
+#define TRACK_ARGS  8
 
 #define LVN_REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define LVN_CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
@@ -413,6 +414,12 @@ static inline bool lvn_is_commutative(jit_op_t op)
 static inline void lvn_kill_flags(lvn_state_t *state)
 {
    state->regvn[state->func->nregs] = VN_INVALID;
+}
+
+static void lvn_kill_args(lvn_state_t *state)
+{
+   for (int i = 0; i < TRACK_ARGS; i++)
+      state->regvn[state->func->nregs + i + 1] = VN_INVALID;
 }
 
 static void lvn_commute_const(jit_ir_t *ir, lvn_state_t *state)
@@ -755,6 +762,38 @@ static void jit_lvn_clamp(jit_ir_t *ir, lvn_state_t *state)
       jit_lvn_generic(ir, state, VN_INVALID);
 }
 
+static void jit_lvn_recv(jit_ir_t *ir, lvn_state_t *state)
+{
+   const unsigned nth = ir->arg1.int64;
+   if (nth >= TRACK_ARGS)
+      return;
+
+   const unsigned vreg = state->func->nregs + 1 + nth;
+
+   if (state->regvn[vreg] != VN_INVALID)
+      state->regvn[ir->result] = state->regvn[vreg];
+   else {
+      valnum_t vn = lvn_new_value(state);
+      state->regvn[vreg] = vn;
+      state->regvn[ir->result] = vn;
+   }
+}
+
+static void jit_lvn_send(jit_ir_t *ir, lvn_state_t *state)
+{
+   const unsigned nth = ir->arg1.int64;
+   if (nth >= TRACK_ARGS)
+      return;
+   else if (ir->arg2.kind != JIT_VALUE_REG)
+      return;
+
+   const unsigned vreg = state->func->nregs + 1 + nth;
+
+   valnum_t vn = lvn_value_num(ir->arg2, state);
+   if (vn != VN_INVALID && state->regvn[vreg] == vn)
+      lvn_convert_nop(ir);   // Already in argument slot
+}
+
 static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
 {
    if (ir->op == MACRO_MOVE && ir->arg2.kind == JIT_ADDR_CPOOL)
@@ -903,7 +942,7 @@ void jit_do_lvn(jit_func_t *f)
       .nextvn = FIRST_VN
    };
 
-   state.regvn = xmalloc_array(f->nregs + 1, sizeof(valnum_t));
+   state.regvn = xmalloc_array(f->nregs + 1 + TRACK_ARGS, sizeof(valnum_t));
    state.hashtab = xcalloc_array(state.tabsz, sizeof(lvn_tab_t));
 
    bool reset = true;
@@ -911,7 +950,7 @@ void jit_do_lvn(jit_func_t *f)
         reset = cfg_is_terminator(f, ir), ir++) {
 
       if (reset || ir->target) {
-         for (int j = 0; j < f->nregs + 1; j++)
+         for (int j = 0; j < f->nregs + 1 + TRACK_ARGS; j++)
             state.regvn[j] = VN_INVALID;
       }
 
@@ -930,11 +969,17 @@ void jit_do_lvn(jit_func_t *f)
       case J_CSET: jit_lvn_cset(ir, &state); break;
       case J_JUMP: jit_lvn_jump(ir, &state); break;
       case J_CLAMP: jit_lvn_clamp(ir, &state); break;
+      case J_RECV: jit_lvn_recv(ir, &state); break;
+      case J_SEND: jit_lvn_send(ir, &state); break;
       case MACRO_MOVE:
       case MACRO_COPY: jit_lvn_copy(ir, &state); break;
       case MACRO_BZERO: jit_lvn_bzero(ir, &state); break;
       case MACRO_MEMSET: jit_lvn_memset(ir, &state); break;
       case MACRO_EXP: jit_lvn_exp(ir, &state); break;
+      case MACRO_EXIT:
+      case J_CALL:
+         lvn_kill_args(&state);
+         // Fall-through
       default:
          if (jit_writes_flags(ir))
             state.regvn[f->nregs] = VN_INVALID;
