@@ -44,6 +44,7 @@ struct _jit_pack {
    ZSTD_DCtx  *zstd;
    const void *mmap;
    size_t      map_size;
+   nvc_lock_t  zlock;
 };
 
 typedef struct _pack_writer {
@@ -533,13 +534,17 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       fatal("cannot get ZSTD compressed frame size: %s: %s", istr(f->name),
             ZSTD_getErrorName(framesz));
 
-   size_t dsize = ZSTD_decompressDCtx(jp->zstd, ubuf, ubufsz,
-                                      pf->buf + start, framesz);
-   if (ZSTD_isError(dsize))
-      fatal("ZSTD decompress failed: %s: %s", istr(f->name),
-            ZSTD_getErrorName(dsize));
+   {
+      SCOPED_LOCK(jp->zlock);
 
-   assert(dsize == ubufsz);
+      size_t dsize = ZSTD_decompressDCtx(jp->zstd, ubuf, ubufsz,
+                                         pf->buf + start, framesz);
+      if (ZSTD_isError(dsize))
+         fatal("ZSTD decompress failed: %s: %s", istr(f->name),
+               ZSTD_getErrorName(dsize));
+
+      assert(dsize == ubufsz);
+   }
 
    pf->rptr = ubuf;
    pf->last_loc = LOC_INVALID;
