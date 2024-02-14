@@ -49,6 +49,7 @@ struct _jit_pack {
 
 typedef struct _pack_writer {
    text_buf_t *strtab;
+   shash_t    *strhash;
    size_t      bufsz;
    uint8_t    *wptr;
    uint8_t    *buf;
@@ -268,10 +269,11 @@ static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
 pack_writer_t *pack_writer_new(void)
 {
    pack_writer_t *pw = xcalloc(sizeof(pack_writer_t));
-   pw->strtab = tb_new();
-   pw->bufsz  = 512;
-   pw->buf    = xmalloc(pw->bufsz);
-   pw->wptr   = pw->buf;
+   pw->strhash = shash_new(16);
+   pw->strtab  = tb_new();
+   pw->bufsz   = 512;
+   pw->buf     = xmalloc(pw->bufsz);
+   pw->wptr    = pw->buf;
 
    if ((pw->zstd = ZSTD_createCCtx()) == NULL)
       fatal_trace("ZSTD_createCCtx failed");
@@ -285,18 +287,15 @@ unsigned pack_writer_get_string(pack_writer_t *pw, const char *str)
 {
    if (str == NULL)
       return 0;
-   else {
-      const char *strtab = tb_get(pw->strtab);
-      const size_t tlen = tb_len(pw->strtab);
-      const size_t slen = strlen(str) + 1;
-      const char *exist = memmem(strtab, tlen, str, slen);
-      if (exist != NULL)
-         return exist - strtab;
-      else {
-         tb_catn(pw->strtab, str, slen);
-         return tlen;
-      }
-   }
+
+   const uintptr_t exist = (uintptr_t)shash_get(pw->strhash, str);
+   if (exist != 0)
+      return exist;
+
+   const unsigned off = tb_len(pw->strtab);
+   shash_put(pw->strhash, str, (void *)(uintptr_t)off);
+   tb_catn(pw->strtab, str, strlen(str) + 1);
+   return off;
 }
 
 void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
@@ -345,6 +344,7 @@ void pack_writer_free(pack_writer_t *pw)
    ZSTD_freeCCtx(pw->zstd);
    free(pw->buf);
    tb_free(pw->strtab);
+   shash_free(pw->strhash);
    free(pw);
 }
 
