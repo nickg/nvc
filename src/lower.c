@@ -3850,7 +3850,10 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
    const int64_t ileft = dir == RANGE_TO ? clow : chigh;
    const int64_t iright = dir == RANGE_TO ? chigh : clow;
 
-   vcode_reg_t left_reg, right_reg, dir_reg;
+   vcode_reg_t left_reg = VCODE_INVALID_REG,
+      right_reg = VCODE_INVALID_REG,
+      dir_reg = VCODE_INVALID_REG;
+
    if (known_elem_count) {
       vcode_type_t vindex = lower_type(index_type);
       left_reg = emit_const(vindex, ileft);
