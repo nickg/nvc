@@ -394,7 +394,6 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define CARET_STYLE    ""
 #define TRACE_STYLE    ""
 #define TRAILING_BLANK 0
-#define TRACE_LOC      0
 #elif DIAG_THEME == DIAG_THEME_RUST
 #define DEBUG_PREFIX   "$!green$Debug:$$ "
 #define NOTE_PREFIX    "$bold$Note:$$ "
@@ -407,7 +406,6 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define CARET_STYLE    "$bold$"
 #define TRACE_STYLE    "$bold$"
 #define TRAILING_BLANK 1
-#define TRACE_LOC      1
 #else
 #error "invalid DIAG_THEME"
 #endif
@@ -717,10 +715,10 @@ static void diag_emit_loc(const loc_t *loc, FILE *f)
    const char *abspath = loc_abs_path(loc);
 
    if (abspath != file)
-      color_fprintf(f, "$$$link:file://%s#%u\07%s:%u$\n",
+      color_fprintf(f, "$link:file://%s#%u\07%s:%u$",
                     abspath, loc->first_line, file, loc->first_line);
    else
-      fprintf(f, "%s:%u\n", file, loc->first_line);
+      fprintf(f, "%s:%u", file, loc->first_line);
 }
 
 static void diag_emit_hints(diag_t *d, FILE *f)
@@ -769,22 +767,13 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       ;
    }
 
-#if !TRACE_LOC
-   if (linebuf == NULL && d->trace.count > 1)
+   if (linebuf == NULL)
       goto other_files;
-#endif
 
-   if (linebuf == NULL) {
-      color_fprintf(f, "      ");
-      diag_emit_loc(&loc0, f);
-      goto other_files;
-   }
-
-
-   color_fprintf(f, "%*s$blue$  > ", fwidth, "");
+   color_fprintf(f, "%*s$blue$  > $$", fwidth, "");
    diag_emit_loc(&loc0, f);
 
-   color_fprintf(f, "%*s " GUTTER_STYLE " |$$\n", fwidth, "");
+   color_fprintf(f, "\n%*s " GUTTER_STYLE " |$$\n", fwidth, "");
    need_gap = true;
 
    const char *p = linebuf;
@@ -893,8 +882,9 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       fputc('\n', f);
 
       if (!loc_invalid_p(&(hint->loc))) {
-         color_fprintf(f, "\t $blue$>$$ ");
+         color_fprintf(f, "%*s      $blue$>$$ ", fwidth, "");
          diag_emit_loc(&(hint->loc), f);
+         fputc('\n', f);
       }
    }
 }
@@ -902,7 +892,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 static void diag_emit_trace(diag_t *d, FILE *f)
 {
    // Do not show a stack trace if it just repeats the initial location
-   if (d->trace.count == 1 && d->hints.count > 0) {
+   if (d->trace.count == 1 && d->hints.count > 0 && d->source) {
       const loc_t hloc0 = d->hints.items[0].loc;
       const loc_t tloc0 = d->trace.items[0].loc;
 
@@ -919,12 +909,14 @@ static void diag_emit_trace(diag_t *d, FILE *f)
 
    for (int i = 0; i < d->trace.count; i++) {
       diag_hint_t *hint = &(d->trace.items[i]);
-      fprintf(f, "   " TRACE_STYLE "%s\n", hint->text);
+      fprintf(f, "   " TRACE_STYLE "%s", hint->text);
 
       if (!loc_invalid_p(&(hint->loc))) {
-         fprintf(f, "\t ");
+         color_fprintf(f, " at ");
          diag_emit_loc(&(hint->loc), f);
       }
+
+      fputc('\n', f);
    }
 }
 
