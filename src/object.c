@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -46,6 +46,8 @@ typedef struct _object_arena {
    uint32_t       *forward;
    mark_mask_t    *mark_bits;
    size_t          mark_sz;
+   size_t          mark_low;
+   size_t          mark_high;
    generation_t    generation;
    arena_key_t     key;
    arena_array_t   deps;
@@ -129,24 +131,50 @@ static ident_t object_arena_name(object_arena_t *arena)
    return ident_new("???");
 }
 
+static inline void zero_mark_bits(object_arena_t *arena, unsigned first,
+                                  size_t count)
+{
+   assert(first + count <= arena->mark_sz);
+   assert(first > arena->mark_high || first + count <= arena->mark_low);
+
+   if (count == 1)
+      arena->mark_bits[first] = 0;
+   else
+      memset(arena->mark_bits + first, '\0', count * sizeof(uint64_t));
+}
+
 static bool object_marked_p(object_t *object, generation_t generation)
 {
    object_arena_t *arena = __object_arena(object);
 
-   if (arena->mark_bits == NULL) {
+   const uintptr_t bit = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+   const uintptr_t word = bit / 64;
+
+   if (unlikely(arena->mark_bits == NULL)) {
       const size_t nbits = (arena->limit - arena->base) / OBJECT_ALIGN;
       arena->mark_sz = ALIGN_UP(nbits, 64) / 8;
-      arena->mark_bits = xcalloc(arena->mark_sz);
+      arena->mark_bits = xmalloc(arena->mark_sz);
+      arena->mark_bits[word] = 0;
+      arena->mark_low = arena->mark_high = word;
       arena->generation = generation;
    }
    else if (arena->generation != generation) {
-      memset(arena->mark_bits, '\0', arena->mark_sz);
+      arena->mark_bits[word] = 0;
+      arena->mark_low = arena->mark_high = word;
       arena->generation = generation;
    }
 
-   uintptr_t bit = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
-   uintptr_t word = bit / 64;
-   uint64_t mask = UINT64_C(1) << (bit & 63);
+   // Lazy zeroing of mark bits helps performance with large arenas
+   if (word < arena->mark_low) {
+      zero_mark_bits(arena, word, arena->mark_low - word);
+      arena->mark_low = word;
+   }
+   else if (word > arena->mark_high) {
+      zero_mark_bits(arena, arena->mark_high + 1, word - arena->mark_high);
+      arena->mark_high = word;
+   }
+
+   const uint64_t mask = UINT64_C(1) << (bit & 63);
 
    const bool marked = !!(arena->mark_bits[word] & mask);
    arena->mark_bits[word] |= mask;
