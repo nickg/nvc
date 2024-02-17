@@ -11323,6 +11323,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    const tree_kind_t kind = tree_kind(expr);
    tree_t fdecl = kind == T_CONV_FUNC ? tree_ref(expr) : NULL;
    bool p0_uarray = false, r_uarray = false;
+   type_t p0_type = NULL;
 
    // Detect some trivial cases and avoid generating a conversion function
    if (kind == T_TYPE_CONV && type_is_array(atype) && type_is_array(rtype)) {
@@ -11332,7 +11333,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    else if (kind == T_TYPE_CONV && type_is_enum(atype) && type_is_enum(rtype))
       return NULL;
    else if (kind == T_CONV_FUNC) {
-      type_t p0_type = tree_type(tree_port(fdecl, 0));
+      p0_type = tree_type(tree_port(fdecl, 0));
       p0_uarray = type_is_array(p0_type) && !type_const_bounds(p0_type);
       r_uarray = type_is_array(rtype) && !type_const_bounds(rtype);
 
@@ -11406,7 +11407,7 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    else {
       vcode_reg_t arg_reg = p0;
       if (p0_uarray)
-         arg_reg = lower_wrap(lu, atype, p0);
+         arg_reg = lower_coerce_arrays(lu, atype, p0_type, p0);
 
       ident_t func = tree_ident2(fdecl);
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
