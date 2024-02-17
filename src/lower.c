@@ -12412,14 +12412,17 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
 {
    lower_unit_t *lu = __ctx;
 
-   lib_t lib = lib_require(ident_until(unit_name, '.'));
+   object_t *obj = lib_load_handler(unit_name);
 
-   const tree_kind_t kind = lib_index_kind(lib, unit_name);
+   tree_t unit = tree_from_object(obj);
+   if (unit == NULL)
+      return;
+
+   const tree_kind_t kind = tree_kind(unit);
    if (kind != T_ENTITY && unit_name == lu->name)
       return;   // Package body depends on package
 
    if (kind == T_PACKAGE && standard() >= STD_08) {
-      tree_t unit = lib_get(lib, unit_name);
       if (is_uninstantiated_package(unit))
          return;   // No code generated for uninstantiated packages
    }

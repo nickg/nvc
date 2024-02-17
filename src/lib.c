@@ -1050,12 +1050,6 @@ void lib_save(lib_t lib)
    file_unlock(lib->lock_fd);
 }
 
-int lib_index_kind(lib_t lib, ident_t ident)
-{
-   lib_index_t *it = lib_find_in_index(lib, ident);
-   return it != NULL ? it->kind : T_LAST_TREE_KIND;
-}
-
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
 {
    assert(lib != NULL);

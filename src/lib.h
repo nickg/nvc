@@ -62,7 +62,6 @@ timestamp_t lib_get_mtime(lib_t lib, ident_t ident);
 object_t *lib_load_handler(ident_t qual);
 bool lib_had_errors(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);
-int lib_index_kind(lib_t lib, ident_t ident);
 
 typedef void (*lib_index_fn_t)(lib_t lib, ident_t ident, int kind, void *ctx);
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);
