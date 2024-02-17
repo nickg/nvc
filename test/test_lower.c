@@ -6001,6 +6001,42 @@ START_TEST(test_directmap6)
 }
 END_TEST
 
+START_TEST(test_issue844)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue844.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE844.U");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "G1" },
+      { VCODE_OP_STORE, .name = "G2" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 4 },
+      // TODO: just pass a scalar init value
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "P" },
+      { VCODE_OP_MAP_CONST },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6144,6 +6180,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap5);
    tcase_add_test(tc, test_issue837);
    tcase_add_test(tc, test_directmap6);
+   tcase_add_test(tc, test_issue844);
    suite_add_tcase(s, tc);
 
    return s;

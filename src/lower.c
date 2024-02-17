@@ -132,7 +132,7 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
 static vcode_type_t lower_alias_type(tree_t alias);
 static void lower_predef(lower_unit_t *lu, object_t *obj);
 static ident_t lower_predef_func_name(type_t type, const char *op);
-static void lower_generics(lower_unit_t *lu, tree_t block);
+static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary);
 static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
                                        vcode_reg_t hint_reg);
 static vcode_reg_t lower_array_total_len(lower_unit_t *lu, type_t type,
@@ -9602,7 +9602,7 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
 
    cover_push_scope(lu->cover, decl);
 
-   lower_generics(lu, decl);
+   lower_generics(lu, decl, NULL);
    lower_decls(lu, decl);
 
    emit_return(VCODE_INVALID_REG);
@@ -11051,7 +11051,7 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    emit_param(vcontext, vcontext, ident_new("context"));
 
    if (tree_kind(body) == T_PROC_INST)
-      lower_generics(lu, body);
+      lower_generics(lu, body, NULL);
 
    const bool never_waits = vcode_unit_kind(lu->vunit) == VCODE_UNIT_FUNCTION;
    const bool has_subprograms = lower_has_subprograms(body);
@@ -11083,7 +11083,7 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
    cover_push_scope(lu->cover, body);
 
    if (tree_kind(body) == T_FUNC_INST)
-      lower_generics(lu, body);
+      lower_generics(lu, body, NULL);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms);
@@ -12319,7 +12319,7 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
    }
 }
 
-static void lower_generics(lower_unit_t *lu, tree_t block)
+static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
 {
    const int ngenerics = tree_generics(block);
    assert(ngenerics == tree_genmaps(block));
@@ -12396,6 +12396,15 @@ static void lower_generics(lower_unit_t *lu, tree_t block)
          emit_store(value_reg, var);
 
       lower_put_vcode_obj(g, var, lu);
+
+      if (primary != NULL) {
+         // The generic object in the instance may have been copied in
+         // which case we also need to associate the variable with the
+         // original generic in the primary unit
+         tree_t g2 = tree_generic(primary, i);
+         assert(tree_ident(g2) == tree_ident(g));
+         if (g2 != g) lower_put_vcode_obj(g2, var, lu);
+      }
    }
 }
 
@@ -12495,7 +12504,7 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
 
    const bool has_scope = lower_push_package_scope(pack);
 
-   lower_generics(lu, pack);
+   lower_generics(lu, pack, NULL);
    lower_decls(lu, pack);
 
    if (has_scope)
@@ -12704,15 +12713,18 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    cover_push_scope(cover, block);
 
-   if (lu->cover != NULL) {
-      tree_t hier = tree_decl(block, 0);
-      assert(tree_kind(hier) == T_HIER);
+   tree_t hier = tree_decl(block, 0);
+   assert(tree_kind(hier) == T_HIER);
 
-      cover_ignore_from_pragmas(lu->cover, tree_ref(hier));
-   }
+   tree_t unit = tree_ref(hier), primary = NULL;
+   if (is_design_unit(unit))
+      primary = primary_unit_of(unit);
+
+   if (lu->cover != NULL)
+      cover_ignore_from_pragmas(lu->cover, unit);
 
    lower_dependencies(lu, block);
-   lower_generics(lu, block);
+   lower_generics(lu, block, primary);
    lower_ports(lu, ds, block);
    lower_decls(lu, block);
 
