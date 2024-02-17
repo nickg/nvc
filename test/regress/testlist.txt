@@ -939,3 +939,4 @@ wave10          wave
 driver20        normal
 driver21        fail,gold
 ename7          normal,2008
+issue844        normal,2008

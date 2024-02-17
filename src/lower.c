@@ -7216,7 +7216,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
                vcode_reg_t name_reg = lower_rvalue(lu, name);
                if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
-                  name_reg = lower_wrap(lu, type, name_reg);
+                  name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
                vcode_reg_t context_reg = lower_context_for_call(lu, cmp_func);
                vcode_reg_t args[] = { context_reg, name_reg, val_reg };
