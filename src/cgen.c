@@ -54,6 +54,7 @@ typedef struct {
 
 typedef struct {
    unit_list_t     *units;
+   hset_t          *filter;
    unit_registry_t *registry;
 } discover_args_t;
 
@@ -101,21 +102,17 @@ static bool cgen_is_preload(ident_t name)
    return false;
 }
 
-static void cgen_add_dependency(ident_t name, unit_registry_t *ur,
-                                unit_list_t *list)
+static void cgen_add_dependency(ident_t name, discover_args_t *args)
 {
-   vcode_unit_t vu = unit_registry_get(ur, name);
+   if (hset_contains(args->filter, name))
+      return;
+
+   vcode_unit_t vu = unit_registry_get(args->registry, name);
    if (vu == NULL)
       fatal_trace("missing vcode unit %s", istr(name));
 
-   unsigned pos = 0;
-   for (; pos < list->count; pos++) {
-      if (list->items[pos] == vu)
-         break;
-   }
-
-   if (pos == list->count)
-      APUSH(*list, vu);
+   APUSH(*args->units, vu);
+   hset_insert(args->filter, name);
 }
 
 static void cgen_dep_cb(ident_t name, void *ctx)
@@ -125,7 +122,7 @@ static void cgen_dep_cb(ident_t name, void *ctx)
    if (cgen_is_preload(name))
       return;
 
-   cgen_add_dependency(name, args->registry, args->units);
+   cgen_add_dependency(name, args);
 }
 
 static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
@@ -134,12 +131,15 @@ static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
    cgen_find_children(root, units);
 
    discover_args_t args = {
-      .units = units,
-      .registry = ur
+      .units    = units,
+      .registry = ur,
+      .filter   = hset_new(64),
    };
 
    for (unsigned i = 0; i < units->count; i++)
       vcode_walk_dependencies(units->items[i], cgen_dep_cb, &args);
+
+   hset_free(args.filter);
 }
 
 static void cleanup_temp_dll(void)
@@ -371,7 +371,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    if (is_uninstantiated_package(unit))
       return;
 
-   cgen_add_dependency(ident, args->registry, args->units);
+   cgen_add_dependency(ident, args);
 
    ident_t helper_suffix[] = {
       ident_new("image"),
@@ -394,7 +394,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
          {
             const subprogram_kind_t kind = tree_subkind(d);
             if (!is_open_coded_builtin(kind))
-               cgen_add_dependency(tree_ident2(d), args->registry, args->units);
+               cgen_add_dependency(tree_ident2(d), args);
          }
          break;
       case T_PROT_DECL:
@@ -402,14 +402,13 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
             type_t type = tree_type(d);
             ident_t id = type_ident(type);
 
-            cgen_add_dependency(id, args->registry, args->units);
+            cgen_add_dependency(id, args);
 
             const int nmeth = tree_decls(d);
             for (int i = 0; i < nmeth; i++) {
                tree_t m = tree_decl(d, i);
                if (is_subprogram(m))
-                  cgen_add_dependency(tree_ident2(m), args->registry,
-                                      args->units);
+                  cgen_add_dependency(tree_ident2(m), args);
             }
          }
          break;
@@ -421,7 +420,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
             for (int i = 0; i < ARRAY_LEN(helper_suffix); i++) {
                ident_t func = ident_prefix(id, helper_suffix[i], '$');
                if (unit_registry_query(args->registry, func))
-                  cgen_add_dependency(func, args->registry, args->units);
+                  cgen_add_dependency(func, args);
             }
          }
          break;
@@ -434,7 +433,7 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 static void preload_dep_cb(ident_t name, void *ctx)
 {
    discover_args_t *args = ctx;
-   cgen_add_dependency(name, args->registry, args->units);
+   cgen_add_dependency(name, args);
 }
 
 static void preload_do_link(const char *so_name, const char *obj_file)
@@ -484,6 +483,7 @@ void aotgen(const char *outfile, char **argv, int argc)
    discover_args_t args = {
       .registry = ur,
       .units    = &units,
+      .filter   = hset_new(64),
    };
 
    for (int i = 0; i < argc; i++) {
@@ -496,6 +496,9 @@ void aotgen(const char *outfile, char **argv, int argc)
 
    for (unsigned i = 0; i < units.count; i++)
       vcode_walk_dependencies(units.items[i], preload_dep_cb, &args);
+
+   hset_free(args.filter);
+   args.filter = NULL;
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
