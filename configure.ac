@@ -174,6 +174,7 @@ case $host_os in
     LIBS="$LIBS -ldbghelp -lwsock32"   # For StackTrace64 and sockets
     DIR_SEP=\\\\
     pathprog="cygpath -m"
+    AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer
     ;;
   *)
     AC_SEARCH_LIBS([dlopen], [dl dld], [], [
@@ -183,6 +184,8 @@ case $host_os in
     pathprog="echo"
     ;;
 esac
+
+AM_CONDITIONAL([ENABLE_WIX], [test x$CANDLE = xyes])
 
 AC_PATH_PROG([sh_path], ["sh"], ["/bin/sh"])
 AC_DEFINE_UNQUOTED([SH_PATH], ["`$pathprog $sh_path`"], [Path to POSIX shell])

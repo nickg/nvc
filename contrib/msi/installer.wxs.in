@@ -1,0 +1,1424 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="NVC VHDL Simulator"
+           Language="1033"
+           Version="$VERSION"
+           Manufacturer="Nick Gasson"
+           UpgradeCode="FDCA4BBE-BBDF-4A44-903E-878BF3D2F925">
+    <Package Description="NVC VHDL Simulator"
+             Platform="x64"
+             Comments="NVC VHDL Simulator"
+             InstallerVersion="200"
+             Compressed="yes" />
+    <Media Id="1" Cabinet="nvc.cab" EmbedCab="yes" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder" Name="PFiles">
+        <Directory Id="ROOTDIR" Name="NVC">
+          <Directory Id="BIN" Name="bin">
+            <Component Win64="yes" Id="NVC.EXE" DiskId="1"
+                       Guid="AAE85F1D-A363-414D-B982-A6EF661B1142">
+              <File Id="NVC.EXE" Name="nvc.exe"
+                    Source="$PREFIX\bin\nvc.exe"
+                    />
+              <Environment Id="Environment" Name="PATH" Action="set"
+                           Part="last" System="no" Value="[BIN]" />
+            </Component>
+          </Directory>
+          <Directory Id="INCLUDE" Name="include">
+            <Component Win64="yes" Id="VHPI_USER.H" DiskId="1"
+                       Guid="D6CDA526-C863-4A01-8F3D-E7BE8A651B8B">
+              <File Id="VHPI_USER.H" Name="vhpi_user.h"
+                    Source="$PREFIX\include\vhpi_user.h"
+                    />
+            </Component>
+          </Directory>
+          <Directory Id="LIB" Name="lib">
+            <Directory Id="NVC" Name="nvc">
+              <Component Win64="yes" Id="LIBNVCIMP.A" DiskId="1"
+                         Guid="4AA37250-6FCE-4718-9C5A-F269A5AD62D0">
+                <File Id="LIBNVCIMP.A" Name="libnvcimp.a"
+                      Source="$PREFIX\lib\nvc\libnvcimp.a"
+                      />
+              </Component>
+              <Component Win64="yes" Id="PRELOAD08.DLL" DiskId="1"
+                         Guid="EEF72905-C4DE-40AC-A21E-9E2167810969">
+                <File Id="PRELOAD08.DLL" Name="preload08.dll"
+                      Source="$PREFIX\lib\nvc\preload08.dll"
+                      />
+              </Component>
+              <Component Win64="yes" Id="PRELOAD19.DLL" DiskId="1"
+                         Guid="9F7AAEE5-118B-4401-8C00-2A12FDC33E0F">
+                <File Id="PRELOAD19.DLL" Name="preload19.dll"
+                      Source="$PREFIX\lib\nvc\preload19.dll"
+                      />
+              </Component>
+              <Component Win64="yes" Id="PRELOAD93.DLL" DiskId="1"
+                         Guid="7778EAC7-5A12-4333-BECC-822EEF70C277">
+                <File Id="PRELOAD93.DLL" Name="preload93.dll"
+                      Source="$PREFIX\lib\nvc\preload93.dll"
+                      />
+              </Component>
+              <Directory Id="IEEE" Name="ieee">
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX"
+                           DiskId="1"
+                           Guid="A47FD2D3-7FB2-4649-B062-BF7FFC4807EB">
+                  <File Id="IEEE.MATH_COMPLEX" Name="IEEE.MATH_COMPLEX"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.MATH_COMPLEX"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX_BODY" DiskId="1"
+                           Guid="0B3CEBB6-B495-4D9B-9E41-F499530B682F">
+                  <File Id="IEEE.MATH_COMPLEX_BODY"
+                        Name="IEEE.MATH_COMPLEX-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.MATH_COMPLEX-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL" DiskId="1"
+                           Guid="50C44185-FEDE-49C0-AB44-C810E9EA5995">
+                  <File Id="IEEE.MATH_REAL" Name="IEEE.MATH_REAL"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.MATH_REAL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL_BODY" DiskId="1"
+                           Guid="3876E722-948B-4F40-B368-09653122385B">
+                  <File Id="IEEE.MATH_REAL_BODY"
+                        Name="IEEE.MATH_REAL-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.MATH_REAL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT" DiskId="1"
+                           Guid="411DCDFD-6174-48A1-BD93-68448B8C2164">
+                  <File Id="IEEE.NUMERIC_BIT" Name="IEEE.NUMERIC_BIT"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.NUMERIC_BIT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_BODY" DiskId="1"
+                           Guid="39987ED0-7E40-4670-932F-02ED149EFF56">
+                  <File Id="IEEE.NUMERIC_BIT_BODY"
+                        Name="IEEE.NUMERIC_BIT-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.NUMERIC_BIT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD" DiskId="1"
+                           Guid="F4E0DE66-7A74-468A-9216-6F9AA372080E">
+                  <File Id="IEEE.NUMERIC_STD" Name="IEEE.NUMERIC_STD"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.NUMERIC_STD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_BODY" DiskId="1"
+                           Guid="586A091E-72A0-424D-88C8-7A1CE260A0E7">
+                  <File Id="IEEE.NUMERIC_STD_BODY"
+                        Name="IEEE.NUMERIC_STD-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.NUMERIC_STD-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164" DiskId="1"
+                           Guid="FE0DA469-13D2-4A6E-B94B-8213875DB537">
+                  <File Id="IEEE.STD_LOGIC_1164"
+                        Name="IEEE.STD_LOGIC_1164"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_1164"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164_BODY" DiskId="1"
+                           Guid="AB5B428E-79BC-42E9-AC04-761D48393B4B">
+                  <File Id="IEEE.STD_LOGIC_1164_BODY"
+                        Name="IEEE.STD_LOGIC_1164-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_1164-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_ARITH" DiskId="1"
+                           Guid="1212C464-9B45-4D49-A546-9C3402EFAADC">
+                  <File Id="IEEE.STD_LOGIC_ARITH"
+                        Name="IEEE.STD_LOGIC_ARITH"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_ARITH"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_ARITH_BODY" DiskId="1"
+                           Guid="1A526C04-45E4-4167-A65D-597B47E24B20">
+                  <File Id="IEEE.STD_LOGIC_ARITH_BODY"
+                        Name="IEEE.STD_LOGIC_ARITH-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_ARITH-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_MISC" DiskId="1"
+                           Guid="4229A3F8-C803-48BF-8F4B-EADF157FD991">
+                  <File Id="IEEE.STD_LOGIC_MISC"
+                        Name="IEEE.STD_LOGIC_MISC"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_MISC"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_MISC_BODY" DiskId="1"
+                           Guid="AEB66878-ED6B-4992-BD5A-8098B88BBB5F">
+                  <File Id="IEEE.STD_LOGIC_MISC_BODY"
+                        Name="IEEE.STD_LOGIC_MISC-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_MISC-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_SIGNED" DiskId="1"
+                           Guid="C500E1C6-FD1E-499F-B9D8-8F992A775327">
+                  <File
+                      Id="IEEE.STD_LOGIC_SIGNED"
+                      Name="IEEE.STD_LOGIC_SIGNED"
+                      Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_SIGNED"
+                      />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_SIGNED_BODY" DiskId="1"
+                           Guid="D3AFA1B9-08FE-4F53-8BD9-C39A877277A9">
+                  <File Id="IEEE.STD_LOGIC_SIGNED_BODY"
+                        Name="IEEE.STD_LOGIC_SIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_SIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_TEXTIO" DiskId="1"
+                           Guid="48E3B1A4-7AB6-4178-A60E-68FF5CAB88D5">
+                  <File Id="IEEE.STD_LOGIC_TEXTIO"
+                        Name="IEEE.STD_LOGIC_TEXTIO"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_TEXTIO_BODY" DiskId="1"
+                           Guid="F87E051C-12AF-4212-8ADA-BC39E1EFD482">
+                  <File Id="IEEE.STD_LOGIC_TEXTIO_BODY"
+                        Name="IEEE.STD_LOGIC_TEXTIO-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_TEXTIO-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_UNSIGNED" DiskId="1"
+                           Guid="471BABA0-0CBE-4276-8B79-562C131C9605">
+                  <File Id="IEEE.STD_LOGIC_UNSIGNED"
+                        Name="IEEE.STD_LOGIC_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_UNSIGNED_BODY" DiskId="1"
+                           Guid="7F1ABB4B-3EEA-4EB9-8C17-E57B712D4BD4">
+                  <File Id="IEEE.STD_LOGIC_UNSIGNED_BODY"
+                        Name="IEEE.STD_LOGIC_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.STD_LOGIC_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_MEMORY" DiskId="1"
+                           Guid="EF178FDF-C202-4F93-A755-DE178B5558BD">
+                  <File Id="IEEE.VITAL_MEMORY" Name="IEEE.VITAL_MEMORY"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_MEMORY"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_MEMORY_BODY" DiskId="1"
+                           Guid="1A5AFB4A-413B-4BBE-9E38-A0DFB2BA6630">
+                  <File Id="IEEE.VITAL_MEMORY_BODY"
+                        Name="IEEE.VITAL_MEMORY-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_MEMORY-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_PRIMITIVES" DiskId="1"
+                           Guid="D18CFAD6-CDE6-4107-AF49-485CD3628D46">
+                  <File Id="IEEE.VITAL_PRIMITIVES"
+                        Name="IEEE.VITAL_PRIMITIVES"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_PRIMITIVES"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_PRIMITIVES_BODY" DiskId="1"
+                           Guid="42C40492-55AF-4DA2-9856-3CA7B5DE774C">
+                  <File Id="IEEE.VITAL_PRIMITIVES_BODY"
+                        Name="IEEE.VITAL_PRIMITIVES-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_PRIMITIVES-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_TIMING" DiskId="1"
+                           Guid="7AD25FA9-538B-43AD-A086-B4EA56B0E17F">
+                  <File Id="IEEE.VITAL_TIMING" Name="IEEE.VITAL_TIMING"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_TIMING"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_TIMING_BODY" DiskId="1"
+                           Guid="A3723B2D-6D52-4530-9FFF-085C252FB16E">
+                  <File Id="IEEE.VITAL_TIMING_BODY"
+                        Name="IEEE.VITAL_TIMING-body"
+                        Source="$PREFIX\lib\nvc\ieee\IEEE.VITAL_TIMING-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX" DiskId="1"
+                           Guid="09B2CC9F-9DF8-49DE-9908-B44D91564830">
+                  <File Id="_INDEX" Name="_index"
+                        Source="$PREFIX\lib\nvc\ieee\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB" DiskId="1"
+                           Guid="5896917F-1A50-4D22-BEE1-6602EE3CEB3B">
+                  <File Id="_NVC_LIB" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\ieee\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="IEEE.08" Name="ieee.08">
+                <Component Win64="yes" Id="IEEE.FIXED_FLOAT_TYPES" DiskId="1"
+                           Guid="E8310CA4-DDCF-43D1-B1FA-DFE037FB4D0B">
+                  <File Id="IEEE.FIXED_FLOAT_TYPES"
+                        Name="IEEE.FIXED_FLOAT_TYPES"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FIXED_FLOAT_TYPES"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_GENERIC_PKG" DiskId="1"
+                           Guid="4D372333-F20D-4391-B285-D3D8B4987AD0">
+                  <File Id="IEEE.FIXED_GENERIC_PKG"
+                        Name="IEEE.FIXED_GENERIC_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FIXED_GENERIC_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_GENERIC_PKG_BODY" DiskId="1"
+                           Guid="F6146010-F5CD-413D-AB6A-6C6FD3B81779">
+                  <File Id="IEEE.FIXED_GENERIC_PKG_BODY"
+                        Name="IEEE.FIXED_GENERIC_PKG-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FIXED_GENERIC_PKG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_PKG" DiskId="1"
+                           Guid="2DECC594-07CB-4625-87A0-833677073064">
+                  <File Id="IEEE.FIXED_PKG" Name="IEEE.FIXED_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FIXED_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_GENERIC_PKG" DiskId="1"
+                           Guid="6A1D5949-52B1-4A60-B694-BE89F8D1B727">
+                  <File Id="IEEE.FLOAT_GENERIC_PKG"
+                        Name="IEEE.FLOAT_GENERIC_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FLOAT_GENERIC_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_GENERIC_PKG_BODY" DiskId="1"
+                           Guid="F77F96AF-7248-459D-904B-47DEC398DB3C">
+                  <File Id="IEEE.FLOAT_GENERIC_PKG_BODY"
+                        Name="IEEE.FLOAT_GENERIC_PKG-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FLOAT_GENERIC_PKG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_PKG" DiskId="1"
+                           Guid="521F80EC-65D1-4774-8A34-D6FF1530B8D8">
+                  <File Id="IEEE.FLOAT_PKG" Name="IEEE.FLOAT_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.FLOAT_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.IEEE_BIT_CONTEXT" DiskId="1"
+                           Guid="214D8CAE-A4A3-44B1-9B7C-81C4E74A1186">
+                  <File Id="IEEE.IEEE_BIT_CONTEXT"
+                        Name="IEEE.IEEE_BIT_CONTEXT"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.IEEE_BIT_CONTEXT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.IEEE_STD_CONTEXT" DiskId="1"
+                           Guid="55C8CE5B-3968-4DBF-8C64-73A8BB2C89E5">
+                  <File Id="IEEE.IEEE_STD_CONTEXT"
+                        Name="IEEE.IEEE_STD_CONTEXT"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.IEEE_STD_CONTEXT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX_1" DiskId="1"
+                           Guid="7E5A22D8-6269-46C3-9726-5AC60C9A0DF3">
+                  <File Id="IEEE.MATH_COMPLEX_1"
+                        Name="IEEE.MATH_COMPLEX"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.MATH_COMPLEX"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX_BODY_1" DiskId="1"
+                           Guid="71CF1E14-5939-4B38-9645-5D59FD604BF3">
+                  <File Id="IEEE.MATH_COMPLEX_BODY_1"
+                        Name="IEEE.MATH_COMPLEX-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.MATH_COMPLEX-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL_1" DiskId="1"
+                           Guid="19E604C0-4970-4884-A605-1F805FAE6C1D">
+                  <File Id="IEEE.MATH_REAL_1" Name="IEEE.MATH_REAL"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.MATH_REAL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL_BODY_1" DiskId="1"
+                           Guid="FF38AF09-603C-4A47-B41D-003E4681C457">
+                  <File Id="IEEE.MATH_REAL_BODY_1"
+                        Name="IEEE.MATH_REAL-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.MATH_REAL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_1" DiskId="1"
+                           Guid="3AADD9FA-7935-4B3D-AAE8-030E3003DB53">
+                  <File Id="IEEE.NUMERIC_BIT_1" Name="IEEE.NUMERIC_BIT"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_BIT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_BODY_1" DiskId="1"
+                           Guid="05661BA0-C644-4092-A808-2325B021D1E4">
+                  <File Id="IEEE.NUMERIC_BIT_BODY_1"
+                        Name="IEEE.NUMERIC_BIT-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_BIT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_UNSIGNED" DiskId="1"
+                           Guid="D915657D-5343-4485-B112-1AC692A58A2B">
+                  <File Id="IEEE.NUMERIC_BIT_UNSIGNED"
+                        Name="IEEE.NUMERIC_BIT_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_BIT_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY"
+                           DiskId="1"
+                           Guid="A99CE991-6637-4DE4-A729-32545D7EA671">
+                  <File Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY"
+                        Name="IEEE.NUMERIC_BIT_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_BIT_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_1" DiskId="1"
+                           Guid="5441C3C9-4800-4BC0-B65E-B17BC394AF16">
+                  <File Id="IEEE.NUMERIC_STD_1" Name="IEEE.NUMERIC_STD"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_STD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_BODY_1" DiskId="1"
+                           Guid="7A497D4E-FA18-4272-8DCD-69D0937D5540">
+                  <File Id="IEEE.NUMERIC_STD_BODY_1"
+                        Name="IEEE.NUMERIC_STD-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_STD-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_UNSIGNED" DiskId="1"
+                           Guid="E5E61F5C-D6E4-49B0-9FFD-849E8155FF90">
+                  <File Id="IEEE.NUMERIC_STD_UNSIGNED"
+                        Name="IEEE.NUMERIC_STD_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_STD_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_UNSIGNED_BODY"
+                           DiskId="1"
+                           Guid="EFBC90F9-EA51-4E2B-9653-5EE87CB9F34A">
+                  <File Id="IEEE.NUMERIC_STD_UNSIGNED_BODY"
+                        Name="IEEE.NUMERIC_STD_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.NUMERIC_STD_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164_1" DiskId="1"
+                           Guid="DCD14BB9-0672-48AD-9D63-22B26150BB88">
+                  <File Id="IEEE.STD_LOGIC_1164_1"
+                        Name="IEEE.STD_LOGIC_1164"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_1164"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164_BODY_1" DiskId="1"
+                           Guid="8BEB69F8-CB48-49D5-BCA6-6766DA5067DF">
+                  <File Id="IEEE.STD_LOGIC_1164_BODY_1"
+                        Name="IEEE.STD_LOGIC_1164-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_1164-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_ARITH_1" DiskId="1"
+                           Guid="861C007F-00F3-45E4-9A9B-666DFA531242">
+                  <File Id="IEEE.STD_LOGIC_ARITH_1"
+                        Name="IEEE.STD_LOGIC_ARITH"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_ARITH"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_ARITH_BODY_1" DiskId="1"
+                           Guid="41639829-D227-4950-8C27-803F185C8C9B">
+                  <File Id="IEEE.STD_LOGIC_ARITH_BODY_1"
+                        Name="IEEE.STD_LOGIC_ARITH-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_ARITH-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_MISC_1" DiskId="1"
+                           Guid="12993617-5658-4C31-82B4-082EF291F2D5">
+                  <File Id="IEEE.STD_LOGIC_MISC_1"
+                        Name="IEEE.STD_LOGIC_MISC"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_MISC"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_MISC_BODY_1" DiskId="1"
+                           Guid="3F8B17DC-95B5-48BE-9C3C-F2B2F34BA38C">
+                  <File Id="IEEE.STD_LOGIC_MISC_BODY_1"
+                        Name="IEEE.STD_LOGIC_MISC-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_MISC-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_SIGNED_1" DiskId="1"
+                           Guid="77ABA606-340C-4C6F-9545-8D7ECE31AD35">
+                  <File Id="IEEE.STD_LOGIC_SIGNED_1"
+                        Name="IEEE.STD_LOGIC_SIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_SIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_SIGNED_BODY_1" DiskId="1"
+                           Guid="94748735-EF66-48E7-AE13-ECB2058F620C">
+                  <File Id="IEEE.STD_LOGIC_SIGNED_BODY_1"
+                        Name="IEEE.STD_LOGIC_SIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_SIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_TEXTIO_1" DiskId="1"
+                           Guid="38C69EB4-1EDD-4258-BF7B-0D6FC08B5245">
+                  <File Id="IEEE.STD_LOGIC_TEXTIO_1"
+                        Name="IEEE.STD_LOGIC_TEXTIO"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_UNSIGNED_1" DiskId="1"
+                           Guid="3B0246C2-5BC5-4234-B8FE-663FFA1CABF2">
+                  <File Id="IEEE.STD_LOGIC_UNSIGNED_1"
+                        Name="IEEE.STD_LOGIC_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_UNSIGNED_BODY_1"
+                           DiskId="1"
+                           Guid="C2705158-2A6E-4803-8A96-3512B0401C08">
+                  <File Id="IEEE.STD_LOGIC_UNSIGNED_BODY_1"
+                        Name="IEEE.STD_LOGIC_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.STD_LOGIC_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_MEMORY_1" DiskId="1"
+                           Guid="CA568ED1-4F6E-4309-BCFF-2DA7BBAA3253">
+                  <File Id="IEEE.VITAL_MEMORY_1"
+                        Name="IEEE.VITAL_MEMORY"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_MEMORY"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_MEMORY_BODY_1" DiskId="1"
+                           Guid="0B3FEB04-CE10-4C0E-A927-321AF5E11D70">
+                  <File Id="IEEE.VITAL_MEMORY_BODY_1"
+                        Name="IEEE.VITAL_MEMORY-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_MEMORY-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_PRIMITIVES_1" DiskId="1"
+                           Guid="A0B58467-B9C2-4ACD-AF3A-0C074413DB8D">
+                  <File Id="IEEE.VITAL_PRIMITIVES_1"
+                        Name="IEEE.VITAL_PRIMITIVES"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_PRIMITIVES"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_PRIMITIVES_BODY_1" DiskId="1"
+                           Guid="09680FD2-CCD3-4D20-88A5-F4A45312BA8A">
+                  <File Id="IEEE.VITAL_PRIMITIVES_BODY_1"
+                        Name="IEEE.VITAL_PRIMITIVES-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_PRIMITIVES-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_TIMING_1" DiskId="1"
+                           Guid="2BDBBFDC-AED4-40C4-AE49-22785E753DEF">
+                  <File Id="IEEE.VITAL_TIMING_1"
+                        Name="IEEE.VITAL_TIMING"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_TIMING"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.VITAL_TIMING_BODY_1" DiskId="1"
+                           Guid="619F8AB4-85C7-4501-BFC1-D3E3D532790C">
+                  <File Id="IEEE.VITAL_TIMING_BODY_1"
+                        Name="IEEE.VITAL_TIMING-body"
+                        Source="$PREFIX\lib\nvc\ieee.08\IEEE.VITAL_TIMING-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_1" DiskId="1"
+                           Guid="777016A4-57B0-4B4F-9493-74C19373E027">
+                  <File Id="_INDEX_1" Name="_index"
+                        Source="$PREFIX\lib\nvc\ieee.08\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_1" DiskId="1"
+                           Guid="9CF3559C-C505-4E48-BB11-965903BCF798">
+                  <File Id="_NVC_LIB_1" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\ieee.08\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="IEEE.19" Name="ieee.19">
+                <Component Win64="yes" Id="IEEE.FIXED_FLOAT_TYPES_1" DiskId="1"
+                           Guid="F89B15BB-D861-4851-91EF-789315900F09">
+                  <File Id="IEEE.FIXED_FLOAT_TYPES_1"
+                        Name="IEEE.FIXED_FLOAT_TYPES"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FIXED_FLOAT_TYPES"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_GENERIC_PKG_1" DiskId="1"
+                           Guid="B9158447-1305-4679-B2FC-FC4C13D566B5">
+                  <File Id="IEEE.FIXED_GENERIC_PKG_1"
+                        Name="IEEE.FIXED_GENERIC_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FIXED_GENERIC_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_GENERIC_PKG_BODY_1" DiskId="1"
+                           Guid="4234B6E0-1BB6-49B0-BD16-98E6467BF155">
+                  <File Id="IEEE.FIXED_GENERIC_PKG_BODY_1"
+                        Name="IEEE.FIXED_GENERIC_PKG-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FIXED_GENERIC_PKG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FIXED_PKG_1" DiskId="1"
+                           Guid="200CB865-50F4-4567-8E21-74DF52DAB324">
+                  <File Id="IEEE.FIXED_PKG_1" Name="IEEE.FIXED_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FIXED_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_GENERIC_PKG_1" DiskId="1"
+                           Guid="B6DAD9C3-D5CB-4418-85D8-E26EECDB3880">
+                  <File Id="IEEE.FLOAT_GENERIC_PKG_1"
+                        Name="IEEE.FLOAT_GENERIC_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FLOAT_GENERIC_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_GENERIC_PKG_BODY_1" DiskId="1"
+                           Guid="ED1B0E02-BE99-4C45-AA13-ECCF3F5D4D5A">
+                  <File Id="IEEE.FLOAT_GENERIC_PKG_BODY_1"
+                        Name="IEEE.FLOAT_GENERIC_PKG-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FLOAT_GENERIC_PKG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.FLOAT_PKG_1" DiskId="1"
+                           Guid="FC2A7E70-33C4-4375-BD83-C80F8BF97D80">
+                  <File Id="IEEE.FLOAT_PKG_1" Name="IEEE.FLOAT_PKG"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.FLOAT_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.IEEE_BIT_CONTEXT_1" DiskId="1"
+                           Guid="965EA969-3F15-4E69-B5F1-3C0151EE003A">
+                  <File Id="IEEE.IEEE_BIT_CONTEXT_1"
+                        Name="IEEE.IEEE_BIT_CONTEXT"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.IEEE_BIT_CONTEXT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.IEEE_STD_CONTEXT_1" DiskId="1"
+                           Guid="874DE147-312A-4E52-BE54-49E7EB83AEC3">
+                  <File Id="IEEE.IEEE_STD_CONTEXT_1"
+                        Name="IEEE.IEEE_STD_CONTEXT"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.IEEE_STD_CONTEXT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX_2" DiskId="1"
+                           Guid="B46F4C03-2080-46E7-A3DE-AFBEB9747F29">
+                  <File Id="IEEE.MATH_COMPLEX_2"
+                        Name="IEEE.MATH_COMPLEX"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.MATH_COMPLEX"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_COMPLEX_BODY_2" DiskId="1"
+                           Guid="79128FF3-6462-4089-A32B-8B45991AE9EC">
+                  <File Id="IEEE.MATH_COMPLEX_BODY_2"
+                        Name="IEEE.MATH_COMPLEX-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.MATH_COMPLEX-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL_2" DiskId="1"
+                           Guid="8BB8DF1C-8A98-4080-A438-3035BA23CCAF">
+                  <File Id="IEEE.MATH_REAL_2" Name="IEEE.MATH_REAL"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.MATH_REAL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.MATH_REAL_BODY_2" DiskId="1"
+                           Guid="6AA48935-87F3-4EA9-9C94-EF85568C7AD1">
+                  <File Id="IEEE.MATH_REAL_BODY_2"
+                        Name="IEEE.MATH_REAL-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.MATH_REAL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_2" DiskId="1"
+                           Guid="5386AFED-88A7-4C7C-8201-630062C4F072">
+                  <File Id="IEEE.NUMERIC_BIT_2" Name="IEEE.NUMERIC_BIT"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_BIT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_BODY_2" DiskId="1"
+                           Guid="620F4501-689E-40AA-A1A9-BF9E4FF939F9">
+                  <File Id="IEEE.NUMERIC_BIT_BODY_2"
+                        Name="IEEE.NUMERIC_BIT-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_BIT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_UNSIGNED_1" DiskId="1"
+                           Guid="8DBF7C2C-859F-4218-9FF3-1DC7272C8C62">
+                  <File Id="IEEE.NUMERIC_BIT_UNSIGNED_1"
+                        Name="IEEE.NUMERIC_BIT_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_BIT_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY_1"
+                           DiskId="1"
+                           Guid="F013760C-85F0-4ED8-9D48-96FEF22EECA2">
+                  <File Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY_1"
+                        Name="IEEE.NUMERIC_BIT_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_BIT_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_2" DiskId="1"
+                           Guid="34B2D5ED-6113-49CE-A159-7C78A733EAA8">
+                  <File Id="IEEE.NUMERIC_STD_2" Name="IEEE.NUMERIC_STD"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_STD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_BODY_2" DiskId="1"
+                           Guid="B3BCBD9D-CEBD-436A-A319-7F7C4229F21C">
+                  <File Id="IEEE.NUMERIC_STD_BODY_2"
+                        Name="IEEE.NUMERIC_STD-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_STD-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_UNSIGNED_1" DiskId="1"
+                           Guid="E251675A-1FC3-4252-947B-BA1C3327DE31">
+                  <File Id="IEEE.NUMERIC_STD_UNSIGNED_1"
+                        Name="IEEE.NUMERIC_STD_UNSIGNED"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_STD_UNSIGNED"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.NUMERIC_STD_UNSIGNED_BODY_1"
+                           DiskId="1"
+                           Guid="9F9B3B37-102F-4459-BDB6-4E833AAC8851">
+                  <File Id="IEEE.NUMERIC_STD_UNSIGNED_BODY_1"
+                        Name="IEEE.NUMERIC_STD_UNSIGNED-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.NUMERIC_STD_UNSIGNED-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164_2" DiskId="1"
+                           Guid="A040888E-AC3D-4677-A74A-5280A5EB42CF">
+                  <File Id="IEEE.STD_LOGIC_1164_2"
+                        Name="IEEE.STD_LOGIC_1164"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.STD_LOGIC_1164"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_1164_BODY_2" DiskId="1"
+                           Guid="D9C4F1C0-9C58-4E8D-869A-5DDAFE663CB0">
+                  <File Id="IEEE.STD_LOGIC_1164_BODY_2"
+                        Name="IEEE.STD_LOGIC_1164-body"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.STD_LOGIC_1164-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="IEEE.STD_LOGIC_TEXTIO_2" DiskId="1"
+                           Guid="B6A988EE-A39F-43EF-8F44-B4E178B35E8A">
+                  <File Id="IEEE.STD_LOGIC_TEXTIO_2"
+                        Name="IEEE.STD_LOGIC_TEXTIO"
+                        Source="$PREFIX\lib\nvc\ieee.19\IEEE.STD_LOGIC_TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_2" DiskId="1"
+                           Guid="5930E41A-C32E-4469-A12B-4818B9083F22">
+                  <File Id="_INDEX_2" Name="_index"
+                        Source="$PREFIX\lib\nvc\ieee.19\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_2" DiskId="1"
+                           Guid="451F2180-76EB-4CC5-B2E7-A416A66537EC">
+                  <File Id="_NVC_LIB_2" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\ieee.19\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="NVC_1" Name="nvc">
+                <Component Win64="yes" Id="NVC.POLYFILL" DiskId="1"
+                           Guid="6F8AB35F-0571-4763-9F3E-3EA7D847A62A">
+                  <File Id="NVC.POLYFILL" Name="NVC.POLYFILL"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.POLYFILL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.POLYFILL_BODY" DiskId="1"
+                           Guid="7B1647B5-DC3D-48CE-9E28-9112D1E3C559">
+                  <File Id="NVC.POLYFILL_BODY" Name="NVC.POLYFILL-body"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.POLYFILL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT" DiskId="1"
+                           Guid="EC228A2D-DB89-46C5-B18B-58ED68446730">
+                  <File Id="NVC.PSL_SUPPORT" Name="NVC.PSL_SUPPORT"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.PSL_SUPPORT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT_BODY" DiskId="1"
+                           Guid="160C7A50-9B22-47FF-8D8E-3589BB681E58">
+                  <File Id="NVC.PSL_SUPPORT_BODY"
+                        Name="NVC.PSL_SUPPORT-body"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.PSL_SUPPORT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.SIM_PKG" DiskId="1"
+                           Guid="0EF6BBEA-AE74-41F8-BEAF-093E353BE980">
+                  <File Id="NVC.SIM_PKG" Name="NVC.SIM_PKG"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.SIM_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL" DiskId="1"
+                           Guid="4073C41B-696C-4B02-A292-76F4E1485219">
+                  <File Id="NVC.TEXT_UTIL" Name="NVC.TEXT_UTIL"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.TEXT_UTIL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL_BODY" DiskId="1"
+                           Guid="1DCF9250-0451-40CA-A985-7102952A22FF">
+                  <File Id="NVC.TEXT_UTIL_BODY"
+                        Name="NVC.TEXT_UTIL-body"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.TEXT_UTIL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG" DiskId="1"
+                           Guid="10BFD79A-D547-4797-83F9-DFF7264B499C">
+                  <File Id="NVC.VERILOG" Name="NVC.VERILOG"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.VERILOG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG_BODY" DiskId="1"
+                           Guid="77E19833-41D4-45AA-BADF-61257508874C">
+                  <File Id="NVC.VERILOG_BODY" Name="NVC.VERILOG-body"
+                        Source="$PREFIX\lib\nvc\nvc\NVC.VERILOG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_3" DiskId="1"
+                           Guid="277B059C-0235-45B0-BF6F-FFE9A5643345">
+                  <File Id="_INDEX_3" Name="_index"
+                        Source="$PREFIX\lib\nvc\nvc\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_3" DiskId="1"
+                           Guid="FACCF81E-1269-432B-A94F-53A196BFFC72">
+                  <File Id="_NVC_LIB_3" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\nvc\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="NVC.08" Name="nvc.08">
+                <Component Win64="yes" Id="NVC.IEEE_SUPPORT" DiskId="1"
+                           Guid="98CFBFA2-90F4-4B53-82B3-D2FD26829F53">
+                  <File Id="NVC.IEEE_SUPPORT" Name="NVC.IEEE_SUPPORT"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.IEEE_SUPPORT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.IEEE_SUPPORT_BODY" DiskId="1"
+                           Guid="AB55FA1A-4015-46A0-BE14-8542C0E38885">
+                  <File Id="NVC.IEEE_SUPPORT_BODY"
+                        Name="NVC.IEEE_SUPPORT-body"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.IEEE_SUPPORT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.POLYFILL_1" DiskId="1"
+                           Guid="23E48F46-DB91-4EEC-864A-715C9D4A696A">
+                  <File Id="NVC.POLYFILL_1" Name="NVC.POLYFILL"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.POLYFILL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT_1" DiskId="1"
+                           Guid="1530F261-F829-487F-BBD5-3AC87C3A0F8F">
+                  <File Id="NVC.PSL_SUPPORT_1" Name="NVC.PSL_SUPPORT"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.PSL_SUPPORT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT_BODY_1" DiskId="1"
+                           Guid="DEA7F5F6-7361-45DC-B189-36EB0E412A9D">
+                  <File Id="NVC.PSL_SUPPORT_BODY_1"
+                        Name="NVC.PSL_SUPPORT-body"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.PSL_SUPPORT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.SIM_PKG_1" DiskId="1"
+                           Guid="F8C6F045-1DC1-49B2-AD0D-74152A1D01C3">
+                  <File Id="NVC.SIM_PKG_1" Name="NVC.SIM_PKG"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.SIM_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL_1" DiskId="1"
+                           Guid="F934F54D-4C48-464A-8A8F-837C996717A2">
+                  <File Id="NVC.TEXT_UTIL_1" Name="NVC.TEXT_UTIL"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.TEXT_UTIL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL_BODY_1" DiskId="1"
+                           Guid="A923D211-3232-4350-8C3E-B2FCBAC8658A">
+                  <File Id="NVC.TEXT_UTIL_BODY_1"
+                        Name="NVC.TEXT_UTIL-body"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.TEXT_UTIL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG_1" DiskId="1"
+                           Guid="D277115B-1F2A-45C4-8EF5-B0B42946B3EC">
+                  <File Id="NVC.VERILOG_1" Name="NVC.VERILOG"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.VERILOG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG_BODY_1" DiskId="1"
+                           Guid="DDAD0AAE-BB0F-4B6E-BB3D-54741D1BB247">
+                  <File Id="NVC.VERILOG_BODY_1" Name="NVC.VERILOG-body"
+                        Source="$PREFIX\lib\nvc\nvc.08\NVC.VERILOG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_4" DiskId="1"
+                           Guid="B1CE5F80-DC5A-451E-8A4F-390079F6E1F5">
+                  <File Id="_INDEX_4" Name="_index"
+                        Source="$PREFIX\lib\nvc\nvc.08\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_4" DiskId="1"
+                           Guid="36B59C92-8DA7-4187-B249-96895E563DA7">
+                  <File Id="_NVC_LIB_4" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\nvc.08\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="NVC.19" Name="nvc.19">
+                <Component Win64="yes" Id="NVC.IEEE_SUPPORT_1" DiskId="1"
+                           Guid="59290CDE-B3D6-4618-A897-94BDDD2044C0">
+                  <File Id="NVC.IEEE_SUPPORT_1" Name="NVC.IEEE_SUPPORT"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.IEEE_SUPPORT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.IEEE_SUPPORT_BODY_1" DiskId="1"
+                           Guid="E2D99081-EB1D-402F-B0EF-54287E8B1AC8">
+                  <File Id="NVC.IEEE_SUPPORT_BODY_1"
+                        Name="NVC.IEEE_SUPPORT-body"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.IEEE_SUPPORT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.POLYFILL_2" DiskId="1"
+                           Guid="78FA8313-BAA3-4159-969D-9F9E87C55752">
+                  <File Id="NVC.POLYFILL_2" Name="NVC.POLYFILL"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.POLYFILL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT_2" DiskId="1"
+                           Guid="21E544CA-726D-4D27-9E2D-9630B868B840">
+                  <File Id="NVC.PSL_SUPPORT_2" Name="NVC.PSL_SUPPORT"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.PSL_SUPPORT"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.PSL_SUPPORT_BODY_2" DiskId="1"
+                           Guid="CA1B1FDE-FBD6-4D39-BEDB-AFD872B691B5">
+                  <File Id="NVC.PSL_SUPPORT_BODY_2"
+                        Name="NVC.PSL_SUPPORT-body"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.PSL_SUPPORT-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.SIM_PKG_2" DiskId="1"
+                           Guid="0C6F9FF2-872F-44A9-8BBA-2314BCAD5724">
+                  <File Id="NVC.SIM_PKG_2" Name="NVC.SIM_PKG"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.SIM_PKG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL_2" DiskId="1"
+                           Guid="7C26B789-B892-43C0-BEBD-DB868C5E89EE">
+                  <File Id="NVC.TEXT_UTIL_2" Name="NVC.TEXT_UTIL"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.TEXT_UTIL"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.TEXT_UTIL_BODY_2" DiskId="1"
+                           Guid="088547E0-3591-406A-AACD-F16805AB027F">
+                  <File Id="NVC.TEXT_UTIL_BODY_2"
+                        Name="NVC.TEXT_UTIL-body"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.TEXT_UTIL-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG_2" DiskId="1"
+                           Guid="78DAC81C-4634-426D-9E10-D9A4A360B741">
+                  <File Id="NVC.VERILOG_2" Name="NVC.VERILOG"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.VERILOG"
+                        />
+                </Component>
+                <Component Win64="yes" Id="NVC.VERILOG_BODY_2" DiskId="1"
+                           Guid="4BC8ED94-0232-4170-A425-DFF4B3854C5E">
+                  <File Id="NVC.VERILOG_BODY_2" Name="NVC.VERILOG-body"
+                        Source="$PREFIX\lib\nvc\nvc.19\NVC.VERILOG-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_5" DiskId="1"
+                           Guid="BE61E1DB-9FD1-4C87-B610-4559391D5993">
+                  <File Id="_INDEX_5" Name="_index"
+                        Source="$PREFIX\lib\nvc\nvc.19\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_5" DiskId="1"
+                           Guid="17E2953B-C18C-452B-B13B-F6C26B74689D">
+                  <File Id="_NVC_LIB_5" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\nvc.19\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="STD" Name="std">
+                <Component Win64="yes" Id="STD.STANDARD" DiskId="1"
+                           Guid="1E845050-0525-4D83-A23C-3EED73DB3AA2">
+                  <File Id="STD.STANDARD" Name="STD.STANDARD"
+                        Source="$PREFIX\lib\nvc\std\STD.STANDARD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO" DiskId="1"
+                           Guid="18944CA0-5FE7-4875-B602-EB2E6E601B28">
+                  <File Id="STD.TEXTIO" Name="STD.TEXTIO"
+                        Source="$PREFIX\lib\nvc\std\STD.TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO_BODY" DiskId="1"
+                           Guid="391B3019-3EBC-4002-A0AB-866D7D8836FC">
+                  <File Id="STD.TEXTIO_BODY" Name="STD.TEXTIO-body"
+                        Source="$PREFIX\lib\nvc\std\STD.TEXTIO-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_6" DiskId="1"
+                           Guid="F2BE5BD1-A18C-43F1-A856-ECAEA0F755AC">
+                  <File Id="_INDEX_6" Name="_index"
+                        Source="$PREFIX\lib\nvc\std\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_6" DiskId="1"
+                           Guid="42C2C0FB-805E-477B-9257-DB8EBF304A1B">
+                  <File Id="_NVC_LIB_6" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\std\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="STD.08" Name="std.08">
+                <Component Win64="yes" Id="STD.ENV" DiskId="1"
+                           Guid="116018BB-1A79-4E9D-90DF-D370F4DA0CB3">
+                  <File Id="STD.ENV" Name="STD.ENV"
+                        Source="$PREFIX\lib\nvc\std.08\STD.ENV"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.ENV_BODY" DiskId="1"
+                           Guid="12F1FC2C-8B59-48CF-9AF6-022372960D5A">
+                  <File Id="STD.ENV_BODY" Name="STD.ENV-body"
+                        Source="$PREFIX\lib\nvc\std.08\STD.ENV-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.STANDARD_1" DiskId="1"
+                           Guid="0402E6E2-686A-4730-89DD-37A5CEBC6A6F">
+                  <File Id="STD.STANDARD_1" Name="STD.STANDARD"
+                        Source="$PREFIX\lib\nvc\std.08\STD.STANDARD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO_1" DiskId="1"
+                           Guid="752B3429-E3B3-4466-B4DD-A015E4075FCE">
+                  <File Id="STD.TEXTIO_1" Name="STD.TEXTIO"
+                        Source="$PREFIX\lib\nvc\std.08\STD.TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO_BODY_1" DiskId="1"
+                           Guid="456FE628-BD2E-457A-A445-800F6F63F2BD">
+                  <File Id="STD.TEXTIO_BODY_1" Name="STD.TEXTIO-body"
+                        Source="$PREFIX\lib\nvc\std.08\STD.TEXTIO-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_7" DiskId="1"
+                           Guid="BB4969CB-5BD9-4607-853E-1DE77AF29569">
+                  <File Id="_INDEX_7" Name="_index"
+                        Source="$PREFIX\lib\nvc\std.08\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_7" DiskId="1"
+                           Guid="17F5FC1A-C67F-4692-9F94-4A790A155F4B">
+                  <File Id="_NVC_LIB_7" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\std.08\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+              <Directory Id="STD.19" Name="std.19">
+                <Component Win64="yes" Id="STD.ENV_1" DiskId="1"
+                           Guid="AAC6F89D-72A3-45BE-BF1F-9EAFDE089157">
+                  <File Id="STD.ENV_1" Name="STD.ENV"
+                        Source="$PREFIX\lib\nvc\std.19\STD.ENV"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.ENV_BODY_1" DiskId="1"
+                           Guid="9E52076E-3511-4EDF-A234-21B65CEFFE5E">
+                  <File Id="STD.ENV_BODY_1" Name="STD.ENV-body"
+                        Source="$PREFIX\lib\nvc\std.19\STD.ENV-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.REFLECTION" DiskId="1"
+                           Guid="4F904018-5078-40C7-AB06-66F300A8DDAB">
+                  <File Id="STD.REFLECTION" Name="STD.REFLECTION"
+                        Source="$PREFIX\lib\nvc\std.19\STD.REFLECTION"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.REFLECTION_BODY" DiskId="1"
+                           Guid="918519E2-9657-4CA0-93E7-FF744F3F14B5">
+                  <File Id="STD.REFLECTION_BODY"
+                        Name="STD.REFLECTION-body"
+                        Source="$PREFIX\lib\nvc\std.19\STD.REFLECTION-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.STANDARD_2" DiskId="1"
+                           Guid="006CA83B-4634-402E-8E14-DE29DAFBFAAF">
+                  <File Id="STD.STANDARD_2" Name="STD.STANDARD"
+                        Source="$PREFIX\lib\nvc\std.19\STD.STANDARD"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO_2" DiskId="1"
+                           Guid="58E06EB5-1987-4003-87A9-AF237E317063">
+                  <File Id="STD.TEXTIO_2" Name="STD.TEXTIO"
+                        Source="$PREFIX\lib\nvc\std.19\STD.TEXTIO"
+                        />
+                </Component>
+                <Component Win64="yes" Id="STD.TEXTIO_BODY_2" DiskId="1"
+                           Guid="18CD90D6-75C9-49E4-96B0-10B1D7D2B67A">
+                  <File Id="STD.TEXTIO_BODY_2" Name="STD.TEXTIO-body"
+                        Source="$PREFIX\lib\nvc\std.19\STD.TEXTIO-body"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_INDEX_8" DiskId="1"
+                           Guid="6F73948E-FBC2-411B-94B4-1213DE773256">
+                  <File Id="_INDEX_8" Name="_index"
+                        Source="$PREFIX\lib\nvc\std.19\_index"
+                        />
+                </Component>
+                <Component Win64="yes" Id="_NVC_LIB_8" DiskId="1"
+                           Guid="833AAC91-1789-4F2F-A77F-76C8577D6F8F">
+                  <File Id="_NVC_LIB_8" Name="_NVC_LIB"
+                        Source="$PREFIX\lib\nvc\std.19\_NVC_LIB"
+                        />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="LIBEXEC" Name="libexec">
+            <Directory Id="NVC_2" Name="nvc">
+              <Component Win64="yes" Id="FUNCTIONS.SH" DiskId="1"
+                         Guid="D679924F-5989-42EE-9EAA-EACFEAEA2518">
+                <File Id="FUNCTIONS.SH" Name="functions.sh"
+                      Source="$PREFIX\libexec\nvc\functions.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_FMF.SH" DiskId="1"
+                         Guid="116F0BB0-746E-4ADF-A02B-EA17B102B3EA">
+                <File Id="INSTALL_FMF.SH" Name="install-fmf.sh"
+                      Source="$PREFIX\libexec\nvc\install-fmf.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_ICECUBE2.SH" DiskId="1"
+                         Guid="BCBBBA2E-290A-4F34-B7C4-77B7288DB402">
+                <File Id="INSTALL_ICECUBE2.SH"
+                      Name="install-icecube2.sh"
+                      Source="$PREFIX\libexec\nvc\install-icecube2.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_ISE.SH" DiskId="1"
+                         Guid="D84635CD-87DA-43FB-BDCC-EB038781D5D5">
+                <File Id="INSTALL_ISE.SH" Name="install-ise.sh"
+                      Source="$PREFIX\libexec\nvc\install-ise.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_LIBERO.SH" DiskId="1"
+                         Guid="5DA337C6-FDDA-45B6-9574-B886F0D5625A">
+                <File Id="INSTALL_LIBERO.SH" Name="install-libero.sh"
+                      Source="$PREFIX\libexec\nvc\install-libero.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_OSVVM.SH" DiskId="1"
+                         Guid="379977EC-3E0D-4E69-91DF-5E3C0F6AB01E">
+                <File Id="INSTALL_OSVVM.SH" Name="install-osvvm.sh"
+                      Source="$PREFIX\libexec\nvc\install-osvvm.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_OSVVM.TCL" DiskId="1"
+                         Guid="F0EC86E1-0766-4EF2-8DA2-B081268FE102">
+                <File Id="INSTALL_OSVVM.TCL" Name="install-osvvm.tcl"
+                      Source="$PREFIX\libexec\nvc\install-osvvm.tcl"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_QUARTUS.SH" DiskId="1"
+                         Guid="15A061E9-6AEF-4397-9183-C3842E7D32AE">
+                <File Id="INSTALL_QUARTUS.SH" Name="install-quartus.sh"
+                      Source="$PREFIX\libexec\nvc\install-quartus.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_UVVM.SH" DiskId="1"
+                         Guid="CB66B007-A1F9-40C7-8D1A-8BDCEF80FE02">
+                <File Id="INSTALL_UVVM.SH" Name="install-uvvm.sh"
+                      Source="$PREFIX\libexec\nvc\install-uvvm.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_VIVADO.SH" DiskId="1"
+                         Guid="CB77839D-BC16-4F00-AAA9-3E3CF4D59709">
+                <File Id="INSTALL_VIVADO.SH" Name="install-vivado.sh"
+                      Source="$PREFIX\libexec\nvc\install-vivado.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_VUNIT.SH" DiskId="1"
+                         Guid="6D4739E0-962B-4BB1-9449-C73B742F19E8">
+                <File Id="INSTALL_VUNIT.SH" Name="install-vunit.sh"
+                      Source="$PREFIX\libexec\nvc\install-vunit.sh"
+                      />
+              </Component>
+              <Component Win64="yes" Id="INSTALL_XPM_VHDL.SH" DiskId="1"
+                         Guid="2C17829C-C168-4ED1-83D4-828D5E280491">
+                <File Id="INSTALL_XPM_VHDL.SH"
+                      Name="install-xpm_vhdl.sh"
+                      Source="$PREFIX\libexec\nvc\install-xpm_vhdl.sh"
+                      />
+              </Component>
+            </Directory>
+          </Directory>
+          <Directory Id="SHARE" Name="share">
+            <Directory Id="BASH_COMPLETION" Name="bash-completion">
+              <Directory Id="COMPLETIONS" Name="completions">
+                <Component Win64="yes" Id="NVC.BASH" DiskId="1"
+                           Guid="C4D2B569-67C0-47A2-9BDA-4C9B6D8E28FC">
+                  <File Id="NVC.BASH" Name="nvc.bash"
+                        Source="$PREFIX\share\bash-completion\completions\nvc.bash"
+                        />
+                </Component>
+              </Directory>
+            </Directory>
+            <Directory Id="MAN" Name="man">
+              <Directory Id="MAN1" Name="man1">
+                <Component Win64="yes" Id="NVC.1" DiskId="1"
+                           Guid="575F2FF4-8854-473E-9E23-EBDA98DE3C57">
+                  <File Id="NVC.1" Name="nvc.1"
+                        Source="$PREFIX\share\man\man1\nvc.1"
+                        />
+                </Component>
+              </Directory>
+            </Directory>
+            <Directory Id="NVC_3" Name="nvc">
+              <Directory Id="GUI" Name="gui">
+                <Component Win64="yes" Id="GUILIB.TCL" DiskId="1"
+                           Guid="F390DA98-7028-46BE-AB38-0B66A08E7C04">
+                  <File Id="GUILIB.TCL" Name="guilib.tcl"
+                        Source="$PREFIX\share\nvc\gui\guilib.tcl"
+                        />
+                </Component>
+                <Component Win64="yes" Id="INDEX.HTML" DiskId="1"
+                           Guid="EE935F6F-D8FB-40E0-B24E-6AA5091CC5A4">
+                  <File Id="INDEX.HTML" Name="index.html"
+                        Source="$PREFIX\share\nvc\gui\index.html"
+                        />
+                </Component>
+                <Directory Id="ASSETS" Name="assets">
+                  <Component Win64="yes" Id="ALLPATHS.JS" DiskId="1"
+                             Guid="A7DDDCC3-8F22-4B73-B8E2-1DB25998ACB4">
+                    <File Id="ALLPATHS.JS" Name="allPaths.js"
+                          Source="$PREFIX\share\nvc\gui\assets\allPaths.js"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="ALLPATHSLOADER.JS" DiskId="1"
+                             Guid="D8644CD7-E5D5-4DA8-BD6F-F55FC192D464">
+                    <File Id="ALLPATHSLOADER.JS"
+                          Name="allPathsLoader.js"
+                          Source="$PREFIX\share\nvc\gui\assets\allPathsLoader.js"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="INDEX.CSS" DiskId="1"
+                             Guid="6E462FFE-9379-464E-AF00-AA396668DE19">
+                    <File Id="INDEX.CSS" Name="index.css"
+                          Source="$PREFIX\share\nvc\gui\assets\index.css"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="INDEX.JS" DiskId="1"
+                             Guid="D8E2A8C4-11B2-4549-9EBC-117CCF82EC8E">
+                    <File Id="INDEX.JS" Name="index.js"
+                          Source="$PREFIX\share\nvc\gui\assets\index.js"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="INDEX2.JS" DiskId="1"
+                             Guid="1556FFE3-7086-4202-B0CD-11875422F3E6">
+                    <File Id="INDEX2.JS" Name="index2.js"
+                          Source="$PREFIX\share\nvc\gui\assets\index2.js"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="INDEX3.JS" DiskId="1"
+                             Guid="7CF1768D-F94F-4F64-83CF-DC8BAE704305">
+                    <File Id="INDEX3.JS" Name="index3.js"
+                          Source="$PREFIX\share\nvc\gui\assets\index3.js"
+                          />
+                  </Component>
+                  <Component Win64="yes" Id="SPLITPATHSBYSIZELOADER.JS" DiskId="1"
+                             Guid="F7F9C19D-379D-40DF-B877-EA30B583F88D">
+                    <File Id="SPLITPATHSBYSIZELOADER.JS"
+                          Name="splitPathsBySizeLoader.js"
+                          Source="$PREFIX\share\nvc\gui\assets\splitPathsBySizeLoader.js"
+                          />
+                  </Component>
+                </Directory>
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+    <Feature Id="DefaultFeature" Title="Main Feature" Level="1">
+      <ComponentRef Id="NVC.EXE" />
+      <ComponentRef Id="VHPI_USER.H" />
+      <ComponentRef Id="LIBNVCIMP.A" />
+      <ComponentRef Id="PRELOAD08.DLL" />
+      <ComponentRef Id="PRELOAD19.DLL" />
+      <ComponentRef Id="PRELOAD93.DLL" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX_BODY" />
+      <ComponentRef Id="IEEE.MATH_REAL" />
+      <ComponentRef Id="IEEE.MATH_REAL_BODY" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_BODY" />
+      <ComponentRef Id="IEEE.NUMERIC_STD" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_ARITH" />
+      <ComponentRef Id="IEEE.STD_LOGIC_ARITH_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_MISC" />
+      <ComponentRef Id="IEEE.STD_LOGIC_MISC_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_SIGNED" />
+      <ComponentRef Id="IEEE.STD_LOGIC_SIGNED_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_TEXTIO" />
+      <ComponentRef Id="IEEE.STD_LOGIC_TEXTIO_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_UNSIGNED" />
+      <ComponentRef Id="IEEE.STD_LOGIC_UNSIGNED_BODY" />
+      <ComponentRef Id="IEEE.VITAL_MEMORY" />
+      <ComponentRef Id="IEEE.VITAL_MEMORY_BODY" />
+      <ComponentRef Id="IEEE.VITAL_PRIMITIVES" />
+      <ComponentRef Id="IEEE.VITAL_PRIMITIVES_BODY" />
+      <ComponentRef Id="IEEE.VITAL_TIMING" />
+      <ComponentRef Id="IEEE.VITAL_TIMING_BODY" />
+      <ComponentRef Id="_INDEX" />
+      <ComponentRef Id="_NVC_LIB" />
+      <ComponentRef Id="IEEE.FIXED_FLOAT_TYPES" />
+      <ComponentRef Id="IEEE.FIXED_GENERIC_PKG" />
+      <ComponentRef Id="IEEE.FIXED_GENERIC_PKG_BODY" />
+      <ComponentRef Id="IEEE.FIXED_PKG" />
+      <ComponentRef Id="IEEE.FLOAT_GENERIC_PKG" />
+      <ComponentRef Id="IEEE.FLOAT_GENERIC_PKG_BODY" />
+      <ComponentRef Id="IEEE.FLOAT_PKG" />
+      <ComponentRef Id="IEEE.IEEE_BIT_CONTEXT" />
+      <ComponentRef Id="IEEE.IEEE_STD_CONTEXT" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX_1" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX_BODY_1" />
+      <ComponentRef Id="IEEE.MATH_REAL_1" />
+      <ComponentRef Id="IEEE.MATH_REAL_BODY_1" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_1" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_BODY_1" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_UNSIGNED" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_1" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_BODY_1" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_UNSIGNED" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_UNSIGNED_BODY" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164_BODY_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_ARITH_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_ARITH_BODY_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_MISC_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_MISC_BODY_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_SIGNED_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_SIGNED_BODY_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_TEXTIO_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_UNSIGNED_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_UNSIGNED_BODY_1" />
+      <ComponentRef Id="IEEE.VITAL_MEMORY_1" />
+      <ComponentRef Id="IEEE.VITAL_MEMORY_BODY_1" />
+      <ComponentRef Id="IEEE.VITAL_PRIMITIVES_1" />
+      <ComponentRef Id="IEEE.VITAL_PRIMITIVES_BODY_1" />
+      <ComponentRef Id="IEEE.VITAL_TIMING_1" />
+      <ComponentRef Id="IEEE.VITAL_TIMING_BODY_1" />
+      <ComponentRef Id="_INDEX_1" />
+      <ComponentRef Id="_NVC_LIB_1" />
+      <ComponentRef Id="IEEE.FIXED_FLOAT_TYPES_1" />
+      <ComponentRef Id="IEEE.FIXED_GENERIC_PKG_1" />
+      <ComponentRef Id="IEEE.FIXED_GENERIC_PKG_BODY_1" />
+      <ComponentRef Id="IEEE.FIXED_PKG_1" />
+      <ComponentRef Id="IEEE.FLOAT_GENERIC_PKG_1" />
+      <ComponentRef Id="IEEE.FLOAT_GENERIC_PKG_BODY_1" />
+      <ComponentRef Id="IEEE.FLOAT_PKG_1" />
+      <ComponentRef Id="IEEE.IEEE_BIT_CONTEXT_1" />
+      <ComponentRef Id="IEEE.IEEE_STD_CONTEXT_1" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX_2" />
+      <ComponentRef Id="IEEE.MATH_COMPLEX_BODY_2" />
+      <ComponentRef Id="IEEE.MATH_REAL_2" />
+      <ComponentRef Id="IEEE.MATH_REAL_BODY_2" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_2" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_BODY_2" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_UNSIGNED_1" />
+      <ComponentRef Id="IEEE.NUMERIC_BIT_UNSIGNED_BODY_1" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_2" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_BODY_2" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_UNSIGNED_1" />
+      <ComponentRef Id="IEEE.NUMERIC_STD_UNSIGNED_BODY_1" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164_2" />
+      <ComponentRef Id="IEEE.STD_LOGIC_1164_BODY_2" />
+      <ComponentRef Id="IEEE.STD_LOGIC_TEXTIO_2" />
+      <ComponentRef Id="_INDEX_2" />
+      <ComponentRef Id="_NVC_LIB_2" />
+      <ComponentRef Id="NVC.POLYFILL" />
+      <ComponentRef Id="NVC.POLYFILL_BODY" />
+      <ComponentRef Id="NVC.PSL_SUPPORT" />
+      <ComponentRef Id="NVC.PSL_SUPPORT_BODY" />
+      <ComponentRef Id="NVC.SIM_PKG" />
+      <ComponentRef Id="NVC.TEXT_UTIL" />
+      <ComponentRef Id="NVC.TEXT_UTIL_BODY" />
+      <ComponentRef Id="NVC.VERILOG" />
+      <ComponentRef Id="NVC.VERILOG_BODY" />
+      <ComponentRef Id="_INDEX_3" />
+      <ComponentRef Id="_NVC_LIB_3" />
+      <ComponentRef Id="NVC.IEEE_SUPPORT" />
+      <ComponentRef Id="NVC.IEEE_SUPPORT_BODY" />
+      <ComponentRef Id="NVC.POLYFILL_1" />
+      <ComponentRef Id="NVC.PSL_SUPPORT_1" />
+      <ComponentRef Id="NVC.PSL_SUPPORT_BODY_1" />
+      <ComponentRef Id="NVC.SIM_PKG_1" />
+      <ComponentRef Id="NVC.TEXT_UTIL_1" />
+      <ComponentRef Id="NVC.TEXT_UTIL_BODY_1" />
+      <ComponentRef Id="NVC.VERILOG_1" />
+      <ComponentRef Id="NVC.VERILOG_BODY_1" />
+      <ComponentRef Id="_INDEX_4" />
+      <ComponentRef Id="_NVC_LIB_4" />
+      <ComponentRef Id="NVC.IEEE_SUPPORT_1" />
+      <ComponentRef Id="NVC.IEEE_SUPPORT_BODY_1" />
+      <ComponentRef Id="NVC.POLYFILL_2" />
+      <ComponentRef Id="NVC.PSL_SUPPORT_2" />
+      <ComponentRef Id="NVC.PSL_SUPPORT_BODY_2" />
+      <ComponentRef Id="NVC.SIM_PKG_2" />
+      <ComponentRef Id="NVC.TEXT_UTIL_2" />
+      <ComponentRef Id="NVC.TEXT_UTIL_BODY_2" />
+      <ComponentRef Id="NVC.VERILOG_2" />
+      <ComponentRef Id="NVC.VERILOG_BODY_2" />
+      <ComponentRef Id="_INDEX_5" />
+      <ComponentRef Id="_NVC_LIB_5" />
+      <ComponentRef Id="STD.STANDARD" />
+      <ComponentRef Id="STD.TEXTIO" />
+      <ComponentRef Id="STD.TEXTIO_BODY" />
+      <ComponentRef Id="_INDEX_6" />
+      <ComponentRef Id="_NVC_LIB_6" />
+      <ComponentRef Id="STD.ENV" />
+      <ComponentRef Id="STD.ENV_BODY" />
+      <ComponentRef Id="STD.STANDARD_1" />
+      <ComponentRef Id="STD.TEXTIO_1" />
+      <ComponentRef Id="STD.TEXTIO_BODY_1" />
+      <ComponentRef Id="_INDEX_7" />
+      <ComponentRef Id="_NVC_LIB_7" />
+      <ComponentRef Id="STD.ENV_1" />
+      <ComponentRef Id="STD.ENV_BODY_1" />
+      <ComponentRef Id="STD.REFLECTION" />
+      <ComponentRef Id="STD.REFLECTION_BODY" />
+      <ComponentRef Id="STD.STANDARD_2" />
+      <ComponentRef Id="STD.TEXTIO_2" />
+      <ComponentRef Id="STD.TEXTIO_BODY_2" />
+      <ComponentRef Id="_INDEX_8" />
+      <ComponentRef Id="_NVC_LIB_8" />
+      <ComponentRef Id="FUNCTIONS.SH" />
+      <ComponentRef Id="INSTALL_FMF.SH" />
+      <ComponentRef Id="INSTALL_ICECUBE2.SH" />
+      <ComponentRef Id="INSTALL_ISE.SH" />
+      <ComponentRef Id="INSTALL_LIBERO.SH" />
+      <ComponentRef Id="INSTALL_OSVVM.SH" />
+      <ComponentRef Id="INSTALL_OSVVM.TCL" />
+      <ComponentRef Id="INSTALL_QUARTUS.SH" />
+      <ComponentRef Id="INSTALL_UVVM.SH" />
+      <ComponentRef Id="INSTALL_VIVADO.SH" />
+      <ComponentRef Id="INSTALL_VUNIT.SH" />
+      <ComponentRef Id="INSTALL_XPM_VHDL.SH" />
+      <ComponentRef Id="NVC.BASH" />
+      <ComponentRef Id="NVC.1" />
+      <ComponentRef Id="GUILIB.TCL" />
+      <ComponentRef Id="INDEX.HTML" />
+      <ComponentRef Id="ALLPATHS.JS" />
+      <ComponentRef Id="ALLPATHSLOADER.JS" />
+      <ComponentRef Id="INDEX.CSS" />
+      <ComponentRef Id="INDEX.JS" />
+      <ComponentRef Id="INDEX2.JS" />
+      <ComponentRef Id="INDEX3.JS" />
+      <ComponentRef Id="SPLITPATHSBYSIZELOADER.JS" />
+      <ComponentGroupRef Id="LIBS" />
+    </Feature>
+    <UI />
+    <Property Id="WIXUI_INSTALLDIR" Value="ROOTDIR" />
+    <UIRef Id="WixUI_InstallDir" />
+    <MajorUpgrade
+        DowngradeErrorMessage="Cannot downgrade to older version"
+        AllowSameVersionUpgrades="no"/>
+  </Product>
+</Wix>
