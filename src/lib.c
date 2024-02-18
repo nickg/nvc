@@ -222,17 +222,14 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 
       // Try to open the lock file read-write as this is required for
       // exlusive locking on some NFS implementations
-      int mode = O_RDWR;
-      if (access(tb_get(lock_path), mode) != 0) {
-         if (errno == EACCES || errno == EPERM || errno == EROFS) {
-            mode = O_RDONLY;
-            l->readonly = true;
-         }
-         else
-            fatal_errno("access: %s", tb_get(lock_path));
+      if ((l->lock_fd = open(tb_get(lock_path), O_RDWR)) < 0
+          && (errno == EACCES || errno == EPERM || errno == EROFS)) {
+         // Try again in read-only mode
+         l->lock_fd = open(tb_get(lock_path), O_RDONLY);
+         l->readonly = true;
       }
 
-      if ((l->lock_fd = open(tb_get(lock_path), mode)) < 0)
+      if (l->lock_fd < 0)
          fatal_errno("open: %s", tb_get(lock_path));
 
       file_read_lock(l->lock_fd);
