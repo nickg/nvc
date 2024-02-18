@@ -571,6 +571,13 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
+static void parse_exit_severity(const char *str)
+{
+   const vhdl_severity_t s = parse_severity(optarg);
+   set_exit_severity(s);
+   set_status_severity(s);
+}
+
 static int parse_stop_delta(const char *str)
 {
    const int ival = parse_int(str);
@@ -728,7 +735,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          vhpi_plugins = optarg;
          break;
       case 'x':
-         set_exit_severity(parse_severity(optarg));
+         parse_exit_severity(optarg);
          break;
       case 'I':
          opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));

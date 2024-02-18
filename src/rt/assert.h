@@ -31,11 +31,13 @@ typedef enum {
 diag_level_t vhdl_to_diag_severity(vhdl_severity_t severity);
 
 vhdl_severity_t set_exit_severity(vhdl_severity_t severity);
+void set_status_severity(vhdl_severity_t severity);
 void set_stderr_severity(vhdl_severity_t severity);
 
 int64_t get_vhdl_assert_count(vhdl_severity_t severity);
 void clear_vhdl_assert(void);
 void set_vhdl_assert_enable(vhdl_severity_t severity, bool enable);
 bool get_vhdl_assert_enable(vhdl_severity_t severity);
+int get_vhdl_assert_exit_status(void);
 
 #endif   // _RT_ASSERT_H

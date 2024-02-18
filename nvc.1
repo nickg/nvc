@@ -337,7 +337,13 @@ Valid levels are
 and
 .Cm failure .
 The default is
-.Cm error .
+.Cm failure .
+.Pp
+This option also overrides the minimum severity level which causes the
+program to return a non-zero status code.
+The default is
+.Cm error
+which allows assertion violations to be detected easily.
 .\" --format
 .It Fl \-format= Ns Ar fmt
 Generate waveform data in format

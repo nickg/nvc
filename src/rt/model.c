@@ -3464,13 +3464,10 @@ int model_exit_status(rt_model_t *m)
    int status;
    if (jit_exit_status(m->jit, &status))
       return status;
-   else if (get_vhdl_assert_count(SEVERITY_ERROR) > 0
-            || get_vhdl_assert_count(SEVERITY_FAILURE) > 0)
-      return EXIT_FAILURE;
    else if (m->stop_delta > 0 && m->iteration == m->stop_delta)
       return EXIT_FAILURE;
    else
-      return 0;
+      return get_vhdl_assert_exit_status();
 }
 
 // TODO: this interface should be removed eventually
