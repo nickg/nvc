@@ -485,11 +485,11 @@ jobs:
         run: |
           echo $PATH
           export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.11/bin
-          which candle
           mkdir build
           cd build
           bash ../configure --enable-static-llvm --enable-tcl \
-            --enable-verilog --enable-gui CFLAGS="-O2" --prefix=`pwd`/installdir
+            --enable-verilog --enable-gui CFLAGS="-O2" \
+            --prefix=`pwd`/installdir --without-system-cc
       - name: Build
         run: make -C build
       - name: Install

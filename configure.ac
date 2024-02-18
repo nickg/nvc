@@ -360,7 +360,7 @@ if test -n "$linker_path"; then
 fi
 
 # CC may constain unwanted -std=... option.
-cc_bare="$(which ${CC%% *})"
+cc_bare=${CC%% *}
 
 AC_ARG_WITH([system-cc],
             [AS_HELP_STRING([--with-system-cc=PATH],
@@ -368,21 +368,25 @@ AC_ARG_WITH([system-cc],
             [system_cc="$withval"],
             [system_cc="$cc_bare"])
 
-AC_MSG_CHECKING([if $system_cc executable exists])
-AS_IF([test -x $system_cc],
-      [AC_MSG_RESULT([yes])],
-      [AC_MSG_RESULT([no])
-       AC_PATH_PROG([system_cc], ["$system_cc"],
-                    [AC_MSG_ERROR([system C compiler $system_cc not found])])])
+if test x$system_cc != xno; then
+  AC_MSG_CHECKING([if $system_cc executable exists])
+  AS_IF([test -x $system_cc],
+        [AC_MSG_RESULT([yes])],
+        [AC_MSG_RESULT([no])
+         AC_PATH_PROG([system_cc], ["$system_cc"],
+                      [AC_MSG_ERROR([system C compiler $system_cc not found])])])
 
-case $host_os in
-  *cygwin*|msys*|mingw32*)
-    # Do not hard-code full path on Windows
-    system_cc="$(basename $system_cc)"
-    ;;
-esac
+  case $host_os in
+    *cygwin*|msys*|mingw32*)
+      # Do not hard-code full path on Windows
+      system_cc="$(basename $system_cc)"
+      ;;
+  esac
 
-AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
+  AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
+else
+  AC_DEFINE_UNQUOTED([BOOTSTRAP_CC], ["$cc_bare"], [Bootstrap compiler])
+fi
 
 case $host_os in
   *cygwin*|msys*|mingw32*)

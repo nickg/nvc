@@ -166,11 +166,15 @@ static void cgen_link_arg(const char *fmt, ...)
 
 static void cgen_linker_setup(void)
 {
-#ifdef LINKER_PATH
+#if defined LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
    cgen_link_arg("--eh-frame-hdr");
-#else
+#elif defined SYSTEM_CC
    cgen_link_arg("%s", SYSTEM_CC);
+#elif defined BOOTSTRAP_CC
+   cgen_link_arg("%s", BOOTSTRAP_CC);
+#else
+   fatal_trace("configured without external C compiler or linker");
 #endif
 
 #if defined __APPLE__

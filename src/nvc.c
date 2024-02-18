@@ -56,6 +56,12 @@
 #define GIT_SHA_ONLY(x)
 #endif
 
+#if !defined HAVE_LLVM || !defined SYSTEM_CC
+#define DEFAULT_JIT true
+#else
+#define DEFAULT_JIT false
+#endif
+
 typedef struct {
    jit_t           *jit;
    unit_registry_t *registry;
@@ -364,7 +370,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { 0, 0, 0, 0 }
    };
 
-   bool use_jit = false, no_save = false;
+   bool use_jit = DEFAULT_JIT, no_save = false;
    cover_mask_t cover_mask = 0;
    char *cover_spec_file = NULL;
    int cover_array_limit = 0;
@@ -471,8 +477,6 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   const bool aot_codegen = !use_jit NOT_LLVM_ONLY(&& false);
-
    char *pack_name LOCAL = xasprintf("_%s.pack", istr(top_level));
    char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
 
@@ -486,7 +490,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       progress("saving library");
    }
 
-   if (!no_save && !aot_codegen) {
+   if (use_jit && !no_save) {
       FILE *f = lib_fopen(work, pack_name, "wb");
       if (f == NULL)
          fatal_errno("fopen: %s", pack_name);
@@ -503,7 +507,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       progress("writing JIT pack");
    }
 
-   if (aot_codegen) {
+   if (!use_jit) {
       LLVM_ONLY(cgen(top, state->registry, state->jit));
 
       // Must discard current JIT state to load AOT library later
