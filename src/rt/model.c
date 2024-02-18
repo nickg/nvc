@@ -74,11 +74,6 @@ typedef struct {
    rt_scope_t    *active_scope;
 } __attribute__((aligned(64))) model_thread_t;
 
-typedef struct _rt_asserts {
-   unsigned   cnts[SEVERITY_FAILURE + 1];
-   bool       enables[SEVERITY_FAILURE + 1];
-} rt_asserts_t;
-
 typedef void (*defer_fn_t)(rt_model_t *, void *);
 
 typedef struct {
@@ -125,7 +120,6 @@ typedef struct _rt_model {
    memblock_t        *memblocks;
    model_thread_t    *threads[MAX_THREADS];
    ptr_list_t         eventsigs;
-   rt_asserts_t       asserts;
    bool               shuffle;
 } rt_model_t;
 
@@ -2130,14 +2124,6 @@ static void reset_coverage(rt_model_t *m)
    fbuf_close(f, NULL);
 }
 
-static void reset_asserts(rt_model_t *m)
-{
-   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++) {
-      m->asserts.cnts[i] = 0;
-      m->asserts.enables[i] = true;
-   }
-}
-
 static void emit_coverage(rt_model_t *m)
 {
    if (m->cover != NULL) {
@@ -2299,7 +2285,6 @@ void model_reset(rt_model_t *m)
    // Initialisation is described in LRM 93 section 12.6.4
 
    reset_coverage(m);
-   reset_asserts(m);
    reset_scope(m, m->root);
 
    if (m->force_stop)
@@ -3479,8 +3464,8 @@ int model_exit_status(rt_model_t *m)
    int status;
    if (jit_exit_status(m->jit, &status))
       return status;
-   else if (m->asserts.cnts[SEVERITY_ERROR] > 0
-            || m->asserts.cnts[SEVERITY_FAILURE] > 0)
+   else if (get_vhdl_assert_count(SEVERITY_ERROR) > 0
+            || get_vhdl_assert_count(SEVERITY_FAILURE) > 0)
       return EXIT_FAILURE;
    else if (m->stop_delta > 0 && m->iteration == m->stop_delta)
       return EXIT_FAILURE;
@@ -3563,46 +3548,6 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
       p += n->width * n->size;
    }
    assert(p == value + s->shared.size);
-}
-
-int64_t get_vhdl_assert_count(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   assert(severity <= SEVERITY_FAILURE);
-   return m->asserts.cnts[severity];
-}
-
-void clear_vhdl_assert(void)
-{
-   rt_model_t *m = get_model();
-
-   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++)
-      m->asserts.cnts[i] = 0;
-}
-
-void increment_vhdl_assert_count(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   assert(severity <= SEVERITY_FAILURE);
-   m->asserts.cnts[severity]++;
-}
-
-void set_vhdl_assert_enable(int8_t severity, bool enable)
-{
-   rt_model_t *m = get_model();
-
-   assert(severity <= SEVERITY_FAILURE);
-   m->asserts.enables[severity] = enable;
-}
-
-bool get_vhdl_assert_enable(int8_t severity)
-{
-   rt_model_t *m = get_model();
-
-   assert(severity <= SEVERITY_FAILURE);
-   return m->asserts.enables[severity];
 }
 
 int32_t *get_cover_counter(rt_model_t *m, int32_t tag)

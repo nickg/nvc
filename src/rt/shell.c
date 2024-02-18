@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "lower.h"
 #include "phase.h"
 #include "printer.h"
+#include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "scan.h"
@@ -336,6 +337,10 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
    sh->model = NULL;
 
    jit_reset(sh->jit);
+
+   clear_vhdl_assert();
+   for (vhdl_severity_t s = SEVERITY_NOTE; s <= SEVERITY_FAILURE; s++)
+      set_vhdl_assert_enable(s, true);
 
    shell_create_model(sh);
 

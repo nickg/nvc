@@ -76,6 +76,8 @@ static const struct {
 
 static format_part_t   *format[SEVERITY_FAILURE + 1];
 static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
+static unsigned         counts[SEVERITY_FAILURE + 1];
+static unsigned         enable_mask = ~0u;
 
 static void free_format(format_part_t *f)
 {
@@ -387,6 +389,8 @@ static void emit_vhdl_diag(diag_t *d, vhdl_severity_t severity)
 
    diag_emit(d);
 
+   relaxed_add(&counts[severity], 1);
+
    if (severity >= exit_severity)
       jit_abort_with_status(EXIT_FAILURE);
 }
@@ -395,6 +399,9 @@ void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
               object_t *where)
 {
    assert(severity <= SEVERITY_FAILURE);
+
+   if (!(enable_mask & (1 << severity)))
+      return;
 
    const diag_level_t level = get_diag_severity(severity);
 
@@ -427,6 +434,9 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    // d) The name of the design unit containing the assertion
 
    assert(severity <= SEVERITY_FAILURE);
+
+   if (!(enable_mask & (1 << severity)))
+      return;
 
    const diag_level_t level = get_diag_severity(severity);
 
@@ -486,4 +496,32 @@ vhdl_severity_t set_exit_severity(vhdl_severity_t severity)
 void set_stderr_severity(vhdl_severity_t severity)
 {
    opt_set_int(OPT_STDERR_LEVEL, get_diag_severity(severity));
+}
+
+int64_t get_vhdl_assert_count(vhdl_severity_t severity)
+{
+   assert(severity <= SEVERITY_FAILURE);
+   return counts[severity];
+}
+
+void clear_vhdl_assert(void)
+{
+   for (int i = SEVERITY_NOTE; i <= SEVERITY_FAILURE; i++)
+      counts[i] = 0;
+}
+
+void set_vhdl_assert_enable(vhdl_severity_t severity, bool enable)
+{
+   assert(severity <= SEVERITY_FAILURE);
+
+   if (enable)
+      enable_mask |= (1 << severity);
+   else
+      enable_mask &= ~(1 << severity);
+}
+
+bool get_vhdl_assert_enable(vhdl_severity_t severity)
+{
+   assert(severity <= SEVERITY_FAILURE);
+   return !!(enable_mask & (1 << severity));
 }
