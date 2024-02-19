@@ -1022,7 +1022,7 @@ void jit_do_cprop(jit_func_t *f)
             ir->arg2 = copy;
       }
 
-      if (ir->op == J_MOV)
+      if (ir->op == J_MOV && ir->arg1.kind == JIT_VALUE_INT64)
          map[ir->result] = ir->arg1;
       else if (ir->result != JIT_REG_INVALID)
          map[ir->result].kind = JIT_VALUE_INVALID;
@@ -1134,4 +1134,125 @@ void jit_delete_nops(jit_func_t *f)
    }
 
    f->nirs = wptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Memory to register promotion
+
+static inline jit_reg_t get_value_reg(jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_ADDR_REG:
+   case JIT_VALUE_REG:
+      return value.reg;
+   default:
+      return JIT_REG_INVALID;
+   }
+}
+
+static bool try_promote_allocation(jit_func_t *f, jit_ir_t *alloc)
+{
+   assert(alloc->arg2.kind == JIT_VALUE_INT64);
+
+   if (alloc->arg2.int64 > 8 || !is_power_of_2(alloc->arg2.int64))
+      return false;
+
+   jit_size_t sz = JIT_SZ_UNSPEC;
+   switch (alloc->arg2.int64) {
+   case 1: sz = JIT_SZ_8; break;
+   case 2: sz = JIT_SZ_16; break;
+   case 4: sz = JIT_SZ_32; break;
+   case 8: sz = JIT_SZ_64; break;
+   }
+
+   jit_reg_t reg = alloc->result;
+   assert(reg != JIT_REG_INVALID);
+
+   int first = -1, last = -1;
+   for (int i = 0; i < f->nirs; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      if (ir->result == reg && ir != alloc)
+         return false;
+      else if (ir->op == J_LOAD || ir->op == J_STORE) {
+         jit_value_t addr = ir->op == J_LOAD ? ir->arg1 : ir->arg2;
+         if (get_value_reg(addr) != reg)
+            continue;
+         else if (addr.disp != 0 || ir->size != sz)
+            return false;
+         else if (ir->op == J_STORE && get_value_reg(ir->arg1) == reg)
+            return false;
+         else if (first == -1)
+            first = last = i;
+         else
+            last = i;
+      }
+      else if (get_value_reg(ir->arg1) == reg)
+         return false;
+      else if (get_value_reg(ir->arg2) == reg)
+         return false;
+   }
+
+   if (first != -1) {
+      for (jit_ir_t *ir = f->irbuf + first; ir <= f->irbuf + last; ir++) {
+         if (ir->op == J_STORE && get_value_reg(ir->arg2) == reg) {
+            ir->op        = J_MOV;
+            ir->size      = JIT_SZ_UNSPEC;
+            ir->cc        = JIT_CC_NONE;
+            ir->result    = reg;
+            ir->arg2.kind = JIT_VALUE_INVALID;
+         }
+         else if (ir->op == J_LOAD && get_value_reg(ir->arg1) == reg) {
+            ir->op        = J_MOV;
+            ir->size      = JIT_SZ_UNSPEC;
+            ir->cc        = JIT_CC_NONE;
+            ir->arg1.kind = JIT_VALUE_REG;
+            ir->arg1.reg  = reg;
+         }
+      }
+   }
+
+   alloc->op        = J_NOP;
+   alloc->size      = JIT_SZ_UNSPEC;
+   alloc->cc        = JIT_CC_NONE;
+   alloc->result    = JIT_REG_INVALID;
+   alloc->arg1.kind = JIT_VALUE_INVALID;
+   alloc->arg2.kind = JIT_VALUE_INVALID;
+
+   return true;
+}
+
+void jit_do_mem2reg(jit_func_t *f)
+{
+   if (f->framesz == 0)
+      return;
+
+   int replaced = 0;
+   for (int i = 0; i < f->nirs; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      if (ir->op == MACRO_SALLOC && try_promote_allocation(f, ir))
+         replaced++;
+      else if (cfg_is_terminator(f, ir))
+         break;
+   }
+
+   if (replaced == 0)
+      return;
+
+   int newsize = 0;
+   for (int i = 0; i < f->nirs; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+      if (ir->op == MACRO_SALLOC) {
+         assert(ir->arg1.kind == JIT_VALUE_INT64);
+         assert(ir->arg1.int64 >= newsize);
+         ir->arg1.int64 = newsize;
+
+         assert(ir->arg2.kind == JIT_VALUE_INT64);
+         newsize += ALIGN_UP(ir->arg2.int64, 8);
+      }
+      else if (cfg_is_terminator(f, ir))
+         break;
+   }
+
+   assert(newsize < f->framesz);
+   f->framesz = newsize;
 }

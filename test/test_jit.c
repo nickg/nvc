@@ -37,6 +37,8 @@
 #define REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
 #define LABEL(l) ((jit_value_t){ .kind = JIT_VALUE_LABEL, .label = (l) })
+#define ADDR(r, d) \
+   ((jit_value_t){ .kind = JIT_ADDR_REG, .reg = (r), .disp = (d) })
 
 static jit_handle_t compile_for_test(jit_t *j, const char *name)
 {
@@ -51,6 +53,19 @@ static inline int64_t extend_value(jit_value_t value)
    case JIT_VALUE_REG: return value.reg;
    default: return value.int64;
    }
+}
+
+static void check_nullary(jit_func_t *f, int nth, jit_op_t expect)
+{
+   jit_ir_t *ir = &(f->irbuf[nth]);
+   if (ir->op == expect)
+      return;
+
+   jit_dump_with_mark(f, nth, false);
+
+   if (ir->op != expect)
+      ck_abort_msg("expected op %s but have %s", jit_op_name(expect),
+                   jit_op_name(ir->op));
 }
 
 static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
@@ -1983,6 +1998,59 @@ START_TEST(test_lvn10)
 }
 END_TEST
 
+START_TEST(test_cprop2)
+{
+   jit_t *j = jit_new(NULL);
+
+   const char *text1 =
+      "    MOV    R1, R0      \n"
+      "    ADD    R0, R0, #1  \n"
+      "    ADD    R1, R1, #1  \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_cprop(f);
+
+   check_unary(f, 0, J_MOV, REG(0));
+   check_binary(f, 1, J_ADD, REG(0), CONST(1));
+   check_binary(f, 2, J_ADD, REG(1), CONST(1));
+
+   jit_free(j);
+}
+END_TEST
+
+START_TEST(test_mem2reg1)
+{
+   jit_t *j = jit_new(NULL);
+
+   const char *text1 =
+      "    $SALLOC   R0, #0, #4   \n"
+      "    $SALLOC   R1, #8, #7   \n"
+      "    $SALLOC   R2, #16, #8  \n"
+      "    LOAD.32   R3, [R0]     \n"
+      "    LOAD.32   R4, [R2]     \n"
+      "    STORE.32  #5, [R0]     \n"
+      ;
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_mem2reg(f);
+
+   check_nullary(f, 0, J_NOP);
+   check_binary(f, 1, MACRO_SALLOC, CONST(0), CONST(7));
+   check_binary(f, 2, MACRO_SALLOC, CONST(8), CONST(8));
+   check_unary(f, 3, J_MOV, REG(0));
+   check_unary(f, 4, J_LOAD, ADDR(2, 0));
+   check_unary(f, 5, J_MOV, CONST(5));
+
+   ck_assert_int_eq(f->framesz, 16);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2038,6 +2106,8 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_dce2);
    tcase_add_test(tc, test_code1);
    tcase_add_test(tc, test_lvn10);
+   tcase_add_test(tc, test_cprop2);
+   tcase_add_test(tc, test_mem2reg1);
    suite_add_tcase(s, tc);
 
    return s;

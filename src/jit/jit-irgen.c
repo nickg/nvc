@@ -4227,6 +4227,7 @@ void jit_irgen(jit_func_t *f)
    g->labels = NULL;
 
    if (kind != VCODE_UNIT_THUNK) {
+      jit_do_mem2reg(f);
       jit_do_lvn(f);
       jit_do_cprop(f);
       jit_do_dce(f);
