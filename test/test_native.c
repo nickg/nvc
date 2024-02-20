@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -153,6 +153,34 @@ START_TEST(test_add)
    ck_assert_int_eq(jit_call(j, h6, 2, 3).integer, 5);
    ck_assert_int_eq(jit_call(j, h6, 2, -3).integer, -1);
 
+   const char *text7 =
+      "    RECV     R0, #0         \n"
+      "    ADD.O.8  R1, R0, #1     \n"
+      "    CSET     R2             \n"
+      "    SEND     #0, R2         \n"
+      "    RET                     \n";
+
+   jit_handle_t h7 = assemble(j, text7, "add7", "i");
+
+   ck_assert_int_eq(jit_call(j, h7, 127).integer, 1);
+   ck_assert_int_eq(jit_call(j, h7, -127).integer, 0);
+   ck_assert_int_eq(jit_call(j, h7, 5).integer, 0);
+   ck_assert_int_eq(jit_call(j, h7, 127).integer, 1);
+
+   const char *text8 =
+      "    RECV      R0, #0        \n"
+      "    ADD.O.16  R1, R0, #1    \n"
+      "    CSET      R2            \n"
+      "    SEND      #0, R2        \n"
+      "    RET                     \n";
+
+   jit_handle_t h8 = assemble(j, text8, "add8", "i");
+
+   ck_assert_int_eq(jit_call(j, h8, INT16_MAX).integer, 1);
+   ck_assert_int_eq(jit_call(j, h8, INT16_MIN).integer, 0);
+   ck_assert_int_eq(jit_call(j, h8, 5).integer, 0);
+   ck_assert_int_eq(jit_call(j, h8, INT16_MAX).integer, 1);
+
    jit_free(j);
 }
 END_TEST
@@ -221,6 +249,49 @@ START_TEST(test_mul)
    ck_assert_int_eq(jit_call(j, h4, 2, 3).integer, 6);
    ck_assert_int_eq(jit_call(j, h4, INT32_C(-5), 2).integer, -10);
    ck_assert_int_eq(jit_call(j, h4, INT32_C(-5), INT64_C(-6)).integer, 30);
+
+   const char *text5 =
+      "    RECV      R0, #0        \n"
+      "    RECV      R1, #1        \n"
+      "    MUL.O.16  R2, R0, R1    \n"
+      "    CSET      R3            \n"
+      "    SEND      #0, R3        \n"
+      "    RET                     \n";
+
+   jit_handle_t h5 = assemble(j, text5, "mul5", "ii");
+
+   ck_assert_int_eq(jit_call(j, h5, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h5, 64, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, h5, 256, 256).integer, 1);
+   ck_assert_int_eq(jit_call(j, h5, 256, 255).integer, 1);
+
+   const char *text6 =
+      "    RECV      R0, #0        \n"
+      "    RECV      R1, #1        \n"
+      "    MUL.C.16  R2, R0, R1    \n"
+      "    CSET      R3            \n"
+      "    SEND      #0, R3        \n"
+      "    RET                     \n";
+
+   jit_handle_t h6 = assemble(j, text6, "mul6", "ii");
+
+   ck_assert_int_eq(jit_call(j, h6, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h6, 64, 2).integer, 0);
+   ck_assert_int_eq(jit_call(j, h6, 256, 256).integer, 1);
+   ck_assert_int_eq(jit_call(j, h6, 256, 255).integer, 0);
+
+   const char *text7 =
+      "    RECV    R0, #0          \n"
+      "    MUL     R1, R0, #2      \n"
+      "    SEND    #0, R1          \n"
+      "    RET                     \n";
+
+   jit_handle_t h7 = assemble(j, text7, "mul7", "i");
+
+   ck_assert_int_eq(jit_call(j, h7, 1).integer, 2);
+   ck_assert_int_eq(jit_call(j, h7, 64).integer, 128);
+   ck_assert_int_eq(jit_call(j, h7, 256).integer, 512);
+   ck_assert_int_eq(jit_call(j, h7, -8).integer, -16);
 
    jit_free(j);
 }
@@ -1077,6 +1148,83 @@ START_TEST(test_move)
 }
 END_TEST
 
+START_TEST(test_sub)
+{
+   jit_t *j = get_native_jit();
+
+   const char *text1 =
+      "    RECV    R0, #0          \n"
+      "    RECV    R1, #1          \n"
+      "    SUB.8   R2, R0, R1      \n"
+      "    SEND    #0, R2          \n"
+      "    RET                     \n";
+
+   jit_handle_t h1 = assemble(j, text1, "sub1", "ii");
+
+   ck_assert_int_eq(jit_call(j, h1, 1, 2).integer, -1);
+   ck_assert_int_eq(jit_call(j, h1, 127, 1).integer, 126);
+   ck_assert_int_eq(jit_call(j, h1, 128, 1).integer, 127);
+
+   const char *text2 =
+      "    RECV     R0, #0         \n"
+      "    SUB.O.8  R1, R0, #1     \n"
+      "    CSET     R2             \n"
+      "    SEND     #0, R2         \n"
+      "    RET                     \n";
+
+   jit_handle_t h2 = assemble(j, text2, "sub2", "i");
+
+   ck_assert_int_eq(jit_call(j, h2, 127).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, -127).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, 5).integer, 0);
+   ck_assert_int_eq(jit_call(j, h2, -128).integer, 1);
+
+   const char *text3 =
+      "    RECV      R0, #0        \n"
+      "    SUB.O.16  R1, R0, #1    \n"
+      "    CSET      R2            \n"
+      "    SEND      #0, R2        \n"
+      "    RET                     \n";
+
+   jit_handle_t h3 = assemble(j, text3, "sub3", "i");
+
+   ck_assert_int_eq(jit_call(j, h3, INT16_MAX).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, INT16_MIN).integer, 1);
+   ck_assert_int_eq(jit_call(j, h3, 5).integer, 0);
+   ck_assert_int_eq(jit_call(j, h3, INT16_MAX).integer, 0);
+
+   const char *text4 =
+      "    RECV      R0, #0        \n"
+      "    RECV      R1, #1        \n"
+      "    SUB.O.16  R2, R0, R1    \n"
+      "    CSET      R3            \n"
+      "    SEND      #0, R3        \n"
+      "    RET                     \n";
+
+   jit_handle_t h4 = assemble(j, text4, "sub4", "ii");
+
+   ck_assert_int_eq(jit_call(j, h4, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, -128, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h4, INT16_MIN, 1).integer, 1);
+
+   const char *text5 =
+      "    RECV      R0, #0        \n"
+      "    RECV      R1, #1        \n"
+      "    SUB.O.8   R2, R0, R1    \n"
+      "    CSET      R3            \n"
+      "    SEND      #0, R3        \n"
+      "    RET                     \n";
+
+   jit_handle_t h5 = assemble(j, text5, "sub5", "ii");
+
+   ck_assert_int_eq(jit_call(j, h5, 1, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h5, -128, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h5, 127, 1).integer, 0);
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_native_tests(void)
 {
    Suite *s = suite_create("native");
@@ -1104,6 +1252,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_ccmp);
    tcase_add_test(tc, test_memset);
    tcase_add_test(tc, test_move);
+   tcase_add_test(tc, test_sub);
    suite_add_tcase(s, tc);
 
    return s;

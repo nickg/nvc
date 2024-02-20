@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -103,6 +103,7 @@ STATIC_ASSERT(sizeof(x86_operand_t) == 16);
 #define COMBINE(a, b) (((a).kind << 4) | (b).kind)
 #define REG_REG ((X86_REG << 4) | X86_REG)
 #define MEM_REG ((X86_ADDR << 4) | X86_REG)
+#define MEM_IMM ((X86_ADDR << 4) | X86_IMM)
 #define REG_MEM ((X86_REG << 4) | X86_ADDR)
 #define REG_IMM ((X86_REG << 4) | X86_IMM)
 #define XMM_MEM ((X86_XMM << 4) | X86_ADDR)
@@ -373,8 +374,15 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    case XMM_REG:
       assert(size == __QWORD);
       __(0x66);
-      asm_rex(blob, size, dst.reg, src.addr.reg, 0);
+      asm_rex(blob, size, dst.reg, src.reg, 0);
       __(0x0f, 0x6e, __MODRM(3, dst.reg, src.reg));
+      break;
+
+   case REG_XMM:
+      assert(size == __QWORD);
+      __(0x66);
+      asm_rex(blob, size, src.reg, dst.reg, 0);
+      __(0x0f, 0x7e, __MODRM(3, src.reg, dst.reg));
       break;
 
    case REG_IMM:
@@ -406,6 +414,22 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
          default:
             fatal_trace("unhandled immediate size %d in asm_mov", size);
          }
+      }
+      break;
+
+   case MEM_IMM:
+      switch (size) {
+      case __QWORD:
+         assert(is_imm32(src.imm));
+         asm_rex(blob, size, 0, dst.addr.reg, 0);
+         if (is_imm8(dst.addr.off))
+            __(0xc7, __MODRM(1, 0, dst.addr.reg), dst.addr.off);
+         else
+            __(0xc7, __MODRM(2, 0, dst.addr.reg), __IMM32(dst.addr.off));
+         __(__IMM32(src.imm));
+         break;
+      default:
+         fatal_trace("unhandled immediate size %d in asm_mov", size);
       }
       break;
 
@@ -468,7 +492,7 @@ static void asm_cmovcc(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                        x86_size_t size, x86_cmp_t cmp)
 {
    assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, src.reg, dst.reg, 0);
+   asm_rex(blob, size, dst.reg, src.reg, 0);
    switch (size) {
    case __DWORD:
    case __QWORD:
@@ -496,24 +520,22 @@ static void asm_add(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 {
    switch (COMBINE(dst, src)) {
    case REG_REG:
+      if (size == __WORD) __(0x66);
       asm_rex(blob, size, src.reg, dst.reg, 0);
-      switch (size) {
-      case __BYTE:
+      if (size == __BYTE)
          __(0x00, __MODRM(3, src.reg, dst.reg));
-         break;
-      case __WORD:
-         __(0x66, 0x01, __MODRM(3, src.reg, dst.reg));
-         break;
-      case __DWORD:
-      case __QWORD:
+      else
          __(0x01, __MODRM(3, src.reg, dst.reg));
-         break;
-      }
       break;
 
    case REG_IMM:
+      if (size == __WORD) __(0x66);
       asm_rex(blob, size, 0, dst.reg, 0);
-      if (is_imm8(src.imm))
+      if (size == __BYTE) {
+         assert(is_imm8(src.imm));
+         __(0x80, __MODRM(3, 0, dst.reg), src.imm);
+      }
+      else if (is_imm8(src.imm))
          __(0x83, __MODRM(3, 0, dst.reg), src.imm);
       else
          __(0x81, __MODRM(3, 0, dst.reg), __IMM32(src.imm));
@@ -528,17 +550,26 @@ static void asm_sub(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
    switch (COMBINE(dst, src)) {
+   case REG_REG:
+      if (size == __WORD) __(0x66);
+      asm_rex(blob, size, src.reg, dst.reg, 0);
+      if (size == __BYTE)
+         __(0x28, __MODRM(3, src.reg, dst.reg));
+      else
+         __(0x29, __MODRM(3, src.reg, dst.reg));
+      break;
+
    case REG_IMM:
+      if (size == __WORD) __(0x66);
       asm_rex(blob, size, 0, dst.reg, 0);
-      if (is_imm8(src.imm))
+      if (size == __BYTE) {
+         assert(is_imm8(src.imm));
+         __(0x80, __MODRM(3, 5, dst.reg), src.imm);
+      }
+      else if (is_imm8(src.imm))
          __(0x83, __MODRM(3, 5, dst.reg), src.imm);
       else
          __(0x81, __MODRM(3, 5, dst.reg), __IMM32(src.imm));
-      break;
-
-   case REG_REG:
-      asm_rex(blob, size, src.reg, dst.reg, 0);
-      __(0x29, __MODRM(3, src.reg, dst.reg));
       break;
 
    default:
@@ -548,8 +579,9 @@ static void asm_sub(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 
 static void asm_mul(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
-   assert(src.kind == X86_REG);
-   asm_rex(blob, size, src.reg, 0, 0);
+   assert(src.kind == X86_REG);   // No immediate encoding
+   if (size == __WORD || size == __BYTE) __(0x66);
+   asm_rex(blob, size, 0, src.reg, 0);
    __(0xf7, __MODRM(3, 4, src.reg));
 }
 
@@ -557,6 +589,7 @@ static void asm_imul(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                      x86_size_t size)
 {
    assert(COMBINE(dst, src) == REG_REG);
+   if (size == __WORD || size == __BYTE) __(0x66);
    asm_rex(blob, size, dst.reg, src.reg, 0);
    __(0x0f, 0xaf, __MODRM(3, dst.reg, src.reg));
 }
@@ -564,19 +597,9 @@ static void asm_imul(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
 static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
    assert(src.kind == X86_REG);
-   asm_rex(blob, size, src.reg, 0, 0);
-   switch (size) {
-   case __BYTE:
-   case __WORD:
-      __(0x66, 0xf7, __MODRM(3, 7, src.reg));
-      break;
-   case __DWORD:
-   case __QWORD:
-      __(0xf7, __MODRM(3, 7, src.reg));
-      break;
-   default:
-      fatal_trace("unhandled size %d in asm_idiv", size);
-   }
+   if (size == __WORD || size == __BYTE) __(0x66);
+   asm_rex(blob, size, 0, src.reg, 0);
+   __(0xf7, __MODRM(3, 7, src.reg));
 }
 
 static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
@@ -871,11 +894,37 @@ static void jit_x86_pop_call_clobbered(code_blob_t *blob)
    POP(__ECX);
 }
 
-static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
+static x86_operand_t jit_x86_locals(code_blob_t *blob, ptrdiff_t off)
+{
+   const ptrdiff_t locals =
+      FRAME_FIXED_SIZE + blob->func->nregs*8 + blob->func->framesz;
+   return ADDR(__EBP, -locals + off);
+}
+
+static x86_operand_t jit_x86_spill_slot(code_blob_t *blob, unsigned slot)
+{
+   assert(slot >= STACK_BASE);
+   const ptrdiff_t off = (slot - STACK_BASE) * sizeof(int64_t);
+   return jit_x86_locals(blob, -off);
+}
+
+static void jit_x86_get_reg(code_blob_t *blob, x86_operand_t dst, jit_reg_t reg,
+                            const phys_slot_t *slots)
+{
+   if (slots[reg] >= STACK_BASE)
+      MOV(dst, jit_x86_spill_slot(blob, slots[reg]), __QWORD);
+   else {
+      assert(slots[reg] < FLOAT_BASE);
+      MOV(dst, REG(slots[reg]), __QWORD);
+   }
+}
+
+static void jit_x86_get_copy(code_blob_t *blob, x86_operand_t dst,
+                             jit_value_t src, const phys_slot_t *slots)
 {
    switch (src.kind) {
    case JIT_VALUE_REG:
-      MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
+      jit_x86_get_reg(blob, dst, src.reg, slots);
       break;
    case JIT_VALUE_INT64:
    case JIT_ADDR_ABS:
@@ -892,9 +941,14 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
       MOV(dst, PTR(jit_get_locus(src)), __QWORD);
       break;
    case JIT_ADDR_REG:
-      MOV(dst, ADDR(__EBP, -FRAME_FIXED_SIZE - src.reg*8), __QWORD);
-      if (src.disp != 0)
+      if (src.disp == 0)
+         jit_x86_get_reg(blob, dst, src.reg, slots);
+      else if (slots[src.reg] >= STACK_BASE) {
+         MOV(dst, jit_x86_spill_slot(blob, slots[src.reg]), __QWORD);
          LEA(dst, ADDR(dst, src.disp));
+      }
+      else
+         LEA(dst, ADDR(REG(slots[src.reg]), src.disp));
       break;
    case JIT_ADDR_CPOOL:
       MOV(dst, PTR(blob->func->cpool + src.int64), __QWORD);
@@ -907,12 +961,54 @@ static void jit_x86_get(code_blob_t *blob, x86_operand_t dst, jit_value_t src)
    }
 }
 
+static x86_operand_t jit_x86_get(code_blob_t *blob, x86_operand_t tmp,
+                                 jit_value_t src, const phys_slot_t *slots)
+{
+   switch (src.kind) {
+   case JIT_VALUE_REG:
+      if (slots[src.reg] < FLOAT_BASE)
+         return REG(slots[src.reg]);
+      else {
+         jit_x86_get_reg(blob, tmp, src.reg, slots);
+         return tmp;
+      }
+   case JIT_VALUE_INT64:
+      if (is_imm32(src.int64))
+         return IMM(src.int64);
+      // Fall-through
+   case JIT_ADDR_ABS:
+      jit_x86_get_copy(blob, tmp, src, slots);
+      return tmp;
+   case JIT_VALUE_HANDLE:
+      MOV(tmp, IMM(src.handle), __DWORD);
+      return tmp;
+   case JIT_VALUE_DOUBLE:
+      MOV(tmp, IMM(src.int64), __QWORD);
+      return tmp;
+   case JIT_VALUE_LOCUS:
+      MOV(tmp, PTR(jit_get_locus(src)), __QWORD);
+      return tmp;
+   case JIT_ADDR_REG:
+      jit_x86_get_copy(blob, tmp, src, slots);
+      return tmp;
+   case JIT_ADDR_CPOOL:
+      MOV(tmp, PTR(blob->func->cpool + src.int64), __QWORD);
+      return tmp;
+   case JIT_ADDR_COVER:
+      MOV(tmp, PTR(jit_get_cover_ptr(blob->func->jit, src)), __QWORD);
+      return tmp;
+   default:
+      fatal_trace("cannot handle value kind %d in jit_x86_get", src.kind);
+   }
+}
+
 static x86_operand_t jit_x86_get_addr(code_blob_t *blob, jit_value_t addr,
-                                      x86_operand_t tmp)
+                                      x86_operand_t tmp,
+                                      const phys_slot_t *slots)
 {
    switch (addr.kind) {
    case JIT_ADDR_REG:
-      MOV(tmp, ADDR(__EBP, -FRAME_FIXED_SIZE - addr.reg*8), __QWORD);
+      jit_x86_get_reg(blob, tmp, addr.reg, slots);
       return ADDR(tmp, addr.disp);
    case JIT_ADDR_CPOOL:
       MOV(tmp, PTR(blob->func->cpool + addr.int64), __QWORD);
@@ -949,9 +1045,17 @@ static void jit_x86_patch(code_blob_t *blob, jit_label_t label, uint8_t *wptr,
       *(wptr - 1) = rel;
 }
 
-static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src)
+static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src,
+                        const phys_slot_t *slots)
 {
-   MOV(ADDR(__EBP, -FRAME_FIXED_SIZE - dst*8), src, __QWORD);
+   if (slots[dst] >= STACK_BASE) {
+      x86_operand_t addr = jit_x86_spill_slot(blob, slots[dst]);
+      MOV(addr, src, __QWORD);
+   }
+   else {
+      assert(slots[dst] < FLOAT_BASE);
+      MOV(REG(slots[dst]), src, __QWORD);
+   }
 }
 
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
@@ -1003,56 +1107,61 @@ static void jit_x86_debug_out(code_blob_t *blob, jit_x86_state_t *state,
 }
 #endif
 
-static void jit_x86_recv(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_recv(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
    const int nth = ir->arg1.int64;
 
    MOV(__EAX, ADDR(ARGS_REG, nth * sizeof(int64_t)), __QWORD);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_send(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_send(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
    assert(ir->arg1.kind == JIT_VALUE_INT64);
    const int nth = ir->arg1.int64;
 
-   jit_x86_get(blob, __EAX, ir->arg2);
-   MOV(ADDR(ARGS_REG, nth * sizeof(int64_t)), __EAX, __QWORD);
+   x86_operand_t src = jit_x86_get(blob, __EAX, ir->arg2, slots);
+   MOV(ADDR(ARGS_REG, nth * sizeof(int64_t)), src, __QWORD);
 }
 
-static void jit_x86_add(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_add(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
    const x86_size_t size = jit_x86_size(ir);
 
-   ADD(__EAX, __ECX, size);
+   ADD(__EAX, rhs, size);
 
    jit_x86_set_flags(blob, ir);
    jit_x86_sext(blob, __EAX, size);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_sub(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_sub(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
    const x86_size_t size = jit_x86_size(ir);
 
-   SUB(__EAX, __ECX, size);
+   SUB(__EAX, rhs, size);
 
    jit_x86_set_flags(blob, ir);
    jit_x86_sext(blob, __EAX, size);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_mul(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_mul(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);  // No immediate version
 
    const x86_size_t size = jit_x86_size(ir);
 
@@ -1063,13 +1172,14 @@ static void jit_x86_mul(code_blob_t *blob, jit_ir_t *ir)
 
    jit_x86_set_flags(blob, ir);
    jit_x86_sext(blob, __EAX, size);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_rem(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_rem(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
    const x86_size_t size = jit_x86_size(ir);
 
@@ -1079,17 +1189,18 @@ static void jit_x86_rem(code_blob_t *blob, jit_ir_t *ir)
    default: CQO(); break;
    }
 
-   IDIV(__ECX, size);
+   IDIV(rhs, size);
    MOV(__EAX, __EDX, MAX(size, __DWORD));
 
    jit_x86_sext(blob, __EAX, size);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_div(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_div(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
    const x86_size_t size = jit_x86_size(ir);
 
@@ -1099,77 +1210,84 @@ static void jit_x86_div(code_blob_t *blob, jit_ir_t *ir)
    default: CQO(); break;
    }
 
-   IDIV(__ECX, size);
+   IDIV(rhs, size);
 
    jit_x86_sext(blob, __EAX, size);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_neg(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_neg(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
 
    NEG(__EAX, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_not(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_not(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __ECX, ir->arg1);
+   x86_operand_t src = jit_x86_get(blob, __ECX, ir->arg1, slots);
 
    XOR(__EAX, __EAX, __DWORD);
-   TEST(__ECX, __ECX, __BYTE);
+   TEST(src, src, __BYTE);
    SETZ(__EAX);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_and(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_and(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
-   AND(__EAX, __ECX, __QWORD);
+   AND(__EAX, rhs, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_or(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_or(code_blob_t *blob, jit_ir_t *ir,
+                       const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
-   OR(__EAX, __ECX, __QWORD);
+   OR(__EAX, rhs, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_xor(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_xor(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
-   XOR(__EAX, __ECX, __QWORD);
+   XOR(__EAX, rhs, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_mov(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_mov(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_put(blob, ir->result, __EAX);
+   x86_operand_t src = jit_x86_get(blob, __EAX, ir->arg1, slots);
+   jit_x86_put(blob, ir->result, src, slots);
 }
 
-static void jit_x86_clamp(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_clamp(code_blob_t *blob, jit_ir_t *ir,
+                          const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __ECX, ir->arg1);
+   x86_operand_t src = jit_x86_get(blob, __ECX, ir->arg1, slots);
 
    XOR(__EAX, __EAX, __DWORD);
-   TEST(__ECX, __ECX, __QWORD);
-   CMOVGT(__EAX, __ECX, __QWORD);
+   TEST(src, src, __QWORD);
+   CMOVGT(__EAX, src, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_jump(code_blob_t *blob, jit_ir_t *ir)
@@ -1203,72 +1321,81 @@ static void jit_x86_ret(code_blob_t *blob, jit_ir_t *ir)
    }
 }
 
-static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_load(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX, slots);
    MOVSX(__EAX, addr, __QWORD, jit_x86_size(ir));
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_uload(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_uload(code_blob_t *blob, jit_ir_t *ir,
+                          const phys_slot_t *slots)
 {
-   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX);
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg1, __ECX, slots);
    MOVZX(__EAX, addr, __QWORD, jit_x86_size(ir));
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_store(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_store(code_blob_t *blob, jit_ir_t *ir,
+                          const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg2, __ECX);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t addr = jit_x86_get_addr(blob, ir->arg2, __ECX, slots);
    MOV(addr, __EAX, jit_x86_size(ir));
 }
 
-static void jit_x86_lea(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_lea(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_cmp(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
 
    CMP(__EAX, __ECX, __QWORD);
 
    jit_x86_set_flags(blob, ir);
 }
 
-static void jit_x86_ccmp(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_ccmp(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
+   // TODO: move this below JZ
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
+
    TEST(FLAGS_REG, IMM(1), __BYTE);
-   JZ(IMM(15));
-
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   JZ(IMM(6));
 
    CMP(__EAX, __ECX, __QWORD);
 
    jit_x86_set_flags(blob, ir);
 }
 
-static void jit_x86_cset(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_cset(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_put(blob, ir->result, FLAGS_REG);
+   jit_x86_put(blob, ir->result, FLAGS_REG, slots);
 }
 
-static void jit_x86_csel(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_csel(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   x86_operand_t rhs = jit_x86_get(blob, __ECX, ir->arg2, slots);
 
    TEST(FLAGS_REG, FLAGS_REG, __BYTE);
-   CMOVZ(__EAX, __ECX, __QWORD);
+   CMOVZ(__EAX, rhs, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_call(code_blob_t *blob, jit_x86_state_t *state,
@@ -1280,24 +1407,26 @@ static void jit_x86_call(code_blob_t *blob, jit_x86_state_t *state,
    CALL(PTR(state->stubs[CALL_STUB]));
 }
 
-static void jit_x86_shl(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_shl(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
 
    SHL(__EAX, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_asr(code_blob_t *blob, jit_ir_t *ir,
+                        const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
 
    SAR(__EAX, __ECX, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_trap(code_blob_t *blob, jit_ir_t *ir)
@@ -1305,60 +1434,66 @@ static void jit_x86_trap(code_blob_t *blob, jit_ir_t *ir)
    INT3();
 }
 
-static void jit_x86_fmul(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fmul(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    MULSD(__XMM0, __XMM1);
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
-static void jit_x86_fdiv(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fdiv(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    DIVSD(__XMM0, __XMM1);
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
-static void jit_x86_fadd(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fadd(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    ADDSD(__XMM0, __XMM1);
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
-static void jit_x86_fsub(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fsub(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    SUBSD(__XMM0, __XMM1);
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
-static void jit_x86_fneg(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fneg(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
 
    PXOR(__XMM1, __XMM1);
    SUBSD(__XMM1, __XMM0);
 
-   jit_x86_put(blob, ir->result, __XMM1);
+   jit_x86_put(blob, ir->result, __XMM1, slots);
 }
 
-static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir,
+                         const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    UCOMISD(__XMM0, __XMM1);
 
@@ -1374,23 +1509,25 @@ static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir)
    }
 }
 
-static void jit_x86_fcvtns(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_fcvtns(code_blob_t *blob, jit_ir_t *ir,
+                          const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
 
    ROUNDSD(__XMM0, __XMM0, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
    CVTSD2SI(__EAX, __XMM0, __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_scvtf(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_scvtf(code_blob_t *blob, jit_ir_t *ir,
+                          const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
 
    CVTSI2SD(__XMM0, __EAX, __QWORD);
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
 static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
@@ -1405,68 +1542,69 @@ static void jit_x86_macro_exit(code_blob_t *blob, jit_x86_state_t *state,
 #endif
 }
 
-static void jit_x86_macro_salloc(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_salloc(code_blob_t *blob, jit_ir_t *ir,
+                                 const phys_slot_t *slots)
 {
    assert(ir->arg1.int64 + ir->arg2.int64 <= blob->func->framesz);
 
-   const ptrdiff_t locals =
-      FRAME_FIXED_SIZE + blob->func->nregs*8 + blob->func->framesz;
+   x86_operand_t addr = jit_x86_locals(blob, ir->arg1.int64);
+   LEA(__EAX, addr);
 
-   LEA(__EAX, ADDR(__EBP, -locals + ir->arg1.int64));
-
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_macro_lalloc(code_blob_t *blob, jit_x86_state_t *state,
-                                 jit_ir_t *ir)
+                                 jit_ir_t *ir, const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
 
    CALL(PTR(state->stubs[TLAB_STUB]));
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_macro_galloc(code_blob_t *blob, jit_x86_state_t *state,
-                                 jit_ir_t *ir)
+                                 jit_ir_t *ir, const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
 
    CALL(PTR(state->stubs[ALLOC_STUB]));
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir,
+                                const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);
+   jit_x86_get_copy(blob, __EDI, ir->arg1, slots);
+   jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
    XOR(__EAX, __EAX, __DWORD);
-   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
    __(0xf3, 0x48, 0xaa);   // REP STOS
 }
 
-static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir,
+                               const phys_slot_t *slots)
 {
    PUSH(__ESI);
 
-   jit_x86_get(blob, __EDI, ir->arg1);
-   jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
+   jit_x86_get_copy(blob, __EDI, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ESI, ir->arg2, slots);
+   jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
-   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
    __(0xf3, 0x48, 0xa4);   // REP MOVS
 
    POP(__ESI);
 }
 
-static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir,
+                               const phys_slot_t *slots)
 {
    PUSH(__ESI);
 
-   jit_x86_get(blob, __EDI, ir->arg1);
-   jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
-
-   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+   jit_x86_get_copy(blob, __EDI, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ESI, ir->arg2, slots);
+   jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
    CMP(__EDI, __ESI, __QWORD);
    JB(IMM(19));                   // Source before destination
@@ -1485,12 +1623,12 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
    POP(__ESI);
 }
 
-static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir,
+                                 const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);
-   jit_x86_get(blob, __EAX, ir->arg2);
-
-   MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+   jit_x86_get_copy(blob, __EDI, ir->arg1, slots);
+   jit_x86_get_copy(blob, __EAX, ir->arg2, slots);
+   jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
    switch (ir->size) {
    case JIT_SZ_64:
@@ -1511,7 +1649,8 @@ static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir)
    }
 }
 
-static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir,
+                                  const phys_slot_t *slots)
 {
    jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
    void **ptr = jit_get_privdata_ptr(blob->func->jit, f);
@@ -1519,28 +1658,30 @@ static void jit_x86_macro_getpriv(code_blob_t *blob, jit_ir_t *ir)
    MOV(__EAX, IMM((intptr_t)ptr), __QWORD);
    MOV(__EAX, ADDR(__EAX, 0), __QWORD);
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
-static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_putpriv(code_blob_t *blob, jit_ir_t *ir,
+                                  const phys_slot_t *slots)
 {
    jit_func_t *f = jit_get_func(blob->func->jit, ir->arg1.handle);
    void **ptr = jit_get_privdata_ptr(blob->func->jit, f);
 
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
 
    MOV(__EAX, IMM((intptr_t)ptr), __QWORD);
    MOV(ADDR(__EAX, 0), __ECX, __QWORD);
 }
 
-static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir,
+                               const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EAX, ir->arg1);
+   jit_x86_get_copy(blob, __EAX, ir->arg1, slots);
 
    // Reuse test value from preceding $CASE macro if possible
    if (ir == blob->func->irbuf || (ir - 1)->op != MACRO_CASE
        || (ir - 1)->result != ir->result)
-      MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
+      jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
    CMP(__EAX, __ECX, __QWORD);
 
@@ -1552,10 +1693,11 @@ static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
    code_blob_patch(blob, ir->arg2.label, jit_x86_patch);
 }
 
-static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir)
+static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir,
+                              const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);
-   jit_x86_get(blob, __ECX, ir->arg2);
+   jit_x86_get_copy(blob, __EDI, ir->arg1, slots);
+   jit_x86_get_copy(blob, __ECX, ir->arg2, slots);
 
    TEST(__ECX, __ECX, __QWORD);
    MOV(__EAX, IMM(1), __DWORD);
@@ -1567,18 +1709,18 @@ static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir)
    SAR(__ECX, IMM(1), __QWORD);
    JNZ(IMM(-18));
 
-   jit_x86_put(blob, ir->result, __EAX);
+   jit_x86_put(blob, ir->result, __EAX, slots);
 }
 
 static void jit_x86_macro_fexp(code_blob_t *blob, jit_x86_state_t *state,
-                               jit_ir_t *ir)
+                               jit_ir_t *ir, const phys_slot_t *slots)
 {
-   jit_x86_get(blob, __XMM0, ir->arg1);
-   jit_x86_get(blob, __XMM1, ir->arg2);
+   jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
+   jit_x86_get_copy(blob, __XMM1, ir->arg2, slots);
 
    CALL(PTR(state->stubs[FEXP_STUB]));
 
-   jit_x86_put(blob, ir->result, __XMM0);
+   jit_x86_put(blob, ir->result, __XMM0, slots);
 }
 
 static void jit_x86_macro_trim(code_blob_t *blob, jit_ir_t *ir)
@@ -1588,50 +1730,51 @@ static void jit_x86_macro_trim(code_blob_t *blob, jit_ir_t *ir)
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EAX, __DWORD);
 }
 
-static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
+static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir,
+                       const phys_slot_t *slots)
 {
    switch (ir->op) {
    case J_RECV:
-      jit_x86_recv(blob, ir);
+      jit_x86_recv(blob, ir, slots);
       break;
    case J_SEND:
-      jit_x86_send(blob, ir);
+      jit_x86_send(blob, ir, slots);
       break;
    case J_ADD:
-      jit_x86_add(blob, ir);
+      jit_x86_add(blob, ir, slots);
       break;
    case J_SUB:
-      jit_x86_sub(blob, ir);
+      jit_x86_sub(blob, ir, slots);
       break;
    case J_MUL:
-      jit_x86_mul(blob, ir);
+      jit_x86_mul(blob, ir, slots);
       break;
    case J_REM:
-      jit_x86_rem(blob, ir);
+      jit_x86_rem(blob, ir, slots);
       break;
    case J_DIV:
-      jit_x86_div(blob, ir);
+      jit_x86_div(blob, ir, slots);
       break;
    case J_NEG:
-      jit_x86_neg(blob, ir);
+      jit_x86_neg(blob, ir, slots);
       break;
    case J_CLAMP:
-      jit_x86_clamp(blob, ir);
+      jit_x86_clamp(blob, ir, slots);
       break;
    case J_MOV:
-      jit_x86_mov(blob, ir);
+      jit_x86_mov(blob, ir, slots);
       break;
    case J_NOT:
-      jit_x86_not(blob, ir);
+      jit_x86_not(blob, ir, slots);
       break;
    case J_AND:
-      jit_x86_and(blob, ir);
+      jit_x86_and(blob, ir, slots);
       break;
    case J_OR:
-      jit_x86_or(blob, ir);
+      jit_x86_or(blob, ir, slots);
       break;
    case J_XOR:
-      jit_x86_xor(blob, ir);
+      jit_x86_xor(blob, ir, slots);
       break;
    case J_DEBUG:
    case J_NOP:
@@ -1643,103 +1786,103 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir)
       jit_x86_ret(blob, ir);
       break;
    case J_LOAD:
-      jit_x86_load(blob, ir);
+      jit_x86_load(blob, ir, slots);
       break;
    case J_ULOAD:
-      jit_x86_uload(blob, ir);
+      jit_x86_uload(blob, ir, slots);
       break;
    case J_STORE:
-      jit_x86_store(blob, ir);
+      jit_x86_store(blob, ir, slots);
       break;
    case J_LEA:
-      jit_x86_lea(blob, ir);
+      jit_x86_lea(blob, ir, slots);
       break;
    case J_CMP:
-      jit_x86_cmp(blob, ir);
+      jit_x86_cmp(blob, ir, slots);
       break;
    case J_CCMP:
-      jit_x86_ccmp(blob, ir);
+      jit_x86_ccmp(blob, ir, slots);
       break;
    case J_CSET:
-      jit_x86_cset(blob, ir);
+      jit_x86_cset(blob, ir, slots);
       break;
    case J_CSEL:
-      jit_x86_csel(blob, ir);
+      jit_x86_csel(blob, ir, slots);
       break;
    case J_CALL:
       jit_x86_call(blob, state, ir);
       break;
    case J_SHL:
-      jit_x86_shl(blob, ir);
+      jit_x86_shl(blob, ir, slots);
       break;
    case J_ASR:
-      jit_x86_asr(blob, ir);
+      jit_x86_asr(blob, ir, slots);
       break;
    case J_TRAP:
       jit_x86_trap(blob, ir);
       break;
    case J_FMUL:
-      jit_x86_fmul(blob, ir);
+      jit_x86_fmul(blob, ir, slots);
       break;
    case J_FADD:
-      jit_x86_fadd(blob, ir);
+      jit_x86_fadd(blob, ir, slots);
       break;
    case J_FSUB:
-      jit_x86_fsub(blob, ir);
+      jit_x86_fsub(blob, ir, slots);
       break;
    case J_FDIV:
-      jit_x86_fdiv(blob, ir);
+      jit_x86_fdiv(blob, ir, slots);
       break;
    case J_FNEG:
-      jit_x86_fneg(blob, ir);
+      jit_x86_fneg(blob, ir, slots);
       break;
    case J_FCMP:
-      jit_x86_fcmp(blob, ir);
+      jit_x86_fcmp(blob, ir, slots);
       break;
    case J_FCVTNS:
-      jit_x86_fcvtns(blob, ir);
+      jit_x86_fcvtns(blob, ir, slots);
       break;
    case J_SCVTF:
-      jit_x86_scvtf(blob, ir);
+      jit_x86_scvtf(blob, ir, slots);
       break;
    case MACRO_EXIT:
       jit_x86_macro_exit(blob, state, ir);
       break;
    case MACRO_SALLOC:
-      jit_x86_macro_salloc(blob, ir);
+      jit_x86_macro_salloc(blob, ir, slots);
       break;
    case MACRO_LALLOC:
-      jit_x86_macro_lalloc(blob, state, ir);
+      jit_x86_macro_lalloc(blob, state, ir, slots);
       break;
    case MACRO_GALLOC:
-      jit_x86_macro_galloc(blob, state, ir);
+      jit_x86_macro_galloc(blob, state, ir, slots);
       break;
    case MACRO_BZERO:
-      jit_x86_macro_bzero(blob, ir);
+      jit_x86_macro_bzero(blob, ir, slots);
       break;
    case MACRO_COPY:
-      jit_x86_macro_copy(blob, ir);
+      jit_x86_macro_copy(blob, ir, slots);
       break;
    case MACRO_MOVE:
-      jit_x86_macro_move(blob, ir);
+      jit_x86_macro_move(blob, ir, slots);
       break;
    case MACRO_MEMSET:
-      jit_x86_macro_memset(blob, ir);
+      jit_x86_macro_memset(blob, ir, slots);
       break;
    case MACRO_GETPRIV:
-      jit_x86_macro_getpriv(blob, ir);
+      jit_x86_macro_getpriv(blob, ir, slots);
       break;
    case MACRO_PUTPRIV:
-      jit_x86_macro_putpriv(blob, ir);
+      jit_x86_macro_putpriv(blob, ir, slots);
       break;
    case MACRO_CASE:
-      jit_x86_macro_case(blob, ir);
+      jit_x86_macro_case(blob, ir, slots);
       break;
    case MACRO_EXP:
-      jit_x86_macro_exp(blob, ir);
+      jit_x86_macro_exp(blob, ir, slots);
       break;
    case MACRO_FEXP:
-      jit_x86_macro_fexp(blob, state, ir);
+      jit_x86_macro_fexp(blob, state, ir, slots);
       break;
    case MACRO_TRIM:
       jit_x86_macro_trim(blob, ir);
@@ -1768,6 +1911,11 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    blob->func = f;
 
+   const uint64_t allowmask = (1 << __R10.reg) | (1 << __R11.reg);
+
+   phys_slot_t *slots LOCAL = xmalloc_array(f->nregs, sizeof(phys_slot_t));
+   const int spills = jit_do_lscan(f, slots, ~allowmask);
+
    PUSH(__EBP);
    MOV(__EBP, __ESP, __QWORD);
 
@@ -1791,15 +1939,15 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    //       | Saved R14         |
    //   -80 | Saved R15         |
    //       |-------------------|    <--- End of fixed frame
-   //       | Local registers   |
+   //       | Local variables   |
    //       .                   .
    //       |-------------------|
-   //       | Local variables   |
+   //       | Spill slots       |
    //       .                   .
    //       |-------------------|    <--- RSP
 
    const size_t framebytes =
-      f->framesz + f->nregs * sizeof(int64_t) + FRAME_FIXED_SIZE;
+      f->framesz + spills * sizeof(int64_t) + FRAME_FIXED_SIZE;
    const size_t framesz = ALIGN_UP(framebytes, 16);
    SUB(__ESP, IMM(framesz*2), __QWORD);
 
@@ -1819,6 +1967,10 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
+   // Shuffle incoming arguments
+   MOV(ARGS_REG, CARG2_REG, __QWORD);
+   MOV(TLAB_REG, CARG3_REG, __QWORD);
+
    // Build frame anchor
    MOV(ADDR(__EBP, -24), CARG1_REG, __QWORD);
    MOV(ADDR(__EBP, -16), CARG0_REG, __QWORD);
@@ -1828,15 +1980,11 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    STATIC_ASSERT(ANCHOR_OFFSET == -24);
 
-   // Shuffle incoming arguments
-   MOV(ARGS_REG, CARG2_REG, __QWORD);
-   MOV(TLAB_REG, CARG3_REG, __QWORD);
-
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
          code_blob_mark(blob, i);
       code_blob_print_ir(blob, &(f->irbuf[i]));
-      jit_x86_op(blob, state, &(f->irbuf[i]));
+      jit_x86_op(blob, state, &(f->irbuf[i]), slots);
    }
 
    code_blob_mark(blob, JIT_LABEL_INVALID);

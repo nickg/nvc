@@ -1256,3 +1256,168 @@ void jit_do_mem2reg(jit_func_t *f)
    assert(newsize < f->framesz);
    f->framesz = newsize;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Register allocation
+
+typedef struct {
+   jit_reg_t   reg;
+   unsigned    first;
+   unsigned    last;
+} lscan_interval_t;
+
+static void lscan_grow_range(jit_reg_t reg, lscan_interval_t *li, int pos)
+{
+   assert(reg != JIT_REG_INVALID);
+   li[reg].first = MIN(li[reg].first, pos);
+   li[reg].last = MAX(li[reg].last, pos);
+}
+
+static void lscan_walk_cfg(jit_func_t *f, jit_cfg_t *cfg, int bi,
+                           lscan_interval_t *li, bit_mask_t *visited)
+{
+   if (mask_test(visited, bi))
+      return;
+
+   mask_set(visited, bi);
+
+   jit_block_t *b = &(cfg->blocks[bi]);
+
+   for (int bit = -1; mask_iter(&b->livein, &bit);)
+      lscan_grow_range(bit, li, b->first);
+
+   for (int i = b->first; i <= b->last; i++) {
+      jit_ir_t *ir = &(f->irbuf[i]);
+
+      if (ir->result != JIT_REG_INVALID)
+         lscan_grow_range(ir->result, li, i);
+
+      if (ir->arg1.kind == JIT_VALUE_REG || ir->arg1.kind == JIT_ADDR_REG)
+         lscan_grow_range(ir->arg1.reg, li, i);
+
+      if (ir->arg2.kind == JIT_VALUE_REG || ir->arg2.kind == JIT_ADDR_REG)
+         lscan_grow_range(ir->arg2.reg, li, i);
+   }
+
+   for (int bit = -1; mask_iter(&b->liveout, &bit); )
+      lscan_grow_range(bit, li, b->last);
+
+   for (int i = 0; i < b->out.count; i++) {
+      const int next = jit_get_edge(&(b->out), i);
+      lscan_walk_cfg(f, cfg, next, li, visited);
+   }
+}
+
+static int lscan_interval_cmp(const void *a, const void *b)
+{
+   const lscan_interval_t *la = a;
+   const lscan_interval_t *lb = b;
+
+   if (la->first < lb->first)
+      return -1;
+   else if (la->first > lb->first)
+      return 1;
+   else
+      return 0;
+}
+
+static inline void lscan_shift_active(lscan_interval_t **active, unsigned to,
+                                      unsigned from, unsigned count)
+{
+   if (to != from && count == 1)
+      active[to] = active[from];
+   else if (to != from && count > 1)
+      memmove(active + to, active + from, count * sizeof(lscan_interval_t *));
+}
+
+int jit_do_lscan(jit_func_t *f, phys_slot_t *slots, uint64_t badmask)
+{
+   //
+   // Massimiliano Poletto and Vivek Sarkar
+   // Linear Scan Register Allocation
+   // ACM Trans. Program. Lang. Syst., Vol. 21, 5 (sep 1999), 895--913
+   // https://doi.org/10.1145/330249.330250
+   //
+
+   jit_cfg_t *cfg = jit_get_cfg(f);
+
+   lscan_interval_t *li LOCAL =
+      xmalloc_array(f->nregs, sizeof(lscan_interval_t));
+   for (int i = 0; i < f->nregs; i++) {
+      li[i].reg = i;
+      li[i].first = UINT_MAX;
+      li[i].last = 0;
+      slots[i] = UINT_MAX;
+   }
+
+   bit_mask_t visited;
+   mask_init(&visited, cfg->nblocks);
+   lscan_walk_cfg(f, cfg, 0, li, &visited);
+   mask_free(&visited);
+
+   jit_free_cfg(f);
+
+   qsort(li, f->nregs, sizeof(lscan_interval_t), lscan_interval_cmp);
+
+   const int Rint = 32 - __builtin_popcountl(badmask & 0xffffffff);
+   uint32_t freeregs = ~(badmask & 0xffffffff);
+
+   lscan_interval_t **active LOCAL =
+      xmalloc_array(f->nregs, sizeof(lscan_interval_t *));
+   unsigned nactive = 0, next_spill = STACK_BASE;
+
+   for (int i = 0; i < f->nregs; i++) {
+      // Expire old intervals
+      int expire = 0;
+      for (; expire < nactive; expire++) {
+         const lscan_interval_t *next = active[expire];
+         if (next->last >= li[i].first)
+            break;
+         else {
+            assert(slots[next->reg] < STACK_BASE);
+            freeregs |= (1 << slots[next->reg]);
+         }
+      }
+
+      lscan_shift_active(active, 0, expire, nactive - expire);
+      nactive -= expire;
+
+      const lscan_interval_t *this = &li[i];
+
+      bool allocated = false;
+      if (nactive == Rint) {
+         // Spill at interval
+         const lscan_interval_t *spill = active[nactive - 1];
+         if (spill->last > this->last) {
+            slots[this->reg] = slots[spill->reg];
+            slots[spill->reg] = next_spill++;
+            nactive--;
+            allocated = true;
+         }
+         else
+            slots[this->reg] = next_spill++;
+      }
+      else {
+         const int bit = __builtin_ffsl(freeregs) - 1;
+         assert(bit >= 0);
+         assert(freeregs & (1 << bit));
+         freeregs &= ~(1 << bit);
+         slots[this->reg] = bit;
+         allocated = true;
+      }
+
+      if (allocated) {
+         // Add to active list, sorted by increasing end point
+         int pos = 0;
+         for (; pos < nactive && active[pos]->last <= li[i].last; pos++)
+            assert(active[pos] != &li[i]);
+         assert(pos < f->nregs);
+         if (pos < nactive)
+            lscan_shift_active(active, pos + 1, pos, nactive - pos);
+         active[pos] = &li[i];
+         nactive++;
+      }
+   }
+
+   return next_spill - STACK_BASE;
+}

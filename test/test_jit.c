@@ -2051,6 +2051,39 @@ START_TEST(test_mem2reg1)
 }
 END_TEST
 
+START_TEST(test_lscan1)
+{
+   jit_t *j = jit_new(NULL);
+
+   const char *text1 =
+      "    MOV    R1, R0      \n"
+      "    ADD    R0, R0, #1  \n"
+      "    ADD    R1, R1, #1  \n"
+      "    MUL    R2, R0, R1  \n"
+      "    SEND   #0, R2      \n"
+      "    RET                \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+
+   phys_slot_t *slots LOCAL = xmalloc_array(f->nregs, sizeof(phys_slot_t));
+   const int spills = jit_do_lscan(f, slots, ~UINT64_C(0x3));
+
+   ck_assert_int_eq(spills, 1);
+
+   ck_assert_int_eq(slots[0], 0);
+   ck_assert_int_eq(slots[1], 1);
+   ck_assert_int_eq(slots[2], STACK_BASE);
+
+   check_unary(f, 0, J_MOV, REG(0));
+   check_binary(f, 1, J_ADD, REG(0), CONST(1));
+   check_binary(f, 2, J_ADD, REG(1), CONST(1));
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2108,6 +2141,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lvn10);
    tcase_add_test(tc, test_cprop2);
    tcase_add_test(tc, test_mem2reg1);
+   tcase_add_test(tc, test_lscan1);
    suite_add_tcase(s, tc);
 
    return s;

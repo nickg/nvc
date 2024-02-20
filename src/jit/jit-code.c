@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -321,6 +321,15 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
               && comment->addr <= address; comment++)
          printf("%30s;; %s\n", "", comment->text);
 #endif
+
+      int zeros = 0;
+      for (const uint8_t *zp = ptr; zp < eptr && *zp == 0; zp++, zeros++);
+
+      if (zeros > 8 || zeros == eptr - ptr) {
+         printf("%30s;; skipping %d zero bytes\n", "", zeros);
+         ptr += zeros;
+         continue;
+      }
 
       size_t size = eptr - ptr;
       int col = 0;

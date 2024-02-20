@@ -394,6 +394,13 @@ void jit_do_dce(jit_func_t *f);
 void jit_delete_nops(jit_func_t *f);
 void jit_do_mem2reg(jit_func_t *f);
 
+typedef unsigned phys_slot_t;
+#define INT_BASE   0
+#define FLOAT_BASE 32
+#define STACK_BASE 100
+
+int jit_do_lscan(jit_func_t *f, phys_slot_t *slots, uint64_t badmask);
+
 code_cache_t *code_cache_new(void);
 void code_cache_free(code_cache_t *code);
 
