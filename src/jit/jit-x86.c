@@ -50,8 +50,8 @@ typedef struct {
 // Conservative guess at the number of bytes emitted per IR
 #define BYTES_PER_IR 16
 
-// Size of fixed part of call frame
-#define FRAME_FIXED_SIZE 80
+#define FRAME_FIXED_SIZE 80    // Size of fixed part of call frame
+#define ANCHOR_OFFSET    -24   // Offset of frame anchor from RBP
 
 ////////////////////////////////////////////////////////////////////////////////
 // X86 assembler
@@ -134,8 +134,6 @@ static const x86_operand_t __R15 = REG(23);
 static const x86_operand_t __XMM0 = XMM(0);
 static const x86_operand_t __XMM1 = XMM(1);
 
-#define FPTR_REG   __EDI
-#define ANCHOR_REG __ESI
 #define ARGS_REG   __R8
 #define TLAB_REG   __R9
 #define FLAGS_REG  __EBX
@@ -1441,7 +1439,7 @@ static void jit_x86_macro_galloc(code_blob_t *blob, jit_x86_state_t *state,
 
 static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __EDI, ir->arg1);
 
    XOR(__EAX, __EAX, __DWORD);
    MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
@@ -1452,7 +1450,7 @@ static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir)
 {
    PUSH(__ESI);
 
-   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __EDI, ir->arg1);
    jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
 
    MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
@@ -1465,7 +1463,7 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
 {
    PUSH(__ESI);
 
-   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __EDI, ir->arg1);
    jit_x86_get(blob, __ESI, ir->arg2);   // Clobbers ANCHOR_REG
 
    MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
@@ -1489,7 +1487,7 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);   // Clobbers FPTR_REG
+   jit_x86_get(blob, __EDI, ir->arg1);
    jit_x86_get(blob, __EAX, ir->arg2);
 
    MOV(__ECX, ADDR(__EBP, -FRAME_FIXED_SIZE - ir->result*8), __QWORD);
@@ -1556,7 +1554,7 @@ static void jit_x86_macro_case(code_blob_t *blob, jit_ir_t *ir)
 
 static void jit_x86_macro_exp(code_blob_t *blob, jit_ir_t *ir)
 {
-   jit_x86_get(blob, __EDI, ir->arg1);    // Clobbers FPTR_REG
+   jit_x86_get(blob, __EDI, ir->arg1);
    jit_x86_get(blob, __ECX, ir->arg2);
 
    TEST(__ECX, __ECX, __QWORD);
@@ -1585,7 +1583,8 @@ static void jit_x86_macro_fexp(code_blob_t *blob, jit_x86_state_t *state,
 
 static void jit_x86_macro_trim(code_blob_t *blob, jit_ir_t *ir)
 {
-   MOV(__EAX, ADDR(ANCHOR_REG, offsetof(jit_anchor_t, watermark)), __DWORD);
+   const ptrdiff_t off = offsetof(jit_anchor_t, watermark);
+   MOV(__EAX, ADDR(__EBP, ANCHOR_OFFSET + off), __DWORD);
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EAX, __DWORD);
 }
 
@@ -1779,18 +1778,18 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    //       |-------------------|
    //     0 | Saved RBP         |    <--- RBP
    //       |-------------------|
-   //       | Saved RBX         |
+   //    -4 | TLAB watermark    |
+   //    -8 | IR position       |
+   //   -16 | Function pointer  |
+   //   -24 | Caller's anchor   |    <--- Frame anchor
+   //       |-------------------|
+   //   -32 | Saved RBX         |
    //       | Saved RDI (Win)   |
    //       | Saved RSI (Win)   |
    //       | Saved R12         |
    //       | Saved R13         |
    //       | Saved R14         |
-   //   -56 | Saved R15         |
-   //       |-------------------|
-   //   -60 | TLAB watermark    |
-   //   -64 | IR position       |
-   //   -72 | Function pointer  |
-   //   -80 | Caller's anchor   |    <--- Frame anchor
+   //   -80 | Saved R15         |
    //       |-------------------|    <--- End of fixed frame
    //       | Local registers   |
    //       .                   .
@@ -1802,38 +1801,36 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
    const size_t framebytes =
       f->framesz + f->nregs * sizeof(int64_t) + FRAME_FIXED_SIZE;
    const size_t framesz = ALIGN_UP(framebytes, 16);
-   SUB(__ESP, IMM(framesz), __QWORD);
+   SUB(__ESP, IMM(framesz*2), __QWORD);
 
    // Callee saves
-   MOV(ADDR(__EBP, -8), __EBX, __QWORD);
+   MOV(ADDR(__EBP, -32), __EBX, __QWORD);
 #ifdef __MINGW32__
-   MOV(ADDR(__EBP, -16), __EDI, __QWORD);
-   MOV(ADDR(__EBP, -24), __ESI, __QWORD);
+   MOV(ADDR(__EBP, -40), __EDI, __QWORD);
+   MOV(ADDR(__EBP, -48), __ESI, __QWORD);
 #endif
 #if 0
    // Not currently used
-   MOV(ADDR(__EBP, -32), __R12, __QWORD);
-   MOV(ADDR(__EBP, -40), __R13, __QWORD);
-   MOV(ADDR(__EBP, -48), __R14, __QWORD);
-   MOV(ADDR(__EBP, -56), __R15, __QWORD);
+   MOV(ADDR(__EBP, -56), __R12, __QWORD);
+   MOV(ADDR(__EBP, -64), __R13, __QWORD);
+   MOV(ADDR(__EBP, -72), __R14, __QWORD);
+   MOV(ADDR(__EBP, -80), __R15, __QWORD);
 #endif
-
-   // Shuffle incoming arguments
-   MOV(FPTR_REG, CARG0_REG, __QWORD);
-   MOV(ANCHOR_REG, CARG1_REG, __QWORD);
-   MOV(ARGS_REG, CARG2_REG, __QWORD);
-   MOV(TLAB_REG, CARG3_REG, __QWORD);
 
    XOR(FLAGS_REG, FLAGS_REG, __DWORD);
 
    // Build frame anchor
-   MOV(ADDR(__EBP, -80), ANCHOR_REG, __QWORD);
-   MOV(ADDR(__EBP, -72), FPTR_REG, __QWORD);
-   MOV(ADDR(__EBP, -64), FLAGS_REG, __DWORD);
+   MOV(ADDR(__EBP, -24), CARG1_REG, __QWORD);
+   MOV(ADDR(__EBP, -16), CARG0_REG, __QWORD);
+   MOV(ADDR(__EBP, -8), FLAGS_REG, __DWORD);
    MOV(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __DWORD);
-   MOV(ADDR(__EBP, -60), __EAX, __DWORD);
+   MOV(ADDR(__EBP, -4), __EAX, __DWORD);
 
-   LEA(ANCHOR_REG, ADDR(__EBP, -80));
+   STATIC_ASSERT(ANCHOR_OFFSET == -24);
+
+   // Shuffle incoming arguments
+   MOV(ARGS_REG, CARG2_REG, __QWORD);
+   MOV(TLAB_REG, CARG3_REG, __QWORD);
 
    for (int i = 0; i < f->nirs; i++) {
       if (f->irbuf[i].target)
@@ -1844,16 +1841,16 @@ static void jit_x86_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    code_blob_mark(blob, JIT_LABEL_INVALID);
 
-   MOV(__EBX, ADDR(__EBP, -8), __QWORD);
+   MOV(__EBX, ADDR(__EBP, -32), __QWORD);
 #ifdef __MINGW32__
-   MOV(__EDI, ADDR(__EBP, -16), __QWORD);
-   MOV(__ESI, ADDR(__EBP, -24), __QWORD);
+   MOV(__EDI, ADDR(__EBP, -40), __QWORD);
+   MOV(__ESI, ADDR(__EBP, -48), __QWORD);
 #endif
 #if 0
-   MOV(__R12, ADDR(__EBP, -32), __QWORD);
-   MOV(__R13, ADDR(__EBP, -40), __QWORD);
-   MOV(__R14, ADDR(__EBP, -48), __QWORD);
-   MOV(__R15, ADDR(__EBP, -56), __QWORD);
+   MOV(__R12, ADDR(__EBP, -56), __QWORD);
+   MOV(__R13, ADDR(__EBP, -64), __QWORD);
+   MOV(__R14, ADDR(__EBP, -72), __QWORD);
+   MOV(__R15, ADDR(__EBP, -80), __QWORD);
 #endif
 
    LEAVE();
@@ -1867,14 +1864,13 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
    ident_t name = ident_new("exit stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
-   // Exit number in EAX, clobbers FPTR
+   // Exit number in EAX
    MOV(CARG0_REG, __EAX, __DWORD);
-   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   LEA(CARG1_REG, ADDR(__EBP, ANCHOR_OFFSET));
    MOV(CARG2_REG, ARGS_REG, __QWORD);
    MOV(CARG3_REG, TLAB_REG, __QWORD);
 
@@ -1883,7 +1879,7 @@ static void jit_x86_gen_exit_stub(jit_x86_state_t *state)
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[EXIT_STUB]));
@@ -1894,13 +1890,12 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
    ident_t name = ident_new("call stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
    MOV(CARG0_REG, __EAX, __QWORD);
-   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   LEA(CARG1_REG, ADDR(__EBP, ANCHOR_OFFSET));
    MOV(CARG2_REG, ARGS_REG, __QWORD);
    MOV(CARG3_REG, TLAB_REG, __QWORD);
 
@@ -1909,7 +1904,7 @@ static void jit_x86_gen_call_stub(jit_x86_state_t *state)
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[CALL_STUB]));
@@ -1920,21 +1915,20 @@ static void jit_x86_gen_alloc_stub(jit_x86_state_t *state)
    ident_t name = ident_new("alloc stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
-   // Size in EAX, clobbers FPTR
+   // Size in EAX
    MOV(CARG0_REG, __EAX, __DWORD);
-   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   LEA(CARG1_REG, ADDR(__EBP, ANCHOR_OFFSET));
 
    MOV(__EAX, PTR(__nvc_mspace_alloc), __QWORD);
    CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[ALLOC_STUB]));
@@ -1945,9 +1939,6 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    ident_t name = ident_new("tlab stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
-
    // Fast path: allocate from TLAB
 
    MOV(__ECX, ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __DWORD);
@@ -1957,26 +1948,28 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    AND(__EDI, IMM(~RT_ALIGN_MASK), __DWORD);
 
    CMP(ADDR(TLAB_REG, offsetof(tlab_t, limit)), __EDI, __DWORD);
-   JLT(IMM(13));
+   JLT(IMM(12));
 
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EDI, __DWORD);
    MOV(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, base)), __QWORD);
    ADD(__EAX, __ECX, __QWORD);
-   JMP(IMM(26));
+   RET();
 
    // Slow path: call into runtime
+
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
    MOV(CARG0_REG, __EAX, __DWORD);
-   MOV(CARG1_REG, ANCHOR_REG, __QWORD);
+   LEA(CARG1_REG, ADDR(__EBP, ANCHOR_OFFSET));
 
    MOV(__EAX, PTR(__nvc_mspace_alloc), __QWORD);
    CALL(__EAX);
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[TLAB_STUB]));
@@ -1988,8 +1981,7 @@ static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
    ident_t name = ident_new("debug stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
@@ -2001,7 +1993,7 @@ static void jit_x86_gen_debug_stub(jit_x86_state_t *state)
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[DEBUG_STUB]));
@@ -2013,8 +2005,7 @@ static void jit_x86_gen_fexp_stub(jit_x86_state_t *state)
    ident_t name = ident_new("fexp stub");
    code_blob_t *blob = code_blob_new(state->code, name, 0);
 
-   PUSH(__EBP);
-   MOV(__EBP, __ESP, __QWORD);
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
 
    jit_x86_push_call_clobbered(blob);
 
@@ -2023,7 +2014,7 @@ static void jit_x86_gen_fexp_stub(jit_x86_state_t *state)
 
    jit_x86_pop_call_clobbered(blob);
 
-   LEAVE();
+   ADD(__ESP, IMM(8), __QWORD);
    RET();
 
    code_blob_finalise(blob, &(state->stubs[FEXP_STUB]));
