@@ -1224,6 +1224,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
          tree_t file_close = builtin_proc(file_close_i, S_FILE_CLOSE);
          add_port(file_close, "F", t, PORT_INOUT, NULL);
+         mangle_func(nametab, file_close);
          insert_name(nametab, file_close, file_close_i);
          tree_add_decl(container, file_close);
 

@@ -119,32 +119,6 @@ int64_t x_file_read(void **_fp, uint8_t *data, int64_t size, int64_t count)
    return fread(data, size, count, *fp);
 }
 
-void x_file_close(void **_fp)
-{
-   FILE **fp = (FILE **)_fp;
-
-   if (*fp != NULL) {
-      fclose(*fp);
-      *fp = NULL;
-   }
-}
-
-int8_t x_endfile(void *_f)
-{
-   FILE *f = _f;
-
-   if (f == NULL)
-      jit_msg(NULL, DIAG_FATAL, "ENDFILE called on closed file");
-
-   int c = fgetc(f);
-   if (c == EOF)
-      return 1;
-   else {
-      ungetc(c, f);
-      return 0;
-   }
-}
-
 void x_index_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                   tree_t where, tree_t hint)
 {
@@ -799,13 +773,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_FILE_CLOSE:
-      {
-         void **_fp = args[0].pointer;
-         x_file_close(_fp);
-      }
-      break;
-
    case JIT_EXIT_FILE_READ:
       {
          void    **_fp   = args[0].pointer;
@@ -824,13 +791,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int32_t   len  = args[2].integer;
 
          x_file_write(_fp, data, len);
-      }
-      break;
-
-   case JIT_EXIT_ENDFILE:
-      {
-         void *_fp = args[0].pointer;
-         args[0].integer = x_endfile(_fp);
       }
       break;
 

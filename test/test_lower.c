@@ -299,7 +299,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_SCHED_EVENT:
       case VCODE_OP_CLEAR_EVENT:
       case VCODE_OP_FILE_OPEN:
-      case VCODE_OP_FILE_CLOSE:
       case VCODE_OP_INDEX_CHECK:
       case VCODE_OP_RANGE_CHECK:
       case VCODE_OP_DEBUG_LOCUS:
@@ -3891,19 +3890,13 @@ START_TEST(test_closefile)
       { VCODE_OP_INDEX, .name = "F" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_FILE_OPEN },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_COND, .target = 2, .target_else = 1 },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+      { VCODE_OP_FCALL, .func = "WORK.FILEPACK.TEST.FILE_CLOSE("
+        "23WORK.FILEPACK.TEST.TEXT)$predef" },
+      { VCODE_OP_RETURN },
    };
 
    CHECK_BB(0);
-
-   EXPECT_BB(1) = {
-      { VCODE_OP_FILE_CLOSE },
-      { VCODE_OP_JUMP, .target = 2 },
-   };
-
-   CHECK_BB(1);
 }
 END_TEST
 

@@ -2324,8 +2324,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       return lower_logical(lu, fcall, emit_xor(r0, r1), r0, r1, builtin, 0);
    case S_SCALAR_XNOR:
       return lower_logical(lu, fcall, emit_xnor(r0, r1), r0, r1, builtin, 0);
-   case S_ENDFILE:
-      return emit_endfile(r0);
    case S_FILE_OPEN1:
       {
          vcode_reg_t name   = lower_array_data(r1);
@@ -2355,9 +2353,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          emit_file_write(r0, data, length);
          return VCODE_INVALID_REG;
       }
-   case S_FILE_CLOSE:
-      emit_file_close(r0);
-      return VCODE_INVALID_REG;
    case S_FILE_READ:
       {
          vcode_reg_t inlen = VCODE_INVALID_REG;
@@ -6546,20 +6541,22 @@ static void lower_leave_subprogram(lower_unit_t *lu)
 
       case T_FILE_DECL:
          {
-            vcode_block_t open_bb = emit_block();
-            vcode_block_t closed_bb = emit_block();
+            type_t base = type_base_recur(tree_type(d));
 
-            vcode_reg_t ptr_reg  = lower_var_ref(lu, d, EXPR_LVALUE);
-            vcode_reg_t file_reg = emit_load_indirect(ptr_reg);
-            vcode_reg_t null_reg = emit_null(lower_type(tree_type(d)));
-            vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, file_reg, null_reg);
-            emit_cond(cmp_reg, closed_bb, open_bb);
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_istr(tb, ident_runtil(type_ident(base), '.'));
+            tb_cat(tb, ".FILE_CLOSE(");
+            mangle_one_type(tb, base);
+            tb_cat(tb, ")");
+            tb_cat(tb, "$predef");
 
-            vcode_select_block(open_bb);
-            emit_file_close(ptr_reg);
-            emit_jump(closed_bb);
+            ident_t func = ident_new(tb_get(tb));
 
-            vcode_select_block(closed_bb);
+            vcode_reg_t ptr_reg = lower_var_ref(lu, d, EXPR_LVALUE);
+            vcode_reg_t context_reg = lower_context_for_call(lu, func);
+            vcode_reg_t args[] = { context_reg, ptr_reg };
+            emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                       args, ARRAY_LEN(args));
          }
          break;
 
@@ -11010,6 +11007,12 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       break;
    case S_FILE_OPEN3:
       lower_predef_file_open3(lu, decl);
+      break;
+   case S_FILE_CLOSE:
+      lower_foreign_predef(lu, decl, "__nvc_file_close");
+      break;
+   case S_ENDFILE:
+      lower_foreign_predef(lu, decl, "__nvc_endfile");
       break;
    case S_FILE_MODE:
       lower_foreign_predef(lu, decl, "__nvc_file_mode");

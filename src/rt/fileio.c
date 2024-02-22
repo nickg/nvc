@@ -57,6 +57,34 @@ typedef enum {
 } file_open_kind_t;
 
 DLLEXPORT
+void __nvc_file_close(jit_scalar_t *args)
+{
+   FILE **fp = args[2].pointer;
+
+   if (*fp != NULL) {
+      fclose(*fp);
+      *fp = NULL;
+   }
+}
+
+DLLEXPORT
+void __nvc_endfile(jit_scalar_t *args)
+{
+   FILE **fp = args[1].pointer;
+
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "ENDFILE called on closed file");
+
+   int c = fgetc(*fp);
+   if (c == EOF)
+      args[0].integer = 1;
+   else {
+      ungetc(c, *fp);
+      args[0].integer = 0;
+   }
+}
+
+DLLEXPORT
 void __nvc_flush(jit_scalar_t *args)
 {
    FILE **fp = args[2].pointer;

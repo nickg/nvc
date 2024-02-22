@@ -89,10 +89,8 @@ typedef enum {
    VCODE_OP_NOR,
    VCODE_OP_MEMSET,
    VCODE_OP_CASE,
-   VCODE_OP_ENDFILE,
    VCODE_OP_FILE_OPEN,
    VCODE_OP_FILE_WRITE,
-   VCODE_OP_FILE_CLOSE,
    VCODE_OP_FILE_READ,
    VCODE_OP_NULL,
    VCODE_OP_NEW,
@@ -458,11 +456,9 @@ void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);
-vcode_reg_t emit_endfile(vcode_reg_t file);
 void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
                     vcode_reg_t kind, vcode_reg_t status);
 void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length);
-void emit_file_close(vcode_reg_t file);
 void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
                     vcode_reg_t inlen, vcode_reg_t outlen);
 vcode_reg_t emit_null(vcode_type_t type);

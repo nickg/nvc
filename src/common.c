@@ -1397,10 +1397,8 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_SCALAR_XNOR:
    case S_FILE_OPEN1:
    case S_FILE_OPEN2:
-   case S_FILE_CLOSE:
    case S_FILE_READ:
    case S_FILE_WRITE:
-   case S_ENDFILE:
    case S_DEALLOCATE:
       return true;
    default:

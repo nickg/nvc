@@ -2899,14 +2899,6 @@ static void irgen_op_file_open(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_FILE_OPEN);
 }
 
-static void irgen_op_file_close(jit_irgen_t *g, int op)
-{
-   jit_value_t file = irgen_get_arg(g, op, 0);
-
-   j_send(g, 0, file);
-   macro_exit(g, JIT_EXIT_FILE_CLOSE);
-}
-
 static void irgen_op_file_read(jit_irgen_t *g, int op)
 {
    jit_value_t file = irgen_get_arg(g, op, 0);
@@ -2965,16 +2957,6 @@ static void irgen_op_file_write(jit_irgen_t *g, int op)
    j_send(g, 2, bytes);
 
    macro_exit(g, JIT_EXIT_FILE_WRITE);
-}
-
-static void irgen_op_endfile(jit_irgen_t *g, int op)
-{
-   jit_value_t file = irgen_get_arg(g, op, 0);
-
-   j_send(g, 0, file);
-   macro_exit(g, JIT_EXIT_ENDFILE);
-
-   g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
 static void irgen_op_push_scope(jit_irgen_t *g, int op)
@@ -3781,17 +3763,11 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_FILE_OPEN:
          irgen_op_file_open(g, i);
          break;
-      case VCODE_OP_FILE_CLOSE:
-         irgen_op_file_close(g, i);
-         break;
       case VCODE_OP_FILE_READ:
          irgen_op_file_read(g, i);
          break;
       case VCODE_OP_FILE_WRITE:
          irgen_op_file_write(g, i);
-         break;
-      case VCODE_OP_ENDFILE:
-         irgen_op_endfile(g, i);
          break;
       case VCODE_OP_PUSH_SCOPE:
          irgen_op_push_scope(g, i);

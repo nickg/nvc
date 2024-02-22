@@ -501,7 +501,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_ABS:
    case VCODE_OP_MOD:
    case VCODE_OP_REM:
-   case VCODE_OP_ENDFILE:
    case VCODE_OP_ADD:
    case VCODE_OP_TRAP_ADD:
    case VCODE_OP_TRAP_SUB:
@@ -946,7 +945,7 @@ const char *vcode_op_string(vcode_op_t op)
       "select", "or", "wrap", "uarray left", "uarray right", "uarray dir",
       "unwrap", "not", "and", "event", "active", "const record", "record ref",
       "copy", "sched event", "pcall", "resume", "xor", "xnor", "nand", "nor",
-      "memset", "case", "endfile", "file open", "file write", "file close",
+      "memset", "case", "file open", "file write",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover branch",
       "cover toggle", "cover expr", "cover state", "uarray len", "undefined",
@@ -1959,15 +1958,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_ENDFILE:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
          case VCODE_OP_FILE_OPEN:
             {
                printf("%s ", vcode_op_string(op->kind));
@@ -1982,13 +1972,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   printf(" status ");
                   vcode_dump_reg(op->args.items[4]);
                }
-            }
-            break;
-
-         case VCODE_OP_FILE_CLOSE:
-            {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -5262,17 +5245,6 @@ void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
    }
 }
 
-vcode_reg_t emit_endfile(vcode_reg_t file)
-{
-   op_t *op = vcode_add_op(VCODE_OP_ENDFILE);
-   vcode_add_arg(op, file);
-
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(file)) == VCODE_TYPE_FILE,
-                "endfile argument must have file type");
-
-   return (op->result = vcode_add_reg(vtype_bool()));
-}
-
 void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
                     vcode_reg_t kind, vcode_reg_t status)
 {
@@ -5298,15 +5270,6 @@ void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
 
    VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
                 "file write first argument must have file pointer type");
-}
-
-void emit_file_close(vcode_reg_t file)
-{
-   op_t *op = vcode_add_op(VCODE_OP_FILE_CLOSE);
-   vcode_add_arg(op, file);
-
-   VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
-                "file close argument must have file pointer type");
 }
 
 void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
