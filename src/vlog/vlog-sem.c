@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -301,6 +301,17 @@ static void vlog_check_module(vlog_node_t module)
    pop_scope();
 }
 
+static void vlog_check_gate_inst(vlog_node_t g)
+{
+   vlog_node_t target = vlog_target(g);
+   vlog_check(target);
+
+   if (vlog_has_ident(g))
+      vlog_insert_decl(g);
+   else
+      vlog_set_ident(g, ident_uniq("#gate"));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -363,6 +374,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_UNARY:
       vlog_check_unary(v);
+      break;
+   case V_GATE_INST:
+      vlog_check_gate_inst(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

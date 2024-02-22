@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2023  Nick Gasson
+--  Copyright (C) 2023-2024  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -17,6 +17,77 @@
 use work.polyfill.all;
 
 package body verilog is
+
+    subtype t_strength is natural range 0 to 7;
+
+    function strength (value : t_net_value) return t_strength is
+    begin
+        case value is
+            when highz0 | highz1 => return 0;
+            when small0 | small1 => return 1;
+            when medium0 | medium1 => return 2;
+            when weak0 | weak1 => return 3;
+            when large0 | large1 => return 4;
+            when pull0 | pull1 => return 5;
+            when strong0 | strong1 => return 6;
+            when supply0 | supply1 | 'X' => return 7;
+        end case;
+    end function;
+
+    function resolved (inputs : t_net_array) return t_net_value is
+        variable result : t_net_value;
+        constant count  : natural := inputs'length;
+        alias a_inputs  : t_net_array(1 to count) is inputs;
+    begin
+        if inputs'length = 0 then
+            return 'X';
+        else
+            result := a_inputs(1);
+            for i in 2 to count loop
+                if strength(a_inputs(i)) > strength(result) then
+                    result := a_inputs(i);
+                end if;
+            end loop;
+            return result;
+        end if;
+    end function;
+
+    function to_logic (value : t_net_value) return t_logic is
+    begin
+        case value is
+            when 'X' =>
+                return 'X';
+            when supply0 | strong0 | pull0 | large0 | weak0
+                | medium0 | small0 =>
+                return '0';
+            when small1 | medium1 | weak1 | large1 | pull1
+                | strong1 | supply1 =>
+                return '1';
+            when highz1 | highz0 =>
+                return 'Z';
+        end case;
+    end function;
+
+    function to_net_value (value : t_logic) return t_net_value is
+    begin
+        case value is
+            when 'X' => return 'X';
+            when '0' => return strong0;
+            when '1' => return strong1;
+            when 'Z' => return highz1;
+        end case;
+    end function;
+
+    function to_net_value (value : t_packed_logic) return t_net_array is
+        constant length : natural := value'length;
+        alias a_value   : t_packed_logic(1 to length) is value;
+        variable result : t_net_array(1 to length);
+    begin
+        for i in 1 to length loop
+            result(i) := to_net_value(a_value(i));
+        end loop;
+        return result;
+    end function;
 
     function to_integer (value : t_packed_logic) return t_int64 is
         alias v      : t_packed_logic(0 to value'length - 1) is value;
@@ -56,12 +127,42 @@ package body verilog is
         end case;
     end function;
 
+    function to_vhdl (value : t_net_value) return std_ulogic is
+    begin
+        case value is
+            when 'X' =>
+                return 'U';
+            when supply0 | strong0 | pull0 | large0 =>
+                return '0';
+            when weak0 | medium0 | small0 =>
+                return 'L';
+            when highz0 | highz1 =>
+                return 'Z';
+            when small1 | medium1 | weak1 =>
+                return 'H';
+            when large1 | pull1 | strong1 | supply1 =>
+                return '1';
+        end case;
+    end function;
+
     function to_verilog (value : std_ulogic) return t_logic is
     begin
         case value is
             when '1' | 'H' => return '1';
             when '0' | 'L' => return '0';
             when 'Z' => return 'Z';
+            when others => return 'X';
+        end case;
+    end function;
+
+    function to_verilog (value : std_ulogic) return t_net_value is
+    begin
+        case value is
+            when '1' => return strong1;
+            when 'H' => return weak1;
+            when '0' => return strong0;
+            when 'L' => return weak0;
+            when 'Z' => return highz1;
             when others => return 'X';
         end case;
     end function;

@@ -157,7 +157,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 3);
+   fail_unless(vlog_stmts(m) == 8);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 4);
 
@@ -212,6 +212,41 @@ START_TEST(test_parse1)
 
    vlog_node_t s1s0s5 = vlog_stmt(s1s0, 5);
    fail_unless(vlog_kind(s1s0s5) == V_BASSIGN);
+
+   vlog_node_t s3 = vlog_stmt(m, 3);
+   fail_unless(vlog_kind(s3) == V_GATE_INST);
+   ck_assert_int_eq(vlog_subkind(s3), V_GATE_PULLDOWN);
+   ck_assert_int_eq(vlog_params(s3), 1);
+   fail_unless(vlog_ident(s3) == ident_new("p1"));
+   fail_unless(vlog_kind(vlog_target(s3)) == V_REF);
+
+   vlog_node_t s4 = vlog_stmt(m, 4);
+   fail_unless(vlog_kind(s4) == V_GATE_INST);
+   ck_assert_int_eq(vlog_subkind(s4), V_GATE_PULLDOWN);
+   ck_assert_int_eq(vlog_params(s4), 0);
+   fail_unless(vlog_ident(s4) == ident_new("p2"));
+   fail_unless(vlog_kind(vlog_target(s4)) == V_REF);
+
+   vlog_node_t s5 = vlog_stmt(m, 5);
+   fail_unless(vlog_kind(s5) == V_GATE_INST);
+   ck_assert_int_eq(vlog_subkind(s5), V_GATE_PULLUP);
+   ck_assert_int_eq(vlog_params(s5), 0);
+   fail_unless(vlog_ident(s5) == ident_new("p3"));
+   fail_unless(vlog_kind(vlog_target(s5)) == V_REF);
+
+   vlog_node_t s6 = vlog_stmt(m, 6);
+   fail_unless(vlog_kind(s6) == V_GATE_INST);
+   ck_assert_int_eq(vlog_subkind(s6), V_GATE_PULLUP);
+   ck_assert_int_eq(vlog_params(s6), 2);
+   fail_unless(vlog_ident(s6) == ident_new("p4"));
+   fail_unless(vlog_kind(vlog_target(s6)) == V_REF);
+
+   vlog_node_t s7 = vlog_stmt(m, 7);
+   fail_unless(vlog_kind(s7) == V_GATE_INST);
+   ck_assert_int_eq(vlog_subkind(s7), V_GATE_PULLUP);
+   ck_assert_int_eq(vlog_params(s7), 0);
+   fail_if(vlog_has_ident(s7));
+   fail_unless(vlog_kind(vlog_target(s7)) == V_REF);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -321,6 +356,28 @@ START_TEST(test_timescale1)
 }
 END_TEST
 
+START_TEST(test_gate1)
+{
+   input_from_file(TESTDIR "/vlog/gate1.v");
+
+   const error_t expect[] = {
+      {  6, "duplicate declaration of p1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -335,6 +392,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp1);
    tcase_add_test(tc, test_empty1);
    tcase_add_test(tc, test_timescale1);
+   tcase_add_test(tc, test_gate1);
    suite_add_tcase(s, tc);
 
    return s;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -91,6 +91,12 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_UNARY
    (I_VALUE | I_SUBKIND),
+
+   // V_GATE_INST
+   (I_SUBKIND | I_PARAMS | I_IDENT | I_REF | I_TARGET),
+
+   // V_STRENGTH
+   (I_SUBKIND),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -99,7 +105,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SEQ_BLOCK", "V_SYSTASK",    "V_STRING",        "V_NUMBER",
    "V_NET_DECL",  "V_ASSIGN",     "V_DIMENSION",     "V_IF",
    "V_COND",      "V_VAR_DECL",   "V_DELAY_CONTROL", "V_BINARY",
-   "V_BASSIGN",   "V_UNARY",
+   "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -159,6 +165,11 @@ ident_t vlog_ident(vlog_node_t v)
 void vlog_set_ident(vlog_node_t v, ident_t i)
 {
    lookup_item(&vlog_object, v, I_IDENT)->ident = i;
+}
+
+bool vlog_has_ident(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_IDENT)->ident != NULL;
 }
 
 ident_t vlog_ident2(vlog_node_t v)

@@ -32,6 +32,7 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
+#include "thread.h"
 #include "type.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
@@ -41,6 +42,9 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <inttypes.h>
+
+#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
+#define T_NET_VALUE "23NVC.VERILOG.T_NET_VALUE"
 
 typedef A(tree_t) tree_list_t;
 
@@ -1055,6 +1059,67 @@ static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
+static tree_t elab_to_vhdl(type_t from, type_t to)
+{
+   static struct {
+      const verilog_type_t from_id;
+      const ieee_type_t    to_id;
+      const char *const    func;
+      type_t               from;
+      type_t               to;
+      tree_t               decl;
+   } table[] = {
+      { VERILOG_LOGIC, IEEE_STD_LOGIC, "NVC.VERILOG.TO_VHDL(" T_LOGIC ")U" },
+      { VERILOG_NET_VALUE, IEEE_STD_LOGIC,
+        "NVC.VERILOG.TO_VHDL(" T_NET_VALUE ")U" },
+   };
+
+   INIT_ONCE({
+         for (int i = 0; i < ARRAY_LEN(table); i++) {
+            table[i].from = verilog_type(table[i].from_id);
+            table[i].to   = ieee_type(table[i].to_id);
+            table[i].decl = verilog_func(ident_new(table[i].func));
+         }
+      });
+
+   for (int i = 0; i < ARRAY_LEN(table); i++) {
+      if (type_eq(table[i].from, from) && type_eq(table[i].to, to))
+         return table[i].decl;
+   }
+
+   return NULL;
+}
+
+static tree_t elab_to_verilog(type_t from, type_t to)
+{
+   static struct {
+      const ieee_type_t    from_id;
+      const verilog_type_t to_id;
+      const char *const    func;
+      type_t               from;
+      type_t               to;
+      tree_t               decl;
+   } table[] = {
+      { IEEE_STD_ULOGIC, VERILOG_LOGIC, "NVC.VERILOG.TO_VERILOG(U)" T_LOGIC },
+      { IEEE_STD_ULOGIC, VERILOG_NET_VALUE,
+        "NVC.VERILOG.TO_VERILOG(U)" T_NET_VALUE }
+   };
+
+   INIT_ONCE({
+         for (int i = 0; i < ARRAY_LEN(table); i++) {
+           table[i].from = ieee_type(table[i].from_id);
+           table[i].to   = verilog_type(table[i].to_id);
+           table[i].decl = verilog_func(ident_new(table[i].func));
+         }
+      });
+
+   for (int i = 0; i < ARRAY_LEN(table); i++) {
+      if (type_eq(table[i].from, from) && type_eq(table[i].to, to))
+         return table[i].decl;
+   }
+
+   return NULL;
+}
 static void elab_mixed_port_map(tree_t block, vlog_node_t mod,
                                 const elab_ctx_t *ctx)
 {
@@ -1063,15 +1128,6 @@ static void elab_mixed_port_map(tree_t block, vlog_node_t mod,
 
    bit_mask_t have;
    mask_init(&have, nports);
-
-   type_t std_logic = ieee_type(IEEE_STD_LOGIC);
-
-#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
-   ident_t to_vhdl_name = ident_new("NVC.VERILOG.TO_VHDL(" T_LOGIC ")U");
-   ident_t to_verilog_name = ident_new("NVC.VERILOG.TO_VERILOG(U)" T_LOGIC);
-
-   tree_t to_vhdl = verilog_func(to_vhdl_name);
-   tree_t to_verilog = verilog_func(to_verilog_name);
 
    bool have_named = false;
    for (int i = 0; i < ndecls; i++) {
@@ -1116,19 +1172,23 @@ static void elab_mixed_port_map(tree_t block, vlog_node_t mod,
          return;
       }
 
-      type_t type = tree_type(bport);
-      if (!type_eq(type, std_logic)) {
-         error_at(tree_loc(bport), "Verilog module ports must have "
-                  "type STD_LOGIC or STD_LOGIC_VECTOR");
-         return;
-      }
+      type_t btype = tree_type(bport);
+      type_t vtype = tree_type(vport);
 
       if (vlog_subkind(mport) == V_PORT_INPUT) {
+         tree_t func = elab_to_verilog(btype, vtype);
+         if (func == NULL) {
+            error_at(tree_loc(bport), "cannot connect VHDL signal with type "
+                     "%s to Verilog input port %s", type_pp(btype),
+                     istr(vlog_ident(mport)));
+            return;
+         }
+
          tree_t conv = tree_new(T_CONV_FUNC);
          tree_set_loc(conv, tree_loc(bport));
-         tree_set_ref(conv, to_verilog);
-         tree_set_ident(conv, tree_ident(to_verilog));
-         tree_set_type(conv, type_result(tree_type(to_verilog)));
+         tree_set_ref(conv, func);
+         tree_set_ident(conv, tree_ident(func));
+         tree_set_type(conv, type_result(tree_type(func)));
          tree_set_value(conv, make_ref(bport));
 
          if (have_named)
@@ -1137,11 +1197,19 @@ static void elab_mixed_port_map(tree_t block, vlog_node_t mod,
             add_param(ctx->out, conv, P_POS, NULL);
       }
       else {
+         tree_t func = elab_to_vhdl(vtype, btype);
+         if (func == NULL) {
+            error_at(tree_loc(bport), "cannot connect VHDL signal with type "
+                     "%s to Verilog output port %s", type_pp(btype),
+                     istr(vlog_ident(mport)));
+            return;
+         }
+
          tree_t conv = tree_new(T_CONV_FUNC);
          tree_set_loc(conv, tree_loc(bport));
-         tree_set_ref(conv, to_vhdl);
-         tree_set_ident(conv, tree_ident(to_vhdl));
-         tree_set_type(conv, type_result(tree_type(to_vhdl)));
+         tree_set_ref(conv, func);
+         tree_set_ident(conv, tree_ident(func));
+         tree_set_type(conv, type_result(tree_type(func)));
          tree_set_value(conv, make_ref(vport));
 
          add_param(ctx->out, make_ref(bport), P_NAMED, conv);

@@ -474,6 +474,7 @@ START_TEST(test_vlog1)
    diff_dump(tb_get(tb),
              "module mod2;\n"
              "  wire [5'b111:5'b0] bus;\n"
+             "  wire w;\n"
              "  reg r;\n"
              "  initial begin\n"
              "    $display(\"hello\");\n"
@@ -484,6 +485,7 @@ START_TEST(test_vlog1)
              "    #5'b1 r <= 5'b0;\n"
              "  end\n"
              "  assign bus = 5'b11;\n"
+             "  pullup (supply1,supply0) p1 (w);\n"
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 

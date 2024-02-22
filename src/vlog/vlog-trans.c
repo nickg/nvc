@@ -48,11 +48,12 @@ static tree_t trans_expr(vlog_node_t expr)
    }
 }
 
-static type_t trans_type(vlog_node_t decl)
+static type_t trans_type(vlog_node_t decl, verilog_type_t scalar_type,
+                         verilog_type_t packed_type)
 {
    const int nranges = vlog_ranges(decl);
    if (nranges > 0) {
-      type_t packed = verilog_type(VERILOG_PACKED_LOGIC);
+      type_t packed = verilog_type(packed_type);
 
       tree_t c = tree_new(T_CONSTRAINT);
       tree_set_subkind(c, C_INDEX);
@@ -85,7 +86,17 @@ static type_t trans_type(vlog_node_t decl)
       return sub;
    }
    else
-      return verilog_type(VERILOG_LOGIC);
+      return verilog_type(scalar_type);
+}
+
+static type_t trans_var_type(vlog_node_t decl)
+{
+   return trans_type(decl, VERILOG_LOGIC, VERILOG_PACKED_LOGIC);
+}
+
+static type_t trans_net_type(vlog_node_t decl)
+{
+   return trans_type(decl, VERILOG_RESOLVED_NET, VERILOG_RESOLVED_PACKED_NET);
 }
 
 static void trans_port_decl(vlog_node_t decl, tree_t out)
@@ -97,11 +108,17 @@ static void trans_port_decl(vlog_node_t decl, tree_t out)
       [V_PORT_INOUT] = PORT_INOUT,
    };
 
+   const v_port_kind_t kind = vlog_subkind(decl);
+
    tree_t t = tree_new(T_PORT_DECL);
    tree_set_ident(t, vlog_ident(decl));
-   tree_set_subkind(t, map[vlog_subkind(decl)]);
+   tree_set_subkind(t, map[kind]);
    tree_set_class(t, C_SIGNAL);
-   tree_set_type(t, trans_type(decl));
+
+   if (kind == V_PORT_OUTPUT_REG)
+      tree_set_type(t, trans_var_type(decl));
+   else
+      tree_set_type(t, trans_net_type(decl));
 
    tree_add_port(out, t);
 }
@@ -110,7 +127,16 @@ static void trans_var_decl(vlog_node_t decl, tree_t out)
 {
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(decl));
-   tree_set_type(t, trans_type(decl));
+   tree_set_type(t, trans_var_type(decl));
+
+   tree_add_decl(out, t);
+}
+
+static void trans_net_decl(vlog_node_t decl, tree_t out)
+{
+   tree_t t = tree_new(T_SIGNAL_DECL);
+   tree_set_ident(t, vlog_ident(decl));
+   tree_set_type(t, trans_net_type(decl));
 
    tree_add_decl(out, t);
 }
@@ -125,8 +151,10 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          trans_port_decl(d, out);
          break;
       case V_VAR_DECL:
-      case V_NET_DECL:
          trans_var_decl(d, out);
+         break;
+      case V_NET_DECL:
+         trans_net_decl(d, out);
          break;
       default:
          CANNOT_HANDLE(d);

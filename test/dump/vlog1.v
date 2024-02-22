@@ -6,6 +6,7 @@ endmodule // dff
 
 module mod2;
   wire [7:0] bus;
+  wire       w;
   reg        r;
   initial begin
     $display("hello");
@@ -16,4 +17,5 @@ module mod2;
     #1 r <= 0;
   end
   assign bus = 3;
+  pullup (supply1, supply0) p1 (w);
 endmodule // mod2

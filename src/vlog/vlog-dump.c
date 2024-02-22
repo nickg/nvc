@@ -282,6 +282,47 @@ static void vlog_dump_delay_control(vlog_node_t v, int indent)
    print_syntax(" ");
 }
 
+static void vlog_dump_gate_inst(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   switch (vlog_subkind(v)) {
+   case V_GATE_PULLUP: print_syntax("#pullup "); break;
+   case V_GATE_PULLDOWN: print_syntax("#pulldown "); break;
+   }
+
+   const int nparams = vlog_params(v);
+   if (nparams > 0) {
+      print_syntax("(");
+      for (int i = 0; i < nparams; i++) {
+         if (i > 0) print_syntax(",");
+         vlog_dump(vlog_param(v, i), 0);
+      }
+      print_syntax(") ");
+   }
+
+   if (vlog_has_ident(v))
+      print_syntax("%s ", istr(vlog_ident(v)));
+
+   print_syntax("(");
+   vlog_dump(vlog_target(v), 0);
+   print_syntax(");\n");
+}
+
+static void vlog_dump_strength(vlog_node_t v, int indent)
+{
+   switch (vlog_subkind(v)) {
+   case V_STRENGTH_PULL0: print_syntax("#pull0"); break;
+   case V_STRENGTH_STRONG0: print_syntax("#strong0"); break;
+   case V_STRENGTH_WEAK0: print_syntax("#weak0"); break;
+   case V_STRENGTH_SUPPLY0: print_syntax("#supply0"); break;
+   case V_STRENGTH_PULL1: print_syntax("#pull1"); break;
+   case V_STRENGTH_STRONG1: print_syntax("#strong1"); break;
+   case V_STRENGTH_WEAK1: print_syntax("#weak1"); break;
+   case V_STRENGTH_SUPPLY1: print_syntax("#supply1"); break;
+   }
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -341,6 +382,12 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_DELAY_CONTROL:
       vlog_dump_delay_control(v, indent);
+      break;
+   case V_GATE_INST:
+      vlog_dump_gate_inst(v, indent);
+      break;
+   case V_STRENGTH:
+      vlog_dump_strength(v, indent);
       break;
    default:
       print_syntax("\n");

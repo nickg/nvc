@@ -942,3 +942,4 @@ ename7          normal,2008
 issue844        normal,2008
 conv14          normal,2008
 issue850        shell
+vlog7           verilog,gold

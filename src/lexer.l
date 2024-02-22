@@ -537,6 +537,10 @@ UNION         ?i:union
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
 <VLOG>"`timescale"       { return tTIMESCALE; }
+<VLOG>"supply0"          { return tSUPPLY0; }
+<VLOG>"supply1"          { return tSUPPLY1; }
+<VLOG>"pulldown"         { return tPULLDOWN; }
+<VLOG>"pullup"           { return tPULLUP; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

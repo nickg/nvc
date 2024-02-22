@@ -1,6 +1,6 @@
 // -*- mode: bison; c-basic-offset: 3 -*-
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -107,6 +107,15 @@ static bool is_decl(vlog_node_t v)
       return false;
    }
 }
+
+static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
+{
+   vlog_node_t s = vlog_new(V_STRENGTH);
+   vlog_set_loc(s, loc);
+   vlog_set_subkind(s, value);
+   return s;
+}
+
 %}
 
 %type   <vlog>          module_declaration primary expression
@@ -118,7 +127,8 @@ static bool is_decl(vlog_node_t v)
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
-%type   <vlog>          delay_control delay_value
+%type   <vlog>          delay_control delay_value strength0 strength1
+%type   <vlog>          pull_gate_instance
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -128,6 +138,7 @@ static bool is_decl(vlog_node_t v)
 %type   <list>          module_or_generate_item continuous_assign
 %type   <list>          list_of_net_assignments reg_declaration
 %type   <list>          list_of_variable_identifiers list_of_statements_opt
+%type   <list>          gate_instantiation pulldown_strength pullup_strength
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -153,6 +164,10 @@ static bool is_decl(vlog_node_t v)
 %token                  tIF 234 "if"
 %token                  tELSE 255 "else"
 %token                  tTIMESCALE 399 "`timescale"
+%token                  tSUPPLY0 400 "supply0"
+%token                  tSUPPLY1 401 "supply1"
+%token                  tPULLDOWN 402 "pulldown"
+%token                  tPULLUP 403 "pullup"
 %token                  tEOF 0 "end of file"
 
 %left                   '|'
@@ -319,6 +334,7 @@ module_or_generate_item:
         |       always_construct { $$ = node_list_single($1); }
         |       initial_construct { $$ = node_list_single($1); }
         |       continuous_assign
+        |       gate_instantiation
         ;
 
 module_or_generate_item_declaration:
@@ -350,6 +366,8 @@ net_declaration:
         ;
 
 net_type:       tWIRE { $$ = V_NET_WIRE; }
+        |       tSUPPLY0 { $$ = V_NET_SUPPLY0; }
+        |       tSUPPLY1 { $$ = V_NET_SUPPLY1; }
         ;
 
 list_of_net_identifiers:
@@ -756,6 +774,107 @@ external_identifier:
                    $$.right = ident_new($1);
                    free($1);
                 }
+        ;
+
+gate_instantiation:
+                tPULLDOWN pulldown_strength pull_gate_instance ';'
+                {
+                   vlog_set_subkind($3, V_GATE_PULLDOWN);
+
+                   for (node_list_t *it = $2; it; it = it->next)
+                      vlog_add_param($3, it->value);
+                   node_list_free($2);
+
+                   $$ = NULL;
+                   node_list_append(&$$, $3);
+                }
+        |       tPULLDOWN pull_gate_instance ';'
+                {
+                   vlog_set_subkind($2, V_GATE_PULLDOWN);
+
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                }
+        |       tPULLUP pullup_strength pull_gate_instance ';'
+                {
+                   vlog_set_subkind($3, V_GATE_PULLUP);
+
+                   for (node_list_t *it = $2; it; it = it->next)
+                      vlog_add_param($3, it->value);
+                   node_list_free($2);
+
+                   $$ = NULL;
+                   node_list_append(&$$, $3);
+                }
+        |       tPULLUP pull_gate_instance ';'
+                {
+                   vlog_set_subkind($2, V_GATE_PULLUP);
+
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                }
+        ;
+
+pull_gate_instance:
+                identifier '(' lvalue ')'
+                {
+                   $$ = vlog_new(V_GATE_INST);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, $1);
+                   vlog_set_target($$, $3);
+                }
+        |       '(' lvalue ')'
+                {
+                   $$ = vlog_new(V_GATE_INST);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_target($$, $2);
+                }
+        ;
+
+pulldown_strength:
+                '(' strength0 ',' strength1 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                   node_list_append(&$$, $4);
+                }
+        |       '(' strength1 ',' strength0 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                   node_list_append(&$$, $4);
+                }
+        |       '(' strength0 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                }
+        ;
+
+pullup_strength:
+                '(' strength0 ',' strength1 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                   node_list_append(&$$, $4);
+                }
+        |       '(' strength1 ',' strength0 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                   node_list_append(&$$, $4);
+                }
+        |       '(' strength1 ')'
+                {
+                   $$ = NULL;
+                   node_list_append(&$$, $2);
+                }
+        ;
+
+strength0:      tSUPPLY0 { $$ = make_strength(V_STRENGTH_SUPPLY0, &@$); }
+        ;
+
+strength1:      tSUPPLY1 { $$ = make_strength(V_STRENGTH_SUPPLY1, &@$); }
         ;
 
 %%

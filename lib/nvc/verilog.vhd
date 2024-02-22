@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2023  Nick Gasson
+--  Copyright (C) 2023-2024  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -29,13 +29,32 @@ package verilog is
 
     type t_packed_logic is array (natural range <>) of t_logic;
 
+    type t_net_value is ('X', supply0, strong0, pull0, large0, weak0,
+                         medium0, small0, highz0, highz1, small1, medium1,
+                         weak1, large1, pull1, strong1, supply1);
+
+    type t_net_array is array (natural range <>) of t_net_value;
+
+    function resolved (inputs : t_net_array) return t_net_value;
+
+    subtype t_resolved_net is resolved t_net_value;
+
+    type t_resolved_packed_net is array (natural range <>) of t_resolved_net;
+
+    function to_logic (value : t_net_value) return t_logic;
+
+    function to_net_value (value : t_logic) return t_net_value;
+    function to_net_value (value : t_packed_logic) return t_net_array;
+
     function to_integer (value : t_packed_logic) return t_int64;
 
     function to_time (value : t_packed_logic) return delay_length;
 
     function to_vhdl (value : t_logic) return std_ulogic;
+    function to_vhdl (value : t_net_value) return std_ulogic;
 
     function to_verilog (value : std_ulogic) return t_logic;
+    function to_verilog (value : std_ulogic) return t_net_value;
 
     function resize (value : t_packed_logic; length : natural) return t_packed_logic;
     function resize (value : t_logic; length : natural) return t_packed_logic;

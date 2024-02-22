@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -293,5 +293,9 @@ bool is_scanned_as_psl(void);
 #define tUNTIL_        397
 #define tUNTIL_1       398
 #define tTIMESCALE     399
+#define tSUPPLY0       400
+#define tSUPPLY1       401
+#define tPULLDOWN      402
+#define tPULLUP        403
 
 #endif  // _SCAN_H

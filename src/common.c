@@ -1306,7 +1306,7 @@ static tree_t cached_verilog(void)
 
 type_t verilog_type(verilog_type_t which)
 {
-   static type_t cache[VERILOG_INT64 + 1] = {};
+   static type_t cache[VERILOG_RESOLVED_PACKED_NET + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
@@ -1314,6 +1314,9 @@ type_t verilog_type(verilog_type_t which)
          "T_LOGIC",
          "T_PACKED_LOGIC",
          "T_INT64",
+         "T_NET_VALUE",
+         "T_RESOLVED_NET",
+         "T_RESOLVED_PACKED_NET",
       };
 
       tree_t d = search_decls(cached_verilog(), ident_new(names[which]), 0);

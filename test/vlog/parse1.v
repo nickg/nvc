@@ -15,4 +15,9 @@ module parse1;
     z = !x;
   end
   assign x = x | y;
+  pulldown (supply0) p1 (x);
+  pulldown p2 (x);
+  pullup p3 (y);
+  pullup (supply0, supply1) p4 (y);
+  pullup (y);
 endmodule // parse1

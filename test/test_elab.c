@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1501,7 +1501,8 @@ START_TEST(test_mixed1)
       { 22, "missing matching VHDL port declaration for Verilog port two "
         "in component MOD1" },
       { 34, "port FOUR not found in Verilog module mod1" },
-      { 44, "Verilog module ports must have type STD_LOGIC or STD_LOGIC_VEC" },
+      { 44, "cannot connect VHDL signal with type BIT to Verilog output "
+        "port three" },
       { -1, NULL }
    };
    expect_errors(expect);

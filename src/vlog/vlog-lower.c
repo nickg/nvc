@@ -42,6 +42,14 @@
 #define T_LOGIC "19NVC.VERILOG.T_LOGIC"
 #define T_PACKED_LOGIC "26NVC.VERILOG.T_PACKED_LOGIC"
 #define T_INT64 "19NVC.VERILOG.T_INT64"
+#define T_NET_VALUE "23NVC.VERILOG.T_NET_VALUE"
+#define T_NET_ARRAY "23NVC.VERILOG.T_NET_ARRAY"
+
+typedef enum {
+   _X = 0, _SUPPLY0, _STRONG0, _PULL0, _LARGE0, _WEAK0, _MEDIUM0,
+   _SMALL0, _HIGHZ0, _HIGHZ1, _SMALL1, _MEDIUM1, _WEAK1, _LARGE1,
+   _PULL1, _STRONG1, _SUPPLY1
+} net_value_t;
 
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);
@@ -49,6 +57,11 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);
 static inline vcode_type_t vlog_logic_type(void)
 {
    return vtype_int(0, 3);
+}
+
+static inline vcode_type_t vlog_net_value_type(void)
+{
+   return vtype_int(0, 16);
 }
 
 static inline vcode_type_t vlog_packed_logic_type(void)
@@ -68,6 +81,20 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 }
 #endif
 
+static bool vlog_is_net(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NET_DECL:
+      return true;
+   case V_PORT_DECL:
+      return vlog_subkind(v) != V_PORT_OUTPUT_REG;
+   case V_REF:
+      return vlog_is_net(vlog_ref(v));
+   default:
+      return false;
+   }
+}
+
 static vcode_reg_t vlog_helper_package(void)
 {
    return emit_link_package(ident_new("NVC.VERILOG"));
@@ -76,18 +103,18 @@ static vcode_reg_t vlog_helper_package(void)
 static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
 {
    vcode_type_t voffset = vtype_offset();
+   vcode_type_t regtype = vcode_reg_type(reg);
    vcode_reg_t left_reg = emit_const(voffset, 0), right_reg, data_reg;
 
-   switch (vcode_reg_kind(reg)) {
+   switch (vtype_kind(regtype)) {
    case VCODE_TYPE_CARRAY:
       data_reg = emit_address_of(reg);
-      right_reg = emit_const(voffset, vtype_size(vcode_reg_type(reg)) - 1);
+      right_reg = emit_const(voffset, vtype_size(regtype) - 1);
       break;
    case VCODE_TYPE_INT:
       {
-         vcode_type_t vlogic = vlog_logic_type();
          ident_t name = ident_uniq("wrap_temp");
-         vcode_var_t tmp = emit_var(vlogic, vlogic, name, VAR_TEMP);
+         vcode_var_t tmp = emit_var(regtype, regtype, name, VAR_TEMP);
          emit_store(reg, tmp);
 
          data_reg = emit_index(tmp, VCODE_INVALID_REG);
@@ -302,6 +329,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          else
             nets_reg = emit_load_indirect(emit_var_upref(hops, var));
 
+         vcode_reg_t resolved_reg;
          if (vcode_reg_kind(nets_reg) == VCODE_TYPE_UARRAY) {
             vcode_reg_t data_reg = emit_resolved(emit_unwrap(nets_reg));
 
@@ -311,15 +339,26 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
                  .right = emit_uarray_right(nets_reg, 0),
                  .dir = emit_uarray_dir(nets_reg, 0) },
             };
-            return emit_wrap(data_reg, dims, 1);
+            resolved_reg = emit_wrap(data_reg, dims, 1);
          }
          else {
-            vcode_reg_t resolved_reg = emit_resolved(nets_reg);
+            vcode_reg_t data_reg = emit_resolved(nets_reg);
             if (vlog_ranges(decl) > 0)
-               return vlog_lower_decl_bounds(lu, decl, resolved_reg);
+               resolved_reg = vlog_lower_decl_bounds(lu, decl, data_reg);
             else
-               return emit_load_indirect(resolved_reg);
+               resolved_reg = emit_load_indirect(data_reg);
          }
+
+         if (vlog_is_net(decl)) {
+            vcode_reg_t context_reg = vlog_helper_package();
+            vcode_reg_t args[] = { context_reg, resolved_reg };
+            vcode_type_t vlogic = vlog_logic_type();
+            ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
+                                     T_NET_VALUE ")" T_LOGIC);
+            return emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
+         }
+         else
+            return resolved_reg;
       }
    case V_EVENT:
       {
@@ -402,6 +441,15 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
          return vlog_lower_unary(lu, vlog_subkind(v), value_reg);
       }
+   case V_STRENGTH:
+      {
+         static const int8_t map[] = {
+            _SUPPLY0, _STRONG0, _PULL0, _WEAK0,
+            _SUPPLY1, _STRONG1, _PULL1, _WEAK1
+         };
+         vcode_type_t vnet = vlog_net_value_type();
+         return emit_const(vnet, map[vlog_subkind(v)]);
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -474,7 +522,9 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
 
 static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
 {
-   vcode_reg_t target_reg = vlog_lower_lvalue(lu, vlog_target(v));
+   vlog_node_t target = vlog_target(v);
+
+   vcode_reg_t target_reg = vlog_lower_lvalue(lu, target);
    vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
 
    vcode_reg_t count_reg, nets_reg;
@@ -488,7 +538,21 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
    }
 
    vcode_reg_t resize_reg = vlog_lower_resize(lu, value_reg, count_reg);
-   vcode_reg_t data_reg = emit_unwrap(resize_reg);
+
+   vcode_reg_t data_reg;
+   if (vlog_is_net(target)) {
+      vcode_reg_t context_reg = vlog_helper_package();
+      vcode_reg_t args[] = { context_reg, resize_reg };
+      vcode_type_t vnet = vlog_net_value_type();
+      vcode_type_t varray = vtype_uarray(1, vnet, vnet);
+      ident_t func = ident_new("NVC.VERILOG.TO_NET_VALUE("
+                               T_PACKED_LOGIC ")" T_NET_ARRAY);
+      vcode_reg_t call_reg = emit_fcall(func, varray, vnet,
+                                        args, ARRAY_LEN(args));
+      data_reg = emit_unwrap(call_reg);
+   }
+   else
+      data_reg = emit_unwrap(resize_reg);
 
    vcode_type_t vtime = vtype_time();
    vcode_reg_t reject_reg = emit_const(vtime, 0);
@@ -751,6 +815,49 @@ static void vlog_lower_continuous_assign(unit_registry_t *ur,
    unit_registry_finalise(ur, lu);
 }
 
+static void vlog_lower_gate_inst(unit_registry_t *ur, lower_unit_t *parent,
+                                 vlog_node_t stmt)
+{
+   vcode_unit_t context = get_vcode(parent);
+
+   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
+   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
+
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
+
+   vlog_lower_driver(lu, vlog_target(stmt));
+
+   emit_return(VCODE_INVALID_REG);
+
+   vcode_select_block(start_bb);
+
+   vcode_reg_t value_reg = 0;
+   if (vlog_params(stmt) == 0) {
+      const vlog_gate_kind_t kind = vlog_subkind(stmt);
+      vcode_type_t vnet = vlog_net_value_type();
+      value_reg = emit_const(vnet, kind == V_GATE_PULLUP ? _PULL1 : _PULL0);
+   }
+   else
+      value_reg = vlog_lower_rvalue(lu, vlog_param(stmt, 0));
+
+   vcode_type_t vtime = vtype_time();
+   vcode_reg_t reject_reg = emit_const(vtime, 0);
+   vcode_reg_t after_reg = emit_const(vtime, 0);
+
+   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, vlog_target(stmt));
+   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+
+   emit_sched_waveform(nets_reg, count_reg, value_reg, reject_reg, after_reg);
+
+   emit_wait(start_bb, VCODE_INVALID_REG);
+
+   unit_registry_finalise(ur, lu);
+}
+
 static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
                                   vlog_node_t scope)
 {
@@ -766,6 +873,9 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
          break;
       case V_ASSIGN:
          vlog_lower_continuous_assign(ur, parent, s);
+         break;
+      case V_GATE_INST:
+         vlog_lower_gate_inst(ur, parent, s);
          break;
       default:
          CANNOT_HANDLE(s);
@@ -788,18 +898,20 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, tree_t wrap)
    unit_registry_put(ur, lu);
 
    vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vsignal = vtype_signal(vlogic);
+   vcode_type_t vnetvalue = vlog_net_value_type();
+   vcode_type_t vlogicsignal = vtype_signal(vlogic);
+   vcode_type_t vnetsignal = vtype_signal(vnetvalue);
 
    const int ndecls = vlog_decls(mod);
    for (int i = 0; i < ndecls; i++) {
       vlog_node_t d = vlog_decl(mod, i);
       switch (vlog_kind(d)) {
       case V_PORT_DECL:
-      case V_VAR_DECL:
       case V_NET_DECL:
+      case V_VAR_DECL:
          {
-            vcode_var_t var =
-               emit_var(vsignal, vsignal, vlog_ident(d), VAR_SIGNAL);
+            vcode_type_t vtype = vlog_is_net(d) ? vnetsignal : vlogicsignal;
+            vcode_var_t var = emit_var(vtype, vtype, vlog_ident(d), VAR_SIGNAL);
             lower_put_vcode_obj(d, var, lu);
          }
          break;

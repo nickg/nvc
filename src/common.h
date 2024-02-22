@@ -173,6 +173,9 @@ typedef enum {
    VERILOG_LOGIC,
    VERILOG_PACKED_LOGIC,
    VERILOG_INT64,
+   VERILOG_NET_VALUE,
+   VERILOG_RESOLVED_NET,
+   VERILOG_RESOLVED_PACKED_NET,
 } verilog_type_t;
 
 type_t verilog_type(verilog_type_t which);

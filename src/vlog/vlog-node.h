@@ -41,6 +41,8 @@ typedef enum {
 
 typedef enum {
    V_NET_WIRE,
+   V_NET_SUPPLY0,
+   V_NET_SUPPLY1,
 } vlog_net_kind_t;
 
 typedef enum {
@@ -66,6 +68,8 @@ typedef enum {
    V_BINARY,
    V_BASSIGN,
    V_UNARY,
+   V_GATE_INST,
+   V_STRENGTH,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -95,6 +99,22 @@ typedef enum {
    V_ASSIGN_EQUALS,
 } vlog_assign_t;
 
+typedef enum {
+   V_GATE_PULLDOWN,
+   V_GATE_PULLUP,
+} vlog_gate_kind_t;
+
+typedef enum {
+   V_STRENGTH_SUPPLY0,
+   V_STRENGTH_STRONG0,
+   V_STRENGTH_PULL0,
+   V_STRENGTH_WEAK0,
+   V_STRENGTH_SUPPLY1,
+   V_STRENGTH_STRONG1,
+   V_STRENGTH_PULL1,
+   V_STRENGTH_WEAK1,
+} vlog_strength_t;
+
 vlog_node_t vlog_new(vlog_kind_t kind);
 vlog_kind_t vlog_kind(vlog_node_t v);
 const char *vlog_kind_str(vlog_kind_t kind);
@@ -106,6 +126,7 @@ void vlog_set_loc(vlog_node_t v, const loc_t *loc);
 
 ident_t vlog_ident(vlog_node_t v);
 void vlog_set_ident(vlog_node_t v, ident_t i);
+bool vlog_has_ident(vlog_node_t v);
 
 ident_t vlog_ident2(vlog_node_t v);
 void vlog_set_ident2(vlog_node_t v, ident_t i);
