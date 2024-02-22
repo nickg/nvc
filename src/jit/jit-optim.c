@@ -1022,9 +1022,25 @@ void jit_do_cprop(jit_func_t *f)
             ir->arg2 = copy;
       }
 
-      if (ir->op == J_MOV && ir->arg1.kind == JIT_VALUE_INT64)
+      if (ir->result == JIT_REG_INVALID)
+         continue;
+      else if (ir->op == MACRO_MEMSET || ir->op == MACRO_COPY
+               || ir->op == MACRO_MOVE || ir->op == MACRO_BZERO)
+         continue;   // Does not write to result
+      else if (map[ir->result].kind != JIT_VALUE_INVALID) {
+         // Invalidate any existing copies of this register
+         for (int j = 0; j < f->nregs; j++) {
+            if (map[j].kind == JIT_VALUE_REG && map[j].reg == ir->result)
+               map[j].kind = JIT_VALUE_INVALID;
+         }
+      }
+
+      if (ir->op == J_MOV) {
          map[ir->result] = ir->arg1;
-      else if (ir->result != JIT_REG_INVALID)
+         if (ir->arg1.kind == JIT_VALUE_REG)
+            map[ir->arg1.reg] = ir->arg1;
+      }
+      else
          map[ir->result].kind = JIT_VALUE_INVALID;
    }
 }

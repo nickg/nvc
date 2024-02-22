@@ -2004,17 +2004,19 @@ START_TEST(test_cprop2)
 
    const char *text1 =
       "    MOV    R1, R0      \n"
+      "    MOV    R2, R1      \n"
       "    ADD    R0, R0, #1  \n"
       "    ADD    R1, R1, #1  \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
 
-   jit_func_t *f = jit_get_func(j, h1);
-   jit_do_cprop(f);
+   jit_func_t *f1 = jit_get_func(j, h1);
+   jit_do_cprop(f1);
 
-   check_unary(f, 0, J_MOV, REG(0));
-   check_binary(f, 1, J_ADD, REG(0), CONST(1));
-   check_binary(f, 2, J_ADD, REG(1), CONST(1));
+   check_unary(f1, 0, J_MOV, REG(0));
+   check_unary(f1, 1, J_MOV, REG(0));
+   check_binary(f1, 2, J_ADD, REG(0), CONST(1));
+   check_binary(f1, 3, J_ADD, REG(1), CONST(1));
 
    jit_free(j);
 }
