@@ -683,6 +683,9 @@ void vcode_opt(void)
             case VCODE_OP_TRAP_MUL:
             case VCODE_OP_TRAP_EXP:
             case VCODE_OP_ALLOC:
+            case VCODE_OP_FUNCTION_TRIGGER:
+            case VCODE_OP_CMP_TRIGGER:
+            case VCODE_OP_OR_TRIGGER:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal_trace("definition of r%d does not dominate all uses",
@@ -963,6 +966,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap exp", "implicit event", "enter state", "reflect value",
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
+      "or trigger", "cmp trigger"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2251,6 +2255,21 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   if (i > 0) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_OR_TRIGGER:
+         case VCODE_OP_CMP_TRIGGER:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               if (op->kind == VCODE_OP_OR_TRIGGER)
+                  col += printf(" || ");
+               else
+                  col += printf(" == ");
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5882,6 +5901,34 @@ vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
 
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(op, args[i]);
+
+   return (op->result = vcode_add_reg(vtype_trigger()));
+}
+
+vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right)
+{
+   op_t *op = vcode_add_op(VCODE_OP_OR_TRIGGER);
+   vcode_add_arg(op, left);
+   vcode_add_arg(op, right);
+
+   VCODE_ASSERT(vcode_reg_kind(left) == VCODE_TYPE_TRIGGER,
+                "or trigger left argument must be trigger");
+   VCODE_ASSERT(vcode_reg_kind(right) == VCODE_TYPE_TRIGGER,
+                "or trigger right argument must be trigger");
+
+   return (op->result = vcode_add_reg(vtype_trigger()));
+}
+
+vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CMP_TRIGGER);
+   vcode_add_arg(op, left);
+   vcode_add_arg(op, right);
+
+   VCODE_ASSERT(vcode_reg_kind(left) == VCODE_TYPE_SIGNAL,
+                "cmp trigger left argument must be signal");
+   VCODE_ASSERT(vcode_reg_kind(right) == VCODE_TYPE_INT,
+                "cmp trigger right argument must be integer");
 
    return (op->result = vcode_add_reg(vtype_trigger()));
 }

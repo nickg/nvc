@@ -34,13 +34,19 @@ typedef enum {
 
 typedef uint32_t wakeup_gen_t;
 
-typedef struct {
-   jit_handle_t handle;
-   unsigned     nargs;
-   uint64_t     when;
-   unsigned     iteration;
-   jit_scalar_t result;
-   jit_scalar_t args[0];
+typedef enum {
+   FUNC_TRIGGER, OR_TRIGGER, CMP_TRIGGER
+} trigger_kind_t;
+
+typedef struct _rt_trigger {
+   jit_handle_t    handle;
+   unsigned        nargs;
+   uint64_t        when;
+   unsigned        iteration;
+   trigger_kind_t  kind;
+   rt_trigger_t   *chain;
+   jit_scalar_t    result;
+   jit_scalar_t    args[0];
 } rt_trigger_t;
 
 typedef struct {

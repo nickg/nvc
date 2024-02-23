@@ -925,11 +925,36 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_FUNCTION_TRIGGER:
       {
-         jit_handle_t  handle  = args[0].integer;
-         unsigned      nargs   = args[1].integer;
+         jit_handle_t handle = args[0].integer;
+         unsigned     nargs  = args[1].integer;
 
          if (jit_has_runtime(thread->jit))
             args[0].pointer = x_function_trigger(handle, nargs, args + 2);
+         else
+            args[0].pointer = NULL;   // Called during constant folding
+      }
+      break;
+
+   case JIT_EXIT_OR_TRIGGER:
+      {
+         void *left  = args[0].pointer;
+         void *right = args[1].pointer;
+
+         if (jit_has_runtime(thread->jit))
+            args[0].pointer = x_or_trigger(left, right);
+         else
+            args[0].pointer = NULL;   // Called during constant folding
+      }
+      break;
+
+   case JIT_EXIT_CMP_TRIGGER:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int64_t       right  = args[2].integer;
+
+         if (jit_has_runtime(thread->jit))
+            args[0].pointer = x_cmp_trigger(shared, offset, right);
          else
             args[0].pointer = NULL;   // Called during constant folding
       }

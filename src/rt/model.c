@@ -2632,28 +2632,65 @@ static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
    return untag_pointer(value, rt_proc_t) == search;
 }
 
+static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
+{
+   if (t->when == m->now && t->iteration == m->iteration)
+      return t->result.integer != 0;   // Cached
+
+   switch (t->kind) {
+   case FUNC_TRIGGER:
+      {
+         tlab_t tlab = jit_null_tlab(m->jit);
+         if (!jit_vfastcall(m->jit, t->handle, &t->result, t->nargs,
+                            t->args, &tlab))
+            m->force_stop = true;
+
+         TRACE("run trigger %p %s ==> %"PRIi64, t,
+               istr(jit_get_name(m->jit, t->handle)), t->result.integer);
+      }
+      break;
+
+   case OR_TRIGGER:
+      {
+         rt_trigger_t *left = t->args[0].pointer;
+         rt_trigger_t *right = t->args[1].pointer;
+         t->result.integer = run_trigger(m, left) || run_trigger(m, right);
+
+         TRACE("or trigger %p ==> %"PRIi64, t, t->result.integer);
+      }
+      break;
+
+   case CMP_TRIGGER:
+      {
+         rt_signal_t *s = t->args[0].pointer;
+         uint32_t offset = t->args[1].integer;
+         int64_t right = t->args[2].integer;
+
+#define COMPARE_SCALAR(type) do {                                       \
+            const type *data = (type *)s->shared.data;                  \
+            t->result.integer = (data[offset] == right);                \
+      } while (0)
+
+         FOR_ALL_SIZES(s->nexus.size, COMPARE_SCALAR);
+
+         TRACE("cmp trigger %p ==> %"PRIi64, t, t->result.integer);
+      }
+      break;
+   }
+
+   t->when = m->now;
+   t->iteration = m->iteration;
+
+   return t->result.integer != 0;
+}
+
 static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 {
    if (obj->pending)
       return;   // Already scheduled
 
-   if (obj->trigger != NULL) {
-      rt_trigger_t *t = obj->trigger;
-
-      if (t->when != m->now || t->iteration != m->iteration) {
-         tlab_t tlab = jit_null_tlab(m->jit);
-         jit_vfastcall(m->jit, t->handle, &t->result, t->nargs, t->args, &tlab);
-
-         TRACE("run trigger %p %s ==> %"PRIi64, t,
-               istr(jit_get_name(m->jit, t->handle)), t->result.integer);
-
-         t->when = m->now;
-         t->iteration = m->iteration;
-      }
-
-      if (t->result.integer == 0)
-         return;   // Filtered
-   }
+   if (obj->trigger != NULL && !run_trigger(m, obj->trigger))
+      return;   // Filtered
 
    deferq_t *dq = obj->postponed ? &m->postponedq : &m->procq;
 
@@ -3557,6 +3594,37 @@ int32_t *get_cover_counter(rt_model_t *m, int32_t tag)
    return jit_get_cover_mem(m->jit, tag + 1) + tag;
 }
 
+static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
+                                 uint64_t hash, jit_handle_t handle,
+                                 unsigned nargs, const jit_scalar_t *args)
+{
+   rt_trigger_t **bucket = &(m->triggertab[hash % TRIGGER_TAB_SIZE]);
+
+   for (rt_trigger_t *exist = *bucket; exist; exist = exist->chain) {
+      bool hit = exist->handle == handle
+         && exist->nargs == nargs
+         && exist->kind == kind;
+
+      for (int i = 0; hit && i < nargs; i++)
+         hit &= (exist->args[i].integer == args[i].integer);
+
+      if (hit)
+         return exist;
+   }
+
+   const size_t argsz = nargs * sizeof(jit_scalar_t);
+
+   rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t) + argsz);
+   t->handle = handle;
+   t->nargs  = nargs;
+   t->when   = TIME_HIGH;
+   t->kind   = kind;
+   t->chain  = *bucket;
+   memcpy(t->args, args, argsz);
+
+   return (*bucket = t);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -4268,33 +4336,42 @@ void *x_function_trigger(jit_handle_t handle, unsigned nargs,
    TRACE("function trigger %s nargs=%u hash=%"PRIx64,
          istr(jit_get_name(m->jit, handle)), nargs, hash);
 
-   rt_trigger_t *exist = m->triggertab[hash % TRIGGER_TAB_SIZE];
-   if (exist != NULL) {
-      bool hit = exist->handle == handle && exist->nargs == nargs;
-      for (int i = 0; hit && i < nargs; i++)
-         hit &= (exist->args[i].integer == args[i].integer);
+   return new_trigger(m, FUNC_TRIGGER, hash, handle, nargs, args);
+}
 
-      if (hit)
-         return exist;
-   }
+void *x_or_trigger(void *left, void *right)
+{
+   rt_model_t *m = get_model();
 
-   const size_t argsz = nargs * sizeof(jit_scalar_t);
+   uint64_t hash = mix_bits_64(left) ^ mix_bits_64(right);
 
-   rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t) + argsz);
-   t->handle = handle;
-   t->nargs  = nargs;
-   t->when   = TIME_HIGH;
-   memcpy(t->args, args, argsz);
+   TRACE("or trigger %p %p hash=%"PRIx64, left, right, hash);
 
-   return (m->triggertab[hash % TRIGGER_TAB_SIZE] = t);
+   const jit_scalar_t args[] = { { .pointer = left }, { .pointer = right } };
+   return new_trigger(m, OR_TRIGGER, hash, JIT_HANDLE_INVALID, 2, args);
+}
+
+void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right)
+{
+   rt_model_t *m = get_model();
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   uint64_t hash = mix_bits_64(s) ^ mix_bits_32(offset) ^ mix_bits_64(right);
+
+   TRACE("cmp trigger %s+%d right=%"PRIi64" hash=%"PRIx64,
+         istr(tree_ident(s->where)), offset, right, hash);
+
+   const jit_scalar_t args[] = {
+      { .pointer = s },
+      { .integer = offset },
+      { .integer = right }
+   };
+   return new_trigger(m, CMP_TRIGGER, hash, JIT_HANDLE_INVALID, 3, args);
 }
 
 void x_add_trigger(void *ptr)
 {
-   rt_model_t *m = get_model();
-
-   TRACE("add trigger %p %s", ptr,
-         istr(jit_get_name(m->jit, ((rt_trigger_t *)ptr)->handle)));
+   TRACE("add trigger %p", ptr);
 
    rt_wakeable_t *obj = get_active_wakeable();
    assert(obj->trigger == NULL);

@@ -250,6 +250,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_PUSH_SCOPE:
       case VCODE_OP_POP_SCOPE:
       case VCODE_OP_ADD_TRIGGER:
+      case VCODE_OP_OR_TRIGGER:
+      case VCODE_OP_CMP_TRIGGER:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -6058,6 +6060,73 @@ START_TEST(test_trigger1)
 
       CHECK_BB(0);
    }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRIGGER1.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .name = "CLK", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRIGGER1.P3");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .name = "Y", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .name = "RSTN", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_VAR_UPREF, .name = "CLK", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CMP_TRIGGER },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+         { VCODE_OP_FUNCTION_TRIGGER, .func = "WORK.TRIGGER1.RISING(sJ)B" },
+         { VCODE_OP_OR_TRIGGER },
+         { VCODE_OP_ADD_TRIGGER },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRIGGER1.P4");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .name = "Z", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .name = "CLK", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CMP_TRIGGER },
+         { VCODE_OP_ADD_TRIGGER },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
 }
 END_TEST
 

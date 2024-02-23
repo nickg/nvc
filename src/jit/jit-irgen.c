@@ -3391,6 +3391,34 @@ static void irgen_op_function_trigger(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
+static void irgen_op_or_trigger(jit_irgen_t *g, int op)
+{
+   jit_value_t left = irgen_get_arg(g, op, 0);
+   jit_value_t right = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, left);
+   j_send(g, 1, right);
+
+   macro_exit(g, JIT_EXIT_OR_TRIGGER);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_cmp_trigger(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t right = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, right);
+
+   macro_exit(g, JIT_EXIT_CMP_TRIGGER);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
 static void irgen_op_add_trigger(jit_irgen_t *g, int op)
 {
    jit_value_t trigger = irgen_get_arg(g, op, 0);
@@ -3856,6 +3884,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_FUNCTION_TRIGGER:
          irgen_op_function_trigger(g, i);
+         break;
+      case VCODE_OP_OR_TRIGGER:
+         irgen_op_or_trigger(g, i);
+         break;
+      case VCODE_OP_CMP_TRIGGER:
+         irgen_op_cmp_trigger(g, i);
          break;
       case VCODE_OP_ADD_TRIGGER:
          irgen_op_add_trigger(g, i);

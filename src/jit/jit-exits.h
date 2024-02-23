@@ -92,6 +92,8 @@ void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
 void *x_function_trigger(jit_handle_t handle, unsigned nargs,
                          const jit_scalar_t *args);
+void *x_or_trigger(void *left, void *right);
+void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right);
 void x_add_trigger(void *ptr);
 void *x_port_conversion(const ffi_closure_t *driving,
                         const ffi_closure_t *effective);

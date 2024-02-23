@@ -1376,11 +1376,13 @@ static void declare_predefined_ops(tree_t container, type_t t)
       if (t == std_bool || t == (std_bit = std_type(NULL, STD_BIT))) {
          tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
                                 S_RISING_EDGE, "S", t, NULL);
+         mangle_func(nametab, d1);
          tree_set_class(tree_port(d1, 0), C_SIGNAL);
          tree_add_decl(container, d1);
 
          tree_t d2 = builtin_fn(ident_new("FALLING_EDGE"), std_bool,
                                 S_FALLING_EDGE, "S", t, NULL);
+         mangle_func(nametab, d2);
          tree_set_class(tree_port(d2, 0), C_SIGNAL);
          tree_add_decl(container, d2);
 

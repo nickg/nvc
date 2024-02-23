@@ -2011,22 +2011,6 @@ static void lower_release_temp(lower_unit_t *lu, vcode_var_t tmp)
    APUSH(lu->free_temps, tmp);
 }
 
-static vcode_reg_t lower_falling_rising_edge(lower_unit_t *lu, tree_t fcall,
-                                             subprogram_kind_t kind)
-{
-   tree_t p0 = tree_value(tree_param(fcall, 0));
-
-   vcode_reg_t nets_reg  = lower_lvalue(lu, p0);
-   vcode_reg_t value_reg = lower_rvalue(lu, p0);
-
-   if (kind == S_FALLING_EDGE)
-      value_reg = emit_not(value_reg);
-
-   vcode_reg_t event_reg =
-      emit_event_flag(nets_reg, emit_const(vtype_offset(), 1));
-   return emit_and(event_reg, value_reg);
-}
-
 static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
                                        subprogram_kind_t builtin)
 {
@@ -2261,8 +2245,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       return lower_short_circuit(lu, fcall, builtin);
    else if (builtin == S_CONCAT)
       return lower_concat(lu, fcall, VCODE_INVALID_REG, VCODE_INVALID_REG);
-   else if (builtin == S_RISING_EDGE || builtin == S_FALLING_EDGE)
-      return lower_falling_rising_edge(lu, fcall, builtin);
 
    vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
@@ -10897,6 +10879,19 @@ static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
    emit_return(emit_load(status_var));
 }
 
+static void lower_edge_predef(lower_unit_t *lu, tree_t decl)
+{
+   vcode_reg_t nets_reg  = vcode_param_reg(1);
+   vcode_reg_t value_reg = emit_load_indirect(emit_resolved(nets_reg));
+
+   if (tree_subkind(decl) == S_FALLING_EDGE)
+      value_reg = emit_not(value_reg);
+
+   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+   vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
+   emit_return(emit_and(event_reg, value_reg));
+}
+
 static void lower_predef(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -11038,6 +11033,9 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_FILE_POSITION:
       lower_foreign_predef(lu, decl, "__nvc_file_position");
       break;
+   case S_RISING_EDGE:
+   case S_FALLING_EDGE:
+      return lower_edge_predef(lu, decl);
    default:
       fatal_trace("cannot lower predefined function %s", type_pp(type));
    }
@@ -11194,20 +11192,81 @@ static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
    return true;
 }
 
-static vcode_reg_t lower_func_trigger(lower_unit_t *lu, tree_t fcall)
+static vcode_reg_t lower_trigger(lower_unit_t *lu, tree_t fcall, tree_t proc)
 {
    tree_t decl = tree_ref(fcall);
 
-   if (tree_subkind(decl) != S_USER)
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (kind == S_SCALAR_EQ) {
+      tree_t p0 = tree_value(tree_param(fcall, 0)), p1;
+
+      if (is_literal(p0))   // Commute arguments
+         p1 = p0, p0 = tree_value(tree_param(fcall, 1));
+      else
+         p1 = tree_value(tree_param(fcall, 1));
+
+      if (tree_kind(p0) != T_REF || class_of(p0) != C_SIGNAL)
+         return VCODE_INVALID_REG;
+      else if (!is_literal(p1))
+         return VCODE_INVALID_REG;
+
+      vcode_reg_t left_reg = lower_lvalue(lu, p0);
+      vcode_reg_t right_reg = lower_rvalue(lu, p1);
+
+      return emit_cmp_trigger(left_reg, right_reg);
+   }
+   else if (kind == S_SCALAR_AND) {
+      // Testing x'event is redundant if the process is only
+      // sensistive to x
+      tree_t w = tree_stmt(proc, 1);
+      assert(tree_kind(w) == T_WAIT);
+
+      if (tree_triggers(w) != 1)
+         return VCODE_INVALID_REG;
+
+      tree_t p0 = tree_value(tree_param(fcall, 0));
+      tree_t p1 = tree_value(tree_param(fcall, 1));
+      tree_t aref, other;
+
+      if (tree_kind(p0) == T_ATTR_REF)
+         aref = p0, other = p1;
+      else if (tree_kind(p1) == T_ATTR_REF)
+         aref = p1, other = p0;
+      else
+         return VCODE_INVALID_REG;
+
+      if (tree_subkind(aref) != ATTR_EVENT)
+         return VCODE_INVALID_REG;
+      else if (tree_kind(other) != T_FCALL)
+         return VCODE_INVALID_REG;
+
+      if (!same_tree(tree_name(aref), tree_trigger(w, 0)))
+         return VCODE_INVALID_REG;
+
+      return lower_trigger(lu, other, proc);
+   }
+   else if (kind != S_USER && kind != S_FALLING_EDGE && kind != S_RISING_EDGE)
       return VCODE_INVALID_REG;
    else if (tree_flags(decl) & TREE_F_IMPURE)
       return VCODE_INVALID_REG;
 
    const int nparams = tree_params(fcall);
+   if (nparams != tree_ports(decl))
+      return VCODE_INVALID_REG;
+
    for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_value(tree_param(fcall, i));
-      const tree_kind_t kind = tree_kind(p);
-      if (kind != T_LITERAL && (kind != T_REF || class_of(p) != C_SIGNAL))
+      tree_t p = tree_param(fcall, i);
+      tree_t value = tree_value(p);
+      if (is_literal(value))
+         continue;
+      else if (tree_kind(value) == T_REF && class_of(value) == C_SIGNAL) {
+         // Must be passing as a signal not the resolved value
+         if (tree_subkind(p) != P_POS)
+            return VCODE_INVALID_REG;
+         else if (tree_class(tree_port(decl, tree_pos(p))) != C_SIGNAL)
+            return VCODE_INVALID_REG;
+      }
+      else
          return VCODE_INVALID_REG;
    }
 
@@ -11224,7 +11283,9 @@ static vcode_reg_t lower_func_trigger(lower_unit_t *lu, tree_t fcall)
 
 static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
 {
-   if (tree_stmts(proc) != 2)
+   if (cover_enabled(lu->cover, COVER_MASK_BRANCH | COVER_MASK_EXPRESSION))
+      return VCODE_INVALID_REG;   // Would have incorrect branch coverage
+   else if (tree_stmts(proc) != 2)
       return VCODE_INVALID_REG;
 
    // Preconditions
@@ -11234,14 +11295,31 @@ static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
    tree_t s0 = tree_stmt(proc, 0);
    if (tree_kind(s0) != T_IF)
       return VCODE_INVALID_REG;
-   else if (tree_conds(s0) != 1)
+
+   const int nconds = tree_conds(s0);
+   if (nconds > 2)
       return VCODE_INVALID_REG;
 
-   tree_t value = tree_value(tree_cond(s0, 0));
-   if (tree_kind(value) != T_FCALL)
-      return VCODE_INVALID_REG;
+   vcode_reg_t branches[2] = { VCODE_INVALID_REG, VCODE_INVALID_REG };
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(s0, i);
+      if (!tree_has_value(c))
+         return VCODE_INVALID_REG;
 
-   return lower_func_trigger(lu, value);
+      tree_t value = tree_value(c);
+      if (tree_kind(value) != T_FCALL)
+         return VCODE_INVALID_REG;
+
+      branches[i] = lower_trigger(lu, value, proc);
+   }
+
+   if (nconds == 1)
+      return branches[0];
+   else if (branches[0] == VCODE_INVALID_REG
+            || branches[1] == VCODE_INVALID_REG)
+      return VCODE_INVALID_REG;
+   else
+      return emit_or_trigger(branches[0], branches[1]);
 }
 
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)

@@ -1388,8 +1388,6 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_MUL_RI:
    case S_MUL_IR:
    case S_DIV_RI:
-   case S_RISING_EDGE:
-   case S_FALLING_EDGE:
    case S_CONCAT:
    case S_SCALAR_AND:
    case S_SCALAR_OR:

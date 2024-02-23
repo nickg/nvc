@@ -164,6 +164,8 @@ typedef enum {
    VCODE_OP_CONVERT_IN,
    VCODE_OP_CONVERT_OUT,
    VCODE_OP_BIND_FOREIGN,
+   VCODE_OP_OR_TRIGGER,
+   VCODE_OP_CMP_TRIGGER,
 } vcode_op_t;
 
 typedef enum {
@@ -518,6 +520,8 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
                                  vcode_reg_t locus, vcode_reg_t bounds);
 vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
                                   int nargs);
+vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right);
+vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right);
 void emit_add_trigger(vcode_reg_t trigger);
 vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective);
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);

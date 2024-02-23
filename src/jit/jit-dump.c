@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -88,6 +88,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "CLEAR_EVENT", "IMPLICIT_EVENT", "ENTER_STATE", "REFLECT_VALUE",
       "REFLECT_SUBTYPE", "FUNCTION_TRIGGER", "ADD_TRIGGER", "TRANSFER_SIGNAL",
       "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
+      "OR_TRIGGER",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
