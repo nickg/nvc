@@ -927,6 +927,9 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
 
    thread->active_obj = NULL;
    thread->active_scope = NULL;
+
+   // Schedule the process to run immediately
+   deltaq_insert_proc(m, 0, proc);
 }
 
 static void reset_property(rt_model_t *m, rt_prop_t *prop)

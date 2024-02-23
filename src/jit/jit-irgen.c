@@ -4211,12 +4211,6 @@ void jit_irgen(jit_func_t *f)
       j_jump(g, JIT_CC_F, g->blocks[1]);
    }
 
-   if (kind == VCODE_UNIT_PROCESS) {
-      // Schedule the process to run immediately
-      j_send(g, 0, jit_value_from_int64(0));
-      macro_exit(g, JIT_EXIT_SCHED_PROCESS);
-   }
-
    if (g->statereg.kind != JIT_VALUE_INVALID) {
       // Stash context pointer
       jit_value_t context = has_params ? g->map[0] : j_recv(g, first_param);
