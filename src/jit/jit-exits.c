@@ -926,12 +926,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_EXIT_FUNCTION_TRIGGER:
       {
          jit_handle_t  handle  = args[0].integer;
-         void         *context = args[1].pointer;
+         unsigned      nargs   = args[1].integer;
 
-         if (jit_has_runtime(thread->jit)) {
-            ffi_closure_t closure = { handle, context };
-            args[0].pointer = x_function_trigger(&closure);
-         }
+         if (jit_has_runtime(thread->jit))
+            args[0].pointer = x_function_trigger(handle, nargs, args + 2);
          else
             args[0].pointer = NULL;   // Called during constant folding
       }

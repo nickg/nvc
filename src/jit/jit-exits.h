@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -90,7 +90,8 @@ void *x_reflect_value(void *context, jit_scalar_t value, tree_t where,
                       const jit_scalar_t *bounds);
 void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
-void *x_function_trigger(const ffi_closure_t *closure);
+void *x_function_trigger(jit_handle_t handle, unsigned nargs,
+                         const jit_scalar_t *args);
 void x_add_trigger(void *ptr);
 void *x_port_conversion(const ffi_closure_t *driving,
                         const ffi_closure_t *effective);

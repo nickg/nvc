@@ -11194,6 +11194,56 @@ static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
    return true;
 }
 
+static vcode_reg_t lower_func_trigger(lower_unit_t *lu, tree_t fcall)
+{
+   tree_t decl = tree_ref(fcall);
+
+   if (tree_subkind(decl) != S_USER)
+      return VCODE_INVALID_REG;
+   else if (tree_flags(decl) & TREE_F_IMPURE)
+      return VCODE_INVALID_REG;
+
+   const int nparams = tree_params(fcall);
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_value(tree_param(fcall, i));
+      const tree_kind_t kind = tree_kind(p);
+      if (kind != T_LITERAL && (kind != T_REF || class_of(p) != C_SIGNAL))
+         return VCODE_INVALID_REG;
+   }
+
+   ident_t name = tree_ident2(decl);
+
+   vcode_reg_t *args LOCAL = xmalloc_array(nparams + 1, sizeof(vcode_reg_t));
+   args[0] = lower_context_for_call(lu, name);
+
+   for (int i = 0; i < nparams; i++)
+      args[i + 1] = lower_subprogram_arg(lu, fcall, i);
+
+   return emit_function_trigger(name, args, nparams + 1);
+}
+
+static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
+{
+   if (tree_stmts(proc) != 2)
+      return VCODE_INVALID_REG;
+
+   // Preconditions
+   assert(tree_kind(tree_stmt(proc, 1)) == T_WAIT);
+   assert(tree_flags(tree_stmt(proc, 1)) & TREE_F_STATIC_WAIT);
+
+   tree_t s0 = tree_stmt(proc, 0);
+   if (tree_kind(s0) != T_IF)
+      return VCODE_INVALID_REG;
+   else if (tree_conds(s0) != 1)
+      return VCODE_INVALID_REG;
+
+   tree_t value = tree_value(tree_cond(s0, 0));
+   if (tree_kind(value) != T_FCALL)
+      return VCODE_INVALID_REG;
+
+   return lower_func_trigger(lu, value);
+}
+
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 {
    assert(tree_kind(proc) == T_PROCESS);
@@ -11279,6 +11329,10 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
          const int ntriggers = tree_triggers(wait);
          for (int i = 0; i < ntriggers; i++)
             lower_sched_event(lu, tree_trigger(wait, i), VCODE_INVALID_REG);
+
+         vcode_reg_t trigger_reg = lower_process_trigger(lu, proc);
+         if (trigger_reg != VCODE_INVALID_REG)
+            emit_add_trigger(trigger_reg);
       }
    }
 

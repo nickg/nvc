@@ -49,7 +49,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT \
+    || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_LINK_INSTANCE)
@@ -2244,8 +2245,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_FUNCTION_TRIGGER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
+               col += color_printf(" := %s $magenta$%s$$ ",
+                                   vcode_op_string(op->kind), istr(op->func));
+               for (int i = 0; i < op->args.count; i++) {
+                  if (i > 0) col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5869,13 +5874,14 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
    return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
 }
 
-vcode_reg_t emit_function_trigger(vcode_reg_t closure)
+vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
+                                  int nargs)
 {
    op_t *op = vcode_add_op(VCODE_OP_FUNCTION_TRIGGER);
-   vcode_add_arg(op, closure);
+   op->func = func;
 
-   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
-                "argument to function trigger must be a closure");
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(op, args[i]);
 
    return (op->result = vcode_add_reg(vtype_trigger()));
 }
@@ -5971,6 +5977,7 @@ void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
          case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
          case VCODE_OP_PACKAGE_INIT:
+         case VCODE_OP_FUNCTION_TRIGGER:
             (*fn)(vcode_get_func(op), ctx);
             break;
          default:

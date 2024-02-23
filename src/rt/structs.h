@@ -35,7 +35,12 @@ typedef enum {
 typedef uint32_t wakeup_gen_t;
 
 typedef struct {
-   ffi_closure_t closure;
+   jit_handle_t handle;
+   unsigned     nargs;
+   uint64_t     when;
+   unsigned     iteration;
+   jit_scalar_t result;
+   jit_scalar_t args[0];
 } rt_trigger_t;
 
 typedef struct {

@@ -58,6 +58,7 @@ typedef enum {
 
 #define MEMBLOCK_LINE_SZ 64
 #define MEMBLOCK_PAGE_SZ 0x800000
+#define TRIGGER_TAB_SIZE 64
 
 typedef struct _memblock {
    memblock_t *chain;
@@ -121,6 +122,7 @@ typedef struct _rt_model {
    model_thread_t    *threads[MAX_THREADS];
    ptr_list_t         eventsigs;
    bool               shuffle;
+   rt_trigger_t      *triggertab[TRIGGER_TAB_SIZE];
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -2636,19 +2638,20 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
       return;   // Already scheduled
 
    if (obj->trigger != NULL) {
-      tlab_t tlab = jit_null_tlab(m->jit);
-      jit_scalar_t result,
-         arg1 = { .pointer = obj->trigger->closure.context },
-         arg2 = { .integer = 0 };
+      rt_trigger_t *t = obj->trigger;
 
-      jit_fastcall(m->jit, obj->trigger->closure.handle, &result,
-                   arg1, arg2, &tlab);
+      if (t->when != m->now || t->iteration != m->iteration) {
+         tlab_t tlab = jit_null_tlab(m->jit);
+         jit_vfastcall(m->jit, t->handle, &t->result, t->nargs, t->args, &tlab);
 
-      TRACE("run trigger %s ==> %"PRIi64,
-            istr(jit_get_name(m->jit, obj->trigger->closure.handle)),
-            result.integer);
+         TRACE("run trigger %p %s ==> %"PRIi64, t,
+               istr(jit_get_name(m->jit, t->handle)), t->result.integer);
 
-      if (result.integer == 0)
+         t->when = m->now;
+         t->iteration = m->iteration;
+      }
+
+      if (t->result.integer == 0)
          return;   // Filtered
    }
 
@@ -4253,17 +4256,37 @@ void x_process_init(jit_handle_t handle, tree_t where)
    list_add(&s->procs, p);
 }
 
-void *x_function_trigger(const ffi_closure_t *closure)
+void *x_function_trigger(jit_handle_t handle, unsigned nargs,
+                         const jit_scalar_t *args)
 {
    rt_model_t *m = get_model();
 
-   TRACE("function trigger %s context %p",
-         istr(jit_get_name(m->jit, closure->handle)), closure->context);
+   uint64_t hash = mix_bits_32(handle);
+   for (int i = 0; i < nargs; i++)
+      hash ^= mix_bits_64(args[i].integer);
 
-   rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t));
-   t->closure = *closure;
+   TRACE("function trigger %s nargs=%u hash=%"PRIx64,
+         istr(jit_get_name(m->jit, handle)), nargs, hash);
 
-   return t;
+   rt_trigger_t *exist = m->triggertab[hash % TRIGGER_TAB_SIZE];
+   if (exist != NULL) {
+      bool hit = exist->handle == handle && exist->nargs == nargs;
+      for (int i = 0; hit && i < nargs; i++)
+         hit &= (exist->args[i].integer == args[i].integer);
+
+      if (hit)
+         return exist;
+   }
+
+   const size_t argsz = nargs * sizeof(jit_scalar_t);
+
+   rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t) + argsz);
+   t->handle = handle;
+   t->nargs  = nargs;
+   t->when   = TIME_HIGH;
+   memcpy(t->args, args, argsz);
+
+   return (m->triggertab[hash % TRIGGER_TAB_SIZE] = t);
 }
 
 void x_add_trigger(void *ptr)
@@ -4271,7 +4294,7 @@ void x_add_trigger(void *ptr)
    rt_model_t *m = get_model();
 
    TRACE("add trigger %p %s", ptr,
-         istr(jit_get_name(m->jit, ((rt_trigger_t *)ptr)->closure.handle)));
+         istr(jit_get_name(m->jit, ((rt_trigger_t *)ptr)->handle)));
 
    rt_wakeable_t *obj = get_active_wakeable();
    assert(obj->trigger == NULL);

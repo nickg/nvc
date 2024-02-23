@@ -760,6 +760,17 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    return jit_try_vcall(j, f, result, args, tlab);
 }
 
+bool jit_vfastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
+                   unsigned nargs, const jit_scalar_t *inargs, tlab_t *tlab)
+{
+   jit_func_t *f = jit_get_func(j, handle);
+
+   jit_scalar_t args[JIT_MAX_ARGS];
+   memcpy(args, inargs, nargs * sizeof(jit_scalar_t));
+
+   return jit_try_vcall(j, f, result, args, tlab);
+}
+
 bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
                          void *input, size_t insz, void *output, size_t outsz)
 {

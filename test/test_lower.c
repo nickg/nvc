@@ -90,6 +90,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          // Fall-through
       case VCODE_OP_FCALL:
       case VCODE_OP_CLOSURE:
+      case VCODE_OP_FUNCTION_TRIGGER:
          if (!fuzzy_cmp(vcode_get_func(i), e->func)) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to call %s but calls %s",
@@ -248,6 +249,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TRAP_EXP:
       case VCODE_OP_PUSH_SCOPE:
       case VCODE_OP_POP_SCOPE:
+      case VCODE_OP_ADD_TRIGGER:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -6030,6 +6032,35 @@ START_TEST(test_issue844)
 }
 END_TEST
 
+START_TEST(test_trigger1)
+{
+   input_from_file(TESTDIR "/lower/trigger1.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.TRIGGER1.P1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
+         { VCODE_OP_VAR_UPREF, .name = "CLK", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_SCHED_EVENT },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+         { VCODE_OP_FUNCTION_TRIGGER, .func = "WORK.TRIGGER1.RISING(sJ)B" },
+         { VCODE_OP_ADD_TRIGGER },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6174,6 +6205,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue837);
    tcase_add_test(tc, test_directmap6);
    tcase_add_test(tc, test_issue844);
+   tcase_add_test(tc, test_trigger1);
    suite_add_tcase(s, tc);
 
    return s;

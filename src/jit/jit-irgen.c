@@ -3374,11 +3374,18 @@ static void irgen_op_enter_state(jit_irgen_t *g, int op)
 
 static void irgen_op_function_trigger(jit_irgen_t *g, int op)
 {
-   jit_value_t closure = irgen_get_arg(g, op, 0);
-   jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_get_func(op));
 
-   j_send(g, 0, closure);
-   j_send(g, 1, context);
+   const int nargs = vcode_count_args(op);
+
+   int nslots = 0;
+   for (int i = 0; i < nargs; i++)
+      nslots += irgen_slots_for_type(vcode_reg_type(vcode_get_arg(op, i)));
+
+   j_send(g, 0, jit_value_from_handle(handle));
+   j_send(g, 1, jit_value_from_int64(nslots));
+   irgen_send_args(g, op, 2);
+
    macro_exit(g, JIT_EXIT_FUNCTION_TRIGGER);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);

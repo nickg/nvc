@@ -279,9 +279,8 @@ static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
    vcode_var_t var = emit_var(vtrigger, vtrigger, label, 0);
 
    vcode_reg_t context_reg = emit_context_upref(0);
-   vcode_reg_t closure_reg = emit_closure(name, context_reg,
-                                          VCODE_INVALID_TYPE, vtype_bool());
-   vcode_reg_t trigger_reg = emit_function_trigger(closure_reg);
+   vcode_reg_t args[] = { context_reg };
+   vcode_reg_t trigger_reg = emit_function_trigger(name, args, ARRAY_LEN(args));
    emit_store(trigger_reg, var);
 
    lower_put_vcode_obj(p, var, parent);
