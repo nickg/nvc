@@ -2079,14 +2079,21 @@ static void propagate_nexus(rt_model_t *m, rt_nexus_t *n, const void *resolved)
    // Must only be called once per cycle
    assert(n->last_event != m->now || n->event_delta != m->iteration);
 
-   const size_t valuesz = n->size * n->width;
+   unsigned char *eff = nexus_effective(n);
+   unsigned char *last = nexus_last_value(n);
 
    // LAST_VALUE is the same as the initial value when there have
    // been no events on the signal otherwise only update it when
    // there is an event
-   void *eff = nexus_effective(n);
-   memcpy(nexus_last_value(n), eff, valuesz);
-   memcpy(eff, resolved, valuesz);
+   if (n->size == 1 && n->width == 1) {
+      *last = *eff;
+      *eff = *(unsigned char *)resolved;
+   }
+   else {
+      const size_t valuesz = n->size * n->width;
+      memcpy(last, eff, valuesz);
+      memcpy(eff, resolved, valuesz);
+   }
 }
 
 static int nexus_rank(rt_nexus_t *n)
