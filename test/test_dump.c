@@ -483,6 +483,7 @@ START_TEST(test_vlog1)
              "    $finish;\n"
              "    r = 5'b1;\n"
              "    #5'b1 r <= 5'b0;\n"
+             "    r = ~w;\n"
              "  end\n"
              "  assign bus = 5'b11;\n"
              "  pullup (supply1,supply0) p1 (w);\n"

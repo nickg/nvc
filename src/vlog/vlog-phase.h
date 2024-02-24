@@ -25,6 +25,6 @@ vlog_node_t vlog_parse(void);
 void vlog_check(vlog_node_t v);
 void vlog_dump(vlog_node_t v, int indent);
 void vlog_trans(vlog_node_t mod, tree_t out);
-vcode_unit_t vlog_lower(unit_registry_t *ur, tree_t wrap);
+vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod);
 
 #endif  // _VLOG_PHASE_H

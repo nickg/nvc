@@ -2300,7 +2300,7 @@ void print_syntax(const char *fmt, ...)
          last_was_newline = false;
          highlighting = true;
       }
-      else if (*p == '~') {
+      else if (*p == '~' && *(p + 1) != '~') {
          tb_printf(tb, "$yellow$");
          last_was_newline = false;
          highlighting = true;

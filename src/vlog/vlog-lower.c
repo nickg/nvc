@@ -883,16 +883,13 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
    }
 }
 
-vcode_unit_t vlog_lower(unit_registry_t *ur, tree_t wrap)
+vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
 {
-   assert(tree_kind(wrap) == T_VERILOG);
-
-   vlog_node_t mod = tree_vlog(wrap);
    assert(vlog_kind(mod) == V_MODULE);
 
    ident_t name = ident_prefix(vlog_ident(mod), well_known(W_SHAPE), '.');
 
-   vcode_unit_t vu = emit_shape(name, tree_to_object(wrap), NULL);
+   vcode_unit_t vu = emit_shape(name, vlog_to_object(mod), NULL);
 
    lower_unit_t *lu = lower_unit_new(ur, NULL, vu, NULL, NULL);
    unit_registry_put(ur, lu);

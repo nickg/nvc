@@ -274,6 +274,16 @@ static void vlog_dump_binary(vlog_node_t v)
    vlog_dump(vlog_right(v), 0);
 }
 
+static void vlog_dump_unary(vlog_node_t v)
+{
+   switch (vlog_subkind(v)) {
+   case V_UNARY_NOT: print_syntax("!"); break;
+   case V_UNARY_BITNEG: print_syntax("~~"); break;
+   }
+
+   vlog_dump(vlog_value(v), 0);
+}
+
 static void vlog_dump_delay_control(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -379,6 +389,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_BINARY:
       vlog_dump_binary(v);
+      break;
+   case V_UNARY:
+      vlog_dump_unary(v);
       break;
    case V_DELAY_CONTROL:
       vlog_dump_delay_control(v, indent);

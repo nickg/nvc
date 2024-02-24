@@ -160,4 +160,16 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          CANNOT_HANDLE(d);
       }
    }
+
+   const int nstmts = vlog_stmts(mod);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(mod, i);
+
+      tree_t w = tree_new(T_VERILOG);
+      tree_set_ident(w, vlog_ident(s));
+      tree_set_loc(w, vlog_loc(s));
+      tree_set_vlog(w, s);
+
+      tree_add_stmt(out, w);
+   }
 }

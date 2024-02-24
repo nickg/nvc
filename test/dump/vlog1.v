@@ -15,6 +15,7 @@ module mod2;
     $finish;
     r = 1;
     #1 r <= 0;
+    r = ~w;
   end
   assign bus = 3;
   pullup (supply1, supply0) p1 (w);
