@@ -19,9 +19,12 @@
 #include "common.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
+
+#include <assert.h>
 
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
@@ -134,11 +137,22 @@ static void trans_var_decl(vlog_node_t decl, tree_t out)
 
 static void trans_net_decl(vlog_node_t decl, tree_t out)
 {
+   type_t type = trans_net_type(decl);
+
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(decl));
-   tree_set_type(t, trans_net_type(decl));
+   tree_set_type(t, type);
 
    tree_add_decl(out, t);
+
+   const vlog_net_kind_t kind = vlog_subkind(decl);
+   if (kind == V_NET_SUPPLY0 || kind == V_NET_SUPPLY1) {
+      type_t base = type_base_recur(type_elem_recur(type));
+      assert(type_kind(base) == T_ENUM);
+
+      const net_value_t init = (kind == V_NET_SUPPLY0 ? _SUPPLY0 : _SUPPLY1);
+      tree_set_value(t, make_ref(type_enum_literal(base, init)));
+   }
 }
 
 void vlog_trans(vlog_node_t mod, tree_t out)

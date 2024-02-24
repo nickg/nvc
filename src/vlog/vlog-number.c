@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "diag.h"
+#include "fbuf.h"
 #include "vlog/vlog-number.h"
 
 #include <assert.h>
@@ -219,10 +220,11 @@ number_t number_pack(const uint8_t *bits, unsigned width)
 
 void number_write(number_t val, fbuf_t *f)
 {
-
+   assert(val.tag);
+   fbuf_put_uint(f, val.bits);
 }
 
 number_t number_read(fbuf_t *f)
 {
-   return (number_t){ .bits = 0 };
+   return (number_t){ .bits = fbuf_get_uint(f) };
 }

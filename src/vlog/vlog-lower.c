@@ -21,6 +21,7 @@
 #include "lower.h"
 #include "tree.h"
 #include "vcode.h"
+#include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
@@ -38,18 +39,6 @@
    __attribute__((cleanup(emit_debug_info), unused))     \
    const loc_t _old_loc = *vcode_last_loc();             \
    emit_debug_info(vlog_loc((v)));                       \
-
-#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
-#define T_PACKED_LOGIC "26NVC.VERILOG.T_PACKED_LOGIC"
-#define T_INT64 "19NVC.VERILOG.T_INT64"
-#define T_NET_VALUE "23NVC.VERILOG.T_NET_VALUE"
-#define T_NET_ARRAY "23NVC.VERILOG.T_NET_ARRAY"
-
-typedef enum {
-   _X = 0, _SUPPLY0, _STRONG0, _PULL0, _LARGE0, _WEAK0, _MEDIUM0,
-   _SMALL0, _HIGHZ0, _HIGHZ1, _SMALL1, _MEDIUM1, _WEAK1, _LARGE1,
-   _PULL1, _STRONG1, _SUPPLY1
-} net_value_t;
 
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);

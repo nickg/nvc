@@ -2384,8 +2384,10 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
             if (error_count() == 0) {
                vlog_check(module);
 
-               if (error_count() == 0)
+               if (error_count() == 0) {
+                  vlog_simp(module);
                   lib_put_vlog(work, module);
+               }
             }
          }
       }

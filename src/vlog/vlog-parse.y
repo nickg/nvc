@@ -345,6 +345,9 @@ module_or_generate_item_declaration:
 net_declaration:
                 net_type list_of_net_identifiers ';'
                 {
+                   for (node_list_t *it = $2; it; it = it->next)
+                      vlog_set_subkind(it->value, $1);
+
                    $$ = $2;
                 }
         |       net_type '[' expression ':' expression ']'
@@ -359,6 +362,7 @@ net_declaration:
                    for (node_list_t *it = $7; it; it = it->next) {
                       vlog_add_range(it->value, r);
                       vlog_set_datatype(it->value, DT_LOGIC);
+                      vlog_set_subkind(it->value, $1);
                    }
 
                    $$ = $7;

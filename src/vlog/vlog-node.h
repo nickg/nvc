@@ -190,6 +190,10 @@ void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context);
 void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
                      vlog_kind_t kind);
 
+typedef vlog_node_t (*vlog_rewrite_fn_t)(vlog_node_t t, void *context);
+
+vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_fn_t fn, void *context);
+
 void vlog_locus(vlog_node_t v, ident_t *unit, ptrdiff_t *offset);
 
 object_t *vlog_to_object(vlog_node_t v);

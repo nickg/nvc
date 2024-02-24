@@ -750,7 +750,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (ctx->pre_fn[object->tag] != NULL)
       (*ctx->pre_fn[object->tag])(object, ctx->context);
 
-   const imask_t skip_mask = I_REF;
+   const imask_t skip_mask =
+      I_REF | ITEM_INT64 | ITEM_INT32 | ITEM_DOUBLE | ITEM_NUMBER | ITEM_TEXT;
 
    const object_class_t *class = classes[object->tag];
 
@@ -786,12 +787,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
                   (*a)->count = wptr;
             }
          }
-         else if (ITEM_INT64 & mask)
-            ;
-         else if (ITEM_INT32 & mask)
-            ;
-         else if (ITEM_DOUBLE & mask)
-            ;
          else
             item_without_type(mask);
       }

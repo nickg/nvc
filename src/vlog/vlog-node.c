@@ -454,6 +454,25 @@ void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
    object_visit(&(v->object), &ctx);
 }
 
+vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_fn_t fn, void *context)
+{
+   object_arena_t *arena = object_arena(&(v->object));
+   if (arena_frozen(arena))
+      return v;
+
+   object_rewrite_ctx_t ctx = {
+      .generation = object_next_generation(),
+      .context    = context,
+      .arena      = arena,
+   };
+
+   ctx.post_fn[OBJECT_TAG_VLOG] = (object_rewrite_post_fn_t)fn;
+
+   object_t *result = object_rewrite(&(v->object), &ctx);
+   free(ctx.cache);
+   return container_of(result, struct _vlog_node, object);
+}
+
 object_t *vlog_to_object(vlog_node_t v)
 {
    return &(v->object);

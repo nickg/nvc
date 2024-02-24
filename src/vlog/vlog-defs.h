@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024 Nick Gasson
+//  Copyright (C) 2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,17 +15,19 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _VLOG_PHASE_H
-#define _VLOG_PHASE_H
+#ifndef _VLOG_DEFS_H
+#define _VLOG_DEFS_H
 
-#include "prim.h"
+#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
+#define T_PACKED_LOGIC "26NVC.VERILOG.T_PACKED_LOGIC"
+#define T_INT64 "19NVC.VERILOG.T_INT64"
+#define T_NET_VALUE "23NVC.VERILOG.T_NET_VALUE"
+#define T_NET_ARRAY "23NVC.VERILOG.T_NET_ARRAY"
 
-void vlog_preprocess(text_buf_t *tb);
-vlog_node_t vlog_parse(void);
-void vlog_check(vlog_node_t v);
-void vlog_dump(vlog_node_t v, int indent);
-void vlog_simp(vlog_node_t mod);
-void vlog_trans(vlog_node_t mod, tree_t out);
-vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod);
+typedef enum {
+   _X = 0, _SUPPLY0, _STRONG0, _PULL0, _LARGE0, _WEAK0, _MEDIUM0,
+   _SMALL0, _HIGHZ0, _HIGHZ1, _SMALL1, _MEDIUM1, _WEAK1, _LARGE1,
+   _PULL1, _STRONG1, _SUPPLY1
+} net_value_t;
 
-#endif  // _VLOG_PHASE_H
+#endif  // _VLOG_DEFS_H

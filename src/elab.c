@@ -34,6 +34,7 @@
 #include "psl/psl-phase.h"
 #include "thread.h"
 #include "type.h"
+#include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 
@@ -42,9 +43,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <inttypes.h>
-
-#define T_LOGIC "19NVC.VERILOG.T_LOGIC"
-#define T_NET_VALUE "23NVC.VERILOG.T_NET_VALUE"
 
 typedef A(tree_t) tree_list_t;
 

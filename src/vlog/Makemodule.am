@@ -6,7 +6,8 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-lower.c \
 	src/vlog/vlog-number.h \
 	src/vlog/vlog-number.c \
-	src/vlog/vlog-trans.c
+	src/vlog/vlog-trans.c \
+	src/vlog/vlog-simp.c
 
 if ENABLE_VERILOG
 lib_libnvc_a_SOURCES += \
