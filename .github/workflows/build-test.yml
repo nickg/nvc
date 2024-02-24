@@ -311,6 +311,8 @@ jobs:
         run: ./vhdl-projects/netwiz/test.sh
       - name: Test real_matrix package
         run: ./vhdl-projects/realmatrix/test.sh
+      - name: Test Canola
+        run: ./vhdl-projects/canola/test.sh
 
   vunit:
     name: VUnit
