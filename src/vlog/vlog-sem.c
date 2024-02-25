@@ -17,11 +17,12 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
 #include "ident.h"
-#include "diag.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -34,26 +35,6 @@ struct _vlog_scope {
 };
 
 static vlog_scope_t *top_scope = NULL;
-
-static bool is_net(vlog_node_t v)
-{
-   switch (vlog_kind(v)) {
-   case V_REF:
-      if (vlog_has_ref(v)) {
-         vlog_node_t decl = vlog_ref(v);
-         switch (vlog_kind(decl)) {
-         case V_NET_DECL: return true;
-         case V_PORT_DECL: return vlog_subkind(decl) != V_PORT_OUTPUT_REG;
-         default: return false;
-         }
-      }
-      else
-         return false;
-
-   default:
-      return false;
-   }
-}
 
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
@@ -141,7 +122,7 @@ static void vlog_check_unary(vlog_node_t op)
 
 static void vlog_check_variable_target(vlog_node_t target)
 {
-   if (is_net(target)) {
+   if (vlog_is_net(target)) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
       name_for_diag(d, target, "target");
       diag_printf(d, " cannot be assigned in a procedural block");
@@ -179,7 +160,7 @@ static void vlog_check_assign(vlog_node_t stmt)
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
 
-   if (!is_net(target)) {
+   if (!vlog_is_net(target)) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
       name_for_diag(d, target, "target");
       diag_printf(d, " cannot be driven by continuous assignment");
@@ -268,17 +249,38 @@ static void vlog_check_if(vlog_node_t stmt)
 
 static void vlog_check_port_decl(vlog_node_t port)
 {
+   ident_t id = vlog_ident(port);
+   vlog_node_t exist = hash_get(top_scope->symbols, id);
+   if (exist != NULL) {
+      const vlog_kind_t kind = vlog_kind(exist);
+      if (kind == V_VAR_DECL || kind == V_NET_DECL) {
+         vlog_set_ref(port, exist);
+         hash_put(top_scope->symbols, id, port);
+         return;
+      }
+   }
+
    vlog_insert_decl(port);
 }
 
 static void vlog_check_net_decl(vlog_node_t net)
 {
-   vlog_insert_decl(net);
+   vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(net));
+   if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
+       && !vlog_has_ref(exist))
+      vlog_set_ref(exist, net);
+   else
+      vlog_insert_decl(net);
 }
 
 static void vlog_check_var_decl(vlog_node_t var)
 {
-   vlog_insert_decl(var);
+   vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(var));
+   if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
+       && !vlog_has_ref(exist))
+      vlog_set_ref(exist, var);
+   else
+      vlog_insert_decl(var);
 }
 
 static void vlog_check_module(vlog_node_t module)

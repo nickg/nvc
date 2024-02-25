@@ -62,11 +62,29 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
    return decl;
 }
 
+static vlog_node_t simp_port_decl(vlog_node_t decl, vlog_node_t mod)
+{
+   if (vlog_has_ref(decl))
+      return decl;
+
+   vlog_node_t wire = vlog_new(V_NET_DECL);
+   vlog_set_subkind(wire, V_NET_WIRE);
+   vlog_set_loc(wire, vlog_loc(decl));
+   vlog_set_ident(wire, vlog_ident(decl));
+
+   vlog_set_ref(decl, wire);
+   vlog_add_decl(mod, wire);
+
+   return decl;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
    case V_NET_DECL:
       return simp_net_decl(v, context);
+   case V_PORT_DECL:
+      return simp_port_decl(v, context);
    default:
       return v;
    }

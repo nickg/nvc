@@ -60,6 +60,7 @@ static void node_list_free(node_list_t *l);
 static void set_timescale(const char *unit_value, const char *unit_name,
                           const char *prec_value, const char *prec_name,
                           const loc_t *loc);
+static void clone_port(node_list_t **list, vlog_node_t p);
 
 #define YYLLOC_DEFAULT(Current, Rhs, N) {                            \
    if (N) {                                                          \
@@ -80,19 +81,28 @@ static vlog_node_t root;
 
 static void add_port(vlog_node_t module, vlog_node_t port)
 {
-   if (vlog_kind(port) == V_PORT_DECL) {
-      // Verilog-2001 style port declaration
-      vlog_node_t ref = vlog_new(V_REF);
-      vlog_set_loc(ref, vlog_loc(port));
-      vlog_set_ident(ref, vlog_ident(port));
-      vlog_set_ref(ref, port);
+   switch (vlog_kind(port)) {
+   case V_PORT_DECL:
+      {
+         // Verilog-2001 style port declaration
+         vlog_node_t ref = vlog_new(V_REF);
+         vlog_set_loc(ref, vlog_loc(port));
+         vlog_set_ident(ref, vlog_ident(port));
+         vlog_set_ref(ref, port);
 
-      vlog_add_port(module, ref);
-      vlog_add_decl(module, port);
-   }
-   else {
-      assert(vlog_kind(port) == V_REF);
+         vlog_add_port(module, ref);
+         vlog_add_decl(module, port);
+      }
+      break;
+   case V_REF:
       vlog_add_port(module, port);
+      break;
+   case V_NET_DECL:
+   case V_VAR_DECL:
+      vlog_add_decl(module, port);
+      break;
+   default:
+      fatal_trace("unexpected %s in port list", vlog_kind_str(vlog_kind(port)));
    }
 }
 
@@ -123,12 +133,12 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          procedural_timing_control_statement
 %type   <vlog>          lvalue event_control event_expression
 %type   <vlog>          nonblocking_assignment delay_or_event_control
-%type   <vlog>          port_declaration port_reference blocking_assignment
+%type   <vlog>          port_reference blocking_assignment
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
 %type   <vlog>          delay_control delay_value strength0 strength1
-%type   <vlog>          pull_gate_instance
+%type   <vlog>          pull_gate_instance port_identifier
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -139,6 +149,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <list>          list_of_net_assignments reg_declaration
 %type   <list>          list_of_variable_identifiers list_of_statements_opt
 %type   <list>          gate_instantiation pulldown_strength pullup_strength
+%type   <list>          port_declaration port_declaration_head
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -251,59 +262,68 @@ port_reference: identifier
                 }
         ;
 
-list_of_port_declarations:
-                list_of_port_declarations ',' external_identifier
+port_identifier:
+                external_identifier
                 {
-                   vlog_node_t p = vlog_new(V_PORT_DECL);
-                   vlog_set_loc(p, &@3);
-                   vlog_set_ident(p, $3.left);
-                   vlog_set_ident2(p, $3.right);
-                   vlog_set_subkind(p, vlog_subkind($1->tail->value));
+                   $$ = vlog_new(V_PORT_DECL);
+                   vlog_set_loc($$, &@1);
+                   vlog_set_ident($$, $1.left);
+                   vlog_set_ident2($$, $1.right);
+                }
+        ;
 
-                   $$ = $1;
-                   node_list_append(&$$, p);
-                }
-        |       list_of_port_declarations ',' port_declaration
+list_of_port_declarations:
+                list_of_port_declarations ',' port_declaration_head
                 {
                    $$ = $1;
-                   node_list_append(&$$, $3);
+                   node_list_concat(&$$, $3);
                 }
-        |       port_declaration { $$ = node_list_single($1); }
+        |       list_of_port_declarations ',' port_identifier
+                {
+                   $$ = $1;
+                   clone_port(&$$, $3);
+                }
+        |       port_declaration_head { $$ = $1; }
+        ;
+
+port_declaration_head:
+                tINPUT port_identifier
+                {
+                   vlog_set_subkind($2, V_PORT_INPUT);
+                   $$ = node_list_single($2);
+                }
+        |       tOUTPUT port_identifier
+                {
+                   vlog_set_subkind($2, V_PORT_OUTPUT);
+                   $$ = node_list_single($2);
+                }
+        |       tINOUT port_identifier
+                {
+                   vlog_set_subkind($2, V_PORT_INOUT);
+                   $$ = node_list_single($2);
+                }
+        |       tOUTPUT tREG port_identifier
+                {
+                   vlog_set_subkind($3, V_PORT_OUTPUT);
+
+                   $$ = NULL;
+                   node_list_append(&$$, $3);
+
+                   vlog_node_t reg = vlog_new(V_VAR_DECL);
+                   vlog_set_loc(reg, &@$);
+                   vlog_set_ident(reg, vlog_ident($3));
+
+                   node_list_append(&$$, reg);
+                }
         ;
 
 port_declaration:
-                tINPUT external_identifier
+                port_declaration_head ',' port_identifier
                 {
-                   $$ = vlog_new(V_PORT_DECL);
-                   vlog_set_loc($$, &@$);
-                   vlog_set_ident($$, $2.left);
-                   vlog_set_ident2($$, $2.right);
-                   vlog_set_subkind($$, V_PORT_INPUT);
+                   $$ = $1;
+                   clone_port(&$$, $3);
                 }
-        |       tOUTPUT external_identifier
-                {
-                   $$ = vlog_new(V_PORT_DECL);
-                   vlog_set_loc($$, &@$);
-                   vlog_set_ident($$, $2.left);
-                   vlog_set_ident2($$, $2.right);
-                   vlog_set_subkind($$, V_PORT_OUTPUT);
-                }
-        |       tINOUT external_identifier
-                {
-                   $$ = vlog_new(V_PORT_DECL);
-                   vlog_set_loc($$, &@$);
-                   vlog_set_ident($$, $2.left);
-                   vlog_set_ident2($$, $2.right);
-                   vlog_set_subkind($$, V_PORT_INOUT);
-                }
-        |       tOUTPUT tREG external_identifier
-                {
-                   $$ = vlog_new(V_PORT_DECL);
-                   vlog_set_loc($$, &@$);
-                   vlog_set_ident($$, $3.left);
-                   vlog_set_ident2($$, $3.right);
-                   vlog_set_subkind($$, V_PORT_OUTPUT_REG);
-                }
+        |       port_declaration_head
         ;
 
 module_item_list_opt:
@@ -323,10 +343,6 @@ module_item_list:
 module_item:
                 module_or_generate_item
         |       port_declaration ';'
-                {
-                   $$ = NULL;
-                   node_list_append(&$$, $1);
-                }
         ;
 
 module_or_generate_item:
@@ -980,6 +996,27 @@ static void set_timescale(const char *unit_value, const char *unit_name,
    }
 
    // TODO: do something with parsed scale/precision
+}
+
+static void clone_port(node_list_t **list, vlog_node_t p)
+{
+   node_list_t *last = NULL;
+   for (node_list_t *it = *list; it != NULL; it = it->next) {
+      if (vlog_kind(it->value) == V_PORT_DECL)
+         last = it;
+   }
+
+   vlog_set_subkind(p, vlog_subkind(last->value));
+
+   node_list_append(list, p);
+
+   if (last->next && vlog_kind(last->next->value) == V_VAR_DECL) {
+      vlog_node_t reg = vlog_new(V_VAR_DECL);
+      vlog_set_loc(reg, vlog_loc(p));
+      vlog_set_ident(reg, vlog_ident(p));
+
+      node_list_append(list, reg);
+   }
 }
 
 vlog_node_t vlog_parse(void)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022 Nick Gasson
+//  Copyright (C) 2022-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ START_TEST(test_dff)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 1);
    fail_unless(vlog_ports(m) == 4);
-   fail_unless(vlog_decls(m) == 4);
+   fail_unless(vlog_decls(m) == 5);
 
    vlog_node_t p0 = vlog_port(m, 0);
    fail_unless(vlog_kind(p0) == V_REF);
@@ -64,9 +64,13 @@ START_TEST(test_dff)
 
    vlog_node_t d3 = vlog_decl(m, 3);
    fail_unless(vlog_kind(d3) == V_PORT_DECL);
-   fail_unless(vlog_subkind(d3) == V_PORT_OUTPUT_REG);
+   fail_unless(vlog_subkind(d3) == V_PORT_OUTPUT);
    fail_unless(vlog_ident(d3) == ident_new("q"));
    fail_unless(vlog_ident2(d3) == ident_new("Q"));
+
+   vlog_node_t d4 = vlog_decl(m, 4);
+   fail_unless(vlog_kind(d4) == V_VAR_DECL);
+   fail_unless(vlog_ident(d4) == ident_new("q"));
 
    vlog_node_t a = vlog_stmt(m, 0);
    fail_unless(vlog_kind(a) == V_ALWAYS);
@@ -129,14 +133,16 @@ START_TEST(test_ports)
 {
    const error_t expect[] = {
       {  4, "duplicate declaration of y" },
-      {  1, "no visible declaration for z" },
+      { 19, "duplicate declaration of x" },
+      { 22, "duplicate declaration of y" },
+      { 31, "'o3' cannot be assigned in a procedural block" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    input_from_file(TESTDIR "/vlog/ports.v");
 
-   for (int i = 0; i < 2; i++) {
+   for (int i = 0; i < 5; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);

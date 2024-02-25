@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "diag.h"
+#include "hash.h"
 #include "lib.h"
 #include "lower.h"
 #include "tree.h"
@@ -25,6 +26,7 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <string.h>
@@ -69,20 +71,6 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
    return emit_debug_locus(unit, offset);
 }
 #endif
-
-static bool vlog_is_net(vlog_node_t v)
-{
-   switch (vlog_kind(v)) {
-   case V_NET_DECL:
-      return true;
-   case V_PORT_DECL:
-      return vlog_subkind(v) != V_PORT_OUTPUT_REG;
-   case V_REF:
-      return vlog_is_net(vlog_ref(v));
-   default:
-      return false;
-   }
-}
 
 static vcode_reg_t vlog_helper_package(void)
 {
@@ -236,6 +224,8 @@ static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
    case V_REF:
       {
          vlog_node_t decl = vlog_ref(v);
+         if (vlog_kind(decl) == V_PORT_DECL)
+            decl = vlog_ref(decl);
 
          int hops;
          vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
@@ -307,6 +297,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
    case V_REF:
       {
          vlog_node_t decl = vlog_ref(v);
+         if (vlog_kind(decl) == V_PORT_DECL)
+            decl = vlog_ref(decl);
 
          int hops;
          vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
@@ -888,14 +880,30 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
    vcode_type_t vlogicsignal = vtype_signal(vlogic);
    vcode_type_t vnetsignal = vtype_signal(vnetvalue);
 
+   const int nports = vlog_ports(mod);
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t ref = vlog_port(mod, i);
+      assert(vlog_kind(ref) == V_REF);
+
+      vlog_node_t port = vlog_ref(ref);
+      assert(vlog_kind(port) == V_PORT_DECL);
+
+      vcode_type_t vtype = vlog_is_net(port) ? vnetsignal : vlogicsignal;
+      vcode_var_t var = emit_var(vtype, vtype, vlog_ident(port), VAR_SIGNAL);
+
+      lower_put_vcode_obj(port, var, lu);
+      lower_put_vcode_obj(vlog_ref(port), var, lu);
+   }
+
    const int ndecls = vlog_decls(mod);
-   for (int i = 0; i < ndecls; i++) {
+   for (int i = 0, hops; i < ndecls; i++) {
       vlog_node_t d = vlog_decl(mod, i);
       switch (vlog_kind(d)) {
       case V_PORT_DECL:
+         break;   // Translated above
       case V_NET_DECL:
       case V_VAR_DECL:
-         {
+         if (lower_search_vcode_obj(d, lu, &hops) == VCODE_INVALID_VAR) {
             vcode_type_t vtype = vlog_is_net(d) ? vnetsignal : vlogicsignal;
             vcode_var_t var = emit_var(vtype, vtype, vlog_ident(d), VAR_SIGNAL);
             lower_put_vcode_obj(d, var, lu);

@@ -462,7 +462,8 @@ START_TEST(test_vlog1)
              "  input d;\n"
              "  input clk;\n"
              "  input rstb;\n"
-             "  output reg q;\n"
+             "  output q;\n"
+             "  reg q;\n"
              "  always @(posedge clk) q <= d;\n"
              "endmodule // dff\n\n");
    tb_rewind(tb);

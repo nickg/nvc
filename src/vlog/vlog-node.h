@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -29,7 +29,6 @@ typedef enum {
 typedef enum {
    V_PORT_INPUT,
    V_PORT_OUTPUT,
-   V_PORT_OUTPUT_REG,
    V_PORT_INOUT,
 } v_port_kind_t;
 

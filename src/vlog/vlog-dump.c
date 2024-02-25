@@ -64,7 +64,6 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    case V_PORT_INPUT: print_syntax("#input"); break;
    case V_PORT_INOUT: print_syntax("#inout"); break;
    case V_PORT_OUTPUT: print_syntax("#output"); break;
-   case V_PORT_OUTPUT_REG: print_syntax("#output #reg"); break;
    }
 
    print_syntax(" %s;\n", istr(vlog_ident(v)));

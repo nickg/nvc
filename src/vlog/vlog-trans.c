@@ -17,12 +17,14 @@
 
 #include "util.h"
 #include "common.h"
+#include "hash.h"
 #include "tree.h"
 #include "type.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 
@@ -107,7 +109,6 @@ static void trans_port_decl(vlog_node_t decl, tree_t out)
    static const port_mode_t map[] = {
       [V_PORT_INPUT] = PORT_IN,
       [V_PORT_OUTPUT] = PORT_OUT,
-      [V_PORT_OUTPUT_REG] = PORT_OUT,
       [V_PORT_INOUT] = PORT_INOUT,
    };
 
@@ -118,10 +119,11 @@ static void trans_port_decl(vlog_node_t decl, tree_t out)
    tree_set_subkind(t, map[kind]);
    tree_set_class(t, C_SIGNAL);
 
-   if (kind == V_PORT_OUTPUT_REG)
-      tree_set_type(t, trans_var_type(decl));
+   vlog_node_t net = vlog_ref(decl);
+   if (vlog_is_net(net))
+      tree_set_type(t, trans_net_type(net));
    else
-      tree_set_type(t, trans_net_type(decl));
+      tree_set_type(t, trans_var_type(net));
 
    tree_add_port(out, t);
 }
@@ -157,18 +159,33 @@ static void trans_net_decl(vlog_node_t decl, tree_t out)
 
 void vlog_trans(vlog_node_t mod, tree_t out)
 {
+   hset_t *ports = hset_new(16);
+   const int nports = vlog_ports(mod);
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t ref = vlog_port(mod, i);
+      assert(vlog_kind(ref) == V_REF);
+
+      vlog_node_t port = vlog_ref(ref);
+      assert(vlog_kind(port) == V_PORT_DECL);
+      trans_port_decl(port, out);
+
+      // Do not translate the associated var/net declaration twice
+      hset_insert(ports, vlog_ref(port));
+   }
+
    const int ndecls = vlog_decls(mod);
    for (int i = 0; i < ndecls; i++) {
       vlog_node_t d = vlog_decl(mod, i);
       switch (vlog_kind(d)) {
       case V_PORT_DECL:
-         trans_port_decl(d, out);
-         break;
+         break;   // Translated above
       case V_VAR_DECL:
-         trans_var_decl(d, out);
+         if (!hset_contains(ports, d))
+            trans_var_decl(d, out);
          break;
       case V_NET_DECL:
-         trans_net_decl(d, out);
+         if (!hset_contains(ports, d))
+            trans_net_decl(d, out);
          break;
       default:
          CANNOT_HANDLE(d);
@@ -186,4 +203,6 @@ void vlog_trans(vlog_node_t mod, tree_t out)
 
       tree_add_stmt(out, w);
    }
+
+   hset_free(ports);
 }
