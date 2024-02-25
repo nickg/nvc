@@ -1798,6 +1798,36 @@ START_TEST(test_jcore2)
 }
 END_TEST
 
+START_TEST(test_vlog1)
+{
+#ifdef ENABLE_VERILOG
+   const error_t expect[] = {
+      { 10, "name of Verilog module sub1 in library unit WORK.SUB1 does "
+        "not match name SUB1 in module instance u2" },
+      { 11, "expected 2 port connections for module WORK.SUB1 but found 1" },
+      { 12, "module bad not found in library WORK" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   analyse_file(TESTDIR "/elab/vlog1.v", NULL, NULL);
+
+   object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"));
+   ck_assert_ptr_nonnull(obj);
+
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+
+   tree_t top = elab(obj, j, ur, NULL);
+   fail_unless(top == NULL);
+
+   jit_free(j);
+
+   check_expected_errors();
+#endif
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1894,6 +1924,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds7);
    tcase_add_test(tc, test_bounds11);
    tcase_add_test(tc, test_jcore2);
+   tcase_add_test(tc, test_vlog1);
    suite_add_tcase(s, tc);
 
    return s;

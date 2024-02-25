@@ -318,6 +318,27 @@ static void vlog_dump_gate_inst(vlog_node_t v, int indent)
    print_syntax(");\n");
 }
 
+static void vlog_dump_mod_inst(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   print_syntax("%s ", istr(vlog_ident2(v)));
+
+   print_syntax("%s ", istr(vlog_ident(v)));
+
+   const int nparams = vlog_params(v);
+   if (nparams > 0) {
+      print_syntax("(");
+      for (int i = 0; i < nparams; i++) {
+         if (i > 0) print_syntax(",");
+         vlog_dump(vlog_param(v, i), 0);
+      }
+      print_syntax(")");
+   }
+
+   print_syntax(";\n");
+}
+
 static void vlog_dump_strength(vlog_node_t v, int indent)
 {
    switch (vlog_subkind(v)) {
@@ -397,6 +418,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_GATE_INST:
       vlog_dump_gate_inst(v, indent);
+      break;
+   case V_MOD_INST:
+      vlog_dump_mod_inst(v, indent);
       break;
    case V_STRENGTH:
       vlog_dump_strength(v, indent);

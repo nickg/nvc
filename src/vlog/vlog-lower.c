@@ -858,6 +858,8 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
       case V_GATE_INST:
          vlog_lower_gate_inst(ur, parent, s);
          break;
+      case V_MOD_INST:
+         break;
       default:
          CANNOT_HANDLE(s);
       }

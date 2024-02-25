@@ -445,8 +445,7 @@ static tree_t elab_to_verilog(type_t from, type_t to)
    return NULL;
 }
 
-static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc,
-                                 const elab_ctx_t *ctx)
+static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
 {
    assert(tree_kind(comp) == T_COMPONENT);
 
@@ -491,9 +490,6 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc,
       }
 
       if (name != tree_ident(cport)) {
-         tree_t comp = tree_ref(ctx->inst);
-         assert(tree_kind(comp) == T_COMPONENT);
-
          error_at(tree_loc(cport), "expected VHDL port name %s to match "
                   "Verilog port name %s in component %s",
                   istr(tree_ident(cport)), istr(vlog_ident(mport)),
@@ -561,6 +557,39 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc,
    return bind;
 }
 
+static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
+                                   const elab_ctx_t *ctx)
+{
+   assert(vlog_kind(inst) == V_MOD_INST);
+
+   tree_t bind = tree_new(T_BINDING);
+   tree_set_ident(bind, vlog_ident(mc->module));
+   tree_set_loc(bind, vlog_loc(inst));
+   tree_set_ref(bind, mc->wrap);
+   tree_set_class(bind, C_ENTITY);
+
+   const int nports = vlog_ports(mc->module);
+   const int nparams = vlog_params(inst);
+
+   if (nports != nparams) {
+      error_at(vlog_loc(inst), "expected %d port connections for module %s "
+               "but found %d", nports, istr(vlog_ident(mc->module)), nparams);
+      return NULL;
+   }
+
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t conn = vlog_param(inst, i);
+      assert(vlog_kind(conn) == V_REF);
+
+      tree_t decl = search_decls(ctx->out, vlog_ident(conn), 0);
+      assert(decl != NULL);
+
+      add_param(bind, make_ref(decl), P_POS, NULL);
+   }
+
+   return bind;
+}
+
 static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
@@ -589,7 +618,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
    vlog_node_t mod = vlog_from_object(obj);
    if (mod != NULL) {
       mod_cache_t *mc = elab_cached_module(mod, ctx);
-      return elab_mixed_binding(comp, mc, ctx);
+      return elab_mixed_binding(comp, mc);
    }
 
    tree_t entity = tree_from_object(obj);
@@ -1298,6 +1327,7 @@ static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
       elab_decls(mc->block, &new_ctx);
 
    if (error_count() == 0) {
+      new_ctx.drivers = find_drivers(mc->block);
       elab_lower(b, mc->shape, &new_ctx);
       elab_stmts(mc->block, &new_ctx);
    }
@@ -1761,6 +1791,60 @@ static void elab_psl(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, t);
 }
 
+static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
+{
+   vlog_node_t v = tree_vlog(wrap);
+   switch (vlog_kind(v)) {
+   case V_MOD_INST:
+      {
+         ident_t modname = vlog_ident2(v);
+         ident_t libname = lib_name(ctx->library);
+
+         text_buf_t *tb = tb_new();
+         tb_istr(tb, libname);
+         tb_append(tb, '.');
+         tb_istr(tb, modname);
+         tb_upcase(tb);
+
+         ident_t qual = ident_new(tb_get(tb));
+
+         object_t *obj = lib_get_generic(ctx->library, qual);
+         if (obj == NULL) {
+            error_at(vlog_loc(v), "module %s not found in library %s",
+                     istr(modname), istr(libname));
+            return;
+         }
+
+         vlog_node_t mod = vlog_from_object(obj);
+         if (mod == NULL) {
+            error_at(&obj->loc, "unit %s is not a Verilog module", istr(qual));
+            return;
+         }
+         else if (vlog_ident2(mod) != modname) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+            diag_printf(d, "name of Verilog module %s in library unit %s "
+                        "does not match name %s in module instance %s",
+                        istr(vlog_ident2(mod)), istr(qual), istr(modname),
+                        istr(vlog_ident(v)));
+            diag_hint(d, NULL, "this tool does not preserve case sensitivity "
+                      "in module names");
+            diag_emit(d);
+            return;
+         }
+
+         mod_cache_t *mc = elab_cached_module(mod, ctx);
+
+         tree_t bind = elab_verilog_binding(v, mc, ctx);
+         if (bind != NULL)
+            elab_verilog_module(bind, mc->wrap, ctx);
+      }
+      break;
+   default:
+      tree_add_stmt(ctx->out, wrap);
+      break;
+   }
+}
+
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -1790,7 +1874,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          elab_psl(s, ctx);
          break;
       case T_VERILOG:
-         tree_add_stmt(ctx->out, s);
+         elab_verilog_stmt(s, ctx);
          break;
       default:
          fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));

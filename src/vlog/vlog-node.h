@@ -69,6 +69,7 @@ typedef enum {
    V_UNARY,
    V_GATE_INST,
    V_STRENGTH,
+   V_MOD_INST,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

@@ -23,6 +23,7 @@
 #include "psl/psl-phase.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 
 #include <assert.h>
@@ -589,15 +590,32 @@ static void dump_binding(tree_t t, int indent)
 
 static void dump_stmts(tree_t t, int indent)
 {
+   bool last_was_newline = false;
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(t, i);
       const tree_kind_t kind = tree_kind(s);
-      const bool needs_newline =
-         kind == T_BLOCK || kind == T_PROCESS || kind == T_INSTANCE;
-      if (needs_newline && i > 0)
+
+      bool needs_newline;
+      if (kind == T_VERILOG) {
+         const vlog_kind_t vkind = vlog_kind(tree_vlog(s));
+         needs_newline = (vkind == V_ALWAYS || vkind == V_INITIAL);
+      }
+      else
+         needs_newline = (kind == T_BLOCK || kind == T_PROCESS
+                          || kind == T_INSTANCE);
+
+      if (needs_newline && i > 0 && !last_was_newline)
          print_syntax("\n");
+
       dump_stmt(s, indent);
+
+      if (needs_newline && i + 1 < nstmts) {
+         print_syntax("\n");
+         last_was_newline = true;
+      }
+      else
+         last_was_newline = false;
    }
 }
 

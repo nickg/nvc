@@ -314,6 +314,15 @@ static void vlog_check_gate_inst(vlog_node_t g)
       vlog_set_ident(g, ident_uniq("#gate"));
 }
 
+static void vlog_check_mod_inst(vlog_node_t inst)
+{
+   const int nparams = vlog_params(inst);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(inst, i));
+
+   vlog_insert_decl(inst);
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -379,6 +388,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_GATE_INST:
       vlog_check_gate_inst(v);
+      break;
+   case V_MOD_INST:
+      vlog_check_mod_inst(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

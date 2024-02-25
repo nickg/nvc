@@ -138,7 +138,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
 %type   <vlog>          delay_control delay_value strength0 strength1
-%type   <vlog>          pull_gate_instance port_identifier
+%type   <vlog>          pull_gate_instance port_identifier module_instance
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -150,6 +150,8 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <list>          list_of_variable_identifiers list_of_statements_opt
 %type   <list>          gate_instantiation pulldown_strength pullup_strength
 %type   <list>          port_declaration port_declaration_head
+%type   <list>          module_instantiation list_of_port_connections
+%type   <list>          list_of_port_connections_opt
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -351,6 +353,43 @@ module_or_generate_item:
         |       initial_construct { $$ = node_list_single($1); }
         |       continuous_assign
         |       gate_instantiation
+        |       module_instantiation
+        ;
+
+module_instantiation:
+                identifier module_instance ';'
+                {
+                   vlog_set_ident2($2, $1);
+                   $$ = node_list_single($2);
+                }
+        ;
+
+module_instance:
+                identifier list_of_port_connections_opt
+                {
+                   $$ = vlog_new(V_MOD_INST);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, $1);
+
+                   for (node_list_t *it = $2; it; it = it->next)
+                      vlog_add_param($$, it->value);
+
+                   node_list_free($2);
+                }
+        ;
+
+list_of_port_connections_opt:
+                '(' list_of_port_connections ')' { $$ = $2; }
+        |       /* empty */ { $$ = NULL; }
+        ;
+
+list_of_port_connections:
+                list_of_port_connections ',' port_reference
+                {
+                   $$ = $1;
+                   node_list_append(&$$, $3);
+                }
+        |       port_reference { $$ = node_list_single($1); }
         ;
 
 module_or_generate_item_declaration:
