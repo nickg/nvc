@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,6 +34,15 @@ static const void *next_arg(jit_scalar_t **args, unsigned *length)
    return ptr;
 }
 
+static int calc_dec_size(int nr_bits, bool is_signed)
+{
+   // From Icarus Verilog src/vpi/sys_display.c
+   if (is_signed) --nr_bits;
+   int r = (nr_bits * 146L + 484) / 485;
+   if (is_signed) ++r;
+   return r;
+}
+
 static void verilog_printf(jit_scalar_t *args)
 {
    unsigned fmtlen;
@@ -61,18 +70,23 @@ static void verilog_printf(jit_scalar_t *args)
 
                switch (*p) {
                case 'd':
-                  if (number_is_defined(num))
-                     printf("%*"PRIi64, ilog2(width), number_integer(num));
-                  else
-                     printf("%*s", ilog2(width), "x");
+                  {
+                     const int dmax = calc_dec_size(width, false);
+                     if (number_is_defined(num))
+                        printf("%*"PRIi64, dmax, number_integer(num));
+                     else
+                        printf("%*s", dmax, "x");
+                  }
                   break;
                case 'x':
                   if (number_is_defined(num))
-                     printf("%0*"PRIx64, width, number_integer(num));
+                     printf("%0*"PRIx64, width / 4, number_integer(num));
                   else
-                     printf("%*s", width/4, "x");
+                     printf("%*s", width / 4, "x");
                   break;
                }
+
+               number_free(&num);
             }
             break;
          default:
