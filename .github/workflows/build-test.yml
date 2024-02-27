@@ -18,6 +18,7 @@ jobs:
           echo "VERSION=$full" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install automake flex llvm-dev check lcov \
              libdw-dev libffi-dev bison libreadline-dev tcl8.6-dev \
              libzstd-dev libxml2-utils
@@ -201,6 +202,7 @@ jobs:
         run: |
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
+          sudo apt-get update
           sudo apt-get build-dep .
           dpkg-buildpackage -uc -us -b
           mv ../*.deb .
@@ -224,7 +226,9 @@ jobs:
           path: vests
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install ruby ruby-colorize
+        run: |
+          sudo apt-get update
+          sudo apt-get install ruby ruby-colorize
       - uses: actions/download-artifact@v4
         with:
           name: 'Ubuntu package'
@@ -333,7 +337,9 @@ jobs:
           path: microwatt
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install python3 python3-colorama make
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3 python3-colorama make
       - uses: actions/download-artifact@v4
         with:
           name: 'Ubuntu package'
@@ -393,7 +399,9 @@ jobs:
         with:
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install tcl tcllib git
+        run: |
+          sudo apt-get update
+          sudo apt-get install tcl tcllib git
       - uses: actions/download-artifact@v4
         with:
           name: 'Ubuntu package'
@@ -422,7 +430,9 @@ jobs:
           submodules: recursive
           fetch-depth: 1
       - name: Install dependencies
-        run: sudo apt-get install python3 python3-virtualenv
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3 python3-virtualenv
       - uses: actions/download-artifact@v4
         with:
           name: 'Ubuntu package'
