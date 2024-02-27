@@ -78,7 +78,6 @@ typedef struct _fst_data {
    rt_watch_t    *watch;
    tree_t         decl;
    rt_signal_t   *signal;
-   range_kind_t   dir;
    unsigned       size;
    unsigned       count;
    fstHandle      handle[];
@@ -105,7 +104,7 @@ static glob_array_t incl;
 static glob_array_t excl;
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
-                               tree_t cons, text_buf_t *tb);
+                               type_t type, text_buf_t *tb);
 static bool wave_should_dump(ident_t name);
 
 static void fst_close(rt_model_t *m, void *arg)
@@ -418,22 +417,16 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    return NULL;
 }
 
-static void fst_get_array_range(type_t type, tree_t cons, rt_signal_t *s,
-                                int64_t *msb, int64_t *lsb, int64_t *length,
-                                range_kind_t *dir)
+static void fst_get_array_range(type_t type, rt_signal_t *s,
+                                int64_t *msb, int64_t *lsb, int64_t *length)
 {
    tree_t r;
-   if (cons != NULL && tree_kind(cons) == T_ELEM_CONSTRAINT)
-      r = range_of(tree_type(cons), 0);
-   else if (cons != NULL)
-      r = tree_range(cons, 0);
-   else if (type_is_unconstrained(type)) {
+   if (type_is_unconstrained(type)) {
       const int signal_w = s->shared.size / s->nexus.size;
 
       *lsb = 0;
       *msb = signal_w - 1;
       *length = signal_w;
-      *dir = RANGE_TO;
       return;
    }
    else
@@ -462,11 +455,10 @@ static void fst_get_array_range(type_t type, tree_t cons, rt_signal_t *s,
    *msb = rkind == RANGE_TO ? low : high;
    *lsb = rkind == RANGE_TO ? high : low;
    *length = MAX(high - low + 1, 0);
-   *dir = rkind;
 }
 
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
-                                 type_t type, tree_t cons, text_buf_t *tb)
+                                 type_t type, text_buf_t *tb)
 {
    enum fstVarDir dir = FST_VD_IMPLICIT;
    if (tree_kind(d) == T_PORT_DECL) {
@@ -478,9 +470,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       }
    }
 
-   range_kind_t rkind;
    int64_t lsb, msb, length;
-   fst_get_array_range(type, cons, s, &msb, &lsb, &length, &rkind);
+   fst_get_array_range(type, s, &msb, &lsb, &length);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
@@ -567,7 +558,6 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
    data->decl   = d;
    data->signal = s;
-   data->dir    = rkind;
    data->dumper = wd;
    data->watch  = model_set_event_cb(wd->model, data->signal,
                                      fst_event_cb, data, true);
@@ -668,7 +658,7 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
       tree_t cons = type_constraint_for_field(type, f);
-      fst_process_signal(wd, scope, f, cons, tb);
+      fst_process_signal(wd, scope, f, tree_type(cons ?: f), tb);
    }
 
    fstWriterSetUpscope(wd->fst_ctx);
@@ -695,9 +685,8 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
    if (type_is_array(type)) {
-      range_kind_t rkind;
       int64_t lsb, msb, length;
-      fst_get_array_range(type, NULL, s, &msb, &lsb, &length, &rkind);
+      fst_get_array_range(type, s, &msb, &lsb, &length);
 
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
    }
@@ -713,19 +702,11 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 }
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
-                               tree_t cons, text_buf_t *tb)
+                               type_t type, text_buf_t *tb)
 {
-   type_t type = tree_type(d);
    if (type_is_record(type)) {
       rt_scope_t *sub = child_scope(scope, d);
-      if (sub == NULL)
-         ;    // Signal was optimised out
-      else if (cons != NULL) {
-         // Use constrained type when available
-         assert(tree_kind(cons) == T_ELEM_CONSTRAINT);
-         fst_create_record_var(wd, d, sub, tree_type(cons), tb);
-      }
-      else
+      if (sub != NULL)   // NULL means signal was optimised out
          fst_create_record_var(wd, d, sub, type, tb);
    }
    else {
@@ -743,7 +724,7 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
       else if (s->where != d)
          fst_alias_var(wd, d, s, tb);  // Collapsed with another signal
       else if (type_is_array(type))
-         fst_create_array_var(wd, d, s, type, cons, tb);
+         fst_create_array_var(wd, d, s, type, tb);
       else
          fst_create_scalar_var(wd, d, s, type, tb);
    }
@@ -816,7 +797,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       tree_t p = tree_port(block, i);
       ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(p)), ':');
       if (wave_should_dump(path))
-         fst_process_signal(wd, scope, p, NULL, tb);
+         fst_process_signal(wd, scope, p, tree_type(p), tb);
    }
 
    const int ndecls = tree_decls(block);
@@ -825,7 +806,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       if (tree_kind(d) == T_SIGNAL_DECL) {
          ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(d)), ':');
          if (wave_should_dump(path))
-            fst_process_signal(wd, scope, d, NULL, tb);
+            fst_process_signal(wd, scope, d, tree_type(d), tb);
       }
    }
 
