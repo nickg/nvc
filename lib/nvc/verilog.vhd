@@ -56,15 +56,27 @@ package verilog is
     function to_verilog (value : std_ulogic) return t_logic;
     function to_verilog (value : std_ulogic) return t_net_value;
 
+    function to_string (value : t_packed_logic) return string;
+
     function resize (value : t_packed_logic; length : natural) return t_packed_logic;
     function resize (value : t_logic; length : natural) return t_packed_logic;
 
     function "and" (l, r : t_logic) return t_logic;
     function "and" (l, r : t_packed_logic) return t_packed_logic;
 
+    function "xor" (l, r : t_logic) return t_logic;
+
+    function "or" (l, r : t_logic) return t_logic;
+
     function "not" (x : t_logic) return t_logic;
     function "not" (x : t_packed_logic) return t_packed_logic;
     function "not" (x : t_packed_logic) return t_logic;
+
+    function "+" (l, r : t_packed_logic) return t_packed_logic;
+
+    function "=" (l, r : t_packed_logic) return boolean;
+
+    function "/=" (l, r : t_packed_logic) return boolean;
 
     procedure sys_finish;
 

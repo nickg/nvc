@@ -946,3 +946,4 @@ vlog7           verilog,gold
 wait27          normal
 issue808        verilog,gold
 issue851        wave,2008
+vlog8           verilog

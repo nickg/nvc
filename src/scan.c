@@ -228,7 +228,7 @@ const char *token_str(token_t tok)
          "&&", "within", "system task", "view", "private", "prev", "stable",
          "rose", "fell", "ended", "nondet", "nondetv", "union", "translate on",
          "translate off", "until!", "until_", "until_!", "`timescale"
-         "supply0", "supply1", "pulldown", "pullup",
+         "supply0", "supply1", "pulldown", "pullup", "===", "!==",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

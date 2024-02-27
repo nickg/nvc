@@ -88,6 +88,12 @@ typedef enum {
 typedef enum {
    V_BINARY_OR,
    V_BINARY_AND,
+   V_BINARY_PLUS,
+   V_BINARY_MINUS,
+   V_BINARY_LOG_EQ,
+   V_BINARY_LOG_NEQ,
+   V_BINARY_CASE_EQ,
+   V_BINARY_CASE_NEQ,
 } vlog_binary_t;
 
 typedef enum {

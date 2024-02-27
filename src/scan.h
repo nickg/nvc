@@ -297,5 +297,9 @@ bool is_scanned_as_psl(void);
 #define tSUPPLY1       401
 #define tPULLDOWN      402
 #define tPULLUP        403
+#define tCASEEQ        404
+#define tCASENEQ       405
+#define tLOGEQ         406
+#define tLOGNEQ        407
 
 #endif  // _SCAN_H

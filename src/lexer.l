@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2011-2023  Nick Gasson
+ *  Copyright (C) 2011-2024  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -541,6 +541,10 @@ UNION         ?i:union
 <VLOG>"supply1"          { return tSUPPLY1; }
 <VLOG>"pulldown"         { return tPULLDOWN; }
 <VLOG>"pullup"           { return tPULLUP; }
+<VLOG>"=="               { return tLOGEQ; }
+<VLOG>"!="               { return tLOGNEQ; }
+<VLOG>"==="              { return tCASEEQ; }
+<VLOG>"!=="              { return tCASENEQ; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

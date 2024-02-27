@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2016-2023  Nick Gasson
+//  Copyright (C) 2016-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1118,6 +1118,30 @@ static bool run_test(test_t *test)
             result = false;
             break;
          }
+      }
+   }
+   else if (test->flags & F_VERILOG) {
+      outf = freopen(OUTFILE, "r", outf);
+      assert(outf != NULL);
+
+      bool found_passed = false, found_failed = false;
+      char line[256];
+      while (fgets(line, sizeof(line), outf)) {
+         found_passed |= (strstr(line, "PASSED") != NULL);
+         found_failed |= (strstr(line, "FAILED") != NULL);
+      }
+
+      if (found_failed) {
+         failed(NULL);
+         result = false;
+      }
+      else if (found_failed && found_passed) {
+         failed("printed both PASSED and FAILED");
+         result = false;
+      }
+      else if (!found_failed && !found_passed) {
+         failed("did not print PASSED or FAILED");
+         result = false;
       }
    }
 

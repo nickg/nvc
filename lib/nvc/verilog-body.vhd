@@ -167,6 +167,18 @@ package body verilog is
         end case;
     end function;
 
+    function to_string (value : t_packed_logic) return string is
+        constant length  : natural := value'length;
+        constant lookup  : string(1 to 4) := "XZ01";
+        variable result  : string(1 to length);
+        alias a_value : t_packed_logic(1 to length) is value;
+    begin
+        for i in 1 to length loop
+            result(i) := lookup(t_logic'pos(a_value(i)) + 1);
+        end loop;
+        return result;
+    end function;
+
     function resize (value : t_packed_logic; length : natural) return t_packed_logic is
         constant orig : natural := value'length;
         alias a_value : t_packed_logic(1 to orig) is value;
@@ -189,6 +201,28 @@ package body verilog is
     function "and" (l, r : t_logic) return t_logic is
     begin
         if l = '1' and r = '1' then
+            return '1';
+        elsif l = 'X' or r = 'X' or l = 'Z' or r = 'Z' then
+            return 'X';
+        else
+            return '0';
+        end if;
+    end function;
+
+    function "or" (l, r : t_logic) return t_logic is
+    begin
+        if l = '0' and r = '0' then
+            return '0';
+        elsif l = 'X' or r = 'X' or l = 'Z' or r = 'Z' then
+            return 'X';
+        else
+            return '1';
+        end if;
+    end function;
+
+    function "xor" (l, r : t_logic) return t_logic is
+    begin
+        if (l = '1' and r = '0') or (l = '0' and r = '1') then
             return '1';
         elsif l = 'X' or r = 'X' or l = 'Z' or r = 'Z' then
             return 'X';
@@ -246,5 +280,60 @@ package body verilog is
             end case;
         end loop;
         return result;
+    end function;
+
+    function add_unsigned (l, r : t_packed_logic; c : t_logic) return t_packed_logic is
+        constant l_left : integer := l'length - 1;
+        alias xl        : t_packed_logic(0 to l_left) is l;
+        alias xr        : t_packed_logic(0 to l_left) is r;
+        variable result : t_packed_logic(0 to l_left);
+        variable cbit   : t_logic := c;
+    begin
+        for i in 0 to l_left loop
+            result(i) := cbit xor xl(i) xor xr(i);
+            cbit      := (cbit and xl(i)) or (cbit and xr(i)) or (xl(i) and xr(i));
+        end loop;
+        return result;
+    end function;
+
+    function "+" (l, r : t_packed_logic) return t_packed_logic is
+        constant size : natural := maximum(l'length, r'length);
+        variable lext : t_packed_logic(size - 1 downto 0) := resize(l, size);
+        variable rext : t_packed_logic(size - 1 downto 0) := resize(r, size);
+    begin
+        return add_unsigned(lext, rext, '0');
+    end function;
+
+    function "=" (l, r : t_packed_logic) return boolean is
+        constant lsize   : natural := l'length;
+        constant rsize   : natural := r'length;
+        constant minsize : natural := minimum(lsize, rsize);
+        alias la : t_packed_logic(1 to lsize) is l;
+        alias ra : t_packed_logic(1 to rsize) is r;
+    begin
+        for i in 1 to minsize loop
+            if la(i) /= ra(i) then
+                return false;
+            end if;
+        end loop;
+        if lsize > rsize then
+            for i in minsize + 1 to lsize loop
+                if la(i) /= '0' then
+                    return false;
+                end if;
+            end loop;
+        elsif rsize > lsize then
+            for i in minsize + 1 to rsize loop
+                if ra(i) /= '0' then
+                    return false;
+                end if;
+            end loop;
+        end if;
+        return true;
+    end function;
+
+    function "/=" (l, r : t_packed_logic) return boolean is
+    begin
+        return not (l = r);
     end function;
 end package body;

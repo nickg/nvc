@@ -168,13 +168,14 @@ static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
 
    switch (vcode_reg_kind(reg)) {
    case VCODE_TYPE_INT:
-      {
+      if (vtype_eq(vcode_reg_type(reg), vtype_bool()))
+         return reg;
+      else {
          vcode_type_t vlogic = vlog_logic_type();
          vcode_reg_t one_reg = emit_const(vlogic, LOGIC_1);
          assert(vtype_eq(vcode_reg_type(reg), vlogic));
          return emit_cmp(VCODE_CMP_EQ, reg, one_reg);
       }
-      break;
    default:
       vcode_dump();
       fatal_trace("cannot convert r%d to bool", reg);
@@ -291,6 +292,69 @@ static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
    return emit_fcall(func, rtype, vlogic, args, ARRAY_LEN(args));
 }
 
+static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
+                                     vcode_reg_t left_reg,
+                                     vcode_reg_t right_reg)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "NVC.VERILOG.");
+
+   switch (op) {
+   case V_BINARY_AND:
+      tb_cat(tb, "\"and\"(");
+      break;
+   case V_BINARY_OR:
+      tb_cat(tb, "\"or\"(");
+      break;
+   case V_BINARY_CASE_EQ:
+   case V_BINARY_LOG_EQ:
+      tb_cat(tb, "\"=\"(");
+      break;
+   case V_BINARY_CASE_NEQ:
+   case V_BINARY_LOG_NEQ:
+      tb_cat(tb, "\"/=\"(");
+      break;
+   case V_BINARY_PLUS:
+      tb_cat(tb, "\"+\"(");
+      break;
+   case V_BINARY_MINUS:
+      tb_cat(tb, "\"-\"(");
+      break;
+   }
+
+   tb_cat(tb, T_PACKED_LOGIC T_PACKED_LOGIC ")");
+
+   vcode_type_t rtype;
+   switch (op) {
+   case V_BINARY_CASE_EQ:
+   case V_BINARY_CASE_NEQ:
+      rtype = vtype_bool();
+      tb_cat(tb, "B");
+      break;
+   case V_BINARY_LOG_EQ:
+   case V_BINARY_LOG_NEQ:
+      rtype = vlog_logic_type();
+      tb_cat(tb, T_LOGIC);
+      break;
+   default:
+      rtype = vlog_packed_logic_type();
+      tb_cat(tb, T_PACKED_LOGIC);
+      break;
+   }
+
+   ident_t func = ident_new(tb_get(tb));
+
+   vcode_reg_t context_reg = vlog_helper_package();
+
+   vcode_reg_t args[] = {
+      context_reg,
+      vlog_lower_wrap(lu, left_reg),
+      vlog_lower_wrap(lu, right_reg)
+   };
+
+   return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
+}
+
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -400,22 +464,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
       {
          vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(v));
          vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(v));
-
-         ident_t func = ident_new("NVC.VERILOG.\"and\"(" T_PACKED_LOGIC
-                                  T_PACKED_LOGIC ")" T_PACKED_LOGIC);
-
-         vcode_reg_t context_reg = vlog_helper_package();
-
-         vcode_reg_t args[] = {
-            context_reg,
-            vlog_lower_wrap(lu, left_reg),
-            vlog_lower_wrap(lu, right_reg)
-         };
-
-         vcode_type_t vlogic = vlog_logic_type();
-         vcode_type_t vpacked = vlog_packed_logic_type();
-
-         return emit_fcall(func, vpacked, vlogic, args, ARRAY_LEN(args));
+         return vlog_lower_binary(lu, vlog_subkind(v), left_reg, right_reg);
       }
    case V_UNARY:
       {

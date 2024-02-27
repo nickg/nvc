@@ -181,10 +181,18 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %token                  tSUPPLY1 401 "supply1"
 %token                  tPULLDOWN 402 "pulldown"
 %token                  tPULLUP 403 "pullup"
+%token                  tCASEEQ 404 "==="
+%token                  tCASENEQ 405 "!=="
+%token                  tLOGEQ 406 "=="
+%token                  tLOGNEQ 407 "!="
+
 %token                  tEOF 0 "end of file"
 
 %left                   '|'
 %left                   '&'
+%left                   tCASEEQ tCASENEQ tLOGEQ tLOGNEQ
+%left                   '+' '-'
+%left                   '*' '/' '%'
 %left                   '~' '!'
 
 %precedence "then"
@@ -242,6 +250,7 @@ module_declaration:
 module_port_list_opt:
                 '(' list_of_port_declarations ')' { $$ = $2; }
         |       '(' list_of_ports ')' { $$ = $2; }
+        |       '(' ')' { $$ = NULL; }
         |       /* empty */ { $$ = NULL; }
         ;
 
@@ -750,6 +759,38 @@ expression:     primary
                    $$ = vlog_new(V_BINARY);
                    vlog_set_loc($$, &@$);
                    vlog_set_subkind($$, V_BINARY_AND);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
+        |       expression '+' expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_PLUS);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
+        |       expression '-' expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_MINUS);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
+        |       expression tCASEEQ expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_CASE_EQ);
+                   vlog_set_left($$, $1);
+                   vlog_set_right($$, $3);
+                }
+        |       expression tCASENEQ expression
+                {
+                   $$ = vlog_new(V_BINARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_BINARY_CASE_NEQ);
                    vlog_set_left($$, $1);
                    vlog_set_right($$, $3);
                 }
