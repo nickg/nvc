@@ -836,7 +836,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    model_reset(model);
 
    if (dumper != NULL)
-      wave_dumper_restart(dumper, model);
+      wave_dumper_restart(dumper, model, state->jit);
 
    model_run(model, stop_time);
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ typedef enum {
 wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
                                tree_t top, wave_format_t format);
 void wave_dumper_free(wave_dumper_t *wd);
-void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m);
+void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit);
 
 void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);

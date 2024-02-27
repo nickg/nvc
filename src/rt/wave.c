@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -98,6 +98,7 @@ typedef struct _wave_dumper {
    FILE          *vcdfile;
    char          *tmpfst;
    uint64_t       last_time;
+   jit_t         *jit;
 } wave_dumper_t;
 
 static glob_array_t incl;
@@ -417,44 +418,33 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    return NULL;
 }
 
-static void fst_get_array_range(type_t type, rt_signal_t *s,
+static void fst_get_array_range(wave_dumper_t *wd, type_t type, rt_signal_t *s,
                                 int64_t *msb, int64_t *lsb, int64_t *length)
 {
-   tree_t r;
-   if (type_is_unconstrained(type)) {
-      const int signal_w = s->shared.size / s->nexus.size;
-
-      *lsb = 0;
-      *msb = signal_w - 1;
-      *length = signal_w;
-      return;
-   }
-   else
-      r = range_of(type, 0);
-
-   const range_kind_t rkind = tree_subkind(r);
-   assert(rkind != RANGE_EXPR);
-
-   int64_t low, high;
-   if (!folded_bounds(r, &low, &high)) {
-      const int signal_w = s->shared.size / s->nexus.size;
-
-      tree_t tlow = rkind == RANGE_TO ? tree_left(r) : tree_right(r);
-      tree_t thigh = rkind == RANGE_TO ? tree_right(r) : tree_left(r);
-
-      if (folded_int(tlow, &low))
-         high = low + signal_w - 1;
-      else if (folded_int(thigh, &high))
-         low = high - signal_w + 1;
-      else {
-         low = 0;
-         high = signal_w - 1;
+   if (!type_is_unconstrained(type)) {
+      tree_t r = range_of(type, 0);
+      if (folded_length(r, length)) {
+         *msb = assume_int(tree_left(r));
+         *lsb = assume_int(tree_right(r));
+         return;
       }
    }
 
-   *msb = rkind == RANGE_TO ? low : high;
-   *lsb = rkind == RANGE_TO ? high : low;
-   *length = MAX(high - low + 1, 0);
+   if (s->parent->kind == SCOPE_INSTANCE) {
+      jit_handle_t handle = jit_lazy_compile(wd->jit, s->parent->name);
+      void *base = jit_get_frame_var(wd->jit, handle, tree_ident(s->where));
+      ffi_dim_t *dims = base + 2*sizeof(int64_t);
+
+      *lsb    = ffi_array_right(dims[0].left, dims[0].length);
+      *msb    = dims[0].left;
+      *length = ffi_array_length(dims[0].length);
+   }
+   else {
+      const int signal_w = s->shared.size / s->nexus.size;
+      *msb    = signal_w - 1;
+      *lsb    = 0;
+      *length = signal_w;
+   }
 }
 
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
@@ -471,7 +461,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    }
 
    int64_t lsb, msb, length;
-   fst_get_array_range(type, s, &msb, &lsb, &length);
+   fst_get_array_range(wd, type, s, &msb, &lsb, &length);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
@@ -686,7 +676,7 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_istr(tb, tree_ident(d));
    if (type_is_array(type)) {
       int64_t lsb, msb, length;
-      fst_get_array_range(type, s, &msb, &lsb, &length);
+      fst_get_array_range(wd, type, s, &msb, &lsb, &length);
 
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
    }
@@ -835,10 +825,11 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    }
 }
 
-void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m)
+void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
 {
    wd->last_time = UINT64_MAX;
    wd->model     = m;
+   wd->jit       = jit;
 
    fst_walk_design(wd, tree_stmt(wd->top, 0));
 
