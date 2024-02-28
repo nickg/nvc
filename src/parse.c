@@ -889,6 +889,20 @@ static bool is_bit_or_std_ulogic(type_t type)
    return name == well_known(W_STD_BIT) || name == well_known(W_IEEE_ULOGIC);
 }
 
+static type_t get_element_subtype(type_t type)
+{
+   type_t elem = type_elem(type);
+   if (is_anonymous_subtype(elem)) {
+      // Create a distinct subtype to ensure any errors are only
+      // reported once
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, elem);
+      return sub;
+   }
+   else
+      return elem;
+}
+
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -930,10 +944,12 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Operators on arrays
       declare_binary(container, eq, t, t, std_bool, S_ARRAY_EQ);
       declare_binary(container, neq, t, t, std_bool, S_ARRAY_NEQ);
+
       if (dimension_of(t) == 1) {
-         type_t elem = type_elem(t);
-         const bool ordered = (standard() >= STD_19)
-            ? type_is_scalar(elem) : type_is_discrete(elem);
+         type_t elem = get_element_subtype(t);
+         const bool scalar_elem = type_is_scalar(elem);
+         const bool ordered =
+            standard() >= STD_19 ? scalar_elem : type_is_discrete(elem);
 
          if (ordered) {
             declare_binary(container, cmp_lt, t, t, std_bool, S_ARRAY_LT);
@@ -954,7 +970,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
                declare_binary(container, max_i, t, t, t, S_MAXIMUM);
             }
 
-            if (type_is_scalar(elem)) {
+            if (scalar_elem) {
                declare_unary(container, min_i, t, elem, S_MINIMUM);
                declare_unary(container, max_i, t, elem, S_MAXIMUM);
             }
@@ -2031,7 +2047,7 @@ static type_t apply_element_attribute(tree_t aref)
       return type_new(T_NONE);
    }
 
-   return type_elem(type);
+   return get_element_subtype(type);
 }
 
 static type_t apply_designated_subtype_attribute(tree_t aref)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -703,6 +703,27 @@ START_TEST(test_issue819)
 }
 END_TEST
 
+START_TEST(test_cons1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/bounds/cons1.vhd");
+
+   const error_t expect[] = {
+      {  4, "left index -1 violates constraint POSITIVE" },
+      {  7, "left index 0 violates constraint POSITIVE" },
+      {  9, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -740,6 +761,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue800);
    tcase_add_test(tc_core, test_issue806);
    tcase_add_test(tc_core, test_issue819);
+   tcase_add_test(tc_core, test_cons1);
    suite_add_tcase(s, tc_core);
 
    return s;

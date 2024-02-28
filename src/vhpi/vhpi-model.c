@@ -3066,7 +3066,7 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
    td->composite.typeDecl.wrapped = !type_const_bounds(type);
 
    type_t elem = type_elem(type);
-   if (type_is_array(elem) && !type_has_ident(elem)) {
+   if (type_is_array(elem) && is_anonymous_subtype(elem)) {
       // Anonymous subtype may need to access parent type to
       // get non-constant bounds
       td->ElemType = build_arrayTypeDecl(elem, decl, parent, obj,
@@ -3167,7 +3167,7 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
 static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
 {
    type_t base = type;
-   while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
+   while (is_anonymous_subtype(base))
       base = type_base(base);   // Anonymous subtypes have no declaration
 
    ident_t id = type_ident(base);

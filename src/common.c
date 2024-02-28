@@ -1103,6 +1103,11 @@ bool is_uninstantiated_subprogram(tree_t decl)
    }
 }
 
+bool is_anonymous_subtype(type_t type)
+{
+   return type_kind(type) == T_SUBTYPE && !type_has_ident(type);
+}
+
 bool unit_needs_cgen(tree_t unit)
 {
    switch (tree_kind(unit)) {

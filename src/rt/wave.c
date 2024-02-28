@@ -250,8 +250,7 @@ static fst_unit_t *fst_make_unit_map(type_t type)
 
 static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
 {
-   const type_kind_t kind = type_kind(type);
-   if (kind == T_SUBTYPE && !type_has_ident(type)) {
+   if (is_anonymous_subtype(type)) {
       // Do not cache anonymous subtypes
       return fst_type_for(type_base(type), loc);
    }

@@ -467,7 +467,7 @@ static void dump_elem_constraints(type_t type)
 {
    if (type_is_array(type) && type_has_elem(type)) {
       type_t elem = type_elem(type);
-      if (type_kind(elem) == T_SUBTYPE && !type_has_ident(elem)) {
+      if (is_anonymous_subtype(elem)) {
          // Anonymous subtype created for element constraints
          assert(type_constraints(elem) == 1);
          dump_constraint(type_constraint(elem, 0));
@@ -478,7 +478,7 @@ static void dump_elem_constraints(type_t type)
 
 static void dump_type(type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE && !type_has_ident(type)) {
+   if (is_anonymous_subtype(type)) {
       // Anonymous subtype
       print_syntax("%s", type_pp(type));
       if (type_ident(type) == type_ident(type_base(type))) {
@@ -1698,6 +1698,7 @@ void vhdl_dump(tree_t t, int indent)
       break;
    case T_PORT_DECL:
    case T_GENERIC_DECL:
+   case T_PARAM_DECL:
       dump_port(t, indent);
       break;
    case T_RANGE:

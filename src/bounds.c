@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -501,7 +501,7 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
                 type_pp(index_type));
 
    type_t base = index_type ?: type;
-   while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
+   while (is_anonymous_subtype(base))
       base = type_base(base);
 
    int64_t rlow, rhigh;
@@ -706,22 +706,24 @@ static void bounds_check_aggregate(tree_t t)
    }
 }
 
-static void bounds_check_subtype(type_t type)
+static void bounds_check_index_contraints(type_t type)
 {
-   if (type_kind(type) != T_SUBTYPE || type_has_ident(type))
-      return;   // Not an anonymous subtype
-   else if (!type_is_array(type) || type_is_unconstrained(type))
-      return;   // Not a fully constrained array
+   assert(type_kind(type) == T_SUBTYPE);
+
+   if (type_constraints(type) == 0)
+      return;
+
+   tree_t c0 = type_constraint(type, 0);
+   if (tree_subkind(c0) != C_INDEX)
+      return;
 
    // Check folded range does not violate index constraints of base type
 
-   type_t base = type_base(type);
-
-   const int ndims = dimension_of(base);
+   const int ndims = dimension_of(type);
    for (int i = 0; i < ndims; i++) {
-      tree_t dim = range_of(type, i);
+      tree_t dim = tree_range(c0, i);
 
-      type_t cons = index_type_of(base, i);
+      type_t cons = index_type_of(type, i);
       if (type_kind(cons) == T_GENERIC)
          continue;   // Cannot check
 
@@ -790,7 +792,9 @@ static void bounds_check_object_decl(tree_t t)
    if (tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
 
-   bounds_check_subtype(tree_type(t));
+   type_t type = tree_type(t);
+   if (is_anonymous_subtype(type))
+      bounds_check_index_contraints(type);
 }
 
 static void bounds_check_alias_decl(tree_t t)
@@ -801,7 +805,40 @@ static void bounds_check_alias_decl(tree_t t)
    if (tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
 
-   bounds_check_subtype(tree_type(t));
+   type_t type = tree_type(t);
+   if (is_anonymous_subtype(type))
+      bounds_check_index_contraints(type);
+}
+
+static void bounds_check_elem_constraint(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (is_anonymous_subtype(type))
+      bounds_check_index_contraints(type);
+}
+
+static void bounds_check_type_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+
+   if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         type_t ft = tree_type(type_field(type, i));
+         if (is_anonymous_subtype(ft))
+            bounds_check_index_contraints(ft);
+      }
+   }
+   else if (type_is_array(type)) {
+      type_t elem = type_elem(type);
+      if (is_anonymous_subtype(elem))
+         bounds_check_index_contraints(elem);
+   }
+}
+
+static void bounds_check_subtype_decl(tree_t t)
+{
+   bounds_check_index_contraints(tree_type(t));
 }
 
 static void bounds_check_interface_decl(tree_t t)
@@ -814,7 +851,9 @@ static void bounds_check_interface_decl(tree_t t)
    if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW && tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
 
-   bounds_check_subtype(tree_type(t));
+   type_t type = tree_type(t);
+   if (is_anonymous_subtype(type))
+      bounds_check_index_contraints(type);
 }
 
 static char *bounds_get_hint_str(tree_t where)
@@ -1381,6 +1420,15 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
       break;
    case T_BLOCK:
       bounds_check_block(t);
+      break;
+   case T_ELEM_CONSTRAINT:
+      bounds_check_elem_constraint(t);
+      break;
+   case T_TYPE_DECL:
+      bounds_check_type_decl(t);
+      break;
+   case T_SUBTYPE_DECL:
+      bounds_check_subtype_decl(t);
       break;
    default:
       break;
