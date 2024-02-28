@@ -478,7 +478,7 @@ ieee7           normal,2008
 wave1           wave
 wave2           shell
 wave3           wave,gtkw,stop-time=1us
-wave4           shell
+wave4           wave,dump-arrays
 wave5           wave,gtkw
 record20        normal
 attr14          normal
@@ -663,7 +663,7 @@ vests48         normal
 signal27        normal
 issue519        normal,2008
 delay3          fail,gold
-issue536        shell
+issue536        wave,dump-arrays
 wait25          normal
 issue539        normal,2008
 issue542        normal
@@ -947,3 +947,5 @@ wait27          normal
 issue808        verilog,gold
 issue851        wave,2008
 vlog8           verilog
+issue852        wave,2019,dump-arrays
+wave11          wave,2008,dump-arrays

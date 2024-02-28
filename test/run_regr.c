@@ -96,6 +96,7 @@
 #define F_EXPORT  (1 << 23)
 #define F_SHUFFLE (1 << 24)
 #define F_NOTBSD  (1 << 25)
+#define F_ARRAYS  (1 << 26)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -411,6 +412,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_SHUFFLE;
          else if (strcmp(opt, "no-collapse") == 0)
             test->flags |= F_NOCOLL;
+         else if (strcmp(opt, "dump-arrays") == 0)
+            test->flags |= F_ARRAYS;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -925,6 +928,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");
+
+      if (test->flags & F_ARRAYS)
+         push_arg(&args, "--dump-arrays");
 
       if (test->flags & F_GTKW)
          push_arg(&args, "-g");

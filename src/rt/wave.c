@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "fstapi.h"
 #include "hash.h"
+#include "jit/jit-layout.h"
 #include "option.h"
 #include "rt/model.h"
 #include "rt/rt.h"
@@ -418,6 +419,28 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    return NULL;
 }
 
+static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
+{
+   if (tree_kind(where) == T_FIELD_DECL) {
+      assert(scope->kind == SCOPE_SIGNAL);
+
+      type_t rtype = tree_type(scope->where);
+      assert(type_is_record(rtype));
+      assert(type_field(rtype, tree_pos(where)) == where);
+
+      const jit_layout_t *l = signal_layout_of(rtype);
+      assert(l->nparts == type_fields(rtype));
+
+      const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
+      return fst_get_ptr(wd, scope->parent, scope->where) + offset;
+   }
+   else {
+      assert(scope->kind == SCOPE_INSTANCE);
+      jit_handle_t handle = jit_lazy_compile(wd->jit, scope->name);
+      return jit_get_frame_var(wd->jit, handle, tree_ident(where));
+   }
+}
+
 static void fst_get_array_range(wave_dumper_t *wd, type_t type, rt_signal_t *s,
                                 int64_t *msb, int64_t *lsb, int64_t *length)
 {
@@ -430,21 +453,11 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type, rt_signal_t *s,
       }
    }
 
-   if (s->parent->kind == SCOPE_INSTANCE) {
-      jit_handle_t handle = jit_lazy_compile(wd->jit, s->parent->name);
-      void *base = jit_get_frame_var(wd->jit, handle, tree_ident(s->where));
-      ffi_dim_t *dims = base + 2*sizeof(int64_t);
+   ffi_dim_t *dims = fst_get_ptr(wd, s->parent, s->where) + 2*sizeof(int64_t);
 
-      *lsb    = ffi_array_right(dims[0].left, dims[0].length);
-      *msb    = dims[0].left;
-      *length = ffi_array_length(dims[0].length);
-   }
-   else {
-      const int signal_w = s->shared.size / s->nexus.size;
-      *msb    = signal_w - 1;
-      *lsb    = 0;
-      *length = signal_w;
-   }
+   *lsb    = ffi_array_right(dims[0].left, dims[0].length);
+   *msb    = dims[0].left;
+   *length = ffi_array_length(dims[0].length);
 }
 
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
@@ -471,11 +484,35 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    fst_data_t *data;
 
    type_t elem = type_elem(type);
-   if (!type_is_enum(elem)) {
-      // Dumping memories and nested arrays can be slow
-      if (!opt_get_int(OPT_DUMP_ARRAYS))
+   if (type_is_enum(elem)) {
+      fst_type_t *ft = fst_type_for(type, tree_loc(d));
+      if (ft == NULL)
          return;
 
+      data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
+      data->type  = ft;
+      data->size  = length * ft->size;
+      data->count = 1;
+
+      data->handle[0] = fstWriterCreateVar2(
+         wd->fst_ctx,
+         ft->vartype,
+         dir,
+         data->size,
+         tb_get(tb),
+         0,
+         type_pp(type),
+         FST_SVT_VHDL_SIGNAL,
+         ft->sdt);
+
+      if (wd->gtkw != NULL)
+         fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
+   }
+   else if (!opt_get_int(OPT_DUMP_ARRAYS))
+      return;   // Dumping memories and nested arrays can be slow
+   else if (type_is_record(elem))
+      return;   // Not yet supported
+   else {
       fst_type_t *ft = fst_type_for(elem, tree_loc(d));
       if (ft == NULL)
          return;
@@ -518,30 +555,6 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       }
 
       fstWriterSetAttrEnd(wd->fst_ctx);
-   }
-   else {
-      fst_type_t *ft = fst_type_for(type, tree_loc(d));
-      if (ft == NULL)
-         return;
-
-      data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
-      data->type  = ft;
-      data->size  = length * ft->size;
-      data->count = 1;
-
-      data->handle[0] = fstWriterCreateVar2(
-         wd->fst_ctx,
-         ft->vartype,
-         dir,
-         data->size,
-         tb_get(tb),
-         0,
-         type_pp(type),
-         FST_SVT_VHDL_SIGNAL,
-         ft->sdt);
-
-      if (wd->gtkw != NULL)
-         fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
    }
 
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
