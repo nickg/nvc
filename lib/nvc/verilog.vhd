@@ -39,12 +39,15 @@ package verilog is
 
     subtype t_resolved_net is resolved t_net_value;
 
-    type t_resolved_packed_net is array (natural range <>) of t_resolved_net;
+    type t_resolved_net_array is array (natural range <>) of t_resolved_net;
 
     function to_logic (value : t_net_value) return t_logic;
+    function to_logic (value : t_net_array) return t_packed_logic;
+    function to_logic (value : t_resolved_net_array) return t_packed_logic;
 
     function to_net_value (value : t_logic) return t_net_value;
     function to_net_value (value : t_packed_logic) return t_net_array;
+    function to_net_value (value : t_packed_logic) return t_resolved_net_array;
 
     function to_integer (value : t_packed_logic) return t_int64;
 

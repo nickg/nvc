@@ -21,6 +21,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
 
@@ -68,6 +69,17 @@ static void pop_scope(void)
    free(tmp);
 }
 
+static bool constant_equal(vlog_node_t a, vlog_node_t b)
+{
+   if (vlog_kind(a) != V_NUMBER || vlog_kind(b) != V_NUMBER)
+      return false;
+
+   number_t an = vlog_number(a);
+   number_t bn = vlog_number(b);
+
+   return number_equal(an, bn);
+}
+
 static void vlog_insert_decl(vlog_node_t v)
 {
    ident_t id = vlog_ident(v);
@@ -84,6 +96,32 @@ static void vlog_insert_decl(vlog_node_t v)
    }
 
    hash_put(top_scope->symbols, id, v);
+}
+
+static void vlog_check_const_expr(vlog_node_t expr)
+{
+   vlog_check(expr);
+
+   switch (vlog_kind(expr)) {
+   case V_NUMBER:
+      break;
+   case V_REF:
+      if (vlog_has_ref(expr)) {
+         vlog_node_t decl = vlog_ref(expr);
+
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(expr));
+         diag_printf(d, "cannot reference %s '%s' in constant expression",
+                     vlog_is_net(decl) ? "net" : "variable",
+                     istr(vlog_ident(decl)));
+         diag_hint(d, vlog_loc(decl), "%s declared here",
+                   istr(vlog_ident(decl)));
+         diag_emit(d);
+      }
+      break;
+   default:
+      error_at(vlog_loc(expr), "expression is not a constant");
+      break;
+   }
 }
 
 static void vlog_check_ref(vlog_node_t ref)
@@ -247,14 +285,46 @@ static void vlog_check_if(vlog_node_t stmt)
    }
 }
 
+static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
+{
+   const int aranges = vlog_ranges(a);
+   const int branges = vlog_ranges(b);
+
+   assert(aranges == branges);
+
+   for (int i = 0; i < aranges; i++) {
+      vlog_node_t ar = vlog_range(a, i);
+      vlog_node_t br = vlog_range(b, i);
+
+      vlog_node_t aleft = vlog_left(ar);
+      vlog_node_t bleft = vlog_left(br);
+
+      vlog_node_t aright = vlog_right(ar);
+      vlog_node_t bright = vlog_right(br);
+
+      if (!constant_equal(aleft, bleft) || !constant_equal(aright, bright)) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(br));
+         diag_printf(d, "inconsistent dimensions for '%s'",
+                     istr(vlog_ident(b)));
+         diag_hint(d, vlog_loc(a), "earlier declaration here");
+         diag_emit(d);
+      }
+   }
+}
+
 static void vlog_check_port_decl(vlog_node_t port)
 {
+   const int nranges = vlog_ranges(port);
+   for (int i = 0; i < nranges; i++)
+      vlog_check(vlog_range(port, i));
+
    ident_t id = vlog_ident(port);
    vlog_node_t exist = hash_get(top_scope->symbols, id);
    if (exist != NULL) {
       const vlog_kind_t kind = vlog_kind(exist);
       if (kind == V_VAR_DECL || kind == V_NET_DECL) {
          vlog_set_ref(port, exist);
+         vlog_check_consistent(exist, port);
          hash_put(top_scope->symbols, id, port);
          return;
       }
@@ -265,20 +335,32 @@ static void vlog_check_port_decl(vlog_node_t port)
 
 static void vlog_check_net_decl(vlog_node_t net)
 {
+   const int nranges = vlog_ranges(net);
+   for (int i = 0; i < nranges; i++)
+      vlog_check(vlog_range(net, i));
+
    vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(net));
    if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
-       && !vlog_has_ref(exist))
+       && !vlog_has_ref(exist)) {
       vlog_set_ref(exist, net);
+      vlog_check_consistent(exist, net);
+   }
    else
       vlog_insert_decl(net);
 }
 
 static void vlog_check_var_decl(vlog_node_t var)
 {
+   const int nranges = vlog_ranges(var);
+   for (int i = 0; i < nranges; i++)
+      vlog_check(vlog_range(var, i));
+
    vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(var));
    if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
-       && !vlog_has_ref(exist))
+       && !vlog_has_ref(exist)) {
       vlog_set_ref(exist, var);
+      vlog_check_consistent(exist, var);
+   }
    else
       vlog_insert_decl(var);
 }
@@ -321,6 +403,21 @@ static void vlog_check_mod_inst(vlog_node_t inst)
       vlog_check(vlog_param(inst, i));
 
    vlog_insert_decl(inst);
+}
+
+static void vlog_check_dimension(vlog_node_t dim)
+{
+   vlog_check_const_expr(vlog_left(dim));
+   vlog_check_const_expr(vlog_right(dim));
+}
+
+static void vlog_check_bit_select(vlog_node_t bsel)
+{
+   vlog_check_ref(bsel);
+
+   const int nparams = vlog_params(bsel);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(bsel, i));
 }
 
 void vlog_check(vlog_node_t v)
@@ -391,6 +488,12 @@ void vlog_check(vlog_node_t v)
       break;
    case V_MOD_INST:
       vlog_check_mod_inst(v);
+      break;
+   case V_DIMENSION:
+      vlog_check_dimension(v);
+      break;
+   case V_BIT_SELECT:
+      vlog_check_bit_select(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

@@ -20,4 +20,5 @@ module mod2;
   assign bus = 3;
   pullup (supply1, supply0) p1 (w);
   mod u1 (w);
+  assign bus[2] = 4'b1;
 endmodule // mod2

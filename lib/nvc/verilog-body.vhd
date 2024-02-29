@@ -68,6 +68,28 @@ package body verilog is
         end case;
     end function;
 
+    function to_logic (value : t_net_array) return t_packed_logic is
+        constant length : natural := value'length;
+        alias a_value   : t_net_array(1 to length) is value;
+        variable result : t_packed_logic(1 to length);
+    begin
+        for i in 1 to length loop
+            result(i) := to_logic(a_value(i));
+        end loop;
+        return result;
+    end function;
+
+    function to_logic (value : t_resolved_net_array) return t_packed_logic is
+        constant length : natural := value'length;
+        alias a_value   : t_resolved_net_array(1 to length) is value;
+        variable result : t_packed_logic(1 to length);
+    begin
+        for i in 1 to length loop
+            result(i) := to_logic(a_value(i));
+        end loop;
+        return result;
+    end function;
+
     function to_net_value (value : t_logic) return t_net_value is
     begin
         case value is
@@ -88,6 +110,18 @@ package body verilog is
         end loop;
         return result;
     end function;
+
+    function to_net_value (value : t_packed_logic) return t_resolved_net_array is
+        constant length : natural := value'length;
+        alias a_value   : t_packed_logic(1 to length) is value;
+        variable result : t_resolved_net_array(1 to length);
+    begin
+        for i in 1 to length loop
+            result(i) := to_net_value(a_value(i));
+        end loop;
+        return result;
+    end function;
+
 
     function to_integer (value : t_packed_logic) return t_int64 is
         alias v      : t_packed_logic(0 to value'length - 1) is value;

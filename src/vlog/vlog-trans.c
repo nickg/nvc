@@ -101,7 +101,7 @@ static type_t trans_var_type(vlog_node_t decl)
 
 static type_t trans_net_type(vlog_node_t decl)
 {
-   return trans_type(decl, VERILOG_RESOLVED_NET, VERILOG_RESOLVED_PACKED_NET);
+   return trans_type(decl, VERILOG_RESOLVED_NET, VERILOG_RESOLVED_NET_ARRAY);
 }
 
 static void trans_port_decl(vlog_node_t decl, tree_t out)

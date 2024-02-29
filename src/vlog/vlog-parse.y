@@ -133,7 +133,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          procedural_timing_control_statement
 %type   <vlog>          lvalue event_control event_expression
 %type   <vlog>          nonblocking_assignment delay_or_event_control
-%type   <vlog>          port_reference blocking_assignment
+%type   <vlog>          port_reference blocking_assignment range_opt
 %type   <vlog>          port initial_construct net_assignment
 %type   <vlog>          seq_block system_task_enable string number
 %type   <vlog>          decimal_number conditional_statement variable_type
@@ -185,6 +185,9 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %token                  tCASENEQ 405 "!=="
 %token                  tLOGEQ 406 "=="
 %token                  tLOGNEQ 407 "!="
+%token                  tATTRBEGIN 408 "(*"
+%token                  tATTREND 409 "*)"
+%token  <str>           tNUMBER 410 "number"
 
 %token                  tEOF 0 "end of file"
 
@@ -221,29 +224,36 @@ description:    { root = vlog_new(V_MODULE); } module_declaration { YYACCEPT; }
         |       tEOF { root = NULL; }
         ;
 
+attr_spec:      tATTRBEGIN identifier tATTREND
+        ;
+
+attr_list_opt:  attr_list_opt attr_spec
+        |       /* empty */
+        ;
+
 module_declaration:
-                tMODULE external_identifier module_port_list_opt ';'
-                module_item_list_opt tENDMODULE
+                attr_list_opt tMODULE external_identifier
+                module_port_list_opt ';' module_item_list_opt tENDMODULE
                 {
                    ident_t qual = ident_prefix(lib_name(lib_work()),
-                                               $2.right, '.');
+                                               $3.right, '.');
 
                    $$ = root;
                    vlog_set_ident($$, qual);
-                   vlog_set_ident2($$, $2.left);
+                   vlog_set_ident2($$, $3.left);
                    vlog_set_loc($$, &@$);
 
-                   for (node_list_t *it = $3; it; it = it->next)
+                   for (node_list_t *it = $4; it; it = it->next)
                       add_port($$, it->value);
-                   node_list_free($3);
+                   node_list_free($4);
 
-                   for (node_list_t *it = $5; it; it = it->next) {
+                   for (node_list_t *it = $6; it; it = it->next) {
                       if (is_decl(it->value))
                          vlog_add_decl($$, it->value);
                       else
                          vlog_add_stmt($$, it->value);
                    }
-                   node_list_free($5);
+                   node_list_free($6);
                 }
         ;
 
@@ -297,32 +307,54 @@ list_of_port_declarations:
         |       port_declaration_head { $$ = $1; }
         ;
 
+range_opt:      '[' expression ':' expression ']'
+                {
+                   $$ = vlog_new(V_DIMENSION);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_DIM_PACKED);
+                   vlog_set_left($$, $2);
+                   vlog_set_right($$, $4);
+                }
+        |       /* empty */ { $$ = NULL; }
+        ;
+
 port_declaration_head:
-                tINPUT port_identifier
+                tINPUT range_opt port_identifier
                 {
-                   vlog_set_subkind($2, V_PORT_INPUT);
-                   $$ = node_list_single($2);
+                   vlog_set_subkind($3, V_PORT_INPUT);
+                   if ($2 != NULL)
+                      vlog_add_range($3, $2);
+
+                   $$ = node_list_single($3);
                 }
-        |       tOUTPUT port_identifier
-                {
-                   vlog_set_subkind($2, V_PORT_OUTPUT);
-                   $$ = node_list_single($2);
-                }
-        |       tINOUT port_identifier
-                {
-                   vlog_set_subkind($2, V_PORT_INOUT);
-                   $$ = node_list_single($2);
-                }
-        |       tOUTPUT tREG port_identifier
+        |       tOUTPUT range_opt port_identifier
                 {
                    vlog_set_subkind($3, V_PORT_OUTPUT);
+                   if ($2 != NULL)
+                      vlog_add_range($3, $2);
+
+                   $$ = node_list_single($3);
+                }
+        |       tINOUT range_opt port_identifier
+                {
+                   vlog_set_subkind($3, V_PORT_INOUT);
+                   if ($2 != NULL)
+                      vlog_add_range($3, $2);
+
+                   $$ = node_list_single($3);
+                }
+        |       tOUTPUT tREG range_opt port_identifier
+                {
+                   vlog_set_subkind($4, V_PORT_OUTPUT);
+                   if ($3 != NULL)
+                      vlog_add_range($4, $3);
 
                    $$ = NULL;
-                   node_list_append(&$$, $3);
+                   node_list_append(&$$, $4);
 
                    vlog_node_t reg = vlog_new(V_VAR_DECL);
                    vlog_set_loc(reg, &@$);
-                   vlog_set_ident(reg, vlog_ident($3));
+                   vlog_set_ident(reg, vlog_ident($4));
 
                    node_list_append(&$$, reg);
                 }
@@ -357,12 +389,12 @@ module_item:
         ;
 
 module_or_generate_item:
-                module_or_generate_item_declaration
-        |       always_construct { $$ = node_list_single($1); }
-        |       initial_construct { $$ = node_list_single($1); }
-        |       continuous_assign
-        |       gate_instantiation
-        |       module_instantiation
+                attr_list_opt module_or_generate_item_declaration { $$ = $2; }
+        |       attr_list_opt always_construct { $$ = node_list_single($2); }
+        |       attr_list_opt initial_construct { $$ = node_list_single($2); }
+        |       attr_list_opt continuous_assign { $$ = $2; }
+        |       attr_list_opt gate_instantiation { $$ = $2; }
+        |       attr_list_opt module_instantiation { $$ = $2; }
         ;
 
 module_instantiation:
@@ -742,6 +774,13 @@ lvalue:         hierarchical_identifier
                    vlog_set_loc($$, &@$);
                    vlog_set_ident($$, $1);
                 }
+        |       hierarchical_identifier '[' expression ']'
+                {
+                   $$ = vlog_new(V_BIT_SELECT);
+                   vlog_set_ident($$, $1);
+                   vlog_add_param($$, $3);
+                   vlog_set_loc($$, &@$);
+                }
         ;
 
 expression:     primary
@@ -839,10 +878,24 @@ primary:        hierarchical_identifier
                    vlog_set_ident($$, $1);
                    vlog_set_loc($$, &@$);
                 }
+        |       hierarchical_identifier '[' expression ']'
+                {
+                   $$ = vlog_new(V_BIT_SELECT);
+                   vlog_set_ident($$, $1);
+                   vlog_add_param($$, $3);
+                   vlog_set_loc($$, &@$);
+                }
         |       number
         ;
 
 number:         decimal_number
+        |       tNUMBER
+                {
+                   $$ = vlog_new(V_NUMBER);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_number($$, number_new($1));
+                   free($1);
+                }
         ;
 
 decimal_number: tUNSIGNED

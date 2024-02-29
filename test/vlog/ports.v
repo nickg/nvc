@@ -1,5 +1,5 @@
 module ports1 (x, y, z, y);  // Error
-  input x;
+  input      x;
   output reg y;
   output     y;  // Error
   output     z;
@@ -36,3 +36,10 @@ module ports5 (x, y, z);
   input x, y;    // OK
   output reg z;
 endmodule // ports5
+
+module ports6 (x, y, z);
+  input [7:0]  x;    // OK
+  output [3:0] y;    // OK
+  wire [5:0]   y;    // Error
+  input [x:0]  z;    // Error
+endmodule // ports6

@@ -83,6 +83,7 @@ int64_t number_integer(number_t val);
 unsigned number_width(number_t val);
 vlog_logic_t number_bit(number_t val, unsigned n);
 number_t number_pack(const uint8_t *bits, unsigned width);
+bool number_equal(number_t a, number_t b);
 
 void number_write(number_t val, fbuf_t *f);
 number_t number_read(fbuf_t *f);

@@ -301,5 +301,8 @@ bool is_scanned_as_psl(void);
 #define tCASENEQ       405
 #define tLOGEQ         406
 #define tLOGNEQ        407
+#define tATTRBEGIN     408
+#define tATTREND       409
+#define tNUMBER        410
 
 #endif  // _SCAN_H

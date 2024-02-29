@@ -163,9 +163,15 @@ static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
    return emit_fcall(func, vint64, vint64, args, ARRAY_LEN(args));
 }
 
+static vcode_reg_t vlog_lower_to_offset(lower_unit_t *lu, vcode_reg_t reg)
+{
+   vcode_type_t voffset = vtype_offset();
+   vcode_reg_t int_reg = vlog_lower_to_integer(lu, reg);
+   return emit_cast(voffset, voffset, int_reg);
+}
+
 static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
 {
-
    switch (vcode_reg_kind(reg)) {
    case VCODE_TYPE_INT:
       if (vtype_eq(vcode_reg_type(reg), vtype_bool()))
@@ -179,6 +185,36 @@ static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
    default:
       vcode_dump();
       fatal_trace("cannot convert r%d to bool", reg);
+   }
+}
+
+static vcode_reg_t vlog_lower_to_logic(lower_unit_t *lu, vcode_reg_t reg)
+{
+   vcode_type_t vlogic = vlog_logic_type();
+
+   switch (vcode_reg_kind(reg)) {
+   case VCODE_TYPE_INT:
+      if (vtype_eq(vcode_reg_type(reg), vlogic))
+         return reg;
+      else {
+         vcode_reg_t context_reg = vlog_helper_package();
+         vcode_reg_t args[] = { context_reg, reg };
+         ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
+                                  T_NET_VALUE ")" T_LOGIC);
+         return emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
+      }
+   case VCODE_TYPE_UARRAY:
+      {
+         vcode_type_t vpacked = vlog_packed_logic_type();
+         vcode_reg_t context_reg = vlog_helper_package();
+         vcode_reg_t args[] = { context_reg, reg };
+         ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
+                                  T_NET_ARRAY ")" T_PACKED_LOGIC);
+         return emit_fcall(func, vpacked, vlogic, args, ARRAY_LEN(args));
+      }
+   default:
+      vcode_dump();
+      fatal_trace("cannot convert r%d to logic", reg);
    }
 }
 
@@ -217,32 +253,45 @@ static vcode_reg_t vlog_lower_decl_bounds(lower_unit_t *lu, vlog_node_t decl,
    return emit_wrap(data, dims, nranges);
 }
 
+static vcode_reg_t vlog_lower_lvalue_ref(lower_unit_t *lu, vlog_node_t ref)
+{
+   vlog_node_t decl = vlog_ref(ref);
+   if (vlog_kind(decl) == V_PORT_DECL)
+      decl = vlog_ref(decl);
+
+   int hops;
+   vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
+   assert(var != VCODE_INVALID_VAR);
+
+   vcode_reg_t nets_reg;
+   if (hops == 0)
+      nets_reg = emit_load(var);
+   else
+      nets_reg = emit_load_indirect(emit_var_upref(hops, var));
+
+   if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY && vlog_ranges(decl) > 0)
+      return vlog_lower_decl_bounds(lu, decl, nets_reg);
+   else
+      return nets_reg;
+}
+
 static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(v);
 
    switch (vlog_kind(v)) {
    case V_REF:
+      return vlog_lower_lvalue_ref(lu, v);
+   case V_BIT_SELECT:
       {
-         vlog_node_t decl = vlog_ref(v);
-         if (vlog_kind(decl) == V_PORT_DECL)
-            decl = vlog_ref(decl);
+         vcode_reg_t wrap_reg = vlog_lower_lvalue_ref(lu, v);
+         vcode_reg_t nets_reg = emit_unwrap(wrap_reg);
 
-         int hops;
-         vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
-         assert(var != VCODE_INVALID_VAR);
+         assert(vlog_params(v) == 1);
+         vcode_reg_t p0_reg = vlog_lower_rvalue(lu, vlog_param(v, 0));
+         vcode_reg_t off_reg = vlog_lower_to_offset(lu, p0_reg);
 
-         vcode_reg_t nets_reg;
-         if (hops == 0)
-            nets_reg = emit_load(var);
-         else
-            nets_reg = emit_load_indirect(emit_var_upref(hops, var));
-
-         if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY
-             && vlog_ranges(decl) > 0)
-            return vlog_lower_decl_bounds(lu, decl, nets_reg);
-         else
-            return nets_reg;
+         return emit_array_ref(nets_reg, off_reg);
       }
    default:
       CANNOT_HANDLE(v);
@@ -357,6 +406,8 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
 
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 {
+   PUSH_DEBUG_INFO(v);
+
    switch (vlog_kind(v)) {
    case V_REF:
       {
@@ -394,14 +445,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
                resolved_reg = emit_load_indirect(data_reg);
          }
 
-         if (vlog_is_net(decl)) {
-            vcode_reg_t context_reg = vlog_helper_package();
-            vcode_reg_t args[] = { context_reg, resolved_reg };
-            vcode_type_t vlogic = vlog_logic_type();
-            ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
-                                     T_NET_VALUE ")" T_LOGIC);
-            return emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
-         }
+         if (vlog_is_net(decl))
+            return vlog_lower_to_logic(lu, resolved_reg);
          else
             return resolved_reg;
       }

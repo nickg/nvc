@@ -136,13 +136,15 @@ START_TEST(test_ports)
       { 19, "duplicate declaration of x" },
       { 22, "duplicate declaration of y" },
       { 31, "'o3' cannot be assigned in a procedural block" },
+      { 43, "inconsistent dimensions for 'y'" },
+      { 44, "cannot reference net 'x' in constant expression" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    input_from_file(TESTDIR "/vlog/ports.v");
 
-   for (int i = 0; i < 5; i++) {
+   for (int i = 0; i < 6; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);

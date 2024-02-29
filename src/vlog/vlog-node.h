@@ -70,6 +70,7 @@ typedef enum {
    V_GATE_INST,
    V_STRENGTH,
    V_MOD_INST,
+   V_BIT_SELECT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

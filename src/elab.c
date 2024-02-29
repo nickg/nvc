@@ -557,6 +557,46 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
    return bind;
 }
 
+static tree_t elab_verilog_conversion(type_t from, type_t to)
+{
+   static struct {
+      const verilog_type_t from_id;
+      const verilog_type_t to_id;
+      const char *const    func;
+      type_t               from;
+      type_t               to;
+      tree_t               decl;
+   } table[] = {
+      { VERILOG_NET_VALUE, VERILOG_LOGIC,
+        "NVC.VERILOG.TO_LOGIC(" T_NET_VALUE ")" T_LOGIC },
+      { VERILOG_NET_ARRAY, VERILOG_PACKED_LOGIC,
+        "NVC.VERILOG.TO_LOGIC(" T_NET_ARRAY ")" T_PACKED_LOGIC },
+      { VERILOG_RESOLVED_NET_ARRAY, VERILOG_PACKED_LOGIC,
+        "NVC.VERILOG.TO_LOGIC(" T_RESOLVED_NET_ARRAY ")" T_PACKED_LOGIC },
+      { VERILOG_LOGIC, VERILOG_NET_VALUE,
+        "NVC.VERILOG.TO_NET_VALUE(" T_LOGIC ")" T_NET_VALUE },
+      { VERILOG_PACKED_LOGIC, VERILOG_NET_ARRAY,
+        "NVC.VERILOG.TO_NET_VALUE(" T_PACKED_LOGIC ")" T_NET_ARRAY },
+      { VERILOG_PACKED_LOGIC, VERILOG_RESOLVED_NET_ARRAY,
+        "NVC.VERILOG.TO_NET_VALUE(" T_PACKED_LOGIC ")" T_RESOLVED_NET_ARRAY },
+   };
+
+   INIT_ONCE({
+         for (int i = 0; i < ARRAY_LEN(table); i++) {
+            table[i].from = verilog_type(table[i].from_id);
+            table[i].to   = verilog_type(table[i].to_id);
+            table[i].decl = verilog_func(ident_new(table[i].func));
+         }
+      });
+
+   for (int i = 0; i < ARRAY_LEN(table); i++) {
+      if (type_eq(table[i].from, from) && type_eq(table[i].to, to))
+         return table[i].decl;
+   }
+
+   return NULL;
+}
+
 static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
                                    const elab_ctx_t *ctx)
 {
@@ -577,6 +617,7 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
       return NULL;
    }
 
+   bool have_named = false;
    for (int i = 0; i < nports; i++) {
       vlog_node_t conn = vlog_param(inst, i);
       assert(vlog_kind(conn) == V_REF);
@@ -584,7 +625,47 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
       tree_t decl = search_decls(ctx->out, vlog_ident(conn), 0);
       assert(decl != NULL);
 
-      add_param(bind, make_ref(decl), P_POS, NULL);
+      tree_t port = tree_port(mc->block, i);
+
+      type_t dtype = tree_type(decl);
+      type_t ptype = tree_type(port);
+
+      if (type_eq(dtype, ptype)) {
+         if (have_named)
+            abort();
+         else
+            add_param(bind, make_ref(decl), P_POS, NULL);
+      }
+      else if (tree_subkind(port) == PORT_IN) {
+         tree_t func = elab_verilog_conversion(dtype, ptype);
+         assert(func != NULL);
+
+         tree_t conv = tree_new(T_CONV_FUNC);
+         tree_set_loc(conv, vlog_loc(conn));
+         tree_set_ref(conv, func);
+         tree_set_ident(conv, tree_ident(func));
+         tree_set_type(conv, type_result(tree_type(func)));
+         tree_set_value(conv, make_ref(decl));
+
+         if (have_named)
+            add_param(bind, conv, P_NAMED, make_ref(port));
+         else
+            add_param(bind, conv, P_POS, NULL);
+      }
+      else {
+         tree_t func = elab_verilog_conversion(ptype, dtype);
+         assert(func != NULL);
+
+         tree_t conv = tree_new(T_CONV_FUNC);
+         tree_set_loc(conv, vlog_loc(conn));
+         tree_set_ref(conv, func);
+         tree_set_ident(conv, tree_ident(func));
+         tree_set_type(conv, type_result(tree_type(func)));
+         tree_set_value(conv, make_ref(port));
+
+         add_param(bind, make_ref(decl), P_NAMED, conv);
+         have_named = true;
+      }
    }
 
    return bind;

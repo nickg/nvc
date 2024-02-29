@@ -353,6 +353,18 @@ static void vlog_dump_strength(vlog_node_t v, int indent)
    }
 }
 
+static void vlog_dump_bit_select(vlog_node_t v, int indent)
+{
+   print_syntax("%s", istr(vlog_ident(v)));
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++) {
+      print_syntax("[");
+      vlog_dump(vlog_param(v, i), 0);
+      print_syntax("]");
+   }
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -424,6 +436,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_STRENGTH:
       vlog_dump_strength(v, indent);
+      break;
+   case V_BIT_SELECT:
+      vlog_dump_bit_select(v, indent);
       break;
    default:
       print_syntax("\n");

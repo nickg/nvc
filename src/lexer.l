@@ -120,6 +120,7 @@ TRANSLATE_ON    {PRAGMA}(?i:pragma)[ \t]+(?i:translate_on).*
 PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
+VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
 
 %x COMMENT C_COMMENT PSL VLOG
 
@@ -545,11 +546,14 @@ UNION         ?i:union
 <VLOG>"!="               { return tLOGNEQ; }
 <VLOG>"==="              { return tCASEEQ; }
 <VLOG>"!=="              { return tCASENEQ; }
+<VLOG>"(*"               { return tATTRBEGIN; }
+<VLOG>"*)"               { return tATTREND; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
+<VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }

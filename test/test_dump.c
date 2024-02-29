@@ -489,6 +489,7 @@ START_TEST(test_vlog1)
              "  assign bus = 32'd3;\n"
              "  pullup (supply1,supply0) p1 (w);\n"
              "  mod u1 (w);\n"
+             "  assign bus[32'd2] = 4'd1;\n"
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 

@@ -320,6 +320,21 @@ number_t number_pack(const uint8_t *bits, unsigned width)
    }
 }
 
+bool number_equal(number_t a, number_t b)
+{
+   assert(a.common.tag == b.common.tag);   // TODO
+
+   switch (a.common.tag) {
+   case TAG_INTEGER:
+      return a.intg.packed == b.intg.packed;
+   case TAG_SMALLNUM:
+      return a.small.packed == b.small.packed;
+   default:
+      DEBUG_ONLY(fatal_trace("invalid number tag %x", a.common.tag));
+      return false;
+   }
+}
+
 void number_write(number_t val, fbuf_t *f)
 {
    assert(val.common.tag != TAG_BIGNUM);
