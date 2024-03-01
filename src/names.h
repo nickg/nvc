@@ -102,7 +102,10 @@ void continue_proc_labelling_from(tree_t t, nametab_t *tab);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
-tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint);
+tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
+                               type_t constraint);
+tree_t resolve_uninstantiated_subprogram(nametab_t *tab, const loc_t *loc,
+                                         ident_t name, type_t constraint);
 void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl);
 tree_t query_spec(nametab_t *tab, tree_t object);

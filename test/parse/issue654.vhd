@@ -16,6 +16,17 @@ package frequency is
         function "not"(x : t) return t is <>
     ) parameter (signal clock : inout t ; freq : frequency ; count : natural := 0) ;
 
-    procedure generate_clock is new generate_clock generic map(t => bit) ;
+    procedure generate_clock is new generate_clock  -- OK
+        generic map(t => bit) ;
+
+    procedure bad1 is new generate_clock [return integer];  -- Error
+    procedure bad2 is new "+";  -- Error
+
+    procedure generate_clock generic (
+        type t ;
+        function "not"(x : t) return t is <>
+    ) parameter (signal clock : inout t) ;
+
+    procedure bad3 is new generate_clock;  -- Error
 
 end package ;

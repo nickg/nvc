@@ -5411,7 +5411,11 @@ START_TEST(test_issue654)
    const error_t expect[] = {
       { 19, "subprogram GENERATE_CLOCK cannot be instantiated until its body "
         "has been analysed" },
-      { 19, "GENERATE_CLOCK has no generic named T" },
+      { 20, "GENERATE_CLOCK has no generic named T" },
+      { 22, "no visible uninstantiated subprogram GENERATE_CLOCK matches "
+        "signature [return INTEGER]" },
+      { 23, "no visible uninstantiated subprogram declaration for \"+\"" },
+      { 30, "multiple visible uninstantiated subprograms with name GENE" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -5805,11 +5805,8 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
       tree_set_type(t, type);
 
       if (it->signature != NULL) {
-         tree_t tmp = tree_new(T_REF);
-         tree_set_ident(tmp, it->ident);
-         tree_set_loc(tmp, &(it->loc));
-
-         tree_t d = resolve_subprogram_name(nametab, tmp, it->signature);
+         tree_t d = resolve_subprogram_name(nametab, &(it->loc), it->ident,
+                                            it->signature);
          tree_set_ref(t, d);
       }
       else if (class != C_LITERAL && class != C_LABEL)
@@ -6907,13 +6904,8 @@ static tree_t p_subprogram_instantiation_declaration(void)
    if (tree_kind(name) != T_REF)
       parse_error(CURRENT_LOC, "expecting uninstantiated subprogram name");
    else {
-      decl = resolve_subprogram_name(nametab, name, constraint);
-
-      if (decl != NULL && !is_uninstantiated_subprogram(decl)) {
-         parse_error(CURRENT_LOC, "%s %s is not an uninstantiated subprogram",
-                     class_str(class_of(decl)), istr(tree_ident(name)));
-         decl = NULL;
-      }
+      decl = resolve_uninstantiated_subprogram(nametab, tree_loc(name),
+                                               tree_ident(name), constraint);
    }
 
    tree_t body = NULL;
@@ -6948,6 +6940,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
    else {
       // Create a dummy subprogram type to avoid later errors
       type_t type = type_new(kind == T_FUNC_INST ? T_FUNC : T_PROC);
+      type_set_ident(type, tree_ident(name));
       if (kind == T_FUNC_INST)
          type_set_result(type, type_new(T_NONE));
       tree_set_type(inst, type);

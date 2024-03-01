@@ -1458,7 +1458,7 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
          for (int i = 0; i < chunk->count; i++) {
             if (chunk->symbols[i].mask & filter) {
                const int d = ident_distance(chunk->symbols[i].name, name);
-               if (d < bestd) {
+               if (d > 0 && d < bestd) {
                   best = &(chunk->symbols[i]);
                   bestd = d;
                }
@@ -1791,24 +1791,16 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    return NULL;
 }
 
-tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
+static tree_t resolve_method_name(nametab_t *tab, tree_t ref, type_t constraint)
 {
-   const bool is_protected = tree_kind(ref) == T_PROT_REF;
-   assert(is_protected || tree_kind(ref) == T_REF);
+   assert(tree_kind(ref) == T_PROT_REF);
+   assert(constraint != NULL);
 
-   const bool allow_enum =
-      constraint != NULL && type_kind(constraint) == T_FUNC
-      && type_params(constraint) == 0
-      && !is_protected;
+   type_t ptype = tree_type(tree_value(ref));
+   assert(type_is_protected(ptype));
 
-   const symbol_t *sym;
-   if (is_protected) {
-      type_t ptype = tree_type(tree_value(ref));
-      assert(type_is_protected(ptype));
-      sym = symbol_for(scope_for_type(tab, ptype), tree_ident(ref));
-   }
-   else
-      sym = iterate_symbol_for(tab, tree_ident(ref));
+   scope_t *scope = scope_for_type(tab, ptype);
+   const symbol_t *sym = symbol_for(scope, tree_ident(ref));
 
    SCOPED_A(tree_t) matching = AINIT;
    if (sym != NULL) {
@@ -1817,13 +1809,115 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
          if (dd->visibility == HIDDEN)
             continue;
          else if (dd->mask & N_SUBPROGRAM) {
-            if (constraint == NULL)
+            type_t signature = tree_type(dd->tree);
+            if (type_eq_map(constraint, signature, tab->top_scope->gmap))
                APUSH(matching, dd->tree);
+         }
+      }
+   }
+
+   assert(matching.count <= 1);
+
+   if (matching.count == 1)
+      return matching.items[0];
+   else if (tab->top_scope->suppress)
+      return NULL;
+   else {
+      const char *signature = strchr(type_pp(constraint), '[');
+      error_at(tree_loc(ref), "no visible method %s in protected type %s "
+               "matches signature %s", istr(tree_ident(ref)), type_pp(ptype),
+               signature);
+      return NULL;
+   }
+}
+
+tree_t resolve_uninstantiated_subprogram(nametab_t *tab, const loc_t *loc,
+                                         ident_t name, type_t constraint)
+{
+   const symbol_t *sym = iterate_symbol_for(tab, name);
+
+   SCOPED_A(tree_t) m = AINIT;
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            if (constraint == NULL)
+               APUSH(m, dd->tree);
             else {
                type_t signature = tree_type(dd->tree);
                if (type_eq_map(constraint, signature, tab->top_scope->gmap))
-                  APUSH(matching, dd->tree);
+                  APUSH(m, dd->tree);
             }
+         }
+      }
+   }
+
+   if (m.count > 1) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < m.count; i++) {
+         if (is_uninstantiated_subprogram(m.items[i]))
+            m.items[wptr++] = m.items[i];
+      }
+      ATRIM(m, wptr);
+   }
+
+   if (m.count == 1) {
+      if (is_uninstantiated_subprogram(m.items[0]))
+         return m.items[0];
+      else {
+         error_at(loc, "%s %s is not an uninstantiated subprogram",
+                  class_str(class_of(m.items[0])), istr(name));
+         return NULL;
+      }
+   }
+   else if (tab->top_scope->suppress)
+      return NULL;
+   else if (constraint != NULL) {
+      const char *signature = strchr(type_pp(constraint), '[');
+      error_at(loc, "no visible uninstantiated subprogram %s matches "
+               "signature %s", istr(name), signature);
+      return NULL;
+   }
+   else if (m.count == 0) {
+      error_at(loc,"no visible uninstantiated subprogram declaration for %s",
+               istr(name));
+      return NULL;
+   }
+   else {
+      diag_t *d = diag_new(DIAG_ERROR, loc);
+      diag_printf(d, "multiple visible uninstantiated subprograms with "
+                  "name %s", istr(name));
+      for (int i = 0; i < m.count; i++)
+         diag_hint(d, tree_loc(m.items[i]), "visible declaration of %s",
+                   type_pp(tree_type(m.items[i])));
+      diag_hint(d, loc, "use of name %s here", istr(name));
+      diag_hint(d, NULL, "use an explicit subprogram signature to select "
+                "a particular overload");
+      diag_emit(d);
+      return NULL;
+   }
+}
+
+tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
+                               type_t constraint)
+{
+   const bool allow_enum =
+      type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
+
+   const symbol_t *sym = iterate_symbol_for(tab, name);
+
+   SCOPED_A(tree_t) matching = AINIT;
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            type_t signature = tree_type(dd->tree);
+            if (type_eq_map(constraint, signature, tab->top_scope->gmap))
+               APUSH(matching, dd->tree);
          }
          else if (allow_enum && dd->kind == T_ENUM_LIT
                   && type_eq(type_result(constraint), tree_type(dd->tree)))
@@ -1835,46 +1929,28 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
       return matching.items[0];
    else if (tab->top_scope->suppress)
       return NULL;
-   else if (constraint != NULL) {
-      const char *signature = strchr(type_pp(constraint), '[');
-      error_at(tree_loc(ref), "no visible subprogram%s %s matches "
-               "signature %s", allow_enum ? " or enumeration literal" : "",
-               istr(tree_ident(ref)), signature);
-      return NULL;
-   }
-   else if (matching.count == 0) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
-      diag_printf(d, "no visible subprogram declaration for %s",
-                  istr(tree_ident(ref)));
-      hint_for_typo(tab->top_scope, d, tree_ident(ref), N_SUBPROGRAM);
-      diag_emit(d);
-      return NULL;
-   }
    else {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
-      diag_printf(d, "multiple visible subprograms with name %s",
-                  istr(tree_ident(ref)));
-      for (int i = 0; i < matching.count; i++)
-         diag_hint(d, tree_loc(matching.items[i]), "visible declaration of %s",
-                   type_pp(tree_type(matching.items[i])));
-      diag_hint(d, tree_loc(ref), "use of name %s here", istr(tree_ident(ref)));
-      diag_hint(d, NULL, "use an explicit subprogram signature to select "
-                "a particular overload");
-      diag_emit(d);
+      const char *signature = strchr(type_pp(constraint), '[');
+      error_at(loc, "no visible subprogram%s %s matches signature %s",
+               allow_enum ? " or enumeration literal" : "",
+               istr(name), signature);
       return NULL;
    }
 }
 
 static tree_t resolve_ref(nametab_t *tab, tree_t ref)
 {
+   const loc_t *loc = tree_loc(ref);
+   ident_t name = tree_ident(ref);
+
    type_t constraint;
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
       // Reference to subprogram or enumeration literal with signature
-      return resolve_subprogram_name(tab, ref, constraint);
+      return resolve_subprogram_name(tab, loc, name, constraint);
    }
    else {
       // Ordinary reference
-      return resolve_name(tab, tree_loc(ref), tree_ident(ref));
+      return resolve_name(tab, loc, name);
    }
 }
 
@@ -3798,7 +3874,7 @@ static type_t solve_prot_ref(nametab_t *tab, tree_t pref)
    type_t constraint;
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
       // Reference to protected type subprogram with signature
-      tree_t decl = resolve_subprogram_name(tab, pref, constraint);
+      tree_t decl = resolve_method_name(tab, pref, constraint);
       type_t type = decl ? tree_type(decl) : type_new(T_NONE);
       tree_set_type(pref, type);
       tree_set_ref(pref, decl);

@@ -2822,9 +2822,9 @@ START_TEST(test_gensub)
       { 60, "actual associated with generic Y must be a globally static" },
       { 69, "subtype of generic X does not match type INTEGER in spec" },
       { 75, "subprogram TEST2 declaration has 1 generic but body has 2" },
-      { 93, "multiple visible subprograms with name TEST1" },
+      { 93, "multiple visible uninstantiated subprograms with name TEST1" },
       { 93, "TEST_ERROR has no generic named T" },
-      { 94, "no visible subprogram declaration for TEST444" },
+      { 94, "no visible uninstantiated subprogram declaration for TEST444" },
       { 94, "TEST_ERROR2 has no generic named T" },
       { -1, NULL }
    };
@@ -3350,7 +3350,8 @@ START_TEST(test_alias2)
    input_from_file(TESTDIR "/sem/alias2.vhd");
 
    const error_t expect[] = {
-      { 39, "no visible subprogram FOOBAR matches signature []" },
+      { 39, "no visible method FOOBAR in protected type T_TEST matches "
+        "signature []" },
       { 40, "no visible declaration for XX" },
       { 42, "invalid use of name INCREMENT" },
       { 42, "aliased name is not static" },
