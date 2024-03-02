@@ -11572,6 +11572,41 @@ static ident_t lower_converter(lower_unit_t *parent, tree_t expr,
    return name;
 }
 
+static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,
+                                      vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
+                                      vcode_reg_t locus, void *ctx)
+{
+   type_t ftype = tree_type(field);
+
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t dst_reg = emit_load_indirect(dst_ptr);
+
+      vcode_reg_t src_reg;
+      if (lower_have_signal(src_ptr))
+         src_reg = emit_load_indirect(src_ptr);
+      else if (have_uarray_ptr(src_ptr))
+         src_reg = emit_load_indirect(src_ptr);
+      else
+         src_reg = src_ptr;
+
+      if (type_is_array(ftype))
+         lower_check_array_sizes(lu, ftype, ftype, src_reg, dst_reg, locus);
+
+      vcode_reg_t count_reg = lower_type_width(lu, ftype, dst_reg);
+
+      src_reg = lower_array_data(src_reg);
+      dst_reg = lower_array_data(dst_reg);
+
+      if (lower_have_signal(src_reg))
+         emit_map_signal(src_reg, dst_reg, count_reg);
+      else
+         emit_map_const(src_reg, dst_reg, count_reg);
+   }
+   else
+      lower_for_each_field(lu, ftype, src_ptr, dst_ptr, locus,
+                           lower_map_signal_field_cb, ctx);
+}
+
 static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
                                     vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
                                     vcode_reg_t locus, void *__ctx)
@@ -11608,48 +11643,17 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
          fatal_trace("unhandled port mode in lower_map_view_field_cb");
       }
    }
-   else {
-      assert(tree_subkind(elem) == PORT_RECORD_VIEW);
-
+   else if (tree_subkind(elem) == PORT_RECORD_VIEW) {
       void *new_ctx = tag_pointer(tree_value(elem), converse);
       lower_for_each_field(lu, ftype, src_ptr, dst_ptr, locus,
                            lower_map_view_field_cb, new_ctx);
    }
-}
-
-static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,
-                                      vcode_reg_t src_ptr, vcode_reg_t dst_ptr,
-                                      vcode_reg_t locus, void *ctx)
-{
-   type_t ftype = tree_type(field);
-
-   if (type_is_homogeneous(ftype)) {
-      vcode_reg_t dst_reg = emit_load_indirect(dst_ptr);
-
-      vcode_reg_t src_reg;
-      if (lower_have_signal(src_ptr))
-         src_reg = emit_load_indirect(src_ptr);
-      else if (have_uarray_ptr(src_ptr))
-         src_reg = emit_load_indirect(src_ptr);
-      else
-         src_reg = src_ptr;
-
-      if (type_is_array(ftype))
-         lower_check_array_sizes(lu, ftype, ftype, src_reg, dst_reg, locus);
-
-      vcode_reg_t count_reg = lower_type_width(lu, ftype, dst_reg);
-
-      src_reg = lower_array_data(src_reg);
-      dst_reg = lower_array_data(dst_reg);
-
-      if (lower_have_signal(src_reg))
-         emit_map_signal(src_reg, dst_reg, count_reg);
-      else
-         emit_map_const(src_reg, dst_reg, count_reg);
-   }
+   else if (converse)
+      lower_for_each_field(lu, ftype, dst_ptr, src_ptr, locus,
+                           lower_map_signal_field_cb, NULL);
    else
       lower_for_each_field(lu, ftype, src_ptr, dst_ptr, locus,
-                           lower_map_signal_field_cb, ctx);
+                           lower_map_signal_field_cb, NULL);
 }
 
 static void lower_map_signal(lower_unit_t *lu, vcode_reg_t src_reg,

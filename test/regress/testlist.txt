@@ -951,3 +951,4 @@ issue852        wave,2019,dump-arrays
 wave11          wave,2008,dump-arrays
 vlog9           verilog
 issue654        normal,2008
+issue854        normal,2019
