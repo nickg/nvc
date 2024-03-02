@@ -3161,12 +3161,15 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
 
    tree_t decl = tree_ref(t);
 
-   const tree_kind_t kind = tree_kind(decl);
-   if (kind == T_FUNC_DECL || kind == T_FUNC_BODY)
+   switch (class_of(decl)) {
+   case C_PROCEDURE:
+      break;
+   case C_FUNCTION:
       sem_error(t, "function %s cannot be called as a procedure",
-                istr(tree_ident2(t)));
-   else if (kind != T_PROC_DECL && kind != T_PROC_BODY) {
+                type_pp(tree_type(decl)));
+   default:
       // All other errors should be caught at parsing stage
+      assert(error_count() > 0);
       return false;
    }
 

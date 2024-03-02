@@ -1801,36 +1801,37 @@ static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
 
 static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
 {
-   assert(body != NULL);
-   assert(type_eq(tree_type(body), tree_type(decl)));
-
    tree_t decl_copy = decl, body_copy = body;
    instantiate_helper(new, &decl_copy, &body_copy);
 
-   tree_set_type(new, tree_type(body_copy));
+   tree_t src = body_copy ?: decl_copy;
 
-   const int ngenerics = tree_generics(body_copy);
-   for (int i = 0; i < ngenerics; i++)
-      tree_add_generic(new, tree_generic(body_copy, i));
-
-   const int ndecls = tree_decls(body_copy);
-   for (int i = 0; i < ndecls; i++)
-      tree_add_decl(new, tree_decl(body_copy, i));
-
-   const int nstmts = tree_stmts(body_copy);
-   for (int i = 0; i < nstmts; i++)
-      tree_add_stmt(new, tree_stmt(body_copy, i));
-
-   const int nports = tree_ports(body_copy);
-   for (int i = 0; i < nports; i++)
-      tree_add_port(new, tree_port(body_copy, i));
-
+   tree_set_type(new, tree_type(src));
    tree_set_flag(new, tree_flags(decl));
-   tree_set_flag(new, tree_flags(body));
+
+   const int ngenerics = tree_generics(src);
+   for (int i = 0; i < ngenerics; i++)
+      tree_add_generic(new, tree_generic(src, i));
+
+   const int nports = tree_ports(src);
+   for (int i = 0; i < nports; i++)
+      tree_add_port(new, tree_port(src, i));
+
+   if (body != NULL) {
+      const int ndecls = tree_decls(body_copy);
+      for (int i = 0; i < ndecls; i++)
+         tree_add_decl(new, tree_decl(body_copy, i));
+
+      const int nstmts = tree_stmts(body_copy);
+      for (int i = 0; i < nstmts; i++)
+         tree_add_stmt(new, tree_stmt(body_copy, i));
+
+      tree_set_flag(new, tree_flags(body));
+   }
 
    // Allow recursive calls to the uninstantiated subprogram
    map_generic_subprogram(nametab, decl_copy, new);
-   map_generic_subprogram(nametab, body_copy, new);
+   if (body != NULL) map_generic_subprogram(nametab, body_copy, new);
 }
 
 static void instantiate_package(tree_t new, tree_t pack, tree_t body)
@@ -2466,6 +2467,110 @@ static void find_disconnect_specification(tree_t guard, tree_t target)
 
    if (spec != NULL)
       tree_set_spec(guard, spec);
+}
+
+static tree_t find_subprogram_body(tree_t decl)
+{
+   const tree_kind_t decl_kind = tree_kind(decl);
+   if (decl_kind == T_FUNC_BODY || decl_kind == T_PROC_BODY)
+      return decl;
+
+   // Attempt to load the package body if available
+   tree_t pack = tree_container(decl);
+   if (tree_kind(pack) != T_PACKAGE)
+      return NULL;
+
+   tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
+   if (du == pack)
+      return NULL;   // Avoid referencing old version of current package
+
+   tree_t pack_body, d;
+   if (tree_kind(du) == T_PACK_BODY && tree_primary(du) == pack)
+      pack_body = du;
+   else if ((pack_body = body_of(pack)) == NULL)
+      return NULL;
+
+   type_t type = tree_type(decl);
+   ident_t id = tree_ident(decl);
+   for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
+      if (is_subprogram(d) && is_body(d) && type_eq(tree_type(d), type))
+         return d;
+   }
+
+   return NULL;
+}
+
+static void package_body_deferred_instantiation(tree_t pack, tree_t container)
+{
+   // LRM 08 section 4.4: if the subprogram instantiation declaration
+   // occurs immediately within an enclosing package declaration, the
+   // generic-mapped subprogram body occurs at the end of the package
+   // body corresponding to the enclosing package declaration
+
+   const int ndecls = tree_decls(pack);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(pack, i);
+
+      const tree_kind_t dkind = tree_kind(decl);
+      if (dkind != T_FUNC_INST && dkind != T_PROC_INST)
+         continue;
+      else if (!tree_has_ref(decl))
+         continue;
+
+      tree_t ref = tree_ref(decl);
+      if (is_body(ref))
+         continue;
+
+      tree_t body = find_subprogram_body(ref);
+      if (body == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+         diag_printf(d, "subprogram %s cannot be instantiated until its "
+                     "body has been analysed", type_pp(tree_type(decl)));
+         diag_hint(d, tree_loc(decl), "subprogram instantiation in package "
+                   "declarative part");
+         diag_hint(d, NULL, "the instantiated subprogram body occurs at "
+                   "the end of the package body corresponding to the "
+                   "enclosing package declaration");
+         diag_lrm(d, STD_08, "4.4");
+         diag_emit(d);
+      }
+      else {
+         tree_t inst = tree_new(dkind);
+         tree_set_ident(inst, tree_ident(decl));
+         tree_set_ident2(inst, tree_ident2(decl));
+         tree_set_ref(inst, body);
+
+         instantiate_subprogram(inst, ref, body);
+
+         hash_t *gmap = hash_new(16);
+         const int ngenmaps = tree_genmaps(decl);
+         for (int i = 0; i < ngenmaps; i++) {
+            tree_t map = tree_genmap(decl, i);
+            assert(tree_subkind(map) == P_POS);
+
+            tree_add_genmap(inst, map);
+
+            tree_t g = tree_generic(inst, tree_pos(map));
+            tree_t value = tree_value(map);
+
+            switch (tree_class(g)) {
+            case C_TYPE:
+               hash_put(gmap, tree_type(g), tree_type(value));
+               break;
+            case C_FUNCTION:
+            case C_PROCEDURE:
+               hash_put(gmap, g, tree_ref(value));
+               break;
+            default:
+               break;
+            }
+         }
+
+         instance_fixup(inst, gmap);
+
+         tree_add_decl(container, inst);
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -6910,32 +7015,22 @@ static tree_t p_subprogram_instantiation_declaration(void)
 
    tree_t body = NULL;
    if (decl != NULL) {
-      const tree_kind_t decl_kind = tree_kind(decl);
-      if (decl_kind == T_FUNC_BODY || decl_kind == T_PROC_BODY)
-         body = decl;
-      else {
-         // Attempt to load the package body if available
-         type_t type = tree_type(decl);
-         tree_t pack = tree_container(decl), pack_body, d;
-         if (tree_kind(pack) == T_PACKAGE && (pack_body = body_of(pack))) {
-            ident_t id = tree_ident(decl);
-            for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
-               if (is_subprogram(d) && type_eq(tree_type(d), type)) {
-                  body = d;
-                  break;
-               }
-            }
+      if ((body = find_subprogram_body(decl)) == NULL) {
+         tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
+         if (tree_kind(du) != T_PACKAGE)
+            parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated "
+                        "until its body has been analysed",
+                        istr(tree_ident(decl)));
+         else {
+            // Will be instantiated at end of package body
+            tree_set_ref(inst, decl);
          }
       }
-
-      if (body == NULL)
-         parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated until "
-                     "its body has been analysed", istr(tree_ident(decl)));
       else
          tree_set_ref(inst, body);
    }
 
-   if (decl != NULL && body != NULL)
+   if (decl != NULL)
       instantiate_subprogram(inst, decl, body);
    else {
       // Create a dummy subprogram type to avoid later errors
@@ -6943,6 +7038,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
       type_set_ident(type, tree_ident(name));
       if (kind == T_FUNC_INST)
          type_set_result(type, type_new(T_NONE));
+
       tree_set_type(inst, type);
    }
 
@@ -12731,6 +12827,9 @@ static tree_t p_package_body(tree_t unit)
    }
 
    p_package_body_declarative_part(body);
+
+   if (standard() >= STD_08 && pack != NULL)
+      package_body_deferred_instantiation(pack, body);
 
    pop_scope(nametab);
    pop_scope(nametab);

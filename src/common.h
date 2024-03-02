@@ -64,6 +64,7 @@ tree_t aliased_type_decl(tree_t decl);
 bool is_loop_stmt(tree_t t);
 bool is_design_unit(tree_t t);
 bool is_literal(tree_t t);
+bool is_body(tree_t t);
 bool is_uninstantiated_package(tree_t pack);
 bool is_uninstantiated_subprogram(tree_t decl);
 bool is_anonymous_subtype(type_t type);

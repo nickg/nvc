@@ -744,6 +744,19 @@ bool is_literal(tree_t t)
    }
 }
 
+bool is_body(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_FUNC_BODY:
+   case T_PROC_BODY:
+   case T_PACK_BODY:
+   case T_PROT_BODY:
+      return true;
+   default:
+      return false;
+   }
+}
+
 bool is_guarded_signal(tree_t decl)
 {
    return !!(tree_flags(decl) & (TREE_F_BUS | TREE_F_REGISTER));

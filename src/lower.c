@@ -9824,6 +9824,9 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       tree_t d = tree_decl(scope, i);
       switch (tree_kind(d)) {
       case T_FUNC_INST:
+         if (!is_body(tree_ref(d)))
+            break;   // Deferred instantiation in package body
+         // Fall-through
       case T_FUNC_BODY:
          {
             ident_t mangled = tree_ident2(d);
@@ -9834,6 +9837,9 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
          }
          break;
       case T_PROC_INST:
+         if (!is_body(tree_ref(d)))
+            break;   // Deferred instantiation in package body
+         // Fall-through
       case T_PROC_BODY:
          {
             const bool never_waits = !!(tree_flags(d) & TREE_F_NEVER_WAITS)

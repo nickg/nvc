@@ -29,4 +29,14 @@ package frequency is
 
     procedure bad3 is new generate_clock;  -- Error
 
+    procedure test1 generic (type t) (x : t);
+
+    procedure test1 is new test1 generic map (integer);  -- OK
 end package ;
+
+package body frequency is
+    procedure test1 generic (type t) (x : t) is
+    begin
+        generate_clock(bit, 1 Hz);      -- Error
+    end procedure;
+end package body;

@@ -399,7 +399,7 @@ START_TEST(test_func)
       { 245, "class constant of subprogram body TEST26 parameter" },
       { 271, "invalid reference to X inside pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
-      { 293, "function CONSTPURE cannot be called as a procedure" },
+      { 293, "function CONSTPURE [INTEGER return INTEGER] cannot be called " },
       { 294, "procedure NOTDEF not allowed in an expression" },
       { 297, "no visible declaration for BAD_TYPE" },
       { 297, "no visible declaration for FOO" },

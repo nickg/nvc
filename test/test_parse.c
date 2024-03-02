@@ -5409,13 +5409,13 @@ START_TEST(test_issue654)
    set_standard(STD_08);
 
    const error_t expect[] = {
-      { 19, "subprogram GENERATE_CLOCK cannot be instantiated until its body "
-        "has been analysed" },
-      { 20, "GENERATE_CLOCK has no generic named T" },
       { 22, "no visible uninstantiated subprogram GENERATE_CLOCK matches "
         "signature [return INTEGER]" },
       { 23, "no visible uninstantiated subprogram declaration for \"+\"" },
       { 30, "multiple visible uninstantiated subprograms with name GENE" },
+      { 40, "invalid use of type BIT" },
+      { 37, "subprogram WORK.FREQUENCY.GENERATE_CLOCK [BIT, FREQUENCY, "
+        "NATURAL] cannot be instantiated until its body has been analysed" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -5426,6 +5426,19 @@ START_TEST(test_issue654)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   fail_unless(tree_decls(b) == 2);
+
+   tree_t d0 = tree_decl(b, 0);
+   fail_unless(tree_kind(d0) == T_PROC_BODY);
+
+   tree_t d1 = tree_decl(b, 1);
+   fail_unless(tree_kind(d1) == T_PROC_INST);
+   fail_unless(tree_ref(d1) == d0);
 
    fail_unless(parse() == NULL);
 
