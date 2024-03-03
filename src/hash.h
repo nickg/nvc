@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -52,6 +52,15 @@ hset_t *hset_new(int size);
 void hset_free(hset_t *h);
 void hset_insert(hset_t *h, const void *key);
 bool hset_contains(hset_t *h, const void *key);
+
+typedef uint32_t (*ghash_hash_fn_t)(const void *key);
+typedef bool (*ghash_cmp_fn_t)(const void *a, const void *b);
+
+ghash_t *ghash_new(int size, ghash_hash_fn_t hash_fn, ghash_cmp_fn_t cmp_fn);
+void ghash_free(ghash_t *h);
+void ghash_put(ghash_t *h, const void *key, void *value);
+void *ghash_get(ghash_t *h, const void *key);
+void ghash_delete(ghash_t *h, const void *key);
 
 typedef void (*hash_iter_fn_t)(const void *, void *);
 

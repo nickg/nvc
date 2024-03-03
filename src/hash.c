@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -571,5 +571,113 @@ void chash_iter(chash_t *h, hash_iter_fn_t fn)
       for (chash_node_t *it = load_acquire(&(h->slots[i]));
            it != NULL; it = load_acquire(&(it->chain)))
          (*fn)(it->key, it->value);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Generic hash table
+
+struct _ghash {
+   unsigned          size;
+   unsigned          members;
+   ghash_hash_fn_t   hash_fn;
+   ghash_cmp_fn_t    cmp_fn;
+   void            **values;
+   const void      **keys;
+};
+
+static inline int ghash_slot(ghash_t *h, const char *key)
+{
+   assert(key != NULL);
+
+   const uint64_t hash = (*h->hash_fn)(key);
+   return mix_bits_64(hash) & (h->size - 1);
+}
+
+ghash_t *ghash_new(int size, ghash_hash_fn_t hash_fn, ghash_cmp_fn_t cmp_fn)
+{
+   ghash_t *h = xmalloc(sizeof(ghash_t));
+   h->size    = next_power_of_2(size);
+   h->members = 0;
+   h->hash_fn = hash_fn;
+   h->cmp_fn  = cmp_fn;
+
+   char *mem = xcalloc(h->size * 2 * sizeof(void *));
+   h->values = (void **)mem;
+   h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
+
+   return h;
+}
+
+void ghash_free(ghash_t *h)
+{
+   if (h != NULL) {
+      free(h->values);
+      free(h);
+   }
+}
+
+void ghash_put(ghash_t *h, const void *key, void *value)
+{
+   if (unlikely(h->members >= h->size / 2)) {
+      // Rebuild the hash table with a larger size
+
+      const int old_size = h->size;
+      h->size *= 2;
+
+      const void **old_keys = h->keys;
+      void **old_values = h->values;
+
+      char *mem = xcalloc(h->size * 2 * sizeof(void *));
+      h->values = (void **)mem;
+      h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
+
+      h->members = 0;
+
+      for (int i = 0; i < old_size; i++) {
+         if (old_keys[i] != NULL)
+            ghash_put(h, old_keys[i], old_values[i]);
+      }
+
+      free(old_values);
+   }
+
+   int slot = ghash_slot(h, key);
+
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+      if (h->keys[slot] == NULL) {
+         h->values[slot] = value;
+         h->keys[slot] = key;
+         h->members++;
+         break;
+      }
+      else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key))
+         h->values[slot] = value;
+   }
+}
+
+void *ghash_get(ghash_t *h, const void *key)
+{
+   int slot = ghash_slot(h, key);
+
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+      if (h->keys[slot] == NULL)
+         return NULL;
+      else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key))
+         return h->values[slot];
+   }
+}
+
+void ghash_delete(ghash_t *h, const void *key)
+{
+   int slot = ghash_slot(h, key);
+
+   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+      if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key)) {
+         h->values[slot] = NULL;
+         return;
+      }
+      else if (h->keys[slot] == NULL)
+         return;
    }
 }

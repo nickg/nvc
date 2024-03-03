@@ -212,6 +212,52 @@ START_TEST(test_chash_rand)
 }
 END_TEST;
 
+struct point {
+   double x, y;
+};
+
+static uint32_t hash_point(const void *ptr)
+{
+   const struct point *p = ptr;
+   return mix_bits_32(FLOAT_BITS(p->x) + FLOAT_BITS(p->y));
+}
+
+static bool cmp_point(const void *a, const void *b)
+{
+   const struct point *pa = a, *pb = b;
+   return pa->x == pb->x && pa->y == pb->y;
+}
+
+START_TEST(test_ghash_basic)
+{
+   ghash_t *h = ghash_new(4, hash_point, cmp_point);
+
+   static const struct point data[] = {
+      { 1.0, 5.0 },
+      { 2.0, 3.5 },
+      { 1.9, 3.6 },
+      { 2.2, 5.7 },
+      { 7.9, 0.1 },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(data); i++)
+      ghash_put(h, &data[i], VOIDP(i + 1));
+
+   for (int i = 0; i < ARRAY_LEN(data); i++)
+      ck_assert_ptr_eq(ghash_get(h, &data[i]), VOIDP(i + 1));
+
+   const struct point dummy = { 5.5, 1.0 };
+   ck_assert_ptr_null(ghash_get(h, &dummy));
+
+   const struct point elem = { 1.0, 5.0 };
+   ck_assert_ptr_nonnull(ghash_get(h, &elem));
+   ghash_delete(h, &elem);
+   ck_assert_ptr_null(ghash_get(h, &elem));
+
+   ghash_free(h);
+}
+END_TEST;
+
 static int magnitude_compar(const void *a, const void *b)
 {
    return *(const uintptr_t*)a - *(const uintptr_t*)b;
@@ -835,6 +881,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_ihash_rand);
    tcase_add_test(tc_hash, test_hset_rand);
    tcase_add_test(tc_hash, test_chash_rand);
+   tcase_add_test(tc_hash, test_ghash_basic);
    suite_add_tcase(s, tc_hash);
 
    TCase *tc_heap = tcase_create("heap");

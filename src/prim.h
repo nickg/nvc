@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@ typedef struct _hash hash_t;
 typedef struct _shash shash_t;
 typedef struct _ihash ihash_t;
 typedef struct _chash chash_t;
+typedef struct _ghash ghash_t;
 typedef struct _hset hset_t;
 typedef struct _eval_frame eval_frame_t;
 typedef struct text_buf text_buf_t;
