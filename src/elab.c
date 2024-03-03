@@ -1436,7 +1436,9 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
 
          const char *label_str = istr(label);
          npath = hpathf(ctx->path_name, ':', "%s", label_str);
-         ninst = hpathf(ctx->inst_name, ':', "%s", label_str);
+         ninst = hpathf(ctx->inst_name, ':', "%s@%s(%s)", label_str,
+                        simple_name(istr(tree_ident2(arch))),
+                        simple_name(istr(tree_ident(arch))));
       }
       break;
    default:
@@ -1461,9 +1463,6 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
-   new_ctx.inst_name = hpathf(new_ctx.inst_name, '@', "%s(%s)",
-                              simple_name(istr(tree_ident2(arch))),
-                              simple_name(istr(tree_ident(arch))));
    new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
 
    elab_subprogram_prefix(arch, &new_ctx);
@@ -1507,6 +1506,12 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    const char *label = istr(tree_ident(inst));
    ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
    ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
+
+   if (arch != NULL && tree_kind(arch) != T_VERILOG)
+      ninst = hpathf(ninst, '@', "%s(%s)",
+                     simple_name(istr(tree_ident2(arch))),
+                     simple_name(istr(tree_ident(arch))));
+
    ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(inst), '.');
 
    elab_ctx_t new_ctx = {
@@ -2075,47 +2080,15 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
-   ident_t ndotted = ident_prefix(ctx->dotted, ename, '.');
-
-   tree_t b = tree_new(T_BLOCK);
-   tree_set_ident(b, ename);
-   tree_set_loc(b, tree_loc(arch));
-
-   tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out       = b,
       .path_name = npath,
       .inst_name = ninst,
-      .dotted    = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
-   elab_subprogram_prefix(arch, &new_ctx);
 
-   tree_t arch_copy = elab_copy(arch, &new_ctx);
-   tree_t entity = tree_primary(arch_copy);
-
-   tree_t bind = elab_top_level_binding(arch, ctx);
-
-   elab_push_scope(arch, &new_ctx);
-   elab_context(entity);
-   elab_context(arch_copy);
-   elab_generics(entity, bind, &new_ctx);
-   elab_ports(entity, bind, &new_ctx);
-   elab_decls(entity, &new_ctx);
-
-   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
-
-   new_ctx.drivers = find_drivers(arch_copy);
-
-   if (error_count() == 0)
-      elab_decls(arch_copy, &new_ctx);
-
-   if (error_count() == 0) {
-      elab_lower(b, NULL, &new_ctx);
-      elab_stmts(entity, &new_ctx);
-      elab_stmts(arch_copy, &new_ctx);
-   }
+   tree_t bind = elab_top_level_binding(arch, &new_ctx);
+   elab_architecture(bind, arch, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
