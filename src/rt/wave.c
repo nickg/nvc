@@ -623,7 +623,7 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
    else
       fputc('-', gtkw->file);
 
-   if (scope->kind == SCOPE_INSTANCE && scope->parent == NULL) {
+   if (scope->parent->kind == SCOPE_ROOT) {
       // Do not emit the root scope label
    }
    else if (scope->kind == kind) {
@@ -779,7 +779,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    assert(tree_kind(h) == T_HIER);
    fst_process_hier(wd, h, block);
 
-   ident_t hpath = tree_ident(h);
+   ident_t hinst = tree_ident(h);
 
    if (tree_subkind(h) == T_COMPONENT && tree_stmts(block) > 0) {
       // Skip over implicit block statement created for component
@@ -790,9 +790,12 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
 
    rt_scope_t *scope = find_scope(wd->model, block);
    if (scope == NULL)
-      fatal_trace("missing scope for %s", istr(hpath));
+      fatal_trace("missing scope for %s", istr(hinst));
 
    LOCAL_TEXT_BUF tb = tb_new();
+   instance_name_to_path(tb, istr(hinst));
+
+   ident_t hpath = ident_new(tb_get(tb));
 
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {

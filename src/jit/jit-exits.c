@@ -360,10 +360,12 @@ void x_instance_name(attr_kind_t kind, text_buf_t *tb)
             tree_t hier = tree_decl(where, 0);
             assert(tree_kind(hier) == T_HIER);
 
+            ident_t inst = tree_ident(hier);
+
             if (kind == ATTR_PATH_NAME)
-               tb_istr(tb, tree_ident(hier));
+               instance_name_to_path(tb, istr(inst));
             else
-               tb_istr(tb, tree_ident2(hier));
+               tb_istr(tb, inst);
          }
          return;
 

@@ -54,8 +54,7 @@ typedef struct _elab_ctx {
    tree_t            out;
    tree_t            root;
    tree_t            inst;
-   ident_t           path_name;      // Current 'PATH_NAME
-   ident_t           inst_name;      // Current 'INSTANCE_NAME
+   ident_t           inst_name;     // Current 'INSTANCE_NAME
    ident_t           dotted;
    ident_t           prefix[2];
    lib_t             library;
@@ -1342,7 +1341,6 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->registry  = parent->registry;
    ctx->root      = parent->root;
    ctx->dotted    = ctx->dotted ?: parent->dotted;
-   ctx->path_name = ctx->path_name ?: parent->path_name;
    ctx->inst_name = ctx->inst_name ?: parent->inst_name;
    ctx->library   = ctx->library ?: parent->library;
    ctx->out       = ctx->out ?: parent->out;
@@ -1386,12 +1384,10 @@ static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
    ident_t label = ident_rfrom(vlog_ident(mod), '.');
 
    const char *label_str = istr(label);
-   ident_t npath = hpathf(ctx->path_name, ':', "%s", label_str);
    ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label_str);
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
-      .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
    };
@@ -1424,7 +1420,7 @@ static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
 static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
 {
    tree_t inst = NULL;
-   ident_t label, ninst = NULL, npath = NULL;
+   ident_t label, ninst = NULL;
    switch (tree_kind(bind)) {
    case T_BINDING:
       label = ident_rfrom(tree_ident(tree_primary(arch)), '.');
@@ -1433,10 +1429,7 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
       {
          label = tree_ident(bind);
          inst = bind;
-
-         const char *label_str = istr(label);
-         npath = hpathf(ctx->path_name, ':', "%s", label_str);
-         ninst = hpathf(ctx->inst_name, ':', "%s@%s(%s)", label_str,
+         ninst = hpathf(ctx->inst_name, ':', "%s@%s(%s)", istr(label),
                         simple_name(istr(tree_ident2(arch))),
                         simple_name(istr(tree_ident(arch))));
       }
@@ -1449,7 +1442,6 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
-      .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
       .inst      = inst,
@@ -1503,9 +1495,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    else if ((bind = elab_default_binding(inst, ctx)))
       arch = tree_ref(bind);
 
-   const char *label = istr(tree_ident(inst));
-   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", istr(tree_ident(inst)));
 
    if (arch != NULL && tree_kind(arch) != T_VERILOG)
       ninst = hpathf(ninst, '@', "%s(%s)",
@@ -1515,7 +1505,6 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(inst), '.');
 
    elab_ctx_t new_ctx = {
-      .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
       .inst      = inst,
@@ -1627,8 +1616,8 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_set_subkind(h, tree_kind(t));
    tree_set_ref(h, t);
 
-   tree_set_ident(h, ctx->path_name);
-   tree_set_ident2(h, ctx->inst_name);
+   tree_set_ident(h, ctx->inst_name);
+   tree_set_ident2(h, ctx->dotted);
 
    tree_add_decl(ctx->out, h);
 }
@@ -1730,13 +1719,11 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       tree_add_genmap(b, map);
 
       const char *label = istr(base);
-      ident_t npath = hpathf(ctx->path_name, ':', "%s(%"PRIi64")", label, i);
       ident_t ninst = hpathf(ctx->inst_name, ':', "%s(%"PRIi64")", label, i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
       elab_ctx_t new_ctx = {
          .out       = b,
-         .path_name = npath,
          .inst_name = ninst,
          .dotted    = ndotted,
          .generics  = hash_new(16),
@@ -1797,14 +1784,12 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
          tree_add_stmt(ctx->out, b);
 
-         const char *label = istr(tree_ident(cond));
-         ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
-         ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
-         ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(cond), '.');
+         ident_t name = tree_ident(cond);
+         ident_t ninst = hpathf(ctx->inst_name, ':', "%s", name);
+         ident_t ndotted = ident_prefix(ctx->dotted, name, '.');
 
          elab_ctx_t new_ctx = {
             .out       = b,
-            .path_name = npath,
             .inst_name = ninst,
             .dotted    = ndotted,
          };
@@ -1840,14 +1825,11 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
    tree_add_stmt(ctx->out, b);
 
-   const char *label = istr(id);
-   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", istr(id));
    ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
    elab_ctx_t new_ctx = {
       .out       = b,
-      .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
    };
@@ -1983,14 +1965,11 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
    tree_add_stmt(ctx->out, b);
 
-   const char *label = istr(id);
-   ident_t npath = hpathf(ctx->path_name, ':', "%s", label);
-   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label);
+   ident_t ninst = hpathf(ctx->inst_name, ':', "%s", istr(id));
    ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
    elab_ctx_t new_ctx = {
       .out       = b,
-      .path_name = npath,
       .inst_name = ninst,
       .dotted    = ndotted,
    };
@@ -2079,10 +2058,8 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    const char *name = simple_name(istr(tree_ident2(arch)));
    ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
-   ident_t npath = hpathf(ctx->path_name, ':', ":%s", name);
 
    elab_ctx_t new_ctx = {
-      .path_name = npath,
       .inst_name = ninst,
    };
    elab_inherit_context(&new_ctx, ctx);
@@ -2136,7 +2113,6 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    elab_ctx_t ctx = {
       .out       = e,
       .root      = e,
-      .path_name = NULL,
       .inst_name = NULL,
       .cover     = cover,
       .library   = work,

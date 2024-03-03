@@ -2526,3 +2526,20 @@ bool same_tree(tree_t a, tree_t b)
       return false;
    }
 }
+
+void instance_name_to_path(text_buf_t *tb, const char *str)
+{
+   bool delete = false;
+   for (const char *p = str; *p; p++) {
+      if (*p == '@' || (*p == '(' && !isdigit_iso88591(*(p + 1))))
+         delete = true;
+      else if (*p == ')' && delete)
+         delete = false;
+      else if (*p == ':') {
+         delete = false;
+         tb_append(tb, ':');
+      }
+      else if (!delete)
+         tb_append(tb, *p);
+   }
+}

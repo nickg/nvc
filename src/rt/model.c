@@ -427,31 +427,38 @@ static void global_event(rt_model_t *m, rt_event_t kind)
    }
 }
 
-static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
+static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
 {
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
    s->where    = block;
-   s->name     = ident_prefix(prefix, tree_ident(block), '.');
    s->kind     = SCOPE_INSTANCE;
    s->privdata = mptr_new(m->mspace, "block privdata");
+
+   if (parent != NULL) {
+      s->parent = parent;
+      s->name = ident_prefix(parent->name, tree_ident(block), '.');
+      list_add(&parent->children, s);
+   }
+   else
+      s->name = tree_ident(block);
 
    hash_put(m->scopes, block, s);
 
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
-   ident_t path = tree_ident(hier);
+   LOCAL_TEXT_BUF tb = tb_new();
+   instance_name_to_path(tb, istr(tree_ident(hier)));
+
+   ident_t path = ident_new(tb_get(tb));
+   ident_t sym_prefix = tree_ident2(hier);
 
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t t = tree_stmt(block, i);
       switch (tree_kind(t)) {
       case T_BLOCK:
-         {
-            rt_scope_t *c = scope_for_block(m, t, s->name);
-            c->parent = s;
-            list_add(&s->children, c);
-         }
+         scope_for_block(m, t, s);
          break;
 
       case T_VERILOG:
@@ -483,7 +490,7 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
       case T_PROCESS:
          {
             ident_t name = tree_ident(t);
-            ident_t sym = ident_prefix(s->name, name, '.');
+            ident_t sym = ident_prefix(sym_prefix, name, '.');
 
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
             p->where     = t;
@@ -531,8 +538,6 @@ static rt_scope_t *scope_for_block(rt_model_t *m, tree_t block, ident_t prefix)
          break;
       }
    }
-
-   return s;
 }
 
 rt_model_t *model_new(tree_t top, jit_t *jit)
@@ -558,11 +563,11 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->kind     = SCOPE_ROOT;
    m->root->where    = top;
    m->root->privdata = MPTR_INVALID;
+   m->root->name     = lib_name(lib_work());
 
    m->threads[thread_id()] = xcalloc(sizeof(model_thread_t));
 
-   rt_scope_t *s = scope_for_block(m, tree_stmt(top, 0), lib_name(lib_work()));
-   list_add(&m->root->children, s);
+   scope_for_block(m, tree_stmt(top, 0), m->root);
 
    __trace_on = opt_get_int(OPT_RT_TRACE);
 
@@ -1045,7 +1050,7 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       jit_scalar_t result, context = { .pointer = NULL };
       jit_scalar_t p2 = { .integer = 0 };
 
-      if (s->parent != NULL)
+      if (s->parent->kind != SCOPE_ROOT)
          context.pointer = *mptr_get(s->parent->privdata);
 
       tlab_t tlab = jit_null_tlab(m->jit);

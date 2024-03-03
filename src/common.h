@@ -89,6 +89,7 @@ tree_t change_ref(tree_t name, tree_t new);
 bool all_character_literals(type_t type);
 bool is_operator_symbol(ident_t ident);
 bool same_tree(tree_t a, tree_t b);
+void instance_name_to_path(text_buf_t *tb, const char *str);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur);
 
