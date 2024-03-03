@@ -411,7 +411,7 @@ static ffi_uarray_t *get_string(const char *str)
 static internal_cache_pt *get_cache(void *context)
 {
    // This will break if the package layout ever changes
-   internal_cache_pt *pt = *(internal_cache_pt **)(context + sizeof(void *));
+   internal_cache_pt *pt = *(internal_cache_pt **)(context + 7*sizeof(void *));
    assert(pt->f_canary1 == 0xdeadbeef);
    assert(pt->f_canary2 == 0xcafebabe);
    assert(pt->context == context);

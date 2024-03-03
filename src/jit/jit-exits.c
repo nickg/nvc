@@ -344,6 +344,48 @@ void x_func_wait(void)
       jit_msg(NULL, DIAG_FATAL, "cannot wait inside function call");
 }
 
+void x_instance_name(attr_kind_t kind, text_buf_t *tb)
+{
+   assert(kind == ATTR_INSTANCE_NAME || kind == ATTR_PATH_NAME);
+
+   jit_stack_trace_t *trace = jit_stack_trace();
+   for (int i = 0; i < trace->count; i++) {
+      tree_t where = tree_from_object(trace->frames[i].object);
+      if (where == NULL)
+         continue;
+
+      switch (tree_kind(where)) {
+      case T_BLOCK:
+         {
+            tree_t hier = tree_decl(where, 0);
+            assert(tree_kind(hier) == T_HIER);
+
+            if (kind == ATTR_PATH_NAME)
+               tb_istr(tb, tree_ident(hier));
+            else
+               tb_istr(tb, tree_ident2(hier));
+         }
+         return;
+
+      case T_PACKAGE:
+      case T_PACK_BODY:
+      case T_PACK_INST:
+         {
+            tb_append(tb, ':');
+            tb_istr(tb, tree_ident(primary_unit_of(where)));
+            tb_replace(tb, '.', ':');
+            tb_downcase(tb);
+         }
+         return;
+
+      default:
+         break;
+      }
+   }
+
+   fatal_trace("cannot get instance name");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 
@@ -1017,6 +1059,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          tree_t      where  = args[2].pointer;
 
          jit_bind_foreign(anchor->func, spec, length, where);
+      }
+      break;
+
+   case JIT_EXIT_INSTANCE_NAME:
+      {
+         const attr_kind_t kind = args[0].integer;
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         x_instance_name(kind, tb);
+         ffi_return_string(tb_get(tb), args, tlab);
       }
       break;
 

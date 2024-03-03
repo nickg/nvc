@@ -41,13 +41,12 @@ typedef struct _object_arena {
    void           *base;
    void           *alloc;
    void           *limit;
-   bool            frozen;
-   bool            has_locus;
    uint32_t       *forward;
    mark_mask_t    *mark_bits;
    size_t          mark_sz;
    size_t          mark_low;
    size_t          mark_high;
+   uint32_t        flags;
    generation_t    generation;
    arena_key_t     key;
    arena_array_t   deps;
@@ -55,6 +54,8 @@ typedef struct _object_arena {
    obj_src_t       source;
    vhdl_standard_t std;
    uint32_t        checksum;
+   bool            frozen;
+   bool            has_locus;
 } object_arena_t;
 
 #ifndef __SANITIZE_ADDRESS__
@@ -195,6 +196,16 @@ object_t *arena_root(object_arena_t *arena)
 bool arena_frozen(object_arena_t *arena)
 {
    return arena->frozen;
+}
+
+uint32_t arena_flags(object_arena_t *arena)
+{
+   return arena->flags;
+}
+
+void arena_set_flags(object_arena_t *arena, uint32_t flags)
+{
+   arena->flags |= flags;
 }
 
 object_arena_t *object_arena(object_t *object)
@@ -388,7 +399,7 @@ static void check_frozen_object_fault(int sig, void *addr,
    }
 }
 
-void object_one_time_init(void)
+static void object_one_time_init(void)
 {
    INIT_ONCE({
          extern object_class_t tree_object;
@@ -405,7 +416,7 @@ void object_one_time_init(void)
 
          // Increment this each time a incompatible change is made to
          // the on-disk format not expressed in the object items table
-         const uint32_t format_fudge = 37;
+         const uint32_t format_fudge = 38;
 
          format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -840,6 +851,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       fatal_trace("arena %s must be frozen before writing to disk",
                   istr(object_arena_name(arena)));
 
+   fbuf_put_uint(f, arena->flags);
    fbuf_put_uint(f, arena->key);
    ident_write(object_arena_name(arena), ident_ctx);
 
@@ -964,6 +976,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
 
    object_arena_t *arena = object_arena_new(size, std);
    arena->source = OBJ_DISK;
+   arena->flags  = fbuf_get_uint(f);
 
    arena_key_t key = fbuf_get_uint(f);
    ident_t name = ident_read(ident_ctx);

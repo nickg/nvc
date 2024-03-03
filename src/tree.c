@@ -1395,3 +1395,13 @@ tree_t tree_from_object(object_t *obj)
    else
       return NULL;
 }
+
+tree_global_flags_t tree_global_flags(tree_t t)
+{
+   return arena_flags(object_arena(&(t->object)));
+}
+
+void tree_set_global_flags(tree_t t, tree_global_flags_t flags)
+{
+   arena_set_flags(object_arena(&(t->object)), flags);
+}

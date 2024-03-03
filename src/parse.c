@@ -2507,6 +2507,8 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
    // generic-mapped subprogram body occurs at the end of the package
    // body corresponding to the enclosing package declaration
 
+   assert(standard() >= STD_08);
+
    const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++) {
       tree_t decl = tree_decl(pack, i);
@@ -7024,6 +7026,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
          else {
             // Will be instantiated at end of package body
             tree_set_ref(inst, decl);
+            tree_set_global_flags(inst, TREE_GF_DEFERRED_INST);
          }
       }
       else
@@ -12828,7 +12831,7 @@ static tree_t p_package_body(tree_t unit)
 
    p_package_body_declarative_part(body);
 
-   if (standard() >= STD_08 && pack != NULL)
+   if (pack != NULL && (tree_global_flags(pack) & TREE_GF_DEFERRED_INST))
       package_body_deferred_instantiation(pack, body);
 
    pop_scope(nametab);

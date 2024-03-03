@@ -246,6 +246,8 @@ typedef enum {
    W_NEVER_WAITS,
    W_NVC_VERILOG,
    W_SHAPE,
+   W_INSTANCE_NAME,
+   W_PATH_NAME,
 
    NUM_WELL_KNOWN
 } well_known_t;

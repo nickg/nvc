@@ -166,6 +166,7 @@ typedef enum {
    VCODE_OP_BIND_FOREIGN,
    VCODE_OP_OR_TRIGGER,
    VCODE_OP_CMP_TRIGGER,
+   VCODE_OP_INSTANCE_NAME,
 } vcode_op_t;
 
 typedef enum {
@@ -527,5 +528,6 @@ vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective);
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
+vcode_reg_t emit_instance_name(vcode_reg_t kind);
 
 #endif  // _VCODE_H

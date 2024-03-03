@@ -1258,17 +1258,10 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
 {
    switch (tree_kind(lu->container)) {
    case T_BLOCK:
-      {
-         tree_t hier = tree_decl(lu->container, 0);
-         assert(tree_kind(hier) == T_HIER);
-
-         if (which == ATTR_PATH_NAME)
-            tb_istr(tb, tree_ident(hier));
-         else
-            tb_istr(tb, tree_ident2(hier));
-
-         tb_append(tb, ':');
-      }
+   case T_PACK_BODY:
+   case T_PACKAGE:
+   case T_PACK_INST:
+      tb_append(tb, ':');
       break;
 
    case T_PROC_BODY:
@@ -1283,16 +1276,6 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
          type_signature(tree_type(lu->container), tb);
 
       tb_append(tb, ':');
-      tb_downcase(tb);
-      break;
-
-   case T_PACK_BODY:
-   case T_PACKAGE:
-   case T_PACK_INST:
-      tb_append(tb, ':');
-      tb_istr(tb, tree_ident(primary_unit_of(lu->container)));
-      tb_append(tb, ':');
-      tb_replace(tb, '.', ':');
       tb_downcase(tb);
       break;
 
@@ -1311,9 +1294,9 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
       if (standard() < STD_19) {
          get_hierarchical_name(tb, lu->parent, which);
          tb_istr(tb, tree_ident(lu->container));
-         tb_append(tb, ':');
          tb_downcase(tb);
       }
+      tb_append(tb, ':');
       break;
 
    default:
@@ -1321,32 +1304,130 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
    }
 }
 
-static vcode_reg_t lower_dynamic_name_attr(lower_unit_t *lu, const char *suffix,
-                                           attr_kind_t which)
+static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
+                                   attr_kind_t which)
 {
-   assert(standard() >= STD_19);
+   LOCAL_TEXT_BUF tb = tb_new();
+   lower_unit_t *scope = lu;
+   int extra_hops = 0;
+
+   switch (tree_kind(decl)) {
+   case T_PACK_BODY:
+      decl = tree_primary(decl);
+      // Fall-through
+   case T_PACKAGE:
+   case T_PACK_INST:
+      tb_append(tb, ':');
+      tb_istr(tb, tree_ident(decl));
+      tb_append(tb, ':');
+      tb_replace(tb, '.', ':');
+      tb_downcase(tb);
+      return lower_wrap_string(tb_get(tb));
+
+   case T_INSTANCE:
+      tb_append(tb, ':');
+      tb_istr(tb, tree_ident(decl));
+      tb_downcase(tb);
+      break;
+
+   case T_BLOCK:
+   case T_ENTITY:
+   case T_ARCH:
+   case T_PROT_DECL:
+      tb_append(tb, ':');
+      break;
+
+   case T_PROCESS:
+      tb_append(tb, ':');
+      tb_istr(tb, tree_ident(decl));
+      tb_append(tb, ':');
+      tb_downcase(tb);
+      break;
+
+   case T_PROC_DECL:
+   case T_FUNC_DECL:
+   case T_PROC_BODY:
+   case T_FUNC_BODY:
+      for (; scope != NULL; scope = scope->parent, extra_hops++) {
+         if (decl == scope->container   // Work around object copying bug
+             || tree_ident(decl) == tree_ident(scope->container)) {
+            get_hierarchical_name(tb, scope, which);
+            break;
+         }
+      }
+      break;
+
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_ALIAS:
+   case T_PORT_DECL:
+   case T_CONST_DECL:
+   case T_GENERIC_DECL:
+   case T_PARAM_DECL:
+      {
+         int obj = lower_search_vcode_obj(decl, lu, &extra_hops);
+         if (obj != -1) {
+            for (int i = 0; i < extra_hops; i++, scope = scope->parent);
+
+            get_hierarchical_name(tb, scope, which);
+
+            tb_istr(tb, tree_ident(decl));
+            tb_downcase(tb);
+         }
+         else
+            scope = NULL;
+      }
+      break;
+
+   default:
+      fatal_trace("cannot handle decl kind %s in lower_name_attr",
+                  tree_kind_str(tree_kind(decl)));
+   }
+
+   if (scope == NULL) {
+      tree_t container = tree_container(decl);
+      if (is_package((container))) {
+         tb_append(tb, ':');
+         tb_istr(tb, tree_ident(primary_unit_of(container)));
+         tb_append(tb, ':');
+         tb_replace(tb, '.', ':');
+         tb_istr(tb, tree_ident(decl));
+         if (is_container(decl) || is_subprogram(decl))
+            tb_append(tb, ':');
+         tb_downcase(tb);
+
+         return lower_wrap_string(tb_get(tb));
+      }
+
+      fatal_at(tree_loc(decl), "cannot get hierachical name");
+   }
 
    ident_t var_name =
-      ident_new(which == ATTR_PATH_NAME ? "path_name" : "instance_name");
+      well_known(which == ATTR_PATH_NAME ? W_PATH_NAME : W_INSTANCE_NAME);
 
    int hops = 0;
-   vcode_var_t var = lower_search_vcode_obj(var_name, lu, &hops);
+   vcode_var_t var = lower_search_vcode_obj(var_name, scope, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   vcode_reg_t ptr_reg = emit_var_upref(hops, var);
-   vcode_reg_t array_reg = emit_load_indirect(ptr_reg);
+   vcode_reg_t array_reg;
+   if (hops + extra_hops == 0)
+      array_reg = emit_load(var);
+   else {
+      vcode_reg_t ptr_reg = emit_var_upref(hops + extra_hops, var);
+      array_reg = emit_load_indirect(ptr_reg);
+   }
 
-   if (suffix[0] == '\0')
+   if (tb_len(tb) == 0)
       return array_reg;
 
    vcode_type_t ctype = vtype_char();
    vcode_type_t voffset = vtype_offset();
 
-   const size_t suffix_len = strlen(suffix);
+   const size_t suffix_len = tb_len(tb);
    vcode_reg_t chars[suffix_len];
 
    for (int j = 0; j < suffix_len; j++)
-      chars[j] = emit_const(ctype, suffix[j]);
+      chars[j] = emit_const(ctype, tb_get(tb)[j]);
 
    vcode_type_t str_type = vtype_carray(suffix_len, ctype, ctype);
    vcode_reg_t suffix_reg = emit_const_array(str_type, chars, suffix_len);
@@ -1366,172 +1447,6 @@ static vcode_reg_t lower_dynamic_name_attr(lower_unit_t *lu, const char *suffix,
       .dir   = emit_const(vtype_bool(), RANGE_TO)
    };
    return emit_wrap(mem_reg, &dim0, 1);
-}
-
-static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t ref,
-                                   attr_kind_t which)
-{
-   tree_t decl = tree_ref(ref);
-
-   switch (tree_kind(decl)) {
-   case T_PACK_BODY:
-      decl = tree_primary(decl);
-      // Fall-through
-   case T_PACKAGE:
-   case T_PACK_INST:
-      {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_append(tb, ':');
-         tb_istr(tb, tree_ident(decl));
-         tb_append(tb, ':');
-         tb_replace(tb, '.', ':');
-         tb_downcase(tb);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_INSTANCE:
-      {
-         ident_t dname = tree_ident(decl);
-         lower_unit_t *it;
-         for (it = lu; it != NULL; it = it->parent) {
-            if (tree_ident(it->container) == dname)
-               break;
-         }
-
-         if (it == NULL)
-            fatal_trace("cannot find instance %s", istr(tree_ident(decl)));
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         get_hierarchical_name(tb, it, which);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_BLOCK:
-   case T_ENTITY:
-   case T_ARCH:
-      {
-         ident_t dname = tree_ident(decl);
-         lower_unit_t *it;
-         for (it = lu; it != NULL; it = it->parent) {
-            if (tree_kind(it->container) != T_BLOCK)
-               continue;
-
-            tree_t hier = tree_decl(it->container, 0);
-            assert(tree_kind(hier) == T_HIER);
-
-            tree_t unit = tree_ref(hier);
-            if (unit == decl || tree_ident(unit) == dname)
-               break;
-            else if (tree_ident(primary_unit_of(unit)) == dname)
-               break;
-         }
-
-         if (it == NULL)
-            fatal_trace("cannot find %s %s", tree_kind_str(tree_kind(decl)),
-                        istr(tree_ident(decl)));
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         get_hierarchical_name(tb, it, which);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_PROCESS:
-      {
-         lower_unit_t *scope = lu;
-         while (tree_kind(scope->container) != T_BLOCK)
-            scope = scope->parent;
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         get_hierarchical_name(tb, scope, which);
-
-         if (!(tree_flags(decl) & TREE_F_SYNTHETIC_NAME))
-            tb_istr(tb, tree_ident(decl));
-
-         tb_append(tb, ':');
-         tb_downcase(tb);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_PROT_DECL:
-      {
-         ident_t id = type_ident(tree_type(decl));
-
-         if (standard() >= STD_19) {
-            // LCS-2016-032 dynamic name inside protected body
-            for (lower_unit_t *it = lu; it != NULL; it = it->parent) {
-               if (it->name == id)
-                  return lower_dynamic_name_attr(lu, "", which);
-            }
-         }
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_append(tb, ':');
-         tb_istr(tb, id);
-         tb_replace(tb, '.', ':');
-         tb_downcase(tb);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_PROC_DECL:
-   case T_FUNC_DECL:
-   case T_PROC_BODY:
-   case T_FUNC_BODY:
-      {
-         lower_unit_t *scope = lu;
-         while (scope && tree_ident2(decl) != scope->name)
-            scope = scope->parent;
-
-         if (scope == NULL)
-            fatal_at(tree_loc(decl), "cannot get hierachical name");
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         get_hierarchical_name(tb, scope, which);
-         return lower_wrap_string(tb_get(tb));
-      }
-
-   case T_VAR_DECL:
-   case T_SIGNAL_DECL:
-   case T_ALIAS:
-   case T_PORT_DECL:
-   case T_CONST_DECL:
-   case T_GENERIC_DECL:
-   case T_PARAM_DECL:
-      {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tree_t container;
-         int hops, obj = lower_search_vcode_obj(decl, lu, &hops);
-
-         if (obj == -1 && is_package((container = tree_container(decl)))) {
-            tb_append(tb, ':');
-            tb_istr(tb, tree_ident(primary_unit_of(container)));
-            tb_replace(tb, '.', ':');
-            tb_append(tb, ':');
-            tb_istr(tb, tree_ident(decl));
-            tb_downcase(tb);
-
-            return lower_wrap_string(tb_get(tb));
-         }
-         else if (obj == -1)
-            fatal_at(tree_loc(decl), "cannot get hierachical name");
-         else {
-            lower_unit_t *scope = lu;
-            for (; hops--; scope = scope->parent);
-
-            get_hierarchical_name(tb, scope, which);
-            tb_istr(tb, tree_ident(decl));
-            tb_downcase(tb);
-
-            if (tb_get(tb)[0] == ':')
-               return lower_wrap_string(tb_get(tb));
-            else
-               return lower_dynamic_name_attr(lu, tb_get(tb), which);
-         }
-      }
-
-   default:
-      fatal_trace("cannot handle decl kind %s in lower_name_attr",
-                  tree_kind_str(tree_kind(decl)));
-   }
 }
 
 static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
@@ -4482,7 +4397,7 @@ static vcode_reg_t lower_protected_init(lower_unit_t *lu, type_t type,
          tb_append(tb, ':');
          tb_downcase(tb);
 
-         names[i] = lower_wrap_string(tb_get(tb));
+         names[i] = lower_name_attr(lu, decl ?: lu->container, which[i]);
       }
    }
 
@@ -5048,10 +4963,11 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_PATH_NAME:
       if (lu->mode == LOWER_THUNK) {
          vcode_type_t vchar = vtype_char();
-         return emit_undefined(vtype_uarray(1, vchar, vchar), vchar);
+         vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+         return emit_undefined(vstring, vchar);
       }
       else
-         return lower_name_attr(lu, name, predef);
+         return lower_name_attr(lu, tree_ref(name), predef);
 
    case ATTR_SIMPLE_NAME:
       {
@@ -9779,21 +9695,27 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
       // protected type
-      ident_t path_i = ident_new("path_name");
-      ident_t inst_i = ident_new("instance_name");
+      ident_t path_i = well_known(W_PATH_NAME);
+      ident_t inst_i = well_known(W_INSTANCE_NAME);
 
       vcode_type_t vchar = vtype_char();
       vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
       vcode_reg_t path_reg = emit_param(vstring, vchar, path_i);
       vcode_reg_t inst_reg = emit_param(vstring, vchar, inst_i);
 
-      vcode_var_t path_var = emit_var(vstring, vchar, path_i, VAR_CONST);
-      lower_put_vcode_obj(path_i, path_var, lu);
-      emit_store(path_reg, path_var);
+      const tree_global_flags_t gflags = tree_global_flags(body);
 
-      vcode_var_t inst_var = emit_var(vstring, vchar, inst_i, VAR_CONST);
-      lower_put_vcode_obj(inst_i, inst_var, lu);
-      emit_store(inst_reg, inst_var);
+      if (gflags & TREE_GF_INSTANCE_NAME) {
+         vcode_var_t path_var = emit_var(vstring, vchar, path_i, VAR_CONST);
+         lower_put_vcode_obj(path_i, path_var, lu);
+         emit_store(path_reg, path_var);
+      }
+
+      if (gflags & TREE_GF_PATH_NAME) {
+         vcode_var_t inst_var = emit_var(vstring, vchar, inst_i, VAR_CONST);
+         lower_put_vcode_obj(inst_i, inst_var, lu);
+         emit_store(inst_reg, inst_var);
+      }
 
       lower_decls(lu, tree_primary(body));
    }
@@ -12616,6 +12538,21 @@ static bool lower_push_package_scope(tree_t pack)
    return false;
 }
 
+static void lower_cache_instance_name(lower_unit_t *lu, attr_kind_t which)
+{
+   ident_t name =
+      well_known(which == ATTR_INSTANCE_NAME ? W_INSTANCE_NAME : W_PATH_NAME);
+
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+   vcode_var_t var = emit_var(vstring, vchar, name, VAR_CONST);
+   vcode_reg_t kind_reg = emit_const(vtype_offset(), which);
+   vcode_reg_t str_reg = emit_instance_name(kind_reg);
+   emit_store(str_reg, var);
+
+   lower_put_vcode_obj(name, var, lu);
+}
+
 static void lower_pack_body(lower_unit_t *lu, object_t *obj)
 {
    tree_t body = tree_from_object(obj);
@@ -12629,6 +12566,15 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
       ident_t ieee_support = ident_new("NVC.IEEE_SUPPORT");
       emit_package_init(ieee_support, VCODE_INVALID_REG);
    }
+
+   tree_global_flags_t gflags = tree_global_flags(body);
+   gflags |= tree_global_flags(pack);
+
+   if (gflags & TREE_GF_INSTANCE_NAME)
+      lower_cache_instance_name(lu, ATTR_INSTANCE_NAME);
+
+   if (gflags & TREE_GF_PATH_NAME)
+      lower_cache_instance_name(lu, ATTR_PATH_NAME);
 
    lower_dependencies(lu, body);
 
@@ -12871,6 +12817,16 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    if (lu->cover != NULL)
       cover_ignore_from_pragmas(lu->cover, unit);
+
+   tree_global_flags_t gflags = tree_global_flags(unit);
+   if (primary != NULL)
+      gflags |= tree_global_flags(primary);
+
+   if (gflags & TREE_GF_INSTANCE_NAME)
+      lower_cache_instance_name(lu, ATTR_INSTANCE_NAME);
+
+   if (gflags & TREE_GF_PATH_NAME)
+      lower_cache_instance_name(lu, ATTR_PATH_NAME);
 
    lower_dependencies(lu, block);
    lower_generics(lu, block, primary);

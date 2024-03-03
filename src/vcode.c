@@ -966,7 +966,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap exp", "implicit event", "enter state", "reflect value",
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
-      "or trigger", "cmp trigger"
+      "or trigger", "cmp trigger", "instance name",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2316,6 +2316,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   printf(" locus ");
                   vcode_dump_reg(op->args.items[1]);
                }
+            }
+            break;
+
+         case VCODE_OP_INSTANCE_NAME:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_result_type(col, op);
             }
             break;
          }
@@ -6003,6 +6012,18 @@ void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus)
    VCODE_ASSERT(locus == VCODE_INVALID_REG
                 || vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to bind foreign value must be a debug locus");
+}
+
+vcode_reg_t emit_instance_name(vcode_reg_t kind)
+{
+   op_t *op = vcode_add_op(VCODE_OP_INSTANCE_NAME);
+   vcode_add_arg(op, kind);
+
+   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
+                "kind argument to instance name must be offset");
+
+   vcode_type_t vchar = vtype_char();
+   return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)

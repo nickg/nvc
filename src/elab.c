@@ -245,12 +245,17 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    }
    APUSH(roots, t);    // Architecture must be processed last
 
+   tree_global_flags_t gflags = 0;
+   for (int i = 0; i < roots.count; i++)
+      gflags |= tree_global_flags(roots.items[i]);
+
    new_instance(roots.items, roots.count, ctx->dotted, ctx->prefix,
                 ARRAY_LEN(ctx->prefix));
 
    tree_t copy = roots.items[roots.count - 1];
    ACLEAR(roots);
 
+   tree_set_global_flags(copy, gflags);
    return copy;
 }
 

@@ -3511,6 +3511,20 @@ static void irgen_op_bind_foreign(jit_irgen_t *g, int op)
    macro_reexec(g);
 }
 
+static void irgen_op_instance_name(jit_irgen_t *g, int op)
+{
+   irgen_send_args(g, op, 0);
+
+   macro_exit(g, JIT_EXIT_INSTANCE_NAME);
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   const int slots = irgen_slots_for_type(vcode_reg_type(result));
+   g->map[result] = j_recv(g, 0);
+   for (int i = 1; i < slots; i++)
+      j_recv(g, i);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3905,6 +3919,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_BIND_FOREIGN:
          irgen_op_bind_foreign(g, i);
+         break;
+      case VCODE_OP_INSTANCE_NAME:
+         irgen_op_instance_name(g, i);
          break;
       default:
          fatal_trace("cannot generate JIT IR for vcode op %s",

@@ -1064,6 +1064,9 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       }
    }
 
+   if (type_is_protected(type) && standard() >= STD_19)
+      tree_set_global_flags(t, TREE_GF_INSTANCE_NAME | TREE_GF_PATH_NAME);
+
    return true;
 }
 
@@ -4044,6 +4047,11 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          return false;
    }
 
+   if (predef == ATTR_INSTANCE_NAME)
+      tree_set_global_flags(t, TREE_GF_INSTANCE_NAME);
+   else if (predef == ATTR_PATH_NAME)
+      tree_set_global_flags(t, TREE_GF_PATH_NAME);
+
    switch (predef) {
    case ATTR_RANGE:
    case ATTR_REVERSE_RANGE:
@@ -5920,9 +5928,13 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    else if (type_is_incomplete(type))
       sem_error(t, "incomplete type %s found in allocator expression",
                 type_pp(type));
-   else if (has_initial && type_is_protected(type))
-      sem_error(t, "protected type %s cannot have initial value",
-                type_pp(type));
+   else if (type_is_protected(type)) {
+      if (has_initial)
+         sem_error(t, "protected type %s cannot have initial value",
+                   type_pp(type));
+      else if (standard() >= STD_19)
+         tree_set_global_flags(t, TREE_GF_INSTANCE_NAME | TREE_GF_PATH_NAME);
+   }
 
    type_t designated = type_designated(access_type);
 

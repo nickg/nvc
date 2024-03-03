@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -414,6 +414,12 @@ typedef enum {
    TREE_F_SEQ_BLOCK       = (1 << 25),
 } tree_flags_t;
 
+typedef enum {
+   TREE_GF_INSTANCE_NAME = (1 << 0),
+   TREE_GF_PATH_NAME     = (1 << 1),
+   TREE_GF_DEFERRED_INST = (1 << 2),
+} tree_global_flags_t;
+
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);
@@ -623,5 +629,8 @@ int tree_stable_compar(const void *pa, const void *pb);
 
 object_t *tree_to_object(tree_t t);
 tree_t tree_from_object(object_t *obj);
+
+tree_global_flags_t tree_global_flags(tree_t t);
+void tree_set_global_flags(tree_t t, tree_global_flags_t flags);
 
 #endif  // _TREE_H

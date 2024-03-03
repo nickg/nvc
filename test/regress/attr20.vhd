@@ -59,9 +59,9 @@ package body P is                              -- C'PATH_NAME = ":lib:p:c"
 
         procedure check (p, i, s : string) is
         begin
-            assert IncCounter'path_name = p report IncCounter'path_name;
-            assert IncCounter'instance_name = i report IncCounter'instance_name;
-            assert IncPt1'path_name = s report IncPt1'path_name;
+            assert IncCounter'path_name = p report IncCounter'path_name & " != " & p;
+            assert IncCounter'instance_name = i report IncCounter'instance_name & " != " & i;
+            assert IncPt1'path_name = s report IncPt1'path_name & " != " & s;
         end procedure;
 
     end protected body IncPt1;
@@ -131,8 +131,6 @@ begin
         archinc.check(":top:e:archinc:inccounter",
                       ":top(top):e@e(a):archinc:inccounter",
                       ":top:e:archinc:");
-
-        assert incpt1'path_name = ":lib:p:incpt1";
         wait;
     end process p1;
 

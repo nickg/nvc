@@ -167,6 +167,7 @@ typedef enum {
    JIT_EXIT_BIND_FOREIGN,
    JIT_EXIT_OR_TRIGGER,
    JIT_EXIT_CMP_TRIGGER,
+   JIT_EXIT_INSTANCE_NAME,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

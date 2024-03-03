@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2022  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -244,6 +244,8 @@ size_t object_arena_default_size(void);
 object_t *arena_root(object_arena_t *arena);
 void arena_set_checksum(object_arena_t *arena, uint32_t checksum);
 bool arena_frozen(object_arena_t *arena);
+uint32_t arena_flags(object_arena_t *arena);
+void arena_set_flags(object_arena_t *arena, uint32_t flags);
 
 void object_write(object_t *object, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                   loc_wr_ctx_t *loc_ctx);
