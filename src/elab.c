@@ -2006,12 +2006,42 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
+static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
 {
+   tree_t bind = tree_new(T_BINDING);
+   tree_set_ident(bind, tree_ident(arch));
+   tree_set_loc(bind, tree_loc(arch));
+   tree_set_ref(bind, arch);
+   tree_set_class(bind, C_ENTITY);
+
+   tree_t entity = tree_primary(arch);
+   const int ngenerics = tree_generics(entity);
+
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(entity, i);
+      ident_t name = tree_ident(g);
+
+      tree_t value = elab_find_generic_override(g, ctx);
+      if (value == NULL && tree_has_value(g))
+         value = tree_value(g);
+      else if (value == NULL) {
+         error_at(tree_loc(g), "generic %s of top-level entity must have "
+                  "default value or be specified using -gNAME=VALUE",
+                  istr(name));
+         continue;
+      }
+
+      tree_t map = tree_new(T_PARAM);
+      tree_set_subkind(map, P_POS);
+      tree_set_pos(map, i);
+      tree_set_value(map, value);
+
+      tree_add_genmap(bind, map);
+   }
+
    const int nports = tree_ports(entity);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(entity, i);
-      tree_add_port(ctx->out, p);
 
       tree_t m = tree_new(T_PARAM);
       tree_set_subkind(m, P_POS);
@@ -2033,43 +2063,10 @@ static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
          tree_set_value(m, open);
       }
 
-      tree_add_param(ctx->out, m);
+      tree_add_param(bind, m);
    }
-}
 
-static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
-{
-   tree_t ent = tree_primary(arch);
-   const int ngenerics = tree_generics(ent);
-
-   if (ctx->generics == NULL && ngenerics > 0)
-      ctx->generics = hash_new(ngenerics * 2);
-
-   for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(ent, i);
-      ident_t name = tree_ident(g);
-
-      tree_t value = elab_find_generic_override(g, ctx);
-      if (value == NULL && tree_has_value(g))
-         value = tree_value(g);
-      else if (value == NULL) {
-         error_at(tree_loc(g), "generic %s of top-level entity must have "
-                  "default value or be specified using -gNAME=VALUE",
-                  istr(name));
-         continue;
-      }
-
-      tree_t map = tree_new(T_PARAM);
-      tree_set_subkind(map, P_POS);
-      tree_set_pos(map, i);
-      tree_set_value(map, value);
-
-      tree_add_generic(ctx->out, g);
-      tree_add_genmap(ctx->out, map);
-
-      if (is_literal(value))
-         hash_put(ctx->generics, g, value);
-   }
+   return bind;
 }
 
 static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
@@ -2098,11 +2095,13 @@ static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
    tree_t arch_copy = elab_copy(arch, &new_ctx);
    tree_t entity = tree_primary(arch_copy);
 
+   tree_t bind = elab_top_level_binding(arch, ctx);
+
    elab_push_scope(arch, &new_ctx);
    elab_context(entity);
    elab_context(arch_copy);
-   elab_top_level_generics(arch_copy, &new_ctx);
-   elab_top_level_ports(entity, &new_ctx);
+   elab_generics(entity, bind, &new_ctx);
+   elab_ports(entity, bind, &new_ctx);
    elab_decls(entity, &new_ctx);
 
    simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
