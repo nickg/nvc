@@ -3008,49 +3008,18 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
 {
-   tree_t root = NULL;
-   ident_t path = NULL;
+   assert(tree_subkind(tree_part(ref, 0)) == PE_ABSOLUTE);
 
-   switch (tree_subkind(tree_part(ref, 0))) {
-   case PE_ABSOLUTE:
-      {
-         tree_t p1 = tree_part(ref, 1);
-         path = ident_prefix(lib_name(lib_work()), tree_ident(p1), '.');
+   tree_t p1 = tree_part(ref, 1), root = NULL;
+   ident_t path = ident_prefix(lib_name(lib_work()), tree_ident(p1), '.');
 
-         vcode_unit_t vu = unit_registry_get(lu->registry, path);
-         if (vu != NULL && vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE) {
-            ident_t module;
-            ptrdiff_t offset;
-            vcode_unit_object(vu, &module, &offset);
+   vcode_unit_t vu = unit_registry_get(lu->registry, path);
+   if (vu != NULL && vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE) {
+      ident_t module;
+      ptrdiff_t offset;
+      vcode_unit_object(vu, &module, &offset);
 
-            root = tree_from_locus(module, offset, NULL);
-         }
-      }
-      break;
-
-   case PE_RELATIVE:
-      {
-         int caret = 0;
-         const int nparts = tree_parts(ref);
-         for (int i = 1; i < nparts; i++) {
-            if (tree_subkind(tree_part(ref, i)) == PE_CARET)
-               caret++;
-         }
-
-         for (lower_unit_t *it = lu; it; it = it->parent) {
-            if (is_concurrent_block(it->container)) {
-               tree_t hier = tree_decl(it->container, 0);
-               if (tree_subkind(hier) == T_COMPONENT)
-                  continue;   // Skip over implicit block for component
-               else if (caret-- == 0) {
-                  root = it->container;
-                  path = it->name;
-                  break;
-               }
-            }
-         }
-      }
-      break;
+      root = tree_from_locus(module, offset, NULL);
    }
 
    tree_t decl = elab_external_name(ref, root, &path);

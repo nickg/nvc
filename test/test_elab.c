@@ -1088,12 +1088,10 @@ START_TEST(test_ename1)
       { 32, "class of object X is not variable" },
       { 33, "external name X not found" },
       { 35, "type of signal X is not BIT" },
-      { 36, "relative pathname has no containing declarative region" },
-      { 37, "external name X not found" },
-      { 38, "relative pathname has no containing declarative region" },
-      { 39, "FOO is not the name of the root of the design hierarchy" },
-      { 40, "class of object UUT is not signal" },
-      { 41, "X is not a concurrent region" },
+      { 36, "external name X not found" },
+      { 37, "FOO is not the name of the root of the design hierarchy" },
+      { 38, "class of object UUT is not signal" },
+      { 39, "X is not a concurrent region" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1828,6 +1826,38 @@ START_TEST(test_vlog1)
 }
 END_TEST
 
+START_TEST(test_ename3)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/elab/ename3.vhd");
+
+   const error_t expect[] = {
+      { 29, "relative pathname has no containing declarative region" },
+      { 30, "relative pathname has no containing declarative region" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue855)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue855.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1925,6 +1955,8 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_bounds11);
    tcase_add_test(tc, test_jcore2);
    tcase_add_test(tc, test_vlog1);
+   tcase_add_test(tc, test_ename3);
+   tcase_add_test(tc, test_issue855);
    suite_add_tcase(s, tc);
 
    return s;

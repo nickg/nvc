@@ -18,7 +18,7 @@
   results in a non-zero exit code (#850).
 - Improvements to waveform dumping for signals with record types or
   types with non-locally-static bounds (#851, #852).
-- Resolved several other minor issues (#654, #854).
+- Resolved several other minor issues (#654, #854, #855).
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due

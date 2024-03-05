@@ -3666,6 +3666,8 @@ static tree_t p_external_name(void)
 
    consume(tGTGT);
 
+   tree_set_global_flags(t, TREE_GF_EXTERNAL_NAME);
+
    tree_set_loc(t, CURRENT_LOC);
    return t;
 }

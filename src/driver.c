@@ -79,27 +79,27 @@ static void drives_signal(driver_set_t *ds, tree_t where, tree_t expr,
 
    tree_t prefix = longest_static_prefix(expr);
 
-   tree_t ref = name_to_ref(prefix);
-   if (ref == NULL)
-      return;
-
-   tree_t decl = tree_ref(ref);
-
-   if (tree_kind(decl) == T_PARAM_DECL) {
-      // Assignment to procedure parameter: this is handled at the call
-      // site instead
-      return;
-   }
-
-   driver_info_t *chain = hash_get(ds->map, where), *last = NULL;
-   for (; chain; last = chain, chain = chain->chain_proc) {
-      if (chain->where != where || chain->decl != decl)
-         continue;
-      else if (tree_kind(chain->prefix) == T_REF)
-         return;   // Already driving full signal
-      else if (same_tree(prefix, chain->prefix))
+   driver_info_t *last = NULL;
+   tree_t ref = name_to_ref(prefix), decl = NULL;
+   if (ref != NULL) {
+      if (tree_kind((decl = tree_ref(ref))) == T_PARAM_DECL) {
+         // Assignment to procedure parameter: this is handled at the
+         // call site instead
          return;
+      }
+
+      driver_info_t *chain = hash_get(ds->map, where);
+      for (; chain; last = chain, chain = chain->chain_proc) {
+         if (chain->where != where || chain->decl != decl)
+            continue;
+         else if (tree_kind(chain->prefix) == T_REF)
+            return;   // Already driving full signal
+         else if (same_tree(prefix, chain->prefix))
+            return;
+      }
    }
+   else if (tree_kind(prefix) != T_EXTERNAL_NAME)
+      return;
 
    driver_info_t *di = alloc_driver_info(ds);
    di->chain_decl = NULL;
@@ -115,12 +115,14 @@ static void drives_signal(driver_set_t *ds, tree_t where, tree_t expr,
    else
       last->chain_proc = di;
 
-   driver_info_t *decl_head = hash_get(ds->map, decl);
-   if (decl_head == NULL)
-      hash_put(ds->map, decl, di);
-   else {
-      for (; decl_head->chain_decl; decl_head = decl_head->chain_decl);
-      decl_head->chain_decl = di;
+   if (decl != NULL) {
+      driver_info_t *decl_head = hash_get(ds->map, decl);
+      if (decl_head == NULL)
+         hash_put(ds->map, decl, di);
+      else {
+         for (; decl_head->chain_decl; decl_head = decl_head->chain_decl);
+         decl_head->chain_decl = di;
+      }
    }
 }
 

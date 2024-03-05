@@ -229,6 +229,104 @@ static void elab_find_config_roots(tree_t t, tree_list_t *roots)
    }
 }
 
+static void elab_rewrite_external_pre(tree_t t, void *context)
+{
+   tree_list_t *stack = context;
+
+   const tree_kind_t kind = tree_kind(t);
+   if (kind == T_BLOCK || kind == T_IF_GENERATE || kind == T_FOR_GENERATE) {
+      tree_t pe = tree_new(T_PATH_ELT);
+      tree_set_ident(pe, tree_ident(t));
+      tree_set_loc(pe, tree_loc(t));
+
+      if (kind == T_FOR_GENERATE) {
+         tree_set_subkind(pe, PE_GENERATE);
+         tree_set_value(pe, make_ref(tree_decl(t, 0)));
+      }
+      else
+         tree_set_subkind(pe, PE_SIMPLE);
+
+      APUSH(*stack, pe);
+   }
+}
+
+static tree_t elab_rewrite_external_post(tree_t t, void *context)
+{
+   tree_list_t *stack = context;
+   assert(stack->count > 0);
+
+   switch (tree_kind(t)) {
+   case T_BLOCK:
+   case T_IF_GENERATE:
+   case T_FOR_GENERATE:
+      APOP(*stack);
+      break;
+   case T_EXTERNAL_NAME:
+      if (tree_subkind(tree_part(t, 0)) == PE_RELATIVE) {
+         tree_t new = tree_new(T_EXTERNAL_NAME);
+         tree_set_loc(new, tree_loc(t));
+         tree_set_class(new, tree_class(t));
+         tree_set_type(new, tree_type(t));
+
+         const int nparts = tree_parts(t);
+         int carets = 0;
+         for (int i = 1; i < nparts; i++, carets++) {
+            if (tree_subkind(tree_part(t, i)) != PE_CARET)
+               break;
+         }
+
+         if (carets >= stack->count - 1)
+            error_at(tree_loc(tree_part(t, 2 + carets - stack->count)),
+                     "relative pathname has no containing "
+                     "declarative region");
+         else {
+            for (int i = 0; i < stack->count - carets; i++)
+               tree_add_part(new, stack->items[i]);
+         }
+
+         for (int i = 1 + carets; i < nparts; i++)
+            tree_add_part(new, tree_part(t, i));
+
+         return new;
+      }
+      break;
+   default:
+      break;
+   }
+
+   return t;
+}
+
+static void elab_external_name_stack(tree_list_t *stack, const elab_ctx_t *ctx)
+{
+   if (ctx->out == ctx->root) {
+      tree_t root = tree_new(T_PATH_ELT);
+      tree_set_subkind(root, PE_ABSOLUTE);
+      tree_set_loc(root, tree_loc(ctx->out));
+
+      APUSH(*stack, root);
+   }
+   else {
+      elab_external_name_stack(stack, ctx->parent);
+
+      if (tree_decls(ctx->out) > 0) {
+         tree_t hier = tree_decl(ctx->out, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         // Skip over implicit block for component declaration
+         if (tree_subkind(hier) == T_COMPONENT)
+            return;
+      }
+
+      tree_t pe = tree_new(T_PATH_ELT);
+      tree_set_subkind(pe, PE_SIMPLE);
+      tree_set_ident(pe, tree_ident(ctx->out));
+      tree_set_loc(pe, tree_loc(ctx->out));
+
+      APUSH(*stack, pe);
+   }
+}
+
 static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 {
    tree_list_t roots = AINIT;
@@ -253,6 +351,16 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 
    tree_t copy = roots.items[roots.count - 1];
    ACLEAR(roots);
+
+   if (gflags & TREE_GF_EXTERNAL_NAME) {
+      tree_list_t stack = AINIT;
+      elab_external_name_stack(&stack, ctx);
+      tree_rewrite(copy, elab_rewrite_external_pre,
+                   elab_rewrite_external_post, NULL, &stack);
+      ACLEAR(stack);
+
+      gflags &= ~TREE_GF_EXTERNAL_NAME;
+   }
 
    tree_set_global_flags(copy, gflags);
    return copy;
@@ -2183,8 +2291,9 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
 
    for (int i = 0; i < nparts; i++, where = next, next = NULL) {
       tree_t pe = tree_part(name, i);
-      ident_t id = NULL;
+      assert(tree_kind(pe) == T_PATH_ELT);
 
+      ident_t id = NULL;
       switch (tree_subkind(pe)) {
       case PE_ABSOLUTE:
          {
@@ -2212,16 +2321,6 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
             id = ident_new(tb_get(tb));
          }
          break;
-      case PE_RELATIVE:
-         next = where;
-         continue;
-      case PE_CARET:
-         if ((next = where) == NULL) {
-            error_at(tree_loc(pe), "relative pathname has no containing "
-                     "declarative region");
-            return NULL;
-         }
-         continue;
       default:
          error_at(tree_loc(pe), "sorry, this form of external name is not "
                   "yet supported");

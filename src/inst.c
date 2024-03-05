@@ -171,6 +171,8 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
       return decls != NULL && hset_contains(decls, t);
    case T_REF:
       return tree_kind(tree_ref(t)) == T_GENERIC_DECL;
+   case T_EXTERNAL_NAME:
+      return true;    // Relative paths get converted to absolute
    default:
       return false;
    }

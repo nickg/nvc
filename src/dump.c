@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -176,6 +176,11 @@ static void dump_external_name(tree_t t)
          break;
       case PE_CARET:
          print_syntax("^.");
+         break;
+      case PE_GENERATE:
+         print_syntax("%s(", istr(tree_ident(part)));
+         dump_expr(tree_value(part));
+         print_syntax(").");
          break;
       }
    }

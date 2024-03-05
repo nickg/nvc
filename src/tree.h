@@ -418,6 +418,7 @@ typedef enum {
    TREE_GF_INSTANCE_NAME = (1 << 0),
    TREE_GF_PATH_NAME     = (1 << 1),
    TREE_GF_DEFERRED_INST = (1 << 2),
+   TREE_GF_EXTERNAL_NAME = (1 << 3),
 } tree_global_flags_t;
 
 tree_t tree_new(tree_kind_t kind);
