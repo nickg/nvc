@@ -1247,18 +1247,73 @@ static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
       return cmp_bytes(a.ext, b.ext, valuesz);
 }
 
+static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
+{
+   if (n->signal->resolution != NULL || kind == SOURCE_FORCING)
+      return;
+
+   diag_t *d;
+   if (n->signal->parent->kind == SCOPE_SIGNAL) {
+      rt_scope_t *root = n->signal->parent;
+      for (; root->parent->kind == SCOPE_SIGNAL; root = root->parent);
+
+      d = diag_new(DIAG_FATAL, tree_loc(root->where));
+      diag_printf(d, "element %s of signal %s has multiple sources",
+                  istr(tree_ident(n->signal->where)),
+                  istr(tree_ident(root->where)));
+      diag_hint(d, tree_loc(n->signal->where), "element %s declared here",
+                istr(tree_ident(n->signal->where)));
+      diag_hint(d, tree_loc(root->where), "composite signal %s declared with "
+                "unresolved type %s", istr(tree_ident(root->where)),
+                type_pp(tree_type(root->where)));
+   }
+   else {
+      d = diag_new(DIAG_FATAL, tree_loc(n->signal->where));
+      diag_printf(d, "unresolved signal %s has multiple sources",
+                  istr(tree_ident(n->signal->where)));
+      diag_hint(d, tree_loc(n->signal->where), "signal %s declared with "
+                "unresolved type %s", istr(tree_ident(n->signal->where)),
+                type_pp(tree_type(n->signal->where)));
+   }
+
+   if (n->sources.tag == SOURCE_DRIVER) {
+      const rt_proc_t *p = n->sources.u.driver.proc;
+      diag_hint(d, tree_loc(p->where), "driven by process %s", istr(p->name));
+   }
+   else if (n->sources.tag == SOURCE_PORT) {
+      const rt_signal_t *s = n->sources.u.port.input->signal;
+      tree_t where = s->where;
+      if (s->parent->kind == SCOPE_SIGNAL) {
+         for (rt_scope_t *it = s->parent; it->kind == SCOPE_SIGNAL;
+              it = it->parent)
+            where = it->where;
+      }
+
+      if (tree_kind(where) == T_PORT_DECL)
+         diag_hint(d, tree_loc(where), "connected to %s port %s",
+                   port_mode_str(tree_subkind(where)), istr(tree_ident(where)));
+      else
+         diag_hint(d, tree_loc(where), "connected to signal %s",
+                   istr(tree_ident(where)));
+   }
+
+   if (kind == SOURCE_DRIVER) {
+      const rt_proc_t *p = get_active_proc();
+      diag_hint(d, tree_loc(p->where), "driven by process %s", istr(p->name));
+   }
+
+   diag_emit(d);
+   jit_abort_with_status(EXIT_FAILURE);
+}
+
 static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
 {
    rt_source_t *src = NULL;
    if (n->n_sources == 0)
       src = &(n->sources);
-   else if (n->signal->resolution == NULL && kind != SOURCE_FORCING
-            && (n->sources.tag == SOURCE_DRIVER
-                || n->sources.u.port.conv_func == NULL))
-      jit_msg(tree_loc(n->signal->where), DIAG_FATAL,
-              "unresolved signal %s has multiple sources",
-              istr(tree_ident(n->signal->where)));
    else {
+      check_multiple_sources(n, kind);
+
       rt_source_t **p;
       for (p = &(n->sources.chain_input); *p; p = &((*p)->chain_input))
          ;

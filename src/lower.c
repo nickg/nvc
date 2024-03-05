@@ -11018,8 +11018,7 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
       elem = find_element_mode_indication(view, field, &converse);
       assert(elem != NULL);
 
-      const port_mode_t mode = converse_mode(elem, converse);
-      if (mode != PORT_OUT && mode != PORT_INOUT)
+      if (converse_mode(elem, converse) == PORT_IN)
          return;
    }
 
@@ -11030,11 +11029,14 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
 
       emit_drive_signal(data_reg, count_reg);
    }
-   else {
-      void *new_ctx = tag_pointer(elem ? tree_value(elem) : NULL, converse);
+   else if (elem != NULL && tree_subkind(elem) == PORT_RECORD_VIEW) {
+      void *new_ctx = tag_pointer(tree_value(elem), converse);
       lower_for_each_field(lu, type, ptr, VCODE_INVALID_REG,
                            VCODE_INVALID_REG, lower_driver_field_cb, new_ctx);
    }
+   else
+      lower_for_each_field(lu, type, ptr, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, lower_driver_field_cb, NULL);
 }
 
 static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
@@ -11539,7 +11541,7 @@ static void lower_map_view_field_cb(lower_unit_t *lu, tree_t field,
       lower_for_each_field(lu, ftype, src_ptr, dst_ptr, locus,
                            lower_map_view_field_cb, new_ctx);
    }
-   else if (converse)
+   else if (converse_mode(elem, converse) == PORT_IN)
       lower_for_each_field(lu, ftype, dst_ptr, src_ptr, locus,
                            lower_map_signal_field_cb, NULL);
    else

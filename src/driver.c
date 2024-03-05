@@ -441,6 +441,8 @@ void dump_drivers(driver_set_t *ds)
       printf("%s: { ", istr(tree_ident(tree)));
       for (; di; di = di->chain_proc) {
          vhdl_dump(di->prefix, 0);
+         if (di->view)
+            printf("<%s>", type_pp(tree_type(di->view)));
          if (di->tentative)
             printf("?");
          if (di->chain_proc)

@@ -1,0 +1,5 @@
+(init): element F of signal P has multiple sources
+element F declared here
+connected to signal S
+composite signal P declared with unresolved type T_REC_ARRAY
+driven by process :driver22:b:_p0

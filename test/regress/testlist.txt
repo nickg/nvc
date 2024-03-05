@@ -953,3 +953,5 @@ vlog9           verilog
 issue654        normal,2008
 issue854        normal,2019
 ename8          normal,2008
+issue856        normal,2019
+driver22        fail,gold,2019
