@@ -122,6 +122,7 @@ jobs:
         run: make -C build
 
   build-windows:
+    if: ${{ false }}    # Broken winpthreads
     name: Windows MSYS2
     runs-on: windows-2019
     defaults:
@@ -464,6 +465,7 @@ jobs:
           make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
 
   msi-installer:
+    if: ${{ false }}    # Broken winpthreads
     name: Windows MSI installer
     runs-on: windows-2019
     defaults:
