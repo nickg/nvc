@@ -1614,13 +1614,13 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    cb->data   = *cb_data_p;
 
    if (cb->Reason == vhpiCbAfterDelay) {
-         if (cb->data.time == NULL) {
-            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
-            goto err;
-         }
+      if (cb->data.time == NULL) {
+         vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+         goto err;
+      }
 
-         cb->when = vhpi_time_to_native(cb->data.time)
-            + model_now(vhpi_context()->model, NULL);
+      const uint64_t now = model_now(vhpi_context()->model, NULL);
+      cb->when = vhpi_time_to_native(cb->data.time) + now;
    }
    else if (cb->Reason == vhpiCbValueChange && cb->data.value) {
       vhpi_error(vhpiInternal, NULL,

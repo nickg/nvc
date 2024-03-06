@@ -331,6 +331,7 @@ bool vhpi_is_repetitive(vhpiEnumT reason)
    case vhpiCbRepLastKnownDeltaCycle:
    case vhpiCbRepNextTimeStep:
    case vhpiCbRepEndOfTimeStep:
+   case vhpiCbRepAfterDelay:
       return true;
    default:
       return false;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ void vhpi8_startup(void);
 void vhpi9_startup(void);
 void vhpi10_startup(void);
 void vhpi11_startup(void);
+void vhpi12_startup(void);
 void issue744_startup(void);
 void issue762_startup(void);
 

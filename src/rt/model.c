@@ -2004,7 +2004,7 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
    // for the signal of which S is a subelement, as appropriate.
    if (unlikely(n->flags & NET_F_DEPOSIT)) {
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      n->flags &= NET_F_DEPOSIT;
+      n->flags &= ~NET_F_DEPOSIT;
       return value_ptr(n, &(src->u.deposit.value));
    }
 
