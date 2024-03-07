@@ -180,6 +180,7 @@ case $host_os in
     AC_SEARCH_LIBS([dlopen], [dl dld], [], [
       AC_MSG_ERROR([unable to find the dlopen() function])
     ])
+    AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
     DIR_SEP=/
     pathprog="echo"
     ;;
@@ -210,8 +211,6 @@ AC_SEARCH_LIBS([pow], [m], [], [
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 
 AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
-
-AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
 
 AC_ARG_ENABLE([llvm],
   [AS_HELP_STRING([--enable-llvm], [Build LLVM code generator])],

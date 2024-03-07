@@ -122,7 +122,6 @@ jobs:
         run: make -C build
 
   build-windows:
-    if: ${{ false }}    # Broken winpthreads
     name: Windows MSYS2
     runs-on: windows-2019
     defaults:
@@ -465,7 +464,6 @@ jobs:
           make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
 
   msi-installer:
-    if: ${{ false }}    # Broken winpthreads
     name: Windows MSI installer
     runs-on: windows-2019
     defaults:
@@ -498,7 +496,7 @@ jobs:
       - name: Configure
         run: |
           echo $PATH
-          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.11/bin
+          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
           mkdir build
           cd build
           bash ../configure --enable-static-llvm --enable-tcl \
@@ -510,7 +508,7 @@ jobs:
         run: make -C build install
       - name: Build MSI installer
         run: |
-          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.11/bin
+          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
           which candle
           make -C build V=1 msi-installer
           echo "MSI=$(ls build/*.msi)" >> $GITHUB_ENV

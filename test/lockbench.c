@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "option.h"
 #include "thread.h"
 
 #include <stdlib.h>
@@ -64,7 +65,7 @@ static void *worker_thread(void *arg)
    while (relaxed_load(&(t->running))) {
       int iters = relaxed_load(&(t->iters));
 
-      int n = random() % N_COUNTERS;
+      int n = rand() % N_COUNTERS;
 
       LOCK(counter[n].lock);
       counter[n].value++;
@@ -80,11 +81,12 @@ int main(int argc, char **argv)
 {
    const int nproc = nvc_nprocs();
 
-   srandom((unsigned)time(NULL));
+   srand((unsigned)time(NULL));
 
    term_init();
    thread_init();
    register_signal_handlers();
+   set_default_options();
 
    thread_state_t *threads = xcalloc_array(nproc, sizeof(thread_state_t));
 

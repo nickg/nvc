@@ -50,9 +50,10 @@ static void empty_cb(void *context, void *arg)
 
 int main(int argc, char **argv)
 {
-   srandom((unsigned)time(NULL));
+   srand((unsigned)time(NULL));
 
    term_init();
+   set_default_options();
    thread_init();
    register_signal_handlers();
 

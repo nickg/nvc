@@ -32,7 +32,7 @@
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
-#else
+#elif !defined __MINGW32__
 #error missing pthread support
 #endif
 
@@ -118,9 +118,14 @@ typedef enum {
 } lock_bits_t;
 
 typedef struct {
-   pthread_mutex_t mutex;
-   pthread_cond_t  cond;
-   int             parked;
+#ifdef __MINGW32__
+   CRITICAL_SECTION   mutex;
+   CONDITION_VARIABLE cond;
+#else
+   pthread_mutex_t    mutex;
+   pthread_cond_t     cond;
+#endif
+   int                parked;
 } __attribute__((aligned(64))) parking_bay_t;
 
 typedef bool (*park_fn_t)(parking_bay_t *, void *);
@@ -209,11 +214,16 @@ struct _nvc_thread {
    unsigned        spins;
    threadq_t       queue;
    char           *name;
-   pthread_t       handle;
    thread_fn_t     fn;
    void           *arg;
    int             victim;
    uint32_t        rngstate;
+#ifdef __MINGW32__
+   HANDLE          handle;
+   void           *retval;
+#else
+   pthread_t       handle;
+#endif
 #ifdef __APPLE__
    thread_port_t   port;
 #endif
@@ -234,10 +244,12 @@ typedef struct _barrier {
 } __attribute__((aligned(64))) barrier_t;
 
 static parking_bay_t parking_bays[PARKING_BAYS] = {
+#ifndef __MINGW32__
    [0 ... PARKING_BAYS - 1] = {
       PTHREAD_MUTEX_INITIALIZER,
       PTHREAD_COND_INITIALIZER
    }
+#endif
 };
 
 static nvc_thread_t    *threads[MAX_THREADS];
@@ -250,10 +262,17 @@ static int              async_pending __attribute__((aligned(64))) = 0;
 static nvc_lock_t       stop_lock = 0;
 static stop_world_fn_t  stop_callback = NULL;
 static void            *stop_arg = NULL;
-static pthread_cond_t   wake_workers = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t  wakelock = PTHREAD_MUTEX_INITIALIZER;
+
+#ifdef __MINGW32__
+static CONDITION_VARIABLE wake_workers = CONDITION_VARIABLE_INIT;
+static CRITICAL_SECTION   wakelock;
+#else
+static pthread_cond_t     wake_workers = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t    wakelock = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 #ifdef POSIX_SUSPEND
-static sem_t            stop_sem;
+static sem_t stop_sem;
 #endif
 
 #ifdef DEBUG
@@ -303,6 +322,50 @@ static void print_lock_stats(void)
 }
 #endif
 
+#ifdef __MINGW32__
+static inline void platform_mutex_lock(LPCRITICAL_SECTION lpcs)
+{
+   EnterCriticalSection(lpcs);
+}
+
+static inline void platform_mutex_unlock(LPCRITICAL_SECTION lpcs)
+{
+   LeaveCriticalSection(lpcs);
+}
+
+static inline void platform_cond_broadcast(PCONDITION_VARIABLE pcv)
+{
+   WakeAllConditionVariable(pcv);
+}
+
+static inline void platform_cond_wait(PCONDITION_VARIABLE pcv,
+                                      LPCRITICAL_SECTION lpcs)
+{
+   SleepConditionVariableCS(pcv, lpcs, INFINITE);
+}
+#else
+static inline void platform_mutex_lock(pthread_mutex_t *mtx)
+{
+   PTHREAD_CHECK(pthread_mutex_lock, mtx);
+}
+
+static inline void platform_mutex_unlock(pthread_mutex_t *mtx)
+{
+   PTHREAD_CHECK(pthread_mutex_unlock, mtx);
+}
+
+static inline void platform_cond_broadcast(pthread_cond_t *cond)
+{
+   PTHREAD_CHECK(pthread_cond_broadcast, cond);
+}
+
+static inline void platform_cond_wait(pthread_cond_t *cond,
+                                      pthread_mutex_t *mtx)
+{
+   PTHREAD_CHECK(pthread_cond_wait, cond, mtx);
+}
+#endif
+
 static void join_worker_threads(void)
 {
    SCOPED_A(nvc_thread_t *) join_list = AINIT;
@@ -314,12 +377,12 @@ static void join_worker_threads(void)
    }
 
    // Lock the wake mutex here to avoid races with workers sleeping
-   PTHREAD_CHECK(pthread_mutex_lock, &wakelock);
+   platform_mutex_lock(&wakelock);
    {
       atomic_store(&should_stop, true);
-      PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
+      platform_cond_broadcast(&wake_workers);
    }
-   PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
+   platform_mutex_unlock(&wakelock);
 
    for (int i = 0; i < join_list.count; i++) {
       nvc_thread_t *t = join_list.items[i];
@@ -401,11 +464,27 @@ void thread_init(void)
    assert(my_thread == NULL);
 
    my_thread = thread_new(NULL, NULL, MAIN_THREAD, xstrdup("main thread"));
+
+#ifdef __MINGW32__
+   my_thread->handle = GetCurrentThread();
+#else
    my_thread->handle = pthread_self();
+#endif
 
 #ifdef __APPLE__
    my_thread->port = pthread_mach_thread_np(my_thread->handle);
    pthread_atfork(NULL, NULL, reset_mach_ports);
+#endif
+
+#ifdef __MINGW32__
+   InitializeCriticalSectionAndSpinCount(&wakelock, LOCK_SPINS);
+   InitializeConditionVariable(&wake_workers);
+
+   for (int i = 0; i < PARKING_BAYS; i++) {
+      parking_bay_t *bay = &(parking_bays[i]);
+      InitializeCriticalSectionAndSpinCount(&(bay->mutex), LOCK_SPINS);
+      InitializeConditionVariable(&(bay->cond));
+   }
 #endif
 
    assert(my_thread->id == 0);
@@ -480,6 +559,15 @@ static void *thread_wrapper(void *arg)
    return result;
 }
 
+#ifdef __MINGW32__
+static DWORD win32_thread_wrapper(LPVOID param)
+{
+   void *ret = thread_wrapper(param);
+   atomic_store(&(my_thread->retval), ret);
+   return 0;
+}
+#endif
+
 nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 {
    va_list ap;
@@ -492,8 +580,14 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 
    nvc_thread_t *thread = thread_new(fn, arg, USER_THREAD, name);
 
+#ifdef __MINGW32__
+   if ((thread->handle = CreateThread(NULL, 0, win32_thread_wrapper,
+                                      thread, 0, NULL)) == NULL)
+      fatal_errno("CreateThread");
+#else
    PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                  thread_wrapper, thread);
+#endif
 
 #ifdef __APPLE__
    thread->port = pthread_mach_thread_np(thread->handle);
@@ -508,7 +602,14 @@ void *thread_join(nvc_thread_t *thread)
       fatal_trace("cannot join self or main thread");
 
    void *retval = NULL;
+#ifdef __MINGW32__
+   if (WaitForSingleObject(thread->handle, INFINITE) == WAIT_FAILED)
+      fatal_errno("WaitForSingleObject failed for thread %s", thread->name);
+
+   retval = atomic_load(&(thread->retval));
+#else
    PTHREAD_CHECK(pthread_join, thread->handle, &retval);
+#endif
 
    async_free(thread->name);
    async_free(thread);
@@ -531,16 +632,16 @@ static void thread_park(void *cookie, park_fn_t fn)
 {
    parking_bay_t *bay = parking_bay_for(cookie);
 
-   PTHREAD_CHECK(pthread_mutex_lock, &(bay->mutex));
+   platform_mutex_lock(&(bay->mutex));
    {
       if ((*fn)(bay, cookie)) {
          bay->parked++;
-         PTHREAD_CHECK(pthread_cond_wait, &(bay->cond), &(bay->mutex));
+         platform_cond_wait(&(bay->cond), &(bay->mutex));
          assert(bay->parked > 0);
          bay->parked--;
       }
    }
-   PTHREAD_CHECK(pthread_mutex_unlock, &(bay->mutex));
+   platform_mutex_unlock(&(bay->mutex));
 }
 
 static void thread_unpark(void *cookie, unpark_fn_t fn)
@@ -548,16 +649,16 @@ static void thread_unpark(void *cookie, unpark_fn_t fn)
    parking_bay_t *bay = parking_bay_for(cookie);
 
    if (fn != NULL) {
-      PTHREAD_CHECK(pthread_mutex_lock, &(bay->mutex));
+      platform_mutex_lock(&(bay->mutex));
       {
          (*fn)(bay, cookie);
       }
-      PTHREAD_CHECK(pthread_mutex_unlock, &(bay->mutex));
+      platform_mutex_unlock(&(bay->mutex));
    }
 
    // Do not use pthread_cond_signal here as multiple threads parked in
    // this bay may be waiting on different cookies
-   PTHREAD_CHECK(pthread_cond_broadcast, &(bay->cond));
+   platform_cond_broadcast(&(bay->cond));
 }
 
 void spin_wait(void)
@@ -950,7 +1051,11 @@ static void progressive_backoff(void)
    if (my_thread->spins++ < YIELD_SPINS)
       spin_wait();
    else {
+#ifdef __MINGW32__
+      SwitchToThread();
+#else
       sched_yield();
+#endif
       my_thread->spins = 0;
    }
 }
@@ -965,12 +1070,12 @@ static void *worker_thread(void *arg)
       else if (my_thread->spins++ < 2)
          spin_wait();
       else {
-         PTHREAD_CHECK(pthread_mutex_lock, &wakelock);
+         platform_mutex_lock(&wakelock);
          {
             if (!relaxed_load(&should_stop))
-               PTHREAD_CHECK(pthread_cond_wait, &wake_workers, &wakelock);
+               platform_cond_wait(&wake_workers, &wakelock);
          }
-         PTHREAD_CHECK(pthread_mutex_unlock, &wakelock);
+         platform_mutex_unlock(&wakelock);
       }
    } while (likely(!relaxed_load(&should_stop)));
 
@@ -990,15 +1095,17 @@ static void create_workers(int needed)
       nvc_thread_t *thread =
          thread_new(worker_thread, NULL, WORKER_THREAD, name);
 
+#ifdef __MINGW32__
+      if ((thread->handle = CreateThread(NULL, 0, win32_thread_wrapper,
+                                         thread, 0, NULL)) == NULL)
+         fatal_errno("CreateThread");
+#else
       PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                     thread_wrapper, thread);
-
-#ifdef __APPLE__
-      thread->port = pthread_mach_thread_np(thread->handle);
 #endif
    }
 
-   PTHREAD_CHECK(pthread_cond_broadcast, &wake_workers);
+   platform_cond_broadcast(&wake_workers);
 }
 
 void workq_start(workq_t *wq)
@@ -1178,13 +1285,12 @@ void stop_world(stop_world_fn_t callback, void *arg)
       if (thread == NULL || thread == my_thread)
          continue;
 
-      HANDLE h = pthread_gethandle(thread->handle);
-      if (SuspendThread(h) != 0)
+      if (SuspendThread(thread->handle) != 0)
          fatal_errno("SuspendThread");
 
       CONTEXT context;
       context.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL;
-      if (!GetThreadContext(h, &context))
+      if (!GetThreadContext(thread->handle, &context))
          fatal_errno("GetThreadContext");
 
       struct cpu_state cpu;
@@ -1283,8 +1389,7 @@ void start_world(void)
       if (thread == NULL || thread == my_thread)
          continue;
 
-      HANDLE h = pthread_gethandle(thread->handle);
-      if (ResumeThread(h) != 1)
+      if (ResumeThread(thread->handle) != 1)
          fatal_errno("ResumeThread");
    }
 #elif defined __APPLE__
