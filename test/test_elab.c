@@ -1829,6 +1829,7 @@ END_TEST
 START_TEST(test_ename3)
 {
    set_standard(STD_08);
+
    input_from_file(TESTDIR "/elab/ename3.vhd");
 
    const error_t expect[] = {
@@ -1855,6 +1856,25 @@ START_TEST(test_issue855)
    fail_if(e == NULL);
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue864)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue864.vhd");
+
+   const error_t expect[] = {
+      { 15, "Could not open: ./nonexistent.txt" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -1957,6 +1977,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_vlog1);
    tcase_add_test(tc, test_ename3);
    tcase_add_test(tc, test_issue855);
+   tcase_add_test(tc, test_issue864);
    suite_add_tcase(s, tc);
 
    return s;

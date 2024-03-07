@@ -3665,6 +3665,7 @@ vcode_reg_t emit_load(vcode_var_t var)
          else if (other->kind == VCODE_OP_FCALL
                   || other->kind == VCODE_OP_PCALL
                   || other->kind == VCODE_OP_FILE_READ
+                  || other->kind == VCODE_OP_FILE_OPEN
                   || other->kind == VCODE_OP_STORE_INDIRECT
                   || other->kind == VCODE_OP_DEALLOCATE)
             state = CONSERVATIVE;   // May write to variable
