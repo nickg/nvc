@@ -1,0 +1,1 @@
+a is matrix 11 rows and 11 with elements of length 10

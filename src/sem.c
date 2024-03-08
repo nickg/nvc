@@ -3960,15 +3960,23 @@ static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
    // universal_integer
 
    type_t uint = std_type(NULL, STD_UNIVERSAL_INTEGER);
-   if (!type_eq(tree_type(dim), uint)) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(dim));
-      diag_printf(d, "dimension parameter of attribute %s must be a locally "
-                  "static expression of type universal_integer",
-                  istr(tree_ident(t)));
-      diag_hint(d, tree_loc(dim), "expression has type %s",
-                type_pp(tree_type(dim)));
-      diag_emit(d);
-      return false;
+   type_t dimtype = tree_type(dim);
+   if (!type_eq(dimtype, uint)) {
+      diag_t *d;
+      if (type_is_integer(dimtype))
+         d = pedantic_diag(dim);
+      else
+         d = diag_new(DIAG_ERROR, tree_loc(dim));
+
+      if (d != NULL) {
+         diag_printf(d, "dimension parameter of attribute %s must be a locally "
+                     "static expression of type universal_integer",
+                     istr(tree_ident(t)));
+         diag_hint(d, tree_loc(dim), "expression has type %s",
+                   type_pp(tree_type(dim)));
+         diag_emit(d);
+         return false;
+      }
    }
 
    if (!sem_locally_static(dim))
