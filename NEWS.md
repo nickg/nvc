@@ -20,7 +20,7 @@
   types with non-locally-static bounds (#851, #852).
 - The parameter for attributes with dimensions such as `'length(N)` may
   be any integer type when `--relaxed` is passed (#862).
-- Resolved several other minor issues (#654, #854, #855, #863).
+- Resolved several other minor issues (#654, #854, #855, #859, #863).
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due

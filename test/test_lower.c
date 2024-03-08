@@ -6130,6 +6130,43 @@ START_TEST(test_trigger1)
 }
 END_TEST
 
+START_TEST(test_issue859)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue859.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE859.I_MODEL");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.MODEL_PKG" },
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "AXILITE_IF_2" },
+      { VCODE_OP_RECORD_REF, .field = 3 },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 4 },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_INDEX, .name = "RD_PORT_IN" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 2 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6275,6 +6312,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap6);
    tcase_add_test(tc, test_issue844);
    tcase_add_test(tc, test_trigger1);
+   tcase_add_test(tc, test_issue859);
    suite_add_tcase(s, tc);
 
    return s;
