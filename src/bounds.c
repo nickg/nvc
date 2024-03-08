@@ -1283,7 +1283,7 @@ static void bounds_check_attr_ref(tree_t t)
    case ATTR_REVERSE_RANGE:
       if (tree_params(t) > 0) {
          type_t type = tree_type(tree_name(t));
-         if (type_is_array(type) && !type_is_unconstrained(type)) {
+         if (type_is_array(type)) {
             tree_t dim_tree = tree_value(tree_param(t, 0));
 
             int64_t dim;

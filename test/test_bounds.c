@@ -724,6 +724,22 @@ START_TEST(test_cons1)
 }
 END_TEST
 
+START_TEST(test_issue863)
+{
+   input_from_file(TESTDIR "/bounds/issue863.vhd");
+
+   const error_t expect[] = {
+      { 17, "invalid dimension 0 for type REAL_MATRIX" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -762,6 +778,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue806);
    tcase_add_test(tc_core, test_issue819);
    tcase_add_test(tc_core, test_cons1);
+   tcase_add_test(tc_core, test_issue863);
    suite_add_tcase(s, tc_core);
 
    return s;
