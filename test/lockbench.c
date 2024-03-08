@@ -22,17 +22,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <limits.h>
 #include <assert.h>
+#include <time.h>
+#include <math.h>
 
-#define USE_NVC_LOCK
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 
-#ifdef USE_NVC_LOCK
+#define USE_NVC_LOCK 1
+
+#if USE_NVC_LOCK
 #define LOCK_TYPE nvc_lock_t
 #define LOCK_INIT(m) m = 0
 #define LOCK(m) nvc_lock(&m);
 #define UNLOCK(m) nvc_unlock(&m);
+#elif defined __MINGW32__
+#define LOCK_TYPE CRITICAL_SECTION
+#define LOCK_INIT(m) InitializeCriticalSectionAndSpinCount(&m, 10);
+#define LOCK(m) EnterCriticalSection(&m)
+#define UNLOCK(m) LeaveCriticalSection(&m)
 #else
 #define LOCK_TYPE pthread_mutex_t
 #define LOCK_INIT(m) pthread_mutex_init(&m, NULL)
@@ -49,29 +62,39 @@ typedef struct {
 
 static counter_t counter[N_COUNTERS];
 
-typedef struct __attribute__((aligned(64))) {
+STATIC_ASSERT(sizeof(counter) == N_COUNTERS * 64);
+
+typedef struct {
    nvc_thread_t *thread;
-   int iters;
-   int last;
-   int running;
-} thread_state_t;
+   uint32_t      rng;
+   uint64_t      iters;
+   uint64_t      last;
+   int           running;
+} __attribute__((aligned(64))) thread_state_t;
 
 STATIC_ASSERT(sizeof(thread_state_t) == 64);
+
+static inline uint32_t fast_rand(thread_state_t *t)
+{
+   uint32_t state = t->rng;
+   state ^= (state << 13);
+   state ^= (state >> 17);
+   state ^= (state << 5);
+   return (t->rng = state);
+}
 
 static void *worker_thread(void *arg)
 {
    thread_state_t *t = arg;
 
    while (relaxed_load(&(t->running))) {
-      int iters = relaxed_load(&(t->iters));
-
-      int n = rand() % N_COUNTERS;
+      int n = fast_rand(t) % N_COUNTERS;
 
       LOCK(counter[n].lock);
       counter[n].value++;
       UNLOCK(counter[n].lock);
 
-      relaxed_store(&(t->iters), iters + 1);
+      relaxed_add(&(t->iters), 1);
    }
 
    return NULL;
@@ -95,12 +118,20 @@ int main(int argc, char **argv)
 
    for (int i = 0; i < nproc; i++) {
       threads[i].running = 1;
+      threads[i].rng = rand();
       threads[i].thread = thread_create(worker_thread, &(threads[i]),
                                         "worker %d", i);
    }
 
+   printf("THREADS   OPS/MS      FAIRNESS\n");
+
    for (int i = 0; i < 10; i++) {
+      const uint64_t start = get_timestamp_ns();
+
       sleep(1);
+
+      const uint64_t end = get_timestamp_ns();
+      const double secs = (end - start) / 1.0e9;
 
       int total = 0;
       for (int j = 0; j < N_COUNTERS; j++) {
@@ -110,17 +141,19 @@ int main(int argc, char **argv)
          UNLOCK(counter[j].lock);
       }
 
-      int min = INT_MAX, max = INT_MIN;
+      double geo = 1.0, best = 0.0;
       for (int j = 0; j < nproc; j++) {
-         int iters = relaxed_load(&(threads[j].iters));
-         int delta = iters - threads[j].last;
-         min = MIN(min, delta);
-         max = MAX(max, delta);
+         uint64_t iters = relaxed_load(&(threads[j].iters));
+         uint64_t delta = iters - threads[j].last;
+         const double result = (double)delta / secs;
+         geo *= result;
+         if (result > best)
+            best = result;
          threads[j].last = iters;
       }
 
-      printf("%d threads; avg:%d min:%d max:%d\n",
-             nproc, total / nproc, min, max);
+      const double fair = pow(geo, 1.0 / nproc) / best;
+      printf("%-8d  %-11.1f %.2f\n", nproc, (total / secs) / 1000.0, fair);
    }
 
    for (int i = 0; i < nproc; i++)
@@ -128,6 +161,11 @@ int main(int argc, char **argv)
 
    for (int i = 0; i < nproc; i++)
       thread_join(threads[i].thread);
+
+#if USE_NVC_LOCK
+   for (int i = 0; i < N_COUNTERS; i++)
+      assert(counter[i].lock == 0);
+#endif
 
    return 0;
 }

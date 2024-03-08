@@ -50,7 +50,7 @@
 #undef task_t
 #endif
 
-#define LOCK_SPINS      15
+#define LOCK_SPINS      64
 #define YIELD_SPINS     32
 #define MIN_TAKE        8
 #define PARKING_BAYS    64
@@ -102,6 +102,10 @@ STATIC_ASSERT(sizeof(lock_stats_t) == 64)
 #define TSAN_POST_LOCK(addr)
 #define TSAN_PRE_UNLOCK(addr)
 #define TSAN_POST_UNLOCK(addr)
+#endif
+
+#ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#define PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP PTHREAD_MUTEX_INITIALIZER
 #endif
 
 #define PTHREAD_CHECK(op, ...) do {             \
@@ -246,7 +250,7 @@ typedef struct _barrier {
 static parking_bay_t parking_bays[PARKING_BAYS] = {
 #ifndef __MINGW32__
    [0 ... PARKING_BAYS - 1] = {
-      PTHREAD_MUTEX_INITIALIZER,
+      PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP,
       PTHREAD_COND_INITIALIZER
    }
 #endif
@@ -268,7 +272,7 @@ static CONDITION_VARIABLE wake_workers = CONDITION_VARIABLE_INIT;
 static CRITICAL_SECTION   wakelock;
 #else
 static pthread_cond_t     wake_workers = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t    wakelock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t    wakelock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 #endif
 
 #ifdef POSIX_SUSPEND
@@ -398,6 +402,11 @@ static void join_worker_threads(void)
    }
 
    assert(atomic_load(&running_threads) == 1);
+
+#ifdef DEBUG
+   for (int i = 0; i < PARKING_BAYS; i++)
+      assert(parking_bays[i].parked == 0);
+#endif
 }
 
 static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
@@ -712,7 +721,7 @@ void nvc_lock(nvc_lock_t *lock)
            spins++, state = relaxed_load(lock))
          spin_wait();
 
-      if (spins == LOCK_SPINS) {
+      if (state & IS_LOCKED) {
          // Ignore failures here as we will check the lock state again
          // in the callback with the park mutex held
          atomic_cas(lock, IS_LOCKED, IS_LOCKED | HAS_PARKED);
