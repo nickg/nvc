@@ -1878,6 +1878,26 @@ START_TEST(test_issue864)
 }
 END_TEST
 
+START_TEST(test_issue860)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue860.vhd");
+
+   const error_t expect[] = {
+      { 34, "external name CLK not found" },
+      { 35, "external name I1_SBI_IF not found" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1978,6 +1998,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_ename3);
    tcase_add_test(tc, test_issue855);
    tcase_add_test(tc, test_issue864);
+   tcase_add_test(tc, test_issue860);
    suite_add_tcase(s, tc);
 
    return s;

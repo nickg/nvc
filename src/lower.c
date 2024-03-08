@@ -3027,8 +3027,13 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
    if (decl == NULL) {
       type_t type = tree_type(ref);
       vcode_type_t vbounds = lower_bounds(type);
-      if (tree_class(ref) == C_SIGNAL)
-         return emit_undefined(lower_signal_type(type), vbounds);
+      if (tree_class(ref) == C_SIGNAL) {
+         vcode_type_t vstype = lower_signal_type(type);
+         if (type_is_homogeneous(type))
+            return emit_undefined(vstype, vbounds);
+         else
+            return emit_undefined(vtype_pointer(vstype), vbounds);
+      }
       else
          return emit_undefined(vtype_pointer(lower_type(type)), vbounds);
    }
