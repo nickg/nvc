@@ -12870,8 +12870,15 @@ typedef enum {
    UNIT_FINALISED = 3,
 } unit_kind_t;
 
+typedef void (*dep_visit_fn_t)(vcode_unit_t, void *);
+typedef bool (*dep_filter_fn_t)(ident_t, void *);
+
 typedef struct _unit_registry {
-   hash_t *map;
+   hash_t          *map;
+   hset_t          *visited;
+   dep_filter_fn_t  filter_fn;
+   dep_visit_fn_t   visit_fn;
+   void            *context;
 } unit_registry_t;
 
 typedef struct {
@@ -12964,37 +12971,90 @@ void unit_registry_purge(unit_registry_t *ur, ident_t prefix)
    }
 }
 
-static void flush_dependency_cb(ident_t name, void *ctx)
+static bool flush_dependency_filter(ident_t name, void *ctx)
 {
    unit_registry_t *ur = ctx;
 
    void *ptr = hash_get(ur->map, name);
-   if (pointer_tag(ptr) != UNIT_DEFERRED)
-      return;
+   if (ptr == NULL)
+      return false;
 
-   deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+   ident_t module;
+   ptrdiff_t offset;
+   switch (pointer_tag(ptr)) {
+   case UNIT_DEFERRED:
+      {
+         deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+         offset = du->offset;
+      }
+      break;
+   case UNIT_FINALISED:
+      {
+         vcode_unit_t vu = untag_pointer(ptr, struct _vcode_unit);
+         vcode_unit_object(vu, &module, &offset);
+      }
+      break;
+   case UNIT_GENERATED:
+      {
+         lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
+         vcode_unit_object(lu->vunit, &module, &offset);
+      }
+      break;
+   default:
+      fatal_trace("invalid tagged pointer %p", ptr);
+   }
 
-   if (du->offset >= 0)
-      return;   // Does not reference objects which can be moved by GC
-
-   (void)unit_registry_get(ur, name);
+   return offset < 0;
 }
 
-void unit_registry_flush(unit_registry_t *ur, ident_t name)
+static void walk_dependency_cb(ident_t name, void *ctx)
 {
+   unit_registry_t *ur = ctx;
+
+   if (hset_contains(ur->visited, name))
+      return;
+
+   hset_insert(ur->visited, name);
+
+   if (ur->filter_fn != NULL && !(*ur->filter_fn)(name, ctx))
+      return;
+
    vcode_unit_t vu = unit_registry_get(ur, name);
    assert(vu != NULL);
 
-   // Make sure all transitive dependencies of this unit which contain
-   // references to non-frozen objects are generated
-   vcode_walk_dependencies(vu, flush_dependency_cb, ur);
+   if (ur->visit_fn != NULL)
+      (*ur->visit_fn)(vu, ur->context);
+
+   vcode_walk_dependencies(vu, walk_dependency_cb, ur);
 
    for (vcode_unit_t it = vcode_unit_child(vu);
         it != NULL;
         it = vcode_unit_next(it)) {
       assert(vcode_unit_kind(it) != VCODE_UNIT_THUNK);
-      unit_registry_flush(ur, vcode_unit_name(it));
+      walk_dependency_cb(vcode_unit_name(it), ctx);
    }
+}
+
+void unit_registry_walk_dependencies(unit_registry_t *ur, ident_t name,
+                                     dep_filter_fn_t filter_fn,
+                                     dep_visit_fn_t visit_fn, void *ctx)
+{
+   assert(ur->visited == NULL);
+   ur->visited = hset_new(128);
+   ur->visit_fn = visit_fn;
+   ur->filter_fn = filter_fn;
+
+   walk_dependency_cb(name, ur);
+
+   hset_free(ur->visited);
+   ur->visited = NULL;
+}
+
+void unit_registry_flush(unit_registry_t *ur, ident_t name)
+{
+   // Make sure all transitive dependencies of this unit which contain
+   // references to non-frozen objects are generated
+   unit_registry_walk_dependencies(ur, name, flush_dependency_filter, NULL, ur);
 }
 
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
@@ -13069,6 +13129,9 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
 
          object_t *obj = object_from_locus(du->arena, du->offset,
                                            lib_load_handler);
+
+         // This assertion fails in unit tests
+         // assert(du->offset >= 0 || !arena_frozen(object_arena(obj)));
 
          vcode_unit_t context = du->parent ? du->parent->vunit : NULL;
          vcode_unit_t vu = (*du->emit_fn)(ident, obj, context);

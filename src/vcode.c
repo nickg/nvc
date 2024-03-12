@@ -6029,6 +6029,9 @@ vcode_reg_t emit_instance_name(vcode_reg_t kind)
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
 {
+   vcode_state_t state;
+   vcode_state_save(&state);
+
    vcode_select_unit(vu);
 
    const int nblocks = vcode_count_blocks();
@@ -6054,6 +6057,8 @@ void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
          }
       }
    }
+
+   vcode_state_restore(&state);
 }
 
 #ifdef DEBUG
