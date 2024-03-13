@@ -12874,11 +12874,8 @@ typedef void (*dep_visit_fn_t)(vcode_unit_t, void *);
 typedef bool (*dep_filter_fn_t)(ident_t, void *);
 
 typedef struct _unit_registry {
-   hash_t          *map;
-   hset_t          *visited;
-   dep_filter_fn_t  filter_fn;
-   dep_visit_fn_t   visit_fn;
-   void            *context;
+   hash_t *map;
+   hset_t *visited;
 } unit_registry_t;
 
 typedef struct {
@@ -12971,42 +12968,6 @@ void unit_registry_purge(unit_registry_t *ur, ident_t prefix)
    }
 }
 
-static bool flush_dependency_filter(ident_t name, void *ctx)
-{
-   unit_registry_t *ur = ctx;
-
-   void *ptr = hash_get(ur->map, name);
-   if (ptr == NULL)
-      return false;
-
-   ident_t module;
-   ptrdiff_t offset;
-   switch (pointer_tag(ptr)) {
-   case UNIT_DEFERRED:
-      {
-         deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
-         offset = du->offset;
-      }
-      break;
-   case UNIT_FINALISED:
-      {
-         vcode_unit_t vu = untag_pointer(ptr, struct _vcode_unit);
-         vcode_unit_object(vu, &module, &offset);
-      }
-      break;
-   case UNIT_GENERATED:
-      {
-         lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
-         vcode_unit_object(lu->vunit, &module, &offset);
-      }
-      break;
-   default:
-      fatal_trace("invalid tagged pointer %p", ptr);
-   }
-
-   return offset < 0;
-}
-
 static void walk_dependency_cb(ident_t name, void *ctx)
 {
    unit_registry_t *ur = ctx;
@@ -13016,45 +12977,60 @@ static void walk_dependency_cb(ident_t name, void *ctx)
 
    hset_insert(ur->visited, name);
 
-   if (ur->filter_fn != NULL && !(*ur->filter_fn)(name, ctx))
+   void *ptr = hash_get(ur->map, name);
+   if (ptr == NULL)
       return;
 
-   vcode_unit_t vu = unit_registry_get(ur, name);
-   assert(vu != NULL);
+   vcode_unit_t vu = NULL;
+   switch (pointer_tag(ptr)) {
+   case UNIT_DEFERRED:
+      {
+         deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+         if (du->offset >= 0)
+            return;
 
-   if (ur->visit_fn != NULL)
-      (*ur->visit_fn)(vu, ur->context);
+         vu = unit_registry_get(ur, name);
+      }
+      break;
+   case UNIT_FINALISED:
+      vu = untag_pointer(ptr, struct _vcode_unit);
+      break;
+   case UNIT_GENERATED:
+      {
+         lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
+         vu = lu->vunit;
+      }
+      break;
+   default:
+      fatal_trace("invalid tagged pointer %p", ptr);
+   }
+
+   ident_t module;
+   ptrdiff_t offset;
+   vcode_unit_object(vu, &module, &offset);
+
+   if (offset >= 0)
+      return;
 
    vcode_walk_dependencies(vu, walk_dependency_cb, ur);
 
-   for (vcode_unit_t it = vcode_unit_child(vu);
-        it != NULL;
-        it = vcode_unit_next(it)) {
+   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it)) {
       assert(vcode_unit_kind(it) != VCODE_UNIT_THUNK);
       walk_dependency_cb(vcode_unit_name(it), ctx);
    }
 }
 
-void unit_registry_walk_dependencies(unit_registry_t *ur, ident_t name,
-                                     dep_filter_fn_t filter_fn,
-                                     dep_visit_fn_t visit_fn, void *ctx)
+void unit_registry_flush(unit_registry_t *ur, ident_t name)
 {
    assert(ur->visited == NULL);
    ur->visited = hset_new(128);
-   ur->visit_fn = visit_fn;
-   ur->filter_fn = filter_fn;
 
+   // Make sure all transitive dependencies of this unit which contain
+   // references to non-frozen objects are generated
    walk_dependency_cb(name, ur);
 
    hset_free(ur->visited);
    ur->visited = NULL;
-}
-
-void unit_registry_flush(unit_registry_t *ur, ident_t name)
-{
-   // Make sure all transitive dependencies of this unit which contain
-   // references to non-frozen objects are generated
-   unit_registry_walk_dependencies(ur, name, flush_dependency_filter, NULL, ur);
 }
 
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
