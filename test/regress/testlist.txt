@@ -953,7 +953,7 @@ vlog9           verilog
 issue654        normal,2008
 issue854        normal,2019
 ename8          normal,2008
-issue856        normal,2019
+issue856        normal,2019,wave,dump-arrays
 driver22        fail,gold,2019
 vhpi12          normal,vhpi
 issue862        normal,gold,2008,relaxed

@@ -424,14 +424,18 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
       assert(scope->kind == SCOPE_SIGNAL);
 
       type_t rtype = tree_type(scope->where);
-      assert(type_is_record(rtype));
-      assert(type_field(rtype, tree_pos(where)) == where);
-
       const jit_layout_t *l = signal_layout_of(rtype);
-      assert(l->nparts == type_fields(rtype));
 
-      const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
-      return fst_get_ptr(wd, scope->parent, scope->where) + offset;
+      if (type_is_array(rtype))
+         return fst_get_ptr(wd, scope->parent, scope->where);
+      else {
+         assert(type_is_record(rtype));
+         assert(type_field(rtype, tree_pos(where)) == where);
+         assert(l->nparts == type_fields(rtype));
+
+         const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
+         return fst_get_ptr(wd, scope->parent, scope->where) + offset;
+      }
    }
    else {
       assert(scope->kind == SCOPE_INSTANCE);
@@ -440,7 +444,8 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
    }
 }
 
-static void fst_get_array_range(wave_dumper_t *wd, type_t type, rt_signal_t *s,
+static void fst_get_array_range(wave_dumper_t *wd, type_t type,
+                                rt_scope_t *scope, tree_t where,
                                 int64_t *msb, int64_t *lsb, int64_t *length)
 {
    if (!type_is_unconstrained(type)) {
@@ -452,7 +457,7 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type, rt_signal_t *s,
       }
    }
 
-   ffi_dim_t *dims = fst_get_ptr(wd, s->parent, s->where) + 2*sizeof(int64_t);
+   ffi_dim_t *dims = fst_get_ptr(wd, scope, where) + 2*sizeof(int64_t);
 
    *lsb    = ffi_array_right(dims[0].left, dims[0].length);
    *msb    = dims[0].left;
@@ -473,7 +478,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    }
 
    int64_t lsb, msb, length;
-   fst_get_array_range(wd, type, s, &msb, &lsb, &length);
+   fst_get_array_range(wd, type, s->parent, s->where, &msb, &lsb, &length);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
@@ -641,10 +646,11 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
 
 static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
                                   rt_scope_t *scope, type_t type,
-                                  text_buf_t *tb)
+                                  const char *suffix, text_buf_t *tb)
 {
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
+   tb_cat(tb, suffix);
    tb_downcase(tb);
 
    fstWriterSetScope(wd->fst_ctx, FST_ST_VHDL_RECORD, tb_get(tb), NULL);
@@ -671,6 +677,27 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    }
 }
 
+static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
+                                        rt_scope_t *scope, type_t type,
+                                        text_buf_t *tb)
+{
+   int64_t lsb, msb, length;
+   fst_get_array_range(wd, type, scope->parent, d, &msb, &lsb, &length);
+
+   type_t elem = type_elem(type);
+   assert(type_is_record(elem));
+
+   assert(list_size(scope->children) == length);
+
+   int index = MIN(msb, lsb);
+   for (list_iter(rt_scope_t *, sub, scope->children)) {
+      char suffix[32];
+      checked_sprintf(suffix, sizeof(suffix), "[%d]", index++);
+
+      fst_create_record_var(wd, d, sub, elem, suffix, tb);
+   }
+}
+
 static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                           text_buf_t *tb)
 {
@@ -688,7 +715,7 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_istr(tb, tree_ident(d));
    if (type_is_array(type)) {
       int64_t lsb, msb, length;
-      fst_get_array_range(wd, type, s, &msb, &lsb, &length);
+      fst_get_array_range(wd, type, s->parent, s->where, &msb, &lsb, &length);
 
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
    }
@@ -706,12 +733,7 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
                                type_t type, text_buf_t *tb)
 {
-   if (type_is_record(type)) {
-      rt_scope_t *sub = child_scope(scope, d);
-      if (sub != NULL)   // NULL means signal was optimised out
-         fst_create_record_var(wd, d, sub, type, tb);
-   }
-   else {
+   if (type_is_homogeneous(type)) {
       if (wd->gtkw != NULL) {
          if (wd->gtkw->end_of_record) {
             fputs("-\n", wd->gtkw->file);  // Blank line after record
@@ -722,13 +744,23 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
 
       rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
-         assert(type_is_array(type) && type_is_record(type_elem(type)));
+         return;
       else if (s->where != d)
          fst_alias_var(wd, d, s, tb);  // Collapsed with another signal
       else if (type_is_array(type))
          fst_create_array_var(wd, d, s, type, tb);
       else
          fst_create_scalar_var(wd, d, s, type, tb);
+   }
+   else if (type_is_record(type)) {
+      rt_scope_t *sub = child_scope(scope, d);
+      if (sub != NULL)   // NULL means signal was optimised out
+         fst_create_record_var(wd, d, sub, type, "", tb);
+   }
+   else if (opt_get_int(OPT_DUMP_ARRAYS)) {
+      rt_scope_t *sub = child_scope(scope, d);
+      if (sub != NULL)   // NULL means signal was optimised out
+         fst_create_record_array_var(wd, d, sub, type, tb);
    }
 }
 

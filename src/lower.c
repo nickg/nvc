@@ -7713,11 +7713,11 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
-      if (init_reg != VCODE_INVALID_REG) {
-         vcode_reg_t locus = lower_debug_locus(where);
+      vcode_reg_t locus = lower_debug_locus(where);
+
+      if (init_reg != VCODE_INVALID_REG)
          lower_check_array_sizes(lu, type, init_type, VCODE_INVALID_REG,
                                  init_reg, locus);
-      }
 
       vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
 
@@ -7742,7 +7742,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
-      emit_push_scope(lower_debug_locus(where), lower_type(type));
+      emit_push_scope(locus, lower_type(type));
 
       vcode_block_t cmp_bb  = emit_block();
       vcode_block_t body_bb = emit_block();

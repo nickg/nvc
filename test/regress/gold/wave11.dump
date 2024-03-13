@@ -1,3 +1,9 @@
+#0 wave11.b.r.f4[2].f2[3:5] 000
+#0 wave11.b.r.f4[2].f1 false
+#0 wave11.b.r.f4[1].f2[3:5] 000
+#0 wave11.b.r.f4[1].f1 false
+#0 wave11.b.r.f4[0].f2[3:5] 000
+#0 wave11.b.r.f4[0].f1 false
 #0 wave11.b.r.f3.f2[1:3] 000
 #0 wave11.b.r.f3.f1 false
 #0 wave11.b.r.f2[1:3] 000
@@ -7,3 +13,4 @@
 #1000000 wave11.b.r.f2[1:3] 100
 #2000000 wave11.b.r.f2[1:3] 000
 #3000000 wave11.b.r.f3.f2[1:3] 010
+#4000000 wave11.b.r.f4[1].f1 true
