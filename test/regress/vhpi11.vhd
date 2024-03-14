@@ -15,5 +15,6 @@ entity vhpi11 is
 end entity;
 
 architecture test of vhpi11 is
+    signal s : t_rec(y(1 to 3));        -- See issue #866
 begin
 end architecture;

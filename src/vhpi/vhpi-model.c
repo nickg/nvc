@@ -3326,11 +3326,20 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
             assert(nconstrs == 1);
 
             tree_t c = type_constraint(type, 0);
-            if (tree_subkind(c) != C_RANGE)
-               fatal_trace("unsupported constraint subkind %d", tree_subkind(c));
-
-            c_intRange *ir = build_int_range(tree_range(c, 0), NULL, 0, NULL);
-            APUSH(td->Constraints, &(ir->range.object));
+            switch (tree_subkind(c)) {
+            case C_RANGE:
+               {
+                  tree_t r = tree_range(c, 0);
+                  c_intRange *ir = build_int_range(r, NULL, 0, NULL);
+                  APUSH(td->Constraints, &(ir->range.object));
+               }
+               break;
+            case C_RECORD:
+               // TODO: how to represent this in VHPI?
+               break;
+            default:
+               fatal_at(tree_loc(c), "unsupported constraint subkind");
+            }
          }
 
          return &(td->typeDecl);
