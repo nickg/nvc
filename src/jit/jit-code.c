@@ -277,7 +277,8 @@ void code_cache_free(code_cache_t *code)
 #endif
 
 #ifdef DEBUG
-   debugf("JIT code footprint: %zu bytes", code->used);
+   if (code->used > 0)
+      debugf("JIT code footprint: %zu bytes", code->used);
 #endif
 
    free(code);

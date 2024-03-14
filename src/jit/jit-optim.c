@@ -1269,7 +1269,7 @@ void jit_do_mem2reg(jit_func_t *f)
          break;
    }
 
-   assert(newsize < f->framesz);
+   assert(newsize <= f->framesz);
    f->framesz = newsize;
 }
 
