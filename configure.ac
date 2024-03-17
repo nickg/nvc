@@ -446,6 +446,7 @@ AC_ARG_ENABLE([frame-pointer],
   [AS_HELP_STRING([--enable-frame-pointer],
                   [Preserve frame pointer for profiling])],
   [AX_APPEND_FLAG([-fno-omit-frame-pointer], [EXTRA_CFLAGS])
+   AX_APPEND_FLAG([-mno-omit-leaf-frame-pointer], [EXTRA_CFLAGS])
    preserve_frame_pointer=$enableval],
   [preserve_frame_pointer=no])
 
