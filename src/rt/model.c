@@ -1929,10 +1929,12 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
-      uint8_t *inputs = rt_tlab_alloc(nonnull * scope->size);
+      rt_model_t *m = get_model();
+      model_thread_t *thread = model_thread(m);
+
+      uint8_t *inputs = tlab_alloc(&thread->tlab, nonnull * scope->size);
       copy_sub_signal_sources(scope, inputs, scope->size);
 
-      rt_model_t *m = get_model();
       jit_scalar_t result;
       if (jit_try_call(m->jit, r->closure.handle, &result,
                        r->closure.context, inputs, r->ileft, nonnull))
@@ -2369,6 +2371,9 @@ void model_reset(rt_model_t *m)
 
    TRACE("calculate initial signal values");
 
+   model_thread_t *thread = model_thread(m);
+   tlab_acquire(m->mspace, &thread->tlab);
+
    // The signals in the model are updated as follows in an order such
    // that if a given signal R depends upon the current value of another
    // signal S, then the current value of S is updated prior to the
@@ -2412,6 +2417,8 @@ void model_reset(rt_model_t *m)
       TRACE("%s initial effective value %s", trace_nexus(n),
             fmt_nexus(n, initial));
    }
+
+   tlab_reset(thread->tlab);   // No allocations can be live past here
 
    global_event(m, RT_END_OF_INITIALISATION);
 }
@@ -3578,18 +3585,6 @@ int model_exit_status(rt_model_t *m)
       return EXIT_FAILURE;
    else
       return get_vhdl_assert_exit_status();
-}
-
-// TODO: this interface should be removed eventually
-void *rt_tlab_alloc(size_t size)
-{
-   rt_model_t *m = get_model();
-   model_thread_t *thread = model_thread(m);
-
-   if (tlab_valid(thread->tlab))
-      return tlab_alloc(&thread->tlab, size);
-   else
-      return mspace_alloc(get_model()->mspace, size);
 }
 
 static bool nexus_active(rt_model_t *m, rt_nexus_t *nexus)

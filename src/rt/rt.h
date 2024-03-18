@@ -91,8 +91,6 @@ typedef enum {
 typedef uint16_t delta_cycle_t;
 #define DELTA_CYCLE_MAX UINT16_MAX
 
-void *rt_tlab_alloc(size_t size);
-
 void _std_standard_init(void);
 void _std_env_init(void);
 void _std_reflection_init(void);
