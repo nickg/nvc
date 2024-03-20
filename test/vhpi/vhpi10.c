@@ -118,9 +118,21 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(genblk1 == NULL);
    fail_unless(vhpi_get(vhpiKindP, genblk1) == vhpiForGenerateK);
+   fail_unless(vhpi_get(vhpiGenerateIndexP, genblk1) == 1);
    vhpi_printf("genblk1 CaseName is %s",
                (char *)vhpi_get_str(vhpiCaseNameP, genblk1));
    //fail_unless(strcmp((char *)vhpi_get_str(vhpiCaseNameP, genblk1), "ForGen1(1)") == 0);
+
+   vhpiHandleT genblk1_i = vhpi_handle_by_name("I", genblk1);
+   check_error();
+   fail_if(genblk1_i == NULL);
+   fail_unless(vhpi_get(vhpiKindP, genblk1_i) == vhpiConstDeclK);
+   fail_unless(vhpi_handle(vhpiParamDecl, genblk1) == genblk1_i);
+
+   vhpiHandleT genblk1_s = vhpi_handle_by_name("S", genblk1);
+   check_error();
+   fail_if(genblk1_s == NULL);
+   fail_unless(vhpi_get(vhpiKindP, genblk1_s) == vhpiSigDeclK);
 
    vhpiValueT value = {
       .format = vhpiObjTypeVal
@@ -130,6 +142,13 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.format == vhpiIntVal);
    vhpi_printf("value=%d", value.value.intg);
    fail_unless(value.value.intg == 42);
+   fail_unless(value.numElems == 1);
+
+   vhpi_get_value(genblk1_i, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
+   fail_unless(value.value.intg == 1);
    fail_unless(value.numElems == 1);
 
    value.format = vhpiObjTypeVal;

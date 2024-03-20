@@ -1847,6 +1847,14 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
          return handle_for(&(sn->Suffix->decl.object));
       }
+   case vhpiParamDecl:
+      {
+         c_forGenerate *g = cast_forGenerate(obj);
+         if (g == NULL)
+            return NULL;
+
+         return handle_for(&(g->ParamDecl->objDecl.decl.object));
+      }
    case DEPRECATED_vhpiReturnTypeMark:
    case DEPRECATED_vhpiName:
    case DEPRECATED_vhpiTypeMark:
@@ -1855,8 +1863,9 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
                  "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
       return NULL;
    default:
-      fatal_trace("relationship %s not supported in vhpi_handle",
-                  vhpi_one_to_one_str(type));
+      vhpi_error(vhpiInternal, &(obj->loc), "relationship %s not supported in "
+                 "vhpi_handle", vhpi_one_to_one_str(type));
+      return NULL;
    }
 }
 
@@ -2231,6 +2240,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             goto missing_property;
 
          return s->IsSeqStmt;
+      }
+
+   case vhpiGenerateIndexP:
+      {
+         c_forGenerate *g = is_forGenerate(obj);
+         if (g == NULL)
+            goto missing_property;
+
+         return g->GenerateIndex;
       }
 
    default:
@@ -3395,7 +3413,7 @@ static void build_signalDecl(tree_t decl, c_abstractRegion *region)
    APUSH(region->decls, &(s->objDecl.decl.object));
 }
 
-static void build_constDecl(tree_t decl, c_abstractRegion *region)
+static c_constDecl *build_constDecl(tree_t decl, c_abstractRegion *region)
 {
    c_constDecl *cd = new_object(sizeof(c_constDecl), vhpiConstDeclK);
    init_objDecl(&(cd->objDecl), decl, region);
@@ -3403,6 +3421,7 @@ static void build_constDecl(tree_t decl, c_abstractRegion *region)
    cd->IsDeferred = !tree_has_value(decl);
 
    APUSH(region->decls, &(cd->objDecl.decl.object));
+   return cd;
 }
 
 static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
@@ -3441,6 +3460,15 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    c_forGenerate *g = new_object(sizeof(c_forGenerate), vhpiForGenerateK);
    init_abstractRegion(&(g->region), t);
    init_stmt(&(g->stmt), t);
+
+   assert(tree_generics(t) == 1);
+   assert(tree_genmaps(t) == 1);
+
+   tree_t index = tree_value(tree_genmap(t, 0));
+   g->GenerateIndex = assume_int(index);
+
+   tree_t g0 = tree_generic(t, 0);
+   g->ParamDecl = build_constDecl(g0, &(g->region));
 
    APUSH(region->InternalRegions, &(g->region.object));
    APUSH(region->stmts, &(g->region.object));
@@ -3495,6 +3523,12 @@ static void vhpi_lazy_component(c_abstractRegion *r)
    vhpi_build_stmts(inner, r);
 }
 
+static void vhpi_lazy_for_generate(c_abstractRegion *r)
+{
+   vhpi_build_decls(r->tree, r);
+   vhpi_build_stmts(r->tree, r);
+}
+
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
 {
    const int nstmts = tree_stmts(container);
@@ -3522,6 +3556,7 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
                break;
             case T_FOR_GENERATE:
                r = build_forGenerate(s, region);
+               r->lazyfn = vhpi_lazy_for_generate;
                break;
             default:
                continue;
