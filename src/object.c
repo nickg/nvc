@@ -82,18 +82,17 @@ typedef struct _object_arena {
 #define ITEM_NUMBER      (I_NUMBER)
 
 static const char *item_text_map[] = {
-   "I_IDENT",    "I_VALUE",      "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
-   "I_LITERAL",  "I_IDENT2",     "I_DECLS",    "I_STMTS",      "I_PORTS",
-   "I_GENERICS", "I_PARAMS",     "I_GENMAPS",  "I_WAVES",      "I_CONDS",
+   "I_IDENT",    "I_VALUE",      "I_PRIMARY",  "I_GENERICS",   "I_PORTS",
+   "I_DECLS",    "I_STMTS",      "I_TARGET",   "I_IVAL",       "I_IDENT2",
+   "I_SEVERITY", "I_PARAMS",     "I_GENMAPS",  "I_WAVES",      "I_CONDS",
    "I_TYPE",     "I_SUBKIND",    "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE",  "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
    "I_PARTS"  ,  "I_CLASS",      "I_RANGES",   "I_NAME",       "I_PRAGMAS",
    "I_DVAL",     "I_SPEC",       "I_FOREIGN",  "I_INDEXES",    "I_BASE",
    "I_ELEM",     "I_DESIGNATED", "I_DATATYPE", "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",   "I_DIMS",     "I_FIELDS",     "I_CLOCK",
-   "I_GUARD",    "????",         "I_CHARS",    "I_CONSTR",     "I_FLAGS",
-   "I_TEXT",     "I_LEFT",       "I_RIGHT",    "I_NUMBER",     "????",
-   "????",       "????",         "????",       "????",         "I_PRIMARY",
+   "I_GUARD",    "I_REPEAT",     "I_CHARS",    "I_CONSTR",     "I_FLAGS",
+   "I_TEXT",     "I_LEFT",       "I_RIGHT",    "I_NUMBER",     "I_MESSAGE",
 };
 
 static object_class_t *classes[4];
