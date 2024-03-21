@@ -159,15 +159,14 @@ jobs:
         run: make -C build
       - name: Test
         run: make -C build check
-      # Broken with LLVM 18?
-      #- name: Test in JIT mode
-      #  run: |
-      #    export NVC_JIT_ASYNC=0
-      #    export NVC_JIT_THRESHOLD=1
-      #    export FORCE_JIT=1
-      #    cd build
-      #    rm -rf logs
-      #    ./bin/run_regr
+      - name: Test in JIT mode
+        run: |
+          export NVC_JIT_ASYNC=0
+          export NVC_JIT_THRESHOLD=1
+          export FORCE_JIT=1
+          cd build
+          rm -rf logs
+          ./bin/run_regr
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2

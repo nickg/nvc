@@ -792,7 +792,7 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
          void *ptr = NULL;
          if (sym->SectionNumber > 0) {
             assert(sym->SectionNumber - 1 < imghdr->NumberOfSections);
-            ptr = load_addr[sym->SectionNumber - 1];
+            ptr = load_addr[sym->SectionNumber - 1] + sym->Value;
          }
 #ifdef ARCH_X86_64
          else if (strcmp(name, "___chkstk_ms") == 0) {
