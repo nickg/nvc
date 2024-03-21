@@ -87,7 +87,7 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
       return;
 
    cover_item_t *item = cover_add_item(cover, psl_to_object(p), NULL,
-                                       COV_ITEM_FUNCTIONAL, 0);
+                                       COV_ITEM_FUNCTIONAL, 0, 0);
    if (item == NULL)
       return;
 

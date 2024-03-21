@@ -2125,13 +2125,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_COVER_STMT:
+         case VCODE_OP_COVER_BRANCH:
             {
                printf("%s %u ", vcode_op_string(op->kind), op->tag);
             }
             break;
 
          case VCODE_OP_COVER_TOGGLE:
-         case VCODE_OP_COVER_BRANCH:
          case VCODE_OP_COVER_EXPR:
          case VCODE_OP_COVER_STATE:
             {
@@ -5738,12 +5738,10 @@ void emit_cover_stmt(uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags)
+void emit_cover_branch(uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
-   vcode_add_arg(op, test);
    op->tag = tag;
-   op->subkind = flags;
 }
 
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
