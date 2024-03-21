@@ -363,6 +363,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "cover",           optional_argument, 0, 'c' },
       { "cover-spec",      required_argument, 0, 's' },
+      { "sdf",             required_argument, 0, 'f' },
       { "verbose",         no_argument,       0, 'V' },
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
@@ -372,7 +373,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    bool use_jit = DEFAULT_JIT, no_save = false;
    cover_mask_t cover_mask = 0;
-   char *cover_spec_file = NULL;
+   char *cover_spec_file, *sdf_args = NULL;
    int cover_array_limit = 0;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
@@ -413,6 +414,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       case 's':
          cover_spec_file = optarg;
          break;
+      case 'f':
+         sdf_args = optarg;
+         break;
       case 0:
          // Set a flag
          break;
@@ -446,6 +450,12 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          cover_load_spec_file(cover, cover_spec_file);
    }
 
+   sdf_file_t *sdf = NULL;
+   if (sdf_args != NULL) {
+      sdf = analyse_sdf_file(sdf_args);
+      progress("analysed SDF file: %s", sdf_args);
+   }
+
    if (state->registry != NULL) {
       unit_registry_free(state->registry);
       state->registry = NULL;
@@ -461,7 +471,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    jit_enable_runtime(state->jit, false);
 
-   tree_t top = elab(obj, state->jit, state->registry, cover);
+   tree_t top = elab(obj, state->jit, state->registry, cover, NULL);
    if (top == NULL)
       return EXIT_FAILURE;
 

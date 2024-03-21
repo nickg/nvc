@@ -59,9 +59,11 @@ extern void reset_scanner(void);
 static bool pp_cond_analysis_expr(void);
 static void pp_defines_init();
 
+#ifndef ENABLE_SDF
 #ifndef ENABLE_VERILOG
 yylval_t yylval;
 loc_t yylloc;
+#endif
 #endif
 
 void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)

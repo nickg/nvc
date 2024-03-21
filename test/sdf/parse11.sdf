@@ -1,0 +1,14 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE B2.C2)
+        (DELAY
+            (ABSOLUTE
+                (IOPATH a b (17) )
+                (IOPATH c d ((2.3) (1.2)) )
+                (IOPATH e f ((0) (1) (2.5)) )
+            )
+        )
+    )
+)

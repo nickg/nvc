@@ -110,6 +110,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(native);
 #endif
    nfail += RUN_TESTS(psl);
+   nfail += RUN_TESTS(sdf);
 #ifdef ENABLE_VERILOG
    nfail += RUN_TESTS(vlog);
 #endif
