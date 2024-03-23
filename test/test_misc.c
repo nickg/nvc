@@ -578,6 +578,40 @@ START_TEST(test_mask_iter)
    fail_if(mask_iter(&m, &bit));
 
    mask_free(&m);
+
+   mask_init(&m, 85);
+
+   mask_set(&m, 64);
+   mask_set(&m, 70);
+
+   bit = -1;
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 64);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 70);
+   fail_if(mask_iter(&m, &bit));
+
+   mask_free(&m);
+
+   mask_init(&m, 124);
+
+   mask_set(&m, 56);
+   mask_set(&m, 63);
+   mask_set(&m, 69);
+   mask_set(&m, 123);
+
+   bit = -1;
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 56);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 63);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 69);
+   fail_unless(mask_iter(&m, &bit));
+   fail_unless(bit == 123);
+   fail_if(mask_iter(&m, &bit));
+
+   mask_free(&m);
 }
 END_TEST
 

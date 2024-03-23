@@ -303,18 +303,23 @@ bool mask_iter(bit_mask_t *m, int *bit)
    if (*bit + 1 < 0 || *bit + 1 >= m->size)
       return false;
    else if (m->size > 64) {
-      const int first = (*bit + 1) / 64;
-      const uint64_t remain = m->ptr[first] & ~mask_for_range(0, *bit % 64);
-      const int fs = __builtin_ffsll(remain);
-      if (fs > 0) {
-         *bit = fs - 1;
-         return true;
+      int word = (*bit + 1) / 64;
+
+      if ((*bit + 1) % 64 > 0) {
+         const uint64_t remain = m->ptr[word] & ~mask_for_range(0, *bit % 64);
+         const int fs = __builtin_ffsll(remain);
+         if (fs > 0) {
+            *bit = word*64 + fs - 1;
+            return true;
+         }
+
+         word++;
       }
 
-      for (int i = first + 1; i < (m->size + 63) / 64; i++) {
-         const int fs = __builtin_ffsll(m->ptr[i]);
+      for (; word < (m->size + 63) / 64; word++) {
+         const int fs = __builtin_ffsll(m->ptr[word]);
          if (fs > 0) {
-            *bit = i*64 + fs - 1;
+            *bit = word*64 + fs - 1;
             return true;
          }
       }
