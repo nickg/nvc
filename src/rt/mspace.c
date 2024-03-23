@@ -54,8 +54,12 @@ struct _mptr {
 };
 
 typedef struct {
-   bit_mask_t  markmask;
-   work_list_t worklist;
+   bit_mask_t        markmask;
+   work_list_t       worklist;
+   struct cpu_state  cpu[MAX_THREADS];
+#if __SANITIZE_ADDRESS__
+   void             *fake_stack[MAX_THREADS];
+#endif
 } gc_state_t;
 
 typedef struct _free_list free_list_t;
@@ -409,9 +413,12 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
 
 static void mspace_suspend_cb(int thread_id, struct cpu_state *cpu, void *arg)
 {
-   struct cpu_state *array = arg;
+   gc_state_t *state = arg;
    assert(thread_id < MAX_THREADS);
-   array[thread_id] = *cpu;
+   state->cpu[thread_id] = *cpu;
+#if __SANITIZE_ADDRESS__
+   state->fake_stack[thread_id] = __asan_get_current_fake_stack();
+#endif
 }
 
 __attribute__((no_sanitize_address, noinline))
@@ -431,12 +438,9 @@ static void mspace_gc(mspace_t *m)
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
 
-   struct cpu_state *cpu LOCAL =
-      xcalloc_array(MAX_THREADS, sizeof(struct cpu_state));
-
    SCOPED_LOCK(m->lock);
 
-   stop_world(mspace_suspend_cb, cpu);
+   stop_world(mspace_suspend_cb, &state);
 
    for (int i = 0; i < MAX_THREADS; i++) {
       if (get_thread(i) == NULL)
@@ -447,13 +451,28 @@ static void mspace_gc(mspace_t *m)
          continue;
 
       for (int j = 0; j < MAX_CPU_REGS; j++)
-         mspace_mark_root(m, cpu[i].regs[j], &state);
+         mspace_mark_root(m, state.cpu[i].regs[j], &state);
 
-      intptr_t *stack_top = (intptr_t *)cpu[i].sp;
+      intptr_t *stack_top = (intptr_t *)state.cpu[i].sp;
       assert(stack_top <= limit);   // Stack must grow down
 
-      for (intptr_t *p = stack_top; p < limit; p++)
+      for (intptr_t *p = stack_top; p < limit; p++) {
          mspace_mark_root(m, *p, &state);
+
+#if __SANITIZE_ADDRESS__
+         // Address sanitiser relocates possibly-escaping stack
+         // allocations to a "fake stack" on the heap which we also need
+         // to scan to find roots
+         if (state.fake_stack[i] != NULL) {
+            void *beg, *end;
+            if (__asan_addr_is_in_fake_stack(state.fake_stack[i], (void *)*p,
+                                             &beg, &end)) {
+               for (intptr_t *p2 = beg; p2 < (intptr_t *)end; p2++)
+                  mspace_mark_root(m, *p2, &state);
+            }
+         }
+#endif
+      }
    }
 
    for (mptr_t p = m->roots; p; p = p->next)
