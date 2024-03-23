@@ -191,7 +191,7 @@ int main(int argc, char **argv)
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
    intern_strings();
 
-   opt_set_str(OPT_GC_VERBOSE, NULL);
+   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
    opt_set_int(OPT_RELAXED, 1);
 
    _std_standard_init();
