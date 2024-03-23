@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-static vhdl_standard_t  current_std  = STD_02;
+static vhdl_standard_t  current_std  = STD_08;
 static bool             have_set_std = false;
 static ident_t          id_cache[NUM_WELL_KNOWN];
 static text_buf_t      *syntax_buf = NULL;

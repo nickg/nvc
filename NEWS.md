@@ -10,7 +10,7 @@
   function call, as required by the LRM (#835).
 - The implementation of conversions in port maps has been reworked and
   fixes a number of long-standing issues (#843).
-- Added support for `inertial` keyword in port maps (#843). 
+- Added support for `inertial` keyword in port maps (#843).
 - Fixed a bug where `'last_value` could give the wrong result if the
   signal has multiple sources.
 - Updated to OSVVM 2023.09a and UVVM 2023.09.16 for `nvc --install`.
@@ -21,6 +21,7 @@
 - The parameter for attributes with dimensions such as `'length(N)` may
   be any integer type when `--relaxed` is passed (#862).
 - Resolved several other minor issues (#654, #854, #855, #859, #863).
+- The default standard version was changed to VHDL-2008.
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due
