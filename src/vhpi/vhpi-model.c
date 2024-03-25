@@ -3519,8 +3519,11 @@ static void vhpi_lazy_component(c_abstractRegion *r)
    tree_t inner = tree_stmt(r->tree, 0);
    assert(tree_kind(inner) == T_BLOCK);
 
-   vhpi_build_generics(r->tree, r);
-   vhpi_build_ports(r->tree, r);
+   // Make sure all lookups happen in the implicit inner region
+   r->tree = inner;
+
+   vhpi_build_generics(inner, r);
+   vhpi_build_ports(inner, r);
    vhpi_build_decls(inner, r);
    vhpi_build_stmts(inner, r);
 }

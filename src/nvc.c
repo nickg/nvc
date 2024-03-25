@@ -696,6 +696,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          break;
       case 'T':
          opt_set_str(OPT_VHPI_TRACE, "1");
+         opt_set_int(OPT_VHPI_DEBUG, 1);
          break;
       case 'D':
          opt_set_int(OPT_VHPI_DEBUG, 1);

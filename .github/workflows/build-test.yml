@@ -449,7 +449,7 @@ jobs:
           cd cocotb
           python3 -mvirtualenv venv
           . venv/bin/activate
-          pip install .
+          pip install . pytest
       - name: Run simple_dff example
         run: |
           . cocotb/venv/bin/activate
@@ -462,6 +462,10 @@ jobs:
         run: |
           . cocotb/venv/bin/activate
           make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
+      - name: Run regression tests
+        run: |
+          . cocotb/venv/bin/activate
+          make -C cocotb/tests SIM=nvc TOPLEVEL_LANG=vhdl
 
   msi-installer:
     name: Windows MSI installer

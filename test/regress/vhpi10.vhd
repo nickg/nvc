@@ -10,6 +10,7 @@ entity sub is
 end entity;
 
 architecture test of sub is
+    signal dyn : bit_vector(1 to g1'length);
 begin
 
     sub_b0: block is
@@ -45,6 +46,11 @@ architecture test of vhpi10 is
 
    package pkg is new work.counter generic map (MAX => 10D"999");
    signal s0: pkg.counter_t;
+
+    function func return string is
+    begin
+        return "world";
+    end function;
 begin
 
     b0: block is
@@ -59,7 +65,7 @@ begin
     end block;
 
     i0: component sub
-        generic map ( g0 => 100, g1 => "world" )
+        generic map ( g0 => 100, g1 => func )
         port map ( p0 => "101" );
 
 end architecture;
