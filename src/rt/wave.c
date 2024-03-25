@@ -157,7 +157,8 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
    for (int i = 0; i < data->count; i++) {
       char buf[data->type->size + 1];
       for (size_t j = 0; j < data->type->size; j++)
-         buf[data->type->size - 1 - j] = (val[i] & (1 << j)) ? '1' : '0';
+         buf[data->type->size - 1 - j] =
+            (val[i] & (UINT64_C(1) << j)) ? '1' : '0';
       buf[data->type->size] = '\0';
 
       fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
