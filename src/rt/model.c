@@ -1249,8 +1249,10 @@ static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
 
 static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
 {
-   if (n->signal->resolution != NULL || kind == SOURCE_FORCING)
+   if (n->signal->resolution != NULL)
       return;
+   else if (kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT)
+      return;   // Pseudo-source
 
    diag_t *d;
    if (n->signal->parent->kind == SCOPE_SIGNAL) {
@@ -2007,6 +2009,7 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
    if (unlikely(n->flags & NET_F_DEPOSIT)) {
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
       n->flags &= ~NET_F_DEPOSIT;
+      src->disconnected = 1;
       return value_ptr(n, &(src->u.deposit.value));
    }
 
@@ -3216,6 +3219,8 @@ static void model_cycle(rt_model_t *m)
       }
    }
 
+   global_event(m, RT_NEXT_CYCLE);
+
    deferq_run(m, &m->driverq);
 
    while (heap_size(m->driving_heap) > 0) {
@@ -3395,10 +3400,13 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       count -= n->width;
       assert(count >= 0);
 
-      n->flags |= NET_F_DEPOSIT;
-
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
       copy_value_ptr(n, &(src->u.deposit.value), vptr);
+
+      if (n->flags & NET_F_DEPOSIT)
+         continue;   // Deposit already scheduled
+
+      n->flags |= NET_F_DEPOSIT;
 
       deltaq_insert_deposit(m, &(src->u.deposit));
       vptr += n->width * n->size;

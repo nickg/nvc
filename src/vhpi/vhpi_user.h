@@ -112,7 +112,7 @@ extern "C" {
 /* basic typedefs */
 #ifndef VHPI_TYPES
 #define VHPI_TYPES
-typedef struct vhpi_obj *vhpiHandleT;
+typedef uint32_t *vhpiHandleT;
 typedef uint32_t vhpiEnumT;
 typedef uint8_t vhpiSmallEnumT;
 typedef int32_t vhpiIntT;

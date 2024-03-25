@@ -230,6 +230,9 @@ rt_event_t vhpi_get_rt_event(int reason)
    case vhpiCbNextTimeStep:
    case vhpiCbRepNextTimeStep:
       return RT_NEXT_TIME_STEP;
+   case vhpiCbStartOfNextCycle:
+   case vhpiCbRepStartOfNextCycle:
+      return RT_NEXT_CYCLE;
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
       return RT_END_TIME_STEP;

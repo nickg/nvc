@@ -71,6 +71,33 @@ static vhpiSmallEnumT get_q(void)
    return val.value.enumv;
 }
 
+static void check_q_2(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("check q 2");
+
+   vhpiSmallEnumT q = get_q();
+   vhpi_printf("q value %x", q);
+   fail_unless(q == vhpiH);  // XXX: vhpi1
+}
+
+static void check_q_1(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("check q 1");
+
+   vhpiSmallEnumT q = get_q();
+   vhpi_printf("q value %x", q);
+   fail_unless(q == vhpi1);  // XXX: vhpiH
+
+   set_clk(vhpi1);
+
+   vhpiCbDataT next_cb = {
+      .reason = vhpiCbStartOfNextCycle,
+      .cb_rtn = check_q_2,
+   };
+   vhpi_register_cb(&next_cb, 0);
+   check_error();
+}
+
 static void toggle_clock(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("toggle clock");
@@ -87,9 +114,24 @@ static void toggle_clock(const vhpiCbDataT *cb_data)
 
    vhpi_release_handle(h_timeout);
 
-   static int rep = 10;
+   static int rep = 11;
    if (rep-- > 0)
       register_timeout();
+   else {
+      vhpiValueT val = {
+         .format = vhpiLogicVal,
+         .value = { .enumv = vhpiH },
+      };
+
+      vhpi_put_value(h_q, &val, vhpiDepositPropagate);
+
+      vhpiCbDataT next_cb = {
+         .reason = vhpiCbStartOfNextCycle,
+         .cb_rtn = check_q_1,
+      };
+      vhpi_register_cb(&next_cb, 0);
+      check_error();
+   }
 }
 
 static void register_timeout(void)
@@ -131,6 +173,8 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    set_clk(vhpi0);
    set_d(vhpi1);
+
+   set_d(vhpi1);   // Should not crash if called twice
 
    register_timeout();
 

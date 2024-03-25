@@ -1566,6 +1566,8 @@ static int enable_cb(c_callback *cb)
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
    case vhpiCbEndOfInitialization:
+   case vhpiCbStartOfNextCycle:
+   case vhpiCbRepStartOfNextCycle:
       model_set_global_cb(vhpi_context()->model, vhpi_get_rt_event(cb->Reason),
                           vhpi_global_cb, cb);
       return 0;
