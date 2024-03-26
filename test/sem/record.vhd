@@ -9,8 +9,6 @@ package p is
         x, x : integer;
     end record;
 
-    type r3;
-
     type r3 is record                   -- Error
         x : r3;
     end record;
@@ -182,6 +180,11 @@ package body p is
         end procedure;
     begin
         sub(x.z => 2);                  -- Error
+    end procedure;
+
+    procedure test3 is
+        variable r : r1 := r1'left;     -- Error
+    begin
     end procedure;
 
 end package body;

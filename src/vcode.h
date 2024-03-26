@@ -514,11 +514,10 @@ void emit_pop_scope(void);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 void emit_unreachable(vcode_reg_t locus);
 void emit_enter_state(vcode_reg_t state);
-vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
-                               vcode_reg_t context, vcode_reg_t locus,
-                               vcode_reg_t bounds);
-vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
-                                 vcode_reg_t locus, vcode_reg_t bounds);
+vcode_reg_t emit_reflect_value(vcode_reg_t value, vcode_reg_t context,
+                               vcode_reg_t locus, vcode_reg_t bounds);
+vcode_reg_t emit_reflect_subtype(vcode_reg_t context, vcode_reg_t locus,
+                                 vcode_reg_t bounds);
 vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
                                   int nargs);
 vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right);

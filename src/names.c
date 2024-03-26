@@ -1132,7 +1132,7 @@ static bool is_forward_decl(tree_t decl, tree_t existing)
    tree_kind_t tkind = tree_kind(decl);
    tree_kind_t ekind = tree_kind(existing);
 
-   if (tkind == T_TYPE_DECL && ekind == T_TYPE_DECL)
+   if ((tkind == T_TYPE_DECL || tkind == T_PROT_DECL) && ekind == T_TYPE_DECL)
       return type_kind(tree_type(existing)) == T_INCOMPLETE;
    else if ((tkind == T_FUNC_BODY && ekind == T_FUNC_DECL)
             || (tkind == T_PROC_BODY && ekind == T_PROC_DECL)) {
@@ -1341,7 +1341,7 @@ type_t resolve_type(nametab_t *tab, type_t incomplete)
    if (sym != NULL) {
       for (int i = 0; i < sym->ndecls; i++) {
          const decl_t *dd = get_decl(sym, i);
-         if (dd->kind == T_TYPE_DECL) {
+         if (dd->kind == T_TYPE_DECL || dd->kind == T_PROT_DECL) {
             type_t def = tree_type(dd->tree);
             if (type_kind(def) != T_INCOMPLETE && type_eq(def, incomplete))
                return def;
@@ -2391,14 +2391,14 @@ static void overload_add_candidate(overload_t *o, tree_t d)
    APUSH(o->candidates, d);
 }
 
-static type_t get_protected_type(tree_t t)
+static type_t get_protected_type(nametab_t *tab, tree_t t)
 {
    switch (tree_kind(t)) {
    case T_ALL:
    case T_ALIAS:
-      return get_protected_type(tree_value(t));
+      return get_protected_type(tab, tree_value(t));
    case T_REF:
-      return get_protected_type(tree_ref(t));
+      return get_protected_type(tab, tree_ref(t));
    case T_VAR_DECL:
    case T_PARAM_DECL:
    case T_PORT_DECL:
@@ -2412,6 +2412,13 @@ static type_t get_protected_type(tree_t t)
                type = type_designated(type);
             else if (type_is_protected(type))
                return type;
+            else if (type_is_incomplete(type)) {
+               type_t next = resolve_type(tab, type);
+               if (next == type)
+                  return NULL;
+
+               type = next;
+            }
             else
                return NULL;
          }
@@ -2425,7 +2432,7 @@ static void begin_overload_resolution(overload_t *o)
 {
    const symbol_t *sym = NULL;
    if (o->prefix != NULL) {
-      type_t type = get_protected_type(o->prefix);
+      type_t type = get_protected_type(o->nametab, o->prefix);
       if (type != NULL) {
          scope_t *scope = scope_for_type(o->nametab, type);
          sym = symbol_for(scope, o->name);

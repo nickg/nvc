@@ -437,6 +437,9 @@ static const struct {
    { "External names", { [STD_08] = "8.7" } },
    { "Port clauses", { [STD_08] = "6.5.6.3" } },
    { "Subprogram instantiation declarations", { [STD_08] = "4.4" } },
+   { "Incomplete type declarations", { [STD_08] = "5.4.2", [STD_93] = "3.3.1",
+      [STD_19] = "5.4.2" } },
+
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

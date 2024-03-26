@@ -908,6 +908,7 @@ unsigned dimension_of(type_t type)
       return type_indexes(type);
    case T_NONE:
    case T_RECORD:
+   case T_INCOMPLETE:
       return 0;
    case T_INTEGER:
    case T_REAL:

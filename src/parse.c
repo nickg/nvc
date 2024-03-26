@@ -3274,6 +3274,11 @@ static tree_t p_attribute_name(tree_t prefix)
 
    type_t type = prefix_type(prefix);
 
+   if (type != NULL && type_kind(type) == T_INCOMPLETE) {
+      type = resolve_type(nametab, type);
+      tree_set_type(prefix, type);
+   }
+
    const bool deref_prefix =
       !is_type_attribute(kind) && kind != ATTR_REFLECT
       && type != NULL && type_is_access(type);
@@ -6408,6 +6413,7 @@ static tree_t p_protected_type_declaration(ident_t id)
    tree_t t = tree_new(T_PROT_DECL);
    tree_set_ident(t, id);
    tree_set_type(t, type);
+   tree_set_loc(t, CURRENT_LOC);
 
    insert_name(nametab, t, NULL);
 

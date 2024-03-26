@@ -2233,8 +2233,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_REFLECT_SUBTYPE:
             {
                col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += printf(" context ");
+               col += printf(" := %s context ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                col += printf(" locus ");
                col += vcode_dump_reg(op->args.items[1]);
@@ -5867,9 +5866,8 @@ void emit_enter_state(vcode_reg_t state)
                 "state must have integer type");
 }
 
-vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
-                               vcode_reg_t context, vcode_reg_t locus,
-                               vcode_reg_t bounds)
+vcode_reg_t emit_reflect_value(vcode_reg_t value, vcode_reg_t context,
+                               vcode_reg_t locus, vcode_reg_t bounds)
 {
    op_t *op = vcode_add_op(VCODE_OP_REFLECT_VALUE);
    vcode_add_arg(op, value);
@@ -5883,11 +5881,11 @@ vcode_reg_t emit_reflect_value(ident_t ptype, vcode_reg_t value,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to reflect value must be a debug locus");
 
-   return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
+   return (op->result = vcode_add_reg(vtype_access(vtype_opaque())));
 }
 
-vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
-                                 vcode_reg_t locus, vcode_reg_t bounds)
+vcode_reg_t emit_reflect_subtype(vcode_reg_t context, vcode_reg_t locus,
+                                 vcode_reg_t bounds)
 {
    op_t *op = vcode_add_op(VCODE_OP_REFLECT_SUBTYPE);
    vcode_add_arg(op, context);
@@ -5900,7 +5898,7 @@ vcode_reg_t emit_reflect_subtype(ident_t ptype, vcode_reg_t context,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to reflect value must be a debug locus");
 
-   return (op->result = vcode_add_reg(vtype_access(vtype_context(ptype))));
+   return (op->result = vcode_add_reg(vtype_access(vtype_opaque())));
 }
 
 vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,

@@ -293,7 +293,7 @@ begin
 
     p23: process is
         type typ;
-        function p23_func(x : typ) return integer;
+        --function p23_func(x : typ) return integer;   (used to be OK)
         type typ is (a, b, c);
         function p23_func(x : typ) return integer is  -- OK
         begin

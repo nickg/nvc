@@ -49,6 +49,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
 static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
 static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
 static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab);
+static bool sem_check_incomplete(tree_t t, type_t type);
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -273,9 +274,6 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 
 static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 {
-   if (base != NULL && type_is_access(base))
-      base = type_designated(base);
-
    const constraint_kind_t consk = tree_subkind(constraint);
    switch (consk) {
    case C_RANGE:
@@ -398,9 +396,13 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
    type_t base = type_base(type);
    if (type_is_none(base))
       return false;
+   else if (type_is_access(base))
+      base = type_designated(base);
 
    if (type_is_protected(base))
       sem_error(decl, "subtypes may not have protected base types");
+   else if (!sem_check_incomplete(decl, type))
+      return false;
 
    type_t elem = base;
    const int ncon = type_constraints(type);
@@ -666,10 +668,11 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          if (type_is_file(elem_type))
             sem_error(t, "array %s cannot have element of file type",
                       istr(tree_ident(t)));
-
-         if (type_is_protected(elem_type))
+         else if (type_is_protected(elem_type))
             sem_error(t, "array %s cannot have element of protected type",
                       istr(tree_ident(t)));
+         else if (!sem_check_incomplete(t, elem_type))
+            return false;
 
          const int nindex = type_indexes(type);
          for (int i = 0; i < nindex; i++) {
@@ -857,6 +860,23 @@ static bool sem_check_subtype_decl(tree_t t, nametab_t *tab)
    return sem_check_subtype_helper(t, type, tab);
 }
 
+static bool sem_check_incomplete(tree_t t, type_t type)
+{
+   if (type_is_incomplete(type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "invalid use of incomplete type %s", type_pp(type));
+      diag_hint(d, NULL, "prior to the end of the corresponding full type "
+                "declaration, an incomplete type may only be used as the "
+                "designated type of an access type declaration");
+      diag_lrm(d, STD_08, "5.4.2");
+      diag_emit(d);
+
+      return false;
+   }
+
+   return true;
+}
+
 static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *what)
 {
    // constants, signals, attributes, generics, ports
@@ -905,9 +925,8 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
       return false;
    else if (type_is_none(type))
       return false;
-
-   if (type_is_incomplete(type))
-      sem_error(t, "type %s is incomplete", type_pp(type));
+   else if (!sem_check_incomplete(t, type))
+      return false;
 
    if (!sem_no_access_file_or_protected(t, type, "constants"))
       return false;
@@ -975,9 +994,8 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
          return false;
       }
    }
-   else if (type_is_incomplete(type))
-      sem_error(t, "declaration of signal %s cannot have incomplete type %s",
-                istr(tree_ident(t)), type_pp(type));
+   else if (!sem_check_incomplete(t, type))
+      return false;
 
    if (!sem_no_access_file_or_protected(t, type, "signals"))
       return false;
@@ -1030,9 +1048,8 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
          return false;
       }
    }
-   else if (type_is_incomplete(type))
-      sem_error(t, "declaration of variable %s cannot have incomplete type %s",
-                istr(tree_ident(t)), type_pp(type));
+   else if (!sem_check_incomplete(t, type))
+      return false;
 
    if (tree_has_value(t)) {
       if (type_kind(type) == T_PROTECTED)
@@ -1075,6 +1092,8 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
    type_t type = tree_type(t);
 
    if (!sem_check_subtype(t, type, tab))
+      return false;
+   else if (!sem_check_incomplete(t, type))
       return false;
 
    // See LRM 93 section 3.3 for restrictions
@@ -1192,6 +1211,8 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    if (type_is_none(type))
       return false;
    else if (!sem_check_subtype(t, type, tab))
+      return false;
+   else if (!sem_check_incomplete(t, type))
       return false;
 
    const class_t class = tree_class(t);
@@ -1353,6 +1374,8 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
       return false;
    else if (type_is_none(type))
       return false;
+   else if (!sem_check_incomplete(t, type))
+      return false;
 
    if (class != C_TYPE) {
       if (type_is_access(type))
@@ -1384,6 +1407,11 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
 
 static bool sem_check_field_decl(tree_t t)
 {
+   type_t type = tree_type(t);
+
+   if (!sem_check_incomplete(t, type))
+      return false;
+
    return true;
 }
 
@@ -1568,6 +1596,8 @@ static bool sem_check_func_result(tree_t t)
       sem_error(t, "function result subtype may not denote a protected type");
    else if (type_is_file(result))
       sem_error(t, "function result subtype may not denote a file type");
+   else if (!sem_check_incomplete(t, result))
+      return false;
 
    return true;
 }
@@ -3788,8 +3818,7 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
    if (type_is_none(value_type))
       return false;
    else if (!type_is_record(value_type))
-      sem_error(value, "expected record type but found %s%s",
-                type_is_incomplete(value_type) ? "incomplete type " : "",
+      sem_error(value, "expected record type but found %s",
                 type_pp(value_type));
 
    return true;
@@ -3840,6 +3869,8 @@ static bool sem_check_array_slice(tree_t t, nametab_t *tab)
    type_t array_type = tree_type(tree_value(t));
 
    if (type_is_none(array_type))
+      return false;
+   else if (!sem_check_incomplete(t, array_type))
       return false;
    else if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix %s is not an array",
@@ -4109,6 +4140,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             sem_error(name, "prefix does not have LENGTH attribute");
          else if (type_is_none(type))
             return false;
+         else if (!sem_check_incomplete(t, type))
+            return false;
          else if (!type_is_array(type)
                   && !(standard() >= STD_19 && type_is_discrete(type)))
             sem_error(name, "prefix of attribute LENGTH must be an array%s "
@@ -4130,7 +4163,11 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       {
          type_t type = tree_type(name);
 
-         if (!sem_check_dimension_attr(t, tab))
+         if (type_is_none(type))
+            return false;
+         else if (!sem_check_incomplete(t, type))
+            return false;
+         else if (!sem_check_dimension_attr(t, tab))
             return false;
 
          if (!type_is_array(type) && !type_is_scalar(type))
@@ -5933,9 +5970,8 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    if (!has_initial && type_is_unconstrained(type))
       sem_error(t, "unconstrained array type %s not allowed in allocator "
                 "expression", type_pp(type));
-   else if (type_is_incomplete(type))
-      sem_error(t, "incomplete type %s found in allocator expression",
-                type_pp(type));
+   else if (!sem_check_incomplete(t, type))
+      return false;
    else if (type_is_protected(type)) {
       if (has_initial)
          sem_error(t, "protected type %s cannot have initial value",

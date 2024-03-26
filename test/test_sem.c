@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -761,33 +761,34 @@ START_TEST(test_record)
 
    const error_t expect[] = {
       {   9, "duplicate field name X" },
-      {  15, "recursive record types are not allowed" },
-      {  30, "record field X cannot have unconstrained array type" },
-      {  39, "field Z does not have a value" },
-      {  40, "does not match type INTEGER of field Y" },
-      {  42, "field Y does not have a value" },
-      {  43, "record type R1 has no field named Q" },
-      {  44, "type of value R1 does not match type INTEGER of" },
-      {  47, "field X was already given a value by earlier named choice" },
-      {  48, "field X was already given a value by earlier positional choice" },
-      {  64, "variable A1 cannot have unconstrained type R1_VEC" },
-      {  72, "record type R1 has no field named F" },
-      {  82, "record type R1_SUB has no field named Z" },
-      {  86, "index constraint cannot be used with non-array type R1" },
-      { 106, "record type R1 has no field named Z" },
-      { 111, "record field A cannot be of file type" },
-      { 124, "record type R8 has no field named ACK" },
+      {  13, "no visible declaration for R3" },
+      {  28, "record field X cannot have unconstrained array type" },
+      {  37, "field Z does not have a value" },
+      {  38, "does not match type INTEGER of field Y" },
+      {  40, "field Y does not have a value" },
+      {  41, "record type R1 has no field named Q" },
+      {  42, "type of value R1 does not match type INTEGER of" },
+      {  45, "field X was already given a value by earlier named choice" },
+      {  46, "field X was already given a value by earlier positional choice" },
+      {  62, "variable A1 cannot have unconstrained type R1_VEC" },
+      {  70, "record type R1 has no field named F" },
+      {  80, "record type R1_SUB has no field named Z" },
+      {  84, "index constraint cannot be used with non-array type R1" },
+      { 104, "record type R1 has no field named Z" },
+      { 109, "record field A cannot be of file type" },
+      { 122, "record type R8 has no field named ACK" },
+      { 151, "cannot index non-array type UNIT_SPEC_T" },
       { 153, "cannot index non-array type UNIT_SPEC_T" },
       { 155, "cannot index non-array type UNIT_SPEC_T" },
-      { 157, "cannot index non-array type UNIT_SPEC_T" },
-      { 166, "association choice must be a field name" },
-      { 167, "3 positional associations given but record type R1 only has 2" },
-      { 168, "others association must represent at least one element" },
-      { 169, "range association invalid in record aggregate" },
-      { 170, "record type R1 has no field named Z" },
-      { 170, "range association invalid in record aggregate" },
-      { 174, "no visible declaration for FOO" },
-      { 184, "type INTEGER is not a record" },
+      { 164, "association choice must be a field name" },
+      { 165, "3 positional associations given but record type R1 only has 2" },
+      { 166, "others association must represent at least one element" },
+      { 167, "range association invalid in record aggregate" },
+      { 168, "record type R1 has no field named Z" },
+      { 168, "range association invalid in record aggregate" },
+      { 172, "no visible declaration for FOO" },
+      { 182, "type INTEGER is not a record" },
+      { 186, "prefix does not have attribute LEFT" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -850,9 +851,9 @@ START_TEST(test_access)
       {  56, "type mark S does not denote a type or a subtype" },
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
-      {  90, "variable F cannot have incomplete type FOO" },
+      {  90, "invalid use of incomplete type FOO" },
       {  97, "cannot determine type of allocator expression from the surro" },
-      { 105, "incomplete type A found in allocator expression" },
+      { 105, "invalid use of incomplete type A" },
       { 111, "prefix of a selected name with suffix ALL must have access " },
       { 125, "access type PTP cannot designate protected type" },
       { 127, "access type FTP cannot designate file type" },
@@ -3512,6 +3513,33 @@ START_TEST(test_spec2)
 }
 END_TEST
 
+START_TEST(test_incomplete)
+{
+   set_standard(STD_02);
+
+   input_from_file(TESTDIR "/sem/incomplete.vhd");
+
+   const error_t expect[] = {
+      {  6, "invalid use of incomplete type T1" },
+      { 30, "invalid use of incomplete type T1" },
+      { 31, "invalid use of incomplete type T1" },
+      { 34, "invalid use of incomplete type T1" },
+      { 37, "invalid use of incomplete type T1" },
+      { 38, "invalid use of incomplete type T1" },
+      { 40, "invalid use of incomplete type T1" },
+      { 46, "invalid use of incomplete type T1" },
+      { 50, "invalid use of incomplete type T1" },
+      { 51, "invalid use of incomplete type T1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3677,6 +3705,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack4);
    tcase_add_test(tc_core, test_lcs2016_16);
    tcase_add_test(tc_core, test_spec2);
+   tcase_add_test(tc_core, test_incomplete);
    suite_add_tcase(s, tc_core);
 
    return s;

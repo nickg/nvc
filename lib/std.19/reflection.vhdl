@@ -25,11 +25,15 @@ package REFLECTION is
   type    INDEX_VECTOR    is array(DIMENSION range <>) of INDEX;
 
   -- Incomplete type declarations
-  type VALUE_MIRROR;
-  type SUBTYPE_MIRROR;
+  type VALUE_MIRROR_PT;
+  type VALUE_MIRROR is access VALUE_MIRROR_PT;
+  type SUBTYPE_MIRROR_PT;
+  type SUBTYPE_MIRROR is access SUBTYPE_MIRROR_PT;
 
   -- Enumeration subtype/value mirror
-  type ENUMERATION_SUBTYPE_MIRROR;
+  type ENUMERATION_SUBTYPE_MIRROR_PT;
+  type ENUMERATION_SUBTYPE_MIRROR is access ENUMERATION_SUBTYPE_MIRROR_PT;
+
   type ENUMERATION_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return ENUMERATION_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -52,11 +56,12 @@ package REFLECTION is
     impure function length      return POSITIVE_INDEX;
     impure function ascending   return BOOLEAN;
   end protected;
-  type ENUMERATION_SUBTYPE_MIRROR is access ENUMERATION_SUBTYPE_MIRROR_PT;
 
 
   -- Integer subtype/value mirror
-  type INTEGER_SUBTYPE_MIRROR;
+  type INTEGER_SUBTYPE_MIRROR_PT;
+  type INTEGER_SUBTYPE_MIRROR is access INTEGER_SUBTYPE_MIRROR_PT;
+
   type INTEGER_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return INTEGER_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -77,11 +82,12 @@ package REFLECTION is
     impure function length      return INDEX;
     impure function ascending   return BOOLEAN;
   end protected;
-  type INTEGER_SUBTYPE_MIRROR is access INTEGER_SUBTYPE_MIRROR_PT;
 
 
   -- Floating-point subtype/value mirror
-  type FLOATING_SUBTYPE_MIRROR;
+  type FLOATING_SUBTYPE_MIRROR_PT;
+  type FLOATING_SUBTYPE_MIRROR is access FLOATING_SUBTYPE_MIRROR_PT;
+
   type FLOATING_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return FLOATING_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -101,11 +107,12 @@ package REFLECTION is
     impure function high        return FLOATING_VALUE_MIRROR;
     impure function ascending   return BOOLEAN;
   end protected;
-  type FLOATING_SUBTYPE_MIRROR is access FLOATING_SUBTYPE_MIRROR_PT;
 
 
   -- Physical subtype/value mirror
-  type PHYSICAL_SUBTYPE_MIRROR;
+  type PHYSICAL_SUBTYPE_MIRROR_PT;
+  type PHYSICAL_SUBTYPE_MIRROR is access PHYSICAL_SUBTYPE_MIRROR_PT;
+
   type PHYSICAL_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return PHYSICAL_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -133,11 +140,12 @@ package REFLECTION is
     impure function length      return INDEX;
     impure function ascending   return BOOLEAN;
   end protected;
-  type PHYSICAL_SUBTYPE_MIRROR is access PHYSICAL_SUBTYPE_MIRROR_PT;
 
 
   -- Record subtype/value mirror
-  type RECORD_SUBTYPE_MIRROR;
+  type RECORD_SUBTYPE_MIRROR_PT;
+  type RECORD_SUBTYPE_MIRROR is access RECORD_SUBTYPE_MIRROR_PT;
+
   type RECORD_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return RECORD_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -158,11 +166,12 @@ package REFLECTION is
 
     impure function simple_name return STRING;
   end protected;
-  type RECORD_SUBTYPE_MIRROR is access RECORD_SUBTYPE_MIRROR_PT;
 
 
   -- Array subtype/value mirror
-  type ARRAY_SUBTYPE_MIRROR;
+  type ARRAY_SUBTYPE_MIRROR_PT;
+  type ARRAY_SUBTYPE_MIRROR is access ARRAY_SUBTYPE_MIRROR_PT;
+
   type ARRAY_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return ARRAY_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -189,11 +198,12 @@ package REFLECTION is
     impure function length(idx : DIMENSION := 1)    return INDEX;
     impure function ascending(idx : DIMENSION := 1) return BOOLEAN;
   end protected;
-  type ARRAY_SUBTYPE_MIRROR is access ARRAY_SUBTYPE_MIRROR_PT;
 
 
   -- Access subtype/value mirror
-  type ACCESS_SUBTYPE_MIRROR;
+  type ACCESS_SUBTYPE_MIRROR_PT;
+  type ACCESS_SUBTYPE_MIRROR is access ACCESS_SUBTYPE_MIRROR_PT;
+
   type ACCESS_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return ACCESS_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -210,11 +220,12 @@ package REFLECTION is
     impure function simple_name        return STRING;
     impure function designated_subtype return SUBTYPE_MIRROR;
   end protected;
-  type ACCESS_SUBTYPE_MIRROR is access ACCESS_SUBTYPE_MIRROR_PT;
 
 
   -- File subtype/value mirror
-  type FILE_SUBTYPE_MIRROR;
+  type FILE_SUBTYPE_MIRROR_PT;
+  type FILE_SUBTYPE_MIRROR is access FILE_SUBTYPE_MIRROR_PT;
+
   type FILE_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return FILE_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -230,11 +241,12 @@ package REFLECTION is
     impure function simple_name        return STRING;
     impure function designated_subtype return SUBTYPE_MIRROR;
   end protected;
-  type FILE_SUBTYPE_MIRROR is access FILE_SUBTYPE_MIRROR_PT;
 
 
   -- Protected subtype/value mirror
-  type PROTECTED_SUBTYPE_MIRROR;
+  type PROTECTED_SUBTYPE_MIRROR_PT;
+  type PROTECTED_SUBTYPE_MIRROR is access PROTECTED_SUBTYPE_MIRROR_PT;
+
   type PROTECTED_VALUE_MIRROR_PT is protected
     impure function get_subtype_mirror return PROTECTED_SUBTYPE_MIRROR;
     impure function to_value_mirror    return VALUE_MIRROR;
@@ -246,7 +258,6 @@ package REFLECTION is
 
     impure function simple_name return STRING;
   end protected;
-  type PROTECTED_SUBTYPE_MIRROR is access PROTECTED_SUBTYPE_MIRROR_PT;
 
 
   -- Type classes and sub-classes
@@ -281,7 +292,6 @@ package REFLECTION is
 
     impure function simple_name return STRING;
   end protected;
-  type SUBTYPE_MIRROR is access SUBTYPE_MIRROR_PT;
 
   type VALUE_MIRROR_PT is protected
     impure function get_value_class    return VALUE_CLASS;
@@ -298,5 +308,4 @@ package REFLECTION is
     impure function to_file        return FILE_VALUE_MIRROR;
     impure function to_protected   return PROTECTED_VALUE_MIRROR;
   end protected;
-  type VALUE_MIRROR is access VALUE_MIRROR_PT;
 end package REFLECTION;

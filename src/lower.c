@@ -4733,11 +4733,9 @@ static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix)
 static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
 {
    tree_t name = tree_name(expr);
+   type_t type = tree_type(expr);
 
-   type_t type = tree_type(expr), pt = type_designated(type);
-   assert(type_is_protected(pt));
-
-   ident_t init_func = type_ident(pt);
+   ident_t init_func = type_ident(type);
    vcode_reg_t context_reg = lower_context_for_call(lu, init_func);
 
    type_t value_mirror = reflection_type(REFLECT_VALUE_MIRROR);
@@ -4754,11 +4752,9 @@ static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
    vcode_reg_t locus = lower_debug_locus(name);
 
    if (is_value_mirror)
-      return emit_reflect_value(init_func, value_reg, context_reg,
-                                locus, bounds_reg);
+      return emit_reflect_value(value_reg, context_reg, locus, bounds_reg);
    else
-      return emit_reflect_subtype(init_func, context_reg,
-                                  locus, bounds_reg);
+      return emit_reflect_subtype(context_reg, locus, bounds_reg);
 }
 
 static vcode_reg_t lower_attr_param(lower_unit_t *lu, tree_t value,
