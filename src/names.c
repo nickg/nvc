@@ -1231,6 +1231,8 @@ void hide_name(nametab_t *tab, ident_t name)
    const symbol_t *exist = symbol_for(tab->top_scope, name);
    if (exist == NULL || exist->owner == tab->top_scope)
       return;
+   else if (opt_get_int(OPT_RELAXED))
+      return;
 
    symbol_t *sym = local_symbol_for(tab->top_scope, name);
 
@@ -1746,8 +1748,10 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    }
 
    diag_t *d = diag_new(DIAG_ERROR, loc);
-   if (hidden > 0 && hidden == sym->ndecls)
+   if (hidden > 0 && hidden == sym->ndecls) {
       diag_printf(d, "declaration of %s is hidden", istr(name));
+      diag_hint(d, NULL, "the $bold$--relaxed$$ option suppresses this error");
+   }
    else if (overload == 0)
       diag_printf(d, "multiple conflicting visible declarations of %s",
                   istr(name));
