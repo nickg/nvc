@@ -427,12 +427,13 @@ typedef struct _vhpi_context {
    c_rootInst *root;
    shash_t    *strtab;
    rt_model_t *model;
-   hash_t     *typecache;
+   hash_t     *objcache;
    tree_t      top;
    jit_t      *jit;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
+static c_designUnit *cached_designUnit(tree_t t);
 static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
                                         vhpiClassKindT kind);
 static void vhpi_lazy_block(c_abstractRegion *r);
@@ -3373,7 +3374,7 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj)
 {
-   hash_t *cache = vhpi_context()->typecache;
+   hash_t *cache = vhpi_context()->objcache;
    c_typeDecl *d = hash_get(cache, type);
    if (d == NULL) {
       d = build_typeDecl(type, obj);
@@ -3381,6 +3382,49 @@ static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj)
    }
 
    return d;
+}
+
+static c_designUnit *build_designUnit(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_ENTITY:
+      {
+         c_entityDecl *entity =
+            new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
+         init_entityDecl(entity, t);
+
+         return &(entity->designUnit);
+      }
+
+   case T_ARCH:
+      {
+         c_designUnit *primary = cached_designUnit(tree_primary(t));
+
+         c_secondaryUnit *secondary =
+            new_object(sizeof(c_secondaryUnit), vhpiArchBodyK);
+         init_secondaryUnit(secondary, t, primary);
+
+         return &(secondary->designUnit);
+      }
+
+   default:
+      fatal_trace("unsupported tree kind %s in build_designUnit",
+                  tree_kind_str(tree_kind(t)));
+   }
+}
+
+static c_designUnit *cached_designUnit(tree_t t)
+{
+   assert(is_design_unit(t));
+
+   hash_t *cache = vhpi_context()->objcache;
+   c_designUnit *du = hash_get(cache, t);
+   if (du == NULL) {
+      du = build_designUnit(t);
+      hash_put(cache, t, du);
+   }
+
+   return du;
 }
 
 static void build_genericDecl(tree_t generic, int pos,
@@ -3447,8 +3491,33 @@ static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
 static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
                                             c_abstractRegion *region)
 {
+   assert(tree_kind(t) == T_BLOCK);
+
+   c_designUnit *du;
+   switch (tree_kind(inst)) {
+   case T_ARCH:
+      du = cached_designUnit(inst);
+      break;
+   case T_COMPONENT:
+      {
+         assert(tree_stmts(t) == 1);
+
+         tree_t inner = tree_stmt(t, 0);
+         assert(tree_kind(inner) == T_BLOCK);
+
+         tree_t h = tree_decl(inner, 0);
+         assert(tree_kind(h) == T_HIER);
+
+         du = cached_designUnit(tree_ref(h));
+      }
+      break;
+   default:
+      fatal_trace("unexpected instance kind %s in build_compInstStmt",
+                  tree_kind_str(tree_kind(inst)));
+   }
+
    c_compInstStmt *c = new_object(sizeof(c_compInstStmt), vhpiCompInstStmtK);
-   init_designInstUnit(&(c->designInstUnit), t, NULL);
+   init_designInstUnit(&(c->designInstUnit), t, du);
    init_stmt(&(c->stmt), t);
 
    APUSH(region->InternalRegions, &(c->designInstUnit.region.object));
@@ -3606,14 +3675,10 @@ static void vhpi_build_design_model(vhpi_context_t *c)
    tree_t p = tree_primary(s);
    assert(tree_kind(p) == T_ENTITY);
 
-   c_entityDecl *entity = new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
-   init_entityDecl(entity, p);
-
-   c_secondaryUnit *arch = new_object(sizeof(c_secondaryUnit), vhpiArchBodyK);
-   init_secondaryUnit(arch, s, &(entity->designUnit));
+   c_designUnit *du = cached_designUnit(s);
 
    c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
-   init_designInstUnit(&(c->root->designInstUnit), b0, &(arch->designUnit));
+   init_designInstUnit(&(c->root->designInstUnit), b0, du);
 
    c_abstractRegion *region = &(c->root->designInstUnit.region);
    vhpi_build_generics(b0, region);
@@ -3641,7 +3706,7 @@ vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
    c->strtab    = shash_new(1024);
    c->model     = model;
    c->tool      = build_tool(argc, argv);
-   c->typecache = hash_new(128);
+   c->objcache  = hash_new(128);
    c->top       = top;
    c->jit       = jit;
 
@@ -3656,6 +3721,6 @@ void vhpi_context_free(vhpi_context_t *c)
    global_context = NULL;
 
    shash_free(c->strtab);
-   hash_free(c->typecache);
+   hash_free(c->objcache);
    free(c);
 }

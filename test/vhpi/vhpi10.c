@@ -91,6 +91,16 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_printf("io label %s", vhpi_get_str(vhpiLabelNameP, i0));
    fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, i0), "I0") == 0);
 
+   vhpiHandleT i0_du = vhpi_handle(vhpiDesignUnit, i0);
+   check_error();
+   fail_if(i0_du == NULL);
+   fail_unless(vhpi_get(vhpiKindP, i0_du) == vhpiArchBodyK);
+
+   vhpiHandleT i0_primary = vhpi_handle(vhpiPrimaryUnit, i0_du);
+   check_error();
+   fail_if(i0_primary == NULL);
+   fail_unless(vhpi_get(vhpiKindP, i0_primary) == vhpiEntityDeclK);
+
    vhpiHandleT it4 = vhpi_iterator(vhpiCompInstStmts, root);
    fail_if(it4 == NULL);
    fail_unless(vhpi_scan(it4) == i0);
