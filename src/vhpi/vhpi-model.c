@@ -686,7 +686,7 @@ static const char *handle_pp(vhpiHandleT handle)
       tb_printf(tb, " Name=%s", n->Name);
 
    c_iterator *it = is_iterator(obj);
-   if (it != NULL)
+   if (it != NULL && it->list != NULL)
       tb_printf(tb, " pos=%d/%d", it->pos, it->list->count);
 
    tb_append(tb, '}');
