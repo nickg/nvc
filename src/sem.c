@@ -79,16 +79,6 @@ static diag_t *_pedantic_diag(const loc_t *loc, int *warned, bool *error)
       return NULL;
 }
 
-static tree_t sem_int_lit(type_t type, int64_t i)
-{
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_subkind(f, L_INT);
-   tree_set_ival(f, i);
-   tree_set_type(f, type);
-
-   return f;
-}
-
 static bool sem_check_resolution(type_t type, tree_t res)
 {
    // Resolution functions are described in LRM 93 section 2.4
@@ -4214,19 +4204,17 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          if (!sem_check_signal_attr(t))
             return false;
 
-         type_t std_time = std_type(NULL, STD_TIME);
          if (tree_params(t) > 0) {
             tree_t value = tree_value(tree_param(t, 0));
 
             if (!sem_check(value, tab))
                return false;
 
+            type_t std_time = std_type(NULL, STD_TIME);
             if (!sem_check_type(value, std_time, tab))
                sem_error(value, "attribute %s parameter must have type %s",
                          istr(attr), type_pp(std_time));
          }
-         else
-            add_param(t, sem_int_lit(std_time, 0), P_POS, NULL);
 
          return true;
       }

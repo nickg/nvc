@@ -5057,8 +5057,13 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_STABLE:
    case ATTR_QUIET:
       {
-         tree_t param = tree_value(tree_param(expr, 0));
-         vcode_reg_t param_reg = lower_attr_param(lu, param, NULL, C_SIGNAL);
+         vcode_reg_t param_reg;
+         if (tree_params(expr) > 0) {
+            tree_t param = tree_value(tree_param(expr, 0));
+            param_reg = lower_attr_param(lu, param, NULL, C_CONSTANT);
+         }
+         else
+            param_reg = emit_const(vtype_time(), 0);
 
          type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_lvalue(lu, name), len_reg;
