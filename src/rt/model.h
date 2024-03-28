@@ -28,6 +28,7 @@ void model_run(rt_model_t *m, uint64_t stop_time);
 bool model_step(rt_model_t *m);
 bool model_can_create_delta(rt_model_t *m);
 int64_t model_now(rt_model_t *m, unsigned *deltas);
+int64_t model_next_time(rt_model_t *m);
 void model_stop(rt_model_t *m);
 void model_interrupt(rt_model_t *m);
 int model_exit_status(rt_model_t *m);

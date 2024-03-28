@@ -345,6 +345,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    };
    vhpi_register_cb(&cb_data2, 0);
    check_error();
+
+   vhpiTimeT next;
+   fail_unless(vhpi_get_next_time(&next) == 0);
+   fail_unless(next.high == 0);
+   fail_unless(next.low == 5000000);
 }
 
 static void end_of_sim(const vhpiCbDataT *cb_data)

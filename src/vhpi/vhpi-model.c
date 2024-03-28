@@ -3017,7 +3017,16 @@ void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
 DLLEXPORT
 int vhpi_get_next_time(vhpiTimeT *time_p)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   VHPI_TRACE("time_p=%p", time_p);
+
+   const uint64_t next = model_next_time(vhpi_context()->model);
+
+   time_p->high = next >> 32;
+   time_p->low  = next & 0xffffffff;
+
+   return next == TIME_HIGH ? vhpiNoActivity : 0;
 }
 
 DLLEXPORT

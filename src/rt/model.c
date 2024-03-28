@@ -3427,6 +3427,14 @@ int64_t model_now(rt_model_t *m, unsigned *deltas)
    return m->now;
 }
 
+int64_t model_next_time(rt_model_t *m)
+{
+   if (heap_size(m->eventq_heap) == 0)
+      return TIME_HIGH;
+   else
+      return heap_min_key(m->eventq_heap);
+}
+
 void model_stop(rt_model_t *m)
 {
    relaxed_store(&m->force_stop, true);
