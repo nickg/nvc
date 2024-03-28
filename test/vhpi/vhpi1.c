@@ -469,6 +469,25 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("r type name is %s", vhpi_get_str(vhpiNameP, r_type));
    vhpi_printf("r type full name is %s", vhpi_get_str(vhpiFullNameP, r_type));
 
+   vhpiHandleT r_constrs = vhpi_iterator(vhpiConstraints, r_type);
+   check_error();
+   fail_if(r_constrs == NULL);
+
+   vhpiHandleT r_range = vhpi_scan(r_constrs);
+   check_error();
+   fail_if(r_range == NULL);
+   fail_unless(vhpi_scan(r_constrs) == NULL);
+   vhpi_printf("r type range handle %p", r_range);
+   vhpi_printf("r left bound %f", vhpi_get_real(vhpiFloatLeftBoundP, r_range));
+   vhpi_printf("r right bound %f", vhpi_get_real(vhpiFloatRightBoundP, r_range));
+
+   fail_unless(vhpi_get_real(vhpiFloatLeftBoundP, r_range) == 0.0);
+   fail_unless(vhpi_get_real(vhpiFloatRightBoundP, r_range) == 1.0);
+
+   vhpi_release_handle(r_range);
+   vhpi_release_handle(r_constrs);
+   vhpi_release_handle(r_type);
+
    vhpiHandleT handle_v = vhpi_handle_by_name("v", root);
    check_error();
    fail_if(handle_v == NULL);

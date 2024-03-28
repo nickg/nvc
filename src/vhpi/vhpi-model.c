@@ -34,6 +34,7 @@
 #include "vhpi/vhpi-util.h"
 
 #include <assert.h>
+#include <math.h>
 #include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
@@ -130,6 +131,14 @@ typedef struct {
 
 DEF_CLASS(intRange, vhpiIntRangeK, range.object);
 
+typedef struct {
+   c_range   range;
+   vhpiRealT FloatLeftBound;
+   vhpiRealT FloatRightBound;
+} c_floatRange;
+
+DEF_CLASS(floatRange, vhpiFloatRangeK, range.object);
+
 typedef struct tag_typeDecl c_typeDecl;
 
 typedef struct tag_typeDecl {
@@ -183,6 +192,7 @@ DEF_CLASS(physTypeDecl, vhpiPhysTypeDeclK, scalar.typeDecl.decl.object);
 
 typedef struct {
    c_scalarTypeDecl scalar;
+   c_range         *constraint;
 } c_floatTypeDecl;
 
 typedef struct {
@@ -2485,9 +2495,37 @@ unsupported:
 
 DLLEXPORT
 vhpiRealT vhpi_get_real(vhpiRealPropertyT property,
-                        vhpiHandleT object)
+                        vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
+              handle_pp(handle));
+
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return NAN;
+
+   switch (property) {
+   case vhpiFloatLeftBoundP:
+   case vhpiFloatRightBoundP:
+      {
+         c_floatRange *fr = cast_floatRange(obj);
+         if (fr == NULL)
+            return NAN;
+
+         if (property == vhpiFloatLeftBoundP)
+            return fr->FloatLeftBound;
+         else
+            return fr->FloatRightBound;
+      }
+
+   default:
+      vhpi_error(vhpiError, &(obj->loc), "invalid property %s in vhpi_get_real",
+                 vhpi_property_str(property));
+   }
+
+   return NAN;
 }
 
 DLLEXPORT
@@ -3143,6 +3181,28 @@ static c_physRange *build_phys_range(tree_t t)
    return pr;
 }
 
+static c_floatRange *build_float_range(tree_t r)
+{
+   double left;
+   if (!folded_real(tree_left(r), &left))
+      left = -INFINITY;
+
+   double right;
+   if (!folded_real(tree_right(r), &right))
+      right = +INFINITY;
+
+   const range_kind_t dir = tree_subkind(r) == RANGE_TO;
+   const bool null = dir == RANGE_TO ? left > right : right > left;
+
+   c_floatRange *fr = new_object(sizeof(c_floatRange), vhpiFloatRangeK);
+   init_range(&(fr->range), dir, null, true);
+
+   fr->FloatLeftBound  = left;
+   fr->FloatRightBound = right;
+
+   return fr;
+}
+
 static c_intRange *build_int_range(tree_t r, type_t parent, int dim,
                                    c_vhpiObject *obj)
 {
@@ -3410,8 +3470,9 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
    case T_REAL:
       {
          c_floatTypeDecl *td =
-            new_object(sizeof(c_intTypeDecl), vhpiFloatTypeDeclK);
+            new_object(sizeof(c_floatTypeDecl), vhpiFloatTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+         td->constraint = &(build_float_range(range_of(type, 0))->range);
          return &(td->scalar.typeDecl);
       }
 
@@ -3475,8 +3536,14 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
             case C_RANGE:
                {
                   tree_t r = tree_range(c, 0);
-                  c_intRange *ir = build_int_range(r, NULL, 0, NULL);
-                  APUSH(td->Constraints, &(ir->range.object));
+                  if (type_is_real(tree_type(r))) {
+                     c_floatRange *fr = build_float_range(r);
+                     APUSH(td->Constraints, &(fr->range.object));
+                  }
+                  else {
+                     c_intRange *ir = build_int_range(r, NULL, 0, NULL);
+                     APUSH(td->Constraints, &(ir->range.object));
+                  }
                }
                break;
             case C_RECORD:

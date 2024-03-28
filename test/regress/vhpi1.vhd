@@ -5,9 +5,10 @@ entity vhpi1 is
 end entity;
 
 architecture test of vhpi1 is
+    subtype zero_to_one is real range 0.0 to 1.0;
     signal v : bit_vector(3 downto 0) := "0011";
     signal b : bit;
-    signal r : real;
+    signal r : zero_to_one;
     signal i : integer := 42;
     signal A_name_with_MIXED_case : bit;
 begin
