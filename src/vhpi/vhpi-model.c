@@ -395,7 +395,6 @@ DEF_CLASS(forGenerate, vhpiForGenerateK, region.object);
 
 typedef struct {
    c_vhpiObject  object;
-   vhpiHandleT   pending;
    vhpiStateT    State;
    vhpiEnumT     Reason;
    vhpiCbDataT   data;
@@ -1391,7 +1390,6 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
         return;
 
      assert(cb->State != vhpiMature);
-     assert(handle == cb->pending);
 
      if (cb->State == vhpiEnable)
         (cb->data.cb_rtn)(&(cb->data));
@@ -1711,10 +1709,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->Reason  = cb_data_p->reason;
          cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
          cb->data    = *cb_data_p;
-         cb->pending = handle_for(&(cb->object));
 
+         vhpiHandleT handle = handle_for(&(cb->object));
          model_set_global_cb(m, vhpi_get_rt_event(cb->Reason),
-                             vhpi_global_cb, cb->pending);
+                             vhpi_global_cb, handle);
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
@@ -1730,12 +1728,12 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->Reason  = cb_data_p->reason;
          cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
          cb->data    = *cb_data_p;
-         cb->pending = handle_for(&(cb->object));
 
          const uint64_t now = model_now(m, NULL);
          const uint64_t when = vhpi_time_to_native(cb_data_p->time) + now;
 
-         model_set_timeout_cb(m, when, vhpi_global_cb, cb->pending);
+         vhpiHandleT handle = handle_for(&(cb->object));
+         model_set_timeout_cb(m, when, vhpi_global_cb, handle);
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
@@ -1758,10 +1756,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->Reason  = cb_data_p->reason;
          cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
          cb->data    = *cb_data_p;
-         cb->pending = handle_for(&(cb->object));
 
+         vhpiHandleT handle = handle_for(&(cb->object));
          cb->watch = model_set_event_cb(m, signal, vhpi_signal_event_cb,
-                                        cb->pending, false);
+                                        handle, false);
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
@@ -1795,8 +1793,11 @@ int vhpi_remove_cb(vhpiHandleT handle)
 
    cb->State = vhpiMature;
 
-   drop_handle(c, cb->pending);
+   // Two references are created in vhpi_register_cb: one for the
+   // internal callback and one to return to the user
    drop_handle(c, handle);
+   drop_handle(c, handle);
+
    return 0;
 }
 
