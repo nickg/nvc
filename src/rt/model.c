@@ -3486,84 +3486,25 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
    return w;
 }
 
-bool model_clear_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
-                           void *user)
-{
-   assert(event < RT_LAST_EVENT);
-
-   rt_callback_t **last = &m->global_cbs[event];
-   if (!*last)
-      return false;
-
-   for (rt_callback_t *it = *last; it; last = &(it->next), it = it->next) {
-      if (it->fn == fn && it->user == user) {
-         *last = it->next;
-         free(it);
-         return true;
-      }
-   }
-
-   return false;
-}
-
-typedef struct {
-   uint64_t       when;
-   rt_event_fn_t  fn;
-   void          *user;
-} timeout_params_t;
-
-static bool eventq_delete_fn(uint64_t key, void *e, void *context)
-{
-   timeout_params_t *params = context;
-
-   if (key != params->when)
-      return false;
-
-   if (pointer_tag(e) != EVENT_TIMEOUT)
-      return false;
-
-   rt_callback_t *cb = untag_pointer(e, rt_callback_t);
-   if (cb->fn == params->fn && cb->user == params->user) {
-      free(cb);
-      return true;
-   }
-
-   return false;
-}
-
-bool model_clear_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
-                            void *user)
-{
-   timeout_params_t params = {
-      .when = when,
-      .fn = fn,
-      .user = user,
-   };
-
-   return heap_delete(m->eventq_heap, eventq_delete_fn, &params);
-}
-
-bool model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
+void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
 {
    rt_nexus_t *n = &(w->signal->nexus);
    for (int i = 0; i < w->signal->n_nexus; i++, n = n->chain)
       clear_event(m, n, &(w->wakeable));
 
    rt_watch_t **last = &m->watches;
-   for (rt_watch_t *it = *last; it; last = &(it->chain_all), it = it->chain_all) {
+   for (rt_watch_t *it = *last; it;
+        last = &(it->chain_all), it = it->chain_all) {
       if (it == w) {
          *last = it->chain_all;
          break;
       }
    }
 
-   if (w->wakeable.pending) {
+   if (w->wakeable.pending)
       w->wakeable.free_later = true;
-      return false;
-   }
-
-   free(w);
-   return true;
+   else
+      free(w);
 }
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)

@@ -535,10 +535,8 @@ static vhpiHandleT handle_for(c_vhpiObject *obj)
    return (obj->handle = (vhpiHandleT)bits);
 }
 
-static void drop_handle(vhpiHandleT handle)
+static void drop_handle(vhpi_context_t *c, vhpiHandleT handle)
 {
-   vhpi_context_t *c = vhpi_context();
-
    handle_slot_t *slot = decode_handle(c, handle);
    if (slot == NULL)
       return;
@@ -1426,7 +1424,7 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
 
       default:
          cb->State = vhpiMature;
-         drop_handle(handle);
+         drop_handle(c, handle);
          break;
       }
    }
@@ -1683,7 +1681,7 @@ int vhpi_release_handle(vhpiHandleT handle)
       return 1;
    }
 
-   drop_handle(handle);
+   drop_handle(vhpi_context(), handle);
    return 0;
 }
 
@@ -1777,37 +1775,6 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    }
 }
 
-static bool disable_cb(c_callback *cb, vhpiHandleT handle)
-{
-   switch (cb->Reason) {
-   case vhpiCbRepEndOfProcesses:
-   case vhpiCbRepLastKnownDeltaCycle:
-   case vhpiCbRepNextTimeStep:
-   case vhpiCbEndOfProcesses:
-   case vhpiCbStartOfSimulation:
-   case vhpiCbEndOfSimulation:
-   case vhpiCbLastKnownDeltaCycle:
-   case vhpiCbNextTimeStep:
-   case vhpiCbEndOfTimeStep:
-   case vhpiCbRepEndOfTimeStep:
-      return model_clear_global_cb(vhpi_context()->model,
-                                   vhpi_get_rt_event(cb->Reason),
-                                   vhpi_global_cb, handle);
-
-   case vhpiCbAfterDelay:
-      return model_clear_timeout_cb(vhpi_context()->model, cb->when,
-                                    vhpi_global_cb, handle);
-
-   case vhpiCbValueChange:
-      return model_clear_event_cb(vhpi_context()->model, cb->watch);
-
-   default:
-      vhpi_error(vhpiInternal, NULL,
-                 "unsupported reason %d in vhpi_remove_cb", cb->Reason);
-      return 1;
-   }
-}
-
 DLLEXPORT
 int vhpi_remove_cb(vhpiHandleT handle)
 {
@@ -1823,13 +1790,15 @@ int vhpi_remove_cb(vhpiHandleT handle)
    if (cb == NULL)
       return 1;
 
-   if (cb->State == vhpiEnable)
-      disable_cb(cb, cb->pending);
+   vhpi_context_t *c = vhpi_context();
+
+   if (cb->Reason == vhpiCbValueChange)
+      model_clear_event_cb(c->model, cb->watch);
 
    cb->State = vhpiMature;
 
-   drop_handle(cb->pending);
-   drop_handle(handle);
+   drop_handle(c, cb->pending);
+   drop_handle(c, handle);
    return 0;
 }
 
