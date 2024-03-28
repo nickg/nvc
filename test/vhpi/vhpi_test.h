@@ -40,6 +40,7 @@ void vhpi9_startup(void);
 void vhpi10_startup(void);
 void vhpi11_startup(void);
 void vhpi12_startup(void);
+void vhpi13_startup(void);
 void issue744_startup(void);
 void issue762_startup(void);
 

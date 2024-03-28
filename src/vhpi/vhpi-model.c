@@ -395,6 +395,7 @@ DEF_CLASS(forGenerate, vhpiForGenerateK, region.object);
 
 typedef struct {
    c_vhpiObject   object;
+   vhpiHandleT    pending;
    vhpiStateT     State;
    vhpiEnumT      Reason;
    vhpiCbDataT    data;
@@ -781,10 +782,11 @@ static const char *handle_pp(vhpiHandleT handle)
 
    tb_printf(tb, "%p:{", handle);
 
-   c_vhpiObject *obj = from_handle(handle);
-   if (obj == NULL)
+   handle_slot_t *slot = decode_handle(vhpi_context(), handle);
+   if (slot == NULL)
       tb_cat(tb, "INVALID");
    else {
+      c_vhpiObject *obj = slot->obj;
       tb_cat(tb, vhpi_class_str(obj->kind));
 
       c_abstractDecl *decl = is_abstractDecl(obj);
@@ -1381,35 +1383,51 @@ static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
 static void vhpi_global_cb(rt_model_t *m, void *user)
 {
    vhpiHandleT handle = user;
+   vhpi_context_t *c = vhpi_context();
 
-   {
-      c_vhpiObject *obj = from_handle(handle);
-      if (obj == NULL)
-         return;
+  {
+     handle_slot_t *slot = decode_handle(c, handle);
+     if (slot == NULL)
+        return;
 
-      c_callback *cb = is_callback(obj);
-      if (cb == NULL)
-         return;
+     c_callback *cb = is_callback(slot->obj);
+     if (cb == NULL)
+        return;
 
-      if (cb->State != vhpiEnable)
-         return;
+     assert(cb->State != vhpiMature);
+     assert(handle == cb->pending);
 
-      (cb->data.cb_rtn)(&(cb->data));
+     if (cb->State == vhpiEnable)
+        (cb->data.cb_rtn)(&(cb->data));
    }
 
    // The handle may be invalidated by the user call
 
    {
-      c_vhpiObject *obj = from_handle(handle);
-      if (obj == NULL)
+      handle_slot_t *slot = decode_handle(c, handle);
+      if (slot == NULL)
          return;
 
-      c_callback *cb = is_callback(obj);
+      c_callback *cb = is_callback(slot->obj);
       assert(cb != NULL);
 
-      if (!vhpi_is_repetitive(cb->Reason)) {
+      switch (cb->Reason) {
+      case vhpiCbRepEndOfProcesses:
+      case vhpiCbRepLastKnownDeltaCycle:
+      case vhpiCbRepNextTimeStep:
+      case vhpiCbRepEndOfTimeStep:
+      case vhpiCbRepStartOfNextCycle:
+         model_set_global_cb(c->model, vhpi_get_rt_event(cb->Reason),
+                             vhpi_global_cb, handle);
+         break;
+
+      case vhpiCbValueChange:
+         break;
+
+      default:
          cb->State = vhpiMature;
          drop_handle(handle);
+         break;
       }
    }
 }
@@ -1669,9 +1687,16 @@ int vhpi_release_handle(vhpiHandleT handle)
    return 0;
 }
 
-static int enable_cb(c_callback *cb)
+DLLEXPORT
+vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
-   switch (cb->Reason) {
+   vhpi_clear_error();
+
+   VHPI_TRACE("cb_datap_p=%s flags=%x", cb_data_pp(cb_data_p), flags);
+
+   rt_model_t *m = vhpi_context()->model;
+
+   switch (cb_data_p->reason) {
    case vhpiCbRepEndOfProcesses:
    case vhpiCbRepLastKnownDeltaCycle:
    case vhpiCbRepNextTimeStep:
@@ -1685,77 +1710,71 @@ static int enable_cb(c_callback *cb)
    case vhpiCbEndOfInitialization:
    case vhpiCbStartOfNextCycle:
    case vhpiCbRepStartOfNextCycle:
-      model_set_global_cb(vhpi_context()->model, vhpi_get_rt_event(cb->Reason),
-                          vhpi_global_cb, handle_for(&(cb->object)));
-      return 0;
+      {
+         c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
+         cb->Reason  = cb_data_p->reason;
+         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data    = *cb_data_p;
+         cb->pending = handle_for(&(cb->object));
+
+         model_set_global_cb(m, vhpi_get_rt_event(cb->Reason),
+                             vhpi_global_cb, cb->pending);
+
+         return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
+      }
 
    case vhpiCbAfterDelay:
-      model_set_timeout_cb(vhpi_context()->model, cb->when,
-                           vhpi_global_cb, handle_for(&(cb->object)));
-      return 0;
+      {
+         if (cb_data_p->time == NULL) {
+            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+            return NULL;
+         }
+
+         c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
+         cb->Reason  = cb_data_p->reason;
+         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data    = *cb_data_p;
+         cb->pending = handle_for(&(cb->object));
+
+         const uint64_t now = model_now(m, NULL);
+         cb->when = vhpi_time_to_native(cb_data_p->time) + now;
+
+         model_set_timeout_cb(m, cb->when, vhpi_global_cb, cb->pending);
+
+         return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
+      }
 
    case vhpiCbValueChange:
       {
-         c_vhpiObject *obj = from_handle(cb->data.obj);
+         c_vhpiObject *obj = from_handle(cb_data_p->obj);
          if (obj == NULL)
-            return 1;
+            return NULL;
 
          c_objDecl *decl = cast_objDecl(obj);
          if (decl == NULL)
-            return 1;
+            return NULL;
 
          rt_signal_t *signal = vhpi_get_signal_objDecl(decl);
          if (signal == NULL)
-            return 1;
+            return NULL;
 
-         vhpiHandleT handle = handle_for(&(cb->object));
-         cb->watch = model_set_event_cb(vhpi_context()->model, signal,
-                                        vhpi_signal_event_cb, handle, false);
-         return 0;
+         c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
+         cb->Reason  = cb_data_p->reason;
+         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data    = *cb_data_p;
+         cb->pending = handle_for(&(cb->object));
+
+         cb->watch = model_set_event_cb(m, signal, vhpi_signal_event_cb,
+                                        cb->pending, false);
+
+         return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
 
    default:
-      vhpi_error(vhpiInternal, NULL,
-                 "unsupported reason %d in vhpi_register_cb", cb->Reason);
-      return 1;
+      vhpi_error(vhpiInternal, NULL, "unsupported reason %s",
+                 vhpi_cb_reason_str(cb_data_p->reason));
+      return NULL;
    }
-}
-
-DLLEXPORT
-vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
-{
-   vhpi_clear_error();
-
-   VHPI_TRACE("cb_datap_p=%s flags=%x", cb_data_pp(cb_data_p), flags);
-
-   c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
-   cb->Reason = cb_data_p->reason;
-   cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
-   cb->data   = *cb_data_p;
-
-   if (cb->Reason == vhpiCbAfterDelay) {
-      if (cb->data.time == NULL) {
-         vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
-         goto err;
-      }
-
-      const uint64_t now = model_now(vhpi_context()->model, NULL);
-      cb->when = vhpi_time_to_native(cb->data.time) + now;
-   }
-   else if (cb->Reason == vhpiCbValueChange && cb->data.value) {
-      vhpi_error(vhpiInternal, NULL,
-                 "values are not supported for Object callbacks");
-      goto err;
-   }
-
-   if (!(flags & vhpiDisableCb) && enable_cb(cb))
-      goto err;
-
-   return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
-
-err:
-   free(cb);
-   return NULL;
 }
 
 static bool disable_cb(c_callback *cb, vhpiHandleT handle)
@@ -1805,10 +1824,11 @@ int vhpi_remove_cb(vhpiHandleT handle)
       return 1;
 
    if (cb->State == vhpiEnable)
-      disable_cb(cb, handle);
+      disable_cb(cb, cb->pending);
 
    cb->State = vhpiMature;
 
+   drop_handle(cb->pending);
    drop_handle(handle);
    return 0;
 }
@@ -1834,7 +1854,6 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
       return 1;
    }
 
-   disable_cb(cb, cb_obj);
    cb->State = vhpiDisable;
    return 0;
 }
@@ -1860,10 +1879,8 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
       return 1;
    }
 
-   int ret = enable_cb(cb);
-   if (!ret)
-      cb->State = vhpiEnable;
-   return ret;
+   cb->State = vhpiEnable;
+   return 0;
 }
 
 DLLEXPORT

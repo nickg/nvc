@@ -958,3 +958,4 @@ driver22        fail,gold,2019
 vhpi12          normal,vhpi
 issue862        normal,gold,2008,relaxed
 issue858        normal,2008
+vhpi13          normal,vhpi
