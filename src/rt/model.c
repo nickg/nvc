@@ -3183,9 +3183,12 @@ static void model_cycle(rt_model_t *m)
    swap_deferq(&m->procq, &m->delta_procq);
    swap_deferq(&m->driverq, &m->delta_driverq);
 
-   if (!is_delta_cycle) {
+   if (m->iteration == 0)
       global_event(m, RT_NEXT_TIME_STEP);
 
+   global_event(m, RT_NEXT_CYCLE);
+
+   if (!is_delta_cycle) {
       for (;;) {
          void *e = heap_extract_min(m->eventq_heap);
          switch (pointer_tag(e)) {
@@ -3218,8 +3221,6 @@ static void model_cycle(rt_model_t *m)
             break;
       }
    }
-
-   global_event(m, RT_NEXT_CYCLE);
 
    deferq_run(m, &m->driverq);
 
