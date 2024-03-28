@@ -20,6 +20,13 @@
 
 LCOV_EXCL_START
 
+static const char *vhpi_fallback_str(int value)
+{
+   static char buf[16];
+   checked_sprintf(buf, sizeof(buf), "%d", value);
+   return buf;
+}
+
 const char *vhpi_property_str(int property)
 {
    switch (property) {
@@ -132,12 +139,7 @@ const char *vhpi_property_str(int property)
    case DEPRECATED_vhpiSimTimeUnitP: return "DEPRECATED_vhpiSimTimeUnitP";
    case vhpiResolutionLimitP: return "vhpiResolutionLimitP";
    case vhpiTimeP: return "vhpiTimeP";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", property);
-         return buf;
-      }
+   default: return vhpi_fallback_str(property);
    }
 }
 
@@ -268,12 +270,7 @@ const char *vhpi_class_str(vhpiClassKindT kind)
    case vhpiSeqSigAssignStmtK: return "vhpiSeqSigAssignStmtK";
    case vhpiProtectedTypeInstK: return "vhpiProtectedTypeInstK";
    case vhpiVerilogModuleK: return "vhpiVerilogModuleK";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", kind);
-         return buf;
-      }
+   default: return vhpi_fallback_str(kind);
    }
 }
 
@@ -371,12 +368,7 @@ const char *vhpi_one_to_one_str(vhpiOneToOneT kind)
    case vhpiCompDecl: return "vhpiCompDecl";
    case vhpiProtectedTypeInst: return "vhpiProtectedTypeInst";
    case vhpiGenIndex: return "vhpiGenIndex";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", kind);
-         return buf;
-      }
+   default: return vhpi_fallback_str(kind);
    }
 }
 
@@ -450,12 +442,7 @@ const char *vhpi_one_to_many_str(vhpiOneToManyT kind)
    case vhpiEqProcessStmts: return "vhpiEqProcessStmts";
    case vhpiEntityClassEntries: return "vhpiEntityClassEntries";
    case vhpiSensitivities: return "vhpiSensitivities";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", kind);
-         return buf;
-      }
+   default: return vhpi_fallback_str(kind);
    }
 }
 
@@ -511,12 +498,7 @@ const char *vhpi_cb_reason_str(int reason)
    case vhpiCbTimeOut: return "vhpiCbTimeOut";
    case vhpiCbRepTimeOut: return "vhpiCbRepTimeOut";
    case vhpiCbSensitivity: return "vhpiCbSensitivity";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", reason);
-         return buf;
-      }
+   default: return vhpi_fallback_str(reason);
    }
 }
 
@@ -529,12 +511,17 @@ const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode)
    case vhpiForcePropagate: return "vhpiForcePropagate";
    case vhpiRelease: return "vhpiRelease";
    case vhpiSizeConstraint: return "vhpiSizeConstraint";
-   default:
-      {
-         static char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d", mode);
-         return buf;
-      }
+   default: return vhpi_fallback_str(mode);
+   }
+}
+
+const char *vhpi_state_str(vhpiStateT state)
+{
+   switch (state) {
+   case vhpiEnable: return "vhpiEnable";
+   case vhpiDisable: return "vhpiEnable";
+   case vhpiMature: return "vhpiMature";
+   default: return vhpi_fallback_str(state);
    }
 }
 

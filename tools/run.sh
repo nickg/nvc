@@ -1,5 +1,5 @@
 #!/bin/sh
-std=${STD:-02}
+std=${STD:-08}
 export NVC_LIBPATH=./lib/
 export NVC_IMP_LIB=./lib/
 root=$(git rev-parse --show-toplevel)

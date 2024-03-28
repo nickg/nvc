@@ -299,6 +299,7 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    cb = vhpi_register_cb(&cb_data5, vhpiReturnCb);
    check_error();
    fail_if(vhpi_remove_cb(cb));
+   vhpi_release_handle(cb);
 
    cb_data5.cb_rtn = mutual;
    cb_data5.user_data = mutual_cb3;
@@ -407,7 +408,6 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 
    vhpi_printf("arch name is %s", vhpi_get_str(vhpiNameP, arch));
    vhpi_printf("arch unit name is %s", vhpi_get_str(vhpiUnitNameP, arch));
-   vhpi_release_handle(arch);
 
    vhpiHandleT entity = vhpi_handle(vhpiPrimaryUnit, arch);
    check_error();
@@ -417,6 +417,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("entity name is %s", vhpi_get_str(vhpiNameP, entity));
    vhpi_printf("entity unit name is %s", vhpi_get_str(vhpiUnitNameP, entity));
    vhpi_release_handle(entity);
+   vhpi_release_handle(arch);
 
    handle_x = vhpi_handle_by_name("x", root);
    check_error();
@@ -525,6 +526,11 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("full case name is %s", vhpi_get_str(vhpiFullCaseNameP, handle_case));
 
    vhpi_release_handle(root);
+   check_error();
+
+   // Releasing the handle twice should report an error
+   vhpi_release_handle(root);
+   fail_unless(vhpi_check_error(&info));
 }
 
 void vhpi1_startup(void)

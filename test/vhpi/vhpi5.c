@@ -23,8 +23,11 @@ void delta_recursive(vhpiHandleT parent, int base, int scale)
    vhpiHandleT children = vhpi_iterator(vhpiSelectedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
         child;
-        child = vhpi_scan(children), i++)
+        child = vhpi_scan(children), i++) {
       delta_recursive(child, base + i * scale, scale / 16);
+      vhpi_release_handle(child);
+   }
+   vhpi_release_handle(children);
 
    children = vhpi_iterator(vhpiIndexedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
@@ -35,7 +38,9 @@ void delta_recursive(vhpiHandleT parent, int base, int scale)
                          scale / 256);
       else
          delta_recursive(child, base + i * scale, scale / 16);
+      vhpi_release_handle(child);
    }
+   vhpi_release_handle(children);
 
    if (!i) {
       vhpiValueT val = {
@@ -75,11 +80,19 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
       snprintf(name, sizeof(name), "%s.%s", parent_name,
                vhpi_get_str(vhpiNameP, suffix));
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, child)));
-      if (by_name)
-         fail_unless(vhpi_handle_by_name(name, NULL) == child);
+      if (by_name) {
+         vhpiHandleT child2 = vhpi_handle_by_name(name, NULL);
+         fail_unless(child2 == child);
+         vhpi_release_handle(child2);
+      }
 
       start_recursive(child, base + i * scale, scale / 16, by_name);
+
+      vhpi_release_handle(prefix);
+      vhpi_release_handle(suffix);
+      vhpi_release_handle(child);
    }
+   vhpi_release_handle(children);
 
    children = vhpi_iterator(vhpiIndexedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
@@ -90,7 +103,9 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
                          scale / 256, false);
       else
          start_recursive(child, base + i * scale, scale / 16, false);
+      vhpi_release_handle(child);
    }
+   vhpi_release_handle(children);
 
    if (!i) {
       vhpiValueT val = {
@@ -136,7 +151,9 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    for (vhpiHandleT elem = vhpi_scan(elems); elem; elem = vhpi_scan(elems), i++) {
       vhpi_printf("m elem %d is %s", i, vhpi_get_str(vhpiNameP, elem));
       fail_unless(vhpi_get(vhpiPositionP, elem) == i);
+      vhpi_release_handle(elem);
    }
+   vhpi_release_handle(elems);
    fail_unless(vhpi_get(vhpiNumFieldsP, m_type) == i);
 
    n = vhpi_handle_by_name("n", root);

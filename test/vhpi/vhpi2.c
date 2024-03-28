@@ -7,7 +7,6 @@
 
 static vhpiHandleT handle_x;
 static vhpiHandleT handle_y;
-static vhpiHandleT handle_sos;
 static vhpiHandleT end_of_timestep_cb;
 static int         sequence = 0;
 
@@ -51,6 +50,7 @@ static void end_of_timestep(const vhpiCbDataT *cb_data)
 
    vhpi_remove_cb(end_of_timestep_cb);
    check_error();
+   vhpi_release_handle(end_of_timestep_cb);
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
@@ -80,7 +80,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_unless(vhpi_get(vhpiIsScalarP, y_type));
    check_error();
+
+   vhpiHandleT y_base = vhpi_handle(vhpiBaseType, y_type);
+   fail_unless(vhpi_compare_handles(y_base, y_type));
+
    vhpi_release_handle(y_type);
+   vhpi_release_handle(y_base);
 
    vhpiValueT value = {
       .format = vhpiObjTypeVal
@@ -127,7 +132,8 @@ void vhpi2_startup(void)
       .cb_rtn    = start_of_sim,
       .user_data = (char *)"some user data",
    };
-   handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
+   vhpiHandleT handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
    check_error();
    fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
+   vhpi_release_handle(handle_sos);
 }

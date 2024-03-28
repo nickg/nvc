@@ -7,7 +7,7 @@
 
 static int64_t phys_to_i64(vhpiPhysT phys)
 {
-   return ((int64_t)phys.high) << 32 | phys.low;
+   return ((uint64_t)phys.high) << 32 | phys.low;
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
@@ -71,6 +71,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_unless(phys_to_i64(weight_right) == 4000);
 
+   vhpi_release_handle(handle_weight_cons_iter);
    vhpi_release_handle(handle_weight_cons);
    vhpi_release_handle(handle_weight_type);
    vhpi_release_handle(handle_x);
@@ -86,6 +87,6 @@ void vhpi3_startup(void)
       .cb_rtn    = start_of_sim,
       .user_data = NULL,
    };
-   (void)vhpi_register_cb(&cb_data1, vhpiReturnCb);
+   vhpi_register_cb(&cb_data1, 0);
    check_error();
 }

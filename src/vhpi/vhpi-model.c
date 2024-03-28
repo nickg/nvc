@@ -43,6 +43,7 @@ typedef vhpiSmallEnumT  vhpiBooleanT;
 
 typedef struct {
    vhpiClassKindT kind;
+   vhpiHandleT    handle;
    loc_t          loc;
 } c_vhpiObject;
 
@@ -392,22 +393,15 @@ typedef struct {
 
 DEF_CLASS(forGenerate, vhpiForGenerateK, region.object);
 
-typedef enum {
-   CB_INACTIVE,
-   CB_ACTIVE,
-   CB_FREE_LATER
-} callback_status_t;
-
 typedef struct {
-   c_vhpiObject      object;
-   vhpiStateT        State;
-   vhpiEnumT         Reason;
-   vhpiCbDataT       data;
+   c_vhpiObject   object;
+   vhpiStateT     State;
+   vhpiEnumT      Reason;
+   vhpiCbDataT    data;
    union {
-      uint64_t       when;
-      rt_watch_t    *w;
+      uint64_t    when;
+      rt_watch_t *watch;
    };
-   callback_status_t status;
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, object);
@@ -422,14 +416,26 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
+#define HANDLE_BITS     (sizeof(vhpiHandleT) * 8)
+#define HANDLE_MAX_SLOT ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
+
+typedef struct {
+   c_vhpiObject *obj;
+   uint32_t      refcount;
+   uint32_t      generation;
+} handle_slot_t;
+
 typedef struct _vhpi_context {
-   c_tool     *tool;
-   c_rootInst *root;
-   shash_t    *strtab;
-   rt_model_t *model;
-   hash_t     *objcache;
-   tree_t      top;
-   jit_t      *jit;
+   c_tool        *tool;
+   c_rootInst    *root;
+   shash_t       *strtab;
+   rt_model_t    *model;
+   hash_t        *objcache;
+   tree_t         top;
+   jit_t         *jit;
+   handle_slot_t *handles;
+   unsigned       num_handles;
+   unsigned       free_hint;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
@@ -441,6 +447,7 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region);
+static const char *handle_pp(vhpiHandleT handle);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -455,17 +462,116 @@ static inline vhpi_context_t *vhpi_context(void)
    return global_context;
 }
 
-static vhpiHandleT handle_for(c_vhpiObject *obj)
+static handle_slot_t *decode_handle(vhpi_context_t *c, vhpiHandleT handle)
 {
-   return (vhpiHandleT)obj;
+   const uintptr_t bits = (uintptr_t)handle;
+   const uint32_t index = bits & HANDLE_MAX_SLOT;
+   const uint32_t generation = bits >> HANDLE_BITS/2;
+
+   if (handle == NULL || index >= c->num_handles)
+      return NULL;
+
+   handle_slot_t *slot = &(c->handles[index]);
+   if (slot->obj == NULL)
+      return NULL;
+   else if (slot->generation != generation)
+      return NULL;   // Use-after-free
+
+   assert(slot->refcount > 0);
+   assert(slot->obj->handle == handle);
+
+   return slot;
 }
 
-static c_vhpiObject *from_handle(vhpiHandleT handle)
+static vhpiHandleT handle_for(c_vhpiObject *obj)
 {
-   if (handle == NULL)
-      vhpi_error(vhpiError, NULL, "invalid handle");
+   assert(obj != NULL);
 
-   return (c_vhpiObject *)handle;
+   vhpi_context_t *c = vhpi_context();
+
+   if (obj->handle != NULL) {
+      handle_slot_t *slot = decode_handle(c, obj->handle);
+      assert(slot != NULL);
+      assert(slot->refcount > 0);
+      assert(slot->obj == obj);
+
+      slot->refcount++;
+      return obj->handle;
+   }
+
+   uint32_t index = c->free_hint;
+   if (index >= c->num_handles || c->handles[index].obj != NULL) {
+      for (index = 0; index < c->num_handles; index++) {
+         if (c->handles[index].obj == NULL)
+            break;
+      }
+   }
+
+   if (unlikely(index > HANDLE_MAX_SLOT)) {
+      vhpi_error(vhpiFailure, NULL, "too many active handles");
+      return NULL;
+   }
+   else if (index == c->num_handles) {
+      const int new_size = MAX(c->num_handles * 2, 128);
+      c->handles = xrealloc_array(c->handles, new_size, sizeof(handle_slot_t));
+      c->num_handles = new_size;
+
+      for (int i = index; i < new_size; i++) {
+         c->handles[i].obj = NULL;
+         c->handles[i].refcount = 0;
+         c->handles[i].generation = 1;
+      }
+   }
+
+   handle_slot_t *slot = &(c->handles[index]);
+   assert(slot->refcount == 0);
+   slot->refcount = 1;
+   slot->obj = obj;
+
+   c->free_hint = index + 1;
+
+   const uintptr_t bits = (uintptr_t)slot->generation << HANDLE_BITS/2 | index;
+   return (obj->handle = (vhpiHandleT)bits);
+}
+
+static void drop_handle(vhpiHandleT handle)
+{
+   vhpi_context_t *c = vhpi_context();
+
+   handle_slot_t *slot = decode_handle(c, handle);
+   if (slot == NULL)
+      return;
+
+   assert(slot->refcount > 0);
+   if (--(slot->refcount) > 0)
+      return;
+
+   c_vhpiObject *obj = slot->obj;
+   slot->obj = NULL;
+   slot->generation++;
+
+   obj->handle = NULL;
+
+   c->free_hint = slot - c->handles;
+
+   switch (obj->kind) {
+   case vhpiCallbackK:
+   case vhpiIteratorK:
+      free(obj);
+      break;
+   default:
+      break;
+   }
+}
+
+static inline c_vhpiObject *from_handle(vhpiHandleT handle)
+{
+   handle_slot_t *slot = decode_handle(vhpi_context(), handle);
+   if (slot != NULL)
+      return slot->obj;
+
+   vhpi_error(vhpiError, NULL, "invalid handle %p", handle);
+   return NULL;
 }
 
 static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
@@ -676,19 +782,28 @@ static const char *handle_pp(vhpiHandleT handle)
    tb_printf(tb, "%p:{", handle);
 
    c_vhpiObject *obj = from_handle(handle);
-   tb_cat(tb, vhpi_class_str(obj->kind));
+   if (obj == NULL)
+      tb_cat(tb, "INVALID");
+   else {
+      tb_cat(tb, vhpi_class_str(obj->kind));
 
-   c_abstractDecl *decl = is_abstractDecl(obj);
-   if (decl != NULL)
-      tb_printf(tb, " Name=%s", decl->Name);
+      c_abstractDecl *decl = is_abstractDecl(obj);
+      if (decl != NULL)
+         tb_printf(tb, " Name=%s", decl->Name);
 
-   c_name *n = is_name(obj);
-   if (n != NULL)
-      tb_printf(tb, " Name=%s", n->Name);
+      c_name *n = is_name(obj);
+      if (n != NULL)
+         tb_printf(tb, " Name=%s", n->Name);
 
-   c_iterator *it = is_iterator(obj);
-   if (it != NULL && it->list != NULL)
-      tb_printf(tb, " pos=%d/%d", it->pos, it->list->count);
+      c_iterator *it = is_iterator(obj);
+      if (it != NULL && it->list != NULL)
+         tb_printf(tb, " pos=%d/%d", it->pos, it->list->count);
+
+      c_callback *cb = is_callback(obj);
+      if (cb != NULL)
+         tb_printf(tb, " Reason=%s State=%s", vhpi_cb_reason_str(cb->Reason),
+                   vhpi_state_str(cb->State));
+   }
 
    tb_append(tb, '}');
 
@@ -1242,50 +1357,61 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
    return false;
 }
 
-static void vhpi_do_callback(c_callback *cb)
-{
-   if (cb->State == vhpiEnable) {
-      cb->status = CB_ACTIVE;
-      (cb->data.cb_rtn)(&(cb->data));
-
-      if (!vhpi_is_repetitive(cb->Reason))
-         cb->State = vhpiMature;
-   }
-
-   if (cb->status == CB_FREE_LATER)
-      free(cb);
-   else
-      cb->status = CB_INACTIVE;
-}
-
-static void vhpi_timeout_cb(rt_model_t *m, void *user)
-{
-   c_callback *cb;
-   if ((cb = is_callback(user)))
-      vhpi_do_callback(cb);
-}
-
 static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
                                  rt_watch_t *watch, void *user)
 {
+   c_vhpiObject *obj = from_handle(user);
+   if (obj == NULL)
+      return;
+
+   c_callback *cb = is_callback(obj);
+   if (cb == NULL)
+      return;
+
    vhpiTimeT time;
-
-   c_callback *cb;
-   if ((cb = is_callback(user))) {
-      if (cb->data.time) {
-         vhpi_get_time(&time, NULL);
-         cb->data.time = &time;
-      }
-
-      vhpi_do_callback(cb);
+   if (cb->data.time != NULL) {
+      vhpi_get_time(&time, NULL);
+      cb->data.time = &time;
    }
+
+   if (cb->State == vhpiEnable)
+      (cb->data.cb_rtn)(&(cb->data));
 }
 
 static void vhpi_global_cb(rt_model_t *m, void *user)
 {
-   c_callback *cb;
-   if ((cb = is_callback(user)))
-      vhpi_do_callback(cb);
+   vhpiHandleT handle = user;
+
+   {
+      c_vhpiObject *obj = from_handle(handle);
+      if (obj == NULL)
+         return;
+
+      c_callback *cb = is_callback(obj);
+      if (cb == NULL)
+         return;
+
+      if (cb->State != vhpiEnable)
+         return;
+
+      (cb->data.cb_rtn)(&(cb->data));
+   }
+
+   // The handle may be invalidated by the user call
+
+   {
+      c_vhpiObject *obj = from_handle(handle);
+      if (obj == NULL)
+         return;
+
+      c_callback *cb = is_callback(obj);
+      assert(cb != NULL);
+
+      if (!vhpi_is_repetitive(cb->Reason)) {
+         cb->State = vhpiMature;
+         drop_handle(handle);
+      }
+   }
 }
 
 static rt_scope_t *vhpi_get_scope_abstractRegion(c_abstractRegion *region)
@@ -1534,22 +1660,12 @@ int vhpi_release_handle(vhpiHandleT handle)
    VHPI_TRACE("handle=%s", handle_pp(handle));
 
    c_vhpiObject *obj = from_handle(handle);
-   if (obj == NULL)
+   if (obj == NULL) {
+      vhpi_error(vhpiError, NULL, "invalid handle %p", handle);
       return 1;
-
-   c_callback *cb = is_callback(obj);
-   if (cb != NULL) {
-      if (cb->status != CB_INACTIVE)
-         cb->status = CB_FREE_LATER;
-      else
-         free(cb);
-      return 0;
    }
 
-   c_iterator *it = is_iterator(obj);
-   if (it != NULL)
-      free(it);
-
+   drop_handle(handle);
    return 0;
 }
 
@@ -1570,12 +1686,12 @@ static int enable_cb(c_callback *cb)
    case vhpiCbStartOfNextCycle:
    case vhpiCbRepStartOfNextCycle:
       model_set_global_cb(vhpi_context()->model, vhpi_get_rt_event(cb->Reason),
-                          vhpi_global_cb, cb);
+                          vhpi_global_cb, handle_for(&(cb->object)));
       return 0;
 
    case vhpiCbAfterDelay:
       model_set_timeout_cb(vhpi_context()->model, cb->when,
-                           vhpi_timeout_cb, cb);
+                           vhpi_global_cb, handle_for(&(cb->object)));
       return 0;
 
    case vhpiCbValueChange:
@@ -1592,8 +1708,9 @@ static int enable_cb(c_callback *cb)
          if (signal == NULL)
             return 1;
 
-         cb->w = model_set_event_cb(vhpi_context()->model, signal,
-                                    vhpi_signal_event_cb, cb, false);
+         vhpiHandleT handle = handle_for(&(cb->object));
+         cb->watch = model_set_event_cb(vhpi_context()->model, signal,
+                                        vhpi_signal_event_cb, handle, false);
          return 0;
       }
 
@@ -1641,7 +1758,7 @@ err:
    return NULL;
 }
 
-static bool disable_cb(c_callback *cb)
+static bool disable_cb(c_callback *cb, vhpiHandleT handle)
 {
    switch (cb->Reason) {
    case vhpiCbRepEndOfProcesses:
@@ -1656,19 +1773,19 @@ static bool disable_cb(c_callback *cb)
    case vhpiCbRepEndOfTimeStep:
       return model_clear_global_cb(vhpi_context()->model,
                                    vhpi_get_rt_event(cb->Reason),
-                                   vhpi_global_cb, cb);
-      return true;
+                                   vhpi_global_cb, handle);
 
    case vhpiCbAfterDelay:
       return model_clear_timeout_cb(vhpi_context()->model, cb->when,
-                                    vhpi_timeout_cb, cb);
+                                    vhpi_global_cb, handle);
 
    case vhpiCbValueChange:
-      return model_clear_event_cb(vhpi_context()->model, cb->w);
+      return model_clear_event_cb(vhpi_context()->model, cb->watch);
 
    default:
-      assert(false);
-      return true;
+      vhpi_error(vhpiInternal, NULL,
+                 "unsupported reason %d in vhpi_remove_cb", cb->Reason);
+      return 1;
    }
 }
 
@@ -1687,14 +1804,12 @@ int vhpi_remove_cb(vhpiHandleT handle)
    if (cb == NULL)
       return 1;
 
-   VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
+   if (cb->State == vhpiEnable)
+      disable_cb(cb, handle);
 
-   if (cb->State != vhpiEnable || (disable_cb(cb) && cb->status == CB_INACTIVE))
-      free(cb);
-   else {
-      cb->State = vhpiDisable;
-      cb->status = CB_FREE_LATER;
-   }
+   cb->State = vhpiMature;
+
+   drop_handle(handle);
    return 0;
 }
 
@@ -1713,15 +1828,13 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
    if (cb == NULL)
       return 1;
 
-   VHPI_TRACE("cb.reason=%s", vhpi_cb_reason_str(cb->Reason));
-
    if (cb->State != vhpiEnable) {
       vhpi_error(vhpiWarning, &(obj->loc),
                  "callback must be enabled in order to disable it");
       return 1;
    }
 
-   disable_cb(cb);
+   disable_cb(cb, cb_obj);
    cb->State = vhpiDisable;
    return 0;
 }
@@ -1784,8 +1897,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    case vhpiBaseType:
       {
          c_typeDecl *td = is_typeDecl(obj);
-         if (td != NULL)
-            return handle_for(&(td->BaseType->decl.object));
+         if (td != NULL) {
+            td = td->BaseType ?: td;
+            return handle_for(&(td->decl.object));
+         }
 
          c_expr *e = is_expr(obj);
          if (e != NULL) {
@@ -1832,8 +1947,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
          return handle_for(&(iu->DesignUnit->object));
       }
+
    case vhpiPrimaryUnit:
       return handle_for(&(cast_secondaryUnit(obj)->PrimaryUnit->object));
+
    case vhpiPrefix:
       {
          c_prefixedName *pn = cast_prefixedName(obj);
@@ -3715,12 +3832,40 @@ vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
    return c;
 }
 
+static void vhpi_check_leaks(vhpi_context_t *c)
+{
+   int nactive = 0;
+   for (int i = 0; i < c->num_handles; i++) {
+      if (c->handles[i].obj != NULL)
+         nactive++;
+   }
+
+   if (nactive > 0) {
+      diag_t *d = diag_new(DIAG_WARN, NULL);
+      diag_printf(d, "VHPI program exited with %d active handles",
+                  nactive);
+
+      for (int i = 0; i < c->num_handles; i++) {
+         handle_slot_t *slot = &(c->handles[i]);
+         if (slot->obj != NULL)
+            diag_printf(d, "\n%s with %d references",
+                        handle_pp(slot->obj->handle), slot->refcount);
+      }
+
+      diag_emit(d);
+   }
+}
+
 void vhpi_context_free(vhpi_context_t *c)
 {
+   if (opt_get_int(OPT_VHPI_DEBUG))
+      vhpi_check_leaks(c);
+
    assert(c == global_context);
    global_context = NULL;
 
    shash_free(c->strtab);
    hash_free(c->objcache);
+   free(c->handles);
    free(c);
 }
