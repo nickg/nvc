@@ -267,5 +267,4 @@ typedef struct _rt_watch {
    void           *user_data;
 } rt_watch_t;
 
-
 #endif  // _RT_STRUCTS_H

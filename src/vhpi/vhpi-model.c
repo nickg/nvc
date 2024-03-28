@@ -414,8 +414,8 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
-#define HANDLE_BITS     (sizeof(vhpiHandleT) * 8)
-#define HANDLE_MAX_SLOT ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
+#define HANDLE_BITS      (sizeof(vhpiHandleT) * 8)
+#define HANDLE_MAX_INDEX ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
 
 typedef struct {
    c_vhpiObject *obj;
@@ -463,7 +463,7 @@ static inline vhpi_context_t *vhpi_context(void)
 static handle_slot_t *decode_handle(vhpi_context_t *c, vhpiHandleT handle)
 {
    const uintptr_t bits = (uintptr_t)handle;
-   const uint32_t index = bits & HANDLE_MAX_SLOT;
+   const uint32_t index = bits & HANDLE_MAX_INDEX;
    const uint32_t generation = bits >> HANDLE_BITS/2;
 
    if (handle == NULL || index >= c->num_handles)
@@ -500,12 +500,13 @@ static vhpiHandleT handle_for(c_vhpiObject *obj)
    uint32_t index = c->free_hint;
    if (index >= c->num_handles || c->handles[index].obj != NULL) {
       for (index = 0; index < c->num_handles; index++) {
-         if (c->handles[index].obj == NULL)
+         if (c->handles[index].obj == NULL
+             && c->handles[index].generation < HANDLE_MAX_INDEX)
             break;
       }
    }
 
-   if (unlikely(index > HANDLE_MAX_SLOT)) {
+   if (unlikely(index > HANDLE_MAX_INDEX)) {
       vhpi_error(vhpiFailure, NULL, "too many active handles");
       return NULL;
    }
