@@ -551,6 +551,12 @@ void vhpi1_startup(void)
    check_error();
    fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
 
+   vhpiCbDataT cb_data_rtn;
+   vhpi_get_cb_info(handle_sos, &cb_data_rtn);
+   fail_unless(cb_data_rtn.reason == vhpiCbStartOfSimulation);
+   fail_unless(cb_data_rtn.cb_rtn == start_of_sim);
+   fail_unless(cb_data_rtn.user_data == cb_data1.user_data);
+
    vhpiCbDataT cb_data2 = {
       .reason    = vhpiCbEndOfSimulation,
       .cb_rtn    = end_of_sim
@@ -579,5 +585,4 @@ void vhpi1_startup(void)
    fail_unless(vhpi_get(vhpiArgcP, tool) == i);
 
    vhpi_release_handle(tool);
-
 }

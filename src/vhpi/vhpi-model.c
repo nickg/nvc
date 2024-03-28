@@ -1854,7 +1854,20 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
 DLLEXPORT
 int vhpi_get_cb_info(vhpiHandleT object, vhpiCbDataT *cb_data_p)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   VHPI_TRACE("object=%s", handle_pp(object));
+
+   c_vhpiObject *obj = from_handle(object);
+   if (obj == NULL)
+      return 1;
+
+   c_callback *cb = cast_callback(obj);
+   if (cb == NULL)
+      return 1;
+
+   *cb_data_p = cb->data;
+   return 0;
 }
 
 DLLEXPORT
