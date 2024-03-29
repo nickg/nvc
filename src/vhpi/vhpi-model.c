@@ -3863,9 +3863,6 @@ static void vhpi_build_design_model(vhpi_context_t *c)
    tree_t s = tree_ref(h);
    assert(tree_kind(s) == T_ARCH);
 
-   tree_t p = tree_primary(s);
-   assert(tree_kind(p) == T_ENTITY);
-
    c_designUnit *du = cached_designUnit(s);
 
    c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
