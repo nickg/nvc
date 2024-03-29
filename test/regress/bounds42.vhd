@@ -7,13 +7,13 @@ architecture test of bounds42 is
 begin
 
     p1: process is
+        procedure test (x : bit_vector) is
+        begin
+            report to_string( bit_vector'(x'range => (3 downto 0 => '0', 7 downto 4 => '1')));
+        end procedure;
     begin
-        -- OK
-        report to_string( bit_vector'(c2'range => (3 downto 0 => '0', 7 downto 4 => '1')));
-
-        -- Error
-        report to_string( bit_vector'(c1'range => (3 downto 0 => '0', 7 downto 4 => '1')));
-
+        test(c2);                       -- OK
+        test(c1);                       -- Error
         wait;
     end process;
 

@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include <float.h>
 
 START_TEST(test_entity)
@@ -6196,6 +6197,59 @@ START_TEST(test_issue870)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_aggregate)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/aggregate.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   static const struct {
+      const char   *name;
+      int64_t       left;
+      range_kind_t  dir;
+      int64_t       right;
+   } cases[] = {
+      { "C1", 1, RANGE_TO, 2 },
+      { "C2", 1, RANGE_TO, 2 },
+      { "C3", 0, RANGE_TO, 1 },
+      { "C4", 100, RANGE_DOWNTO, 98 },
+      { "C5", 2, RANGE_DOWNTO, 1 },
+      { "C6", 0, RANGE_TO, 3 },
+      { "C7", 0, RANGE_TO, 2 },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(cases); i++) {
+      tree_t d = search_decls(p, ident_new(cases[i].name), 0);
+      fail_if(d == NULL);
+
+      type_t type = tree_type(tree_value(d));
+      fail_unless(type_is_array(type));
+
+      tree_t r = range_of(type, 0);
+      const range_kind_t kind = tree_subkind(r);
+      const int64_t left = assume_int(tree_left(r));
+      const int64_t right = assume_int(tree_right(r));
+
+      if (kind != cases[i].dir || left != cases[i].left
+          || right != cases[i].right) {
+         fmt_loc(stdout, tree_loc(d));
+         ck_abort_msg("range mismatch: %d %"PRIi64" %"PRIi64,
+                      kind, left, right);
+      }
+   }
+
+   fail_unless(parse() == NULL);
+
    fail_if_errors();
 }
 END_TEST
@@ -6338,6 +6392,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue845);
    tcase_add_test(tc_core, test_issue848);
    tcase_add_test(tc_core, test_issue870);
+   tcase_add_test(tc_core, test_aggregate);
    suite_add_tcase(s, tc_core);
 
    return s;

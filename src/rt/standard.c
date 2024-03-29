@@ -38,8 +38,6 @@ static void bit_vec_to_string(jit_scalar_t *args, tlab_t *tlab, int log_base)
    const int left_pad = (log_base - (vec_len % log_base)) % log_base;
    char *buf = tlab_alloc(tlab, result_len);
 
-   printf("result_len=%zu\n", result_len);
-
    for (int i = 0; i < result_len; i++) {
       unsigned nibble = 0;
       for (int j = 0; j < log_base; j++) {

@@ -603,17 +603,23 @@ static void bounds_check_aggregate(tree_t t)
             if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
                tree_t left = tree_left(r), right = tree_right(r);
 
-               if (!bounds_check_index(left, index_type, rkind,
-                                       "aggregate choice", low, high))
-                  known_elem_count = false;
-               if (!bounds_check_index(right, index_type, rkind,
-                                       "aggregate choice", low, high))
-                  known_elem_count = false;
-
                int64_t ileft, iright;
                if (folded_int(left, &ileft) && folded_int(right, &iright)) {
                   ilow = (rkind == RANGE_TO ? ileft : iright);
                   ihigh = (rkind == RANGE_TO ? iright : ileft);
+
+                  // Cannot check either index unless both are known
+                  // since the range may be null
+                  if (ilow <= ihigh) {
+                     if (!bounds_check_index(left, index_type, rkind,
+                                             "aggregate choice", low, high))
+                        known_elem_count = false;
+                     if (!bounds_check_index(right, index_type, rkind,
+                                             "aggregate choice", low, high))
+                        known_elem_count = false;
+                  }
+                  else
+                     known_elem_count = false;
                }
                else
                   known_elem_count = false;

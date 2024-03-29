@@ -6,7 +6,8 @@ architecture test of bounds26 is
     type char_map is array (character range <>) of integer;
 
     function func (right : character) return integer is
-        variable r : char_map('a' to 'c') := ('a' to right => 1);
+        subtype a_to_c_map is char_map('a' to 'c');
+        variable r : a_to_c_map := ('a' to right => 1);
     begin
         return r('a') + r('b') + r('c');
     end function;

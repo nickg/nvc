@@ -35,6 +35,7 @@ bool folded_bounds_real(tree_t r, double *low, double *high);
 tree_t get_int_lit(tree_t t, type_t type, int64_t i);
 tree_t get_enum_lit(tree_t t, type_t type, int pos);
 tree_t get_real_lit(tree_t t, type_t type, double r);
+tree_t get_discrete_lit(tree_t t, type_t type, int64_t i);
 tree_t make_ref(tree_t to);
 int record_field_to_net(type_t type, unsigned pos);
 tree_t find_record_field(tree_t rref);
@@ -90,6 +91,8 @@ bool all_character_literals(type_t type);
 bool is_operator_symbol(ident_t ident);
 bool same_tree(tree_t a, tree_t b);
 void instance_name_to_path(text_buf_t *tb, const char *str);
+bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
+                                int64_t *left, int64_t *right);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur);
 

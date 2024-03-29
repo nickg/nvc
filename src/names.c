@@ -4274,7 +4274,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    }
 }
 
-static void solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
+static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
 {
    const int nfields = type_fields(type);
    const int nassocs = tree_assocs(agg);
@@ -4345,9 +4345,10 @@ static void solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
    }
 
    mask_free(&fmask);
+   return type;
 }
 
-static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
+static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
 {
    // All elements must be of the composite base type if this is a
    // one-dimensional array otherwise construct an array type with
@@ -4369,7 +4370,7 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
 
    type_t index_type = index_type_of(type, 0);
 
-   bool all_simple_pos = true;
+   bool have_named = false, have_others = false;
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(agg, i);
@@ -4378,8 +4379,10 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       switch (kind) {
       case A_POS:
       case A_CONCAT:
-      case A_OTHERS:
       case A_SLICE:
+         break;
+      case A_OTHERS:
+         have_others = true;
          break;
       case A_NAMED:
          {
@@ -4407,10 +4410,13 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
                   tree_add_range(a, r);
                }
             }
+
+            have_named = true;
          }
          break;
       case A_RANGE:
          solve_types(tab, tree_range(a, 0), index_type);
+         have_named = true;
          break;
       }
 
@@ -4428,68 +4434,58 @@ static void solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
          case A_POS: tree_set_subkind(a, A_CONCAT); break;
          default: break;
          }
-         all_simple_pos = false;
       }
-      else if (kind != A_POS)
-         all_simple_pos = false;
    }
 
    type_set_pop(tab);
 
-   if (type_is_unconstrained(type) && ndims == 1) {
-      // Create a new constrained array subtype for simple cases
-      // where the bounds are known
+   bool bounds_from_context = true;
+   if (type_is_unconstrained(type) && ndims == 1)
+      bounds_from_context = false;
+   else if (have_named && !have_others && is_anonymous_subtype(type))
+      bounds_from_context = false;
 
-      range_kind_t dir = RANGE_ERROR;
-      tree_t left = NULL, right = NULL;
-      if (all_simple_pos) {
-         tree_t index_r = range_of(index_type, 0);
-         left = tree_left(index_r);
-         dir = tree_subkind(index_r);
+   if (bounds_from_context)
+      return type;
 
-         int64_t ileft;
-         if (folded_int(left, &ileft)) {
-            if (type_is_enum(tree_type(left))) {
-               type_t base = type_base_recur(index_type);
-               const int maxlit = type_enum_literals(base);
-               if (ileft + nassocs - 1 < maxlit)
-                  right = get_enum_lit(agg, index_type, ileft + nassocs - 1);
-            }
-            else
-               right = get_int_lit(agg, index_type, ileft + nassocs - 1);
-         }
-      }
-      else if (nassocs == 1) {
-         tree_t a0 = tree_assoc(agg, 0);
-         if (tree_subkind(a0) == A_RANGE) {
-            tree_t r = tree_range(a0, 0);
-            dir = tree_subkind(r);
-            if (dir == RANGE_TO || dir == RANGE_DOWNTO) {
-               left = tree_left(r);
-               right = tree_right(r);
-            }
-         }
-      }
+   type_t base = type_base_recur(type);
 
-      if (left != NULL && right != NULL && dir != RANGE_ERROR) {
-         type_t sub = type_new(T_SUBTYPE);
-         type_set_base(sub, type);
+   range_kind_t dir;
+   int64_t ileft, iright;
+   if (calculate_aggregate_bounds(agg, &dir, &ileft, &iright)) {
+      tree_t left = get_discrete_lit(agg, index_type, ileft);
+      tree_t right = get_discrete_lit(agg, index_type, iright);
+      assert(left != NULL && right != NULL);
 
-         tree_t cons = tree_new(T_CONSTRAINT);
-         tree_set_subkind(cons, C_INDEX);
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, base);
+      type_set_elem(sub, type_elem(type));
 
-         tree_t r = tree_new(T_RANGE);
-         tree_set_subkind(r, dir);
-         tree_set_left(r, left);
-         tree_set_type(r, index_type);
+      tree_t cons = tree_new(T_CONSTRAINT);
+      tree_set_subkind(cons, C_INDEX);
 
-         tree_set_right(r, right);
-         tree_add_range(cons, r);
-         type_add_constraint(sub, cons);
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, dir);
+      tree_set_type(r, index_type);
+      tree_set_left(r, left);
+      tree_set_right(r, right);
 
-         tree_set_type(agg, (type = sub));
-      }
+      tree_add_range(cons, r);
+
+      for (int i = 1; i < ndims; i++)
+         tree_add_range(cons, range_of(type, i));
+
+      type_add_constraint(sub, cons);
+
+      tree_set_type(agg, sub);
+      return sub;
    }
+   else if (ndims == 1) {
+      tree_set_type(agg, base);
+      return base;
+   }
+
+   return type;
 }
 
 static type_t try_solve_aggregate(nametab_t *tab, tree_t agg)
@@ -4513,11 +4509,9 @@ static type_t try_solve_aggregate(nametab_t *tab, tree_t agg)
    tree_set_type(agg, type);
 
    if (type_is_record(type))
-      solve_record_aggregate(tab, agg, type);
+      return solve_record_aggregate(tab, agg, type);
    else
-      solve_array_aggregate(tab, agg, type);
-
-   return type;
+      return solve_array_aggregate(tab, agg, type);
 }
 
 static type_t solve_aggregate(nametab_t *tab, tree_t agg)

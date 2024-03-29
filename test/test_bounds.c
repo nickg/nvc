@@ -46,8 +46,8 @@ START_TEST(test_bounds)
       {  60, "length of value 10 does not match length of target 3" },
       {  66, "array S index 11 outside of POSITIVE range 1 to 10" },
       {  67, "array S index -1 outside of POSITIVE range 1 to 10" },
-      {  74, "aggregate choice index 5 outside of POSITIVE range 1 to 3" },
-      {  74, "aggregate choice index 0 outside of POSITIVE range 1 to 3" },
+      {  74, "aggregate choice index 0 outside of POSITIVE range 1 to "
+         "2147483647" },
       {  83, "value '1' outside of ALPHA range 'a' to 'z' for variable A" },
       {  84, "0 outside of POSITIVE range 1 to 2147483647 for variable P" },
       {  89, "invalid dimension 5 for type MY_VEC1" },
@@ -203,10 +203,6 @@ END_TEST
 START_TEST(test_issue54)
 {
    const error_t expect[] = {
-      { 10, "index 7 outside of NATURAL range 3 downto 0" },
-      { 10, "index 4 outside of NATURAL range 3 downto 0" },
-      { 11, "index 3 outside of NATURAL range 7 downto 4" },
-      { 11, "index 0 outside of NATURAL range 7 downto 4" },
       { 12, "index 3 outside of NATURAL range 7 downto 4" },
       { 12, "index 0 outside of NATURAL range 7 downto 4" },
       { -1, NULL }
@@ -430,8 +426,7 @@ START_TEST(test_aggregate)
         "aggregate with index type NATURAL range 1 to 3" },
       { 22, "missing choice for element 5 of INTEGER_VECTOR with index "
         "type NATURAL range 1 to 5" },
-      { 24, "missing choice for element 3 of INTEGER_VECTOR with index "
-        "type NATURAL range 1 to 3" },
+      { 24, "length of value 2 does not match length of target 3" },
       { 25, "discrete range has 4 elements but length of expression is 3" },
       { 29, "discrete range has 4 elements but length of expression is 3" },
       { -1, NULL }

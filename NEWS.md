@@ -23,6 +23,8 @@
 - Resolved several other minor issues (#654, #854, #855, #859, #863).
 - The default standard version was changed to VHDL-2008.
 - The `--vhpi-trace` option now implies `--vhpi-debug`.
+- The bounds of array aggregates are now calculated correctly in several
+  corner cases (#873).
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due

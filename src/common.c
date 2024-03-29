@@ -225,6 +225,20 @@ tree_t get_int_lit(tree_t t, type_t type, int64_t i)
    return f;
 }
 
+tree_t get_discrete_lit(tree_t t, type_t type, int64_t i)
+{
+   if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      const int maxlit = type_enum_literals(base);
+      if (i >= maxlit)
+         return NULL;
+      else
+         return get_enum_lit(t, type, i);
+   }
+   else
+      return get_int_lit(t, type, i);
+}
+
 tree_t get_real_lit(tree_t t, type_t type, double r)
 {
    tree_t f = tree_new(T_LITERAL);
@@ -2543,4 +2557,145 @@ void instance_name_to_path(text_buf_t *tb, const char *str)
       else if (!delete)
          tb_append(tb, *p);
    }
+}
+
+bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
+                                int64_t *left, int64_t *right)
+{
+   // Calculate the direction and bounds of an array aggregate using the
+   // rules in LRM 93 7.3.2.2
+
+   type_t type = tree_type(expr);
+   type_t index_type = index_type_of(type, 0);
+   tree_t index_r = range_of(index_type, 0), base_r = index_r;
+
+   int64_t low, high;
+   if (!folded_bounds(index_r, &low, &high))
+      return false;
+
+   int64_t clow = INT64_MAX, chigh = INT64_MIN;  // Actual bounds computed below
+
+   range_kind_t dir;
+   if (type_is_unconstrained(type))
+      dir = tree_subkind(index_r);
+   else {
+      base_r = range_of(type, 0);
+      dir = tree_subkind(base_r);
+   }
+
+   const int nassocs = tree_assocs(expr);
+
+   if (standard() >= STD_08) {
+      // VHDL-2008 range association determines index direction for
+      // unconstrained aggregate when the expression type matches the
+      // array type
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(expr, i);
+         if (tree_subkind(a) == A_SLICE)
+            dir = tree_subkind(tree_range(a, 0));
+      }
+   }
+
+   if (dir != RANGE_TO && dir != RANGE_DOWNTO)
+      return false;
+
+   int64_t pos = 0;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+      int64_t ilow = 0, ihigh = 0;
+      const assoc_kind_t akind = tree_subkind(a);
+
+      switch (akind) {
+      case A_NAMED:
+         {
+            tree_t name = tree_name(a);
+            if (folded_int(name, &ilow))
+               ihigh = ilow;
+            else
+               return false;
+         }
+         break;
+
+      case A_RANGE:
+      case A_SLICE:
+         {
+            tree_t r = tree_range(a, 0);
+            const range_kind_t rkind = tree_subkind(r);
+            if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
+               tree_t left = tree_left(r), right = tree_right(r);
+
+               int64_t ileft, iright;
+               if (folded_int(left, &ileft) && folded_int(right, &iright)) {
+                  ilow = (rkind == RANGE_TO ? ileft : iright);
+                  ihigh = (rkind == RANGE_TO ? iright : ileft);
+               }
+               else
+                  return false;
+            }
+            else
+               return false;
+         }
+         break;
+
+      case A_OTHERS:
+         return false;
+
+      case A_POS:
+         if (i == 0) {
+            int64_t ileft;
+            if (folded_int(tree_left(base_r), &ileft))
+               ilow = ihigh = ileft;
+            else
+               return false;
+         }
+         else if (dir == RANGE_TO)
+            ilow = ihigh = clow + pos;
+         else
+            ilow = ihigh = chigh - pos;
+         pos++;
+         break;
+
+      case A_CONCAT:
+         {
+            type_t value_type = tree_type(tree_value(a));
+
+            int64_t length;
+            if (type_is_unconstrained(value_type))
+               return false;
+            else if (folded_length(range_of(value_type, 0), &length)) {
+               if (i == 0) {
+                  int64_t ileft;
+                  if (folded_int(tree_left(base_r), &ileft))
+                     ilow = ihigh = ileft;
+                  else
+                     return false;
+               }
+               else if (dir == RANGE_TO) {
+                  ilow = clow + pos;
+                  ihigh = ilow + length - 1;
+               }
+               else {
+                  ihigh = chigh - pos;
+                  ilow = ihigh - length + 1;
+               }
+               pos += length;
+            }
+            else
+               return false;
+         }
+         break;
+      }
+
+      clow = MIN(clow, ilow);
+      chigh = MAX(chigh, ihigh);
+   }
+
+   if (clow < low || chigh > high)
+      return false;   // Will raise a bounds check error later
+
+   *kind = dir;
+   *left = dir == RANGE_TO ? clow : chigh;
+   *right = dir == RANGE_TO ? chigh : clow;
+
+   return true;
 }

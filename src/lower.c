@@ -3611,116 +3611,14 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
    assert(type_is_unconstrained(type));
 
    type_t index_type = index_type_of(type, 0);
-   tree_t base_r = range_of(index_type, 0);
-
-   int64_t low, high;
-   if (!folded_bounds(base_r, &low, &high))
-      fatal_trace("index type %s has unknown bounds", type_pp(index_type));
-
-   int64_t clow = high, chigh = low;  // Actual bounds computed below
-   range_kind_t dir = tree_subkind(base_r);
-
-   const int nassocs = tree_assocs(expr);
-
-   int64_t pos = 0;
-   bool known_elem_count = true;
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(expr, i);
-      int64_t ilow = 0, ihigh = 0;
-      const assoc_kind_t akind = tree_subkind(a);
-
-      switch (akind) {
-      case A_NAMED:
-         {
-            tree_t name = tree_name(a);
-            if (folded_int(name, &ilow))
-               ihigh = ilow;
-            else
-               known_elem_count = false;
-         }
-         break;
-
-      case A_RANGE:
-      case A_SLICE:
-         {
-            tree_t r = tree_range(a, 0);
-            const range_kind_t rkind = tree_subkind(r);
-            if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
-               tree_t left = tree_left(r), right = tree_right(r);
-
-               int64_t ileft, iright;
-               if (folded_int(left, &ileft) && folded_int(right, &iright)) {
-                  ilow = (rkind == RANGE_TO ? ileft : iright);
-                  ihigh = (rkind == RANGE_TO ? iright : ileft);
-               }
-               else
-                  known_elem_count = false;
-
-               if (akind == A_SLICE) {
-                  // VHDL-2008 range association determines index
-                  // direction for unconstrained aggregate when the
-                  // expression type matches the array type
-                  dir = rkind;
-               }
-            }
-            else
-               known_elem_count = false;
-         }
-         break;
-
-      case A_OTHERS:
-         known_elem_count = false;
-         break;
-
-      case A_POS:
-         if (dir == RANGE_TO) {
-            ilow = low + pos++;
-            ihigh = ilow;
-         }
-         else {
-            ihigh = high - pos++;
-            ilow = ihigh;
-         }
-         break;
-
-      case A_CONCAT:
-         {
-            type_t value_type = tree_type(tree_value(a));
-
-            int64_t length;
-            if (type_is_unconstrained(value_type))
-               known_elem_count = false;
-            else if (folded_length(range_of(value_type, 0), &length)) {
-               if (dir == RANGE_TO) {
-                  ilow = low + pos;
-                  ihigh = ilow + length - 1;
-               }
-               else {
-                  ihigh = high - pos;
-                  ilow = ihigh - length + 1;
-               }
-
-               pos += length;
-            }
-            else
-               known_elem_count = false;
-
-         }
-         break;
-      }
-
-      clow = MIN(clow, ilow);
-      chigh = MAX(chigh, ihigh);
-   }
-
-   const int64_t ileft = dir == RANGE_TO ? clow : chigh;
-   const int64_t iright = dir == RANGE_TO ? chigh : clow;
 
    vcode_reg_t left_reg = VCODE_INVALID_REG,
       right_reg = VCODE_INVALID_REG,
       dir_reg = VCODE_INVALID_REG;
 
-   if (known_elem_count) {
+   range_kind_t dir;
+   int64_t ileft, iright;
+   if (calculate_aggregate_bounds(expr, &dir, &ileft, &iright)) {
       vcode_type_t vindex = lower_type(index_type);
       left_reg = emit_const(vindex, ileft);
       right_reg = emit_const(vindex, iright);
@@ -3729,6 +3627,8 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
    else {
       vcode_type_t voffset = vtype_offset();
       vcode_reg_t length_reg = VCODE_INVALID_REG;
+
+      const int nassocs = tree_assocs(expr);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(expr, i);
          const assoc_kind_t akind = tree_subkind(a);
@@ -3737,7 +3637,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          case A_NAMED:
             assert(nassocs == 1);    // Must have a single association
             left_reg = right_reg = lower_rvalue(lu, tree_name(a));
-            dir_reg = emit_const(vtype_bool(), dir);
+            dir_reg = lower_range_dir(lu, range_of(index_type, 0));
             break;
          case A_RANGE:
          case A_SLICE:
@@ -3776,8 +3676,9 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          vcode_reg_t delta_reg = emit_sub(length_reg, emit_const(voffset, 1));
          vcode_reg_t cast_reg = emit_cast(vindex, vindex, delta_reg);
 
-         left_reg = emit_const(vindex, ileft);
-         dir_reg = emit_const(vtype_bool(), dir);
+         tree_t base_r = range_of(index_type, 0);
+         left_reg = lower_range_left(lu, base_r);
+         dir_reg = lower_range_dir(lu, base_r);
          right_reg = emit_add(left_reg, cast_reg);
       }
    }
@@ -3972,6 +3873,17 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    vcode_reg_t dim0_len = lower_array_len(lu, type, 0, bounds_reg);
    vcode_reg_t len_reg = emit_mul(dim0_len, stride);
 
+   if (is_unconstrained)
+      hint = VCODE_INVALID_REG;
+   else if (hint != VCODE_INVALID_REG && def_value == NULL) {
+      // It is not safe to use the hint location if the aggregate has
+      // non-static bounds and those bounds were not derived from the
+      // context in the case of an OTHERS association
+      int64_t rlow, rhigh;
+      if (!folded_bounds(range_of(type, 0), &rlow, &rhigh))
+         hint = VCODE_INVALID_REG;
+   }
+
    vcode_reg_t mem_reg;
    if (hint != VCODE_INVALID_REG)
       mem_reg = lower_array_data(hint);
@@ -4085,7 +3997,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    vcode_type_t vindex = lower_type(index_type);
 
-   vcode_reg_t low_reg =  emit_select(dir_reg, right_reg, left_reg);
+   vcode_reg_t low_reg = emit_select(dir_reg, right_reg, left_reg);
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
