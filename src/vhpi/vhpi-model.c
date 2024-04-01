@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2022  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -154,6 +154,7 @@ typedef struct tag_typeDecl {
    vhpiBooleanT    IsUnconstrained;
    bool            homogeneous;
    bool            wrapped;
+   uint8_t         size;
 } c_typeDecl;
 
 typedef struct {
@@ -243,8 +244,29 @@ typedef struct {
 DEF_CLASS(sigDecl, vhpiSigDeclK, objDecl.decl.object);
 
 typedef struct {
-   c_objDecl objDecl;
-   vhpiIntT  Position;
+   c_vhpiObject    object;
+   tree_t          tree;
+   vhpiObjectListT Params;
+} c_subpDecl;
+
+typedef struct {
+   c_subpDecl    subpDecl;
+   c_typeDecl   *ReturnType;
+   vhpiBooleanT  IsPure;
+} c_funcDecl;
+
+DEF_CLASS(funcDecl, vhpiFuncDeclK, subpDecl.object);
+
+typedef struct {
+   c_subpDecl subpDecl;
+} c_procDecl;
+
+DEF_CLASS(procDecl, vhpiProcDeclK, subpDecl.object);
+
+typedef struct {
+   c_objDecl   objDecl;
+   vhpiIntT    Position;
+   unsigned    argslot;
 } c_interfaceDecl;
 
 typedef struct {
@@ -265,6 +287,20 @@ typedef struct {
 } c_genericDecl;
 
 DEF_CLASS(genericDecl, vhpiGenericDeclK, interface.objDecl.decl.object);
+
+typedef struct {
+   c_interfaceDecl interface;
+   vhpiModeT       Mode;
+} c_constParamDecl;
+
+DEF_CLASS(constParamDecl, vhpiConstParamDeclK, interface.objDecl.decl.object);
+
+typedef struct {
+   c_interfaceDecl interface;
+   vhpiModeT       Mode;
+} c_varParamDecl;
+
+DEF_CLASS(varParamDecl, vhpiVarParamDeclK, interface.objDecl.decl.object);
 
 typedef struct {
    c_objDecl    objDecl;
@@ -423,6 +459,15 @@ typedef struct {
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
 
+typedef struct {
+   c_vhpiObject      object;
+   vhpiForeignDataT  data;
+   c_subpDecl       *decl;
+   vhpiHandleT       handle;
+} c_foreignf;
+
+DEF_CLASS(foreignf, vhpiForeignfK, object);
+
 #define HANDLE_BITS      (sizeof(vhpiHandleT) * 8)
 #define HANDLE_MAX_INDEX ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
 
@@ -433,16 +478,19 @@ typedef struct {
 } handle_slot_t;
 
 typedef struct _vhpi_context {
-   c_tool        *tool;
-   c_rootInst    *root;
-   shash_t       *strtab;
-   rt_model_t    *model;
-   hash_t        *objcache;
-   tree_t         top;
-   jit_t         *jit;
-   handle_slot_t *handles;
-   unsigned       num_handles;
-   unsigned       free_hint;
+   c_tool          *tool;
+   c_rootInst      *root;
+   shash_t         *strtab;
+   rt_model_t      *model;
+   hash_t          *objcache;
+   tree_t           top;
+   jit_t           *jit;
+   handle_slot_t   *handles;
+   unsigned         num_handles;
+   unsigned         free_hint;
+   vhpiObjectListT  foreignfs;
+   jit_scalar_t    *args;
+   tlab_t          *tlab;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
@@ -640,6 +688,9 @@ static c_objDecl *is_objDecl(c_vhpiObject *obj)
    case vhpiPortDeclK:
    case vhpiGenericDeclK:
    case vhpiConstDeclK:
+   case vhpiConstParamDeclK:
+   case vhpiVarParamDeclK:
+   case vhpiSigParamDeclK:
       return container_of(obj, c_objDecl, decl.object);
    default:
       return NULL;
@@ -655,6 +706,20 @@ static c_objDecl *cast_objDecl(c_vhpiObject *obj)
    return od;
 }
 
+static c_interfaceDecl *is_interfaceDecl(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiPortDeclK:
+   case vhpiGenericDeclK:
+   case vhpiConstParamDeclK:
+   case vhpiSigParamDeclK:
+   case vhpiVarParamDeclK:
+      return container_of(obj, c_interfaceDecl, objDecl.decl.object);
+   default:
+      return NULL;
+   }
+}
+
 static c_range *is_range(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -666,6 +731,16 @@ static c_range *is_range(c_vhpiObject *obj)
    }
 }
 
+static c_subpDecl *is_subpDecl(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiFuncDeclK:
+   case vhpiProcDeclK:
+      return container_of(obj, c_subpDecl, object);
+   default:
+      return NULL;
+   }
+}
 static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -935,6 +1010,12 @@ static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
    d->Position = Position;
 }
 
+static void init_subpDecl(c_subpDecl *d, tree_t t)
+{
+   d->object.loc = *tree_loc(t);
+   d->tree = t ;
+}
+
 static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type,
                           c_abstractRegion *ImmRegion)
 {
@@ -964,6 +1045,7 @@ static void init_scalarTypeDecl(c_scalarTypeDecl *d, tree_t t, type_t type)
 {
    init_typeDecl(&(d->typeDecl), t, type);
    d->typeDecl.IsScalar = true;
+   d->typeDecl.size = type_bit_width(type) / 8;
 }
 
 static void init_compositeTypeDecl(c_compositeTypeDecl *d, tree_t t, type_t type)
@@ -1255,6 +1337,17 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       case vhpiCompInstStmts:
          it->filter = vhpiCompInstStmtK;
          it->list = &(region->stmts);
+         return true;
+      default:
+         return false;
+      }
+   }
+
+   c_subpDecl *subp = is_subpDecl(obj);
+   if (subp != NULL) {
+      switch (type) {
+      case vhpiParamDecls:
+         it->list = &(subp->Params);
          return true;
       default:
          return false;
@@ -1631,6 +1724,9 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 
    c_objDecl *decl = cast_objDecl(obj);
    assert(decl != NULL);
+
+   if (decl->decl.ImmRegion == NULL)
+      return NULL;
 
    rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
    if (*mptr_get(scope->privdata) == NULL) {
@@ -2487,6 +2583,15 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       }
    }
 
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL) {
+      switch (property) {
+      case vhpiCaseNameP:
+      case vhpiNameP: return (vhpiStringT)istr(od->name);
+      default: goto unsupported;
+      }
+   }
+
 unsupported:
    vhpi_error(vhpiError, &(obj->loc), "object does not have string property %s",
               vhpi_property_str(property));
@@ -2642,7 +2747,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       return -1;
    }
 
-   int size = 1, num_elems = td->numElems;
+   int size = td->size, num_elems = td->numElems;
    const unsigned char *value = NULL;
    switch (vhpi_get_prefix_kind(obj)) {
    case vhpiGenericDeclK:
@@ -2675,9 +2780,32 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       }
       break;
 
+   case vhpiConstParamDeclK:
+   case vhpiVarParamDeclK:
+      {
+         vhpi_context_t *c = vhpi_context();
+         assert(c->args != NULL);
+
+         c_interfaceDecl *id = is_interfaceDecl(obj);
+         assert(id != NULL);
+
+         if (td->wrapped) {
+            value = c->args[id->argslot].pointer;
+            num_elems = ffi_array_length(c->args[id->argslot + 2].integer);
+         }
+         else if (td->IsComposite) {
+            value = c->args[id->argslot].pointer;
+            num_elems = td->numElems;
+         }
+         else
+            value = (void *)&(c->args[id->argslot]);
+      }
+      break;
+
    default:
       vhpi_error(vhpiError, &(obj->loc), "class kind %s cannot be used with "
                  "vhpi_get_value", vhpi_class_str(obj->kind));
+      return -1;
    }
 
    assert(td->IsComposite || num_elems == 1);
@@ -2703,13 +2831,14 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       scalar = value[offset];
       break;
    case vhpiEnumVal:
-#define SIGNAL_READ_ENUM(type) \
-      scalar = ((const type *)value)[offset]
-      FOR_ALL_SIZES(size, SIGNAL_READ_ENUM);
+#define READ_ENUM(type) scalar = ((const type *)value)[offset]
+      FOR_ALL_SIZES(size, READ_ENUM);
       break;
    case vhpiIntVal:
+      scalar = ((const vhpiIntT *)value)[offset];
+      break;
    case vhpiLongIntVal:
-      scalar = ((const int32_t *)value)[offset];
+      scalar = ((const vhpiLongIntT *)value)[offset];
       break;
    default:
       break;
@@ -2789,13 +2918,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
          value_p->numElems = num_elems;
 
-#define SIGNAL_READ_ENUMV(type) do {                            \
+#define READ_ENUMV(type) do {                                   \
             const type *p = ((const type *)value) + offset;     \
             for (int i = 0; i < value_p->numElems; i++)         \
                value_p->value.enumvs[i] = *p++;                 \
          } while (0)
 
-         FOR_ALL_SIZES(size, SIGNAL_READ_ENUMV);
+         FOR_ALL_SIZES(size, READ_ENUMV);
          return 0;
       }
 
@@ -2833,6 +2962,24 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
       }
 
+   case vhpiIntVecVal:
+      {
+         if (value_p->bufSize / sizeof(vhpiIntT) < num_elems)
+            return num_elems * sizeof(vhpiIntT);
+
+         value_p->numElems = num_elems;
+
+#define READ_INTGS(type) do {                                   \
+            const type *p = ((const type *)value) + offset;     \
+            for (int i = 0; i < value_p->numElems; i++)         \
+               value_p->value.intgs[i] = *p++;                  \
+         } while (0)
+
+         FOR_ALL_SIZES(size, READ_INTGS);
+
+         return 0;
+      }
+
    default:
       vhpi_error(vhpiError, &(obj->loc), "unsupported format %d",
                  value_p->format);
@@ -2857,167 +3004,249 @@ int vhpi_put_value(vhpiHandleT handle,
       return 1;
 
    int offset = 0;
-   rt_signal_t *signal;
-   c_prefixedName *pn = is_prefixedName(obj);
-   if (pn != NULL) {
-      signal = vhpi_get_signal_prefixedName(pn);
+   rt_signal_t *signal = NULL;
+   c_typeDecl *td = NULL;
+   c_prefixedName *pn = NULL;
+   c_funcDecl *func = NULL;
+   c_varParamDecl *vpd = NULL;
+   if ((pn = is_prefixedName(obj))) {
+      if ((signal = vhpi_get_signal_prefixedName(pn)) == NULL)
+         return 1;
+
       c_indexedName *in = is_indexedName(obj);
       if (in)
          offset = in->offset;
+
+      td = pn->name.expr.Type;
    }
+   else if ((func = is_funcDecl(obj)))
+      td = func->ReturnType;
+   else if ((vpd = is_varParamDecl(obj)))
+      td = vpd->interface.objDecl.Type;
    else {
       c_objDecl *decl = cast_objDecl(obj);
       if (decl == NULL)
          return 1;
 
-      signal = vhpi_get_signal_objDecl(decl);
-   }
-
-   if (signal == NULL)
-      return 1;
-
-   rt_model_t *model = vhpi_context()->model;
-
-   if (!model_can_create_delta(model)) {
-      vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
-                 "during current simulation phase");
-      return 1;
-   }
-
-   switch (mode) {
-   case vhpiForcePropagate:
-   case vhpiDepositPropagate:
-      {
-         void *ext LOCAL = NULL, *ptr = NULL;
-         uint8_t byte;
-         union {
-            uint8_t  uint8_t_val;
-            uint16_t uint16_t_val;
-            uint32_t uint32_t_val;
-            uint64_t uint64_t_val;
-            vhpiIntT vhpiIntT_val;
-         } scalar;
-         double real;
-         int num_elems = 0;
-
-         switch (value_p->format) {
-         case vhpiLogicVal:
-            num_elems = 1;
-            byte = value_p->value.enumv;
-            ptr = &byte;
-            break;
-
-         case vhpiSmallEnumVal:
-            num_elems = 1;
-            byte = value_p->value.smallenumv;
-            ptr = &byte;
-            break;
-
-         case vhpiEnumVal:
-            num_elems = 1;
-            ptr = &scalar;
-
-#define SIGNAL_WRITE_ENUM(type) do {                     \
-               scalar.type##_val = value_p->value.enumv; \
-            } while (0)
-
-            FOR_ALL_SIZES(signal_size(signal), SIGNAL_WRITE_ENUM);
-            break;
-
-         case vhpiCharVal:
-            num_elems = 1;
-            byte = value_p->value.ch;
-            ptr = &byte;
-            break;
-
-         case vhpiIntVal:
-            num_elems = 1;
-            scalar.vhpiIntT_val = value_p->value.intg;
-            ptr = &scalar;   // Assume little endian
-            break;
-
-         case vhpiRealVal:
-            num_elems = 1;
-            real = value_p->value.real;
-            ptr = &real;
-            break;
-
-         case vhpiLogicVecVal:
-            num_elems = value_p->bufSize / sizeof(vhpiEnumT);
-            ext = ptr = xmalloc(num_elems);
-            for (int i = 0; i < num_elems; i++)
-               ((uint8_t *)ext)[i] = value_p->value.enumvs[i];
-            break;
-
-         case vhpiSmallEnumVecVal:
-            num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
-            ext = ptr = xmalloc(num_elems);
-            for (int i = 0; i < num_elems; i++)
-               ((uint8_t *)ext)[i] = value_p->value.smallenumvs[i];
-            break;
-
-         case vhpiEnumVecVal:
-            {
-               num_elems = value_p->bufSize / sizeof(vhpiEnumT);
-               uint8_t size = signal_size(signal);
-               ext = ptr = xmalloc_array(num_elems, size);
-
-#define SIGNAL_WRITE_ENUMV(type) do { \
-      for (int i = 0; i < num_elems; i++) \
-         ((type *)ext)[i] = value_p->value.enumvs[i]; \
-   } while (0)
-
-               FOR_ALL_SIZES(size, SIGNAL_WRITE_ENUMV);
-               break;
-            }
-
-         case vhpiStrVal:
-            num_elems = value_p->bufSize - 1;
-            ext = ptr = xmalloc(num_elems);
-            for (int i = 0; i < num_elems; i++)
-               ((vhpiCharT *)ext)[i] = value_p->value.str[i];
-            break;
-
-         case vhpiRealVecVal:
-            {
-               num_elems = value_p->bufSize / sizeof(vhpiRealT);
-               ext = ptr = xmalloc_array(num_elems, sizeof(double));
-               for (int i = 0; i < num_elems; i++)
-                  ((double *)ext)[i] = value_p->value.reals[i];
-               break;
-            }
-
-         default:
-            vhpi_error(vhpiFailure, &(obj->loc), "value format "
-                       "%d not supported in vhpi_put_value",
-                       value_p->format);
+      switch (obj->kind) {
+      case vhpiSigDeclK:
+      case vhpiPortDeclK:
+         if ((signal = vhpi_get_signal_objDecl(decl)) == NULL)
             return 1;
-         }
-
-         if (offset + num_elems > signal_width(signal)) {
-            vhpi_error(vhpiError, &(obj->loc),
-                       "too many values (%d) for signal with width %"PRIu32,
-                       num_elems, signal_width(signal));
-            return 1;
-         }
-
-         if (mode == vhpiForcePropagate)
-            force_signal(model, signal, ptr, offset, num_elems);
-         else
-            deposit_signal(model, signal, ptr, offset, num_elems);
-
-         return 0;
+         break;
+      default:
+         break;
       }
 
-   case vhpiRelease:
-      release_signal(model, signal, offset, signal_width(signal));
+      td = decl->Type;
+   }
+
+   if (mode == vhpiSizeConstraint) {
+      if (func == NULL) {
+         vhpi_error(vhpiError, &(obj->loc), "vhpiSizeConstraint is only valid "
+                    "for function result");
+         return 1;
+      }
+      else if (!func->ReturnType->wrapped) {
+         vhpi_error(vhpiError, &(obj->loc), "function return type does not "
+                    "have a size constraint");
+         return 1;
+      }
+
+      vhpi_context_t *c = vhpi_context();
+      c->args[0].pointer = tlab_alloc(c->tlab, value_p->numElems * td->size);
+      c->args[1].integer = 1;
+      c->args[2].integer = value_p->numElems;
+
       return 0;
+   }
+
+   void *ext LOCAL = NULL, *ptr = NULL;
+   uint8_t byte;
+   union {
+      uint8_t  uint8_t_val;
+      uint16_t uint16_t_val;
+      uint32_t uint32_t_val;
+      uint64_t uint64_t_val;
+      int64_t  signed_int;
+   } scalar = { .uint64_t_val = 0 };
+   double real;
+   int num_elems = 0;
+
+   switch (value_p->format) {
+   case vhpiLogicVal:
+      num_elems = 1;
+      byte = value_p->value.enumv;
+      ptr = &byte;
+      break;
+
+   case vhpiSmallEnumVal:
+      num_elems = 1;
+      byte = value_p->value.smallenumv;
+      ptr = &byte;
+      break;
+
+   case vhpiEnumVal:
+      num_elems = 1;
+      ptr = &scalar;
+
+#define STORE_ENUM(type) do {                            \
+         scalar.type##_val = value_p->value.enumv;       \
+      } while (0)
+
+      FOR_ALL_SIZES(td->size, STORE_ENUM);
+      break;
+
+   case vhpiCharVal:
+      num_elems = 1;
+      byte = value_p->value.ch;
+      ptr = &byte;
+      break;
+
+   case vhpiIntVal:
+      num_elems = 1;
+      scalar.signed_int = value_p->value.intg;
+      ptr = &scalar;   // Assume little endian
+      break;
+
+   case vhpiRealVal:
+      num_elems = 1;
+      real = value_p->value.real;
+      ptr = &real;
+      break;
+
+   case vhpiLogicVecVal:
+      num_elems = value_p->bufSize / sizeof(vhpiEnumT);
+      ext = ptr = xmalloc(num_elems);
+      for (int i = 0; i < num_elems; i++)
+         ((uint8_t *)ext)[i] = value_p->value.enumvs[i];
+      break;
+
+   case vhpiSmallEnumVecVal:
+      num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
+      ext = ptr = xmalloc(num_elems);
+      for (int i = 0; i < num_elems; i++)
+         ((uint8_t *)ext)[i] = value_p->value.smallenumvs[i];
+      break;
+
+   case vhpiEnumVecVal:
+      {
+         num_elems = value_p->bufSize / sizeof(vhpiEnumT);
+         ext = ptr = xmalloc_array(num_elems, td->size);
+
+#define STORE_ENUMV(type) do {                                  \
+            for (int i = 0; i < num_elems; i++)                 \
+               ((type *)ext)[i] = value_p->value.enumvs[i];     \
+         } while (0)
+
+         FOR_ALL_SIZES(td->size, STORE_ENUMV);
+         break;
+      }
+
+   case vhpiStrVal:
+      num_elems = value_p->bufSize - 1;
+      ext = ptr = xmalloc(num_elems);
+      for (int i = 0; i < num_elems; i++)
+         ((vhpiCharT *)ext)[i] = value_p->value.str[i];
+      break;
+
+   case vhpiRealVecVal:
+      {
+         num_elems = value_p->bufSize / sizeof(vhpiRealT);
+         ext = ptr = xmalloc_array(num_elems, sizeof(double));
+         for (int i = 0; i < num_elems; i++)
+            ((double *)ext)[i] = value_p->value.reals[i];
+         break;
+      }
+
+   case vhpiIntVecVal:
+      {
+         num_elems = value_p->bufSize / sizeof(vhpiIntT);
+         ext = ptr = xmalloc_array(num_elems, sizeof(vhpiIntT));
+
+#define STORE_INTGS(type) do {                                          \
+            for (int i = 0; i < num_elems; i++)                         \
+               ((type *)ext)[i] = (int64_t)value_p->value.intgs[i];     \
+         } while (0)
+
+         FOR_ALL_SIZES(td->size, STORE_INTGS);
+         break;
+      }
 
    default:
-      vhpi_error(vhpiFailure, &(obj->loc), "mode %s not supported in "
-                 "vhpi_put_value", vhpi_put_value_mode_str(mode));
+      vhpi_error(vhpiFailure, &(obj->loc), "value format %d not supported "
+                 "in vhpi_put_value", value_p->format);
       return 1;
    }
+
+   if (signal != NULL) {
+      rt_model_t *model = vhpi_context()->model;
+      if (!model_can_create_delta(model)) {
+         vhpi_error(vhpiError, &(obj->loc), "cannot create delta cycle "
+                    "during current simulation phase");
+         return 1;
+      }
+      else if (offset + num_elems > signal_width(signal)) {
+         vhpi_error(vhpiError, &(obj->loc),
+                    "too many values (%d) for signal with %d elements",
+                    num_elems, signal_width(signal));
+         return 1;
+      }
+
+      switch (mode) {
+      case vhpiForcePropagate:
+         force_signal(model, signal, ptr, offset, num_elems);
+         return 0;
+      case vhpiDepositPropagate:
+         deposit_signal(model, signal, ptr, offset, num_elems);
+         return 0;
+      case vhpiRelease:
+         release_signal(model, signal, offset, signal_width(signal));
+         return 0;
+      default:
+         break;
+      }
+   }
+   else if (func != NULL || vpd != NULL) {
+      vhpi_context_t *c = vhpi_context();
+      assert(c->args != NULL);
+
+      const int slot = vpd ? vpd->interface.argslot : 0;
+
+      switch (mode) {
+      case vhpiForce:
+      case vhpiForcePropagate:
+      case vhpiDeposit:
+      case vhpiDepositPropagate:
+         if (td->IsScalar) {
+            c->args[slot].integer = scalar.uint64_t_val;
+            return 0;
+         }
+         else {
+            const int64_t length = td->wrapped
+               ? ffi_array_length(c->args[slot + 2].integer)
+               : td->numElems;
+
+            if (offset + num_elems > length) {
+               vhpi_error(vhpiError, &(obj->loc), "too many values (%d) for "
+                          "object with %"PRIi64" elements", num_elems, length);
+               return 1;
+            }
+
+            memcpy(c->args[slot].pointer + offset * td->size, ext,
+                   num_elems * td->size);
+            return 0;
+         }
+      case vhpiRelease:
+         return 0;   // Specified to have no effect
+      default:
+         break;
+      }
+   }
+
+   vhpi_error(vhpiFailure, &(obj->loc), "mode %s not supported in "
+              "vhpi_put_value", vhpi_put_value_mode_str(mode));
+   return 1;
 }
 
 DLLEXPORT
@@ -3113,9 +3342,49 @@ vhpiHandleT vhpi_create(vhpiClassKindT kind,
 }
 
 DLLEXPORT
-int vhpi_get_foreignf_info(vhpiHandleT hdl, vhpiForeignDataT *foreignDatap)
+int vhpi_get_foreignf_info(vhpiHandleT handle, vhpiForeignDataT *foreignDatap)
 {
-   VHPI_MISSING;
+   VHPI_TRACE("handle=%s", handle_pp(handle));
+
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return 1;
+
+   c_foreignf *f = cast_foreignf(obj);
+   if (f == NULL)
+      return 1;
+
+   *foreignDatap = f->data;
+   return 0;
+}
+
+DLLEXPORT
+vhpiHandleT vhpi_register_foreignf(vhpiForeignDataT *foreignDatap)
+{
+   VHPI_TRACE("kind=%d libraryName=%s modelName=%s", foreignDatap->kind,
+              foreignDatap->libraryName, foreignDatap->modelName);
+
+   switch (foreignDatap->kind) {
+   case vhpiFuncF:
+   case vhpiProcF:
+      {
+         c_foreignf *f = new_object(sizeof(c_foreignf), vhpiForeignfK);
+         f->data = *foreignDatap;
+
+         // Make a defensive copy of the passed-in strings
+         f->data.libraryName = (char *)new_string(foreignDatap->libraryName);
+         f->data.libraryName = (char *)new_string(foreignDatap->libraryName);
+
+         vhpi_context_t *c = vhpi_context();
+         APUSH(c->foreignfs, &(f->object));
+
+         return handle_for(&(f->object));
+      }
+
+   default:
+      vhpi_error(vhpiInternal, NULL, "foreign model kind not supported");
+      return NULL;
+   }
 }
 
 DLLEXPORT
@@ -3279,6 +3548,8 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
    }
    else
       td->ElemType = cached_typeDecl(elem, NULL);
+
+   td->composite.typeDecl.size = td->ElemType->size;
 
    if (type_is_unconstrained(type)) {
       for (int i = 0; i < td->NumDimensions; i++)
@@ -3527,6 +3798,9 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type), NULL);
          td->isResolved = type_has_resolution(type);
 
+         td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
+         td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;
+
          unsigned nconstrs = type_constraints(type);
          if (nconstrs != 0) {
             assert(nconstrs == 1);
@@ -3631,6 +3905,25 @@ static void build_genericDecl(tree_t generic, int pos,
    APUSH(region->decls, &(g->interface.objDecl.decl.object));
 }
 
+static c_constParamDecl *build_constParamDecl(tree_t param, int pos)
+{
+   c_constParamDecl *p = new_object(sizeof(c_constParamDecl),
+                                    vhpiConstParamDeclK);
+   init_interfaceDecl(&(p->interface), param, pos, NULL);
+
+   p->Mode = mode_map[tree_subkind(param)];
+   return p;
+}
+
+static c_varParamDecl *build_varParamDecl(tree_t param, int pos)
+{
+   c_varParamDecl *p = new_object(sizeof(c_varParamDecl), vhpiVarParamDeclK);
+   init_interfaceDecl(&(p->interface), param, pos, NULL);
+
+   p->Mode = mode_map[tree_subkind(param)];
+   return p;
+}
+
 static void build_portDecl(tree_t port, int pos,
                            c_abstractRegion *region)
 {
@@ -3659,6 +3952,60 @@ static c_constDecl *build_constDecl(tree_t decl, c_abstractRegion *region)
 
    APUSH(region->decls, &(cd->objDecl.decl.object));
    return cd;
+}
+
+static void build_paramDecls(tree_t decl, int first, c_subpDecl *subp)
+{
+   const int nparams = tree_ports(decl);
+   for (int i = 0, slot = first; i < nparams; i++) {
+      tree_t p = tree_port(decl, i);
+      c_typeDecl *td = NULL;
+      switch (tree_class(p)) {
+      case C_CONSTANT:
+         {
+            c_constParamDecl *cpd = build_constParamDecl(p, i);
+            cpd->interface.argslot = slot;
+            APUSH(subp->Params, &(cpd->interface.objDecl.decl.object));
+            td = cpd->interface.objDecl.Type;
+         }
+         break;
+      case C_VARIABLE:
+         {
+            c_varParamDecl *vpd = build_varParamDecl(p, i);
+            vpd->interface.argslot = slot;
+            APUSH(subp->Params, &(vpd->interface.objDecl.decl.object));
+            td = vpd->interface.objDecl.Type;
+         }
+         break;
+      default:
+         fatal_at(tree_loc(p), "unsupported parameter class");
+      }
+
+      slot += td->wrapped ? 1 + 2*dimension_of(td->type) : 1;
+   }
+}
+
+static c_funcDecl *build_funcDecl(tree_t decl)
+{
+   c_funcDecl *f = new_object(sizeof(c_funcDecl), vhpiFuncDeclK);
+   init_subpDecl(&(f->subpDecl), decl);
+
+   build_paramDecls(decl, 1, &(f->subpDecl));
+
+   f->IsPure = !(tree_flags(decl) & TREE_F_IMPURE);
+   f->ReturnType = cached_typeDecl(type_result(tree_type(decl)), NULL);
+
+   return f;
+}
+
+static c_procDecl *build_procDecl(tree_t decl)
+{
+   c_procDecl *f = new_object(sizeof(c_funcDecl), vhpiProcDeclK);
+   init_subpDecl(&(f->subpDecl), decl);
+
+   build_paramDecls(decl, 2, &(f->subpDecl));
+
+   return f;
 }
 
 static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
@@ -3929,6 +4276,13 @@ static void vhpi_check_leaks(vhpi_context_t *c)
 
 void vhpi_context_free(vhpi_context_t *c)
 {
+   for (int i = 0; i < c->foreignfs.count; i++) {
+      c_foreignf *f = is_foreignf(c->foreignfs.items[i]);
+      assert(f != NULL);
+      drop_handle(c, f->handle);
+   }
+   ACLEAR(c->foreignfs);
+
    if (opt_get_int(OPT_VHPI_DEBUG))
       vhpi_check_leaks(c);
 
@@ -3939,4 +4293,75 @@ void vhpi_context_free(vhpi_context_t *c)
    hash_free(c->objcache);
    free(c->handles);
    free(c);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Foreign function interface
+
+vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
+                              tree_t where)
+{
+   vhpi_context_t *c = vhpi_context();
+   for (int i = 0; i < c->foreignfs.count; i++) {
+      c_foreignf *f = cast_foreignf(c->foreignfs.items[i]);
+      if (strcmp(f->data.libraryName, obj_lib))
+         continue;
+      else if (strcmp(f->data.modelName, model))
+         continue;
+
+      assert(tree_kind(where) == T_ATTR_SPEC);
+      tree_t sub = tree_ref(where);
+
+      if (f->decl != NULL && f->decl->tree == sub)
+         return f->handle;
+      else if (f->decl != NULL)
+         jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s already bound "
+                 "to %s", obj_lib, model, type_pp(tree_type(f->decl->tree)));
+
+      switch (tree_kind(sub)) {
+      case T_FUNC_DECL:
+         f->decl = &(build_funcDecl(sub)->subpDecl);
+         break;
+      case T_PROC_DECL:
+         f->decl = &(build_procDecl(sub)->subpDecl);
+         break;
+      default:
+         jit_msg(NULL, DIAG_FATAL, "unsupported foreign subprogram");
+      }
+
+      return (f->handle = handle_for(&(f->object)));
+   }
+
+   return NULL;
+}
+
+void vhpi_call_foreign(vhpiHandleT handle, jit_scalar_t *args, tlab_t *tlab)
+{
+   c_vhpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      jit_msg(NULL, DIAG_FATAL, "called invalid foreign subprogram");
+
+   c_foreignf *f = is_foreignf(obj);
+   assert(f != NULL);
+
+   void *orig_p0 = args[0].pointer;
+
+   vhpi_context_t *c = vhpi_context();
+   assert(c->args == NULL);
+   c->args = args;
+   c->tlab = tlab;
+
+   vhpiHandleT subp = handle_for(&(f->decl->object));
+   vhpiCbDataT data = {
+      .obj = subp
+   };
+   (*f->data.execf)(&data);
+
+   drop_handle(c, subp);
+   c->args = NULL;
+   c->tlab = NULL;
+
+   if (f->decl->object.kind == vhpiFuncDeclK && args[0].pointer == orig_p0)
+      jit_msg(NULL, DIAG_FATAL, "foreign function %s did not return a value",
+              type_pp(tree_type(f->decl->tree)));
 }

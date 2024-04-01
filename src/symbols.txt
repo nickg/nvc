@@ -99,6 +99,7 @@
   vhpi_enable_cb;
   vhpi_get;
   vhpi_get_cb_info;
+  vhpi_get_foreignf_info;
   vhpi_get_next_time;
   vhpi_get_next_time;
   vhpi_get_phys;
@@ -113,6 +114,7 @@
   vhpi_printf;
   vhpi_put_value;
   vhpi_register_cb;
+  vhpi_register_foreignf;
   vhpi_release_handle;
   vhpi_remove_cb;
   vhpi_scan;

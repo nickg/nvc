@@ -19,6 +19,7 @@
 #define _VHPI_UTIL_H
 
 #include "prim.h"
+#include "jit/jit.h"
 #include "rt/rt.h"
 
 #ifdef __MINGW32__
@@ -50,6 +51,10 @@ uint64_t vhpi_time_to_native(const vhpiTimeT *time);
 bool vhpi_is_repetitive(vhpiEnumT reason);
 vhpiPhysT vhpi_phys_from_native(int64_t value);
 vhpiIntT vhpi_int_from_native(int64_t value);
+
+vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
+                              tree_t where);
+void vhpi_call_foreign(vhpiHandleT handle, jit_scalar_t *args, tlab_t *tlab);
 
 const char *vhpi_cb_reason_str(int reason);
 const char *vhpi_one_to_many_str(vhpiOneToManyT kind);

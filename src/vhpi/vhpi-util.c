@@ -318,6 +318,9 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
          case T_REAL:
             return vhpiRealVecVal;
 
+         case T_INTEGER:
+            return vhpiIntVecVal;
+
          default:
             break;
          }

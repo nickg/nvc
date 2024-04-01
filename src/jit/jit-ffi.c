@@ -24,6 +24,7 @@
 #include "option.h"
 #include "thread.h"
 #include "type.h"
+#include "vhpi/vhpi-util.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -280,6 +281,23 @@ static void jit_internal_entry(jit_func_t *f, jit_anchor_t *caller,
    thread->anchor = NULL;
 }
 
+static void jit_vhpi_entry(jit_func_t *f, jit_anchor_t *caller,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   jit_thread_local_t *thread = jit_attach_thread(caller);
+
+   vhpiHandleT handle = *jit_get_privdata_ptr(f->jit, f);
+   if (unlikely(handle == NULL)) {
+      // JIT has been reset, need to elaborate again
+      f->entry = jit_interp;
+      jit_interp(f, caller, args, tlab);
+   }
+   else
+      vhpi_call_foreign(handle, args, tlab);
+
+   thread->anchor = NULL;
+}
+
 static void jit_ghdl_entry(jit_func_t *f, jit_anchor_t *caller,
                            jit_scalar_t *args, tlab_t *tlab)
 {
@@ -467,6 +485,25 @@ void jit_bind_foreign(jit_func_t *f, const char *spec, size_t length,
 
       assert(f->entry != jit_ghdl_entry);   // Should only be called once
       f->entry = jit_ghdl_entry;
+   }
+   else if (strcmp(p, "VHPI") == 0) {
+      const char *obj_lib = strtok(NULL, " ");
+      if (obj_lib == NULL)
+         jit_msg(NULL, DIAG_FATAL, "missing object library name");
+
+      const char *model = strtok(NULL, " ");
+      if (model == NULL)
+         jit_msg(NULL, DIAG_FATAL, "missing model name");
+
+      vhpiHandleT handle = vhpi_bind_foreign(obj_lib, model, where);
+      if (handle == NULL)
+         jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s not registered",
+                 obj_lib, model);
+
+      *jit_get_privdata_ptr(f->jit, f) = handle;
+
+      assert(f->entry != jit_vhpi_entry);   // Should only be called once
+      f->entry = jit_vhpi_entry;
    }
    else if (strcmp(p, "INTERNAL") == 0) {
       p = strtok(NULL, " ");
