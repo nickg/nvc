@@ -7481,7 +7481,7 @@ static vcode_reg_t lower_resolution_func(lower_unit_t *lu, type_t type,
    else if (rname == NULL)
       return VCODE_INVALID_REG;
 
-   while (tree_kind(rname) == T_AGGREGATE) {
+   while (tree_kind(rname) == T_ELEM_RESOLUTION) {
       assert(type_is_array(type));
       assert(tree_assocs(rname) == 1);
 

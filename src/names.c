@@ -1962,7 +1962,7 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
 {
    // Finding the resolution function is a special case of overload resolution
 
-   if (tree_kind(rname) == T_AGGREGATE) {
+   if (tree_kind(rname) == T_ELEM_RESOLUTION) {
       if (type_is_record(type))
          error_at(tree_loc(rname), "sorry, record element resolution is not "
                   "supported yet");

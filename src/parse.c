@@ -3965,7 +3965,7 @@ static tree_t p_element_resolution(void)
 
    BEGIN("element resolution");
 
-   tree_t t = tree_new(T_AGGREGATE);
+   tree_t t = tree_new(T_ELEM_RESOLUTION);
 
    do {
       tree_t a = tree_new(T_ASSOC);

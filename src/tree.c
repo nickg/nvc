@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -368,6 +368,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_INERTIAL
    (I_VALUE | I_TYPE),
+
+   // T_ELEM_RESOLUTION
+   (I_ASSOCS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -408,7 +411,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
-   "T_GUARD",           "T_INERTIAL",
+   "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
 };
 
 static const change_allowed_t change_allowed[] = {

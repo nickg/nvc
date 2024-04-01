@@ -3681,7 +3681,7 @@ START_TEST(test_vhdl2008)
    fail_unless(type_kind(type) == T_SUBTYPE);
    fail_unless(type_has_resolution(type));
    tree_t r = type_resolution(type);
-   fail_unless(tree_kind(r) == T_AGGREGATE);
+   fail_unless(tree_kind(r) == T_ELEM_RESOLUTION);
 
    tree_t p4 = tree_stmt(a, 4);
    fail_unless(tree_chars(tree_value(tree_stmt(p4, 0))) == 8);

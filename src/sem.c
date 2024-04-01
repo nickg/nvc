@@ -83,7 +83,7 @@ static bool sem_check_resolution(type_t type, tree_t res)
 {
    // Resolution functions are described in LRM 93 section 2.4
 
-   if (tree_kind(res) == T_AGGREGATE) {
+   if (tree_kind(res) == T_ELEM_RESOLUTION) {
       // VHDL-2008 element resolution
       assert(standard() >= STD_08);
 
