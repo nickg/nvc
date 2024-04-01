@@ -4440,7 +4440,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    type_set_pop(tab);
 
    bool bounds_from_context = true;
-   if (type_is_unconstrained(type) && ndims == 1)
+   if (type_is_unconstrained(type))
       bounds_from_context = false;
    else if (have_named && !have_others && is_anonymous_subtype(type))
       bounds_from_context = false;
@@ -4448,44 +4448,20 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    if (bounds_from_context)
       return type;
 
-   type_t base = type_base_recur(type);
-
-   range_kind_t dir;
-   int64_t ileft, iright;
-   if (calculate_aggregate_bounds(agg, &dir, &ileft, &iright)) {
-      tree_t left = get_discrete_lit(agg, index_type, ileft);
-      tree_t right = get_discrete_lit(agg, index_type, iright);
-      assert(left != NULL && right != NULL);
-
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, base);
+   type_t sub = calculate_aggregate_subtype(agg);
+   if (sub == NULL) {
+      sub = type_new(T_SUBTYPE);
+      type_set_base(sub, type_base_recur(type));
       type_set_elem(sub, type_elem(type));
 
       tree_t cons = tree_new(T_CONSTRAINT);
-      tree_set_subkind(cons, C_INDEX);
-
-      tree_t r = tree_new(T_RANGE);
-      tree_set_subkind(r, dir);
-      tree_set_type(r, index_type);
-      tree_set_left(r, left);
-      tree_set_right(r, right);
-
-      tree_add_range(cons, r);
-
-      for (int i = 1; i < ndims; i++)
-         tree_add_range(cons, range_of(type, i));
+      tree_set_subkind(cons, C_OPEN);
 
       type_add_constraint(sub, cons);
-
-      tree_set_type(agg, sub);
-      return sub;
-   }
-   else if (ndims == 1) {
-      tree_set_type(agg, base);
-      return base;
    }
 
-   return type;
+   tree_set_type(agg, sub);
+   return sub;
 }
 
 static type_t try_solve_aggregate(nametab_t *tab, tree_t agg)

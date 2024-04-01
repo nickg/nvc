@@ -2699,3 +2699,59 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
 
    return true;
 }
+
+type_t calculate_aggregate_subtype(tree_t expr)
+{
+   range_kind_t dir;
+   int64_t ileft, iright;
+   if (!calculate_aggregate_bounds(expr, &dir, &ileft, &iright))
+      return NULL;
+
+   type_t type = tree_type(expr);
+
+   const int ndims = dimension_of(type);
+   type_t a0_type = NULL;
+   if (ndims > 1) {
+      a0_type = tree_type(tree_value(tree_assoc(expr, 0)));
+      if (type_is_unconstrained(a0_type))
+         return NULL;
+
+      assert(dimension_of(a0_type) == ndims - 1);
+   }
+
+   type_t index_type = index_type_of(type, 0);
+
+   tree_t left = get_discrete_lit(expr, index_type, ileft);
+   tree_t right = get_discrete_lit(expr, index_type, iright);
+   assert(left != NULL && right != NULL);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, type_base_recur(type));
+
+   type_t elem = type_elem(type);
+   if (type_is_unconstrained(elem)) {
+      a0_type = tree_type(tree_value(tree_assoc(expr, 0)));
+      if (!type_is_unconstrained(a0_type))
+         elem = a0_type;
+   }
+
+   type_set_elem(sub, elem);
+
+   tree_t cons = tree_new(T_CONSTRAINT);
+   tree_set_subkind(cons, C_INDEX);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, dir);
+   tree_set_type(r, index_type);
+   tree_set_left(r, left);
+   tree_set_right(r, right);
+
+   tree_add_range(cons, r);
+
+   for (int i = 1; i < ndims; i++)
+      tree_add_range(cons, range_of(a0_type, i - 1));
+
+   type_add_constraint(sub, cons);
+
+   return sub;
+}

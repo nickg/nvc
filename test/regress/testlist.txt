@@ -961,3 +961,4 @@ issue858        normal,2008
 vhpi13          normal,vhpi
 issue873        normal
 array19         normal
+issue874        normal,2008

@@ -529,9 +529,6 @@ static void bounds_free_intervals(interval_t **list)
 
 static void bounds_check_aggregate(tree_t t)
 {
-   if (!tree_has_type(t))
-      return;   // VHDL-2008 aggregate resolution in subtype declaration
-
    type_t type = tree_type(t);
    if (!type_is_array(type))
       return;
@@ -689,7 +686,7 @@ static void bounds_check_aggregate(tree_t t)
    // Check each sub-aggregate has the same length for an unconstrained
    // array aggregate
 
-   if (ndims > 1 && unconstrained) {
+   if (ndims > 1) {
       int64_t length = -1;
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
@@ -706,8 +703,7 @@ static void bounds_check_aggregate(tree_t t)
             length = this_length;
          else if (length != this_length)
             bounds_error(a, "length of sub-aggregate %"PRIi64" does not match "
-                         "expected length %"PRIi64,
-                         this_length, length);
+                         "expected length %"PRIi64, this_length, length);
       }
    }
 }

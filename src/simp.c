@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1419,6 +1419,18 @@ static tree_t simp_cond_value(tree_t t)
    return t;
 }
 
+static tree_t simp_aggregate(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (type_is_array(type) && type_is_unconstrained(type)) {
+      type_t sub = calculate_aggregate_subtype(t);
+      if (sub != NULL)
+         tree_set_type(t, sub);
+   }
+
+   return t;
+}
+
 static void simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
@@ -1620,6 +1632,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       if (!is_uninstantiated_package(t))
          simp_generic_map(t, t);
       return t;
+   case T_AGGREGATE:
+      return simp_aggregate(t);
    default:
       return t;
    }
