@@ -6254,6 +6254,38 @@ START_TEST(test_aggregate)
 }
 END_TEST
 
+START_TEST(test_issue875)
+{
+   input_from_file(TESTDIR "/parse/issue875.vhd");
+
+   const error_t expect[] = {
+      {  6, "homograph of HAS_RD [INSTRUCTION32_T return BOOLEAN] already "
+         "declared in this region" },
+      {  0, "duplicate declaration" },
+      {  0, "only the base type is considered when determining" },
+      {  0, "previous declaration was here" },
+      {  9, "design unit depends on WORK.REPRO which was analysed "
+         "with errors" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put_error(lib_work(), p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(lib_work(), b);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6393,6 +6425,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue848);
    tcase_add_test(tc_core, test_issue870);
    tcase_add_test(tc_core, test_aggregate);
+   tcase_add_test(tc_core, test_issue875);
    suite_add_tcase(s, tc_core);
 
    return s;

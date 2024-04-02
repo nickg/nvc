@@ -862,7 +862,17 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          }
          else if (dd->origin == origin && !type_is_none(type)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "%s already declared in this region", type_pp(type));
+            if (type_strict_eq(tree_type(dd->tree), type))
+               diag_printf(d, "%s already declared in this region",
+                           type_pp(type));
+            else {
+               diag_printf(d, "homograph of %s already declared in this region",
+                           type_pp(type));
+               diag_hint(d, NULL, "only the base type is considered when "
+                         "determining if two overloads have the same parameter "
+                         "type profile");
+            }
+
             diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
             diag_hint(d, tree_loc(decl), "duplicate declaration");
             diag_emit(d);
