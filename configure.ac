@@ -545,6 +545,9 @@ if test x$_cv_have_gnu_make = xyes ; then
   MAKEFLAGS='$(if $(V),,-s)'
 fi
 
+# Do not use built-in make rules
+AX_APPEND_FLAG([-r], [MAKEFLAGS])
+
 AC_ARG_ENABLE([parallel_make],
               [AS_HELP_STRING([--enable-parallel-make],
                               [Enable make -j by default])],
