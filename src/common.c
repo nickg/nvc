@@ -1843,7 +1843,7 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g)
             tree_t name = tree_name(m);
             assert(tree_kind(name) == T_REF);
 
-            if (tree_ref(name) == g)
+            if (tree_has_ref(name) && tree_ref(name) == g)
                return tree_value(m);
          }
          break;

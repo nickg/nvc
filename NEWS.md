@@ -25,6 +25,7 @@
 - The `--vhpi-trace` option now implies `--vhpi-debug`.
 - The bounds of array aggregates are now calculated correctly in several
   corner cases (#873).
+- Added supported for VHPI foreign subprograms.
 
 ## Version 1.11.3 - 2024-02-04
 - Fixed incorrect effective value when a signal has multiple sources due

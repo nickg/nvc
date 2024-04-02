@@ -1113,7 +1113,9 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
                   // A single subprogram could be visible both directly
                   // and as a actual generic subprogram
                   tree_t value = find_generic_map(unit, i, g);
-                  if (value != NULL && tree_kind(value) == T_REF) {
+                  if (value == NULL)
+                     assert(error_count() > 0);
+                  else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
                      decl = tree_ref(value);
                      assert(is_subprogram(decl));
                   }
@@ -3676,6 +3678,8 @@ static type_t try_solve_string(nametab_t *tab, tree_t str)
 {
    if (tree_has_type(str))
       return tree_type(str);
+   else if (type_set_any(tab, type_is_none))
+      return type_new(T_NONE);   // Suppress cascading errors
 
    // The type must be determinable soley from the context excluding the
    // literal itself but using the fact that the type must be a one

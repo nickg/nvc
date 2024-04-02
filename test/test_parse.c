@@ -6286,6 +6286,77 @@ START_TEST(test_issue875)
 }
 END_TEST
 
+START_TEST(test_error11)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/error11.vhd");
+
+   const error_t expect[] = {
+      { 26, "no visible subprogram STD_MATCH matches signature [T_ELEMENT, "
+        "T_ELEMENT return BOOLEAN]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(lib_work(), b);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_error12)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/error12.vhd");
+
+   const error_t expect[] = {
+      { 34, "SB_QUEUE_PKG has no generic named SCOPE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(lib_work(), b);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6426,6 +6497,8 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue870);
    tcase_add_test(tc_core, test_aggregate);
    tcase_add_test(tc_core, test_issue875);
+   tcase_add_test(tc_core, test_error11);
+   tcase_add_test(tc_core, test_error12);
    suite_add_tcase(s, tc_core);
 
    return s;
