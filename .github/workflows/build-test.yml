@@ -468,7 +468,7 @@ jobs:
           make -C cocotb/tests SIM=nvc TOPLEVEL_LANG=vhdl
 
   msi-installer:
-    name: Windows MSI installer
+    name: Windows installer
     runs-on: windows-2019
     defaults:
       run:
@@ -477,47 +477,5 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: clang64
-          install: >-
-            base-devel
-            mingw-w64-clang-x86_64-llvm
-            mingw-w64-clang-x86_64-check
-            mingw-w64-clang-x86_64-ncurses
-            mingw-w64-clang-x86_64-libffi
-            mingw-w64-clang-x86_64-pkgconf
-            mingw-w64-clang-x86_64-tcl
-            mingw-w64-clang-x86_64-zstd
-            mingw-w64-clang-x86_64-clang
-            mingw-w64-clang-x86_64-nodejs
-            unzip
-            git
-            autoconf
-            automake-wrapper
-      - name: Generate configure script
-        run: bash autogen.sh
-      - name: Configure
-        run: |
-          echo $PATH
-          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
-          mkdir build
-          cd build
-          bash ../configure --enable-static-llvm --enable-tcl \
-            --enable-verilog --enable-gui CFLAGS="-O2" \
-            --prefix=`pwd`/installdir --without-system-cc
-      - name: Build
-        run: make -C build
-      - name: Install
-        run: make -C build install
       - name: Build MSI installer
-        run: |
-          export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
-          which candle
-          make -C build V=1 msi-installer
-          echo "MSI=$(ls build/*.msi)" >> $GITHUB_ENV
-      - name: 'Upload artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: 'Windows installer'
-          path: ${{ env.MSI }}
+        uses: ./.github/actions/windows-installer

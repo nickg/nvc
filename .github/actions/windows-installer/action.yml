@@ -1,0 +1,57 @@
+runs:
+  using: "composite"
+  steps:
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: clang64
+        install: >-
+          base-devel
+          mingw-w64-clang-x86_64-llvm
+          mingw-w64-clang-x86_64-check
+          mingw-w64-clang-x86_64-ncurses
+          mingw-w64-clang-x86_64-libffi
+          mingw-w64-clang-x86_64-pkgconf
+          mingw-w64-clang-x86_64-tcl
+          mingw-w64-clang-x86_64-zstd
+          mingw-w64-clang-x86_64-clang
+          mingw-w64-clang-x86_64-nodejs
+          unzip
+          git
+          autoconf
+          automake-wrapper
+    - name: Generate configure script
+      shell: msys2 {0}
+      run: bash autogen.sh
+    - name: Configure
+      shell: msys2 {0}
+      run: |
+        echo $PATH
+        export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
+        mkdir build
+        cd build
+        bash ../configure --enable-static-llvm --enable-tcl \
+          --enable-verilog --enable-gui CFLAGS="-O2" \
+          --prefix=`pwd`/installdir --without-system-cc
+    - name: Build
+      shell: msys2 {0}
+      working-directory: ./build
+      run: |
+        make
+    - name: Install
+      shell: msys2 {0}
+      working-directory: ./build
+      run: |
+        make install
+    - name: Build MSI installer
+      working-directory: ./build
+      shell: msys2 {0}
+      run: |
+        export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
+        which candle
+        make V=1 msi-installer
+        echo "MSI=$(ls *.msi)" >> $GITHUB_ENV
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: 'Windows installer'
+        path: build/${{ env.MSI }}

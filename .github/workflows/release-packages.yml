@@ -83,3 +83,16 @@ jobs:
         with:
           name: '${{matrix.os}} package'
           path: nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb
+
+  msi-installer:
+    name: Windows installer
+    runs-on: windows-2019
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build MSI installer
+        uses: ./.github/actions/windows-installer
