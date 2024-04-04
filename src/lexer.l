@@ -618,8 +618,9 @@ static bool begin_psl_comment(void)
    if (opt_get_int(OPT_PSL_COMMENTS))
       return true;
    else if (!printed) {
-      note_at(&yylloc, "pass $bold$--psl$$ to enable parsing of PSL "
-              "directives in comments");
+      // TODO: enable this once PSL support is complete
+      // note_at(&yylloc, "pass $bold$--psl$$ to enable parsing of PSL "
+      //   "directives in comments");
       printed = true;
       return false;
    }
