@@ -243,4 +243,8 @@ unsigned cover_get_std_log_expr_flags(tree_t decl);
 cover_item_t *cover_add_items(cover_data_t *data, object_t *obj,
                               cover_item_kind_t kind);
 
+// XXX: remove
+cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
+                             cover_item_kind_t kind, uint32_t flags);
+
 #endif   // _COV_API_H

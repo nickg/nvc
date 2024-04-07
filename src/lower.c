@@ -1592,7 +1592,7 @@ static void lower_fsm_state_coverage(lower_unit_t *lu, tree_t decl)
       ident_t suffix =
          ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
       cover_item_t *item = cover_add_item(lu->cover,  tree_to_object(decl),
-                                          suffix, COV_ITEM_STATE, 0, 0);
+                                          suffix, COV_ITEM_STATE, 0);
       if (item == NULL)
          break;
       if (i == low) {
@@ -1611,12 +1611,13 @@ static void lower_fsm_state_coverage(lower_unit_t *lu, tree_t decl)
 }
 
 static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
+                                      unsigned flags, vcode_reg_t mask,
                                       unsigned unrc_msk)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
    cover_item_t *item = cover_add_item(lu->cover, tree_to_object(fcall), NULL,
-                                       COV_ITEM_EXPRESSION, flags, 0);
+                                       COV_ITEM_EXPRESSION, flags);
    if (item != NULL) {
       emit_cover_expr(mask, item->tag);
       item->unrc_msk = unrc_msk;

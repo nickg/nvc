@@ -282,7 +282,7 @@ const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
 
 static cover_item_t *cover_add_one_item(cover_data_t *data, object_t *obj,
                                         ident_t suffix, cover_item_kind_t kind,
-                                       uint32_t flags, uint32_t def_num)
+                                        uint32_t flags, uint32_t def_num)
 {
    assert(data != NULL);
 
@@ -364,6 +364,11 @@ static cover_item_t *cover_add_one_item(cover_data_t *data, object_t *obj,
    return AREF(data->top_scope->items, data->top_scope->items.count - 1);
 }
 
+cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
+                             cover_item_kind_t kind, uint32_t flags)
+{
+   return cover_add_one_item(data, obj, suffix, kind, flags, 0);
+}
 
 static cover_item_t* cover_add_toggle_items_for(cover_data_t *cover, type_t type,
                                          tree_t where, ident_t prefix, int curr_dim)
@@ -489,7 +494,6 @@ cover_item_t *cover_add_items(cover_data_t *data, object_t *obj,
    if (t == NULL)
       return NULL;
 
-   // Handle cov_item(s) creation
    switch (kind) {
    case COV_ITEM_STMT:
       return cover_add_one_item(data, obj, NULL, kind, 0, 1);
@@ -497,23 +501,26 @@ cover_item_t *cover_add_items(cover_data_t *data, object_t *obj,
    case COV_ITEM_BRANCH:
       if (tree_kind(t) == T_ASSOC)
          return cover_add_one_item(data, obj, NULL, kind, COV_FLAG_CHOICE, 1);
+      else {
+         cover_item_t *item_true =
+            cover_add_one_item(data, obj, NULL, kind, COV_FLAG_TRUE, 2);
+         cover_add_one_item(data, obj, NULL, kind, COV_FLAG_FALSE, 1);
 
-      cover_item_t *item_true = cover_add_one_item(data, obj, NULL, kind, COV_FLAG_TRUE, 2);
-      cover_add_one_item(data, obj, NULL, kind, COV_FLAG_FALSE, 1);
-
-      return item_true;
+         return item_true;
+      }
 
    case COV_ITEM_TOGGLE:
-   {
-      const type_t tt = tree_type(t);
-      const int ndims = dimension_of(tt);
-      return cover_add_toggle_items_for(data, tt, t, NULL, ndims);
-   }
+      {
+         const type_t tt = tree_type(t);
+         const int ndims = dimension_of(tt);
+         return cover_add_toggle_items_for(data, tt, t, NULL, ndims);
+      }
 
-   default:
-      fatal("unsupported type of code coverage: %d !", kind);
+   case COV_ITEM_EXPRESSION:
+   case COV_ITEM_STATE:
+   case COV_ITEM_FUNCTIONAL:
+      abort();
    }
-
 }
 
 LCOV_EXCL_START
