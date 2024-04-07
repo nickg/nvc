@@ -81,8 +81,8 @@ On macOS NVC can be installed with `brew install nvc`.  NVC is also
 packaged for [FreeBSD](https://www.freshports.org/cad/nvc),
 [Gentoo](https://packages.gentoo.org/packages/sci-electronics/nvc), Arch
 Linux [AUR](https://aur.archlinux.org/packages/nvc), and [several other
-distributions](https://repology.org/project/nvc/versions).  Windows
-MSYS2 packages are available from the [releases
+distributions](https://repology.org/project/nvc/versions).  A Windows
+installer is available from the [releases
 page](https://github.com/nickg/nvc/releases/).  Users of systems without
 existing packages should build from source.
 
@@ -90,7 +90,7 @@ NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
 comprehensive regression tests, but the release branch is more suitable
 for third party packaging.  The latest released version is
-[1.11.3](https://github.com/nickg/nvc/releases/tag/r1.11.3).
+[1.12.0](https://github.com/nickg/nvc/releases/tag/r1.12.0).
 Significant changes since the last release are detailed in
 [NEWS.md](NEWS.md).
 

@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.
 - Fixed a crash when subtype bounds depend on a package instance generic
   (#815).
