@@ -5,7 +5,7 @@ installer.wxs: $(srcdir)/contrib/msi/installer.wxs.in
 	seq=$$(echo $$tag | cut -d- -f2); \
 	case $(PACKAGE_VERSION) in \
 	  *-devel) prefix=$$(echo $$tag | sed 's/r\([0-9]*\.[0-9]*\).*/\1.9/');; \
-	  *) prefix=$$(echo $$tag | sed 's/r\(.*\)-.*/\1/');; \
+	  *) prefix=$$(echo $$tag | sed 's/r\(.*\)-.*-.*/\1/');; \
 	esac; \
 	vers=$$prefix$$(printf "%03d" $$seq); \
 	echo $$vers; \
