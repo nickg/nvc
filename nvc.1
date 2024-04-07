@@ -1058,10 +1058,45 @@ void (*vhpi_startup_routines[])() = {
 .Ed
 .Pp
 Functions defined in VHPI plugin libraries may be called from VHDL using
-the VHPIDIRECT protocol.  The VHDL function should be declared with the
+either the standard VHPI protocol or a simplified protocol similar to
+.Xr ghdl 1
+.
+.Pp
+To use the standard VHPI protocol the VHDL function should be declared
+with the
 .Ql FOREIGN
-attribute giving the name of the function symbol exported from the
-plugin.  For example:
+attribute giving the
+.Qq object library name
+and
+.Qq model name
+of the foreign function.
+For example:
+.Bd -literal -offset indent
+function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
+attribute foreign of my_func : function is "VHPI my_lib my_func";
+.Ed
+.Pp
+The VHPI plugin should then call
+.Fn vhpi_register_foreignf
+to register the foreign subprogram.
+.Bd -literal -offset indent
+static void my_func_cb(const vhpiCbDataT *cb_data_p) { ... }
+
+vhpiForeignDataT my_func_data = {
+   .kind = vhpiFuncF,
+   .libraryName = "my_lib",
+   .modelName = "my_func",
+   .execf = my_func_cb,
+};
+vhpi_register_foreignf(&my_func_data);
+.Ed
+.Pp
+To use the simplified protocol the VHDL the
+.Ql FOREIGN
+attribute should be specified with the keyword
+.Ql VHPIDIRECT
+and name of the function symbol exported from the plugin.
+For example:
 .Bd -literal -offset indent
 function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
 attribute foreign of my_func : function is "VHPIDIRECT my_func";
