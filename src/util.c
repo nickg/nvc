@@ -1541,6 +1541,34 @@ void tb_replace(text_buf_t *tb, char old, char rep)
    }
 }
 
+void tb_strftime(text_buf_t *tb, const char *fmt, time_t time)
+{
+   struct tm tm;
+   switch (fmt[0]) {
+   case 'L':
+#ifdef __MINGW32__
+      localtime_s(&tm, &time);
+#else
+      localtime_r(&time, &tm);
+#endif
+      break;
+   case 'G':
+#ifdef __MINGW32__
+      gmtime_s(&tm, &time);
+#else
+      gmtime_r(&time, &tm);
+#endif
+      break;
+   default:
+      fatal_trace("invalid timezone specifier '%c'", fmt[0]);
+   }
+
+   const size_t max = 64;
+   char *p = tb_reserve(tb, max);
+   if (strftime(p, max, fmt + 1, &tm) == 0)
+      fatal_trace("time format buffer too small");
+}
+
 void _local_free(void *ptr)
 {
    free(*(void **)ptr);

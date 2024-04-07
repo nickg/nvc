@@ -31,6 +31,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "prim.h"
 
@@ -296,6 +297,7 @@ size_t tb_len(text_buf_t *tb);
 void tb_downcase(text_buf_t *tb);
 void tb_upcase(text_buf_t *tb);
 void tb_replace(text_buf_t *tb, char old, char rep);
+void tb_strftime(text_buf_t *tb, const char *fmt, time_t time);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 

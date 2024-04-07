@@ -474,15 +474,8 @@ static void send_fully(int fd, const void *data, size_t len)
 static void send_http_headers(int fd, int status, const char *type, size_t len,
                               const char *headers)
 {
-   char date[128];
-   time_t now = time(0);
-   struct tm tm;
-#ifdef __MINGW32__
-   gmtime_s(&tm, &now);
-#else
-   gmtime_r(&now, &tm);
-#endif
-   strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S %Z", &tm);
+   LOCAL_TEXT_BUF date = tb_new();
+   tb_strftime(date, "G%a, %d %b %Y %H:%M:%S %Z", time(NULL));
 
    char buf[512];
    const int nbytes = checked_sprintf(buf, sizeof(buf),
@@ -491,7 +484,7 @@ static void send_http_headers(int fd, int status, const char *type, size_t len,
                                       "Content-Type: %s; charset=UTF-8\r\n"
                                       "Content-Length: %zu\r\n"
                                       "%s\r\n",
-                                      status, date, type, len, headers);
+                                      status, tb_get(date), type, len, headers);
 
    send_fully(fd, buf, nbytes);
 }
