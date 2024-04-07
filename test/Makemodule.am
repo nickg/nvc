@@ -4,7 +4,12 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
-EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench bin/mtstress
+EXTRA_PROGRAMS += \
+	bin/lockbench \
+	bin/jitperf \
+	bin/workqbench \
+	bin/mtstress \
+	bin/ucdbdump
 
 EXTRA_DIST += test/cobertura.dtd
 
@@ -30,7 +35,8 @@ bin_unit_test_SOURCES = \
 	test/test_charset.c \
 	test/test_dump.c \
 	test/test_driver.c \
-	test/test_vlog.c
+	test/test_vlog.c \
+	test/test_ucis.c
 
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c
@@ -122,6 +128,18 @@ bin_mtstress_LDADD = \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
 	$(libzstd_LIBS)
+
+bin_ucdbdump_SOURCES = test/ucdbdump.c
+
+if !SYSTEM_UCIS
+bin_ucdbdump_LDADD = \
+	lib/libnvc.a \
+	lib/libfastlz.a \
+	lib/libcpustate.a \
+	$(libdw_LIBS) \
+	$(libffi_LIBS) \
+	$(libzstd_LIBS)
+endif
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

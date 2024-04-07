@@ -1,0 +1,11 @@
+lib_libnvc_a_SOURCES += \
+	src/ucis/ucis-api.h
+
+if !SYSTEM_UCIS
+lib_libnvc_a_SOURCES += \
+	src/ucis/ucis-util.h \
+	src/ucis/ucis-util.c \
+	src/ucis/ucis-impl.c \
+	src/ucis/ucis-xml.c \
+	src/ucis/ucis-io.c
+endif

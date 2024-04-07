@@ -408,6 +408,21 @@ AC_ARG_ENABLE([vital],
 
 AM_CONDITIONAL([ENABLE_VITAL], [test x$enable_vital = xyes])
 
+# System UCIS library (e.g. from ModelSim)
+AC_ARG_WITH([system-ucis],
+            [AS_HELP_STRING([--with-system-ucis=PATH],
+                            [Path to third-party UCIS library])],
+            [system_ucis="$withval"],
+            [system_ucis=no])
+
+if test x$system_ucis != xno; then
+  AC_CHECK_HEADERS([ucis.h])
+  AC_CHECK_LIB([ucis], [ucis_Open], [],
+               [AC_MSG_ERROR([UCIS library not found])])
+fi
+
+AM_CONDITIONAL([SYSTEM_UCIS], [test x$system_ucis != xno])
+
 AC_ARG_ENABLE([werror],
   [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
   [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])

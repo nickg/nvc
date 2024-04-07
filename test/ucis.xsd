@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            elementFormDefault="qualified"
+	    attributeFormDefault="unqualified">
+
+  <!-- Definition of NAME_VALUE -->
+  <xsd:complexType name="NAME_VALUE">
+    <xsd:sequence>
+      <xsd:element name="name" type="xsd:string"/>
+      <xsd:element name="value" type="xsd:string"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <!-- Definition of USER_ATTR -->
+  <xsd:complexType name="USER_ATTR" mixed="true">
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <!-- type restrictions for the asttribute: -->
+    <xsd:attribute name="type" use="required">
+      <xsd:simpleType>
+	<xsd:restriction base="xsd:string">
+	  <xsd:enumeration value="int"/>
+	  <xsd:enumeration value="float"/>
+	  <xsd:enumeration value="double"/>
+	  <!-- string value: -->
+	  <xsd:enumeration value="str"/>
+	  <!-- binary value: -->
+	  <xsd:enumeration value="bits"/>
+	  <xsd:enumeration value="int64"/>
+	</xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+    <!-- length of binary attribute (type=="bits"): -->
+    <xsd:attribute name="len" type="xsd:integer"/>
+  </xsd:complexType>
+
+  <!-- Definition of BIN_CONTENTS -->
+  <xsd:complexType name="BIN_CONTENTS">
+    <xsd:sequence>
+      <xsd:element name="historyNodeId" type="xsd:nonNegativeInteger"
+		   minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="nameComponent" type="xsd:string"/>
+    <xsd:attribute name="typeComponent" type="xsd:string"/>
+    <xsd:attribute name="coverageCount" type="xsd:nonNegativeInteger" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of BIN_ATTRIBUTES-->
+  <xsd:attributeGroup name="binAttributes">
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="coverageCountGoal" type="xsd:nonNegativeInteger"/>
+    <xsd:attribute name="excluded" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="excludedReason" type="xsd:string"/>
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+  </xsd:attributeGroup>
+
+  <!-- Definition of BIN-->
+  <xsd:complexType name="BIN">
+    <xsd:sequence>
+      <xsd:element name="contents" type="BIN_CONTENTS"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="binAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of OBJECT_ATTRIBUTES-->
+  <xsd:attributeGroup name="objAttributes">
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="excluded" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="excludedReason" type="xsd:string"/>
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+  </xsd:attributeGroup>
+
+  <!-- Definition of METRIC_ATTRIBUTES-->
+  <xsd:attributeGroup name="metricAttributes">
+    <xsd:attribute name="metricMode" type="xsd:string"/>
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+  </xsd:attributeGroup>
+
+  <!-- Definition of SOURCE_FILE-->
+  <xsd:complexType name="SOURCE_FILE">
+    <xsd:attribute name="fileName" type="xsd:string" use="required"/>
+    <xsd:attribute name="id" type="xsd:positiveInteger" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of HISTORY_NODE-->
+  <xsd:complexType name="HISTORY_NODE">
+    <xsd:sequence>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="historyNodeId" type="xsd:nonNegativeInteger" use="required"/>
+    <xsd:attribute name="parentId" type="xsd:nonNegativeInteger"/>
+    <xsd:attribute name="logicalName" type="xsd:string" use="required"/>
+    <xsd:attribute name="physicalName" type="xsd:string"/>
+    <xsd:attribute name="kind" type="xsd:string"/>
+    <xsd:attribute name="testStatus" type="xsd:boolean" use="required"/>
+    <xsd:attribute name="simtime" type="xsd:double"/>
+    <xsd:attribute name="timeunit" type="xsd:string"/>
+    <xsd:attribute name="runCwd" type="xsd:string"/>
+    <xsd:attribute name="cpuTime" type="xsd:double"/>
+    <xsd:attribute name="seed" type="xsd:string"/>
+    <xsd:attribute name="cmd" type="xsd:string"/>
+    <xsd:attribute name="args" type="xsd:string"/>
+    <xsd:attribute name="compulsory" type="xsd:string"/>
+    <xsd:attribute name="date" type="xsd:dateTime" use="required"/>
+    <xsd:attribute name="userName" type="xsd:string"/>
+    <xsd:attribute name="cost" type="xsd:decimal"/>
+    <xsd:attribute name="toolCategory" type="xsd:string" use="required"/>
+    <xsd:attribute name="ucisVersion" type="xsd:string" use="required"/>
+    <xsd:attribute name="vendorId" type="xsd:string" use="required"/>
+    <xsd:attribute name="vendorTool" type="xsd:string" use="required"/>
+    <xsd:attribute name="vendorToolVersion" type="xsd:string" use="required"/>
+    <xsd:attribute name="sameTests" type="xsd:nonNegativeInteger"/>
+    <xsd:attribute name="comment" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of DIMENSION -->
+  <xsd:complexType name="DIMENSION">
+    <xsd:attribute name="left" type="xsd:integer" use="required"/>
+    <xsd:attribute name="right" type="xsd:integer" use="required"/>
+    <xsd:attribute name="downto" type="xsd:boolean" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of TOGGLE -->
+  <xsd:complexType name="TOGGLE">
+    <xsd:sequence>
+      <xsd:element name="bin" type="BIN"/>
+    </xsd:sequence>
+    <xsd:attribute name="from" type="xsd:string" use="required"/>
+    <xsd:attribute name="to" type="xsd:string" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of TOGGLE_BIT -->
+  <xsd:complexType name="TOGGLE_BIT">
+    <xsd:sequence>
+      <xsd:element name="index" type="xsd:nonNegativeInteger" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="toggle" type="TOGGLE" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of TOGGLE_OBJECT -->
+  <xsd:complexType name="TOGGLE_OBJECT">
+    <xsd:sequence>
+      <xsd:element name="dimension" type="DIMENSION" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="toggleBit" type="TOGGLE_BIT" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="type" type="xsd:string"/>
+    <xsd:attribute name="portDirection" type="xsd:string"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of METRIC_MODE -->
+  <xsd:complexType name="METRIC_MODE">
+    <xsd:sequence>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="metricMode" type="xsd:string" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of TOGGLE_COVERAGE -->
+  <xsd:complexType name="TOGGLE_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="toggleObject" type="TOGGLE_OBJECT" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="metricMode" type="METRIC_MODE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of LINE_ID -->
+  <xsd:complexType name="LINE_ID">
+    <xsd:attribute name="file" type="xsd:positiveInteger" use="required"/>
+    <xsd:attribute name="line" type="xsd:positiveInteger" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of STATEMENT_ID -->
+  <xsd:complexType name="STATEMENT_ID">
+    <xsd:attribute name="file" type="xsd:positiveInteger" use="required"/>
+    <xsd:attribute name="line" type="xsd:positiveInteger" use="required"/>
+    <xsd:attribute name="inlineCount" type="xsd:positiveInteger" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of STATEMENT-->
+  <xsd:complexType name="STATEMENT">
+    <xsd:sequence>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="bin" type="BIN"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of BLOCK -->
+  <xsd:complexType name="BLOCK">
+    <xsd:sequence>
+      <xsd:element name="statementId" type="STATEMENT_ID" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="hierarchicalBlock" type="BLOCK" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="blockBin" type="BIN"/>
+      <xsd:element name="blockId" type="STATEMENT_ID"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="parentProcess" type="xsd:string"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of PROCESS_BLOCK -->
+  <xsd:complexType name="PROCESS_BLOCK">
+    <xsd:sequence>
+      <xsd:element name="block" type="BLOCK" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="processType" type="xsd:string" use="required"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of BLOCK_COVERAGE -->
+  <xsd:complexType name="BLOCK_COVERAGE">
+    <xsd:sequence>
+      <xsd:choice>
+	<xsd:element name="process" type="PROCESS_BLOCK" minOccurs="1" maxOccurs="unbounded"/>
+	<xsd:element name="block" type="BLOCK" minOccurs="1" maxOccurs="unbounded"/>
+	<xsd:element name="statement" type="STATEMENT" minOccurs="1" maxOccurs="unbounded"/>
+      </xsd:choice>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of EXPR -->
+  <xsd:complexType name="EXPR">
+    <xsd:sequence>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="subExpr" type="xsd:string" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="bin" type="BIN" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="hierarchicalExpr" type="EXPR" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="exprString" type="xsd:string" use="required"/>
+    <xsd:attribute name="index" type="xsd:nonNegativeInteger" use="required"/>
+    <xsd:attribute name="width" type="xsd:nonNegativeInteger" use="required"/>
+    <xsd:attribute name="statementType" type="xsd:string"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of CONDITION_COVERAGE -->
+  <xsd:complexType name="CONDITION_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="expr" type="EXPR" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of BRANCH -->
+  <xsd:complexType name="BRANCH">
+    <xsd:sequence>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="nestedBranch" type="BRANCH_STATEMENT" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="branchBin" type="BIN"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <!-- Definition of BRANCH_STATEMENT -->
+  <xsd:complexType name="BRANCH_STATEMENT">
+    <xsd:sequence>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="branch" type="BRANCH" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="branchExpr" type="xsd:string"/>
+    <xsd:attribute name="statementType" type="xsd:string" use="required"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of BRANCH_COVERAGE -->
+  <xsd:complexType name="BRANCH_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="statement" type="BRANCH_STATEMENT" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of FSM_STATE -->
+  <xsd:complexType name="FSM_STATE">
+    <xsd:sequence>
+      <xsd:element name="stateBin" type="BIN"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="stateName" type="xsd:string"/>
+    <xsd:attribute name="stateValue" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of FSM_TRANSITION -->
+  <xsd:complexType name="FSM_TRANSITION">
+    <xsd:sequence>
+      <xsd:element name="state" type="xsd:string" minOccurs="2" maxOccurs="unbounded"/>
+      <xsd:element name="transitionBin" type="BIN"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <!-- Definition of FSM -->
+  <xsd:complexType name="FSM">
+    <xsd:sequence>
+      <xsd:element name="state" type="FSM_STATE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="stateTransition" type="FSM_TRANSITION" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string"/>
+    <xsd:attribute name="type" type="xsd:string"/>
+    <xsd:attribute name="width" type="xsd:positiveInteger"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of FSM_COVERAGE -->
+  <xsd:complexType name="FSM_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="fsm" type="FSM" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of ASSERTION -->
+  <xsd:complexType name="ASSERTION">
+    <xsd:sequence>
+      <xsd:element name="coverBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="passBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="failBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="vacuousBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="disabledBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="attemptBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="activeBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="peakActiveBin" type="BIN" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="assertionKind" type="xsd:string" use="required"/>
+    <xsd:attributeGroup ref="objAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of ASSERTION_COVERAGE -->
+  <xsd:complexType name="ASSERTION_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="assertion" type="ASSERTION"
+		   minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR"
+		   minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of SEQUENCE -->
+  <xsd:complexType name="SEQUENCE">
+    <xsd:sequence>
+      <xsd:element name="contents" type="BIN_CONTENTS"/>
+      <xsd:element name="seqValue" type="xsd:integer"
+		   minOccurs="1" maxOccurs="unbounded"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <!-- Definition of RANGE_VALUE -->
+  <xsd:complexType name="RANGE_VALUE">
+    <xsd:sequence>
+      <xsd:element name="contents" type="BIN_CONTENTS"/>
+    </xsd:sequence>
+    <xsd:attribute name="from" type="xsd:integer" use="required"/>
+    <xsd:attribute name="to" type="xsd:integer" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of COVERPOINT_BIN -->
+  <xsd:complexType name="COVERPOINT_BIN">
+    <xsd:sequence>
+      <xsd:choice>
+	<xsd:element name="range" type="RANGE_VALUE" minOccurs="1" maxOccurs="unbounded"/>
+	<xsd:element name="sequence" type="SEQUENCE" minOccurs="1" maxOccurs="unbounded"/>
+      </xsd:choice>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="type" type="xsd:string" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of CROSS_BIN -->
+  <xsd:complexType name="CROSS_BIN">
+    <xsd:sequence>
+      <xsd:element name="index" type="xsd:integer" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="contents" type="BIN_CONTENTS"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="type" type="xsd:string" default="default"/>
+    <xsd:attribute name="alias" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of CROSS_OPTIONS -->
+  <xsd:complexType name="CROSS_OPTIONS">
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="goal" type="xsd:nonNegativeInteger" default="100"/>
+    <xsd:attribute name="comment" type="xsd:string" default=""/>
+    <xsd:attribute name="at_least" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="cross_num_print_missing" type="xsd:nonNegativeInteger" default="0"/>
+  </xsd:complexType>
+
+  <!-- Definition of CROSS -->
+  <xsd:complexType name="CROSS">
+    <xsd:sequence>
+      <xsd:element name="options" type="CROSS_OPTIONS"/>
+      <xsd:element name="crossExpr" type="xsd:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="crossBin" type="CROSS_BIN" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="alias" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of COVERPOINT_OPTIONS -->
+  <xsd:complexType name="COVERPOINT_OPTIONS">
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="goal" type="xsd:nonNegativeInteger" default="100"/>
+    <xsd:attribute name="comment" type="xsd:string" default=""/>
+    <xsd:attribute name="at_least" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="detect_overlap" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="auto_bin_max" type="xsd:nonNegativeInteger" default="64"/>
+  </xsd:complexType>
+
+  <!-- Definition of COVERPOINT -->
+  <xsd:complexType name="COVERPOINT">
+    <xsd:sequence>
+      <xsd:element name="options" type="COVERPOINT_OPTIONS"/>
+      <xsd:element name="coverpointBin" type="COVERPOINT_BIN" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="exprString" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of CG_ID -->
+  <xsd:complexType name="CG_ID">
+    <xsd:sequence>
+      <xsd:element name="cginstSourceId" type="STATEMENT_ID"/>
+      <xsd:element name="cgSourceId" type="STATEMENT_ID"/>
+    </xsd:sequence>
+    <xsd:attribute name="cgName" type="xsd:string" use="required"/>
+    <xsd:attribute name="moduleName" type="xsd:string" use="required"/>
+  </xsd:complexType>
+
+  <!-- Definition of CGINST_OPTIONS -->
+  <xsd:complexType name="CGINST_OPTIONS">
+    <xsd:attribute name="weight" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="goal" type="xsd:nonNegativeInteger" default="100"/>
+    <xsd:attribute name="comment" type="xsd:string" default=""/>
+    <xsd:attribute name="at_least" type="xsd:nonNegativeInteger" default="1"/>
+    <xsd:attribute name="detect_overlap" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="auto_bin_max" type="xsd:nonNegativeInteger" default="64"/>
+    <xsd:attribute name="cross_num_print_missing" type="xsd:nonNegativeInteger" default="0"/>
+    <xsd:attribute name="per_instance" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="merge_instances" type="xsd:boolean" default="false"/>
+  </xsd:complexType>
+
+  <!-- Definition of CGINSTANCE -->
+  <xsd:complexType name="CGINSTANCE">
+    <xsd:sequence>
+      <xsd:element name="options" type="CGINST_OPTIONS"/>
+      <xsd:element name="cgId" type="CG_ID"/>
+      <xsd:element name="cgParms" type="NAME_VALUE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="coverpoint" type="COVERPOINT" minOccurs="1" maxOccurs="unbounded"/>
+      <xsd:element name="cross" type="CROSS" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="excluded" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="excludedReason" type="xsd:string"/>
+  </xsd:complexType>
+
+  <!-- Definition of COVERGROUP_COVERAGE -->
+  <xsd:complexType name="COVERGROUP_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="cgInstance" type="CGINSTANCE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attributeGroup ref="metricAttributes"/>
+  </xsd:complexType>
+
+  <!-- Definition of INSTANCE_COVERAGE -->
+  <xsd:complexType name="INSTANCE_COVERAGE">
+    <xsd:sequence>
+      <xsd:element name="designParameter" type="NAME_VALUE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="id" type="STATEMENT_ID"/>
+      <xsd:element name="toggleCoverage" type="TOGGLE_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="blockCoverage" type="BLOCK_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="conditionCoverage" type="CONDITION_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="branchCoverage" type="BRANCH_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="fsmCoverage" type="FSM_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="assertionCoverage" type="ASSERTION_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="covergroupCoverage" type="COVERGROUP_COVERAGE" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="userAttr" type="USER_ATTR" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required"/>
+    <xsd:attribute name="key" type="xsd:string" use="required"/>
+    <xsd:attribute name="instanceId" type="xsd:integer"/>
+    <xsd:attribute name="alias" type="xsd:string"/>
+    <xsd:attribute name="moduleName" type="xsd:string"/>
+    <xsd:attribute name="parentInstanceId" type="xsd:integer"/>
+  </xsd:complexType>
+
+  <!-- Definition of UCIS -->
+  <xsd:element name="UCIS">
+    <xsd:complexType>
+      <xsd:sequence>
+	<xsd:element name="sourceFiles" type="SOURCE_FILE" minOccurs="1" maxOccurs="unbounded"/>
+	<xsd:element name="historyNodes" type="HISTORY_NODE" minOccurs="1" maxOccurs="unbounded"/>
+	<xsd:element name="instanceCoverages" type="INSTANCE_COVERAGE" minOccurs="1" maxOccurs="unbounded"/>
+      </xsd:sequence>
+      <xsd:attribute name="ucisVersion" type="xsd:string" use="required"/>
+      <xsd:attribute name="writtenBy" type="xsd:string" use="required"/>
+      <xsd:attribute name="writtenTime" type="xsd:dateTime" use="required"/>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>

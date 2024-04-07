@@ -226,6 +226,8 @@ void cover_report(const char *path, cover_data_t *data, int item_limit);
 void cover_export_cobertura(cover_data_t *data, FILE *f,
                             const char *relative);
 void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
+void cover_export_ucdb(cover_data_t *data, const char *path);
+void cover_export_ucis(cover_data_t *data, const char *path);
 
 //
 // Interface to code generator

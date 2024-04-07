@@ -1609,7 +1609,7 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 
    const int next_cmd = scan_cmd(2, argc, argv);
 
-   enum { UNSET, COBERTURA, XML } format = UNSET;
+   enum { UNSET, COBERTURA, XML, UCIS, UCDB } format = UNSET;
    const char *output = NULL, *relative = NULL;
    int c, index;
    const char *spec = ":o:";
@@ -1620,9 +1620,13 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
             format = COBERTURA;
          else if (strcasecmp(optarg, "xml") == 0)
             format = XML;
+         else if (strcasecmp(optarg, "ucis") == 0)
+            format = UCIS;
+         else if (strcasecmp(optarg, "ucdb") == 0)
+            format = UCDB;
          else
-            fatal("unknown format '%s', valid formats are: cobertura, xml",
-                  optarg);
+            fatal("unknown format '%s', valid formats are: "
+                  "cobertura, xml, ucis", optarg);
          break;
       case 'o':
          output = optarg;
@@ -1642,7 +1646,8 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    if (format == UNSET) {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
       diag_printf(d, "the $bold$--format$$ option is required");
-      diag_hint(d, NULL, "pass $bold$--format=cobertura$$ for Cobertura XML");
+      diag_hint(d, NULL, "valid formats are 'cobertura' for Cobertura XML "
+                "and 'ucis' for UCIS XML");
       diag_emit(d);
       return EXIT_FAILURE;
    }
@@ -1677,23 +1682,32 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
             "is deprecated, pass the path to the coverage database instead");
    }
 
-   FILE *file = stdout;
-   if (output != NULL && (file = fopen(output, "w")) == NULL)
-      fatal_errno("cannot create %s", output);
+   if ((format == UCIS || format == UCDB) && output == NULL)
+      fatal("the $bold$--output$$ option is required for this file type");
 
-   switch (format) {
-   case COBERTURA:
-      cover_export_cobertura(cover, file, relative);
-      break;
-   case XML:
-      cover_export_xml(cover, file, relative);
-      break;
-   case UNSET:
-      should_not_reach_here();
+   if (format == UCIS)
+      cover_export_ucis(cover, output);
+   else if (format == UCDB)
+      cover_export_ucdb(cover, output);
+   else {
+      FILE *file = stdout;
+      if (output != NULL && (file = fopen(output, "w")) == NULL)
+         fatal_errno("cannot create %s", output);
+
+      switch (format) {
+      case COBERTURA:
+         cover_export_cobertura(cover, file, relative);
+         break;
+      case XML:
+         cover_export_xml(cover, file, relative);
+         break;
+      default:
+         should_not_reach_here();
+      }
+
+      if (file != stdout)
+         fclose(file);
    }
-
-   if (file != stdout)
-      fclose(file);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

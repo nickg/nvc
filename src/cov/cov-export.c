@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "option.h"
+#include "ucis/ucis-api.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -328,4 +329,173 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative)
 {
    fprintf(f, "<?xml version=\"1.0\"?>\n");
    dump_scope_xml(data->root_scope, 0, &LOC_INVALID, relative, f);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Unified Coverage Interoperability Standard (UCIS)
+
+typedef struct {
+   ucisT    db;
+   shash_t *files;
+} ucis_export_t;
+
+static ucisFileHandleT ucis_get_file(ucis_export_t *u, const loc_t *loc)
+{
+   const char *f = loc_file_str(loc);
+
+   ucisFileHandleT h = shash_get(u->files, f);
+   if (h != NULL)
+      return h;
+
+   h = ucis_CreateFileHandle(u->db, f, "./");
+   shash_put(u->files, f, h);
+   return h;
+}
+
+static void ucis_get_source_info(ucis_export_t *u, const loc_t *loc,
+                                 ucisSourceInfoT *info)
+{
+   info->filehandle = ucis_get_file(u, loc);
+   info->line = loc->first_line;
+   info->token = 0;
+}
+
+static void ucis_export_scope(ucis_export_t *u, ucisScopeT parent,
+                              cover_scope_t *s)
+{
+   printf("%s %d\n", istr(s->name), s->type);
+
+   ucisScopeT scope = parent;
+
+   if (s->type == CSCOPE_INSTANCE) {
+      ucisSourceInfoT srcinfo;
+      ucis_get_source_info(u, &(s->loc), &srcinfo);
+
+      ucisScopeT du = ucis_CreateScope(u->db, parent, istr(s->block_name),
+                                       &srcinfo, 1, UCIS_VHDL, UCIS_DU_MODULE,
+                                       UCIS_ENABLED_STMT | UCIS_ENABLED_BRANCH |
+                                       UCIS_ENABLED_COND | UCIS_ENABLED_EXPR |
+                                       UCIS_ENABLED_FSM | UCIS_ENABLED_TOGGLE |
+                                       UCIS_SCOPE_UNDER_DU);
+
+      scope = ucis_CreateInstance(u->db, NULL, istr(s->hier), &srcinfo, 1,
+                                  UCIS_VHDL, UCIS_INSTANCE, du, 0);
+   }
+
+   ucisScopeT branch = NULL;
+
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *t = &(s->items.items[i]);
+      switch (t->kind) {
+      case COV_ITEM_STMT:
+         {
+            ucisSourceInfoT srcinfo;
+            ucis_get_source_info(u, &(t->loc), &srcinfo);
+
+            ucisCoverDataT coverdata = {
+               .type = UCIS_STMTBIN,
+               .flags = UCIS_IS_32BIT,
+               .data = { .int32 = t->data }
+            };
+
+            const int index = ucis_CreateNextCover(u->db,parent, NULL,
+                                                   &coverdata, &srcinfo);
+            ucis_SetIntProperty(u->db, parent, index, UCIS_INT_STMT_INDEX, 1);
+         }
+         break;
+      case COV_ITEM_BRANCH:
+         {
+            ucisSourceInfoT srcinfo;
+            ucis_get_source_info(u, &(t->loc), &srcinfo);
+
+            if (branch == NULL) {
+               char name[64];
+               checked_sprintf(name, sizeof(name), "branch#%d#%d#",
+                               t->loc.first_line, 1);
+
+               branch = ucis_CreateScope(u->db, scope, name, &srcinfo, 1,
+                                         UCIS_VHDL, UCIS_BRANCH, 0);
+            }
+
+            ucisCoverDataT coverdata = {
+               .type = UCIS_BRANCHBIN,
+               .flags = UCIS_IS_32BIT,
+               .data = { .int32 = t->data }
+            };
+            ucis_CreateNextCover(u->db, branch, NULL, &coverdata, &srcinfo);
+         }
+         break;
+      default:
+         break;
+      }
+   }
+
+   for (int i = 0; i < s->children.count; i++)
+      ucis_export_scope(u, scope, s->children.items[i]);
+}
+
+static void ucis_error_handler(void *data, ucisErrorT *errorInfo)
+{
+   static const diag_level_t map[] = { DIAG_NOTE, DIAG_WARN, DIAG_ERROR };
+
+   diag_t *d = diag_new(map[errorInfo->severity], NULL);
+   diag_printf(d, "UCIS error: %s", errorInfo->msgstr);
+   diag_emit(d);
+
+   if (errorInfo->severity == UCIS_MSG_ERROR)
+      fatal_exit(1);
+}
+
+static ucisT ucis_convert_from_internal(cover_data_t *data)
+{
+   ucis_RegisterErrorHandler(ucis_error_handler, NULL);
+
+   ucis_export_t u = {
+      .db = ucis_Open(NULL),
+      .files = shash_new(64),
+   };
+
+   LOCAL_TEXT_BUF date = tb_new();
+   tb_strftime(date, "L%Y%m%d%H%M%S", time(NULL));
+
+   ucisTestDataT testdata = {
+      .teststatus   = UCIS_TESTSTATUS_OK,
+      .simtime      = 0.0,
+      .timeunit     = "fs",
+      .runcwd       = "./",
+      .cputime      = 0.0,
+      .seed         = "0",
+      .cmd          = PACKAGE,
+      .args         = "",
+      .compulsory   = 0,
+      .date         = tb_get(date),
+      .username     = "",
+      .cost         = 0.0,
+      .toolcategory = UCIS_SIM_TOOL
+   };
+
+   ucisHistoryNodeT testnode =
+      ucis_CreateHistoryNode(u.db, NULL, "TestLogicalName", NULL,
+                             UCIS_HISTORYNODE_TEST);
+
+   ucis_SetTestData(u.db, testnode, &testdata);
+
+   ucis_export_scope(&u, NULL, data->root_scope);
+
+   shash_free(u.files);
+   return u.db;
+}
+
+void cover_export_ucdb(cover_data_t *data, const char *path)
+{
+   ucisT db = ucis_convert_from_internal(data);
+   ucis_Write(db, path, NULL, 0, -1);
+   ucis_Close(db);
+}
+
+void cover_export_ucis(cover_data_t *data, const char *path)
+{
+   ucisT db = ucis_convert_from_internal(data);
+   ucis_WriteToInterchangeFormat(db, path, NULL, 0, -1);
+   ucis_Close(db);
 }

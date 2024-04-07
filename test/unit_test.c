@@ -119,6 +119,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(server);
 #endif
    nfail += RUN_TESTS(driver);
+   nfail += RUN_TESTS(ucis);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
