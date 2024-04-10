@@ -964,3 +964,4 @@ array19         normal
 issue874        normal,2008
 vhpi14          normal,vhpi
 issue877        normal,2008
+issue878        wave,2008,dump-arrays
