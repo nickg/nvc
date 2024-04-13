@@ -3286,18 +3286,7 @@ static void irgen_op_driving_value(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
-static void irgen_op_cover_stmt(jit_irgen_t *g, int op)
-{
-   uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(tag);
-
-   // XXX: this should be atomic
-   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
-   jit_value_t inc = j_add(g, cur, jit_value_from_int64(1));
-   j_store(g, JIT_SZ_32, inc, mem);
-}
-
-static void irgen_op_cover_branch(jit_irgen_t *g, int op)
+static void irgen_op_cover_increment(jit_irgen_t *g, int op)
 {
    uint32_t tag = vcode_get_tag(op);
    jit_value_t mem = jit_addr_from_cover_tag(tag);
@@ -3860,10 +3849,8 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          irgen_op_driving_value(g, i);
          break;
       case VCODE_OP_COVER_STMT:
-         irgen_op_cover_stmt(g, i);
-         break;
       case VCODE_OP_COVER_BRANCH:
-         irgen_op_cover_branch(g, i);
+         irgen_op_cover_increment(g, i);
          break;
       case VCODE_OP_COVER_EXPR:
          irgen_op_cover_expr(g, i);
