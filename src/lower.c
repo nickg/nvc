@@ -1484,14 +1484,44 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
 }
 
 static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
-                                  unsigned int flags, vcode_reg_t hit_reg)
+                                  vcode_block_t true_bb, vcode_block_t false_bb)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(b), NULL,
-                                       COV_ITEM_BRANCH, flags);
-   if (item != NULL)
-      emit_cover_branch(hit_reg, item->tag, flags);
+   object_t *obj = tree_to_object(b);
+
+   cover_item_t *item_true, *item_false = NULL;
+   if (tree_kind(b) == T_ASSOC) {
+      if ((item_true = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
+                                      COV_FLAG_CHOICE)) == NULL)
+         return;
+
+      item_true->num = 1;
+   }
+   else {
+      if ((item_true = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
+                                      COV_FLAG_TRUE)) == NULL)
+         return;
+
+      item_true->num = 2;
+      item_false = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
+                                  COV_FLAG_FALSE);
+      assert(item_false != NULL);
+   }
+
+   assert(true_bb != VCODE_INVALID_BLOCK);
+   assert(item_true->num == 1 || item_true->num == 2);
+
+   vcode_select_block(true_bb);
+   emit_cover_branch(item_true->tag);
+
+   if (item_false == NULL)
+      return;
+
+   assert(false_bb != VCODE_INVALID_BLOCK);
+
+   vcode_select_block(false_bb);
+   emit_cover_branch(item_false->tag);
 }
 
 static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type,
@@ -6253,6 +6283,7 @@ static void lower_sequence(lower_unit_t *lu, tree_t block, loop_stack_t *loops)
 static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
+   const bool want_coverage = cover_enabled(lu->cover, COVER_MASK_BRANCH);
 
    const int nconds = tree_conds(stmt);
    for (int i = 0; i < nconds; i++) {
@@ -6262,13 +6293,9 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
       if (tree_has_value(c)) {
          vcode_reg_t test = lower_rvalue(lu, tree_value(c));
-
-         if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-            lower_branch_coverage(lu, c, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
-
          vcode_block_t btrue = emit_block();
 
-         if (i == nconds - 1) {
+         if (i == nconds - 1 && !want_coverage) {
             if (exit_bb == VCODE_INVALID_BLOCK)
                exit_bb = emit_block();
             next_bb = exit_bb;
@@ -6277,6 +6304,10 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             next_bb = emit_block();
 
          emit_cond(test, btrue, next_bb);
+
+         if (want_coverage)
+            lower_branch_coverage(lu, c, btrue, next_bb);
+
          vcode_select_block(btrue);
       }
 
@@ -6292,8 +6323,11 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
       if (next_bb == VCODE_INVALID_BLOCK)
          break;
-      else
-         vcode_select_block(next_bb);
+
+      vcode_select_block(next_bb);
+
+      if (i == nconds - 1 && want_coverage)
+         emit_jump(exit_bb);
    }
 
    if (exit_bb != VCODE_INVALID_BLOCK)
@@ -6614,10 +6648,10 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       vcode_select_block(test_bb);
       vcode_reg_t test = lower_rvalue(lu, tree_value(stmt));
 
-      if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, stmt, COV_FLAG_FALSE | COV_FLAG_TRUE, test);
-
       emit_cond(test, body_bb, exit_bb);
+
+      if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+         lower_branch_coverage(lu, stmt, body_bb, exit_bb);
    }
    else {
       test_bb = body_bb =
@@ -6655,10 +6689,10 @@ static void lower_loop_control(lower_unit_t *lu, tree_t stmt,
       vcode_block_t true_bb = emit_block();
       vcode_reg_t result = lower_rvalue(lu, tree_value(stmt));
 
-      if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, stmt, COV_FLAG_FALSE | COV_FLAG_TRUE, result);
-
       emit_cond(result, true_bb, false_bb);
+
+      if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+         lower_branch_coverage(lu, stmt, true_bb, false_bb);
 
       vcode_select_block(true_bb);
    }
@@ -6684,6 +6718,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
                               loop_stack_t *loops)
 {
    const int nstmts = tree_stmts(stmt);
+   const bool want_coverage = cover_enabled(lu->cover, COVER_MASK_BRANCH);
 
    vcode_block_t def_bb = VCODE_INVALID_BLOCK;
    vcode_block_t exit_bb = emit_block();
@@ -6716,13 +6751,14 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
             vcode_reg_t hcmp_reg = emit_cmp(VCODE_CMP_LEQ, value_reg, high_reg);
             vcode_reg_t hit_reg = emit_and(lcmp_reg, hcmp_reg);
 
-            if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-               lower_branch_coverage(lu, a, COV_FLAG_CHOICE, hit_reg);
-
             vcode_block_t skip_bb = emit_block();
-
             vcode_block_t hit_bb = emit_block();
+
             emit_cond(hit_reg, hit_bb, skip_bb);
+
+            if (want_coverage)
+               lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
+
             vcode_select_block(hit_bb);
 
             lower_sequence(lu, alt, loops);
@@ -6760,31 +6796,39 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
          if (hit_bb == VCODE_INVALID_BLOCK)
             hit_bb = emit_block();
 
+         // Must track each branch cover item separately
+         vcode_block_t cover_bb = hit_bb;
+         if (want_coverage && nassocs > 1)
+            cover_bb = emit_block();
+
          if (kind == A_OTHERS) {
             assert(def_bb == VCODE_INVALID_BLOCK);
-            def_bb = hit_bb;
-
-            if (cover_enabled(lu->cover, COVER_MASK_BRANCH)) {
-               vcode_select_block(hit_bb);
-               vcode_reg_t true_reg = emit_const(vtype_bool(), 1);
-               lower_branch_coverage(lu, a, COV_FLAG_CHOICE, true_reg);
+            if (want_coverage) {
+               def_bb = cover_bb;
+               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
             }
+            else
+               def_bb = hit_bb;
          }
          else {
             vcode_select_block(start_bb);
             cases[cptr] = lower_rvalue(lu, tree_name(a));
-            blocks[cptr] = hit_bb;
 
-            if (cover_enabled(lu->cover, COVER_MASK_BRANCH)) {
-               vcode_select_block(hit_bb);
+            if (want_coverage) {
+               blocks[cptr] = cover_bb;
                cover_push_scope(lu->cover, a);
-               vcode_reg_t hit_reg =
-                  emit_cmp(VCODE_CMP_EQ, cases[cptr], value_reg);
-               lower_branch_coverage(lu, a, COV_FLAG_CHOICE, hit_reg);
+               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
                cover_pop_scope(lu->cover);
             }
+            else
+               blocks[cptr] = hit_bb;
 
             cptr++;
+         }
+
+         if (cover_bb != hit_bb) {
+            vcode_select_block(cover_bb);
+            emit_jump(hit_bb);
          }
 
          cover_pop_scope(lu->cover);
@@ -6967,11 +7011,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             assert(def_bb == VCODE_INVALID_BLOCK);
             def_bb = hit_bb;
 
-             if (cover_enabled(lu->cover, COVER_MASK_BRANCH)) {
-                vcode_select_block(hit_bb);
-                vcode_reg_t true_reg = emit_const(vtype_bool(), 1);
-                lower_branch_coverage(lu, a, COV_FLAG_CHOICE, true_reg);
-             }
+             if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+                lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
          }
          else {
             tree_t name = tree_name(a);
@@ -7013,12 +7054,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                encoding[cptr] = enc;
 
                // TODO: How to handle have_dup == true ?
-               if (cover_enabled(lu->cover, COVER_MASK_BRANCH)) {
-                  vcode_select_block(hit_bb);
-                  vcode_reg_t hit_reg =
-                     emit_cmp(VCODE_CMP_EQ, cases[cptr], enc_reg);
-                  lower_branch_coverage(lu, a, COV_FLAG_CHOICE, hit_reg);
-               }
+               if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+                  lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
 
                cptr++;
             }

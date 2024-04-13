@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <libgen.h>
+#include <inttypes.h>
 
 //#define COVER_DEBUG_EMIT
 //#define COVER_DEBUG_DUMP
@@ -384,10 +385,10 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    switch (item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
+   case COV_ITEM_BRANCH:
       item->data += data;
       break;
    case COV_ITEM_TOGGLE:
-   case COV_ITEM_BRANCH:
    case COV_ITEM_EXPRESSION:
    case COV_ITEM_STATE:
       item->data |= data;
@@ -778,7 +779,7 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
 
          // Compare based on hierarchical path, each
          // coverage item has unique hierarchical name
-         if (new->hier == old->hier) {
+         if (new->hier == old->hier && (new->flags == old->flags)) {
             assert(new->kind == old->kind);
 #ifdef COVER_DEBUG_MERGE
             printf("Merging coverage item: %s\n", istr(old->hier));

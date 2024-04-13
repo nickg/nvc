@@ -44,8 +44,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
-#define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_COVER_BRANCH)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
@@ -84,7 +82,6 @@ typedef struct {
    vcode_reg_array_t       args;
    loc_t                   loc;
    vcode_type_t            type;      // OP_HAS_TYPE
-   unsigned                subkind;   // OP_HAS_SUBKIND
    union {
       ident_t              func;      // OP_HAS_FUNC
       ident_t              ident;     // OP_HAS_IDENT
@@ -812,13 +809,6 @@ ident_t vcode_get_ident(int op)
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_IDENT(o->kind));
    return o->ident;
-}
-
-unsigned vcode_get_subkind(int op)
-{
-   op_t *o = vcode_op_data(op);
-   assert(OP_HAS_SUBKIND(o->kind));
-   return o->subkind;
 }
 
 int64_t vcode_get_value(int op)
@@ -2125,13 +2115,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_COVER_STMT:
+         case VCODE_OP_COVER_BRANCH:
             {
                printf("%s %u ", vcode_op_string(op->kind), op->tag);
             }
             break;
 
          case VCODE_OP_COVER_TOGGLE:
-         case VCODE_OP_COVER_BRANCH:
          case VCODE_OP_COVER_EXPR:
          case VCODE_OP_COVER_STATE:
             {
@@ -5737,12 +5727,10 @@ void emit_cover_stmt(uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags)
+void emit_cover_branch(uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
-   vcode_add_arg(op, test);
    op->tag = tag;
-   op->subkind = flags;
 }
 
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)

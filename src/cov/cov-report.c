@@ -1215,23 +1215,46 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
          break;
 
       case COV_ITEM_BRANCH:
-         // If/else, when else
-         if (item->flags & COV_FLAG_TRUE && item->flags & COV_FLAG_FALSE) {
-            cover_item_to_chain(ctx, item, COV_FLAG_TRUE,
-                                &hits, &misses, &excludes);
-            cover_item_to_chain(ctx, item, COV_FLAG_FALSE,
-                                &hits, &misses, &excludes);
-            *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
-                                              hits, misses, excludes, limit);
+         if (item->flags & COV_FLAG_CHOICE) {    // Case, with select
+            ctx->flat_stats.total_branches++;
+            ctx->nested_stats.total_branches++;
+
+            if (item->data > 0) {
+               ctx->flat_stats.hit_branches++;
+               ctx->nested_stats.hit_branches++;
+               hits |= COV_FLAG_CHOICE;
+            }
+            else if (item->excl_msk & COV_FLAG_TRUE) {
+               ctx->flat_stats.hit_branches++;
+               ctx->nested_stats.hit_branches++;
+               hits |= COV_FLAG_CHOICE;
+            }
+            else
+               misses |= COV_FLAG_CHOICE;
+         }
+         else if (item->num == 2) {  // If/else, when else
+            ctx->flat_stats.total_branches += 2;
+            ctx->nested_stats.total_branches += 2;
+
+            if (item[0].data > 0 || (item[0].excl_msk & COV_FLAG_TRUE)) {
+               ctx->flat_stats.hit_branches++;
+               ctx->nested_stats.hit_branches++;
+               hits |= COV_FLAG_TRUE;
+            }
+            else
+               misses |= COV_FLAG_TRUE;
+
+            if (item[1].data > 0 || (item[1].excl_msk & COV_FLAG_FALSE)) {
+               ctx->flat_stats.hit_branches++;
+               ctx->nested_stats.hit_branches++;
+               hits |= COV_FLAG_FALSE;
+            }
+            else
+               misses |= COV_FLAG_FALSE;
          }
 
-         // Case, with select
-         if (item->flags & COV_FLAG_CHOICE) {
-            cover_item_to_chain(ctx, item, COV_FLAG_CHOICE,
-                                &hits, &misses, &excludes);
-            *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
-                                              hits, misses, excludes, limit);
-         }
+         *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
+                                           hits, misses, excludes, limit);
          break;
 
       case COV_ITEM_TOGGLE:

@@ -58,8 +58,58 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
       return 1;
 
    case COV_ITEM_BRANCH:
-   case COV_ITEM_TOGGLE:
+      {
+         uint32_t allowed = 0;
+         for (int i = 0; i < item->num; i++)
+            allowed |= item[i].flags;
+         allowed &= COVER_FLAGS_ALL_BINS;
+
+         // If bin is not given, exclude all bins of a item
+         uint32_t bmask = allowed;
+         if (bin != NULL)
+            bmask = cover_bin_str_to_bmask(bin);
+
+         if (!(bmask & allowed)) {
+            LOCAL_TEXT_BUF tb = tb_new();
+            cover_bmask_to_bin_list(allowed, tb);
+
+            diag_t *d = diag_new(DIAG_FATAL, &ctx->loc);
+            diag_printf(d, "invalid bin: $bold$'%s'$$ for %s: '%s'", bin,
+                           kind_str, istr(item->hier));
+            diag_hint(d, NULL, "valid bins are: %s", tb_get(tb));
+            diag_emit(d);
+
+            fatal_exit(1);
+         }
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         cover_bmask_to_bin_list(bmask, tb);
+         note_at(&ctx->loc, "excluding %s: '%s' bins: %s", kind_str,
+                 istr(hier), tb_get(tb));
+
+         uint32_t excl_cov = 0;
+         for (int i = 0; i < item->num; i++) {
+            if ((item->flags & bmask) && item[i].data > 0)
+               excl_cov |= (item->flags & bmask);
+         }
+
+         if (excl_cov) {
+            tb_rewind(tb);
+            cover_bmask_to_bin_list(excl_cov, tb);
+            warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
+                    kind_str, istr(hier), tb_get(tb));
+         }
+
+         for (int i = 0; i < item->num; i++) {
+            if (item->flags & bmask)
+               item[i].excl_msk |= 0xFFFFFFFF;
+         }
+
+         return item->num;
+      }
+
    case COV_ITEM_EXPRESSION:
+   case COV_ITEM_TOGGLE:
       {
          uint32_t allowed = item->flags & COVER_FLAGS_ALL_BINS, bmask = allowed;
 

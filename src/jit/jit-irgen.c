@@ -3299,32 +3299,13 @@ static void irgen_op_cover_stmt(jit_irgen_t *g, int op)
 
 static void irgen_op_cover_branch(jit_irgen_t *g, int op)
 {
-   vcode_reg_t arg0 = vcode_get_arg(op, 0);
-   if (arg0 != g->flags) {
-      jit_value_t result = irgen_get_arg(g, op, 0);
-      j_cmp(g, JIT_CC_NE, result, jit_value_from_int64(0));
-   }
-
    uint32_t tag = vcode_get_tag(op);
    jit_value_t mem = jit_addr_from_cover_tag(tag);
 
-   jit_value_t tval, fval;
-   if (vcode_get_subkind(op) & COV_FLAG_CHOICE) {
-      // TODO: just make a seperate cover choice op?
-      tval = jit_value_from_int64(COV_FLAG_CHOICE);
-      fval = jit_value_from_int64(0);
-   }
-   else {
-      tval = jit_value_from_int64(COV_FLAG_TRUE);
-      fval = jit_value_from_int64(COV_FLAG_FALSE);
-   }
-
-   jit_value_t mask = j_csel(g, tval, fval);
-
    // XXX: this should be atomic
    jit_value_t cur = j_load(g, JIT_SZ_32, mem);
-   jit_value_t next = j_or(g, cur, mask);
-   j_store(g, JIT_SZ_32, next, mem);
+   jit_value_t inc = j_add(g, cur, jit_value_from_int64(1));
+   j_store(g, JIT_SZ_32, inc, mem);
 }
 
 static void irgen_op_cover_expr(jit_irgen_t *g, int op)

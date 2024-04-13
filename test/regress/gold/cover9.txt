@@ -93,7 +93,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_FALSE already covered!
+** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE already covered!
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -144,6 +144,11 @@
  13 | exclude WORK.COVER9._P1._S0._S5
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
+    > data/cover9_ef1.txt:20
+    |
+ 20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE already covered!
     > data/cover9_ef1.txt:20
     |
  20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE

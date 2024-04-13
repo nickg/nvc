@@ -1975,33 +1975,40 @@ START_TEST(test_cover)
       { VCODE_OP_SELECT },
       { VCODE_OP_ADD },
       { VCODE_OP_COVER_EXPR, .tag = 13 },
-      { VCODE_OP_COVER_BRANCH, .tag = 14 },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };
 
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_COVER_STMT, .tag = 15 },
+      { VCODE_OP_COVER_BRANCH, .tag = 14 },
+      { VCODE_OP_COVER_STMT, .tag = 16 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "V" },
-      { VCODE_OP_JUMP, .target = 3 }
+      { VCODE_OP_JUMP, .target = 4 }
    };
 
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
+      { VCODE_OP_COVER_BRANCH, .tag = 15 },
+      { VCODE_OP_JUMP, .target = 4 }
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
       { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_COVER_STMT, .tag = 16 },
-      { VCODE_OP_WAIT, .target = 4 }
+      { VCODE_OP_COVER_STMT, .tag = 17 },
+      { VCODE_OP_WAIT, .target = 5 }
    };
 
-   CHECK_BB(3);
+   CHECK_BB(4);
 
    jit_free(jit);
 
@@ -2442,7 +2449,6 @@ START_TEST(test_choice1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LEQ },
       { VCODE_OP_AND },
-      { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_COND, .target = 4, .target_else = 3 },
    };
 
@@ -2460,6 +2466,7 @@ START_TEST(test_choice1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
+      { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2468,10 +2475,6 @@ START_TEST(test_choice1)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
-      { VCODE_OP_CMP },
-      { VCODE_OP_COVER_BRANCH, .tag = 1 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_COVER_BRANCH, .tag = 2 },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2480,28 +2483,42 @@ START_TEST(test_choice1)
    CHECK_BB(5);
 
    EXPECT_BB(6) = {
-      { VCODE_OP_CMP },
-      { VCODE_OP_COVER_BRANCH, .tag = 3 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_COVER_BRANCH, .tag = 4 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_COVER_BRANCH, .tag = 5 },
-      { VCODE_OP_CONST, .value = 4 },
-      { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_JUMP, .target = 2 }
+      { VCODE_OP_COVER_BRANCH, .tag = 1 },
+      { VCODE_OP_JUMP, .target = 5 }
    };
 
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
-      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_COVER_BRANCH, .tag = 2 },
+      { VCODE_OP_JUMP, .target = 5 }
+   };
+
+   CHECK_BB(7);
+
+   EXPECT_BB(8) = {
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(8);
+
+   EXPECT_BB(9) = {
+      { VCODE_OP_COVER_BRANCH, .tag = 3 },
+      { VCODE_OP_JUMP, .target = 8 }
+   };
+
+   CHECK_BB(9);
+
+   EXPECT_BB(12) = {
       { VCODE_OP_COVER_BRANCH, .tag = 6 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
-   CHECK_BB(7);
+   CHECK_BB(12);
 
    jit_free(jit);
 }

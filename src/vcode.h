@@ -344,7 +344,6 @@ vcode_reg_t vcode_get_result(int op);
 unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
 int vcode_get_field(int op);
-unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
 
 int vcode_count_vars(void);
@@ -479,7 +478,7 @@ void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus);
 void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
-void emit_cover_branch(vcode_reg_t test, uint32_t tag, uint32_t flags);
+void emit_cover_branch(uint32_t tag);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag);
 void emit_cover_expr(vcode_reg_t new_mask, uint32_t tag);
