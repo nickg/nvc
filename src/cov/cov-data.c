@@ -63,7 +63,6 @@ static const struct {
 bool cover_is_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
-   case T_IF:
    case T_WHILE:
    case T_NEXT:
    case T_EXIT:
@@ -73,8 +72,7 @@ bool cover_is_stmt(tree_t t)
    case T_RETURN:
    case T_FOR:
    case T_PCALL:
-   case T_FCALL:
-   case T_CASE:
+   case T_PROT_PCALL:
       return true;
 
    // Static waits are introduced during simp pass. These are hidden

@@ -1,5 +1,5 @@
 ** Note: code coverage results for: WORK.COVER1
-** Note:      statement:     97.7 % (42/43)
+** Note:      statement:     97.3 % (36/37)
 ** Note:      branch:        N.A.
 ** Note:      toggle:        N.A.
 ** Note:      expression:    N.A.

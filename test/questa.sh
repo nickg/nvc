@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 vlib work
 
@@ -6,8 +6,9 @@ root=$(git rev-parse --show-toplevel)
 regress=$root/test/regress
 plusopt=+acc
 vsimopt=
+cover=false
 
-if false; then
+if $cover; then
   plusopt+=" +cover"
   vsimopt+=" -coverage"
 fi
@@ -22,7 +23,7 @@ fi
 
 rm -f /tmp/questa.do
 
-if false; then
+if $cover; then
   echo "coverage save -onexit $1.ucdb" >>/tmp/questa.do
 fi
 

@@ -126,6 +126,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
          {
             cobertura_line_t *l = cobertura_get_line(class, &(t->loc));
             l->branch = true;
+            l->hits += t->data;
             if (t->data > 0)
                l->bflags |= t->flags;
          }
