@@ -1524,6 +1524,17 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
    emit_cover_branch(item_false->tag);
 }
 
+static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
+{
+   if (!cover_enabled(lu->cover, COVER_MASK_STMT))
+      return;
+
+   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(stmt), NULL,
+                                       COV_ITEM_STMT, 0);
+   if (item != NULL)
+      emit_cover_stmt(item->tag);
+}
+
 static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type,
                                      tree_t where, ident_t prefix, int curr_dim)
 {
@@ -5374,6 +5385,8 @@ static void lower_report(lower_unit_t *lu, tree_t stmt)
 {
    assert(!tree_has_value(stmt));
 
+   lower_stmt_coverage(lu, stmt);
+
    vcode_reg_t severity = lower_rvalue(lu, tree_severity(stmt));
 
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
@@ -5413,6 +5426,8 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt)
       lower_report(lu, stmt);
       return;
    }
+
+   lower_stmt_coverage(lu, stmt);
 
    tree_t value = tree_value(stmt);
 
@@ -5545,6 +5560,8 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
    const int ntriggers = tree_triggers(wait);
 
    if (!is_static) {
+      lower_stmt_coverage(lu, wait);
+
       // The _sched_event for static waits is emitted in the reset block
       for (int i = 0; i < ntriggers; i++)
          lower_sched_event(lu, tree_trigger(wait, i), VCODE_INVALID_REG);
@@ -5891,6 +5908,8 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
    tree_t target = tree_target(stmt);
    type_t type   = tree_type(target);
 
+   lower_stmt_coverage(lu, stmt);
+
    const bool is_var_decl =
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
    const bool is_scalar = type_is_scalar(type);
@@ -6113,6 +6132,8 @@ static void lower_disconnect_target(lower_unit_t *lu, target_part_t **ptr,
 
 static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
 {
+   lower_stmt_coverage(lu, stmt);
+
    tree_t target = tree_target(stmt);
 
    const int nparts = lower_count_target_parts(target, 0);
@@ -6387,6 +6408,8 @@ static void lower_leave_subprogram(lower_unit_t *lu)
 
 static void lower_return(lower_unit_t *lu, tree_t stmt)
 {
+   lower_stmt_coverage(lu, stmt);
+
    if (is_subprogram(lu->container))
       lower_leave_subprogram(lu);
 
@@ -6417,6 +6440,8 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
 
 static void lower_pcall(lower_unit_t *lu, tree_t pcall)
 {
+   lower_stmt_coverage(lu, pcall);
+
    tree_t decl = tree_ref(pcall);
 
    const subprogram_kind_t kind = tree_subkind(decl);
@@ -6518,6 +6543,8 @@ static bool lower_is_wait_free(lower_unit_t *lu, tree_t stmt)
 
 static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
+   lower_stmt_coverage(lu, stmt);
+
    tree_t r = tree_range(stmt, 0);
    vcode_reg_t left_reg  = lower_range_left(lu, r);
    vcode_reg_t right_reg = lower_range_right(lu, r);
@@ -6636,8 +6663,9 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
 static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
-   vcode_block_t test_bb, body_bb, exit_bb;
+   lower_stmt_coverage(lu, stmt);
 
+   vcode_block_t test_bb, body_bb, exit_bb;
    if (tree_has_value(stmt)) {
       test_bb = emit_block();
       body_bb = emit_block();
@@ -6662,7 +6690,6 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    }
 
    vcode_select_block(body_bb);
-   cover_push_scope(lu->cover, stmt);
 
    loop_stack_t this = {
       .up      = loops,
@@ -6677,12 +6704,13 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       emit_jump(test_bb);
 
    vcode_select_block(exit_bb);
-   cover_pop_scope(lu->cover);
 }
 
 static void lower_loop_control(lower_unit_t *lu, tree_t stmt,
                                loop_stack_t *loops)
 {
+   lower_stmt_coverage(lu, stmt);
+
    vcode_block_t false_bb = emit_block();
 
    if (tree_has_value(stmt)) {
@@ -7263,14 +7291,6 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       return;   // Unreachable
 
    cover_push_scope(lu->cover, stmt);
-   if (cover_enabled(lu->cover, COVER_MASK_STMT) && cover_is_stmt(stmt)) {
-      cover_item_t *item = cover_add_item(lu->cover, tree_to_object(stmt), NULL,
-                                          COV_ITEM_STMT, 0);
-      if (item != NULL)
-         emit_cover_stmt(item->tag);
-   }
-
-   emit_debug_info(tree_loc(stmt));
 
    switch (tree_kind(stmt)) {
    case T_ASSERT:

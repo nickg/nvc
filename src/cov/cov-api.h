@@ -238,7 +238,6 @@ void cover_pop_scope(cover_data_t *data);
 void cover_inc_array_depth(cover_data_t *data);
 void cover_dec_array_depth(cover_data_t *data);
 
-bool cover_is_stmt(tree_t t);
 bool cover_skip_array_toggle(cover_data_t *data, int a_size);
 bool cover_skip_type_state(cover_data_t *data, type_t type);
 

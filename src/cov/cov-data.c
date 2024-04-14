@@ -60,33 +60,6 @@ static const struct {
    { "BIN_1_TO_0",     COV_FLAG_TOGGLE_TO_0},
 };
 
-bool cover_is_stmt(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_WHILE:
-   case T_NEXT:
-   case T_EXIT:
-   case T_SIGNAL_ASSIGN:
-   case T_ASSERT:
-   case T_VAR_ASSIGN:
-   case T_RETURN:
-   case T_FOR:
-   case T_PCALL:
-   case T_PROT_PCALL:
-      return true;
-
-   // Static waits are introduced during simp pass. These are hidden
-   // for user, no need to cover them.
-   case T_WAIT:
-      if (tree_flags(t) & TREE_F_STATIC_WAIT)
-         return false;
-      return true;
-
-   default:
-      return false;
-   }
-}
-
 static bool cover_is_branch(tree_t branch)
 {
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
