@@ -123,26 +123,26 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0._S0'
+** Note: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0.A'
     > data/cover9_ef1.txt:10
     |
- 10 | exclude WORK.COVER9.AND_GATE._S0._B0._S0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9._P1._S0._S3'
+ 10 | exclude WORK.COVER9.AND_GATE._S0._B0.A
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT4'
     > data/cover9_ef1.txt:11
     |
- 11 | exclude WORK.COVER9._P1._S0._S3
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9._P1._S0._S4'
+ 11 | exclude WORK.COVER9.P1.CASE_STMT.RPT4
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT5'
     > data/cover9_ef1.txt:12
     |
- 12 | exclude WORK.COVER9._p1._S0._S4
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9._P1._S0._S5'
+ 12 | exclude WORK.COVER9.p1.CASE_STMT.RPT5
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT6'
     > data/cover9_ef1.txt:13
     |
- 13 | exclude WORK.COVER9._P1._S0._S5
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 13 | exclude WORK.COVER9.P1.CASE_STMT.RPT6
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
     > data/cover9_ef1.txt:20
     |
@@ -153,41 +153,41 @@
     |
  20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9._P1._S0._B3._B0' bins: BIN_CHOICE
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B3._B0' bins: BIN_CHOICE
     > data/cover9_ef1.txt:23
     |
- 23 | exclude WORK.COVER9._P1._S0._B3._B0 BIN_CHOICE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9._P1._S0._B4._B0' bins: BIN_CHOICE
+ 23 | exclude WORK.COVER9.P1.CASE_STMT._B3._B0 BIN_CHOICE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4._B0' bins: BIN_CHOICE
     > data/cover9_ef1.txt:26
     |
- 26 | exclude WORK.COVER9._P1._s0._B4._B0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9._P1._S0._B_OTHERS' bins: BIN_CHOICE
+ 26 | exclude WORK.COVER9.P1.case_stmt._B4._B0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS' bins: BIN_CHOICE
     > data/cover9_ef1.txt:27
     |
- 27 | exclude WORK.COVER9._P1._S0._B_OTHERS
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_0
+ 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0' bins: BIN_0_0
     > data/cover9_ef1.txt:32
     |
- 32 | exclude WORK.COVER9._P0._S0._E0 BIN_0_0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_0_1
+ 32 | exclude WORK.COVER9.P0._S0._E0 BIN_0_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0' bins: BIN_0_1
     > data/cover9_ef1.txt:33
     |
- 33 | exclude WORK.cover9._P0._S0._E0 BIN_0_1
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_0
+ 33 | exclude WORK.cover9.P0._S0._E0 BIN_0_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0' bins: BIN_1_0
     > data/cover9_ef1.txt:34
     |
- 34 | exclude WORK.COVER9._P0._S0._E0 BIN_1_0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9._P0._S0._E0' bins: BIN_1_1
+ 34 | exclude WORK.COVER9.P0._S0._E0 BIN_1_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0' bins: BIN_1_1
     > data/cover9_ef1.txt:35
     |
- 35 | exclude WORK.COVER9._P0._S0._E0 BIN_1_1
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 35 | exclude WORK.COVER9.P0._S0._E0 BIN_1_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0' bins: BIN_TRUE, BIN_FALSE
     > data/cover9_ef1.txt:37
     |
@@ -277,18 +277,18 @@
    |
  5 | exducles HALO.HALO
    | ^^^^^^^^^^^^^^^^^^
-** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9._P0._S0._E0'
+** Fatal: invalid bin: 'WTF_BIN' for expression: 'WORK.COVER9.P0._S0._E0'
    > data/cover9_ef3.txt:3
    |
- 3 | exclude WORK.COVER9._P0._S0._E0 WTF_BIN
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 3 | exclude WORK.COVER9.P0._S0._E0 WTF_BIN
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = Note: valid bins are: BIN_0_0, BIN_0_1, BIN_1_0, BIN_1_1
-** Fatal: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9._P1._S0._S5'
+** Fatal: statements do not contain bins, but bin 'ADDED_BIN_WHERE_IT_SHOULD_NOT_BE' was given for statement: 'WORK.COVER9.P1.CASE_STMT.RPT6'
    > data/cover9_ef4.txt:3
    |
- 3 | exclude WORK.COVER9._P1._S0._S5 ADDED_BIN_WHERE_IT_SHOULD_NOT_BE
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 3 | exclude WORK.COVER9.P1.CASE_STMT.RPT6 ADDED_BIN_WHERE_IT_SHOULD_NOT_BE
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Fatal: exclude hierarchy missing!
    > data/cover9_ef5.txt:3
    |

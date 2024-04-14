@@ -105,7 +105,7 @@ begin
     ---------------------------------------------------------------------------
     -- Tests that excluding bins 00,01,10,11 works
     ---------------------------------------------------------------------------
-    y <= a xor b;
+    P0: y <= a xor b;
 
     ---------------------------------------------------------------------------
     -- Tests that excluding statement and evaluated to True works
@@ -113,30 +113,30 @@ begin
     and_gate: process(a1, b1)
     begin
         if (a1 = '1' and b1 = '1') then
-            y1 <= '1';
+            a: y1 <= '1';
         else
-            y1 <= '0';
+            b: y1 <= '0';
         end if;
     end process;
 
     ---------------------------------------------------------------------------
     -- Tests that excluding case choices bins and whole case choice works
     ---------------------------------------------------------------------------
-    process(sel)
+    P1: process(sel)
     begin
-        case sel is
+        case_stmt: case sel is
         when 0 =>
-            report "Selector is 0";
+            rpt1: report "Selector is 0";
         when 1 =>
-            report "Selector is 1";
+            rpt2: report "Selector is 1";
         when 2 =>
-            report "Selector is 2";
+            rpt3: report "Selector is 2";
         when 3 =>
-            report "Selector is 3";
+            rpt4: report "Selector is 3";
         when 4 =>
-            report "Selector is 4";
+            rpt5: report "Selector is 4";
         when others =>
-            report "Selector is OTHERS";
+            rpt6: report "Selector is OTHERS";
         end case;
     end process;
 

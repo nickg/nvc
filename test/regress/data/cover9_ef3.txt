@@ -1,3 +1,3 @@
 
 # Invalid bin name WTF_BIN
-exclude WORK.COVER9._P0._S0._E0 WTF_BIN
+exclude WORK.COVER9.P0._S0._E0 WTF_BIN

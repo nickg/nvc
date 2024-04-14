@@ -9868,7 +9868,7 @@ static tree_t p_if_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   tree_set_loc(t, CURRENT_LOC);
+   set_label_and_loc(t, label, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
@@ -10197,7 +10197,7 @@ static tree_t p_case_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   tree_set_loc(t, CURRENT_LOC);
+   set_label_and_loc(t, label, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
