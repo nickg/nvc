@@ -705,11 +705,11 @@ void nvc_lock(nvc_lock_t *lock)
    LOCK_EVENT(locks, 1);
    TSAN_PRE_LOCK(lock);
 
-   int8_t state = relaxed_load(lock);
-   if (state & IS_LOCKED)
-      LOCK_EVENT(contended, 1);
-   else if (likely(__atomic_cas(lock, &state, state | IS_LOCKED)))
+   int8_t state = 0;
+   if (likely(__atomic_cas(lock, &state, state | IS_LOCKED)))
       goto locked;  // Fast path: acquired the lock without contention
+
+   LOCK_EVENT(contended, 1);
 
    for (;;) {
       LOCK_EVENT(retries, 1);
