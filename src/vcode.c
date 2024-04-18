@@ -959,7 +959,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap exp", "implicit event", "enter state", "reflect value",
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
-      "or trigger", "cmp trigger", "instance name",
+      "or trigger", "cmp trigger", "instance name", "deposit signal",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1731,6 +1731,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_FORCE:
          case VCODE_OP_RELEASE:
+         case VCODE_OP_DEPOSIT_SIGNAL:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -6014,6 +6015,22 @@ vcode_reg_t emit_instance_name(vcode_reg_t kind)
 
    vcode_type_t vchar = vtype_char();
    return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
+}
+
+void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
+                         vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_DEPOSIT_SIGNAL);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, values);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "deposit signal target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "deposit signal count is not offset type");
+   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
+                "signal cannot be values argument for deposit signal");
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)

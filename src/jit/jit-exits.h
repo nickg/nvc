@@ -77,6 +77,8 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
                   int64_t after, int64_t reject);
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);
 void x_release(sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
+                      void *values);
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
                       int64_t ileft, int32_t nlits, int32_t flags);
 void x_elab_order_fail(tree_t where);

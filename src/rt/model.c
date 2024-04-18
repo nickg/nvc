@@ -4301,6 +4301,22 @@ void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
    release_signal(m, s, offset, count);
 }
 
+void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
+                      void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("deposit signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count), count);
+
+   rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
+
+   check_postponed(0, proc);
+
+   deposit_signal(m, s, values, offset, count);
+}
+
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
                       int64_t ileft, int32_t nlits, int32_t flags)
 {

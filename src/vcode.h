@@ -167,6 +167,7 @@ typedef enum {
    VCODE_OP_OR_TRIGGER,
    VCODE_OP_CMP_TRIGGER,
    VCODE_OP_INSTANCE_NAME,
+   VCODE_OP_DEPOSIT_SIGNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -527,5 +528,7 @@ void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
+void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
+                         vcode_reg_t values);
 
 #endif  // _VCODE_H

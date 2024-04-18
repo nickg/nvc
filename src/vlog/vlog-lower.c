@@ -621,7 +621,7 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
    }
 }
 
-static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
 
@@ -655,26 +655,36 @@ static void vlog_lower_nbassign(lower_unit_t *lu, vlog_node_t v)
    else
       data_reg = emit_unwrap(resize_reg);
 
-   vcode_type_t vtime = vtype_time();
-   vcode_reg_t reject_reg = emit_const(vtime, 0);
-   vcode_reg_t after_reg = emit_const(vtime, 0);
+   switch (vlog_kind(v)) {
+   case V_NBASSIGN:
+   case V_ASSIGN:
+      {
+         vcode_type_t vtime = vtype_time();
+         vcode_reg_t reject_reg = emit_const(vtime, 0);
+         vcode_reg_t after_reg = emit_const(vtime, 0);
 
-   emit_sched_waveform(nets_reg, count_reg, data_reg, reject_reg, after_reg);
-}
+         emit_sched_waveform(nets_reg, count_reg, data_reg,
+                             reject_reg, after_reg);
+      }
+      break;
+   case V_BASSIGN:
+      {
+         emit_deposit_signal(nets_reg, count_reg, data_reg);
 
-static void vlog_lower_bassign(lower_unit_t *lu, vlog_node_t v)
-{
-   vlog_lower_nbassign(lu, v);
+         // Delay one delta cycle to see the update
 
-   // Delay one delta cycle to see the update
+         vcode_type_t vtime = vtype_time();
+         vcode_reg_t delay_reg = emit_const(vtime, 0);
 
-   vcode_type_t vtime = vtype_time();
-   vcode_reg_t delay_reg = emit_const(vtime, 0);
+         vcode_block_t resume_bb = emit_block();
+         emit_wait(resume_bb, delay_reg);
 
-   vcode_block_t resume_bb = emit_block();
-   emit_wait(resume_bb, delay_reg);
-
-   vcode_select_block(resume_bb);
+         vcode_select_block(resume_bb);
+      }
+      break;
+   default:
+      CANNOT_HANDLE(v);
+   }
 }
 
 static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
@@ -771,10 +781,8 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
          vlog_lower_timing(lu, s, false);
          break;
       case V_NBASSIGN:
-         vlog_lower_nbassign(lu, s);
-         break;
       case V_BASSIGN:
-         vlog_lower_bassign(lu, s);
+         vlog_lower_procedural_assign(lu, s);
          break;
       case V_SEQ_BLOCK:
          vlog_lower_stmts(lu, s);
@@ -814,7 +822,6 @@ static void vlog_driver_cb(vlog_node_t v, void *context)
 
    switch (vlog_kind(v)) {
    case V_NBASSIGN:
-   case V_BASSIGN:
    case V_ASSIGN:
       vlog_lower_driver(lu, vlog_target(v));
       break;
@@ -909,7 +916,7 @@ static void vlog_lower_continuous_assign(unit_registry_t *ur,
 
    vcode_select_block(start_bb);
 
-   vlog_lower_nbassign(lu, stmt);
+   vlog_lower_procedural_assign(lu, stmt);
 
    emit_wait(start_bb, VCODE_INVALID_REG);
 

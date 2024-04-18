@@ -3114,6 +3114,24 @@ static void irgen_op_release(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_RELEASE);
 }
 
+static void irgen_op_deposit_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+   jit_value_t value  = irgen_get_arg(g, op, 2);
+
+   jit_value_t scalar = irgen_is_scalar(g, op, 2);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, value);
+   j_send(g, 4, scalar);
+
+   macro_exit(g, JIT_EXIT_DEPOSIT_SIGNAL);
+}
+
 static void irgen_op_sched_event(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -3817,6 +3835,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_RELEASE:
          irgen_op_release(g, i);
+         break;
+      case VCODE_OP_DEPOSIT_SIGNAL:
+         irgen_op_deposit_signal(g, i);
          break;
       case VCODE_OP_EVENT:
          irgen_op_event(g, i);

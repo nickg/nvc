@@ -88,7 +88,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "CLEAR_EVENT", "IMPLICIT_EVENT", "ENTER_STATE", "REFLECT_VALUE",
       "REFLECT_SUBTYPE", "FUNCTION_TRIGGER", "ADD_TRIGGER", "TRANSFER_SIGNAL",
       "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
-      "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME",
+      "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
