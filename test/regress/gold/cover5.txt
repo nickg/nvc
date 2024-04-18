@@ -1,7 +1,7 @@
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER5
-** Note:      statement:     36.8 % (7/19)
+** Note:      statement:     42.9 % (9/21)
 ** Note:      branch:        14.3 % (2/14)
 ** Note:      toggle:        3.1 % (1/32)
 ** Note:      expression:    14.3 % (2/14)
@@ -10,7 +10,7 @@
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER5
-** Note:      statement:     42.1 % (8/19)
+** Note:      statement:     47.6 % (10/21)
 ** Note:      branch:        28.6 % (4/14)
 ** Note:      toggle:        6.2 % (2/32)
 ** Note:      expression:    28.6 % (4/14)
@@ -19,7 +19,7 @@
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER5
-** Note:      statement:     47.4 % (9/19)
+** Note:      statement:     52.4 % (11/21)
 ** Note:      branch:        42.9 % (6/14)
 ** Note:      toggle:        9.4 % (3/32)
 ** Note:      expression:    42.9 % (6/14)
@@ -28,7 +28,7 @@
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER5
-** Note:      statement:     52.6 % (10/19)
+** Note:      statement:     57.1 % (12/21)
 ** Note:      branch:        50.0 % (7/14)
 ** Note:      toggle:        12.5 % (4/32)
 ** Note:      expression:    50.0 % (7/14)
@@ -37,7 +37,7 @@
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER5
-** Note:      statement:     100.0 % (19/19)
+** Note:      statement:     100.0 % (21/21)
 ** Note:      branch:        92.9 % (13/14)
 ** Note:      toggle:        28.1 % (9/32)
 ** Note:      expression:    92.9 % (13/14)

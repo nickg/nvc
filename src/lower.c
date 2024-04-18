@@ -6303,6 +6303,8 @@ static void lower_sequence(lower_unit_t *lu, tree_t block, loop_stack_t *loops)
 
 static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
+   lower_stmt_coverage(lu, stmt);
+
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
    const bool want_coverage = cover_enabled(lu->cover, COVER_MASK_BRANCH);
 
@@ -7119,6 +7121,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
 static void lower_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
+   lower_stmt_coverage(lu, stmt);
+
    if (type_is_scalar(tree_type(tree_value(stmt))))
       lower_case_scalar(lu, stmt, loops);
    else
