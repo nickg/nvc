@@ -12871,13 +12871,18 @@ unit_registry_t *unit_registry_new(void)
 
 void unit_registry_free(unit_registry_t *ur)
 {
+   vcode_close();
+
    const void *key;
    void *value;
    for (hash_iter_t it = HASH_BEGIN; hash_iter(ur->map, &it, &key, &value); ) {
 
       switch (pointer_tag(value)) {
       case UNIT_FINALISED:
-         // Let this leak for now as it may be referenced from the library
+         {
+            vcode_unit_t vu = untag_pointer(value, struct _vcode_unit);
+            vcode_unit_unref(vu);
+         }
          break;
 
       case UNIT_GENERATED:
@@ -12885,6 +12890,7 @@ void unit_registry_free(unit_registry_t *ur)
             lower_unit_t *lu = untag_pointer(value, lower_unit_t);
             assert(lu->finished);
             assert(lu->registry == ur);
+            vcode_unit_unref(lu->vunit);
             lower_unit_free(lu);
          }
          break;

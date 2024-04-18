@@ -627,6 +627,12 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
          break;
 
       case SOURCE_PORT:
+         if (s->u.port.conv_func != NULL) {
+            free(s->u.port.conv_func->inputs);
+            s->u.port.conv_func->inputs = NULL;
+         }
+         break;
+
       case SOURCE_FORCING:
       case SOURCE_DEPOSIT:
          break;

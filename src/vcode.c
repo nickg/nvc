@@ -532,8 +532,11 @@ void vcode_unit_unref(vcode_unit_t unit)
    if (unit == active_unit)
       vcode_close();
 
-   while (unit->children)
-      vcode_unit_unref(unit->children);
+   for (vcode_unit_t it = unit->children; it != NULL; it = it->next) {
+      assert(it->context == unit);
+      it->context = NULL;
+   }
+   unit->children = NULL;
 
    if (unit->context != NULL) {
       vcode_unit_t *it = &(unit->context->children);

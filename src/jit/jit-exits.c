@@ -348,7 +348,7 @@ void x_instance_name(attr_kind_t kind, text_buf_t *tb)
 {
    assert(kind == ATTR_INSTANCE_NAME || kind == ATTR_PATH_NAME);
 
-   jit_stack_trace_t *trace = jit_stack_trace();
+   jit_stack_trace_t *trace LOCAL = jit_stack_trace();
    for (int i = 0; i < trace->count; i++) {
       tree_t where = tree_from_object(trace->frames[i].object);
       if (where == NULL)
