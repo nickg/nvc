@@ -171,6 +171,8 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
    tab(indent);
    vlog_dump(vlog_target(v), 0);
    print_syntax(" <= ");
+   if (vlog_has_delay(v))
+      vlog_dump(vlog_delay(v), 0);
    vlog_dump(vlog_value(v), 0);
    print_syntax(";\n");
 }
@@ -185,6 +187,9 @@ static void vlog_dump_bassign(vlog_node_t v, int indent)
       print_syntax(" = ");
       break;
    }
+
+   if (vlog_has_delay(v))
+      vlog_dump(vlog_delay(v), 0);
 
    vlog_dump(vlog_value(v), 0);
    print_syntax(";\n");
@@ -246,6 +251,21 @@ static void vlog_dump_systask(vlog_node_t v, int indent)
    }
 
    print_syntax(";\n");
+}
+
+static void vlog_dump_sysfunc(vlog_node_t v)
+{
+   print_syntax("%s", istr(vlog_ident(v)));
+
+   const int nparams = vlog_params(v);
+   if (nparams > 0) {
+      print_syntax("(");
+      for (int i = 0; i < nparams; i++) {
+         if (i > 0) print_syntax(", ");
+         vlog_dump(vlog_param(v, i), 0);
+      }
+      print_syntax(")");
+   }
 }
 
 static void vlog_dump_string(vlog_node_t v)
@@ -409,6 +429,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_SYSTASK:
       vlog_dump_systask(v, indent);
+      break;
+   case V_SYSFUNC:
+      vlog_dump_sysfunc(v);
       break;
    case V_STRING:
       vlog_dump_string(v);

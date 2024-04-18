@@ -192,13 +192,14 @@ void number_print(number_t val, text_buf_t *tb)
       }
       break;
    case TAG_INTEGER:
-      tb_printf(tb, "%u'%s", val.intg.width, val.intg.issigned ? "s" : "");
       if (val.intg.width == 1)
-         tb_printf(tb, "b%u", (unsigned char)val.intg.packed);
-      else {
-         const int64_t extended = val.intg.packed;
-         tb_printf(tb, "d%"PRIi64, extended);
+         tb_printf(tb, "1'b%u", (unsigned char)val.intg.packed);
+      else if (val.intg.width == 32 && !val.intg.issigned) {
+         tb_printf(tb, "%"PRIi64, (int64_t)val.intg.packed);
       }
+      else
+         tb_printf(tb, "%u'%sd%"PRIi64, val.intg.width,
+                   val.intg.issigned ? "s" : "", (int64_t)val.intg.packed);
       break;
    default:
       DEBUG_ONLY(fatal_trace("invalid number tag %x", val.common.tag));

@@ -404,6 +404,30 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
    return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
 }
 
+static vcode_reg_t vlog_lower_sysfunc(lower_unit_t *lu, vlog_node_t v)
+{
+   const v_sysfunc_kind_t kind = vlog_subkind(v);
+   static const char *fns[] = {
+      "NVC.VERILOG.SYS_TIME()T"
+   };
+   assert(kind < ARRAY_LEN(fns));
+
+   vcode_reg_t context_reg = vlog_helper_package();
+
+   switch (kind) {
+   case V_SYS_TIME:
+      {
+         vcode_type_t vtime = vtype_time();
+         vcode_reg_t args[] = { context_reg };
+         return emit_fcall(ident_new(fns[kind]), vtime, vtime,
+                           args, ARRAY_LEN(args));
+      }
+
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(v);
@@ -525,6 +549,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_type_t vnet = vlog_net_value_type();
          return emit_const(vnet, map[vlog_subkind(v)]);
       }
+   case V_SYSFUNC:
+      return vlog_lower_sysfunc(lu, v);
    default:
       CANNOT_HANDLE(v);
    }

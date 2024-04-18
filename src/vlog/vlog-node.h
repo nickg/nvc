@@ -39,6 +39,10 @@ typedef enum {
 } v_systask_kind_t;
 
 typedef enum {
+   V_SYS_TIME,
+} v_sysfunc_kind_t;
+
+typedef enum {
    V_NET_WIRE,
    V_NET_SUPPLY0,
    V_NET_SUPPLY1,
@@ -71,6 +75,7 @@ typedef enum {
    V_STRENGTH,
    V_MOD_INST,
    V_BIT_SELECT,
+   V_SYSFUNC,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -175,6 +180,10 @@ void vlog_set_value(vlog_node_t v, vlog_node_t e);
 
 vlog_node_t vlog_target(vlog_node_t v);
 void vlog_set_target(vlog_node_t v, vlog_node_t e);
+
+vlog_node_t vlog_delay(vlog_node_t v);
+bool vlog_has_delay(vlog_node_t v);
+void vlog_set_delay(vlog_node_t v, vlog_node_t d);
 
 vlog_node_t vlog_left(vlog_node_t v);
 void vlog_set_left(vlog_node_t v, vlog_node_t e);

@@ -253,6 +253,7 @@ typedef enum {
    W_SHAPE,
    W_INSTANCE_NAME,
    W_PATH_NAME,
+   W_DOLLAR_TIME,
 
    NUM_WELL_KNOWN
 } well_known_t;

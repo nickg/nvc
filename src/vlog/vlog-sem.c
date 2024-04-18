@@ -173,6 +173,9 @@ static void vlog_check_nbassign(vlog_node_t stmt)
    vlog_node_t target = vlog_target(stmt);
    vlog_check(target);
 
+   if (vlog_has_delay(stmt))
+      vlog_check(vlog_delay(stmt));
+
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
 
@@ -183,6 +186,9 @@ static void vlog_check_bassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
    vlog_check(target);
+
+   if (vlog_has_delay(stmt))
+      vlog_check(vlog_delay(stmt));
 
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
@@ -257,6 +263,26 @@ static void vlog_check_systask(vlog_node_t call)
    case W_DOLLAR_WRITE:   kind = V_SYS_WRITE; break;
    default:
       error_at(vlog_loc(call), "system task %s not recognised",
+               istr(vlog_ident(call)));
+      return;
+   }
+
+   vlog_set_subkind(call, kind);
+
+   const int nparams = vlog_params(call);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(call, i));
+}
+
+static void vlog_check_sysfunc(vlog_node_t call)
+{
+   const well_known_t name = is_well_known(vlog_ident(call));
+
+   v_sysfunc_kind_t kind;
+   switch (name) {
+   case W_DOLLAR_TIME: kind = V_SYS_TIME; break;
+   default:
+      error_at(vlog_loc(call), "system function %s not recognised",
                istr(vlog_ident(call)));
       return;
    }
@@ -467,6 +493,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_SYSTASK:
       vlog_check_systask(v);
+      break;
+   case V_SYSFUNC:
+      vlog_check_sysfunc(v);
       break;
    case V_NUMBER:
       vlog_check_number(v);

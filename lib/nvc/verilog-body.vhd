@@ -370,4 +370,9 @@ package body verilog is
     begin
         return not (l = r);
     end function;
+
+    impure function sys_time return time is
+    begin
+        return now;
+    end function;
 end package body;

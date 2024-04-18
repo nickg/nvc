@@ -139,6 +139,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          decimal_number conditional_statement variable_type
 %type   <vlog>          delay_control delay_value strength0 strength1
 %type   <vlog>          pull_gate_instance port_identifier module_instance
+%type   <vlog>          system_function_call
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -673,6 +674,17 @@ system_task_enable:
                 }
         ;
 
+system_function_call:
+                tSYSTASK
+                {
+                   $$ = vlog_new(V_SYSFUNC);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_ident($$, ident_new($1));
+
+                   free($1);
+                }
+        ;
+
 seq_block:      tBEGIN list_of_statements_opt tEND
                 {
                    $$ = vlog_new(V_SEQ_BLOCK);
@@ -702,6 +714,14 @@ nonblocking_assignment:
                    vlog_set_target($$, $1);
                    vlog_set_value($$, $3);
                 }
+        |       lvalue tLE delay_or_event_control expression
+                {
+                   $$ = vlog_new(V_NBASSIGN);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_target($$, $1);
+                   vlog_set_delay($$, $3);
+                   vlog_set_value($$, $4);
+                }
         ;
 
 blocking_assignment:
@@ -712,6 +732,15 @@ blocking_assignment:
                    vlog_set_subkind($$, V_ASSIGN_EQUALS);
                    vlog_set_target($$, $1);
                    vlog_set_value($$, $3);
+                }
+        |       lvalue '=' delay_or_event_control expression
+                {
+                   $$ = vlog_new(V_BASSIGN);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_ASSIGN_EQUALS);
+                   vlog_set_target($$, $1);
+                   vlog_set_delay($$, $3);
+                   vlog_set_value($$, $4);
                 }
         ;
 
@@ -886,6 +915,7 @@ primary:        hierarchical_identifier
                    vlog_set_loc($$, &@$);
                 }
         |       number
+        |       system_function_call
         ;
 
 number:         decimal_number

@@ -82,6 +82,7 @@ package verilog is
     function "/=" (l, r : t_packed_logic) return boolean;
 
     procedure sys_finish;
+    impure function sys_time return time;
 
     -- These procedures are called with a special variadic calling convention
     -- which cannot be represented in VHDL

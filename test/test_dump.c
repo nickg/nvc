@@ -474,22 +474,24 @@ START_TEST(test_vlog1)
    vlog_dump(m2, 0);
    diff_dump(tb_get(tb),
              "module mod2;\n"
-             "  wire [32'd7:32'd0] bus;\n"
+             "  wire [7:0] bus;\n"
              "  wire w;\n"
              "  reg r;\n"
              "  initial begin\n"
-             "    $display(\"hello\");\n"
+             "    $display(\"hello\", $time);\n"
              "    if (bus)\n"
-             "      r <= 32'd1 | r;\n"
+             "      r <= 1 | r;\n"
              "    $finish;\n"
-             "    r = 32'd1;\n"
-             "    #32'd1 r <= 32'd0;\n"
+             "    r = 1;\n"
+             "    #1 r <= 0;\n"
              "    r = ~w;\n"
+             "    r = #1 5;\n"
+             "    r <= #5 1;\n"
              "  end\n"
-             "  assign bus = 32'd3;\n"
+             "  assign bus = 3;\n"
              "  pullup (supply1,supply0) p1 (w);\n"
              "  mod u1 (w);\n"
-             "  assign bus[32'd2] = 4'd1;\n"
+             "  assign bus[2] = 4'd1;\n"
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 

@@ -42,7 +42,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_STMTS),
 
    // V_NBASSIGN
-   (I_TARGET | I_VALUE),
+   (I_TARGET | I_VALUE | I_DELAY),
 
    // V_EVENT
    (I_SUBKIND | I_VALUE),
@@ -87,7 +87,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_LEFT | I_RIGHT | I_SUBKIND),
 
    // V_BASSIGN
-   (I_TARGET | I_VALUE | I_SUBKIND),
+   (I_TARGET | I_VALUE | I_SUBKIND | I_DELAY),
 
    // V_UNARY
    (I_VALUE | I_SUBKIND),
@@ -103,6 +103,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_BIT_SELECT
    (I_IDENT | I_REF | I_PARAMS),
+
+   // V_SYSFUNC
+   (I_IDENT | I_SUBKIND | I_PARAMS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -112,7 +115,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_NET_DECL",  "V_ASSIGN",     "V_DIMENSION",     "V_IF",
    "V_COND",      "V_VAR_DECL",   "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",  "V_BIT_SELECT",
+   "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -377,6 +380,24 @@ void vlog_set_target(vlog_node_t v, vlog_node_t e)
 {
    lookup_item(&vlog_object, v, I_TARGET)->object = &(e->object);
    object_write_barrier(&(v->object), &(e->object));
+}
+
+vlog_node_t vlog_delay(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_DELAY);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _vlog_node, object);
+}
+
+bool vlog_has_delay(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_DELAY)->object != NULL;
+}
+
+void vlog_set_delay(vlog_node_t v, vlog_node_t d)
+{
+   lookup_item(&vlog_object, v, I_DELAY)->object = &(d->object);
+   object_write_barrier(&(v->object), &(d->object));
 }
 
 const char *vlog_text(vlog_node_t v)

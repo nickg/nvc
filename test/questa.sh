@@ -28,7 +28,7 @@ if $cover; then
 fi
 
 cat >>/tmp/questa.do <<EOF
-run
+run -all
 quit
 EOF
 
