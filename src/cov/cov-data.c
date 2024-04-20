@@ -247,12 +247,14 @@ static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t wher
                                         flags | COV_FLAG_TOGGLE_TO_1);
    if (first == NULL)
       return -1;
+   first->num = 2;
 
    ident_t bname_10 = ident_new(cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_0));
    ident_t suffix_10 = (suffix) ? ident_prefix(suffix, bname_10, '.') :
                                   ident_prefix(ident_new("."), bname_10, '\0');
-   cover_add_item(data, owhere, suffix_10, COV_ITEM_TOGGLE,
-                  flags | COV_FLAG_TOGGLE_TO_0);
+   cover_item_t *second = cover_add_item(data, owhere, suffix_10, COV_ITEM_TOGGLE,
+                                         flags | COV_FLAG_TOGGLE_TO_0);
+   second->num = 1;
 
    return first->tag;
 }
@@ -427,13 +429,8 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
       func_name = ident_rfrom(type_ident(tree_type(t)), '.');
    }
-   else if (kind == COV_ITEM_TOGGLE) {
+   else if (kind == COV_ITEM_TOGGLE)
       sig_pos = data->top_scope->sig_pos;
-      if (flags & COV_FLAG_TOGGLE_TO_1)
-         num = 2;
-      else
-         num = 1;
-   }
 
    cover_item_t new = {
       .kind       = kind,
