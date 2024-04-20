@@ -1288,6 +1288,13 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
    cover_chain_t *chn;
 
    switch (first_item->kind) {
+   case COV_ITEM_STMT:
+      flat_total = &(ctx->flat_stats.total_stmts);
+      nested_total = &(ctx->nested_stats.total_stmts);
+      flat_hits = &(ctx->flat_stats.hit_stmts);
+      nested_hits = &(ctx->nested_stats.hit_stmts);
+      chn = &(ctx->ch_stmt);
+      break;
    case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);
       nested_total = &(ctx->nested_stats.total_toggles);
@@ -1379,19 +1386,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
 
       switch (item->kind) {
       case COV_ITEM_STMT:
-         (ctx->flat_stats.total_stmts)++;
-         (ctx->nested_stats.total_stmts)++;
-
-         hits = (item->data != 0);
-         misses = (item->data == 0) && (item->excl_msk == 0);
-         excludes = (item->data == 0) && (item->excl_msk != 0);
-
-         if (hits | excludes) {
-            (ctx->flat_stats.hit_stmts)++;
-            (ctx->nested_stats.hit_stmts)++;
-         }
-         *skipped += cover_append_to_chain_legacy(&(ctx->ch_stmt), item, line,
-                                                  hits, misses, excludes, limit);
+         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
          break;
 
       case COV_ITEM_BRANCH:

@@ -413,7 +413,7 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       func_name = tree_ident(t);
    }
 
-   int num = 0;
+   int num = 1;
    int sig_pos = 0;
    if (kind == COV_ITEM_STATE) {
       tree_t t = tree_from_object(obj);

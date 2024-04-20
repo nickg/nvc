@@ -44,6 +44,18 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
 
    switch (kind) {
    case COV_ITEM_STMT:
+      if (bin)
+         fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
+                             "was given for %s: '%s'",
+                             kind_str, bin, kind_str, istr(hier));
+
+      note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+      if (item->data)
+         warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
+
+      item->flags |= COV_FLAG_EXCLUDED;
+      return 1;
+
    case COV_ITEM_FUNCTIONAL:
       if (bin)
          fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
