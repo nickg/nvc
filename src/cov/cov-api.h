@@ -101,8 +101,7 @@ typedef struct _cover_item {
    //    COV_ITEM_BRANCH      - Bit COV_FLAG_TRUE:        Branch evaluated to True
    //                           Bit COV_FLAG_FALSE:       Branch evaluated to False
    //                           Bit COV_FLAG_CHOICE:      Case/Select choice was selected
-   //    COV_ITEM_TOOGLE      - Bit COV_FLAG_TOGGLE_TO_1: 0 -> 1 transition
-   //                           Bit COV_FLAG_TOGGLE_TO_0: 1 -> 0 transition
+   //    COV_ITEM_TOOGLE      - Number of times toggle occured
    //    COV_ITEM_EXPRESSION  - Bit COV_FLAG_TRUE:        Expression evaluated to True
    //                           Bit COV_FLAG_FALSE:       Expression evaluated to False
    //                           Bit COV_FLAG_00:          LHS = 0/False and RHS = 0/False
@@ -139,10 +138,15 @@ typedef struct _cover_item {
    // Type of source statement or expression
    cover_src_t       source;
 
-   // Numeric data related to the cover item:
-   //    COV_ITEM_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.
-   //    COV_ITEM_TOGGLE - Start position for signal name
+   // Number of consecutive cover items that belong to the same RTL "object"
+   //    COV_ITEM_TOGGLE - All items belonging to the same signal / port
+   //    COV_ITEM_STATE  - Number of FSM states (single item = single state)
+   //    COV_ITEM_BRANCH - T_IF - 2 for if tag, 1 for else tag, T_CASE - 1
+   //    TODO: Implement like so for other coverage kinds
    int               num;
+
+   // COV_ITEM_TOGGLE - Start position for signal name
+   int               sig_pos;
 } cover_item_t;
 
 typedef enum {
@@ -158,8 +162,11 @@ typedef enum {
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
-   COV_FLAG_CONST_DRIVEN   = (1 << 19),
-   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
+   COV_FLAG_EXCLUDED       = (1 << 25),
+
+   // TODO: If counter is widened, this needs to be at MSB bit of signed int64
+   COV_FLAG_UNREACHABLE    = (1 << 31),
 } cover_flags_t;
 
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)

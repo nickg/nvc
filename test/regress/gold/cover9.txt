@@ -1,29 +1,49 @@
-** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_0_TO_1'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A' bins: BIN_1_TO_0 already covered!
+** Warning: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_1_TO_0' already covered!
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B.BIN_0_TO_1'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.B.BIN_1_TO_0'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2).BIN_0_TO_1'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(2).BIN_1_TO_0'
+   > data/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1).BIN_0_TO_1'
+   > data/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(1).BIN_1_TO_0'
+   > data/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0).BIN_0_TO_1'
+   > data/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.Y(0).BIN_1_TO_0'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -213,51 +233,81 @@
     |
  39 | exclude WORK.COVER9.AND_GATE._S0._B0._E2
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_A' bins: BIN_0_TO_1
+** Note: excluding toggle: 'WORK.COVER9.S_A.BIN_0_TO_1'
     > data/cover9_ef1.txt:45
     |
- 45 | exclude WORK.COVER9.S_A BIN_0_TO_1
+ 45 | exclude WORK.COVER9.S_A.BIN_0_TO_1
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_B' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.S_B.BIN_0_TO_1'
     > data/cover9_ef1.txt:46
     |
- 46 | exclude WORK.COVER9.S_B
-    | ^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_0_TO_1
+ 46 | exclude WORK.COVER9.S_B.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_B.BIN_1_TO_0'
+    > data/cover9_ef1.txt:46
+    |
+ 46 | exclude WORK.COVER9.S_B.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(2).BIN_0_TO_1'
     > data/cover9_ef1.txt:47
     |
- 47 | exclude WORK.COVER9.S_Y(2) BIN_0_TO_1
+ 47 | exclude WORK.COVER9.S_Y(2).BIN_0_TO_1
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_Y(2)' bins: BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.S_Y(2).BIN_1_TO_0'
     > data/cover9_ef1.txt:48
     |
- 48 | exclude WORK.COVER9.S_Y(2) BIN_1_TO_0
+ 48 | exclude WORK.COVER9.S_Y(2).BIN_1_TO_0
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_Y(1)' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER9.S_Y(1).BIN_0_TO_1'
     > data/cover9_ef1.txt:49
     |
- 49 | exclude WORK.COVER9.S_Y(1)
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.S_Y(0)' bins: BIN_0_TO_1, BIN_1_TO_0
+ 49 | exclude WORK.COVER9.S_Y(1).*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(1).BIN_1_TO_0'
+    > data/cover9_ef1.txt:49
+    |
+ 49 | exclude WORK.COVER9.S_Y(1).*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(0).BIN_0_TO_1'
     > data/cover9_ef1.txt:50
     |
- 50 | exclude WORK.COVER9.S_Y(0)
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.A' bins: BIN_0_TO_1, BIN_1_TO_0
+ 50 | exclude WORK.COVER9.S_Y(0).*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.S_Y(0).BIN_1_TO_0'
+    > data/cover9_ef1.txt:50
+    |
+ 50 | exclude WORK.COVER9.S_Y(0).*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.A.BIN_0_TO_1'
     > data/cover9_ef1.txt:51
     |
- 51 | exclude WORK.COVER9.A
-    | ^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.B' bins: BIN_0_TO_1, BIN_1_TO_0
+ 51 | exclude WORK.COVER9.A.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.A.BIN_1_TO_0'
+    > data/cover9_ef1.txt:51
+    |
+ 51 | exclude WORK.COVER9.A.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.B.BIN_0_TO_1'
     > data/cover9_ef1.txt:52
     |
- 52 | exclude WORK.COVER9.B
-    | ^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding toggle: 'WORK.COVER9.Y' bins: BIN_0_TO_1, BIN_1_TO_0
+ 52 | exclude WORK.COVER9.B.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.B.BIN_1_TO_0'
+    > data/cover9_ef1.txt:52
+    |
+ 52 | exclude WORK.COVER9.B.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.Y.BIN_0_TO_1'
     > data/cover9_ef1.txt:53
     |
- 53 | exclude WORK.COVER9.Y
-    | ^^^^^^^^^^^^^^^^^^^^^
+ 53 | exclude WORK.COVER9.Y.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER9.Y.BIN_1_TO_0'
+    > data/cover9_ef1.txt:53
+    |
+ 53 | exclude WORK.COVER9.Y.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER9

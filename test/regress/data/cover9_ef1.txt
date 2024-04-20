@@ -42,13 +42,13 @@ exclude WORK.COVER9.AND_GATE._S0._B0._E2
 # Test Toggle excluding
 ###############################################################################
 
-exclude WORK.COVER9.S_A BIN_0_TO_1
-exclude WORK.COVER9.S_B
-exclude WORK.COVER9.S_Y(2) BIN_0_TO_1
-exclude WORK.COVER9.S_Y(2) BIN_1_TO_0
-exclude WORK.COVER9.S_Y(1)
-exclude WORK.COVER9.S_Y(0)
-exclude WORK.COVER9.A
-exclude WORK.COVER9.B
-exclude WORK.COVER9.Y
+exclude WORK.COVER9.S_A.BIN_0_TO_1
+exclude WORK.COVER9.S_B.*
+exclude WORK.COVER9.S_Y(2).BIN_0_TO_1
+exclude WORK.COVER9.S_Y(2).BIN_1_TO_0
+exclude WORK.COVER9.S_Y(1).*
+exclude WORK.COVER9.S_Y(0).*
+exclude WORK.COVER9.A.*
+exclude WORK.COVER9.B.*
+exclude WORK.COVER9.Y.*
 

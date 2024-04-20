@@ -231,6 +231,32 @@ const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
    return &(obj->loc);
 }
 
+static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t where,
+                                                 ident_t suffix, unsigned int flags)
+{
+   assert (where != NULL);
+
+   object_t *owhere = tree_to_object(where);
+
+   // TODO: Name creation could be optimized here by making BIN names well known idents
+   ident_t bname_01 = ident_new(cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_1));
+   ident_t suffix_01 = (suffix) ? ident_prefix(suffix, bname_01, '.') :
+                                  ident_prefix(ident_new("."), bname_01, '\0');
+
+   cover_item_t *first = cover_add_item(data, owhere, suffix_01, COV_ITEM_TOGGLE,
+                                        flags | COV_FLAG_TOGGLE_TO_1);
+   if (first == NULL)
+      return -1;
+
+   ident_t bname_10 = ident_new(cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_0));
+   ident_t suffix_10 = (suffix) ? ident_prefix(suffix, bname_10, '.') :
+                                  ident_prefix(ident_new("."), bname_10, '\0');
+   cover_add_item(data, owhere, suffix_10, COV_ITEM_TOGGLE,
+                  flags | COV_FLAG_TOGGLE_TO_0);
+
+   return first->tag;
+}
+
 int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
                                    tree_t where, ident_t prefix, int curr_dim)
 {
@@ -248,17 +274,14 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
       return -1;
 
-   unsigned int flags = COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1;
+   unsigned int flags = 0;
    if (tree_kind(where) == T_SIGNAL_DECL)
       flags |= COV_FLAG_TOGGLE_SIGNAL;
    else
       flags |= COV_FLAG_TOGGLE_PORT;
 
-   if (!type_is_array(type)) {
-      cover_item_t *item = cover_add_item(data, tree_to_object(where),
-                                          NULL, COV_ITEM_TOGGLE, flags);
-      return item ? item->tag : -1;
-   }
+   if (!type_is_array(type))
+      return cover_add_toggle_items_single_bit(data, where, NULL, flags);
 
    int t_dims = dimension_of(type);
    tree_t r = range_of(type, t_dims - curr_dim);
@@ -270,7 +293,7 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    assert(low <= high);
 
    int64_t first, last, i;
-   int32_t first_item = -1;
+   int32_t first_tag = -1;
    int inc;
 
    if (cover_skip_array_toggle(data, high - low + 1))
@@ -313,12 +336,10 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
             tmp = cover_add_toggle_items_for(data, e_type, where, arr_suffix,
                                              dimension_of(e_type));
          else {
-            cover_item_t *item = cover_add_item(data,
-                                                tree_to_object(where),
-                                                arr_suffix,
-                                                COV_ITEM_TOGGLE, flags);
-            if (item)
-               tmp = item->tag;
+            int32_t tag = cover_add_toggle_items_single_bit(data, where,
+                                                            arr_suffix, flags);
+            if (tag != -1)
+               tmp = tag;
          }
       }
       else   // Recurse to lower dimension
@@ -326,7 +347,7 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
                                           curr_dim - 1);
 
       if (i == first)
-         first_item = tmp;
+         first_tag = tmp;
       if (i == last)
          break;
 
@@ -339,7 +360,7 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    printf("Subtracted dimension: %d\n", data->array_depth);
 #endif
 
-   return first_item;
+   return first_tag;
 }
 
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
@@ -392,16 +413,8 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       func_name = tree_ident(t);
    }
 
-#ifdef COVER_DEBUG_EMIT
-   printf("Item: %s\n", istr(hier));
-   printf("    First line: %d\n", loc->first_line);
-   printf("    First column: %d\n", loc->first_column);
-   printf("    Line delta: %d\n", loc->line_delta);
-   printf("    Column delta: %d\n", loc->column_delta);
-   printf("\n\n");
-#endif
-
    int num = 0;
+   int sig_pos = 0;
    if (kind == COV_ITEM_STATE) {
       tree_t t = tree_from_object(obj);
       assert(t != NULL);
@@ -414,8 +427,13 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
       func_name = ident_rfrom(type_ident(tree_type(t)), '.');
    }
-   else
-      num = data->top_scope->sig_pos;
+   else if (kind == COV_ITEM_TOGGLE) {
+      sig_pos = data->top_scope->sig_pos;
+      if (flags & COV_FLAG_TOGGLE_TO_1)
+         num = 2;
+      else
+         num = 1;
+   }
 
    cover_item_t new = {
       .kind       = kind,
@@ -430,8 +448,20 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       .hier       = hier,
       .func_name  = func_name,
       .num        = num,
+      .sig_pos    = sig_pos,
       .source     = get_cover_source(kind, obj),
    };
+
+#ifdef COVER_DEBUG_EMIT
+   printf("Item: %s\n", istr(hier));
+   printf("    Kind:          %s\n", cover_item_kind_str(kind));
+   printf("    Flags:         %d\n", flags);
+   printf("    First line:    %d\n", loc->first_line);
+   printf("    First column:  %d\n", loc->first_column);
+   printf("    Line delta:    %d\n", loc->line_delta);
+   printf("    Column delta:  %d\n", loc->column_delta);
+   printf("\n\n");
+#endif
 
    APUSH(data->top_scope->items, new);
 
@@ -470,7 +500,19 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    case COV_ITEM_BRANCH:
       item->data += data;
       break;
+   // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
+   // unreachability due to being constant driven. If multiple designs
+   // like this are merged, the resulting value would underflow and this
+   // information would be lost. Similarly, if different designs were
+   // merged, where one was unreachable due to being constant driven and
+   // the other was driven. So, If the unreachability is detected, enforce
+   // its propagation further to the merged database
    case COV_ITEM_TOGGLE:
+      if (item->data & COV_FLAG_UNREACHABLE || item->data & COV_FLAG_UNREACHABLE)
+         item->data = COV_FLAG_UNREACHABLE;
+      else
+         item->data += data;
+      break;
    case COV_ITEM_EXPRESSION:
    case COV_ITEM_STATE:
       item->data |= data;
@@ -530,6 +572,7 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
          ident_write(item->func_name, ident_ctx);
 
       write_u32(item->num, f);
+      write_u32(item->sig_pos, f);
    }
 
    for (int i = 0; i < s->children.count; i++)
@@ -760,6 +803,7 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
       item->func_name = ident_read(ident_ctx);
 
    item->num = read_u32(f);
+   item->sig_pos = read_u32(f);
 }
 
 static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
@@ -936,6 +980,18 @@ uint32_t cover_bin_str_to_bmask(const char *bin)
    }
 
    return 0;
+}
+
+const char *cover_bmask_to_bin_str(uint32_t bmask)
+{
+   // TODO: Smarter way instead of iterating -> Probably OK for such small array
+   //       even if called many times!
+   for (int i = 0; i < ARRAY_LEN(bin_map); i++)
+      if (bmask == bin_map[i].flag)
+         return bin_map[i].name;
+
+   assert(false);
+   return NULL;
 }
 
 const char *cover_item_kind_str(cover_item_kind_t kind)

@@ -1935,17 +1935,17 @@ START_TEST(test_cover)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0);
+   cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0);
    elab(tree_to_object(a), jit, ur, data);
 
    vcode_unit_t v0 = find_unit("WORK.COVER.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_COVER_STMT, .tag = 9 },
+      { VCODE_OP_COVER_STMT, .tag = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
-      { VCODE_OP_COVER_STMT, .tag = 10 },
+      { VCODE_OP_COVER_STMT, .tag = 1 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
@@ -1954,11 +1954,11 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_SELECT },
-      { VCODE_OP_COVER_EXPR, .tag = 11 },
+      { VCODE_OP_COVER_EXPR, .tag = 2 },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_SELECT },
-      { VCODE_OP_COVER_EXPR, .tag = 12 },
+      { VCODE_OP_COVER_EXPR, .tag = 3 },
       { VCODE_OP_OR },
       { VCODE_OP_NOT },
       { VCODE_OP_NOT },
@@ -1974,15 +1974,15 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 32 },
       { VCODE_OP_SELECT },
       { VCODE_OP_ADD },
-      { VCODE_OP_COVER_EXPR, .tag = 13 },
+      { VCODE_OP_COVER_EXPR, .tag = 4 },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };
 
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 14 },
-      { VCODE_OP_COVER_STMT, .tag = 16 },
+      { VCODE_OP_COVER_BRANCH, .tag = 5 },
+      { VCODE_OP_COVER_STMT, .tag = 7 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_JUMP, .target = 4 }
@@ -1991,7 +1991,7 @@ START_TEST(test_cover)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 15 },
+      { VCODE_OP_COVER_BRANCH, .tag = 6 },
       { VCODE_OP_JUMP, .target = 4 }
    };
 
@@ -2004,7 +2004,7 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_COVER_STMT, .tag = 17 },
+      { VCODE_OP_COVER_STMT, .tag = 8 },
       { VCODE_OP_WAIT, .target = 5 }
    };
 

@@ -109,7 +109,6 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
       }
 
    case COV_ITEM_EXPRESSION:
-   case COV_ITEM_TOGGLE:
       {
          uint32_t allowed = item->flags & COVER_FLAGS_ALL_BINS, bmask = allowed;
 
@@ -144,6 +143,19 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
          }
 
          item->excl_msk |= bmask;
+         return 1;
+      }
+
+   case COV_ITEM_TOGGLE:
+      {
+         if (item->data > 0)
+            warn_at(&ctx->loc, "%s: '%s' already covered!",
+                    kind_str, istr(hier));
+         else {
+            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+            item->flags |= COV_FLAG_EXCLUDED;
+         }
+
          return 1;
       }
 
@@ -183,7 +195,7 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
       cover_item_t *item = AREF(s->items, i);
       ident_t hier = item->hier;
 
-      // FSM state items contain bin name as part of hierarchy -> Strip it
+      // Some items contain bin name as part of hierarchy -> Strip it:
       if (item->kind == COV_ITEM_STATE)
          hier = ident_runtil(hier, '.');
 

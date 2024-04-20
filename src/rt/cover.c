@@ -52,57 +52,57 @@ enum std_ulogic {
 ///////////////////////////////////////////////////////////////////////////////
 
 static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
-                                          int32_t *toggle_mask)
+                                          int32_t *toggle_01, int32_t *toggle_10)
 {
    if (old == _0 && new == _1)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
+      (*toggle_01)++;
    if (old == _1 && new == _0)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
+      (*toggle_10)++;
 }
 
 static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
-                                        int32_t *toggle_mask)
+                                        int32_t *toggle_01, int32_t *toggle_10)
 {
    if (old == _U && new == _1)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
+      (*toggle_01)++;
    if (old == _U && new == _0)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
+      (*toggle_10)++;
 }
 
 static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
-                                        int32_t *toggle_mask)
+                                        int32_t *toggle_01, int32_t *toggle_10)
 {
    if (old == _0 && new == _Z)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
+      (*toggle_01)++;
    if (old == _Z && new == _1)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_1;
+      (*toggle_01)++;
 
    if (old == _1 && new == _Z)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
+      (*toggle_10)++;
    if (old == _Z && new == _0)
-      *toggle_mask |= COV_FLAG_TOGGLE_TO_0;
+      (*toggle_10)++;
 }
 
 static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
-                                            int32_t *toggle_mask)
+                                            int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_mask);
-   cover_toggle_check_u(old, new, toggle_mask);
+   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
+   cover_toggle_check_u(old, new, toggle_01, toggle_10);
 }
 
 static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
-                                            int32_t *toggle_mask)
+                                            int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_mask);
-   cover_toggle_check_z(old, new, toggle_mask);
+   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
+   cover_toggle_check_z(old, new, toggle_01, toggle_10);
 }
 
 static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
-                                              int32_t *toggle_mask)
+                                              int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_mask);
-   cover_toggle_check_u(old, new, toggle_mask);
-   cover_toggle_check_z(old, new, toggle_mask);
+   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
+   cover_toggle_check_u(old, new, toggle_01, toggle_10);
+   cover_toggle_check_z(old, new, toggle_01, toggle_10);
 }
 
 #ifdef COVER_DEBUG_CALLBACK
@@ -135,13 +135,15 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
       uint32_t s_size = s->shared.size;                                       \
       rt_model_t *m = get_model();                                            \
       const int32_t tag = (uintptr_t)user;                                    \
-      int32_t *toggle_mask = get_cover_counter(m, tag);                       \
+      int32_t *toggle_01 = get_cover_counter(m, tag);                         \
+      int32_t *toggle_10 = toggle_01 + 1;                                     \
       COVER_TGL_CB_MSG(s)                                                     \
       for (int i = 0; i < s_size; i++) {                                      \
          uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
          uint8_t old = ((uint8_t*)signal_last_value(s))[i];                   \
-         check_fnc(old, new, toggle_mask);                                    \
-         toggle_mask++;                                                       \
+         check_fnc(old, new, toggle_01, toggle_10);                           \
+         toggle_01 += 2;                                                      \
+         toggle_10 += 2;                                                      \
       }                                                                       \
       COVER_TGL_SIGNAL_DETAILS(s, s_size)                                     \
    }                                                                          \
@@ -185,12 +187,18 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    cover_mask_t op_mask = get_coverage(m)->mask;
 
    if (is_constant_input(s)) {
-      int32_t *toggle_mask = get_cover_counter(m, tag);
+      int32_t *toggle_01 = get_cover_counter(m, tag);
+      int32_t *toggle_10 = toggle_01 + 1;
 
+      // Each std_logic bit encoded as single byte. There are two run-time
+      // counters for each std_logic bit
       for (int i = 0; i < s->shared.size; i++) {
-         // Remember constant driver in run-time data. Unreachable mask not
-         // available at run-time.
-         (*toggle_mask++) |= COV_FLAG_CONST_DRIVEN;
+         // Remember constant driver in run-time data.
+         // Unreachable mask not available at run-time.
+         *toggle_01 |= COV_FLAG_UNREACHABLE;
+         *toggle_10 |= COV_FLAG_UNREACHABLE;
+         toggle_01 += 2;
+         toggle_10 += 2;
       }
       return;
    }
