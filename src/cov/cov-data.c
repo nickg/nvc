@@ -231,6 +231,117 @@ const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
    return &(obj->loc);
 }
 
+int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
+                                   tree_t where, ident_t prefix, int curr_dim)
+{
+   assert (data != NULL);
+
+   type_t root = type;
+
+   // Gets well known type for scalar and vectorized version of
+   // standard types (std_[u]logic[_vector], signed, unsigned)
+   while (type_base_kind(root) == T_ARRAY)
+      root = type_elem(root);
+   root = type_base_recur(root);
+
+   well_known_t known = is_well_known(type_ident(root));
+   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
+      return -1;
+
+   unsigned int flags = COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1;
+   if (tree_kind(where) == T_SIGNAL_DECL)
+      flags |= COV_FLAG_TOGGLE_SIGNAL;
+   else
+      flags |= COV_FLAG_TOGGLE_PORT;
+
+   if (type_is_array(type)) {
+      int t_dims = dimension_of(type);
+      tree_t r = range_of(type, t_dims - curr_dim);
+      int32_t first_item = -1;
+      int64_t low, high;
+
+      if (folded_bounds(r, &low, &high)) {
+         assert(low <= high);
+
+         int64_t first, last, i;
+         int inc;
+
+         if (cover_skip_array_toggle(data, high - low + 1))
+            return -1;
+
+         data->array_depth++;
+#ifdef COVER_DEBUG_SCOPE
+         printf("Added dimension: %d\n", data->array_depth);
+#endif
+
+         switch (tree_subkind(r)) {
+         case RANGE_DOWNTO:
+            i = high;
+            first = high;
+            last = low;
+            inc = -1;
+            break;
+         case RANGE_TO:
+            i = low;
+            first = low;
+            last = high;
+            inc = +1;
+            break;
+         default:
+            fatal_trace("invalid subkind for range: %d", tree_subkind(r));
+         }
+
+         while (1) {
+            char arr_index[16];
+            int32_t tmp = -1;
+            checked_sprintf(arr_index, sizeof(arr_index), "(%"PRIi64")", i);
+            ident_t arr_suffix =
+               ident_prefix(prefix, ident_new(arr_index), '\0');
+
+            // On lowest dimension walk through elements, if elements
+            // are arrays, then start new (nested) recursion.
+            if (curr_dim == 1) {
+               type_t e_type = type_elem(type);
+               if (type_is_array(e_type))
+                  tmp = cover_add_toggle_items_for(data, e_type, where, arr_suffix,
+                                                   dimension_of(e_type));
+               else {
+                  cover_item_t *item = cover_add_item(data,
+                                                      tree_to_object(where),
+                                                      arr_suffix,
+                                                      COV_ITEM_TOGGLE, flags);
+                  if (item)
+                     tmp = item->tag;
+               }
+            }
+            else   // Recurse to lower dimension
+               tmp = cover_add_toggle_items_for(data, type, where, arr_suffix,
+                                                curr_dim - 1);
+
+            if (i == first)
+               first_item = tmp;
+            if (i == last)
+               break;
+
+            i += inc;
+         }
+
+         assert(data->array_depth > 0);
+         data->array_depth--;
+#ifdef COVER_DEBUG_SCOPE
+         printf("Subtracted dimension: %d\n", data->array_depth);
+#endif
+      }
+
+      return first_item;
+   }
+   else {
+      cover_item_t *item = cover_add_item(data, tree_to_object(where),
+                                          NULL, COV_ITEM_TOGGLE, flags);
+      return item ? item->tag : -1;
+   }
+}
+
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
                              cover_item_kind_t kind, uint32_t flags)
 {
@@ -615,25 +726,6 @@ void cover_pop_scope(cover_data_t *data)
 
    data->top_scope = data->top_scope->parent;
 
-}
-
-void cover_inc_array_depth(cover_data_t *data)
-{
-   assert(data != NULL);
-   data->array_depth++;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Adding dimension: %d\n", data->array_depth);
-#endif
-}
-
-void cover_dec_array_depth(cover_data_t *data)
-{
-   assert(data != NULL);
-   assert(data->array_depth > 0);
-   data->array_depth--;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Subtracting dimension: %d\n", data->array_depth);
-#endif
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)

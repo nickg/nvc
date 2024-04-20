@@ -1657,108 +1657,6 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
       emit_cover_stmt(item->tag);
 }
 
-static int32_t lower_toggle_item_for(lower_unit_t *lu, type_t type,
-                                     tree_t where, ident_t prefix, int curr_dim)
-{
-   type_t root = type;
-
-   // Gets well known type for scalar and vectorized version of
-   // standard types (std_[u]logic[_vector], signed, unsigned)
-   while (type_base_kind(root) == T_ARRAY)
-      root = type_elem(root);
-   root = type_base_recur(root);
-
-   well_known_t known = is_well_known(type_ident(root));
-   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
-      return -1;
-
-   unsigned int flags = COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1;
-   if (tree_kind(where) == T_SIGNAL_DECL)
-      flags |= COV_FLAG_TOGGLE_SIGNAL;
-   else
-      flags |= COV_FLAG_TOGGLE_PORT;
-
-   if (type_is_scalar(type)) {
-      cover_item_t *item = cover_add_item(lu->cover, tree_to_object(where),
-                                          NULL, COV_ITEM_TOGGLE, flags);
-      return item ? item->tag : -1;
-   }
-   else if (type_is_unconstrained(type))
-      return -1;   // Not yet supported
-   else {
-      int t_dims = dimension_of(type);
-      tree_t r = range_of(type, t_dims - curr_dim);
-      int64_t low, high;
-      if (!folded_bounds(r, &low, &high))
-         return -1;   // Not yet supported
-
-      assert(low <= high);
-
-      if (cover_skip_array_toggle(lu->cover, high - low + 1))
-         return -1;
-
-      cover_inc_array_depth(lu->cover);
-
-      int64_t first, last, i;
-      int inc;
-      switch (tree_subkind(r)) {
-      case RANGE_DOWNTO:
-         i = high;
-         first = high;
-         last = low;
-         inc = -1;
-         break;
-      case RANGE_TO:
-         i = low;
-         first = low;
-         last = high;
-         inc = +1;
-         break;
-      default:
-         fatal_trace("invalid subkind for range: %d", tree_subkind(r));
-      }
-
-      int32_t first_item = -1;
-      for (;;) {
-         char arr_index[16];
-         int32_t tmp = -1;
-         checked_sprintf(arr_index, sizeof(arr_index), "(%"PRIi64")", i);
-         ident_t arr_suffix =
-            ident_prefix(prefix, ident_new(arr_index), '\0');
-
-         // On lowest dimension walk through elements, if elements
-         // are arrays, then start new (nested) recursion.
-         if (curr_dim == 1) {
-            type_t e_type = type_elem(type);
-            if (type_is_array(e_type))
-               tmp = lower_toggle_item_for(lu, e_type, where, arr_suffix,
-                                           dimension_of(e_type));
-            else {
-               cover_item_t *item = cover_add_item(lu->cover,
-                                                   tree_to_object(where),
-                                                   arr_suffix,
-                                                   COV_ITEM_TOGGLE, flags);
-               if (item)
-                  tmp = item->tag;
-            }
-         }
-         else   // Recurse to lower dimension
-            tmp = lower_toggle_item_for(lu, type, where, arr_suffix,
-                                        curr_dim - 1);
-
-         if (i == first)
-            first_item = tmp;
-         if (i == last)
-            break;
-
-         i += inc;
-      }
-
-      cover_dec_array_depth(lu->cover);
-      return first_item;
-   }
-}
-
 static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t field_ptr,
                                      vcode_reg_t unused, vcode_reg_t locus,
@@ -1773,7 +1671,7 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
                            locus, lower_toggle_coverage_cb, NULL);
    else {
       const int ndims = dimension_of(ftype);
-      int32_t tag = lower_toggle_item_for(lu, ftype, field, NULL, ndims);
+      int32_t tag = cover_add_toggle_items_for(lu->cover, ftype, field, NULL, ndims);
       if (tag == -1) {
          cover_pop_scope(lu->cover);
          return;
@@ -1805,7 +1703,7 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl)
    }
    else {
       const int ndims = dimension_of(type);
-      int32_t tag = lower_toggle_item_for(lu, type, decl, NULL, ndims);
+      int32_t tag = cover_add_toggle_items_for(lu->cover, type, decl, NULL, ndims);
       if (tag == -1) {
          cover_pop_scope(lu->cover);
          return;
