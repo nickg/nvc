@@ -242,6 +242,7 @@ static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t wher
                                         flags | COV_FLAG_TOGGLE_TO_1);
    if (first == NULL)
       return -1;
+   first->num = 2;
 
    uint32_t first_tag = first->tag;
    first->num = 2;
