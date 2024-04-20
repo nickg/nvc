@@ -1,0 +1,12 @@
+time=                  51, cat1=1
+time=                  52, cat2=1
+time=                  53, cat3=1
+time=                  54, cat4=1
+time=                  55, foo1=1
+time=                  56, foo2=1
+time=                  57, foo3=1
+time=                  58, foo4=1
+time=                  59, bar1=1
+time=                  59, bar2=1
+time=                  59, bar3=1
+time=                  59, bar4=1

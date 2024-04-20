@@ -53,7 +53,14 @@ static void verilog_printf(jit_scalar_t *args)
          if (start < p)
             fwrite(start, 1, p - start, stdout);
 
-         switch (*++p) {
+         p++;   // Skip over '%'
+
+         int fwidth = 0;
+         if (isdigit_iso88591(*p))
+            fwidth = strtol(p + 1, (char **)&p, 10);
+         (void)fwidth;  // TODO
+
+         switch (*p) {
          case 's':
             {
                unsigned len;
@@ -63,15 +70,18 @@ static void verilog_printf(jit_scalar_t *args)
             break;
          case 'd':
          case 'x':
+         case 'h':
+         case 't':
             {
-               unsigned width;
-               const uint8_t *bits = next_arg(&args, &width);
-               number_t num = number_pack(bits, width);
+               unsigned nbits;
+               const uint8_t *bits = next_arg(&args, &nbits);
+               number_t num = number_pack(bits, nbits);
 
                switch (*p) {
                case 'd':
+               case 't':
                   {
-                     const int dmax = calc_dec_size(width, false);
+                     const int dmax = calc_dec_size(nbits, false);
                      if (number_is_defined(num))
                         printf("%*"PRIi64, dmax, number_integer(num));
                      else
@@ -79,10 +89,11 @@ static void verilog_printf(jit_scalar_t *args)
                   }
                   break;
                case 'x':
+               case 'h':
                   if (number_is_defined(num))
-                     printf("%0*"PRIx64, width / 4, number_integer(num));
+                     printf("%0*"PRIx64, nbits / 4, number_integer(num));
                   else
-                     printf("%*s", width / 4, "x");
+                     printf("%*s", nbits / 4, "x");
                   break;
                }
 

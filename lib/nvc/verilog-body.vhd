@@ -90,6 +90,28 @@ package body verilog is
         return result;
     end function;
 
+    function to_logic (value : t_int64; width : natural) return t_packed_logic is
+        variable result : t_packed_logic(width - 1 downto 0);
+        variable b_val  : t_logic := '0';
+        variable i_val  : t_int64 := value;
+    begin
+        if width < 1 then
+            return result;
+        elsif value < 0 then
+            b_val := '1';
+            i_val := -(value + 1);
+        end if;
+        for i in 0 to result'left loop
+            if (i_val mod 2) = 0 then
+                result(i) := b_val;
+            else
+                result(i) := not b_val;
+            end if;
+            i_val := i_val/2;
+        end loop;
+        return result;
+    end function;
+
     function to_net_value (value : t_logic) return t_net_value is
     begin
         case value is
@@ -371,8 +393,8 @@ package body verilog is
         return not (l = r);
     end function;
 
-    impure function sys_time return time is
+    impure function sys_time return t_packed_logic is
     begin
-        return now;
+        return to_logic(time'pos(now), 64);
     end function;
 end package body;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2024 Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -408,7 +408,7 @@ static vcode_reg_t vlog_lower_sysfunc(lower_unit_t *lu, vlog_node_t v)
 {
    const v_sysfunc_kind_t kind = vlog_subkind(v);
    static const char *fns[] = {
-      "NVC.VERILOG.SYS_TIME()T"
+      "NVC.VERILOG.SYS_TIME()" T_PACKED_LOGIC
    };
    assert(kind < ARRAY_LEN(fns));
 
@@ -417,9 +417,10 @@ static vcode_reg_t vlog_lower_sysfunc(lower_unit_t *lu, vlog_node_t v)
    switch (kind) {
    case V_SYS_TIME:
       {
-         vcode_type_t vtime = vtype_time();
+         vcode_type_t vlogic = vlog_logic_type();
+         vcode_type_t vpacked = vlog_packed_logic_type();
          vcode_reg_t args[] = { context_reg };
-         return emit_fcall(ident_new(fns[kind]), vtime, vtime,
+         return emit_fcall(ident_new(fns[kind]), vpacked, vlogic,
                            args, ARRAY_LEN(args));
       }
 
@@ -623,6 +624,19 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
 
 static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
 {
+   if (vlog_kind(v) == V_BASSIGN && vlog_has_delay(v)) {
+      vlog_node_t delay = vlog_delay(v);
+      assert(vlog_kind(delay) == V_DELAY_CONTROL);
+
+      vcode_block_t delay_bb = emit_block();
+      vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(delay));
+      vcode_reg_t time_reg = vlog_lower_to_time(lu, delay_reg);
+
+      emit_wait(delay_bb, time_reg);
+
+      vcode_select_block(delay_bb);
+   }
+
    vlog_node_t target = vlog_target(v);
 
    vcode_reg_t target_reg = vlog_lower_lvalue(lu, target);
@@ -661,7 +675,17 @@ static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
       {
          vcode_type_t vtime = vtype_time();
          vcode_reg_t reject_reg = emit_const(vtime, 0);
-         vcode_reg_t after_reg = emit_const(vtime, 0);
+
+         vcode_reg_t after_reg;
+         if (vlog_has_delay(v)) {
+            vlog_node_t delay = vlog_delay(v);
+            assert(vlog_kind(delay) == V_DELAY_CONTROL);
+
+            vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(delay));
+            after_reg = vlog_lower_to_time(lu, delay_reg);
+         }
+         else
+            after_reg = emit_const(vtime, 0);
 
          emit_sched_waveform(nets_reg, count_reg, data_reg,
                              reject_reg, after_reg);
@@ -674,10 +698,10 @@ static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
          // Delay one delta cycle to see the update
 
          vcode_type_t vtime = vtype_time();
-         vcode_reg_t delay_reg = emit_const(vtime, 0);
+         vcode_reg_t zero_time_reg = emit_const(vtime, 0);
 
          vcode_block_t resume_bb = emit_block();
-         emit_wait(resume_bb, delay_reg);
+         emit_wait(resume_bb, zero_time_reg);
 
          vcode_select_block(resume_bb);
       }

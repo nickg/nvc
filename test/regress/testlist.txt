@@ -949,7 +949,7 @@ issue851        wave,2008
 vlog8           verilog
 issue852        wave,2019,dump-arrays
 wave11          wave,2008,dump-arrays
-vlog9           verilog
+ivtest1         verilog
 issue654        normal,2008
 issue854        normal,2019
 ename8          normal,2008
@@ -965,3 +965,4 @@ issue874        normal,2008
 vhpi14          normal,vhpi
 issue877        normal,2008
 issue878        wave,2008,dump-arrays
+ivtest2         verilog,gold

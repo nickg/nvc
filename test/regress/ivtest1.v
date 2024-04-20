@@ -34,7 +34,7 @@ always @(posedge clk)
 
 endmodule
 
-module vlog9 ;
+module ivtest1 ;
 
 reg clk, d;
 

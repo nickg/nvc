@@ -44,6 +44,7 @@ package verilog is
     function to_logic (value : t_net_value) return t_logic;
     function to_logic (value : t_net_array) return t_packed_logic;
     function to_logic (value : t_resolved_net_array) return t_packed_logic;
+    function to_logic (value : t_int64; width : natural) return t_packed_logic;
 
     function to_net_value (value : t_logic) return t_net_value;
     function to_net_value (value : t_packed_logic) return t_net_array;
@@ -82,7 +83,7 @@ package verilog is
     function "/=" (l, r : t_packed_logic) return boolean;
 
     procedure sys_finish;
-    impure function sys_time return time;
+    impure function sys_time return t_packed_logic;
 
     -- These procedures are called with a special variadic calling convention
     -- which cannot be represented in VHDL
