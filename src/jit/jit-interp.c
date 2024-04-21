@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -869,6 +869,21 @@ static void interp_reexec(jit_interp_t *state, jit_ir_t *ir)
    (*entry)(state->func, state->anchor->caller, state->args, state->tlab);
 }
 
+static void interp_sadd(jit_interp_t *state, jit_ir_t *ir)
+{
+   const void *ptr = interp_get_pointer(state, ir->arg1);
+   const int64_t addend = interp_get_int(state, ir->arg2);
+
+#define SADD(type) do {                                         \
+      u##type cur = *(u##type *)ptr, next = cur + addend;       \
+      if (next < cur)                                           \
+         next = (u##type)INT64_C(-1);                           \
+      *(u##type *)ptr = next;                                   \
+   } while (0)
+
+   FOR_EACH_SIZE(ir->size, SADD);
+}
+
 static void interp_loop(jit_interp_t *state)
 {
    for (;;) {
@@ -1033,6 +1048,9 @@ static void interp_loop(jit_interp_t *state)
       case MACRO_REEXEC:
          interp_reexec(state, ir);
          return;
+      case MACRO_SADD:
+         interp_sadd(state, ir);
+         break;
       default:
          interp_dump(state);
          fatal_trace("cannot interpret opcode %s", jit_op_name(ir->op));

@@ -113,6 +113,11 @@ typedef enum {
    LLVM_EXP_OVERFLOW_U32,
    LLVM_EXP_OVERFLOW_U64,
 
+   LLVM_ADD_SAT_U8,
+   LLVM_ADD_SAT_U16,
+   LLVM_ADD_SAT_U32,
+   LLVM_ADD_SAT_U64,
+
    LLVM_MEMSET_U8,
    LLVM_MEMSET_U16,
    LLVM_MEMSET_U32,
@@ -704,6 +709,27 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
             "nvc.uexp.with.overflow.i16",
             "nvc.uexp.with.overflow.i32",
             "nvc.uexp.with.overflow.i64"
+         };
+         fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
+      }
+      break;
+
+   case LLVM_ADD_SAT_U8:
+   case LLVM_ADD_SAT_U16:
+   case LLVM_ADD_SAT_U32:
+   case LLVM_ADD_SAT_U64:
+      {
+         jit_size_t sz = which - LLVM_ADD_SAT_U8;
+         LLVMTypeRef int_type = obj->types[LLVM_INT8 + sz];
+         LLVMTypeRef args[] = { int_type, int_type };
+         obj->fntypes[which] = LLVMFunctionType(int_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "llvm.uadd.sat.i8",
+            "llvm.uadd.sat.i16",
+            "llvm.uadd.sat.i32",
+            "llvm.uadd.sat.i64"
          };
          fn = llvm_add_fn(obj, names[sz], obj->fntypes[which]);
       }
@@ -2277,6 +2303,25 @@ static void cgen_macro_reexec(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMBuildRetVoid(obj->builder);
 }
 
+static void cgen_macro_sadd(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef ptr = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
+   llvm_type_t type = LLVM_INT8 + ir->size;
+
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[type], 0);
+   ptr = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
+#endif
+
+   LLVMValueRef cur = LLVMBuildLoad2(obj->builder, obj->types[type], ptr, "");
+   LLVMValueRef addend = cgen_coerce_value(obj, cgb, ir->arg2, type);
+
+   LLVMValueRef args[] = { cur, addend };
+   LLVMValueRef sat = llvm_call_fn(obj, LLVM_ADD_SAT_U8 + ir->size, args, 2);
+
+   LLVMBuildStore(obj->builder, sat, ptr);
+}
+
 static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -2436,6 +2481,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_REEXEC:
       cgen_macro_reexec(obj, cgb, ir);
+      break;
+   case MACRO_SADD:
+      cgen_macro_sadd(obj, cgb, ir);
       break;
    default:
       cgen_abort(cgb, ir, "cannot generate LLVM for %s", jit_op_name(ir->op));
@@ -2704,6 +2752,7 @@ static void cgen_pointer_mask(cgen_func_t *func)
       case J_LOAD:
       case J_ULOAD:
       case MACRO_BZERO:
+      case MACRO_SADD:
          cgen_must_be_pointer(func, ir->arg1);
          break;
       case J_STORE:

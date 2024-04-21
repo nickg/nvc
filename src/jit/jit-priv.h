@@ -85,6 +85,7 @@ typedef enum {
    MACRO_MOVE,
    MACRO_MEMSET,
    MACRO_REEXEC,
+   MACRO_SADD,
 } jit_op_t;
 
 typedef enum {

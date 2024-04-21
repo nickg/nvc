@@ -694,6 +694,13 @@ static void macro_reexec(jit_irgen_t *g)
    g->flags = VCODE_INVALID_REG;
 }
 
+static void macro_sadd(jit_irgen_t *g, jit_size_t sz, jit_value_t addr,
+                       jit_value_t addend)
+{
+   irgen_emit_binary(g, MACRO_SADD, sz, JIT_CC_NONE, JIT_REG_INVALID,
+                     addr, addend);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Vcode to JIT IR lowering
 
@@ -3309,10 +3316,7 @@ static void irgen_op_cover_increment(jit_irgen_t *g, int op)
    uint32_t tag = vcode_get_tag(op);
    jit_value_t mem = jit_addr_from_cover_tag(tag);
 
-   // XXX: this should be atomic
-   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
-   jit_value_t inc = j_add(g, cur, jit_value_from_int64(1));
-   j_store(g, JIT_SZ_32, inc, mem);
+   macro_sadd(g, JIT_SZ_32, mem, jit_value_from_int64(1));
 }
 
 static void irgen_op_cover_expr(jit_irgen_t *g, int op)
