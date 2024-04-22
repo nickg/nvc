@@ -810,29 +810,6 @@ static void cover_print_bins_legacy(FILE *f, cover_pair_t *pair, cov_pair_kind_t
    fprintf(f, "<br><table class=\"cbt\">");
 
    switch (pair->item->kind) {
-   case COV_ITEM_BRANCH:
-      cover_print_bin_header_legacy(f, pkind, 1, (pair->flags & COV_FLAG_CHOICE) ?
-                                    "Choice of" : "Evaluated to");
-      cover_print_bin_legacy(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
-      cover_print_bin_legacy(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
-
-      if (pair->flags & COV_FLAG_CHOICE) {
-         int curr = loc.first_column;
-         int last = (loc.line_delta) ? strlen(pair->line->text) :
-                                       loc.column_delta + curr;
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "<code>");
-         while (curr <= last) {
-            tb_printf(tb, "%c", pair->line->text[curr]);
-            curr++;
-         }
-         tb_printf(tb, "</code>");
-
-         cover_print_bin_legacy(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
-      }
-      break;
-
    case COV_ITEM_EXPRESSION:
       {
       char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
@@ -867,7 +844,30 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
    cover_pair_t *last_pair = first_pair + first_pair->item->num - 1;
    for (cover_pair_t *pair = first_pair; pair <= last_pair; pair++)
    {
+      loc_t loc = pair->item->loc;
+
       switch (pair->item->kind) {
+      case COV_ITEM_BRANCH:
+         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
+         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
+
+         if (pair->flags & COV_FLAG_CHOICE) {
+            int curr = loc.first_column;
+            int last = (loc.line_delta) ? strlen(pair->line->text) :
+                                          loc.column_delta + curr;
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_printf(tb, "<code>");
+            while (curr <= last) {
+               tb_printf(tb, "%c", pair->line->text[curr]);
+               curr++;
+            }
+            tb_printf(tb, "</code>");
+
+            cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
+         }
+         break;
+
       case COV_ITEM_TOGGLE:
          cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
          cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
@@ -946,7 +946,9 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
 
       case COV_ITEM_BRANCH:
          cover_print_code_loc(f, curr);
-         cover_print_bins_legacy(f, curr, pkind);
+         cover_print_bin_header(f, pkind, 1, (curr->flags & COV_FLAG_CHOICE) ?
+                                "Choice of" : "Evaluated to");
+         cover_print_bins(f, curr, pkind);
          break;
 
       case COV_ITEM_TOGGLE:
@@ -1211,12 +1213,6 @@ static void cover_item_to_chain_legacy(cover_report_ctx_t *ctx, cover_item_t *it
    unsigned *nested_hits;
 
    switch (item->kind) {
-   case COV_ITEM_BRANCH:
-      flat_total = &(ctx->flat_stats.total_branches);
-      nested_total = &(ctx->nested_stats.total_branches);
-      flat_hits = &(ctx->flat_stats.hit_branches);
-      nested_hits = &(ctx->nested_stats.hit_branches);
-      break;
    case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);
       nested_total = &(ctx->nested_stats.total_toggles);
@@ -1294,6 +1290,12 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       flat_hits = &(ctx->flat_stats.hit_stmts);
       nested_hits = &(ctx->nested_stats.hit_stmts);
       chn = &(ctx->ch_stmt);
+      break;
+   case COV_ITEM_BRANCH:
+      flat_total = &(ctx->flat_stats.total_branches);
+      nested_total = &(ctx->nested_stats.total_branches);
+      flat_hits = &(ctx->flat_stats.hit_branches);
+      nested_hits = &(ctx->nested_stats.hit_branches);
       break;
    case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);
@@ -1390,46 +1392,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
          break;
 
       case COV_ITEM_BRANCH:
-         if (item->flags & COV_FLAG_CHOICE) {    // Case, with select
-            ctx->flat_stats.total_branches++;
-            ctx->nested_stats.total_branches++;
-
-            if (item->data > 0) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_CHOICE;
-            }
-            else if (item->excl_msk & COV_FLAG_TRUE) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_CHOICE;
-            }
-            else
-               misses |= COV_FLAG_CHOICE;
-         }
-         else if (item->num == 2) {  // If/else, when else
-            ctx->flat_stats.total_branches += 2;
-            ctx->nested_stats.total_branches += 2;
-
-            if (item[0].data > 0 || (item[0].excl_msk & COV_FLAG_TRUE)) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_TRUE;
-            }
-            else
-               misses |= COV_FLAG_TRUE;
-
-            if (item[1].data > 0 || (item[1].excl_msk & COV_FLAG_FALSE)) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_FALSE;
-            }
-            else
-               misses |= COV_FLAG_FALSE;
-         }
-
-         *skipped += cover_append_to_chain_legacy(&(ctx->ch_branch), item, line,
-                                                  hits, misses, excludes, limit);
+         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
          break;
 
       case COV_ITEM_TOGGLE:

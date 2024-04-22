@@ -1612,30 +1612,16 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
 
    object_t *obj = tree_to_object(b);
 
-   cover_item_t *item_true, *item_false = NULL;
-   if (tree_kind(b) == T_ASSOC) {
-      if ((item_true = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
-                                      COV_FLAG_CHOICE)) == NULL)
-         return;
-
-      item_true->num = 1;
-   }
-   else {
-      if ((item_true = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
-                                      COV_FLAG_TRUE)) == NULL)
-         return;
-
-      item_true->num = 2;
-      item_false = cover_add_item(lu->cover, obj, NULL, COV_ITEM_BRANCH,
-                                  COV_FLAG_FALSE);
-      assert(item_false != NULL);
-   }
+   cover_item_t *item_true = cover_add_branch_items_for(lu->cover, obj);
+   if (item_true == NULL)
+      return;
 
    assert(true_bb != VCODE_INVALID_BLOCK);
-   assert(item_true->num == 1 || item_true->num == 2);
 
    vcode_select_block(true_bb);
    emit_cover_branch(item_true->tag);
+
+   cover_item_t *item_false = (item_true->num == 2) ? item_true + 1 : NULL;
 
    if (item_false == NULL)
       return;

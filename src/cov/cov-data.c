@@ -365,6 +365,30 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    return first_tag;
 }
 
+cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj)
+{
+   cover_item_t *item_true = NULL;
+   tree_t b = tree_from_object(obj);
+
+   if (tree_kind(b) == T_ASSOC) {
+      if ((item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                                      COV_FLAG_CHOICE)) == NULL)
+         return NULL;
+
+      item_true->num = 1;
+   }
+   else {
+      if ((item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                                      COV_FLAG_TRUE)) == NULL)
+         return NULL;
+
+      item_true->num = 2;
+      cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE);
+   }
+
+   return item_true;
+}
+
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
                              cover_item_kind_t kind, uint32_t flags)
 {
