@@ -238,21 +238,13 @@ static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t wher
 
    object_t *owhere = tree_to_object(where);
 
-   // TODO: Name creation could be optimized here by making BIN names well known idents
-   ident_t bname_01 = ident_new(cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_1));
-   ident_t suffix_01 = (suffix) ? ident_prefix(suffix, bname_01, '.') :
-                                  ident_prefix(ident_new("."), bname_01, '\0');
-
-   cover_item_t *first = cover_add_item(data, owhere, suffix_01, COV_ITEM_TOGGLE,
+   cover_item_t *first = cover_add_item(data, owhere, suffix, COV_ITEM_TOGGLE,
                                         flags | COV_FLAG_TOGGLE_TO_1);
    if (first == NULL)
       return -1;
-   first->num = 2;
 
-   ident_t bname_10 = ident_new(cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_0));
-   ident_t suffix_10 = (suffix) ? ident_prefix(suffix, bname_10, '.') :
-                                  ident_prefix(ident_new("."), bname_10, '\0');
-   cover_item_t *second = cover_add_item(data, owhere, suffix_10, COV_ITEM_TOGGLE,
+   first->num = 2;
+   cover_item_t *second = cover_add_item(data, owhere, suffix, COV_ITEM_TOGGLE,
                                          flags | COV_FLAG_TOGGLE_TO_0);
    second->num = 1;
 
@@ -443,7 +435,7 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
    // Append BIN name to the cover item
    // TODO: Make it for all coverage items kinds
-   if (kind == COV_ITEM_BRANCH)
+   if (kind == COV_ITEM_BRANCH || kind == COV_ITEM_TOGGLE)
       // TODO: Make this available via well known types
       hier = ident_prefix(hier, ident_new(cover_bmask_to_bin_str(flags)), '.');
 
@@ -1017,7 +1009,7 @@ const char *cover_bmask_to_bin_str(uint32_t bmask)
    // TODO: Smarter way instead of iterating -> Probably OK for such small array
    //       even if called many times!
    for (int i = 0; i < ARRAY_LEN(bin_map); i++)
-      if (bmask == bin_map[i].flag)
+      if (bmask & bin_map[i].flag)
          return bin_map[i].name;
 
    assert(false);
