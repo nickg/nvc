@@ -17,14 +17,14 @@ exclude WORK.COVER9.P1.CASE_STMT.RPT6
 ###############################################################################
 
 # Bin evaluated to true
-exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+exclude WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE
 
 # Choice excluded with exact bin name
-exclude WORK.COVER9.P1.CASE_STMT._B3._B0 BIN_CHOICE
+exclude WORK.COVER9.P1.CASE_STMT._B3._B0.BIN_CHOICE
 
-# Choices excluded without bin name
-exclude WORK.COVER9.P1.case_stmt._B4._B0
-exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS
+# All choices excluded
+exclude WORK.COVER9.P1.case_stmt._B4._B0.*
+exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
 
 ###############################################################################
 # Test expression excluding

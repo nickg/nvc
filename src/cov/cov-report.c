@@ -805,8 +805,6 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
 //       "num" attribute.
 static void cover_print_bins_legacy(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
 {
-   loc_t loc = pair->item->loc;
-
    fprintf(f, "<br><table class=\"cbt\">");
 
    switch (pair->item->kind) {
@@ -1296,6 +1294,7 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       nested_total = &(ctx->nested_stats.total_branches);
       flat_hits = &(ctx->flat_stats.hit_branches);
       nested_hits = &(ctx->nested_stats.hit_branches);
+      chn = &(ctx->ch_branch);
       break;
    case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);

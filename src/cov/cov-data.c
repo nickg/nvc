@@ -378,11 +378,13 @@ cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj)
       item_true->num = 1;
    }
    else {
+
       if ((item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
                                       COV_FLAG_TRUE)) == NULL)
          return NULL;
 
       item_true->num = 2;
+
       cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE);
    }
 
@@ -438,6 +440,13 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
 
       func_name = tree_ident(t);
    }
+
+   // Append BIN name to the cover item
+   // TODO: Make it for all coverage items kinds
+   if (kind == COV_ITEM_BRANCH)
+      // TODO: Make this available via well known types
+      hier = ident_prefix(hier, ident_new(cover_bmask_to_bin_str(flags)), '.');
+
 
    int num = 1;
    int sig_pos = 0;

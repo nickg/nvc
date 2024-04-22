@@ -108,12 +108,12 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE, BIN_FALSE
+** Note: excluding branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0.BIN_TRUE'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0' bins: BIN_TRUE already covered!
+** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0.BIN_FALSE' already covered!
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -163,31 +163,26 @@
     |
  13 | exclude WORK.COVER9.P1.CASE_STMT.RPT6
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE
+** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE'
     > data/cover9_ef1.txt:20
     |
- 20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+ 20 | exclude WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: branch: 'WORK.COVER9.AND_GATE._S0._B0' bins: BIN_TRUE already covered!
-    > data/cover9_ef1.txt:20
-    |
- 20 | exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B3._B0' bins: BIN_CHOICE
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B3._B0.BIN_CHOICE'
     > data/cover9_ef1.txt:23
     |
- 23 | exclude WORK.COVER9.P1.CASE_STMT._B3._B0 BIN_CHOICE
+ 23 | exclude WORK.COVER9.P1.CASE_STMT._B3._B0.BIN_CHOICE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4._B0' bins: BIN_CHOICE
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4._B0.BIN_CHOICE'
     > data/cover9_ef1.txt:26
     |
- 26 | exclude WORK.COVER9.P1.case_stmt._B4._B0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS' bins: BIN_CHOICE
+ 26 | exclude WORK.COVER9.P1.case_stmt._B4._B0.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.BIN_CHOICE'
     > data/cover9_ef1.txt:27
     |
- 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding expression: 'WORK.COVER9.P0._S0._E0' bins: BIN_0_0
     > data/cover9_ef1.txt:32
     |

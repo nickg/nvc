@@ -1612,24 +1612,21 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
 
    object_t *obj = tree_to_object(b);
 
-   cover_item_t *item_true = cover_add_branch_items_for(lu->cover, obj);
-   if (item_true == NULL)
-      return;
+   cover_item_t *item = cover_add_branch_items_for(lu->cover, obj);
+   int item_cnt = (item) ? item->num : 0;
+   vcode_block_t blocks[2] = {true_bb, false_bb};
 
-   assert(true_bb != VCODE_INVALID_BLOCK);
+   for (int i = 0; i < item_cnt; i++) {
+      if (item == NULL)
+         break;
 
-   vcode_select_block(true_bb);
-   emit_cover_branch(item_true->tag);
+      assert(blocks[i] != VCODE_INVALID_BLOCK);
 
-   cover_item_t *item_false = (item_true->num == 2) ? item_true + 1 : NULL;
+      vcode_select_block(blocks[i]);
+      emit_cover_branch(item->tag);
 
-   if (item_false == NULL)
-      return;
-
-   assert(false_bb != VCODE_INVALID_BLOCK);
-
-   vcode_select_block(false_bb);
-   emit_cover_branch(item_false->tag);
+      item++;
+   }
 }
 
 static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
