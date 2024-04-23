@@ -309,6 +309,9 @@ static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
    case V_UNARY_NOT:
       tb_cat(tb, "\"not\"(");
       break;
+   case V_UNARY_NEG:
+      tb_cat(tb, "\"-\"(");
+      break;
    }
 
    vcode_type_t vlogic = vlog_logic_type();
@@ -524,7 +527,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          else {
             vcode_reg_t *bits LOCAL = xmalloc_array(width, sizeof(vcode_reg_t));
             for (int i = 0; i < width; i++)
-               bits[i] = emit_const(vlogic, number_bit(num, i));
+               bits[width - i - 1] = emit_const(vlogic, number_bit(num, i));
 
             vcode_type_t varray = vtype_carray(width, vlogic, vlogic);
             return emit_const_array(varray, bits, width);
@@ -562,8 +565,16 @@ static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
       {
-         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, v);
-         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t value_reg = vlog_lower_lvalue(lu, v), count_reg, nets_reg;
+         if (vcode_reg_kind(value_reg) == VCODE_TYPE_UARRAY) {
+            nets_reg = emit_unwrap(value_reg);
+            count_reg = emit_uarray_len(value_reg, 0);
+         }
+         else {
+            nets_reg = value_reg;
+            count_reg = emit_const(vtype_offset(), 1);
+         }
+
          emit_sched_event(nets_reg, count_reg);
       }
       break;

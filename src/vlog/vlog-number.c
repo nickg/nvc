@@ -47,7 +47,7 @@ static void number_shift_left(number_t *n, unsigned count, uint64_t carry_in)
    case TAG_BIGNUM:
       {
          assert(count < 32);
-         for (int i = 0; i < BIGNUM_WORDS(n->big->width); i++) {
+         for (int i = BIGNUM_WORDS(n->big->width) - 1; i >= 0; i--) {
             const uint64_t carry_out = n->big->packed[i] >> (64 - count * 2);
             n->big->packed[i] <<= count * 2;
             n->big->packed[i] |= carry_in;
@@ -62,6 +62,15 @@ static void number_shift_left(number_t *n, unsigned count, uint64_t carry_in)
    default:
       DEBUG_ONLY(fatal_trace("invalid number tag %x", n->common.tag));
    }
+}
+
+static void strip_underscores(char *s)
+{
+   char *p;
+   for (p = s; *s; s++) {
+      if (*s != '_') *p++ = *s;
+   }
+   *p = '\0';
 }
 
 number_t number_new(const char *str)
@@ -92,8 +101,13 @@ number_t number_new(const char *str)
       has_xz |= (*pp == 'x' || *pp == 'z');
 
    if (!has_xz && width <= INTEGER_WIDTH_MAX) {
-      char *eptr;
-      const int64_t bits = strtoll(p, &eptr, radix);
+      char *eptr, *copy LOCAL = NULL;
+      int64_t bits = strtoll(p, &eptr, radix);
+      if (*eptr == '_') {
+         copy = xstrdup(p);
+         strip_underscores(copy);
+         bits = strtoll(copy, &eptr, radix);
+      }
       if (*eptr != '\0')
          errorf("invalid character '%c' in number %s", *eptr, str);
 
@@ -316,7 +330,8 @@ vlog_logic_t number_bit(number_t val, unsigned n)
       return ((val.intg.packed >> n) & 1) | LOGIC_0;
    case TAG_BIGNUM:
       assert(n < val.big->width);
-      return (val.big->packed[n / 32] >> ((n % 32) * 2)) & 3;
+      return (val.big->packed[(val.big->width - n - 1) / 32]
+              >> ((n % 32) * 2)) & 3;
    default:
       DEBUG_ONLY(fatal_trace("invalid number tag %x", val.common.tag));
       return 0;
@@ -331,7 +346,7 @@ number_t number_pack(const uint8_t *bits, unsigned width)
 
    if (!has_xz && width <= INTEGER_WIDTH_MAX) {
       uint64_t packed = 0;
-      for (int i = width - 1; i >= 0; i--) {
+      for (int i = 0; i < width; i++) {
          assert(bits[i] <= 0b11);
          packed <<= 1;
          packed |= (bits[i] & 1);
@@ -348,7 +363,7 @@ number_t number_pack(const uint8_t *bits, unsigned width)
    }
    else if (width <= SMALLNUM_WIDTH_MAX) {
       uint64_t packed = SMALL_PACKED_ZERO;
-      for (int i = width - 1; i >= 0; i--) {
+      for (int i = 0; i < width; i++) {
          assert(bits[i] <= 0b11);
          packed <<= 2;
          packed |= bits[i];
@@ -369,13 +384,13 @@ number_t number_pack(const uint8_t *bits, unsigned width)
       bn->width = width;
       bn->issigned = 0;
 
-      for (int i = nwords - 1, b = 0; i >= 0; i--) {
+      for (int i = 0; i < nwords; i++) {
          bn->packed[i] = BIG_PACKED_ZERO;
 
-         for (int j = 0; j < 32 && b < width; j++, b++) {
-            assert(bits[b] <= 0b11);
+         for (int j = 0; j < 32 && i*32 + j < width; j++) {
+            assert(bits[i*32 + j] <= 0b11);
             bn->packed[i] <<= 2;
-            bn->packed[i] |= bits[b];
+            bn->packed[i] |= bits[i*32 + j];
          }
       }
 

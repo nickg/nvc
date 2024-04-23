@@ -299,6 +299,7 @@ START_TEST(test_number2)
       { "'hffffffff", 32, INTEGER_ENCODE_MAX, "4294967295" },
       { "64'b0",      64, 0,                  "64'b0"      },
       { "64'b101",    64, 5,                  "64'b101"    },
+      { "8'b00_01",   8,  1,                  "8'd1"       },
    };
 
    LOCAL_TEXT_BUF tb = tb_new();

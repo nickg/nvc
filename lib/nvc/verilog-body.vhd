@@ -70,10 +70,10 @@ package body verilog is
 
     function to_logic (value : t_net_array) return t_packed_logic is
         constant length : natural := value'length;
-        alias a_value   : t_net_array(1 to length) is value;
-        variable result : t_packed_logic(1 to length);
+        alias a_value   : t_net_array(length - 1 downto 0) is value;
+        variable result : t_packed_logic(length - 1 downto 0);
     begin
-        for i in 1 to length loop
+        for i in result'range loop
             result(i) := to_logic(a_value(i));
         end loop;
         return result;
@@ -81,10 +81,10 @@ package body verilog is
 
     function to_logic (value : t_resolved_net_array) return t_packed_logic is
         constant length : natural := value'length;
-        alias a_value   : t_resolved_net_array(1 to length) is value;
-        variable result : t_packed_logic(1 to length);
+        alias a_value   : t_resolved_net_array(length - 1 downto 0) is value;
+        variable result : t_packed_logic(length - 1 downto 0);
     begin
-        for i in 1 to length loop
+        for i in result'range loop
             result(i) := to_logic(a_value(i));
         end loop;
         return result;
@@ -124,10 +124,10 @@ package body verilog is
 
     function to_net_value (value : t_packed_logic) return t_net_array is
         constant length : natural := value'length;
-        alias a_value   : t_packed_logic(1 to length) is value;
-        variable result : t_net_array(1 to length);
+        alias a_value   : t_packed_logic(length - 1 downto 0) is value;
+        variable result : t_net_array(length - 1 downto 0);
     begin
-        for i in 1 to length loop
+        for i in result'range loop
             result(i) := to_net_value(a_value(i));
         end loop;
         return result;
@@ -135,10 +135,10 @@ package body verilog is
 
     function to_net_value (value : t_packed_logic) return t_resolved_net_array is
         constant length : natural := value'length;
-        alias a_value   : t_packed_logic(1 to length) is value;
-        variable result : t_resolved_net_array(1 to length);
+        alias a_value   : t_packed_logic(length - 1 downto 0) is value;
+        variable result : t_resolved_net_array(length - 1 downto 0);
     begin
-        for i in 1 to length loop
+        for i in result'range loop
             result(i) := to_net_value(a_value(i));
         end loop;
         return result;
@@ -146,29 +146,27 @@ package body verilog is
 
 
     function to_integer (value : t_packed_logic) return t_int64 is
-        alias v      : t_packed_logic(0 to value'length - 1) is value;
-        variable r   : t_int64 := 0;
-        variable add : t_int64 := 1;
+        alias v    : t_packed_logic(value'length - 1 downto 0) is value;
+        variable r : t_int64 := 0;
     begin
         for i in v'range loop
+            r := r * 2;
             if v(i) = '1' then
-                r := r + add;
+                r := r + 1;
             end if;
-            add := add * 2;
         end loop;
         return r;
     end function;
 
     function to_time (value : t_packed_logic) return delay_length is
-        alias v      : t_packed_logic(0 to value'length - 1) is value;
-        variable r   : delay_length := 0 fs;
-        variable add : delay_length := 1 fs;
+        alias v    : t_packed_logic(value'length - 1 downto 0) is value;
+        variable r : delay_length := 0 fs;
     begin
         for i in v'range loop
+            r := r * 2;
             if v(i) = '1' then
-                r := r + add;
+                r := r + 1 fs;
             end if;
-            add := add * 2;
         end loop;
         return r;
     end function;
@@ -227,7 +225,7 @@ package body verilog is
         constant length  : natural := value'length;
         constant lookup  : string(1 to 4) := "XZ01";
         variable result  : string(1 to length);
-        alias a_value : t_packed_logic(1 to length) is value;
+        alias a_value : t_packed_logic(length downto 1) is value;
     begin
         for i in 1 to length loop
             result(i) := lookup(t_logic'pos(a_value(i)) + 1);
@@ -237,21 +235,21 @@ package body verilog is
 
     function resize (value : t_packed_logic; length : natural) return t_packed_logic is
         constant orig : natural := value'length;
-        alias a_value : t_packed_logic(1 to orig) is value;
+        alias a_value : t_packed_logic(orig - 1 downto 0) is value;
     begin
         if length = orig then
             return value;
         elsif length < orig then
-            return a_value(1 to length);
+            return a_value(length - 1 downto 0);
         else
             return (1 to length - orig => '0') & value;
         end if;
     end function;
 
     function resize (value : t_logic; length : natural) return t_packed_logic is
-        subtype rtype is t_packed_logic(1 to length);
+        subtype rtype is t_packed_logic(length - 1 downto 0);
     begin
-        return rtype'(1 => value, others => '0');
+        return rtype'(0 => value, others => '0');
     end function;
 
     function "and" (l, r : t_logic) return t_logic is
@@ -291,9 +289,9 @@ package body verilog is
         constant llen   : natural := l'length;
         constant rlen   : natural := r'length;
         constant len    : natural := maximum(llen, rlen);
-        alias la        : t_packed_logic(0 to llen - 1) is l;
-        alias ra        : t_packed_logic(0 to rlen - 1) is r;
-        variable result : t_packed_logic(0 to len - 1);
+        alias la        : t_packed_logic(llen - 1 downto 0) is l;
+        alias ra        : t_packed_logic(rlen - 1 downto 0) is r;
+        variable result : t_packed_logic(len - 1 downto 0);
     begin
         for i in result'range loop
             if i < llen and i < rlen then
@@ -316,8 +314,8 @@ package body verilog is
 
     function "not" (x : t_packed_logic) return t_packed_logic is
         constant len    : natural := x'length;
-        alias xa        : t_packed_logic(0 to len - 1) is x;
-        variable result : t_packed_logic(0 to len - 1);
+        alias xa        : t_packed_logic(len - 1 downto 0) is x;
+        variable result : t_packed_logic(len - 1 downto 0);
     begin
         for i in result'range loop
             result(i) := not xa(i);
@@ -340,9 +338,9 @@ package body verilog is
 
     function add_unsigned (l, r : t_packed_logic; c : t_logic) return t_packed_logic is
         constant l_left : integer := l'length - 1;
-        alias xl        : t_packed_logic(0 to l_left) is l;
-        alias xr        : t_packed_logic(0 to l_left) is r;
-        variable result : t_packed_logic(0 to l_left);
+        alias xl        : t_packed_logic(l_left downto 0) is l;
+        alias xr        : t_packed_logic(l_left downto 0) is r;
+        variable result : t_packed_logic(l_left downto 0);
         variable cbit   : t_logic := c;
     begin
         for i in 0 to l_left loop
@@ -360,26 +358,40 @@ package body verilog is
         return add_unsigned(lext, rext, '0');
     end function;
 
+    function "-" (arg : t_packed_logic) return t_packed_logic is
+        constant arg_left : integer := arg'length - 1;
+        alias xarg        : t_packed_logic(arg_left downto 0) is arg;
+        variable result   : t_packed_logic(arg_left downto 0);
+        variable cbit     : t_logic := '1';
+    begin
+        for i in 0 to arg_left loop
+            report t_logic'image(xarg(i));
+            result(i) := not xarg(i) xor cbit;
+            cbit      := cbit and not xarg(i);
+        end loop;
+        return result;
+    end function;
+
     function "=" (l, r : t_packed_logic) return boolean is
         constant lsize   : natural := l'length;
         constant rsize   : natural := r'length;
         constant minsize : natural := minimum(lsize, rsize);
-        alias la : t_packed_logic(1 to lsize) is l;
-        alias ra : t_packed_logic(1 to rsize) is r;
+        alias la : t_packed_logic(lsize - 1 downto 0) is l;
+        alias ra : t_packed_logic(rsize - 1 downto 0) is r;
     begin
-        for i in 1 to minsize loop
+        for i in 0 to minsize - 1 loop
             if la(i) /= ra(i) then
                 return false;
             end if;
         end loop;
         if lsize > rsize then
-            for i in minsize + 1 to lsize loop
+            for i in minsize to lsize - 1 loop
                 if la(i) /= '0' then
                     return false;
                 end if;
             end loop;
         elsif rsize > lsize then
-            for i in minsize + 1 to rsize loop
+            for i in minsize to rsize - 1 loop
                 if ra(i) /= '0' then
                     return false;
                 end if;

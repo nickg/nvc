@@ -78,6 +78,8 @@ package verilog is
 
     function "+" (l, r : t_packed_logic) return t_packed_logic;
 
+    function "-" (arg : t_packed_logic) return t_packed_logic;
+
     function "=" (l, r : t_packed_logic) return boolean;
 
     function "/=" (l, r : t_packed_logic) return boolean;

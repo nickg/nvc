@@ -105,6 +105,7 @@ typedef enum {
 typedef enum {
    V_UNARY_BITNEG,
    V_UNARY_NOT,
+   V_UNARY_NEG,
 } vlog_unary_t;
 
 typedef enum {

@@ -876,6 +876,13 @@ expression:     primary
                    vlog_set_subkind($$, V_UNARY_NOT);
                    vlog_set_value($$, $2);
                 }
+        |       '-' expression
+                {
+                   $$ = vlog_new(V_UNARY);
+                   vlog_set_loc($$, &@$);
+                   vlog_set_subkind($$, V_UNARY_NEG);
+                   vlog_set_value($$, $2);
+                }
         ;
 
 list_of_expressions:
