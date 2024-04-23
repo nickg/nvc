@@ -145,8 +145,10 @@ typedef struct _cover_item {
    //    TODO: Implement like so for other coverage kinds
    int               num;
 
-   // COV_ITEM_TOGGLE - Start position for signal name
-   int               sig_pos;
+   // Secondary numeric data:
+   //    COV_ITEM_TOGGLE - Start position of signal name
+   //    COV_ITEM_STATE  - Value of low-index of enum sub-type
+   int64_t           metadata;
 } cover_item_t;
 
 typedef enum {
@@ -242,9 +244,6 @@ void cover_export_cobertura(cover_data_t *data, FILE *f,
 void cover_push_scope(cover_data_t *data, tree_t t);
 void cover_pop_scope(cover_data_t *data);
 
-bool cover_skip_array_toggle(cover_data_t *data, int a_size);
-bool cover_skip_type_state(cover_data_t *data, type_t type);
-
 unsigned cover_get_std_log_expr_flags(tree_t decl);
 
 // TODO: Replace by unified funtion "cover_add_items" that will return index
@@ -252,6 +251,8 @@ unsigned cover_get_std_log_expr_flags(tree_t decl);
 int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
                                    tree_t where, ident_t prefix, int curr_dim);
 cover_item_t * cover_add_branch_items_for(cover_data_t *data, object_t *obj);
+cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj);
+
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
                              cover_item_kind_t kind, uint32_t flags);
 

@@ -135,20 +135,16 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
 
    case COV_ITEM_STATE:
       {
-         int n_states = item->num;
-         cover_item_t* curr_item = item;
-         for (int i = 0; i < n_states; i++) {
-            ident_t state_name = ident_rfrom(curr_item->hier, '.');
-            if (!bin || !strcmp(istr(state_name), bin)) {
-               if (curr_item->data & COV_FLAG_STATE)
-                  warn_at(&ctx->loc, "%s: '%s' of '%s' already covered!",
-                          kind_str, istr(state_name), istr(hier));
-               curr_item->excl_msk |= COV_FLAG_STATE;
-            }
-            curr_item++;
+         // TODO: State name extraction can be better here (_STATE) prefix stripped.
+         if (item->data > 0)
+            warn_at(&ctx->loc, "%s: '%s' already covered!",
+                    kind_str, istr(hier));
+         else {
+            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+            item->flags |= COV_FLAG_EXCLUDED;
          }
 
-         return n_states;
+         return 1;
       }
 
    default:
@@ -168,10 +164,6 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
    for (int i = 0; i < s->items.count; i += step) {
       cover_item_t *item = AREF(s->items, i);
       ident_t hier = item->hier;
-
-      // Some items contain bin name as part of hierarchy -> Strip it:
-      if (item->kind == COV_ITEM_STATE)
-         hier = ident_runtil(hier, '.');
 
       if (ident_glob(hier, excl_hier, len)) {
 #ifdef COVER_DEBUG_EXCLUDE

@@ -222,7 +222,8 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
 
 static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)
 {
-   // I-th enum literal is encoded in i-th tag from first tag, that corresponds to enum value.
+   // I-th enum literal is encoded in i-th tag from first tag, that corresponds
+   // to enum value.
    int size = signal_size(s);
    int32_t offset = 0;
    FOR_ALL_SIZES(size, READ_STATE);
@@ -230,7 +231,9 @@ static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *us
    rt_model_t *m = get_model();
    int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset);
 
-   *mask |= COV_FLAG_STATE;
+   int32_t mask_inc = *mask + 1;
+   if (mask_inc > *mask)
+      *mask = mask_inc;
 }
 
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
@@ -242,7 +245,7 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 
    // TYPE'left is a default value of enum type that does not
    // cause an event. First tag needs to be flagged as covered manually.
-   *mask |= COV_FLAG_STATE;
+   *mask = 1;
 
    model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)(tag - low), false);
 }

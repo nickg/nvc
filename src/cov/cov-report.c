@@ -618,8 +618,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       fprintf(f, "%s expression", istr(pair->item->func_name));
       break;
    case COV_ITEM_STATE:
-      fprintf(f, "\"%s\" FSM with total %d states", istr(pair->item->func_name),
-              pair->item->num);
+      fprintf(f, "\"%s\" FSM", istr(pair->item->func_name));
       break;
    default:
       break;
@@ -871,47 +870,19 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
          cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
          break;
 
+      case COV_ITEM_STATE:
+      {
+         ident_t state_name = ident_rfrom(pair->item->hier, '.');
+         cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
+         break;
+      }
+
       default:
          fatal("unsupported type of code coverage: %d !", pair->item->kind);
       }
    }
 
    fprintf(f, "</table>");
-}
-
-
-static int cover_print_fsm_table(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind,
-                                 cover_pair_t *last)
-{
-   // All pairs of a single FSM are consequent. Group them together and print them
-   // in a single table.
-   ident_t first_prefix = ident_runtil(pair->item->hier, '.');
-
-   fprintf(f, "<br><table class=\"cbt\">");
-
-   cover_print_bin_header_legacy(f, pkind, 1, "State");
-
-   int n_pairs = 0;
-   do {
-      ident_t state_name = ident_rfrom(pair->item->hier, '.');
-      cover_print_bin_legacy(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
-      n_pairs++;
-
-      // End of the chain was hit
-      if (pair == last)
-         break;
-      pair++;
-
-      // A item with different prefix -> Not the same FSM.
-      ident_t curr_prefix = ident_runtil(pair->item->hier, '.');
-      if (!ident_starts_with(curr_prefix, first_prefix))
-         break;
-
-   } while (1);
-
-   fprintf(f, "</table>");
-
-   return n_pairs;
 }
 
 
@@ -956,7 +927,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
             fprintf(f, "<h3>Port:</h3>");
 
          const char *sig_name = istr(ident_runtil(curr->item->hier, '.'));
-         sig_name += curr->item->sig_pos;
+         sig_name += curr->item->metadata;
          fprintf(f, "&nbsp;<code>%s</code>", sig_name);
 
          cover_print_bin_header(f, pkind, 2, "From", "To");
@@ -971,7 +942,10 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
 
       case COV_ITEM_STATE:
          cover_print_code_loc(f, curr);
-         step = cover_print_fsm_table(f, curr, pkind, last);
+         cover_print_bin_header(f, pkind, 1, "State");
+         cover_print_bins(f, curr, pkind);
+
+         step = curr->item->num;
          break;
 
       case COV_ITEM_FUNCTIONAL:
@@ -1223,12 +1197,6 @@ static void cover_item_to_chain_legacy(cover_report_ctx_t *ctx, cover_item_t *it
       flat_hits = &(ctx->flat_stats.hit_expressions);
       nested_hits = &(ctx->nested_stats.hit_expressions);
       break;
-   case COV_ITEM_STATE:
-      flat_total = &(ctx->flat_stats.total_states);
-      nested_total = &(ctx->nested_stats.total_states);
-      flat_hits = &(ctx->flat_stats.hit_states);
-      nested_hits = &(ctx->nested_stats.hit_states);
-      break;
    default:
       fatal("unsupported type of code coverage: %d !", item->kind);
    }
@@ -1302,6 +1270,13 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       flat_hits = &(ctx->flat_stats.hit_toggles);
       nested_hits = &(ctx->nested_stats.hit_toggles);
       chn = &(ctx->ch_toggle);
+      break;
+   case COV_ITEM_STATE:
+      flat_total = &(ctx->flat_stats.total_states);
+      nested_total = &(ctx->nested_stats.total_states);
+      flat_hits = &(ctx->flat_stats.hit_states);
+      nested_hits = &(ctx->nested_stats.hit_states);
+      chn = &(ctx->ch_state);
       break;
    default:
       fatal("unsupported type of code coverage: %d !", first_item->kind);
@@ -1423,9 +1398,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
          break;
 
       case COV_ITEM_STATE:
-         cover_item_to_chain_legacy(ctx, item, COV_FLAG_STATE, &hits, &misses, &excludes);
-         *skipped += cover_append_to_chain_legacy(&(ctx->ch_state), item, line,
-                                                  hits, misses, excludes, limit);
+         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
          break;
 
       case COV_ITEM_FUNCTIONAL:

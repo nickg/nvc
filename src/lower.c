@@ -1703,41 +1703,23 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_STATE));
 
-   type_t type = tree_type(decl);
-   if (cover_skip_type_state(lu->cover, type))
-      return;
-
-   int64_t low, high;
-   if (!folded_bounds(range_of(type, 0), &low, &high))
-      return;
-
    cover_push_scope(lu->cover, decl);
 
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   // Add single coverage item per enum literal. This is to track
-   // literal string in the identifier of the coverage item.
-   type_t base = type_base_recur(type);
-   for (int i = low; i <= high; i++) {
-      tree_t literal = type_enum_literal(base, i);
-      ident_t suffix =
-         ident_prefix(ident_new("_FSM."), tree_ident(literal), '\0');
-      cover_item_t *item = cover_add_item(lu->cover,  tree_to_object(decl),
-                                          suffix, COV_ITEM_STATE, 0);
-      if (item == NULL)
-         break;
-      if (i == low) {
-         vcode_reg_t nets_reg = emit_load(var);
+   cover_item_t *item = cover_add_state_items_for(lu->cover, tree_to_object(decl));
+   if (item) {
+      vcode_reg_t nets_reg = emit_load(var);
 
-         // If a type is sub-type, then lower bound may be non-zero.
-         // Then value of lower bound will correspond to first coverage
-         // tag.  Need to remember the lower bound, so that run-time can
-         // subtract lower bound to get correct index of coverage data.
-         vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), low);
-         emit_cover_state(nets_reg, low_reg, item->tag);
-      }
+      // If a type is sub-type, then lower bound may be non-zero.
+      // Then value of lower bound will correspond to first coverage
+      // tag.  Need to remember the lower bound, so that run-time can
+      // subtract lower bound to get correct index of coverage data.
+      vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
+                                       item->metadata);
+      emit_cover_state(nets_reg, low_reg, item->tag);
    }
 
    cover_pop_scope(lu->cover);

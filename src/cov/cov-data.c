@@ -243,12 +243,14 @@ static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t wher
    if (first == NULL)
       return -1;
 
+   uint32_t first_tag = first->tag;
    first->num = 2;
+
    cover_item_t *second = cover_add_item(data, owhere, suffix, COV_ITEM_TOGGLE,
                                          flags | COV_FLAG_TOGGLE_TO_0);
    second->num = 1;
 
-   return first->tag;
+   return first_tag;
 }
 
 int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
@@ -383,6 +385,47 @@ cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj)
    return item_true;
 }
 
+cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj)
+{
+   type_t type = tree_type(tree_from_object(obj));
+
+   if (cover_skip_type_state(data, type))
+      return NULL;
+
+   int64_t low, high;
+   if (!folded_bounds(range_of(type, 0), &low, &high))
+      return NULL;
+
+   // Add single coverage item per enum literal. This is to track
+   // literal string in the identifier of the coverage item.
+   type_t base = type_base_recur(type);
+   assert(type_is_enum(base));
+   ident_t itype = type_ident(type);
+   int64_t first_item_index = 0;
+
+   for (int64_t i = low; i <= high; i++) {
+      tree_t literal = type_enum_literal(base, i);
+      ident_t suffix =
+         ident_prefix(ident_new(".STATE."), tree_ident(literal), '\0');
+      cover_item_t *item = cover_add_item(data,  obj, suffix, COV_ITEM_STATE,
+                                          COV_FLAG_STATE);
+
+      if (item) {
+         item->num = ((int)(high - i)) + 1;
+         // TODO: Probably needs to be stored only for first item since the coverage
+         //       reporting prints the type name based on first item within FSM!
+         item->func_name = ident_rfrom(itype, '.');
+         if (i == low) {
+            item->metadata = low;
+            first_item_index = data->top_scope->items.count - 1;
+         }
+      }
+   }
+
+   // Can't hold pointer to first enum item right away since
+   return AREF(data->top_scope->items, first_item_index);
+}
+
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
                              cover_item_kind_t kind, uint32_t flags)
 {
@@ -439,23 +482,10 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       // TODO: Make this available via well known types
       hier = ident_prefix(hier, ident_new(cover_bmask_to_bin_str(flags)), '.');
 
-
    int num = 1;
-   int sig_pos = 0;
-   if (kind == COV_ITEM_STATE) {
-      tree_t t = tree_from_object(obj);
-      assert(t != NULL);
-
-      type_t enum_type = tree_type(t);
-      assert(type_is_enum(enum_type));
-      int64_t low, high;
-      folded_bounds(range_of(enum_type, 0), &low, &high);
-      num = high - low + 1;
-
-      func_name = ident_rfrom(type_ident(tree_type(t)), '.');
-   }
-   else if (kind == COV_ITEM_TOGGLE)
-      sig_pos = data->top_scope->sig_pos;
+   int64_t metadata = 0;
+   if (kind == COV_ITEM_TOGGLE)
+      metadata = data->top_scope->sig_pos;
 
    cover_item_t new = {
       .kind       = kind,
@@ -470,14 +500,17 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       .hier       = hier,
       .func_name  = func_name,
       .num        = num,
-      .sig_pos    = sig_pos,
+      .metadata   = metadata,
       .source     = get_cover_source(kind, obj),
    };
 
 #ifdef COVER_DEBUG_EMIT
    printf("Item: %s\n", istr(hier));
    printf("    Kind:          %s\n", cover_item_kind_str(kind));
-   printf("    Flags:         %d\n", flags);
+   printf("    Flags:         0x%x\n", flags);
+   printf("    Consec. num:   %d\n", num);
+   printf("    Metadata:      %d\n", metadata);
+   printf("    Function name: %s\n", istr(func_name));
    printf("    First line:    %d\n", loc->first_line);
    printf("    First column:  %d\n", loc->first_column);
    printf("    Line delta:    %d\n", loc->line_delta);
@@ -520,6 +553,7 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
    case COV_ITEM_BRANCH:
+   case COV_ITEM_STATE:
       item->data += data;
       break;
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -536,7 +570,6 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
          item->data += data;
       break;
    case COV_ITEM_EXPRESSION:
-   case COV_ITEM_STATE:
       item->data |= data;
       break;
    default:
@@ -594,7 +627,7 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
          ident_write(item->func_name, ident_ctx);
 
       write_u32(item->num, f);
-      write_u32(item->sig_pos, f);
+      write_u64(item->metadata, f);
    }
 
    for (int i = 0; i < s->children.count; i++)
@@ -825,7 +858,7 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
       item->func_name = ident_read(ident_ctx);
 
    item->num = read_u32(f);
-   item->sig_pos = read_u32(f);
+   item->metadata = read_u64(f);
 }
 
 static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
