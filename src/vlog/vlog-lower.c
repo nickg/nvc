@@ -521,9 +521,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          number_t num = vlog_number(v);
          const int width = number_width(num);
 
-         if (width == 1) {
-            abort();
-         }
+         if (width == 1)
+            return emit_const(vlogic, number_bit(num, 0));
          else {
             vcode_reg_t *bits LOCAL = xmalloc_array(width, sizeof(vcode_reg_t));
             for (int i = 0; i < width; i++)
@@ -804,6 +803,18 @@ static void vlog_lower_if(lower_unit_t *lu, vlog_node_t v)
    vcode_select_block(skip_bb);
 }
 
+static void vlog_lower_forever(lower_unit_t *lu, vlog_node_t v)
+{
+   vcode_block_t body_bb = emit_block();
+   emit_jump(body_bb);
+
+   vcode_select_block(body_bb);
+
+   vlog_lower_stmts(lu, v);
+
+   emit_jump(body_bb);
+}
+
 static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
@@ -827,6 +838,9 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
          break;
       case V_IF:
          vlog_lower_if(lu, s);
+         break;
+      case V_FOREVER:
+         vlog_lower_forever(lu, s);
          break;
       default:
          CANNOT_HANDLE(s);
@@ -923,7 +937,8 @@ static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
 
    vlog_lower_stmts(lu, stmt);
 
-   emit_wait(start_bb, VCODE_INVALID_REG);
+   if (!vcode_block_finished())
+      emit_return(VCODE_INVALID_REG);
 
    unit_registry_finalise(ur, lu);
 }

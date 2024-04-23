@@ -446,6 +446,13 @@ static void vlog_check_bit_select(vlog_node_t bsel)
       vlog_check(vlog_param(bsel, i));
 }
 
+static void vlog_check_forever(vlog_node_t stmt)
+{
+   const int nstmts = vlog_stmts(stmt);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(stmt, i));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -523,6 +530,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_BIT_SELECT:
       vlog_check_bit_select(v);
+      break;
+   case V_FOREVER:
+      vlog_check_forever(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

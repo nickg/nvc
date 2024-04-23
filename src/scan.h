@@ -304,5 +304,6 @@ bool is_scanned_as_psl(void);
 #define tATTRBEGIN     408
 #define tATTREND       409
 #define tNUMBER        410
+#define tFOREVER       411
 
 #endif  // _SCAN_H

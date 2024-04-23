@@ -542,6 +542,7 @@ UNION         ?i:union
 <VLOG>"supply1"          { return tSUPPLY1; }
 <VLOG>"pulldown"         { return tPULLDOWN; }
 <VLOG>"pullup"           { return tPULLUP; }
+<VLOG>"forever"          { return tFOREVER; }
 <VLOG>"=="               { return tLOGEQ; }
 <VLOG>"!="               { return tLOGNEQ; }
 <VLOG>"==="              { return tCASEEQ; }

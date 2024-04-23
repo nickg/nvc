@@ -139,7 +139,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          decimal_number conditional_statement variable_type
 %type   <vlog>          delay_control delay_value strength0 strength1
 %type   <vlog>          pull_gate_instance port_identifier module_instance
-%type   <vlog>          system_function_call
+%type   <vlog>          system_function_call loop_statement
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -189,6 +189,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %token                  tATTRBEGIN 408 "(*"
 %token                  tATTREND 409 "*)"
 %token  <str>           tNUMBER 410 "number"
+%token                  tFOREVER 411 "forever"
 
 %token                  tEOF 0 "end of file"
 
@@ -592,6 +593,7 @@ statement:      procedural_timing_control_statement
         |       seq_block
         |       system_task_enable
         |       conditional_statement
+        |       loop_statement
         ;
 
 statement_or_null:
@@ -794,6 +796,14 @@ event_expression:
                    vlog_set_loc($$, &@$);
                    vlog_set_subkind($$, V_EVENT_NEGEDGE);
                    vlog_set_value($$, $2);
+                }
+        ;
+
+loop_statement: tFOREVER statement
+                {
+                   $$ = vlog_new(V_FOREVER);
+                   vlog_set_loc($$, &@$);
+                   vlog_add_stmt($$, $2);
                 }
         ;
 

@@ -106,6 +106,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_SYSFUNC
    (I_IDENT | I_SUBKIND | I_PARAMS),
+
+   // V_FOREVER
+   (I_STMTS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -115,7 +118,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_NET_DECL",  "V_ASSIGN",     "V_DIMENSION",     "V_IF",
    "V_COND",      "V_VAR_DECL",   "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",
+   "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",       "V_FOREVER",
 };
 
 static const change_allowed_t change_allowed[] = {
