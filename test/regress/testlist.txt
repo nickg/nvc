@@ -968,3 +968,4 @@ issue878        wave,2008,dump-arrays
 ivtest2         verilog,gold
 ivtest3         verilog
 vlog9           verilog
+issue881        normal,2008

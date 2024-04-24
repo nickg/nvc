@@ -1114,7 +1114,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
                   // and as a actual generic subprogram
                   tree_t value = find_generic_map(unit, i, g);
                   if (value == NULL)
-                     assert(error_count() > 0);
+                     assert(error_count() > 0
+                            || is_uninstantiated_package(unit));
                   else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
                      decl = tree_ref(value);
                      assert(is_subprogram(decl));
