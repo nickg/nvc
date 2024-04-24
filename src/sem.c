@@ -4480,8 +4480,8 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    if (!sem_check_type(expr, type, tab))
       sem_error(value, "type of actual %s does not match type %s of formal "
-                "port %s", type_pp(value_type), type_pp(type),
-                istr(tree_ident(decl)));
+                "port %s", type_pp2(value_type, type),
+                type_pp2(type, value_type), istr(tree_ident(decl)));
 
    const port_mode_t mode = tree_subkind(decl);
 

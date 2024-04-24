@@ -3,6 +3,8 @@
   assignment inside a `process (all)` statement (#877).
 - Fixed a crash creating a waveform dump with `--dump-arrays` and the
   design contains an array-of-array-of-records (#878).
+- Fixed a spurious error when a type declaration from a package generic
+  is used in a port list (#881).
 
 ## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.

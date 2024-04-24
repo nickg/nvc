@@ -165,15 +165,13 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    type_kind_t kind_b = b->object.kind;
 
    if (map != NULL) {
-      if (kind_a == T_GENERIC) {
-         a = hash_get(map, a) ?: a;
-         kind_a = a->object.kind;
-      }
+      assert(standard() >= STD_08);   // Type generics
 
-      if (kind_b == T_GENERIC) {
-         b = hash_get(map, b) ?: b;
-         kind_b = b->object.kind;
-      }
+      a = hash_get(map, a) ?: a;
+      kind_a = a->object.kind;
+
+      b = hash_get(map, b) ?: b;
+      kind_b = b->object.kind;
 
       if (a == b)
          return true;
