@@ -621,15 +621,12 @@ static void simp_build_wait_cb(tree_t expr, void *ctx)
 {
    tree_t wait = ctx;
 
-   if (tree_kind(expr) == T_REF) {
-      // Check for duplicates
-      tree_t decl = tree_ref(expr);
-      const int ntriggers = tree_triggers(wait);
-      for (int i = 0; i < ntriggers; i++) {
-         tree_t t = tree_trigger(wait, i);
-         if (tree_kind(t) == T_REF && tree_ref(t) == decl)
-            return;
-      }
+   // Check for duplicates
+   const int ntriggers = tree_triggers(wait);
+   for (int i = 0; i < ntriggers; i++) {
+      tree_t t = tree_trigger(wait, i);
+      if (same_tree(t, expr))
+         return;
    }
 
    tree_add_trigger(wait, expr);

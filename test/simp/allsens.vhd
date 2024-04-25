@@ -76,4 +76,10 @@ begin
 
     p15: x <= c(n);                     -- n
 
+    p16: process (all) is               -- v(1)
+    begin
+        v(2) <= v(1);
+        v(3) <= v(1);
+    end process;
+
 end architecture;
