@@ -635,6 +635,18 @@ static void simp_build_wait_cb(tree_t expr, void *ctx)
    tree_add_trigger(wait, expr);
 }
 
+static void simp_all_sensitivity_cb(tree_t expr, void *ctx)
+{
+   tree_t ref = name_to_ref(expr);
+   assert(ref != NULL);
+
+   tree_t decl = tree_ref(ref);
+   if (tree_kind(decl) == T_PARAM_DECL)
+      return;   // Parameter of procedure declared within process
+
+   simp_build_wait_cb(expr, ctx);
+}
+
 static tree_t simp_process(tree_t t)
 {
    // Replace sensitivity list with a "wait on" statement
@@ -661,7 +673,7 @@ static tree_t simp_process(tree_t t)
       tree_set_flag(w, TREE_F_STATIC_WAIT);
 
       if (ntriggers == 1 && tree_kind(tree_trigger(t, 0)) == T_ALL)
-         build_wait(t, simp_build_wait_cb, w);
+         build_wait(t, simp_all_sensitivity_cb, w);
       else {
          for (int i = 0; i < ntriggers; i++)
             tree_add_trigger(w, tree_trigger(t, i));

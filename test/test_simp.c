@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1699,6 +1699,27 @@ START_TEST(test_issue867)
 }
 END_TEST
 
+START_TEST(test_issue882)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue882.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_if(a == NULL);
+
+   tree_t p0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+
+   tree_t p0s1 = tree_stmt(p0, 1);
+   fail_unless(tree_kind(p0s1) == T_WAIT);
+   fail_unless(tree_triggers(p0s1) == 1);
+   fail_unless(icmp(tree_ident(tree_trigger(p0s1, 0)), "MY_A"));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1766,6 +1787,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue812);
    tcase_add_test(tc_core, test_issue821);
    tcase_add_test(tc_core, test_issue867);
+   tcase_add_test(tc_core, test_issue882);
    suite_add_tcase(s, tc_core);
 
    return s;

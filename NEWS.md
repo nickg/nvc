@@ -5,6 +5,8 @@
   design contains an array-of-array-of-records (#878).
 - Fixed a spurious error when a type declaration from a package generic
   is used in a port list (#881).
+- Fixed an assertion failure when a procedure declared within a `process
+  (all)` assigns to a signal (#882).
 
 ## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.
