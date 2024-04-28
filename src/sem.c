@@ -2615,16 +2615,24 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          break;
 
       case T_EXTERNAL_NAME:
-         if (tree_class(decl) != C_SIGNAL) {
-            tree_t tail = tree_part(decl, tree_parts(decl) - 1);
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s is not a valid target of "
-                        "signal assignment", istr(tree_ident(tail)));
-            diag_hint(d, tree_loc(target), "target of signal assignment");
-            diag_hint(d, tree_loc(decl), "declared with class %s",
-                      class_str(tree_class(decl)));
-            diag_emit(d);
-            return false;
+         {
+            if (tree_class(decl) != C_SIGNAL) {
+               tree_t tail = tree_part(decl, tree_parts(decl) - 1);
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+               diag_printf(d, "external name %s is not a valid target of "
+                           "signal assignment", istr(tree_ident(tail)));
+               diag_hint(d, tree_loc(target), "target of signal assignment");
+               diag_hint(d, tree_loc(decl), "declared with class %s",
+                         class_str(tree_class(decl)));
+               diag_emit(d);
+               return false;
+            }
+
+            tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+            if (sub != NULL && find_enclosing(tab, S_PROCESS) == NULL)
+               sem_error(target, "cannot create driver for external name as "
+                         "subprogram %s is not contained within a process "
+                         "statement", type_pp(tree_type(sub)));
          }
          break;
 

@@ -3540,6 +3540,25 @@ START_TEST(test_incomplete)
 }
 END_TEST
 
+START_TEST(test_issue884)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue884.vhd");
+
+   const error_t expect[] = {
+      {  7, "cannot create driver for external name as subprogram PROC [] "
+         "is not contained within a process statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3706,6 +3725,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_16);
    tcase_add_test(tc_core, test_spec2);
    tcase_add_test(tc_core, test_incomplete);
+   tcase_add_test(tc_core, test_issue884);
    suite_add_tcase(s, tc_core);
 
    return s;

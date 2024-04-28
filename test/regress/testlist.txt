@@ -969,3 +969,4 @@ ivtest2         verilog,gold
 ivtest3         verilog
 vlog9           verilog
 issue881        normal,2008
+issue884        normal,2008
