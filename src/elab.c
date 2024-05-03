@@ -54,6 +54,7 @@ typedef struct _elab_ctx {
    tree_t            out;
    tree_t            root;
    tree_t            inst;
+   tree_t            config;
    ident_t           inst_name;     // Current 'INSTANCE_NAME
    ident_t           dotted;
    ident_t           prefix[2];
@@ -97,8 +98,6 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
-static void elab_block_config(tree_t config, const elab_ctx_t *ctx);
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -406,56 +405,6 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
    return mc;
 }
 
-static void elab_config_instance(tree_t block, tree_t spec,
-                                 const elab_ctx_t *ctx)
-{
-   ident_t match = tree_has_ident(spec) ? tree_ident(spec) : NULL;
-   ident_t comp = tree_ident2(spec);
-
-   if (tree_kind(block) == T_IF_GENERATE)
-      block = tree_cond(block, 0);
-
-   const int nstmts = tree_stmts(block);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = tree_stmt(block, i);
-      if (tree_kind(s) != T_INSTANCE || tree_ident2(s) != comp)
-         continue;
-
-      const bool apply = match == well_known(W_ALL)
-         || tree_ident(s) == match
-         || (match == NULL && !tree_has_spec(s));
-
-      if (apply) tree_set_spec(s, spec);
-   }
-
-   const int ndecls = tree_decls(spec);
-   for (int i = 0; i < ndecls; i++)
-      elab_block_config(tree_decl(spec, i), ctx);
-}
-
-static void elab_block_config(tree_t config, const elab_ctx_t *ctx)
-{
-   assert(tree_kind(config) == T_BLOCK_CONFIG);
-
-   tree_t what = tree_ref(config);
-
-   const int ndecls = tree_decls(config);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(config, i);
-      switch (tree_kind(d)) {
-      case T_SPEC:
-         elab_config_instance(what, d, ctx);
-         break;
-      case T_BLOCK_CONFIG:
-         elab_block_config(d, ctx);
-         break;
-      default:
-         fatal_trace("cannot handle block config item %s",
-                     tree_kind_str(tree_kind(d)));
-      }
-   }
-}
-
 static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
 {
    tree_t copy = elab_copy(top, ctx);
@@ -463,26 +412,7 @@ static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
    tree_t config = tree_decl(copy, 0);
    assert(tree_kind(config) == T_BLOCK_CONFIG);
 
-   tree_t arch = tree_ref(config);
-   assert(tree_kind(arch) == T_ARCH);
-
-   const int ndecls = tree_decls(config);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(config, i);
-      switch (tree_kind(d)) {
-      case T_SPEC:
-         elab_config_instance(arch, d, ctx);
-         break;
-      case T_BLOCK_CONFIG:
-         elab_block_config(d, ctx);
-         break;
-      default:
-         fatal_trace("cannot handle block config item %s",
-                     tree_kind_str(tree_kind(d)));
-      }
-   }
-
-   return arch;
+   return config;
 }
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
@@ -977,39 +907,6 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
    }
 
    return bind;
-}
-
-static tree_t elab_binding(tree_t inst, tree_t spec, const elab_ctx_t *ctx)
-{
-   if (!tree_has_value(spec))
-      return NULL;
-
-   tree_t bind = tree_value(spec);
-   assert(tree_kind(bind) == T_BINDING);
-
-   const int ndecls = tree_decls(spec);
-   if (ndecls == 0) {
-      tree_t unit = tree_ref(bind);
-      switch (tree_kind(unit)) {
-      case T_ENTITY:
-         return elab_pick_arch(tree_loc(inst), unit, ctx);
-      case T_CONFIGURATION:
-         return elab_root_config(unit, ctx);
-      case T_ARCH:
-         return unit;
-      default:
-         fatal_at(tree_loc(bind), "sorry, this form of binding indication is "
-                  "not supported yet");
-      }
-   }
-   else {
-      assert(ndecls == 1);
-
-      tree_t config = tree_decl(spec, 0);
-      assert(tree_kind(config) == T_BLOCK_CONFIG);
-
-      return tree_ref(config);
-   }
 }
 
 static void elab_write_generic(text_buf_t *tb, tree_t value)
@@ -1525,7 +1422,8 @@ static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
+static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
+                              const elab_ctx_t *ctx)
 {
    tree_t inst = NULL;
    ident_t label, ninst = NULL;
@@ -1553,6 +1451,7 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
       .inst_name = ninst,
       .dotted    = ndotted,
       .inst      = inst,
+      .config    = config,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1567,7 +1466,12 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
 
    elab_subprogram_prefix(arch, &new_ctx);
 
-   tree_t arch_copy = elab_copy(arch, &new_ctx);
+   tree_t arch_copy;
+   if (config != NULL)
+      arch_copy = arch;   // Already copied by elab_root_config
+   else
+      arch_copy = elab_copy(arch, &new_ctx);
+
    tree_t entity = tree_primary(arch_copy);
 
    elab_push_scope(arch, &new_ctx);
@@ -1592,15 +1496,74 @@ static void elab_architecture(tree_t bind, tree_t arch, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
+static tree_t elab_find_spec(tree_t inst, const elab_ctx_t *ctx)
+{
+   if (tree_has_spec(inst))
+      return tree_spec(inst);
+   else if (ctx->config == NULL)
+      return NULL;
+
+   assert(tree_kind(ctx->config) == T_BLOCK_CONFIG);
+
+   tree_t spec = NULL;
+   const int ndecls = tree_decls(ctx->config);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(ctx->config, i);
+      if (tree_kind(d) != T_SPEC)
+         continue;
+      else if (tree_ident2(d) != tree_ident2(inst))
+         continue;
+
+      bool apply = false;
+      if (tree_has_ident(d)) {
+         ident_t match = tree_ident(d);
+         apply = (match == tree_ident(inst) || match == well_known(W_ALL));
+      }
+      else if (spec == NULL)
+         apply = true;
+
+      if (apply) spec = d;
+   }
+
+   return spec;
+}
+
 static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 {
-   tree_t arch = NULL, bind;
-   if (tree_has_spec(inst)) {
-      tree_t spec = tree_spec(inst);
-      arch = elab_binding(inst, spec, ctx);
-      bind = arch ? tree_value(spec) : NULL;
+   tree_t arch = NULL, config = NULL, bind = NULL, spec;
+   if ((spec = elab_find_spec(inst, ctx)) && tree_has_value(spec)) {
+      bind = tree_value(spec);
+      assert(tree_kind(bind) == T_BINDING);
+
+      const int ndecls = tree_decls(spec);
+      if (ndecls == 0) {
+         tree_t unit = tree_ref(bind);
+         switch (tree_kind(unit)) {
+         case T_ENTITY:
+            arch = elab_pick_arch(tree_loc(inst), unit, ctx);
+            break;
+         case T_CONFIGURATION:
+            config = elab_root_config(unit, ctx);
+            arch = tree_ref(config);
+            break;
+         case T_ARCH:
+            arch = unit;
+            break;
+         default:
+            fatal_at(tree_loc(bind), "sorry, this form of binding indication "
+                     "is not supported yet");
+         }
+      }
+      else {
+         assert(ndecls == 1);
+
+         config = tree_decl(spec, 0);
+         assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+         arch = tree_ref(config);
+      }
    }
-   else if ((bind = elab_default_binding(inst, ctx)))
+   else if (spec == NULL && (bind = elab_default_binding(inst, ctx)))
       arch = tree_ref(bind);
 
    ident_t ninst = hpathf(ctx->inst_name, ':', "%s", istr(tree_ident(inst)));
@@ -1641,9 +1604,28 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    else if (tree_kind(arch) == T_VERILOG)
       elab_verilog_module(bind, arch, &new_ctx);
    else if (error_count() == 0)
-      elab_architecture(bind, arch, &new_ctx);
+      elab_architecture(bind, arch, config, &new_ctx);
 
    elab_pop_scope(&new_ctx);
+}
+
+static tree_t elab_block_config(tree_t block, const elab_ctx_t *ctx)
+{
+   if (ctx->config == NULL)
+      return NULL;
+
+   ident_t label = tree_ident(block);
+
+   const int ndecls = tree_decls(ctx->config);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(ctx->config, i);
+      if (tree_kind(d) != T_BLOCK_CONFIG)
+         continue;
+      else if (tree_ident(d) == label)
+         return d;
+   }
+
+   return NULL;
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -1653,12 +1635,12 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    case T_ENTITY:
       {
          tree_t arch = elab_pick_arch(tree_loc(t), ref, ctx);
-         elab_architecture(t, arch, ctx);
+         elab_architecture(t, arch, NULL, ctx);
       }
       break;
 
    case T_ARCH:
-      elab_architecture(t, ref, ctx);
+      elab_architecture(t, ref, NULL, ctx);
       break;
 
    case T_COMPONENT:
@@ -1667,8 +1649,9 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    case T_CONFIGURATION:
       {
-         tree_t arch = elab_root_config(ref, ctx);
-         elab_architecture(t, arch, ctx);
+         tree_t copy = elab_root_config(ref, ctx);
+         tree_t arch = tree_ref(copy);
+         elab_architecture(t, arch, copy, ctx);
       }
       break;
 
@@ -1835,6 +1818,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          .inst_name = ninst,
          .dotted    = ndotted,
          .generics  = hash_new(16),
+         .config    = elab_block_config(t, ctx),
       };
       elab_inherit_context(&new_ctx, ctx);
 
@@ -1900,6 +1884,7 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
             .out       = b,
             .inst_name = ninst,
             .dotted    = ndotted,
+            .config    = elab_block_config(cond, ctx),
          };
          elab_inherit_context(&new_ctx, ctx);
 
@@ -2080,6 +2065,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
       .out       = b,
       .inst_name = ninst,
       .dotted    = ndotted,
+      .config    = elab_block_config(t, ctx),
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -2161,23 +2147,6 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
    return bind;
 }
 
-static void elab_top_level(tree_t arch, ident_t ename, const elab_ctx_t *ctx)
-{
-   const char *name = simple_name(istr(tree_ident2(arch)));
-   ident_t ninst = hpathf(ctx->inst_name, ':', ":%s(%s)", name,
-                          simple_name(istr(tree_ident(arch))));
-
-   elab_ctx_t new_ctx = {
-      .inst_name = ninst,
-   };
-   elab_inherit_context(&new_ctx, ctx);
-
-   tree_t bind = elab_top_level_binding(arch, &new_ctx);
-   elab_architecture(bind, arch, &new_ctx);
-
-   elab_pop_scope(&new_ctx);
-}
-
 void elab_set_generic(const char *name, const char *value)
 {
    ident_t id = ident_new(name);
@@ -2231,25 +2200,28 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    };
 
    if (vhdl != NULL) {
+      tree_t arch, config = NULL;
       switch (tree_kind(vhdl)) {
       case T_ENTITY:
-         {
-            tree_t arch = elab_pick_arch(&(top->loc), vhdl, &ctx);
-            elab_top_level(arch, tree_ident2(arch), &ctx);
-         }
+         arch = elab_pick_arch(&(top->loc), vhdl, &ctx);
          break;
       case T_ARCH:
-         elab_top_level(vhdl, tree_ident2(vhdl), &ctx);
+         arch = vhdl;
          break;
       case T_CONFIGURATION:
-         {
-            tree_t arch = elab_root_config(vhdl, &ctx);
-            elab_top_level(arch, tree_ident2(arch), &ctx);
-         }
+         config = elab_root_config(vhdl, &ctx);
+         arch = tree_ref(config);
          break;
       default:
          fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
       }
+
+      const char *name = simple_name(istr(tree_ident2(arch)));
+      ctx.inst_name = hpathf(NULL, ':', ":%s(%s)", name,
+                             simple_name(istr(tree_ident(arch))));
+
+      tree_t bind = elab_top_level_binding(arch, &ctx);
+      elab_architecture(bind, arch, config, &ctx);
    }
    else {
       mod_cache_t *mc = elab_cached_module(vlog, &ctx);
