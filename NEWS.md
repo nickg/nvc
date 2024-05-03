@@ -9,6 +9,8 @@
   (all)` assigns to a signal (#882).
 - Added a missing check for illegal assignment to external signal name
   outside a process (#884).
+- Fixed a crash while printing diagnostic information when the
+  simulation delta cycle limit is reached (#885).
 
 ## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.

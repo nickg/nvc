@@ -967,3 +967,4 @@ issue877        normal,2008
 issue878        wave,2008,dump-arrays
 issue881        normal,2008
 issue884        normal,2008
+issue885        fail,gold

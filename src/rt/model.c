@@ -363,7 +363,7 @@ static inline void deferq_do(deferq_t *dq, defer_fn_t fn, void *arg)
 static void deferq_scan(deferq_t *dq, scan_fn_t fn, void *arg)
 {
    for (int i = 0; i < dq->count; i++)
-      (*fn)(NULL, dq->tasks[i].arg, arg);
+      (*fn)(dq->tasks[i].fn, dq->tasks[i].arg, arg);
 }
 
 static void deferq_shuffle(deferq_t *dq)
@@ -3098,26 +3098,46 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
    }
 }
 
-static void iteration_limit_proc_cb(void *context, void *arg, void *extra)
+static void iteration_limit_proc_cb(void *fn, void *arg, void *extra)
 {
-   rt_proc_t *proc = arg;
    diag_t *d = extra;
+   rt_proc_t *proc = NULL;
 
-   const loc_t *l = tree_loc(proc->where);
-   diag_hint(d, l, "process %s is active", istr(proc->name));
+   if (fn == async_run_process)
+      proc = arg;
+   else if (fn == async_transfer_signal) {
+      rt_transfer_t *t = arg;
+      proc = t->proc;
+   }
+
+   if (proc == NULL)
+      return;
+
+   const loc_t *loc = tree_loc(proc->where);
+   diag_hint(d, loc, "process %s is active", istr(proc->name));
 }
 
-static void iteration_limit_driver_cb(void *context, void *arg, void *extra)
+static void iteration_limit_driver_cb(void *fn, void *arg, void *extra)
 {
-   rt_source_t *src = arg;
    diag_t *d = extra;
+   tree_t decl = NULL;
 
-   if (src->tag == SOURCE_DRIVER) {
-      tree_t decl = src->u.driver.nexus->signal->where;
-      diag_hint(d, tree_loc(decl), "driver for %s %s is active",
-                tree_kind(decl) == T_PORT_DECL ? "port" : "signal",
-                istr(tree_ident(decl)));
+   if (fn == async_update_driver || fn == async_fast_driver) {
+      rt_source_t *src = arg;
+      if (src->tag == SOURCE_DRIVER)
+         decl = src->u.driver.nexus->signal->where;
    }
+   else if (fn == async_fast_all_drivers) {
+      rt_signal_t *s = arg;
+      decl = s->where;
+   }
+
+   if (decl == NULL)
+      return;
+
+   diag_hint(d, tree_loc(decl), "driver for %s %s is active",
+             tree_kind(decl) == T_PORT_DECL ? "port" : "signal",
+             istr(tree_ident(decl)));
 }
 
 static void reached_iteration_limit(rt_model_t *m)
