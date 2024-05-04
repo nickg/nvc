@@ -333,8 +333,8 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    case T_ARCH:
       APUSH(roots, tree_primary(t));
       break;
-   case T_CONFIGURATION:
-      elab_find_config_roots(tree_decl(t, 0), &roots);
+   case T_BLOCK_CONFIG:
+      elab_find_config_roots(t, &roots);
       break;
    default:
       fatal_trace("unexpected %s in elab_copy", tree_kind_str(tree_kind(t)));
@@ -403,16 +403,6 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
    }
 
    return mc;
-}
-
-static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
-{
-   tree_t copy = elab_copy(top, ctx);
-
-   tree_t config = tree_decl(copy, 0);
-   assert(tree_kind(config) == T_BLOCK_CONFIG);
-
-   return config;
 }
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
@@ -1451,7 +1441,6 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
       .inst_name = ninst,
       .dotted    = ndotted,
       .inst      = inst,
-      .config    = config,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1467,8 +1456,11 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
    elab_subprogram_prefix(arch, &new_ctx);
 
    tree_t arch_copy;
-   if (config != NULL)
-      arch_copy = arch;   // Already copied by elab_root_config
+   if (config != NULL) {
+      assert(tree_ref(config) == arch);
+      new_ctx.config = elab_copy(config, &new_ctx);
+      arch_copy = tree_ref(new_ctx.config);
+   }
    else
       arch_copy = elab_copy(arch, &new_ctx);
 
@@ -1543,7 +1535,8 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
             arch = elab_pick_arch(tree_loc(inst), unit, ctx);
             break;
          case T_CONFIGURATION:
-            config = elab_root_config(unit, ctx);
+            config = tree_decl(unit, 0);
+            assert(tree_kind(config) == T_BLOCK_CONFIG);
             arch = tree_ref(config);
             break;
          case T_ARCH:
@@ -1649,9 +1642,11 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    case T_CONFIGURATION:
       {
-         tree_t copy = elab_root_config(ref, ctx);
-         tree_t arch = tree_ref(copy);
-         elab_architecture(t, arch, copy, ctx);
+         tree_t config = tree_decl(ref, 0);
+         assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+         tree_t arch = tree_ref(config);
+         elab_architecture(t, arch, config, ctx);
       }
       break;
 
@@ -2209,7 +2204,8 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
          arch = vhdl;
          break;
       case T_CONFIGURATION:
-         config = elab_root_config(vhdl, &ctx);
+         config = tree_decl(vhdl, 0);
+         assert(tree_kind(config) == T_BLOCK_CONFIG);
          arch = tree_ref(config);
          break;
       default:

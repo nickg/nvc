@@ -972,3 +972,4 @@ issue881        normal,2008
 issue884        normal,2008
 issue885        fail,gold
 conf4           normal
+conf5           normal,2008

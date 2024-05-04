@@ -806,7 +806,10 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_SPEC:
-      print_syntax("#for %s", istr(tree_ident(t)));
+      if (tree_has_ident(t))
+         print_syntax("#for %s", istr(tree_ident(t)));
+      else
+         print_syntax("#for #others");
       if (tree_has_ref(t))
          print_syntax(" : %s", istr(tree_ident(tree_ref(t))));
       print_syntax("\n");
