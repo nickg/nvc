@@ -693,7 +693,7 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
 
    bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
    fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
-           "Copy %sto Clipoard</button>", istr(hier), tb_get(tb),
+           "Copy %sto Clipboard</button>", istr(hier), tb_get(tb),
            out_of_table ? "style=\"float: right;\"" : "",
            out_of_table ? "Exclude Command " : "");
 
