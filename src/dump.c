@@ -395,7 +395,7 @@ static void dump_expr(tree_t t)
          dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
          break;
       }
-      break;
+      return;
 
    case T_COND_VALUE:
       for (int i = 0; i < tree_conds(t); i++) {
@@ -583,6 +583,7 @@ static void dump_generic_map(tree_t t, int indent, const char *trailer)
 
 static void dump_binding(tree_t t, int indent)
 {
+   dump_address(t);
    print_syntax("#use %s", istr(tree_ident(t)));
    if (tree_has_ident2(t))
       print_syntax("(%s)", istr(tree_ident2(t)));

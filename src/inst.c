@@ -261,6 +261,22 @@ static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots)
    }
 }
 
+static void collect_inner_generics(tree_t t, hset_t **decls, tree_list_t *roots)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0 ; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_PACKAGE:
+      case T_COMPONENT:
+         collect_generics(d, decls, roots);
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 void new_instance(tree_t *roots, int nroots, ident_t dotted,
                   const ident_t *prefixes, int nprefix)
 {
@@ -287,6 +303,9 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
          break;
       case T_PACK_BODY:
          collect_decls(roots[i], &decls, &troots);
+         break;
+      case T_ARCH:
+         collect_inner_generics(roots[i], &decls, &troots);
          break;
       default:
          break;
