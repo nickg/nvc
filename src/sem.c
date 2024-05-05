@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "hash.h"
 #include "lib.h"
 #include "mask.h"
 #include "names.h"
@@ -4484,12 +4485,24 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    const tree_kind_t kind = tree_kind(value);
    tree_t expr = kind == T_INERTIAL ? tree_value(value) : value;
 
-   type_t value_type = tree_type(expr);
+   type_t value_type = tree_type(expr), atype;
 
-   if (!sem_check_type(expr, type, tab))
-      sem_error(value, "type of actual %s does not match type %s of formal "
-                "port %s", type_pp2(value_type, type),
-                type_pp2(type, value_type), istr(tree_ident(decl)));
+   if (!sem_check_type(expr, type, tab)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_printf(d, "type of actual %s does not match type %s of formal "
+                  "port %s", type_pp2(value_type, type),
+                  type_pp2(type, value_type), istr(tree_ident(decl)));
+
+      if (type_is_generic(type)) {
+         hash_t *map = get_generic_map(tab);
+         if (map != NULL && (atype = hash_get(map, type)))
+            diag_hint(d, NULL, "generic type %s is mapped to %s",
+                      type_pp(type), type_pp(atype));
+      }
+
+      diag_emit(d);
+      return false;
+   }
 
    const port_mode_t mode = tree_subkind(decl);
 
@@ -6089,28 +6102,57 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
             continue;
          }
 
-         type_t ctype = tree_type(cg);
-         type_t etype = tree_type(match);
-         if (!type_eq(ctype, etype)) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "generic %s in component %s has type %s which is "
-                        "incompatible with type %s in entity %s",
-                        istr(tree_ident(cg)), istr(tree_ident(comp)),
-                        type_pp2(ctype, etype), type_pp2(etype, ctype),
-                        istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(cg), "declaration of generic %s in component",
-                      istr(tree_ident(cg)));
-            diag_hint(d, tree_loc(match), "declaration of generic %s in entity",
-                      istr(tree_ident(match)));
-            diag_emit(d);
+         tree_t value;
+         if (tree_class(cg) == C_PACKAGE) {
+            value = tree_value(cg);
+            assert(tree_kind(value) == T_PACKAGE_MAP);
 
-            ok = false;
-            continue;
+            tree_t expect = tree_value(match);
+            assert(tree_kind(expect) == T_PACKAGE_MAP);
+
+            if (tree_ref(value) != tree_ref(expect)) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_printf(d, "generic package %s in component %s does not "
+                           "match entity %s", istr(tree_ident(cg)),
+                           istr(tree_ident(comp)), istr(tree_ident(entity)));
+               diag_hint(d, tree_loc(cg), "declaration of generic %s in "
+                         "component as instance of %s", istr(tree_ident(cg)),
+                         istr(tree_ident(value)));
+               diag_hint(d, tree_loc(match), "declaration of generic %s in "
+                         "entity as instance of %s", istr(tree_ident(match)),
+                         istr(tree_ident(expect)));
+               diag_emit(d);
+
+               ok = false;
+               continue;
+            }
+         }
+         else {
+            type_t ctype = tree_type(cg);
+            type_t etype = tree_type(match);
+            if (!type_eq(ctype, etype)) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_printf(d, "generic %s in component %s has type %s which "
+                           "is incompatible with type %s in entity %s",
+                           istr(tree_ident(cg)), istr(tree_ident(comp)),
+                           type_pp2(ctype, etype), type_pp2(etype, ctype),
+                           istr(tree_ident(entity)));
+               diag_hint(d, tree_loc(cg), "declaration of generic %s in "
+                         "component", istr(tree_ident(cg)));
+               diag_hint(d, tree_loc(match), "declaration of generic %s in "
+                         "entity", istr(tree_ident(match)));
+               diag_emit(d);
+
+               ok = false;
+               continue;
+            }
+
+            value = make_ref(cg);
          }
 
          tree_t map = tree_new(T_PARAM);
          tree_set_loc(map, tree_loc(t));
-         tree_set_value(map, make_ref(cg));
+         tree_set_value(map, value);
 
          if (!have_named && epos == i) {
             tree_set_subkind(map, P_POS);

@@ -504,9 +504,14 @@ void map_generic_package(nametab_t *tab, tree_t generic, tree_t actual)
    }
 
    const int ngenerics = tree_generics(generic);
-   for (int i = 0; i < ngenerics; i++)
-      hash_put(tab->top_scope->gmap, tree_generic(generic, i),
-               tree_generic(actual, i));
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t gg = tree_generic(generic, i);
+      tree_t ag = tree_generic(actual, i);
+      hash_put(tab->top_scope->gmap, gg, ag);
+
+      if (tree_class(gg) == C_TYPE)
+         hash_put(tab->top_scope->gmap, tree_type(gg), tree_type(ag));
+   }
 }
 
 hash_t *get_generic_map(nametab_t *tab)

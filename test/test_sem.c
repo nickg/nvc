@@ -3559,6 +3559,30 @@ START_TEST(test_issue884)
 }
 END_TEST
 
+START_TEST(test_genpack5)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/genpack5.vhd");
+
+   const error_t expect[] = {
+      { 69, "type of actual INTEGER does not match type T of formal port X" },
+      {  0, "generic type T is mapped to REAL" },
+      { 82, "generic package P in component SUB does not match entity "
+        "WORK.SUB2" },
+      {  0, "declaration of generic P in component as instance of WORK.ADDER" },
+      {  0, "declaration of generic P in entity as instance of WORK.ADDER2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_ENTITY, T_ARCH,
+                   T_ENTITY, T_ENTITY, T_ARCH, T_CONFIGURATION);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3726,6 +3750,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_spec2);
    tcase_add_test(tc_core, test_incomplete);
    tcase_add_test(tc_core, test_issue884);
+   tcase_add_test(tc_core, test_genpack5);
    suite_add_tcase(s, tc_core);
 
    return s;
