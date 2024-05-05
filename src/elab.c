@@ -1559,6 +1559,21 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    else if (spec == NULL && (bind = elab_default_binding(inst, ctx)))
       arch = tree_ref(bind);
 
+   // Must create a unique instance if type or package generics present
+   const int ngenerics = tree_generics(comp);
+   for (int i = 0; i < ngenerics; i++) {
+      if (tree_class(tree_generic(comp, i)) != C_CONSTANT) {
+         tree_t roots[] = { comp, bind };
+         new_instance(roots, bind ? 2 : 1, ctx->dotted, ctx->prefix,
+                      ARRAY_LEN(ctx->prefix));
+
+         comp = roots[0];
+         bind = roots[1];
+
+         break;
+      }
+   }
+
    ident_t ninst = hpathf(ctx->inst_name, ':', "%s", istr(tree_ident(inst)));
 
    if (arch != NULL && tree_kind(arch) != T_VERILOG)
@@ -1584,6 +1599,8 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 
    elab_push_scope(comp, &new_ctx);
    elab_generics(comp, inst, &new_ctx);
+   if (bind != NULL) elab_instance_fixup(bind, &new_ctx);
+   elab_instance_fixup(comp, &new_ctx);
    elab_ports(comp, inst, &new_ctx);
 
    if (bind != NULL && tree_kind(arch) != T_VERILOG)

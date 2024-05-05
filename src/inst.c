@@ -274,6 +274,7 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
       case T_ENTITY:
       case T_FUNC_DECL:
       case T_PROC_DECL:
+      case T_COMPONENT:
          collect_generics(roots[i], &decls, &troots);
          break;
       case T_PACKAGE:

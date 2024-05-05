@@ -973,3 +973,4 @@ issue884        normal,2008
 issue885        fail,gold
 conf4           normal
 conf5           normal,2008
+gentype8        normal,2008
