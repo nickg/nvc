@@ -975,3 +975,4 @@ conf4           normal
 conf5           normal,2008
 gentype8        normal,2008
 gentype9        normal,2008
+genpack17       normal,2008

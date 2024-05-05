@@ -1295,8 +1295,16 @@ static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
             }
 
             const int ngenerics = tree_generics(formal);
-            for (int i = 0; i < ngenerics; i++)
-               hash_put(map, tree_generic(formal, i), tree_generic(actual, i));
+            for (int i = 0; i < ngenerics; i++) {
+               tree_t fg = tree_generic(formal, i);
+               tree_t ag = tree_generic(actual, i);
+               hash_put(map, fg, ag);
+
+               if (tree_class(fg) == C_TYPE)
+                  hash_put(map, tree_type(fg), tree_type(ag));
+            }
+
+            hash_put(map, g, actual);
          }
          break;
 

@@ -199,6 +199,7 @@ static void collect_generics(tree_t t, hset_t **decls, tree_list_t *roots)
             if (tree_has_ref(ref)) {
                tree_t pack = tree_ref(ref);
                assert(is_uninstantiated_package(pack));
+               collect_generics(pack, decls, roots);
                collect_decls(pack, decls, roots);
                APUSH(*roots, pack);
             }

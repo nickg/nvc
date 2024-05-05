@@ -9458,6 +9458,7 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
 
    vcode_type_t vcontext = vtype_context(name);
    vcode_var_t var = emit_var(vcontext, vcontext, name, 0);
+   lower_put_vcode_obj(decl, var, parent);
 
    vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
    emit_store(pkg_reg, var);
@@ -12272,11 +12273,14 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
 
 static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
 {
-   ident_t iname = tree_ident(inst);
-   if (ident_runtil(iname, '.') == iname)
-      iname = ident_prefix(lu->parent->name, iname, '.');
+   int hops = 0;
+   vcode_reg_t var = lower_search_vcode_obj(inst, lu, &hops);
 
-   vcode_reg_t context = emit_link_package(iname);
+   vcode_reg_t context;
+   if (var == VCODE_INVALID_VAR)
+      context = emit_link_package(tree_ident(inst));
+   else
+      context = emit_load_indirect(emit_var_upref(hops, var));
 
    const int ngenerics = tree_generics(inst);
    for (int i = 0; i < ngenerics; i++) {

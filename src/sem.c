@@ -6104,20 +6104,20 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
          tree_t value;
          if (tree_class(cg) == C_PACKAGE) {
-            value = tree_value(cg);
-            assert(tree_kind(value) == T_PACKAGE_MAP);
+            tree_t pmap = tree_value(cg);
+            assert(tree_kind(pmap) == T_PACKAGE_MAP);
 
             tree_t expect = tree_value(match);
             assert(tree_kind(expect) == T_PACKAGE_MAP);
 
-            if (tree_ref(value) != tree_ref(expect)) {
+            if (tree_ref(pmap) != tree_ref(expect)) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
                diag_printf(d, "generic package %s in component %s does not "
                            "match entity %s", istr(tree_ident(cg)),
                            istr(tree_ident(comp)), istr(tree_ident(entity)));
                diag_hint(d, tree_loc(cg), "declaration of generic %s in "
                          "component as instance of %s", istr(tree_ident(cg)),
-                         istr(tree_ident(value)));
+                         istr(tree_ident(pmap)));
                diag_hint(d, tree_loc(match), "declaration of generic %s in "
                          "entity as instance of %s", istr(tree_ident(match)),
                          istr(tree_ident(expect)));
@@ -6126,6 +6126,10 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
                ok = false;
                continue;
             }
+
+            value = tree_new(T_REF);
+            tree_set_ident(value, tree_ident(cg));
+            tree_set_ref(value, cg);
          }
          else {
             type_t ctype = tree_type(cg);

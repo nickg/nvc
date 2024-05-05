@@ -4359,7 +4359,13 @@ void emit_comment(const char *fmt, ...)
 #ifndef NDEBUG
    va_list ap;
    va_start(ap, fmt);
-   vcode_add_op(VCODE_OP_COMMENT)->comment = xvasprintf(fmt, ap);
+
+   char *buf = xvasprintf(fmt, ap);
+   for (char *p = buf + strlen(buf) - 1;
+        p >= buf && isspace_iso88591(*p); p--)
+      *p = '\0';
+
+   vcode_add_op(VCODE_OP_COMMENT)->comment = buf;
    va_end(ap);
 #endif
 }
