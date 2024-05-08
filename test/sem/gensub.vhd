@@ -57,7 +57,7 @@ begin
                 return y + t;  -- Error
             end function;
 
-            function inner_inst is new inner generic map (q => t, y => x); -- Error
+            function inner_inst is new inner generic map (q => t, y => x); -- OK (???)
         begin
             return inner_inst;
         end function;
