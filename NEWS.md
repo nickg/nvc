@@ -11,6 +11,8 @@
   outside a process (#884).
 - Fixed a crash while printing diagnostic information when the
   simulation delta cycle limit is reached (#885).
+- Generic actuals no longer need to be globally static, which was never
+  required by the LRM (#886).
 
 ## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.

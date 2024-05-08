@@ -4896,10 +4896,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));
 
-      if (!sem_globally_static(value))
-         sem_error(value, "actual associated with generic %s must be "
-                   "a globally static expression", istr(tree_ident(decl)));
-
+      sem_check_static_elab(value);
       break;
 
    default:
