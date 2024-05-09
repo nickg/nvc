@@ -1,5 +1,21 @@
 ## Unreleased changes
 
+## Version 1.12.1 - 2024-05-09
+- Fixed a crash when a process contains a `force` or `release`
+  assignment inside a `process (all)` statement (#877).
+- Fixed a crash creating a waveform dump with `--dump-arrays` and the
+  design contains an array-of-array-of-records (#878).
+- Fixed a spurious error when a type declaration from a package generic
+  is used in a port list (#881).
+- Fixed an assertion failure when a procedure declared within a `process
+  (all)` assigns to a signal (#882).
+- Added a missing check for illegal assignment to external signal name
+  outside a process (#884).
+- Fixed a crash while printing diagnostic information when the
+  simulation delta cycle limit is reached (#885).
+- Generic actuals no longer need to be globally static, which was never
+  required by the LRM (#886).
+
 ## Version 1.12.0 - 2024-04-07
 - The `--jit` elaboration option no longer requires `--no-save`.
 - Fixed a crash when subtype bounds depend on a package instance generic
