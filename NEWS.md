@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.12.1 - 2024-05-09
 - Fixed a crash when a process contains a `force` or `release`
   assignment inside a `process (all)` statement (#877).
 - Fixed a crash creating a waveform dump with `--dump-arrays` and the

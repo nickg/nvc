@@ -1100,6 +1100,8 @@ EXTRA_DIST += \
 	test/regress/gold/issue852.dump \
 	test/regress/gold/issue856.dump \
 	test/regress/gold/issue862.txt \
+	test/regress/gold/issue878.dump \
+	test/regress/gold/issue885.txt \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1408,6 +1410,11 @@ EXTRA_DIST += \
 	test/regress/issue86.vhd \
 	test/regress/issue873.vhd \
 	test/regress/issue874.vhd \
+	test/regress/issue877.vhd \
+	test/regress/issue878.vhd \
+	test/regress/issue881.vhd \
+	test/regress/issue884.vhd \
+	test/regress/issue885.vhd \
 	test/regress/issue8.vhd \
 	test/regress/issue90.vhd \
 	test/regress/issue91.vhd \
@@ -1845,6 +1852,7 @@ EXTRA_DIST += \
 	test/sem/issue660.vhd \
 	test/sem/issue713.vhd \
 	test/sem/issue770.vhd \
+	test/sem/issue884.vhd \
 	test/sem/issue88.vhd \
 	test/sem/issue89.vhd \
 	test/sem/jcore1.vhd \
@@ -1951,6 +1959,7 @@ EXTRA_DIST += \
 	test/simp/issue812.vhd \
 	test/simp/issue821.vhd \
 	test/simp/issue867.vhd \
+	test/simp/issue882.vhd \
 	test/simp/length.vhd \
 	test/simp/order1.vhd \
 	test/simp/order2.vhd \
