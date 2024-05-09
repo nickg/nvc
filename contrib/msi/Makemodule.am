@@ -3,14 +3,16 @@ if ENABLE_WIX
 installer.wxs: $(srcdir)/contrib/msi/installer.wxs.in
 	tag=$$(git describe --always --long); \
 	seq=$$(echo $$tag | cut -d- -f2); \
-	case $(PACKAGE_VERSION) in \
-	  *-devel) prefix=$$(echo $$tag | sed 's/r\([0-9]*\.[0-9]*\).*/\1.9/');; \
-	  *) prefix=$$(echo $$tag | sed 's/r\(.*\)-.*-.*/\1/');; \
+	suffix=$$(printf "%03d" $$seq); \
+	case $$seq-$(PACKAGE_VERSION) in \
+	  0-*) pattern='s/r\(.*\)-.*-.*/\1/';; \
+	  *-devel) pattern='s/r\([0-9]*\.[0-9]*\).*/\1.9'$$suffix'/';; \
+	  *) pattern='s/r\([0-9]*\.[0-9]*\.[0-9]\).*/\1.'$$suffix'/';; \
 	esac; \
-	vers=$$prefix$$(printf "%03d" $$seq); \
+	vers=$$(echo $$tag | sed $$pattern); \
 	echo $$vers; \
 	sed -e 's/$$VERSION/'$${vers}'/' \
-	    -e 's/$$PREFIX/$(PREFIX)/' $< > $@
+	    -e 's|$$PREFIX|$(PREFIX)|' $< > $@
 
 libs.wxs: $(srcdir)/contrib/msi/genlibs.py bin/nvc$(EXEEXT)
 	python3 $< bin/nvc$(EXEEXT) > $@

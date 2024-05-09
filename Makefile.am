@@ -115,7 +115,7 @@ sync-branch:
 
 upload-artifacts:
 	tag=$$(git describe --tags $$(git rev-list --tags --max-count=1)) && \
-	gh release upload $$tag $(top_builddir)/$(PACKAGE)-$$tag.tar.gz{,.sig} && \
+	gh release upload $$tag $(top_builddir)/$(PACKAGE)-$${tag/r/}.tar.gz{,.sig} && \
 	run_id=$$(gh run list -w "Build MSYS2 and Ubuntu packages" \
 		  -L 1 --json headBranch,databaseId \
 		  --jq '.[0] | select(.headBranch == "'$$tag'").databaseId') && \
