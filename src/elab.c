@@ -202,32 +202,6 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    return lib_get(lib, params.chosen);
 }
 
-static void elab_find_config_roots(tree_t t, tree_list_t *roots)
-{
-   switch (tree_kind(t)) {
-   case T_BLOCK_CONFIG:
-      {
-         tree_t what = tree_ref(t);
-         if (tree_kind(what) == T_ARCH) {
-            APUSH(*roots, tree_primary(what));
-            APUSH(*roots, what);
-         }
-      }
-      // Fall-through
-
-   case T_SPEC:
-      {
-         const int ndecls = tree_decls(t);
-         for (int i = 0; i < ndecls; i++)
-            elab_find_config_roots(tree_decl(t, i), roots);
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
 static void elab_rewrite_external_pre(tree_t t, void *context)
 {
    tree_list_t *stack = context;
@@ -332,14 +306,21 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    switch (tree_kind(t)) {
    case T_ARCH:
       APUSH(roots, tree_primary(t));
+      APUSH(roots, t);    // Architecture must be processed last
       break;
    case T_BLOCK_CONFIG:
-      elab_find_config_roots(t, &roots);
+      {
+         tree_t arch = tree_ref(t);
+         assert(tree_kind(arch) == T_ARCH);
+
+         APUSH(roots, tree_primary(arch));
+         APUSH(roots, arch);
+         APUSH(roots, t);
+      }
       break;
    default:
       fatal_trace("unexpected %s in elab_copy", tree_kind_str(tree_kind(t)));
    }
-   APUSH(roots, t);    // Architecture must be processed last
 
    tree_global_flags_t gflags = 0;
    for (int i = 0; i < roots.count; i++)

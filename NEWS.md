@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Type and package generics now work correctly with components and
+  configurations (#883).
 
 ## Version 1.12.1 - 2024-05-09
 - Fixed a crash when a process contains a `force` or `release`
