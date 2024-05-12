@@ -920,16 +920,10 @@ unsigned type_width(type_t type)
       }
       return w * elem_w;
    }
-   else if (type_is_record(type)) {
-      type_t base = type_base_recur(type);
-      unsigned w = 0;
-      const int nfields = type_fields(base);
-      for (int i = 0; i < nfields; i++)
-         w += type_width(tree_type(type_field(base, i)));
-      return w;
-   }
-   else
+   else {
+      type_is_scalar(type);
       return 1;
+   }
 }
 
 bool type_is_composite(type_t t)

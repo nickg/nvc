@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Fixed a crash when `'transaction` is used with a record type.
 
 ## Version 1.12.1 - 2024-05-09
 - Fixed a crash when a process contains a `force` or `release`

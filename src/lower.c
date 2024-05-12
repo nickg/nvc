@@ -568,8 +568,10 @@ static vcode_reg_t lower_type_width(lower_unit_t *lu, type_t type,
 {
    if (type_is_array(type))
       return lower_array_total_len(lu, type, reg);
-   else
-      return emit_const(vtype_offset(), type_width(type));
+   else {
+      assert(type_is_scalar(type));
+      return emit_const(vtype_offset(), 1);
+   }
 }
 
 static int lower_array_const_size(type_t type)
@@ -7813,19 +7815,47 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
       lower_state_coverage(lu, decl);
 }
 
+static void lower_build_wait_field_cb(lower_unit_t *lu, tree_t field,
+                                      vcode_reg_t ptr, vcode_reg_t value,
+                                      vcode_reg_t locus, void *ctx)
+{
+   wait_param_t *param = ctx;
+   type_t ftype = tree_type(field);
+
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+      if (param->wake != VCODE_INVALID_REG)
+         emit_implicit_event(data_reg, count_reg, param->wake);
+      else
+         emit_sched_event(data_reg, count_reg);
+   }
+   else
+      lower_for_each_field(lu, ftype, ptr, value, locus,
+                           lower_build_wait_field_cb, ctx);
+}
+
 static void lower_build_wait_cb(tree_t expr, void *ctx)
 {
    wait_param_t *param = ctx;
    type_t type = tree_type(expr);
 
    vcode_reg_t nets_reg = lower_lvalue(param->lu, expr);
-   vcode_reg_t count_reg = lower_type_width(param->lu, type, nets_reg);
-   vcode_reg_t data_reg = lower_array_data(nets_reg);
 
-   if (param->wake != VCODE_INVALID_REG)
-      emit_implicit_event(data_reg, count_reg, param->wake);
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t count_reg = lower_type_width(param->lu, type, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+      if (param->wake != VCODE_INVALID_REG)
+         emit_implicit_event(data_reg, count_reg, param->wake);
+      else
+         emit_sched_event(data_reg, count_reg);
+   }
    else
-      emit_sched_event(data_reg, count_reg);
+      lower_for_each_field(param->lu, type, nets_reg, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, lower_build_wait_field_cb, param);
 }
 
 static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)

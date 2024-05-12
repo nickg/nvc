@@ -451,15 +451,6 @@ const char *standard_text(vhdl_standard_t s)
       return "????";
 }
 
-int record_field_to_net(type_t type, unsigned pos)
-{
-   int offset = 0;
-   for (int i = 0; i < pos; i++)
-      offset += type_width(tree_type(type_field(type, i)));
-
-   return offset;
-}
-
 tree_t find_record_field(tree_t rref)
 {
    ident_t fname = tree_ident(rref);
