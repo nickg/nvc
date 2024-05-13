@@ -83,8 +83,10 @@ packaged for [FreeBSD](https://www.freshports.org/cad/nvc),
 Linux [AUR](https://aur.archlinux.org/packages/nvc), and [several other
 distributions](https://repology.org/project/nvc/versions).  A Windows
 installer is available from the [releases
-page](https://github.com/nickg/nvc/releases/).  Users of systems without
-existing packages should build from source.
+page](https://github.com/nickg/nvc/releases/) and can be installed using
+[winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
+with `winget install NickGasson.NVC`.  Users of systems without existing
+packages should build from source.
 
 NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
