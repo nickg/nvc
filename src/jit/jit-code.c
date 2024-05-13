@@ -296,7 +296,6 @@ static int code_print_spaces(int col, int tab)
 static void code_disassemble(code_span_t *span, uintptr_t mark,
                              struct cpu_state *cpu)
 {
-#ifdef HAVE_CAPSTONE
    SCOPED_LOCK(span->owner->lock);
 
    printf("--");
@@ -307,6 +306,7 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
 
    printf(" %s ----\n", istr(span->name));
 
+#ifdef HAVE_CAPSTONE
    cs_insn *insn = cs_malloc(span->owner->capstone);
 
 #ifdef DEBUG
@@ -394,12 +394,14 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
    }
 
    cs_free(insn, 1);
+#else
+   jit_hexdump(span->base, span->size, 16, (void *)mark, "");
+#endif
 
    for (int i = 0; i < 80; i++)
       fputc('-', stdout);
    printf("\n");
    fflush(stdout);
-#endif
 }
 
 static void code_write_perf_map(code_span_t *span)
