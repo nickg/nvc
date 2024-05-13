@@ -11631,8 +11631,8 @@ static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
 }
 
 static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
-                                  tree_t target, type_t type,
-                                  vcode_reg_t port_reg, tree_t wave)
+                                  type_t type, vcode_reg_t port_reg,
+                                  tree_t actual)
 {
    // Construct the equivalent process according the procedure in LRM 08
    // section 6.5.6.3
@@ -11650,13 +11650,14 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
    emit_store(port_reg, var);
 
-   tree_t expr = tree_value(wave);
+   tree_t expr = tree_value(actual);
+   tree_t target = tree_target(actual);
 
    vcode_state_t state;
    vcode_state_save(&state);
 
    ident_t pname = ident_prefix(parent->name, name, '.');
-   vcode_unit_t vu = emit_process(pname, tree_to_object(wave), parent->vunit);
+   vcode_unit_t vu = emit_process(pname, tree_to_object(actual), parent->vunit);
 
    lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
    unit_registry_put(parent->registry, lu);
@@ -11702,7 +11703,7 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
 
    vcode_state_restore(&state);
 
-   emit_process_init(pname, lower_debug_locus(wave));
+   emit_process_init(pname, lower_debug_locus(actual));
 }
 
 static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
@@ -11845,10 +11846,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       else
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
-   else if (tree_kind(value) == T_INERTIAL) {
-      tree_t name = tree_subkind(map) == P_NAMED ? tree_name(map) : port;
-      lower_inertial_actual(lu, port, name, name_type, port_reg, value);
-   }
+   else if (tree_kind(value) == T_INERTIAL)
+      lower_inertial_actual(lu, port, name_type, port_reg, value);
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
       lower_map_signal(lu, value_reg, port_reg, value_type, name_type, map);

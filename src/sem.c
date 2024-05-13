@@ -4385,7 +4385,7 @@ static bool sem_static_signal_name(tree_t t)
 static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                                   tree_t param, tree_t unit, nametab_t *tab)
 {
-   tree_t value = tree_value(param);
+   tree_t value = tree_value(param), name = NULL;
    tree_t decl = NULL;
    type_t type = NULL;
 
@@ -4408,8 +4408,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    case P_NAMED:
       {
-         tree_t name = tree_name(param);
-         tree_t ref = name;
+         tree_t ref = (name = tree_name(param));
          tree_t conv = NULL;
 
          switch (tree_kind(name)) {
@@ -4568,6 +4567,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          tree_t w = tree_new(T_INERTIAL);
          tree_set_loc(w, tree_loc(value));
          tree_set_value(w, value);
+         tree_set_target(w, name ?: make_ref(decl));
 
          tree_set_value(param, w);
       }
@@ -4599,6 +4599,8 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                 "a static signal name or OPEN",
                 istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
    }
+   else if (kind == T_INERTIAL)
+      tree_set_target(value, name ?: make_ref(decl));
 
    return true;
 }

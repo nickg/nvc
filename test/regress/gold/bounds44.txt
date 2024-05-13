@@ -1,0 +1,5 @@
+0ms+0: value length 5 does not match signal P length 2
+bounds44.vhd:13
+    |
+ 13 |         port map ( p => inertial get_bits('1', 5) );
+    |                    ^
