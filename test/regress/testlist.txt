@@ -969,3 +969,4 @@ issue881        normal,2008
 issue884        normal,2008
 issue885        fail,gold
 implicit6       normal
+issue887        normal
