@@ -100,6 +100,7 @@ typedef struct _code_span {
    code_span_t  *next;
    ident_t       name;
    uint8_t      *base;
+   void         *entry;
    size_t        size;
 #ifdef DEBUG
    code_debug_t  debug;
@@ -198,6 +199,7 @@ static code_span_t *code_span_new(code_cache_t *code, ident_t name,
    span->name  = name;
    span->next  = code->spans;
    span->base  = base;
+   span->entry = base;
    span->size  = size;
    span->owner = code;
 
@@ -518,7 +520,7 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
 
    thread_wx_mode(WX_EXECUTE);
 
-   store_release(entry, (jit_entry_fn_t)span->base);
+   store_release(entry, (jit_entry_fn_t)span->entry);
 
    DEBUG_ONLY(relaxed_add(&span->owner->used, span->size));
    free(blob);
@@ -1040,7 +1042,25 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
       case SHT_NULL:
       case SHT_STRTAB:
       case SHT_X86_64_UNWIND:
+         break;
+
       case SHT_SYMTAB:
+         for (int i = 0; i < shdr->sh_size / shdr->sh_entsize; i++) {
+            const Elf64_Sym *sym =
+               data + shdr->sh_offset + i * shdr->sh_entsize;
+
+            if (ELF64_ST_TYPE(sym->st_info) != STT_FUNC)
+               continue;
+            else if (!icmp(blob->span->name, strtab + sym->st_name))
+               continue;
+            else if (load_addr[sym->st_shndx] == NULL)
+               fatal_trace("missing section %d for symbol %s", sym->st_shndx,
+                           strtab + sym->st_name);
+            else {
+               blob->span->entry = load_addr[sym->st_shndx] + sym->st_value;
+               break;
+            }
+         }
          break;
 
       default:
