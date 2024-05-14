@@ -9940,12 +9940,8 @@ static tree_t p_iteration_scheme(void)
       p_parameter_specification(t, T_PARAM_DECL);
       return t;
    }
-   else {
-      tree_t btrue = search_decls(find_std(nametab), ident_new("TRUE"), 0);
-      tree_t t = tree_new(T_WHILE);
-      tree_set_value(t, make_ref(btrue));
-      return t;
-   }
+   else
+      return tree_new(T_LOOP);
 }
 
 static tree_t p_loop_statement(ident_t label)

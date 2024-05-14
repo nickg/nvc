@@ -6669,29 +6669,20 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 {
    lower_stmt_coverage(lu, stmt);
 
-   vcode_block_t test_bb, body_bb, exit_bb;
-   if (tree_has_value(stmt)) {
-      test_bb = emit_block();
-      body_bb = emit_block();
-      exit_bb = emit_block();
+   vcode_block_t test_bb = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
 
-      emit_jump(test_bb);
+   emit_jump(test_bb);
 
-      vcode_select_block(test_bb);
-      vcode_reg_t test = lower_rvalue(lu, tree_value(stmt));
+   vcode_select_block(test_bb);
 
-      emit_cond(test, body_bb, exit_bb);
+   vcode_reg_t test = lower_rvalue(lu, tree_value(stmt));
 
-      if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, stmt, body_bb, exit_bb);
-   }
-   else {
-      test_bb = body_bb =
-         vcode_block_empty() ? vcode_active_block() : emit_block();
-      exit_bb = emit_block();
+   emit_cond(test, body_bb, exit_bb);
 
-      emit_jump(body_bb);
-   }
+   if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+      lower_branch_coverage(lu, stmt, body_bb, exit_bb);
 
    vcode_select_block(body_bb);
 
@@ -6706,6 +6697,32 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    if (!vcode_block_finished())
       emit_jump(test_bb);
+
+   vcode_select_block(exit_bb);
+}
+
+static void lower_loop(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+{
+   lower_stmt_coverage(lu, stmt);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_jump(body_bb);
+
+   vcode_select_block(body_bb);
+
+   loop_stack_t this = {
+      .up      = loops,
+      .name    = tree_ident(stmt),
+      .test_bb = body_bb,
+      .exit_bb = exit_bb
+   };
+
+   lower_sequence(lu, stmt, &this);
+
+   if (!vcode_block_finished())
+      emit_jump(body_bb);
 
    vcode_select_block(exit_bb);
 }
@@ -7329,6 +7346,9 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       break;
    case T_WHILE:
       lower_while(lu, stmt, loops);
+      break;
+   case T_LOOP:
+      lower_loop(lu, stmt, loops);
       break;
    case T_FOR:
       lower_for(lu, stmt, loops);

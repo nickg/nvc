@@ -536,10 +536,8 @@ START_TEST(test_seq)
    fail_unless(tree_kind(tree_value(s)) == T_FCALL);
 
    s = tree_stmt(p, 1);
-   fail_unless(tree_kind(s) == T_WHILE);
+   fail_unless(tree_kind(s) == T_LOOP);
    fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_kind(tree_value(s)) == T_REF);
-   fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
 
    // Multiple waveforms in signal assignment
 

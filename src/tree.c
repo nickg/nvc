@@ -371,6 +371,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_ELEM_RESOLUTION
    (I_ASSOCS),
+
+   // T_LOOP
+   (I_IDENT | I_STMTS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -412,6 +415,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
    "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
+   "T_LOOP",
 };
 
 static const change_allowed_t change_allowed[] = {

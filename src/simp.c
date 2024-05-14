@@ -730,6 +730,8 @@ static bool simp_find_drivers(tree_t t, tree_list_t *list)
    case T_CASE:
    case T_MATCH_CASE:
    case T_WHILE:
+   case T_LOOP:
+   case T_FOR:
    case T_COND_STMT:
    case T_SEQUENCE:
    case T_ALTERNATIVE:
@@ -972,9 +974,7 @@ static tree_t simp_if(tree_t t)
 static tree_t simp_while(tree_t t)
 {
    bool value_b;
-   if (!tree_has_value(t))
-      return t;
-   else if (folded_bool(tree_value(t), &value_b) && !value_b) {
+   if (folded_bool(tree_value(t), &value_b) && !value_b) {
       // Condition is false so loop never executes
       tree_list_t drivers = AINIT;
       if (!simp_find_drivers(t, &drivers)) {
@@ -993,8 +993,8 @@ static tree_t simp_while(tree_t t)
       simp_make_dummy_drivers(seq, &drivers);
       return seq;
    }
-   else
-      return t;
+
+   return t;
 }
 
 static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)

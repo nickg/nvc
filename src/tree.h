@@ -382,6 +382,7 @@ typedef enum tree_kind {
    T_GUARD,
    T_INERTIAL,
    T_ELEM_RESOLUTION,
+   T_LOOP,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

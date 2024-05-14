@@ -133,4 +133,13 @@ begin
         end case;
     end process;
 
+    process
+    begin
+        -- Loop without condition (should not be included)
+        forever: loop
+            exit;
+        end loop;
+        wait;
+    end process;
+
 end architecture;

@@ -1439,16 +1439,16 @@ START_TEST(test_loop1)
    vcode_unit_t v0 = find_unit("WORK.LOOP1.P1");
    vcode_select_unit(v0);
 
-   EXPECT_BB(3) = {
+   EXPECT_BB(2) = {
       { VCODE_OP_LOAD, .name = "A" },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_COND, .target = 6, .target_else = 5 }
+      { VCODE_OP_COND, .target = 5, .target_else = 4 }
    };
 
-   CHECK_BB(3);
+   CHECK_BB(2);
 
-   EXPECT_BB(8) = {
+   EXPECT_BB(6) = {
       { VCODE_OP_LOAD, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
@@ -1458,10 +1458,10 @@ START_TEST(test_loop1)
       { VCODE_OP_MOD },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_COND, .target = 11, .target_else = 10 }
+      { VCODE_OP_COND, .target = 9, .target_else = 8 }
    };
 
-   CHECK_BB(8);
+   CHECK_BB(6);
 
    fail_if_errors();
 }
@@ -1537,19 +1537,19 @@ START_TEST(test_loop2)
    vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
-   EXPECT_BB(2) = {
+   EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 1000 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
-      { VCODE_OP_COND, .target = 4, .target_else = 5 }
+      { VCODE_OP_COND, .target = 3, .target_else = 4 }
    };
 
-   CHECK_BB(2);
+   CHECK_BB(1);
 
-   EXPECT_BB(3) = {
+   EXPECT_BB(2) = {
       { VCODE_OP_RETURN },
    };
 
-   CHECK_BB(3);
+   CHECK_BB(2);
 }
 END_TEST
 

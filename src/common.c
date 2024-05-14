@@ -669,7 +669,7 @@ bool is_subprogram(tree_t t)
 bool is_loop_stmt(tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
-   return kind == T_WHILE || kind == T_FOR;
+   return kind == T_WHILE || kind == T_FOR || kind == T_LOOP;
 }
 
 bool is_container(tree_t t)
@@ -1918,6 +1918,7 @@ type_t get_type_or_null(tree_t t)
    case T_BLOCK:
    case T_WHILE:
    case T_FOR:
+   case T_LOOP:
    case T_GROUP_TEMPLATE:
    case T_CONFIGURATION:
    case T_GROUP:
@@ -2270,9 +2271,10 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       break;
 
    case T_WHILE:
+      build_wait(tree_value(expr), fn, ctx);
+      // Fall-through
+   case T_LOOP:
       {
-         build_wait(tree_value(expr), fn, ctx);
-
          const int nstmts = tree_stmts(expr);
          for (int i = 0; i < nstmts; i++)
             build_wait(tree_stmt(expr, i), fn, ctx);

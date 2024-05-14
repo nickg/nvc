@@ -1331,6 +1331,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
 
    case T_FOR:
    case T_WHILE:
+   case T_LOOP:
       cnt = NULL;
       for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
          if (s->container == NULL)

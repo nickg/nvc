@@ -6917,6 +6917,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_GROUP_TEMPLATE:
    case T_BOX:
    case T_PSL:
+   case T_LOOP:
       return true;
    case T_CONV_FUNC:
       return sem_check_conv_func(t, tab);

@@ -1223,11 +1223,11 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_WHILE:
-      if (tree_has_value(t)) {
-         print_syntax("#while ");
-         dump_expr(tree_value(t));
-         print_syntax(" ");
-      }
+      print_syntax("#while ");
+      dump_expr(tree_value(t));
+      print_syntax(" ");
+      // Fall-through
+   case T_LOOP:
       print_syntax("#loop\n");
       dump_stmts(t, indent + 2);
       tab(indent);
@@ -1681,6 +1681,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_RETURN:
    case T_ASSERT:
    case T_WHILE:
+   case T_LOOP:
    case T_SEQUENCE:
       dump_stmt(t, indent);
       break;
