@@ -845,6 +845,19 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             fatal_trace("RtlAddFunctionTable failed: %s", last_os_error());
       }
    }
+
+   for (int i = 0; i < imghdr->NumberOfSymbols; i++) {
+      const IMAGE_SYMBOL *sym = &(symtab[i]);
+
+      if (sym->SectionNumber == 0 || sym->N.Name.Short)
+         continue;
+      else if ((sym->Type >> 4) != IMAGE_SYM_DTYPE_FUNCTION)
+         continue;
+      else if (icmp(blob->span->name, strtab + sym->N.Name.Long)) {
+         blob->span->entry = load_addr[sym->SectionNumber - 1] + sym->Value;
+         break;
+      }
+   }
 }
 #elif defined __APPLE__
 static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
@@ -1000,6 +1013,20 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
             fatal_trace("cannot handle relocation type %d for symbol %s",
                         rel->r_type, name);
          }
+      }
+   }
+
+   for (int i = 0; i < symtab->nsyms; i++) {
+      const struct nlist_64 *sym =
+         data + symtab->symoff + i * sizeof(struct nlist_64);
+
+      if (sym->n_sect == NO_SECT || (sym->n_type & N_TYPE) != N_SECT)
+         continue;
+
+      const char *name = data + symtab->stroff + sym->n_un.n_strx;
+      if (name[0] == '_' && icmp(blob->span->name, name + 1)) {
+         blob->span->entry = load_addr[sym->n_sect - 1] + sym->n_value;
+         break;
       }
    }
 }
