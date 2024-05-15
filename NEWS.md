@@ -2,6 +2,12 @@
 - Type and package generics now work correctly with components and
   configurations (#883).
 
+## Version 1.12.2 - 2024-05-15
+- Fixed a crash when `'transaction` is used with a record type.
+- Fixed a compatibility issue with LLVM 18 that could cause an illegal
+  instruction exception when the `--jit` elaboration option is used
+  (#887).
+
 ## Version 1.12.1 - 2024-05-09
 - Fixed a crash when a process contains a `force` or `release`
   assignment inside a `process (all)` statement (#877).
