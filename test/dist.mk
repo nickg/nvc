@@ -1182,6 +1182,7 @@ EXTRA_DIST += \
 	test/regress/implicit3.vhd \
 	test/regress/implicit4.vhd \
 	test/regress/implicit5.vhd \
+	test/regress/implicit6.vhd \
 	test/regress/integer1.vhd \
 	test/regress/integer2.vhd \
 	test/regress/issue101.vhd \
@@ -1415,6 +1416,7 @@ EXTRA_DIST += \
 	test/regress/issue881.vhd \
 	test/regress/issue884.vhd \
 	test/regress/issue885.vhd \
+	test/regress/issue887.vhd \
 	test/regress/issue8.vhd \
 	test/regress/issue90.vhd \
 	test/regress/issue91.vhd \

@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
 - Fixed a compatibility issue with LLVM 18 that could cause an illegal
   instruction exception when the `--jit` elaboration option is used
