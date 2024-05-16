@@ -969,9 +969,15 @@ static void bounds_check_scalar_case(tree_t t, type_t type)
 
    tree_t type_r = range_of(type, 0);
 
-   int64_t tlow, thigh;
-   if (!folded_bounds(type_r, &tlow, &thigh))
-      return;
+   int64_t tlow = INT64_MIN, thigh = INT64_MAX;
+   while (!folded_bounds(type_r, &tlow, &thigh)
+          && type_kind(type) == T_SUBTYPE) {
+      // LRM 08 section 10.9: if the case expression does not have a
+      // locally static subtype then the choices must cover every value
+      // of the base type
+      type = type_base(type);
+      type_r = range_of(type, 0);
+   }
 
    const range_kind_t tdir = tree_subkind(type_r);
 
@@ -1058,19 +1064,22 @@ static void bounds_check_duplicate_choice(tree_t old, tree_t new, int length)
 
 static void bounds_check_array_case(tree_t t, type_t type)
 {
-   int64_t expect = -1, elemsz = -1, length = -1;
-   if (!type_is_unconstrained(type)) {
-      // Calculate how many values each element has
-      type_t elem = type_elem(type);
-      assert(type_is_enum(elem));
+   type_t elem = type_elem(type);
+   assert(type_is_enum(elem));
 
-      const bool known =
-         folded_length(range_of(elem, 0), &elemsz)
-         && folded_length(range_of(type, 0), &length);
+   // Calculate how many values each element has
+   int64_t elemsz = INT64_MAX;
+   while (!folded_length(range_of(elem, 0), &elemsz)
+          && type_kind(elem) == T_SUBTYPE)
+      elem = type_base(elem);
 
-      if (known && !ipow_safe(elemsz, length, &expect))
-         expect = INT64_MAX;
-   }
+   int64_t expect = -1, length = -1;
+
+   const bool known_length =
+      !type_is_unconstrained(type) && folded_length(range_of(type, 0), &length);
+
+   if (known_length && !ipow_safe(elemsz, length, &expect))
+      expect = INT64_MAX;   // Overflow
 
    int nchoices = 0;
    const int nstmts = tree_stmts(t);
@@ -1106,8 +1115,11 @@ static void bounds_check_array_case(tree_t t, type_t type)
 
          int64_t choice_length;
          if (folded_length(range_of(choice_type, 0), &choice_length)) {
-            if (length == -1)
+            if (length == -1) {
                length = choice_length;
+               if (!ipow_safe(elemsz, length, &expect))
+                  expect = INT64_MAX;
+            }
             else if (choice_length != length) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
                diag_printf(d, "expected case choice to have length %"PRIi64
@@ -1147,6 +1159,10 @@ static void bounds_check_array_case(tree_t t, type_t type)
       diag_hint(d, loc, "expression has %"PRIi64" elements of type %s, "
                 "each of which has %"PRIi64" possible values",
                 length, type_pp(type_elem(type)), elemsz);
+
+      if (!known_length)
+         diag_hint(d, NULL, "the case expression subtype is not locally "
+                   "static so the length was derived from the choices");
 
       diag_emit(d);
    }

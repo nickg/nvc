@@ -6,8 +6,18 @@ architecture test of case4 is
 
     procedure test (s : string) is
     begin
-        case s is                       -- Cannot check
+        case s is                       -- Error
             when "hello" => null;
+        end case;
+    end procedure;
+
+    procedure test2 (n : natural) is
+        subtype t_not_static is natural range 0 to n;
+        variable v : t_not_static;
+    begin
+        case v is                       -- Error
+            when 0 => null;
+            when 1 => null;
         end case;
     end procedure;
 
