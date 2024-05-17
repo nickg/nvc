@@ -980,3 +980,4 @@ genpack18       normal,2008
 implicit6       normal
 bounds44        fail,gold,2008
 issue887        normal
+issue890        normal,2008

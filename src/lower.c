@@ -7275,6 +7275,8 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          else
             emit_cond(cmp_reg, hit_bb, skip_bb);
 
+         vcode_select_block(skip_bb);
+
          if (tmp_var != VCODE_INVALID_VAR)
             lower_release_temp(lu, tmp_var);
       }

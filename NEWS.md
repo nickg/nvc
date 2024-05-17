@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Type and package generics now work correctly with components and
   configurations (#883).
+- Fixed a crash when a matching `case?` alternative contains multiple
+  choices (#890).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
