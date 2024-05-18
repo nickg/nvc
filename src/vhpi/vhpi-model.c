@@ -400,6 +400,10 @@ typedef struct {
 } c_entityDecl;
 
 typedef struct {
+   c_designUnit designUnit;
+} c_packDecl;
+
+typedef struct {
    c_abstractRegion  region;
    c_designUnit     *DesignUnit;
 } c_designInstUnit;
@@ -409,6 +413,12 @@ typedef struct {
 } c_rootInst;
 
 DEF_CLASS(rootInst, vhpiRootInstK, designInstUnit.region.object);
+
+typedef struct {
+   c_designInstUnit designInstUnit;
+} c_packInst;
+
+DEF_CLASS(packInst, vhpiPackInstK, designInstUnit.region.object);
 
 typedef struct {
    vhpiBooleanT IsSeqStmt;
@@ -480,6 +490,7 @@ typedef struct {
 typedef struct _vhpi_context {
    c_tool          *tool;
    c_rootInst      *root;
+   vhpiObjectListT  packages;
    shash_t         *strtab;
    rt_model_t      *model;
    hash_t          *objcache;
@@ -503,6 +514,7 @@ static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region);
 static const char *handle_pp(vhpiHandleT handle);
+static void vhpi_find_packages(vhpi_context_t *c);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -635,6 +647,7 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    case vhpiBlockStmtK:
    case vhpiCompInstStmtK:
    case vhpiForGenerateK:
+   case vhpiPackInstK:
       return container_of(obj, c_abstractRegion, object);
    default:
       return NULL;
@@ -840,6 +853,7 @@ static c_designInstUnit *cast_designInstUnit(c_vhpiObject *obj)
    switch (obj->kind) {
    case vhpiRootInstK:
    case vhpiCompInstStmtK:
+   case vhpiPackInstK:
       return container_of(obj, c_designInstUnit, region.object);
    default:
       vhpi_error(vhpiError, &(obj->loc), "class kind %s is not an instance of "
@@ -942,9 +956,19 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->LineNo     = loc->first_line;
    r->LineOffset = loc->line_delta;
 
-   r->Name = r->CaseName = new_string(istr(tree_ident(t)));
-   char *full LOCAL = xasprintf(":%s", r->Name);
-   r->FullName = r->FullCaseName = new_string(full);
+   if (is_design_unit(t)) {
+      ident_t qual = tree_ident(t);
+      ident_t suffix = ident_rfrom(qual, '.');
+
+      r->Name = r->CaseName = new_string(istr(suffix));
+      char *full LOCAL = xasprintf("@%s", istr(qual));
+      r->FullName = r->FullCaseName = new_string(full);
+   }
+   else {
+      r->Name = r->CaseName = new_string(istr(tree_ident(t)));
+      char *full LOCAL = xasprintf(":%s", r->Name);
+      r->FullName = r->FullCaseName = new_string(full);
+   }
 
    r->tree   = t;
    r->handle = JIT_HANDLE_INVALID;
@@ -1283,6 +1307,11 @@ static void init_entityDecl(c_entityDecl *e, tree_t t)
    init_designUnit(&(e->designUnit), t);
 }
 
+static void init_packDecl(c_packDecl *p, tree_t t)
+{
+   init_designUnit(&(p->designUnit), t);
+}
+
 static void expand_lazy_region(c_abstractRegion *r)
 {
    if (r->lazyfn == NULL)
@@ -1295,6 +1324,20 @@ static void expand_lazy_region(c_abstractRegion *r)
 static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj)
 {
    it->filter = vhpiUndefined;
+
+   if (obj == NULL) {
+      switch (type) {
+      case vhpiPackInsts:
+         {
+            vhpi_context_t *c = vhpi_context();
+            vhpi_find_packages(c);
+            it->list = &(c->packages);
+            return true;
+         }
+      default:
+         return false;
+      }
+   }
 
    c_abstractRegion *region = is_abstractRegion(obj);
    if (region != NULL) {
@@ -1727,16 +1770,30 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 
    if (decl->decl.ImmRegion == NULL)
       return NULL;
+   else if (decl->decl.ImmRegion->handle == JIT_HANDLE_INVALID) {
+      c_packInst *pi = is_packInst(&(decl->decl.ImmRegion->object));
+      if (pi != NULL) {
+         decl->decl.ImmRegion->handle =
+            jit_lazy_compile(j, tree_ident(decl->decl.ImmRegion->tree));
 
-   rt_scope_t *scope = vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
-   if (*mptr_get(scope->privdata) == NULL) {
-      vhpi_error(vhpiError, &(obj->loc), "%s has not been elaborated",
-                 decl->decl.FullName);
-      return NULL;
+         if (jit_link(j, decl->decl.ImmRegion->handle) == NULL) {
+            vhpi_error(vhpiError, &(obj->loc), "failed to initialise package");
+            return NULL;
+         }
+      }
+      else {
+         rt_scope_t *scope =
+            vhpi_get_scope_abstractRegion(decl->decl.ImmRegion);
+
+         if (*mptr_get(scope->privdata) == NULL) {
+            vhpi_error(vhpiError, &(obj->loc), "%s has not been elaborated",
+                       decl->decl.FullName);
+            return NULL;
+         }
+
+         decl->decl.ImmRegion->handle = jit_lazy_compile(j, scope->name);
+      }
    }
-
-   if (decl->decl.ImmRegion->handle == JIT_HANDLE_INVALID)
-      decl->decl.ImmRegion->handle = jit_lazy_compile(j, scope->name);
 
    return jit_get_frame_var(j, decl->decl.ImmRegion->handle, decl->name);
 }
@@ -2053,7 +2110,13 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
       }
 
    case vhpiPrimaryUnit:
-      return handle_for(&(cast_secondaryUnit(obj)->PrimaryUnit->object));
+      {
+         c_secondaryUnit *su = cast_secondaryUnit(obj);
+         if (su == NULL)
+            return NULL;
+
+         return handle_for(&(su->PrimaryUnit->object));
+      }
 
    case vhpiPrefix:
       {
@@ -2103,20 +2166,30 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    char *copy LOCAL = xstrdup(name), *saveptr;
    char *elem = strtok_r(copy, ":.", &saveptr);
 
-   c_abstractRegion *region;
+   c_abstractRegion *region = NULL;
    if (scope == NULL) {
       vhpi_context_t *c = vhpi_context();
 
       if (strcasecmp(elem, (char *)c->root->designInstUnit.region.Name) == 0)
          region = &(c->root->designInstUnit.region);
-      else if (name[0] != ':') {
-         vhpi_error(vhpiError, NULL, "relative names with a NULL scope "
-                    "argument are not supported");
-         return NULL;
-      }
       else {
-         vhpi_error(vhpiError, NULL, "no design unit instance named %s", elem);
-         return NULL;
+         vhpi_find_packages(c);
+
+         for (int i = 0; i < c->packages.count; i++) {
+            c_packInst *pi = is_packInst(c->packages.items[i]);
+            assert(pi != NULL);
+
+            if (strcasecmp(elem, (char *)pi->designInstUnit.region.Name) == 0) {
+               region = &(pi->designInstUnit.region);
+               break;
+            }
+         }
+
+         if (region == NULL) {
+            vhpi_error(vhpiError, NULL, "no design unit instance named %s",
+                       elem);
+            return NULL;
+         }
       }
 
       elem = strtok_r(NULL, ":.", &saveptr);
@@ -2129,9 +2202,9 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       region = cast_abstractRegion(obj);
       if (region == NULL)
          return NULL;
-
-      expand_lazy_region(region);
    }
+
+   expand_lazy_region(region);
 
    if (elem == NULL)
       return handle_for(&(region->object));
@@ -2192,20 +2265,20 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
    VHPI_TRACE("itRel=%s parent=%s index=%d", vhpi_one_to_many_str(itRel),
               handle_pp(parent), index);
 
-   c_vhpiObject *obj = from_handle(parent);
-   if (obj == NULL)
+   c_vhpiObject *obj = NULL;
+   if (parent != NULL && (obj = from_handle(parent)) == NULL)
       return NULL;
 
    c_iterator it = {};
    if (!init_iterator(&it, itRel, obj)) {
-      vhpi_error(vhpiError, &(obj->loc),
-                 "relation %s not supported in vhpi_handle_by_index",
-                 vhpi_one_to_many_str(itRel));
+      vhpi_error(vhpiError, obj ? &(obj->loc) : NULL,
+                 "relation %s not supported for parent %s",
+                 vhpi_one_to_many_str(itRel), handle_pp(parent));
       return NULL;
    }
 
    if (it.single ? index : index > it.list->count) {
-      vhpi_error(vhpiError, &(obj->loc), "invalid %s index %d",
+      vhpi_error(vhpiError, obj ? &(obj->loc) : NULL, "invalid %s index %d",
                  vhpi_one_to_many_str(itRel), index);
       return NULL;
    }
@@ -2219,15 +2292,15 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
    VHPI_TRACE("type=%s handle=%s", vhpi_one_to_many_str(type),
               handle_pp(handle));
 
-   c_vhpiObject *obj = from_handle(handle);
-   if (obj == NULL)
+   c_vhpiObject *obj = NULL;
+   if (handle != NULL && (obj = from_handle(handle)) == NULL)
       return NULL;
 
    c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
    if (!init_iterator(it, type, obj)) {
-      vhpi_error(vhpiError, &(obj->loc),
-                 "relation %s not supported in vhpi_iterator",
-                 vhpi_one_to_many_str(type));
+      vhpi_error(vhpiError, obj ? &(obj->loc) : NULL,
+                 "relation %s not supported for handle %p",
+                 vhpi_one_to_many_str(type), handle_pp(handle));
       return NULL;
    }
 
@@ -3884,6 +3957,14 @@ static c_designUnit *build_designUnit(tree_t t)
          return &(secondary->designUnit);
       }
 
+   case T_PACKAGE:
+      {
+         c_packDecl *pack = new_object(sizeof(c_packDecl), vhpiPackDeclK);
+         init_packDecl(pack, t);
+
+         return &(pack->designUnit);
+      }
+
    default:
       fatal_trace("unsupported tree kind %s in build_designUnit",
                   tree_kind_str(tree_kind(t)));
@@ -4199,6 +4280,47 @@ static void vhpi_lazy_block(c_abstractRegion *r)
    vhpi_build_ports(r->tree, r);
    vhpi_build_decls(r->tree, r);
    vhpi_build_stmts(r->tree, r);
+}
+
+static void vhpi_lazy_package(c_abstractRegion *r)
+{
+   vhpi_build_generics(r->tree, r);
+   vhpi_build_decls(r->tree, r);
+}
+
+static void vhpi_build_deps_cb(ident_t name, void *ctx)
+{
+   hset_t *visited = ctx;
+
+   if (hset_contains(visited, name))
+      return;
+
+   hset_insert(visited, name);
+
+   tree_t unit = lib_get_qualified(name);
+   if (unit == NULL)
+      return;
+   else if (tree_kind(unit) == T_PACKAGE) {
+      c_designUnit *du = cached_designUnit(unit);
+
+      c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
+      init_designInstUnit(&(pi->designInstUnit), unit, du);
+      pi->designInstUnit.region.lazyfn = vhpi_lazy_package;
+
+      APUSH(vhpi_context()->packages, &(pi->designInstUnit.region.object));
+   }
+
+   tree_walk_deps(unit, vhpi_build_deps_cb, visited);
+}
+
+static void vhpi_find_packages(vhpi_context_t *c)
+{
+   if (c->packages.count > 0)
+      return;
+
+   hset_t *visited = hset_new(64);
+   tree_walk_deps(c->top, vhpi_build_deps_cb, visited);
+   hset_free(visited);
 }
 
 static void vhpi_build_design_model(vhpi_context_t *c)

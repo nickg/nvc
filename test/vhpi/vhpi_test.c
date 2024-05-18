@@ -43,6 +43,7 @@ static const vhpi_test_t tests[] = {
    { "vhpi12",   vhpi12_startup },
    { "vhpi13",   vhpi13_startup },
    { "vhpi14",   vhpi14_startup },
+   { "vhpi15",   vhpi15_startup },
    { NULL,       NULL },
 };
 
@@ -52,6 +53,14 @@ void __check_error(const char *file, int lineno)
    if (vhpi_check_error(&info))
       vhpi_assert(vhpiFailure, "%s:%d: unexpected error '%s'",
                   file, lineno, info.message);
+}
+
+void __check_handle(vhpiHandleT h, const char *file, int lineno)
+{
+   __check_error(file, lineno);
+
+   if (h == NULL)
+      vhpi_assert(vhpiFailure, "%s:%d: unexpected NULL handle", file, lineno);
 }
 
 static void shared_startup(void)

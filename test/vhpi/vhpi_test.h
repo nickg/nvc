@@ -26,8 +26,10 @@
 #define fail_unless(x) fail_if(!(x))
 
 #define check_error() __check_error(__FILE__, __LINE__)
+#define check_handle(h) __check_handle(h, __FILE__, __LINE__)
 
 void __check_error(const char *file, int lineno);
+void __check_handle(vhpiHandleT h, const char *file, int lineno);
 
 void vhpi1_startup(void);
 void vhpi2_startup(void);
@@ -42,6 +44,7 @@ void vhpi11_startup(void);
 void vhpi12_startup(void);
 void vhpi13_startup(void);
 void vhpi14_startup(void);
+void vhpi15_startup(void);
 void issue744_startup(void);
 void issue762_startup(void);
 
