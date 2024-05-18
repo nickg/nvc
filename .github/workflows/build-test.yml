@@ -444,28 +444,13 @@ jobs:
           echo /opt/nvc-*/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
-      - name: Install cocotb
+      - name: Run cocotb regression tests
         run: |
           cd cocotb
           python3 -mvirtualenv venv
           . venv/bin/activate
-          pip install . pytest
-      - name: Run simple_dff example
-        run: |
-          . cocotb/venv/bin/activate
-          make -C cocotb/examples/simple_dff SIM=nvc TOPLEVEL_LANG=vhdl
-      - name: Run adder example
-        run: |
-          . cocotb/venv/bin/activate
-          make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
-      - name: Run matrix_multiplier example
-        run: |
-          . cocotb/venv/bin/activate
-          make -C cocotb/examples/adder/tests SIM=nvc TOPLEVEL_LANG=vhdl
-      - name: Run regression tests
-        run: |
-          . cocotb/venv/bin/activate
-          make -C cocotb/tests SIM=nvc TOPLEVEL_LANG=vhdl
+          pip install nox
+          nox -k "dev_test and nvc and vhdl"
 
   msi-installer:
     name: Windows installer

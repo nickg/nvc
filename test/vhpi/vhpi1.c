@@ -438,7 +438,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("y name %s", vhpi_get_str(vhpiNameP, handle_y));
    vhpi_printf("y full name is %s", vhpi_get_str(vhpiFullNameP, handle_y));
 
-   vhpiHandleT handle_y2 = vhpi_handle_by_name(":y", NULL);
+   vhpiHandleT handle_y2 = vhpi_handle_by_name(":vhpi1.y", NULL);
    check_error();
    fail_unless(handle_y == handle_y2);
    vhpi_release_handle(handle_y2);

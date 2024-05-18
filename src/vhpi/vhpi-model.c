@@ -2100,9 +2100,27 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
    VHPI_TRACE("name=%s scope=%p", name, scope);
 
+   char *copy LOCAL = xstrdup(name), *saveptr;
+   char *elem = strtok_r(copy, ":.", &saveptr);
+
    c_abstractRegion *region;
-   if (scope == NULL)
-      region = &(vhpi_context()->root->designInstUnit.region);
+   if (scope == NULL) {
+      vhpi_context_t *c = vhpi_context();
+
+      if (strcasecmp(elem, (char *)c->root->designInstUnit.region.Name) == 0)
+         region = &(c->root->designInstUnit.region);
+      else if (name[0] != ':') {
+         vhpi_error(vhpiError, NULL, "relative names with a NULL scope "
+                    "argument are not supported");
+         return NULL;
+      }
+      else {
+         vhpi_error(vhpiError, NULL, "no design unit instance named %s", elem);
+         return NULL;
+      }
+
+      elem = strtok_r(NULL, ":.", &saveptr);
+   }
    else {
       c_vhpiObject *obj = from_handle(scope);
       if (obj == NULL)
@@ -2114,12 +2132,6 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
       expand_lazy_region(region);
    }
-
-   char *copy LOCAL = xstrdup(name), *saveptr;
-   char *elem = strtok_r(copy, ":.", &saveptr);
-
-   if (scope == NULL && strcasecmp((char *)region->Name, elem) == 0)
-      elem = strtok_r(NULL, ":.", &saveptr);
 
    if (elem == NULL)
       return handle_for(&(region->object));

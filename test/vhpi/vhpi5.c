@@ -67,6 +67,7 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
    int i = 0;
    char name[64];
    const vhpiCharT *parent_name = vhpi_get_str(vhpiNameP, parent);
+   const vhpiCharT *parent_full_name = vhpi_get_str(vhpiFullNameP, parent);
 
    vhpiHandleT children = vhpi_iterator(vhpiSelectedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
@@ -81,6 +82,8 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
                vhpi_get_str(vhpiNameP, suffix));
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, child)));
       if (by_name) {
+         snprintf(name, sizeof(name), "%s.%s", parent_full_name,
+                  vhpi_get_str(vhpiNameP, suffix));
          vhpiHandleT child2 = vhpi_handle_by_name(name, NULL);
          fail_unless(child2 == child);
          vhpi_release_handle(child2);
