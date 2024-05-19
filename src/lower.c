@@ -13083,16 +13083,6 @@ void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu)
    lower_unit_free(lu);
 }
 
-void unit_registry_put_all(unit_registry_t *ur, vcode_unit_t vu)
-{
-   ident_t ident = vcode_unit_name(vu);
-   assert(hash_get(ur->map, ident) == NULL);
-   hash_put(ur->map, ident, tag_pointer(vu, UNIT_FINALISED));
-
-   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
-      unit_registry_put_all(ur, it);
-}
-
 vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
 {
    void *ptr = hash_get(ur->map, ident);

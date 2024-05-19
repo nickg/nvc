@@ -35,7 +35,6 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
                          object_t *object);
 void unit_registry_purge(unit_registry_t *ur, ident_t prefix);
 bool unit_registry_query(unit_registry_t *ur, ident_t ident);
-void unit_registry_put_all(unit_registry_t *ur, vcode_unit_t vu);
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu);
 void unit_registry_flush(unit_registry_t *ur, ident_t name);
 
