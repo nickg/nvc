@@ -3,6 +3,9 @@
   configurations (#883).
 - Fixed a crash when a matching `case?` alternative contains multiple
   choices (#890).
+- Implemented VHPI support for package declarations and `vhpiPackInsts`
+  iterators (#891).
+- Signatures in attribute names are now parsed correctly (#892).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
