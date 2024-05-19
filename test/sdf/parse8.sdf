@@ -1,0 +1,19 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE TOP.DUT.MODULE.A)
+        (DELAY
+            (ABSOLUTE
+                (IOPATH a b (1))
+                (PORT c (2))
+                (INTERCONNECT d e (3))
+            )
+            (INCREMENT
+                (NETDELAY f (4))
+                (DEVICE g (5))
+                (DEVICE (6))
+            )
+        )
+    )
+)

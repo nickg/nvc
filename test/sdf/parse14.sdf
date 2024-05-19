@@ -1,0 +1,17 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "DFF")
+        (INSTANCE cache.mem3.bndrx.I103)
+        (LABEL
+            (ABSOLUTE
+                (TCLK_Q (7.54:12.14:19.78) (6.97:13.66:18.47))
+                (TSETUP_D_CLK (3:4:5.6))
+            )
+            (INCREMENT
+                (TCLK_QB (8.16:13.74:20.25) (7.63:14.83:21.42))
+                (THOLD_D_CLK (4:5.6:7))
+            )
+        )
+    )
+)

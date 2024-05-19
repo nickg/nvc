@@ -28,6 +28,7 @@
 #include "thread.h"
 #include "type.h"
 #include "vlog/vlog-phase.h"
+#include "sdf/sdf-phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2429,8 +2430,22 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
 #else
       fatal("Verilog is not currently supported");
 #endif
-      break;
    }
+}
+
+sdf_file_t* analyse_sdf_file(const char *file)
+{
+   // TODO: Add support for compressed SDFs
+
+   input_from_file(file);
+   reset_sdf_parser();
+
+#ifdef ENABLE_SDF
+   return sdf_parse();
+#else
+   fatal("SDF not supported!");
+#endif
+
 }
 
 bool all_character_literals(type_t type)
