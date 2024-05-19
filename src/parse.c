@@ -1530,7 +1530,7 @@ static tree_t implicit_dereference(tree_t t)
    return all;
 }
 
-static type_t prefix_type(tree_t prefix)
+static type_t prefix_type(tree_t prefix, type_t signature)
 {
    if (scope_formal_kind(nametab) == F_SUBPROGRAM)
       return NULL;
@@ -1554,7 +1554,7 @@ static type_t prefix_type(tree_t prefix)
    if (tree_has_ref(ref) && !class_has_type(class_of(tree_ref(ref))))
       return NULL;
 
-   return solve_types(nametab, prefix, NULL);
+   return solve_types(nametab, prefix, signature);
 }
 
 static bool is_range_expr(tree_t t)
@@ -2980,7 +2980,7 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
 
    EXTEND("slice name");
 
-   type_t type = prefix_type(prefix);
+   type_t type = prefix_type(prefix, NULL);
 
    if (type != NULL && type_is_access(type)) {
       prefix = implicit_dereference(prefix);
@@ -3241,6 +3241,10 @@ static tree_t p_attribute_name(tree_t prefix)
 
    EXTEND("attribute name");
 
+   type_t signature = NULL;
+   if (peek() == tLSQUARE)
+      signature = p_signature();
+
    consume(tTICK);
 
    attr_kind_t kind;
@@ -3272,7 +3276,23 @@ static tree_t p_attribute_name(tree_t prefix)
       id = error_marker();
    }
 
-   type_t type = prefix_type(prefix);
+   type_t type = prefix_type(prefix, signature);
+
+   if (signature != NULL) {
+      bool valid_signature = false;
+      if (type == NULL)
+         valid_signature = false;
+      else if (type_is_subprogram(type))
+         valid_signature = true;
+      else if (class_of(prefix) == C_LITERAL && type_is_enum(type))
+         valid_signature = true;
+      else if (type_is_none(type))
+         valid_signature = true;   // Prevent cascading errors
+
+      if (!valid_signature)
+         parse_error(CURRENT_LOC, "prefix of attribute name with signature "
+                     "does not denote a subprogram or enumeration literal");
+   }
 
    if (type != NULL && type_kind(type) == T_INCOMPLETE) {
       type = resolve_type(nametab, type);
@@ -3476,7 +3496,7 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
 
    EXTEND("indexed name");
 
-   type_t type = prefix_type(prefix);
+   type_t type = prefix_type(prefix, NULL);
 
    if (type != NULL && type_is_access(type)) {
       prefix = implicit_dereference(prefix);
@@ -4400,7 +4420,9 @@ static tree_t p_primary(tree_t head)
    case tID:
       {
          tree_t expr = p_name(0);
-         if (tree_kind(expr) == T_PROT_REF)
+         if (peek() == tLSQUARE)
+            return p_attribute_name(expr);
+         else if (tree_kind(expr) == T_PROT_REF)
             return p_function_call(tree_ident(expr), tree_value(expr));
          else
             return expr;
@@ -11577,19 +11599,14 @@ static psl_node_t p_psl_repeat_scheme(void)
 
 static tree_t p_psl_proc_block(void)
 {
-   // TODO: PSL LRM does not define "[[" and "]]" as token, thus we keep it as two
-   // consecutive square brace tokens (possibly split by space). However, all examples
-   // and grammar description in the PSL LRM never puts spae between these two.
-   consume(tLSQUARE);
-   consume(tLSQUARE);
+   consume(t2LSQUARE);
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_loc(b, CURRENT_LOC);
 
    scan_as_vhdl();
 
-   while (peek() != tRSQUARE && peek_nth(2) != tRSQUARE) {
-
+   while (not_at_token(t2RSQUARE)) {
       if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
                tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
                tSHARED, tDISCONNECT, tGROUP, tPACKAGE))
@@ -11600,9 +11617,7 @@ static tree_t p_psl_proc_block(void)
 
    scan_as_psl();
 
-   consume(tRSQUARE);
-   consume(tRSQUARE);
-
+   consume(t2RSQUARE);
    return b;
 }
 
@@ -11843,12 +11858,9 @@ static psl_node_t p_psl_sequence(void)
    // repeatitions shall be treated as if braces were present. Recurse
    // and place the so-far parsed SERE as operand of new SERE. Similarly,
    // this is valid also for Proc_Block
-   while (scan(tPLUSRPT, tTIMESRPT) ||
-          (peek() == tLSQUARE && peek_nth(2) == tLSQUARE)) {
-
+   while (scan(tPLUSRPT, tTIMESRPT, t2LSQUARE)) {
       if (psl_kind(p) == P_HDL_EXPR ||
-          psl_has_repeat(p) ||
-          (peek() == tLSQUARE && peek_nth(2) == tLSQUARE)) {
+          psl_has_repeat(p) || peek() == t2LSQUARE) {
          psl_node_t new = psl_new(P_SERE);
          psl_add_operand(new, p);
          p = new;
