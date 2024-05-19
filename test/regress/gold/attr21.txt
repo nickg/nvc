@@ -1,0 +1,3 @@
+0ms+0: :attr21(test):foo[integer return boolean]:
+0ms+0: :attr21(test):foo[bit return string]:
+0ms+0: hello

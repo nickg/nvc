@@ -1226,7 +1226,6 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
       return emit_last_value(nets);
 }
 
-
 static type_t lower_arg_type(tree_t fcall, int nth)
 {
    if (nth >= tree_params(fcall))
@@ -1352,11 +1351,28 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
    case T_FUNC_BODY:
    case T_PROC_INST:
    case T_FUNC_INST:
-      for (; scope != NULL; scope = scope->parent, extra_hops++) {
-         if (decl == scope->container) {
-            get_hierarchical_name(tb, scope, which);
-            break;
+      {
+         vcode_unit_t parent =
+            unit_registry_get_parent(lu->registry, tree_ident2(decl));
+
+         if (parent != NULL) {
+            for (; scope != NULL; scope = scope->parent, extra_hops++) {
+               if (scope->vunit == parent) {
+                  get_hierarchical_name(tb, scope, which);
+
+                  tb_istr(tb, tree_ident(decl));
+
+                  if (standard() >= STD_02)
+                     type_signature(tree_type(decl), tb);
+
+                  tb_append(tb, ':');
+                  tb_downcase(tb);
+                  break;
+               }
+            }
          }
+         else
+            scope = NULL;
       }
       break;
 
@@ -13166,6 +13182,35 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
 
    case UNIT_FINALISED:
       return untag_pointer(ptr, struct _vcode_unit);
+
+   default:
+      fatal_trace("invalid tagged pointer %p", ptr);
+   }
+}
+
+vcode_unit_t unit_registry_get_parent(unit_registry_t *ur, ident_t name)
+{
+   void *ptr = hash_get(ur->map, name);
+   if (ptr == NULL)
+      return NULL;
+
+   switch (pointer_tag(ptr)) {
+   case UNIT_DEFERRED:
+      {
+         deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+         return du->parent->vunit;
+      }
+      break;
+
+   case UNIT_FINALISED:
+      return untag_pointer(ptr, struct _vcode_unit);
+
+   case UNIT_GENERATED:
+      {
+         lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
+         return lu->parent->vunit;
+      }
+      break;
 
    default:
       fatal_trace("invalid tagged pointer %p", ptr);

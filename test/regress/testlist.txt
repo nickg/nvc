@@ -982,3 +982,4 @@ bounds44        fail,gold,2008
 issue887        normal
 issue890        normal,2008
 vhpi15          normal,vhpi
+attr21          normal,2002
