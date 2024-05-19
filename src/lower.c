@@ -1350,9 +1350,10 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
    case T_FUNC_DECL:
    case T_PROC_BODY:
    case T_FUNC_BODY:
+   case T_PROC_INST:
+   case T_FUNC_INST:
       for (; scope != NULL; scope = scope->parent, extra_hops++) {
-         if (decl == scope->container   // Work around object copying bug
-             || tree_ident(decl) == tree_ident(scope->container)) {
+         if (decl == scope->container) {
             get_hierarchical_name(tb, scope, which);
             break;
          }

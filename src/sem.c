@@ -4200,7 +4200,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          sem_error(t, "prefix of %s attribute must be a named entity",
                    istr(attr));
 
-      tree_set_flag(name, TREE_F_FORMAL_NAME);
+      tree_set_flag(name, TREE_F_ATTR_PREFIX);
       return true;
 
    case ATTR_STABLE:

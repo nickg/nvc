@@ -402,7 +402,7 @@ typedef enum {
    TREE_F_FORMAL_NAME     = (1 << 11),
    TREE_F_SYNTHETIC_NAME  = (1 << 12),
    TREE_F_PREDEFINED      = (1 << 13),
-   // Unused              = (1 << 14),
+   TREE_F_ATTR_PREFIX     = (1 << 14),
    TREE_F_EXPLICIT_CLASS  = (1 << 15),
    TREE_F_EXPLICIT_MODE   = (1 << 16),
    TREE_F_PROTECTED       = (1 << 17),

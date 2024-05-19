@@ -407,7 +407,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (tree_flags(t) & TREE_F_FORMAL_NAME)
+      if (tree_flags(t) & (TREE_F_FORMAL_NAME | TREE_F_ATTR_PREFIX))
          return t;
       else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);
@@ -433,8 +433,8 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
             case T_OPEN:
             case T_REF:
                // Do not rewrite references to non-references if they appear
-               // as formal names
-               if (tree_flags(t) & TREE_F_FORMAL_NAME)
+               // as formal names or as prefixes of attribute names
+               if (tree_flags(t) & (TREE_F_FORMAL_NAME | TREE_F_ATTR_PREFIX))
                   break;
                return map;
             default:
