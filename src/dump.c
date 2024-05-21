@@ -768,6 +768,27 @@ static void dump_use(tree_t t)
    print_syntax(";\n");
 }
 
+static void dump_attr_spec(tree_t t)
+{
+   print_syntax("#attribute %s #of ", istr(tree_ident(t)));
+
+   switch (tree_subkind(t)) {
+   case SPEC_EXACT:
+      print_syntax("%s", istr(tree_ident2(t)));
+      break;
+   case SPEC_ALL:
+      print_syntax("#all");
+      break;
+   case SPEC_OTHERS:
+      print_syntax("#others");
+      break;
+   }
+
+   print_syntax(" : #%s #is ", class_str(tree_class(t)));
+   dump_expr(tree_value(t));
+   print_syntax(";\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -846,10 +867,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_ATTR_SPEC:
-      print_syntax("#attribute %s #of %s : #%s #is ", istr(tree_ident(t)),
-             istr(tree_ident2(t)), class_str(tree_class(t)));
-      dump_expr(tree_value(t));
-      print_syntax(";\n");
+      dump_attr_spec(t);
       return;
 
    case T_ATTR_DECL:

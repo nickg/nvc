@@ -93,6 +93,12 @@ typedef enum {
 } range_kind_t;
 
 typedef enum {
+   SPEC_EXACT,
+   SPEC_ALL,
+   SPEC_OTHERS,
+} spec_kind_t;
+
+typedef enum {
    PE_CARET,
    PE_SIMPLE,
    PE_LIBRARY,

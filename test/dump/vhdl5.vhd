@@ -22,4 +22,12 @@ package body vhdl5 is
         x := sv.something;
     end procedure;
 
+    procedure attrs is
+        attribute foo : string;
+        attribute foo of attrs [] : procedure is "123";
+        attribute foo of all : literal is "abcd";
+        attribute foo of others : procedure is "xxx";
+    begin
+    end procedure;
+
 end package body;

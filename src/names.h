@@ -39,12 +39,6 @@ typedef enum {
 } scope_kind_t;
 
 typedef enum {
-   SPEC_EXACT,
-   SPEC_ALL,
-   SPEC_OTHERS,
-} spec_kind_t;
-
-typedef enum {
    N_OBJECT = (1 << 0),
    N_TYPE   = (1 << 1),
    N_ERROR  = (1 << 2),

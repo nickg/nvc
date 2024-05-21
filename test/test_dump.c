@@ -398,6 +398,15 @@ START_TEST(test_vhdl5)
              "  begin\n"
              "    X := SV.SOMETHING;\n"
              "  end procedure;\n"
+             "\n"
+             "  procedure ATTRS is   -- Never waits\n"
+             "    -- WORK.VHDL5.ATTRS\n"
+             "    attribute FOO : STRING;\n"
+             "    attribute FOO of ATTRS : procedure is \"123\";\n"
+             "    attribute FOO of all : literal is \"abcd\";\n"
+             "    attribute FOO of others : procedure is \"xxx\";\n"
+             "  begin\n"
+             "  end procedure;\n"
              "end package body;\n"
              "\n");
    tb_rewind(tb);

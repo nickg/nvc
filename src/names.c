@@ -4243,11 +4243,17 @@ static type_t try_solve_attr_ref(nametab_t *tab, tree_t aref)
                      const decl_t *dd = get_decl(sym, i);
                      if (dd->visibility != ATTRIBUTE)
                         continue;
-                     else if (tree_class(dd->tree) == class
-                              && tree_ident2(dd->tree) == id) {
+                     else if (tree_class(dd->tree) != class)
+                        continue;
+
+                     const spec_kind_t kind = tree_subkind(dd->tree);
+                     if ((kind == SPEC_EXACT && tree_ident2(dd->tree) == id)
+                         || kind == SPEC_ALL) {
                         a = dd->tree;
                         break;
                      }
+                     else if (kind == SPEC_OTHERS)
+                        a = dd->tree;
                   }
                }
             }

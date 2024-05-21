@@ -65,7 +65,6 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct _ident_list ident_list_t;
-typedef struct _spec_list spec_list_t;
 
 struct _ident_list {
    ident_list_t *next;
@@ -75,16 +74,6 @@ struct _ident_list {
 
 #define LOCAL_IDENT_LIST \
    __attribute__((cleanup(_ident_list_cleanup))) ident_list_t *
-
-struct _spec_list {
-   spec_list_t *next;
-   ident_t      ident;
-   loc_t        loc;
-   type_t       signature;
-};
-
-#define LOCAL_SPEC_LIST \
-   __attribute__((cleanup(_spec_list_cleanup))) spec_list_t *
 
 static loc_t          start_loc;
 static loc_t          last_loc;
@@ -1884,29 +1873,6 @@ static void ident_list_push(ident_list_t **list, ident_t i, loc_t loc)
 static void _ident_list_cleanup(ident_list_t **list)
 {
    for (ident_list_t *it = *list, *tmp; it; it = tmp) {
-      tmp = it->next;
-      free(it);
-   }
-   *list = NULL;
-}
-
-static void spec_list_push(spec_list_t **list, ident_t id, type_t signature,
-                           loc_t loc)
-{
-   spec_list_t *c = xmalloc(sizeof(spec_list_t));
-   c->ident     = id;
-   c->loc       = loc;
-   c->signature = signature;
-   c->next      = NULL;
-
-   spec_list_t **it;
-   for (it = list; *it; it = &((*it)->next));
-   *it = c;
-}
-
-static void _spec_list_cleanup(spec_list_t **list)
-{
-   for (spec_list_t *it = *list, *tmp; it; it = tmp) {
       tmp = it->next;
       free(it);
    }
@@ -5844,59 +5810,79 @@ static class_t p_entity_class(void)
    }
 }
 
-static ident_t p_entity_designator(type_t *signature)
+static tree_t p_entity_designator(void)
 {
    // entity_tag [ signature ]
 
+   BEGIN("entity designator");
+
    ident_t id = p_identifier();
 
-   if (peek() == tLSQUARE)
-      *signature = p_signature();
+   tree_t t = tree_new(T_ATTR_SPEC);
+   tree_set_loc(t, CURRENT_LOC);
+   tree_set_subkind(t, SPEC_EXACT);
+   tree_set_ident2(t, id);
 
-   return id;
+   if (peek() == tLSQUARE) {
+      type_t signature = p_signature();
+
+      tree_t d = resolve_subprogram_name(nametab, tree_loc(t), id, signature);
+      tree_set_ref(t, d);
+   }
+
+   return t;
 }
 
-static spec_list_t *p_entity_name_list(void)
+static void p_entity_name_list(tree_list_t *list)
 {
    // entity_designator { , entity_designator } | others | all
 
-   spec_list_t *result = NULL;
+   BEGIN("entity name list");
 
    switch (peek()) {
    case tOTHERS:
-      consume(tOTHERS);
+      {
+         consume(tOTHERS);
+
+         tree_t t = tree_new(T_ATTR_SPEC);
+         tree_set_loc(t, CURRENT_LOC);
+         tree_set_subkind(t, SPEC_OTHERS);
+
+         APUSH(*list, t);
+      }
       break;
    case tALL:
-      consume(tALL);
-      spec_list_push(&result, well_known(W_ALL), NULL, last_loc);
+      {
+         consume(tALL);
+
+         tree_t t = tree_new(T_ATTR_SPEC);
+         tree_set_loc(t, CURRENT_LOC);
+         tree_set_subkind(t, SPEC_ALL);
+
+         APUSH(*list, t);
+      }
       break;
    default:
       do {
-         type_t signature = NULL;
-         ident_t id = p_entity_designator(&signature);
-
-         spec_list_push(&result, id, signature, last_loc);
+         APUSH(*list, p_entity_designator());
       } while (optional(tCOMMA));
    }
-
-   return result;
 }
 
-static spec_list_t *p_entity_specification(class_t *class)
+static class_t p_entity_specification(tree_list_t *list)
 {
    // entity_name_list : entity_class
 
    BEGIN("entity specification");
 
-   spec_list_t *ids = p_entity_name_list();
+   p_entity_name_list(list);
 
    consume(tCOLON);
 
-   *class = p_entity_class();
-   return ids;
+   return p_entity_class();
 }
 
-static void p_attribute_specification(tree_t parent, add_func_t addf)
+static void p_attribute_specification(tree_t parent)
 {
    // attribute attribute_designator of entity_specification is expression ;
 
@@ -5919,8 +5905,8 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
 
    consume(tOF);
 
-   class_t class;
-   LOCAL_SPEC_LIST ids = p_entity_specification(&class);
+   tree_list_t specs = AINIT;
+   class_t class = p_entity_specification(&specs);
 
    consume(tIS);
 
@@ -5931,27 +5917,26 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
 
    const loc_t *loc = CURRENT_LOC;
 
-   for (spec_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_ATTR_SPEC);
-      tree_set_loc(t, &(it->loc));
+   for (int i = 0; i < specs.count; i++) {
+      tree_t t = specs.items[i];
+      assert(tree_kind(t) == T_ATTR_SPEC);
+
+      if (class == C_LITERAL || class == C_LABEL)
+         ;   // Cannot check name now
+      else if (tree_subkind(t) == SPEC_EXACT && !tree_has_ref(t))
+         tree_set_ref(t, resolve_name(nametab, loc, tree_ident2(t)));
+
       tree_set_class(t, class);
       tree_set_ident(t, head);
-      tree_set_ident2(t, it->ident);
       tree_set_value(t, value);
       tree_set_type(t, type);
 
-      if (it->signature != NULL) {
-         tree_t d = resolve_subprogram_name(nametab, &(it->loc), it->ident,
-                                            it->signature);
-         tree_set_ref(t, d);
-      }
-      else if (class != C_LITERAL && class != C_LABEL)
-         tree_set_ref(t, resolve_name(nametab, loc, it->ident));
-
       insert_name(nametab, t, NULL);
-      (*addf)(parent, t);
+      tree_add_decl(parent, t);
       sem_check(t, nametab);
    }
+
+   ACLEAR(specs);
 }
 
 static type_t p_integer_type_definition(tree_t r, ident_t id)
@@ -6375,7 +6360,7 @@ static void p_protected_type_declarative_item(tree_t decl)
 
    switch (peek()) {
    case tATTRIBUTE:
-      p_attribute_specification(decl, tree_add_decl);
+      p_attribute_specification(decl);
       break;
 
    case tUSE:
@@ -7561,7 +7546,7 @@ static void p_protected_type_body_declarative_item(tree_t body)
    switch (peek()) {
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(body, tree_add_decl);
+         p_attribute_specification(body);
       else
          tree_add_decl(body, p_attribute_declaration());
       break;
@@ -7905,7 +7890,7 @@ static void p_entity_declarative_item(tree_t entity)
    switch (peek()) {
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(entity, tree_add_decl);
+         p_attribute_specification(entity);
       else
          tree_add_decl(entity, p_attribute_declaration());
       break;
@@ -8030,7 +8015,7 @@ static void p_subprogram_declarative_item(tree_t sub)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(sub, tree_add_decl);
+         p_attribute_specification(sub);
       else
          tree_add_decl(sub, p_attribute_declaration());
       break;
@@ -8228,7 +8213,7 @@ static void p_process_declarative_item(tree_t proc)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(proc, tree_add_decl);
+         p_attribute_specification(proc);
       else
          tree_add_decl(proc, p_attribute_declaration());
       break;
@@ -8540,7 +8525,7 @@ static void p_package_declarative_item(tree_t pack)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(pack, tree_add_decl);
+         p_attribute_specification(pack);
       else
          tree_add_decl(pack, p_attribute_declaration());
       break;
@@ -8902,7 +8887,7 @@ static void p_configuration_declarative_part(tree_t unit)
       break;
 
    case tATTRIBUTE:
-      p_attribute_specification(unit, tree_add_decl);
+      p_attribute_specification(unit);
       break;
 
    case tGROUP:
@@ -9313,7 +9298,7 @@ static void p_block_declarative_item(tree_t parent)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(parent, tree_add_decl);
+         p_attribute_specification(parent);
       else
          tree_add_decl(parent, p_attribute_declaration());
       break;
@@ -12727,7 +12712,7 @@ static void p_package_body_declarative_item(tree_t parent)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(parent, tree_add_decl);
+         p_attribute_specification(parent);
       else
          tree_add_decl(parent, p_attribute_declaration());
 

@@ -6,6 +6,7 @@
 - Implemented VHPI support for package declarations and `vhpiPackInsts`
   iterators (#891).
 - Signatures in attribute names are now parsed correctly (#892).
+- Attribute specifications for `all` are now parsed correctly (#889).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
