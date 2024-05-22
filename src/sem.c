@@ -1382,6 +1382,10 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
          sem_error(t, "generic %s may not have file type", istr(tree_ident(t)));
    }
 
+   if (class == C_CONSTANT && tree_subkind(t) != PORT_IN)
+      sem_error(t, "generic %s with class CONSTANT must have mode IN",
+                istr(tree_ident(t)));
+
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check(value, tab))

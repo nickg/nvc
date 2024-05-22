@@ -130,4 +130,10 @@ begin
     i10: component c
         generic map ( x(s2 downto 0) => "00" );  -- Error
 
+    b1: block is
+        generic ( constant b : inout boolean );  -- Error
+        generic map ( true );
+    begin
+    end block;
+
 end architecture;

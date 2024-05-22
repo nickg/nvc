@@ -527,6 +527,7 @@ START_TEST(test_generics)
       { 125, "invalid use of architecture A" },
       { 128, "invalid use of package STD.STANDARD" },
       { 131, "formal generic name must be a locally static name" },
+      { 134, "generic B with class CONSTANT must have mode IN" },
       {  87, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { -1, NULL }
    };
