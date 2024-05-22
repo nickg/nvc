@@ -1399,6 +1399,9 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
 
 tree_t query_spec(nametab_t *tab, tree_t object)
 {
+   if (!tree_has_ref(object))
+      return NULL;   // Was earlier error
+
    spec_t *others = NULL;
    for (spec_t *it = tab->top_scope->specs; it != NULL; it = it->next) {
       switch (it->kind) {

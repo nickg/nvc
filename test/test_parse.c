@@ -1179,6 +1179,12 @@ START_TEST(test_extended)
 
    input_from_file(TESTDIR "/parse/extended.vhd");
 
+   const error_t expect[] = {
+      { 12, "unexpected error while parsing signal declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -1187,7 +1193,7 @@ START_TEST(test_extended)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 7);
+   fail_unless(tree_decls(a) == 8);
    lib_put(lib_work(), a);
 
    d = tree_decl(a, 0);
@@ -1212,7 +1218,7 @@ START_TEST(test_extended)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -6400,6 +6406,61 @@ START_TEST(test_issue889)
 }
 END_TEST
 
+START_TEST(test_vests2)
+{
+   input_from_file(TESTDIR "/parse/vests2.vhd");
+
+   const error_t expect[] = {
+      { 39, "design unit FAIL-C12S03B02X02P05N01I03064ARCH_A not found in " },
+      { 41, "no visible declaration for TEST" },
+      { 41, "cannot determine type of OPEN expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_vests3)
+{
+   input_from_file(TESTDIR "/parse/vests3.vhd");
+
+   const error_t expect[] = {
+      { 38, "unterminated string literal" },
+      {  0, "a string literal must fit on one line" },
+      { 39, "unexpected begin while parsing variable declaration" },
+      { 38, "invalid character '%' in string literal of type BIT_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6544,6 +6605,8 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error12);
    tcase_add_test(tc_core, test_issue892);
    tcase_add_test(tc_core, test_issue889);
+   tcase_add_test(tc_core, test_vests2);
+   tcase_add_test(tc_core, test_vests3);
    suite_add_tcase(s, tc_core);
 
    return s;

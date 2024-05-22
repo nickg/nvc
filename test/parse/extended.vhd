@@ -9,6 +9,7 @@ architecture foo of bar is
     signal name : integer;
     signal \foo.bar.baz\ : integer;
     signal \hello\ : integer;
+    signal x\y : integer;               -- Error
 begin
 
     \foo.bar.baz\ <= \hello\;

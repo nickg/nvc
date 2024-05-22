@@ -83,6 +83,7 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
 static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
 static int escape_verilog_string(const char *str);
+static int report_unterminated_string(const char *str);
 
 static int last_token = -1;
 static int comment_caller = 0;
@@ -94,10 +95,11 @@ extern yylval_t yylval;
 LOWER           [a-z\xdf-\xf6\xf8-\xff]
 UPPER           [A-Z\xc0-\xd6\xd8-\xde]
 VHDL_ID         ({LOWER}|{UPPER})({LOWER}|{UPPER}|[_0-9])*
-EXID            \\([^\\]|\\\\)*\\
+EXID            \\([^\\\n]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
-STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
+STRING          (\"([^\"\n]|\"\")*\")|(\%([^\"\n\%]|\%\%)*\%)
+BADSTRING       (\"([^\"\n]|\"\")*)|(\%([^\"\n\%]|\%\%)*)
 VLOG_STRING     "\""[^\n\"]*"\""
 BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]*\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
@@ -562,6 +564,7 @@ UNION         ?i:union
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
 <INITIAL,PSL>{BITSTRING} { return parse_bit_string(yytext); }
 <INITIAL,PSL>{STRING}    { return parse_string(yytext); }
+<INITIAL,PSL>{BADSTRING} { return report_unterminated_string(yytext); }
 <INITIAL,PSL>{CHAR}      { if (resolve_ir1045()) {
                               yylval.ident = ident_new(yytext);
                               TOKEN(tID);
@@ -803,6 +806,19 @@ static int parse_bit_string(const char *str)
    }
 
    TOKEN(tBITSTRING);
+}
+
+static int report_unterminated_string(const char *str)
+{
+   diag_t *d = diag_new(DIAG_ERROR, &yylloc);
+   diag_printf(d, "unterminated string literal");
+   diag_hint(d, NULL, "a string literal must fit on one line since it "
+             "is a lexical element, longer strings can be formed using "
+             "concatenation");
+   diag_lrm(d, STD_08, "15.7");
+   diag_emit(d);
+
+   return parse_string(str);
 }
 
 static int escape_verilog_string(const char *str)
