@@ -79,7 +79,7 @@ bool folded_int(tree_t t, int64_t *l)
    case T_QUALIFIED:
       return folded_int(tree_value(t), l);
    case T_REF:
-      {
+      if (tree_has_ref(t)) {
          tree_t decl = tree_ref(t);
          switch (tree_kind(decl)) {
          case T_CONST_DECL:
@@ -96,6 +96,7 @@ bool folded_int(tree_t t, int64_t *l)
             return false;
          }
       }
+      // Fall-through
    default:
       return false;
    }

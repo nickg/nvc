@@ -6462,6 +6462,31 @@ START_TEST(test_vests3)
 }
 END_TEST
 
+START_TEST(test_vests4)
+{
+   input_from_file(TESTDIR "/parse/vests4.vhd");
+
+   const error_t expect[] = {
+      { 44, "invalid use of label SIG" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6608,6 +6633,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue889);
    tcase_add_test(tc_core, test_vests2);
    tcase_add_test(tc_core, test_vests3);
+   tcase_add_test(tc_core, test_vests4);
    suite_add_tcase(s, tc_core);
 
    return s;
