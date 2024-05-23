@@ -485,7 +485,7 @@ static bool sem_check_context_clause(tree_t t, nametab_t *tab)
    return ok;
 }
 
-static bool sem_readable(tree_t t)
+static bool sem_check_readable(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_REF:
@@ -532,7 +532,7 @@ static bool sem_readable(tree_t t)
 
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
-      return sem_readable(tree_value(t));
+      return sem_check_readable(tree_value(t));
 
    default:
       return true;
@@ -1907,7 +1907,7 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       tree_t r = tree_trigger(t, i);
       if (tree_kind(r) == T_ALL)
          continue;
-      else if (!sem_check(r, tab) || !sem_readable(r))
+      else if (!sem_check(r, tab) || !sem_check_readable(r))
          return false;
 
       if (!sem_static_name(r, sem_globally_static))
@@ -2387,7 +2387,7 @@ static bool sem_check_var_assign(tree_t t, nametab_t *tab)
    if (!sem_check(value, tab))
       return false;
 
-   if (!sem_readable(value))
+   if (!sem_check_readable(value))
       return false;
 
    if (!sem_check_variable_target(target))
@@ -2419,7 +2419,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
          if (!sem_check(value, tab))
             return false;
 
-         if (!sem_readable(value))
+         if (!sem_check_readable(value))
             return false;
 
          if (!sem_check_type(value, expect, tab))
@@ -3120,7 +3120,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       if (tree_kind(t) != T_ATTR_REF) {
          const port_mode_t mode = tree_subkind(port);
          if (mode == PORT_IN || mode == PORT_INOUT) {
-            if (!sem_readable(value))
+            if (!sem_check_readable(value))
                return false;
          }
       }
@@ -4181,10 +4181,11 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
-      if (!sem_check_attr_param(t, NULL, 0, 0, tab))
+      if (!sem_check_readable(name))
          return false;
-
-      if (!sem_check_signal_attr(t))
+      else if (!sem_check_attr_param(t, NULL, 0, 0, tab))
+         return false;
+      else if (!sem_check_signal_attr(t))
          return false;
 
       return true;
@@ -4192,7 +4193,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_EVENT:
    case ATTR_ACTIVE:
    case ATTR_LAST_VALUE:
-      if (!sem_check_signal_attr(t))
+      if (!sem_check_readable(name))
+         return false;
+      else if (!sem_check_signal_attr(t))
          return false;
 
       return true;
@@ -4214,7 +4217,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       // Fall-through
    case ATTR_DELAYED:
       {
-         if (!sem_check_signal_attr(t))
+         if (!sem_check_readable(name))
+            return false;
+         else if (!sem_check_signal_attr(t))
             return false;
 
          if (tree_params(t) > 0) {
@@ -4232,7 +4237,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          return true;
       }
    case ATTR_TRANSACTION:
-      if (!sem_check_signal_attr(t))
+      if (!sem_check_readable(t))
+         return false;
+      else if (!sem_check_signal_attr(t))
          return false;
 
       return true;
@@ -5032,7 +5039,7 @@ static bool sem_check_cond(tree_t t, nametab_t *tab)
          sem_error(value, "type of condition must be %s but have %s",
                    type_pp(std_bool), type_pp(tree_type(value)));
 
-      if (!sem_readable(value))
+      if (!sem_check_readable(value))
          return false;
    }
 

@@ -311,4 +311,21 @@ architecture builtins of e is
     attribute foreign of f [return integer] : function is e'path_name;  -- OK
 begin
 
+    b: block is
+        port ( x : out bit );
+    begin
+        process is
+        begin
+            assert x'event;             -- Error
+            assert x'active;            -- Error
+            assert x'transaction = '1'; -- Error
+            assert x'delayed(1 ns) = '1';  -- Error
+            assert x'stable;            -- Error
+            assert x'last_event = 0 ns;  -- Error
+            assert x'last_active = 0 ns;  -- Error
+            assert x'driving;           -- OK
+            assert x'driving_value = '1';  -- OK
+        end process;
+    end block;
+
 end architecture;

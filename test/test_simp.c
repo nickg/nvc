@@ -565,6 +565,8 @@ END_TEST
 
 START_TEST(test_issue332)
 {
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/simp/issue332.vhd");
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
