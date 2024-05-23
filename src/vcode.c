@@ -3944,7 +3944,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
       vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(0, br->high - 1);
+      rr->bounds = vtype_int(0, MAX(0, br->high - 1));
 
       return reg;
    }

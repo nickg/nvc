@@ -144,4 +144,11 @@ begin
         b := ("101" nor "110") = "000";
     end process;
 
+    -- Billowitch tc2256
+    tc2256: process
+        variable i : integer;
+    begin
+        i := 1 mod 0;           -- should yield divide-by-zero error
+    end process;
+
 end architecture;
