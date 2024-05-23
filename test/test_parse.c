@@ -1465,6 +1465,7 @@ START_TEST(test_array)
       { 26, "named and positional associations cannot be mixed in array" },
       { 39, "cannot index non-array type INTEGER" },
       { 39, "cannot index non-array type INTEGER" },
+      { 47, "expected 2 constraints for type BV2D but found 1" },
       { -1, NULL }
    };
    expect_errors(expect);

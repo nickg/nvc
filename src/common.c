@@ -863,6 +863,13 @@ type_t array_aggregate_type(type_t array, int from_dim)
 
       for (int i = from_dim; i < ndims; i++) {
          tree_t r = range_of(array, i);
+         if (r == NULL) {
+            // Not enough constraints were provided for the type
+            r = tree_new(T_RANGE);
+            tree_set_subkind(r, RANGE_ERROR);
+            tree_set_type(r, type_new(T_NONE));
+         }
+
          type_add_index(base, tree_type(r));
          tree_add_range(constraint, r);
       }
@@ -939,7 +946,10 @@ tree_t range_of(type_t type, unsigned dim)
             return range_of(type_base(type), dim);
          case C_INDEX:
          case C_RANGE:
-            return tree_range(type_constraint(type, 0), dim);
+            if (dim < tree_ranges(c0))
+               return tree_range(c0, dim);
+            else
+               return NULL;   // Must be an error
          default:
             fatal_trace("invalid constraint in range_of");
          }

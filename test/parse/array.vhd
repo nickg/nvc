@@ -42,4 +42,13 @@ begin
         k := (x'reverse_range => 3);
     end process;
 
+    process is
+        type bv2d is array (natural range <>, positive range <>) of bit;
+        variable v : bv2d(0 to 1) := ( ('0', '0'), ('1', '1'),  -- Error
+                                       ('0', '1'), ('1', '1'),
+                                       ('0', '1'), ('0', '1'),
+                                       ('1', '0'), ('1', '0')  );
+    begin
+    end process;
+
 end architecture;
