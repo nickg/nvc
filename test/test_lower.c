@@ -2984,8 +2984,6 @@ START_TEST(test_hintbug)
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_FCALL, .func = "WORK.HINTBUG.FUNC(J)Q" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 2 },
@@ -2996,7 +2994,9 @@ START_TEST(test_hintbug)
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WRAP },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOC },
@@ -3083,8 +3083,8 @@ START_TEST(test_tounsigned)
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "I_VAL" },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
@@ -3765,8 +3765,8 @@ START_TEST(test_instance1)
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_STORE, .name = "WIDTH" },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST_ARRAY, .length = 5 },
          { VCODE_OP_ADDRESS_OF },
          { VCODE_OP_CONST, .value = 1 },
@@ -4748,7 +4748,6 @@ START_TEST(test_directmap3)
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "W" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "O1" },
       { VCODE_OP_LOAD_INDIRECT },
@@ -4762,6 +4761,7 @@ START_TEST(test_directmap3)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_STORE, .name = "O" },
@@ -6029,9 +6029,9 @@ START_TEST(test_issue844)
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 4 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "G1" },
       { VCODE_OP_STORE, .name = "G2" },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 4 },
@@ -6289,7 +6289,6 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_recsignal1);
    tcase_add_test(tc, test_vunit5);
    tcase_add_test(tc, test_issue462);
-   tcase_add_test(tc, test_directmap3);
    tcase_add_test(tc, test_directmap3);
    tcase_add_test(tc, test_issue476);
    tcase_add_test(tc, test_issue478);

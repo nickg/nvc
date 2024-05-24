@@ -5612,8 +5612,8 @@ void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus)
                 "locus argument to zero check must be a debug locus");
 }
 
-bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
-                            vcode_reg_t right, vcode_reg_t dir)
+static bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
+                                   vcode_reg_t right, vcode_reg_t dir)
 {
    int64_t dconst;
    if (vcode_reg_const(dir, &dconst)) {

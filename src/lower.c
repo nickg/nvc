@@ -912,12 +912,16 @@ static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
 {
    tree_t r = range_of(type, 0);
 
+   int64_t low, high;
+   if (folded_bounds(r, &low, &high) && low <= high) {
+      vcode_type_t vbounds = vcode_reg_bounds(value);
+      if (vtype_low(vbounds) >= low && vtype_high(vbounds) <= high)
+         return;   // Avoid generating debug locus
+   }
+
    vcode_reg_t left_reg  = lower_range_left(lu, r);
    vcode_reg_t right_reg = lower_range_right(lu, r);
    vcode_reg_t dir_reg   = lower_range_dir(lu, r);
-
-   if (vcode_can_elide_bounds(value, left_reg, right_reg, dir_reg))
-      return;   // Avoid generating debug locus
 
    vcode_reg_t locus = lower_debug_locus(where);
 

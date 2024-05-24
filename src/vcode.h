@@ -325,9 +325,6 @@ vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value);
 void vcode_heap_allocate(vcode_reg_t reg);
 
-bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
-                            vcode_reg_t right, vcode_reg_t dir);
-
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
 ident_t vcode_get_func(int op);
