@@ -1,4 +1,5 @@
 package predef is
+    function add1(x : integer) return integer;
 end package;
 
 package body predef is
@@ -14,5 +15,4 @@ package body predef is
 
     -- This should not be folded in analysis phase
     constant c3 : integer := add1(2);
-
 end package body;

@@ -5,6 +5,7 @@ package pack is
         f : t_sub1;
     end record;
     type t_nest1 is array (natural range <>) of t_sub1;
+    subtype t_real is real range 0.0 to real(expensive(99));
 end package;
 
 package body pack is

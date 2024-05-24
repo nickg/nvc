@@ -314,10 +314,14 @@ bool eval_possible(tree_t t, unit_registry_t *ur)
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(tree_value(t), ur);
-
    case T_QUALIFIED:
-      return eval_possible(tree_value(t), ur);
+      {
+         tree_t value = tree_value(t);
+         if (tree_kind(value) == T_FCALL)
+            return false;   // Would have been folded already if possible
+
+         return eval_possible(value, ur);
+      }
 
    case T_REF:
       {
