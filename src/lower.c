@@ -234,8 +234,8 @@ static bool needs_bounds_var(type_t type)
 {
    // A constrained array subtype with non-constant bounds should have
    // its bounds evaluated once and stored in a variable
-   if (!type_is_array(type))
-      return false;
+   if (type_is_record(type))
+      return false;   // TODO
    else if (type_is_unconstrained(type))
       return false;
    else
@@ -907,6 +907,96 @@ static void lower_for_each_field(lower_unit_t *lu, type_t type,
    }
 }
 
+static void lower_get_scalar_type_bounds(lower_unit_t *lu, type_t type,
+                                         vcode_reg_t *left_reg,
+                                         vcode_reg_t *right_reg,
+                                         vcode_reg_t *dir_reg)
+{
+   assert(type_is_scalar(type));
+
+   tree_t r = range_of(type, 0);
+   const range_kind_t rkind = tree_subkind(r);
+
+   if (rkind != RANGE_EXPR) {
+      tree_t left = tree_left(r), right = tree_right(r);
+
+      int64_t ileft, iright;
+      double rleft, rright;
+      if (folded_int(left, &ileft) && folded_int(right, &iright)) {
+         vcode_type_t vtype = lower_type(type);
+         *left_reg  = emit_const(vtype, ileft);
+         *right_reg = emit_const(vtype, iright);
+         *dir_reg   = emit_const(vtype_bool(), rkind);
+         return;
+      }
+      else if (folded_real(left, &rleft) && folded_real(right, &rright)) {
+         vcode_type_t vtype = lower_type(type);
+         *left_reg  = emit_const_real(vtype, rleft);
+         *right_reg = emit_const_real(vtype, rright);
+         *dir_reg   = emit_const(vtype_bool(), rkind);
+         return;
+      }
+   }
+
+   if (type_has_ident(type) && needs_bounds_var(type)) {
+      vcode_type_t vtype = lower_type(type);
+      vcode_type_t vbounds = lower_bounds(type);
+
+      vcode_reg_t wrap_reg;
+      int hops = 0;
+      vcode_var_t var = lower_search_vcode_obj(type, lu, &hops);
+      if (var == VCODE_INVALID_VAR) {
+         // Type or subtype declared in package
+         ident_t id = type_ident(type);
+         vcode_reg_t context = emit_link_package(ident_runtil(id, '.'));
+         vcode_type_t vuarray = vtype_uarray(1, vtype, vbounds);
+         vcode_reg_t ptr_reg = emit_link_var(context, id, vuarray);
+         wrap_reg = emit_load_indirect(ptr_reg);
+      }
+      else if (hops == 0)
+         wrap_reg = emit_load(var);
+      else {
+         vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+         wrap_reg = emit_load_indirect(ptr_reg);
+      }
+
+      *left_reg  = emit_cast(vtype, vbounds, emit_uarray_left(wrap_reg, 0));
+      *right_reg = emit_cast(vtype, vbounds, emit_uarray_right(wrap_reg, 0));
+      *dir_reg   = emit_uarray_dir(wrap_reg, 0);
+   }
+   else {
+      *left_reg  = lower_range_left(lu, r);
+      *right_reg = lower_range_right(lu, r);
+      *dir_reg   = lower_range_dir(lu, r);
+   }
+}
+
+static vcode_reg_t lower_scalar_type_left(lower_unit_t *lu, type_t type)
+{
+   assert(type_is_scalar(type));
+
+   tree_t r = range_of(type, 0);
+   const range_kind_t rkind = tree_subkind(r);
+
+   if (rkind != RANGE_EXPR) {
+      tree_t left = tree_left(r);
+
+      // Handle common case of constant bounds without generating the
+      // right bound or direction
+      double rleft;
+      int64_t ileft;
+      if (folded_int(left, &ileft))
+         return emit_const(lower_type(type), ileft);
+      else if (folded_real(left, &rleft))
+         return emit_const_real(lower_type(type), rleft);
+   }
+
+   vcode_reg_t left_reg, right_reg, dir_reg;
+   lower_get_scalar_type_bounds(lu, type, &left_reg, &right_reg, &dir_reg);
+
+   return left_reg;
+}
+
 static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
                                       type_t type, tree_t where, tree_t hint)
 {
@@ -919,9 +1009,8 @@ static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
          return;   // Avoid generating debug locus
    }
 
-   vcode_reg_t left_reg  = lower_range_left(lu, r);
-   vcode_reg_t right_reg = lower_range_right(lu, r);
-   vcode_reg_t dir_reg   = lower_range_dir(lu, r);
+   vcode_reg_t left_reg, right_reg, dir_reg;
+   lower_get_scalar_type_bounds(lu, type, &left_reg, &right_reg, &dir_reg);
 
    vcode_reg_t locus = lower_debug_locus(where);
 
@@ -2659,6 +2748,15 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
 
    if (type_is_record(type))
       return VCODE_INVALID_REG;  // TODO
+   else if (type_is_scalar(type)) {
+      vcode_reg_t left_reg, right_reg, dir_reg;
+      lower_get_scalar_type_bounds(lu, type, &left_reg, &right_reg, &dir_reg);
+
+      vcode_dim_t dims[1] = { { left_reg, right_reg, dir_reg } };
+
+      vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(type)));
+      return emit_wrap(null_reg, dims, 1);
+   }
    else if (type_has_ident(type)) {
       int hops = 0;
       vcode_var_t var = lower_search_vcode_obj(type, lu, &hops);
@@ -3740,9 +3838,10 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
          vcode_reg_t delta_reg = emit_sub(length_reg, emit_const(voffset, 1));
          vcode_reg_t cast_reg = emit_cast(vindex, vindex, delta_reg);
 
-         tree_t base_r = range_of(index_type, 0);
-         left_reg = lower_range_left(lu, base_r);
-         dir_reg = lower_range_dir(lu, base_r);
+         vcode_reg_t index_right_reg;
+         lower_get_scalar_type_bounds(lu, index_type, &left_reg,
+                                      &index_right_reg, &dir_reg);
+
          right_reg = emit_add(left_reg, cast_reg);
       }
    }
@@ -5213,7 +5312,7 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
 static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
 {
    if (type_is_scalar(type))
-      return lower_range_left(lu, range_of(type, 0));
+      return lower_scalar_type_left(lu, type);
    else if (type_is_array(type)) {
       assert(type_const_bounds(type));
       type_t elem = type_elem_recur(type);
@@ -5253,7 +5352,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
                                        vcode_reg_t hint_reg)
 {
    if (type_is_scalar(type))
-      return lower_range_left(lu, range_of(type, 0));
+      return lower_scalar_type_left(lu, type);
    else if (type_is_array(type)) {
       assert(!type_is_unconstrained(type));
 
@@ -7405,11 +7504,10 @@ static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
    const int ndims = dimension_of(to);
    for (int i = 0; i < ndims; i++) {
       type_t index = index_type_of(to, i);
-      tree_t r = range_of(index, 0);
 
-      vcode_reg_t ileft_reg  = lower_range_left(lu, r);
-      vcode_reg_t iright_reg = lower_range_right(lu, r);
-      vcode_reg_t idir_reg   = lower_range_dir(lu, r);
+      vcode_reg_t ileft_reg, iright_reg, idir_reg;
+      lower_get_scalar_type_bounds(lu, index, &ileft_reg,
+                                   &iright_reg, &idir_reg);
 
       vcode_reg_t aleft_reg  = lower_array_left(lu, from, i, array);
       vcode_reg_t aright_reg = lower_array_right(lu, from, i, array);
@@ -7433,7 +7531,7 @@ static void lower_check_indexes(lower_unit_t *lu, type_t from, type_t to,
 
       vcode_reg_t hint_reg;
       if (type_is_unconstrained(to))
-         hint_reg = lower_debug_locus(r);
+         hint_reg = lower_debug_locus(range_of(index, 0));
       else
          hint_reg = lower_debug_locus(range_of(to, i));
 
@@ -7490,19 +7588,21 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
 
    if (type_is_record(type))
       dest_reg = emit_index(var, VCODE_INVALID_REG);
-   else if (needs_bounds_var(type)) {
-      bounds_reg = lower_get_type_bounds(lu, type);
-      count_reg = lower_array_total_len(lu, type, bounds_reg);
+   else if (type_is_array(type)) {
+      if (needs_bounds_var(type)) {
+         bounds_reg = lower_get_type_bounds(lu, type);
+         count_reg = lower_array_total_len(lu, type, bounds_reg);
 
-      vcode_type_t velem = lower_type(type_elem_recur(type));
-      mem_reg = emit_alloc(velem, vbounds, count_reg);
+         vcode_type_t velem = lower_type(type_elem_recur(type));
+         mem_reg = emit_alloc(velem, vbounds, count_reg);
 
-      dest_reg = lower_rewrap(mem_reg, bounds_reg);
-      emit_store(dest_reg, var);
-   }
-   else if (type_is_array(type) && !type_is_unconstrained(type)) {
-      count_reg = lower_array_total_len(lu, type, bounds_reg);
-      dest_reg = mem_reg = emit_index(var, VCODE_INVALID_REG);
+         dest_reg = lower_rewrap(mem_reg, bounds_reg);
+         emit_store(dest_reg, var);
+      }
+      else if (!type_is_unconstrained(type)) {
+         count_reg = lower_array_total_len(lu, type, bounds_reg);
+         dest_reg = mem_reg = emit_index(var, VCODE_INVALID_REG);
+      }
    }
 
    type_t value_type = NULL;
@@ -7650,7 +7750,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       vcode_reg_t locus = lower_debug_locus(where);
 
       if (init_reg == VCODE_INVALID_REG)
-         init_reg = lower_range_left(lu, range_of(type, 0));
+         init_reg = lower_scalar_type_left(lu, type);
       else
          lower_check_scalar_bounds(lu, init_reg, type, where, where);
 
@@ -7683,10 +7783,8 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
 
       vcode_reg_t locus = lower_debug_locus(where);
 
-      if (init_reg == VCODE_INVALID_REG) {
-         type_t elem = type_elem_recur(type);
-         init_reg = lower_range_left(lu, range_of(elem, 0));
-      }
+      if (init_reg == VCODE_INVALID_REG)
+         init_reg = lower_scalar_type_left(lu, type_elem_recur(type));
       else {
          lower_check_array_sizes(lu, type, init_type, bounds_reg,
                                  init_reg, locus);
@@ -9543,20 +9641,47 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
 
 static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
 {
-   vcode_type_t vtype = lower_type(type);
-   assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
+   if (type_is_array(type)) {
+      vcode_type_t vtype = lower_type(type);
+      assert(vtype_kind(vtype) == VCODE_TYPE_UARRAY);
 
-   type_t elem = type_elem_recur(type);
-   vcode_type_t velem = lower_type(elem);
-   vcode_type_t vbounds = lower_bounds(elem);
+      type_t elem = type_elem_recur(type);
+      vcode_type_t velem = lower_type(elem);
+      vcode_type_t vbounds = lower_bounds(elem);
 
-   vcode_var_t var = emit_var(vtype, vbounds, type_ident(type), VAR_CONST);
+      vcode_var_t var = emit_var(vtype, vbounds, type_ident(type), VAR_CONST);
 
-   vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-   vcode_reg_t wrap_reg = lower_wrap(lu, type, null_reg);
-   emit_store(wrap_reg, var);
+      vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+      vcode_reg_t wrap_reg = lower_wrap(lu, type, null_reg);
+      emit_store(wrap_reg, var);
 
-   lower_put_vcode_obj(type, var, lu);
+      lower_put_vcode_obj(type, var, lu);
+   }
+   else if (type_is_scalar(type)) {
+      vcode_type_t velem = lower_type(type);
+      vcode_type_t vbounds = lower_bounds(type);
+
+      vcode_type_t vtype = vtype_uarray(1, velem, vbounds);
+
+      vcode_var_t var = emit_var(vtype, vbounds, type_ident(type), VAR_CONST);
+
+      tree_t r = range_of(type, 0);
+      vcode_reg_t left_reg = lower_range_left(lu, r);
+      vcode_reg_t right_reg = lower_range_right(lu, r);
+      vcode_reg_t dir_reg = lower_range_dir(lu, r);
+
+      vcode_dim_t dims[1] = {
+         { left_reg, right_reg, dir_reg },
+      };
+
+      vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+      vcode_reg_t wrap_reg = emit_wrap(null_reg, dims, 1);
+      emit_store(wrap_reg, var);
+
+      lower_put_vcode_obj(type, var, lu);
+   }
+   else
+      fatal_trace("unexpected type %s in lower_type_bounds", type_pp(type));
 }
 
 static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)

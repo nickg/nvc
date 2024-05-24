@@ -5883,6 +5883,29 @@ START_TEST(test_subtype2)
 
       CHECK_BB(0);
    }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.SUBTYPE2.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+         { VCODE_OP_LINK_VAR, .name = "WORK.PACK.T_INTEGER" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_UARRAY_LEFT },
+         { VCODE_OP_CAST },
+         { VCODE_OP_UARRAY_RIGHT },
+         { VCODE_OP_CAST },
+         { VCODE_OP_UARRAY_DIR },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
+         { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
 }
 END_TEST
 

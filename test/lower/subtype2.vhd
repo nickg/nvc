@@ -5,6 +5,7 @@ package pack is
         f : t_sub1;
     end record;
     type t_nest1 is array (natural range <>) of t_sub1;
+    subtype t_integer is integer range 0 to expensive(5);
     subtype t_real is real range 0.0 to real(expensive(99));
 end package;
 
@@ -43,5 +44,19 @@ begin
         a(1) := "101";
         wait;
     end process;
+
+    p2: process is
+        variable x : t_integer;
+    begin
+        x := 5;
+        wait;
+    end process;
+
+    -- p3: process is
+    --     variable x : t_real;
+    -- begin
+    --     x := 5.0;
+    --     wait;
+    -- end process;
 
 end architecture;

@@ -1770,29 +1770,14 @@ static tree_t fcall_to_conv_func(tree_t value)
    return conv;
 }
 
-static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
-{
-   tree_list_t roots = AINIT;
-   APUSH(roots, *pdecl);
-   if (*pbody != NULL)
-      APUSH(roots, *pbody);
-
-   ident_t prefixes[] = { tree_ident(*pdecl) };
-   ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
-
-   new_instance(roots.items, roots.count, dotted, prefixes, 1);
-
-   *pdecl = roots.items[0];
-   *pbody = *pbody != NULL ? roots.items[1] : NULL;
-
-   ACLEAR(roots);
-}
-
 static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
 {
-   tree_t decl_copy = decl, body_copy = body;
-   instantiate_helper(new, &decl_copy, &body_copy);
+   tree_t roots[] = { decl, body };
+   ident_t prefixes[] = { tree_ident(decl) };
+   ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
+   new_instance(roots, body != NULL ? 2 :1, dotted, prefixes, 1);
 
+   tree_t decl_copy = roots[0], body_copy = roots[1];
    tree_t src = body_copy ?: decl_copy;
 
    tree_set_type(new, tree_type(src));
@@ -1827,8 +1812,17 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 {
    assert(body == NULL || tree_primary(body) == pack);
 
-   tree_t pack_copy = pack, body_copy = body;
-   instantiate_helper(new, &pack_copy, &body_copy);
+   ident_t prefix = tree_ident(pack);
+   tree_t container = tree_container(pack);
+   if (container != pack)
+      prefix = ident_prefix(tree_ident(container), prefix, '.');
+
+   tree_t roots[] = { pack, body };
+   ident_t prefixes[] = { prefix };
+   ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
+   new_instance(roots, body != NULL ? 2 : 1, dotted, prefixes, 1);
+
+   tree_t pack_copy = roots[0], body_copy = roots[1];
 
    const int ngenerics = tree_generics(pack_copy);
    for (int i = 0; i < ngenerics; i++)

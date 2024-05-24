@@ -983,3 +983,4 @@ issue887        normal
 issue890        normal,2008
 vhpi15          normal,vhpi
 attr21          normal,2002
+issue894        normal,2008

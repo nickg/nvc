@@ -882,6 +882,10 @@ bool type_const_bounds(type_t t)
 
       return type_const_bounds(type_elem(t));
    }
+   else if (type_is_integer(t)) {
+      int64_t low, high;
+      return folded_bounds(range_of(t, 0), &low, &high);
+   }
    else
       return true;
 }
