@@ -1755,6 +1755,22 @@ static bool is_static(tree_t expr)
          return true;
       }
 
+   case T_ATTR_REF:
+      {
+         switch (tree_subkind(expr)) {
+         case ATTR_EVENT:
+         case ATTR_ACTIVE:
+         case ATTR_LAST_EVENT:
+         case ATTR_LAST_ACTIVE:
+         case ATTR_LAST_VALUE:
+         case ATTR_DRIVING:
+         case ATTR_DRIVING_VALUE:
+            return false;
+         default:
+            return true;
+         }
+      }
+
    default:
       return false;
    }

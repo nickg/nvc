@@ -450,20 +450,6 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    }
 }
 
-static tree_t simp_convert_range_bound(tree_t expr, tree_t where)
-{
-   type_t type = tree_type(where);
-   if (type_eq(tree_type(expr), type))
-      return expr;
-
-   tree_t conv = tree_new(T_TYPE_CONV);
-   tree_set_loc(conv, tree_loc(where));
-   tree_set_value(conv, expr);
-   tree_set_type(conv, type);
-
-   return conv;
-}
-
 static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_has_value(t))
@@ -568,43 +554,37 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          if (rkind != RANGE_TO && rkind != RANGE_DOWNTO)
             return t;
 
+         int64_t low, high;
+         if (!folded_bounds(r, &low, &high))
+            return t;
+
          switch (predef) {
          case ATTR_LENGTH:
             {
-               int64_t low, high, length = 0;
-               if (folded_bounds(r, &low, &high)) {
-                  if (high < low)
-                     return get_int_lit(t, NULL, 0);
-                  else {
-                     bool overflow = false;
-                     overflow |= __builtin_sub_overflow(high, low, &length);
-                     overflow |= __builtin_add_overflow(length, 1, &length);
+               int64_t length = 0;
+               if (high < low)
+                  return get_int_lit(t, NULL, 0);
+               else {
+                  bool overflow = false;
+                  overflow |= __builtin_sub_overflow(high, low, &length);
+                  overflow |= __builtin_add_overflow(length, 1, &length);
 
-                     if (overflow)
-                        error_at(tree_loc(t), "value of LENGTH attribute "
-                                 "exceeds universal integer range");
-                     else
-                        return get_int_lit(t, NULL, length);
-                  }
+                  if (overflow)
+                     error_at(tree_loc(t), "value of LENGTH attribute "
+                              "exceeds universal integer range");
+
+                  return get_int_lit(t, NULL, length);
                }
-
-               return t;
             }
 
          case ATTR_LOW:
-            if (tree_subkind(r) == RANGE_TO)
-               return simp_convert_range_bound(tree_left(r), t);
-            else
-               return simp_convert_range_bound(tree_right(r), t);
+            return get_int_lit(t, NULL, low);
          case ATTR_HIGH:
-            if (tree_subkind(r) == RANGE_TO)
-               return simp_convert_range_bound(tree_right(r), t);
-            else
-               return simp_convert_range_bound(tree_left(r), t);
+            return get_int_lit(t, NULL, high);
          case ATTR_LEFT:
-            return simp_convert_range_bound(tree_left(r), t);
+            return get_int_lit(t, NULL, rkind == RANGE_TO ? low : high);
          case ATTR_RIGHT:
-            return simp_convert_range_bound(tree_right(r), t);
+            return get_int_lit(t, NULL, rkind == RANGE_TO ? high : low);
          case ATTR_ASCENDING:
             return get_enum_lit(t, NULL, (rkind == RANGE_TO));
          default:

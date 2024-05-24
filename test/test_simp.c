@@ -161,8 +161,9 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 0)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 1)), true));
 
+   // Constant real attributes are currently not folded
    p = tree_stmt(a, 8);
-   fail_unless(tree_stmts(p) == 0);
+   fail_unless(tree_stmts(p) == 1);
 
    p = tree_stmt(a, 9);
    fail_unless(folded_b(tree_value(tree_stmt(p, 0)), true));
