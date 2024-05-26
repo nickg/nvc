@@ -1876,7 +1876,6 @@ static void _ident_list_cleanup(ident_list_t **list)
 static type_t get_subtype_for(tree_t expr)
 {
    type_t type = tree_type(expr);
-   assert(type_is_composite(type));
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, type_base_recur(type));
@@ -1913,7 +1912,7 @@ static type_t get_subtype_for(tree_t expr)
          }
       }
    }
-   else {
+   else if (type_is_array(type)) {
       tree_set_subkind(c, C_INDEX);
 
       const int ndims = dimension_of(type);
@@ -1967,6 +1966,10 @@ static type_t get_subtype_for(tree_t expr)
       else
          type_set_elem(sub, elem);
    }
+   else if (type_is_scalar(type))
+      return type;   // TODO: see test/regress/integer3.vhd
+   else
+      fatal_trace("unhandled type %s in get_subtype_for", type_pp(type));
 
    return sub;
 }
