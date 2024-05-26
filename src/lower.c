@@ -6589,6 +6589,18 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    case VCODE_UNIT_THUNK:
       use_fcall = true;
       break;
+   case VCODE_UNIT_PROCESS:
+      {
+         tree_t wait = tree_stmt(lu->container, tree_stmts(lu->container) - 1);
+         if (tree_kind(wait) == T_WAIT
+             && (tree_flags(wait) & TREE_F_STATIC_WAIT)) {
+            // This process has a sensitivity list and therefore cannot
+            // wait inside a procedure
+            use_fcall = true;
+            break;
+         }
+      }
+      // Fall-through
    default:
       use_fcall = !!(tree_flags(decl) & TREE_F_NEVER_WAITS);
       break;

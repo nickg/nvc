@@ -335,13 +335,14 @@ void x_func_wait(void)
    tree_t inner = tree_from_object(trace->frames[0].object);
    free(trace);
 
-   if (tree_kind(inner) == T_PROC_BODY) {
-      // Must be procedure body in protected object
-      jit_msg(NULL, DIAG_FATAL, "cannot wait inside call to protected "
-              "type method");
+   const char *what;
+   switch (tree_kind(inner)) {
+   case T_PROC_BODY: what = "call to protected type method"; break;
+   case T_PROCESS: what = "process with sensitivity list"; break;
+   default: what = "function call";
    }
-   else
-      jit_msg(NULL, DIAG_FATAL, "cannot wait inside function call");
+
+   jit_msg(NULL, DIAG_FATAL, "cannot wait inside %s", what);
 }
 
 void x_instance_name(attr_kind_t kind, text_buf_t *tb)

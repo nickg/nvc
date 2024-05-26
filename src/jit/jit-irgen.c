@@ -2203,7 +2203,7 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       g->used_tlab |= vkind == VCODE_TYPE_UARRAY
          || vkind == VCODE_TYPE_POINTER;
    }
-   else if (vcode_unit_kind(g->func->unit) == VCODE_UNIT_FUNCTION) {
+   else {
       irgen_label_t *cont = irgen_alloc_label(g);
       jit_value_t state = j_recv(g, 0);
       j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
