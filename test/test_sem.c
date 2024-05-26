@@ -576,11 +576,12 @@ START_TEST(test_seq)
       { 244, "aggregate element must be locally static name" },
       { 245, "others association not allowed in aggregate target" },
       { 246, "range association not allowed in aggregate target" },
-      { 254, "X with class SIGNAL must be a name denoting a signal" },
+      { 247, "variable A is identifed more than once in aggregate target" },
       { 255, "X with class SIGNAL must be a name denoting a signal" },
-      { 263, "target of variable assignment must be a variable name or" },
-      { 264, "actual for formal X with class VARIABLE must be a name" },
-      { 270, "no visible declaration for BAD_TYPE" },
+      { 256, "X with class SIGNAL must be a name denoting a signal" },
+      { 264, "target of variable assignment must be a variable name or" },
+      { 265, "actual for formal X with class VARIABLE must be a name" },
+      { 271, "no visible declaration for BAD_TYPE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -920,35 +921,36 @@ START_TEST(test_signal)
    input_from_file(TESTDIR "/sem/signal.vhd");
 
    const error_t expect[] = {
-      { 14, "type of aggregate cannot be determined from the surrounding" },
-      { 15, "type of string literal cannot be determined from the surrou" },
-      { 16, "target of signal assignment must be a signal name" },
-      { 17, "others association not allowed in aggregate target" },
-      { 18, "cannot assign to input port P" },
-      { 22, "cannot be determined from the surrounding context" },
-      {  0, "context contains type BIT which is not a composite type" },
-      { 23, "target of signal assignment must be a signal name" },
-      { 24, "others association not allowed in aggregate target" },
-      { 25, "cannot assign to input port P" },
-      { 30, "aggregate element must be locally static name" },
-      { 40, "signal X is not a formal parameter and subprogram PROC1 [BIT] "
-        "is not contained within a process statement" },
-      { 48, "implicit signal may not be assigned" },
-      { 54, "guard signal must have BOOLEAN type but found INTEGER" },
-      { 57, "guard expression must have type BOOLEAN but found BIT_VECTOR" },
-      { 64, "assignment guard must be a signal" },
-      { 65, "null waveform element is only valid when the target is" },
-      { 69, "guarded signal must have resolved subtype" },
-      { 78, "disconnection specification must denote a guarded signal" },
-      { 79, "disconnection specification must denote a guarded signal" },
-      { 80, "S$disconnect already declared in this region" },   // XXX
-      { 80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
-      { 81, "S$disconnect already declared in this region" },   // XXX
-      { 81, "disconnection specification must have type TIME but found RBIT" },
-      { 83, "S$disconnect already declared in this region" },   // XXX
-      { 83, "time expression in disconnection specificiation must be static" },
-      { 88, "invalid use of entity E" },
-      { 95, "target of signal assignment must be a signal name or aggregate" },
+      {  14, "type of aggregate cannot be determined from the surrounding" },
+      {  15, "type of string literal cannot be determined from the surrou" },
+      {  16, "target of signal assignment must be a signal name" },
+      {  17, "others association not allowed in aggregate target" },
+      {  18, "cannot assign to input port P" },
+      {  22, "cannot be determined from the surrounding context" },
+      {   0, "context contains type BIT which is not a composite type" },
+      {  23, "target of signal assignment must be a signal name" },
+      {  24, "others association not allowed in aggregate target" },
+      {  25, "cannot assign to input port P" },
+      {  30, "aggregate element must be locally static name" },
+      {  40, "signal X is not a formal parameter and subprogram PROC1 [BIT] "
+         "is not contained within a process statement" },
+      {  48, "implicit signal may not be assigned" },
+      {  54, "guard signal must have BOOLEAN type but found INTEGER" },
+      {  57, "guard expression must have type BOOLEAN but found BIT_VECTOR" },
+      {  64, "assignment guard must be a signal" },
+      {  65, "null waveform element is only valid when the target is" },
+      {  69, "guarded signal must have resolved subtype" },
+      {  78, "disconnection specification must denote a guarded signal" },
+      {  79, "disconnection specification must denote a guarded signal" },
+      {  80, "S$disconnect already declared in this region" },   // XXX
+      {  80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
+      {  81, "S$disconnect already declared in this region" },   // XXX
+      {  81, "disconnection specification must have type TIME but found RBIT" },
+      {  83, "S$disconnect already declared in this region" },   // XXX
+      {  83, "time expression in disconnection specificiation must be static" },
+      {  88, "invalid use of entity E" },
+      {  95, "target of signal assignment must be a signal name or aggregate" },
+      { 100, "signal X is identifed more than once in aggregate target" },
       { -1, NULL }
    };
    expect_errors(expect);

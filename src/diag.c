@@ -440,6 +440,7 @@ static const struct {
    { "Incomplete type declarations", { [STD_08] = "5.4.2", [STD_93] = "3.3.1",
       [STD_19] = "5.4.2" } },
    { "String literals", { [STD_93] = "13.6", [STD_08] = "15.7" } },
+   { "Simple signal assignments", { [STD_93] = "8.4", [STD_08] = "10.5.2" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

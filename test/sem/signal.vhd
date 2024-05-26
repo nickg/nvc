@@ -95,4 +95,9 @@ begin
         real(i) <= 5.0;                -- Error
     end block;
 
+    process is
+    begin
+        (x, x, x) <= v;                 -- Error
+    end process;
+
 end architecture;

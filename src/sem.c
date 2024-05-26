@@ -2276,8 +2276,9 @@ static tree_t sem_check_lvalue(tree_t t)
    }
 }
 
-static bool sem_check_aggregate_target_element(tree_t a, type_t type)
+static bool sem_check_aggregate_target_element(tree_t target, int nth)
 {
+   tree_t a = tree_assoc(target, nth);
    tree_t value = tree_value(a);
 
    if (tree_kind(value) != T_AGGREGATE) {
@@ -2297,7 +2298,7 @@ static bool sem_check_aggregate_target_element(tree_t a, type_t type)
                      "as aggregate");
          diag_hint(d, tree_loc(value), "expression type is %s but "
                    "aggregate is %s", type_pp(tree_type(value)),
-                   type_pp(type));
+                   type_pp(tree_type(target)));
          diag_lrm(d, STD_08, "10.6.2");
          diag_emit(d);
          return false;
@@ -2311,6 +2312,22 @@ static bool sem_check_aggregate_target_element(tree_t a, type_t type)
    case A_SLICE:
    case A_CONCAT:
       break;
+   }
+
+   const int nassocs = tree_assocs(target);
+   for (int j = nth + 1; j < nassocs; j++) {
+      tree_t cmp = tree_value(tree_assoc(target, j));
+      if (same_tree(value, cmp)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(cmp));
+         diag_printf(d, "%s %s is identifed more than once in "
+                     "aggregate target", class_str(class_of(cmp)),
+                     tree_kind(cmp) == T_REF ?
+                     istr(tree_ident(cmp)) : "subelement");
+         diag_hint(d, tree_loc(value), "first seen here");
+         diag_lrm(d, STD_08, "10.5.2");
+         diag_emit(d);
+         return false;
+      }
    }
 
    return true;
@@ -2334,7 +2351,7 @@ static bool sem_check_variable_target(tree_t target)
          if (!sem_check_variable_target(value))
             return false;
 
-         if (!sem_check_aggregate_target_element(a, type))
+         if (!sem_check_aggregate_target_element(target, i))
             return false;
       }
    }
@@ -2509,7 +2526,7 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
       type_t type = tree_type(target);
       if (!type_is_composite(type))
          sem_error(target, "aggregate target of signal assignment has "
-                   "non-composite type %s", type_pp(tree_type(target)));
+                   "non-composite type %s", type_pp(type));
 
       const int nassocs = tree_assocs(target);
       for (int i = 0; i < nassocs; i++) {
@@ -2519,7 +2536,7 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          if (!sem_check_signal_target(value, tab))
             return false;
 
-         if (!sem_check_aggregate_target_element(a, type))
+         if (!sem_check_aggregate_target_element(target, i))
             return false;
       }
 

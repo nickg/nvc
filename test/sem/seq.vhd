@@ -244,6 +244,7 @@ begin
         (v(a), b) := v;                 -- Error
         (others => a) := v;             -- Error
         (1 to 2 => a) := v;             -- Error
+        (a, a) := v;                    -- Error
     end process;
 
     -- Wrong class for procedure arguments
