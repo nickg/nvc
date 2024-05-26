@@ -89,4 +89,10 @@ begin
     begin
     end block;
 
+    b9: block is
+        signal i : integer;
+    begin
+        real(i) <= 5.0;                -- Error
+    end block;
+
 end architecture;

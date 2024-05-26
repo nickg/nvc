@@ -3501,9 +3501,12 @@ static tree_t p_type_conversion(tree_t prefix)
       }
    }
 
+   tree_t value = p_expression();
+   solve_types(nametab, value, NULL);
+
    tree_t conv = tree_new(T_TYPE_CONV);
    tree_set_type(conv, type);
-   tree_set_value(conv, p_expression());
+   tree_set_value(conv, value);
 
    consume(tRPAREN);
 
@@ -9546,10 +9549,9 @@ static void p_waveform(tree_t stmt, tree_t target)
       return;
    }
 
-   tree_add_waveform(stmt, p_waveform_element(target));
-
-   while (optional(tCOMMA))
+   do {
       tree_add_waveform(stmt, p_waveform_element(target));
+   } while (optional(tCOMMA));
 
    tree_set_loc(stmt, CURRENT_LOC);
 }

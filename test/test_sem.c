@@ -946,6 +946,7 @@ START_TEST(test_signal)
       { 83, "S$disconnect already declared in this region" },   // XXX
       { 83, "time expression in disconnection specificiation must be static" },
       { 88, "invalid use of entity E" },
+      { 95, "target of signal assignment must be a signal name or aggregate" },
       { -1, NULL }
    };
    expect_errors(expect);
