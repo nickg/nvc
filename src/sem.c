@@ -4537,7 +4537,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    // Check for type conversions and conversion functions
    // These only apply if the class of the formal is not constant
 
-   tree_t actual = NULL;
+   tree_t actual;
    if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) {
       // Conversion functions are in LRM 93 section 4.3.2.2
       actual = tree_value(value);
@@ -4557,8 +4557,9 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    else
       actual = value;    // No conversion
 
+   tree_t ref = name_to_ref(actual);
+
    if (mode == PORT_IN && kind != T_INERTIAL) {
-      tree_t ref = name_to_ref(actual);
       bool is_static = true;
       if (ref != NULL && class_of(ref) == C_SIGNAL)
          is_static = sem_static_name(actual, sem_globally_static);
@@ -4597,7 +4598,6 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    }
    else if (mode == PORT_INOUT && tree_class(decl) == C_VARIABLE) {
       // VHDL-2019 additions for shared variable ports
-      tree_t ref = name_to_ref(value);
       if (ref == NULL || class_of(ref) != C_VARIABLE)
          sem_error(value, "actual associated with formal variable port %s "
                    "must either be a shared variable or a formal variable port "
@@ -4620,6 +4620,36 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    }
    else if (kind == T_INERTIAL)
       tree_set_target(value, name ?: make_ref(decl));
+
+   // Check connections between ports
+   if (ref != NULL) {
+      tree_t odecl = tree_ref(ref);
+      if (tree_kind(odecl) == T_PORT_DECL) {
+         const port_mode_t omode = tree_subkind(odecl);
+
+         const bool error =
+            (omode == PORT_BUFFER && mode == PORT_INOUT)
+            || (omode == PORT_INOUT && mode == PORT_BUFFER)
+            || (omode == PORT_IN && (mode == PORT_OUT || mode == PORT_INOUT))
+            || (omode == PORT_OUT && mode == PORT_IN && standard() < STD_08)
+            || (omode == PORT_OUT && mode == PORT_INOUT)
+            || (omode == PORT_LINKAGE && mode != PORT_LINKAGE);
+
+         if (error) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+            diag_printf(d, "port %s with mode %s cannot be associated "
+                        "with formal port %s with mode %s",
+                        istr(tree_ident(odecl)), port_mode_str(omode),
+                        istr(tree_ident(decl)), port_mode_str(mode));
+            diag_hint(d, tree_loc(decl), "formal port %s declared here",
+                      istr(tree_ident(decl)));
+            diag_hint(d, tree_loc(odecl), "port %s declared here",
+                      istr(tree_ident(odecl)));
+            diag_emit(d);
+            return false;
+         }
+      }
+   }
 
    return true;
 }

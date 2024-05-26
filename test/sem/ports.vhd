@@ -375,3 +375,39 @@ begin
             "not"(5) => s );            -- Error
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture modes of top is
+    signal x, y : bit;
+begin
+
+    b1: block is
+        port ( ub : buffer bit; uio : inout bit;
+               ui : in bit; uo : out bit; ul : linkage bit );
+        port map ( x, y, '1', open );
+    begin
+        sub1: block is
+            port ( lb : buffer bit; lio : inout bit;
+                   li : in bit; lo : out bit );
+            port map (
+                lb => uio,              -- Error
+                lio => ub,              -- Error
+                li  => uo,              -- Error
+                lo  => ui               -- Error
+            );
+        begin
+        end block;
+
+        sub2: block is
+            port ( lio : inout bit; ll : linkage bit; li : in bit );
+            port map (
+                lio => uo,              -- Error
+                ll => ul,               -- OK
+                li => ul                -- Error
+            );
+        begin
+        end block;
+    end block;
+
+end architecture;

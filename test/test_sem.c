@@ -133,12 +133,24 @@ START_TEST(test_ports)
       { 373, "missing actual for port I of mode IN without a default " },
       { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
       { 354, "missing body for function FOO" },
+      { 394, "port UIO with mode INOUT cannot be associated with formal port "
+        "LB with mode BUFFER" },
+      { 395, "port UB with mode BUFFER cannot be associated with formal port "
+        "LIO with mode INOUT" },
+      { 396, "port UO with mode OUT cannot be associated with formal port LI "
+        "with mode IN" },
+      { 397, "port UI with mode IN cannot be associated with formal port LO "
+        "with mode OUT" },
+      { 405, "port UO with mode OUT cannot be associated with formal port "
+        "LIO with mode INOUT" },
+      { 407, "port UL with mode LINKAGE cannot be associated with formal "
+        "port LI with mode IN" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH,
-                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH);
+                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH);
 
    fail_unless(parse() == NULL);
    check_expected_errors();
