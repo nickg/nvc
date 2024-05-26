@@ -2973,8 +2973,11 @@ static void overload_named_argument(overload_t *o, tree_t name)
    o->nametab->top_scope->overload = o;
 
    tree_t ref = name_to_ref(name);
-   if (ref == NULL)
+   if (ref == NULL) {
+      // TODO: conversion functions not yet supported for formals
+      o->state = O_NAMED;
       return;
+   }
 
    ident_t ident = tree_ident(ref);
 

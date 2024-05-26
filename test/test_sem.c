@@ -645,6 +645,8 @@ START_TEST(test_procedure)
       {   0, "did you mean X?" },
       {   0, "subprogram TEST17_A [INTEGER, INTEGER] has arguments X, Y" },
       { 207, "cannot assign to input parameter X" },
+      { 224, "no possible overload of P1 has formal B" },
+      { 224, "sorry, conversion functions are not yet supported here" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -3000,6 +3000,10 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
             have_named = true;
 
             tree_t name = tree_name(param);
+            if (tree_kind(name) == T_FCALL)
+               sem_error(name, "sorry, conversion functions are not yet "
+                         "supported here");
+
             tree_t ref = name_to_ref(name);
             assert(ref != NULL);
 

@@ -207,4 +207,21 @@ package body p is
         x <= '1';                       -- Error
     end procedure;
 
+    procedure tc145 is                  -- Vests non-compliant tc145.vhd
+        procedure P1 (a    : in integer; b: out integer) is
+        begin
+        end procedure;
+
+        function  F1 (I1, I2   : in integer) return real is
+        begin
+            return 1.0;
+        end function;
+
+        variable x1 : real := 1.0;
+        variable x2 : real := 1.0;
+        variable y  : real ;
+    begin
+        P1 (10, F1(b, x1) => x2 );   -- Failure_here
+    end procedure;
+
 end package body;

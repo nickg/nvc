@@ -1328,7 +1328,7 @@ static void dump_stmt(tree_t t, int indent)
          print_syntax("%s", istr(tree_ident(decl)));
       }
       else
-         print_syntax("%s", istr(tree_ident(t)));
+         print_syntax("%s", istr(tree_ident2(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
@@ -1701,6 +1701,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_WHILE:
    case T_LOOP:
    case T_SEQUENCE:
+   case T_PCALL:
       dump_stmt(t, indent);
       break;
    case T_CONST_DECL:
