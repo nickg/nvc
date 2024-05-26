@@ -6057,6 +6057,9 @@ static bool sem_check_all(tree_t t, nametab_t *tab)
    if (type_is_none(value_type))
       return false;
 
+   if (!sem_check_readable(value))
+      return false;
+
    if (!type_is_access(value_type)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
       diag_printf(d, "prefix of a selected name with suffix ALL must "

@@ -71,7 +71,7 @@ package body p is
     type int_ptr_array is array (integer range <>) of int_ptr;
     type int_ptr_array_ptr is access int_ptr_array;
 
-    procedure alloc_ptr_array(x : out int_ptr_array_ptr) is
+    procedure alloc_ptr_array(x : inout int_ptr_array_ptr) is
     begin
         x := new int_ptr_array;          -- Error
         x := new int_ptr_array(1 to 3);  -- OK
@@ -126,6 +126,11 @@ package body p is
         type ft is file of natural;     -- OK
         type ftp is access ft;          -- Error
     begin
+    end procedure;
+
+    procedure test10 (p : out rec_ptr) is
+    begin
+        p.value := 1;                   -- Error
     end procedure;
 
 end package body;

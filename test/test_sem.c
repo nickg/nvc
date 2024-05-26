@@ -879,6 +879,7 @@ START_TEST(test_access)
       { 111, "prefix of a selected name with suffix ALL must have access " },
       { 125, "access type PTP cannot designate protected type" },
       { 127, "access type FTP cannot designate file type" },
+      { 133, "cannot read OUT parameter P" },
       { -1, NULL }
    };
    expect_errors(expect);

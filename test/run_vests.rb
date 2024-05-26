@@ -15,7 +15,7 @@ Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
 Billowitch = "#{Prefix}/billowitch"
-ExpectFails = 101
+ExpectFails = 87
 
 ENV['NVC_COLORS'] = 'always'
 
