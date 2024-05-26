@@ -6487,6 +6487,38 @@ START_TEST(test_vests4)
 }
 END_TEST
 
+START_TEST(test_vests5)
+{
+   input_from_file(TESTDIR "/parse/vests5.vhd");
+
+   const error_t expect[] = {
+      { 47, "ambiguous use of name MC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p2 = parse();
+      fail_if(p2 == NULL);
+      fail_unless(tree_kind(p2) == T_PACKAGE);
+      lib_put(lib_work(), p2);
+   }
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6634,6 +6666,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vests2);
    tcase_add_test(tc_core, test_vests3);
    tcase_add_test(tc_core, test_vests4);
+   tcase_add_test(tc_core, test_vests5);
    suite_add_tcase(s, tc_core);
 
    return s;

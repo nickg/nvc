@@ -1587,7 +1587,7 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
    SCOPED_A(tree_t) m = AINIT;
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
-      if (dd->visibility == OVERLOAD)
+      if (dd->visibility == OVERLOAD || tab->top_type_set->members.count == 0)
          APUSH(m, dd->tree);
    }
 
