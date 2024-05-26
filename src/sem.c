@@ -714,19 +714,6 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          if (!sem_check_range(r, NULL, check_kind, tab))
             return false;
 
-         // Standard specifies type of 'LEFT and 'RIGHT are same
-         // as the declared type
-         switch (tree_subkind(r)) {
-         case RANGE_TO:
-         case RANGE_DOWNTO:
-            tree_set_type(tree_left(r), type);
-            tree_set_type(tree_right(r), type);
-            break;
-         case RANGE_EXPR:
-            tree_set_type(tree_value(r), type);
-            break;
-         }
-
          tree_set_type(r, type);
          return true;
       }
