@@ -14,8 +14,8 @@ VestsDir = Pathname.new(ARGV[0] || "#{TestDir}/vests").realpath
 Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-Billowitch = "#{Prefix}/billowitch/compliant"
-ExpectFails = 25
+Billowitch = "#{Prefix}/billowitch"
+ExpectFails = 101
 
 ENV['NVC_COLORS'] = 'always'
 
@@ -35,18 +35,27 @@ def run_cmd(c, expfail)
 
     status = t.value
 
-    if status != 0 and not expfail then
+    if output =~ /Caught signal/ or (c =~ /-r/ and output =~ /FAILED TEST/) then
       puts
       puts c.magenta
       puts output
+      return false
+    elsif status != 0 and output =~ /PASSED TEST/ then
+      return true   # Testing assertion failure
+    elsif status != 0 and not expfail then
+      puts
+      puts c.magenta
+      puts output
+      return false
     elsif status == 0 and expfail then
       puts
       puts c.magenta
       puts output
       puts "expected failure!".magenta
+      return false
     end
 
-    return status == 0
+    return true
   end
 end
 
@@ -78,26 +87,93 @@ passes = 0
 Dir.mktmpdir do |tmpdir|
   Dir.chdir tmpdir
 
-  File.open("#{Billowitch}/compliant.exp").each_line do |line|
+  puts
+  puts "Billowitch, compliant".blue.bold
+  puts
+
+  File.open("#{Billowitch}/compliant/compliant.exp").each_line do |line|
     next unless m = line.match(/^run_compliant_test +(\w+.vhdl?)(.*)(?:#.*)?$/)
 
     tc = m.captures[0]
     io = m.captures[1]
 
     Dir.mktmpdir do |workdir|
-      f = File.realpath "#{Billowitch}/#{tc}"
+      f = File.realpath "#{Billowitch}/compliant/#{tc}"
       top = guess_top f
-      cmd = "#{Tool} --std=1993 --work=work:#{workdir}/work -a #{f} -e #{top} -r"
-      expfail = io =~ /EXPFAIL/
-      
-      result = run_cmd cmd, expfail
+      cmd = "#{Tool} --std=1993 --work=work:#{workdir}/work -a #{f} -e --jit --no-save #{top} -r"
+
+      result = run_cmd cmd, false
       
       if result then
         passes += 1
         print '+'.green
-      elsif expfail then
+      else
+        fails += 1
+      end
+    end
+  end
+end
+
+#
+# Billowitch, non-compliant, analyser failure
+#
+
+Dir.mktmpdir do |tmpdir|
+  Dir.chdir tmpdir
+
+  puts
+  puts "Billowitch, non-compliant, analyzer failure".blue.bold
+  puts
+
+  File.open("#{Billowitch}/non_compliant/analyzer_failure/non_compliant.exp").each_line do |line|
+    next unless m = line.match(/^run_non_compliant_test +(\w+.vhdl?)(.*)(?:#.*)?$/)
+
+    tc = m.captures[0]
+    io = m.captures[1]
+
+    Dir.mktmpdir do |workdir|
+      f = File.realpath "#{Billowitch}/non_compliant/analyzer_failure/#{tc}"
+      cmd = "#{Tool} --std=1993 --work=work:#{workdir}/work -a #{f}"
+
+      result = run_cmd cmd, true
+
+      if result then
         passes += 1
-        print '!'.green
+        print '+'.green
+      else
+        fails += 1
+      end
+    end
+  end
+end
+
+#
+# Billowitch, non-compliant, simulator failure
+#
+
+Dir.mktmpdir do |tmpdir|
+  Dir.chdir tmpdir
+
+  puts
+  puts "Billowitch, compliant, simulator failure".blue.bold
+  puts
+
+  File.open("#{Billowitch}/non_compliant/simulator_failure/non_compliant.exp").each_line do |line|
+    next unless m = line.match(/^run_non_compliant_test +(\w+.vhdl?)(.*)(?:#.*)?$/)
+
+    tc = m.captures[0]
+    io = m.captures[1]
+
+    Dir.mktmpdir do |workdir|
+      f = File.realpath "#{Billowitch}/non_compliant/simulator_failure/#{tc}"
+      top = guess_top f
+      cmd = "#{Tool} --std=1993 --work=work:#{workdir}/work -a #{f} -e --jit --no-save #{top} -r"
+
+      result = run_cmd cmd, true
+
+      if result then
+        passes += 1
+        print '+'.green
       else
         fails += 1
       end
