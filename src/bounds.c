@@ -716,7 +716,9 @@ static void bounds_check_index_contraints(type_t type)
       return;
 
    tree_t c0 = type_constraint(type, 0);
-   if (tree_subkind(c0) != C_INDEX)
+
+   const constraint_kind_t kind = tree_subkind(c0);
+   if (kind != C_INDEX && kind != C_RANGE)
       return;
 
    // Check folded range does not violate index constraints of base type
@@ -725,66 +727,94 @@ static void bounds_check_index_contraints(type_t type)
    for (int i = 0; i < ndims; i++) {
       tree_t dim = tree_range(c0, i);
 
-      type_t cons = index_type_of(type, i);
+      const range_kind_t dir = tree_subkind(dim);
+      if (dir != RANGE_TO && dir != RANGE_DOWNTO)
+         continue;
+
+      type_t cons = kind == C_INDEX ? index_type_of(type, i) : type_base(type);
       if (type_kind(cons) == T_GENERIC)
          continue;   // Cannot check
-
-      type_t cons_base = type_base_recur(cons);
-      const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
       tree_t bounds = range_of(cons, 0);
 
       // Only check here if range can be determined to be non-null
 
-      int64_t dim_low, bounds_low;
-      int64_t dim_high, bounds_high;
+      if (kind == C_RANGE && type_is_real(type)) {
+         double dim_low, bounds_low;
+         double dim_high, bounds_high;
 
-      const bool is_static =
-         folded_bounds(dim, &dim_low, &dim_high)
-         && folded_bounds(bounds, &bounds_low, &bounds_high);
+         const bool is_static =
+            folded_bounds_real(dim, &dim_low, &dim_high)
+            && folded_bounds_real(bounds, &bounds_low, &bounds_high);
 
-      if (!is_static)
-         continue;
+         if (!is_static)
+            continue;
 
-      const bool is_null =
-         dim_low > dim_high || bounds_low > bounds_high;
+         const bool is_null =
+            dim_low > dim_high || bounds_low > bounds_high;
 
-      if (is_null)
-         continue;
+         if (is_null)
+            continue;
 
-      const range_kind_t dim_kind = tree_subkind(dim);
-      tree_t dim_left = tree_left(dim);
-      tree_t dim_right = tree_right(dim);
-
-      if (dim_low < bounds_low) {
-         if (is_enum) {
-            tree_t lit = type_enum_literal(cons_base, (unsigned)dim_low);
-            bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
-                         "%s index %s violates constraint %s",
-                         dim_kind == RANGE_TO ? "left" : "right",
-                         istr(tree_ident(lit)), type_pp(cons));
-         }
-         else
-            bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
-                         "%s index %"PRIi64" violates constraint %s",
-                         dim_kind == RANGE_TO ? "left" : "right",
+         if (dim_low < bounds_low)
+            bounds_error(dir == RANGE_TO ? tree_left(dim) : tree_right(dim),
+                         "%s index %g violates constraint %s",
+                         dir == RANGE_TO ? "left" : "right",
                          dim_low, type_pp(cons));
 
-      }
-
-      if (dim_high > bounds_high) {
-         if (is_enum) {
-            tree_t lit = type_enum_literal(cons_base, (unsigned)dim_high);
-            bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
-                         "%s index %s violates constraint %s",
-                         dim_kind == RANGE_TO ? "right" : "left",
-                         istr(tree_ident(lit)), type_pp(cons));
-         }
-         else
-            bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
-                         "%s index %"PRIi64" violates constraint %s",
-                         dim_kind == RANGE_TO ? "right" : "left",
+         if (dim_high > bounds_high)
+            bounds_error(dir == RANGE_TO ? tree_right(dim) : tree_left(dim),
+                         "%s index %g violates constraint %s",
+                         dir == RANGE_TO ? "right" : "left",
                          dim_high, type_pp(cons));
+
+      }
+      else {
+         int64_t dim_low, bounds_low;
+         int64_t dim_high, bounds_high;
+
+         const bool is_static =
+            folded_bounds(dim, &dim_low, &dim_high)
+            && folded_bounds(bounds, &bounds_low, &bounds_high);
+
+         if (!is_static)
+            continue;
+
+         const bool is_null =
+            dim_low > dim_high || bounds_low > bounds_high;
+
+         if (is_null)
+            continue;
+
+         if (type_is_enum(cons)) {
+            if (dim_low < bounds_low) {
+               type_t cons_base = type_base_recur(cons);
+               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_low);
+               bounds_error(dir == RANGE_TO ? tree_left(dim) : tree_right(dim),
+                            "%s index %s violates constraint %s",
+                            dir == RANGE_TO ? "left" : "right",
+                            istr(tree_ident(lit)), type_pp(cons));
+            }
+
+            if (dim_high > bounds_high) {
+               type_t cons_base = type_base_recur(cons);
+               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_high);
+               bounds_error(dir == RANGE_TO ? tree_right(dim) : tree_left(dim),
+                            "%s index %s violates constraint %s",
+                            dir == RANGE_TO ? "right" : "left",
+                            istr(tree_ident(lit)), type_pp(cons));
+            }
+         }
+         else if (dim_high > bounds_high)
+            bounds_error(dir == RANGE_TO ? tree_right(dim) : tree_left(dim),
+                         "%s index %"PRIi64" violates constraint %s",
+                         dir == RANGE_TO ? "right" : "left",
+                         dim_high, type_pp(cons));
+         else if (dim_low < bounds_low)
+            bounds_error(dir == RANGE_TO ? tree_left(dim) : tree_right(dim),
+                         "%s index %"PRIi64" violates constraint %s",
+                         dir == RANGE_TO ? "left" : "right",
+                         dim_low, type_pp(cons));
       }
    }
 }

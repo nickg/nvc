@@ -291,7 +291,7 @@ END_TEST
 START_TEST(test_issue208)
 {
    const error_t expect[] = {
-      { 20, "missing choice for element 1 of type NATURAL range 1 downto 0" },
+      { 20, "missing choice for element 1 of type INTEGER range 1 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -740,6 +740,25 @@ START_TEST(test_issue863)
 }
 END_TEST
 
+START_TEST(test_subtype)
+{
+   input_from_file(TESTDIR "/bounds/subtype.vhd");
+
+   const error_t expect[] = {
+      {  3, "left index -1 violates constraint INT8" },
+      {  4, "right index 300 violates constraint INT8" },
+      {  8, "right index C violates constraint AB" },
+      { 11, "left index -1 violates constraint REAL10" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -779,6 +798,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue819);
    tcase_add_test(tc_core, test_cons1);
    tcase_add_test(tc_core, test_issue863);
+   tcase_add_test(tc_core, test_subtype);
    suite_add_tcase(s, tc_core);
 
    return s;

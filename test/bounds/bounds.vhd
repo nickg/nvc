@@ -244,4 +244,12 @@ begin
         a(4) := '1';                    -- OK
     end process;
 
+    process is
+        constant k : positive := 42;
+    begin
+        for i in 0 to k loop             -- OK (base is INTEGER)
+            wait;
+        end loop;
+    end process;
+
 end architecture;

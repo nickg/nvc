@@ -9911,7 +9911,9 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    convert_universal_bounds(r);
    tree_add_range(loop, r);
 
-   type_t base = tree_type(r);
+   // LRM 08 section 10.10: the loop parameter is an object whose type
+   // is the base type of the discrete range
+   type_t base = type_base_recur(tree_type(r));
 
    tree_t constraint = tree_new(T_CONSTRAINT);
    tree_set_subkind(constraint, C_RANGE);
