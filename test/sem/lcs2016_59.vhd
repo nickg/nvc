@@ -172,6 +172,26 @@ begin
             generic ( type t is file of bit );
         end component;
 
+        impure function "=" (file x, y : t_bit_file) return boolean is
+        begin
+            return false;
+        end function;
+
+        impure function "=" (file x, y : t_int_file) return boolean is
+        begin
+            return false;
+        end function;
+
+        impure function "/=" (file x, y : t_bit_file) return boolean is
+        begin
+            return false;
+        end function;
+
+        impure function "/=" (file x, y : t_int_file) return boolean is
+        begin
+            return false;
+        end function;
+
     begin
 
         u19: component c8

@@ -929,6 +929,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Use operators of base type
       break;
 
+   case T_FILE:
+      // No predefined operators
+      break;
+
    case T_ARRAY:
       // Operators on arrays
       declare_binary(container, eq, t, t, std_bool, S_ARRAY_EQ);
@@ -1073,7 +1077,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
    default:
       declare_binary(container, eq, t, t, std_bool, S_SCALAR_EQ);
       declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
-
       break;
    }
 

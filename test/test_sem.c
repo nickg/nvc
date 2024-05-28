@@ -845,6 +845,8 @@ START_TEST(test_file)
       { 49, "type T_REC2 has a subelement with an access type" },
       { 60, "function result subtype may not denote a file type" },
       { 76, "no matching subprogram READ [FT, FILE_OPEN_STATUS]" },
+      { 82, "no matching operator \"=\" [FT, FT return BOOLEAN]" },
+      { 83, "no matching operator \"/=\" [FT, FT return BOOLEAN]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3437,27 +3439,27 @@ START_TEST(test_lcs2016_59)
         "designated type (an anonymous type) is not a scalar type" },
       { 155, "cannot map type T_INT_PTR to generic interface type T "
         "as the designated type INTEGER is not BIT" },
-      { 181, "cannot map type REAL to generic interface type T which "
+      { 201, "cannot map type REAL to generic interface type T which "
         "requires a file type" },
-      { 190, "cannot map type T_INT_FILE to generic interface type T as "
+      { 210, "cannot map type T_INT_FILE to generic interface type T as "
         "the designated type INTEGER is not BIT" },
-      { 208, "cannot map type INTEGER to generic interface type T which "
+      { 228, "cannot map type INTEGER to generic interface type T which "
         "requires an array type" },
-      { 211, "cannot map type T_BOOL_MAP to generic interface type T as "
+      { 231, "cannot map type T_BOOL_MAP to generic interface type T as "
         "the index type BOOLEAN of the first dimension is not NATURAL" },
-      { 214, "cannot map type T6 to generic interface type T as the element "
+      { 234, "cannot map type T6 to generic interface type T as the element "
         "type (an anonymous type) is not a discrete type" },
-      { 217, "cannot map type T_BOOL_MAP to generic interface type T as the "
+      { 237, "cannot map type T_BOOL_MAP to generic interface type T as the "
         "index type BOOLEAN of the first dimension is not an integer type" },
-      { 220, "cannot map type T_TIME_MAP to generic interface type T as the "
+      { 240, "cannot map type T_TIME_MAP to generic interface type T as the "
         "element type TIME is not BOOLEAN" },
-      { 223, "cannot map type T_MATRIX to generic interface type T as it has "
+      { 243, "cannot map type T_MATRIX to generic interface type T as it has "
         "2 dimensions but the incomplete type definition has 1" },
-      { 227, "declaration of variable V2 without an initial value cannot have "
+      { 247, "declaration of variable V2 without an initial value cannot have "
         "unconstrained type T6" },
-      { 265, "type of initial value universal_integer does not match type of "
+      { 285, "type of initial value universal_integer does not match type of "
         "declaration (an anonymous type)" },  // TODO: wrong
-      { 266, "ambiguous use of enumeration literal '1'" },   // TODO: wrong
+      { 286, "ambiguous use of enumeration literal '1'" },   // TODO: wrong
       { -1, NULL }
    };
    expect_errors(expect);

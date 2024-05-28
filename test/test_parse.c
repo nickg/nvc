@@ -702,7 +702,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 81);  // Includes predefined
+   fail_unless(tree_decls(a) == 79);  // Includes predefined
 
    d = search_decls(a, ident_new("MY_INT"), 0);
    fail_if(d == NULL);

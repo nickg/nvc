@@ -77,4 +77,10 @@ package body p is
         assert endfile(f1);             -- OK
     end procedure;
 
+    procedure test2 is
+    begin
+        assert f1 = f1;                 -- Error
+        assert f5 /= f1;                -- Error
+    end procedure;
+
 end package body;
