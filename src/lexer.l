@@ -84,6 +84,7 @@ static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
 static int escape_verilog_string(const char *str);
 static int report_unterminated_string(const char *str);
+static int report_bad_identifier(char *str);
 
 static int last_token = -1;
 static int comment_caller = 0;
@@ -95,6 +96,7 @@ extern yylval_t yylval;
 LOWER           [a-z\xdf-\xf6\xf8-\xff]
 UPPER           [A-Z\xc0-\xd6\xd8-\xde]
 VHDL_ID         ({LOWER}|{UPPER})(_?({LOWER}|{UPPER}|[0-9]))*
+BAD_ID          ({LOWER}|{UPPER}|_)({LOWER}|{UPPER}|[0-9_])*
 EXID            \\([^\\\n]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
@@ -591,6 +593,7 @@ UNION         ?i:union
 
 <INITIAL,PSL>{VHDL_ID}   { return parse_id(yytext); }
 {EXID}                   { return parse_ex_id(yytext); }
+<INITIAL,PSL>{BAD_ID}    { return report_bad_identifier(yytext); }
 <*>{SPACE}               { }
 <*>"\n"                  { /* Must match a single character */ }
 <*><<EOF>>               { return 0; }
@@ -819,6 +822,17 @@ static int report_unterminated_string(const char *str)
    diag_emit(d);
 
    return parse_string(str);
+}
+
+static int report_bad_identifier(char *str)
+{
+   diag_t *d = diag_new(DIAG_ERROR, &yylloc);
+   diag_printf(d, "a VHDL basic identifier must not start or end with an "
+               "underscore, or contain multiple consecutive underscores");
+   diag_lrm(d, STD_08, "15.4.2");
+   diag_emit(d);
+
+   return parse_id(str);
 }
 
 static int escape_verilog_string(const char *str)

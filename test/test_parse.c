@@ -6522,11 +6522,11 @@ START_TEST(test_basic_identifier)
    input_from_file(TESTDIR "/parse/basic_identifier.vhd");
 
    const error_t expect[] = {
-      { 1, "unexpected error while parsing entity declaration, expecting is" },
-      { 2, "unexpected error while parsing entity declaration, expecting is" },
-      { 3, "unexpected error while parsing entity declaration, expecting identifier" },
-      { 8, "unexpected error while parsing architecture body, expecting of" },
-      { 12, "unexpected error while parsing architecture body, expecting of" },
+      {  1, "basic identifier must not start or end with an underscore" },
+      {  2, "basic identifier must not start or end with an underscore" },
+      {  3, "basic identifier must not start or end with an underscore" },
+      {  8, "basic identifier must not start or end with an underscore" },
+      { 12, "basic identifier must not start or end with an underscore" },
       { -1, NULL }
    };
    expect_errors(expect);
