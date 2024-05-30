@@ -368,6 +368,7 @@ EXTRA_DIST += \
 	test/parse/attr.vhd \
 	test/parse/badprimary.vhd \
 	test/parse/based.vhd \
+	test/parse/basic_identifier.vhd \
 	test/parse/bitstring.vhd \
 	test/parse/block.vhd \
 	test/parse/comp.vhd \
