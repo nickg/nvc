@@ -413,7 +413,7 @@ typedef enum {
    TREE_F_EXPLICIT_MODE   = (1 << 16),
    TREE_F_PROTECTED       = (1 << 17),
    TREE_F_STATIC_WAIT     = (1 << 18),
-   // Unused              = (1 << 19),
+   TREE_F_NONOBJECT_ALIAS = (1 << 19),
    TREE_F_NEVER_WAITS     = (1 << 20),
    TREE_F_HAS_WAIT        = (1 << 21),
    TREE_F_IMPURE_FILE     = (1 << 22),

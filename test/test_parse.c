@@ -2877,14 +2877,7 @@ END_TEST
 
 START_TEST(test_error)
 {
-   tree_t e, a;
-
    input_from_file(TESTDIR "/parse/error.vhd");
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   lib_put(lib_work(), e);
 
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
@@ -2901,21 +2894,26 @@ START_TEST(test_error)
       { 35, "signal X is not a formal parameter and subprogram" },
       { 35, "signal X is not a formal parameter and subprogram" },
       { 36, "expected trailing subprogram body label to match \"+\"" },
-      { 41, "P1 already declared in this region" },
-      { 44, "A1 already declared in this region" },
-      { 47, "S1 already declared in this region" },
-      { 50, "B1 already declared in this region" },
-      { 56, "C1 already declared in this region" },
-      { 64, "design unit NOT_HERE not found in library WORK" },
+      { 46, "P1 already declared in this region" },
+      { 49, "A1 already declared in this region" },
+      { 52, "S1 already declared in this region" },
+      { 55, "B1 already declared in this region" },
+      { 61, "C1 already declared in this region" },
+      { 64, "no visible declaration for NOT_A_LIBRARY" },
+      { 69, "design unit NOT_HERE not found in library WORK" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   a = parse();
-   fail_if(a == NULL);
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
-   a = parse();
-   fail_if(a == NULL);
+   for (int i = 0; i < 3; i++) {
+      tree_t a = parse();
+      fail_if(a == NULL);
+   }
 
    check_expected_errors();
 }
@@ -6552,6 +6550,49 @@ START_TEST(test_basic_identifier)
 }
 END_TEST
 
+START_TEST(test_issue893)
+{
+   input_from_file(TESTDIR "/parse/issue893.vhd");
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p2 = parse();
+      fail_if(p2 == NULL);
+      fail_unless(tree_kind(p2) == T_PACKAGE);
+      lib_put(lib_work(), p2);
+   }
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_alias4)
+{
+   input_from_file(TESTDIR "/parse/alias4.vhd");
+
+   for (int i = 0; i < 3; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6701,6 +6742,8 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vests4);
    tcase_add_test(tc_core, test_vests5);
    tcase_add_test(tc_core, test_basic_identifier);
+   tcase_add_test(tc_core, test_issue893);
+   tcase_add_test(tc_core, test_alias4);
    suite_add_tcase(s, tc_core);
 
    return s;

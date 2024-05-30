@@ -1417,6 +1417,10 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       assert(tree_kind(value) == T_REF || tree_kind(value) == T_PROT_REF);
       return true;
    }
+   else if (tree_flags(t) & TREE_F_NONOBJECT_ALIAS) {
+      // TODO: cannot be label
+      return true;
+   }
    else if (value_kind == T_REF && tree_has_ref(value)) {
       tree_t decl = tree_ref(value);
       if (aliased_type_decl(decl) != NULL)

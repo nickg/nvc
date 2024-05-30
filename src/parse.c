@@ -1407,6 +1407,7 @@ static void declare_alias(tree_t container, tree_t to, ident_t name)
    tree_set_ident(alias, name);
    tree_set_value(alias, make_ref(to));
    tree_set_type(alias, tree_type(to));
+   tree_set_flag(alias, TREE_F_NONOBJECT_ALIAS | TREE_F_PREDEFINED);
 
    tree_add_decl(container, alias);
 }
@@ -2339,9 +2340,9 @@ static void add_predef_alias(tree_t t, void *context)
    tree_set_ident(a, tree_ident(t));
    tree_set_value(a, make_ref(t));
    tree_set_type(a, tree_type(t));
-   tree_set_flag(a, TREE_F_PREDEFINED);
+   tree_set_flag(a, TREE_F_PREDEFINED | TREE_F_NONOBJECT_ALIAS);
 
-   insert_name(nametab, a, NULL);
+   insert_name(nametab, t, NULL);
    tree_add_decl(parent, a);
 }
 
@@ -7252,6 +7253,7 @@ static void p_alias_declaration(tree_t parent)
    }
 
    const tree_kind_t value_kind = tree_kind(value);
+   bool nonobject_alias = false, type_alias = false;
 
    if (peek() == tLSQUARE) {
       type_t type = p_signature();
@@ -7273,22 +7275,44 @@ static void p_alias_declaration(tree_t parent)
       }
       tree_set_type(t, type);
    }
+   else if (value_kind == T_REF && tree_has_ref(value)) {
+      // A non-object alias may be a design unit which does not have a type
+      tree_t decl = tree_ref(value);
+      if (is_design_unit(decl))
+         nonobject_alias = true;
+      else
+         solve_types(nametab, value, NULL);
+   }
    else
       solve_types(nametab, value, NULL);
 
-   const bool type_alias =
-      value_kind == T_REF
-      && tree_has_ref(value)
-      && is_type_decl(tree_ref(value));
+   if (!nonobject_alias && value_kind == T_REF && tree_has_ref(value)) {
+      tree_t decl = tree_ref(value);
+      if (is_subprogram(decl))
+         nonobject_alias = true;
+      else if (tree_kind(decl) == T_ENUM_LIT)
+         nonobject_alias = true;
+      else if (is_type_decl(decl)) {
+         // TODO: should also set nonobject_alias = true too
+         type_alias = true;
+      }
+   }
 
-   if (type_alias && has_subtype_indication)
+   if ((type_alias || nonobject_alias) && has_subtype_indication)
       parse_error(CURRENT_LOC, "non-object alias may not have "
                   "subtype indication");
 
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
-   insert_name(nametab, t, NULL);
+
+   if (nonobject_alias) {
+      tree_set_flag(t, TREE_F_NONOBJECT_ALIAS);
+      insert_name(nametab, tree_ref(value), id);
+   }
+   else
+      insert_name(nametab, t, NULL);
+
    sem_check(t, nametab);
 
    tree_add_decl(parent, t);
@@ -7311,9 +7335,9 @@ static void p_alias_declaration(tree_t parent)
                tree_set_ident(a, tree_ident(lit));
                tree_set_value(a, make_ref(lit));
                tree_set_type(a, type);
-               tree_set_flag(a, TREE_F_PREDEFINED);
+               tree_set_flag(a, TREE_F_PREDEFINED | TREE_F_NONOBJECT_ALIAS);
 
-               insert_name(nametab, a, NULL);
+               insert_name(nametab, lit, NULL);
                tree_add_decl(parent, a);
             }
          }
@@ -7330,9 +7354,9 @@ static void p_alias_declaration(tree_t parent)
                tree_set_ident(a, tree_ident(unit));
                tree_set_value(a, make_ref(unit));
                tree_set_type(a, type);
-               tree_set_flag(a, TREE_F_PREDEFINED);
+               tree_set_flag(a, TREE_F_PREDEFINED | TREE_F_NONOBJECT_ALIAS);
 
-               insert_name(nametab, a, NULL);
+               insert_name(nametab, unit, NULL);
                tree_add_decl(parent, a);
             }
          }

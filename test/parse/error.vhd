@@ -36,6 +36,11 @@ begin
         end function "-";               -- Label does not match
     begin
     end block;
+end architecture;
+
+architecture a2 of e is
+    signal x : integer;
+begin
 
     p1: process is begin end process;
     p1: process is begin end process;   -- Error, duplicate label

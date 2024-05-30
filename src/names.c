@@ -329,16 +329,6 @@ static bool type_set_any(nametab_t *tab, type_pred_t pred)
 static bool can_overload(tree_t t)
 {
    switch (tree_kind(t)) {
-   case T_ALIAS:
-      {
-         tree_t alias = tree_value(t);
-         if (tree_kind(alias) != T_REF)
-            return false;
-         else if (!tree_has_ref(alias))
-            return true;   // Suppress cascading errors
-         else
-            return can_overload(tree_ref(alias));
-      }
    case T_GENERIC_DECL:
       {
          const class_t class = tree_class(t);
@@ -353,6 +343,9 @@ static bool can_overload(tree_t t)
    case T_PROC_INST:
    case T_FUNC_INST:
       return true;
+   case T_ALIAS:
+      assert(!(tree_flags(t) & TREE_F_NONOBJECT_ALIAS));
+      return false;
    default:
       return false;
    }
@@ -828,6 +821,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             diag_printf(d, "%s already declared in this region", istr(name));
             diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
             diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_suppress(d, s->suppress);
             diag_emit(d);
             return sym;
          }
@@ -931,7 +925,7 @@ static void merge_symbol(scope_t *s, const symbol_t *src)
          };
       }
       else
-         make_visible(s, tree_ident(dd->tree), dd->tree, POTENTIAL, dd->origin);
+         make_visible(s, src->name, dd->tree, POTENTIAL, dd->origin);
    }
 }
 
@@ -1085,7 +1079,12 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(unit, i);
          const tree_kind_t dkind = tree_kind(d);
-         if (dkind == T_ALIAS || dkind == T_TYPE_DECL) {
+         if (dkind == T_ALIAS && (tree_flags(d) & TREE_F_NONOBJECT_ALIAS)) {
+            // A nonobject alias points directly to the aliased named
+            // entity not to the alias declaration
+            make_visible_slow(s, tree_ident(d), tree_ref(tree_value(d)));
+         }
+         else if (dkind == T_ALIAS || dkind == T_TYPE_DECL) {
             // Handle special cases: an alias may make the same
             // enumeration literal visible multiple times and a type
             // declaration may hide an earlier incomplete type
@@ -1517,13 +1516,11 @@ static tree_t get_aliased_subprogram(tree_t t)
       tree_t decl = tree_ref(aliased);
       if (tree_kind(decl) == T_ALIAS)
          return get_aliased_subprogram(decl);
-      else
-         return decl;
    }
    else if (kind == T_PROT_REF)
       return aliased;
-   else
-      return NULL;
+
+   return NULL;
 }
 
 static bool can_call_no_args(tree_t t)
@@ -2129,10 +2126,20 @@ void insert_decls(nametab_t *tab, tree_t container)
    int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(container, i);
-      if (tree_kind(d) == T_USE)
+      switch (tree_kind(d)) {
+      case T_USE:
          insert_names_from_use(tab, d);
-      else
-         insert_name(tab, tree_decl(container, i), NULL);
+         break;
+      case T_ALIAS:
+         if (tree_flags(d) & TREE_F_NONOBJECT_ALIAS) {
+            insert_name(tab, tree_ref(tree_value(d)), tree_ident(d));
+            break;
+         }
+         // Fall-through
+      default:
+         insert_name(tab, d, NULL);
+         break;
+      }
    }
 }
 
