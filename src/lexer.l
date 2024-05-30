@@ -94,7 +94,7 @@ extern yylval_t yylval;
 
 LOWER           [a-z\xdf-\xf6\xf8-\xff]
 UPPER           [A-Z\xc0-\xd6\xd8-\xde]
-VHDL_ID         ({LOWER}|{UPPER})({LOWER}|{UPPER}|[_0-9])*
+VHDL_ID         ({LOWER}|{UPPER})(_?({LOWER}|{UPPER}|[0-9]))*
 EXID            \\([^\\\n]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
