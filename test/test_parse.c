@@ -6519,6 +6519,39 @@ START_TEST(test_vests5)
 }
 END_TEST
 
+START_TEST(test_basic_identifier)
+{
+   input_from_file(TESTDIR "/parse/basic_identifier.vhd");
+
+   const error_t expect[] = {
+      { 1, "unexpected error while parsing entity declaration, expecting is" },
+      { 2, "unexpected error while parsing entity declaration, expecting is" },
+      { 3, "unexpected error while parsing entity declaration, expecting identifier" },
+      { 8, "unexpected error while parsing architecture body, expecting of" },
+      { 12, "unexpected error while parsing architecture body, expecting of" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 5; i++) {
+      tree_t e = parse();
+      fail_if(e == NULL);
+      fail_unless(tree_kind(e) == T_ENTITY);
+      lib_put(lib_work(), e);
+   }
+
+   for (int i = 0; i < 3; i++) {
+      tree_t a = parse();
+      fail_if(a == NULL);
+      fail_unless(tree_kind(a) == T_ARCH);
+   }
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6667,6 +6700,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vests3);
    tcase_add_test(tc_core, test_vests4);
    tcase_add_test(tc_core, test_vests5);
+   tcase_add_test(tc_core, test_basic_identifier);
    suite_add_tcase(s, tc_core);
 
    return s;
