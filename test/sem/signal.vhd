@@ -100,4 +100,18 @@ begin
         (x, x, x) <= v;                 -- Error
     end process;
 
+    b10: block (true) is
+        function resolved (x : bit_vector) return bit;
+        subtype rbit is resolved bit;
+        signal s : rbit bus;            -- OK
+        signal t : bit;
+    begin
+        (s, t) <= bit_vector'("10");    -- Error
+        (s, t) <= guarded bit_vector'("10");    -- Error
+        with t select s <= guarded '1' when '0',  -- OK
+                           '0' when others;
+        with t select s <= '1' when '0',  -- Error (missed)
+                           '0' when others;
+    end block;
+
 end architecture;

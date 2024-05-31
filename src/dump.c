@@ -1399,6 +1399,8 @@ static void dump_stmt(tree_t t, int indent)
    case T_COND_ASSIGN:
       dump_expr(tree_target(t));
       print_syntax(" <= ");
+      if (tree_has_guard(t))
+         print_syntax("#guarded ");
       for (int i = 0; i < tree_conds(t); i++) {
          tree_t c = tree_cond(t, i);
          dump_waveforms(tree_stmt(c, 0));
@@ -1418,8 +1420,6 @@ static void dump_stmt(tree_t t, int indent)
    case T_CONCURRENT:
       if (tree_flags(t) & TREE_F_POSTPONED)
          print_syntax("#postponed ");
-      if (tree_has_guard(t))
-         print_syntax("#guarded ");
       dump_stmt(tree_stmt(t, 0), 0);
       return;
 

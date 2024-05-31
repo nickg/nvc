@@ -2509,7 +2509,7 @@ static tree_t sem_check_view_target(tree_t target)
    }
 }
 
-static bool sem_check_signal_target(tree_t target, nametab_t *tab)
+static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
 {
    if (tree_kind(target) == T_AGGREGATE) {
       // Rules for aggregate signal targets in LRM 93 section 8.4
@@ -2519,16 +2519,32 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          sem_error(target, "aggregate target of signal assignment has "
                    "non-composite type %s", type_pp(type));
 
+      bool has_guarded = false, has_unguarded = false;
       const int nassocs = tree_assocs(target);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(target, i);
          tree_t value = tree_value(a);
 
-         if (!sem_check_signal_target(value, tab))
+         if (!sem_check_signal_target(value, tab, guarded))
             return false;
 
          if (!sem_check_aggregate_target_element(target, i))
             return false;
+
+         tree_t ref = name_to_ref(value);
+         if (ref != NULL && is_guarded_signal(tree_ref(ref)))
+            has_guarded = true;
+         else
+            has_unguarded = true;
+      }
+
+      if (has_guarded && has_unguarded) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "aggregate target of signal assignment contains both "
+                     "guarded and unguarded signals");
+         diag_lrm(d, STD_08, "11.6");
+         diag_emit(d);
+         return false;
       }
 
       return true;
@@ -2538,6 +2554,17 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
       if (decl == NULL)
          sem_error(target, "target of signal assignment must be a signal "
                    "name or aggregate");
+
+      if (is_guarded_signal(decl) && !guarded) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "guarded signal %s cannot be the target of an "
+                     "unguarded assignment", istr(tree_ident(decl)));
+         diag_hint(d, tree_loc(decl), "%s declared here",
+                   istr(tree_ident(decl)));
+         diag_lrm(d, STD_08, "11.6");
+         diag_emit(d);
+         return false;
+      }
 
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
@@ -2689,7 +2716,7 @@ static bool sem_check_signal_assign(tree_t t, nametab_t *tab)
    if (!sem_check(target, tab))
       return false;
 
-   if (!sem_check_signal_target(target, tab))
+   if (!sem_check_signal_target(target, tab, true))
       return false;
 
    if (!sem_check_waveforms(t, target, tab))
@@ -2740,7 +2767,12 @@ static bool sem_check_cond_assign(tree_t t, nametab_t *tab)
    if (!sem_check(target, tab))
       return false;
 
-   if (!sem_check_signal_target(target, tab))
+   const bool has_guard = tree_has_guard(t);
+
+   if (!sem_check_signal_target(target, tab, has_guard))
+      return false;
+
+   if (has_guard && !sem_check_guard(tree_guard(t), tab))
       return false;
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
@@ -6471,9 +6503,6 @@ static bool sem_check_conv_func(tree_t t, nametab_t *tab)
 
 static bool sem_check_concurrent(tree_t t, nametab_t *tab)
 {
-   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t), tab))
-      return false;
-
    if (tree_stmts(t) == 0)
       return false;   // Was parse error
 

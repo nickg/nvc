@@ -10571,7 +10571,7 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    p_options(&reject, &guard);
 
    if (guard != NULL) {
-      tree_set_guard(conc, guard);
+      tree_set_guard(stmt, guard);
       find_disconnect_specification(guard, target);
    }
 
@@ -10655,7 +10655,7 @@ static tree_t p_selected_signal_assignment(void)
    p_options(&reject, &guard);
 
    if (guard != NULL) {
-      tree_set_guard(conc, guard);
+      tree_set_guard(stmt, guard);
       find_disconnect_specification(guard, target);
    }
 

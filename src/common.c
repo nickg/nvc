@@ -765,7 +765,13 @@ bool is_body(tree_t t)
 
 bool is_guarded_signal(tree_t decl)
 {
-   return !!(tree_flags(decl) & (TREE_F_BUS | TREE_F_REGISTER));
+   switch (tree_kind(decl)) {
+   case T_PORT_DECL:
+   case T_SIGNAL_DECL:
+      return !!(tree_flags(decl) & (TREE_F_BUS | TREE_F_REGISTER));
+   default:
+      return false;
+   }
 }
 
 bool is_type_decl(tree_t t)

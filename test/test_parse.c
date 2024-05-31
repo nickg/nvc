@@ -3211,16 +3211,21 @@ START_TEST(test_guarded)
 
    tree_t s0 = tree_stmt(b2, 0);
    fail_unless(tree_kind(s0) == T_CONCURRENT);
-   fail_unless(tree_has_guard(s0));
 
-   tree_t gref = tree_guard(s0);
+   tree_t s0s0 = tree_stmt(s0, 0);
+   fail_unless(tree_kind(s0s0) == T_COND_ASSIGN);
+   fail_unless(tree_has_guard(s0s0));
+
+   tree_t gref = tree_guard(s0s0);
    fail_unless(tree_kind(gref) == T_GUARD);
    fail_unless(tree_ref(gref) == g);
 
    tree_t s1 = tree_stmt(b2, 1);
    fail_unless(tree_kind(s1) == T_CONCURRENT);
-   fail_unless(tree_kind(tree_stmt(s1, 0)) == T_SELECT);
-   fail_unless(tree_has_guard(s1));
+
+   tree_t s1s0 = tree_stmt(s1, 0);
+   fail_unless(tree_kind(s1s0) == T_SELECT);
+   fail_unless(tree_has_guard(s1s0));
 
    tree_t b3 = tree_stmt(a, 3);
    fail_unless(tree_kind(b3) == T_BLOCK);

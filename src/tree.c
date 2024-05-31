@@ -118,7 +118,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_COND_ASSIGN
-   (I_IDENT | I_TARGET | I_CONDS),
+   (I_IDENT | I_TARGET | I_CONDS | I_GUARD),
 
    // T_WHILE
    (I_IDENT | I_VALUE | I_STMTS),
@@ -164,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE | I_FLAGS),
 
    // T_SELECT
-   (I_IDENT | I_VALUE | I_STMTS),
+   (I_IDENT | I_VALUE | I_STMTS | I_GUARD),
 
    // T_COMPONENT
    (I_IDENT | I_PORTS | I_GENERICS),
@@ -269,7 +269,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_REF | I_VALUE | I_TYPE),
 
    // T_CONCURRENT
-   (I_IDENT | I_STMTS | I_GUARD | I_FLAGS),
+   (I_IDENT | I_STMTS | I_FLAGS),
 
    // T_SEQUENCE
    (I_IDENT | I_STMTS | I_DECLS),
@@ -355,7 +355,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_REF | I_SUBKIND | I_TYPE | I_VALUE),
 
    // T_MATCH_SELECT
-   (I_IDENT | I_VALUE | I_STMTS),
+   (I_IDENT | I_VALUE | I_STMTS | I_GUARD),
 
    // T_PROT_DECL
    (I_IDENT | I_DECLS | I_TYPE),

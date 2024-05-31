@@ -987,3 +987,4 @@ issue894        normal,2008
 real6           normal
 integer3        normal,2008
 wait28          fail,gold
+guard4          normal

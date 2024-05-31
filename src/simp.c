@@ -977,7 +977,15 @@ static tree_t simp_while(tree_t t)
    return t;
 }
 
-static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
+static void simp_guard_target_cb(tree_t t, void *ctx)
+{
+   bool *guarded_target = ctx;
+
+   if (is_guarded_signal(tree_ref(t)))
+      *guarded_target = true;
+}
+
+static tree_t simp_guard(tree_t t, tree_t s0, tree_t target)
 {
    // See LRM 93 section 9.3
 
@@ -993,36 +1001,34 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
 
    tree_t guard_ref = make_ref(tree_ref(guard));
    tree_set_value(c0, guard_ref);
-   tree_add_trigger(wait, guard_ref);
+   tree_add_stmt(c0, s0);
 
-   if (tree_kind(s0) == T_SIGNAL_ASSIGN) {
-      tree_t target = tree_target(s0);
-      tree_t ref = name_to_ref(target);
-      if (ref != NULL && is_guarded_signal(tree_ref(ref))) {
-         tree_t d = tree_new(T_SIGNAL_ASSIGN);
-         tree_set_loc(d, tree_loc(t));
-         tree_set_target(d, tree_target(s0));
+   bool guarded_target = false;
+   tree_visit_only(target, simp_guard_target_cb, &guarded_target, T_REF);
 
-         tree_t w0 = tree_new(T_WAVEFORM);
-         tree_set_loc(w0, tree_loc(t));
+   if (guarded_target) {
+      tree_t d = tree_new(T_SIGNAL_ASSIGN);
+      tree_set_loc(d, tree_loc(t));
+      tree_set_target(d, target);
 
-         if (tree_has_spec(guard)) {
-            tree_t spec = tree_spec(guard);
-            assert(tree_kind(spec) == T_DISCONNECT);
-            tree_set_delay(w0, tree_delay(spec));
-         }
+      tree_t w0 = tree_new(T_WAVEFORM);
+      tree_set_loc(w0, tree_loc(t));
 
-         tree_add_waveform(d, w0);
-
-         tree_t c1 = tree_new(T_COND_STMT);
-         tree_add_cond(g_if, c1);
-
-         tree_add_stmt(c1, d);
+      if (tree_has_spec(guard)) {
+         tree_t spec = tree_spec(guard);
+         assert(tree_kind(spec) == T_DISCONNECT);
+         tree_set_delay(w0, tree_delay(spec));
       }
+
+      tree_add_waveform(d, w0);
+
+      tree_t c1 = tree_new(T_COND_STMT);
+      tree_add_cond(g_if, c1);
+
+      tree_add_stmt(c1, d);
    }
 
-   tree_add_stmt(container, g_if);
-   return c0;
+   return g_if;
 }
 
 static tree_t simp_concurrent(tree_t t)
@@ -1050,12 +1056,7 @@ static tree_t simp_concurrent(tree_t t)
    else
       tree_set_flag(w, TREE_F_STATIC_WAIT);
 
-   tree_t container = p;  // Where to add new statements
-
-   if (tree_has_guard(t))
-      container = simp_guard(container, t, w, s0);
-
-   tree_add_stmt(container, s0);
+   tree_add_stmt(p, s0);
 
    build_wait(s0, simp_build_wait_cb, w);
 
@@ -1066,19 +1067,22 @@ static tree_t simp_concurrent(tree_t t)
 static tree_t simp_cond_assign(tree_t t)
 {
    const int nconds = tree_conds(t);
-   tree_t c0 = tree_cond(t, 0);
+   tree_t c0 = tree_cond(t, 0), s0;
 
    if (nconds == 1 && !tree_has_value(c0))
-      return tree_stmt(c0, 0);
+      s0 = tree_stmt(c0, 0);
    else {
-      tree_t s = tree_new(T_IF);
-      tree_set_loc(s, tree_loc(t));
+      s0 = tree_new(T_IF);
+      tree_set_loc(s0, tree_loc(t));
 
       for (int i = 0; i < nconds; i++)
-         tree_add_cond(s, tree_cond(t, i));
-
-      return s;
+         tree_add_cond(s0, tree_cond(t, i));
    }
+
+   if (tree_has_guard(t))
+      return simp_guard(t, s0, tree_target(t));
+
+   return s0;
 }
 
 static tree_t simp_select(tree_t t)
@@ -1095,6 +1099,13 @@ static tree_t simp_select(tree_t t)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
       tree_add_stmt(c, tree_stmt(t, i));
+
+   if (tree_has_guard(t)) {
+      tree_t s0 = tree_stmt(tree_stmt(t, 0), 0);
+      assert(tree_kind(s0) == T_SIGNAL_ASSIGN);
+
+      return simp_guard(t, c, tree_target(s0));
+   }
 
    return c;
 }

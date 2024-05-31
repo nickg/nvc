@@ -966,6 +966,9 @@ START_TEST(test_signal)
       {  88, "invalid use of entity E" },
       {  95, "target of signal assignment must be a signal name or aggregate" },
       { 100, "signal X is identifed more than once in aggregate target" },
+      { 109, "guarded signal S cannot be the target of an unguarded " },
+      { 110, "aggregate target of signal assignment contains both guarded "
+        "and unguarded signals" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -442,6 +442,8 @@ static const struct {
    { "String literals", { [STD_93] = "13.6", [STD_08] = "15.7" } },
    { "Simple signal assignments", { [STD_93] = "8.4", [STD_08] = "10.5.2" } },
    { "Basic identifiers", { [STD_93] = "13.3.1", [STD_08] = "15.4.2" } },
+   { "Concurrent signal assignment statements", { [STD_93] = "9.5",
+        [STD_08] = "11.6" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
