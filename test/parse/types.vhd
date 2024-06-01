@@ -54,6 +54,7 @@ architecture a of b is
 
     constant var : some_array(1 to 3);  -- Error
 
+    type t1 is ('a', 'b', 'a');         -- Error
 begin
 
 end architecture;

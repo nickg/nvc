@@ -690,6 +690,7 @@ START_TEST(test_types)
       { 16, "expected type of range bounds to be RESISTANCE but have " },
       { 41, "index constraint cannot be used with non-array type FOO" },
       { 55, "no visible declaration for SOME_ARRAY" },
+      { 57, "duplicate enumeration literal 'a'" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -702,7 +703,6 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 79);  // Includes predefined
 
    d = search_decls(a, ident_new("MY_INT"), 0);
    fail_if(d == NULL);

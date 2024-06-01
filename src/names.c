@@ -721,24 +721,21 @@ static name_mask_t name_mask_for(tree_t t)
    }
 }
 
-static bool signature_has_error(tree_t sub)
+static bool type_has_error(type_t type)
 {
-   type_t type = tree_type(sub);
    if (type_is_none(type))
       return true;
 
-   assert(type_is_subprogram(type));
+   if (type_is_subprogram(type)) {
+      const int nparams = type_params(type);
+      for (int i = 0; i < nparams; i++) {
+         if (type_is_none(type_param(type, i)))
+            return true;
+      }
 
-   const int nparams = type_params(type);
-   bool error = false;
-
-   for (int i = 0; !error && i < nparams; i++) {
-      if (type_is_none(type_param(type, i)))
+      if (type_kind(type) == T_FUNC && type_is_none(type_result(type)))
          return true;
    }
-
-   if (type_kind(type) == T_FUNC && type_is_none(type_result(type)))
-      return true;
 
    return false;
 }
@@ -840,26 +837,34 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       }
       else if (is_forward_decl(decl, dd->tree))
          dd->visibility = HIDDEN;
-      else if (overload && (mask & dd->mask & (N_SUBPROGRAM | N_OBJECT))
-               && kind == DIRECT && type_eq(type, tree_type(dd->tree))) {
+      else if (overload && kind == DIRECT
+               && type_eq(type, tree_type(dd->tree))) {
          if (dd->origin != s) {
             // LRM 93 section 10.3 on visibility specifies that if two
             // declarations are homographs then the one in the inner scope
             // hides the one in the outer scope
             dd->visibility = HIDDEN;
          }
-         else if (signature_has_error(decl))
-            ;  // Ignore cascading errors
          else if ((dd->kind == T_FUNC_BODY && tkind == T_FUNC_BODY)
                   || (dd->kind == T_PROC_BODY && tkind == T_PROC_BODY)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
             diag_printf(d, "duplicate subprogram body %s", type_pp(type));
             diag_hint(d, tree_loc(decl), "duplicate definition here");
             diag_hint(d, tree_loc(dd->tree), "previous definition was here");
+            diag_suppress(d, s->suppress || type_has_error(type));
             diag_emit(d);
             return sym;
          }
-         else if (dd->origin == origin && !type_is_none(type)) {
+         else if (dd->kind == T_ENUM_LIT && tkind == T_ENUM_LIT) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "duplicate enumeration literal %s", istr(sym->name));
+            diag_hint(d, tree_loc(decl), "duplicate definition here");
+            diag_hint(d, tree_loc(dd->tree), "previous definition was here");
+            diag_suppress(d, s->suppress || type_has_error(type));
+            diag_emit(d);
+            return sym;
+         }
+         else if (dd->origin == origin) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
             if (type_strict_eq(tree_type(dd->tree), type))
                diag_printf(d, "%s already declared in this region",
@@ -874,6 +879,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
 
             diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
             diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_suppress(d, s->suppress || type_has_error(type));
             diag_emit(d);
             return sym;
          }
