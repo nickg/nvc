@@ -4280,8 +4280,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          return true;
       }
+
    case ATTR_TRANSACTION:
-      if (!sem_check_readable(t))
+      if (!sem_check_readable(name))
          return false;
       else if (!sem_check_signal_attr(t))
          return false;
