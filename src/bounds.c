@@ -710,9 +710,7 @@ static void bounds_check_aggregate(tree_t t)
 
 static void bounds_check_index_contraints(type_t type)
 {
-   assert(type_kind(type) == T_SUBTYPE);
-
-   if (type_constraints(type) == 0)
+   if (type_kind(type) != T_SUBTYPE || type_constraints(type) == 0)
       return;
 
    tree_t c0 = type_constraint(type, 0);
@@ -862,6 +860,8 @@ static void bounds_check_type_decl(tree_t t)
       }
    }
    else if (type_is_array(type)) {
+      bounds_check_index_contraints(type);
+
       type_t elem = type_elem(type);
       if (is_anonymous_subtype(elem))
          bounds_check_index_contraints(elem);

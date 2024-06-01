@@ -749,6 +749,7 @@ START_TEST(test_subtype)
       {  4, "right index 300 violates constraint INT8" },
       {  8, "right index C violates constraint AB" },
       { 11, "left index -1 violates constraint REAL10" },
+      { 13, "left index -1 violates constraint POSITIVE" },
       { -1, NULL }
    };
    expect_errors(expect);
