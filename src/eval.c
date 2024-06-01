@@ -216,9 +216,9 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
 }
 
 static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
-                           void *context)
+                           unit_registry_t *registry, void *context)
 {
-   vcode_unit_t thunk = lower_thunk(parent, expr);
+   vcode_unit_t thunk = lower_thunk(registry, expr, parent);
    if (thunk == NULL)
       return expr;
 
@@ -251,23 +251,23 @@ static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
    return expr;
 }
 
-tree_t eval_try_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
-                     void *context)
+tree_t eval_try_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
+                     lower_unit_t *parent, void *context)
 {
    const bool verbose = opt_get_verbose(OPT_EVAL_VERBOSE, NULL);
    jit_set_silent(jit, !verbose);
 
-   tree_t result = eval_do_fold(jit, expr, parent, context);
+   tree_t result = eval_do_fold(jit, expr, parent, registry, context);
 
    jit_set_silent(jit, false);
 
    return result;
 }
 
-tree_t eval_must_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
-                      void *context)
+tree_t eval_must_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
+                      lower_unit_t *parent, void *context)
 {
-   return eval_do_fold(jit, expr, parent, context);
+   return eval_do_fold(jit, expr, parent, registry, context);
 }
 
 static bool eval_not_possible(tree_t t, const char *why)

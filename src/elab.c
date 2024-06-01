@@ -1201,6 +1201,7 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
       case T_FCALL:
          if (type_is_scalar(tree_type(value))) {
             tree_t folded = eval_try_fold(ctx->jit, value,
+                                          ctx->registry,
                                           ctx->parent->lowered,
                                           ctx->parent->context);
 
@@ -1728,6 +1729,12 @@ static void elab_pop_scope(elab_ctx_t *ctx)
       unit_registry_finalise(ctx->registry, ctx->lowered);
 }
 
+static inline tree_t elab_eval_expr(tree_t t, const elab_ctx_t *ctx)
+{
+   return eval_must_fold(ctx->jit, t, ctx->registry,
+                         ctx->lowered, ctx->context);
+}
+
 static bool elab_copy_genvar_cb(tree_t t, void *ctx)
 {
    tree_t genvar = ctx;
@@ -1746,12 +1753,11 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       tree_set_type(tmp, tree_type(r));
       tree_set_subkind(tmp, ATTR_LOW);
 
-      tree_t tlow = eval_must_fold(ctx->jit, tmp, ctx->lowered, ctx->context);
+      tree_t tlow = elab_eval_expr(tmp, ctx);
       if (folded_int(tlow, low)) {
          tree_set_subkind(tmp, ATTR_HIGH);
 
-         tree_t thigh = eval_must_fold(ctx->jit, tmp, ctx->lowered,
-                                       ctx->context);
+         tree_t thigh = elab_eval_expr(tmp, ctx);
          if (folded_int(thigh, high))
             return;
       }
@@ -1760,10 +1766,8 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       *low = *high = 0;
    }
    else if (!folded_bounds(r, low, high)) {
-      tree_t left  = eval_must_fold(ctx->jit, tree_left(r),
-                                    ctx->lowered, ctx->context);
-      tree_t right = eval_must_fold(ctx->jit, tree_right(r),
-                                    ctx->lowered, ctx->context);
+      tree_t left  = elab_eval_expr(tree_left(r), ctx);
+      tree_t right = elab_eval_expr(tree_right(r), ctx);
 
       int64_t ileft, iright;
       if (folded_int(left, &ileft) && folded_int(right, &iright)) {
@@ -1856,7 +1860,7 @@ static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
    if (folded_bool(value, &test))
       return test;
 
-   tree_t folded = eval_must_fold(ctx->jit, value, ctx->lowered, ctx->context);
+   tree_t folded = elab_eval_expr(value, ctx);
 
    if (folded_bool(folded, &test))
       return test;

@@ -2548,6 +2548,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
 
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
+   // XXX: this should call unit_registery_get_parent
    if (lu->registry != NULL && unit_registry_query(lu->registry, unit_name)) {
       vcode_unit_t vu = unit_registry_get(lu->registry, unit_name);
 
@@ -9920,10 +9921,15 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_FUNC_BODY:
          {
             ident_t mangled = tree_ident2(d);
-            if (!has_foreign || !unit_registry_query(lu->registry, mangled))
+            if (!has_foreign || !unit_registry_query(lu->registry, mangled)) {
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
                                    lu->cover, tree_to_object(d));
+
+               // XXX: force eager generation for coverage scopes
+               if (lu->cover != NULL)
+                  (void)unit_registry_get(lu->registry, tree_ident2(d));
+            }
          }
          break;
       case T_PROC_INST:
@@ -9937,10 +9943,15 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
             emit_fn_t emitfn = never_waits ? emit_function : emit_procedure;
             ident_t mangled = tree_ident2(d);
 
-            if (!has_foreign || !unit_registry_query(lu->registry, mangled))
+            if (!has_foreign || !unit_registry_query(lu->registry, mangled)) {
                unit_registry_defer(lu->registry, tree_ident2(d),
                                    lu, emitfn, lower_proc_body, lu->cover,
                                    tree_to_object(d));
+
+               // XXX: force eager generation for coverage scopes
+               if (lu->cover != NULL)
+                  (void)unit_registry_get(lu->registry, tree_ident2(d));
+            }
          }
          break;
       case T_PROT_BODY:
@@ -12931,14 +12942,16 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
    return thunk;
 }
 
-vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t t)
+vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
+                         lower_unit_t *parent)
 {
    tree_t container = primary_unit_of(tree_container(t));
 
+   assert(parent == NULL || parent->registry == registry);
+
    vcode_unit_t context = parent ? parent->vunit : NULL;
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
-   lower_unit_t *lu = lower_unit_new(parent ? parent->registry : NULL,
-                                     parent, thunk, NULL, container);
+   lower_unit_t *lu = lower_unit_new(registry, parent, thunk, NULL, container);
 
    type_t to_type = tree_type(t), from_type = to_type;
 

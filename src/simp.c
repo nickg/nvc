@@ -345,7 +345,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       else if (!eval_possible(t, ctx->registry))
          return t;
 
-      return eval_try_fold(ctx->jit, t, NULL, NULL);
+      return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
    }
 
    return t;
@@ -361,7 +361,7 @@ static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
    }
 
    if (eval_possible(t, ctx->registry))
-      return eval_try_fold(ctx->jit, t, NULL, NULL);
+      return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
 
    return t;
 }

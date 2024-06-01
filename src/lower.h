@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -54,7 +54,8 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t shape, driver_set_t *ds,
                              cover_data_t *cover, tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds);
-vcode_unit_t lower_thunk(lower_unit_t *parent, tree_t fcall);
+vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
+                         lower_unit_t *parent);
 vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t);
 
 int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops);

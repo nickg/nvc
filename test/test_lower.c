@@ -2675,8 +2675,10 @@ START_TEST(test_thunk)
 
    tree_t arch = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
 
+   unit_registry_t *ur = get_registry();
+
    {
-      vcode_unit_t t0 = lower_thunk(NULL, tree_value(tree_decl(arch, 0)));
+      vcode_unit_t t0 = lower_thunk(ur, tree_value(tree_decl(arch, 0)), NULL);
       fail_if(t0 == NULL);
       vcode_select_unit(t0);
 
