@@ -64,4 +64,9 @@ begin
     begin
     end process;
 
+    process is
+        type bad3 is range 1 to x;      -- Error
+    begin
+    end process;
+
 end architecture;

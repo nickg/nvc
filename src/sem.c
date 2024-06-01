@@ -140,8 +140,7 @@ static bool sem_check_resolution(type_t type, tree_t res)
    return true;
 }
 
-static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
-                            nametab_t *tab)
+static bool sem_check_range(tree_t r, type_t expect, nametab_t *tab)
 {
    if (expect != NULL && type_is_none(expect))
       return false;   // Prevent cascading errors
@@ -164,14 +163,6 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
          if (expect && !sem_check_type(expr, expect, tab))
             sem_error(expr, "expected type of range bound to be %s but is %s",
                       type_pp(expect), type_pp(type));
-
-         if (kind != T_LAST_TYPE_KIND) {
-            assert(kind == T_INTEGER || kind == T_REAL);
-            if (type_base_kind(type) != kind)
-               sem_error(expr, "type of range bounds must be of some %s type "
-                         "but have %s", kind == T_INTEGER ? "integer" : "real",
-                         type_pp(type));
-         }
       }
       break;
 
@@ -202,21 +193,6 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
             sem_check_type(right, expect, tab);
             sem_check_type(r, expect, tab);
          }
-
-         if (kind != T_LAST_TYPE_KIND) {
-            // See LRM 93 section 3.1.2: Each bound of a range
-            // constraint that must be of some integer type, but the two
-            // bounds need not have the same integer type.
-            assert(kind == T_INTEGER || kind == T_REAL);
-            if (type_base_kind(tree_type(left)) != kind)
-               sem_error(left, "type of left bound must be of some %s type "
-                         "but have %s", kind == T_INTEGER ? "integer" : "real",
-                         type_pp(tree_type(left)));
-            else if (type_base_kind(tree_type(right)) != kind)
-               sem_error(right, "type of right bound must be of some %s type "
-                         "but have %s", kind == T_INTEGER ? "integer" : "real",
-                         type_pp(tree_type(right)));
-         }
       }
       break;
    }
@@ -226,7 +202,7 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
 
 static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 {
-   if (!sem_check_range(r, expect ?: tree_type(r), T_LAST_TYPE_KIND, tab))
+   if (!sem_check_range(r, expect ?: tree_type(r), tab))
       return false;
 
    const range_kind_t kind = tree_subkind(r);
@@ -368,7 +344,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
          break;
 
       case C_RANGE:
-         if (!sem_check_range(r, index, T_LAST_TYPE_KIND, tab))
+         if (!sem_check_range(r, index, tab))
             return false;
          break;
 
@@ -706,13 +682,79 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
 
       // Fall-through
    case T_INTEGER:
+      {
+         tree_t r = type_dim(type, 0);
+
+         if (!sem_check_range(r, NULL, tab))
+            return false;
+
+         switch (tree_subkind(r)) {
+         case RANGE_TO:
+         case RANGE_DOWNTO:
+            {
+               // See LRM 93 section 3.1.2: Each bound of a range
+               // constraint that must be of some integer type, but the
+               // two bounds need not have the same integer type.
+               tree_t left = tree_left(r), right = tree_right(r);
+               if (!type_is_integer(tree_type(left)))
+                  sem_error(left, "type of left bound must be of some integer "
+                            "type but have %s", type_pp(tree_type(left)));
+               else if (!type_is_integer(tree_type(right)))
+                  sem_error(right, "type of right bound must be of some "
+                            "integer type but have %s",
+                            type_pp(tree_type(right)));
+            }
+            break;
+
+         case RANGE_EXPR:
+            if (!type_is_integer(tree_type(r)))
+               sem_error(r, "type of range bounds must be of some integer "
+                         "type but have %s", type_pp(tree_type(r)));
+            break;
+         }
+
+         if (!sem_locally_static(r))
+            sem_error(r, "range constraint of type %s must be locally static",
+                      type_pp(type));
+
+         tree_set_type(r, type);
+         return true;
+      }
+
    case T_REAL:
       {
          tree_t r = type_dim(type, 0);
 
-         const type_kind_t check_kind = kind == T_PHYSICAL ? T_INTEGER : kind;
-         if (!sem_check_range(r, NULL, check_kind, tab))
+         if (!sem_check_range(r, NULL, tab))
             return false;
+
+         switch (tree_subkind(r)) {
+         case RANGE_TO:
+         case RANGE_DOWNTO:
+            {
+               // See LRM 93 section 3.1.4: Each bound of a range
+               // constraint that must be of some floating-point type, but
+               // the two bounds need not have the same floating-point type.
+               tree_t left = tree_left(r), right = tree_right(r);
+               if (!type_is_real(tree_type(left)))
+                  sem_error(left, "type of left bound must be of some "
+                            "floating-point type but have %s",
+                            type_pp(tree_type(left)));
+               else if (!type_is_real(tree_type(right)))
+                  sem_error(right, "type of right bound must be of some "
+                            "floating-point type but have %s",
+                            type_pp(tree_type(right)));
+            }
+            break;
+
+         case RANGE_EXPR:
+            assert(type_is_real(tree_type(r)));   // Unreachable
+            break;
+         }
+
+         if (!sem_locally_static(r))
+            sem_error(r, "range constraint of type %s must be locally static",
+                      type_pp(type));
 
          tree_set_type(r, type);
          return true;

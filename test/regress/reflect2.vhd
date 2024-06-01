@@ -6,7 +6,7 @@ use std.reflection.all;
 architecture test of reflect2 is
 
     procedure test_int (constant l, r : in integer) is
-        type my_int is range l to r;
+        subtype my_int is integer range l to r;
         variable v1   : my_int := 7;
         variable vm   : value_mirror;
         variable ivm  : integer_value_mirror;

@@ -42,6 +42,7 @@ START_TEST(test_integer)
       { 57, "MY_INT2 has no attribute CAKE" },
       { 61, "right bound must be of some integer type but have universal" },
       { 63, "range bounds must be of some integer type but have BOOLEAN" },
+      { 68, "range constraint of type BAD3 must be locally static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -69,7 +70,7 @@ START_TEST(test_integer)
    t = tree_type(e);
    fail_unless(type_kind(t) == T_INTEGER);
 
-   fail_unless(tree_stmts(a) == 7);
+   fail_unless(tree_stmts(a) == 8);
 
    // Process 1
 
@@ -901,8 +902,10 @@ START_TEST(test_real)
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
-      { 38, "type of right bound must be of some real type but have INTEGER" },
+      { 38, "type of right bound must be of some floating-point type "
+        "but have INTEGER" },
       { 39, "type of right bound must be of some integer type but have REAL" },
+      { 52, "range constraint of type BAD must be locally static" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -37,6 +37,7 @@ begin
         constant r : real := 252.4;
         type t is range r to i;         -- Error
         type t2 is range i to r;        -- Error
+        type t3 is range integer'range; -- Error
     begin
     end process;
 
@@ -45,6 +46,11 @@ begin
         variable r : real;
     begin
         r := real(t / 1 ps) * 1.0;      -- OK
+    end process;
+
+    process is
+        type bad is range 1.0 to x;     -- Error
+    begin
     end process;
 
 end architecture;
