@@ -408,6 +408,16 @@ begin
             );
         begin
         end block;
+
+        sub3: block is
+            port ( lb : buffer bit; lo : out bit; li : in bit );
+            port map (
+                lb => ui,               -- Error
+                lo => ub,               -- Error
+                li => ub                -- OK
+            );
+        begin
+        end block;
     end block;
 
 end architecture;
