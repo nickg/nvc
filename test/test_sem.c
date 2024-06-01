@@ -146,6 +146,10 @@ START_TEST(test_ports)
         "LIO with mode INOUT" },
       { 407, "port UL with mode LINKAGE cannot be associated with formal "
         "port LI with mode IN" },
+      { 415, "port UI with mode IN cannot be associated with formal port "
+        "LB with mode BUFFER" },
+      { 416, "port UB with mode BUFFER cannot be associated with formal port "
+        "LO with mode OUT" },
       { -1, NULL }
    };
    expect_errors(expect);

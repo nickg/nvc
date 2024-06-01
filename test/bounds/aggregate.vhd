@@ -27,6 +27,17 @@ architecture test of aggregate is
         ( integer_vector'(1, 2), integer_vector'(3, 4) );  -- OK
     constant c14 : bit_vector(7 downto 0) :=
         (3 downto 0 => "111", others => '0');   -- Error
+
+    type t_pos_vec is array (natural range <>) of positive;
+    constant c15 : t_pos_vec(1 to 5) := (others => -1);  -- Error
+
+    type t_nibble_vec is array (natural range <>) of bit_vector(1 to 4);
+    constant c16 : t_nibble_vec(1 to 1) := (others => (1 to 3 => '1'));  -- Error
+
+    type t_arr2 is array (integer range <>, boolean range <>) of my_bit_vec;
+    constant c17 : t_arr2(1 to 3, false to true) := (others => (others => c4));  -- OK
+    constant c18 : t_arr2(1 to 3, false to true) := (others => (true => c4));  -- Error
+
 begin
 
 end architecture;

@@ -99,9 +99,9 @@ begin
                 null;
         end case;                       -- Missing lots of values
         case q is
-            when ('0', '1') =>
+            when ('a', 'b') =>
                 null;
-            when ('1', '1') =>
+            when ('b', 'b') =>
                 null;
         end case;                       -- Missing 98 values
     end process;

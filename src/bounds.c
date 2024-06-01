@@ -66,6 +66,24 @@ static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
    }
 }
 
+static void bounds_fmt_hint_string(text_buf_t *tb, tree_t where)
+{
+   const char *what = "";
+   switch (tree_kind(where)) {
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_CONST_DECL:
+   case T_REF:          what = class_str(class_of(where)); break;
+   case T_PARAM_DECL:   what = "parameter"; break;
+   case T_PORT_DECL:    what = "port"; break;
+   case T_GENERIC_DECL: what = "generic"; break;
+   case T_ALIAS:        what = "alias"; break;
+   default: break;
+   }
+
+   tb_printf(tb, " for %s %s", what, istr(tree_ident(where)));
+}
+
 static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
 {
    tree_t r = range_of(type, 0);
@@ -94,23 +112,41 @@ static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
       tb_printf(tb, " outside of %s range ", type_pp(type));
       bounds_fmt_type_range(tb, type, tree_subkind(r), low, high);
 
-      if (hint != NULL) {
-         const char *what = "";
-         switch (tree_kind(hint)) {
-         case T_VAR_DECL:
-         case T_SIGNAL_DECL:
-         case T_CONST_DECL:
-         case T_REF:          what = class_str(class_of(hint)); break;
-         case T_PARAM_DECL:   what = "parameter"; break;
-         case T_PORT_DECL:    what = "port"; break;
-         case T_GENERIC_DECL: what = "generic"; break;
-         default: break;
-         }
-
-         tb_printf(tb, " for %s %s", what, istr(tree_ident(hint)));
-      }
+      if (hint != NULL)
+         bounds_fmt_hint_string(tb, hint);
 
       bounds_error(value, "%s", tb_get(tb));
+   }
+}
+
+static void bounds_check_array(tree_t value, type_t type, tree_t hint)
+{
+   if (type_is_unconstrained(type))
+      return;
+
+   type_t value_type = tree_type(value);
+   if (type_is_unconstrained(value_type))
+      return;
+
+   const int ndims = dimension_of(type);
+   for (int i = 0; i < ndims; i++) {
+      int64_t target_w, value_w;
+      if (!folded_length(range_of(type, i), &target_w))
+         continue;
+      else if (!folded_length(range_of(value_type, i), &value_w))
+         continue;
+      else if (target_w != value_w) {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_printf(tb, "length of ");
+         if (i > 0)
+            tb_printf(tb, "dimension %d of ", i + 1);
+         tb_printf(tb, "value %"PRIi64" does not match length of target %"
+                   PRIi64, value_w, target_w);
+         if (hint != NULL)
+            bounds_fmt_hint_string(tb, hint);
+
+         bounds_error(value, "%s", tb_get(tb));
+      }
    }
 }
 
@@ -560,18 +596,19 @@ static void bounds_check_aggregate(tree_t t)
    }
 
    const int ndims = dimension_of(type);
+   type_t elem = type_elem(type);
 
    interval_t *covered = NULL;
    bool known_elem_count = true;
    int next_pos = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i), value = tree_value(a);
       int64_t ilow = 0, ihigh = 0, count = 1;
       const assoc_kind_t akind = tree_subkind(a);
 
       if (akind == A_SLICE || akind == A_CONCAT) {
-         type_t value_type = tree_type(tree_value(a));
+         type_t value_type = tree_type(value);
          if (type_is_unconstrained(value_type))
             known_elem_count = false;
          else if (!folded_length(range_of(value_type, 0), &count))
@@ -675,6 +712,11 @@ static void bounds_check_aggregate(tree_t t)
 
       if (known_elem_count)
          bounds_cover_choice(&covered, a, index_type, ilow, ihigh);
+
+      if (type_is_scalar(elem))
+         bounds_check_scalar(value, elem, NULL);
+      else if (ndims == 1 && type_is_array(elem))
+         bounds_check_array(value, elem, NULL);
    }
 
    if (known_elem_count)
@@ -817,6 +859,16 @@ static void bounds_check_index_contraints(type_t type)
    }
 }
 
+static void bounds_check_assignment(tree_t target, tree_t value)
+{
+   type_t target_type = tree_type(target);
+
+   if (type_is_scalar(target_type))
+      bounds_check_scalar(value, target_type, target);
+   else if (type_is_array(target_type))
+      bounds_check_array(value, target_type, target);
+}
+
 static void bounds_check_object_decl(tree_t t)
 {
    if (tree_has_value(t))
@@ -886,63 +938,6 @@ static void bounds_check_interface_decl(tree_t t)
    type_t type = tree_type(t);
    if (is_anonymous_subtype(type))
       bounds_check_index_contraints(type);
-}
-
-static char *bounds_get_hint_str(tree_t where)
-{
-   switch (tree_kind(where)) {
-   case T_PORT_DECL:
-      return xasprintf(" for port %s", istr(tree_ident(where)));
-   case T_PARAM_DECL:
-      return xasprintf(" for parameter %s", istr(tree_ident(where)));
-   case T_VAR_DECL:
-      return xasprintf(" for variable %s", istr(tree_ident(where)));
-   case T_GENERIC_DECL:
-      return xasprintf(" for generic %s", istr(tree_ident(where)));
-   case T_SIGNAL_DECL:
-      return xasprintf(" for signal %s", istr(tree_ident(where)));
-   case T_ALIAS:
-      return xasprintf(" for alias %s", istr(tree_ident(where)));
-   case T_REF:
-      return bounds_get_hint_str(tree_ref(where));
-   default:
-      return NULL;
-   }
-}
-
-static void bounds_check_assignment(tree_t target, tree_t value)
-{
-   type_t target_type = tree_type(target);
-   type_t value_type  = tree_type(value);
-
-   const bool check_array_length =
-      type_is_array(target_type)
-      && !type_is_unconstrained(target_type)
-      && !type_is_unconstrained(value_type);
-
-   if (check_array_length) {
-      const int ndims = dimension_of(target_type);
-      for (int i = 0; i < ndims; i++) {
-         int64_t target_w, value_w;
-         if (folded_length(range_of(target_type, i), &target_w)
-             && folded_length(range_of(value_type, i), &value_w)) {
-            if (target_w != value_w) {
-               char *hint LOCAL = bounds_get_hint_str(target);
-               if (i > 0)
-                  bounds_error(value, "length of dimension %d of value %"PRIi64
-                               " does not match length of target %"PRIi64"%s",
-                               i + 1, value_w, target_w, hint ?: "");
-               else
-                  bounds_error(value, "length of value %"PRIi64" does not "
-                               "match length of target %"PRIi64"%s",
-                               value_w, target_w, hint ?: "");
-            }
-         }
-      }
-   }
-
-   if (type_is_scalar(target_type))
-      bounds_check_scalar(value, target_type, target);
 }
 
 static void bounds_check_signal_assign(tree_t t)
