@@ -224,4 +224,8 @@ package body p is
         P1 (10, F1(b, x1) => x2 );   -- Failure_here
     end procedure;
 
+    procedure "and" is                  -- Error
+    begin
+    end procedure;
+
 end package body;

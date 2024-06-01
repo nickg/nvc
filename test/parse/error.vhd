@@ -27,7 +27,7 @@ begin
     end process bar;                    -- No initial label
 
     b: block is
-        impure function "+" return boolean is
+        impure function "+" (p : bit) return boolean is
         begin
             my_if: if x > 5 then
                 null;

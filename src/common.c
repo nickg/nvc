@@ -1093,7 +1093,6 @@ void intern_strings(void)
    id_cache[W_IEEE]            = ident_new("IEEE");
    id_cache[W_IEEE_1164]       = ident_new("IEEE.STD_LOGIC_1164");
    id_cache[W_ERROR]           = ident_new("error");
-   id_cache[W_CCONV]           = ident_new("\"??\"");
    id_cache[W_ELAB]            = ident_new("elab");
    id_cache[W_NUMERIC_STD]     = ident_new("IEEE.NUMERIC_STD");
    id_cache[W_NUMERIC_BIT]     = ident_new("IEEE.NUMERIC_BIT");
@@ -1110,6 +1109,7 @@ void intern_strings(void)
    id_cache[W_INSTANCE_NAME]   = ident_new("instance_name");
    id_cache[W_PATH_NAME]       = ident_new("path_name");
    id_cache[W_DOLLAR_TIME]     = ident_new("$time");
+   id_cache[W_VITAL]           = ident_new("VITAL");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
@@ -1119,7 +1119,41 @@ void intern_strings(void)
    id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
    id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");
 
-   id_cache[W_VITAL] = ident_new("VITAL");
+   id_cache[W_OP_CCONV]               = ident_new("\"??\"");
+   id_cache[W_OP_AND]                 = ident_new("\"and\"");
+   id_cache[W_OP_OR]                  = ident_new("\"or\"");
+   id_cache[W_OP_NAND]                = ident_new("\"nand\"");
+   id_cache[W_OP_NOR]                 = ident_new("\"nor\"");
+   id_cache[W_OP_XOR]                 = ident_new("\"xor\"");
+   id_cache[W_OP_XNOR]                = ident_new("\"xnor\"");
+   id_cache[W_OP_EQUAL]               = ident_new("\"=\"");
+   id_cache[W_OP_NOT_EQUAL]           = ident_new("\"/=\"");
+   id_cache[W_OP_LESS_THAN]           = ident_new("\"<\"");
+   id_cache[W_OP_LESS_EQUAL]          = ident_new("\"<=\"");
+   id_cache[W_OP_GREATER_THAN]        = ident_new("\">\"");
+   id_cache[W_OP_GREATER_EQUAL]       = ident_new("\">=\"");
+   id_cache[W_OP_MATCH_EQUAL]         = ident_new("\"?=\"");
+   id_cache[W_OP_MATCH_NOT_EQUAL]     = ident_new("\"?/=\"");
+   id_cache[W_OP_MATCH_LESS_THAN]     = ident_new("\"?<\"");
+   id_cache[W_OP_MATCH_LESS_EQUAL]    = ident_new("\"?<=\"");
+   id_cache[W_OP_MATCH_GREATER_THAN]  = ident_new("\"?>\"");
+   id_cache[W_OP_MATCH_GREATER_EQUAL] = ident_new("\"?>=\"");
+   id_cache[W_OP_SLL]                 = ident_new("\"sll\"");
+   id_cache[W_OP_SRL]                 = ident_new("\"srl\"");
+   id_cache[W_OP_SLA]                 = ident_new("\"sla\"");
+   id_cache[W_OP_SRA]                 = ident_new("\"sra\"");
+   id_cache[W_OP_ROL]                 = ident_new("\"rol\"");
+   id_cache[W_OP_ROR]                 = ident_new("\"ror\"");
+   id_cache[W_OP_ADD]                 = ident_new("\"+\"");
+   id_cache[W_OP_MINUS]               = ident_new("\"-\"");
+   id_cache[W_OP_CONCAT]              = ident_new("\"&\"");
+   id_cache[W_OP_TIMES]               = ident_new("\"*\"");
+   id_cache[W_OP_DIVIDE]              = ident_new("\"/\"");
+   id_cache[W_OP_MOD]                 = ident_new("\"mod\"");
+   id_cache[W_OP_REM]                 = ident_new("\"rem\"");
+   id_cache[W_OP_EXPONENT]            = ident_new("\"**\"");
+   id_cache[W_OP_ABS]                 = ident_new("\"abs\"");
+   id_cache[W_OP_NOT]                 = ident_new("\"not\"");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -2489,30 +2523,13 @@ bool is_operator_symbol(ident_t ident)
       return false;
    else if (ident_char(ident, len - 1) != '"')
       return false;
-   else if (ident_char(ident, 1) == '?' && standard() < STD_08)
-      return false;
 
-   static const char *const strings[] = {
-      "\"??\"", "\"and\"", "\"or\"", "\"nand\"", "\"nor\"",
-      "\"xor\"", "\"xnor\"", "\"=\"", "\"/=\"", "\"<\"", "\"<=\"",
-      "\">\"", "\">=\"", "\"?=\"", "\"?/=\"", "\"?<\"", "\"?<=\"",
-      "\"?>\"", "\"?>=\"", "\"sll\"", "\"srl\"", "\"sla\"", "\"sra\"",
-      "\"rol\"", "\"ror\"", "\"+\"", "\"-\"", "\"&\"", "\"*\"",
-      "\"/\"", "\"mod\"", "\"rem\"", "\"**\"", "\"abs\"", "\"not\""
-   };
+   const well_known_t wk = is_well_known(ident);
 
-   static ident_t operators[ARRAY_LEN(strings)];
-   INIT_ONCE({
-         for (int i = 0; i < ARRAY_LEN(strings); i++)
-            operators[i] = ident_new(strings[i]);
-      });
-
-   for (int i = 0; i < ARRAY_LEN(operators); i++) {
-      if (ident == operators[i])
-         return true;
-   }
-
-   return false;
+   if (standard() < STD_08)
+      return wk >= W_OP_AND && wk <= W_OP_NOT;
+   else
+      return wk >= W_OP_AND && wk <= W_OP_MATCH_GREATER_EQUAL;
 }
 
 bool same_tree(tree_t a, tree_t b)

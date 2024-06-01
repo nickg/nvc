@@ -342,4 +342,9 @@ package body func3 is
         return;                         -- Error
     end function;
 
+    function "and" (x : integer) return integer;  -- Error
+    function "not" (x, y : integer) return integer;  -- Error
+    function "+" (x : integer) return bit;  -- OK
+    function "/" (a, b, c : integer) return integer;  -- Error
+
 end package body;

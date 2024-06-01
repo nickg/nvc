@@ -428,6 +428,9 @@ START_TEST(test_func)
       { 336, "class of function parameters must be CONSTANT, SIGNAL, or FILE" },
       { 338, "function parameters must have mode IN" },
       { 342, "return in function must have an expression" },
+      { 345, "logical operator must have two operands" },
+      { 346, "unary operator must have one operand" },
+      { 348, "binary operator must have two operands" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -666,6 +669,7 @@ START_TEST(test_procedure)
       { 207, "cannot assign to input parameter X" },
       { 224, "no possible overload of P1 has formal B" },
       { 224, "sorry, conversion functions are not yet supported here" },
+      { 227, "procedure name must be an identifier" },
       { -1, NULL }
    };
    expect_errors(expect);

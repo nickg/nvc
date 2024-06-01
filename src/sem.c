@@ -1527,10 +1527,32 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
 
 static bool sem_check_func_ports(tree_t t, nametab_t *tab)
 {
-   const bool pure = !(tree_flags(t) & TREE_F_IMPURE);
-   const bool pre_std19 = (standard() < STD_19);
+   const vhdl_standard_t std = standard();
 
-   if (!pure && !pre_std19)
+   ident_t id = tree_ident(t);
+   if (is_operator_symbol(id)) {
+      const int nports = tree_ports(t);
+      const well_known_t wk = is_well_known(id);
+      if (wk >= W_OP_AND && wk <= W_OP_XNOR) {
+         if (std >= STD_08 && (nports < 1 || nports > 2))
+            sem_error(t, "logical operator must have either one or two "
+                      "operands");
+         else if (std < STD_08 && nports != 2)
+            sem_error(t, "logical operator must have two operands");
+      }
+      else if (wk >= W_OP_ABS && wk <= W_OP_CCONV && nports != 1)
+         sem_error(t, "unary operator must have one operand");
+      else if ((wk >= W_OP_EQUAL && wk <= W_OP_EXPONENT && nports != 2)
+               || (wk >= W_OP_MATCH_EQUAL && wk <= W_OP_MATCH_GREATER_EQUAL
+                   && nports != 2)
+               || (wk >= W_OP_ADD && wk <= W_OP_MINUS
+                   && (nports < 1 || nports > 2)))
+         sem_error(t, "binary operator must have two operands");
+   }
+
+   const bool pure = !(tree_flags(t) & TREE_F_IMPURE);
+
+   if (!pure && std >= STD_19)
       return true;   // LCS2016_002 relaxed rules for impure functions
 
    const int nports = tree_ports(t);
@@ -1539,7 +1561,7 @@ static bool sem_check_func_ports(tree_t t, nametab_t *tab)
       if (tree_subkind(p) != PORT_IN) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
          diag_printf(d, "%sfunction parameters must have mode IN",
-                     pre_std19 ? "" : "pure ");
+                     std < STD_19 ? "" : "pure ");
          diag_hint(d, tree_loc(p), "parameter %s has mode %s",
                    istr(tree_ident(p)), port_mode_str(tree_subkind(p)));
          diag_lrm(d, STD_08, "4.2.2.1");
@@ -1548,7 +1570,7 @@ static bool sem_check_func_ports(tree_t t, nametab_t *tab)
       else if (tree_class(p) == C_VARIABLE) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
          diag_printf(d, "class of %sfunction parameters must be CONSTANT, "
-                     "SIGNAL, or FILE", pre_std19 ? "" : "pure ");
+                     "SIGNAL, or FILE", std < STD_19 ? "" : "pure ");
          diag_hint(d, tree_loc(p), "parameter %s has class %s",
                    istr(tree_ident(p)), class_str(tree_class(p)));
          diag_lrm(d, STD_08, "4.2.2.1");
@@ -1901,6 +1923,9 @@ static bool sem_check_func_body(tree_t t, nametab_t *tab)
 
 static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
 {
+   if (is_operator_symbol(tree_ident(t)))
+      sem_error(t, "procedure name must be an identifier");
+
    const tree_flags_t flags = tree_flags(t);
    if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
       return false;
@@ -1913,6 +1938,9 @@ static bool sem_check_proc_body(tree_t t, nametab_t *tab)
    tree_t fwd = find_forward_decl(tab, t);
    if (fwd != NULL && !sem_check_conforming(fwd, t))
       return false;
+
+   if (fwd == NULL && is_operator_symbol(tree_ident(t)))
+      sem_error(t, "procedure name must be an identifier");
 
    // Cleared by wait statement or pcall
    tree_set_flag(t, TREE_F_NEVER_WAITS);
