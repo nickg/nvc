@@ -894,6 +894,10 @@ START_TEST(test_literal)
         "range of universal_integer" },
       { 37, "value 235423414124e124124 is outside implementation defined "
         "range of universal_integer" },
+      { 39, "a literal may not end with an underscore or contain multiple "
+        "consecutive underscores" },
+      { 40, "a literal may not end with an underscore or contain multiple "
+        "consecutive underscores" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2212,6 +2216,14 @@ START_TEST(test_bitstring)
 
    const error_t expect[] = {
       { 22, "invalid digit '9' in bit string" },
+      { 24, "a bit string literal may not start or end with an underscore" },
+      { 25, "a bit string literal may not start or end with an underscore" },
+      { 26, "a bit string literal may not contain multiple consecutive "
+        "underscores" },
+      { 28, "unterminated string literal" },
+      { 28, "no visible declaration for X" },
+      { 28, "unexpected string while parsing constant declaration" },
+      { 29, "unterminated string literal" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -35,6 +35,9 @@ ARCHITECTURE aa OF ee IS
 
   constant too_big : integer := 9223372036854775808;  -- Error
   constant way_too_big : integer := 235423414124e124124;  -- Error
+
+  constant u1 : integer := 1__;         -- Error
+  constant u2 : integer := 1__2;        -- Error
 BEGIN
 
 END ARCHITECTURE;

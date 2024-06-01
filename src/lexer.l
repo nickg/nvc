@@ -103,7 +103,7 @@ SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"\n]|\"\")*\")|(\%([^\"\n\%]|\%\%)*\%)
 BADSTRING       (\"([^\"\n]|\"\")*)|(\%([^\"\n\%]|\%\%)*)
 VLOG_STRING     "\""[^\n\"]*"\""
-BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"]*\")|(?i:[boxd]\%[^\%]+\%)
+BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"\n]*\")|(?i:[boxd]\%[^\n\%]*\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
@@ -662,9 +662,16 @@ static int parse_ex_id(char *str)
 
 static void strip_underscores(char *s)
 {
+   bool error = false;
    char *p;
    for (p = s; *s; s++) {
-      if (*s != '_') *p++ = *s;
+      if (*s != '_')
+         *p++ = *s;
+      else if ((s[1] == '\0' || s[1] == '_') && !error) {
+         error_at(&yylloc, "a literal may not end with an underscore or "
+                  "contain multiple consecutive underscores");
+         error = true;
+      }
    }
    *p = '\0';
 }
@@ -711,7 +718,7 @@ static int parse_decimal_literal(const char *str)
    TOKEN(tok);
 }
 
-static int parse_based_literal (const char *str)
+static int parse_based_literal(const char *str)
 {
    // Transform a string into a literal as specified in LRM 13.4.2
    //   based_literal ::= base [#:] based_integer [.based_integer] [#:]
@@ -795,16 +802,23 @@ static int parse_bit_string(const char *str)
    // Copy input, remove all '_' characters and replace all '\%'
    // characters by '\"'.
 
-   char *p = (yylval.str = xstrdup(str));
+   char *copy = (yylval.str = xstrdup(str));
 
-   strip_underscores(p);
-
-   while (*p) {
-      switch (*p) {
-      case '%':
-         *p = '\"';
-      default:
-         p++;
+   bool error = false;
+   for (char *src = copy, *dst = src; *src != '\0'; src++) {
+      if (*src == '%')
+         *dst++ = '\"';
+      else if (*src != '_')
+         *dst++ = *src;
+      else if ((src[-1] == '\"' || src[1] == '\"') && !error) {
+         error_at(&yylloc, "a bit string literal may not start or end with "
+                  "an underscore");
+         error = true;
+      }
+      else if (src[-1] == '_' && !error) {
+         error_at(&yylloc, "a bit string literal may not contain multiple "
+                  "consecutive underscores");
+         error = true;
       }
    }
 

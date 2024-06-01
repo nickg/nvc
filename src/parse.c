@@ -641,9 +641,7 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
       uint8_t *decimal LOCAL = xmalloc(strlen(str));
 
       for (++p; *p != '\"'; p++) {
-         if (*p == '_')
-            continue;
-         else if (!isdigit_iso88591(*p)) {
+         if (!isdigit_iso88591(*p)) {
             parse_error(loc, "invalid digit '%c' in decimal bit string", *p);
             return t;
          }
@@ -692,9 +690,6 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
    tree_t pad = mode == UNSIGNED ? zero : NULL;
    int nbits = 0;
    for (++p; *p != '\"'; p++) {
-      if (*p == '_')
-         continue;
-
       const bool extended = (isdigit_iso88591(*p) && *p < '0' + base)
          || (base > 10 && *p >= 'A' && *p < 'A' + base - 10)
          || (base > 10 && *p >= 'a' && *p < 'a' + base - 10);
