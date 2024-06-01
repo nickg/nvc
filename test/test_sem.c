@@ -422,6 +422,7 @@ START_TEST(test_func)
       { 331, "function FUNC5 declaration was impure but body is pure" },
       { 336, "class of function parameters must be CONSTANT, SIGNAL, or FILE" },
       { 338, "function parameters must have mode IN" },
+      { 342, "return in function must have an expression" },
       { -1, NULL }
    };
    expect_errors(expect);

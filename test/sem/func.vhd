@@ -337,4 +337,9 @@ package body func3 is
 
     impure function func7 (x : inout integer) return integer;  -- Error
 
+    function func8 return integer is
+    begin
+        return;                         -- Error
+    end function;
+
 end package body;

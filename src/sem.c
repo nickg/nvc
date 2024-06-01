@@ -5807,6 +5807,8 @@ static bool sem_check_return(tree_t t, nametab_t *tab)
          sem_error(t, "expected return type %s but have %s",
                    type_pp(expect), type_pp(tree_type(tree_value(t))));
    }
+   else if (tree_kind(sub) == T_FUNC_BODY)
+      sem_error(t, "return in function must have an expression");
 
    return true;
 }
