@@ -13381,7 +13381,10 @@ vcode_unit_t unit_registry_get_parent(unit_registry_t *ur, ident_t name)
       break;
 
    case UNIT_FINALISED:
-      return untag_pointer(ptr, struct _vcode_unit);
+      {
+         vcode_unit_t vu = untag_pointer(ptr, struct _vcode_unit);
+         return vcode_unit_context(vu);
+      }
 
    case UNIT_GENERATED:
       {
