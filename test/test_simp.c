@@ -1732,6 +1732,26 @@ START_TEST(test_issue882)
 }
 END_TEST
 
+START_TEST(test_packinst1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/packinst1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_INST);
+   fail_if(p == NULL);
+
+   tree_t k = search_decls(p, ident_new("K"), 0);
+   fail_if(k == NULL);
+
+   double val;
+   fail_unless(folded_real(tree_value(k), &val));
+   ck_assert_double_eq(val, 2.0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1800,6 +1820,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue821);
    tcase_add_test(tc_core, test_issue867);
    tcase_add_test(tc_core, test_issue882);
+   tcase_add_test(tc_core, test_packinst1);
    suite_add_tcase(s, tc_core);
 
    return s;
