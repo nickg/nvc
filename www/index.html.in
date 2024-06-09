@@ -15,8 +15,9 @@ include(`header.html.in')dnl
   the <a href="manual.html">manual</a> online.
 </p>
 <p>
-  The project is hosted on both <a href="__github_url">GitHub</a> and
-  <a href="__sourcehut_url">SourceHut</a>.
+  The project is hosted on <a href="__github_url">GitHub</a>.  Please
+  use the <a href="__github_url/issues">issue tracker</a> there to
+  report bugs.
 </p>
 <p>
   The most recent version is <a href="download.html">__version</a>,
@@ -27,5 +28,6 @@ include(`header.html.in')dnl
 <h1>Contact</h1>
 <p>
   Send any questions
-  to <a href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a>.
+  to <a href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a> or
+  the <a href="__github_url/discussions">discussion forum</a> on GitHub.
 </p>
