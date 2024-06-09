@@ -36,14 +36,14 @@ typedef uint32_t hash_state_t;
 #define REPROBE_LIMIT 20
 #define MOVED_TAG     1
 
-typedef A(char) char_array_t;
-
 struct ident_rd_ctx {
-   fbuf_t       *file;
-   size_t        cache_sz;
-   size_t        cache_alloc;
-   ident_t      *cache;
-   char_array_t  scratch;
+   fbuf_t  *file;
+   size_t   cache_sz;
+   size_t   cache_alloc;
+   ident_t *cache;
+   char    *scratch;
+   size_t   scratch_sz;
+   bool     new_format;   // Added in 1.13
 };
 
 struct ident_wr_ctx {
@@ -320,14 +320,14 @@ void ident_write_end(ident_wr_ctx_t ctx)
 void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
    if (ident == NULL)
-      fbuf_put_uint(ctx->file, 1);
+      fbuf_put_int(ctx->file, 1);   // TODO: change this to zero
    else if (ident->write_gen == ctx->generation)
-      fbuf_put_uint(ctx->file, ident->write_index + 1);
+      fbuf_put_int(ctx->file, ident->write_index + 1);
    else {
-      fbuf_put_uint(ctx->file, 0);
+      fbuf_put_int(ctx->file, -ident->length);
 
       assert(ident->bytes[ident->length] == '\0');
-      write_raw(ident->bytes, ident->length + 1, ctx->file);
+      write_raw(ident->bytes, ident->length, ctx->file);
 
       ident->write_gen   = ctx->generation;
       ident->write_index = ctx->next_index++;
@@ -343,6 +343,9 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
    ctx->cache_alloc = 256;
    ctx->cache_sz    = 0;
    ctx->cache       = xmalloc_array(ctx->cache_alloc, sizeof(ident_t));
+   ctx->scratch_sz  = 128;
+   ctx->scratch     = xmalloc(ctx->scratch_sz);
+   ctx->new_format  = true;
 
    // First index is implicit null
    ctx->cache[ctx->cache_sz++] = NULL;
@@ -352,28 +355,52 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
 
 void ident_read_end(ident_rd_ctx_t ctx)
 {
-   ACLEAR(ctx->scratch);
+   free(ctx->scratch);
    free(ctx->cache);
    free(ctx);
 }
 
 ident_t ident_read(ident_rd_ctx_t ctx)
 {
-   const uint32_t index = fbuf_get_uint(ctx->file);
-   if (index == 0) {
-      if (ctx->cache_sz == ctx->cache_alloc) {
+   const int32_t index =
+      ctx->new_format ? fbuf_get_int(ctx->file) : fbuf_get_uint(ctx->file);
+   if (index < 0) {
+      if (unlikely(-index + 1 > ctx->scratch_sz)) {
+         ctx->scratch_sz = MAX(-index + 1, (ctx->scratch_sz * 3) / 2);
+         ctx->scratch = xrealloc(ctx->scratch, ctx->scratch_sz);
+      }
+
+      read_raw(ctx->scratch, -index, ctx->file);
+      ctx->scratch[-index] = '\0';
+
+      if (unlikely(ctx->cache_sz == ctx->cache_alloc)) {
          ctx->cache_alloc *= 2;
          ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
       }
 
-      ARESIZE(ctx->scratch, 0);
+      return (ctx->cache[ctx->cache_sz++] = ident_new(ctx->scratch));
+   }
+   else if (index == 0) {
+      // Format prior to 1.13
+      ctx->new_format = false;
+
+      int num = 0;
       char ch;
       do {
-         ch = read_u8(ctx->file);
-         APUSH(ctx->scratch, ch);
+         if (num == ctx->scratch_sz) {
+            ctx->scratch_sz = (ctx->scratch_sz * 3) / 2;
+            ctx->scratch = xrealloc(ctx->scratch, ctx->scratch_sz);
+         }
+
+         ch = ctx->scratch[num++] = read_u8(ctx->file);
       } while (ch);
 
-      return (ctx->cache[ctx->cache_sz++] = ident_new(ctx->scratch.items));
+      if (unlikely(ctx->cache_sz == ctx->cache_alloc)) {
+         ctx->cache_alloc *= 2;
+         ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
+      }
+
+      return (ctx->cache[ctx->cache_sz++] = ident_new(ctx->scratch));
    }
    else if (likely(index - 1 < ctx->cache_sz))
       return ctx->cache[index - 1];
