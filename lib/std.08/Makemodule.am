@@ -3,6 +3,7 @@ std_08_DATA = \
 	lib/std.08/_NVC_LIB \
 	lib/std.08/_index \
 	lib/std.08/STD.STANDARD \
+	lib/std.08/STD.STANDARD-body \
 	lib/std.08/STD.TEXTIO \
 	lib/std.08/STD.TEXTIO-body \
 	lib/std.08/STD.ENV \
@@ -22,6 +23,9 @@ lib/std.08/_index: lib/std.08/STD.STANDARD
 
 lib/std.08/STD.STANDARD: $(srcdir)/lib/std.08/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap $(srcdir)/lib/std.08/standard.vhd
+
+lib/std.08/STD.STANDARD-body: $(srcdir)/lib/std/standard-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/standard-body.vhd
 
 lib/std.08/STD.TEXTIO: $(srcdir)/lib/std.08/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd

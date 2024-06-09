@@ -3,6 +3,7 @@ nvc_DATA = \
 	lib/nvc/_NVC_LIB \
 	lib/nvc/_index \
 	lib/nvc/NVC.SIM_PKG \
+	lib/nvc/NVC.SIM_PKG-body \
 	lib/nvc/NVC.POLYFILL \
 	lib/nvc/NVC.POLYFILL-body \
 	lib/nvc/NVC.TEXT_UTIL \
@@ -14,6 +15,7 @@ nvc_DATA = \
 
 EXTRA_DIST += \
 	lib/nvc/sim_pkg.vhd \
+	lib/nvc/sim_pkg-body.vhd \
 	lib/nvc/polyfill.vhd \
 	lib/nvc/polyfill-body.vhd \
 	lib/nvc/text_util.vhd \
@@ -31,6 +33,9 @@ lib/nvc/_index:
 
 lib/nvc/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+lib/nvc/NVC.SIM_PKG-body: $(srcdir)/lib/nvc/sim_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg-body.vhd
 
 lib/nvc/NVC.POLYFILL: $(srcdir)/lib/nvc/polyfill.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill.vhd

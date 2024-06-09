@@ -3,10 +3,16 @@ std_DATA = \
 	lib/std/_NVC_LIB \
 	lib/std/_index \
 	lib/std/STD.STANDARD \
+	lib/std/STD.STANDARD-body \
 	lib/std/STD.TEXTIO \
 	lib/std/STD.TEXTIO-body
 
-EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/textio-body.vhd
+EXTRA_DIST += \
+	lib/std/standard.vhd \
+	lib/std/standard-body.vhd \
+	lib/std/textio.vhd \
+	lib/std/textio-body.vhd
+
 BOOTSTRAPLIBS += $(std_DATA)
 
 lib/std/_NVC_LIB:
@@ -15,6 +21,9 @@ lib/std/_index:
 
 lib/std/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 --work=lib/std -a --bootstrap $(srcdir)/lib/std/standard.vhd
+
+lib/std/STD.STANDARD-body: $(srcdir)/lib/std/standard-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=1993 --work=lib/std -a $(srcdir)/lib/std/standard-body.vhd
 
 lib/std/STD.TEXTIO: $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/std -a $(srcdir)/lib/std/textio.vhd

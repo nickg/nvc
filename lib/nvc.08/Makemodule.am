@@ -3,6 +3,7 @@ nvc_08_DATA = \
 	lib/nvc.08/_NVC_LIB \
 	lib/nvc.08/_index \
 	lib/nvc.08/NVC.SIM_PKG \
+	lib/nvc.08/NVC.SIM_PKG-body \
 	lib/nvc.08/NVC.POLYFILL \
 	lib/nvc.08/NVC.IEEE_SUPPORT \
 	lib/nvc.08/NVC.IEEE_SUPPORT-body \
@@ -26,6 +27,9 @@ lib/nvc.08/_index:
 
 lib/nvc.08/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+lib/nvc.08/NVC.SIM_PKG-body: $(srcdir)/lib/nvc/sim_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/sim_pkg-body.vhd
 
 lib/nvc.08/NVC.POLYFILL: $(srcdir)/lib/nvc.08/polyfill.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/polyfill.vhd

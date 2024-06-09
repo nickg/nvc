@@ -1205,25 +1205,20 @@ bool package_needs_body(tree_t pack)
 {
    assert(tree_kind(pack) == T_PACKAGE);
 
-   int missing = 0;
    const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(pack, i);
       const tree_kind_t dkind = tree_kind(d);
       if ((dkind == T_FUNC_DECL || dkind == T_PROC_DECL)
           && !(tree_flags(d) & TREE_F_PREDEFINED))
-         missing++;
-      else if (dkind == T_ATTR_SPEC
-               && is_well_known(tree_ident(d)) == W_FOREIGN)
-         missing--;
+         return true;
       else if (dkind == T_CONST_DECL && !tree_has_value(d))
          return true;
       else if (dkind == T_PROT_DECL)
          return true;
    }
 
-   assert(missing >= 0);
-   return missing > 0;
+   return false;
 }
 
 tree_t search_decls(tree_t container, ident_t name, int nth)
