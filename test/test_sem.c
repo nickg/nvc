@@ -1242,7 +1242,7 @@ START_TEST(test_alias)
    input_from_file(TESTDIR "/sem/alias.vhd");
 
    const error_t expect[] = {
-      { 10, "non-object alias may not have subtype indication" },
+      { 10, "nonobject alias may not have a subtype indication" },
       { 12, "type mark AX does not denote a type or a subtype" },
       { 22, "no visible subprogram FOO matches signature [INTEGER "
         "return INTEGER]" },
