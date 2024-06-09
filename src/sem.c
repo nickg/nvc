@@ -4735,7 +4735,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          const port_mode_t omode = tree_subkind(odecl);
 
          const bool error =
-            (omode == PORT_BUFFER && mode != PORT_BUFFER && mode != PORT_IN)
+            (omode == PORT_BUFFER && (mode == PORT_OUT || mode == PORT_INOUT))
             || (omode != PORT_BUFFER && mode == PORT_BUFFER)
             || (omode == PORT_IN && (mode == PORT_OUT || mode == PORT_INOUT))
             || (omode == PORT_OUT && mode == PORT_IN && standard() < STD_08)
