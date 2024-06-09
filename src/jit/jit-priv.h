@@ -441,7 +441,7 @@ void pack_writer_string_table(pack_writer_t *pw, const char **tab,
                               size_t *size);
 void pack_writer_free(pack_writer_t *pw);
 
-void jit_bind_foreign(jit_func_t *f, const char *spec, size_t length,
+void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
                       tree_t where);
 
 DLLEXPORT void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor,

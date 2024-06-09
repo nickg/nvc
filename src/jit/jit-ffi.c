@@ -469,10 +469,10 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
    return gffi;
 }
 
-void jit_bind_foreign(jit_func_t *f, const char *spec, size_t length,
+void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
                       tree_t where)
 {
-   char *tmp LOCAL = xstrndup(spec, length), *p = strtok(tmp, " ");
+   char *tmp LOCAL = null_terminate(spec, length), *p = strtok(tmp, " ");
    if (strcmp(p, "VHPIDIRECT") == 0 || strcmp(p, "GHDL") == 0) {
       p = strtok(NULL, " ");
       if (p != NULL) {
