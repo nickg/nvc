@@ -5815,7 +5815,7 @@ static tree_t p_entity_designator(void)
 
    BEGIN("entity designator");
 
-   ident_t id = p_identifier();
+   ident_t id = p_designator();
 
    tree_t t = tree_new(T_ATTR_SPEC);
    tree_set_loc(t, CURRENT_LOC);

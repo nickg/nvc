@@ -393,6 +393,9 @@ void _std_env_createdir(const uint8_t *path_ptr, int64_t path_len,
 {
    char *cstr LOCAL = null_terminate(path_ptr, path_len);
 
+   if (parents)
+      jit_msg(NULL, DIAG_WARN, "PARENTS argument not supported");
+
 #ifdef __MINGW32__
    if (mkdir(cstr) == -1)
 #else
@@ -505,8 +508,8 @@ void _std_env_deletedir(const uint8_t *path_ptr, int64_t path_len,
 }
 
 DLLEXPORT
-void _std_env_dir_open(const uint8_t *path_ptr, int64_t path_len,
-                       directory_t *dir, int8_t *status)
+void _std_env_dir_open(directory_t *dir, const uint8_t *path_ptr,
+                       int64_t path_len, int8_t *status)
 {
    char *path LOCAL = null_terminate(path_ptr, path_len);
 
@@ -575,11 +578,11 @@ void _std_env_get_call_path(jit_scalar_t *args, tlab_t *tlab)
    jit_stack_trace_t *stack LOCAL = jit_stack_trace();
 
    call_path_element_t *array =
-      jit_mspace_alloc((stack->count - 1) * sizeof(call_path_element_t));
+      jit_mspace_alloc(stack->count * sizeof(call_path_element_t));
 
-   for (int i = 1; i < stack->count; i++) {
+   for (int i = 0; i < stack->count; i++) {
       jit_frame_t *frame = &(stack->frames[i]);
-      call_path_element_t *cpe = &(array[i - 1]);
+      call_path_element_t *cpe = &(array[i]);
 
       tree_t decl = tree_from_object(frame->object);
       assert(decl != NULL);
@@ -601,7 +604,7 @@ void _std_env_get_call_path(jit_scalar_t *args, tlab_t *tlab)
    }
 
    ffi_uarray_t *u = jit_mspace_alloc(sizeof(ffi_uarray_t));
-   *u = ffi_wrap(array, 0, stack->count - 2);
+   *u = ffi_wrap(array, 0, stack->count - 1);
 
    args[0].pointer = u;
 }

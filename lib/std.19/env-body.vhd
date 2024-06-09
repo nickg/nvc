@@ -61,71 +61,91 @@ package body env is
         return gmtime(epoch);
     end function;
 
+    attribute foreign of epoch [return real] : function is
+        "GHDL _std_env_epoch";
+
     impure function epoch return real is
-        -- XXX: remove nested function
-        impure function impl return real;
-        attribute foreign of impl : function is "GHDL _std_env_epoch";
     begin
-        return impl;
+        return 0.0;
     end function;
+
+    procedure get_localtime (timer : real; tr : out time_record) is
+    begin
+    end procedure;
+
+    attribute foreign of get_localtime [real, time_record] : procedure is
+        "GHDL _std_env_localtime";
 
     function localtime (timer : real) return time_record is
-        -- XXX: remove nested function
-        procedure impl (timer : real; tr : out time_record);
-        attribute foreign of impl : procedure is "GHDL _std_env_localtime";
         variable result : time_record;
     begin
-        impl(timer, result);
+        get_localtime(timer, result);
         return result;
     end function;
+
+    procedure get_gmtime (timer : real; tr : out time_record) is
+    begin
+    end procedure;
+
+    attribute foreign of get_gmtime [real, time_record] : procedure is
+        "GHDL _std_env_gmtime";
 
     function gmtime (timer : real) return time_record is
-        -- XXX: remove nested function
-        procedure impl (timer : real; tr : out time_record);
-        attribute foreign of impl : procedure is "GHDL _std_env_gmtime";
         variable result : time_record;
     begin
-        impl(timer, result);
+        get_gmtime(timer, result);
         return result;
     end function;
+
+    attribute foreign of epoch [time_record return real] : function is
+        "GHDL _std_env_epoch_trec";
 
     function epoch (trec : time_record) return real is
-        -- XXX: remove nested function
-        function impl (trec : in time_record) return real;
-        attribute foreign of impl : function is "GHDL _std_env_epoch_trec";
     begin
-        return impl(trec);
+        return 0.0;
     end function;
+
+    procedure get_localtime (trec : in time_record; result : out time_record) is
+    begin
+    end procedure;
+
+    attribute foreign of get_localtime [time_record, time_record] : procedure is
+        "GHDL _std_env_localtime_trec";
 
     function localtime (trec : time_record) return time_record is
-        -- XXX: remove nested function
-        procedure impl (trec : in time_record; result : out time_record);
-        attribute foreign of impl : procedure is "GHDL _std_env_localtime_trec";
         variable result : time_record;
     begin
-        impl(trec, result);
+        get_localtime(trec, result);
         return result;
     end function;
+
+    procedure get_gmtime (trec : in time_record; result : out time_record) is
+    begin
+    end procedure;
+
+    attribute foreign of get_gmtime [time_record, time_record] : procedure is
+        "GHDL _std_env_gmtime_trec";
 
     function gmtime (trec : time_record) return time_record is
-        -- XXX: remove nested function
-        procedure impl (trec : in time_record; result : out time_record);
-        attribute foreign of impl : procedure is "GHDL _std_env_gmtime_trec";
         variable result : time_record;
     begin
-        impl(trec, result);
+        get_gmtime(trec, result);
         return result;
     end function;
 
+    procedure add_time_record (trec   : in time_record;
+                               delta  : in real;
+                               result : out time_record) is
+    begin
+    end procedure;
+
+    attribute foreign of add_time_record [time_record, real, time_record] : procedure is
+        "GHDL _std_env_add_trec_real";
+
     function "+" (trec : time_record; delta : real) return time_record is
-        -- XXX: remove nested function
-        procedure impl (trec   : in time_record;
-                        delta  : in real;
-                        result : out time_record);
-        attribute foreign of impl : procedure is "GHDL _std_env_add_trec_real";
         variable result : time_record;
     begin
-        impl(trec, delta, result);
+        add_time_record(trec, delta, result);
         return result;
     end function;
 
@@ -145,12 +165,12 @@ package body env is
     --     report "not implemented" severity failure;
     -- end function;
 
+    attribute foreign of "-" [time_record, time_record return real] : function is
+        "GHDL _std_env_diff_trec";
+
     function "-" (tr1, tr2 : time_record) return real is
-        -- XXX: remove nested function
-        function impl (tr1, tr2 : in time_record) return real;
-        attribute foreign of impl : function is "GHDL _std_env_diff_trec";
     begin
-        return impl(tr1, tr2);
+        return 0.0;
     end function;
 
     function time_to_seconds (time_val : in time) return real is
@@ -161,12 +181,12 @@ package body env is
         return real(whole) + real(frac) / 1.0e15;
     end function;
 
+    attribute foreign of seconds_to_time [real return time] : function is
+        "GHDL _std_env_seconds_to_time";
+
     function seconds_to_time (real_val : in real) return time is
-        -- XXX: remove nested function
-        function impl (real_val : real) return time;
-        attribute foreign of impl : function is "GHDL _std_env_seconds_to_time";
     begin
-        return impl(real_val);
+        return 0 fs;
     end function;
 
     function to_string (trec        : time_record;
@@ -206,12 +226,12 @@ package body env is
         end if;
     end function;
 
+    attribute foreign of getenv [string return string] : function is
+        "INTERNAL _std_env_getenv";
+
     impure function getenv (name : string) return string is
-        -- XXX: remove nested function
-        impure function impl (name : string) return string;
-        attribute foreign of impl : function is "INTERNAL _std_env_getenv";
     begin
-        return impl(name);
+        return "";
     end function;
 
     impure function getenv (name : string) return line is
@@ -224,15 +244,15 @@ package body env is
         end if;
     end function;
 
-    impure function vhdl_version return STRING is
-        -- XXX: remove nested function
-        impure function impl return string;
-        attribute foreign of impl : function is "INTERNAL _std_env_vhdl_version";
+    attribute foreign of vhdl_version [return string] : function is
+        "INTERNAL _std_env_vhdl_version";
+
+    impure function vhdl_version return string is
     begin
-        return impl;
+        return "";
     end function;
 
-    function tool_type return STRING is
+    function tool_type return string is
     begin
         return "SIMULATION";
     end function;
@@ -252,24 +272,21 @@ package body env is
         return "GPL";
     end function;
 
+    attribute foreign of tool_version [return string] : function is
+        "INTERNAL _std_env_tool_version";
+
     function tool_version return string is
-        -- XXX: remove nested function
-        function impl return string;
-        attribute foreign of impl : function is "INTERNAL _std_env_tool_version";
     begin
-        return impl;
+        return "";
     end function;
+
+    attribute foreign of dir_open [directory, string, dir_open_status] : procedure is
+        "GHDL _std_env_dir_open";
 
     procedure dir_open (dir    : out directory;
                         path   : in string;
                         status : out dir_open_status) is
-        -- XXX: remove nested function
-        procedure impl (path   : in string;
-                        dir    : out directory;
-                        status : out dir_open_status);
-        attribute foreign of impl : procedure is "GHDL _std_env_dir_open";
     begin
-        impl(path, dir, status);
     end procedure;
 
     impure function dir_open (dir  : out directory;
@@ -287,38 +304,36 @@ package body env is
         dir.items := null;
     end procedure;
 
+    attribute foreign of dir_itemexists [string return boolean] : function is
+        "GHDL _std_env_itemexists";
+
     impure function dir_itemexists (path : in string) return boolean is
-        -- XXX: remove nested function
-        impure function impl (path : in string) return boolean;
-        attribute foreign of impl : function is "GHDL _std_env_itemexists";
     begin
-        return impl(path);
+        return false;
     end function;
+
+    attribute foreign of dir_itemisdir [string return boolean] : function is
+        "GHDL _std_env_itemisdir";
 
     impure function dir_itemisdir (path : in string) return boolean is
-        -- XXX: remove nested function
-        impure function impl (path : in string) return boolean;
-        attribute foreign of impl : function is "GHDL _std_env_itemisdir";
     begin
-        return impl(path);
+        return false;
     end function;
 
+    attribute foreign of dir_itemisfile [string return boolean] : function is
+        "GHDL _std_env_itemisfile";
+
     impure function dir_itemisfile (path : in string) return boolean is
-        -- XXX: remove nested function
-        impure function impl (path : in string) return boolean;
-        attribute foreign of impl : function is "GHDL _std_env_itemisfile";
     begin
-        return impl(path);
+        return false;
     end function;
+
+    attribute foreign of dir_workingdir [string, dir_open_status] : procedure is
+        "GHDL _std_env_set_workingdir";
 
     procedure dir_workingdir (path   : in string;
                               status : out dir_open_status) is
-        -- XXX: remove nested function
-        procedure impl (path   : in string;
-                        status : out dir_open_status);
-        attribute foreign of impl : procedure is "GHDL _std_env_set_workingdir";
     begin
-        impl(path, status);
     end procedure;
 
     impure function dir_workingdir (path : in string)
@@ -330,12 +345,11 @@ package body env is
         return status;
     end function;
 
+    attribute foreign of dir_workingdir [return string] : function is
+        "INTERNAL _std_env_get_workingdir";
+
     impure function dir_workingdir return string is
-        -- XXX: remove nested function
-        impure function impl return string;
-        attribute foreign of impl : function is "INTERNAL _std_env_get_workingdir";
     begin
-        return impl;
     end function;
 
     procedure dir_createdir (path   : in string;
@@ -344,18 +358,13 @@ package body env is
         dir_createdir(path, false, status);
     end procedure;
 
+    attribute foreign of dir_createdir [string, boolean, dir_create_status] : procedure is
+        "GHDL _std_env_createdir";
+
     procedure dir_createdir (path    : in string;
                              parents : in boolean;
                              status  : out dir_create_status) is
-        -- XXX: remove nested function
-        procedure impl (path    : in string;
-                        parents : in boolean;
-                        status  : out dir_create_status);
-        attribute foreign of impl : procedure is "GHDL _std_env_createdir";
     begin
-        assert not parents report "PARENTS flag not supported"
-            severity failure;
-        impl(path, parents, status);
     end procedure;
 
     impure function dir_createdir (path    : in string;
@@ -374,16 +383,13 @@ package body env is
         dir_deletedir(path, false, status);
     end procedure;
 
+    attribute foreign of dir_deletedir [string, boolean, dir_delete_status] : procedure is
+        "GHDL _std_env_deletedir";
+
     procedure dir_deletedir (path      : in string;
                              recursive : in boolean;
                              status    : out dir_delete_status) is
-        -- XXX: remove nested function
-        procedure impl (path      : in string;
-                        recursive : in boolean;
-                        status    : out dir_delete_status);
-        attribute foreign of impl : procedure is "GHDL _std_env_deletedir";
     begin
-        impl(path, recursive, status);
     end procedure;
 
     impure function dir_deletedir (path      : in string;
@@ -396,14 +402,12 @@ package body env is
         return status;
     end function;
 
+    attribute foreign of dir_deletefile [string, file_delete_status] : procedure is
+        "GHDL _std_env_deletefile";
+
     procedure dir_deletefile (path   : in string;
                               status : out file_delete_status) is
-        -- XXX: remove nested function
-        procedure impl (path    : in string;
-                        status  : out file_delete_status);
-        attribute foreign of impl : procedure is "GHDL _std_env_deletefile";
     begin
-        impl(path, status);
     end procedure;
 
     impure function dir_deletefile (path : in string) return file_delete_status is
@@ -447,12 +451,12 @@ package body env is
         end if;
     end function;
 
+    attribute foreign of get_call_path [return call_path_vector_ptr] : function is
+        "INTERNAL _std_env_get_call_path";
+
     impure function get_call_path return call_path_vector_ptr is
-        -- XXX: remove nested function
-        impure function impl return call_path_vector_ptr;
-        attribute foreign of impl : function is "INTERNAL _std_env_get_call_path";
     begin
-        return impl;
+        return null;
     end function;
 
     procedure get_caller_file_name (ptr : out line);
@@ -489,20 +493,23 @@ package body env is
         return result.all;
     end function;
 
-    impure function file_line return positive is
-        -- XXX: Remove nested function
-        impure function impl return positive;
-        attribute foreign of impl : function is "GHDL _std_env_file_line";
+    impure function file_line_impl return positive is
     begin
-        return impl;
+        return 1;
+    end function;
+
+    attribute foreign of file_line_impl [return positive] : function is
+        "GHDL _std_env_file_line";
+
+    impure function file_line return positive is
+    begin
+        return file_line_impl;
     end function;
 
     impure function file_line return string is
-        -- XXX: Remove nested function
-        impure function impl return positive;
-        attribute foreign of impl : function is "GHDL _std_env_file_line";
+        constant value : positive := file_line_impl;
     begin
-        return to_string(impl);
+        return to_string(value);
     end function;
 
     impure function IsVhdlAssertFailed return boolean is
