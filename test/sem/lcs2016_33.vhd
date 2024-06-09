@@ -17,6 +17,9 @@ architecture test of lcs2016_33 is
         alias cc is c;                  -- Error
     end protected;
 
+    type t_test2 is protected body
+    end protected body;
+
     shared variable sv : t_test2;
 begin
 

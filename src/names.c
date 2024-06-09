@@ -698,6 +698,7 @@ static name_mask_t name_mask_for(tree_t t)
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
    case T_PROT_DECL:
+   case T_PROT_BODY:
       return N_TYPE;
    case T_GENERIC_DECL:
       {
@@ -812,8 +813,6 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          else
             dd->visibility = HIDDEN;
       }
-      else if (dd->kind == T_PROT_DECL && tkind == T_PROT_BODY)
-         continue;
       else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
          if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
             // Replace forward declaration in same region with full
@@ -1184,9 +1183,7 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    if (region->container == decl)
       region = region->parent;
 
-   ident_t name = tree_ident(decl);
-
-   const symbol_t *sym = symbol_for(region, name);
+   const symbol_t *sym = hash_get(region->lookup, tree_ident(decl));
    if (sym == NULL)
       return NULL;
 
@@ -1199,9 +1196,28 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    return NULL;
 }
 
+tree_t get_local_object(nametab_t *tab, ident_t name, type_t type)
+{
+   const symbol_t *sym = hash_get(tab->top_scope->lookup, name);
+   if (sym == NULL)
+      return NULL;
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->origin != tab->top_scope || dd->visibility == HIDDEN)
+         continue;
+
+      type_t dtype = get_type_or_null(dd->tree);
+      if (type != NULL && type_eq(type, dtype))
+         return dd->tree;
+   }
+
+   return NULL;
+}
+
 bool is_same_region(nametab_t *tab, tree_t decl)
 {
-   const symbol_t *sym = symbol_for(tab->top_scope, tree_ident(decl));
+   const symbol_t *sym = hash_get(tab->top_scope->lookup, tree_ident(decl));
    if (sym == NULL)
       return false;
 
@@ -1593,8 +1609,6 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
       const decl_t *dd = get_decl(sym, i);
       if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
          hidden++;
-      else if (dd->kind == T_PROT_BODY)
-         hidden++;
       else
          result = dd->tree;
 
@@ -1776,8 +1790,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
       if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
-         hidden++;
-      else if (dd->kind == T_PROT_BODY)
          hidden++;
       else if (dd->visibility == OVERLOAD)
          overload++;
@@ -2554,6 +2566,7 @@ static void begin_overload_resolution(overload_t *o)
          hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
       }
 
+      diag_suppress(d, o->nametab->top_scope->suppress);
       diag_emit(d);
       o->error = true;
    }

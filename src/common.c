@@ -559,6 +559,7 @@ class_t class_of(tree_t t)
       return C_SUBTYPE;
    case T_TYPE_DECL:
    case T_PROT_DECL:
+   case T_PROT_BODY:
       return C_TYPE;
    case T_FILE_DECL:
       return C_FILE;
@@ -780,6 +781,7 @@ bool is_type_decl(tree_t t)
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
    case T_PROT_DECL:
+   case T_PROT_BODY:
       return true;
    default:
       return false;
@@ -803,6 +805,7 @@ tree_t aliased_type_decl(tree_t decl)
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
    case T_PROT_DECL:
+   case T_PROT_BODY:
       return decl;
    case T_GENERIC_DECL:
       if (tree_class(decl) == C_TYPE)

@@ -1,4 +1,4 @@
-package gen_counter is
+package gen_counter_pt is
     generic ( type t;
               one, zero : t;
               function "+"(x, y : t) return t is <>;
@@ -10,11 +10,9 @@ package gen_counter is
         impure function value return t;
     end protected;
 
-    shared variable var : counter;
-
 end package;
 
-package body gen_counter is
+package body gen_counter_pt is
 
     type counter is protected body
         variable val : t := zero;
@@ -36,6 +34,21 @@ package body gen_counter is
     end protected body;
 
 end package body;
+
+-------------------------------------------------------------------------------
+
+package gen_counter is
+    generic ( type t;
+              one, zero : t;
+              function "+"(x, y : t) return t is <>;
+              function "-"(x, y : t) return t is <> );
+
+    package pt is new work.gen_counter_pt
+        generic map ( t => t, one => one, zero => zero );
+
+    shared variable var : pt.counter;
+
+end package;
 
 -------------------------------------------------------------------------------
 

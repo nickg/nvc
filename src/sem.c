@@ -1091,7 +1091,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
 
    // From VHDL-2000 onwards shared variables must be protected types
    if (standard() >= STD_00) {
-      if ((tree_flags(t) & TREE_F_SHARED) && type_kind(type) != T_PROTECTED) {
+      if ((tree_flags(t) & TREE_F_SHARED) && !type_is_protected(type)) {
          diag_t *d = pedantic_diag(t);
          if (d != NULL) {
             diag_printf(d, "shared variable %s must have protected type",
@@ -1101,8 +1101,25 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       }
    }
 
-   if (type_is_protected(type) && standard() >= STD_19)
-      tree_set_global_flags(t, TREE_GF_INSTANCE_NAME | TREE_GF_PATH_NAME);
+   if (type_is_protected(type)) {
+      ident_t typeid = ident_rfrom(type_ident(type), '.');
+      tree_t pt = get_local_object(tab, typeid, type);
+      if (pt != NULL && tree_kind(pt) == T_PROT_DECL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "cannot declare instance of protected type %s "
+                     "before its body has been elaborated", type_pp(type));
+         diag_hint(d, tree_loc(pt), "%s declared here",
+                   type_pp(type));
+         diag_lrm(d, STD_08, "14.4.2");
+         diag_emit(d);
+         return false;
+      }
+
+      // The 2019 standard needs access to the instance and path name at
+      // the point of declaration
+      if (standard() >= STD_19)
+         tree_set_global_flags(t, TREE_GF_INSTANCE_NAME | TREE_GF_PATH_NAME);
+   }
 
    return true;
 }
@@ -4177,7 +4194,7 @@ static bool sem_is_named_entity(tree_t t)
    case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
    case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
    case T_PROCESS:      case T_GENERIC_DECL: case T_PARAM_DECL:
-   case T_INSTANCE:     case T_PROT_DECL:
+   case T_INSTANCE:     case T_PROT_DECL:    case T_PROT_BODY:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3

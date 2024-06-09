@@ -8,20 +8,14 @@ end package body;
 
 -------------------------------------------------------------------------------
 
-use work.pack1.all;
-
-package pack2 is
+package counter is
     type p is protected
         procedure inc;
         impure function get return natural;
     end protected;
-
-    shared variable c : p;
-
-    impure function f (x : integer) return integer;
 end package;
 
-package body pack2 is
+package body counter is
     type p is protected body
         variable v : natural;
         procedure inc is
@@ -33,7 +27,19 @@ package body pack2 is
             return v;
         end function;
     end protected body;
+end package body;
 
+-------------------------------------------------------------------------------
+
+use work.pack1.all;
+use work.counter.all;
+
+package pack2 is
+    shared variable c : p;
+    impure function f (x : integer) return integer;
+end package;
+
+package body pack2 is
     impure function f (x : integer) return integer is
     begin
         report "F called!";

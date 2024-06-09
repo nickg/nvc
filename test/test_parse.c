@@ -2894,11 +2894,8 @@ START_TEST(test_error)
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting one of ( or ;" },
-      {  7, "no visible subprogram declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting one of ( or ;" },
-      { 11, "no visible subprogram declaration for SOME" },
-      { 11, "no visible subprogram declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
       { 23, "expected trailing process statement label to match FOO" },
       { 27, "trailing label for process statement without label" },
@@ -3621,7 +3618,6 @@ START_TEST(test_error2)
       { 42, "unexpected function while parsing subprogram body" },
       { 45, "trailing protected type declaration label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
-      { 53, "no visible subprogram declaration for F" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -4552,6 +4548,8 @@ START_TEST(test_error8)
    input_from_file(TESTDIR "/parse/error8.vhd");
 
    const error_t expect[] = {
+      { 33, "expanded name cannot reference NEXT_ID in type PT outside of "
+        "the construct itself" },
       { 33, "record type REC has no field named ID" },
       { -1, NULL }
    };
@@ -6612,6 +6610,7 @@ END_TEST
 
 START_TEST(test_defer1)
 {
+   set_standard(STD_02);
    opt_set_int(OPT_MISSING_BODY, 1);
 
    input_from_file(TESTDIR "/parse/defer1.vhd");
@@ -6621,6 +6620,8 @@ START_TEST(test_defer1)
          "been elaborated" },
       {  5, "cannot reference deferred constant C2 before the elaboration "
          "of the corresponding full declaration" },
+      { 18, "cannot declare instance of protected type PT1 before its body "
+        "has been elaborated" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -6629,6 +6630,15 @@ START_TEST(test_defer1)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
 
    fail_unless(parse() == NULL);
 

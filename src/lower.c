@@ -1437,6 +1437,7 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
    case T_ENTITY:
    case T_ARCH:
    case T_PROT_DECL:
+   case T_PROT_BODY:
       tb_append(tb, ':');
       break;
 

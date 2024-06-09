@@ -107,6 +107,7 @@ tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
 tree_t find_forward_decl(nametab_t *tab, tree_t decl);
 psl_node_t find_default_clock(nametab_t *tab);
+tree_t get_local_object(nametab_t *tab, ident_t name, type_t type);
 
 typedef void (*predef_cb_t)(tree_t, void *);
 void walk_predefs(nametab_t *tab, ident_t name, predef_cb_t fn, void *context);

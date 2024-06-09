@@ -7640,31 +7640,39 @@ static tree_t p_protected_type_body(ident_t id)
    consume(tPROTECTED);
    consume(tBODY);
 
-   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
-
-   if (decl != NULL && tree_kind(decl) != T_PROT_DECL) {
-      parse_error(CURRENT_LOC, "object %s is not a protected type "
-                  "declaration", istr(id));
-      decl = NULL;
-   }
-
    tree_t body = tree_new(T_PROT_BODY);
    tree_set_ident(body, id);
    tree_set_loc(body, CURRENT_LOC);
-   tree_set_primary(body, decl);
+
+   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
+   if (decl != NULL) {
+      switch (tree_kind(decl)) {
+      case T_PROT_BODY:   // Duplicate body will trigger an error later
+         decl = tree_primary(decl);
+         // Fall-through
+      case T_PROT_DECL:
+         tree_set_primary(body, decl);
+         break;
+      default:
+         parse_error(CURRENT_LOC, "object %s is not a protected type "
+                     "declaration", istr(id));
+         decl = NULL;
+      }
+   }
+
+   if (decl == NULL)
+      tree_set_type(body, type_new(T_NONE));
+   else {
+      type_t type = tree_type(decl);
+      assert(type_is_protected(type));
+      tree_set_type(body, type);
+   }
 
    insert_name(nametab, body, NULL);
 
    push_scope(nametab);
 
-   if (decl != NULL) {
-      type_t type = tree_type(decl);
-      assert(type_is_protected(type));
-      tree_set_type(body, type);
-      insert_decls(nametab, decl);
-   }
-   else
-      tree_set_type(body, type_new(T_NONE));
+   if (decl != NULL) insert_decls(nametab, decl);
 
    scope_set_prefix(nametab, id);
    scope_set_container(nametab, body);

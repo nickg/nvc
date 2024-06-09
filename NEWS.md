@@ -12,6 +12,8 @@
 - Alias of packages now work correctly (#893).
 - Stricter checking of identifiers to reject those with multiple
   consecutive underscores or trailing underscores (from @typingArtist).
+- Stricter checking for subprograms, deferred constants, and protected
+  types referenced before their corresponding body or full declaration.
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
