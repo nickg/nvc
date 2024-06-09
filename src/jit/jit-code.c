@@ -529,23 +529,35 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
       code_write_perf_map(span);
 }
 
+__attribute__((cold, noinline))
+static void code_blob_overflow(code_blob_t *blob)
+{
+   warnf("JIT code buffer for %s too small", istr(blob->span->name));
+   for (patch_list_t *it = blob->patches, *tmp; it; it = tmp) {
+      tmp = it->next;
+      free(it);
+   }
+   blob->patches = NULL;
+   blob->overflow = true;
+}
+
 void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
 {
    if (unlikely(blob->overflow))
       return;
    else if (unlikely(blob->wptr + len > blob->span->base + blob->span->size)) {
-      warnf("JIT code buffer for %s too small", istr(blob->span->name));
-      for (patch_list_t *it = blob->patches, *tmp; it; it = tmp) {
-         tmp = it->next;
-         free(it);
-      }
-      blob->patches = NULL;
-      blob->overflow = true;
+      code_blob_overflow(blob);
       return;
    }
 
-   for (size_t i = 0; i < len; i++)
-      *(blob->wptr++) = bytes[i];
+   if (len < 8) {
+      for (size_t i = 0; i < len; i++)
+         *(blob->wptr++) = bytes[i];
+   }
+   else {
+      memcpy(blob->wptr, bytes, len);
+      blob->wptr += len;
+   }
 }
 
 void code_blob_align(code_blob_t *blob, unsigned align)
