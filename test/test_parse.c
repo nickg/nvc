@@ -6619,6 +6619,8 @@ START_TEST(test_defer1)
    const error_t expect[] = {
       {  3, "subprogram FUNC1 [return INTEGER] called before its body has "
          "been elaborated" },
+      {  5, "cannot reference deferred constant C2 before the elaboration "
+         "of the corresponding full declaration" },
       { -1, NULL }
    };
    expect_errors(expect);

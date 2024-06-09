@@ -1,11 +1,5 @@
 package pack is
     constant C : integer;
-
-    type rec is record
-        x : integer;
-        y : bit_vector(1 to C);
-    end record;
-
 end package;
 
 package body pack is
@@ -20,6 +14,11 @@ end entity;
 use work.pack.all;
 
 architecture test of issue549 is
+
+    type rec is record
+        x : integer;
+        y : bit_vector(1 to C);
+    end record;
 
     constant def : rec := (x => 0, y => "0000");
 

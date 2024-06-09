@@ -3287,6 +3287,17 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
       // Propagate impurity flags
       tree_set_flag(sub, flags & (TREE_F_IMPURE_FILE | TREE_F_IMPURE_SHARED));
    }
+   else if (tree_kind(decl) == T_FUNC_DECL && !(flags & TREE_F_PREDEFINED)
+            && is_same_region(tab, decl) && opt_get_int(OPT_MISSING_BODY)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "subprogram %s called before its body has been "
+                  "elaborated", type_pp(tree_type(decl)));
+      diag_hint(d, tree_loc(decl), "%s declared here",
+                type_pp(tree_type(decl)));
+      diag_lrm(d, STD_08, "14.4.2");
+      diag_emit(d);
+      return false;
+   }
 
    if (!sem_check_call_args(t, decl, tab))
       return false;
@@ -3832,7 +3843,6 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
    case T_FILE_DECL:
-   case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_UNIT_DECL:
    case T_FUNC_DECL:
@@ -3843,6 +3853,20 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PROC_INST:
    case T_IMPLICIT_SIGNAL:
    case T_PARAM_DECL:
+      break;
+
+   case T_CONST_DECL:
+      if (!tree_has_value(decl) && is_same_region(tab, decl)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "cannot reference deferred constant %s before the "
+                     "elaboration of the corresponding full declaration",
+                     istr(tree_ident(decl)));
+         diag_hint(d, tree_loc(decl), "%s declared here",
+                   istr(tree_ident(decl)));
+         diag_lrm(d, STD_08, "4.8");
+         diag_emit(d);
+         return false;
+      }
       break;
 
    case T_ALIAS:

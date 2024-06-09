@@ -1199,6 +1199,21 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    return NULL;
 }
 
+bool is_same_region(nametab_t *tab, tree_t decl)
+{
+   const symbol_t *sym = symbol_for(tab->top_scope, tree_ident(decl));
+   if (sym == NULL)
+      return false;
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->origin == tab->top_scope && dd->tree == decl)
+         return true;
+   }
+
+   return false;
+}
+
 psl_node_t find_default_clock(nametab_t *tab)
 {
    ident_t id = well_known(W_DEFAULT_CLOCK);
@@ -2678,31 +2693,6 @@ static void begin_overload_resolution(overload_t *o)
       overload_trace_candidates(o, "after initial pruning");
 }
 
-static void overload_check_elaboration_order(overload_t *o, tree_t sub)
-{
-   const tree_kind_t kind = tree_kind(sub);
-   if (kind != T_FUNC_DECL && kind != T_PROC_DECL)
-      return;
-   else if (tree_kind(o->tree) == T_REF)
-      return;
-   else if (tree_flags(sub) & TREE_F_PREDEFINED)
-      return;
-   else if (!opt_get_int(OPT_MISSING_BODY))
-      return;   // Skip check in some unit tests
-
-   for (int i = 0; i < o->symbol->ndecls; i++) {
-      const decl_t *dd = get_decl(o->symbol, i);
-      if (dd->tree == sub && dd->origin == o->nametab->top_scope) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
-         diag_printf(d, "subprogram %s called before its body has been "
-                     "elaborated", type_pp(tree_type(sub)));
-         diag_hint(d, tree_loc(sub), "%s declared here",
-                   type_pp(tree_type(sub)));
-         diag_emit(d);
-      }
-   }
-}
-
 static int param_compar(const void *pa, const void *pb)
 {
    // Define a sort order for parameters
@@ -2892,10 +2882,8 @@ static tree_t finish_overload_resolution(overload_t *o)
 
       diag_emit(d);
    }
-   else if (o->candidates.count == 1 && !o->cancelled) {
+   else if (o->candidates.count == 1 && !o->cancelled)
       result = o->candidates.items[0];
-      overload_check_elaboration_order(o, result);
-   }
 
    ACLEAR(o->candidates);
    ACLEAR(o->params);

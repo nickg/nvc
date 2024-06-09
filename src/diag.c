@@ -438,12 +438,15 @@ static const struct {
    { "Port clauses", { [STD_08] = "6.5.6.3" } },
    { "Subprogram instantiation declarations", { [STD_08] = "4.4" } },
    { "Incomplete type declarations", { [STD_08] = "5.4.2", [STD_93] = "3.3.1",
-      [STD_19] = "5.4.2" } },
+        [STD_19] = "5.4.2" } },
    { "String literals", { [STD_93] = "13.6", [STD_08] = "15.7" } },
    { "Simple signal assignments", { [STD_93] = "8.4", [STD_08] = "10.5.2" } },
    { "Basic identifiers", { [STD_93] = "13.3.1", [STD_08] = "15.4.2" } },
    { "Concurrent signal assignment statements", { [STD_93] = "9.5",
         [STD_08] = "11.6" } },
+   { "Elaboration of a declaration", { [STD_08] = "14.4.2",
+        [STD_93] = "12.3.1" } },
+   { "Package bodies", { [STD_08] = "4.8", [STD_93] = "2.6" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
