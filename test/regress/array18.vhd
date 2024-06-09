@@ -19,7 +19,6 @@ package pack2 is
     shared variable c : p;
 
     impure function f (x : integer) return integer;
-    type t is array (1 to k + 1) of bit_vector(f(k) downto 0);
 end package;
 
 package body pack2 is
@@ -48,9 +47,11 @@ end package body;
 entity array18 is
 end entity;
 
+use work.pack1.all;
 use work.pack2.all;
 
 architecture test of array18 is
+    type t is array (1 to k + 1) of bit_vector(f(k) downto 0);
     signal s : t;
 begin
 

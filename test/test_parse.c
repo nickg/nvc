@@ -6610,6 +6610,30 @@ START_TEST(test_alias4)
 }
 END_TEST
 
+START_TEST(test_defer1)
+{
+   opt_set_int(OPT_MISSING_BODY, 1);
+
+   input_from_file(TESTDIR "/parse/defer1.vhd");
+
+   const error_t expect[] = {
+      {  3, "subprogram FUNC1 [return INTEGER] called before its body has "
+         "been elaborated" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6761,6 +6785,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_basic_identifier);
    tcase_add_test(tc_core, test_issue893);
    tcase_add_test(tc_core, test_alias4);
+   tcase_add_test(tc_core, test_defer1);
    suite_add_tcase(s, tc_core);
 
    return s;

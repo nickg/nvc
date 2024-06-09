@@ -414,39 +414,6 @@ END;
 
 PACKAGE BODY c03s03b00x00p03n04i00520pkg IS
 
-  CONSTANT CX_csa2_1 : t_csa2_1 := F_csa2_1 ( CX_scl1, CX_scl1 );
-  CONSTANT C0_csa2_1 : t_csa2_1 := F_csa2_1 ( C0_scl1, C0_scl1 );
-  CONSTANT C1_csa2_1 : t_csa2_1 := F_csa2_1 ( C1_scl1, C1_scl1 );
-  CONSTANT C2_csa2_1 : t_csa2_1 := F_csa2_1 ( C0_scl1, C2_scl1 );
-
-  CONSTANT CX_csa3_1 : t_csa3_1 := F_csa3_1 ( CX_scl1, CX_scl1 );
-  CONSTANT C0_csa3_1 : t_csa3_1 := F_csa3_1 ( C0_scl1, C0_scl1 );
-  CONSTANT C1_csa3_1 : t_csa3_1 := F_csa3_1 ( C1_scl1, C1_scl1 );
-  CONSTANT C2_csa3_1 : t_csa3_1 := F_csa3_1 ( C0_scl1, C2_scl1 );
-
-  CONSTANT CX_csa4_1 : t_csa4_1 := F_csa4_1 ( CX_scl1, CX_scl1 );
-  CONSTANT C0_csa4_1 : t_csa4_1 := F_csa4_1 ( C0_scl1, C0_scl1 );
-  CONSTANT C1_csa4_1 : t_csa4_1 := F_csa4_1 ( C1_scl1, C1_scl1 );
-  CONSTANT C2_csa4_1 : t_csa4_1 := F_csa4_1 ( C0_scl1, C2_scl1 );
-
-  CONSTANT CX_cca2_1 : t_cca2_1 := ( OTHERS=>CX_csa2_1 );
-  CONSTANT C0_cca2_1 : t_cca2_1 := ( OTHERS=>C0_csa2_1 );
-  CONSTANT C1_cca2_1 : t_cca2_1 := ( OTHERS=>C1_csa2_1 );
-  CONSTANT C2_cca2_1 : t_cca2_1 := ( C2_csa2_1, C0_csa2_1, C0_csa2_1, C2_csa2_1 );
-  CONSTANT CX_cca2_2 : t_cca2_2 := F_cca2_2 ( CX_csa2_1, CX_csa2_1 );
-  CONSTANT C0_cca2_2 : t_cca2_2 := F_cca2_2 ( C0_csa2_1, C0_csa2_1 );
-  CONSTANT C1_cca2_2 : t_cca2_2 := F_cca2_2 ( C1_csa2_1, C1_csa2_1 );
-  CONSTANT C2_cca2_2 : t_cca2_2 := F_cca2_2 ( C0_csa2_1, C2_csa2_1 );
-
-  CONSTANT CX_cca3_1 : t_cca3_1 := F_cca3_1 ( CX_csa1_1, CX_csa1_1 );
-  CONSTANT C0_cca3_1 : t_cca3_1 := F_cca3_1 ( C0_csa1_1, C0_csa1_1 );
-  CONSTANT C1_cca3_1 : t_cca3_1 := F_cca3_1 ( C1_csa1_1, C1_csa1_1 );
-  CONSTANT C2_cca3_1 : t_cca3_1 := F_cca3_1 ( C0_csa1_1, C2_csa1_1 );
-
-  CONSTANT CX_cca3_2 : t_cca3_2 := ( OTHERS=>CX_csa3_1 );
-  CONSTANT C0_cca3_2 : t_cca3_2 := ( OTHERS=>C0_csa3_1 );
-  CONSTANT C1_cca3_2 : t_cca3_2 := ( OTHERS=>C1_csa3_1 );
-  CONSTANT C2_cca3_2 : t_cca3_2 := ( C2_csa3_1, C0_csa3_1, C0_csa3_1, C2_csa3_1 );
 --
 -- Functions to provide values for multi-dimensional composites
 --
@@ -714,6 +681,40 @@ PACKAGE BODY c03s03b00x00p03n04i00520pkg IS
     ELSE RETURN v(1);
     END IF;
   END;
+
+  CONSTANT CX_csa2_1 : t_csa2_1 := F_csa2_1 ( CX_scl1, CX_scl1 );
+  CONSTANT C0_csa2_1 : t_csa2_1 := F_csa2_1 ( C0_scl1, C0_scl1 );
+  CONSTANT C1_csa2_1 : t_csa2_1 := F_csa2_1 ( C1_scl1, C1_scl1 );
+  CONSTANT C2_csa2_1 : t_csa2_1 := F_csa2_1 ( C0_scl1, C2_scl1 );
+
+  CONSTANT CX_csa3_1 : t_csa3_1 := F_csa3_1 ( CX_scl1, CX_scl1 );
+  CONSTANT C0_csa3_1 : t_csa3_1 := F_csa3_1 ( C0_scl1, C0_scl1 );
+  CONSTANT C1_csa3_1 : t_csa3_1 := F_csa3_1 ( C1_scl1, C1_scl1 );
+  CONSTANT C2_csa3_1 : t_csa3_1 := F_csa3_1 ( C0_scl1, C2_scl1 );
+
+  CONSTANT CX_csa4_1 : t_csa4_1 := F_csa4_1 ( CX_scl1, CX_scl1 );
+  CONSTANT C0_csa4_1 : t_csa4_1 := F_csa4_1 ( C0_scl1, C0_scl1 );
+  CONSTANT C1_csa4_1 : t_csa4_1 := F_csa4_1 ( C1_scl1, C1_scl1 );
+  CONSTANT C2_csa4_1 : t_csa4_1 := F_csa4_1 ( C0_scl1, C2_scl1 );
+
+  CONSTANT CX_cca2_1 : t_cca2_1 := ( OTHERS=>CX_csa2_1 );
+  CONSTANT C0_cca2_1 : t_cca2_1 := ( OTHERS=>C0_csa2_1 );
+  CONSTANT C1_cca2_1 : t_cca2_1 := ( OTHERS=>C1_csa2_1 );
+  CONSTANT C2_cca2_1 : t_cca2_1 := ( C2_csa2_1, C0_csa2_1, C0_csa2_1, C2_csa2_1 );
+  CONSTANT CX_cca2_2 : t_cca2_2 := F_cca2_2 ( CX_csa2_1, CX_csa2_1 );
+  CONSTANT C0_cca2_2 : t_cca2_2 := F_cca2_2 ( C0_csa2_1, C0_csa2_1 );
+  CONSTANT C1_cca2_2 : t_cca2_2 := F_cca2_2 ( C1_csa2_1, C1_csa2_1 );
+  CONSTANT C2_cca2_2 : t_cca2_2 := F_cca2_2 ( C0_csa2_1, C2_csa2_1 );
+
+  CONSTANT CX_cca3_1 : t_cca3_1 := F_cca3_1 ( CX_csa1_1, CX_csa1_1 );
+  CONSTANT C0_cca3_1 : t_cca3_1 := F_cca3_1 ( C0_csa1_1, C0_csa1_1 );
+  CONSTANT C1_cca3_1 : t_cca3_1 := F_cca3_1 ( C1_csa1_1, C1_csa1_1 );
+  CONSTANT C2_cca3_1 : t_cca3_1 := F_cca3_1 ( C0_csa1_1, C2_csa1_1 );
+
+  CONSTANT CX_cca3_2 : t_cca3_2 := ( OTHERS=>CX_csa3_1 );
+  CONSTANT C0_cca3_2 : t_cca3_2 := ( OTHERS=>C0_csa3_1 );
+  CONSTANT C1_cca3_2 : t_cca3_2 := ( OTHERS=>C1_csa3_1 );
+  CONSTANT C2_cca3_2 : t_cca3_2 := ( C2_csa3_1, C0_csa3_1, C0_csa3_1, C2_csa3_1 );
 --
 --
   FUNCTION val_t ( i : INTEGER ) RETURN st_scl1 IS

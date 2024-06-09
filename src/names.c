@@ -40,33 +40,8 @@ typedef struct _spec spec_t;
 typedef struct _sym_chunk sym_chunk_t;
 typedef struct _lazy_sym lazy_sym_t;
 
-typedef enum {
-   O_IDLE,
-   O_POS,
-   O_NAMED,
-} overload_state_t;
-
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
-
-typedef struct {
-   ident_t           name;
-   tree_t            tree;
-   tree_list_t       candidates;
-   tree_list_t       params;
-   overload_state_t  state;
-   nametab_t        *nametab;
-   bool              error;
-   bool              trace;
-   bool              trial;
-   bool              could_be_index;
-   bool              implicit_conversion;
-   bool              cancelled;
-   type_t            signature;
-   tree_t            prefix;
-   unsigned          initial;
-   unsigned          nactuals;
-} overload_t;
 
 struct _spec {
    spec_t      *next;
@@ -107,6 +82,32 @@ typedef struct _sym_chunk {
    unsigned     count;
    symbol_t     symbols[SYMBOLS_PER_CHUNK];
 } sym_chunk_t;
+
+typedef enum {
+   O_IDLE,
+   O_POS,
+   O_NAMED,
+} overload_state_t;
+
+typedef struct {
+   ident_t           name;
+   tree_t            tree;
+   tree_list_t       candidates;
+   tree_list_t       params;
+   nametab_t        *nametab;
+   const symbol_t   *symbol;
+   overload_state_t  state;
+   bool              error;
+   bool              trace;
+   bool              trial;
+   bool              could_be_index;
+   bool              implicit_conversion;
+   bool              cancelled;
+   type_t            signature;
+   tree_t            prefix;
+   unsigned          initial;
+   unsigned          nactuals;
+} overload_t;
 
 typedef symbol_t *(*lazy_fn_t)(scope_t *, ident_t, void *);
 typedef void (*formal_fn_t)(diag_t *, ident_t, void *);
@@ -2468,20 +2469,19 @@ static type_t get_protected_type(nametab_t *tab, tree_t t)
 
 static void begin_overload_resolution(overload_t *o)
 {
-   const symbol_t *sym = NULL;
    if (o->prefix != NULL) {
       type_t type = get_protected_type(o->nametab, o->prefix);
       if (type != NULL) {
          scope_t *scope = scope_for_type(o->nametab, type);
-         sym = symbol_for(scope, o->name);
+         o->symbol = symbol_for(scope, o->name);
       }
    }
    else
-      sym = iterate_symbol_for(o->nametab, o->name);
+      o->symbol = iterate_symbol_for(o->nametab, o->name);
 
-   if (sym != NULL) {
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
+   if (o->symbol != NULL) {
+      for (int i = 0; i < o->symbol->ndecls; i++) {
+         const decl_t *dd = get_decl(o->symbol, i);
          if (dd->visibility == HIDDEN)
             continue;
          else if (!(dd->mask & N_SUBPROGRAM))
@@ -2512,10 +2512,10 @@ static void begin_overload_resolution(overload_t *o)
    if (o->initial == 0 && !o->error && !o->trial) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
 
-      if (sym != NULL) {
+      if (o->symbol != NULL) {
          const bool hinted = diag_hints(d) > 0;
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
+         for (int i = 0; i < o->symbol->ndecls; i++) {
+            const decl_t *dd = get_decl(o->symbol, i);
             if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
                diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
                          type_pp(tree_type(dd->tree)));
@@ -2676,6 +2676,31 @@ static void begin_overload_resolution(overload_t *o)
 
    if (o->candidates.count != o->initial)
       overload_trace_candidates(o, "after initial pruning");
+}
+
+static void overload_check_elaboration_order(overload_t *o, tree_t sub)
+{
+   const tree_kind_t kind = tree_kind(sub);
+   if (kind != T_FUNC_DECL && kind != T_PROC_DECL)
+      return;
+   else if (tree_kind(o->tree) == T_REF)
+      return;
+   else if (tree_flags(sub) & TREE_F_PREDEFINED)
+      return;
+   else if (!opt_get_int(OPT_MISSING_BODY))
+      return;   // Skip check in some unit tests
+
+   for (int i = 0; i < o->symbol->ndecls; i++) {
+      const decl_t *dd = get_decl(o->symbol, i);
+      if (dd->tree == sub && dd->origin == o->nametab->top_scope) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
+         diag_printf(d, "subprogram %s called before its body has been "
+                     "elaborated", type_pp(tree_type(sub)));
+         diag_hint(d, tree_loc(sub), "%s declared here",
+                   type_pp(tree_type(sub)));
+         diag_emit(d);
+      }
+   }
 }
 
 static int param_compar(const void *pa, const void *pb)
@@ -2867,8 +2892,10 @@ static tree_t finish_overload_resolution(overload_t *o)
 
       diag_emit(d);
    }
-   else if (o->candidates.count == 1 && !o->cancelled)
+   else if (o->candidates.count == 1 && !o->cancelled) {
       result = o->candidates.items[0];
+      overload_check_elaboration_order(o, result);
+   }
 
    ACLEAR(o->candidates);
    ACLEAR(o->params);

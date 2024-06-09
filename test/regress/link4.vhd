@@ -8,7 +8,7 @@ package pack is
 
     impure function make_rec return rec;
 
-    constant r : rec := make_rec;
+    constant r : rec;
     constant s : string := "hello";
 
     function get_string return string;
@@ -32,6 +32,8 @@ package body pack is
     begin
         return s;
     end function;
+
+    constant r : rec := make_rec;
 
 end package body;
 
