@@ -16,7 +16,9 @@
 
 package body env is
 
-    procedure stop_impl(finish, have_status : boolean; status : integer);
+    procedure stop_impl(finish, have_status : boolean; status : integer) is
+    begin
+    end procedure;
 
     attribute foreign of stop_impl : procedure is "GHDL _std_env_stop";
 

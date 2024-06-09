@@ -9898,7 +9898,6 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 
 static void lower_decls(lower_unit_t *lu, tree_t scope)
 {
-   bool has_foreign = false;
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
@@ -9908,7 +9907,6 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
          unit_registry_defer(lu->registry, tree_ident2(tree_ref(d)), lu,
                              emit_function, lower_foreign_stub, NULL,
                              tree_to_object(d));
-         has_foreign = true;
       }
    }
 
@@ -9922,7 +9920,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_FUNC_BODY:
          {
             ident_t mangled = tree_ident2(d);
-            if (!has_foreign || !unit_registry_query(lu->registry, mangled)) {
+            if (!unit_registry_query(lu->registry, mangled)) {
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
                                    lu->cover, tree_to_object(d));
@@ -9944,7 +9942,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
             emit_fn_t emitfn = never_waits ? emit_function : emit_procedure;
             ident_t mangled = tree_ident2(d);
 
-            if (!has_foreign || !unit_registry_query(lu->registry, mangled)) {
+            if (!unit_registry_query(lu->registry, mangled)) {
                unit_registry_defer(lu->registry, tree_ident2(d),
                                    lu, emitfn, lower_proc_body, lu->cover,
                                    tree_to_object(d));

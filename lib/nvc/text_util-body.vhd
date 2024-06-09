@@ -439,4 +439,8 @@ package body text_util is
         return change_bounds(buf(pos + 1 to buf'right), 1, buf'right - pos);
     end function;
 
+    function real_to_string (x : real) return string is
+    begin
+        assert false severity failure;
+    end function;
 end package body;

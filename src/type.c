@@ -671,6 +671,32 @@ bool type_is_valid(type_t t)
    return type_base_kind(t) != T_NONE;
 }
 
+bool type_has_error(type_t t)
+{
+   switch (t->object.kind) {
+   case T_NONE:
+      return true;
+   case T_FUNC:
+      if (type_is_none(type_result(t)))
+         return true;
+      // Fall-through
+   case T_PROC:
+      {
+         const int nparams = type_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (type_is_none(type_param(t, i)))
+               return true;
+         }
+
+         return false;
+      }
+   case T_SUBTYPE:
+      return type_is_none(type_base(t));
+   default:
+      return false;
+   }
+}
+
 tree_t type_constraint_for_field(type_t t, tree_t f)
 {
    if (t->object.kind == T_SUBTYPE) {

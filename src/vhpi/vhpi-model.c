@@ -4454,9 +4454,11 @@ vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
 
       switch (tree_kind(sub)) {
       case T_FUNC_DECL:
+      case T_FUNC_BODY:
          f->decl = &(build_funcDecl(sub)->subpDecl);
          break;
       case T_PROC_DECL:
+      case T_PROC_BODY:
          f->decl = &(build_procDecl(sub)->subpDecl);
          break;
       default:

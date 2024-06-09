@@ -39,4 +39,18 @@ package body polyfill is
         end if;
     end function;
 
+    function to_string (value : real; spec : string) return string is
+    begin
+        return "";
+    end function;
+
+    function to_hstring (value : bit_vector) return string is
+    begin
+        return "";
+    end function;
+
+    function to_ostring (value : bit_vector) return string is
+    begin
+        return "";
+    end function;
 end package body;

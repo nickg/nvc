@@ -7,7 +7,9 @@ architecture test of issue612 is
                          arg5, arg6, arg7, arg8, arg9 : out integer;
                          arg10, arg11, arg12, arg13, arg14 : out integer;
                          arg15, arg16, arg17, arg18, arg19 : out integer;
-                         arg20, arg21, arg22, arg23 : out integer);
+                         arg20, arg21, arg22, arg23 : out integer) is
+    begin
+    end procedure;
 
     attribute foreign of many_args : procedure is "VHPIDIRECT many_args";
 

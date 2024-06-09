@@ -124,24 +124,32 @@ typedef struct {
    int loop;
 } label_cnts_t;
 
+typedef struct {
+   defer_check_fn_t fn;
+   tree_t           tree;
+} defer_check_t;
+
+typedef A(defer_check_t) defer_checks_t;
+
 struct scope {
-   scope_t       *parent;
-   sym_chunk_t    symbols;
-   sym_chunk_t   *sym_tail;
-   hash_t        *lookup;
-   hash_t        *gmap;
-   spec_t        *specs;
-   overload_t    *overload;
-   formal_kind_t  formal_kind;
-   formal_fn_t    formal_fn;
-   void          *formal_arg;
-   ident_t        prefix;
-   tree_t         container;
-   bool           suppress;
-   lazy_sym_t    *lazy;
-   tree_list_t    imported;
-   label_cnts_t   lbl_cnts;
-   scope_t       *chain;
+   scope_t        *parent;
+   sym_chunk_t     symbols;
+   sym_chunk_t    *sym_tail;
+   hash_t         *lookup;
+   hash_t         *gmap;
+   spec_t         *specs;
+   overload_t     *overload;
+   formal_kind_t   formal_kind;
+   formal_fn_t     formal_fn;
+   void           *formal_arg;
+   ident_t         prefix;
+   tree_t          container;
+   bool            suppress;
+   lazy_sym_t     *lazy;
+   tree_list_t     imported;
+   label_cnts_t    lbl_cnts;
+   scope_t        *chain;
+   defer_checks_t  deferred;
 };
 
 typedef struct _nametab {
@@ -428,6 +436,12 @@ void pop_scope(nametab_t *tab)
    assert(tab->top_scope != NULL);
    scope_t *tmp = tab->top_scope->parent;
 
+   for (int i = 0; i < tab->top_scope->deferred.count; i++) {
+      const defer_check_t *dc = &(tab->top_scope->deferred.items[i]);
+      (*dc->fn)(dc->tree, tab->top_scope->container, tab);
+   }
+   ACLEAR(tab->top_scope->deferred);
+
    for (spec_t *it = tab->top_scope->specs, *next; it != NULL; it = next) {
       if (it->kind == SPEC_EXACT && it->matches == 0
           && !tab->top_scope->suppress)
@@ -444,6 +458,12 @@ void pop_scope(nametab_t *tab)
 void suppress_errors(nametab_t *tab)
 {
    tab->top_scope->suppress = true;
+}
+
+void defer_check(nametab_t *tab, defer_check_fn_t fn, tree_t t)
+{
+   defer_check_t dc = { fn, t };
+   APUSH(tab->top_scope->deferred, dc);
 }
 
 void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
@@ -728,25 +748,6 @@ static name_mask_t name_mask_for(tree_t t)
    default:
       return 0;
    }
-}
-
-static bool type_has_error(type_t type)
-{
-   if (type_is_none(type))
-      return true;
-
-   if (type_is_subprogram(type)) {
-      const int nparams = type_params(type);
-      for (int i = 0; i < nparams; i++) {
-         if (type_is_none(type_param(type, i)))
-            return true;
-      }
-
-      if (type_kind(type) == T_FUNC && type_is_none(type_result(type)))
-         return true;
-   }
-
-   return false;
 }
 
 static void add_type_literals(scope_t *s, type_t type, make_visible_t fn)

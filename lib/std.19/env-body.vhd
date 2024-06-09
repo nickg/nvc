@@ -22,7 +22,9 @@ package body env is
     -- Forward slash is a legal separator on both Windows and Unix
     constant DIR_SEPARATOR : string := "/";
 
-    procedure stop_impl(finish, have_status : boolean; status : integer);
+    procedure stop_impl (finish, have_status : boolean; status : integer) is
+    begin
+    end procedure;
 
     attribute foreign of stop_impl : procedure is "GHDL _std_env_stop";
 
@@ -459,7 +461,10 @@ package body env is
         return null;
     end function;
 
-    procedure get_caller_file_name (ptr : out line);
+    procedure get_caller_file_name (ptr : out line) is
+    begin
+    end procedure;
+
     attribute foreign of get_caller_file_name : procedure is "GHDL _std_env_file_name";
 
     impure function file_name return line is
@@ -476,7 +481,10 @@ package body env is
         return result.all;
     end function;
 
-    procedure get_caller_file_path (ptr : out line);
+    procedure get_caller_file_path (ptr : out line) is
+    begin
+    end procedure;
+
     attribute foreign of get_caller_file_path : procedure is "GHDL _std_env_file_path";
 
     impure function file_path return line is
@@ -532,31 +540,62 @@ package body env is
     attribute foreign of GetVhdlAssertCount [severity_level return natural] :
         function is "INTERNAL _std_env_get_vhdl_assert_count";
 
+    impure function GetVhdlAssertCount (level : severity_level) return natural is
+    begin
+    end function;
+
     attribute foreign of ClearVhdlAssert [] :
         procedure is "INTERNAL _std_env_clear_vhdl_assert";
 
+    procedure ClearVhdlAssert is
+    begin
+    end procedure;
+
     procedure SetVhdlAssertEnable (Enable : boolean := true) is
     begin
-        SetVhdlAssertEnable (note,    Enable);
-        SetVhdlAssertEnable (warning, Enable);
-        SetVhdlAssertEnable (error,   Enable);
-        SetVhdlAssertEnable (failure, Enable);
+        for s in note to failure loop
+            SetVhdlAssertEnable(s, Enable);
+        end loop;
     end procedure;
 
     attribute foreign of SetVhdlAssertEnable [severity_level, boolean] :
         procedure is "INTERNAL _std_env_set_vhdl_assert_enable";
 
+    procedure SetVhdlAssertEnable (level : severity_level := note;
+                                   enable : boolean := true) is
+    begin
+    end procedure;
+
     attribute foreign of GetVhdlAssertEnable [severity_level return boolean] :
         function is "INTERNAL _std_env_get_vhdl_assert_enable";
+
+    impure function GetVhdlAssertEnable (level : severity_level := note) return boolean is
+    begin
+    end function;
 
     attribute foreign of SetVhdlAssertFormat [severity_level, string] :
         procedure is "INTERNAL _std_env_set_assert_format";
 
+    procedure SetVhdlAssertFormat (level : severity_level; format: string) is
+    begin
+    end procedure;
+
     attribute foreign of SetVhdlAssertFormat [severity_level, string, boolean] :
         procedure is "INTERNAL _std_env_set_assert_format_valid";
 
+    procedure SetVhdlAssertFormat (level : severity_level;
+                                   format: string;
+                                   valid : out boolean) is
+    begin
+    end procedure;
+
     attribute foreign of GetVhdlAssertFormat [severity_level return string] :
         function is "INTERNAL _std_env_get_assert_format";
+
+    impure function GetVhdlAssertFormat (level : severity_level) return string is
+    begin
+        return "";
+    end function;
 
     type read_severity_pt is protected
         procedure set (level : severity_level);

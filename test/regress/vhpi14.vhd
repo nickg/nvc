@@ -2,21 +2,36 @@ entity vhpi14 is
 end entity;
 
 architecture test of vhpi14 is
-    function add2 (x : integer) return integer;
+    function add2 (x : integer) return integer is
+    begin
+    end function;
+
     attribute foreign of add2 : function is "VHPI lib add2";
 
-    function popcount (x : bit_vector) return natural;
+    function popcount (x : bit_vector) return natural is
+    begin
+    end function;
+
     attribute foreign of popcount : function is "VHPI lib popcount";
 
     type t_int_vec is array (natural range <>) of integer;
 
-    procedure test1 (x : inout t_int_vec(1 to 4); y : in integer);
+    procedure test1 (x : inout t_int_vec(1 to 4); y : in integer) is
+    begin
+    end procedure;
+
     attribute foreign of test1 : procedure is "VHPI lib test1";
 
-    procedure test2 (x : inout t_int_vec; y : in integer);
+    procedure test2 (x : inout t_int_vec; y : in integer) is
+    begin
+    end procedure;
+
     attribute foreign of test2 : procedure is "VHPI lib test2";
 
-    function iota (n : natural) return t_int_vec;
+    function iota (n : natural) return t_int_vec is
+    begin
+    end function;
+
     attribute foreign of iota : function is "VHPI lib iota";
 begin
 

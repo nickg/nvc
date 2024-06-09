@@ -6,11 +6,18 @@ use ieee.std_logic_1164.all;
 
 architecture test of vhpi4 is
 
-    function sum (x, y : integer) return integer;
+    function sum (x, y : integer) return integer is
+    begin
+    end function;
+
     attribute foreign of sum : function is "VHPIDIRECT __vhpi_sum";
 
     type int_vec is array (natural range <>) of integer;
-    function sum_array (a : int_vec; len : integer) return integer;
+
+    function sum_array (a : int_vec; len : integer) return integer is
+    begin
+    end function;
+
     attribute foreign of sum_array : function is "VHPIDIRECT __vhpi_sum_array";
 
     function my_not (x : std_logic) return std_logic is
@@ -21,6 +28,7 @@ architecture test of vhpi4 is
     attribute foreign of my_not : function is "VHPIDIRECT __vhpi_my_not";
 
     procedure test_proc (x : out integer; arr : out int_vec);
+
     attribute foreign of test_proc : procedure is "VHPIDIRECT __vhpi_test_proc";
 
     procedure test_proc (x : out integer; arr : out int_vec) is

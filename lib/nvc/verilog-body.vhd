@@ -409,4 +409,19 @@ package body verilog is
     begin
         return to_logic(time'pos(now), 64);
     end function;
+
+    procedure sys_finish is
+    begin
+        -- Has native implementation
+    end procedure;
+
+    procedure sys_display (format : string) is
+    begin
+        -- Has native implementation
+    end procedure;
+
+    procedure sys_write (format : string) is
+    begin
+        -- Has native implementation
+    end procedure;
 end package body;

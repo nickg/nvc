@@ -1542,6 +1542,39 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    return true;
 }
 
+static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
+{
+   if (parent == NULL || !opt_get_int(OPT_MISSING_BODY))
+      return;
+
+   const tree_kind_t kind = tree_kind(parent);
+   if (kind == T_PACKAGE || kind == T_PROT_DECL)
+      return;   // Should be in body
+
+   tree_t body = get_local_object(tab, tree_ident(t), tree_type(t));
+   if (body == NULL || !is_body(body)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "missing body for ");
+      switch (tree_kind(t)) {
+      case T_PROT_DECL: diag_printf(d, "protected type "); break;
+      case T_PROC_DECL: diag_printf(d, "procedure "); break;
+      case T_FUNC_DECL: diag_printf(d, "function "); break;
+      default: break;
+      }
+
+      type_t type = tree_type(t);
+      diag_printf(d, "%s", type_pp(type));
+      diag_suppress(d, type_has_error(type));
+
+      diag_hint(d, tree_loc(parent), "body not found in %s %s",
+                class_str(class_of(parent)), istr(tree_ident(parent)));
+
+      diag_hint(d, tree_loc(t), "%s declared here", type_pp(type));
+
+      diag_emit(d);
+   }
+}
+
 static bool sem_check_func_ports(tree_t t, nametab_t *tab)
 {
    const vhdl_standard_t std = standard();
@@ -1684,6 +1717,7 @@ static bool sem_check_func_decl(tree_t t, nametab_t *tab)
    if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
       return false;
 
+   defer_check(tab, sem_missing_body_cb, t);
    return true;
 }
 
@@ -1944,9 +1978,12 @@ static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
       sem_error(t, "procedure name must be an identifier");
 
    const tree_flags_t flags = tree_flags(t);
-   if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
+   if (flags & TREE_F_PREDEFINED)
+      return true;
+   else if ((flags & TREE_F_PROTECTED) && !sem_check_protected_method(t, tab))
       return false;
 
+   defer_check(tab, sem_missing_body_cb, t);
    return true;
 }
 
@@ -2181,63 +2218,36 @@ static bool sem_check_pack_inst(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_missing_body(tree_t body, tree_t spec)
+static bool sem_check_missing_bodies(tree_t secondary, nametab_t *tab)
 {
-   // Check for any subprogram declarations or protected types without bodies
-   bool ok = true;
-   const int ndecls = tree_decls(spec);
+   // Check for any missing subprogram or protected type bodies, and
+   // deferred constants which were not given values and
+   tree_t primary = tree_primary(secondary);
+   const int ndecls = tree_decls(primary);
    for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(spec, i);
-
-      const tree_kind_t dkind = tree_kind(d);
-      if (dkind != T_FUNC_DECL && dkind != T_PROC_DECL && dkind != T_PROT_DECL)
-         continue;
-      else if (dkind != T_PROT_DECL && (tree_flags(d) & TREE_F_PREDEFINED))
-         continue;
-
-      type_t dtype = tree_type(d);
-
-      bool found = false;
-      const int nbody_decls = tree_decls(body);
-      const int start = (body == spec ? i + 1 : 0);
-      for (int j = start; !found && (j < nbody_decls); j++) {
-         tree_t b = tree_decl(body, j);
-         const tree_kind_t bkind = tree_kind(b);
-         if (bkind == T_ATTR_SPEC && is_well_known(tree_ident(b)) == W_FOREIGN
-             && tree_has_ref(b) && tree_ref(b) == d)
-            found = true;
-         else if (bkind != T_FUNC_BODY && bkind != T_PROC_BODY
-                  && bkind != T_PROT_BODY)
-            continue;
-         else if (type_eq(dtype, tree_type(b)))
-            found = true;
-      }
-
-      if (!found && (dkind == T_FUNC_DECL || dkind == T_PROC_DECL)) {
-         // Check if there was a later foreign attribute declaration
-         for (int j = i + 1; j < ndecls; j++) {
-            tree_t d2 = tree_decl(spec, j);
-            if (tree_kind(d2) != T_ATTR_SPEC || !tree_has_ref(d2))
-               continue;
-            else if (tree_ref(d2) == d) {
-               found = true;
-               break;
-            }
+      tree_t d = tree_decl(primary, i);
+      switch (tree_kind(d)) {
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         if (tree_flags(d) & TREE_F_PREDEFINED)
+            break;
+         // Fall-through
+      case T_PROT_DECL:
+         sem_missing_body_cb(d, secondary, tab);
+         break;
+      case T_CONST_DECL:
+         if (!tree_has_value(d)) {
+            tree_t d2 = get_local_object(tab, tree_ident(d), tree_type(d));
+            if (d2 == NULL || !tree_has_value(d2))
+               sem_error(d, "deferred constant %s was not given a value in the "
+                         "package body", istr(tree_ident(d)));
          }
-      }
-
-      if (!found && opt_get_int(OPT_MISSING_BODY)) {
-         error_at(tree_loc(d), "missing body for %s %s",
-                 (dkind == T_PROT_DECL) ? "protected type"
-                 : (dkind == T_PROC_DECL ? "procedure" : "function"),
-                 type_pp(dtype));
+      default:
+         break;
       }
    }
 
-   if (body != spec)
-      ok = sem_check_missing_body(body, body) && ok;
-
-   return ok;
+   return true;
 }
 
 static bool sem_check_pack_body(tree_t t, nametab_t *tab)
@@ -2245,31 +2255,11 @@ static bool sem_check_pack_body(tree_t t, nametab_t *tab)
    if (!tree_has_primary(t))
       return false;
 
-   tree_t pack = tree_primary(t);
-
-   if (!sem_check_context_clause(pack, tab))
-      return false;
-
    if (!sem_check_context_clause(t, tab))
       return false;
 
-   if (!sem_check_missing_body(t, pack))
+   if (!sem_check_missing_bodies(t, tab))
       return false;
-
-   if (!sem_check_missing_body(t, t))
-      return false;
-
-   // Check for any deferred constants which were not given values
-   const int ndecls = tree_decls(pack);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(pack, i);
-      if ((tree_kind(d) == T_CONST_DECL) && !tree_has_value(d)) {
-         tree_t d2 = search_decls(t, tree_ident(d), 0);
-         if (d2 == NULL || !tree_has_value(d2))
-            sem_error(d, "deferred constant %s was not given a value in the "
-                      "package body", istr(tree_ident(d)));
-      }
-   }
 
    return true;
 }
@@ -2323,9 +2313,6 @@ static bool sem_check_arch(tree_t t, nametab_t *tab)
       tree_t d = tree_decl(t, n);
       sem_check_static_elab(d);
    }
-
-   if (!sem_check_missing_body(t, t))
-      return false;
 
    return true;
 }
@@ -6522,6 +6509,9 @@ static bool sem_check_prot_body(tree_t t, nametab_t *tab)
    if (type_is_none(type))
       return false;
 
+   if (!sem_check_missing_bodies(t, tab))
+      return false;
+
    return true;
 }
 
@@ -6958,6 +6948,7 @@ static bool sem_check_prot_decl(tree_t t, nametab_t *tab)
       }
    }
 
+   defer_check(tab, sem_missing_body_cb, t);
    return true;
 }
 

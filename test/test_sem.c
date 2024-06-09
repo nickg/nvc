@@ -1189,6 +1189,9 @@ START_TEST(test_protected)
       {  22, "object BOOLEAN is not a protected type declaration" },
       {  25, "object NOW is not a protected type declaration" },
       {  47, "SHAREDCOUNTER already declared in this region" },
+      {   7, "missing body for procedure INCREMENT [INTEGER]" },
+      {   8, "missing body for procedure DECREMENT [INTEGER]" },
+      {   9, "missing body for function VALUE [return INTEGER]" },
       {  50, "subtypes may not have protected base types" },
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
@@ -1196,9 +1199,10 @@ START_TEST(test_protected)
       {  64, "parameter with protected type cannot have a default value" },
       { 118, "invalid use of name COUNTER" },
       { 119, "too many positional parameters for subprogram DECREMENT [INTEG" },
-      { 124, "formal parameter X with protected type must have class VARIABLE" },
+      { 124, "formal parameter X with protected type must have class VAR" },
       { 126, "pure function GET_VALUE cannot call impure function VALUE" },
       { 135, "may not assign to variable of a protected type" },
+      { 154, "missing body for procedure DOIT []" },
       { 150, "missing body for protected type PROTECTED_T" },
       { -1, NULL }
    };

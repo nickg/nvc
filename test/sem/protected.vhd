@@ -149,8 +149,16 @@ end package;
 package pkg is
     type protected_t is protected
     end protected protected_t;
+
+    type missing_method is protected
+        procedure doit;
+    end protected;
 end package;
 
 package body pkg is
+    type missing_method is protected body
+        -- Missing body for doit
+    end protected body;
+
     -- Missing body for protected_t
 end package body;

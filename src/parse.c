@@ -7679,8 +7679,6 @@ static tree_t p_protected_type_body(ident_t id)
 
    p_protected_type_body_declarative_part(body);
 
-   pop_scope(nametab);
-
    consume(tEND);
    consume(tPROTECTED);
    consume(tBODY);
@@ -7689,6 +7687,8 @@ static tree_t p_protected_type_body(ident_t id)
 
    tree_set_loc(body, CURRENT_LOC);
    sem_check(body, nametab);
+
+   pop_scope(nametab);
    return body;
 }
 
@@ -8673,8 +8673,11 @@ static tree_t p_package_declaration(tree_t unit)
    consume(tIS);
 
    push_scope(nametab);
+   scope_set_container(nametab, pack);
+
    if (standard() >= STD_08)
       p_package_header(pack);
+
    p_package_declarative_part(pack);
 
    if (bootstrapping)
@@ -12663,6 +12666,7 @@ static void p_architecture_body(tree_t unit)
    insert_name(nametab, unit, NULL);
 
    push_scope(nametab);
+   scope_set_container(nametab, unit);
 
    if (e != NULL) {
       insert_generics(nametab, e);
@@ -12845,6 +12849,7 @@ static tree_t p_package_body(tree_t unit)
    consume(tIS);
 
    push_scope(nametab);
+   scope_set_container(nametab, body);
 
    if (pack != NULL) {
       insert_generics(nametab, pack);
@@ -12856,9 +12861,6 @@ static tree_t p_package_body(tree_t unit)
    if (pack != NULL && (tree_global_flags(pack) & TREE_GF_DEFERRED_INST))
       package_body_deferred_instantiation(pack, body);
 
-   pop_scope(nametab);
-   pop_scope(nametab);
-
    consume(tEND);
 
    if (optional(tPACKAGE))
@@ -12869,6 +12871,9 @@ static tree_t p_package_body(tree_t unit)
 
    tree_set_loc(body, CURRENT_LOC);
    sem_check(body, nametab);
+
+   pop_scope(nametab);
+   pop_scope(nametab);
 
    return body;
 }
