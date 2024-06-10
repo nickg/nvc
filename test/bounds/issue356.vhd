@@ -4,7 +4,10 @@ end nvc_bug;
 architecture behav of nvc_bug is
     type std_logic_vector is array (integer range <>) of integer;
 
-    function to_bitvector(x : std_logic_vector) return bit_vector;
+    function to_bitvector(x : std_logic_vector) return bit_vector is
+    begin
+        return "";
+    end function;
 
     signal mode : std_logic_vector(1 downto 0);
 

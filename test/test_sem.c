@@ -200,6 +200,7 @@ START_TEST(test_ambiguous)
    tree_t a, e, p, s;
    type_t lhs, rhs;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/ambiguous.vhd");
 
    const error_t expect[] = {
@@ -390,6 +391,7 @@ END_TEST
 
 START_TEST(test_func)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
@@ -444,6 +446,7 @@ END_TEST
 
 START_TEST(test_array)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/array.vhd");
 
    const error_t expect[] = {
@@ -563,6 +566,7 @@ END_TEST
 
 START_TEST(test_seq)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/seq.vhd");
 
    const error_t expect[] = {
@@ -636,6 +640,7 @@ END_TEST
 
 START_TEST(test_procedure)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/procedure.vhd");
 
    const error_t expect[] = {
@@ -719,6 +724,7 @@ END_TEST
 
 START_TEST(test_attr)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
@@ -840,6 +846,7 @@ END_TEST
 
 START_TEST(test_file)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/file.vhd");
 
    const error_t expect[] = {
@@ -946,6 +953,7 @@ END_TEST
 
 START_TEST(test_signal)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/signal.vhd");
 
    const error_t expect[] = {
@@ -1243,6 +1251,7 @@ END_TEST
 
 START_TEST(test_alias)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/alias.vhd");
 
    const error_t expect[] = {
@@ -1824,6 +1833,7 @@ END_TEST
 
 START_TEST(test_file_and_access)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/file_and_access.vhd");
 
    const error_t expect[] = {
@@ -1992,6 +2002,7 @@ END_TEST
 
 START_TEST(test_foreign1)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/foreign1.vhd");
 
    tree_t body = parse_and_check(T_PACKAGE, T_PACK_BODY);
@@ -2049,6 +2060,7 @@ END_TEST
 
 START_TEST(test_issue356)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/issue356.vhd");
 
    const error_t expect[] = {
@@ -2306,6 +2318,7 @@ END_TEST
 
 START_TEST(test_physical)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/sem/physical.vhd");
 
    const error_t expect[] = {
@@ -2394,6 +2407,7 @@ END_TEST
 
 START_TEST(test_osvvm1)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/sem/osvvm1.vhd");
 
@@ -2416,6 +2430,7 @@ END_TEST
 
 START_TEST(test_osvvm3)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/sem/osvvm3.vhd");
 
@@ -2619,7 +2634,9 @@ END_TEST
 
 START_TEST(test_gentype)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
+
    input_from_file(TESTDIR "/sem/gentype.vhd");
 
    const error_t expect[] = {
@@ -2854,6 +2871,7 @@ END_TEST
 
 START_TEST(test_gensub)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/sem/gensub.vhd");
 
@@ -2897,6 +2915,7 @@ END_TEST
 
 START_TEST(test_gensub2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/sem/gensub2.vhd");
@@ -3078,6 +3097,7 @@ END_TEST
 
 START_TEST(test_lcs2016_45a)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_19);
 
    input_from_file(TESTDIR "/sem/lcs2016_45a.vhd");
@@ -3392,6 +3412,7 @@ END_TEST
 
 START_TEST(test_alias2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_19);
 
    input_from_file(TESTDIR "/sem/alias2.vhd");
@@ -3417,6 +3438,7 @@ END_TEST
 
 START_TEST(test_lcs2016_33)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_19);
 
    input_from_file(TESTDIR "/sem/lcs2016_33.vhd");
@@ -3561,6 +3583,7 @@ END_TEST
 
 START_TEST(test_incomplete)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_02);
 
    input_from_file(TESTDIR "/sem/incomplete.vhd");

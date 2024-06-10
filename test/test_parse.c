@@ -316,6 +316,7 @@ START_TEST(test_seq)
 {
    tree_t a, p, s, e, b, c, r;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/parse/seq.vhd");
@@ -684,6 +685,7 @@ START_TEST(test_types)
    tree_t a, b, d, f, u, r;
    type_t t;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/types.vhd");
 
    const error_t expect[] = {
@@ -1230,6 +1232,7 @@ START_TEST(test_package)
 {
    tree_t p, d, c;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/package.vhd");
 
    const error_t expect[] = {
@@ -1409,6 +1412,7 @@ START_TEST(test_func)
    tree_t p, f, a;
    type_t t;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/func.vhd");
 
    const error_t expect[] = {
@@ -1795,6 +1799,7 @@ START_TEST(test_conc)
 {
    tree_t e, a, s, c, s0;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/conc.vhd");
 
    e = parse();
@@ -1886,6 +1891,7 @@ START_TEST(test_alias)
 {
    tree_t e, a, d;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/alias.vhd");
 
    e = parse();
@@ -2004,6 +2010,7 @@ START_TEST(test_procedure)
 {
    tree_t p, d;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/procedure.vhd");
 
    const error_t expect[] = {
@@ -2728,6 +2735,7 @@ START_TEST(test_loc)
    tree_t a, s, p, e;
    const loc_t *l;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/loc.vhd");
 
    e = parse();
@@ -2791,6 +2799,7 @@ START_TEST(test_expr)
 {
    tree_t a, p, e;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/expr.vhd");
 
    const error_t expect[] = {
@@ -3032,6 +3041,7 @@ START_TEST(test_protected)
    tree_t p, d, s;
    type_t t;
 
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/parse/protected.vhd");
@@ -3488,6 +3498,7 @@ END_TEST
 
 START_TEST(test_names)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/names.vhd");
 
    const error_t expect[] = {
@@ -3601,6 +3612,7 @@ END_TEST
 
 START_TEST(test_error2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/parse/error2.vhd");
@@ -3630,6 +3642,7 @@ END_TEST
 
 START_TEST(test_vhdl2008)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/parse/vhdl2008.vhd");
 
@@ -4034,6 +4047,7 @@ END_TEST
 
 START_TEST(test_protected2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/parse/protected2.vhd");
 
@@ -4367,6 +4381,7 @@ END_TEST
 
 START_TEST(test_names2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_02);
    input_from_file(TESTDIR "/parse/names2.vhd");
 
@@ -4620,6 +4635,7 @@ END_TEST
 
 START_TEST(test_osvvm6)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
    input_from_file(TESTDIR "/parse/osvvm6.vhd");
 
@@ -4663,6 +4679,7 @@ END_TEST
 
 START_TEST(test_names3)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/names3.vhd");
 
    const error_t expect[] = {
@@ -5425,6 +5442,7 @@ END_TEST
 
 START_TEST(test_issue654)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
 
    const error_t expect[] = {

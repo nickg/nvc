@@ -81,8 +81,6 @@ static void setup_per_test(void)
    test_lib = lib_tmp("work");
    lib_set_work(test_lib);
 
-   opt_set_int(OPT_MISSING_BODY, 0);
-
    reset_error_count();
 
    set_standard(STD_93);

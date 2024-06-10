@@ -1,5 +1,19 @@
-package pack is
+package pack1 is
     function expensive(x : integer) return integer;
+end package;
+
+package body pack1 is
+    function expensive(x : integer) return integer is
+    begin
+        return x;
+    end function;
+end package body;
+
+-------------------------------------------------------------------------------
+
+use work.pack1.all;
+
+package pack2 is
     subtype t_sub1 is bit_vector(1 to expensive(5));
     type t_rec is record
         f : t_sub1;
@@ -9,19 +23,12 @@ package pack is
     subtype t_real is real range 0.0 to real(expensive(99));
 end package;
 
-package body pack is
-    function expensive(x : integer) return integer is
-    begin
-        return x;
-    end function;
-end package body;
-
 -------------------------------------------------------------------------------
 
 entity subtype2 is
 end entity;
 
-use work.pack.all;
+use work.pack2.all;
 
 architecture test of subtype2 is
 begin

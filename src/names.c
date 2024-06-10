@@ -3732,8 +3732,11 @@ static type_t try_solve_string(nametab_t *tab, tree_t str)
 {
    if (tree_has_type(str))
       return tree_type(str);
-   else if (type_set_any(tab, type_is_none))
-      return type_new(T_NONE);   // Suppress cascading errors
+   else if (type_set_any(tab, type_is_none)) {
+      type_t type = type_new(T_NONE);   // Suppress cascading errors
+      tree_set_type(str, type);
+      return type;
+   }
 
    // The type must be determinable soley from the context excluding the
    // literal itself but using the fact that the type must be a one

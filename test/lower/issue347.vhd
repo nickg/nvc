@@ -14,6 +14,30 @@ package my_logic is
 end package;
 
 package body my_logic is
+    function to_integer(x : unsigned) return integer is
+    begin
+        return 0;
+    end function;
+    function to_unsigned(x, width : natural) return unsigned is
+    begin
+        return "";
+    end function;
+    function to_01(x : unsigned) return unsigned is
+    begin
+        return "";
+    end function;
+    function resize(x : unsigned; width : natural) return unsigned is
+    begin
+        return "";
+    end function;
+    function "-"(x, y : unsigned) return unsigned is
+    begin
+        return "";
+    end function;
+    function ">"(x : unsigned; y : integer) return boolean is
+    begin
+        return false;
+    end function;
 end package body;
 
 use work.my_logic.all;

@@ -96,6 +96,7 @@ END_TEST
 
 START_TEST(test_vhdl2)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/dump/vhdl2.vhd");

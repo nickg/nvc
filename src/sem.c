@@ -1566,8 +1566,8 @@ static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
       diag_printf(d, "%s", type_pp(type));
       diag_suppress(d, type_has_error(type));
 
-      diag_hint(d, tree_loc(parent), "body not found in %s %s",
-                class_str(class_of(parent)), istr(tree_ident(parent)));
+      diag_hint(d, tree_loc(parent), "body not found in %s",
+                istr(tree_ident(parent)));
 
       diag_hint(d, tree_loc(t), "%s declared here", type_pp(type));
 

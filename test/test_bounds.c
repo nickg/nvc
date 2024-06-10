@@ -19,6 +19,7 @@
 #include "common.h"
 #include "diag.h"
 #include "jit/jit.h"
+#include "option.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"
@@ -29,6 +30,9 @@
 
 START_TEST(test_bounds)
 {
+   opt_set_int(OPT_MISSING_BODY, 0);
+   input_from_file(TESTDIR "/bounds/bounds.vhd");
+
    const error_t expect[] = {
       {  26, "left index 0 violates constraint POSITIVE" },
       {  27, "right index 60 violates constraint FOO" },
@@ -81,8 +85,6 @@ START_TEST(test_bounds)
       { -1, NULL }
    };
    expect_errors(expect);
-
-   input_from_file(TESTDIR "/bounds/bounds.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
