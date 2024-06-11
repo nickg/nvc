@@ -10465,6 +10465,8 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    push_scope(nametab);
 
+   if (ref == NULL) suppress_errors(nametab);
+
    if (peek() == tGENERIC)
       p_generic_map_aspect(t, entity);
 

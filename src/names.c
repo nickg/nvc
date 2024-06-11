@@ -1622,7 +1622,7 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
 
    if (hidden == sym->ndecls - 1)
       return result;
-   else if (overload == 0)
+   else if (overload == 0 || tab->top_type_set == NULL)
       return NULL;
 
    // Use the context to determine the correct overload
@@ -3914,6 +3914,7 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
 
       diag_hint(d, tree_loc(decl), "name %s refers to this %s",
                 istr(sym->name), class_str(class));
+      diag_suppress(d, tab->top_scope->suppress);
       diag_emit(d);
 
       tree_set_ref(ref, NULL);

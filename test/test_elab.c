@@ -1898,6 +1898,28 @@ START_TEST(test_issue860)
 }
 END_TEST
 
+START_TEST(test_genpack5)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/genpack5.vhd");
+
+   const error_t expect[] = {
+      { 71, "port Y in entity WORK.SUB without a default value has no "
+        "corresponding port in component SUB" },
+      { 72, "generic P in component SUB2 has class package which is "
+        "incompatible with class constant in entity WORK.SUB2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1999,6 +2021,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue855);
    tcase_add_test(tc, test_issue864);
    tcase_add_test(tc, test_issue860);
+   tcase_add_test(tc, test_genpack5);
    suite_add_tcase(s, tc);
 
    return s;

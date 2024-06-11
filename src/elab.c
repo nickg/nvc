@@ -760,14 +760,14 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 
       tree_t value;
       if (match != NULL) {
-         type_t ctype = tree_type(match);
-         type_t etype = tree_type(eg);
-         if (!type_eq(ctype, etype)) {
+         const class_t class = tree_class(eg);
+
+         if (class != tree_class(match)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
-            diag_printf(d, "generic %s in component %s has type %s which is "
-                        "incompatible with type %s in entity %s",
+            diag_printf(d, "generic %s in component %s has class %s which is "
+                        "incompatible with class %s in entity %s",
                         istr(tree_ident(match)), istr(tree_ident(comp)),
-                        type_pp2(ctype, etype), type_pp2(etype, ctype),
+                        class_str(tree_class(match)), class_str(class),
                         istr(tree_ident(entity)));
             diag_hint(d, tree_loc(match), "declaration of generic %s in "
                       "component", istr(tree_ident(match)));
@@ -776,8 +776,31 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
             diag_emit(d);
             return NULL;
          }
+         else if (class == C_PACKAGE) {
+            value = tree_new(T_REF);
+            tree_set_ident(value, tree_ident(match));
+            tree_set_ref(value, match);
+         }
+         else {
+            type_t ctype = tree_type(match);
+            type_t etype = tree_type(eg);
+            if (!type_eq(ctype, etype)) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+               diag_printf(d, "generic %s in component %s has type %s which is "
+                           "incompatible with type %s in entity %s",
+                           istr(tree_ident(match)), istr(tree_ident(comp)),
+                           type_pp2(ctype, etype), type_pp2(etype, ctype),
+                           istr(tree_ident(entity)));
+               diag_hint(d, tree_loc(match), "declaration of generic %s in "
+                         "component", istr(tree_ident(match)));
+               diag_hint(d, tree_loc(eg), "declaration of generic %s in entity",
+                         istr(tree_ident(eg)));
+               diag_emit(d);
+               return NULL;
+            }
 
-         value = make_ref(match);
+            value = make_ref(match);
+         }
       }
       else if (tree_has_value(eg)) {
          tree_t def = tree_value(eg);

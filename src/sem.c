@@ -5135,6 +5135,9 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
    for (int i = 0; i < nformals; i++) {
       if (formals[i].have)
          continue;
+      else if (tree_class(formals[i].decl) == C_PACKAGE)
+         error_at(tree_loc(t), "missing actual for generic package %s",
+                  istr(tree_ident(formals[i].decl)));
       else if (tree_has_value(formals[i].decl)) {
          tree_t value = tree_value(formals[i].decl);
          if (tree_kind(value) == T_BOX) {

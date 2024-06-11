@@ -2620,6 +2620,7 @@ START_TEST(test_genpack)
       { 91, "expected an instance of package WORK.MYFIXED but have instance "
         "of WORK.MYFLOAT for generic FIXED_PKG" },
       { 94, "actual for generic FIXED_PKG is not an instantiated package" },
+      { 99, "missing actual for generic package FIXED_PKG" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -5975,9 +5975,6 @@ START_TEST(test_issue789)
       {  0, "declaration of literal RTL is hidden" },
       {  0, "name RTL refers to this architecture" },
       { 31, "design unit WORK.TEST1 is not a component declaration" },
-      { 32, "invalid use of architecture RTL" },
-      {  0, "declaration of literal RTL is hidden" },
-      {  0, "name RTL refers to this architecture" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -6664,6 +6661,39 @@ START_TEST(test_defer1)
 }
 END_TEST
 
+START_TEST(test_error13)
+{
+   input_from_file(TESTDIR "/parse/error13.vhd");
+
+   const error_t expect[] = {
+      { 20, "ambiguous use of name SUB" },
+      {  0, "use of name SUB here" },
+      {  0, "visible declaration of SUB as CHARACTER from STD.STANDARD" },
+      {  0, "potentially visible declaration of SUB from WORK.COMPONENTS" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6816,6 +6846,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue893);
    tcase_add_test(tc_core, test_alias4);
    tcase_add_test(tc_core, test_defer1);
+   tcase_add_test(tc_core, test_error13);
    suite_add_tcase(s, tc_core);
 
    return s;

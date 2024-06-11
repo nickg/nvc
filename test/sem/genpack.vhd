@@ -95,6 +95,8 @@ architecture test2 of ent is
 
     package p4 is new work.bad
           generic map ( bad_std => work.myfixed_4_8 );  -- Error (suppressed)
+
+    package p5 is new work.myfloat;     -- Error
 begin
 end architecture;
 
