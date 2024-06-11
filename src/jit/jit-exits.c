@@ -1072,9 +1072,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_BIND_FOREIGN:
       {
-         const char *spec   = args[0].pointer;
-         size_t      length = args[1].integer;
-         tree_t      where  = args[2].pointer;
+         const uint8_t *spec   = args[0].pointer;
+         size_t         length = args[1].integer;
+         tree_t         where  = args[2].pointer;
 
          jit_bind_foreign(anchor->func, spec, length, where);
       }
