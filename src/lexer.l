@@ -544,6 +544,8 @@ UNION         ?i:union
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
 <VLOG>"`timescale"       { return tTIMESCALE; }
+<VLOG>"`celldefine"      { }
+<VLOG>"`endcelldefine"   { }
 <VLOG>"supply0"          { return tSUPPLY0; }
 <VLOG>"supply1"          { return tSUPPLY1; }
 <VLOG>"pulldown"         { return tPULLDOWN; }

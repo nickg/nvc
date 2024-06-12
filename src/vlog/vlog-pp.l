@@ -45,6 +45,7 @@ static char       *macro_name;
 static text_buf_t *macro_text;
 static text_buf_t *output;
 
+
 static void define_macro(void);
 
 extern loc_t yylloc;
@@ -75,7 +76,10 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
 `timescale              |
 `resetall               |
-`pragma                 { tb_cat(output, vlogpp_text); }
+`pragma                 |
+`celldefine             |
+`endcelldefine          { tb_cat(output, vlogpp_text); }
+
 `{ID}                   { const char *text = shash_get(macros, vlogpp_text + 1);
                           if (text != NULL)
                              tb_cat(output, text);
@@ -152,3 +156,4 @@ void vlog_preprocess(text_buf_t *tb)
    tb_free(macro_text);
    macro_text = NULL;
 }
+
