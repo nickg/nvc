@@ -39,6 +39,8 @@
 #include <libgen.h>
 #endif
 
+#define USE_FST_ENUMS 0
+
 typedef struct {
    char  *text;
    size_t len;
@@ -67,9 +69,10 @@ typedef struct {
    enum fstSupplementalDataType sdt;
    unsigned                     size;
    union {
-      const char  *map;
-      fst_unit_t  *units;
-      fst_enum_t   literals;
+      const char    *map;
+      fst_unit_t    *units;
+      fst_enum_t     literals;
+      fstEnumHandle  enumh;
    } u;
 } fst_type_t;
 
@@ -100,6 +103,7 @@ typedef struct _wave_dumper {
    char          *tmpfst;
    uint64_t       last_time;
    jit_t         *jit;
+   hash_t        *typecache;
 } wave_dumper_t;
 
 static glob_array_t incl;
@@ -149,6 +153,13 @@ static void fst_close(rt_model_t *m, void *arg)
    wd->model   = NULL;
 }
 
+static inline void fst_write_binary(uint64_t val, size_t size, char *buf)
+{
+   for (size_t j = 0; j < size; j++)
+      buf[size - 1 - j] = (val & (UINT64_C(1) << j)) ? '1' : '0';
+   buf[size] = '\0';
+}
+
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val[data->count];
@@ -156,10 +167,7 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 
    for (int i = 0; i < data->count; i++) {
       char buf[data->type->size + 1];
-      for (size_t j = 0; j < data->type->size; j++)
-         buf[data->type->size - 1 - j] =
-            (val[i] & (UINT64_C(1) << j)) ? '1' : '0';
-      buf[data->type->size] = '\0';
+      fst_write_binary(val[i], data->type->size, buf);
 
       fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
    }
@@ -204,6 +212,7 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
    }
 }
 
+#if !USE_FST_ENUMS
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
@@ -218,6 +227,7 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
                                           literal,
                                           strnlen(literal, e->size));
 }
+#endif
 
 static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
                          void *user)
@@ -249,18 +259,15 @@ static fst_unit_t *fst_make_unit_map(type_t type)
    return map;
 }
 
-static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
+static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
+                                const loc_t *loc)
 {
    if (is_anonymous_subtype(type)) {
       // Do not cache anonymous subtypes
-      return fst_type_for(type_base(type), loc);
+      return fst_type_for(wd, type_base(type), loc);
    }
 
-   static hash_t *cache = NULL;
-   if (cache == NULL)
-      cache = hash_new(128);
-
-   fst_type_t *ft = hash_get(cache, type);
+   fst_type_t *ft = hash_get(wd->typecache, type);
    if (ft == (void *)-1)
       return NULL;   // Failed for this type earlier
    else if (ft != NULL)
@@ -271,7 +278,7 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    switch (type_kind(type)) {
    case T_SUBTYPE:
       {
-         fst_type_t *baseft = fst_type_for(type_base(type), loc);
+         fst_type_t *baseft = fst_type_for(wd, type_base(type), loc);
          if (baseft == NULL)
             goto poison;
 
@@ -330,16 +337,43 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
       }
 
       if (ft->fn == NULL) {
-         ft->vartype = FST_VT_GEN_STRING;
-         ft->size    = 0;
-         ft->fn      = fst_fmt_enum;
-
          const int nlits = type_enum_literals(type);
          int maxsize = 0;
          for (int i = 0; i < nlits; i++) {
             ident_t id = tree_ident(type_enum_literal(type, i));
             maxsize = MAX(maxsize, ident_len(id) + 1);
          }
+
+#if USE_FST_ENUMS
+         const int nbits = bits_for_range(0, nlits - 1);
+         char *lit_mem LOCAL = xmalloc((nbits + 1) * nlits);
+         char *name_mem LOCAL = xmalloc_array(maxsize, nlits);
+         const char **lits LOCAL = xmalloc_array(nlits, sizeof(char *));
+         const char **names LOCAL = xmalloc_array(nlits, sizeof(char *));
+
+         char *namep = name_mem;
+         for (int i = 0; i < nlits; i++) {
+            ident_t id = tree_ident(type_enum_literal(type, i));
+            size_t len = ident_len(id) + 1;
+            memcpy(namep, istr(id), len);
+            names[i] = namep;
+            namep += len;
+
+            char *litp = lit_mem + i * (nbits + 1);
+            fst_write_binary(i, nbits, litp);
+            lits[i] = litp;
+         }
+
+         ft->vartype = FST_VT_SV_ENUM;
+         ft->size    = nbits;
+         ft->fn      = fst_fmt_int;
+
+         ft->u.enumh = fstWriterCreateEnumTable(wd->fst_ctx, type_pp(type),
+                                                nlits, nbits, names, lits);
+#else
+         ft->vartype = FST_VT_GEN_STRING;
+         ft->size    = 0;
+         ft->fn      = fst_fmt_enum;
 
          ft->u.literals.count = nlits;
          ft->u.literals.size  = maxsize;
@@ -351,6 +385,7 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
             for (; *p; p++)
                *p = tolower_iso88591(*p);
          }
+#endif
       }
       break;
 
@@ -371,7 +406,7 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
          }
 
          type_t elem = type_elem(type);
-         fst_type_t *elemft = fst_type_for(elem, loc);
+         fst_type_t *elemft = fst_type_for(wd, elem, loc);
          if (elemft == NULL) {
             warn_at(loc, "cannot represent arrays of array of type %s "
                     "in FST format", type_pp(elem));
@@ -394,10 +429,11 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
             ft->sdt = FST_SDT_VHDL_UNSIGNED;
             break;
          case W_STD_STRING:
-            ft->sdt   = FST_SDT_VHDL_STRING;
-            ft->fn    = fst_fmt_chars;
-            ft->u.map = NULL;
-            ft->size  = 1;
+            ft->sdt     = FST_SDT_VHDL_STRING;
+            ft->vartype = FST_VT_GEN_STRING;
+            ft->fn      = fst_fmt_chars;
+            ft->u.map   = NULL;
+            ft->size    = 1;
             break;
          default:
             break;
@@ -410,11 +446,11 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
       goto poison;
    }
 
-   hash_put(cache, type, ft);
+   hash_put(wd->typecache, type, ft);
    return ft;
 
  poison:
-   hash_put(cache, type, (void *)-1);
+   hash_put(wd->typecache, type, (void *)-1);
    free(ft);
    return NULL;
 }
@@ -465,6 +501,25 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type,
    *length = ffi_array_length(dims[dim].length);
 }
 
+static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
+                                   const char *name, enum fstVarDir dir,
+                                   type_t type, fstHandle alias)
+{
+   if (data->type->vartype == FST_VT_SV_ENUM)
+      fstWriterEmitEnumTableRef(wd->fst_ctx, data->type->u.enumh);
+
+   return fstWriterCreateVar2(
+      wd->fst_ctx,
+      data->type->vartype,
+      dir,
+      data->size,
+      name,
+      alias,
+      type_pp(type),
+      FST_SVT_VHDL_SIGNAL,
+      data->type->sdt);
+}
+
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                  type_t type, text_buf_t *tb)
 {
@@ -490,7 +545,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
    type_t elem = type_elem(type);
    if (type_is_enum(elem)) {
-      fst_type_t *ft = fst_type_for(type, tree_loc(d));
+      fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
       if (ft == NULL)
          return;
 
@@ -499,16 +554,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       data->size  = length * ft->size;
       data->count = 1;
 
-      data->handle[0] = fstWriterCreateVar2(
-         wd->fst_ctx,
-         ft->vartype,
-         dir,
-         data->size,
-         tb_get(tb),
-         0,
-         type_pp(type),
-         FST_SVT_VHDL_SIGNAL,
-         ft->sdt);
+      data->handle[0] = fst_create_handle(wd, data, tb_get(tb), dir, type, 0);
 
       if (wd->gtkw != NULL)
          fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
@@ -518,7 +564,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    else if (type_is_record(elem))
       return;   // Not yet supported
    else {
-      fst_type_t *ft = fst_type_for(elem, tree_loc(d));
+      fst_type_t *ft = fst_type_for(wd, elem, tree_loc(d));
       if (ft == NULL)
          return;
 
@@ -547,16 +593,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
             tb_printf(tb, "[%d:%d]", e_msb, e_lsb);
          tb_downcase(tb);
 
-         data->handle[i] = fstWriterCreateVar2(
-            wd->fst_ctx,
-            ft->vartype,
-            dir,
-            data->size,
-            tb_get(tb),
-            0,
-            type_pp(elem),
-            FST_SVT_VHDL_SIGNAL,
-            ft->sdt);
+         data->handle[i] =
+            fst_create_handle(wd, data, tb_get(tb), dir, elem, 0);
       }
 
       fstWriterSetAttrEnd(wd->fst_ctx);
@@ -576,7 +614,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                   type_t type, text_buf_t *tb)
 {
-   fst_type_t *ft = fst_type_for(type, tree_loc(d));
+   fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
    if (ft == NULL)
       return;
 
@@ -601,9 +639,7 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_istr(tb, tree_ident(d));
    tb_downcase(tb);
 
-   data->handle[0] = fstWriterCreateVar2(wd->fst_ctx, ft->vartype, dir,
-                                         ft->size, tb_get(tb), 0, type_pp(type),
-                                         FST_SVT_VHDL_SIGNAL, ft->sdt);
+   data->handle[0] = fst_create_handle(wd, data, tb_get(tb), dir, type, 0);
 
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
 
@@ -733,10 +769,7 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    }
    tb_downcase(tb);
 
-   fstWriterCreateVar2(wd->fst_ctx, data->type->vartype, FST_VD_INPUT,
-                       data->size, tb_get(tb), data->handle[0],
-                       type_pp(type), FST_SVT_VHDL_SIGNAL,
-                       data->type->sdt);
+   fst_create_handle(wd, data, tb_get(tb), FST_VD_INPUT, type, data->handle[0]);
 
    if (wd->gtkw != NULL)
       fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
@@ -910,6 +943,7 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
    wave_dumper_t *wd = xcalloc(sizeof(wave_dumper_t));
    wd->top       = top;
    wd->last_time = UINT64_MAX;
+   wd->typecache = hash_new(128);
 
    if (format == WAVE_FORMAT_VCD) {
 #if defined __CYGWIN__ || defined __MINGW32__
@@ -959,6 +993,7 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
 
 void wave_dumper_free(wave_dumper_t *wd)
 {
+   hash_free(wd->typecache);
    free(wd);
 }
 
