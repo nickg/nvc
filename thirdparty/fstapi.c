@@ -34,7 +34,6 @@
  * FST_DEBUG : not for production use, only enable for development
  * FST_REMOVE_DUPLICATE_VC : glitch removal (has writer performance impact)
  * HAVE_LIBPTHREAD -> FST_WRITER_PARALLEL : enables inclusion of parallel writer code
- * FST_DO_MISALIGNED_OPS (defined automatically for x86 and some others) : CPU architecture can handle misaligned loads/stores
  * _WAVE_HAVE_JUDY : use Judy arrays instead of Jenkins (undefine if LGPL is not acceptable)
  *
  */
@@ -132,10 +131,6 @@ void **JenkinsIns(void *base_i, const unsigned char *mem, uint32_t length, uint3
 #define FST_GZIO_LEN                    (32768)
 #define FST_HDR_FOURPACK_DUO_SIZE       (4*1024*1024)
 
-#if defined(__i386__) || defined(__x86_64__) || defined(_AIX) || defined(__aarch64__)
-#define FST_DO_MISALIGNED_OPS
-#endif
-
 #if defined(__APPLE__) && defined(__MACH__)
 #define FST_MACOSX
 #include <sys/sysctl.h>
@@ -190,6 +185,16 @@ void **JenkinsIns(void *base_i, const unsigned char *mem, uint32_t length, uint3
 
 #define FST_RCV_STR "xzhuwl-?"
 /*                   01234567 */
+
+
+/*
+ * report abort messages
+ */
+#ifdef NDEBUG
+#define chk_report_abort(s)
+#else
+#define chk_report_abort(s) abort()
+#endif
 
 
 /*
@@ -367,22 +372,15 @@ return ptr;
 /*
  * regular and variable-length integer access functions
  */
-#ifdef FST_DO_MISALIGNED_OPS
-#define fstGetUint32(x) (*(uint32_t *)(x))
-#else
 static uint32_t fstGetUint32(unsigned char *mem)
 {
 uint32_t u32;
 unsigned char *buf = (unsigned char *)(&u32);
 
-buf[0] = mem[0];
-buf[1] = mem[1];
-buf[2] = mem[2];
-buf[3] = mem[3];
+memcpy(buf, mem, sizeof(uint32_t));
 
 return(*(uint32_t *)buf);
 }
-#endif
 
 
 static int fstWriterUint64(FILE *handle, uint64_t v)
@@ -550,7 +548,8 @@ return(rc);
 
 static uint32_t fstReaderVarint32(FILE *f)
 {
-unsigned char buf[5];
+int chk_len = 5; /* TALOS-2023-1783 */
+unsigned char buf[chk_len];
 unsigned char *mem = buf;
 uint32_t rc = 0;
 int ch;
@@ -559,7 +558,9 @@ do
         {
         ch = fgetc(f);
         *(mem++) = ch;
-        } while(ch & 0x80);
+        } while((ch & 0x80) && (--chk_len));
+
+if(ch & 0x80) chk_report_abort("TALOS-2023-1783");
 mem--;
 
 for(;;)
@@ -579,7 +580,8 @@ return(rc);
 
 static uint32_t fstReaderVarint32WithSkip(FILE *f, uint32_t *skiplen)
 {
-unsigned char buf[5];
+int chk_len = 5; /* TALOS-2023-1783 */
+unsigned char buf[chk_len];
 unsigned char *mem = buf;
 uint32_t rc = 0;
 int ch;
@@ -588,7 +590,9 @@ do
         {
         ch = fgetc(f);
         *(mem++) = ch;
-        } while(ch & 0x80);
+        } while((ch & 0x80) && (--chk_len));
+
+if(ch & 0x80) chk_report_abort("TALOS-2023-1783");
 *skiplen = mem - buf;
 mem--;
 
@@ -609,7 +613,8 @@ return(rc);
 
 static uint64_t fstReaderVarint64(FILE *f)
 {
-unsigned char buf[16];
+int chk_len = 16; /* TALOS-2023-1783 */
+unsigned char buf[chk_len];
 unsigned char *mem = buf;
 uint64_t rc = 0;
 int ch;
@@ -618,8 +623,11 @@ do
         {
         ch = fgetc(f);
         *(mem++) = ch;
-        } while(ch & 0x80);
+        } while((ch & 0x80) && (--chk_len));
+
+if(ch & 0x80) chk_report_abort("TALOS-2023-1783");
 mem--;
+
 
 for(;;)
         {
@@ -851,11 +859,7 @@ unsigned char *pnt = buf;
 uint32_t nxt;
 uint32_t len;
 
-#ifdef FST_DO_MISALIGNED_OPS
-(*(uint32_t *)(pnt)) = (*(uint32_t *)(u));
-#else
 memcpy(pnt, u, sizeof(uint32_t));
-#endif
 pnt += 4;
 
 while((nxt = v>>7))
@@ -878,11 +882,7 @@ unsigned char *pnt = buf;
 uint32_t nxt;
 uint32_t len;
 
-#ifdef FST_DO_MISALIGNED_OPS
-(*(uint32_t *)(pnt)) = (*(uint32_t *)(u));
-#else
 memcpy(pnt, u, sizeof(uint32_t));
-#endif
 pnt += 4;
 
 while((nxt = v>>7))
@@ -1542,7 +1542,7 @@ for(i=0;i<xc->maxhandle;i++)
                                         dmem = packmem = (unsigned char *)malloc(packmemlen = (wrlen * 2) + 2);
                                         }
 
-                                rc = (xc->fourpack) ? LZ4_compress((char *)scratchpnt, (char *)dmem, wrlen) : fastlz_compress(scratchpnt, wrlen, dmem);
+                                rc = (xc->fourpack) ? LZ4_compress_default((char *)scratchpnt, (char *)dmem, wrlen, packmemlen) : fastlz_compress(scratchpnt, wrlen, dmem);
                                 if(rc < destlen)
                                         {
 #ifndef FST_DYNAMIC_ALIAS_DISABLE
@@ -1646,7 +1646,11 @@ if(1)
                                 {
                                 if(vm4ip[2] != prev_alias)
                                         {
-                                        fpos += fstWriterSVarint(f, (((int64_t)((int32_t)(prev_alias = vm4ip[2]))) << 1) | 1);
+					int32_t  t_i32 = ((int32_t)(prev_alias = vm4ip[2])); /* vm4ip is generic unsigned data */
+					int64_t  t_i64 = (int64_t)t_i32; /* convert to signed */
+					uint64_t t_u64 = (uint64_t)t_i64; /* sign extend through 64b */
+
+					fpos += fstWriterSVarint(f, (int64_t)((t_u64 << 1) | 1)); /* all in this block was: fpos += fstWriterSVarint(f, (((int64_t)((int32_t)(prev_alias = vm4ip[2]))) << 1) | 1); */
                                         }
                                         else
                                         {
@@ -1838,6 +1842,14 @@ if(xc->parallel_enabled)
         xc->xc_parent = xc;
         memcpy(xc2, xc, sizeof(struct fstWriterContext));
 
+	if(sizeof(size_t) < sizeof(uint64_t))
+		{
+		/* TALOS-2023-1777 for 32b overflow */
+		uint64_t chk_64 = xc->maxhandle * 4 * sizeof(uint32_t);
+		size_t   chk_32 = xc->maxhandle * 4 * sizeof(uint32_t);
+		if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1777");
+		}
+
         xc2->valpos_mem = (uint32_t *)malloc(xc->maxhandle * 4 * sizeof(uint32_t));
         memcpy(xc2->valpos_mem, xc->valpos_mem, xc->maxhandle * 4 * sizeof(uint32_t));
 
@@ -1866,10 +1878,10 @@ if(xc->parallel_enabled)
         xc->section_header_only = 0;
         xc->secnum++;
 
-	while (xc->in_pthread) 
-		{ 
-		pthread_mutex_lock(&xc->mutex); 
-		pthread_mutex_unlock(&xc->mutex); 
+	while (xc->in_pthread)
+		{
+		pthread_mutex_lock(&xc->mutex);
+		pthread_mutex_unlock(&xc->mutex);
 		};
 
         pthread_mutex_lock(&xc->mutex);
@@ -1957,10 +1969,10 @@ if(xc && !xc->already_in_close && !xc->already_in_flush)
                         pthread_mutex_lock(&xc->mutex);
                         pthread_mutex_unlock(&xc->mutex);
 
-			while (xc->in_pthread) 
-				{ 
-				pthread_mutex_lock(&xc->mutex); 
-				pthread_mutex_unlock(&xc->mutex); 
+			while (xc->in_pthread)
+				{
+				pthread_mutex_lock(&xc->mutex);
+				pthread_mutex_unlock(&xc->mutex);
 				};
 #endif
                         }
@@ -2052,7 +2064,8 @@ if(xc && !xc->already_in_close && !xc->already_in_flush)
                 int zfd;
                 int fourpack_duo = 0;
 #ifndef __MINGW32__
-                char *fnam = (char *)malloc(strlen(xc->filename) + 5 + 1);
+		int fnam_len = strlen(xc->filename) + 5 + 1;
+                char *fnam = (char *)malloc(fnam_len);
 #endif
 
                 fixup_offs = ftello(xc->handle);
@@ -2100,7 +2113,7 @@ if(xc && !xc->already_in_close && !xc->already_in_flush)
 				{
 	                        fstWriterMmapSanity(hmem = (unsigned char *)fstMmap(NULL, xc->hier_file_len, PROT_READ|PROT_WRITE, MAP_SHARED, fileno(xc->hier_handle), 0), __FILE__, __LINE__, "hmem");
 				}
-                        packed_len = LZ4_compress((char *)hmem, (char *)mem, xc->hier_file_len);
+                        packed_len = LZ4_compress_default((char *)hmem, (char *)mem, xc->hier_file_len, lz4_maxlen);
                         fstMunmap(hmem, xc->hier_file_len);
 
                         fourpack_duo = (!xc->repack_on_close) && (xc->hier_file_len > FST_HDR_FOURPACK_DUO_SIZE); /* double pack when hierarchy is large */
@@ -2113,7 +2126,7 @@ if(xc && !xc->already_in_close && !xc->already_in_flush)
 
                                 lz4_maxlen_duo = LZ4_compressBound(packed_len);
                                 mem_duo = (unsigned char *)malloc(lz4_maxlen_duo);
-                                packed_len_duo = LZ4_compress((char *)mem, (char *)mem_duo, packed_len);
+                                packed_len_duo = LZ4_compress_default((char *)mem, (char *)mem_duo, packed_len, lz4_maxlen_duo);
 
                                 fstWriterVarint(xc->handle, packed_len); /* 1st round compressed length */
                                 fstFwrite(mem_duo, packed_len_duo, 1, xc->handle);
@@ -2142,7 +2155,7 @@ if(xc && !xc->already_in_close && !xc->already_in_flush)
                 fflush(xc->handle);
 
 #ifndef __MINGW32__
-                sprintf(fnam, "%s.hier", xc->filename);
+                snprintf(fnam, fnam_len, "%s.hier", xc->filename);
                 unlink(fnam);
                 free(fnam);
 #endif
@@ -2821,7 +2834,7 @@ if(ctx && name && literal_arr && val_arr && (elem_count != 0))
 	uint32_t i;
 
 	name_len = strlen(name);
-	elem_count_len = sprintf(elem_count_buf, "%" PRIu32, elem_count);
+	elem_count_len = snprintf(elem_count_buf, 16, "%" PRIu32, elem_count);
 
 	literal_lens = (unsigned int *)calloc(elem_count, sizeof(unsigned int));
 	val_lens = (unsigned int *)calloc(elem_count, sizeof(unsigned int));
@@ -3433,7 +3446,7 @@ return(rc);
 
 
 #ifndef FST_WRITEX_DISABLE
-static void fstWritex(struct fstReaderContext *xc, void *v, int len)
+static void fstWritex(struct fstReaderContext *xc, void *v, uint32_t len) /* TALOS-2023-1793: change len to unsigned */
 {
 unsigned char *s = (unsigned char *)v;
 
@@ -3909,7 +3922,8 @@ int pass_status = 1;
 if(!xc->fh)
         {
         fst_off_t offs_cache = ftello(xc->f);
-        char *fnam = (char *)malloc(strlen(xc->filename) + 6 + 16 + 32 + 1);
+	int fnam_len = strlen(xc->filename) + 6 + 16 + 32 + 1;
+        char *fnam = (char *)malloc(fnam_len);
         unsigned char *mem = (unsigned char *)malloc(FST_GZIO_LEN);
         fst_off_t hl, uclen;
         fst_off_t clen = 0;
@@ -3928,7 +3942,7 @@ if(!xc->fh)
                 htyp = xc->contains_hier_section_lz4duo ? FST_BL_HIER_LZ4DUO : FST_BL_HIER_LZ4;
                 }
 
-        sprintf(fnam, "%s.hier_%d_%p", xc->filename, getpid(), (void *)xc);
+        snprintf(fnam, fnam_len, "%s.hier_%d_%p", xc->filename, getpid(), (void *)xc);
         fstReaderFseeko(xc, xc->f, xc->hier_pos, SEEK_SET);
         uclen = fstReaderUint64(xc->f);
 #ifndef __MINGW32__
@@ -4179,7 +4193,7 @@ if(!(isfeof=feof(xc->fh)))
                                 if((xc->hier.u.attr.subtype == FST_MT_SOURCESTEM)||(xc->hier.u.attr.subtype == FST_MT_SOURCEISTEM))
                                         {
                                         int sidx_skiplen_dummy = 0;
-                                        xc->hier.u.attr.arg_from_name = fstGetVarint64((unsigned char *)xc->str_scope_nam, &sidx_skiplen_dummy);
+                                        xc->hier.u.attr.arg_from_name = fstGetVarint64((unsigned char *)xc->str_scope_attr, &sidx_skiplen_dummy);
                                         }
                                 }
                         break;
@@ -4585,15 +4599,17 @@ if(sectype == FST_BL_ZWRAPPER)
         int zfd;
         int flen = strlen(xc->filename);
         char *hf;
+	int hf_len;
 
         seclen = fstReaderUint64(xc->f);
         uclen = fstReaderUint64(xc->f);
 
         if(!seclen) return(0); /* not finished compressing, this is a failed read */
 
-        hf = (char *)calloc(1, flen + 16 + 32 + 1);
+	hf_len = flen + 16 + 32 + 1;
+        hf = (char *)calloc(1, hf_len);
 
-        sprintf(hf, "%s.upk_%d_%p", xc->filename, getpid(), (void *)xc);
+        snprintf(hf, hf_len, "%s.upk_%d_%p", xc->filename, getpid(), (void *)xc);
         fcomp = fopen(hf, "w+b");
         if(!fcomp)
                 {
@@ -5056,6 +5072,7 @@ if(fv)
 for(;;)
         {
         uint32_t *tc_head = NULL;
+	uint32_t tc_head_items = 0;
         traversal_mem_offs = 0;
 
         fstReaderFseeko(xc, xc->f, blkpos, SEEK_SET);
@@ -5099,12 +5116,12 @@ for(;;)
                 }
 
 
-        mem_required_for_traversal = fstReaderUint64(xc->f);
-        mem_for_traversal = (unsigned char *)malloc(mem_required_for_traversal + 66); /* add in potential fastlz overhead */
+        mem_required_for_traversal = fstReaderUint64(xc->f) + 66; /* add in potential fastlz overhead */
+        mem_for_traversal = (unsigned char *)malloc(mem_required_for_traversal);
 #ifdef FST_DEBUG
         fprintf(stderr, FST_APIMESS "sec: %u seclen: %d begtim: %d endtim: %d\n",
                 secnum, (int)seclen, (int)beg_tim, (int)end_tim);
-        fprintf(stderr, FST_APIMESS "mem_required_for_traversal: %d\n", (int)mem_required_for_traversal);
+        fprintf(stderr, FST_APIMESS "mem_required_for_traversal: %d\n", (int)mem_required_for_traversal-66);
 #endif
         /* process time block */
         {
@@ -5154,6 +5171,22 @@ for(;;)
                 }
 
         free(time_table);
+
+	if(sizeof(size_t) < sizeof(uint64_t))
+		{
+		/* TALOS-2023-1792 for 32b overflow */
+		uint64_t chk_64 = tsec_nitems * sizeof(uint64_t);
+		size_t   chk_32 = ((size_t)tsec_nitems) * sizeof(uint64_t);
+		if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1792");
+		}
+	else
+		{
+		uint64_t chk_64 = tsec_nitems * sizeof(uint64_t);
+		if((chk_64/sizeof(uint64_t)) != tsec_nitems)
+			{
+			chk_report_abort("TALOS-2023-1792");
+			}
+		}
         time_table = (uint64_t *)calloc(tsec_nitems, sizeof(uint64_t));
         tpnt = ucdata;
         tpval = 0;
@@ -5165,7 +5198,23 @@ for(;;)
                 tpnt += skiplen;
                 }
 
-        tc_head = (uint32_t *)calloc(tsec_nitems /* scan-build */ ? tsec_nitems : 1, sizeof(uint32_t));
+	tc_head_items = tsec_nitems /* scan-build */ ? tsec_nitems : 1;
+	if(sizeof(size_t) < sizeof(uint64_t))
+		{
+		/* TALOS-2023-1792 for 32b overflow */
+		uint64_t chk_64 = tc_head_items * sizeof(uint32_t);
+		size_t   chk_32 = ((size_t)tc_head_items) * sizeof(uint32_t);
+		if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1792");
+		}
+	else
+		{
+		uint64_t chk_64 = tc_head_items * sizeof(uint32_t);
+		if((chk_64/sizeof(uint32_t)) != tc_head_items)
+			{
+			chk_report_abort("TALOS-2023-1792");
+			}
+		}
+        tc_head = (uint32_t *)calloc(tc_head_items, sizeof(uint32_t));
         free(ucdata);
         }
 
@@ -5189,16 +5238,16 @@ for(;;)
 
                                 if(beg_tim)
                                         {
-					if(dumpvars_state == 1) { wx_len = sprintf(wx_buf, "$end\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 2; }
-                                        wx_len = sprintf(wx_buf, "#%" PRIu64 "\n", beg_tim);
+					if(dumpvars_state == 1) { wx_len = snprintf(wx_buf, 32, "$end\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 2; }
+                                        wx_len = snprintf(wx_buf, 32, "#%" PRIu64 "\n", beg_tim);
                                         fstWritex(xc, wx_buf, wx_len);
-					if(!dumpvars_state) { wx_len = sprintf(wx_buf, "$dumpvars\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 1; }
+					if(!dumpvars_state) { wx_len = snprintf(wx_buf, 32, "$dumpvars\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 1; }
                                         }
                                 if((xc->num_blackouts)&&(cur_blackout != xc->num_blackouts))
                                         {
                                         if(beg_tim == xc->blackout_times[cur_blackout])
                                                 {
-                                                wx_len = sprintf(wx_buf, "$dump%s $end\n", (xc->blackout_activity[cur_blackout++]) ? "on" : "off");
+                                                wx_len = snprintf(wx_buf, 32, "$dump%s $end\n", (xc->blackout_activity[cur_blackout++]) ? "on" : "off");
                                                 fstWritex(xc, wx_buf, wx_len);
                                                 }
                                         }
@@ -5269,6 +5318,10 @@ for(;;)
                                                         {
                                                         if(value_change_callback)
                                                                 {
+								if(xc->signal_lens[idx] > xc->longest_signal_value_len)
+									{
+									chk_report_abort("TALOS-2023-1797");
+									}
                                                                 memcpy(xc->temp_signal_value_buf, mu+sig_offs, xc->signal_lens[idx]);
                                                                 xc->temp_signal_value_buf[xc->signal_lens[idx]] = 0;
                                                                 value_change_callback(user_callback_data_pointer, beg_tim, idx+1, xc->temp_signal_value_buf);
@@ -5282,6 +5335,10 @@ for(;;)
 
                                                                         vcd_id[0] = (xc->signal_typs[idx] != FST_VT_VCD_PORT) ? 'b' : 'p';
                                                                         fstWritex(xc, vcd_id, 1);
+									if((sig_offs + xc->signal_lens[idx]) > frame_uclen)
+										{
+										chk_report_abort("TALOS-2023-1793");
+										}
                                                                         fstWritex(xc,mu+sig_offs, xc->signal_lens[idx]);
 
                                                                         vcd_id[0] = ' '; /* collapse 3 writes into one I/O call */
@@ -5332,7 +5389,7 @@ for(;;)
                                                                                         clone_d[j] = srcdata[7-j];
                                                                                         }
                                                                                 }
-                                                                        sprintf((char *)xc->temp_signal_value_buf, "%.16g", d);
+                                                                        snprintf((char *)xc->temp_signal_value_buf, xc->longest_signal_value_len + 1, "%.16g", d);
                                                                         value_change_callback(user_callback_data_pointer, beg_tim, idx+1, xc->temp_signal_value_buf);
                                                                         }
                                                                 }
@@ -5360,7 +5417,7 @@ for(;;)
                                                                                 }
 
                                                                         fstVcdID(vcdid_buf, idx+1);
-                                                                        wx_len = sprintf(wx_buf, "r%.16g %s\n", d, vcdid_buf);
+                                                                        wx_len = snprintf(wx_buf, 64, "r%.16g %s\n", d, vcdid_buf);
                                                                         fstWritex(xc, wx_buf, wx_len);
                                                                         }
                                                                 }
@@ -5406,7 +5463,44 @@ for(;;)
                 free(chain_table_lengths);
 
                 vc_maxhandle_largest = vc_maxhandle;
+
+		if(!(vc_maxhandle+1))
+			{
+			chk_report_abort("TALOS-2023-1798");
+			}
+
+		if(sizeof(size_t) < sizeof(uint64_t))
+			{
+			/* TALOS-2023-1798 for 32b overflow */
+			uint64_t chk_64 = (vc_maxhandle+1) * sizeof(fst_off_t);
+			size_t   chk_32 = ((size_t)(vc_maxhandle+1)) * sizeof(fst_off_t);
+			if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1798");
+			}
+		else
+			{
+			uint64_t chk_64 = (vc_maxhandle+1) * sizeof(fst_off_t);
+				if((chk_64/sizeof(fst_off_t)) != (vc_maxhandle+1))
+				{
+				chk_report_abort("TALOS-2023-1798");
+				}
+			}
                 chain_table = (fst_off_t *)calloc((vc_maxhandle+1), sizeof(fst_off_t));
+
+		if(sizeof(size_t) < sizeof(uint64_t))
+			{
+			/* TALOS-2023-1798 for 32b overflow */
+			uint64_t chk_64 = (vc_maxhandle+1) * sizeof(uint32_t);
+			size_t   chk_32 = ((size_t)(vc_maxhandle+1)) * sizeof(uint32_t);
+			if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1798");
+			}
+		else
+			{
+			uint64_t chk_64 = (vc_maxhandle+1) * sizeof(uint32_t);
+				if((chk_64/sizeof(uint32_t)) != (vc_maxhandle+1))
+				{
+				chk_report_abort("TALOS-2023-1798");
+				}
+			}
                 chain_table_lengths = (uint32_t *)calloc((vc_maxhandle+1), sizeof(uint32_t));
                 }
 
@@ -5450,6 +5544,11 @@ for(;;)
                                 uint64_t val = fstGetVarint32(pnt, &skiplen);
 
                                 fstHandle loopcnt = val >> 1;
+				if((idx+loopcnt-1) > vc_maxhandle) /* TALOS-2023-1789 */
+					{
+					chk_report_abort("TALOS-2023-1789");
+					}
+
                                 for(i=0;i<loopcnt;i++)
                                         {
                                         chain_table[idx++] = 0;
@@ -5483,6 +5582,12 @@ for(;;)
                         else
                                 {
                                 fstHandle loopcnt = val >> 1;
+
+				if((idx+loopcnt-1) > vc_maxhandle) /* TALOS-2023-1789 */
+					{
+					chk_report_abort("TALOS-2023-1789");
+					}
+
                                 for(i=0;i<loopcnt;i++)
                                         {
                                         chain_table[idx++] = 0;
@@ -5543,6 +5648,11 @@ for(;;)
                                         unsigned long destlen = val;
                                         unsigned long sourcelen = chain_table_lengths[i];
 
+					if(traversal_mem_offs >= mem_required_for_traversal)
+						{
+						chk_report_abort("TALOS-2023-1785");
+						}
+
                                         if(mc_mem_len < chain_table_lengths[i])
                                                 {
                                                 free(mc_mem);
@@ -5571,6 +5681,12 @@ for(;;)
                                         {
                                         int destlen = chain_table_lengths[i] - skiplen;
                                         unsigned char *mu = mem_for_traversal + traversal_mem_offs;
+
+					if(traversal_mem_offs >= mem_required_for_traversal)
+						{
+						chk_report_abort("TALOS-2023-1785");
+						}
+
                                         fstFread(mu, destlen, 1, xc->f);
                                         /* data to process is for(j=0;j<destlen;j++) in mu[j] */
                                         headptr[i] = traversal_mem_offs;
@@ -5595,6 +5711,11 @@ for(;;)
                                         uint32_t vli = fstGetVarint32NoSkip(mem_for_traversal + headptr[i]);
                                         tdelta = vli >> 1;
                                         }
+
+				if(tdelta >= tc_head_items)
+					{
+					chk_report_abort("TALOS-2023-1791");
+					}
 
                                 scatterptr[i] = tc_head[tdelta];
                                 tc_head[tdelta] = i+1;
@@ -5625,16 +5746,16 @@ for(;;)
                                                 }
                                         }
 
-				if(dumpvars_state == 1) { wx_len = sprintf(wx_buf, "$end\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 2; }
-                                wx_len = sprintf(wx_buf, "#%" PRIu64 "\n", time_table[i]);
+				if(dumpvars_state == 1) { wx_len = snprintf(wx_buf, 32, "$end\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 2; }
+                                wx_len = snprintf(wx_buf, 32, "#%" PRIu64 "\n", time_table[i]);
                                 fstWritex(xc, wx_buf, wx_len);
-				if(!dumpvars_state) { wx_len = sprintf(wx_buf, "$dumpvars\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 1; }
+				if(!dumpvars_state) { wx_len = snprintf(wx_buf, 32, "$dumpvars\n"); fstWritex(xc, wx_buf, wx_len); dumpvars_state = 1; }
 
                                 if((xc->num_blackouts)&&(cur_blackout != xc->num_blackouts))
                                         {
                                         if(time_table[i] == xc->blackout_times[cur_blackout])
                                                 {
-                                                wx_len = sprintf(wx_buf, "$dump%s $end\n", (xc->blackout_activity[cur_blackout++]) ? "on" : "off");
+                                                wx_len = snprintf(wx_buf, 32, "$dump%s $end\n", (xc->blackout_activity[cur_blackout++]) ? "on" : "off");
                                                 fstWritex(xc, wx_buf, wx_len);
                                                 }
                                         }
@@ -5694,6 +5815,11 @@ for(;;)
                                                 shamt = 2 << (vli & 1);
                                                 tdelta = vli >> shamt;
 
+						if((tdelta+i) >= tc_head_items)
+							{
+							chk_report_abort("TALOS-2023-1791");
+							}
+
                                                 scatterptr[idx] = tc_head[i+tdelta];
                                                 tc_head[i+tdelta] = idx+1;
                                                 }
@@ -5727,6 +5853,14 @@ for(;;)
 
                                                                 vcdid_len = fstVcdIDForFwrite(vcd_id+1, idx+1);
                                                                 {
+								if(sizeof(size_t) < sizeof(uint64_t))
+                							{
+                							/* TALOS-2023-1790 for 32b overflow */
+                							uint64_t chk_64 = len*4 + 1;
+                							size_t   chk_32 = len*4 + 1;
+                							if(chk_64 != chk_32) chk_report_abort("TALOS-2023-1790");
+                							}
+
                                                                 unsigned char *vesc = (unsigned char *)malloc(len*4 + 1);
                                                                 int vlen = fstUtilityBinToEsc(vesc, vdata, len);
                                                                 fstWritex(xc, vesc, vlen);
@@ -5752,6 +5886,11 @@ for(;;)
                                                 vli = fstGetVarint32NoSkip(mem_for_traversal + headptr[idx]);
                                                 tdelta = vli >> 1;
 
+						if((tdelta+i) >= tc_head_items)
+							{
+							chk_report_abort("TALOS-2023-1791");
+							}
+
                                                 scatterptr[idx] = tc_head[i+tdelta];
                                                 tc_head[i+tdelta] = idx+1;
                                                 }
@@ -5768,6 +5907,11 @@ for(;;)
 
                                 if(xc->signal_typs[idx] != FST_VT_VCD_REAL)
                                         {
+					if(len > xc->longest_signal_value_len)
+						{
+						chk_report_abort("TALOS-2023-1797");
+						}
+
                                         if(!(vli & 1))
                                                 {
                                                 int byte = 0;
@@ -5813,8 +5957,13 @@ for(;;)
                                                         if(fv)
                                                                 {
                                                                 unsigned char ch_bp =  (xc->signal_typs[idx] != FST_VT_VCD_PORT) ? 'b' : 'p';
+								uint64_t mem_required_for_traversal_chk = vdata - mem_for_traversal + len;
 
                                                                 fstWritex(xc, &ch_bp, 1);
+								if(mem_required_for_traversal_chk > mem_required_for_traversal)
+									{
+									chk_report_abort("TALOS-2023-1793");
+									}
                                                                 fstWritex(xc, vdata, len);
                                                                 }
                                                         }
@@ -5884,7 +6033,7 @@ for(;;)
                                                                         clone_d[j] = srcdata[7-j];
                                                                         }
                                                                 }
-                                                        sprintf((char *)xc->temp_signal_value_buf, "%.16g", d);
+                                                        snprintf((char *)xc->temp_signal_value_buf, xc->longest_signal_value_len + 1, "%.16g", d);
                                                         value_change_callback(user_callback_data_pointer, time_table[i], idx+1, xc->temp_signal_value_buf);
                                                         }
                                                 }
@@ -5910,7 +6059,7 @@ for(;;)
                                                                         }
                                                                 }
 
-                                                        wx_len = sprintf(wx_buf, "r%.16g", d);
+                                                        wx_len = snprintf(wx_buf, 32, "r%.16g", d);
                                                         fstWritex(xc, wx_buf, wx_len);
                                                         }
                                                 }
@@ -5936,6 +6085,11 @@ for(;;)
                                         {
                                         vli = fstGetVarint32NoSkip(mem_for_traversal + headptr[idx]);
                                         tdelta = vli >> 1;
+
+					if((tdelta+i) >= tc_head_items)
+						{
+						chk_report_abort("TALOS-2023-1791");
+						}
 
                                         scatterptr[idx] = tc_head[i+tdelta];
                                         tc_head[i+tdelta] = idx+1;
@@ -6016,7 +6170,7 @@ if(xc->signal_lens[facidx] == 1)
                                 }
                         }
 
-                sprintf((char *)buf, "%.16g", d);
+                snprintf((char *)buf, 32, "%.16g", d); /* this will write 18 bytes */
                 }
         }
 
@@ -6608,7 +6762,7 @@ if(xc->signal_lens[facidx] == 1)
                                         }
                                 }
 
-                        sprintf(buf, "r%.16g", d);
+                        snprintf(buf, 32, "r%.16g", d); /* this will write 19 bytes */
                         return(buf);
                         }
                 }
