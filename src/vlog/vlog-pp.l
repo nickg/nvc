@@ -39,21 +39,31 @@
 
 #define YY_USER_ACTION begin_token(vlogpp_text, vlogpp_leng);
 
-static int         comment_caller = 0;
-static shash_t    *macros;
-static char       *macro_name;
-static text_buf_t *macro_text;
-static text_buf_t *output;
+typedef struct _ifdef_stack ifdef_stack_t;
 
+struct _ifdef_stack {
+   ifdef_stack_t *next;
+   loc_t          loc;
+};
+
+static int            comment_caller = 0;
+static shash_t       *macros;
+static char          *macro_name;
+static text_buf_t    *macro_text;
+static text_buf_t    *output;
+static ifdef_stack_t *ifdefs = NULL;
 
 static void define_macro(void);
+static void push_ifdef(void);
+static void pop_ifdef(void);
 
 extern loc_t yylloc;
 %}
 
 ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
-%x COMMENT C_COMMENT MACRO_NAME MACRO_TEXT
+%x COMMENT C_COMMENT MACRO_NAME MACRO_TEXT IFDEF_NAME IFDEF_TRUE IFDEF_FALSE
+%x IFNDEF_NAME
 
 %%
 
@@ -73,6 +83,19 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                         }
 
 `define[ \t]*           { BEGIN(MACRO_NAME); }
+`ifdef[ \t]*            { push_ifdef();
+                          BEGIN(IFDEF_NAME);
+                        }
+`ifndef[ \t]*           { push_ifdef();
+                          BEGIN(IFNDEF_NAME);
+                        }
+`endif                  { pop_ifdef();
+                          BEGIN(INITIAL);
+                        }
+`else                   { if (ifdefs == NULL)
+                             error_at(&yylloc, "`else outside of `ifdef");
+                          BEGIN(IFDEF_FALSE);
+                        }
 
 `timescale              |
 `resetall               |
@@ -91,7 +114,43 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 <MACRO_NAME>{ID}[ \t]*  { macro_name = xstrdup(vlogpp_text);
                           tb_rewind(macro_text);
                           BEGIN(MACRO_TEXT); }
-<MACRO_NAME>.           { abort(); }
+<MACRO_NAME>.           { error_at(&yylloc, "expected macro name after "
+                                   "`define");
+                          BEGIN(INITIAL);
+                        }
+
+<IFDEF_NAME>{ID}        { if (shash_get(macros, vlogpp_text) != NULL)
+                             BEGIN(INITIAL);
+                          else
+                             BEGIN(IFDEF_FALSE);
+                        }
+<IFDEF_NAME>.           { error_at(&yylloc, "expected macro name after `ifdef");
+                          pop_ifdef();
+                          BEGIN(INITIAL);
+                        }
+
+<IFNDEF_NAME>{ID}       { if (shash_get(macros, vlogpp_text) == NULL)
+                             BEGIN(INITIAL);
+                          else
+                             BEGIN(IFDEF_FALSE);
+                        }
+<IFNDEF_NAME>.          { error_at(&yylloc, "expected macro name after "
+                                   "`ifndef");
+                          pop_ifdef();
+                          BEGIN(INITIAL);
+                        }
+
+<IFDEF_FALSE>`else      { assert(ifdefs != NULL);
+                          BEGIN(INITIAL);
+                        }
+<IFDEF_FALSE>`endif     { pop_ifdef();
+                          BEGIN(INITIAL);
+                        }
+<IFDEF_FALSE>[^\r\n]    { }
+<IFDEF_FALSE>\n\r       |
+<IFDEF_FALSE>\r\n       |
+<IFDEF_FALSE>\n         |
+<IFDEF_FALSE>\r         { tb_append(output, '\n'); }
 
 <MACRO_TEXT>[^\r\n]     { tb_cat(macro_text, vlogpp_text); }
 <MACRO_TEXT>\n\r        |
@@ -130,6 +189,26 @@ static void define_macro(void)
    tb_rewind(macro_text);
 }
 
+static void push_ifdef(void)
+{
+   ifdef_stack_t *s = xcalloc(sizeof(ifdef_stack_t));
+   s->next = ifdefs;
+   s->loc = yylloc;
+
+   ifdefs = s;
+}
+
+static void pop_ifdef(void)
+{
+   if (ifdefs == NULL)
+      error_at(&yylloc, "`endif outside of `ifdef");
+   else {
+      ifdef_stack_t *tmp = ifdefs->next;
+      free(ifdefs);
+      ifdefs = tmp;
+   }
+}
+
 void vlog_preprocess(text_buf_t *tb)
 {
    assert(macros == NULL);
@@ -141,11 +220,18 @@ void vlog_preprocess(text_buf_t *tb)
    assert(output == NULL);
    output = tb;
 
+   assert(ifdefs == NULL);
+
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);
 
    vlogpp_lex();
    output = NULL;
+
+   while (ifdefs != NULL) {
+      error_at(&(ifdefs->loc), "no corresponding `endif before end of file");
+      pop_ifdef();
+   }
 
    shash_free(macros);
    macros = NULL;
@@ -156,4 +242,3 @@ void vlog_preprocess(text_buf_t *tb)
    tb_free(macro_text);
    macro_text = NULL;
 }
-

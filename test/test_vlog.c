@@ -330,7 +330,18 @@ START_TEST(test_pp1)
       "\n"
       "\n"
       " // comment\n"
-      "bar = 1\n");
+      "bar = 1\n"
+      "   // Another comment\n"
+      "pass\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "pass\n"
+      "\n"
+      "\n");
 }
 END_TEST
 
@@ -391,6 +402,28 @@ START_TEST(test_gate1)
 }
 END_TEST
 
+START_TEST(test_pp2)
+{
+   input_from_file(TESTDIR "/vlog/pp2.v");
+
+   const error_t expect[] = {
+      {  1, "`else outside of `ifdef" },
+      {  2, "`endif outside of `ifdef" },
+      {  3, "expected macro name after `ifdef" },
+      {  4, "expected macro name after `ifndef" },
+      {  5, "expected macro name after `define" },
+      {  6, "no corresponding `endif before end of file" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -406,6 +439,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_empty1);
    tcase_add_test(tc, test_timescale1);
    tcase_add_test(tc, test_gate1);
+   tcase_add_test(tc, test_pp2);
    suite_add_tcase(s, tc);
 
    return s;
