@@ -61,6 +61,7 @@ typedef struct _printer printer_t;
 typedef struct _unit_registry unit_registry_t;
 typedef struct _driver_set driver_set_t;
 typedef struct _vhpi_context vhpi_context_t;
+typedef struct _mem_pool mem_pool_t;
 
 typedef struct _rt_model      rt_model_t;
 typedef struct _rt_watch      rt_watch_t;

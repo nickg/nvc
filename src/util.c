@@ -111,11 +111,24 @@
 
 #define HUGE_PAGE_SIZE  0x200000
 
+#define POOL_MIN_ALIGN  sizeof(double)
+#define POOL_PAGE_4K    12
+#define POOL_PAGE_1M    20
+#define POOL_PAGE_MIN   POOL_PAGE_4K
+#define POOL_PAGE_MAX   POOL_PAGE_1M
+
+#if __SANITIZE_ADDRESS__
+#define POOL_REDZONE 16
+#else
+#define POOL_REDZONE 0
+#endif
+
 typedef void (*print_fn_t)(const char *fmt, ...);
 
 static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
 
 typedef struct _fault_handler fault_handler_t;
+typedef struct _pool_page pool_page_t;
 
 struct color_escape {
    const char *name;
@@ -133,6 +146,18 @@ struct _fault_handler {
    fault_fn_t       fn;
    void            *context;
 };
+
+typedef struct _pool_page {
+   pool_page_t *next;
+   size_t       alloc;
+   size_t       size;
+   uint8_t      data[0];
+} page_header_t;
+
+typedef struct _mem_pool {
+   pool_page_t *pages;
+   size_t       pageshift;
+} mem_pool_t;
 
 static bool             want_color = false;
 static bool             want_links = false;
@@ -2369,3 +2394,100 @@ void should_not_reach_here(void)
    fatal_trace("should not reach here");
 }
 #endif
+
+mem_pool_t *pool_new(void)
+{
+   mem_pool_t *mp = xcalloc(sizeof(mem_pool_t));
+   mp->pageshift = POOL_PAGE_MIN;
+
+   return mp;
+}
+
+void pool_free(mem_pool_t *mp)
+{
+   for (pool_page_t *p = mp->pages, *tmp; p != NULL; p = tmp) {
+      tmp = p->next;
+      free(p);
+   }
+
+   free(mp);
+}
+
+static pool_page_t *pool_page_new(mem_pool_t *mp, size_t reqsz, size_t align)
+{
+   const size_t hdrsz = ALIGN_UP(sizeof(page_header_t), align);
+   const size_t minsz = next_power_of_2(reqsz + hdrsz);
+   const size_t allocsz = MAX(1 << mp->pageshift, minsz);
+   page_header_t *p = xmalloc(allocsz);
+   p->next  = mp->pages;
+   p->alloc = hdrsz;
+   p->size  = allocsz;
+
+   ASAN_POISON(p + hdrsz, allocsz - hdrsz);
+
+   if (mp->pageshift < POOL_PAGE_MAX)
+      mp->pageshift++;
+
+   return (mp->pages = p);
+}
+
+static void *pool_aligned_malloc(mem_pool_t *mp, size_t size, size_t align)
+{
+   assert(is_power_of_2(align));
+
+   pool_page_t *page;
+   if (mp->pages == NULL)
+      page = pool_page_new(mp, size, align);
+   else {
+      const size_t base = ALIGN_UP(mp->pages->alloc + POOL_REDZONE, align);
+      if (base + size > mp->pages->size)
+         page = pool_page_new(mp, size, align);
+      else {
+         page = mp->pages;
+         page->alloc = base;
+      }
+   }
+
+   assert((mp->pages->alloc & (align - 1)) == 0);
+   assert(mp->pages->alloc + size <= mp->pages->size);
+   assert(mp->pages->alloc >= sizeof(page_header_t));
+
+   void *ptr = (void *)mp->pages + mp->pages->alloc;
+   mp->pages->alloc += size;
+
+   ASAN_UNPOISON(ptr, size);
+   return ptr;
+}
+
+void *pool_malloc(mem_pool_t *mp, size_t size)
+{
+   return pool_aligned_malloc(mp, size, POOL_MIN_ALIGN);
+}
+
+void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size)
+{
+   size_t bytes;
+   if (__builtin_mul_overflow(nelems, size, &bytes))
+      fatal_trace("array size overflow: requested %zd * %zd bytes",
+                  nelems, size);
+
+   return pool_aligned_malloc(mp, bytes, POOL_MIN_ALIGN);
+}
+
+void *pool_calloc(mem_pool_t *mp, size_t size)
+{
+   void *ptr = pool_aligned_malloc(mp, size, POOL_MIN_ALIGN);
+   memset(ptr, '\0', size);
+   return ptr;
+}
+
+void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages)
+{
+   *npages = 0;
+   *alloc = 0;
+
+   for (pool_page_t *p = mp->pages; p != NULL; p = p->next) {
+      *npages += 1;
+      *alloc += p->alloc - sizeof(pool_page_t);
+   }
+}

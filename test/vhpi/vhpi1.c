@@ -118,6 +118,8 @@ static void test_bin_str(void)
    fail_unless(v_value.value.enumvs[2] == 1);
    fail_unless(v_value.value.enumvs[3] == 1);
 
+   free(v_value.value.enumvs);
+
    vhpi_release_handle(root);
    vhpi_release_handle(hb);
    vhpi_release_handle(hv);

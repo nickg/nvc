@@ -30,16 +30,6 @@
 #include <string.h>
 #include <inttypes.h>
 
-#if __SANITIZE_ADDRESS__
-#include <sanitizer/asan_interface.h>
-
-#define MSPACE_POISON(addr, size) ASAN_POISON_MEMORY_REGION(addr, size)
-#define MSPACE_UNPOISON(addr, size) ASAN_UNPOISON_MEMORY_REGION(addr, size)
-#else
-#define MSPACE_POISON(addr, size)
-#define MSPACE_UNPOISON(addr, size)
-#endif
-
 #define LINE_SIZE  32
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
 #define MAX_HEAP   (UINT64_C(0x100000000) * LINE_SIZE)
@@ -124,7 +114,7 @@ mspace_t *mspace_new(size_t size)
 
    m->space = map_huge_pages(LINE_SIZE, m->maxsize);
 
-   MSPACE_POISON(m->space, m->maxsize);
+   ASAN_POISON(m->space, m->maxsize);
 
    mask_init(&(m->headmask), m->maxlines);
    mask_setall(&(m->headmask));
@@ -203,7 +193,7 @@ static void *mspace_try_alloc(mspace_t *m, size_t size)
          assert(base >= m->space);
          assert(base < m->space + m->maxsize);
 
-         MSPACE_UNPOISON(base, size);
+         ASAN_UNPOISON(base, size);
 
          const ptrdiff_t line = (base - m->space) / LINE_SIZE;
          mask_set(&(m->headmask), line);
@@ -540,7 +530,7 @@ static void mspace_gc(mspace_t *m)
 #if __SANITIZE_ADDRESS__
    for (int i = 0; i < m->maxlines; i++) {
       if (!mask_test(&(state.markmask), i))
-         MSPACE_POISON(m->space + i * LINE_SIZE, LINE_SIZE);
+         ASAN_POISON(m->space + i * LINE_SIZE, LINE_SIZE);
    }
 #endif
 

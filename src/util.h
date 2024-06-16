@@ -55,6 +55,16 @@
 #define STATIC_ASSERT(x)
 #endif
 
+#if __SANITIZE_ADDRESS__
+#include <sanitizer/asan_interface.h>
+
+#define ASAN_POISON(addr, size) ASAN_POISON_MEMORY_REGION(addr, size)
+#define ASAN_UNPOISON(addr, size) ASAN_UNPOISON_MEMORY_REGION(addr, size)
+#else
+#define ASAN_POISON(addr, size)
+#define ASAN_UNPOISON(addr, size)
+#endif
+
 #ifdef __MINGW32__
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #define setenv(x, y, z) _putenv_s((x), (y))
@@ -391,6 +401,13 @@ void remove_fault_handler(fault_fn_t fn, void *context);
 
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);
+
+mem_pool_t *pool_new(void);
+void pool_free(mem_pool_t *mp);
+void *pool_malloc(mem_pool_t *mp, size_t size);
+void *pool_calloc(mem_pool_t *mp, size_t size);
+void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size);
+void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
 
 typedef struct _ptr_list {
    unsigned  count;

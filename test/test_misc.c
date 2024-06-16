@@ -23,6 +23,7 @@
 #include "option.h"
 #include "rt/heap.h"
 #include "thread.h"
+#include "util.h"
 
 #include <assert.h>
 #include <check.h>
@@ -722,6 +723,48 @@ START_TEST(test_barrier)
 }
 END_TEST
 
+START_TEST(test_pool_basic)
+{
+   mem_pool_t *mp = pool_new();
+
+   uint8_t *p1 = pool_malloc(mp, 13);
+   ck_assert_ptr_nonnull(p1);
+   memset(p1, 42, 13);
+
+   uint8_t *p2 = pool_calloc(mp, 3);
+   ck_assert_ptr_nonnull(p2);
+   ck_assert_int_eq(p2[0], 0);
+   memset(p2, 66, 3);
+
+   ck_assert_int_eq(p1[0], 42);
+   ck_assert_int_eq(p1[12], 42);
+   ck_assert_int_eq(p2[0], 66);
+   ck_assert_int_eq(p2[2], 66);
+
+   pool_free(mp);
+}
+END_TEST
+
+START_TEST(test_pool_stats)
+{
+   mem_pool_t *mp = pool_new();
+
+   for (int i = 0; i < 100; i++)
+      pool_malloc(mp, i);
+
+   size_t alloc, npages;
+   pool_stats(mp, &alloc, &npages);
+
+   // Will vary with host word size and address sanitiser
+   ck_assert_int_gt(alloc, 5000);
+   ck_assert_int_lt(alloc, 7000);
+
+   ck_assert_int_eq(npages, 2);
+
+   pool_free(mp);
+}
+END_TEST
+
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -767,6 +810,11 @@ Suite *get_misc_tests(void)
 #endif
    tcase_add_test(tc_thread, test_barrier);
    suite_add_tcase(s, tc_thread);
+
+   TCase *tc_pool = tcase_create("pool");
+   tcase_add_test(tc_pool, test_pool_basic);
+   tcase_add_test(tc_pool, test_pool_stats);
+   suite_add_tcase(s, tc_pool);
 
    return s;
 }
