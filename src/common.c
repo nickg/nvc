@@ -890,9 +890,9 @@ type_t array_aggregate_type(type_t array, int from_dim)
 
 unsigned bits_for_range(int64_t low, int64_t high)
 {
-   assert(low <= high);
-
-   if (low < 0) {
+   if (low > high)
+      return 0;   // Null range
+   else if (low < 0) {
       // Signed integers
       if (low >= INT8_MIN && high <= INT8_MAX)
          return 8;

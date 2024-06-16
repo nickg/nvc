@@ -7774,8 +7774,8 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
 
       if (init_reg == VCODE_INVALID_REG)
          init_reg = lower_scalar_type_left(lu, type);
-      else
-         lower_check_scalar_bounds(lu, init_reg, type, where, where);
+
+      lower_check_scalar_bounds(lu, init_reg, type, where, where);
 
       assert(!has_scope);
       assert(bounds_reg == VCODE_INVALID_REG);

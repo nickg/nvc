@@ -1920,6 +1920,23 @@ START_TEST(test_genpack5)
 }
 END_TEST
 
+START_TEST(test_null1)
+{
+   input_from_file(TESTDIR "/elab/null1.vhd");
+
+   const error_t expect[] = {
+      {  7, "value 0 outside of T_NULL_INT range 0 to -1 for signal X" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2022,6 +2039,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue864);
    tcase_add_test(tc, test_issue860);
    tcase_add_test(tc, test_genpack5);
+   tcase_add_test(tc, test_null1);
    suite_add_tcase(s, tc);
 
    return s;

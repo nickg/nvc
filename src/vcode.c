@@ -2433,6 +2433,9 @@ vcode_type_t vtype_int(int64_t low, int64_t high)
    case 1:
       n->repr = VCODE_REPR_U1;
       break;
+   case 0:
+      n->repr = VCODE_REPR_I64;    // Null range
+      break;
    default:
       fatal_trace("cannot represent %"PRIi64"..%"PRIi64, low, high);
    }

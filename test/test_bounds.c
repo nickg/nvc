@@ -564,9 +564,16 @@ START_TEST(test_nullrange)
 {
    input_from_file(TESTDIR "/bounds/nullrange.vhd");
 
+   const error_t expect[] = {
+      { 14, "type T_NULL_INT has null range" },
+      { 15, "value 0 outside of T_NULL_INT range 0 to -1 for variable X" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

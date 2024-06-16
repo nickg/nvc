@@ -918,6 +918,11 @@ static void bounds_check_type_decl(tree_t t)
       if (is_anonymous_subtype(elem))
          bounds_check_index_contraints(elem);
    }
+   else if (type_is_scalar(type)) {
+      int64_t low, high;
+      if (folded_bounds(range_of(type, 0), &low, &high) && low > high)
+         warn_at(tree_loc(t), "type %s has null range", type_pp(type));
+   }
 }
 
 static void bounds_check_subtype_decl(tree_t t)
