@@ -55,6 +55,7 @@ typedef struct _object_arena {
    vhdl_standard_t std;
    uint32_t        checksum;
    generation_t    copygen;
+   bool            copyflag;
    bool            frozen;
    bool            has_locus;
 } object_arena_t;
@@ -1105,7 +1106,9 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 {
    if (object == NULL)
       return false;
-   else if (__object_arena(object)->copygen != ctx->generation)
+
+   object_arena_t *arena = __object_arena(object);
+   if (arena->copygen != ctx->generation || !arena->copyflag)
       return false;
 
    if (ctx->copy_map == NULL)
@@ -1177,14 +1180,17 @@ static bool object_copy_root_closure(object_arena_t *a, object_copy_ctx_t *ctx)
 {
    bool include = false;
 
+   if (a->copygen == ctx->generation)
+      return a->copyflag;
+
    for (int i = 0; i < ctx->nroots; i++)
       include |= (__object_arena(ctx->roots[i]) == a);
 
    for (int i = 0; i < a->deps.count; i++)
       include |= object_copy_root_closure(a->deps.items[i], ctx);
 
-   if (include)
-      a->copygen = ctx->generation;
+   a->copygen  = ctx->generation;
+   a->copyflag = include;
 
    return include;
 }
