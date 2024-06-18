@@ -77,6 +77,7 @@ typedef enum {
    V_BIT_SELECT,
    V_SYSFUNC,
    V_FOREVER,
+   V_SPECIFY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

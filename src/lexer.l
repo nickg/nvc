@@ -464,7 +464,6 @@ UNION         ?i:union
 <INITIAL,PSL>"?>"        { TOKEN_08(tMGT); }
 <INITIAL,PSL>"?>="       { TOKEN_08(tMGE); }
 <INITIAL,PSL>"??"        { TOKEN_08(tCCONV); }
-<INITIAL,PSL>"=>"        { TOKEN(tASSOC); }
 <INITIAL,PSL>"/="        { TOKEN(tNEQ); }
 <INITIAL,PSL>"?/="       { TOKEN_08(tMNEQ); }
 <INITIAL,PSL>"?="        { TOKEN_08(tMEQ); }
@@ -474,6 +473,7 @@ UNION         ?i:union
 
 <INITIAL,PSL,VLOG>"<="   { TOKEN(tLE); }
 <INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
+<INITIAL,PSL,VLOG>"=>"   { TOKEN(tASSOC); }
 
 <PSL>{ASSERT}            { TOKEN(tASSERT); }
 <PSL>{ASSUME}            { TOKEN(tASSUME); }
@@ -557,6 +557,8 @@ UNION         ?i:union
 <VLOG>"!=="              { return tCASENEQ; }
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
+<VLOG>"specify"          { return tSPECIFY; }
+<VLOG>"endspecify"       { return tENDSPECIFY; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

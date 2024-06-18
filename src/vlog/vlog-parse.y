@@ -139,7 +139,8 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <vlog>          decimal_number conditional_statement variable_type
 %type   <vlog>          delay_control delay_value strength0 strength1
 %type   <vlog>          pull_gate_instance port_identifier module_instance
-%type   <vlog>          system_function_call loop_statement
+%type   <vlog>          system_function_call loop_statement specify_block
+%type   <vlog>          real_number
 %type   <ident>         identifier hierarchical_identifier
 %type   <list>          module_item_list module_port_list_opt module_item
 %type   <list>          list_of_port_declarations module_item_list_opt
@@ -152,7 +153,8 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %type   <list>          gate_instantiation pulldown_strength pullup_strength
 %type   <list>          port_declaration port_declaration_head
 %type   <list>          module_instantiation list_of_port_connections
-%type   <list>          list_of_port_connections_opt
+%type   <list>          list_of_port_connections_opt specify_item_list_opt
+%type   <list>          specify_item_list
 %type   <pair>          external_identifier
 %type   <kind>          net_type
 
@@ -176,6 +178,7 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %token                  tWIRE 358 "wire"
 %token                  tASSIGN 227 "assign"
 %token                  tIF 234 "if"
+%token                  tASSOC 248 "=>"
 %token                  tELSE 255 "else"
 %token                  tTIMESCALE 399 "`timescale"
 %token                  tSUPPLY0 400 "supply0"
@@ -190,6 +193,8 @@ static vlog_node_t make_strength(vlog_strength_t value, const loc_t *loc)
 %token                  tATTREND 409 "*)"
 %token  <str>           tNUMBER 410 "number"
 %token                  tFOREVER 411 "forever"
+%token                  tSPECIFY 414 "specify"
+%token                  tENDSPECIFY 415 "endspecify"
 
 %token                  tEOF 0 "end of file"
 
@@ -388,6 +393,7 @@ module_item_list:
 module_item:
                 module_or_generate_item
         |       port_declaration ';'
+        |       specify_block { $$ = node_list_single($1); }
         ;
 
 module_or_generate_item:
@@ -438,6 +444,66 @@ list_of_port_connections:
 module_or_generate_item_declaration:
                 net_declaration
         |       reg_declaration
+        ;
+
+specify_block:  tSPECIFY specify_item_list_opt tENDSPECIFY
+                {
+                   $$ = vlog_new(V_SPECIFY);
+                   vlog_set_loc($$, &@$);
+                }
+        ;
+
+specify_item_list_opt:
+                specify_item_list
+        |       /* empty */ { $$ = NULL; }
+        ;
+
+specify_item_list:
+                specify_item_list specify_item
+                {
+                   $$ = NULL;
+                }
+        |       specify_item { $$ = NULL; }
+        ;
+
+specify_item:   path_declaration
+        ;
+
+path_declaration:
+                simple_path_declaration ';'
+        ;
+
+simple_path_declaration:
+                parallel_path_description '=' path_delay_value
+        ;
+
+parallel_path_description:
+                '(' identifier tASSOC identifier ')'
+        ;
+
+path_delay_value:
+                list_of_path_delay_expressions
+        |       '(' list_of_path_delay_expressions ')'
+        ;
+
+list_of_path_delay_expressions:
+                path_delay_expression
+        ;
+
+list_of_path_delay_expressions:
+                path_delay_expression ',' path_delay_expression
+        ;
+
+path_delay_expression:
+                constant_expression
+        ;
+
+constant_expression:
+                constant_primary
+        ;
+
+constant_primary:
+                number
         ;
 
 net_declaration:
@@ -936,6 +1002,7 @@ primary:        hierarchical_identifier
         ;
 
 number:         decimal_number
+        |       real_number
         |       tNUMBER
                 {
                    $$ = vlog_new(V_NUMBER);
@@ -951,6 +1018,15 @@ decimal_number: tUNSIGNED
                    vlog_set_loc($$, &@$);
                    vlog_set_number($$, number_new($1));
                    free($1);
+                }
+        ;
+
+real_number:    tUNSIGNED '.' tUNSIGNED
+                {
+                   $$ = vlog_new(V_NUMBER);
+                   vlog_set_loc($$, &@$);
+                   free($1);
+                   free($3);
                 }
         ;
 

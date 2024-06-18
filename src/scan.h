@@ -307,5 +307,7 @@ bool is_scanned_as_psl(void);
 #define tFOREVER       411
 #define t2LSQUARE      412
 #define t2RSQUARE      413
+#define tSPECIFY       414
+#define tENDSPECIFY    415
 
 #endif  // _SCAN_H
