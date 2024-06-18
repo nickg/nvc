@@ -51,6 +51,7 @@ static inline int64_t extend_value(jit_value_t value)
    case JIT_VALUE_LABEL: return value.label;
    case JIT_VALUE_HANDLE: return value.handle;
    case JIT_VALUE_REG: return value.reg;
+   case JIT_ADDR_REG: return (int64_t)value.reg << 32 | value.disp;
    default: return value.int64;
    }
 }
