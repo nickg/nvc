@@ -43,3 +43,7 @@ module ports6 (x, y, z);
   wire [5:0]   y;    // Error
   input [x:0]  z;    // Error
 endmodule // ports6
+
+module ports7 (x, y, z);
+  input x, y, z;     // OK
+endmodule // ports7

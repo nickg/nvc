@@ -363,7 +363,7 @@ port_declaration_head:
         ;
 
 port_declaration:
-                port_declaration_head ',' port_identifier
+                port_declaration ',' port_identifier
                 {
                    $$ = $1;
                    clone_port(&$$, $3);

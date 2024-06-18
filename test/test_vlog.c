@@ -144,7 +144,7 @@ START_TEST(test_ports)
 
    input_from_file(TESTDIR "/vlog/ports.v");
 
-   for (int i = 0; i < 6; i++) {
+   for (int i = 0; i < 7; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);
