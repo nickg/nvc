@@ -989,3 +989,4 @@ integer3        normal,2008
 wait28          fail,gold
 guard4          normal
 signal36        normal,2008
+issue899        normal,2008

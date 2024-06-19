@@ -1752,6 +1752,30 @@ START_TEST(test_packinst1)
 }
 END_TEST
 
+START_TEST(test_physical)
+{
+   input_from_file(TESTDIR "/simp/physical.vhd");
+
+   const error_t expect[] = {
+      {  2, "physical literal 1000 HR exceeds range of type TIME" },
+      {  3, "physical literal 42141.4 HR exceeds range of type TIME" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+
+   tree_t c3 = search_decls(p, ident_new("C3"), 0);
+   fail_if(c3 == NULL);
+
+   int64_t val;
+   fail_unless(folded_int(tree_value(c3), &val));
+   ck_assert_int_eq(val, INT64_C(8200000000000));
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1821,6 +1845,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue867);
    tcase_add_test(tc_core, test_issue882);
    tcase_add_test(tc_core, test_packinst1);
+   tcase_add_test(tc_core, test_physical);
    suite_add_tcase(s, tc_core);
 
    return s;
