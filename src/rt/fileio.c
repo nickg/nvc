@@ -32,6 +32,7 @@
 
 #ifdef __MINGW32__
 #include <fileapi.h>
+#include <share.h>
 #endif
 
 #ifdef HAVE_STDIO_EXT_H
@@ -262,6 +263,84 @@ void __nvc_file_canseek(jit_scalar_t *args)
       jit_msg(NULL, DIAG_FATAL, "FILE_CANSEEK called on closed file");
 
    args[0].integer = fseek(*fp, 0, SEEK_CUR) == 0;
+}
+
+void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
+                 int32_t name_len, int8_t mode)
+{
+   FILE **fp = (FILE **)_fp;
+
+   char *fname LOCAL = xmalloc(name_len + 1);
+   memcpy(fname, name_bytes, name_len);
+   fname[name_len] = '\0';
+
+   const char *mode_str[] = {
+      "rb", "wb", "ab", "r+"
+   };
+   assert(mode < ARRAY_LEN(mode_str));
+
+   if (status != NULL)
+      *status = OPEN_OK;
+
+   if (*fp != NULL) {
+      if (status == NULL)
+         jit_msg(NULL, DIAG_FATAL, "file object already associated "
+                 "with an external file");
+      else
+         *status = STATUS_ERROR;
+   }
+   else if (name_len == 0) {
+      if (status == NULL)
+         jit_msg(NULL, DIAG_FATAL, "empty file name in FILE_OPEN");
+      else
+         *status = NAME_ERROR;
+   }
+   else if (strcmp(fname, "STD_INPUT") == 0)
+      *fp = stdin;
+   else if (strcmp(fname, "STD_OUTPUT") == 0)
+      *fp = stdout;
+   else {
+#ifdef __MINGW32__
+      const bool failed =
+         ((*fp = _fsopen(fname, mode_str[mode], _SH_DENYNO)) == NULL);
+#else
+      const bool failed = ((*fp = fopen(fname, mode_str[mode])) == NULL);
+#endif
+      if (failed) {
+         if (status == NULL)
+            jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
+                    strerror(errno));
+         else {
+            switch (errno) {
+            case ENOENT: *status = NAME_ERROR; break;
+            case EACCES: *status = MODE_ERROR; break;
+            default:     *status = NAME_ERROR; break;
+            }
+         }
+      }
+   }
+}
+
+void x_file_write(void **_fp, void *data, int64_t size, int64_t count)
+{
+   FILE **fp = (FILE **)_fp;
+
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "write to closed file");
+
+   // TODO: check errno
+   fwrite(data, size, count, *fp);
+}
+
+int64_t x_file_read(void **_fp, void *data, int64_t size, int64_t count)
+{
+   FILE **fp = (FILE **)_fp;
+
+   if (*fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "read from closed file");
+
+   // TODO: check errno
+   return fread(data, size, count, *fp);
 }
 
 void _file_io_init(void)

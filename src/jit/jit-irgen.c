@@ -2943,25 +2943,29 @@ static void irgen_op_file_write(jit_irgen_t *g, int op)
    jit_value_t file = irgen_get_arg(g, op, 0);
    jit_value_t data = irgen_get_arg(g, op, 1);
 
-   jit_value_t ptr = data;
-   vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
-   if (vtype_kind(data_type) != VCODE_TYPE_POINTER) {
-      ptr = macro_salloc(g, irgen_size_bytes(data_type));
-      j_store(g, irgen_jit_size(data_type), data, jit_addr_from_value(ptr, 0));
-      elem_type = data_type;
-   }
+   jit_value_t count, scalar;
+   if (vcode_count_args(op) >= 3)
+      count = irgen_get_arg(g, op, 2);
    else
+      count = jit_value_from_int64(1);
+
+   vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
+   if (vtype_kind(data_type) == VCODE_TYPE_POINTER) {
       elem_type = vtype_pointed(data_type);
+      scalar = jit_value_from_int64(0);
+   }
+   else {
+      elem_type = data_type;
+      scalar = jit_value_from_int64(1);
+   }
 
    jit_value_t bytes = jit_value_from_int64(irgen_size_bytes(elem_type));
-   if (vcode_count_args(op) >= 3) {
-      jit_value_t count = irgen_get_arg(g, op, 2);
-      bytes = j_mul(g, bytes, count);
-   }
 
    j_send(g, 0, file);
-   j_send(g, 1, ptr);
+   j_send(g, 1, data);
    j_send(g, 2, bytes);
+   j_send(g, 3, count);
+   j_send(g, 4, scalar);
 
    macro_exit(g, JIT_EXIT_FILE_WRITE);
 }

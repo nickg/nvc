@@ -39,86 +39,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __MINGW32__
-#include <share.h>
-#endif
-
-void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
-                 int32_t name_len, int8_t mode)
-{
-   FILE **fp = (FILE **)_fp;
-
-   char *fname LOCAL = xmalloc(name_len + 1);
-   memcpy(fname, name_bytes, name_len);
-   fname[name_len] = '\0';
-
-   const char *mode_str[] = {
-      "rb", "wb", "ab", "r+"
-   };
-   assert(mode < ARRAY_LEN(mode_str));
-
-   if (status != NULL)
-      *status = OPEN_OK;
-
-   if (*fp != NULL) {
-      if (status == NULL)
-         jit_msg(NULL, DIAG_FATAL, "file object already associated "
-                 "with an external file");
-      else
-         *status = STATUS_ERROR;
-   }
-   else if (name_len == 0) {
-      if (status == NULL)
-         jit_msg(NULL, DIAG_FATAL, "empty file name in FILE_OPEN");
-      else
-         *status = NAME_ERROR;
-   }
-   else if (strcmp(fname, "STD_INPUT") == 0)
-      *fp = stdin;
-   else if (strcmp(fname, "STD_OUTPUT") == 0)
-      *fp = stdout;
-   else {
-#ifdef __MINGW32__
-      const bool failed =
-         ((*fp = _fsopen(fname, mode_str[mode], _SH_DENYNO)) == NULL);
-#else
-      const bool failed = ((*fp = fopen(fname, mode_str[mode])) == NULL);
-#endif
-      if (failed) {
-         if (status == NULL)
-            jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
-                    strerror(errno));
-         else {
-            switch (errno) {
-            case ENOENT: *status = NAME_ERROR; break;
-            case EACCES: *status = MODE_ERROR; break;
-            default:     *status = NAME_ERROR; break;
-            }
-         }
-      }
-   }
-}
-
-void x_file_write(void **_fp, uint8_t *data, int64_t len)
-{
-   FILE **fp = (FILE **)_fp;
-
-   if (*fp == NULL)
-      jit_msg(NULL, DIAG_FATAL, "write to closed file");
-
-   fwrite(data, 1, len, *fp);
-}
-
-int64_t x_file_read(void **_fp, uint8_t *data, int64_t size, int64_t count)
-{
-   FILE **fp = (FILE **)_fp;
-
-   if (*fp == NULL)
-      jit_msg(NULL, DIAG_FATAL, "read from closed file");
-
-   return fread(data, size, count, *fp);
-}
-
 void x_index_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                   tree_t where, tree_t hint)
 {
@@ -846,11 +766,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_FILE_WRITE:
       {
-         void    **_fp  = args[0].pointer;
-         uint8_t  *data = args[1].pointer;
-         int32_t   len  = args[2].integer;
+         void         **_fp    = args[0].pointer;
+         jit_scalar_t   data   = { .integer = args[1].integer };
+         size_t         size   = args[2].integer;
+         size_t         count  = args[3].integer;
+         bool           scalar = args[4].integer;
 
-         x_file_write(_fp, data, len);
+         if (scalar)
+            x_file_write(_fp, &data.integer, size, count);
+         else
+            x_file_write(_fp, data.pointer, size, count);
       }
       break;
 
