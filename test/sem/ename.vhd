@@ -27,4 +27,17 @@ begin
         wait;
     end process;
 
+    p2: process is
+        procedure test1 (signal x : integer) is
+        begin
+        end procedure;
+        procedure test2 (variable x : integer) is
+        begin
+        end procedure;
+    begin
+        test1(<< signal ^.s : integer >>);  -- OK
+        test2(<< variable ^.s : integer >>);  -- OK
+        test2(<< constant ^.s : integer >>);  -- Error
+    end process;
+
 end architecture;

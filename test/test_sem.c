@@ -2778,6 +2778,8 @@ START_TEST(test_ename)
       { 22, "target of variable assignment must be a variable name or " },
       { 25, "external name Y is not a valid target of simple release " },
       { 26, "generate index must be a static expression" },
+      { 40, "actual for formal X with class VARIABLE must be a name denoting "
+        "a variable" },
       { 15, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };

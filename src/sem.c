@@ -3175,18 +3175,21 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 
       // LRM 08 sections 4.2.2.2 and 4.2.2.3
       if (class == C_VARIABLE || class == C_SIGNAL) {
-         tree_t ref = name_to_ref(value);
-         if (ref == NULL || class_of(ref) != class) {
+         tree_t decl = sem_check_lvalue(value);
+         if (decl == NULL || class_of(value) != class) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
             diag_printf(d, "actual for formal %s with class %s must be "
                         "a name denoting a %s", istr(tree_ident(port)),
                         class == C_VARIABLE ? "VARIABLE" : "SIGNAL",
                         class_str(class));
-            if (ref == NULL)
+            if (decl == NULL)
                diag_hint(d, tree_loc(value), "actual designator is not a name");
-            else if (tree_has_ref(ref))
+            else if (tree_kind(decl) == T_EXTERNAL_NAME)
+               diag_hint(d, tree_loc(value), "external name has class %s",
+                         class_str(tree_class(decl)));
+            else
                diag_hint(d, tree_loc(value), "object %s has class %s",
-                         istr(tree_ident(ref)), class_str(class_of(ref)));
+                         istr(tree_ident(decl)), class_str(class_of(decl)));
             diag_lrm(d, STD_08, class == C_SIGNAL ? "4.2.2.3" : "4.2.2.2");
             diag_emit(d);
             return false;
@@ -3194,9 +3197,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 
          // Check OUT and INOUT parameters can be assigned to
          if (mode == PORT_OUT || mode == PORT_INOUT) {
-            tree_t decl = tree_ref(ref);
             const tree_kind_t decl_kind = tree_kind(decl);
-
             if ((decl_kind == T_PARAM_DECL || decl_kind == T_PORT_DECL)
                 && tree_subkind(decl) == PORT_IN) {
                const char *what =
@@ -4757,7 +4758,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
       tree_set_target(value, name ?: make_ref(decl));
 
    // Check connections between ports
-   if (ref != NULL) {
+   if (ref != NULL && tree_has_ref(ref)) {
       tree_t odecl = tree_ref(ref);
       if (tree_kind(odecl) == T_PORT_DECL) {
          const port_mode_t omode = tree_subkind(odecl);

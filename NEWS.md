@@ -15,7 +15,10 @@
 - Stricter checking for subprograms, deferred constants, and protected
   types referenced before their corresponding body or full declaration.
 - Decimal physical literals like `8.2 ms` are now correctly rounded (to
-  `8200 us` in this case) when they are converted to the base unit (#899).
+  `8200 us` in this case) when they are converted to the base unit
+  (#899).
+- External names are now be passed as `signal` actuals to subprograms
+  (#900).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
