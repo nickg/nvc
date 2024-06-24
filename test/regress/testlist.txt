@@ -990,4 +990,6 @@ wait28          fail,gold
 guard4          normal
 signal36        normal,2008
 issue899        normal,2008
+file13          fail,gold
+file14          fail,gold
 file15          normal

@@ -328,8 +328,8 @@ void x_file_write(void **_fp, void *data, int64_t size, int64_t count)
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "write to closed file");
 
-   // TODO: check errno
-   fwrite(data, size, count, *fp);
+   if (fwrite(data, size, count, *fp) != count)
+      jit_msg(NULL, DIAG_FATAL, "write to file failed");
 }
 
 int64_t x_file_read(void **_fp, void *data, int64_t size, int64_t count)
@@ -339,8 +339,11 @@ int64_t x_file_read(void **_fp, void *data, int64_t size, int64_t count)
    if (*fp == NULL)
       jit_msg(NULL, DIAG_FATAL, "read from closed file");
 
-   // TODO: check errno
-   return fread(data, size, count, *fp);
+   const unsigned long actual = fread(data, size, count, *fp);
+   if (actual != count && ferror(*fp))
+      jit_msg(NULL, DIAG_FATAL, "read from file failed");
+
+   return actual;
 }
 
 void _file_io_init(void)
