@@ -3610,6 +3610,8 @@ void emit_jump(vcode_block_t target)
 {
    op_t *op = vcode_add_op(VCODE_OP_JUMP);
    vcode_add_target(op, target);
+
+   VCODE_ASSERT(target != VCODE_INVALID_BLOCK, "invalid jump target");
 }
 
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,

@@ -6482,8 +6482,11 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
       vcode_select_block(next_bb);
 
-      if (i == nconds - 1 && want_coverage)
+      if (i == nconds - 1 && want_coverage) {
+         if (exit_bb == VCODE_INVALID_BLOCK)
+            exit_bb = emit_block();
          emit_jump(exit_bb);
+      }
    }
 
    if (exit_bb != VCODE_INVALID_BLOCK)
