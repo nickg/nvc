@@ -994,3 +994,4 @@ file13          fail,gold
 file14          fail,gold
 file15          normal
 issue903        cover=branch,gold
+issue904        normal,psl,wave

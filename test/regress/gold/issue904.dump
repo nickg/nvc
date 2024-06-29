@@ -1,0 +1,17 @@
+#0 issue904.clk 0
+#0 issue904.y 0
+#0 issue904.x 0
+#1000000 issue904.x 1
+#1000000 issue904.clk 1
+#2000000 issue904.clk 0
+#2000000 issue904.y 1
+#3000000 issue904.clk 1
+#3000000 issue904.x 0
+#4000000 issue904.clk 0
+#5000000 issue904.clk 1
+#5000000 issue904.x 1
+#6000000 issue904.clk 0
+#7000000 issue904.clk 1
+#8000000 issue904.clk 0
+#9000000 issue904.clk 1
+#10000000 issue904.clk 0

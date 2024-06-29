@@ -903,6 +903,8 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
          break;
       case T_PROCESS:
          break;
+      case T_PSL:
+         break;   // TODO: consider emitting to FST
       default:
          fatal_trace("cannot handle tree kind %s in fst_walk_design",
                      tree_kind_str(tree_kind(s)));
