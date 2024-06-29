@@ -201,7 +201,11 @@ struct _vcode_unit {
            _i >= 0; name = &(_b->ops.items[--_i]))
 
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
-   VCODE_FOR_EACH_OP(name) if (name->kind == k)
+   block_t *_b = vcode_block_data();                            \
+   op_t *name; int _i;                                          \
+   for (_i = 0, name = &(_b->ops.items[_i]);                    \
+        _i < _b->ops.count; name = &(_b->ops.items[++_i]))      \
+      if (name->kind == (k))
 
 #define VCODE_CHECK_UNIONS 0
 
@@ -3418,8 +3422,7 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST) {
-      if (other->kind == VCODE_OP_CONST && other->value == value
-          && vtype_eq(type, other->type))
+      if (other->value == value && vtype_eq(type, other->type))
          return other->result;
    }
 
@@ -3531,12 +3534,12 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
 {
    // Reuse any previous constant in this block with the same type and value
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_RECORD) {
-      if (vtype_eq(type, other->type) && other->args.count == num) {
+      if (other->args.count == num && vtype_eq(type, other->type)) {
          bool same_regs = true;
-         for (int i = 0; i < num; i++)
-            same_regs = same_regs && other->args.items[i] == values[i];
+         for (int i = 0; same_regs && i < num; i++)
+            same_regs = other->args.items[i] == values[i];
 
-         if (same_regs && vtype_eq(vcode_reg_type(other->result), type))
+         if (same_regs)
             return other->result;
       }
    }
