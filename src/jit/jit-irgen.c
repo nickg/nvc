@@ -38,6 +38,7 @@ typedef struct _patch_list  patch_list_t;
 
 #define PATCH_CHUNK_SZ  4
 #define MAX_STACK_ALLOC 65536
+#define DEDUP_PREFIX    16384
 
 struct _patch_list {
    patch_list_t *next;
@@ -912,7 +913,6 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
    }
 
    const size_t result = ALIGN_UP(g->cpoolptr, align);
-   memset(g->func->cpool + g->cpoolptr, '\0', g->func->cpoolsz - g->cpoolptr);
    g->oldptr = result;
    g->cpoolptr = result + sz;
    return result;
@@ -920,7 +920,7 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
 
 static jit_value_t irgen_dedup_cpool(jit_irgen_t *g)
 {
-   unsigned char *dup = memmem(g->func->cpool, g->oldptr,
+   unsigned char *dup = memmem(g->func->cpool, MIN(g->oldptr, DEDUP_PREFIX),
                                g->func->cpool + g->oldptr,
                                g->cpoolptr - g->oldptr);
    if (dup != NULL) {
@@ -1047,6 +1047,7 @@ static void irgen_copy_const(jit_irgen_t *g, unsigned char *p,
       break;
 
    case JIT_VALUE_DOUBLE:
+      assert(bytes == sizeof(double));
       *(double *)p = value.dval;
       break;
 
@@ -1075,7 +1076,6 @@ static void irgen_op_const_array(jit_irgen_t *g, int op)
    unsigned char *p = g->func->cpool + offset;
    for (int i = 0; i < count; i++, p += elemsz) {
       jit_value_t elem = irgen_get_arg(g, op, i);
-      p = ALIGN_UP(p, align);
       irgen_copy_const(g, p, elem, elemsz);
    }
 
@@ -1096,10 +1096,8 @@ static void irgen_op_const_rep(jit_irgen_t *g, int op)
    const size_t offset = irgen_append_cpool(g, elemsz * count, align);
 
    unsigned char *p = g->func->cpool + offset;
-   for (int i = 0; i < count; i++, p += elemsz) {
-      p = ALIGN_UP(p, align);
+   for (int i = 0; i < count; i++, p += elemsz)
       irgen_copy_const(g, p, arg0, elemsz);
-   }
 
    g->map[result] = irgen_dedup_cpool(g);
 }
@@ -1122,7 +1120,9 @@ static void irgen_op_const_record(jit_irgen_t *g, int op)
       const int bytes = irgen_size_bytes(ftype);
       const int align = irgen_align_of(ftype);
 
-      p = ALIGN_UP(p, align);
+      while (p != ALIGN_UP(p, align))
+         *p++ = 0;   // Pad to field alignment
+
       irgen_copy_const(g, p, elem, bytes);
       p += bytes;
    }
