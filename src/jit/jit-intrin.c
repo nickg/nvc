@@ -117,7 +117,7 @@ static inline void *__tlab_alloc(tlab_t *t, size_t size)
    assert((t->alloc & (sizeof(double) - 1)) == 0);
 
    if (likely(t->alloc + size <= t->limit)) {
-      void *p = t->base + t->alloc;
+      void *p = t->data + t->alloc;
       t->alloc += ALIGN_UP(size, sizeof(double));
       return p;
    }

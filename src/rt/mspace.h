@@ -30,23 +30,14 @@ typedef void (*mspace_oom_fn_t)(mspace_t *, size_t);
 // The code generator knows the layout of this struct
 typedef struct _tlab {
    mspace_t *mspace;
-   char     *base;
    uint32_t  alloc;
    uint32_t  limit;
-   mptr_t    mptr;
+   char      data[0];
 } tlab_t;
 
-#define tlab_valid(t) ((t).base != NULL)
-
-#define tlab_move(from, to) do {                \
-      assert(!tlab_valid((to)));                \
-      (to) = (from);                            \
-      (from) = (tlab_t){};                      \
-   } while (0)
-
 #define tlab_reset(t) do {                      \
-      assert(tlab_valid((t)));                  \
-      (t).alloc = 0;                            \
+      assert((t)->alloc <= (t)->limit);         \
+      (t)->alloc = 0;                           \
    } while (0)
 
 mspace_t *mspace_new(size_t size);
@@ -57,7 +48,7 @@ void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size);
 void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn);
 void *mspace_find(mspace_t *m, void *ptr, size_t *size);
 
-void tlab_acquire(mspace_t *m, tlab_t *t);
+tlab_t *tlab_acquire(mspace_t *m);
 void tlab_release(tlab_t *t);
 void *tlab_alloc(tlab_t *t, size_t size);
 

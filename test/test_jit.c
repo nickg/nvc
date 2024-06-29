@@ -1724,17 +1724,16 @@ START_TEST(test_tlab1)
 
    mspace_t *m = jit_get_mspace(j);
 
-   tlab_t tlab = {};
-   tlab_acquire(m, &tlab);
+   tlab_t *t = tlab_acquire(m);
 
    jit_scalar_t p0 = { .integer = 0 };
    jit_scalar_t p1 = { .integer = 5 };
    jit_scalar_t result;
-   fail_unless(jit_fastcall(j, h1, &result, p0, p1, &tlab));
+   fail_unless(jit_fastcall(j, h1, &result, p0, p1, t));
 
-   ck_assert_int_eq(tlab.alloc, 0);
+   ck_assert_int_eq(t->alloc, 0);
 
-   tlab_release(&tlab);
+   tlab_release(t);
 
    jit_free(j);
    fail_if_errors();

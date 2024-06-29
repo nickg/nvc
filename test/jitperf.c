@@ -80,8 +80,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
 
    double ops_sec[ITERATIONS + 1], usec_op[ITERATIONS + 1];
 
-   tlab_t tlab = {};
-   tlab_acquire(jit_get_mspace(j), &tlab);
+   tlab_t *tlab = tlab_acquire(jit_get_mspace(j));
 
    for (int trial = 0; trial < ITERATIONS + 1; trial++) {
       if (trial == 0)
@@ -95,7 +94,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
       for (; (now = get_timestamp_us()) < start + 1000000; iters++) {
          jit_scalar_t result;
          jit_scalar_t dummy = { .integer = 0 };
-         if (!jit_fastcall(j, hproc, &result, dummy, context, &tlab))
+         if (!jit_fastcall(j, hproc, &result, dummy, context, tlab))
             fatal("error in benchmark subprogram");
 
          tlab_reset(tlab);
@@ -109,7 +108,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
       fflush(stdout);
    }
 
-   tlab_release(&tlab);
+   tlab_release(tlab);
 
    color_printf("\n$!green$--> ");
    print_result(mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));

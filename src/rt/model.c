@@ -69,8 +69,7 @@ typedef struct _memblock {
 
 typedef struct {
    waveform_t    *free_waveforms;
-   tlab_t         tlab;
-   tlab_t         spare_tlab;
+   tlab_t        *tlab;
    rt_wakeable_t *active_obj;
    rt_scope_t    *active_scope;
 } __attribute__((aligned(64))) model_thread_t;
@@ -565,7 +564,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->root->privdata = MPTR_INVALID;
    m->root->name     = lib_name(lib_work());
 
-   m->threads[thread_id()] = xcalloc(sizeof(model_thread_t));
+   m->threads[thread_id()] = static_alloc(m, sizeof(model_thread_t));
 
    scope_for_block(m, tree_stmt(top, 0), m->root);
 
@@ -659,7 +658,7 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
 {
    list_foreach(rt_proc_t *, it, scope->procs) {
       mptr_free(m->mspace, &(it->privdata));
-      tlab_release(&(it->tlab));
+      tlab_release(it->tlab);
       free(it);
    }
    list_free(&scope->procs);
@@ -714,10 +713,8 @@ void model_free(rt_model_t *m)
 
    for (int i = 0; i < MAX_THREADS; i++) {
       model_thread_t *thread = m->threads[i];
-      if (thread != NULL) {
-         tlab_release(&thread->tlab);
-         free(thread);
-      }
+      if (thread != NULL)
+         tlab_release(thread->tlab);
    }
 
    free(m->procq.tasks);
@@ -916,8 +913,8 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
 {
    TRACE("reset process %s", istr(proc->name));
 
-   assert(!tlab_valid(proc->tlab));
-   assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
+   assert(proc->tlab == NULL);
+   assert(model_thread(m)->tlab == NULL);   // Not used during reset
 
    model_thread_t *thread = model_thread(m);
    thread->active_obj = &(proc->wakeable);
@@ -947,7 +944,7 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
 {
    TRACE("reset property %s", istr(prop->name));
 
-   assert(!tlab_valid(model_thread(m)->tlab));   // Not used during reset
+   assert(model_thread(m)->tlab == NULL);   // Not used during reset
 
    model_thread_t *thread = model_thread(m);
    thread->active_obj = &(prop->wakeable);
@@ -985,19 +982,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
          istr(proc->name));
 
    model_thread_t *thread = model_thread(m);
-
-   assert(!tlab_valid(thread->spare_tlab));
-
-   if (tlab_valid(proc->tlab)) {
-      TRACE("using private TLAB at %p (%u used)", proc->tlab.base,
-            proc->tlab.alloc);
-      tlab_move(thread->tlab, thread->spare_tlab);
-      tlab_move(proc->tlab, thread->tlab);
-   }
-   else if (!tlab_valid(thread->tlab))
-      tlab_acquire(m->mspace, &thread->tlab);
-
-   tlab_t *tlab = &thread->tlab;
+   assert(thread->tlab != NULL);
 
    thread->active_obj = &(proc->wakeable);
    thread->active_scope = proc->scope;
@@ -1013,32 +998,24 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       .pointer = *mptr_get(proc->scope->privdata)
    };
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, state, context, tlab))
+   if (!jit_fastcall(m->jit, proc->handle, &result, state, context,
+                     proc->tlab ?: thread->tlab))
       m->force_stop = true;
+   else if (proc->tlab != NULL && result.pointer == NULL) {
+      tlab_release(proc->tlab);
+      proc->tlab = NULL;
+   }
+   else if (proc->tlab == NULL && result.pointer != NULL) {
+      TRACE("claiming TLAB for private use (used %u/%u)",
+            thread->tlab->alloc, thread->tlab->limit);
+      proc->tlab = thread->tlab;
+      thread->tlab = tlab_acquire(m->mspace);
+   }
+   else if (proc->tlab == NULL)
+      tlab_reset(thread->tlab);   // All data inside the TLAB is dead
 
    thread->active_obj = NULL;
    thread->active_scope = NULL;
-
-   assert(tlab_valid(thread->tlab));
-
-   if (result.pointer != NULL) {
-      // Suspended inside a procedure so need to preseve the TLAB
-      tlab_move(thread->tlab, proc->tlab);
-
-      TRACE("claiming TLAB for private use (used %u/%u)",
-            tlab->alloc, tlab->limit);
-
-      if (tlab_valid(thread->spare_tlab))
-         tlab_move(thread->spare_tlab, thread->tlab);
-   }
-   else {
-      // All data inside the TLAB is dead
-      assert(!tlab_valid(proc->tlab));
-      tlab_reset(thread->tlab);
-
-      if (tlab_valid(thread->spare_tlab))   // Surplus TLAB
-         tlab_release(&thread->spare_tlab);
-   }
 }
 
 static void reset_scope(rt_model_t *m, rt_scope_t *s)
@@ -1198,8 +1175,8 @@ static void *local_alloc(size_t size)
    rt_model_t *m = get_model();
    model_thread_t *thread = model_thread(m);
 
-   if (tlab_valid(thread->tlab))
-      return tlab_alloc(&thread->tlab, size);
+   if (thread->tlab != NULL)
+      return tlab_alloc(thread->tlab, size);
    else
       return mspace_alloc(m->mspace, size);
 }
@@ -1940,7 +1917,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
       rt_model_t *m = get_model();
       model_thread_t *thread = model_thread(m);
 
-      uint8_t *inputs = tlab_alloc(&thread->tlab, nonnull * scope->size);
+      uint8_t *inputs = tlab_alloc(thread->tlab, nonnull * scope->size);
       copy_sub_signal_sources(scope, inputs, scope->size);
 
       jit_scalar_t result;
@@ -2381,7 +2358,7 @@ void model_reset(rt_model_t *m)
    TRACE("calculate initial signal values");
 
    model_thread_t *thread = model_thread(m);
-   tlab_acquire(m->mspace, &thread->tlab);
+   thread->tlab = tlab_acquire(m->mspace);
 
    // The signals in the model are updated as follows in an order such
    // that if a given signal R depends upon the current value of another
@@ -2438,11 +2415,7 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
          trace_states(&prop->state));
 
    model_thread_t *thread = model_thread(m);
-
-   if (!tlab_valid(thread->tlab))
-      tlab_acquire(m->mspace, &thread->tlab);
-
-   tlab_t *tlab = &thread->tlab;
+   assert(thread->tlab != NULL);
 
    thread->active_obj = &(prop->wakeable);
    thread->active_scope = prop->scope;
@@ -2456,7 +2429,8 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    int bit = -1;
    while (mask_iter(&prop->state, &bit)) {
       jit_scalar_t state = { .integer = bit }, result;
-      if (!jit_fastcall(m->jit, prop->handle, &result, context, state, tlab))
+      if (!jit_fastcall(m->jit, prop->handle, &result, context,
+                        state, thread->tlab))
          m->force_stop = true;
    }
 
@@ -2956,10 +2930,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 static void update_driver(rt_model_t *m, rt_nexus_t *n, rt_source_t *source)
 {
    model_thread_t *thread = model_thread(m);
-
-   // Updating drivers may involve calling resolution functions
-   if (!tlab_valid(thread->tlab))
-      tlab_acquire(m->mspace, &thread->tlab);
+   assert(thread->tlab != NULL);
 
    if (likely(source != NULL)) {
       waveform_t *w_now  = &(source->u.driver.waveforms);
@@ -2992,10 +2963,7 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
 
    if (likely(nexus->flags & NET_F_FAST_DRIVER)) {
       model_thread_t *thread = model_thread(m);
-
-      // Updating drivers may involve calling resolution functions
-      if (!tlab_valid(thread->tlab))
-         tlab_acquire(m->mspace, &thread->tlab);
+      assert(thread->tlab != NULL);
 
       // Preconditions for fast driver updates
       assert(nexus->n_sources == 1);

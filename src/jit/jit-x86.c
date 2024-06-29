@@ -2099,7 +2099,7 @@ static void jit_x86_gen_tlab_stub(jit_x86_state_t *state)
    JLT(IMM(12));
 
    MOV(ADDR(TLAB_REG, offsetof(tlab_t, alloc)), __EDI, __DWORD);
-   MOV(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, base)), __QWORD);
+   LEA(__EAX, ADDR(TLAB_REG, offsetof(tlab_t, data)));
    ADD(__EAX, __ECX, __QWORD);
    RET();
 

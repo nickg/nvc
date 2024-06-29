@@ -355,11 +355,10 @@ static void llvm_register_types(llvm_obj_t *obj)
 
    {
       LLVMTypeRef fields[] = {
-         obj->types[LLVM_PTR],     // Mspace object
-         obj->types[LLVM_PTR],     // Base pointer
-         obj->types[LLVM_INT32],   // Allocation pointer
-         obj->types[LLVM_INT32],   // Limit pointer
-         obj->types[LLVM_PTR],     // Mptr object
+         obj->types[LLVM_PTR],                     // Mspace object
+         obj->types[LLVM_INT32],                   // Allocation pointer
+         obj->types[LLVM_INT32],                   // Limit pointer
+         LLVMArrayType(obj->types[LLVM_INT8], 0),  // Data
       };
       obj->types[LLVM_TLAB] = LLVMStructTypeInContext(obj->context, fields,
                                                       ARRAY_LEN(fields), false);
@@ -3114,12 +3113,10 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMBasicBlockRef fast_bb = llvm_append_block(obj, fn, "");
    LLVMBasicBlockRef slow_bb = llvm_append_block(obj, fn, "");
 
-   LLVMValueRef base_ptr =
-      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 1, "");
    LLVMValueRef alloc_ptr =
-      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 2, "");
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 1, "");
    LLVMValueRef limit_ptr =
-      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 3, "");
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 2, "");
 
    LLVMValueRef alloc =
       LLVMBuildLoad2(obj->builder, obj->types[LLVM_INT32], alloc_ptr, "");
@@ -3145,7 +3142,7 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMBuildStore(obj->builder, next, alloc_ptr);
 
    LLVMValueRef base =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], base_ptr, "");
+      LLVMBuildStructGEP2(obj->builder, obj->types[LLVM_TLAB], tlab, 3, "");
 
    LLVMValueRef indexes[] = { alloc };
    LLVMValueRef fast_ptr = LLVMBuildInBoundsGEP2(obj->builder,

@@ -156,7 +156,7 @@ START_TEST(test_interior)
    int *volatile* parray = get_indirect(m);
 
    // Interior pointers keep the whole allocation alive
-   *parray = mspace_alloc(m, 100 * sizeof(int)) + 50;
+   *parray = mspace_alloc(m, 100 * sizeof(int)) + (13 * sizeof(int));
    (*parray)[49] = 1234;
 
    // Do enough allocations to trigger a GC
@@ -224,18 +224,32 @@ START_TEST(test_linked_list)
 }
 END_TEST
 
+__attribute__((noinline))
+static void put_value(mspace_t *m, int **ptr, int value)
+{
+   int *st = mspace_alloc(m, sizeof(int));
+   *st = value;
+   *ptr = st;
+}
+
 START_TEST(test_tlab)
 {
    mspace_t *m = mspace_new(2 * TLAB_SIZE);
 
-   tlab_t t = {};
-   tlab_acquire(m, &t);
+   tlab_t *t = tlab_acquire(m);
 
-   int *p0 = tlab_alloc(&t, sizeof(int));
-   *p0 = 42;
+   int *precious = tlab_alloc(t, sizeof(int));
+   *precious = 0xbeef;
+
+   int **array = tlab_alloc(t, sizeof(int *) * 10);
+   for (int i = 0; i < 10; i++)
+      put_value(m, array + i, i);
+
+   int **p1 = tlab_alloc(t, sizeof(int *));
+   *p1 = precious;
 
    for (int i = 0; i < 1000; i++) {
-      int *array = tlab_alloc(&t, 50 * sizeof(int));
+      int *array = tlab_alloc(t, 50 * sizeof(int));
       array[0] = 123;
 
       for (int i = 0; i < 10; i++) {
@@ -245,9 +259,12 @@ START_TEST(test_tlab)
       }
    }
 
-   ck_assert_int_eq(*p0, 42);
+   ck_assert_int_eq(*precious, 0xbeef);
 
-   tlab_release(&t);
+   for (int i = 0; i < 10; i++)
+      ck_assert_int_eq(*array[i], i);
+
+   tlab_release(t);
    mspace_destroy(m);
 }
 END_TEST

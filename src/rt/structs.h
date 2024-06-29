@@ -63,7 +63,7 @@ typedef struct _rt_proc {
    tree_t         where;
    ident_t        name;
    jit_handle_t   handle;
-   tlab_t         tlab;
+   tlab_t        *tlab;
    rt_scope_t    *scope;
    mptr_t         privdata;
 } rt_proc_t;
