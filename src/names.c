@@ -4279,33 +4279,27 @@ static type_t try_solve_attr_ref(nametab_t *tab, tree_t aref)
             // Hack to strip off any WORK. prefix
             id = ident_rfrom(id, '.') ?: id;
 
-            if (is_container(decl)) {
-               for (int n = 0; (a = search_decls(decl, attr, n)); n++) {
-                  if (tree_kind(a) == T_ATTR_SPEC
-                      && tree_class(a) == class
-                      && tree_ident2(a) == id)
-                     break;
-               }
-            }
-            else {
-               const symbol_t *sym = symbol_for(tab->top_scope, attr);
-               if (sym != NULL) {
-                  for (int i = 0; i < sym->ndecls; i++) {
-                     const decl_t *dd = get_decl(sym, i);
-                     if (dd->visibility != ATTRIBUTE)
-                        continue;
-                     else if (tree_class(dd->tree) != class)
-                        continue;
+            scope_t *s = tab->top_scope;
+            if (is_container(decl))
+               s = private_scope_for(tab, decl);
 
-                     const spec_kind_t kind = tree_subkind(dd->tree);
-                     if ((kind == SPEC_EXACT && tree_ident2(dd->tree) == id)
-                         || kind == SPEC_ALL) {
-                        a = dd->tree;
-                        break;
-                     }
-                     else if (kind == SPEC_OTHERS)
-                        a = dd->tree;
+            const symbol_t *sym = symbol_for(s, attr);
+            if (sym != NULL) {
+               for (int i = 0; i < sym->ndecls; i++) {
+                  const decl_t *dd = get_decl(sym, i);
+                  if (dd->visibility != ATTRIBUTE)
+                     continue;
+                  else if (tree_class(dd->tree) != class)
+                     continue;
+
+                  const spec_kind_t kind = tree_subkind(dd->tree);
+                  if ((kind == SPEC_EXACT && tree_ident2(dd->tree) == id)
+                      || kind == SPEC_ALL) {
+                     a = dd->tree;
+                     break;
                   }
+                  else if (kind == SPEC_OTHERS)
+                     a = dd->tree;
                }
             }
 
