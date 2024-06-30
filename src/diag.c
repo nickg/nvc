@@ -48,8 +48,12 @@ typedef struct {
 typedef A(loc_file_t) file_list_t;
 
 struct loc_wr_ctx {
-   fbuf_t *fbuf;
-   bool    have_index;
+   fbuf_t   *fbuf;
+   unsigned  first_line;
+   unsigned  first_column;
+   unsigned  line_delta;
+   unsigned  column_delta;
+   bool      have_index;
 };
 
 struct loc_rd_ctx {
@@ -57,6 +61,10 @@ struct loc_rd_ctx {
    char       **file_map;
    file_ref_t  *ref_map;
    size_t       n_files;
+   unsigned     first_line;
+   unsigned     first_column;
+   unsigned     line_delta;
+   unsigned     column_delta;
    bool         have_index;
 };
 
@@ -264,7 +272,7 @@ bool loc_eq(const loc_t *a, const loc_t *b)
 
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f)
 {
-   loc_wr_ctx_t *ctx = xmalloc(sizeof(loc_wr_ctx_t));
+   loc_wr_ctx_t *ctx = xcalloc(sizeof(loc_wr_ctx_t));
    ctx->fbuf = f;
    ctx->have_index = false;
 
@@ -291,14 +299,16 @@ void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx)
       ctx->have_index = true;
    }
 
-   const uint64_t merged =
-      ((uint64_t)loc->first_line << 44)
-      | ((uint64_t)loc->first_column << 32)
-      | ((uint64_t)loc->line_delta << 24)
-      | (uint64_t)(loc->column_delta << 16)
-      | loc->file_ref;
+   fbuf_put_uint(ctx->fbuf, loc->file_ref);
+   fbuf_put_int(ctx->fbuf, loc->first_line - ctx->first_line);
+   fbuf_put_int(ctx->fbuf, loc->line_delta - ctx->line_delta);
+   fbuf_put_int(ctx->fbuf, loc->first_column - ctx->first_column);
+   fbuf_put_int(ctx->fbuf, loc->column_delta - ctx->column_delta);
 
-   write_u64(merged, ctx->fbuf);
+   ctx->first_line   = loc->first_line;
+   ctx->first_column = loc->first_column;
+   ctx->line_delta   = loc->line_delta;
+   ctx->column_delta = loc->column_delta;
 }
 
 loc_rd_ctx_t *loc_read_begin(fbuf_t *f)
@@ -343,9 +353,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
       ctx->have_index = true;
    }
 
-   const uint64_t merged = read_u64(ctx->fbuf);
-
-   uint16_t old_ref = merged & 0xffff;
+   uint16_t old_ref = fbuf_get_uint(ctx->fbuf);
    file_ref_t new_ref = FILE_INVALID;
    if (old_ref != FILE_INVALID) {
       if (unlikely(old_ref >= ctx->n_files))
@@ -375,10 +383,15 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
       new_ref = ctx->ref_map[old_ref];
    }
 
-   loc->first_line   = (merged >> 44) & 0xfffff;
-   loc->first_column = (merged >> 32) & 0xfff;
-   loc->line_delta   = (merged >> 24) & 0xff;
-   loc->column_delta = (merged >> 16) & 0xff;
+   ctx->first_line   += fbuf_get_int(ctx->fbuf);
+   ctx->line_delta   += fbuf_get_int(ctx->fbuf);
+   ctx->first_column += fbuf_get_int(ctx->fbuf);
+   ctx->column_delta += fbuf_get_int(ctx->fbuf);
+
+   loc->first_line   = MIN(ctx->first_line, LINE_INVALID);
+   loc->first_column = MIN(ctx->first_column, COLUMN_INVALID);
+   loc->line_delta   = MIN(ctx->line_delta, DELTA_INVALID);
+   loc->column_delta = MIN(ctx->column_delta, DELTA_INVALID);
    loc->file_ref     = new_ref;
 }
 
