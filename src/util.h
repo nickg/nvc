@@ -153,6 +153,9 @@ char *strndup(char const *s, size_t n);
 #define untag_pointer(p, type) (type *)((uintptr_t)(p) & ~7)
 #define pointer_tag(p) ((uintptr_t)(p) & 7)
 
+#define prefetch_read(ptr) __builtin_prefetch(ptr, 0)
+#define prefetch_write(ptr) __builtin_prefetch(ptr, 1, 1)
+
 // Scrambling functions from MurmurHash3
 #define mix_bits_32(n) ({                       \
          uint32_t __n = (uint32_t)(n);          \

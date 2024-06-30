@@ -381,7 +381,14 @@ static void deferq_run(rt_model_t *m, deferq_t *dq)
    const defer_task_t *tasks = dq->tasks;
    const int count = dq->count;
 
-   for (int i = 0; i < count; i++)
+   int i = 0;
+   for (; i < count - 1; i++) {
+      // Prefetch ahead the next task argument to avoid cache misses
+      // when we execute it
+      prefetch_read(tasks[i + 1].arg);
+      (*tasks[i].fn)(m, tasks[i].arg);
+   }
+   for (; i < count; i++)
       (*tasks[i].fn)(m, tasks[i].arg);
 
    assert(dq->tasks == tasks);
@@ -1473,7 +1480,7 @@ static waveform_t *alloc_waveform(rt_model_t *m)
    else {
       waveform_t *w = thread->free_waveforms;
       thread->free_waveforms = w->next;
-      __builtin_prefetch(w->next, 1, 1);
+      prefetch_write(w->next);
       w->next = NULL;
       return w;
    }
