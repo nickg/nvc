@@ -1930,6 +1930,27 @@ START_TEST(test_null1)
 }
 END_TEST
 
+START_TEST(test_issue907)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue907.vhd");
+
+   const error_t expect[] = {
+      { 20, "type of signal E is not WORK.B-SIM.F" },
+      {  0, "external name with type WORK.B-SIM.F" },
+      {  0, "declaration of E with type WORK.A-RTL.F" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2033,6 +2054,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue860);
    tcase_add_test(tc, test_genpack5);
    tcase_add_test(tc, test_null1);
+   tcase_add_test(tc, test_issue907);
    suite_add_tcase(s, tc);
 
    return s;

@@ -2400,15 +2400,19 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
       diag_emit(d);
       return NULL;
    }
-   else if (!type_eq(tree_type(where), tree_type(name))) {
+
+   type_t expect = tree_type(name);
+   type_t actual = tree_type(where);
+
+   if (!type_eq(actual, expect)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
       diag_printf(d, "type of %s %s is not %s",
                   class_str(tree_class(name)), istr(tree_ident(where)),
-                  type_pp(tree_type(name)));
+                  type_pp2(expect, actual));
       diag_hint(d, tree_loc(name), "external name with type %s",
-                type_pp(tree_type(name)));
+                type_pp2(expect, actual));
       diag_hint(d, tree_loc(where), "declaration of %s with type %s",
-                istr(tree_ident(where)), type_pp(tree_type(where)));
+                istr(tree_ident(where)), type_pp2(actual, expect));
       diag_emit(d);
       return NULL;
    }
