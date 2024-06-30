@@ -495,8 +495,7 @@ START_TEST(test_issue477a)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE);
 
-   tree_t d = search_decls(p, ident_new("C_DATA_VERSION"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(p, "C_DATA_VERSION");
    fail_unless(tree_kind(d) == T_CONST_DECL);
 
    type_t type = tree_type(d);

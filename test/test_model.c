@@ -84,10 +84,8 @@ START_TEST(test_index1)
    rt_model_t *m = model_new(top, j);
 
    tree_t b0 = tree_stmt(top, 0);
-   tree_t s1 = search_decls(b0, ident_new("S1"), 0);
-   fail_if(s1 == NULL);
-   tree_t s2 = search_decls(b0, ident_new("S2"), 0);
-   fail_if(s2 == NULL);
+   tree_t s1 = get_decl(b0, "S1");
+   tree_t s2 = get_decl(b0, "S2");
 
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
@@ -170,10 +168,7 @@ START_TEST(test_fast1)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   tree_t x = search_decls(b0, ident_new("X"), 0);
-   fail_if(x == NULL);
-
-   rt_signal_t *sx = find_signal(root, x);
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
    fail_if(sx == NULL);
    fail_unless(sx->n_nexus == 1);
    fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
@@ -269,10 +264,7 @@ START_TEST(test_pending1)
    ck_assert_ptr_nonnull(pstim);
    ck_assert_str_eq(istr(pstim->name), ":pending1:stim");
 
-   tree_t x = search_decls(b0, ident_new("X"), 0);
-   fail_if(x == NULL);
-
-   rt_signal_t *sx = find_signal(root, x);
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
    fail_if(sx == NULL);
    fail_unless(sx->n_nexus == 1);
 
@@ -315,10 +307,7 @@ START_TEST(test_fast2)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   tree_t x = search_decls(b0, ident_new("X"), 0);
-   fail_if(x == NULL);
-
-   rt_signal_t *sx = find_signal(root, x);
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
    fail_if(sx == NULL);
    ck_assert_int_eq(sx->n_nexus, 1);
    fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
@@ -404,17 +393,11 @@ START_TEST(test_event1)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   tree_t s = search_decls(b0, ident_new("S"), 0);
-   fail_if(s == NULL);
-
-   rt_signal_t *ss = find_signal(root, s);
+   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"));
    fail_if(ss == NULL);
    fail_if(ss->shared.flags & SIG_F_CACHE_EVENT);
 
-   tree_t t = search_decls(b0, ident_new("T"), 0);
-   fail_if(t == NULL);
-
-   rt_signal_t *st = find_signal(root, t);
+   rt_signal_t *st = find_signal(root, get_decl(b0, "T"));
    fail_if(st == NULL);
    fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
 

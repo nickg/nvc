@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -75,5 +75,7 @@ int nvc_run_test(Suite *s);
 unit_registry_t *get_registry(void);
 tree_t run_elab(void);
 tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp);
+tree_t get_decl(tree_t container, const char *name) RETURNS_NONNULL;
+tree_t get_nth_decl(tree_t container, const char *name, int nth);
 
 #endif  // _TEST_UTIL_H

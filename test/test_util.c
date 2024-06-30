@@ -209,3 +209,25 @@ void fail_if_errors(void)
    ck_assert_msg(error_count() == 0, "have errors");
    ck_assert_msg(errors_seen == 0, "have errors or diagnostics");
 }
+
+tree_t get_nth_decl(tree_t container, const char *name, int nth)
+{
+   const int ndecls = tree_decls(container);
+   ident_t id = ident_new(name);
+
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
+      if (!tree_has_ident(d))
+         continue;
+      else if (tree_ident(d) == id && nth-- == 0)
+         return d;
+   }
+
+   dump(container);
+   ck_abort_msg("object %s not found in %s", name, istr(tree_ident(container)));
+}
+
+tree_t get_decl(tree_t container, const char *name)
+{
+   return get_nth_decl(container, name, 0);
+}

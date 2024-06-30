@@ -62,7 +62,7 @@ START_TEST(test_integer)
 
    check_expected_errors();
 
-   d = search_decls(a, ident_new("X"), 0);
+   d = get_decl(a, "X");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
    e = tree_value(d);
@@ -77,7 +77,7 @@ START_TEST(test_integer)
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
 
-   d = search_decls(p, ident_new("Z"), 0);
+   d = get_decl(p, "Z");
    fail_unless(type_kind(tree_type(d)) == T_INTEGER);
 
    s = tree_stmt(p, 0);
@@ -316,7 +316,7 @@ START_TEST(test_const2)
 
    fail_unless(tree_kind(p) == T_PACKAGE);
 
-   tree_t d = search_decls(p, ident_new("DEF_ARR"), 0);
+   tree_t d = get_decl(p, "DEF_ARR");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(type_is_unconstrained(tree_type(d)));
    fail_if(tree_has_value(d));
@@ -836,8 +836,7 @@ START_TEST(test_record)
 
    check_expected_errors();
 
-   tree_t d = search_decls(p, ident_new("P9"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(p, "P9");
    d = tree_decl(d, 0);
    fail_unless(tree_kind(d) == T_VAR_DECL);
    fail_if(tree_has_value(d));
@@ -1042,8 +1041,7 @@ START_TEST(test_subtype)
 
    tree_t p = parse_and_check(T_PACKAGE);
 
-   tree_t d = search_decls(p, ident_new("BIT_VECTOR_ARRAY"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(p, "BIT_VECTOR_ARRAY");
 
    type_t type = type_elem(tree_type(d));
    fail_unless(type_kind(type) == T_SUBTYPE);
@@ -1281,8 +1279,7 @@ START_TEST(test_alias)
 
    check_expected_errors();
 
-   tree_t x_decl = search_decls(arch, ident_new("X"), 0);
-   fail_if(x_decl == NULL);
+   tree_t x_decl = get_decl(arch, "X");
    fail_unless(tree_kind(x_decl) == T_SIGNAL_DECL);
 }
 END_TEST

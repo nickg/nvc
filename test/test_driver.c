@@ -22,13 +22,6 @@
 #include "phase.h"
 #include "scan.h"
 
-static tree_t get_decl(tree_t container, const char *name)
-{
-   tree_t d = search_decls(container, ident_new(name), 0);
-   ck_assert_msg(d != NULL, "cannot find %s", name);
-   return d;
-}
-
 START_TEST(test_sanity1)
 {
    input_from_file(TESTDIR "/driver/sanity1.vhd");

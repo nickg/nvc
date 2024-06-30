@@ -917,7 +917,7 @@ START_TEST(test_layout)
    freeze_global_arena();
    fail_unless(parse() == NULL);
 
-   type_t r1 = tree_type(search_decls(p, ident_new("R1"), 0));
+   type_t r1 = tree_type(get_decl(p, "R1"));
 
    l = layout_of(r1);
    ck_assert_int_eq(l->nparts, 3);
@@ -931,7 +931,7 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[2].size, 8);
    ck_assert_int_eq(l->parts[2].repeat, 1);
 
-   type_t r2 = tree_type(search_decls(p, ident_new("R2"), 0));
+   type_t r2 = tree_type(get_decl(p, "R2"));
 
    l = layout_of(r2);
    ck_assert_int_eq(l->nparts, 2);
@@ -943,7 +943,7 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].size, 4);
    ck_assert_int_eq(l->parts[1].repeat, 1);
 
-   type_t a = tree_type(search_decls(p, ident_new("A"), 0));
+   type_t a = tree_type(get_decl(p, "A"));
 
    l = layout_of(a);
    ck_assert_int_eq(l->nparts, 1);
@@ -952,7 +952,7 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[0].repeat, 5);
    ck_assert_int_eq(l->parts[0].align, 1);
 
-   type_t bv = tree_type(search_decls(p, ident_new("T_BYTE_VECTOR"), 0));
+   type_t bv = tree_type(get_decl(p, "T_BYTE_VECTOR"));
 
    l = layout_of(bv);
    ck_assert_int_eq(l->nparts, 2);
@@ -964,7 +964,7 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
    ck_assert_int_eq(l->parts[1].repeat, 2);
 
-   type_t c1 = tree_type(search_decls(p, ident_new("C1"), 0));
+   type_t c1 = tree_type(get_decl(p, "C1"));
 
    l = layout_of(c1);
    ck_assert_int_eq(l->nparts, 1);

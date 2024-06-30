@@ -503,8 +503,7 @@ START_TEST(test_issue320)
 
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t d = search_decls(b0, ident_new("INIT_VALUE"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(b0, "INIT_VALUE");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    // This used to be folded but no longer is
    fail_unless(tree_kind(tree_value(d)) == T_FCALL);
@@ -539,8 +538,7 @@ START_TEST(test_issue331)
 
    tree_t test_ng = tree_stmt(top, 0);
 
-   tree_t vec_range = search_decls(test_ng, ident_new("VEC_RANGE"), 0);
-   fail_if(vec_range == NULL);
+   tree_t vec_range = get_decl(test_ng, "VEC_RANGE");
    fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
@@ -630,9 +628,9 @@ START_TEST(test_constarr)
    tree_t top = run_elab();
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t c1 = search_decls(b0, ident_new("C1"), 0);
+   tree_t c1 = get_decl(b0, "C1");
    fail_unless(tree_ident(tree_value(c1)) == ident_new("'1'"));
-   tree_t c2 = search_decls(b0, ident_new("C2"), 0);
+   tree_t c2 = get_decl(b0, "C2");
    fail_unless(tree_ident(tree_value(c2)) == ident_new("'0'"));
 }
 END_TEST
@@ -644,8 +642,7 @@ START_TEST(test_table)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    fail_if(p == NULL);
 
-   tree_t table = search_decls(p, ident_new("RESOLUTION_TABLE"), 0);
-   fail_if(table == NULL);
+   tree_t table = get_decl(p, "RESOLUTION_TABLE");
 
    tree_t r0 = tree_range(type_constraint(tree_type(table), 0), 0);
    fail_unless(tree_subkind(r0) == RANGE_TO);
@@ -926,8 +923,7 @@ START_TEST(test_static1)
    fail_unless(tree_ident(addr_p) == ident_new("ADDR"));
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_p), 0)), 9));
 
-   tree_t addr_r = search_decls(uut, ident_new("ADDR_R"), 0);
-   fail_if(addr_r == NULL);
+   tree_t addr_r = get_decl(uut, "ADDR_R");
    fail_unless(tree_kind(addr_r) == T_SIGNAL_DECL);
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_r), 0)), 9));
 }
@@ -999,8 +995,7 @@ START_TEST(test_copysub)
    fail_unless(tree_kind(sub1) == T_BLOCK);
    fail_unless(tree_ident(sub1) == ident_new("SUB_1"));
 
-   tree_t sub1_x = search_decls(sub1, ident_new("X"), 0);
-   fail_if(sub1_x == NULL);
+   tree_t sub1_x = get_decl(sub1, "X");
    fail_unless(tree_kind(sub1_x) == T_CONST_DECL);
    // No longer folded
    fail_unless(tree_kind(tree_value(sub1_x)) == T_FCALL);
@@ -1009,8 +1004,7 @@ START_TEST(test_copysub)
    fail_unless(tree_kind(sub2) == T_BLOCK);
    fail_unless(tree_ident(sub2) == ident_new("SUB_2"));
 
-   tree_t sub2_x = search_decls(sub2, ident_new("X"), 0);
-   fail_if(sub2_x == NULL);
+   tree_t sub2_x = get_decl(sub2, "X");
    fail_unless(tree_kind(sub2_x) == T_CONST_DECL);
    // No longer folded
    fail_unless(tree_kind(tree_value(sub2_x)) == T_FCALL);
@@ -1049,8 +1043,7 @@ START_TEST(test_order1)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
-   tree_t x = search_decls(p, ident_new("X"), 0);
-   fail_if(x == NULL);
+   tree_t x = get_decl(p, "X");
    fail_unless(folded_b(tree_value(x), false));
 
    fail_if_errors();
@@ -1097,26 +1090,22 @@ START_TEST(test_issue436)
 
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
-   fail_if(vec_range == NULL);
+   tree_t vec_range = get_decl(b0, "VEC_RANGE");
    fail_unless(tree_kind(vec_range) == T_CONST_DECL);
    fail_unless(tree_kind(tree_value(vec_range)) == T_FCALL);
 
-   tree_t data = search_decls(b0, ident_new("DATA"), 0);
-   fail_if(data == NULL);
+   tree_t data = get_decl(b0, "DATA");
    fail_unless(tree_kind(data) == T_SIGNAL_DECL);
 
    // This used to be folded by simp but no longer is
    tree_t r1 = range_of(tree_type(data), 0);
    fail_unless(tree_kind(tree_left(r1)) == T_RECORD_REF);
 
-   tree_t c2 = search_decls(b0, ident_new("C2"), 0);
-   fail_if(c2 == NULL);
+   tree_t c2 = get_decl(b0, "C2");
    fail_unless(tree_kind(c2) == T_CONST_DECL);
    fail_unless(tree_kind(tree_value(c2)) == T_FCALL);
 
-   tree_t data2 = search_decls(b0, ident_new("DATA2"), 0);
-   fail_if(data2 == NULL);
+   tree_t data2 = get_decl(b0, "DATA2");
    fail_unless(tree_kind(data2) == T_SIGNAL_DECL);
 
    // This used to be folded by simp but no longer is
@@ -1189,8 +1178,7 @@ START_TEST(test_issue438)
 
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t data = search_decls(b0, ident_new("DATA"), 0);
-   fail_if(data == NULL);
+   tree_t data = get_decl(b0, "DATA");
    fail_unless(tree_kind(data) == T_SIGNAL_DECL);
 
    // This is no longer folded
@@ -1421,8 +1409,7 @@ START_TEST(test_issue574)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE);
 
-   tree_t d = search_decls(p, ident_new("C_MEMORY_MAP_DEFAULT"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(p, "C_MEMORY_MAP_DEFAULT");
 
    tree_t agg = tree_value(d);
    fail_unless(tree_kind(agg) == T_AGGREGATE);
@@ -1698,7 +1685,7 @@ START_TEST(test_issue867)
    tree_t top = run_elab();
 
    tree_t ent = tree_stmt(top, 0);
-   tree_t s1 = search_decls(ent, ident_new("S1"), 0);
+   tree_t s1 = get_decl(ent, "S1");
    tree_t r = range_of(tree_type(s1), 0);
    fail_unless(tree_subkind(r) == RANGE_DOWNTO);
 
@@ -1741,8 +1728,7 @@ START_TEST(test_packinst1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_INST);
    fail_if(p == NULL);
 
-   tree_t k = search_decls(p, ident_new("K"), 0);
-   fail_if(k == NULL);
+   tree_t k = get_decl(p, "K");
 
    double val;
    fail_unless(folded_real(tree_value(k), &val));
@@ -1765,8 +1751,7 @@ START_TEST(test_physical)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE);
 
-   tree_t c3 = search_decls(p, ident_new("C3"), 0);
-   fail_if(c3 == NULL);
+   tree_t c3 = get_decl(p, "C3");
 
    int64_t val;
    fail_unless(folded_int(tree_value(c3), &val));

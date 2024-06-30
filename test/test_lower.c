@@ -1629,7 +1629,7 @@ START_TEST(test_memset)
    tree_t b0 = tree_stmt(e, 0);
 
    {
-      tree_t f = search_decls(b0, ident_new("FOO"), 0);
+      tree_t f = get_decl(b0, "FOO");
       fail_if(f == NULL);
 
       vcode_unit_t v0 = find_unit_for(f);
@@ -1650,7 +1650,7 @@ START_TEST(test_memset)
    }
 
    {
-      tree_t f = search_decls(b0, ident_new("BAR"), 0);
+      tree_t f = get_decl(b0, "BAR");
       fail_if(f == NULL);
 
       vcode_unit_t v0 = find_unit_for(f);
@@ -1793,7 +1793,7 @@ START_TEST(test_record6)
 
    tree_t e = run_elab();
 
-   tree_t f = search_decls(tree_stmt(e, 0), ident_new("MAKE_REC"), 0);
+   tree_t f = get_decl(tree_stmt(e, 0), "MAKE_REC");
    fail_if(f == NULL);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
@@ -2154,8 +2154,7 @@ START_TEST(test_issue136)
    tree_t e = run_elab();
    tree_t b0 = tree_stmt(e, 0);
 
-   tree_t body = search_decls(b0, ident_new("RECORD_RETURNER_T"), 1);
-   fail_if(body == NULL);
+   tree_t body = get_nth_decl(b0, "RECORD_RETURNER_T", 1);
    fail_unless(tree_kind(body) == T_PROT_BODY);
 
    (void)find_unit("WORK.CANNOT_RETURN_SAFETY_CHECK_PKG.RECORD_RETURNER_T");
@@ -3210,8 +3209,7 @@ START_TEST(test_access1)
 
    tree_t e = run_elab();
 
-   tree_t d = search_decls(tree_stmt(e, 0), ident_new("LIST_ADD"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(tree_stmt(e, 0), "LIST_ADD");
 
    vcode_unit_t v0 = find_unit_for(d);
    vcode_select_unit(v0);
@@ -3251,7 +3249,7 @@ START_TEST(test_sum)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("SUM"), 0);
+   tree_t f = get_decl(p, "SUM");
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
    vcode_unit_t v0 = find_unit_for(f);
@@ -3328,8 +3326,7 @@ START_TEST(test_synopsys1)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("WRITE"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "WRITE");
 
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
@@ -3392,8 +3389,7 @@ START_TEST(test_access2)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("GET_FRESH"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "GET_FRESH");
 
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
@@ -3428,8 +3424,7 @@ START_TEST(test_vital1)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "VITALSETUPHOLDCHECK");
 
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
@@ -3613,8 +3608,7 @@ START_TEST(test_vital2)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "VITALSETUPHOLDCHECK");
 
    vcode_unit_t v0 = find_unit(istr(tree_ident2(f)));
    vcode_select_unit(v0);
@@ -3666,8 +3660,7 @@ START_TEST(test_conv1)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("GET"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "GET");
 
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
@@ -5198,8 +5191,7 @@ START_TEST(test_copy1)
    bounds_check(p);
    fail_if(error_count() > 0);
 
-   tree_t f = search_decls(p, ident_new("TEST_COPY"), 0);
-   fail_if(f == NULL);
+   tree_t f = get_decl(p, "TEST_COPY");
 
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);

@@ -153,10 +153,7 @@ START_TEST(test_vhdl2)
    };
 
    for (int i = 0; i < ARRAY_LEN(decl_cases); i++) {
-      tree_t d = search_decls(a, ident_new(decl_cases[i][0]), 0);
-      ck_assert_ptr_nonnull(d);
-
-      dump(d);
+      dump(get_decl(a, decl_cases[i][0]));
       diff_dump(tb_get(tb), decl_cases[i][1]);
       tb_rewind(tb);
    }

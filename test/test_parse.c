@@ -706,8 +706,7 @@ START_TEST(test_types)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
-   d = search_decls(a, ident_new("MY_INT"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "MY_INT");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
@@ -717,8 +716,7 @@ START_TEST(test_types)
    fail_unless(tree_kind(tree_left(r)) == T_LITERAL);
    fail_unless(tree_kind(tree_right(r)) == T_LITERAL);
 
-   d = search_decls(a, ident_new("RESISTANCE"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "RESISTANCE");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PHYSICAL);
@@ -744,24 +742,21 @@ START_TEST(test_types)
    fail_unless(tree_ival(tree_value(u)) == 1000);
    fail_unless(tree_ident(tree_value(u)) == ident_new("KOHM"));
 
-   d = search_decls(a, ident_new("BIG_R"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "BIG_R");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_PHYSICAL);
    fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.RESISTANCE"));
 
-   d = search_decls(a, ident_new("MY_SMALL_INT"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "MY_SMALL_INT");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
    fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.MY_INT"));
 
-   d = search_decls(a, ident_new("FOO"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "FOO");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -773,8 +768,7 @@ START_TEST(test_types)
    fail_unless(tree_ident(tree_name(tree_right(r))) == ident_new("MY_INT"));
    fail_unless(tree_ident(tree_right(r)) == ident_new("HIGH"));
 
-   d = search_decls(a, ident_new("RINT"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "RINT");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -783,44 +777,38 @@ START_TEST(test_types)
    fail_unless(tree_kind(f) == T_REF);
    fail_unless(tree_ident(f) == ident_new("RESOLVED"));
 
-   d = search_decls(a, ident_new("P"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "P");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ACCESS);
    fail_unless(type_kind(type_designated(t)) == T_INTEGER);
    fail_unless(type_ident(type_designated(t)) == ident_new("WORK.B-A.MY_INT"));
 
-   d = search_decls(a, ident_new("F"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_FILE);
    fail_unless(type_kind(type_designated(t)) == T_INTEGER);
    fail_unless(type_ident(type_designated(t)) == ident_new("WORK.B-A.MY_INT"));
 
-   d = search_decls(a, ident_new("F1"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F1");
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
 
-   d = search_decls(a, ident_new("F2"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F2");
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
-   d = search_decls(a, ident_new("F3"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F3");
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_if(tree_has_value(d));
 
-   d = search_decls(a, ident_new("R1"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "R1");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_RECORD);
@@ -830,30 +818,26 @@ START_TEST(test_types)
    fail_unless(tree_pos(f) == 1);
    fail_unless(tree_ident(f) == ident_new("B"));
 
-   d = search_decls(a, ident_new("F4"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F4");
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("WRITE_MODE"));
 
-   d = search_decls(a, ident_new("F5"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F5");
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
-   d = search_decls(a, ident_new("R2"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "R2");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_RECORD);
    fail_unless(type_fields(t) == 1);
 
-   d = search_decls(a, ident_new("MY_REAL"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "MY_REAL");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -868,8 +852,7 @@ START_TEST(test_types)
    fail_unless(tree_subkind(tree_right(r)) == L_REAL);
    fail_unless(tree_dval(tree_right(r)) == DBL_MAX);
 
-   d = search_decls(a, ident_new("MY_REAL2"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "MY_REAL2");
    fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -913,17 +896,14 @@ START_TEST(test_literal)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
-   d = search_decls(a, ident_new("POS"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "POS");
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 64);
-   d = search_decls(a, ident_new("POS"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "POS");
 
-   d = search_decls(a, ident_new("NEG"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "NEG");
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_FCALL);
    fail_unless(tree_ident(v) == ident_new("\"-\""));
@@ -931,8 +911,7 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(tree_value(tree_param(v, 0))) == L_INT);
    fail_unless(tree_ival(tree_value(tree_param(v, 0))) == 265);
 
-   d = search_decls(a, ident_new("C"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "C");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("C"));
    v = tree_value(d);
@@ -940,8 +919,7 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 523);
 
-   d = search_decls(a, ident_new("A"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "A");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    v = tree_value(d);
@@ -954,8 +932,7 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 4)) == ident_new("'l'"));
    fail_unless(tree_ident(tree_char(v, 5)) == ident_new("'o'"));
 
-   d = search_decls(a, ident_new("B"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "B");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    v = tree_value(d);
@@ -969,70 +946,59 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 5)) == ident_new("'e'"));
    fail_unless(tree_ident(tree_char(v, 6)) == ident_new("'\"'"));
 
-   d = search_decls(a, ident_new("D"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "D");
    fail_unless(tree_ident(d) == ident_new("D"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 1000);
 
-   d = search_decls(a, ident_new("E"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "E");
    fail_unless(tree_ident(d) == ident_new("E"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 1.234);
 
-   d = search_decls(a, ident_new("F"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "F");
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 0.21712);
 
-   d = search_decls(a, ident_new("G"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "G");
    fail_unless(tree_ident(d) == ident_new("G"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 1400000.0);
 
-   d = search_decls(a, ident_new("H"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "H");
    fail_unless(tree_ident(d) == ident_new("H"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 2.351);
 
-   d = search_decls(a, ident_new("I"), 0);
-   fail_if(d == NULL);
-   fail_unless(tree_ident(d) == ident_new("I"));
+   d = get_decl(a, "I");
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 1234);
 
-   d = search_decls(a, ident_new("J"), 0);
-   fail_if(d == NULL);
-   fail_unless(tree_ident(d) == ident_new("J"));
+   d = get_decl(a, "J");
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 567.123);
 
-   d = search_decls(a, ident_new("K"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "K");
    fail_unless(tree_ident(d) == ident_new("K"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_NULL);
 
-   d = search_decls(a, ident_new("L"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "L");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("L"));
    v = tree_value(d);
@@ -1062,16 +1028,14 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 21)) == ident_new("'r'"));
    fail_unless(tree_ident(tree_char(v, 22)) == ident_new("'t'"));
 
-   d = search_decls(a, ident_new("M"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "M");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("M"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 0);
 
-   d = search_decls(a, ident_new("N"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "N");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("N"));
    v = tree_value(d);
@@ -1079,8 +1043,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
-   d = search_decls(a, ident_new("O"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "O");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("O"));
    v = tree_value(d);
@@ -1088,8 +1051,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
-   d = search_decls(a, ident_new("P"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "P");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("P"));
    v = tree_value(d);
@@ -1097,8 +1059,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'\"'"));
 
-   d = search_decls(a, ident_new("Q"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "Q");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("Q"));
    v = tree_value(d);
@@ -1128,16 +1089,14 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 21)) == ident_new("'r'"));
    fail_unless(tree_ident(tree_char(v, 22)) == ident_new("'t'"));
 
-   d = search_decls(a, ident_new("R"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "R");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("R"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 0);
 
-   d = search_decls(a, ident_new("S"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "S");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("S"));
    v = tree_value(d);
@@ -1145,8 +1104,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
-   d = search_decls(a, ident_new("T"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "T");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("T"));
    v = tree_value(d);
@@ -1154,8 +1112,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
-   d = search_decls(a, ident_new("U"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "U");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("U"));
    v = tree_value(d);
@@ -1163,8 +1120,7 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'%'"));
 
-   d = search_decls(a, ident_new("V"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "V");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("V"));
    v = tree_value(d);
@@ -1307,8 +1263,7 @@ START_TEST(test_enum)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
 
-   d = search_decls(p, ident_new("A"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "A");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    t = tree_type(d);
@@ -1327,8 +1282,7 @@ START_TEST(test_enum)
    fail_unless(tree_ident(i) == ident_new("Z"));
    fail_unless(tree_pos(i) == 2);
 
-   d = search_decls(p, ident_new("B"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "B");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    t = tree_type(d);
@@ -1344,8 +1298,7 @@ START_TEST(test_enum)
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("Z"));
 
-   d = search_decls(p, ident_new("C"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "C");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("C"));
    t = tree_type(d);
@@ -1483,8 +1436,7 @@ START_TEST(test_array)
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
 
-   d = search_decls(p, ident_new("INT_ARRAY"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "INT_ARRAY");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("INT_ARRAY"));
    t = tree_type(d);
@@ -1497,8 +1449,7 @@ START_TEST(test_array)
    fail_unless(type_kind(b) == T_INTEGER);
    fail_unless(type_ident(b) == ident_new("STD.STANDARD.INTEGER"));
 
-   d = search_decls(p, ident_new("TEN_INTS"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "TEN_INTS");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TEN_INTS"));
    t = tree_type(d);
@@ -1507,8 +1458,7 @@ START_TEST(test_array)
    fail_unless(tree_ranges(type_constraint(t, 0)) == 1);
    fail_unless(type_kind(type_base(t)) == T_ARRAY);
 
-   d = search_decls(p, ident_new("CHAR_COUNTS"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "CHAR_COUNTS");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("CHAR_COUNTS"));
    t = tree_type(d);
@@ -1522,8 +1472,7 @@ START_TEST(test_array)
    fail_unless(tree_ident(x) == ident_new("CHARS"));
    fail_unless(tree_kind(x) == T_REF);
 
-   d = search_decls(p, ident_new("TWO_D"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "TWO_D");
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TWO_D"));
    t = tree_type(d);
@@ -1547,8 +1496,7 @@ START_TEST(test_array)
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_decls(a) == 9);
 
-   d = search_decls(a, ident_new("X"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "X");
    fail_unless(tree_ident(d) == ident_new("X"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -1557,15 +1505,13 @@ START_TEST(test_array)
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 5);
 
-   d = search_decls(a, ident_new("Y"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "Y");
    fail_unless(tree_ident(d) == ident_new("Y"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_ident(t) == ident_new("WORK.P.TEN_INTS"));
 
-   d = search_decls(a, ident_new("Z"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "Z");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_constraints(t) == 1);
@@ -1583,8 +1529,7 @@ START_TEST(test_array)
       fail_unless(tree_ival(tree_value(x)) == i);
    }
 
-   d = search_decls(a, ident_new("N"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "N");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_constraints(t) == 1);
@@ -1608,8 +1553,7 @@ START_TEST(test_array)
    fail_unless(tree_subkind(x) == A_OTHERS);
    fail_unless(tree_ival(tree_value(x)) == 2);
 
-   d = search_decls(a, ident_new("M"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "M");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_constraints(t) == 1);
@@ -1627,12 +1571,10 @@ START_TEST(test_array)
    fail_unless(tree_ival(tree_right(r)) == 3);
    fail_unless(tree_ival(tree_value(x)) == 0);
 
-   d = search_decls(a, ident_new("U"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "U");
    fail_unless(tree_assocs(tree_value(d)) == 4);
 
-   d = search_decls(a, ident_new("V"), 0);
-   fail_if(d == NULL);
+   d = get_decl(a, "V");
    fail_unless(tree_assocs(tree_value(d)) == 4);
 
    p = tree_stmt(a, 0);
@@ -2026,8 +1968,7 @@ START_TEST(test_procedure)
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
 
-   d = search_decls(p, ident_new("FOO"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "FOO");
    fail_unless(tree_kind(d) == T_PROC_DECL);
    fail_unless(tree_ports(d) == 2);
    fail_unless(tree_ident(d) == ident_new("FOO"));
@@ -2037,16 +1978,14 @@ START_TEST(test_procedure)
    fail_unless(tree_kind(p) == T_PACK_BODY);
    fail_unless(tree_decls(p) == 5);
 
-   d = search_decls(p, ident_new("FOO"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "FOO");
    fail_unless(tree_kind(d) == T_PROC_BODY);
    fail_unless(tree_ports(d) == 2);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_decls(d) == 1);
    fail_unless(tree_stmts(d) == 1);
 
-   d = search_decls(p, ident_new("BAR"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "BAR");
    fail_unless(tree_kind(d) == T_PROC_DECL);
    fail_unless(tree_ports(d) == 1);
    fail_unless(tree_ident(d) == ident_new("BAR"));
@@ -3051,8 +2990,7 @@ START_TEST(test_protected)
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
 
-   d = search_decls(p, ident_new("SHAREDCOUNTER"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "SHAREDCOUNTER");
    fail_unless(tree_kind(d) == T_PROT_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PROTECTED);
@@ -3063,13 +3001,11 @@ START_TEST(test_protected)
    fail_unless(tree_ident(s) == ident_new("INCREMENT"));
    fail_unless(tree_flags(s) & TREE_F_PROTECTED);
 
-   d = search_decls(p, ident_new("SHAREDCOUNTER"), 1);
-   fail_if(d == NULL);
+   d = get_nth_decl(p, "SHAREDCOUNTER", 1);
    fail_unless(tree_kind(d) == T_PROT_BODY);
    fail_unless(tree_decls(d) == 5);
 
-   d = search_decls(d, ident_new("ADD10"), 0);
-   fail_if(d == NULL);
+   d = get_decl(d, "ADD10");
    fail_unless(tree_kind(d) == T_PROC_BODY);
    fail_unless(tree_flags(d) & TREE_F_PROTECTED);
 
@@ -3364,8 +3300,7 @@ START_TEST(test_issue369)
 
    tree_t p = tree_stmt(a, 0);
 
-   tree_t aspec = search_decls(p, ident_new("A"), 1);
-   fail_if(aspec == NULL);
+   tree_t aspec = get_nth_decl(p, "A", 1);
    fail_unless(tree_kind(aspec) == T_ATTR_SPEC);
    fail_unless(tree_class(aspec) == C_LITERAL);
 
@@ -3567,8 +3502,7 @@ START_TEST(test_names)
    fail_unless(type_eq(tree_type(t), std_type(NULL, STD_INTEGER)));
 
    p = tree_stmt(a, 4);
-   d = search_decls(p, ident_new("TABLE"), 0);
-   fail_if(d == NULL);
+   d = get_decl(p, "TABLE");
    fail_unless(tree_kind(d) == T_CONST_DECL);
    tree_t v = tree_value(d);
    fail_unless(tree_kind(v) == T_AGGREGATE);
@@ -3704,8 +3638,7 @@ START_TEST(test_vhdl2008)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
-   tree_t d = search_decls(a, ident_new("MY_TYPE_VECTOR"), 0);
-   fail_if(d == NULL);
+   tree_t d = get_decl(a, "MY_TYPE_VECTOR");
    type_t type = tree_type(d);
    fail_unless(type_kind(type) == T_SUBTYPE);
    fail_unless(type_has_resolution(type));
@@ -3726,7 +3659,7 @@ START_TEST(test_vhdl2008)
    fail_unless(tree_kind(p6) == T_PROCESS);
    type_t p6t0 = tree_type(tree_decl(p6, 0));
    fail_unless(type_is_unconstrained(p6t0));
-   type_t p6t1 = tree_type(search_decls(p6, ident_new("A"), 0));
+   type_t p6t1 = tree_type(get_decl(p6, "A"));
    fail_if(type_is_unconstrained(p6t1));
    fail_unless(type_constraints(p6t1) == 1);
    type_t p6t1e = type_elem(p6t1);
@@ -4060,11 +3993,11 @@ START_TEST(test_protected2)
    fail_if(b == NULL);
    fail_unless(tree_kind(b) == T_PACK_BODY);
 
-   tree_t pb = search_decls(b, ident_new("RANDOMPTYPE"), 0);
+   tree_t pb = get_decl(b, "RANDOMPTYPE");
    fail_if(pb == NULL);
    fail_unless(tree_kind(pb) == T_PROT_BODY);
 
-   tree_t f = search_decls(pb, ident_new("LOCALUNIFORM"), 0);
+   tree_t f = get_decl(pb, "LOCALUNIFORM");
    fail_if(f == NULL);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
@@ -5150,12 +5083,10 @@ START_TEST(test_osvvm7)
    fail_unless(tree_kind(i2) == T_PACK_INST);
    lib_put(work, i2);
 
-   ident_t name = ident_new("SCOREBOARDIDTYPE");
-   tree_t d1 = search_decls(i1, name, 0);
+   tree_t d1 = get_decl(i1, "SCOREBOARDIDTYPE");
    fail_if(d1 == NULL);
    fail_unless(tree_kind(d1) == T_TYPE_DECL);
-   tree_t d2 = search_decls(i2, name, 0);
-   fail_if(d2 == NULL);
+   tree_t d2 = get_decl(i2, "SCOREBOARDIDTYPE");
    fail_unless(tree_kind(d2) == T_TYPE_DECL);
 
    fail_if(type_eq(tree_type(d1), tree_type(d2)));
@@ -5337,43 +5268,43 @@ START_TEST(test_subtype2008)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
 
-   type_t sub1 = tree_type(search_decls(p, ident_new("SUB1"), 0));
+   type_t sub1 = tree_type(get_decl(p, "SUB1"));
    fail_unless(type_constraints(sub1) == 0);
    fail_unless(type_is_unconstrained(sub1));
 
-   type_t sub2 = tree_type(search_decls(p, ident_new("SUB2"), 0));
+   type_t sub2 = tree_type(get_decl(p, "SUB2"));
    ck_assert_int_eq(type_constraints(sub2), 1);
    fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub2));
 
-   type_t sub3 = tree_type(search_decls(p, ident_new("SUB3"), 0));
+   type_t sub3 = tree_type(get_decl(p, "SUB3"));
    fail_unless(type_constraints(sub3) == 0);
    fail_unless(type_is_unconstrained(sub3));
 
-   type_t sub4 = tree_type(search_decls(p, ident_new("SUB4"), 0));
+   type_t sub4 = tree_type(get_decl(p, "SUB4"));
    fail_unless(type_constraints(sub4) == 0);
    fail_unless(type_is_unconstrained(sub4));
 
-   type_t sub5 = tree_type(search_decls(p, ident_new("SUB5"), 0));
+   type_t sub5 = tree_type(get_decl(p, "SUB5"));
    fail_unless(type_constraints(sub5) == 1);
    fail_unless(tree_subkind(type_constraint(sub5, 0)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub5));
    ck_assert_ptr_eq(type_elem(sub5), type_elem(sub4));
 
-   type_t sub6 = tree_type(search_decls(p, ident_new("SUB6"), 0));
+   type_t sub6 = tree_type(get_decl(p, "SUB6"));
    ck_assert_int_eq(type_constraints(sub6), 1);
    fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
    fail_if(type_is_unconstrained(sub6));
 
-   type_t sub7 = tree_type(search_decls(p, ident_new("SUB7"), 0));
+   type_t sub7 = tree_type(get_decl(p, "SUB7"));
    fail_unless(type_constraints(sub7) == 0);
    fail_if(type_is_unconstrained(sub7));
 
-   type_t sub10 = tree_type(search_decls(p, ident_new("SUB10"), 0));
+   type_t sub10 = tree_type(get_decl(p, "SUB10"));
    fail_unless(type_constraints(sub10) == 1);
    fail_unless(type_is_unconstrained(sub10));
 
-   type_t sub11 = tree_type(search_decls(p, ident_new("SUB11"), 0));
+   type_t sub11 = tree_type(get_decl(p, "SUB11"));
    fail_unless(type_constraints(sub11) == 1);
    fail_unless(tree_subkind(type_constraint(sub11, 0)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub11));
@@ -6262,8 +6193,7 @@ START_TEST(test_aggregate)
    };
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
-      tree_t d = search_decls(p, ident_new(cases[i].name), 0);
-      fail_if(d == NULL);
+      tree_t d = get_decl(p, cases[i].name);
 
       type_t type = tree_type(tree_value(d));
       fail_unless(type_is_array(type));

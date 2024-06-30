@@ -168,16 +168,12 @@ START_TEST(test_copy1)
    tree_t sub1_i = tree_stmt(copy1, 0);
    tree_t sub2_i = tree_stmt(copy1, 1);
 
-   tree_t func1 = search_decls(sub1_i, ident_new("DOUBLE"), 0);
-   tree_t func2 = search_decls(sub2_i, ident_new("DOUBLE"), 0);
-   fail_if(func1 == NULL);
-   fail_if(func2 == NULL);
+   tree_t func1 = get_decl(sub1_i, "DOUBLE");
+   tree_t func2 = get_decl(sub2_i, "DOUBLE");
    fail_if(func1 == func2);   // Should copy functions
 
-   tree_t var1 = search_decls(sub1_i, ident_new("GLOBAL"), 0);
-   tree_t var2 = search_decls(sub2_i, ident_new("GLOBAL"), 0);
-   fail_if(var1 == NULL);
-   fail_if(var2 == NULL);
+   tree_t var1 = get_decl(sub1_i, "GLOBAL");
+   tree_t var2 = get_decl(sub2_i, "GLOBAL");
    fail_unless(var1 == var2);   // Should not copy variables
 
    fail_if_errors();
@@ -510,8 +506,7 @@ START_TEST(test_issue315)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = search_decls(tree_stmt(top, 0), ident_new("INFO"), 0);
-   fail_if(d2 == NULL);
+   tree_t d2 = get_decl(tree_stmt(top, 0), "INFO");
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
    fail_unless(tree_kind(tree_value(d2)) == T_FCALL);
@@ -542,8 +537,7 @@ START_TEST(test_issue328)
 
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
-   fail_if(vec_range == NULL);
+   tree_t vec_range = get_decl(b0, "VEC_RANGE");
    fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
@@ -562,8 +556,7 @@ START_TEST(test_issue330)
 
    tree_t b0 = tree_stmt(top, 0);
 
-   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
-   fail_if(vec_range == NULL);
+   tree_t vec_range = get_decl(b0, "VEC_RANGE");
    fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
