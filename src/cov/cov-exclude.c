@@ -217,7 +217,7 @@ void cover_load_exclude_file(const char *path, cover_data_t *data)
 
    char *delim = " ";
    ssize_t read;
-   loc_file_ref_t file_ref = loc_file_ref(path, NULL);
+   file_ref_t file_ref = loc_file_ref(path, NULL);
    int line_num = 1;
    size_t line_len;
 
@@ -276,7 +276,7 @@ void cover_load_spec_file(cover_data_t *data, const char *path)
 
    const char *delim = " ";
    ssize_t read;
-   loc_file_ref_t file_ref = loc_file_ref(path, NULL);
+   file_ref_t file_ref = loc_file_ref(path, NULL);
    int line_num = 1;
    size_t line_len;
 

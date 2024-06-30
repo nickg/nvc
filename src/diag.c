@@ -36,13 +36,13 @@
 typedef struct _hint_rec hint_rec_t;
 
 typedef struct {
-   loc_file_ref_t  ref;
-   char           *name_str;
-   char           *abs_str;
-   const char     *linebuf;
-   bool            tried_open;
-   unsigned        last_line;
-   const char     *last_ptr;
+   file_ref_t  ref;
+   char       *name_str;
+   char       *abs_str;
+   const char *linebuf;
+   bool        tried_open;
+   unsigned    last_line;
+   const char *last_ptr;
 } loc_file_t;
 
 typedef A(loc_file_t) file_list_t;
@@ -53,11 +53,11 @@ struct loc_wr_ctx {
 };
 
 struct loc_rd_ctx {
-   fbuf_t          *fbuf;
-   char           **file_map;
-   loc_file_ref_t  *ref_map;
-   size_t           n_files;
-   bool             have_index;
+   fbuf_t      *fbuf;
+   char       **file_map;
+   file_ref_t  *ref_map;
+   size_t       n_files;
+   bool         have_index;
 };
 
 typedef enum {
@@ -108,14 +108,14 @@ static __thread hint_rec_t hint_recs[MAX_HINT_RECS];
 #define DIAG_THEME DIAG_THEME_CLASSIC
 
 ////////////////////////////////////////////////////////////////////////////////
-// Source location tracking
+// File management
 
 static loc_file_t *loc_file_data(const loc_t *loc)
 {
    return AREF(loc_files, loc->file_ref);
 }
 
-loc_file_ref_t loc_file_ref(const char *name, const char *linebuf)
+file_ref_t loc_file_ref(const char *name, const char *linebuf)
 {
    if (name == NULL)
       return FILE_INVALID;
@@ -169,6 +169,9 @@ static const char *loc_abs_path(const loc_t *loc)
    return data->abs_str;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Source location tracking
+
 bool loc_invalid_p(const loc_t *loc)
 {
    return loc == NULL
@@ -177,7 +180,7 @@ bool loc_invalid_p(const loc_t *loc)
 }
 
 loc_t get_loc(unsigned first_line, unsigned first_column, unsigned last_line,
-              unsigned last_column, loc_file_ref_t file_ref)
+              unsigned last_column, file_ref_t file_ref)
 {
    if (first_line == LINE_INVALID || last_line == LINE_INVALID
        || first_column == COLUMN_INVALID || last_column == COLUMN_INVALID)
@@ -326,7 +329,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
       ctx->n_files = fbuf_get_uint(ctx->fbuf);
 
       ctx->file_map = xcalloc_array(ctx->n_files, sizeof(ident_t));
-      ctx->ref_map  = xcalloc_array(ctx->n_files, sizeof(loc_file_ref_t));
+      ctx->ref_map  = xcalloc_array(ctx->n_files, sizeof(file_ref_t));
 
       for (size_t i = 0; i < ctx->n_files; i++) {
          size_t len = fbuf_get_uint(ctx->fbuf);
@@ -343,7 +346,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
    const uint64_t merged = read_u64(ctx->fbuf);
 
    uint16_t old_ref = merged & 0xffff;
-   loc_file_ref_t new_ref = FILE_INVALID;
+   file_ref_t new_ref = FILE_INVALID;
    if (old_ref != FILE_INVALID) {
       if (unlikely(old_ref >= ctx->n_files))
          fatal("corrupt location file reference %x", old_ref);

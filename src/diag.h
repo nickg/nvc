@@ -30,7 +30,7 @@
 #undef SEVERITY_ERROR
 #endif
 
-typedef uint16_t loc_file_ref_t;
+typedef uint16_t file_ref_t;
 
 struct loc {
    unsigned first_line : 20;
@@ -57,9 +57,9 @@ void fmt_loc(FILE *f, const loc_t *loc);
 const char *loc_file_str(const loc_t *loc);
 loc_t get_loc(unsigned first_line, unsigned first_column,
               unsigned last_line, unsigned last_column,
-              loc_file_ref_t file_ref);
+              file_ref_t file_ref);
 bool loc_invalid_p(const loc_t *loc);
-loc_file_ref_t loc_file_ref(const char *name, const char *linebuf);
+file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
 const char *loc_get_source(const loc_t *loc);
 
