@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <math.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -498,11 +499,22 @@ void thread_init(void)
 
    assert(my_thread->id == 0);
 
-   const char *env = getenv("NVC_MAX_THREADS");
-   if (env != NULL)
-      max_workers = MAX(1, MIN(atoi(env), MAX_THREADS));
+   const char *max_env = getenv("NVC_MAX_THREADS");
+   if (max_env != NULL)
+      max_workers = MAX(1, MIN(atoi(max_env), MAX_THREADS));
    else
-      max_workers = MIN(nvc_nprocs(), DEFAULT_THREADS);
+      max_workers = DEFAULT_THREADS;
+
+   const int num_cpus = nvc_nprocs();
+   max_workers = MIN(num_cpus, max_workers);
+
+   const char *jobs_env = getenv("NVC_CONCURRENT_JOBS");
+   if (jobs_env != NULL) {
+      const int num_jobs = MAX(1, atoi(jobs_env));
+      const int limit = (int)round((double)num_cpus / (double)num_jobs);
+      max_workers = MAX(1, MIN(max_workers, limit));
+   }
+
    assert(max_workers > 0);
 
 #ifdef DEBUG

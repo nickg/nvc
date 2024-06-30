@@ -21,6 +21,9 @@
   (#900).
 - Fixed a crash when branch coverage is enabled and an if-statement
   contains a `return` (#903).
+- The `NVC_CONCURRENT_JOBS` environment variable can be used to scale
+  the number of worker threads NVC creates based on the number of
+  concurrently executing simulations.
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.

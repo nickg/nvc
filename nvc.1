@@ -1162,7 +1162,15 @@ arguments.  Additionally foreign subprograms must not retain any
 pointers passed as arguments after the subprogram returns.  Violating
 these rules will result in unpredictable and hard to debug behaviour.
 .Sh ENVIRONMENT
-.Bl -tag -width "NVC_COLORS"
+.Bl -tag -width "NVC_CONCURRENT_JOBS"
+.It Ev NVC_CONCURRENT_JOBS
+Provides a hint for the number of concurrently executing simulations.
+This allows
+.Nm
+to scale its worker thread count to avoid overloading the system.
+This is set automatically by frameworks such as VUnit.
+See
+.Ev NVC_MAX_THREADS .
 .It Ev NVC_COLORS
 Controls whether
 .Nm
@@ -1175,6 +1183,12 @@ and
 which enables colour if stdout is connected to a terminal.
 The default is
 .Cm auto .
+.It Ev NVC_MAX_THREADS
+Limit the number of worker threads
+.Nm
+can create.
+The default is either eight or the number of available CPUs, whichever
+is smaller.
 .El
 .\" .Sh FILES
 .\" .Sh EXIT STATUS
