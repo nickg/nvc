@@ -207,7 +207,7 @@ START_TEST(test_proc)
    fail_unless(tree_stmts(p) == 2);
 
    s = tree_stmt(p, 0);
-   fail_unless(tree_kind(s) == T_ASSERT);
+   fail_unless(tree_kind(s) == T_REPORT);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -1395,7 +1395,7 @@ START_TEST(test_casefold1)
    fail_unless(tree_ident(casep) == ident_new("CASEP"));
 
    tree_t seq = tree_stmt(casep, 0);
-   fail_unless(tree_kind(seq) == T_ASSERT);
+   fail_unless(tree_kind(seq) == T_REPORT);
 
    fail_if_errors();
 }

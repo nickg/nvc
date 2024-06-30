@@ -2171,10 +2171,17 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
    case T_WAVEFORM:
    case T_QUALIFIED:
    case T_TYPE_CONV:
-   case T_ASSERT:
    case T_INERTIAL:
       if (tree_has_value(expr))
          build_wait(tree_value(expr), fn, ctx);
+      break;
+
+   case T_ASSERT:
+      build_wait(tree_value(expr), fn, ctx);
+      // Fall-through
+   case T_REPORT:
+      if (tree_has_message(expr))
+         build_wait(tree_message(expr), fn, ctx);
       break;
 
    case T_ARRAY_REF:

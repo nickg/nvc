@@ -5516,11 +5516,15 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
 
 static void lower_report(lower_unit_t *lu, tree_t stmt)
 {
-   assert(!tree_has_value(stmt));
-
    lower_stmt_coverage(lu, stmt);
 
-   vcode_reg_t severity = lower_rvalue(lu, tree_severity(stmt));
+   vcode_reg_t severity_reg = VCODE_INVALID_REG;
+   if (tree_has_severity(stmt))
+      severity_reg = lower_rvalue(lu, tree_severity(stmt));
+   else {
+      vcode_type_t vseverity = vtype_int(0, 3);
+      severity_reg = emit_const(vseverity, SEVERITY_NOTE);
+   }
 
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
    if (tree_has_message(stmt)) {
@@ -5532,7 +5536,7 @@ static void lower_report(lower_unit_t *lu, tree_t stmt)
    }
 
    vcode_reg_t locus = lower_debug_locus(stmt);
-   emit_report(message, length, severity, locus);
+   emit_report(message, length, severity_reg, locus);
 }
 
 static bool lower_can_hint_assert(tree_t expr)
@@ -5555,11 +5559,6 @@ static bool lower_can_hint_assert(tree_t expr)
 
 static void lower_assert(lower_unit_t *lu, tree_t stmt)
 {
-   if (!tree_has_value(stmt)) {
-      lower_report(lu, stmt);
-      return;
-   }
-
    lower_stmt_coverage(lu, stmt);
 
    tree_t value = tree_value(stmt);
@@ -5582,13 +5581,13 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt)
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
    tree_t message = tree_has_message(stmt) ? tree_message(stmt) : NULL;
-   tree_t severity = tree_severity(stmt);
+   tree_t severity = tree_has_severity(stmt) ? tree_severity(stmt) : NULL;
 
    // If evaluating the message or severity expressions can have side
    // effects then branch to a new block
    const bool has_side_effects =
       (message != NULL && !lower_side_effect_free(message))
-      || !lower_side_effect_free(severity);
+      || (severity != NULL && !lower_side_effect_free(severity));
 
    if (has_side_effects) {
       fail_bb = emit_block();
@@ -5604,7 +5603,13 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt)
       length_reg  = lower_array_len(lu, tree_type(message), 0, message_wrapped);
    }
 
-   vcode_reg_t severity_reg = lower_rvalue(lu, severity);
+   vcode_reg_t severity_reg = VCODE_INVALID_REG;
+   if (severity != NULL)
+      severity_reg = lower_rvalue(lu, severity);
+   else {
+      vcode_type_t vseverity = vtype_int(0, 3);
+      severity_reg = emit_const(vseverity, SEVERITY_ERROR);
+   }
 
    vcode_reg_t locus = lower_debug_locus(value);
    emit_assert(value_reg, message_reg, length_reg, severity_reg, locus,
@@ -7466,6 +7471,9 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    switch (tree_kind(stmt)) {
    case T_ASSERT:
       lower_assert(lu, stmt);
+      break;
+   case T_REPORT:
+      lower_report(lu, stmt);
       break;
    case T_WAIT:
       lower_wait(lu, stmt);

@@ -3445,37 +3445,61 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
 {
    // Rules for asserion statements are in LRM 93 section 8.2
 
-   type_t std_bool     = std_type(NULL, STD_BOOLEAN);
-   type_t std_string   = std_type(NULL, STD_STRING);
-   type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
-
-   tree_t value    = tree_has_value(t) ? tree_value(t) : NULL;
-   tree_t severity = tree_severity(t);
-   tree_t message  = tree_has_message(t) ? tree_message(t) : NULL;
-
-   if (value != NULL && !sem_check(value, tab))
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
       return false;
 
-   if (!sem_check(severity, tab))
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   if (!sem_check_type(value, std_bool, tab))
+      sem_error(value, "type of assertion expression must be %s but "
+                "is %s", type_pp(std_bool), type_pp(tree_type(value)));
+
+   if (tree_has_message(t)) {
+      tree_t message = tree_message(t);
+      if (!sem_check(message, tab))
+         return false;
+
+      type_t std_string = std_type(NULL, STD_STRING);
+      if (!sem_check_type(message, std_string, tab))
+         sem_error(message, "type of message be %s but is %s",
+                   type_pp(std_string), type_pp(tree_type(message)));
+   }
+
+   if (tree_has_severity(t)) {
+      tree_t severity = tree_severity(t);
+      if (!sem_check(severity, tab))
+         return false;
+
+      type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
+      if (!sem_check_type(severity, std_severity, tab))
+         sem_error(severity, "type of severity must be %s but is %s",
+                   type_pp(std_severity), type_pp(tree_type(severity)));
+   }
+
+   return true;
+}
+
+static bool sem_check_report(tree_t t, nametab_t *tab)
+{
+   tree_t message = tree_message(t);
+   if (!sem_check(message, tab))
       return false;
 
-   if (message != NULL && !sem_check(message, tab))
-      return false;
-
-   if (value != NULL && !sem_check_type(value, std_bool, tab))
-      sem_error(value, "type of assertion expression must "
-                "be %s but is %s", type_pp(std_bool),
-                type_pp(tree_type(value)));
-
-   if (!sem_check_type(severity, std_severity, tab))
-      sem_error(severity, "type of severity must be %s but is %s",
-                type_pp(std_severity),
-                type_pp(tree_type(severity)));
-
-   if (message != NULL && !sem_check_type(message, std_string, tab))
+   type_t std_string = std_type(NULL, STD_STRING);
+   if (!sem_check_type(message, std_string, tab))
       sem_error(message, "type of message be %s but is %s",
-                type_pp(std_string),
-                type_pp(tree_type(message)));
+                type_pp(std_string), type_pp(tree_type(message)));
+
+   if (tree_has_severity(t)) {
+      tree_t severity = tree_severity(t);
+      if (!sem_check(severity, tab))
+         return false;
+
+      type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
+      if (!sem_check_type(severity, std_severity, tab))
+         sem_error(severity, "type of severity must be %s but is %s",
+                   type_pp(std_severity), type_pp(tree_type(severity)));
+   }
 
    return true;
 }
@@ -7008,6 +7032,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_wait(t, tab);
    case T_ASSERT:
       return sem_check_assert(t, tab);
+   case T_REPORT:
+      return sem_check_report(t, tab);
    case T_QUALIFIED:
       return sem_check_qualified(t, tab);
    case T_FUNC_DECL:

@@ -47,6 +47,7 @@ begin
     p1: process (s1) is
     begin
         s1 <= "101010" after 1 ns, (others => '1') after 2 ns;
+        report "hello";
     end process;
 
     g1: for i in 5 downto 2 generate

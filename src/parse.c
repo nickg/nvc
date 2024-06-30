@@ -6808,16 +6808,11 @@ static tree_t p_assertion(void)
       tree_set_message(s, message);
    }
 
-   tree_t severity;
-   if (optional(tSEVERITY))
-      severity = p_expression();
-   else {
-      tree_t std = find_std(nametab);
-      severity = make_ref(search_decls(std, ident_new("ERROR"), 0));
+   if (optional(tSEVERITY)) {
+      tree_t severity = p_expression();
+      solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
+      tree_set_severity(s, severity);
    }
-
-   solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
-   tree_set_severity(s, severity);
 
    tree_set_loc(s, CURRENT_LOC);
    return s;
@@ -9824,7 +9819,7 @@ static tree_t p_report_statement(ident_t label)
 
    EXTEND("report statement");
 
-   tree_t t = tree_new(T_ASSERT);
+   tree_t t = tree_new(T_REPORT);
 
    consume(tREPORT);
 
@@ -9832,16 +9827,11 @@ static tree_t p_report_statement(ident_t label)
    tree_set_message(t, m);
    solve_types(nametab, m, std_type(NULL, STD_STRING));
 
-   tree_t s;
-   if (optional(tSEVERITY))
-      s = p_expression();
-   else {
-      tree_t std = find_std(nametab);
-      s = make_ref(search_decls(std, ident_new("NOTE"), 0));
+   if (optional(tSEVERITY)) {
+      tree_t s = p_expression();
+      solve_types(nametab, s, std_type(NULL, STD_SEVERITY_LEVEL));
+      tree_set_severity(t, s);
    }
-
-   tree_set_severity(t, s);
-   solve_types(nametab, s, std_type(NULL, STD_SEVERITY_LEVEL));
 
    consume(tSEMI);
 

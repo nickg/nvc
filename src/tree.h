@@ -389,6 +389,7 @@ typedef enum tree_kind {
    T_INERTIAL,
    T_ELEM_RESOLUTION,
    T_LOOP,
+   T_REPORT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -530,6 +531,7 @@ tree_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, tree_t a);
 
 tree_t tree_severity(tree_t t);
+bool tree_has_severity(tree_t t);
 void tree_set_severity(tree_t t, tree_t s);
 
 tree_t tree_message(tree_t t);

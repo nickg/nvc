@@ -374,6 +374,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_LOOP
    (I_IDENT | I_STMTS),
+
+   // T_REPORT
+   (I_IDENT | I_SEVERITY | I_MESSAGE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -415,7 +418,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
    "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
-   "T_LOOP",
+   "T_LOOP",            "T_REPORT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -1097,6 +1100,11 @@ void tree_set_severity(tree_t t, tree_t s)
    tree_assert_expr(s);
    lookup_item(&tree_object, t, I_SEVERITY)->object = &(s->object);
    object_write_barrier(&(t->object), &(s->object));
+}
+
+bool tree_has_severity(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_SEVERITY)->object != NULL;
 }
 
 tree_t tree_message(tree_t t)

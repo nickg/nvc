@@ -1226,18 +1226,25 @@ static void dump_stmt(tree_t t, int indent)
       return;
 
    case T_ASSERT:
-      if (tree_has_value(t)) {
-         print_syntax("#assert ");
-         dump_expr(tree_value(t));
-         print_syntax(" ");
-      }
+      print_syntax("#assert ");
+      dump_expr(tree_value(t));
       if (tree_has_message(t)) {
-         print_syntax("#report ");
+         print_syntax(" #report ");
          dump_expr(tree_message(t));
-         print_syntax(" ");
       }
-      print_syntax("#severity ");
-      dump_expr(tree_severity(t));
+      if (tree_has_severity(t)) {
+         print_syntax(" #severity ");
+         dump_expr(tree_severity(t));
+      }
+      break;
+
+   case T_REPORT:
+      print_syntax("#report ");
+      dump_expr(tree_message(t));
+      if (tree_has_severity(t)) {
+         print_syntax(" #severity ");
+         dump_expr(tree_severity(t));
+      }
       break;
 
    case T_WHILE:

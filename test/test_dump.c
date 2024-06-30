@@ -173,6 +173,7 @@ START_TEST(test_vhdl2)
         "P1: process (S1) is\n"
         "begin\n"
         "  S1 <= reject 1 NS inertial \"101010\" after 1 NS, (others => '1') after 2 NS;\n"
+        "  report \"hello\";\n"
         "end process;\n" },
       { "G1",
         "G1: for I in INTEGER(5) downto INTEGER(2) generate\n"
@@ -181,7 +182,7 @@ START_TEST(test_vhdl2)
         "  signal R : REAL := 1.234500;\n"
         "  attribute A of R : signal is 5;\n"
         "begin\n"
-        "  assert \">\"(R, 0.000000) severity ERROR;\n"
+        "  assert \">\"(R, 0.000000);\n"
         "end generate;\n" },
    };
 

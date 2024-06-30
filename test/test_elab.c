@@ -686,7 +686,7 @@ START_TEST(test_issue373)
    tree_t p0 = tree_stmt(sub, 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
    tree_t s0 = tree_stmt(p0, 0);
-   fail_unless(tree_kind(s0) == T_ASSERT);
+   fail_unless(tree_kind(s0) == T_REPORT);
    tree_t m = tree_message(s0);
    fail_unless(tree_kind(m) == T_REF);
    // This used to get folded by the old evaluator
