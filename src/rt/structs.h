@@ -137,7 +137,7 @@ typedef struct {
 typedef struct {
    rt_nexus_t *nexus;
    rt_value_t  value;
-} rt_deposit_t;
+} rt_pseudo_t;
 
 typedef struct _rt_source {
    rt_source_t    *chain_input;
@@ -146,11 +146,11 @@ typedef struct _rt_source {
    unsigned        disconnected : 1;
    unsigned        fastqueued : 1;
    unsigned        sigqueued : 1;
+   unsigned        pseudoqueued : 1;
    union {
-      rt_port_t    port;
-      rt_driver_t  driver;
-      rt_value_t   forcing;
-      rt_deposit_t deposit;
+      rt_port_t   port;
+      rt_driver_t driver;
+      rt_pseudo_t pseudo;
    } u;
 } rt_source_t;
 

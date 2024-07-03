@@ -157,8 +157,7 @@ static void async_update_property(rt_model_t *m, void *arg);
 static void async_update_driver(rt_model_t *m, void *arg);
 static void async_fast_driver(rt_model_t *m, void *arg);
 static void async_fast_all_drivers(rt_model_t *m, void *arg);
-static void async_force_release(rt_model_t *m, void *arg);
-static void async_deposit(rt_model_t *m, void *arg);
+static void async_pseudo_source(rt_model_t *m, void *arg);
 static void async_transfer_signal(rt_model_t *m, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
@@ -904,15 +903,9 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
    }
 }
 
-static void deltaq_insert_force_release(rt_model_t *m, rt_nexus_t *nexus)
+static void deltaq_insert_pseudo_source(rt_model_t *m, rt_source_t *src)
 {
-   deferq_do(&m->delta_driverq, async_force_release, nexus);
-   m->next_is_delta = true;
-}
-
-static void deltaq_insert_deposit(rt_model_t *m, rt_deposit_t *deposit)
-{
-   deferq_do(&m->delta_driverq, async_deposit, deposit);
+   deferq_do(&m->delta_driverq, async_pseudo_source, src);
    m->next_is_delta = true;
 }
 
@@ -1325,6 +1318,7 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    src->disconnected = 0;
    src->fastqueued   = 0;
    src->sigqueued    = 0;
+   src->pseudoqueued = 0;
 
    switch (kind) {
    case SOURCE_DRIVER:
@@ -1344,13 +1338,10 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
       src->u.port.output    = n;
       break;
 
-   case SOURCE_FORCING:
-      src->u.forcing = alloc_value(m, n);
-      break;
-
    case SOURCE_DEPOSIT:
-      src->u.deposit.nexus = n;
-      src->u.deposit.value = alloc_value(m, n);
+   case SOURCE_FORCING:
+      src->u.pseudo.nexus = n;
+      src->u.pseudo.value = alloc_value(m, n);
       break;
    }
 
@@ -1592,12 +1583,10 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       break;
 
    case SOURCE_FORCING:
-      split_value(nexus, &(new->u.forcing), &(old->u.forcing), offset);
-      break;
-
    case SOURCE_DEPOSIT:
-      split_value(nexus, &(new->u.deposit.value), &(old->u.deposit.value),
+      split_value(nexus, &(new->u.pseudo.value), &(old->u.pseudo.value),
                   offset);
+      assert(!old->pseudoqueued);   // TODO
       break;
    }
 }
@@ -1989,7 +1978,7 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
    // from its previous value; no further steps are required.
    if (unlikely(n->flags & NET_F_FORCED)) {
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
-      return value_ptr(n, &(src->u.forcing));
+      return value_ptr(n, &(src->u.pseudo.value));
    }
 
    // If a driving-value deposit is scheduled for S or for a signal of
@@ -2000,7 +1989,7 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
       n->flags &= ~NET_F_DEPOSIT;
       src->disconnected = 1;
-      return value_ptr(n, &(src->u.deposit.value));
+      return value_ptr(n, &(src->u.pseudo.value));
    }
 
    // If S has no source, then the driving value of S is given by the
@@ -2939,27 +2928,23 @@ static void update_driver(rt_model_t *m, rt_nexus_t *n, rt_source_t *source)
    model_thread_t *thread = model_thread(m);
    assert(thread->tlab != NULL);
 
-   if (likely(source != NULL)) {
-      waveform_t *w_now  = &(source->u.driver.waveforms);
-      waveform_t *w_next = w_now->next;
+   waveform_t *w_now  = &(source->u.driver.waveforms);
+   waveform_t *w_next = w_now->next;
 
-      if (likely(w_next != NULL && w_next->when == m->now)) {
-         free_value(n, w_now->value);
-         *w_now = *w_next;
-         free_waveform(m, w_next);
-         source->disconnected = 0;
-         update_driving(m, n, false);
-      }
-      else if (unlikely(w_next != NULL && w_next->when == -m->now)) {
-         // Disconnect source due to null transaction
-         *w_now = *w_next;
-         free_waveform(m, w_next);
-         source->disconnected = 1;
-         update_driving(m, n, false);
-      }
-   }
-   else  // Update due to force/release
+   if (likely(w_next != NULL && w_next->when == m->now)) {
+      free_value(n, w_now->value);
+      *w_now = *w_next;
+      free_waveform(m, w_next);
+      source->disconnected = 0;
       update_driving(m, n, false);
+   }
+   else if (unlikely(w_next != NULL && w_next->when == -m->now)) {
+      // Disconnect source due to null transaction
+      *w_now = *w_next;
+      free_waveform(m, w_next);
+      source->disconnected = 1;
+      update_driving(m, n, false);
+   }
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 }
@@ -3028,16 +3013,15 @@ static void async_fast_all_drivers(rt_model_t *m, void *arg)
    fast_update_all_drivers(m, signal);
 }
 
-static void async_force_release(rt_model_t *m, void *arg)
+static void async_pseudo_source(rt_model_t *m, void *arg)
 {
-   rt_nexus_t *nexus = arg;
-   update_driver(m, nexus, NULL);
-}
+   rt_source_t *src = arg;
+   assert(src->tag == SOURCE_FORCING || src->tag == SOURCE_DEPOSIT);
 
-static void async_deposit(rt_model_t *m, void *arg)
-{
-   rt_deposit_t *deposit = arg;
-   update_driving(m, deposit->nexus, false);
+   update_driving(m, src->u.pseudo.nexus, false);
+
+   assert(src->pseudoqueued);
+   src->pseudoqueued = 0;
 }
 
 static void async_transfer_signal(rt_model_t *m, void *arg)
@@ -3357,9 +3341,13 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       n->flags |= NET_F_FORCED;
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
-      copy_value_ptr(n, &(src->u.forcing), vptr);
+      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
 
-      deltaq_insert_force_release(m, n);
+      if (!src->pseudoqueued) {
+         deltaq_insert_pseudo_source(m, src);
+         src->pseudoqueued = 1;
+      }
+
       vptr += n->width * n->size;
    }
 }
@@ -3382,7 +3370,10 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       src->disconnected = 1;
 
-      deltaq_insert_force_release(m, n);
+      if (!src->pseudoqueued) {
+         deltaq_insert_pseudo_source(m, src);
+         src->pseudoqueued = 1;
+      }
    }
 }
 
@@ -3403,14 +3394,15 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       assert(count >= 0);
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      copy_value_ptr(n, &(src->u.deposit.value), vptr);
+      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
 
-      if (n->flags & NET_F_DEPOSIT)
-         continue;   // Deposit already scheduled
+      if (!src->pseudoqueued) {
+         deltaq_insert_pseudo_source(m, src);
+         src->pseudoqueued = 1;
+      }
 
       n->flags |= NET_F_DEPOSIT;
 
-      deltaq_insert_deposit(m, &(src->u.deposit));
       vptr += n->width * n->size;
    }
 }
@@ -3605,7 +3597,7 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
       }
       assert(s != NULL);
 
-      memcpy(p, s->u.forcing.bytes, n->width * n->size);
+      memcpy(p, s->u.pseudo.value.bytes, n->width * n->size);
       p += n->width * n->size;
    }
    assert(p == value + s->shared.size);
