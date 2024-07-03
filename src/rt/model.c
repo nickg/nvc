@@ -1858,22 +1858,18 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
    return NULL;
 }
 
-static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
+static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
+                             rt_source_t *s0)
 {
-   // Find the first non-null source
-   char *p0 = NULL;
-   rt_source_t *s0 = &(nexus->sources);
-   for (; s0 && (p0 = source_value(nexus, s0)) == NULL; s0 = s0->chain_input)
-      ;
-
    if ((nexus->flags & NET_F_R_IDENT) && nonnull == 1) {
       // Resolution function behaves like identity for a single driver
-      return p0;
+      return source_value(nexus, s0);
    }
    else if ((r->flags & R_MEMO) && nonnull == 1) {
       // Resolution function has been memoised so do a table lookup
 
       void *resolved = local_alloc(nexus->width * nexus->size);
+      char *p0 = source_value(nexus, s0);
 
       for (int j = 0; j < nexus->width; j++) {
          const int index = ((uint8_t *)p0)[j];
@@ -1887,7 +1883,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 
       void *resolved = local_alloc(nexus->width * nexus->size);
 
-      char *p1 = NULL;
+      char *p0 = source_value(nexus, s0), *p1 = NULL;
       for (rt_source_t *s1 = s0->chain_input;
            s1 && (p1 = source_value(nexus, s1)) == NULL;
            s1 = s1->chain_input)
@@ -1974,24 +1970,6 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
 {
    // Algorithm for driving values is in LRM 08 section 14.7.3.2
 
-   // If S is driving-value forced, the driving value of S is unchanged
-   // from its previous value; no further steps are required.
-   if (unlikely(n->flags & NET_F_FORCED)) {
-      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
-      return value_ptr(n, &(src->u.pseudo.value));
-   }
-
-   // If a driving-value deposit is scheduled for S or for a signal of
-   // which S is a subelement, the driving value of S is the driving
-   // deposit value for S or the element of the driving deposit value
-   // for the signal of which S is a subelement, as appropriate.
-   if (unlikely(n->flags & NET_F_DEPOSIT)) {
-      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      n->flags &= ~NET_F_DEPOSIT;
-      src->disconnected = 1;
-      return value_ptr(n, &(src->u.pseudo.value));
-   }
-
    // If S has no source, then the driving value of S is given by the
    // default value associated with S
    if (n->n_sources == 0)
@@ -1999,63 +1977,75 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
 
    res_memo_t *r = n->signal->resolution;
 
-   if (r == NULL) {
-      rt_source_t *s = &(n->sources);
-      switch (s->tag) {
+   int nonnull = 0;
+   rt_source_t *s0 = NULL;
+   for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+      if (s->disconnected)
+         continue;
+      else if (s->tag == SOURCE_FORCING) {
+         // If S is driving-value forced, the driving value of S is
+         // unchanged from its previous value; no further steps are
+         // required.
+         return value_ptr(n, &(s->u.pseudo.value));
+      }
+      else if (s->tag == SOURCE_DEPOSIT) {
+         // If a driving-value deposit is scheduled for S or for a
+         // signal of which S is a subelement, the driving value of S is
+         // the driving deposit value for S or the element of the
+         // driving deposit value for the signal of which S is a
+         // subelement, as appropriate.
+         s->disconnected = 1;
+         return value_ptr(n, &(s->u.pseudo.value));
+      }
+      else if (s0 == NULL)
+         s0 = s;
+      nonnull++;
+   }
+
+   if (unlikely(s0 == NULL)) {
+      // If S is of signal kind register and all the sources of S have
+      // values determined by the null transaction, then the driving
+      // value of S is unchanged from its previous value.
+      if (n->signal->shared.flags & SIG_F_REGISTER)
+         return nexus_effective(n);
+      else if (n->signal->resolution == NULL || n->sources.tag == SOURCE_FORCING
+               || n->sources.tag == SOURCE_DEPOSIT)
+         return nexus_driving(n);
+      else
+         return call_resolution(n, n->signal->resolution, nonnull, s0);
+   }
+   else if (r == NULL) {
+      switch (s0->tag) {
       case SOURCE_DRIVER:
          // If S has one source that is a driver and S is not a resolved
          // signal, then the driving value of S is the current value of
          // that driver.
-         assert(!s->disconnected);
-         return value_ptr(n, &(s->u.driver.waveforms.value));
+         assert(!s0->disconnected);
+         return value_ptr(n, &(s0->u.driver.waveforms.value));
 
       case SOURCE_PORT:
          // If S has one source that is a port and S is not a resolved
          // signal, then the driving value of S is the driving value of
          // the formal part of the association element that associates S
          // with that port
-         if (likely(s->u.port.conv_func == NULL)) {
-            if (s->u.port.input->flags & NET_F_EFFECTIVE)
-               return nexus_driving(s->u.port.input);
+         if (likely(s0->u.port.conv_func == NULL)) {
+            if (s0->u.port.input->flags & NET_F_EFFECTIVE)
+               return nexus_driving(s0->u.port.input);
             else
-               return nexus_effective(s->u.port.input);
+               return nexus_effective(s0->u.port.input);
          }
          else
-            return convert_driving(s->u.port.conv_func)
+            return convert_driving(s0->u.port.conv_func)
                + n->signal->offset + n->offset;
 
-      case SOURCE_FORCING:
-      case SOURCE_DEPOSIT:
-         // An undriven signal that was previously forced
-         assert(s->disconnected);
-         return nexus_driving(n);
+      default:
+         return NULL;
       }
-
-      return NULL;
    }
    else {
-      // If S is a resolved signal and has one or more sources, then the
-      // driving values of the sources of S are examined.
-
-      int nonnull = 0, released = 0;
-      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
-         if (!s->disconnected)
-            nonnull++;
-         else if (s->tag == SOURCE_FORCING)
-            released++;
-      }
-
-      // If S is of signal kind register and all the sources of S have
-      // values determined by the null transaction, then the driving
-      // value of S is unchanged from its previous value.
-      if (nonnull == 0 && (n->signal->shared.flags & SIG_F_REGISTER))
-         return nexus_effective(n);
-      else if (nonnull == 0 && released == n->n_sources)
-         return nexus_driving(n);
-
       // Otherwise, the driving value of S is obtained by executing the
       // resolution function associated with S
-      return call_resolution(n, r, nonnull);
+      return call_resolution(n, r, nonnull, s0);
    }
 }
 
@@ -3342,6 +3332,7 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       copy_value_ptr(n, &(src->u.pseudo.value), vptr);
+      src->disconnected = 0;
 
       if (!src->pseudoqueued) {
          deltaq_insert_pseudo_source(m, src);
@@ -3395,13 +3386,12 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
       copy_value_ptr(n, &(src->u.pseudo.value), vptr);
+      src->disconnected = 0;
 
       if (!src->pseudoqueued) {
          deltaq_insert_pseudo_source(m, src);
          src->pseudoqueued = 1;
       }
-
-      n->flags |= NET_F_DEPOSIT;
 
       vptr += n->width * n->size;
    }
