@@ -997,3 +997,4 @@ issue903        cover=branch,gold
 issue904        normal,psl,wave
 issue906        cover=toggle,gold
 implicit7       normal
+issue908        normal,2008

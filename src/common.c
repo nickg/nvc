@@ -1804,7 +1804,19 @@ static bool is_static(tree_t expr)
          case ATTR_LAST_VALUE:
          case ATTR_DRIVING:
          case ATTR_DRIVING_VALUE:
+         case ATTR_STABLE:
+         case ATTR_QUIET:
             return false;
+         case ATTR_POS:
+         case ATTR_VAL:
+         case ATTR_LEFTOF:
+         case ATTR_RIGHTOF:
+         case ATTR_SUCC:
+         case ATTR_PRED:
+         case ATTR_VALUE:
+         case ATTR_IMAGE:
+            assert(tree_params(expr) == 1);
+            return is_static(tree_value(tree_param(expr, 0)));
          default:
             return true;
          }

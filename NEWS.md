@@ -24,6 +24,8 @@
 - The `NVC_CONCURRENT_JOBS` environment variable can be used to scale
   the number of worker threads NVC creates based on the number of
   concurrently executing simulations.
+- Fixed a crash when certain attributes such as `'val` are used in the
+  target of a signal assignment statement (#908).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
