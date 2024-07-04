@@ -964,6 +964,7 @@ const char *vcode_op_string(vcode_op_t op)
       "reflect subtype", "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
+      "map transaction",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1325,17 +1326,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_MAP_CONST:
-            {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" to ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[2]);
-            }
-            break;
-
          case VCODE_OP_MAP_SIGNAL:
+         case VCODE_OP_MAP_TRANSACTION:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -4868,6 +4860,21 @@ void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
                 "dst argument to map const is not a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument type to map const is not offset");
+}
+
+void emit_map_transaction(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_MAP_TRANSACTION);
+   vcode_add_arg(op, src);
+   vcode_add_arg(op, dst);
+   vcode_add_arg(op, count);
+
+   VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
+                "src argument to map transaction is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
+                "dst argument to map transaction is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument type to transaction is not offset");
 }
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)

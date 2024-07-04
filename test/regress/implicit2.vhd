@@ -12,6 +12,7 @@ begin
     begin
         t0 := x'transaction;
         report bit'image(t0);
+        assert t0 = '1';
         wait for 1 ns;
         t1 := x'transaction;
         report bit'image(t1);

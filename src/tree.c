@@ -251,7 +251,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT | I_TYPE),
 
    // T_IMPLICIT_SIGNAL
-   (I_IDENT | I_TYPE | I_SUBKIND | I_VALUE | I_FLAGS | I_TRIGGERS),
+   (I_IDENT | I_TYPE | I_SUBKIND | I_VALUE | I_FLAGS),
 
    // T_DISCONNECT
    (I_IDENT | I_REF | I_TYPE | I_DELAY),

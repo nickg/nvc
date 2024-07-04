@@ -2784,6 +2784,23 @@ static void irgen_op_map_const(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_MAP_CONST);
 }
 
+static void irgen_op_map_transaction(jit_irgen_t *g, int op)
+{
+   jit_value_t src_ss  = irgen_get_arg(g, op, 0);
+   jit_value_t src_off = jit_value_from_reg(jit_value_as_reg(src_ss) + 1);
+   jit_value_t dst_ss  = irgen_get_arg(g, op, 1);
+   jit_value_t dst_off = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
+   jit_value_t count   = irgen_get_arg(g, op, 2);
+
+   j_send(g, 0, src_ss);
+   j_send(g, 1, src_off);
+   j_send(g, 2, dst_ss);
+   j_send(g, 3, dst_off);
+   j_send(g, 4, count);
+
+   macro_exit(g, JIT_EXIT_MAP_TRANSACTION);
+}
+
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
 {
    jit_value_t shared  = irgen_get_arg(g, op, 0);
@@ -3771,6 +3788,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_MAP_CONST:
          irgen_op_map_const(g, i);
+         break;
+      case VCODE_OP_MAP_TRANSACTION:
+         irgen_op_map_transaction(g, i);
          break;
       case VCODE_OP_RESOLVE_SIGNAL:
          irgen_op_resolve_signal(g, i);

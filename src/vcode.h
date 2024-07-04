@@ -168,6 +168,7 @@ typedef enum {
    VCODE_OP_CMP_TRIGGER,
    VCODE_OP_INSTANCE_NAME,
    VCODE_OP_DEPOSIT_SIGNAL,
+   VCODE_OP_MAP_TRANSACTION,
 } vcode_op_t;
 
 typedef enum {
@@ -491,6 +492,7 @@ vcode_reg_t emit_link_package(ident_t name);
 vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
+void emit_map_transaction(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
                           vcode_reg_t count, vcode_reg_t reject,

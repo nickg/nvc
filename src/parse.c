@@ -2166,7 +2166,7 @@ static void implicit_signal_attribute(tree_t aref)
 
    tree_t imp = tree_new(T_IMPLICIT_SIGNAL);
    tree_set_ident(imp, id);
-   tree_set_loc(imp, CURRENT_LOC);
+   tree_set_loc(imp, tree_loc(aref));
 
    switch (attr) {
    case ATTR_DELAYED:
@@ -2183,21 +2183,9 @@ static void implicit_signal_attribute(tree_t aref)
       break;
 
    case ATTR_TRANSACTION:
-      {
-         type_t std_bit = std_type(NULL, STD_BIT);
-         tree_set_type(imp, std_bit);
-
-         tree_t not = tree_new(T_FCALL);
-         tree_set_ident(not, ident_new("\"not\""));
-         tree_set_loc(not, CURRENT_LOC);
-         add_param(not, make_ref(imp), P_POS, NULL);
-
-         solve_types(nametab, not, std_bit);
-
-         tree_set_subkind(imp, IMPLICIT_TRANSACTION);
-         tree_add_trigger(imp, prefix);
-         tree_set_value(imp, not);
-      }
+      tree_set_type(imp, std_type(NULL, STD_BIT));
+      tree_set_subkind(imp, IMPLICIT_TRANSACTION);
+      tree_set_value(imp, prefix);
       break;
 
    default:

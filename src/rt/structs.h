@@ -107,6 +107,7 @@ typedef enum {
    SOURCE_PORT,
    SOURCE_FORCING,
    SOURCE_DEPOSIT,
+   SOURCE_TRANSACTION,
 } source_kind_t;
 
 typedef struct {
@@ -129,8 +130,8 @@ typedef struct {
 } rt_conv_func_t;
 
 typedef struct {
-   rt_nexus_t     *input;
    rt_nexus_t     *output;
+   rt_nexus_t     *input;
    rt_conv_func_t *conv_func;
 } rt_port_t;
 
@@ -138,6 +139,9 @@ typedef struct {
    rt_nexus_t *nexus;
    rt_value_t  value;
 } rt_pseudo_t;
+
+// The recursive call to update_driving relies on this
+STATIC_ASSERT(offsetof(rt_pseudo_t, nexus) == offsetof(rt_port_t, output));
 
 typedef struct _rt_source {
    rt_source_t    *chain_input;

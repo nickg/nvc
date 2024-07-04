@@ -529,6 +529,21 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_MAP_TRANSACTION:
+      {
+         if (!jit_has_runtime(thread->jit))
+            return;   // Called during constant folding
+
+         sig_shared_t  *src_ss     = args[0].pointer;
+         uint32_t       src_offset = args[1].integer;
+         sig_shared_t  *dst_ss     = args[2].pointer;
+         uint32_t       dst_offset = args[3].integer;
+         uint32_t       count      = args[4].integer;
+
+         x_map_transaction(src_ss, src_offset, dst_ss, dst_offset, count);
+      }
+      break;
+
    case JIT_EXIT_SCHED_PROCESS:
       {
          if (!jit_has_runtime(thread->jit))

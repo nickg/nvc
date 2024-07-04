@@ -8095,6 +8095,25 @@ static void lower_build_wait_cb(tree_t expr, void *ctx)
                            VCODE_INVALID_REG, lower_build_wait_field_cb, param);
 }
 
+static void lower_transaction_field_cb(lower_unit_t *lu, tree_t field,
+                                       vcode_reg_t ptr, vcode_reg_t value,
+                                       vcode_reg_t locus, void *ctx)
+{
+   vcode_reg_t sig_reg = (intptr_t)ctx;
+   type_t ftype = tree_type(field);
+
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+
+      emit_map_transaction(data_reg, sig_reg, count_reg);
+   }
+   else
+      lower_for_each_field(lu, ftype, ptr, VCODE_INVALID_REG,
+                           locus, lower_transaction_field_cb, ctx);
+}
+
 static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 {
    ident_t name = tree_ident(decl);
@@ -8219,45 +8238,33 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
    case IMPLICIT_TRANSACTION:
       {
-
-         vcode_state_t state;
-         vcode_state_save(&state);
-
-         tree_t expr = tree_value(decl);
-         object_t *obj = tree_to_object(expr);
-         ident_t func = ident_prefix(parent->name, name, '.');
-         vcode_unit_t vu = emit_function(func, obj, parent->vunit);
-         vcode_set_result(vtype);
-
-         vcode_type_t vcontext = vtype_context(parent->name);
-         emit_param(vcontext, vcontext, ident_new("context"));
-
-         lower_unit_t *lu = lower_unit_new(parent->registry, parent,
-                                           vu, NULL, NULL);
-         unit_registry_put(parent->registry, lu);
-
-         emit_return(lower_rvalue(lu, expr));
-
-         unit_registry_finalise(parent->registry, lu);
-
-         vcode_state_restore(&state);
-
-         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
-         vcode_reg_t context_reg = lower_context_for_call(parent, func);
-         vcode_reg_t closure =
-            emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
-         vcode_reg_t kind_reg =
-            emit_const(vtype_offset(), IMPLICIT_TRANSACTION);
-         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
-                                                kind_reg, closure);
-         emit_store(sig, var);
 
-         assert(tree_triggers(decl) == 1);
-         tree_t trigger = tree_trigger(decl, 0);
+         vcode_type_t voffset = vtype_offset();
+         vcode_reg_t one_reg = emit_const(voffset, 1);
+         vcode_reg_t init_reg = emit_const(vtype, 0);
+         vcode_reg_t flags_reg = emit_const(voffset, 0);
 
-         wait_param_t param = { parent, sig };
-         build_wait(trigger, lower_build_wait_cb, &param);
+         vcode_reg_t sig_reg = emit_init_signal(vtype, one_reg, one_reg,
+                                                init_reg, flags_reg, locus,
+                                                VCODE_INVALID_REG);
+         emit_store(sig_reg, var);
+
+         tree_t prefix = tree_value(decl);
+         type_t type = tree_type(prefix);
+
+         vcode_reg_t prefix_reg = lower_attr_prefix(parent, prefix);
+
+         if (type_is_homogeneous(type)) {
+            vcode_reg_t count_reg = lower_type_width(parent, type, prefix_reg);
+            vcode_reg_t nets_reg = lower_array_data(prefix_reg);
+
+            emit_map_transaction(nets_reg, sig_reg, count_reg);
+         }
+         else
+            lower_for_each_field(parent, type, prefix_reg, VCODE_INVALID_REG,
+                                 locus, lower_transaction_field_cb,
+                                 (void *)(intptr_t)sig_reg);
       }
       break;
    }

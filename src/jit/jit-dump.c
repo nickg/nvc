@@ -89,6 +89,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "REFLECT_SUBTYPE", "FUNCTION_TRIGGER", "ADD_TRIGGER", "TRANSFER_SIGNAL",
       "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
       "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL",
+      "MAP_TRANSACTION",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

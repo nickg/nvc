@@ -640,6 +640,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 
       case SOURCE_FORCING:
       case SOURCE_DEPOSIT:
+      case SOURCE_TRANSACTION:
          break;
       }
    }
@@ -1230,12 +1231,16 @@ static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
       return cmp_bytes(a.ext, b.ext, valuesz);
 }
 
+static inline bool is_pseudo_source(source_kind_t kind)
+{
+   return kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT
+      || kind == SOURCE_TRANSACTION;
+}
+
 static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
 {
-   if (n->signal->resolution != NULL)
+   if (n->signal->resolution != NULL || is_pseudo_source(kind))
       return;
-   else if (kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT)
-      return;   // Pseudo-source
 
    diag_t *d;
    if (n->signal->parent->kind == SCOPE_SIGNAL) {
@@ -1340,6 +1345,7 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
 
    case SOURCE_DEPOSIT:
    case SOURCE_FORCING:
+   case SOURCE_TRANSACTION:
       src->u.pseudo.nexus = n;
       src->u.pseudo.value = alloc_value(m, n);
       break;
@@ -1587,6 +1593,9 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       split_value(nexus, &(new->u.pseudo.value), &(old->u.pseudo.value),
                   offset);
       assert(!old->pseudoqueued);   // TODO
+      break;
+
+   case SOURCE_TRANSACTION:
       break;
    }
 }
@@ -1853,6 +1862,9 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
    case SOURCE_DEPOSIT:
       assert(src->disconnected);
       return NULL;
+
+   case SOURCE_TRANSACTION:
+      return NULL;
    }
 
    return NULL;
@@ -1954,7 +1966,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
 static rt_source_t *get_pseudo_source(rt_model_t *m, rt_nexus_t *n,
                                       source_kind_t kind)
 {
-   assert(kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT);
+   assert(is_pseudo_source(kind));
 
    if (n->n_sources > 0) {
       for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
@@ -1997,6 +2009,12 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
          s->disconnected = 1;
          return value_ptr(n, &(s->u.pseudo.value));
       }
+      else if (unlikely(s->tag == SOURCE_TRANSACTION)) {
+         // At least one of the inputs is active so toggle the value of
+         // the implicit 'TRANSACTION signal
+         s->u.pseudo.value.bytes[0] = *(uint8_t *)nexus_effective(n) ^ 1;
+         return s->u.pseudo.value.bytes;
+      }
       else if (s0 == NULL)
          s0 = s;
       nonnull++;
@@ -2008,11 +2026,10 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
       // value of S is unchanged from its previous value.
       if (n->signal->shared.flags & SIG_F_REGISTER)
          return nexus_effective(n);
-      else if (n->signal->resolution == NULL || n->sources.tag == SOURCE_FORCING
-               || n->sources.tag == SOURCE_DEPOSIT)
+      else if (r == NULL || is_pseudo_source(n->sources.tag))
          return nexus_driving(n);
       else
-         return call_resolution(n, n->signal->resolution, nonnull, s0);
+         return call_resolution(n, r, nonnull, s0);
    }
    else if (r == NULL) {
       switch (s0->tag) {
@@ -2901,7 +2918,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 
       if (update_outputs) {
          for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            assert(o->tag == SOURCE_PORT);
+            assert(o->tag == SOURCE_PORT || o->tag == SOURCE_TRANSACTION);
             update_driving(m, o->u.port.output, false);
          }
       }
@@ -4058,6 +4075,39 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
 
       count -= n->width;
       assert(count >= 0);
+   }
+}
+
+void x_map_transaction(sig_shared_t *src_ss, uint32_t src_offset,
+                       sig_shared_t *dst_ss, uint32_t dst_offset,
+                       uint32_t count)
+{
+   rt_signal_t *src_s = container_of(src_ss, rt_signal_t, shared);
+   RT_LOCK(src_s->lock);
+
+   rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
+   RT_LOCK(dst_s->lock);
+
+   TRACE("map transaction %s+%d to %s+%d count %d",
+         istr(tree_ident(src_s->where)), src_offset,
+         istr(tree_ident(dst_s->where)), dst_offset, count);
+
+   assert(src_s != dst_s);
+   assert(dst_offset == 0);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, src_s, src_offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t *src = add_source(m, &(dst_s->nexus), SOURCE_TRANSACTION);
+      src->u.port.input = n;
+
+      src->chain_output = n->outputs;
+      n->outputs = src;
+
+      n->flags |= NET_F_EFFECTIVE;   // Update outputs when active
    }
 }
 

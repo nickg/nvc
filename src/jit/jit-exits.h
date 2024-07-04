@@ -67,6 +67,9 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
                   sig_shared_t *dst_ss, uint32_t dst_offset, uint32_t count);
 void x_map_const(sig_shared_t *ss, uint32_t offset,
                  const uint8_t *values, uint32_t count);
+void x_map_transaction(sig_shared_t *src_ss, uint32_t src_offset,
+                       sig_shared_t *dst_ss, uint32_t dst_offset,
+                       uint32_t count);
 void x_push_scope(tree_t where, int32_t size);
 void x_pop_scope(void);
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count);
