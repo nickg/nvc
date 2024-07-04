@@ -791,14 +791,20 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       fwidth = 3;
    else {
       for (int n = line_max; n > 0; n /= 10, fwidth++)
-      ;
+         ;
    }
 
-   if (linebuf == NULL)
+   if (!d->source)
       goto other_files;
 
    color_fprintf(f, "%*s$blue$  > $$", fwidth, "");
    diag_emit_loc(&loc0, f);
+
+   if (linebuf == NULL) {
+      color_fprintf(f, "\n");
+      d->source = false;   // Cannot get original source code
+      goto other_files;
+   }
 
    color_fprintf(f, "\n%*s " GUTTER_STYLE " |$$\n", fwidth, "");
    need_gap = true;
@@ -884,7 +890,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
  other_files:
    for (int i = 0; i < d->hints.count; i++) {
       diag_hint_t *hint = &(d->hints.items[i]);
-      if (hint->loc.file_ref == loc0.file_ref && fwidth > 0)
+      if (hint->loc.file_ref == loc0.file_ref && d->source)
          continue;   // Printed above
       else if (hint->text == NULL)
          continue;

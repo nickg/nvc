@@ -1,0 +1,8 @@
+Warning: omitting hierarchy WORK.TOP.UUT._P0._S0 from the coverage report as the correpsonding source file could not be found
+> sub.vhd:8
+      statement:     100.0 % (1/1)
+      branch:        N.A.
+      toggle:        N.A.
+      expression:    N.A.
+      FSM state:     N.A.
+      functional:    N.A.

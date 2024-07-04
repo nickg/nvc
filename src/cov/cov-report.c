@@ -18,6 +18,7 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "hash.h"
 #include "ident.h"
 #include "lib.h"
 #include "option.h"
@@ -73,14 +74,13 @@ typedef struct {
    int          alloc_excl;
 } cover_chain_t;
 
-struct _cover_file {
+typedef struct {
    const char   *name;
    cover_line_t *lines;
    unsigned      n_lines;
    unsigned      alloc_lines;
    bool          valid;
-   cover_file_t *next;
-};
+} cover_file_t;
 
 struct _cover_report_ctx {
    cover_data_t         *data;
@@ -111,8 +111,6 @@ typedef enum {
    ctx->name.alloc_miss = 1024;                                         \
    ctx->name.alloc_excl = 1024;                                         \
 
-static cover_file_t  *files;
-
 #define COV_RPT_TITLE "NVC code coverage report"
 
 static void cover_report_children(cover_report_ctx_t *ctx,
@@ -135,56 +133,60 @@ static void cover_append_line(cover_file_t *f, const char *buf)
    l->len  = strlen(buf);
 }
 
-static cover_file_t *cover_file(const loc_t *loc)
+static cover_file_t *cover_file_for_scope(cover_scope_t *s)
 {
-   if (loc_invalid_p(loc))
+   if (loc_invalid_p(&(s->loc)))
       return NULL;
 
-   cover_file_t *f;
-   for (f = files; f != NULL; f = f->next) {
-      // Comparing pointers directly here is OK since only one copy
-      // of the file name string will be created by tree_read
-      if (f->name == loc_file_str(loc))
-         return f->valid ? f : NULL;
-   }
+   static shash_t *files = NULL;
+
+   if (files == NULL)
+      files = shash_new(64);
+
+   const char *name = loc_file_str(&(s->loc));
+   cover_file_t *f = shash_get(files, name);
+
+   if (f != NULL)
+      return f->valid ? f : NULL;
 
    f = xmalloc(sizeof(cover_file_t));
-   f->name        = loc_file_str(loc);
+   f->name        = name;
    f->n_lines     = 0;
    f->alloc_lines = 1024;
    f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
-   f->next        = files;
+   f->valid       = false;
 
-   FILE *fp = fopen(loc_file_str(loc), "r");
+   shash_put(files, name, f);
+
+   FILE *fp = fopen(name, "r");
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
-      char *path LOCAL =
-         xasprintf("%s/../%s", lib_path(lib_work()), loc_file_str(loc));
+      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), name);
       fp = fopen(path, "r");
    }
 
    if (fp == NULL) {
-      warnf("failed to open %s for coverage report", loc_file_str(loc));
-      f->valid = false;
-   }
-   else {
-      f->valid = true;
-
-      while (!feof(fp)) {
-         char buf[1024];
-         if (fgets(buf, sizeof(buf), fp) != NULL)
-            cover_append_line(f, buf);
-         else if (ferror(fp))
-            fatal("error reading %s", loc_file_str(loc));
-      }
-
-      fclose(fp);
+      warn_at(&(s->loc), "omitting hierarchy %s from the coverage report as "
+              "the correpsonding source file could not be found",
+              istr(s->hier));
+      return NULL;
    }
 
-   return (files = f);
+   f->valid = true;
+
+   while (!feof(fp)) {
+      char buf[1024];
+      if (fgets(buf, sizeof(buf), fp) != NULL)
+         cover_append_line(f, buf);
+      else if (ferror(fp))
+         fatal("error reading %s", name);
+   }
+
+   fclose(fp);
+
+   return f;
 }
-
 
 static void cover_print_html_header(FILE *f)
 {
@@ -321,7 +323,7 @@ static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx,
    fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    fprintf(f, "</h2>\n\n");
 
-   cover_file_t *src = cover_file(&(s->loc));
+   cover_file_t *src = cover_file_for_scope(s);
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    if (src != NULL)
       fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
@@ -508,8 +510,11 @@ static void cover_print_single_code_line(FILE *f, loc_t loc, cover_line_t *line)
 {
    assert(loc.line_delta == 0);
 
-   int curr_char = 0;
-   while (curr_char < strlen(line->text)) {
+   if (line->text == NULL)
+      return;
+
+   const size_t len = strlen(line->text);
+   for (int curr_char = 0; curr_char < len; curr_char++) {
 
       // Highlight code location
       if (curr_char == loc.first_column)
@@ -520,8 +525,6 @@ static void cover_print_single_code_line(FILE *f, loc_t loc, cover_line_t *line)
       // Finish code highlight
       if (curr_char == (loc.first_column + loc.column_delta))
          fprintf(f, "</code>");
-
-      curr_char++;
    }
 }
 
@@ -1182,11 +1185,10 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
       cover_item_t *item = &(s->items.items[i]);
 
       loc_t *loc = &(item->loc);
-      cover_file_t *f_src = cover_file(loc);
+      assert(loc->file_ref == s->loc.file_ref);
+
+      cover_file_t *f_src = cover_file_for_scope(s);
       if (f_src == NULL) {
-         warnf("Could not locate source file: %s that NVC used to collect "
-               "coverage for: %s. Dropping coverage for this hierarchy/item "
-               "from coverage report." , loc_file_str(loc), istr(s->hier));
          continue;
       }
 
