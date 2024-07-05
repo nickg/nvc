@@ -3753,7 +3753,6 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
    assert(ident_walk_selected(&unit_name) == NULL);
    ident_t b = ident_walk_selected(&id);
 
-   tree_t decl = NULL;
    while (id != NULL) {
       tree_t next = NULL;
       const int nstmts = tree_stmts(unit);
@@ -3778,7 +3777,17 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
       b = ident_walk_selected(&id);
    }
 
-   if ((decl = search_decls(unit, b, 0)) == NULL)
+   tree_t decl = NULL;
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (is_type_decl(d) && tree_type(d) == base) {
+         decl = d;
+         break;
+      }
+   }
+
+   if (decl == NULL)
       fatal_trace("cannot find type declaration for %s", type_pp(type));
 
 #ifdef DEBUG
