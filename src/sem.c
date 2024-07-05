@@ -1103,7 +1103,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
 
    if (type_is_protected(type)) {
       ident_t typeid = ident_rfrom(type_ident(type), '.');
-      tree_t pt = get_local_object(tab, typeid, type);
+      tree_t pt = get_local_decl(tab, NULL, typeid, 0);
       if (pt != NULL && tree_kind(pt) == T_PROT_DECL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "cannot declare instance of protected type %s "
@@ -1551,7 +1551,13 @@ static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
    if (kind == T_PACKAGE || kind == T_PROT_DECL)
       return;   // Should be in body
 
-   tree_t body = get_local_object(tab, tree_ident(t), tree_type(t));
+   type_t type = tree_type(t);
+   tree_t body = NULL;
+   int nth = 0;
+   do {
+      body = get_local_decl(tab, NULL, tree_ident(t), nth++);
+   } while (body != NULL && !type_eq(tree_type(body), type));
+
    if (body == NULL || !is_body(body)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
       diag_printf(d, "missing body for ");
@@ -1562,7 +1568,6 @@ static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
       default: break;
       }
 
-      type_t type = tree_type(t);
       diag_printf(d, "%s", type_pp(type));
       diag_suppress(d, type_has_error(type));
 
@@ -2237,7 +2242,7 @@ static bool sem_check_missing_bodies(tree_t secondary, nametab_t *tab)
          break;
       case T_CONST_DECL:
          if (!tree_has_value(d)) {
-            tree_t d2 = get_local_object(tab, tree_ident(d), tree_type(d));
+            tree_t d2 = get_local_decl(tab, NULL, tree_ident(d), 0);
             if (d2 == NULL || !tree_has_value(d2))
                sem_error(d, "deferred constant %s was not given a value in the "
                          "package body", istr(tree_ident(d)));

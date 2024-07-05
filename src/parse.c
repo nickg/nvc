@@ -1195,14 +1195,15 @@ static void declare_predefined_ops(tree_t container, type_t t)
    switch (kind) {
    case T_FILE:
       {
-         tree_t read_mode = search_decls(std, ident_new("READ_MODE"), 0);
-         assert(read_mode != NULL);
-
          ident_t file_open_i  = ident_new("FILE_OPEN");
          ident_t file_close_i = ident_new("FILE_CLOSE");
          ident_t read_i       = ident_new("READ");
          ident_t write_i      = ident_new("WRITE");
          ident_t endfile_i    = ident_new("ENDFILE");
+         ident_t read_mode_i  = ident_new("READ_MODE");
+
+         tree_t read_mode = get_local_decl(nametab, std, read_mode_i, 0);
+         assert(read_mode != NULL);
 
          type_t open_kind   = std_type(NULL, STD_FILE_OPEN_KIND);
          type_t open_status = std_type(NULL, STD_FILE_OPEN_STATUS);
@@ -1255,7 +1256,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
             type_t origin_kind = std_type(NULL, STD_FILE_ORIGIN_KIND);
             type_t open_state = std_type(NULL, STD_FILE_OPEN_STATE);
 
-            tree_t origin_begin = search_decls(std, begin_i, 0);
+            tree_t origin_begin = get_local_decl(nametab, std, begin_i, 0);
             assert(origin_begin != NULL);
 
             tree_t file_open3 = builtin_fn(file_open_i, open_status,
@@ -1480,7 +1481,7 @@ static void declare_additional_standard_operators(tree_t unit)
    declare_alias(unit, d5, ident_new("TO_OCTAL_STRING"));
 
    tree_t d6;
-   for (int n = 0; (d6 = search_decls(unit, to_string, n)); n++) {
+   for (int n = 0; (d6 = get_local_decl(nametab, NULL, to_string, n)); n++) {
       if (type_eq(tree_type(tree_port(d6, 0)), std_bit_vec))
          break;
    }
@@ -2155,7 +2156,7 @@ static void implicit_signal_attribute(tree_t aref)
    if (ref == prefix && (delay == NULL || const_delay)) {
       id = ident_new(tb_get(tb));
 
-      tree_t exist = search_decls(b, id, 0);
+      tree_t exist = get_local_decl(nametab, NULL, id, 0);
       if (exist != NULL) {
          tree_set_value(aref, make_ref(exist));
          return;
@@ -2193,6 +2194,7 @@ static void implicit_signal_attribute(tree_t aref)
    }
 
    tree_add_decl(b, imp);
+   insert_name(nametab, imp, NULL);
 
    tree_set_value(aref, make_ref(imp));
 }
@@ -2442,7 +2444,7 @@ static tree_t find_subprogram_body(tree_t decl)
 
    type_t type = tree_type(decl);
    ident_t id = tree_ident(decl);
-   for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
+   for (int nth = 0; (d = get_local_decl(nametab, pack_body, id, nth)); nth++) {
       if (is_subprogram(d) && is_body(d) && type_eq(tree_type(d), type))
          return d;
    }
@@ -7363,7 +7365,7 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
       solve_types(nametab, *name, std_type(NULL, STD_STRING));
 
       if (*mode == NULL) {
-         tree_t decl = search_decls(find_std(nametab), mode_name, 0);
+         tree_t decl = get_local_decl(nametab, find_std(nametab), mode_name, 0);
          *mode = make_ref(decl);
       }
    }

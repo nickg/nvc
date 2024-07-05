@@ -1197,19 +1197,23 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    return NULL;
 }
 
-tree_t get_local_object(nametab_t *tab, ident_t name, type_t type)
+tree_t get_local_decl(nametab_t *tab, tree_t container, ident_t name, int nth)
 {
-   const symbol_t *sym = hash_get(tab->top_scope->lookup, name);
+   scope_t *scope;
+   if (container == NULL || container == tab->top_scope->container)
+      scope = tab->top_scope;
+   else
+      scope = private_scope_for(tab, container);
+
+   const symbol_t *sym = hash_get(scope->lookup, name);
    if (sym == NULL)
       return NULL;
 
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
-      if (dd->origin != tab->top_scope || dd->visibility == HIDDEN)
+      if (dd->origin != scope || dd->visibility == HIDDEN)
          continue;
-
-      type_t dtype = get_type_or_null(dd->tree);
-      if (type != NULL && type_eq(type, dtype))
+      else if (nth-- == 0)
          return dd->tree;
    }
 
