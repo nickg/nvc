@@ -623,6 +623,8 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
 
    const int nports = vlog_ports(mc->module);
    const int nparams = vlog_params(inst);
+   const int outports = tree_ports(ctx->out);
+   const int outdecls = tree_decls(ctx->out);
 
    if (nports != nparams) {
       error_at(vlog_loc(inst), "expected %d port connections for module %s "
@@ -635,7 +637,27 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
       vlog_node_t conn = vlog_param(inst, i);
       assert(vlog_kind(conn) == V_REF);
 
-      tree_t decl = search_decls(ctx->out, vlog_ident(conn), 0);
+      ident_t id = vlog_ident(conn);
+      tree_t decl = NULL;
+
+      for (int j = 0; j < outports; j++) {
+         tree_t p = tree_port(ctx->out, j);
+         if (tree_ident(p) == id) {
+            decl = p;
+            break;
+         }
+      }
+
+      if (decl == NULL) {
+         for (int j = 0; j < outdecls; j++) {
+            tree_t d = tree_decl(ctx->out, j);
+            if (tree_ident(d) == id) {
+               decl = d;
+               break;
+            }
+         }
+      }
+
       assert(decl != NULL);
 
       tree_t port = tree_port(mc->block, i);
@@ -2358,8 +2380,16 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
          }
       }
 
-      if (next == NULL)
-         next = search_decls(where, id, 0);
+      if (next == NULL) {
+         const int ndecls = tree_decls(where);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(where, i);
+            if (tree_ident(d) == id) {
+               next = d;
+               break;
+            }
+         }
+      }
 
       if (next == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));

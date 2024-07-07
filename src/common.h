@@ -68,7 +68,6 @@ bool is_body(tree_t t);
 bool is_uninstantiated_package(tree_t pack);
 bool is_uninstantiated_subprogram(tree_t decl);
 bool is_anonymous_subtype(type_t type);
-tree_t search_decls(tree_t container, ident_t name, int nth);
 bool is_open_coded_builtin(subprogram_kind_t kind);
 bool attribute_has_param(attr_kind_t attr);
 tree_t name_to_ref(tree_t name);

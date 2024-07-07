@@ -1221,65 +1221,6 @@ bool package_needs_body(tree_t pack)
    return false;
 }
 
-tree_t search_decls(tree_t container, ident_t name, int nth)
-{
-   tree_kind_t kind = tree_kind(container);
-   if (kind == T_LIBRARY) {
-      if (nth == 0) {
-         lib_t lib = lib_require(tree_ident(container));
-         return lib_get(lib, name);
-      }
-      else
-         return NULL;
-   }
-   else if (kind == T_ENTITY || kind == T_BLOCK) {
-      const int nports = tree_ports(container);
-      for (int i = 0; i < nports; i++) {
-         tree_t p = tree_port(container, i);
-         if (tree_ident(p) == name && nth-- == 0)
-            return p;
-      }
-   }
-   else if (!is_container(container))
-      return NULL;
-
-   // TODO: how to improve this?
-   const int ndecls = tree_decls(container);
-   tree_t best = NULL;
-
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-      if (!tree_has_ident(d))
-         continue;
-      else if (tree_ident(d) == name) {
-         if (tree_kind(d) == T_TYPE_DECL
-             && type_kind(tree_type(d)) == T_INCOMPLETE)
-            best = d;
-         else if (nth-- == 0)
-            return d;
-      }
-      else if (tree_kind(d) == T_TYPE_DECL) {
-         type_t type = tree_type(d);
-         switch (type_kind(type)) {
-         case T_ENUM:
-            {
-               const int nlits = type_enum_literals(type);
-               for (int j = 0; j < nlits; j++) {
-                  tree_t lit = type_enum_literal(type, j);
-                  if (tree_ident(lit) == name && nth-- == 0)
-                     return lit;
-               }
-            }
-            break;
-         default:
-            break;
-         }
-      }
-   }
-
-   return best;
-}
-
 static tree_t cached_unit(tree_t hint, tree_t *cache, well_known_t lib_name,
                           well_known_t unit_name)
 {
@@ -1303,6 +1244,19 @@ static tree_t cached_std(tree_t hint)
 {
    static tree_t standard_cache[STD_19 + 1] = {};
    return cached_unit(hint, standard_cache, W_STD, W_STD_STANDARD);
+}
+
+static tree_t search_type_decls(tree_t container, ident_t name)
+{
+   const int ndecls = tree_decls(container);
+
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
+      if (is_type_decl(d) && tree_ident(d) == name)
+         return d;
+   }
+
+   return NULL;
 }
 
 type_t std_type(tree_t std, std_type_t which)
@@ -1329,7 +1283,7 @@ type_t std_type(tree_t std, std_type_t which)
          "FILE_OPEN_STATE",
       };
 
-      tree_t d = search_decls(cached_std(std), ident_new(names[which]), 0);
+      tree_t d = search_type_decls(cached_std(std), ident_new(names[which]));
       if (d == NULL)
          fatal_trace("cannot find standard type %s", names[which]);
 
@@ -1361,7 +1315,7 @@ type_t ieee_type(ieee_type_t which)
       static tree_t ieee_cache[STD_19 + 1] = {};
       tree_t unit = cached_unit(NULL, ieee_cache, W_IEEE, W_IEEE_1164);
 
-      tree_t d = search_decls(unit, ident_new(names[which]), 0);
+      tree_t d = search_type_decls(unit, ident_new(names[which]));
       if (d == NULL)
          fatal_trace("cannot find IEEE type %s", names[which]);
 
@@ -1396,7 +1350,7 @@ type_t verilog_type(verilog_type_t which)
          "T_RESOLVED_NET_ARRAY",
       };
 
-      tree_t d = search_decls(cached_verilog(), ident_new(names[which]), 0);
+      tree_t d = search_type_decls(cached_verilog(), ident_new(names[which]));
       if (d == NULL)
          fatal_trace("cannot find NVC.VERILOG type %s", names[which]);
 
@@ -1423,7 +1377,7 @@ type_t reflection_type(reflect_type_t which)
       static tree_t reflect_cache[STD_19 + 1] = {};
       tree_t unit = cached_unit(NULL, reflect_cache, W_STD, W_STD_REFLECTION);
 
-      tree_t d = search_decls(unit, ident_new(names[which]), 0);
+      tree_t d = search_type_decls(unit, ident_new(names[which]));
       if (d == NULL)
          fatal_trace("cannot find REFLECTION type %s", names[which]);
 
