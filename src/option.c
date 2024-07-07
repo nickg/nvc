@@ -58,12 +58,12 @@ static void opt_set_generic(opt_name_t name, option_kind_t kind,
    o->kind  = kind;
 }
 
-static optval_t opt_get_generic(opt_name_t name, option_kind_t kind)
+static inline optval_t opt_get_generic(opt_name_t name, option_kind_t kind)
 {
    assert(name < OPT_LAST_NAME);
 
    const option_t *o = &(options[name]);
-   if (o->kind == kind)
+   if (likely(o->kind == kind))
       return o->value;
    else if (o->kind == OPT_KIND_UNDEF)
       fatal_trace("initial value for option %d not set", name);

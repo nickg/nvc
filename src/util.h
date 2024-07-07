@@ -210,11 +210,11 @@ void notef(const char *fmt, ...)
 void debugf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2), noreturn));
+   __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
 void fatal_trace(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2), noreturn));
+   __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
 void fatal_errno(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2), noreturn));
+   __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
 
 const char *last_os_error(void);
 
