@@ -1350,6 +1350,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
 
       cover_file_t *f_src = cover_file_for_scope(s);
       if (f_src == NULL) {
+         i += 1;
          continue;
       }
 

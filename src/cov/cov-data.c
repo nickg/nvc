@@ -276,8 +276,10 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    else
       flags |= COV_FLAG_TOGGLE_PORT;
 
-   if (!type_is_array(type))
+   if (type_is_scalar(type))
       return cover_add_toggle_items_single_bit(data, where, NULL, flags);
+   else if (type_is_unconstrained(type))
+      return -1;   // Not yet supported
 
    int t_dims = dimension_of(type);
    tree_t r = range_of(type, t_dims - curr_dim);
