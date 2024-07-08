@@ -26,6 +26,7 @@
   concurrently executing simulations.
 - Fixed a crash when certain attributes such as `'val` are used in the
   target of a signal assignment statement (#908).
+- Signals in packages are now dumped to the FST file (#901).
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.

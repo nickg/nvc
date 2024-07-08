@@ -665,7 +665,7 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
    else
       fputc('-', gtkw->file);
 
-   if (scope->parent->kind == SCOPE_ROOT) {
+   if (scope->kind == SCOPE_INSTANCE && scope->parent->kind == SCOPE_ROOT) {
       // Do not emit the root scope label
    }
    else if (scope->kind == kind) {
@@ -676,7 +676,7 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
    }
 
    if (leaf)
-      fprintf(gtkw->file, "%c\n", kind == SCOPE_INSTANCE ? '/' : ':');
+      fprintf(gtkw->file, "%c\n", kind == SCOPE_SIGNAL ? ':' : '/');
 
    gtkw->end_of_record = false;
 }
@@ -810,12 +810,11 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
    }
 }
 
-static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
+static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
+                            text_buf_t *tb)
 {
-   const tree_kind_t scope_kind = tree_subkind(h);
-
    enum fstScopeType st;
-   switch (scope_kind) {
+   switch (tree_kind(unit)) {
    case T_ARCH: st = FST_ST_VHDL_ARCHITECTURE; break;
    case T_BLOCK: st = FST_ST_VHDL_BLOCK; break;
    case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
@@ -824,30 +823,41 @@ static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
    case T_COMPONENT: st = FST_ST_VHDL_ARCHITECTURE; break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
-      warn_at(tree_loc(h), "no FST scope type for %s",
-              tree_kind_str(scope_kind));
+      warn_at(tree_loc(unit), "no FST scope type for %s",
+              tree_kind_str(tree_kind(unit)));
       break;
    }
 
-   const loc_t *loc = tree_loc(h);
+   const loc_t *loc = tree_loc(unit);
    fstWriterSetSourceStem(wd->fst_ctx, loc_file_str(loc), loc->first_line, 1);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, tree_ident(block));
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(scope->where));
    tb_downcase(tb);
 
    // TODO: store the component name in T_HIER somehow?
    fstWriterSetScope(wd->fst_ctx, st, tb_get(tb), "");
 
    if (wd->gtkw != NULL) {
-      if (tb_len(wd->gtkw->hier) > 0)
+      if (scope->kind == SCOPE_INSTANCE && tb_len(wd->gtkw->hier) > 0)
          tb_append(wd->gtkw->hier, '.');
       tb_cat(wd->gtkw->hier, tb_get(tb));
 
-      rt_scope_t *scope = find_scope(wd->model, block);
-      gtkw_print_scope_comment(wd->gtkw, scope, SCOPE_INSTANCE, tb, true);
+      gtkw_print_scope_comment(wd->gtkw, scope, scope->kind, tb, true);
 
       wd->gtkw->colour = (wd->gtkw->colour % 7) + 1;
+   }
+}
+
+static void fst_leave_scope(wave_dumper_t *wd)
+{
+   fstWriterSetUpscope(wd->fst_ctx);
+
+   if (wd->gtkw != NULL) {
+      const char *h = tb_get(wd->gtkw->hier);
+      const char *prev = strrchr(h, '.');
+      if (prev != NULL)
+         tb_trim(wd->gtkw->hier, prev - h);
    }
 }
 
@@ -855,25 +865,29 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
 {
    tree_t h = tree_decl(block, 0);
    assert(tree_kind(h) == T_HIER);
-   fst_process_hier(wd, h, block);
 
    ident_t hinst = tree_ident(h);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   instance_name_to_path(tb, istr(hinst));
+
+   ident_t hpath = ident_new(tb_get(tb));
+
+   rt_scope_t *scope = find_scope(wd->model, block);
+   if (scope == NULL)
+      fatal_trace("missing scope for %s", istr(hinst));
+
+   fst_enter_scope(wd, tree_ref(h), scope, tb);
 
    if (tree_subkind(h) == T_COMPONENT && tree_stmts(block) > 0) {
       // Skip over implicit block statement created for component
       // instantiation
       block = tree_stmt(block, 0);
       assert(tree_kind(block) == T_BLOCK);
+
+      assert(scope->children.count == 1);
+      scope = scope->children.items[0];
    }
-
-   rt_scope_t *scope = find_scope(wd->model, block);
-   if (scope == NULL)
-      fatal_trace("missing scope for %s", istr(hinst));
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   instance_name_to_path(tb, istr(hinst));
-
-   ident_t hpath = ident_new(tb_get(tb));
 
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
@@ -910,13 +924,35 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       }
    }
 
-   fstWriterSetUpscope(wd->fst_ctx);
+   fst_leave_scope(wd);
+}
 
-   if (wd->gtkw != NULL) {
-      const char *h = tb_get(wd->gtkw->hier);
-      const char *prev = strrchr(h, '.');
-      if (prev != NULL)
-         tb_trim(wd->gtkw->hier, prev - h);
+static void fst_walk_packages(wave_dumper_t *wd)
+{
+   rt_scope_t *root = root_scope(wd->model);
+   assert(root != NULL);
+   assert(root->kind == SCOPE_ROOT);
+
+   if (wd->gtkw != NULL)
+      tb_rewind(wd->gtkw->hier);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   for (int i = 0; i < root->children.count; i++) {
+      rt_scope_t *s = root->children.items[i];
+      if (s->kind != SCOPE_PACKAGE)
+         continue;
+
+      fst_enter_scope(wd, s->where, s, tb);
+
+      const int ndecls = tree_decls(s->where);
+      for (int j = 0; j < ndecls; j++) {
+         tree_t d = tree_decl(s->where, j);
+         if (tree_kind(d) == T_SIGNAL_DECL)
+            fst_process_signal(wd, s, d, tree_type(d), tb);
+      }
+
+      fst_leave_scope(wd);
    }
 }
 
@@ -927,6 +963,7 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
    wd->jit       = jit;
 
    fst_walk_design(wd, tree_stmt(wd->top, 0));
+   fst_walk_packages(wd);
 
    if (wd->gtkw != NULL) {
       fclose(wd->gtkw->file);

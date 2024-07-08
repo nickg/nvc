@@ -999,3 +999,4 @@ issue906        cover=toggle,gold
 implicit7       normal
 issue908        normal,2008
 issue909        shell,gold
+issue901        wave

@@ -1,5 +1,6 @@
 $comment wave3.sub_i.x[7:0] is aliased to x[7:0] $end
 $comment wave3.sub_i.y[7:0] is aliased to y[7:0] $end
+#0 work.p.s 1
 #0 wave3.gen(3).g 10000000000000000000000000000000
 #0 wave3.gen(2).g 10000000000000000000000000000000
 #0 wave3.gen(1).g 10000000000000000000000000000000

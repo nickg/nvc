@@ -817,6 +817,11 @@ rt_scope_t *find_scope(rt_model_t *m, tree_t container)
    return hash_get(m->scopes, container);
 }
 
+rt_scope_t *root_scope(rt_model_t *m)
+{
+   return m->root;
+}
+
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl)
 {
    for (int i = 0; i < scope->children.count; i++) {
