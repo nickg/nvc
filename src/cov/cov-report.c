@@ -1183,9 +1183,7 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
 {
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = &(s->items.items[i]);
-
-      loc_t *loc = &(item->loc);
-      assert(loc->file_ref == s->loc.file_ref);
+      assert(item->loc.file_ref == s->loc.file_ref);
 
       cover_file_t *f_src = cover_file_for_scope(s);
       if (f_src == NULL) {
