@@ -442,7 +442,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
    if (parent != NULL) {
       s->parent = parent;
       s->name = ident_prefix(parent->name, tree_ident(block), '.');
-      list_add(&parent->children, s);
+      APUSH(parent->children, s);
    }
    else
       s->name = tree_ident(block);
@@ -687,10 +687,9 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    }
    list_free(&scope->properties);
 
-   list_foreach(rt_scope_t *, it, scope->children) {
-      cleanup_scope(m, it);
-   }
-   list_free(&scope->children);
+   for (int i = 0; i < scope->children.count; i++)
+      cleanup_scope(m, scope->children.items[i]);
+   ACLEAR(scope->children);
 
    mptr_free(m->mspace, &(scope->privdata));
    free(scope);
@@ -820,7 +819,8 @@ rt_scope_t *find_scope(rt_model_t *m, tree_t container)
 
 rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl)
 {
-   list_foreach(rt_scope_t *, s, scope->children) {
+   for (int i = 0; i < scope->children.count; i++) {
+      rt_scope_t *s = scope->children.items[i];
       if (s->where == decl)
          return s;
    }
@@ -830,7 +830,7 @@ rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl)
 
 rt_scope_t *child_scope_at(rt_scope_t *scope, int index)
 {
-   return (rt_scope_t *)scope->children->items[index];
+   return AGET(scope->children, index);
 }
 
 const void *signal_value(rt_signal_t *s)
@@ -1050,8 +1050,8 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       thread->active_scope = NULL;
    }
 
-   list_foreach(rt_scope_t *, c, s->children)
-      reset_scope(m, c);
+   for (int i = 0; i < s->children.count; i++)
+      reset_scope(m, s->children.items[i]);
 
    list_foreach(rt_proc_t *, p, s->procs)
       reset_process(m, p);
@@ -1778,8 +1778,8 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
       }
    }
 
-   list_foreach(rt_scope_t *, s, scope->children)
-      copy_sub_signal_sources(s, buf, stride);
+   for (int i = 0; i < scope->children.count; i++)
+      copy_sub_signal_sources(scope->children.items[i], buf, stride);
 }
 
 static void *convert_driving(rt_conv_func_t *cf)
@@ -2244,7 +2244,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
 
 static void dump_signals(rt_model_t *m, rt_scope_t *scope)
 {
-   if (scope->signals == NULL && list_size(scope->children) == 0)
+   if (scope->signals == NULL && scope->children.count == 0)
       return;
 
    if (scope->kind != SCOPE_SIGNAL && scope->kind != SCOPE_ROOT) {
@@ -2264,12 +2264,14 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
    for (list_iter(rt_alias_t *, a, scope->aliases))
       dump_one_signal(m, scope, a->signal, a->where);
 
-   for (list_iter(rt_scope_t *, c, scope->children)) {
+   for (int i = 0; i < scope->children.count; i++) {
+      rt_scope_t *c = scope->children.items[i];
       if (c->kind == SCOPE_SIGNAL)
          dump_signals(m, c);
    }
 
-   for (list_iter(rt_scope_t *, c, scope->children)) {
+   for (int i = 0; i < scope->children.count; i++) {
+      rt_scope_t *c = scope->children.items[i];
       if (c->kind != SCOPE_SIGNAL)
          dump_signals(m, c);
    }
@@ -4149,8 +4151,8 @@ void x_pop_scope(void)
    TRACE("pop scope %s", istr(tree_ident(pop->where)));
 
    int offset = INT_MAX;
-   list_foreach(rt_scope_t *, s, pop->children)
-      offset = MIN(offset, s->offset);
+   for (int i = 0; i < pop->children.count; i++)
+      offset = MIN(offset, pop->children.items[i]->offset);
    list_foreach(rt_signal_t *, s, pop->signals)
       offset = MIN(offset, s->offset);
    pop->offset = offset;
@@ -4160,7 +4162,7 @@ void x_pop_scope(void)
    if (pop->kind == SCOPE_PACKAGE)
       pop->parent = m->root;   // Always attach packages to root scope
 
-   list_add(&pop->parent->children, pop);
+   APUSH(pop->parent->children, pop);
 }
 
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count)

@@ -732,7 +732,7 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    const int stride = count / length;
 
    for (int i = start, index = MIN(msb, lsb); i < start + count; i += stride) {
-      rt_scope_t *sub = list_get(scope->children, i);
+      rt_scope_t *sub = AGET(scope->children, i);
 
       char suffix[64];
       checked_sprintf(suffix, sizeof(suffix), "%s[%d]", prefix, index++);
@@ -804,10 +804,9 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
    }
    else if (opt_get_int(OPT_DUMP_ARRAYS)) {
       rt_scope_t *sub = child_scope(scope, d);
-      if (sub != NULL) {  // NULL means signal was optimised out
-         const int subscopes = list_size(sub->children);
-         fst_create_record_array_var(wd, d, sub, type, 0, 0, subscopes, "", tb);
-      }
+      if (sub != NULL)   // NULL means signal was optimised out
+         fst_create_record_array_var(wd, d, sub, type, 0, 0,
+                                     sub->children.count, "", tb);
    }
 }
 

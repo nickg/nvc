@@ -19,6 +19,7 @@
 #define _RT_STRUCTS_H
 
 #include "prim.h"
+#include "array.h"
 #include "mask.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
@@ -27,6 +28,7 @@
 #include "thread.h"
 
 typedef void *(*value_fn_t)(rt_nexus_t *);
+typedef A(rt_scope_t *) scope_list_t;
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER,
@@ -260,7 +262,7 @@ typedef struct _rt_scope {
    tree_t           where;
    mptr_t           privdata;
    rt_scope_t      *parent;
-   ptr_list_t       children;
+   scope_list_t     children;
 } rt_scope_t;
 
 typedef struct _rt_watch {

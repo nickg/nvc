@@ -283,8 +283,8 @@ static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
                                         shell_event_cb, ss, true);
    }
 
-   for (list_iter(rt_scope_t *, child, scope->children))
-      recreate_objects(sh, child, sptr, rptr);
+   for (int i = 0; i < scope->children.count; i++)
+      recreate_objects(sh, scope->children.items[i], sptr, rptr);
 }
 
 const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
@@ -1342,8 +1342,8 @@ static void count_objects(rt_scope_t *scope, unsigned *nsignals,
    *nsignals += list_size(scope->signals) + list_size(scope->aliases);
    *nregions += 1;
 
-   list_foreach(rt_scope_t *, child, scope->children)
-      count_objects(child, nsignals, nregions);
+   for (int i = 0; i < scope->children.count;i ++)
+      count_objects(scope->children.items[i], nsignals, nregions);
 }
 
 static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
@@ -1388,9 +1388,9 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
       hash_put(sh->namemap, ss->obj.path, &(ss->obj));
    }
 
-   list_foreach(rt_scope_t *, child, scope->children) {
+   for (int i = 0; i < scope->children.count; i++) {
+      rt_scope_t *child = scope->children.items[i];
       ident_t name = ident_downcase(tree_ident(child->where));
-
       tb_istr(path, name);
       tb_append(path, '/');
       recurse_objects(sh, child, path, sptr, rptr);
