@@ -5371,6 +5371,13 @@ static tree_t p_interface_function_specification(void)
 
    BEGIN("interface function specification");
 
+   bool impure = false;
+   switch (peek()) {
+   case tPURE: consume(tPURE); break;
+   case tIMPURE: consume(tIMPURE); impure = true; break;
+   default: break;
+   }
+
    consume(tFUNCTION);
 
    ident_t id = p_designator();
@@ -5383,6 +5390,9 @@ static tree_t p_interface_function_specification(void)
    tree_set_ident(d, id);
    tree_set_type(d, type);
    tree_set_subkind(d, PORT_IN);
+
+   if (impure)
+      tree_set_flag(d, TREE_F_IMPURE);
 
    if (optional(tLPAREN)) {
       push_scope(nametab);
@@ -5475,7 +5485,16 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
    if (optional(tIS)) {
       switch (peek()) {
       case tID:
-         p_identifier();
+         {
+            ident_t id = p_identifier();
+
+            tree_t box = tree_new(T_BOX);
+            tree_set_loc(box, &last_loc);
+            tree_set_type(box, tree_type(d));
+            tree_set_ident(box, id);
+
+            tree_set_value(d, box);
+         }
          break;
       case tBOX:
          {
@@ -5611,6 +5630,8 @@ static void p_interface_declaration(tree_t parent, tree_kind_t kind,
 
    case tFUNCTION:
    case tPROCEDURE:
+   case tPURE:
+   case tIMPURE:
       p_interface_subprogram_declaration(parent, kind);
       break;
 
@@ -5627,7 +5648,7 @@ static void p_interface_declaration(tree_t parent, tree_kind_t kind,
 
    default:
       expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID, tTYPE,
-             STD(08, tFUNCTION), tPROCEDURE, tPACKAGE);
+             STD(08, tFUNCTION), tPROCEDURE, tPURE, tIMPURE, tPACKAGE);
    }
 }
 

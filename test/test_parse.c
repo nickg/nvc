@@ -6621,6 +6621,38 @@ START_TEST(test_error13)
 }
 END_TEST
 
+START_TEST(test_issue917)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue917.vhd");
+
+   const error_t expect[] = {
+      { 31, "cannot associate impure function IMPURE_FUNC [INTEGER return "
+        "INTEGER] with pure generic subprogram F1" },
+      { 35, "no visible subprogram ADD matches signature [INTEGER return " },
+      {  0, "while resolving interface subprogram default for F1" },
+      { 42, "no visible subprogram F1 matches signature [INTEGER, INTEGER "
+        "return INTEGER]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6774,6 +6806,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_alias4);
    tcase_add_test(tc_core, test_defer1);
    tcase_add_test(tc_core, test_error13);
+   tcase_add_test(tc_core, test_issue917);
    suite_add_tcase(s, tc_core);
 
    return s;

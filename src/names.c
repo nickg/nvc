@@ -3328,8 +3328,12 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    // Find the actual for the <> "box" default generic subprogram
 
    assert(tree_kind(g) == T_GENERIC_DECL);
+
+   tree_t box = tree_value(g);
+   assert(tree_kind(box) == T_BOX);
+
    type_t type = tree_type(g);
-   ident_t func = type_ident(type);
+   ident_t func = tree_has_ident(box) ? tree_ident(box) : type_ident(type);
 
    tree_t ref = tree_new(T_REF);
    tree_set_loc(ref, tree_loc(inst));
@@ -3341,6 +3345,8 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
       for (int i = 0; i < sym->ndecls; i++) {
          const decl_t *dd = get_decl(sym, i);
          if (dd->visibility == HIDDEN || !(dd->mask & N_SUBPROGRAM))
+            continue;
+         else if (dd->tree == g)
             continue;
 
          type_t signature = tree_type(dd->tree);
@@ -3360,8 +3366,12 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    }
    else if (!tab->top_scope->suppress) {
       const char *signature = strchr(type_pp(type), '[');
-      error_at(tree_loc(ref), "no visible subprogram %s matches "
-               "signature %s", istr(func), signature);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
+      diag_printf(d, "no visible subprogram %s matches signature %s",
+                  istr(func), signature);
+      diag_hint(d, tree_loc(box), "while resolving interface subprogram "
+                "default for %s", istr(type_ident(type)));
+      diag_emit(d);
    }
 
    tree_t map = tree_new(T_PARAM);

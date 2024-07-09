@@ -5113,7 +5113,18 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       if (!tree_has_ref(value))
          return false;
 
-      map_generic_subprogram(tab, decl, tree_ref(value));
+      tree_t sub = tree_ref(value);
+      assert(is_subprogram(sub));
+
+      const bool pure_formal = !(tree_flags(decl) & TREE_F_IMPURE);
+      const bool pure_actual = !(tree_flags(sub) & TREE_F_IMPURE);
+
+      if (pure_formal && !pure_actual)
+         sem_error(value, "cannot associate impure function %s with pure "
+                   "generic subprogram %s", type_pp(tree_type(value)),
+                   istr(tree_ident(decl)));
+
+      map_generic_subprogram(tab, decl, sub);
       break;
 
    case C_CONSTANT:
