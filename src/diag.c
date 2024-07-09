@@ -471,7 +471,7 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
    d->msg      = tb_new();
    d->level    = level;
    d->color    = color_terminal() && consumer_fn == NULL;
-   d->source   = true;
+   d->source   = loc != NULL && !loc_invalid_p(loc);
    d->suppress = false;
    d->prefix   = true;
 
@@ -558,6 +558,8 @@ void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)
             return;
          }
       }
+
+      d->source = true;
    }
 
    diag_hint_t h = {
