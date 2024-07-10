@@ -36,6 +36,7 @@ struct _cover_exclude_ctx {
 // Exclude file
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO: Remove bin passing completely !
 static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
                               const char *bin, ident_t hier)
 {
@@ -84,39 +85,14 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
 
    case COV_ITEM_EXPRESSION:
       {
-         uint32_t allowed = item->flags & COVER_FLAGS_ALL_BINS, bmask = allowed;
-
-         // If bin is not given, exclude all bins of a item
-         if (bin != NULL)
-            bmask = cover_bin_str_to_bmask(bin);
-
-         if (!(bmask & allowed)) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            cover_bmask_to_bin_list(allowed, tb);
-
-            diag_t *d = diag_new(DIAG_FATAL, &ctx->loc);
-            diag_printf(d, "invalid bin: $bold$'%s'$$ for %s: '%s'", bin,
-                           kind_str, istr(item->hier));
-            diag_hint(d, NULL, "valid bins are: %s", tb_get(tb));
-            diag_emit(d);
-
-            fatal_exit(1);
+         if (item->data > 0)
+            warn_at(&ctx->loc, "%s: '%s' already covered!",
+                    kind_str, istr(hier));
+         else {
+            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+            item->flags |= COV_FLAG_EXCLUDED;
          }
 
-         LOCAL_TEXT_BUF tb = tb_new();
-         cover_bmask_to_bin_list(bmask, tb);
-         note_at(&ctx->loc, "excluding %s: '%s' bins: %s", kind_str,
-                 istr(hier), tb_get(tb));
-
-         uint32_t excl_cov = bmask & item->data;
-         if (excl_cov) {
-            tb_rewind(tb);
-            cover_bmask_to_bin_list(excl_cov, tb);
-            warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
-                    kind_str, istr(hier), tb_get(tb));
-         }
-
-         item->excl_msk |= bmask;
          return 1;
       }
 
@@ -154,6 +130,7 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
    return 1;
 }
 
+// TODO: Remove "bin" completely!
 static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
                                const char *excl_hier, const char *bin)
 {
@@ -185,6 +162,7 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
    return match;
 }
 
+// TODO: Remove bin completely !
 void cover_load_exclude_file(const char *path, cover_data_t *data)
 {
    cover_exclude_ctx_t ctx = {};

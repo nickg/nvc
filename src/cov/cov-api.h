@@ -119,9 +119,6 @@ typedef struct _cover_item {
    // Exclude mask - Bit corresponding to a bin excludes it
    int32_t           excl_msk;
 
-   // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
-   int32_t           unrc_msk;
-
    // Location of the item in the source file
    loc_t             loc;
 
@@ -244,16 +241,19 @@ void cover_export_cobertura(cover_data_t *data, FILE *f,
 void cover_push_scope(cover_data_t *data, tree_t t);
 void cover_pop_scope(cover_data_t *data);
 
-unsigned cover_get_std_log_expr_flags(tree_t decl);
-
 // TODO: Replace by unified funtion "cover_add_items" that will return index
 //       of first of / pointer to first added item!
 int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
                                    tree_t where, ident_t prefix, int curr_dim);
-cover_item_t * cover_add_branch_items_for(cover_data_t *data, object_t *obj);
+cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj);
 cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj);
+cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
+                                             subprogram_kind_t builtin);
+cover_item_t *cover_add_logic_expression_items(cover_data_t *data, object_t *obj);
+
 
 cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
-                             cover_item_kind_t kind, uint32_t flags);
+                             cover_item_kind_t kind, uint32_t flags, int consecutive);
+
 
 #endif   // _COV_API_H

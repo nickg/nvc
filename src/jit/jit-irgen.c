@@ -3340,19 +3340,6 @@ static void irgen_op_cover_increment(jit_irgen_t *g, int op)
    macro_sadd(g, JIT_SZ_32, mem, jit_value_from_int64(1));
 }
 
-static void irgen_op_cover_expr(jit_irgen_t *g, int op)
-{
-   jit_value_t mask = irgen_get_arg(g, op, 0);
-
-   uint32_t tag = vcode_get_tag(op);
-   jit_value_t mem = jit_addr_from_cover_tag(tag);
-
-   // XXX: this should be atomic
-   jit_value_t cur = j_load(g, JIT_SZ_32, mem);
-   jit_value_t next = j_or(g, cur, mask);
-   j_store(g, JIT_SZ_32, next, mem);
-}
-
 static void irgen_op_cover_toggle(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -3899,10 +3886,8 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_COVER_STMT:
       case VCODE_OP_COVER_BRANCH:
-         irgen_op_cover_increment(g, i);
-         break;
       case VCODE_OP_COVER_EXPR:
-         irgen_op_cover_expr(g, i);
+         irgen_op_cover_increment(g, i);
          break;
       case VCODE_OP_COVER_TOGGLE:
          irgen_op_cover_toggle(g, i);

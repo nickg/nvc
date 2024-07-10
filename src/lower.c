@@ -1635,7 +1635,7 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
       return;
 
    cover_item_t *item = cover_add_item(lu->cover, tree_to_object(stmt), NULL,
-                                       COV_ITEM_STMT, 0);
+                                       COV_ITEM_STMT, 0, 1);
    if (item != NULL)
       emit_cover_stmt(item->tag);
 }
@@ -1725,20 +1725,6 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
    cover_pop_scope(lu->cover);
 }
 
-static void lower_expression_coverage(lower_unit_t *lu, tree_t fcall,
-                                      unsigned flags, vcode_reg_t mask,
-                                      unsigned unrc_msk)
-{
-   assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
-
-   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(fcall), NULL,
-                                       COV_ITEM_EXPRESSION, flags);
-   if (item != NULL) {
-      emit_cover_expr(mask, item->tag);
-      item->unrc_msk = unrc_msk;
-   }
-}
-
 static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
                                  vcode_reg_t result, vcode_reg_t lhs,
                                  vcode_reg_t rhs, subprogram_kind_t builtin,
@@ -1747,45 +1733,21 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
    if (!cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       return result;
 
-   uint32_t flags = 0;
-   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
+   cover_item_t *first = cover_add_expression_items_for(lu->cover, tree_to_object(fcall),
+                                                        builtin);
 
-   switch (builtin) {
-   case S_SCALAR_AND:
-   case S_SCALAR_NAND:
-      flags = COVER_FLAGS_AND_EXPR;
-      break;
-
-   case S_SCALAR_OR:
-   case S_SCALAR_NOR:
-      flags = COVER_FLAGS_OR_EXPR;
-      break;
-
-   case S_SCALAR_XOR:
-   case S_SCALAR_XNOR:
-      flags = COVER_FLAGS_XOR_EXPR;
-      break;
-
-   case S_SCALAR_EQ:
-   case S_SCALAR_NEQ:
-   case S_SCALAR_LT:
-   case S_SCALAR_GT:
-   case S_SCALAR_LE:
-   case S_SCALAR_GE:
-   case S_SCALAR_NOT:
-      {
-         vcode_reg_t c_true = emit_const(vc_int, COV_FLAG_TRUE);
-         vcode_reg_t c_false = emit_const(vc_int, COV_FLAG_FALSE);
-         vcode_reg_t mask = emit_select(result, c_true, c_false);
-         flags = COV_FLAG_TRUE | COV_FLAG_FALSE;
-         lower_expression_coverage(lu, fcall, flags, mask, unrc_msk);
-      }
-   default:
+   if (first == NULL)
       return result;
-   }
 
-   vcode_reg_t lhs_n = emit_not(lhs);
-   vcode_reg_t rhs_n = emit_not(rhs);
+   cover_item_t *current = first;
+
+   vcode_reg_t lhs_n = VCODE_INVALID_REG;
+   vcode_reg_t rhs_n = VCODE_INVALID_REG;
+
+   if (first->flags & COVER_FLAGS_LHS_RHS_BINS) {
+      lhs_n = emit_not(lhs);
+      rhs_n = emit_not(rhs);
+   }
 
    struct {
       unsigned    flag;
@@ -1798,29 +1760,61 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
       { COV_FLAG_11, lhs,   rhs   },
    };
 
-   // Check LHS/RHS combinations
-   vcode_reg_t zero = emit_const(vc_int, 0);
-   vcode_reg_t mask = emit_const(vc_int, 0);
-   for (int i = 0; i < ARRAY_LEN(bins); i++) {
-      if (flags & bins[i].flag) {
-         vcode_reg_t select = emit_and(bins[i].lhs, bins[i].rhs);
-         vcode_reg_t flag = emit_const(vc_int, bins[i].flag);
-         vcode_reg_t set_bit = emit_select(select, flag, zero);
-         mask = emit_add(mask, set_bit);
-      }
-   }
+   for (int i = 0; i < first->num; i++) {
+      vcode_block_t next_bb = emit_block();
+      vcode_block_t match_bb = emit_block();
 
-   lower_expression_coverage(lu, fcall, flags, mask, unrc_msk);
+      if (unrc_msk & current->flags)
+         current->flags |= COV_FLAG_UNREACHABLE;
+
+      // Unary expressions
+      if (current->flags & COV_FLAG_TRUE || current->flags & COV_FLAG_FALSE) {
+         vcode_reg_t test = (current->flags & COV_FLAG_TRUE) ? result : emit_not(result);
+         emit_cond(test, match_bb, next_bb);
+
+         vcode_select_block(match_bb);
+         emit_cover_expr(current->tag);
+         emit_jump(next_bb);
+
+         vcode_select_block(next_bb);
+      }
+
+      // Binary expressions
+      else {
+         for (int j = 0; j < ARRAY_LEN(bins); j++) {
+            if (current->flags & bins[j].flag) {
+               vcode_reg_t test = emit_and(bins[j].lhs, bins[j].rhs);
+               emit_cond(test, match_bb, next_bb);
+
+               vcode_select_block(match_bb);
+               emit_cover_expr(current->tag);
+               emit_jump(next_bb);
+
+               vcode_select_block(next_bb);
+               break;
+            }
+         }
+      }
+
+      current++;
+   }
 
    return result;
 }
 
-static vcode_reg_t lower_logic_expr_coverage_for(tree_t fcall,
-                                                 vcode_reg_t lhs,
-                                                 vcode_reg_t rhs,
-                                                 unsigned flags)
+static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
+                                      vcode_reg_t *args)
 {
-   // Corresponds to values how std_ulogic enum is translated
+   cover_item_t *first = cover_add_logic_expression_items(lu->cover,
+                                                          tree_to_object(fcall));
+
+   if (first == NULL)
+      return;
+
+   vcode_reg_t lhs = args[1];
+   vcode_reg_t rhs = args[2];
+
+   // Corresponds to how std_ulogic enum is translated
    vcode_type_t vc_logic = vcode_reg_type(lhs);
    vcode_reg_t log_0 = emit_const(vc_logic, 2);
    vcode_reg_t log_1 = emit_const(vc_logic, 3);
@@ -1836,47 +1830,32 @@ static vcode_reg_t lower_logic_expr_coverage_for(tree_t fcall,
       { COV_FLAG_11, log_1, log_1 },
    };
 
-   vcode_type_t vc_int = vtype_int(0, INT32_MAX);
-   vcode_reg_t zero = emit_const(vc_int, 0);
-   vcode_reg_t mask = emit_const(vc_int, 0);
+   cover_item_t *current = first;
+   for (int i = 0; i < first->num; i++) {
+      vcode_block_t next_bb = emit_block();
+      vcode_block_t match_bb = emit_block();
 
-   // Build logic to check combinations of LHS and RHS
-   for (int i = 0; i < ARRAY_LEN(bins); i++) {
-      if (flags & bins[i].flag) {
-         vcode_reg_t cmp_lhs = emit_cmp(VCODE_CMP_EQ, lhs, bins[i].lhs_exp);
-         vcode_reg_t cmp_rhs = emit_cmp(VCODE_CMP_EQ, rhs, bins[i].rhs_exp);
-         vcode_reg_t lhs_rhs_match = emit_and(cmp_lhs, cmp_rhs);
-         vcode_reg_t new_mask = emit_select(lhs_rhs_match,
-                                            emit_const(vc_int, bins[i].flag),
-                                            zero);
-         mask = emit_add(mask, new_mask);
+      // Build logic to check combinations of LHS and RHS
+      for (int j = 0; j < ARRAY_LEN(bins); j++) {
+         if (current->flags & bins[j].flag) {
+            vcode_reg_t cmp_lhs = emit_cmp(VCODE_CMP_EQ, lhs, bins[j].lhs_exp);
+            vcode_reg_t cmp_rhs = emit_cmp(VCODE_CMP_EQ, rhs, bins[j].rhs_exp);
+            vcode_reg_t test = emit_and(cmp_lhs, cmp_rhs);
+
+            emit_cond(test, match_bb, next_bb);
+
+            vcode_select_block(match_bb);
+            emit_cover_expr(current->tag);
+            emit_jump(next_bb);
+
+            vcode_select_block(next_bb);
+         }
       }
+
+      current++;
    }
-
-   return mask;
 }
 
-static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
-                                      tree_t decl, vcode_reg_t *args)
-{
-   unsigned flags = cover_get_std_log_expr_flags(decl);
-   if (!flags)
-      return;
-
-   flags |= COV_FLAG_EXPR_STD_LOGIC;
-
-   if (tree_params(fcall) != 2)
-      return;
-
-   // Skip arrays -> Matches behavior of VCS and Modelsim
-   if (type_is_array(type_param(tree_type(decl), 0)) ||
-       type_is_array(type_param(tree_type(decl), 1)))
-      return;
-
-   vcode_reg_t mask =
-      lower_logic_expr_coverage_for(fcall, args[1], args[2], flags);
-   lower_expression_coverage(lu, fcall, flags, mask, 0);
-}
 
 static bool lower_side_effect_free(tree_t expr)
 {
@@ -2035,7 +2014,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
                       builtin);
    }
 
-   // Automaticaly flag non-executed bins as un-reachable if set so
+   // Automaticaly flag non-executed bins as un-reachable if configured
    unsigned unrc_msk = 0;
    if (cover_enabled(lu->cover, COVER_MASK_EXCLUDE_UNREACHABLE)) {
       if (builtin == S_SCALAR_AND || builtin == S_SCALAR_NAND)
@@ -2045,8 +2024,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
    }
 
    // Only emit expression coverage when also arg1 is evaluated.
-   lower_logical(lu, fcall, emit_load(tmp_var), r0, r1, builtin,
-                 unrc_msk);
+   lower_logical(lu, fcall, emit_load(tmp_var), r0, r1, builtin, unrc_msk);
 
    emit_jump(after_bb);
 
@@ -2497,7 +2475,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    vcode_type_t rbounds = lower_bounds(result);
 
    if (cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
-      lower_logic_expr_coverage(lu, fcall, decl, args.items);
+      lower_logic_expr_coverage(lu, fcall, args.items);
 
    return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
