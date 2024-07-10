@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -113,6 +113,13 @@ unsigned set_error_limit(unsigned limit);
 
 void wrapped_printf(const char *fmt, ...);
 void wrapped_vprintf(const char *fmt, va_list ap);
+
+#define pedantic_diag(loc) ({                          \
+         static int _warned = 0;                       \
+         _pedantic_diag(loc, &_warned, NULL);          \
+      })
+
+diag_t *_pedantic_diag(const loc_t *loc, int *warned, bool *error);
 
 // Accessors for use in unit tests
 const char *diag_get_text(diag_t *d);

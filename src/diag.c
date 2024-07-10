@@ -1205,3 +1205,21 @@ void wrapped_printf(const char *fmt, ...)
 
    va_end(ap);
 }
+
+diag_t *_pedantic_diag(const loc_t *loc, int *warned, bool *error)
+{
+   const bool relaxed = opt_get_int(OPT_RELAXED);
+   if (!relaxed || !*warned) {
+      const diag_level_t level = relaxed ? DIAG_WARN : DIAG_ERROR;
+      diag_t *d = diag_new(level, loc);
+      if (level == DIAG_ERROR)
+         diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
+                   "to a warning");
+
+      *warned = 1;
+      if (error) *error = !relaxed;
+      return d;
+   }
+   else
+      return NULL;
+}

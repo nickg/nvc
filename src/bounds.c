@@ -549,9 +549,11 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
       bounds_fmt_interval(tb, index_type ?: type, dir, tlow, thigh);
    }
 
-   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-   diag_message(d, tb);
-   diag_emit(d);
+   diag_t *d = pedantic_diag(tree_loc(t));
+   if (d != NULL) {
+      diag_message(d, tb);
+      diag_emit(d);
+   }
 }
 
 static void bounds_free_intervals(interval_t **list)
@@ -1178,23 +1180,25 @@ static void bounds_check_array_case(tree_t t, type_t type)
 
    if (have != expect && expect != -1) {
       const loc_t *loc = tree_loc(tree_value(t));
-      diag_t *d = diag_new(DIAG_ERROR, loc);
-      diag_printf(d, "choices cover only %"PRIi64" of ", have);
-      if (expect > 100000)
-         diag_printf(d, "%"PRIi64" ** %"PRIi64, elemsz, length);
-      else
-         diag_printf(d, "%"PRIi64, expect);
-      diag_printf(d, " possible values");
+      diag_t *d = pedantic_diag(loc);
+      if (d != NULL) {
+         diag_printf(d, "choices cover only %"PRIi64" of ", have);
+         if (expect > 100000)
+            diag_printf(d, "%"PRIi64" ** %"PRIi64, elemsz, length);
+         else
+            diag_printf(d, "%"PRIi64, expect);
+         diag_printf(d, " possible values");
 
-      diag_hint(d, loc, "expression has %"PRIi64" elements of type %s, "
-                "each of which has %"PRIi64" possible values",
-                length, type_pp(type_elem(type)), elemsz);
+         diag_hint(d, loc, "expression has %"PRIi64" elements of type %s, "
+                   "each of which has %"PRIi64" possible values",
+                   length, type_pp(type_elem(type)), elemsz);
 
-      if (!known_length)
-         diag_hint(d, NULL, "the case expression subtype is not locally "
-                   "static so the length was derived from the choices");
+         if (!known_length)
+            diag_hint(d, NULL, "the case expression subtype is not locally "
+                      "static so the length was derived from the choices");
 
-      diag_emit(d);
+         diag_emit(d);
+      }
    }
 }
 

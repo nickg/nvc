@@ -57,29 +57,6 @@ static bool sem_check_incomplete(tree_t t, type_t type);
       return false;                                   \
    } while (0)
 
-#define pedantic_diag(t) ({                            \
-         static int _warned = 0;                       \
-         _pedantic_diag(tree_loc(t), &_warned, NULL);  \
-      })
-
-static diag_t *_pedantic_diag(const loc_t *loc, int *warned, bool *error)
-{
-   const bool relaxed = opt_get_int(OPT_RELAXED);
-   if (!relaxed || !*warned) {
-      const diag_level_t level = relaxed ? DIAG_WARN : DIAG_ERROR;
-      diag_t *d = diag_new(level, loc);
-      if (level == DIAG_ERROR)
-         diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
-                   "to a warning");
-
-      *warned = 1;
-      if (error) *error = !relaxed;
-      return d;
-   }
-   else
-      return NULL;
-}
-
 static bool sem_check_resolution(type_t type, tree_t res)
 {
    // Resolution functions are described in LRM 93 section 2.4
@@ -1092,7 +1069,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    // From VHDL-2000 onwards shared variables must be protected types
    if (standard() >= STD_00) {
       if ((tree_flags(t) & TREE_F_SHARED) && !type_is_protected(type)) {
-         diag_t *d = pedantic_diag(t);
+         diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
             diag_printf(d, "shared variable %s must have protected type",
                         istr(tree_ident(t)));
@@ -1226,7 +1203,7 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
       }
 
       if (!sem_globally_static(value)) {
-         diag_t *d = pedantic_diag(value);
+         diag_t *d = pedantic_diag(tree_loc(value));
          if (d != NULL) {
             diag_printf(d, "default value must be a static expression");
             diag_emit(d);
@@ -1647,7 +1624,7 @@ static bool sem_check_protected_method(tree_t t, nametab_t *tab)
       type_t type = tree_type(p);
 
       if (sem_has_access(type)) {
-         diag_t *d = pedantic_diag(p);
+         diag_t *d = pedantic_diag(tree_loc(p));
          if (d != NULL) {
             diag_printf(d, "parameters of protected type methods cannot be of "
                         "an access type or a composite type containing an "
@@ -1664,7 +1641,7 @@ static bool sem_check_protected_method(tree_t t, nametab_t *tab)
          }
       }
       else if (type_is_file(type)) {
-         diag_t *d = pedantic_diag(p);
+         diag_t *d = pedantic_diag(tree_loc(p));
          if (d != NULL) {
             diag_printf(d, "parameters of protected type methods cannot be of "
                         "a file type");
@@ -1679,7 +1656,7 @@ static bool sem_check_protected_method(tree_t t, nametab_t *tab)
    if (tree_kind(t) == T_FUNC_DECL) {
       type_t result = type_result(tree_type(t));
       if (sem_has_access(result) || type_is_file(result)) {
-         diag_t *d = pedantic_diag(t);
+         diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
             diag_printf(d, "return type of a protected type method cannot be "
                         "of a file type, access type, or a composite type with "
@@ -1785,7 +1762,7 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    const bool dmode_explicit = !!(dflags & TREE_F_EXPLICIT_MODE);
 
    if (bmode_explicit != dmode_explicit) {
-      diag_t *d = pedantic_diag(bport);
+      diag_t *d = pedantic_diag(tree_loc(bport));
       if (d != NULL) {
          diag_printf(d, "mode (%s) of %s %s of subprogram %s not defined "
                      "equally in subprogram specification and "
@@ -1822,7 +1799,7 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    const bool dclass_explicit = !!(dflags & TREE_F_EXPLICIT_CLASS);
 
    if (bclass_explicit != dclass_explicit) {
-      diag_t *d = pedantic_diag(bport);
+      diag_t *d = pedantic_diag(tree_loc(bport));
       if (d != NULL) {
          diag_printf(d, "class (%s) of %s %s of subprogram %s not defined "
                      "equally in subprogram specification and "
@@ -2080,7 +2057,7 @@ static void sem_check_static_elab(tree_t t)
             tree_t decl = tree_ref(t);
             id = tree_ident(decl);
             if (tree_has_value(decl) || !type_is_unconstrained(tree_type(decl)))
-               d = pedantic_diag(t);
+               d = pedantic_diag(tree_loc(t));
             else {
                d = diag_new(DIAG_ERROR, tree_loc(t));
                diag_hint(d, NULL, "the $bold$--relaxed$$ option would "
@@ -3227,7 +3204,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       }
 
       if (class == C_SIGNAL && !sem_static_name(value, sem_globally_static)) {
-         diag_t *d = pedantic_diag(value);
+         diag_t *d = pedantic_diag(tree_loc(value));
          if (d != NULL) {
             diag_printf(d, "actual associated with signal parameter %s must be "
                         "denoted by a static signal name",
@@ -3286,7 +3263,7 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
    if ((flags & TREE_F_IMPURE) && (sub = find_enclosing(tab, S_SUBPROGRAM))) {
       // Pure function may not call an impure function
       if (tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE)) {
-         diag_t *d = pedantic_diag(t);
+         diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
             diag_printf(d, "pure function %s cannot call impure function %s",
                         istr(tree_ident(sub)), istr(tree_ident(decl)));
@@ -3376,7 +3353,7 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
                    "a wait statement", istr(tree_ident(sub)),
                    istr(tree_ident(decl)));
       else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func) {
-         diag_t *d = pedantic_diag(t);
+         diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
             diag_printf(d, "pure function %s cannot call procedure %s which "
                         "references a file object", istr(tree_ident(sub)),
@@ -3385,7 +3362,7 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
          }
       }
       else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func) {
-         diag_t *d = pedantic_diag(t);
+         diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
             diag_printf(d, "pure function %s cannot call procedure %s which "
                         "references a shared variable", istr(tree_ident(sub)),
@@ -4170,7 +4147,7 @@ static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
    if (!type_eq(dimtype, uint)) {
       diag_t *d;
       if (type_is_integer(dimtype))
-         d = pedantic_diag(dim);
+         d = pedantic_diag(tree_loc(dim));
       else
          d = diag_new(DIAG_ERROR, tree_loc(dim));
 
@@ -4849,7 +4826,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
       const tree_kind_t name_kind = tree_kind(name);
       if ((name_kind == T_ARRAY_REF || name_kind == T_ARRAY_SLICE)
           && tree_kind(tree_value(p)) == T_OPEN && standard() < STD_19) {
-         diag_t *d = pedantic_diag(p);
+         diag_t *d = pedantic_diag(tree_loc(p));
          if (d != NULL) {
             diag_printf(d, "sub-elements of composite port cannot be "
                         "associated with OPEN");
@@ -6169,7 +6146,7 @@ static bool sem_check_file_decl(tree_t t, nametab_t *tab)
       && !(tree_flags(sub) & TREE_F_IMPURE);
 
    if (in_pure_func) {
-      diag_t *d = pedantic_diag(t);
+      diag_t *d = pedantic_diag(tree_loc(t));
       if (d != NULL) {
          diag_printf(d, "cannot declare a file object in a pure function");
          diag_emit(d);
@@ -6527,7 +6504,7 @@ static bool sem_check_configuration(tree_t t, nametab_t *tab)
    // entity declaration shall reside in the same library
    ident_t elib = ident_until(tree_ident(of), '.');
    if (standard() < STD_19 && elib != lib_name(lib_work())) {
-      diag_t *d = pedantic_diag(t);
+      diag_t *d = pedantic_diag(tree_loc(t));
       if (d != NULL) {
          ident_t ename = ident_rfrom(tree_ident(of), '.');
          diag_printf(d, "configuration declaration %s must reside in the "

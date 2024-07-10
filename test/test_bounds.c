@@ -620,6 +620,7 @@ START_TEST(test_case4)
       {  9, "choices cover only 1 of 256 ** 5 possible values" },
       {  0, "expression has 5 elements of type CHARACTER, each of which "
          "has 256 possible values" },
+      {  0, "the --relaxed option downgrades this to a warning" },
       {  0, "the case expression subtype is not locally static" },
       { 18, "missing choices for elements 2 to 2147483647 of type NATURAL" },
       { 29, "choices cover only 1 of 256 ** 12 possible values" },
