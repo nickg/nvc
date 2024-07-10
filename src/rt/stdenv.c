@@ -520,7 +520,10 @@ void _std_env_dir_open(directory_t *dir, const uint8_t *path_ptr,
    }
 
    char resolved[PATH_MAX];
-   realpath(path, resolved);
+   if (realpath(path, resolved) == NULL) {
+      *status = errno_to_dir_open_status();
+      return;
+   }
 
    const size_t resolvedsz = strlen(resolved);
    size_t memsz = sizeof(ffi_uarray_t)*2 + resolvedsz;
