@@ -1498,7 +1498,7 @@ static int shell_redirect_output(ClientData cd, const char *buf, int nchars,
       (*sh->handler.backchannel_write)(buf, nchars, sh->handler.context);
       break;
    default:
-      fatal_trace("invalid channel number %ld", pointer_tag(cd));
+      fatal_trace("invalid channel number %"PRIiPTR, pointer_tag(cd));
    }
 
    return nchars;

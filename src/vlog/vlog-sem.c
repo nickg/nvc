@@ -314,9 +314,7 @@ static void vlog_check_if(vlog_node_t stmt)
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 {
    const int aranges = vlog_ranges(a);
-   const int branges = vlog_ranges(b);
-
-   assert(aranges == branges);
+   assert(aranges == vlog_ranges(b));
 
    for (int i = 0; i < aranges; i++) {
       vlog_node_t ar = vlog_range(a, i);

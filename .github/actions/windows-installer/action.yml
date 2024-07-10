@@ -50,6 +50,18 @@ runs:
         which candle
         make V=1 msi-installer
         echo "MSI=$(ls *.msi)" >> $GITHUB_ENV
+    - name: Install
+      working-directory: ./build
+      shell: powershell
+      run: |
+        Start-Process msiexec.exe -ArgumentList "/i ${{ env.MSI }} /qn /l* .\msilog.log" -Wait
+        type .\msilog.log
+    - name: Sanity test
+      working-directory: ./build
+      shell: powershell
+      run: |
+        $env:PATH += ";C:\Program Files\NVC\bin\"
+        nvc.exe --version
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
