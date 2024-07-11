@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -277,6 +277,26 @@ START_TEST(test_parse5)
 }
 END_TEST
 
+START_TEST(test_issue910)
+{
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/psl/issue910.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   psl_node_t p0 = tree_psl(tree_stmt(a, 0));
+   fail_unless(psl_kind(p0) == P_COVER);
+   fail_unless(psl_kind(psl_value(p0)) == P_HDL_EXPR);
+
+   psl_node_t p1 = tree_psl(tree_stmt(a, 0));
+   fail_unless(psl_kind(p1) == P_COVER);
+   fail_unless(psl_kind(psl_value(p1)) == P_HDL_EXPR);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_psl_tests(void)
 {
    Suite *s = suite_create("psl");
@@ -288,6 +308,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_parse3);
    tcase_add_test(tc_core, test_parse4);
    tcase_add_test(tc_core, test_parse5);
+   tcase_add_test(tc_core, test_issue910);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -373,7 +373,6 @@ UNION         ?i:union
 {ACCESS}                 { TOKEN(tACCESS); }
 {FILE}                   { TOKEN(tFILE); }
 {OPEN}                   { TOKEN(tOPEN); }
-{UNTIL}                  { TOKEN(tUNTIL); }
 {RECORD}                 { TOKEN(tRECORD); }
 {NEW}                    { TOKEN(tNEW); }
 {SHARED}                 { TOKEN(tSHARED); }
@@ -422,6 +421,7 @@ UNION         ?i:union
 <INITIAL,PSL>{RANGE}     { TOKEN(tRANGE); }
 <INITIAL,PSL>{TO}        { TOKEN(tTO); }
 <INITIAL,PSL>{DOWNTO}    { TOKEN(tDOWNTO); }
+<INITIAL,PSL>{UNTIL}     { TOKEN(tUNTIL); }
 
 <*>"("                   { TOKEN(tLPAREN); }
 <*>")"                   { TOKEN(tRPAREN); }
