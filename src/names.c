@@ -3522,7 +3522,10 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
          continue;
 
       tree_t p = tree_param(call, i);
-      solve_one_param(tab, p, o, false);
+      if (o->error)
+         tree_set_type(tree_value(p), type_new(T_NONE));
+      else
+         solve_one_param(tab, p, o, false);
    }
 }
 

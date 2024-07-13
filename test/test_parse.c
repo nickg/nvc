@@ -3462,7 +3462,6 @@ START_TEST(test_names)
       { 107, "expected procedure name" },
       { 108, "no visible subprogram declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
-      { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
       { 313, "no visible subprogram declaration for FNORK" },

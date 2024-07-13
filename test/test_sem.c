@@ -206,7 +206,6 @@ START_TEST(test_ambiguous)
    const error_t expect[] = {
       {  35, "type of value BAR does not match type of target FOO" },
       {  56, "type of aggregate cannot be determined" },
-      {  56, "type of aggregate cannot be determined" },
       {  86, "ambiguous use of enumeration literal FALSE" },
       {  86, "ambiguous use of enumeration literal FALSE" },
       {  93, "ambiguous use of name NOW" },
@@ -217,7 +216,6 @@ START_TEST(test_ambiguous)
       {   0, "visible declaration of FALSE as BOOLEAN from STD.STANDARD" },
       {   0, "visible declaration of FALSE as FALSE [return INTEGER]" },
       { 141, "ambiguous use of operator \"<\"" },
-      { 222, "type of aggregate cannot be determined" },
       { 222, "type of aggregate cannot be determined" },
       { -1, NULL }
    };
