@@ -19,7 +19,7 @@
 - Decimal physical literals like `8.2 ms` are now correctly rounded (to
   `8200 us` in this case) when they are converted to the base unit
   (#899).
-- External names are now be passed as `signal` actuals to subprograms
+- External names can now be passed as `signal` actuals to subprograms
   (#900).
 - Fixed a crash when branch coverage is enabled and an if-statement
   contains a `return` (#903).
