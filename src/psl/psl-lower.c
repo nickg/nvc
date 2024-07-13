@@ -102,11 +102,19 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
 
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
 
-   if (state->repeating)
+   if (psl_fsm_repeating(fsm))
       emit_enter_state(emit_const(vint32, state->id));
 
-   if (state->accept && psl_kind(fsm->src) == P_COVER)
+   if (state->accept && fsm->kind == FSM_COVER)
       psl_lower_cover(lu, fsm->src, cover);
+   else if (state->accept && fsm->kind == FSM_NEVER) {
+      vcode_reg_t severity_reg = psl_assert_severity();
+      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
+      vcode_reg_t locus = psl_debug_locus(fsm->src);
+      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                  severity_reg, locus, VCODE_INVALID_REG,
+                  VCODE_INVALID_REG);
+   }
 
    vcode_block_t pass_bb = emit_block();
 
@@ -129,7 +137,10 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
 
          vcode_select_block(skip_bb);
 
-         if (e->next == NULL && psl_kind(fsm->src) == P_ASSERT) {
+         const bool exhaustive =
+            fsm->kind == FSM_BARE || fsm->kind == FSM_ALWAYS;
+
+         if (e->next == NULL && exhaustive) {
             vcode_reg_t severity_reg = psl_assert_severity();
             vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
             vcode_reg_t locus = psl_debug_locus(e->guard);

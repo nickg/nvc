@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023 Nick Gasson
+//  Copyright (C) 2023-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -240,6 +240,7 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    psl_fsm_t *fsm = xcalloc(sizeof(psl_fsm_t));
    fsm->tail = &(fsm->states);
    fsm->src  = p;
+   fsm->kind = psl_kind(p) == P_COVER ? FSM_COVER : FSM_BARE;
 
    fsm_state_t *initial = add_state(fsm), *final = initial;
    initial->initial = true;
@@ -247,28 +248,29 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    psl_node_t top = psl_value(p);
 
    switch (psl_kind(top)) {
-   case P_ALWAYS:
-      initial->repeating = true;
+   case P_NEVER:
+      fsm->kind = FSM_NEVER;
       final = build_node(fsm, initial, psl_value(top));
+      final->accept = true;
+      break;
+
+   case P_ALWAYS:
+      fsm->kind = FSM_ALWAYS;
+      final = build_node(fsm, initial, psl_value(top));
+      final->accept = true;
       break;
 
    case P_HDL_EXPR:
    case P_SERE:
       final = build_node(fsm, initial, top);
+      final->accept = true;
       break;
 
    default:
       CANNOT_HANDLE(top);
    }
 
-   if (psl_kind(p) == P_COVER) {
-      // A cover directive starts with an implicit [*]
-      initial->repeating = true;
-   }
-
    DEBUG_ONLY(psl_detect_loops(fsm));
-
-   final->accept = true;
    return fsm;
 }
 
@@ -332,4 +334,10 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
    run_program(args);
 
    debugf("wrote PSL state machine graph to %s.svg", fname);
+}
+
+bool psl_fsm_repeating(psl_fsm_t *fsm)
+{
+   return fsm->kind == FSM_COVER || fsm->kind == FSM_ALWAYS
+      || fsm->kind == FSM_NEVER;
 }

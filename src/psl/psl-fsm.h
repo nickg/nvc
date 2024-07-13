@@ -39,20 +39,24 @@ typedef struct _fsm_state {
    fsm_state_t *next;
    fsm_edge_t  *edges;
    bool         initial;
-   bool         repeating;
    bool         accept;
 } fsm_state_t;
+
+typedef enum {
+   FSM_BARE, FSM_ALWAYS, FSM_NEVER, FSM_COVER
+} fsm_kind_t;
 
 typedef struct {
    fsm_state_t  *states;
    fsm_state_t **tail;
    psl_node_t    src;
    unsigned      next_id;
+   fsm_kind_t    kind;
 } psl_fsm_t;
 
 psl_fsm_t *psl_fsm_new(psl_node_t p);
 void psl_fsm_free(psl_fsm_t *fsm);
 void psl_fsm_dump(psl_fsm_t *fsm, const char *fname);
-unsigned psl_fsm_size(psl_fsm_t *fsm);
+bool psl_fsm_repeating(psl_fsm_t *fsm);
 
 #endif  // _PSL_FSM_H
