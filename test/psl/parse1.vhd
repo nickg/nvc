@@ -31,4 +31,5 @@ begin
     -- psl assert x -> (x until_ y);               -- OK
     -- psl assert x -> (x until! y);               -- OK
     -- psl assert x -> (x until_! y);              -- OK
+    -- psl assert ((x = '1') and (xxxx = '1'));    -- Error (issue #911)
 end architecture;

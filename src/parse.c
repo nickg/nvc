@@ -12031,6 +12031,7 @@ static psl_node_t p_psl_fl_property(void)
             // where we cannot determine ahead-of-time whether (x or y)
             // is a VHDL expression or PSL property
             tree_t expr = p_expression_with_head(psl_tree(p));
+            solve_psl_condition(nametab, expr);
             psl_set_tree(p, expr);
          }
       }

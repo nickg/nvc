@@ -34,6 +34,7 @@ START_TEST(test_parse1)
       { 12, "no visible declaration for E" },
       { 19, "no visible declaration for FFF" },
       { 28, "FOO already declared in this region" },
+      { 34, "no visible declaration for XXXX" },
       { -1, NULL }
    };
    expect_errors(expect);
