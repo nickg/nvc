@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
   configurations (#883).
 - Fixed a crash when a matching `case?` alternative contains multiple
