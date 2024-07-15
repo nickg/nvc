@@ -444,6 +444,7 @@ cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
    case S_SCALAR_LE:
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
+   {
       int first_item_index = -1;
       if (cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, COV_FLAG_FALSE, 2))
          first_item_index = data->top_scope->items.count - 1;
@@ -451,6 +452,7 @@ cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
       cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, COV_FLAG_TRUE, 1);
 
       return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
+   }
 
    case S_SCALAR_XOR:
    case S_SCALAR_XNOR:
