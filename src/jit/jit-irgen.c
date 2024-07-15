@@ -3884,9 +3884,7 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_DRIVING_VALUE:
          irgen_op_driving_value(g, i);
          break;
-      case VCODE_OP_COVER_STMT:
-      case VCODE_OP_COVER_BRANCH:
-      case VCODE_OP_COVER_EXPR:
+      case VCODE_OP_COVER_INCREMENT:
          irgen_op_cover_increment(g, i);
          break;
       case VCODE_OP_COVER_TOGGLE:

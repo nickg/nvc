@@ -153,7 +153,8 @@ typedef enum {
    COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
    COV_FLAG_EXCLUDED       = (1 << 25),
 
-   // TODO: If counter is widened, this needs to be at MSB bit of signed int64
+   // This needs to stay at highest bit of int32_t
+   // Used in run-time data of COV_ITEM_TOGGLE to mark unreachability.
    COV_FLAG_UNREACHABLE    = (1 << 31),
 } cover_flags_t;
 

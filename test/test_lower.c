@@ -316,10 +316,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
-      case VCODE_OP_COVER_BRANCH:
+      case VCODE_OP_COVER_INCREMENT:
       case VCODE_OP_COVER_TOGGLE:
-      case VCODE_OP_COVER_STMT:
-      case VCODE_OP_COVER_EXPR:
          if (e->tag != vcode_get_tag(i)) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have cover tag %d but has %d",
@@ -1942,10 +1940,10 @@ START_TEST(test_cover)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_COVER_STMT, .tag = 0 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
-      { VCODE_OP_COVER_STMT, .tag = 1 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 1 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
@@ -1964,7 +1962,7 @@ START_TEST(test_cover)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_COVER_EXPR, .tag = 2 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 2 },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
@@ -1984,7 +1982,7 @@ START_TEST(test_cover)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
-      { VCODE_OP_COVER_EXPR, .tag = 3 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 3 },
       { VCODE_OP_JUMP, .target = 4 }
    };
 
@@ -1997,7 +1995,7 @@ START_TEST(test_cover)
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
-      { VCODE_OP_COVER_EXPR, .tag = 4 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 4 },
       { VCODE_OP_JUMP, .target = 6 }
    };
 
@@ -2015,7 +2013,7 @@ START_TEST(test_cover)
    CHECK_BB(8);
 
    EXPECT_BB(9) = {
-      { VCODE_OP_COVER_EXPR, .tag = 5 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 5 },
       { VCODE_OP_JUMP, .target = 8 }
    };
 
@@ -2029,7 +2027,7 @@ START_TEST(test_cover)
    CHECK_BB(10);
 
    EXPECT_BB(11) = {
-      { VCODE_OP_COVER_EXPR, .tag = 6 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 6 },
       { VCODE_OP_JUMP, .target = 10 }
    };
 
@@ -2043,7 +2041,7 @@ START_TEST(test_cover)
    CHECK_BB(12);
 
    EXPECT_BB(13) = {
-      { VCODE_OP_COVER_EXPR, .tag = 7 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 7 },
       { VCODE_OP_JUMP, .target = 12 }
    };
 
@@ -2056,15 +2054,15 @@ START_TEST(test_cover)
    CHECK_BB(14);
 
    EXPECT_BB(15) = {
-      { VCODE_OP_COVER_EXPR, .tag = 8 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 8 },
       { VCODE_OP_JUMP, .target = 14 }
    };
 
    CHECK_BB(15);
 
    EXPECT_BB(16) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 9 },
-      { VCODE_OP_COVER_STMT, .tag = 11 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 9 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 11 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_JUMP, .target = 18}
@@ -2079,7 +2077,7 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
-      { VCODE_OP_COVER_STMT, .tag = 12 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 12 },
       { VCODE_OP_WAIT, .target = 19 }
    };
 
@@ -2540,7 +2538,7 @@ START_TEST(test_choice1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 0 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 0 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2557,14 +2555,14 @@ START_TEST(test_choice1)
    CHECK_BB(5);
 
    EXPECT_BB(6) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 1 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 1 },
       { VCODE_OP_JUMP, .target = 5 }
    };
 
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 2 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 2 },
       { VCODE_OP_JUMP, .target = 5 }
    };
 
@@ -2579,14 +2577,14 @@ START_TEST(test_choice1)
    CHECK_BB(8);
 
    EXPECT_BB(9) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 3 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 3 },
       { VCODE_OP_JUMP, .target = 8 }
    };
 
    CHECK_BB(9);
 
    EXPECT_BB(12) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 6 },
+      { VCODE_OP_COVER_INCREMENT, .tag = 6 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }

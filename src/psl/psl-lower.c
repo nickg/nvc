@@ -91,7 +91,7 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
    if (item == NULL)
       return;
 
-   emit_cover_stmt(item->tag);
+   emit_cover_increment(item->tag);
 }
 
 static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
