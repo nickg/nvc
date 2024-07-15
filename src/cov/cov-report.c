@@ -1024,64 +1024,6 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "</script>\n");
 }
 
-// TODO: Remove once all coverage kinds keep run-time data as counters
-static int cover_append_to_chain_legacy(cover_chain_t *chain, cover_item_t *item,
-                                        cover_line_t *line, unsigned hits,
-                                        unsigned misses, unsigned excludes,
-                                        int limit)
-{
-   int rv = 0;
-   if (hits) {
-      if (chain->n_hits <= limit) {
-         if (chain->n_hits == chain->alloc_hits) {
-            chain->alloc_hits *= 2;
-            chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
-                                       sizeof(cover_pair_t));
-         }
-         chain->hits[chain->n_hits].item = item;
-         chain->hits[chain->n_hits].line = line;
-         chain->hits[chain->n_hits].flags = hits;
-         chain->n_hits++;
-      }
-      else
-         rv++;
-   }
-
-   if (misses) {
-      if (chain->n_miss <= limit) {
-         if (chain->n_miss == chain->alloc_miss) {
-            chain->alloc_miss *= 2;
-            chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
-                                       sizeof(cover_pair_t));
-         }
-         chain->miss[chain->n_miss].item = item;
-         chain->miss[chain->n_miss].line = line;
-         chain->miss[chain->n_miss].flags = misses;
-         chain->n_miss++;
-      }
-      else
-         rv++;
-   }
-
-   if (excludes) {
-      if (chain->n_excl <= limit) {
-         if (chain->n_excl == chain->alloc_excl) {
-            chain->alloc_excl *= 2;
-            chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
-                                       sizeof(cover_pair_t));
-         }
-         chain->excl[chain->n_excl].item = item;
-         chain->excl[chain->n_excl].line = line;
-         chain->excl[chain->n_excl].flags = excludes;
-         chain->n_excl++;
-      }
-      else
-         rv++;
-   }
-
-   return rv;
-}
-
 static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
 {
    if ((ctx->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
@@ -1169,6 +1111,13 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       nested_hits = &(ctx->nested_stats.hit_expressions);
       chn = &(ctx->ch_expression);
       break;
+   case COV_ITEM_FUNCTIONAL:
+      flat_total = &(ctx->flat_stats.total_functional);
+      nested_total = &(ctx->nested_stats.total_functional);
+      flat_hits = &(ctx->flat_stats.hit_functional);
+      nested_hits = &(ctx->nested_stats.hit_functional);
+      chn = &(ctx->ch_expression);
+      break;
    default:
       fatal("unsupported type of code coverage: %d at 'cover_append_item_to_chain'!",
              first_item->kind);
@@ -1247,10 +1196,6 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
       }
 
       cover_line_t *line = &(f_src->lines[item->loc.first_line-1]);
-
-      unsigned hits = 0;
-      unsigned misses = 0;
-      unsigned excludes = 0;
       int limit = ctx->data->report_item_limit;
 
       switch (item->kind) {
@@ -1259,23 +1204,8 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
       case COV_ITEM_TOGGLE:
       case COV_ITEM_STATE:
       case COV_ITEM_EXPRESSION:
-         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
-         break;
-
       case COV_ITEM_FUNCTIONAL:
-         (ctx->flat_stats.total_functional)++;
-         (ctx->nested_stats.total_functional)++;
-
-         hits = (item->data != 0);
-         misses = (item->data == 0) && (item->excl_msk == 0);
-         excludes = (item->data == 0) && (item->excl_msk != 0);
-
-         if (hits | excludes) {
-            (ctx->flat_stats.hit_functional)++;
-            (ctx->nested_stats.hit_functional)++;
-         }
-         *skipped += cover_append_to_chain_legacy(&(ctx->ch_functional), item, line,
-                                                  hits, misses, excludes, limit);
+         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
          break;
 
       default:
