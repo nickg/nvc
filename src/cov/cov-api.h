@@ -116,9 +116,6 @@ typedef struct _cover_item {
    // Flags for coverage item
    int32_t           flags;
 
-   // Exclude mask - Bit corresponding to a bin excludes it
-   int32_t           excl_msk;
-
    // Location of the item in the source file
    loc_t             loc;
 

@@ -574,7 +574,6 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       .tag        = data->next_tag++,
       .data       = 0,
       .flags      = flags,
-      .excl_msk   = 0,
       .loc        = *loc,
       .loc_lhs    = loc_lhs,
       .loc_rhs    = loc_rhs,
@@ -922,7 +921,6 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    item->data = read_u32(f);
    item->flags = read_u32(f);
    item->source = fbuf_get_uint(f);
-   item->excl_msk = 0;
 
    loc_read(&(item->loc), loc_rd);
    if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {

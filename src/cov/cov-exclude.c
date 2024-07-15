@@ -67,7 +67,6 @@ static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
       if (item->data)
          warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
 
-      item->excl_msk |= 0xFFFFFFFF;
       return 1;
 
    case COV_ITEM_BRANCH:
