@@ -330,23 +330,24 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
 
 cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj)
 {
-   cover_item_t *item_true = NULL;
    tree_t b = tree_from_object(obj);
 
-   if (tree_kind(b) == T_ASSOC) {
-      if ((item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
-                                      COV_FLAG_CHOICE, 1)) == NULL)
-         return NULL;
-   }
-   else {
-      if ((item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
-                                      COV_FLAG_TRUE, 2)) == NULL)
-         return NULL;
+   // Case choice
+   if (tree_kind(b) == T_ASSOC)
+      return cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                            COV_FLAG_CHOICE, 1);
 
-      cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE, 1);
-   }
+   // If-else
+   cover_item_t *item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                                             COV_FLAG_TRUE, 2);
+   if (item_true == NULL)
+      return NULL;
 
-   return item_true;
+   int first_item_index = data->top_scope->items.count - 1;
+
+   cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE, 1);
+
+   return AREF(data->top_scope->items, first_item_index);
 }
 
 cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj)
