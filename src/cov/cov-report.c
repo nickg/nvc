@@ -752,7 +752,7 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
 
 static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t pkind)
 {
-   cover_pair_t *last_pair = first_pair + first_pair->item->num - 1;
+   cover_pair_t *last_pair = first_pair + first_pair->item->consecutive - 1;
    for (cover_pair_t *pair = first_pair; pair <= last_pair; pair++)
    {
       loc_t loc = pair->item->loc;
@@ -862,7 +862,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
 
          cover_print_bin_header(f, pkind, 2, "From", "To");
          cover_print_bins(f, curr, pkind);
-         step = curr->item->num;
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_EXPRESSION:
@@ -873,7 +873,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
             cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
 
          cover_print_bins(f, curr, pkind);
-         step = curr->item->num;
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_STATE:
@@ -881,7 +881,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          cover_print_bin_header(f, pkind, 1, "State");
          cover_print_bins(f, curr, pkind);
 
-         step = curr->item->num;
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_FUNCTIONAL:
@@ -1059,10 +1059,10 @@ static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
          /* Count consecutive items appended to the one single chain type */     \
          if (first_chn_item == NULL) {                                           \
             first_chn_item = curr_item;                                          \
-            first_chn_item->num = 1;                                             \
+            first_chn_item->consecutive = 1;                                     \
          }                                                                       \
          else                                                                    \
-            first_chn_item->num++;                                               \
+            first_chn_item->consecutive++;                                       \
       } while (0);
 
 
@@ -1124,17 +1124,17 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
    }
 
    // Process all consecutive cover_items in belonging to the same RTL construct
-   // "first_item->num" gives the number of items to process since cover item emit.
+   // "first_item->consecutive" gives the number of items to process since cover item emit.
    // Re-distribute so that this number is valid even if the items are sorted into
-   // "hit", "miss" and "exclude" pair lists. The "num" in the original cover_item will
-   // get corrupted, but "num" for each first item in each of the pair lists will
+   // "hit", "miss" and "exclude" pair lists. The "consecutive" in the original cover_item
+   // will get corrupted, but "consecutive" for each first item in each of the pair lists will
    // correspond to how many items within that given pair list correspond to the
    // same RTL construct. This re-sorting then simplifies coverage reporting.
    cover_item_t *first_hits_item = NULL;
    cover_item_t *first_miss_item = NULL;
    cover_item_t *first_excl_item = NULL;
 
-   int n_steps = first_item->num;
+   int n_steps = first_item->consecutive;
    cover_item_t *last_item = first_item + n_steps - 1;
 
    for (cover_item_t *curr_item = first_item; curr_item <= last_item; curr_item++) {

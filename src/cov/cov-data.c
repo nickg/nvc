@@ -573,25 +573,25 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
       metadata = data->top_scope->sig_pos;
 
    cover_item_t new = {
-      .kind       = kind,
-      .tag        = data->next_tag++,
-      .data       = 0,
-      .flags      = flags,
-      .loc        = *loc,
-      .loc_lhs    = loc_lhs,
-      .loc_rhs    = loc_rhs,
-      .hier       = hier,
-      .func_name  = func_name,
-      .num        = consecutive,
-      .metadata   = metadata,
-      .source     = get_cover_source(kind, obj),
+      .kind          = kind,
+      .tag           = data->next_tag++,
+      .data          = 0,
+      .flags         = flags,
+      .loc           = *loc,
+      .loc_lhs       = loc_lhs,
+      .loc_rhs       = loc_rhs,
+      .hier          = hier,
+      .func_name     = func_name,
+      .consecutive   = consecutive,
+      .metadata      = metadata,
+      .source        = get_cover_source(kind, obj),
    };
 
 #ifdef COVER_DEBUG_EMIT
    printf("Item: %s\n", istr(hier));
    printf("    Kind:          %s\n", cover_item_kind_str(kind));
    printf("    Flags:         0x%x\n", flags);
-   printf("    Consec. num:   %d\n", consecutive);
+   printf("    Consecutive:   %d\n", consecutive);
    printf("    Metadata:      %d\n", metadata);
    printf("    Function name: %s\n", istr(func_name));
    printf("    First line:    %d\n", loc->first_line);
@@ -706,7 +706,7 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
          ident_write(item->func_name, ident_ctx);
 
-      write_u32(item->num, f);
+      write_u32(item->consecutive, f);
       write_u64(item->metadata, f);
    }
 
@@ -935,7 +935,7 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
       item->func_name = ident_read(ident_ctx);
 
-   item->num = read_u32(f);
+   item->consecutive = read_u32(f);
    item->metadata = read_u64(f);
 }
 

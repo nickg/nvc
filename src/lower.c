@@ -1613,7 +1613,7 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
    object_t *obj = tree_to_object(b);
 
    cover_item_t *item = cover_add_branch_items_for(lu->cover, obj);
-   int item_cnt = (item) ? item->num : 0;
+   int item_cnt = (item) ? item->consecutive : 0;
    vcode_block_t blocks[2] = {true_bb, false_bb};
 
    for (int i = 0; i < item_cnt; i++) {
@@ -1760,7 +1760,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
       { COV_FLAG_11, lhs,   rhs   },
    };
 
-   for (int i = 0; i < first->num; i++) {
+   for (int i = 0; i < first->consecutive; i++) {
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
@@ -1831,7 +1831,7 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
    };
 
    cover_item_t *current = first;
-   for (int i = 0; i < first->num; i++) {
+   for (int i = 0; i < first->consecutive; i++) {
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
