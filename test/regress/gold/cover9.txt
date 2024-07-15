@@ -48,11 +48,6 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0'
-   > data/cover9_ef1.txt:5
-   |
- 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
    > data/cover9_ef1.txt:5
    |
@@ -74,11 +69,6 @@
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E3.BIN_1_1'
-   > data/cover9_ef1.txt:5
-   |
- 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -138,17 +128,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0'
-   > data/cover9_ef1.txt:5
-   |
- 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
-   > data/cover9_ef1.txt:5
-   |
- 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*

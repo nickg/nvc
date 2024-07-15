@@ -680,20 +680,12 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    if (add_td)
       fprintf(f, "<td>");
 
-   ident_t hier = item->hier;
    LOCAL_TEXT_BUF tb = tb_new();
 
    // State coverage contains bin name (state name) appended to hierarchical path
-   if (item->kind == COV_ITEM_STATE) {
-      tb_istr(tb, ident_rfrom(hier, '.'));
-      hier = ident_runtil(hier, '.');
-   }
-   else if (flag)
-      cover_bmask_to_bin_list(flag, tb);
-
    bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
-   fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
-           "Copy %sto Clipboard</button>", istr(hier), tb_get(tb),
+   fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
+           "Copy %sto Clipboard</button>", istr(item->hier),
            out_of_table ? "style=\"float: right;\"" : "",
            out_of_table ? "Exclude Command " : "");
 

@@ -36,108 +36,13 @@ struct _cover_exclude_ctx {
 // Exclude file
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: Remove bin passing completely !
-static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
-                              const char *bin, ident_t hier)
-{
-   int kind = item->kind;
-   const char *kind_str = cover_item_kind_str(kind);
-
-   switch (kind) {
-   case COV_ITEM_STMT:
-      if (bin)
-         fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
-                             "was given for %s: '%s'",
-                             kind_str, bin, kind_str, istr(hier));
-
-      note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-      if (item->data)
-         warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
-
-      item->flags |= COV_FLAG_EXCLUDED;
-      return 1;
-
-   case COV_ITEM_FUNCTIONAL:
-      if (bin)
-         fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
-                             "was given for %s: '%s'",
-                             kind_str, bin, kind_str, istr(hier));
-
-      note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-      if (item->data)
-         warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
-
-      return 1;
-
-   case COV_ITEM_BRANCH:
-      {
-         if (item->data > 0)
-            warn_at(&ctx->loc, "%s: '%s' already covered!",
-                    kind_str, istr(hier));
-         else {
-            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-            item->flags |= COV_FLAG_EXCLUDED;
-         }
-
-         return 1;
-      }
-
-   case COV_ITEM_EXPRESSION:
-      {
-         if (item->data > 0)
-            warn_at(&ctx->loc, "%s: '%s' already covered!",
-                    kind_str, istr(hier));
-         else {
-            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-            item->flags |= COV_FLAG_EXCLUDED;
-         }
-
-         return 1;
-      }
-
-   case COV_ITEM_TOGGLE:
-      {
-         if (item->data > 0)
-            warn_at(&ctx->loc, "%s: '%s' already covered!",
-                    kind_str, istr(hier));
-         else {
-            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-            item->flags |= COV_FLAG_EXCLUDED;
-         }
-
-         return 1;
-      }
-
-   case COV_ITEM_STATE:
-      {
-         // TODO: State name extraction can be better here (_STATE) prefix stripped.
-         if (item->data > 0)
-            warn_at(&ctx->loc, "%s: '%s' already covered!",
-                    kind_str, istr(hier));
-         else {
-            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-            item->flags |= COV_FLAG_EXCLUDED;
-         }
-
-         return 1;
-      }
-
-   default:
-      fatal("Unsupported cover item kind: %d", kind);
-   }
-
-   return 1;
-}
-
-// TODO: Remove "bin" completely!
 static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
-                               const char *excl_hier, const char *bin)
+                               const char *excl_hier)
 {
    bool match = false;
    int len = strlen(excl_hier);
-   int step;
 
-   for (int i = 0; i < s->items.count; i += step) {
+   for (int i = 0; i < s->items.count; i += 1) {
       cover_item_t *item = AREF(s->items, i);
       ident_t hier = item->hier;
 
@@ -149,19 +54,25 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
          printf("    Item data:   %x\n", item->data);
 #endif
          match = true;
-         step = cover_exclude_item(ctx, item, bin, hier);
+
+         const char *kind_str = cover_item_kind_str(item->kind);
+
+         if (item->data > 0) {
+            warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
+         }
+         else {
+            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+            item->flags |= COV_FLAG_EXCLUDED;
+         }
       }
-      else
-         step = 1;
    }
 
    for (int i = 0; i < s->children.count; i++)
-      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier, bin);
+      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier);
 
    return match;
 }
 
-// TODO: Remove bin completely !
 void cover_load_exclude_file(const char *path, cover_data_t *data)
 {
    cover_exclude_ctx_t ctx = {};
@@ -189,7 +100,6 @@ void cover_load_exclude_file(const char *path, cover_data_t *data)
       for (char *tok = strtok(ctx.line, delim); tok; tok = strtok(NULL, delim)) {
          if (!strcmp(tok, "exclude")) {
             char *excl_hier = strtok(NULL, delim);
-            char *bin = strtok(NULL, delim);
 
             if (!excl_hier)
                fatal_at(&ctx.loc, "exclude hierarchy missing!");
@@ -200,7 +110,7 @@ void cover_load_exclude_file(const char *path, cover_data_t *data)
                i++;
             }
 
-            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier, bin))
+            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier))
                warn_at(&ctx.loc, "exluded hierarchy does not match any "
                        "coverage item: '%s'", excl_hier);
          }
