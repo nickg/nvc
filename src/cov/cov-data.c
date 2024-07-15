@@ -64,74 +64,6 @@ static bool cover_is_branch(tree_t branch)
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
 }
 
-static bool cover_is_toggle_first(tree_t decl)
-{
-   const tree_kind_t kind = tree_kind(decl);
-   return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
-}
-
-bool cover_skip_array_toggle(cover_data_t *data, int a_size)
-{
-   assert (data);
-
-   // Array is equal to or than configured limit
-   if (data->array_limit != 0 && a_size >= data->array_limit)
-      return true;
-
-   // Array is multi-dimensional or nested
-   if ((!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS)) && data->array_depth > 0)
-      return true;
-
-   return false;
-}
-
-bool cover_skip_type_state(cover_data_t *data, type_t type)
-{
-   if (!type_is_enum(type))
-      return true;
-
-   // Ignore enums from built-in libraries
-   ident_t full_name = type_ident(type);
-   if (ident_starts_with(full_name, well_known(W_STD)) ||
-       ident_starts_with(full_name, well_known(W_IEEE)) ||
-       ident_starts_with(full_name, well_known(W_NVC)) ||
-       ident_starts_with(full_name, well_known(W_VITAL)))
-      return true;
-
-   ident_t name = ident_rfrom(full_name, '.');
-   cover_spec_t *spc = data->spec;
-
-   // Type should be included
-   if (spc) {
-      for (int i = 0; i < spc->fsm_type_include.count; i++)
-         if (ident_glob(name, AGET(spc->fsm_type_include, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-            printf("Cover emit: True, fsm-type (Type: %s, Pattern: %s)\n",
-                  istr(name), AGET(spc->fsm_type_include, i));
-#endif
-            return false;
-         }
-   }
-
-   // By default enums should not included
-   if (data->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
-      return true;
-
-   // Type should not be included
-   if (spc) {
-      for (int i = 0; i < spc->fsm_type_exclude.count; i++)
-         if (ident_glob(name, AGET(spc->fsm_type_exclude, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-            printf("Cover emit: False, fsm-type (Type: %s, Pattern: %s)\n",
-                   istr(name), AGET(spc->fsm_type_exclude, i));
-#endif
-            return true;
-         }
-     }
-
-   return false;
-}
-
 fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 {
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
@@ -201,27 +133,121 @@ const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
    return &(obj->loc);
 }
 
-static int32_t cover_add_toggle_items_single_bit(cover_data_t *data, tree_t where,
-                                                 ident_t suffix, unsigned int flags)
+static int32_t cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
+                              cover_item_kind_t kind, uint32_t flags, int consecutive)
 {
-   assert (where != NULL);
+   // Everything creates scope, so name of current item is already given
+   // by scope in hierarchy.
+   ident_t hier = data->top_scope->hier;
+   if (suffix)
+      hier = ident_prefix(hier, suffix, '\0');
 
-   object_t *owhere = tree_to_object(where);
+   ident_t func_name = NULL;
+   loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
 
-   cover_item_t *first = cover_add_item(data, owhere, suffix, COV_ITEM_TOGGLE,
-                                        flags | COV_FLAG_TOGGLE_TO_1, 2);
-   if (first == NULL)
-      return -1;
+   // Expression items do not nest scope, expression name must be created
+   if (kind == COV_ITEM_EXPRESSION) {
+      char buf[16];
+      checked_sprintf(buf, sizeof(buf), "_E%d", data->top_scope->expression_label);
+      hier = ident_prefix(hier, ident_new(buf), '.');
+      data->top_scope->expression_label++;
 
-   uint32_t first_tag = first->tag;
+      tree_t t = tree_from_object(obj);
+      assert(t != NULL);
 
-   cover_add_item(data, owhere, suffix, COV_ITEM_TOGGLE, flags | COV_FLAG_TOGGLE_TO_0, 1);
+      // Query LHS/RHS operand locations of binary expressions
+      if (flags & COVER_FLAGS_LHS_RHS_BINS) {
+         assert(tree_params(t) > 1);
+         loc_lhs = *tree_loc(tree_param(t, 0));
+         loc_rhs = *tree_loc(tree_param(t, 1));
+      }
 
-   return first_tag;
+      func_name = tree_ident(t);
+   }
+
+   // Append BIN name to the cover item
+   if (kind == COV_ITEM_BRANCH ||kind == COV_ITEM_TOGGLE || kind == COV_ITEM_EXPRESSION)
+      hier = ident_prefix(hier, ident_new(cover_bmask_to_bin_str(flags)), '.');
+
+   int64_t metadata = 0;
+   if (kind == COV_ITEM_TOGGLE)
+      metadata = data->top_scope->sig_pos;
+
+   const loc_t *loc = get_cover_loc(kind, obj);
+
+   cover_item_t new = {
+      .kind          = kind,
+      .tag           = data->next_tag++,
+      .data          = 0,
+      .flags         = flags,
+      .loc           = *loc,
+      .loc_lhs       = loc_lhs,
+      .loc_rhs       = loc_rhs,
+      .hier          = hier,
+      .func_name     = func_name,
+      .consecutive   = consecutive,
+      .metadata      = metadata,
+      .source        = get_cover_source(kind, obj),
+   };
+
+#ifdef COVER_DEBUG_EMIT
+   printf("Item: %s\n", istr(hier));
+   printf("    Kind:          %s\n", cover_item_kind_str(kind));
+   printf("    Flags:         0x%x\n", flags);
+   printf("    Consecutive:   %d\n", consecutive);
+   printf("    Metadata:      %d\n", metadata);
+   printf("    Function name: %s\n", istr(func_name));
+   printf("    First line:    %d\n", loc->first_line);
+   printf("    First column:  %d\n", loc->first_column);
+   printf("    Line delta:    %d\n", loc->line_delta);
+   printf("    Column delta:  %d\n", loc->column_delta);
+   printf("\n\n");
+#endif
+
+   APUSH(data->top_scope->items, new);
+
+   return data->top_scope->items.count - 1;
 }
 
-int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
-                                   tree_t where, ident_t prefix, int curr_dim)
+///////////////////////////////////////////////////////////////////////////////
+// Toggle coverage item emit
+///////////////////////////////////////////////////////////////////////////////
+
+static bool cover_is_toggle_first(tree_t decl)
+{
+   const tree_kind_t kind = tree_kind(decl);
+   return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
+}
+
+static bool cover_skip_array_toggle(cover_data_t *data, int a_size)
+{
+   assert (data);
+
+   // Array is equal to or than configured limit
+   if (data->array_limit != 0 && a_size >= data->array_limit)
+      return true;
+
+   // Array is multi-dimensional or nested
+   if ((!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS)) && data->array_depth > 0)
+      return true;
+
+   return false;
+}
+
+static int32_t cover_add_toggle_items_one_bit(cover_data_t *data, object_t *obj,
+                                              ident_t suffix, unsigned int flags)
+{
+   assert (obj != NULL);
+
+   int32_t first_item_index = cover_add_item(data, obj, suffix, COV_ITEM_TOGGLE,
+                                             flags | COV_FLAG_TOGGLE_TO_1, 2);
+   cover_add_item(data, obj, suffix, COV_ITEM_TOGGLE, flags | COV_FLAG_TOGGLE_TO_0, 1);
+
+   return first_item_index;
+}
+
+static int32_t cover_add_toggle_items(cover_data_t *data, type_t type,
+                                      object_t *obj, ident_t prefix, int curr_dim)
 {
    assert (data != NULL);
 
@@ -238,13 +264,13 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
       return -1;
 
    unsigned int flags = 0;
-   if (tree_kind(where) == T_SIGNAL_DECL)
+   if (tree_kind(tree_from_object(obj)) == T_SIGNAL_DECL)
       flags |= COV_FLAG_TOGGLE_SIGNAL;
    else
       flags |= COV_FLAG_TOGGLE_PORT;
 
    if (type_is_scalar(type))
-      return cover_add_toggle_items_single_bit(data, where, NULL, flags);
+      return cover_add_toggle_items_one_bit(data, obj, NULL, flags);
    else if (type_is_unconstrained(type))
       return -1;   // Not yet supported
 
@@ -257,12 +283,12 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
 
    assert(low <= high);
 
-   int64_t first, last, i;
-   int32_t first_tag = -1;
-   int inc;
-
    if (cover_skip_array_toggle(data, high - low + 1))
       return -1;
+
+   int64_t first, last, i;
+   int32_t first_item_index = -1;
+   int inc;
 
    data->array_depth++;
 #ifdef COVER_DEBUG_SCOPE
@@ -298,21 +324,16 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
       if (curr_dim == 1) {
          type_t e_type = type_elem(type);
          if (type_is_array(e_type))
-            tmp = cover_add_toggle_items_for(data, e_type, where, arr_suffix,
+            tmp = cover_add_toggle_items(data, e_type, obj, arr_suffix,
                                              dimension_of(e_type));
-         else {
-            int32_t tag = cover_add_toggle_items_single_bit(data, where,
-                                                            arr_suffix, flags);
-            if (tag != -1)
-               tmp = tag;
-         }
+         else
+            tmp = cover_add_toggle_items_one_bit(data, obj, arr_suffix, flags);
       }
       else   // Recurse to lower dimension
-         tmp = cover_add_toggle_items_for(data, type, where, arr_suffix,
-                                          curr_dim - 1);
+         tmp = cover_add_toggle_items(data, type, obj, arr_suffix, curr_dim - 1);
 
       if (i == first)
-         first_tag = tmp;
+         first_item_index = tmp;
       if (i == last)
          break;
 
@@ -325,41 +346,94 @@ int32_t cover_add_toggle_items_for(cover_data_t *data, type_t type,
    printf("Subtracted dimension: %d\n", data->array_depth);
 #endif
 
-   return first_tag;
+   return first_item_index;
 }
 
-cover_item_t *cover_add_branch_items_for(cover_data_t *data, object_t *obj)
+///////////////////////////////////////////////////////////////////////////////
+// Branch coverage item emit
+///////////////////////////////////////////////////////////////////////////////
+
+static int32_t cover_add_branch_items_for(cover_data_t *data, object_t *obj)
 {
    tree_t b = tree_from_object(obj);
+   int first_item_index = -1;
 
    // Case choice
    if (tree_kind(b) == T_ASSOC)
-      return cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
-                            COV_FLAG_CHOICE, 1);
+      first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                                        COV_FLAG_CHOICE, 1);
 
    // If-else
-   cover_item_t *item_true = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
-                                             COV_FLAG_TRUE, 2);
-   if (item_true == NULL)
-      return NULL;
+   else {
+      first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_BRANCH,
+                                        COV_FLAG_TRUE, 2);
+      cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE, 1);
+   }
 
-   int first_item_index = data->top_scope->items.count - 1;
-
-   cover_add_item(data, obj, NULL, COV_ITEM_BRANCH, COV_FLAG_FALSE, 1);
-
-   return AREF(data->top_scope->items, first_item_index);
+   return first_item_index;
 }
 
-cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj)
+///////////////////////////////////////////////////////////////////////////////
+// FSM state coverage item emit
+///////////////////////////////////////////////////////////////////////////////
+
+static bool cover_skip_type_state(cover_data_t *data, type_t type)
+{
+   if (!type_is_enum(type))
+      return true;
+
+   // Ignore enums from built-in libraries
+   ident_t full_name = type_ident(type);
+   if (ident_starts_with(full_name, well_known(W_STD)) ||
+       ident_starts_with(full_name, well_known(W_IEEE)) ||
+       ident_starts_with(full_name, well_known(W_NVC)) ||
+       ident_starts_with(full_name, well_known(W_VITAL)))
+      return true;
+
+   ident_t name = ident_rfrom(full_name, '.');
+   cover_spec_t *spc = data->spec;
+
+   // Type should be recognized as FSM
+   if (spc) {
+      for (int i = 0; i < spc->fsm_type_include.count; i++)
+         if (ident_glob(name, AGET(spc->fsm_type_include, i), -1)) {
+#ifdef COVER_DEBUG_EMIT
+            printf("Cover emit: True, fsm-type (Type: %s, Pattern: %s)\n",
+                  istr(name), AGET(spc->fsm_type_include, i));
+#endif
+            return false;
+         }
+   }
+
+   // By default enums should not included
+   if (data->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
+      return true;
+
+   // Type should not be included
+   if (spc) {
+      for (int i = 0; i < spc->fsm_type_exclude.count; i++)
+         if (ident_glob(name, AGET(spc->fsm_type_exclude, i), -1)) {
+#ifdef COVER_DEBUG_EMIT
+            printf("Cover emit: False, fsm-type (Type: %s, Pattern: %s)\n",
+                   istr(name), AGET(spc->fsm_type_exclude, i));
+#endif
+            return true;
+         }
+     }
+
+   return false;
+}
+
+static int32_t cover_add_state_items_for(cover_data_t *data, object_t *obj)
 {
    type_t type = tree_type(tree_from_object(obj));
 
    if (cover_skip_type_state(data, type))
-      return NULL;
+      return -1;
 
    int64_t low, high;
    if (!folded_bounds(range_of(type, 0), &low, &high))
-      return NULL;
+      return -1;
 
    // Add single coverage item per enum literal. This is to track
    // literal string in the identifier of the coverage item.
@@ -370,72 +444,67 @@ cover_item_t *cover_add_state_items_for(cover_data_t *data, object_t *obj)
 
    for (int64_t i = low; i <= high; i++) {
       tree_t literal = type_enum_literal(base, i);
-      ident_t suffix =
-         ident_prefix(ident_new(".STATE."), tree_ident(literal), '\0');
-      cover_item_t *item = cover_add_item(data,  obj, suffix, COV_ITEM_STATE,
-                                          COV_FLAG_STATE, ((int)(high - i)) + 1);
+      ident_t suffix = ident_prefix(ident_new(".STATE."), tree_ident(literal), '\0');
+      int32_t curr_item_index = cover_add_item(data,  obj, suffix, COV_ITEM_STATE,
+                                               COV_FLAG_STATE, ((int)(high - i)) + 1);
 
-      if (item) {
-         // TODO: Probably needs to be stored only for first item since the coverage
-         //       reporting prints the type name based on first item within FSM!
-         item->func_name = ident_rfrom(itype, '.');
-         if (i == low) {
-            item->metadata = low;
-            first_item_index = data->top_scope->items.count - 1;
-         }
+      // For FSM State coverage, "func_name" stores name of the FSM Enum type
+      // TODO: Move this logic into "cover_add_item"
+      cover_item_t *item = AREF(data->top_scope->items, curr_item_index);
+      item->func_name = ident_rfrom(itype, '.');
+      if (i == low) {
+         item->metadata = low;
+         first_item_index = curr_item_index;
       }
    }
 
-   // Can't hold pointer to first enum item right away since array can re-allocate
-   // when next items are added.
-   return AREF(data->top_scope->items, first_item_index);
+   return first_item_index;
 }
 
-static cover_item_t *cover_add_expression_xor_items(cover_data_t *data, object_t *obj,
-                                                    uint32_t flags)
+///////////////////////////////////////////////////////////////////////////////
+// Expression coverage item emit
+///////////////////////////////////////////////////////////////////////////////
+
+static int32_t cover_add_expression_xor_items(cover_data_t *data, object_t *obj,
+                                              uint32_t flags)
 {
-   cover_item_t *first = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
-                                        flags | COV_FLAG_00, 4);
-   int first_item_index = (first) ? data->top_scope->items.count - 1 : - 1;
+   int first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
+                                         flags | COV_FLAG_00, 4);
 
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_01, 3);
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_10, 2);
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_11, 1);
 
-   return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
+   return first_item_index;
 }
 
-static cover_item_t *cover_add_expression_and_items(cover_data_t *data, object_t *obj,
-                                                    uint32_t flags)
+static int32_t cover_add_expression_and_items(cover_data_t *data, object_t *obj,
+                                              uint32_t flags)
 {
-   cover_item_t *first = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
-                                        flags | COV_FLAG_01, 3);
-   int first_item_index = (first) ? data->top_scope->items.count - 1 : - 1;
+   int first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
+                                         flags | COV_FLAG_01, 3);
 
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_10, 2);
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_11, 1);
 
-   return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
+   return first_item_index;
 }
 
-static cover_item_t *cover_add_expression_or_items(cover_data_t *data, object_t *obj,
-                                                   uint32_t flags)
+static int32_t cover_add_expression_or_items(cover_data_t *data, object_t *obj,
+                                             uint32_t flags)
 {
-   cover_item_t *first = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
-                                        flags | COV_FLAG_00, 3);
-   int first_item_index = (first) ? data->top_scope->items.count - 1 : - 1;
+   int first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
+                                         flags | COV_FLAG_00, 3);
 
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_01, 2);
    cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, flags | COV_FLAG_10, 1);
 
-   return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
+   return first_item_index;
 }
 
-cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
-                                             subprogram_kind_t builtin)
+static int32_t cover_add_builtin_expression_items(cover_data_t *data, object_t *obj,
+                                                  subprogram_kind_t builtin)
 {
-   assert(data != NULL);
-
    // Handle expression result True or False
    switch (builtin) {
    case S_SCALAR_EQ:
@@ -446,13 +515,11 @@ cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
    {
-      int first_item_index = -1;
-      if (cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, COV_FLAG_FALSE, 2))
-         first_item_index = data->top_scope->items.count - 1;
-
+      int first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION,
+                                            COV_FLAG_FALSE, 2);
       cover_add_item(data, obj, NULL, COV_ITEM_EXPRESSION, COV_FLAG_TRUE, 1);
 
-      return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
+      return first_item_index;
    }
 
    case S_SCALAR_XOR:
@@ -468,32 +535,33 @@ cover_item_t *cover_add_expression_items_for(cover_data_t *data, object_t *obj,
       return cover_add_expression_and_items(data, obj, 0);
 
    default:
-      fatal_trace("unhandled subprogram kind %d in cover_add_expression_items_for", builtin);
+      fatal_trace("unhandled subprogram kind %d in cover_add_builtin_expression_items",
+                  builtin);
    }
 
-   return NULL;
+   return -1;
 }
 
-cover_item_t *cover_add_logic_expression_items(cover_data_t *data, object_t *obj)
+static int32_t cover_add_logic_expression_items(cover_data_t *data, object_t *obj)
 {
    tree_t fcall = tree_from_object(obj);
    tree_t decl = tree_ref(fcall);
 
    if (tree_kind(decl) != T_FUNC_DECL)
-      return NULL;
+      return -1;
 
    tree_t container = tree_container(decl);
    if (is_well_known(tree_ident(container)) != W_IEEE_1164)
-      return NULL;
+      return -1;
 
    // Only binary expressions
    if (tree_params(fcall) != 2)
-      return NULL;
+      return -1;
 
    // Skip arrays -> Matches behavior of VCS and Modelsim
    if (type_is_array(type_param(tree_type(decl), 0)) ||
        type_is_array(type_param(tree_type(decl), 1)))
-      return NULL;
+      return -1;
 
    ident_t full_name = tree_ident2(decl);
 
@@ -510,17 +578,22 @@ cover_item_t *cover_add_logic_expression_items(cover_data_t *data, object_t *obj
        ident_starts_with(full_name, well_known(W_IEEE_1164_XNOR)))
       return cover_add_expression_xor_items(data, obj, COV_FLAG_EXPR_STD_LOGIC);
 
-   return NULL;
+   return -1;
 }
 
-cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
-                             cover_item_kind_t kind, uint32_t flags, int consecutive)
+///////////////////////////////////////////////////////////////////////////////
+// Lower EMIT API
+///////////////////////////////////////////////////////////////////////////////
+
+cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
+                                  cover_item_kind_t kind)
 {
    assert(data != NULL);
 
    if (!data->top_scope->emit)
       return NULL;
 
+   // Skip coverage emit when ignored by spec-file -> Common for all item kinds
    cover_scope_t *ignore_scope = data->top_scope;
    for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
         ignore_scope = ignore_scope->parent)
@@ -534,101 +607,62 @@ cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
          return NULL;
    }
 
-   // Everything creates scope, so name of current item is already given
-   // by scope in hierarchy.
-   ident_t hier = data->top_scope->hier;
-   if (suffix)
-      hier = ident_prefix(hier, suffix, '\0');
+   // Emit items based on item kind
+   assert(obj != NULL);
+   tree_t tree = tree_from_object(obj);
+   int32_t first_item_index = -1;
 
-   ident_t func_name = NULL;
-   loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
+   switch (kind) {
+   case COV_ITEM_STMT:
+      first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_STMT, 0, 1);
+      break;
 
-   // Expression items do not nest scope, expression name must be created
-   if (kind == COV_ITEM_EXPRESSION) {
-      char buf[16];
-      checked_sprintf(buf, sizeof(buf), "_E%d", data->top_scope->expression_label);
-      hier = ident_prefix(hier, ident_new(buf), '.');
-      data->top_scope->expression_label++;
+   case COV_ITEM_BRANCH:
+      first_item_index = cover_add_branch_items_for(data, obj);
+      break;
 
-      tree_t t = tree_from_object(obj);
-      assert(t != NULL);
+   case COV_ITEM_STATE:
+      first_item_index = cover_add_state_items_for(data, obj);
+      break;
 
-      // Query LHS/RHS operand locations of binary expressions
-      if (flags & COVER_FLAGS_LHS_RHS_BINS) {
-         assert(tree_params(t) > 1);
-         loc_lhs = *tree_loc(tree_param(t, 0));
-         loc_rhs = *tree_loc(tree_param(t, 1));
-      }
+   case COV_ITEM_FUNCTIONAL:
+      first_item_index = cover_add_item(data, obj, NULL, COV_ITEM_FUNCTIONAL, 0, 1);
+      break;
 
-      func_name = tree_ident(t);
+   case COV_ITEM_TOGGLE:
+   {
+      type_t type = tree_type(tree);
+      const int ndims = dimension_of(type);
+      first_item_index = cover_add_toggle_items(data, type, obj, NULL, ndims);
+
+      break;
+   }
+   case COV_ITEM_EXPRESSION:
+   {
+      assert(tree_kind(tree) == T_FCALL);
+
+      // Choose if to emit for built-in or "std_logic"
+      tree_t decl = tree_ref(tree);
+      const subprogram_kind_t kind = tree_subkind(decl);
+
+      if (is_open_coded_builtin(kind))
+         first_item_index = cover_add_builtin_expression_items(data, obj, kind);
+      else
+         first_item_index = cover_add_logic_expression_items(data, obj);
+
+      break;
    }
 
-   // Append BIN name to the cover item
-   // TODO: Make it for all coverage items kinds
-   if (kind == COV_ITEM_BRANCH || kind == COV_ITEM_TOGGLE || kind == COV_ITEM_EXPRESSION)
-      hier = ident_prefix(hier, ident_new(cover_bmask_to_bin_str(flags)), '.');
+   default:
+      fatal("unsupported type of code coverage: %d at 'cover_add_items_for' !", kind);
+   }
 
-   int64_t metadata = 0;
-   if (kind == COV_ITEM_TOGGLE)
-      metadata = data->top_scope->sig_pos;
-
-   cover_item_t new = {
-      .kind          = kind,
-      .tag           = data->next_tag++,
-      .data          = 0,
-      .flags         = flags,
-      .loc           = *loc,
-      .loc_lhs       = loc_lhs,
-      .loc_rhs       = loc_rhs,
-      .hier          = hier,
-      .func_name     = func_name,
-      .consecutive   = consecutive,
-      .metadata      = metadata,
-      .source        = get_cover_source(kind, obj),
-   };
-
-#ifdef COVER_DEBUG_EMIT
-   printf("Item: %s\n", istr(hier));
-   printf("    Kind:          %s\n", cover_item_kind_str(kind));
-   printf("    Flags:         0x%x\n", flags);
-   printf("    Consecutive:   %d\n", consecutive);
-   printf("    Metadata:      %d\n", metadata);
-   printf("    Function name: %s\n", istr(func_name));
-   printf("    First line:    %d\n", loc->first_line);
-   printf("    First column:  %d\n", loc->first_column);
-   printf("    Line delta:    %d\n", loc->line_delta);
-   printf("    Column delta:  %d\n", loc->column_delta);
-   printf("\n\n");
-#endif
-
-   APUSH(data->top_scope->items, new);
-
-   return AREF(data->top_scope->items, data->top_scope->items.count - 1);
+   return (first_item_index == -1) ? NULL : AREF(data->top_scope->items, first_item_index);
 }
 
-LCOV_EXCL_START
-static void cover_debug_dump(cover_scope_t *s, int indent)
-{
-   color_printf("%*s$!blue$%s", indent, "", istr(s->name));
-   switch (s->type) {
-   case CSCOPE_INSTANCE: color_printf(" : instance"); break;
-   default: break;
-   }
-   color_printf("$$\n");
-
-   for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = &(s->items.items[i]);
-
-      char *path LOCAL = xstrdup(loc_file_str(&item->loc));
-      printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
-             cover_item_kind_str(item->kind), istr(item->hier),
-             basename(path), item->loc.first_line, item->data);
-   }
-
-   for (int i = 0; i < s->children.count; i++)
-      cover_debug_dump(s->children.items[i], indent + 2);
-}
-LCOV_EXCL_STOP
+///////////////////////////////////////////////////////////////////////////////
+// Coverage data write/read to covdb, covdb merging and coverage scope handling
+///////////////////////////////////////////////////////////////////////////////
 
 static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
@@ -715,6 +749,30 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 
    write_u8(CTRL_POP_SCOPE, f);
 }
+
+LCOV_EXCL_START
+static void cover_debug_dump(cover_scope_t *s, int indent)
+{
+   color_printf("%*s$!blue$%s", indent, "", istr(s->name));
+   switch (s->type) {
+   case CSCOPE_INSTANCE: color_printf(" : instance"); break;
+   default: break;
+   }
+   color_printf("$$\n");
+
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
+
+      char *path LOCAL = xstrdup(loc_file_str(&item->loc));
+      printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
+             cover_item_kind_str(item->kind), istr(item->hier),
+             basename(path), item->loc.first_line, item->data);
+   }
+
+   for (int i = 0; i < s->children.count; i++)
+      cover_debug_dump(s->children.items[i], indent + 2);
+}
+LCOV_EXCL_STOP
 
 void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
                       const int32_t *counts)

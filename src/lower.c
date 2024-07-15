@@ -1612,7 +1612,7 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
 
    object_t *obj = tree_to_object(b);
 
-   cover_item_t *item = cover_add_branch_items_for(lu->cover, obj);
+   cover_item_t *item = cover_add_items_for(lu->cover, obj, COV_ITEM_BRANCH);
    int item_cnt = (item) ? item->consecutive : 0;
    vcode_block_t blocks[2] = {true_bb, false_bb};
 
@@ -1634,8 +1634,8 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
    if (!cover_enabled(lu->cover, COVER_MASK_STMT))
       return;
 
-   cover_item_t *item = cover_add_item(lu->cover, tree_to_object(stmt), NULL,
-                                       COV_ITEM_STMT, 0, 1);
+   cover_item_t *item = cover_add_items_for(lu->cover, tree_to_object(stmt),
+                                            COV_ITEM_STMT);
    if (item != NULL)
       emit_cover_stmt(item->tag);
 }
@@ -1653,15 +1653,15 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
       lower_for_each_field(lu, ftype, field_ptr, VCODE_INVALID_REG,
                            locus, lower_toggle_coverage_cb, NULL);
    else {
-      const int ndims = dimension_of(ftype);
-      int32_t tag = cover_add_toggle_items_for(lu->cover, ftype, field, NULL, ndims);
-      if (tag == -1) {
+      cover_item_t *first = cover_add_items_for(lu->cover, tree_to_object(field),
+                                                COV_ITEM_TOGGLE);
+      if (first == NULL) {
          cover_pop_scope(lu->cover);
          return;
       }
 
       vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
-      emit_cover_toggle(nets_reg, tag);
+      emit_cover_toggle(nets_reg, first->tag);
    }
 
    cover_pop_scope(lu->cover);
@@ -1685,15 +1685,15 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl)
                            VCODE_INVALID_REG, lower_toggle_coverage_cb, NULL);
    }
    else {
-      const int ndims = dimension_of(type);
-      int32_t tag = cover_add_toggle_items_for(lu->cover, type, decl, NULL, ndims);
-      if (tag == -1) {
+      cover_item_t *first = cover_add_items_for(lu->cover, tree_to_object(decl),
+                                                COV_ITEM_TOGGLE);
+      if (first == NULL) {
          cover_pop_scope(lu->cover);
          return;
       }
 
       vcode_reg_t nets_reg = emit_load(var);
-      emit_cover_toggle(nets_reg, tag);
+      emit_cover_toggle(nets_reg, first->tag);
    }
 
    cover_pop_scope(lu->cover);
@@ -1709,7 +1709,8 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   cover_item_t *item = cover_add_state_items_for(lu->cover, tree_to_object(decl));
+   cover_item_t *item = cover_add_items_for(lu->cover, tree_to_object(decl),
+                                            COV_ITEM_STATE);
    if (item) {
       vcode_reg_t nets_reg = emit_load(var);
 
@@ -1733,9 +1734,8 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
    if (!cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       return result;
 
-   cover_item_t *first = cover_add_expression_items_for(lu->cover, tree_to_object(fcall),
-                                                        builtin);
-
+   cover_item_t *first = cover_add_items_for(lu->cover, tree_to_object(fcall),
+                                             COV_ITEM_EXPRESSION);
    if (first == NULL)
       return result;
 
@@ -1805,8 +1805,8 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
 static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
                                       vcode_reg_t *args)
 {
-   cover_item_t *first = cover_add_logic_expression_items(lu->cover,
-                                                          tree_to_object(fcall));
+   cover_item_t *first = cover_add_items_for(lu->cover, tree_to_object(fcall),
+                                             COV_ITEM_EXPRESSION);
 
    if (first == NULL)
       return;
